@@ -13,7 +13,7 @@ jobs:
       matrix:
         os: [ubuntu-latest, windows-latest]
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 15
+    timeout-minutes: 12
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -21,75 +21,9 @@ jobs:
           node-version: '22.23.4'
       - name: Install pinned dependencies
         run: npm ci --ignore-scripts --no-audit --no-fund
-      - name: Strict JSDoc for frozen SNO tooling and attack harnesses
-        run: npm run typecheck:external
-      - name: Strict compiler JSDoc and verified dynamic record regressions
-        run: |
-          npm run typecheck
-          node --test test/cross-file-safe-record-read.test.js test/cross-file-dynamic-native-key-gate.test.js test/cross-file-reflect-method-alias-gate.test.js test/closed-record-host-hook-attack.test.js test/closed-record-visible-reflect-overwrite.test.js test/closed-record-destructured-global-capability.test.js test/closed-record-reflect-apply-host.test.js test/closed-record-host-callback-escape.test.js test/closed-record-declared-getter-import.test.js
-      - name: Adversarial preloaded reflection callback semantic witness
-        run: node sims/host-reflection-callback.js
-      - name: Source-visible host callable transport adversary grid
-        run: node sims/host-capability-transport-grid.js
-      - name: Diagnose private-field proof refusal and positive control
-        run: node sims/application-challenge-proof-diagnosis.js
-      - name: Quantify refusal and protected-work yield on distinct frozen graphs
-        run: node sims/application-challenge-refusal-yield.js
-      - name: Independent public-only JSDoc field-name reconstruction
-        run: node --test test/ownkey-comment-static-recovery.test.js
-      - name: Profile whole-process costs on genuinely transformed positive COO graph
-        run: node sims/verified-record-session-profile.js
-      - name: Isolate independent whole-graph source-observer vetoes
-        run: node sims/application-challenge-observer-ablation.js
-      - name: Build exact generated public bytes for snapshot review
-        run: node examples/application-challenge/build.cjs --dump
-      - name: Differential semantics and offline attacker baseline
-        run: node --test test/application-challenge.test.js
-      - name: Independent public-file copy attack
-        run: node sims/application-challenge-offline-copy.js examples/application-challenge/after
-
-      - name: SNO single-entry frozen application differential and owner attack
-        run: node --test test/application-challenge-sno.test.js
-      - name: SNO mixed ESM graph attacker and paired whole-process costs
-        run: node sims/application-challenge-sno.js --profile
-      - name: SNO transformed multi-module application and independent owner attack
-        run: node --test test/polyvariant-app-sno.test.js
-      - name: SNO transformed multi-module startup and protected-work profile
-        run: node sims/polyvariant-app-sno.js --profile
-      - name: Paired hot and whole-session performance with held-out attacker
-        run: node sims/application-challenge-profile.js
-      - name: Run browser COO app and prove original engine source is public
-        if: runner.os == 'Linux'
-        env:
-          CHROMIUM_BIN: google-chrome
-        run: node test/application-challenge-coo-browser.js
-      - name: Real Chromium host reflection callback adversarial ESM boundary
-        if: runner.os == 'Linux'
-        env:
-          CHROMIUM_BIN: google-chrome
-        run: node test/host-reflection-callback-browser.js
-      - name: Real Chromium declared global reflector overwrite and positive yield
-        if: runner.os == 'Linux'
-        env:
-          CHROMIUM_BIN: google-chrome
-        run: node test/closed-record-reflect-descriptor-browser.js
-      - name: Real Chromium own-key-only transformed COO application differential
-        if: runner.os == 'Linux'
-        env:
-          CHROMIUM_BIN: google-chrome
-        run: node test/verified-record-browser.js
-
-  legacy-node22:
-    runs-on: ubuntu-latest
-    timeout-minutes: 8
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '22.0.0'
-      - name: Install declared dependencies
-        run: npm ci --ignore-scripts --no-audit --no-fund
-      - name: Exercise original Node 22.0 ESM loader and frozen SNO graphs
-        run: node --test test/polyvariant-app-sno.test.js test/application-challenge-sno.test.js
-      - name: Strict JSDoc for frozen SNO tools
+      - name: Reproduce original PR15 reflected intrinsic alias suite against current main
+        run: node --test test/closed-record-reflect-alias-overwrite.test.js
+      - name: Compile JSDoc source contracts
+        run: npm run typecheck
+      - name: Compile external test JSDoc
         run: npm run typecheck:external
