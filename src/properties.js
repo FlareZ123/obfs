@@ -1331,6 +1331,19 @@ function collectPrivateDirectCallables(ast,bindings=collectBindings(ast)) {
       // escape for the enclosing callable's original text.
       if(node.type==='CallExpression'||node.type==='NewExpression'||
          node.type==='TaggedTemplateExpression')observed=true;
+      // An unresolved identifier can be a property of the host global
+      // object. Its getter executes in the caller's stack and can inspect
+      // this function through Function.caller without call/member syntax.
+      if(node.type==='Identifier'&&!bindings.has(node.name)&&
+         !['arguments','undefined','NaN','Infinity'].includes(node.name)){
+        const syntaxOnly=parent?.type==='MemberExpression'&&key==='property'&&!parent.computed||
+          parent?.type==='Property'&&key==='key'&&!parent.computed||
+          parent?.type==='MethodDefinition'&&key==='key'&&!parent.computed||
+          parent?.type==='PropertyDefinition'&&key==='key'&&!parent.computed||
+          ['LabeledStatement','BreakStatement','ContinueStatement'].includes(parent?.type??'')&&
+            key==='label'||parent?.type==='MetaProperty';
+        if(!syntaxOnly)observed=true;
+      }
       if(node.type==='MemberExpression'){
         const own=node.object.type==='Identifier'?knownOwnData.get(node.object.name):undefined;
         const name=node.computed?staticString(node.property):staticName(node.property);
