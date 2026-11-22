@@ -53,6 +53,7 @@ async function main() {
     bindings:eligible.metrics.bindings,changed:eligible.code!==inert}));
   assert.ok(eligible.metrics.bindings>0,
     'The identifier transform must have positive eligible rewrite yield');
+  const mismatches=[];
   const dir=await fs.mkdtemp(path.join(os.tmpdir(),'dom-serialization-audit-'));
   try {
     for (const [label, observation] of observations) {
@@ -66,11 +67,14 @@ async function main() {
       assert.deepEqual(native,{value:8,sourceMatch:true});
       assert.deepEqual(renamed,{value:8,sourceMatch:false});
       console.log(JSON.stringify({label,changed:compiled.code!==original,metrics:compiled.metrics,native,renamed,emitted}));
-      assert.deepEqual(emitted,native,'Compiler must preserve DOM-visible source semantics');
+      if(emitted.value!==native.value || emitted.sourceMatch!==native.sourceMatch)
+        mismatches.push(label);
     }
   } finally {
     await fs.rm(dir,{recursive:true,force:true});
   }
+  assert.deepEqual(mismatches,[],
+    'Compiler changed DOM-visible source semantics in these source readers');
 }
 if(require.main===module) main().catch(err=>{console.error(err);process.exitCode=1;});
 module.exports={main};
