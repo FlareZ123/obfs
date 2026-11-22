@@ -321,6 +321,26 @@ test('Unknown or nested timer-spelled bindings remain conservatively refused',()
 });
 
 
+
+test('Mutable host-spelled function declarations are not proven local host-independent bindings',()=>{
+  const cases=[
+    'function setTimeout(value){return value+1;}'+
+      'setTimeout=replacement;return typeof setTimeout;',
+    'function setInterval(value){return value+1;}'+
+      'setInterval++;return typeof setInterval;',
+    'function clearTimeout(value){return value+1;}'+
+      'for(clearTimeout of [42]){}return typeof clearTimeout;'
+  ];
+  for(const body of cases){
+    assert.throws(()=>partitionScoSelectedAsyncExports(
+      {path:'mixed.mjs',sourceType:'module',
+        code:'export async function protectedOp(replacement){'+body+'}'+
+          'export function visible(){return 7;}'},
+      {seed:'sco-owned-function-reassignment-20261122',privateNames:['protectedOp']}
+    ),/Private SCO export or helper contains unproved cross-realm host API/u,body);
+  }
+});
+
 test('Selected SCO requires proven local reads for freshly constructed URL values',()=>{
   const unsafe=[
     'const {constructor:C}=new URL("https://example.org/a");'+
