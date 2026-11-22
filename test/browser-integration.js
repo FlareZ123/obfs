@@ -129,8 +129,8 @@ async function main(){
   const readerSet=obfuscateFiles([
     {path:'reader-state.mjs',sourceType:'module',
       code:'export const state={secretValue:29,otherValue:12};'+
-        'function readSecret(){return state.secretValue;}'+
-        'export function peek(value){return readSecret();}'},
+        'const secretValue=state.secretValue;'+
+        'export function peek(value){return secretValue;}'},
     {path:'reader-identity.mjs',sourceType:'module',
       code:'export const identity=payload=>payload;'},
     {path:'reader-entry.mjs',sourceType:'module',
@@ -197,8 +197,9 @@ async function main(){
         'const tuple=[false,vault];const fromTuple=tuple[1];'+
         'const record={tag:"private",privateOwner:vault};'+
         'const fromRecord=record.privateOwner;'+
-        'function compute(n){return fromTuple.hiddenCount*n+fromRecord.secretDelta;}'+
-        'export function calculate(n){return compute(n);}'},
+        'const hiddenCount=fromTuple.hiddenCount;'+
+        'const secretDelta=fromRecord.secretDelta;'+
+        'export function calculate(n){return hiddenCount*n+secretDelta;}'},
     {path:'container-entry.mjs',sourceType:'module',
       code:'import {calculate} from "./container-state.mjs";'+
         'window.hostApi.accept(calculate(2));'}
