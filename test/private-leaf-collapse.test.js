@@ -76,4 +76,10 @@ test('source-only entry alias and lexical collision are rejected before bundling
   assert.throws(()=>collapsePrivateLeaf(LEAF,reassignment,{entryOnlyReviewed:true}),/reassign imported/);
   const hiddenEval={...ENTRY,code:ENTRY.code+'\neval("typeof owner");'};
   assert.throws(()=>collapsePrivateLeaf(LEAF,hiddenEval,{entryOnlyReviewed:true}),/dynamic scope/);
+  const leakingCallable={...ENTRY,code:
+    'import {readPrivate} from "./private.mjs";export function expose(){return readPrivate;}'};
+  assert.throws(()=>collapsePrivateLeaf(LEAF,leakingCallable,{entryOnlyReviewed:true}),/private callable/);
+  const exposedOwner={...ENTRY,code:
+    'import {owner} from "./private.mjs";export function expose(){return owner.secretFirst;}'};
+  assert.throws(()=>collapsePrivateLeaf(LEAF,exposedOwner,{entryOnlyReviewed:true}),/only private numeric readers/);
 });
