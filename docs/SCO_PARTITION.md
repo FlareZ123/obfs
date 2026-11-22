@@ -272,7 +272,13 @@ The compiler conservatively refuses tested forms of prototype reflection,
 legacy `RegExp` static reads, native constructor-object mutations and
 private browser-only ambient access, including simple aliases and global
 destructuring. It is a bounded syntax-level check, not a general proof
-that arbitrary JavaScript has no hidden shared state. Review each
+that arbitrary JavaScript has no hidden shared state. Selected private
+exports and their server-only helpers also refuse `import.meta` and dynamic
+`import()`: module metadata and module-relative resolution depend on the
+executing module's location and loader, which change when a client function
+moves to the trusted Node server. Use explicitly reviewed static private ESM
+imports for server-owned dependencies, and keep client module URL consumers
+on the client side. Review each
 server-private operation as an explicit server contract, ensure all
 cross-boundary inputs and outputs fit the JSON interface, and test
 the original versus split behavior under the intended browser and
