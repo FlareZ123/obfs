@@ -8,6 +8,10 @@ permissions:
 
 jobs:
   proof:
+    # Only one identical source and platform need execute this expensive matrix.
+    concurrency:
+      group: source-proof-${{ github.sha }}-${{ matrix.os }}
+      cancel-in-progress: true
     strategy:
       fail-fast: false
       matrix:
@@ -19,7 +23,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - run: npm install --no-package-lock --ignore-scripts
+      - run: npm ci --ignore-scripts --no-audit --no-fund
       - name: Inspect inert-clone group versus local owner proofs
         run: node sims/inert-clone-source-triage.js
       - name: Direct declaration reader interprocedural proof and native ESM differential
