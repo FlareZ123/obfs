@@ -188,3 +188,40 @@ for (const mode of /** @type {Array<'coo'|'sno'>} */ (['coo', 'sno'])) {
     }
   );
 }
+
+for (const mode of /** @type {Array<'coo'|'sno'>} */ (['coo', 'sno'])) {
+  for (const fixture of [
+    {name: 'named exported reader',
+      source: 'const owner={privateField:7};function read(){return owner.privateField;}' +
+        'module.exports=read;',
+      importer: 'const fn=require(process.argv[1]);' +
+        'process.stdout.write(JSON.stringify({value:fn(),source:fn.toString()}));'},
+    {name: 'exported object method',
+      source: 'const owner={privateField:7};module.exports={read(){return owner.privateField;}};',
+      importer: 'const obj=require(process.argv[1]);' +
+        'process.stdout.write(JSON.stringify({value:obj.read(),source:obj.read.toString()}));'}
+  ]) {
+    test(mode + ' direct exported function source must remain observable: ' +
+      fixture.name, async () => {
+      const transformed=compile(fixture.source,mode);
+      const native=await loadFromOutside(fixture.source,fixture.importer);
+      const emitted=await loadFromOutside(transformed.code,fixture.importer);
+      assert.equal(JSON.parse(native).value,7);
+      assert.equal(emitted,native,
+        'Public function source includes the renamed owner-field reference');
+      assert.equal(transformed.renamed,0,
+        'Exported source-bearing function should prevent changing its body');
+    });
+  }
+  test(mode + ' private direct reader exporting only primitive retains key renaming',
+    async () => {
+      const original='const owner={privateField:7};' +
+        'function read(){return owner.privateField;}module.exports=read();';
+      const transformed=compile(original,mode);
+      const importer='process.stdout.write(String(require(process.argv[1])));';
+      assert.equal(await loadFromOutside(original,importer),'7');
+      assert.equal(await loadFromOutside(transformed.code,importer),'7');
+      assert.ok(transformed.renamed>0,'Private direct reader should still rewrite');
+    }
+  );
+}
