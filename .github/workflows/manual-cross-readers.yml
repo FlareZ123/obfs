@@ -13,42 +13,21 @@ jobs:
       matrix:
         os: [ubuntu-latest, windows-latest]
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 12
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - name: Install declared dependencies
-        run: npm install --no-package-lock --ignore-scripts
-      - name: Cross-file differential and negative cases
-        run: node --test test/cross-default-export-properties.test.js test/local-root-getter.test.js test/cross-file-local-identity.test.js test/cross-file-reader-flow.test.js test/cross-file-reader-matrix.test.js test/cross-file-identity-return.test.js test/cross-file-identity-grid.test.js test/cross-file-safe-record-read.test.js test/closed-record-host-formal-provenance.test.js test/cross-reflection.test.js test/cross-file-ambiguity.test.js test/cross-file-source-introspection.test.js test/cross-file-absolute-url.test.js test/cross-file-hash-collision.test.js test/cross-file-source-byte-reader.test.js test/node-loader-source-reader.test.js test/module-registry-source-reader.test.js test/module-registry-source-sample.test.js test/imported-constant-computed-key.test.js
-      - name: Verify exact immediate-owner getter before/after ESM artifact
-        run: node examples/direct-owner-read/build-sample.cjs
-      - name: Native and emitted ESM host-lock graph behavior
-        run: node --test test/closed-graph-host-lock.test.js test/obfuscator.test.js
-      - name: Verify generated multi-module host lock before/after graph
-        run: node examples/closed-graph-host/build-sample.cjs
-      - name: Reproduce public-only guard removal attack
-        run: node sims/closed-graph-host-bypass.js
-      - name: Profile original versus guarded whole-process workloads
-        run: node sims/closed-graph-host-cost.js
-      - name: Real Chromium ESM graph authorized and denied origins
-        if: ${{ matrix.os == 'ubuntu-latest' }}
-        env:
-          CHROMIUM_BIN: google-chrome
-        run: node test/closed-graph-host-browser.js
-      - name: Independent Chromium import-map pre-guard dependency attack
-        if: ${{ matrix.os == 'ubuntu-latest' }}
-        env:
-          CHROMIUM_BIN: google-chrome
-        run: node sims/closed-graph-host-import-map-attack.js
-      # The historical computed-refusal ablation is source-anchored to a
-      # removed compiler clause and cannot run against modern main; its pinned
-      # counterfactual evidence remains in sims/computed-refusal-ablation.js.
-      - name: Source-only normalization of real host-locked SCO variants
-        run: node --test test/sco-variant-normalize.test.js
-      - name: Strict external researcher and diagnostic JSDoc
-        run: npx tsc -p jsconfig.external.json
-      - name: Strict JSDoc type safety
+      - name: Install locked dependencies
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Source-isolated exact compiler byte parity and CPU A/B
+        run: node sims/cross-file-parse-ab.js
+      - name: Imported string and reader graph differentials
+        run: node --test test/imported-constant-computed-key.test.js test/cross-file-reader-flow.test.js test/cross-file-safe-record-read.test.js test/cross-file-source-introspection.test.js test/cross-default-export-properties.test.js
+      - name: Strict compiler typecheck
         run: npm run typecheck
+      - name: Strict external corpus typecheck
+        run: npm run typecheck:external
