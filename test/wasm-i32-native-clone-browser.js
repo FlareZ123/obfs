@@ -13,12 +13,14 @@ const {reconstructPublicWasmEsm}=require('../sims/wasm-i32-esm-native-rebuild');
 /** @type {InputFile[]} */
 const graph=[
   {path:'kernel.mjs',sourceType:'module',
-    code:'export function scramble(a,b,c,d){return (((a^b)&(c|d))^((a>>>d)|(c<<b)));}'+
-      'export function mask(x){return x?((x^137)&255):((~x)|7);}'},
+    code:'function scramble(a,b,c,d){return (((a^b)&(c|d))^((a>>>d)|(c<<b)));}'+
+      'function mask(x){return x?((x^137)&255):((~x)|7);}'+
+      'export function publicScramble(a,b,c,d){return scramble(a,b,c,d);}'+
+      'export function publicMask(x){return mask(x);}'},
   {path:'bridge.mjs',sourceType:'module',
     code:'export function forward(value,label){return globalThis.externalBridge.deliver(value,label);}'},
   {path:'entry.mjs',sourceType:'module',
-    code:'import {scramble,mask} from "./kernel.mjs";'+
+    code:'import {publicScramble as scramble,publicMask as mask} from "./kernel.mjs";'+
       'import {forward} from "./bridge.mjs";'+
       'export function run(a,b,c,d,label){return forward((scramble(a,b,c,d)^mask(a))|0,label);}'}
 ];
