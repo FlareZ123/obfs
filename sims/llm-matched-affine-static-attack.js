@@ -8,7 +8,7 @@ const {recoverMinifiedPublicMath}=require('./polyvariant-app-minified-static-att
 const targetNames=Object.freeze(['round1','round2','round3']);
 
 /** @typedef {{factor:number,offset:number,normalized:boolean,magnitude:number}} Linear */
-/** @typedef {{kind:'generated'|'esbuild-minified',offsets:Record<string,number>,bytes:number,attackMs:number}} Attack */
+/** @typedef {{kind:'generated'|'esbuild-minified',offsets:Record<string,number>,reconstructedSource:string,bytes:number,attackMs:number}} Attack */
 
 /**
  * A symbolic Int32 expression interpreter operating only on the public
@@ -122,7 +122,12 @@ function attackPublishedSource(source){
     const parsed=recoverMinifiedPublicMath(source);
     for(const fn of parsed.functions)offsets[fn.name]=minifiedOffset(fn.source);
   }
-  return {kind,offsets,bytes,attackMs:performance.now()-begun};
+  // Synthesize a standalone public-API-compatible ESM module using only
+  // recovered offsets, never the original hidden source or runtime oracle.
+  const reconstructedSource=targetNames.map(name=>
+    'export function '+name+'(input){return (((input|0)+('+offsets[name]+'))|0);}'
+  ).join('\n');
+  return {kind,offsets,reconstructedSource,bytes,attackMs:performance.now()-begun};
 }
 
 module.exports={attackPublishedSource,minifiedOffset};
