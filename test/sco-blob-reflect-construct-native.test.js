@@ -44,8 +44,7 @@ test('direct and locally aliased transparent Blob remain portable positives',()=
   const safe=[
     "const blob=new Blob(['A\\nB'],{endings:'transparent'});",
     "const Ctor=Blob;const blob=new Ctor(['A\\nB'],{endings:'transparent'});",
-    "const Ctor=globalThis.Blob;const blob=new Ctor(['A\\nB'],{endings:'transparent'});",
-    "const {Blob:Ctor}=globalThis;const blob=new Ctor(['A\\nB'],{endings:'transparent'});"
+    "const Ctor=Blob;const Alias=Ctor;const blob=new Alias(['A\\nB'],{endings:'transparent'});"
   ];
   for(const source of safe){
     const result=partition(source+bytes);
@@ -65,4 +64,16 @@ test('native reflected Blob and direct Blob share host line ending semantics',as
   const portable=Reflect.construct(Blob,[parts,{endings:'transparent'}]);
   assert.deepEqual(Array.from(new Uint8Array(await portable.arrayBuffer())),
     [65,10,66]);
+});
+
+
+test('global-object Blob aliases remain conservatively refused by ambient guard',()=>{
+  const sources=[
+    "const Ctor=globalThis.Blob;const blob=new Ctor(['A\\nB'],{endings:'transparent'});",
+    "const {Blob:Ctor}=globalThis;const blob=new Ctor(['A\\nB'],{endings:'transparent'});"
+  ];
+  for(const source of sources){
+    assert.throws(()=>partition(source+bytes),TypeError,
+      'Cross-host global-object alias has no ambient identity proof: '+source);
+  }
 });
