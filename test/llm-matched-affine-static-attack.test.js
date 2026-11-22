@@ -143,6 +143,17 @@ test('symbolic generated-case proof recovers the frozen two-path CJS output',asy
   assert.equal(exact.offset,original.offset);
 });
 
+test('symbolic generated-case proof refuses a nonlinear register in valid case topology',async()=>{
+  const source=await fs.readFile(path.join(__dirname,
+    '../examples/polyvariant-affine/obfuscated.cjs'),'utf8');
+  const slot=source.match(/const (_ap_slot_[0-9a-f]+)=/u);
+  assert.ok(slot,'Frozen compiler output must declare a case-local slot');
+  const altered=source.replace('*1769473','*('+slot[1]+'&255)');
+  assert.notEqual(altered,source,'Must actually alter a generated expression');
+  assert.throws(()=>recoverSymbolicAffine(altered,'guardedTotal','commonjs'),
+    /Unsupported symbolic expression/u);
+});
+
 test('symbolic static minified parser refuses unnormalized or nonaffine expressions',()=>{
   const rejected=[
     'function n(x){return (x+1)|0;}',
