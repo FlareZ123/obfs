@@ -61,7 +61,7 @@ application exports become visible.
 
 Candidate source and tests are committed to the research branch. A syntax
 compilation check of `src/sno.js` passed in an isolated V8 runtime.
-**No cross-platform CI verdict is asserted here yet.** Record exact
+**Cross-platform CI on the candidate and its negative controls is being evaluated; no result is asserted here yet.** Record exact
 immutable SHA, Ubuntu/Windows focused run, strict JSDoc result and full
 integration verdict before proposing integration to main.
 
@@ -90,6 +90,34 @@ metadata found **identical output** before and after this candidate,
 with an added 652 source bytes for one explicitly declared .js file.
 These are bounded simulations and local Node controls. Cross-platform
 tests still have final authority before integration.
+
+### Native module-cache observer: candidate is inadmissible as a default
+
+The correction using `require.resolve` has a separate semantic cost:
+Node 22.16.0 records successful resolutions in the private but
+JavaScript-visible `require('node:module')._pathCache`. A local native
+control ran an `entry.cjs` that counted cached paths containing an
+otherwise unused `pending.js`. With an ordinary launcher it returned
+**0**; adding a prior `require.resolve('./pending.js')` made the exact
+same entry return **1**. Both executions exited successfully.
+
+The source-pinned candidate negative control
+[`test/sno-runtime-scope-pathcache-negative.test.js`](../test/sno-runtime-scope-pathcache-negative.test.js)
+creates a real two-file SNO build. It asserts that native Node returns
+`false` before resolving an unreferenced helper while the proposed
+**default** all-file runtime check returns `true`, due solely to a
+premature cache entry. This test is designed to **pass by detecting a
+real compatibility failure**; its green status would be evidence to
+reject the candidate as a default, not approval to merge it.
+
+This violates the stated source-behavior 1:1 requirement even with
+default Node flags. Merely checking and then deleting cache entries
+could disturb concurrent or hooked resolution and would depend on
+undocumented loader internals. A future opt-in diagnostic may still be
+reasonable if users accept this observer change, but the current
+candidate must remain isolated from main until the default side
+effects are eliminated or explicitly gated. The mainline SNO compiler
+continues using the already validated **build-time** admission only.
 
 ## Limits and risks
 
