@@ -48,3 +48,42 @@ Continue useful research until the lease age measured by runtime reaches at leas
 1. Formally and empirically investigate safe per-module source observer provenance with Agent39's frozen graph and my transformed leaf island. Maintain exact behavior under reflective, dynamic, external source observations and unknown re-exports; fail closed.
 2. Evaluate any genuinely new structural obfuscator candidate against the **same** 96-case stateful app, 12,288 static probes, direct-ESM execution, manifest rewrite and in-memory loader substitution at the 2.5x real work budget. Recovery and copying currently succeed despite 3 changed arithmetic leaves and exact cross-OS output. Compare normalized attack budgets, not syntax size.
 3. Keep the SNO full-owner negative results separated from SCO server-private source withholding and COO semantics. SNO local digest remains an accidental corruption check under this threat model. User demands strongest possible obfuscator but the current suite has **not** established static/dynamic/tamper resistance of a substantial protected graph.
+
+
+## 22 November 2026: SNO ambient package-scope compatibility gate
+
+- Invocation RNG returned **4** (normal mode). Claimed stale Agent 45 identity at
+  `2026-11-22T12:26:25.411Z` via confirmed main commit
+  `0367217e318b4733482d8a7a27a0172f3f2d3781`. **Do not refresh lease.**
+  At first checkpoint of at least 70 minutes (13:36:25.411 UTC), update memory,
+  commit/push useful work, and delete lease as final mutation.
+- Audited `src/cli.js` and `src/sno.js`; the compiler infers .js package
+  scope from input files but an emitted SNO CommonJS .js file can inherit an
+  unrelated output ancestor `{"type":"module"}`. A direct Node 22.16.0
+  isolated experiment reproduced unchanged CommonJS source failing as ESM
+  with `ReferenceError: module is not defined`.
+- Draft [PR #283](https://github.com/FlareZ123/obfs/pull/283), branch
+  `agent45/sno-ambient-package-scope-20261122`, adds a **build-time**
+  fail-closed SNO output-scope check, four admissible/refusal positive controls
+  plus a `node_modules` boundary test, README/security notes, and bounded
+  [intermediate report](../../im-results/sno-ambient-output-package-scope-2026-11-22.md).
+  The check canonicalizes the output path and refuses an external ESM package
+  scope when an emitted .js file has no emitted nearest package.json.
+- Focused [Ubuntu/Windows run 45022626170](https://github.com/FlareZ123/obfs/actions/runs/45022626170)
+  green at four-case source `a93a8c6e9ba2d79420dbb1f848c6c2d1c7a716df`.
+  Expanded five-case [focused run 45022956596](https://github.com/FlareZ123/obfs/actions/runs/45022956596)
+  green at `d8eb149c1264f72a7d7e5566e5e8c175c390938f`, including both strict
+  JSDoc gates per OS.
+- One full integrated [run 45022860316](https://github.com/FlareZ123/obfs/actions/runs/45022860316)
+  dispatched at intermediate documentation source
+  `838a48462d563ac8a1e6168e9a4b31ee87ab00dc`; it includes the exact
+  executable code and first four cases. Record its result when complete.
+  No second full run is necessary for the extra node_modules positive control.
+- Sent [Agent 20 a Windows case-variant package-metadata falsification question](../../communications/agent20/20261122T1236Z_agent45_sno-package-json-case-identity-question.md).
+  An uppercase `PACKAGE.JSON` on a case-insensitive checkout may influence
+  Node's nearest package scope while the CLI exact-path predicate ignores it;
+  this remains **unverified** and should not be asserted as a bug.
+- This is SNO packaging compatibility, **not** obfuscation resistance:
+  relocating output, direct `createSnoLauncher`, hostile loader and
+  filesystem-owner attacks are outside this preflight's guarantee.
+  Release remains blocked. The branch is an isolated PR, not merged main.
