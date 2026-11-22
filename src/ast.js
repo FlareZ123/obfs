@@ -1929,7 +1929,8 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
   function constructObservesSource(target,passed) {
     const boundRegExp=isBoundRegExpConstructor(target);
     const boundString=isBoundStringConstructor(target);
-    const nativeStringCoercer=isCoercer(target)||boundRegExp||boundString;
+    const nativeStringCoercer=isCoercer(target)||boundRegExp||boundString||
+      isNodeUtilMimeConstructor(target);
     const webScalar=isWebConstructor(target,webScalars,webScalarNames);
     const webDictionary=isWebConstructor(target,webDictionaries,webDictionaryNames);
     const blobOptions=isBlobConstructor(target);
@@ -2309,7 +2310,7 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
   /** @type {Map<string,string>} */
   const nodeUtilMethods=new Map();
   const inspectedUtilMethods=new Set(['inspect','format','formatWithOptions',
-    'getCallSites','getCallSite','toUSVString']);
+    'getCallSites','getCallSite','toUSVString','MIMEType']);
   /** @param {AstNode|null|undefined} node @returns {boolean} */
   function isNodeUtilRequire(node) {
     return Boolean(node?.type==='CallExpression' &&
@@ -2348,7 +2349,13 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
    * @returns {boolean}
    */
   function isNodeUtilSourceCoercer(node) {
-    return nodeUtilMethod(node)==='toUSVString' ||
+    return ['toUSVString','possibleSourceCoercer'].includes(nodeUtilMethod(node)??'') ||
+      Boolean(node?.type==='MemberExpression' && node.computed &&
+        sourceStringKey(node.property)===null && isNodeUtilNamespace(node.object));
+  }
+  /** @param {AstNode|null|undefined} node @returns {boolean} */
+  function isNodeUtilMimeConstructor(node) {
+    return ['MIMEType','possibleSourceCoercer'].includes(nodeUtilMethod(node)??'') ||
       Boolean(node?.type==='MemberExpression' && node.computed &&
         sourceStringKey(node.property)===null && isNodeUtilNamespace(node.object));
   }
@@ -2385,7 +2392,7 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
              (name!==null&&inspectedUtilMethods.has(name) ||
               property.computed&&name===null) &&
              !nodeUtilMethods.has(bound.name)) {
-            nodeUtilMethods.set(bound.name,name??'toUSVString');
+            nodeUtilMethods.set(bound.name,name??'possibleSourceCoercer');
             changedNodeUtil=true;
           }
         }
@@ -2931,6 +2938,13 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
       // throw messages containing the exact native function-source spelling.
       if(node.type==='CallExpression' && isV8SerializerWrite(callee) &&
          node.arguments[0] && !isInertCloneInput(node.arguments[0]))observed=true;
+      if(node.type==='NewExpression' && isNodeUtilMimeConstructor(callee) &&
+         node.arguments[0]&&!isDefinitelyPrimitive(node.arguments[0]))
+        observed=true;
+      if(node.type==='CallExpression' && callee.type==='MemberExpression' &&
+         isNodeUtilMimeConstructor(callee.object) &&
+         memberName(callee)==='bind' && node.arguments[1] &&
+         !isDefinitelyPrimitive(node.arguments[1]))observed=true;
       if(node.type==='CallExpression' && callee.type==='MemberExpression' &&
          isV8SerializerWrite(callee.object)) {
         const method=memberName(callee);
