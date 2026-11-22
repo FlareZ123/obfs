@@ -34,6 +34,7 @@ const {isUtf8} = require('node:buffer');
 const {parse,walk,applyEdits,observesFunctionSource,observesDistributedSource} = require('./ast');
 const {obfuscateFiles,safePath} = require('./core');
 const {createPathInventory,registerFilePath,portableKeys} = require('./portable-paths');
+const {collectBindings}=require('./properties');
 const {renameCrossFileProperties,collectVerifiedImportedStrings,collectVerifiedImportedCloneAliases,collectVerifiedImportedUrlStaticAliases} = require('./cross-properties');
 const {getScoBatchCalls,isScoBatchMethod} = require('./rpc-batch');
 const {ScoIsolationBusyError} = require('./rpc-keyed-isolation');
@@ -548,6 +549,18 @@ function createScoHandler(sourceFiles,options={}) {
     assertNoSourceMapDisclosure(normalizedFile);
     return normalizedFile;
   });
+  // Host injection runs before the source's lexical initializers. A local
+  // globalThis declaration shadows the host object and leaves the injected
+  // guard in a temporal dead zone. Decline this source at startup rather
+  // than exposing a public route which later returns HTTP 500 for every GET.
+  if(allowedHosts?.length){
+    for(const file of normalized){
+      if(file.sourceType==='asset')continue;
+      if(collectBindings(parse(/** @type {string} */(file.code),file.sourceType)).has('globalThis')){
+        throw new TypeError('Host locking cannot preserve a shadowed globalThis binding in SCO file '+file.path);
+      }
+    }
+  }
   assertReviewedOpaqueAssets(normalized,options.reviewedOpaqueAssets);
   if(publicAllowlist&&publicAllowlist.size!==normalized.length){
     throw new TypeError('SCO publicPaths must exactly match supplied sourceFiles');

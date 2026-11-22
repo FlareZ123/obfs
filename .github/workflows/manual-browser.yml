@@ -43,6 +43,14 @@ jobs:
         env:
           CHROMIUM_BIN: google-chrome
         run: node test/document-write-sri-browser.js
+      - name: Compare native and SCO SRI at percent-encoded HTTP route mounts
+        env:
+          CHROMIUM_BIN: google-chrome
+        run: node test/sco-sri-encoded-route-browser.js
+      - name: Verify SRI with URL-encoded document filename segments
+        env:
+          CHROMIUM_BIN: google-chrome
+        run: node test/html-sri-filename-browser.js
       - name: Verify portable URL SRI aliases retain exact script bytes
         run: node --test test/sri-portable-url-alias.test.js
       - name: Verify SRI under real Chromium with case- and NFC-normalizing HTTP paths

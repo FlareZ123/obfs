@@ -7,7 +7,7 @@ const os=require('node:os');
 const path=require('node:path');
 const {spawnSync}=require('node:child_process');
 const vm=require('node:vm');
-const {obfuscateFiles}=require('../src');
+const {obfuscateFiles,createScoHandler}=require('../src');
 const {atomicWrite}=require('../src/atomic');
 
 /** @typedef {{path:string,sourceType:'module',code:string}} Module */
@@ -175,18 +175,17 @@ test('closed ESM dependency chain accepts canonical IPv6 and rejects denied host
 
 test('hostname guard declines files with a local globalThis binding',()=>{
   const native='const globalThis={value:7};globalThis.value;';
-  const allowedHost={location:{hostname:'allowed.example'}};
-  assert.equal(vm.runInNewContext(native,allowedHost),7);
+  const allowedHost=()=>({location:{hostname:'allowed.example'}});
+  assert.equal(vm.runInNewContext(native,allowedHost()),7);
   // This is the pre-fix output's guard position: the original lexical
   // globalThis is still uninitialized when the guard reads it.
   const guard=';(()=>{const h=globalThis.location?.hostname?.toLowerCase();})();\n';
-  assert.throws(()=>vm.runInNewContext(guard+native,allowedHost),
+  assert.throws(()=>vm.runInNewContext(guard+native,allowedHost()),
     /Cannot access 'globalThis' before initialization/);
 
   const inputs=/** @type {const} */ ([
     {path:'entry.js',sourceType:'script',code:native},
     {path:'entry.mjs',sourceType:'module',code:'const globalThis={value:8};export const result=globalThis.value;'},
-    {path:'entry.cjs',sourceType:'commonjs',code:'var globalThis=4;module.exports=globalThis;'},
     {path:'entry.mjs',sourceType:'module',code:'class globalThis {} export const value=1;'},
     {path:'entry.mjs',sourceType:'module',code:'function nested(globalThis){return globalThis;}export const value=nested(9);'}
   ]);
@@ -197,10 +196,34 @@ test('hostname guard declines files with a local globalThis binding',()=>{
     }),/Host locking cannot preserve a shadowed globalThis binding/,
     file.sourceType+' '+file.code);
   }
+  // The existing CommonJS refusal takes precedence over host-guard injection.
+  assert.throws(()=>obfuscateFiles([{
+    path:'entry.cjs',sourceType:'commonjs',
+    code:'var globalThis=4;module.exports=globalThis;'
+  }],{mode:'coo',allowedHosts:['allowed.example']}),
+  /Host lock unavailable for CommonJS file/);
   const safe=obfuscateFiles([{
     path:'ordinary.js',sourceType:'script',
     code:'globalThis.allowedValue=29;'
   }],{mode:'coo',seed:'host-global-shadow-positive',
     allowedHosts:['allowed.example'],strings:false,properties:false,identifiers:false});
   assert.match(String(safe.files[0].code),/Unauthorized execution host/);
+});
+
+
+test('SCO handler refuses shadowed host-global at startup before route publication',()=>{
+  const source=[{
+    path:'client.js',sourceType:/** @type {const} */('script'),
+    code:'const globalThis={value:7};globalThis.value;'
+  }];
+  assert.throws(()=>createScoHandler(source,{
+    allowedHosts:['allowed.example']
+  }),/Host locking cannot preserve a shadowed globalThis binding in SCO file client\.js/);
+  // The lexical binding is valid and may run without the optional host guard.
+  assert.doesNotThrow(()=>createScoHandler(source));
+  // Literal asset payloads are served verbatim, so a JavaScript-looking byte
+  // sequence in an asset must never be misclassified as a lexical declaration.
+  assert.doesNotThrow(()=>createScoHandler([{
+    path:'ordinary.txt',sourceType:'asset',code:'const globalThis=1;'
+  }],{allowedHosts:['allowed.example']}));
 });
