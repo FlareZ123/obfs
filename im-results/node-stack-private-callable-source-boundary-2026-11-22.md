@@ -59,3 +59,59 @@ arbitrary externally observed function-source spelling and rename that
 spelling. Deployment must explicitly define whether such host-controlled
 source observers fall within its claimed compatibility contract. It does
 not expand the static attack capability or demonstrate a source secrecy gain.
+
+
+## Real Chromium COO source-dependent execution
+
+A separate source-pinned real-browser test at
+[`ffe01596e7f140fa34f2628e3fde4ae276e95e97`](https://github.com/FlareZ123/obfs/commit/ffe01596e7f140fa34f2628e3fde4ae276e95e97)
+proves the same V8 observer mechanism in **client-only browser execution**:
+`test/coo-stack-private-source-browser.test.js`. [Focused validation
+45082169462](https://github.com/FlareZ123/obfs/actions/runs/45082169462)
+completed **SUCCESS** on Ubuntu/Windows; the browser test executed in real
+Google Chrome on Ubuntu and intentionally skipped browser execution on Windows.
+Strict project/external JSDoc steps passed. Its Ubuntu execution printed:
+
+```json
+{"nativeValue":18,"emittedValue":17,"nativeSourceCaptured":true,"emittedSourceCaptured":true,"renamedBindings":1}
+```
+
+The original classic script places a private `const privateHelper` arrow inside
+a block, calls it once to initialize a top-level lexical result and exposes
+only that numeric result to a subsequent script. The obfuscator, invoked with
+`mode:'coo'`, transformed exactly one binding. The host page installed an
+`Error.prepareStackTrace` callback before loading the unmodified or obfuscated
+JavaScript. A replaced `Math.random` inspected `CallSite.getFunction()` during
+the helper's direct execution and returned 1 when the captured source contained
+the original parameter spelling. The native value was 18; emitted was 17.
+
+The host is deliberately privileged, as assumed by COO's attacker model.
+This checks the correctness boundary for arbitrary host-supplied source
+observers and demonstrates access to the **emitted** function source. It does
+not recover the original source bytes from an obfuscated binary without having
+the native baseline or determine resistance relative to a minifier.
+
+### Positive-yield fixture selection
+
+The [diagnostic admission matrix 45082043932](https://github.com/FlareZ123/obfs/actions/runs/45082043932)
+at `22452b3c3eef78bf62119bb188e395c0fd69f796` passed on both Node22
+operating systems. It distinguishes one block-scoped classic script candidate
+(`bindings=1`) from an inline IIFE candidate (`bindings=0`) and confirms
+that neither is source-observing by the local AST proof. Earlier browser
+hypotheses `ad838cfdbafe3da4ff52698d63af2481869853dc`,
+`36725f0b3502ed98060d310615cf64ed114b9664` and
+`c360b55031319ed801f2681802642c8ff397a75b` deliberately asserted
+nonzero yield and **failed** before executing the browser. They cannot serve
+as source-parity counterexamples. The block-scoped fixture is the real,
+measured compiler-positive case.
+
+## Strict-mode boundary
+
+The SNO test was extended at
+`108ec55024c2d2c90a2da98c6139a2decf601e2b` with a strict-mode
+negative control. [Run 45082176617](https://github.com/FlareZ123/obfs/actions/runs/45082176617)
+passed all three SNO cases on Ubuntu and Windows, including the assertion
+that V8 `CallSite.getFunction()` returns `undefined` for the tested strict
+helper frame. The result narrows the current extraction witness: it is
+effective for the demonstrated non-strict synchronous shapes. The full-control
+SNO attacker retains other memory/debugging capabilities outside this API.
