@@ -18,13 +18,15 @@ function program(observation, changed) {
     'globalThis.result={value:calculate(3),sourceMatch:observed.includes("private"+"Number")};';
 }
 
-/** @param {string} dir @param {string} name @param {string} code @returns {Promise<{value:number,sourceMatch:boolean}>} */
-async function browser(dir, name, code) {
+/** @param {string} dir @param {string} name @param {string} code @param {'script'|'module'} sourceType @returns {Promise<{value:number,sourceMatch:boolean}>} */
+async function browser(dir, name, code, sourceType) {
   const filename = path.join(dir, name + '.html');
   const html = '<!doctype html><html><body><pre id="result">pending</pre>' +
-    '<script id="script-probe">' + code + '</script>' +
-    '<script>document.getElementById("result").textContent=' +
-    'btoa(JSON.stringify(globalThis.result));</script></body></html>';
+    '<script id="script-probe"' +
+    (sourceType==='module' ? ' type="module"' : '') + '>' + code + '</script>' +
+    '<script>window.addEventListener("load",()=>{' +
+    'document.getElementById("result").textContent=' +
+    'btoa(JSON.stringify(globalThis.result));});</script></body></html>';
   await atomicWrite(filename, html);
   const {stdout,stderr} = await run(process.env.CHROMIUM_BIN || 'google-chrome', [
     '--headless', '--no-sandbox', '--disable-gpu', '--disable-dev-shm-usage',
@@ -37,13 +39,18 @@ async function browser(dir, name, code) {
 
 /** @returns {Promise<void>} */
 async function main() {
+  /** @type {Array<[string,string,'script'|'module']>} */
   const observations = [
-    ['document-root-outer-html', 'document.documentElement.outerHTML'],
-    ['body-inner-html', 'document.body.innerHTML'],
-    ['html-selector-inner-html', 'document.querySelector("html").innerHTML'],
-    ['id-script-text', 'document.getElementById("script-probe").textContent'],
-    ['html-root-text-content', 'document.documentElement.textContent'],
-    ['xml-serializer-document', 'new XMLSerializer().serializeToString(document)'],
+    ['document-root-outer-html', 'document.documentElement.outerHTML', 'script'],
+    ['body-inner-html', 'document.body.innerHTML', 'script'],
+    ['html-selector-inner-html', 'document.querySelector("html").innerHTML', 'script'],
+    ['id-script-text', 'document.getElementById("script-probe").textContent', 'script'],
+    ['html-root-text-content', 'document.documentElement.textContent', 'script'],
+    ['xml-serializer-document', 'new XMLSerializer().serializeToString(document)', 'script'],
+    // Inline module source is present in the document even though currentScript
+    // is null during module execution.
+    ['module-document-root-outer-html', 'document.documentElement.outerHTML', 'module'],
+    ['module-xml-serializer-document', 'new XMLSerializer().serializeToString(document)', 'module'],
   ];
   // This must be a genuinely eligible function-local binding. A top-level
   // classic-script lexical is not proof of transformability.
@@ -58,14 +65,14 @@ async function main() {
   const mismatches=[];
   const dir=await fs.mkdtemp(path.join(os.tmpdir(),'dom-serialization-audit-'));
   try {
-    for (const [label, observation] of observations) {
+    for (const [label, observation, sourceType] of observations) {
       const original=program(observation,false);
       const renamedCode=program(observation,true);
-      const compiled=obfuscateFiles([{path:'inline.js',sourceType:'script',code:original}],
+      const compiled=obfuscateFiles([{path:'inline.js',sourceType,code:original}],
         {mode:'coo',seed:'dom-serialization/'+label,strings:false,identifiers:true}).files[0];
-      const native=await browser(dir,label+'-native',original);
-      const renamed=await browser(dir,label+'-renamed',renamedCode);
-      const emitted=await browser(dir,label+'-emitted',compiled.code);
+      const native=await browser(dir,label+'-native',original,sourceType);
+      const renamed=await browser(dir,label+'-renamed',renamedCode,sourceType);
+      const emitted=await browser(dir,label+'-emitted',compiled.code,sourceType);
       assert.deepEqual(native,{value:8,sourceMatch:true});
       assert.deepEqual(renamed,{value:8,sourceMatch:false});
       console.log(JSON.stringify({label,changed:compiled.code!==original,metrics:compiled.metrics,native,renamed,emitted}));
