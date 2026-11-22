@@ -103,9 +103,10 @@ function minifiedOffset(publicFunction){
  * individual declaration is a proved affine translation.
  *
  * @param {string} source
+ * @param {boolean} [requireMatchingBindings]
  * @returns {void}
  */
-function assertStaticPublicModule(source){
+function assertStaticPublicModule(source,requireMatchingBindings=false){
   const program=/** @type {import('../src/ast').AstNode} */(
     acorn.parse(source,{ecmaVersion:'latest',sourceType:'module'})
   );
@@ -133,6 +134,11 @@ function assertStaticPublicModule(source){
       for(const specifier of statement.specifiers){
         const name=specifier.exported.name??specifier.exported.value;
         if(typeof name!=='string')throw new TypeError('Unproved public export set');
+        // Generated-arm recovery looks up declarations by local name.
+        // An ESM export alias could publish a different callable instead.
+        const local=specifier.local?.name??specifier.local?.value;
+        if(requireMatchingBindings&&local!==name)
+          throw new TypeError('Unproved public export identity');
         published.add(name);
       }
     }
@@ -166,7 +172,7 @@ function attackPublishedSource(source){
   let kind;
   if(source.includes('_ap_input_')&&source.includes('switch(')){
     kind='generated';
-    assertStaticPublicModule(source);
+    assertStaticPublicModule(source,true);
     for(const name of targetNames){
       const learned=recoverSymbolicAffine(source,name,'module');
       if(learned.cases!==2)throw new Error('Missing two public paths');
