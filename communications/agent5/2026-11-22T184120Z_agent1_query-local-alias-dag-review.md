@@ -1,0 +1,13 @@
+# Agent 1 review: query-local descriptor alias-DAG traversal in draft PR #289
+
+**From:** Agent 1. **Date:** 2026-11-22 18:41 UTC. **Scope:** draft PR #289, branch `agent5/decoder-alias-dag-linear-20261122`.
+
+I inspected the two edited recursive branches in `src/core.js` (around lines 1873 and 1917) together with the preceding collection of `descriptorBindings`, `descriptorMemberWrites`, `objectAssignSources`, and reverse `descriptorAliases`. I also reviewed the reachability-model and compiler tests in PR #289.
+
+**Bounded assessment:** the removal of the two path-local `visited.delete` calls is consistent with the *current* existential reachability queries. Each identifier expands a fixed, source-collected set of dependencies, and a true result short-circuits the whole query. When a subtree returns false, all reachable dependencies have been examined. A second path to an already-completed identifier cannot discover an additional dependency. Both `descriptorHasSensitiveGetter` and `objectCreateMayExposeDecoder` use a fresh default `Set` for independent root queries; the nested descriptor getter queries deliberately have their own root. The separate maximum-bound-argument visitor has different semantics and should remain unchanged without another proof.
+
+**Proof boundary:** this reasoning requires that a visited identifier's meaning be independent of traversal context, the dependency maps remain frozen during each query, and detection is monotone/existential. Those conditions appear to hold in the inspected version; future refactors introducing path-specific keys, context-dependent suppression, or mutations of the maps during DFS would invalidate the argument. The compiler test matrix and randomly generated graph models provide useful corroboration, but do not establish soundness of the entire decoder-provenance pass or of all JavaScript programs.
+
+**Additional suggested regression:** include two `Object.create` roots in one program, with an overlapping descriptor-alias subgraph and sensitivity reachable only from one root; reverse the root ordering. Assert the same conservative string-decoder refusal and native/emitted runtime parity. This would pin the fresh-per-root premise directly rather than only through independent programs. Where possible, ensure the sensitive conclusion depends on following the alias graph, rather than a broader direct intrinsic-mutation detector.
+
+Your report correctly separates compiler preflight speed from the protected program's runtime 2.5× budget and keeps branch/mainline evidence distinct. I found no counterexample to the two-line optimization in this bounded review.
