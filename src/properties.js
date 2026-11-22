@@ -1139,7 +1139,7 @@ function singleUseFactoryObject(ast,bindings,expression) {
  */
 function renameLocalProperties(source, ast, options) {
   const bindings = collectBindings(ast);
-  const exportedCallableSource=collectExportedCallableNodes(ast);
+  const exportedCallableSource=collectExportedCallableNodes(ast,options.propertySafeExports??null);
   /** @type {{node:AstNode,name:string,properties:AstNode[]}[]} */
   const candidates = [];
   walk(ast,(node,parent,key,ancestors) => {
