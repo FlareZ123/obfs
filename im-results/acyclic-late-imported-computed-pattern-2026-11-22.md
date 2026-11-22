@@ -1,0 +1,25 @@
+# Closed-world computed ESM pattern keys: acyclic late-export proof
+
+22 November 2026. **Intermediate semantic correctness and positive transformation yield**, not an independently established obfuscation-security result.
+
+## Failure and extension
+
+An opt-in closed-world ESM compiler can prove a private exported object has fields such as `secretField` and that its reader uses a computed destructuring pattern `const {[key]:value}=bag`. Existing `collectVerifiedImportedStrings` can determine the exact immutable literal exported by an independent or same module, but the original direct owner-use proof only supported syntactically literal pattern keys. The first source-pinned repair carried `patternNames` through `proveLocalObject`, `patternPropertyEdits` and both named/default cross-file owner rewrite lanes. Original [four-failure full regression 45043230588](https://github.com/FlareZ123/obfs/actions/runs/45043230588) at source `7a21009e03563f172beed347567d09f2e82e2883` was repaired with [five-case green 45044299832](https://github.com/FlareZ123/obfs/actions/runs/45044299832) at `e1f32158a0cfadf33dc2fd12fb896acc19573311`. It passed on Ubuntu and Windows and preserved the opaque-key refusal. A separate [11-case green 45044577511](https://github.com/FlareZ123/obfs/actions/runs/45044577511) at `dc5c7ab1a6f4c50fefb100c960627bea2f44111f` also passed local owner proof, default-binding patterns, discarded assignment patterns, reflection refusal, and a cyclic late-key refusal.
+
+The second correctness extension recognizes a **later** immutable string key export from the **same** owner producer in an *acyclic, statically closed* ESM dependency graph. Such a graph has completed the producer module's evaluation before the importer body executes. For a potential cyclic graph, the existing earlier-initialized-key requirement remains in place: a later exported key may still be uninitialized during reentrancy, and guessing its value would introduce a TDZ or source-shape change. The rewrite also requires an exact validated import, unique immutable string binding and a key that equals an already proved own field. This use of `verifiedStrings` does not broaden dynamic property access, opaque environment inputs or remote API renaming.
+
+## Red/green evidence
+
+The source-pinned [13-case red run 45044885739](https://github.com/FlareZ123/obfs/actions/runs/45044885739) at `7f646b8d2a0ca268ff9d181e14dba925799cb408` failed **two newly demanded positive-yield cases on both Ubuntu and Windows**, while eleven other positive/refusal/parity fixtures passed. The two failures were a late same-producer immutable key applied to a named owner and to a default owner. It was specifically a zero-rewrite failure, rather than proof of changed runtime output.
+
+The patched [run 45044926503](https://github.com/FlareZ123/obfs/actions/runs/45044926503), exact source `e49bb6332c69ef079650c5a578719a14eee420c6`, **passed all thirteen** tests plus strict project/external JSDoc checks on Ubuntu and Windows. It preserved the negative cyclic late-key case and comparable native/compiled Node ESM results.
+
+A second independent-style deterministic 52-fixture graph matrix `test/computed-pattern-cross-file-matrix.test.js` checks **48** positive combinations of named, reexported, independently imported and default-exported owners, key order, import binding aliases and three direct/default/assignment pattern shapes. Four additional cases enforce cyclic-late, mutable-key, opaque-environment and enumerable-reflection refusals. In each case, the baseline and compiled outputs run in separate fresh Node ESM subprocesses. This source-pinned matrix [45045128808](https://github.com/FlareZ123/obfs/actions/runs/45045128808) at `29c9476bd87e7d54b7c6fbe146ad22c743317690` **passed 52/52 on Ubuntu and 52/52 on Windows**, together with strict JSDoc gates.
+
+The complete Node/browser suite at [45044390286](https://github.com/FlareZ123/obfs/actions/runs/45044390286), source `e1f32158a0cfadf33dc2fd12fb896acc19573311`, passed all its checks but predates this late-key extension. A later full run [45045050868](https://github.com/FlareZ123/obfs/actions/runs/45045050868) at `e49bb6332c69ef079650c5a578719a14eee420c6` was dispatched; check its final status separately.
+
+## Boundaries and limitations
+
+The static claim depends on the repository's exact closed-world ESM graph proof and module evaluation rules. External package import aliases, untracked/dynamic loads, invalid or mutable bindings and environmental computed keys remain conservative refusals. The proof does not preserve byte-identical source for arbitrary observers or establish general closed-worldness in a hostile host.
+
+The new work happens during compilation. No new interpreter instructions or per-read runtime loops are emitted by the key-proof extension. A quantified whole-app 2.5× bound still requires separate paired workload measurements. The displayed property renames are positive transformation yield, with no measured attacker-cost advantage versus conventional minification and no change to the repository's **RELEASE-BLOCKED** recommendation.
