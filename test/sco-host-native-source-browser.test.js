@@ -95,7 +95,29 @@ test('native Node and Chromium expose distinct SCO host-source witnesses',{
         browser:fingerprint(browserWitness[key])
       };
     }
+    // Probe 768 deterministic Latin1 strings covering each byte as a
+    // one-, two- and three-byte sequence. Browser and Node must agree on
+    // encoded output and its decoded binary-string roundtrip.
+    /** @type {string[]} */
+    const samples=[];
+    for(let i=0;i<256;i++){
+      samples.push(String.fromCharCode(i));
+      samples.push(String.fromCharCode(i,(i*73+19)%256));
+      samples.push(String.fromCharCode(i,(i*73+19)%256,(i*31+7)%256));
+    }
+    const nodeEncoded=samples.map(value=>btoa(value));
+    const browserEncoded=await page.evaluate(
+      values=>values.map(value=>btoa(value)),samples);
+    assert.deepEqual(browserEncoded,nodeEncoded,'btoa valid Latin1 parity');
+    const nodeDecoded=nodeEncoded.map(value=>atob(value));
+    const browserDecoded=await page.evaluate(
+      values=>values.map(value=>atob(value)),nodeEncoded);
+    assert.deepEqual(nodeDecoded,samples,'native atob(btoa) roundtrip');
+    assert.deepEqual(browserDecoded,samples,'Chrome atob(btoa) roundtrip');
+    const codecSamples={count:samples.length,
+      encodedSha256:crypto.createHash('sha256').update(nodeEncoded.join(','),'utf8').digest('hex')};
     console.log(JSON.stringify({
+      codecSamples,
       node:process.version,
       platform:process.platform,
       browser:await browser.version(),
