@@ -6,6 +6,7 @@ const fs=require('node:fs/promises');
 const os=require('node:os');
 const path=require('node:path');
 const {spawnSync}=require('node:child_process');
+const vm=require('node:vm');
 const {obfuscateFiles}=require('../src');
 const {atomicWrite}=require('../src/atomic');
 
@@ -169,4 +170,37 @@ test('closed ESM dependency chain accepts canonical IPv6 and rejects denied host
   const denied=await execute(/** @type {Module[]} */ (output.files),'[::2]');
   assert.deepEqual(denied.events,[]);
   assert.match(denied.error??'',/Unauthorized execution host/u);
+});
+
+
+test('hostname guard declines files with a local globalThis binding',()=>{
+  const native='const globalThis={value:7};globalThis.value;';
+  const allowedHost={location:{hostname:'allowed.example'}};
+  assert.equal(vm.runInNewContext(native,allowedHost),7);
+  // This is the pre-fix output's guard position: the original lexical
+  // globalThis is still uninitialized when the guard reads it.
+  const guard=';(()=>{const h=globalThis.location?.hostname?.toLowerCase();})();\n';
+  assert.throws(()=>vm.runInNewContext(guard+native,allowedHost),
+    /Cannot access 'globalThis' before initialization/);
+
+  const inputs=/** @type {const} */ ([
+    {path:'entry.js',sourceType:'script',code:native},
+    {path:'entry.mjs',sourceType:'module',code:'const globalThis={value:8};export const result=globalThis.value;'},
+    {path:'entry.cjs',sourceType:'commonjs',code:'var globalThis=4;module.exports=globalThis;'},
+    {path:'entry.mjs',sourceType:'module',code:'class globalThis {} export const value=1;'},
+    {path:'entry.mjs',sourceType:'module',code:'function nested(globalThis){return globalThis;}export const value=nested(9);'}
+  ]);
+  for(const file of inputs){
+    assert.throws(()=>obfuscateFiles([file],{
+      mode:'coo',seed:'host-global-shadow-gate',allowedHosts:['allowed.example'],
+      strings:false,properties:false,identifiers:false
+    }),/Host locking cannot preserve a shadowed globalThis binding/,
+    file.sourceType+' '+file.code);
+  }
+  const safe=obfuscateFiles([{
+    path:'ordinary.js',sourceType:'script',
+    code:'globalThis.allowedValue=29;'
+  }],{mode:'coo',seed:'host-global-shadow-positive',
+    allowedHosts:['allowed.example'],strings:false,properties:false,identifiers:false});
+  assert.match(String(safe.files[0].code),/Unauthorized execution host/);
 });
