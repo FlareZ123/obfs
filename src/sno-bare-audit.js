@@ -98,6 +98,7 @@ function directBareRequires(files) {
 async function assertSnoDirectBareRequireParity(original,generated,inputRoot,outputRoot) {
   const sources=directBareRequires(original);
   const targets=directBareRequires(generated);
+  if(sources.size===0&&targets.size===0)return {entries:0,files:0};
   // Resolving before publication cannot see package.json files that this
   // build will emit. They can introduce a self-reference or override an
   // external ancestor's package namespace. Decline the opt-in audit for
