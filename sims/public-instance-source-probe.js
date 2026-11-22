@@ -71,7 +71,9 @@ async function main() {
       const actual=await observe(path.join(root,mode),built.files);
       const propertyRenames=built.crossFile.properties+
         built.files.reduce((sum,file)=>sum+file.metrics.properties,0);
-      const result={mode,propertyRenames,valuesEqual:
+      const privatePropertyRenames=built.files.find(file=>
+        file.path==='private.mjs')?.metrics.properties??0;
+      const result={mode,propertyRenames,privatePropertyRenames,valuesEqual:
         actual.value===native.value&&actual.privateValue===native.privateValue,
         sourceEqual:actual.source===native.source,
         native,actual};
