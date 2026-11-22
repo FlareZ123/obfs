@@ -3412,6 +3412,9 @@ function observesDistributedSource(ast,importedStrings=new Map()) {
   const performanceRoots=new Set(['performance']);
   // Script-producing DOM writes may publish hash-pinned script elements.
   const documentRoots=new Set(['document']);
+  // A detached writer method can be invoked with Function#call/apply or
+  // Reflect.apply. Track simple source-visible aliases conservatively.
+  const documentWriterRoots=new Set();
   // Track DOM script-element creation and aliases for opaque integrity keys.
   const scriptElementRoots=new Set();
   // Module-registry objects can reach Node's internal source-file loader.
@@ -3453,6 +3456,15 @@ function observesDistributedSource(ast,importedStrings=new Map()) {
     return key==='document';
   }
   /** @param {AstNode|null|undefined} value @returns {boolean} */
+  function isDocumentWriterReference(value) {
+    if(value?.type==='Identifier')return documentWriterRoots.has(value.name);
+    if(value?.type!=='MemberExpression'||!isDocumentReceiver(value.object))return false;
+    const method=value.computed ? staticString(value.property) :
+      value.property.type==='Identifier'?value.property.name:null;
+    return method==='write'||method==='writeln'||
+      value.computed&&method===null;
+  }
+  /** @param {AstNode|null|undefined} value @returns {boolean} */
   function createsDomScript(value) {
     if(value?.type!=='CallExpression'||value.callee.type!=='MemberExpression'||
        !isDocumentReceiver(value.callee.object))return false;
@@ -3478,12 +3490,17 @@ function observesDistributedSource(ast,importedStrings=new Map()) {
       const initial=node.type==='VariableDeclarator' ? node.init :
         node.type==='AssignmentExpression' ? node.right : null;
       if(binding?.type==='Identifier' && initial?.type==='Identifier') {
-        for(const roots of [globals,requireRoots,moduleRoots,processRoots,performanceRoots,documentRoots,scriptElementRoots]) {
+        for(const roots of [globals,requireRoots,moduleRoots,processRoots,performanceRoots,documentRoots,documentWriterRoots,scriptElementRoots]) {
           if(roots.has(initial.name) && !roots.has(binding.name)) {
             roots.add(binding.name);
             changed=true;
           }
         }
+      }
+      if(binding?.type==='Identifier'&&isDocumentWriterReference(initial)&&
+         !documentWriterRoots.has(binding.name)){
+        documentWriterRoots.add(binding.name);
+        changed=true;
       }
       // The Node process builtin is available from a CJS require and from
       // ESM namespace/default imports as well as from the global object.
@@ -3754,6 +3771,28 @@ function observesDistributedSource(ast,importedStrings=new Map()) {
       }
     });
   }while(reflectionChanged);
+  /**
+   * An HTML parser write may concatenate multiple string arguments. An
+   * unproved argument or an incomplete start tag can become SRI metadata.
+   * @param {(AstNode|null)[]} args
+   * @returns {boolean}
+   */
+  function mayWriteIntegrityMarkup(args) {
+    let markup='';
+    for(const argument of args) {
+      if(!argument||argument.type==='SpreadElement')return true;
+      const fragment=knownKey(argument);
+      if(fragment===null)return true;
+      markup+=fragment;
+    }
+    return /integrity\s*=/iu.test(markup) ||
+      /<(?:[A-Za-z!?/][^>]*|)$/u.test(markup);
+  }
+  /** @param {AstNode|null|undefined} argument @returns {boolean} */
+  function mayApplyIntegrityMarkup(argument) {
+    return argument?.type!=='ArrayExpression' ||
+      mayWriteIntegrityMarkup(argument.elements);
+  }
   let observed=false;
   walk(ast,node=>{
     // HTMLScriptElement.integrity can pin another published script's exact
@@ -3781,23 +3820,24 @@ function observesDistributedSource(ast,importedStrings=new Map()) {
           globals.has(receiver.object.name) &&
           (receiver.computed ? knownKey(receiver.property) :
             receiver.property.type==='Identifier'?receiver.property.name:null)==='document';
-      if(isDocument && (method==='write'||method==='writeln')) {
-        // The HTML parser receives all arguments as a single concatenated
-        // character stream. A split "integ" + "rity=" is still an SRI attribute.
-        // A dangling start-tag prefix can also be completed by a later
-        // document.write call, whose execution order cannot be proven here.
-        let markup='';
-        for(const arg of node.arguments) {
-          const fragment=arg.type==='SpreadElement'?null:knownKey(arg);
-          if(fragment===null) {
-            observed=true;
-            break;
-          }
-          markup+=fragment;
-        }
-        if(/integrity\s*=/iu.test(markup) ||
-           /<(?:[A-Za-z!?/][^>]*|)$/u.test(markup))observed=true;
+      // An opaque computed method on a proven Document may resolve to write
+      // or writeln at runtime. Treat its HTML-bearing arguments as parser
+      // writes while retaining yield for proved benign static markup.
+      if(isDocument && (method==='write'||method==='writeln'||
+         node.callee.computed && method===null) &&
+         mayWriteIntegrityMarkup(node.arguments))observed=true;
+      // The same parser writer may be invoked through native function
+      // dispatch, including an extracted local alias of document.write.
+      if(isDocumentWriterReference(receiver)) {
+        if((method==='call'||method==='bind'||
+            node.callee.computed&&method===null) &&
+           mayWriteIntegrityMarkup(node.arguments.slice(1)))observed=true;
+        if(method==='apply'&&mayApplyIntegrityMarkup(node.arguments[1]))
+          observed=true;
       }
+      if(receiver.type==='Identifier'&&receiver.name==='Reflect'&&
+         method==='apply'&&isDocumentWriterReference(node.arguments[0])&&
+         mayApplyIntegrityMarkup(node.arguments[2]))observed=true;
     }
     if(node.type==='CallExpression' && node.callee.type==='MemberExpression') {
       const method=node.callee.computed ? knownKey(node.callee.property) :
