@@ -1,0 +1,112 @@
+{
+  "node": "v22.16.0",
+  "acorn": "8.15.0",
+  "order": "AB BA alternating, 8 pairs + warmup",
+  "metric": "milliseconds elapsed while collecting hoisted vars across all function scopes of parsed nested-function ladders, parsing excluded",
+  "results": [
+    {
+      "depth": 80,
+      "scopes": 81,
+      "previous_ms": [
+        8.334,
+        15.286,
+        5.569,
+        4.975,
+        5.067,
+        7.959,
+        6.106,
+        4.415
+      ],
+      "pruned_ms": [
+        0.82,
+        0.685,
+        0.103,
+        0.096,
+        0.162,
+        0.178,
+        0.033,
+        0.025
+      ],
+      "previous_median_ms": 5.838,
+      "pruned_median_ms": 0.133
+    },
+    {
+      "depth": 160,
+      "scopes": 161,
+      "previous_ms": [
+        22.223,
+        78.526,
+        28.484,
+        28.619,
+        29.15,
+        27.692,
+        30.591,
+        33.198
+      ],
+      "pruned_ms": [
+        0.052,
+        0.045,
+        0.053,
+        0.045,
+        0.055,
+        0.046,
+        0.054,
+        0.047
+      ],
+      "previous_median_ms": 28.884,
+      "pruned_median_ms": 0.049
+    },
+    {
+      "depth": 320,
+      "scopes": 321,
+      "previous_ms": [
+        160.751,
+        183.696,
+        163.048,
+        184.418,
+        177.379,
+        167.604,
+        196.27,
+        174.844
+      ],
+      "pruned_ms": [
+        0.1,
+        0.089,
+        0.1,
+        0.088,
+        0.1,
+        0.09,
+        0.163,
+        0.09
+      ],
+      "previous_median_ms": 176.111,
+      "pruned_median_ms": 0.095
+    },
+    {
+      "depth": 640,
+      "scopes": 641,
+      "previous_ms": [
+        1256.205,
+        1296.21,
+        1310.352,
+        1317.701,
+        1384.762,
+        1381.793,
+        1252.553,
+        1230.326
+      ],
+      "pruned_ms": [
+        0.408,
+        0.345,
+        0.245,
+        0.243,
+        0.235,
+        0.172,
+        0.234,
+        0.17
+      ],
+      "previous_median_ms": 1303.281,
+      "pruned_median_ms": 0.239
+    }
+  ]
+}
