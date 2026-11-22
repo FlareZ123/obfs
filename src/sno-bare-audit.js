@@ -51,7 +51,11 @@ function directBareRequires(files) {
     /** @type {string[]} */
     const refs=[];
     const shadow=collectBindings(ast).has('require');
+    let dynamicScope=false;
     walk(ast,node=>{
+      if(node.type==='WithStatement' ||
+         node.type==='CallExpression'&&node.callee?.type==='Identifier'&&
+           node.callee.name==='eval')dynamicScope=true;
       if(node.type!=='CallExpression'||node.callee?.type!=='Identifier'||
           node.callee.name!=='require')return;
       if(!node.arguments?.length ||
@@ -67,7 +71,7 @@ function directBareRequires(files) {
           isBuiltin(specifier))return;
       refs.push(specifier);
     });
-    if(shadow&&refs.length)throw new TypeError(
+    if((shadow||dynamicScope)&&refs.length)throw new TypeError(
       'SNO bare dependency audit cannot prove unshadowed require in '+file.path);
     if(refs.length)entries.set(file.path,refs.sort());
   }
