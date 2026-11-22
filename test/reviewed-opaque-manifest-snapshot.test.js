@@ -199,3 +199,36 @@ test('approval is not an override for independently forbidden source-bearing ass
     }),/source.map|inline script/i,'SCO handler '+asset.path);
   }
 });
+
+test('reviewed manifest follows portable canonical path collision policy',()=>{
+  const collisions=[
+    ['Σ.css','ς.css'],
+    ['Café.css','Cafe\u0301.css'],
+    ['straße.css','STRASSE.css'],
+    ['Images/a.css','images/b.css']
+  ];
+  for(const [first,second] of collisions){
+    const files=[
+      {path:first,sourceType:/** @type {const} */('asset'),code:safe},
+      {path:second,sourceType:/** @type {const} */('asset'),code:other}
+    ];
+    const approved=[
+      {path:first,sha256:digest(safe)},
+      {path:second,sha256:digest(other)}
+    ];
+    assert.throws(()=>assertReviewedOpaqueAssets(files,approved),
+      /Duplicate reviewedOpaqueAssets path|Ambiguous directory spelling/,
+      'reviewed paths must use compiler-equivalent portable identities');
+    assert.throws(()=>assertReviewedOpaqueAssets(files,[approved[0]]),
+      /Duplicate published opaque asset path|Ambiguous directory spelling/,
+      'published paths must also enforce portable identities');
+  }
+  const independent=[
+    {path:'σ.css',sourceType:/** @type {const} */('asset'),code:safe},
+    {path:'λ.css',sourceType:/** @type {const} */('asset'),code:other}
+  ];
+  assert.doesNotThrow(()=>assertReviewedOpaqueAssets(independent,[
+    {path:'σ.css',sha256:digest(safe)},
+    {path:'λ.css',sha256:digest(other)}
+  ]));
+});
