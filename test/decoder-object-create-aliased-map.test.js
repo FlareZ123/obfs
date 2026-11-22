@@ -115,7 +115,10 @@ const variants=[
   ['descriptor map through member-read variable',
     'const holder={descriptors:{ref:{get(){return TARGET.prototype}}}};'+
     'const descriptors=holder.descriptors;'+
-    'const box=Object.create(null,descriptors);']
+    'const box=Object.create(null,descriptors);'],
+  ['descriptor map returned by holder getter',
+    'const holder={get descriptors(){return {ref:{get(){return TARGET.prototype}}}}};'+
+    'const box=Object.create(null,holder.descriptors);']
 ];
 
 for(const [name,mutator] of variants) {
