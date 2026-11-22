@@ -97,3 +97,8 @@ test('SCO refuses unproved Blob.stream result constructor source',()=>{
   const body="return String(new Blob([]).stream().constructor).slice(0,80);";
   assert.throws(()=>compile(body),TypeError);
 });
+
+test('SCO retains direct Blob.text() scalar extraction',()=>{
+  const result=compile("return await new Blob(['A']).text();");
+  assert.deepEqual(result.privateNames,['protectedOp']);
+});
