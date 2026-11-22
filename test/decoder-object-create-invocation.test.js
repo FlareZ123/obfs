@@ -59,6 +59,9 @@ const cases=[
   ['prebound descriptor map',
     'const create=Object.create;const maker=create.bind(null,null,DESCRIPTORS);'+
     'const box=maker();'],
+  ['prebound descriptor map through destructured native create',
+    'const {create:make}=Object;const bound=make.bind(null,null,DESCRIPTORS);'+
+    'const box=bound();'],
   ['prebound prototype with invocation-time descriptor map',
     'const create=Object.create;const maker=create.bind(null,null);'+
     'const box=maker(DESCRIPTORS);'],
