@@ -148,3 +148,14 @@ For each source-exposed value, the canonical gate should independently assert:
 3. same-application private-helper positive yield.
 
 Run property, identifier, string and every selected backend separately before testing the composed pipeline. Keep the narrow primitive-leaf island as a separate source-stable positive lane; it does not justify generalizing to other callable flows.
+
+### Escape roots beyond exports
+
+The worklist must not be seeded only from module exports. A private function can become externally inspectable when passed to an unknown/global/host call, registered as a callback, or assigned to a global/document/window property. Examples include `addEventListener`, `setTimeout`, imported package functions, host callback registration, and dynamic global publication.
+
+For every callable argument or assigned value:
+- prove the receiving callee is a supplied local non-escaping consumer with a modeled use contract; or
+- add the callable and its source/dependency closure to the exposed set; or
+- if the callee, alias, target property or callback publication is opaque, mark the relevant module/group uncertain and fail closed.
+
+This is an independent root class under the instrumented-browser threat model and does not require an export root to exist.
