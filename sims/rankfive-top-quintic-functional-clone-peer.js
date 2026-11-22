@@ -229,9 +229,12 @@ function cloneTopQuintic(oracle, n, draw = secureWord, delta = 1e-10) {
   assert.ok(signatureBasis.length === 5 || signatureBasis.length === 6);
   const coordinatesTable = spanCoordinates(signatureBasis);
   assert.equal(coordinatesTable.size, 2 ** signatureBasis.length);
+  // Under the source promise this span has dimension <=6. An overflow is
+  // rejected, but a span of dimension <=6 does not certify the promise: a
+  // higher-dimensional tensor can hide directions from this anchor signature.
   const coordinates = observedSignatures.map(value => {
     const result = coordinatesTable.get(value);
-    assert.notEqual(result, undefined, 'fifth-derivative radical codimension exceeds six');
+    assert.notEqual(result, undefined, 'fifth-derivative signature span exceeds six');
     return /** @type {number} */ (result);
   });
 
@@ -392,8 +395,77 @@ function rankSevenPromiseViolation() {
   let drawIndex = 0;
   assert.throws(() => cloneTopQuintic(source, width,
     () => forcedBasisWitness[drawIndex++ % forcedBasisWitness.length]),
-  /fifth-derivative radical codimension exceeds six/);
+  /fifth-derivative signature span exceeds six/);
   return {width,topCoefficients:terms.length,outputRank:21,rejected:true};
+}
+
+
+/**
+ * A degree-five source with joint-radical codimension seven that is silently
+ * accepted when the five anchors miss a second independent top-form support.
+ * This is outside the theorem's promise and demonstrates that signature-span
+ * non-overflow is not a general promise certificate.
+ *
+ * @returns {{width:number,jointRadicalCodimension:number,signatureRank:number,sourceAt124:number,cloneAt124:number,silentMismatch:boolean}}
+ */
+function rankSevenSilentPromiseViolation() {
+  const width = 7;
+  /** @param {number} input @returns {number} */
+  const source = input => (
+    (((input & 31) === 31) ? 1 : 0) ^
+    (((input & 124) === 124) ? 2 : 0)
+  ) >>> 0;
+  const forcedAnchors = [1, 2, 4, 8, 16];
+  let drawIndex = 0;
+  const model = cloneTopQuintic(source, width,
+    () => forcedAnchors[drawIndex++ % forcedAnchors.length]);
+  assert.equal(drawIndex, 5);
+  assert.equal(model.degree, 5);
+  assert.equal(model.quotientRank, 5);
+  assert.deepEqual(model.top, [[31, 1]]);
+
+  // Independently verify the joint radical by testing contractions against
+  // every four-fold standard-basis wedge. Multilinearity makes this complete.
+  /** @param {number[]} directions @returns {number} */
+  function directFifthDerivative(directions) {
+    let result = 0;
+    for (let subset = 0; subset < 32; subset++) {
+      let input = 0;
+      for (let j = 0; j < 5; j++) {
+        if (((subset >>> j) & 1) !== 0) input ^= directions[j];
+      }
+      result ^= source(input);
+    }
+    return result >>> 0;
+  }
+  const fourTuples = masksOfWeight(width, 4)
+    .map(support => bitIndices(width, support).map(index => 1 << index));
+  let radicalCount = 0;
+  for (let x = 0; x < (1 << width); x++) {
+    let inRadical = true;
+    for (const tuple of fourTuples) {
+      if (directFifthDerivative([x, ...tuple]) !== 0) {
+        inRadical = false;
+        break;
+      }
+    }
+    if (inRadical) radicalCount++;
+  }
+  assert.equal(radicalCount, 1, 'the joint fifth-derivative radical is {0}');
+
+  const sourceAt124 = source(124);
+  const cloneAt124 = evaluateClone(model, 124);
+  assert.equal(sourceAt124, 2);
+  assert.equal(cloneAt124, 0);
+  assert.equal(evaluateClone(model, 31), source(31));
+  return {
+    width,
+    jointRadicalCodimension: width - Math.log2(radicalCount),
+    signatureRank: model.quotientRank,
+    sourceAt124,
+    cloneAt124,
+    silentMismatch: sourceAt124 !== cloneAt124
+  };
 }
 
 /** @returns {object} */
@@ -468,6 +540,7 @@ function main() {
   }
 
   const rankSevenControl = rankSevenPromiseViolation();
+  const rankSevenSilentControl = rankSevenSilentPromiseViolation();
   const summary = {
     seed:'0x5a202611',
     promise:'fixed degree<=5, fifth-derivative joint-radical codimension<=6',
@@ -475,7 +548,9 @@ function main() {
       topRank6:finiteTop6,degree4Fallback:finiteFallback,maxQueries:finiteMaxQueries},
     width32:{cases:wideCases,heldouts:wideHeldouts,maxQueries:wideMaxQueries,
       maxTopCoefficients:wideMaxTopTerms,hardCap:44455,trialCap:66},
-    rankSevenPromiseViolation:rankSevenControl,
+    rankSevenSignatureOverflowControl:rankSevenControl,
+    rankSevenSilentPromiseViolation:rankSevenSilentControl,
+    promiseCheck:'signature-span overflow fails closed; no overflow does not certify the source promise',
     note:'Seeded tests validate implementation only; the 1e-10 failure bound requires independent uniform draws and the stated source promise'
   };
   console.log('TOP_QUINTIC_OFFLINE_FUNCTION_CLONE ' + JSON.stringify(summary));
@@ -483,4 +558,4 @@ function main() {
 }
 
 if (require.main === module) main();
-module.exports = {cloneTopQuintic,evaluateClone,main,rankSevenPromiseViolation};
+module.exports = {cloneTopQuintic,evaluateClone,main,rankSevenPromiseViolation,rankSevenSilentPromiseViolation};
