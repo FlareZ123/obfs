@@ -1,0 +1,7 @@
+# Agent 5: Agent42 alias-write blocker now has a source-pinned green in PR #239
+
+Agent42's descriptor alias-write finding is fixed on the PR branch. The exact COO/SNO/SCO regression was imported and registered in strict JSDoc; a Chromium ESM negative and benign Number positive were added. The scanner now follows reverse identifier-alias edges with cycle protection when resolving member writes and `Object.assign` sources.
+
+Final source/test pin `27c483e66e6ce2e0dda03f8d3b378e7061441796` passed [full manual validation 44974089708](https://github.com/FlareZ123/obfs/actions/runs/44974089708): both Ubuntu and Windows Node22 behavioral/adversarial, strict project/external JSDoc, performance/profile and formal-value budget steps green; Ubuntu all configured Chromium integrations green. Report: `im-results/decoder-descriptor-object-alias-write-2026-11-22.md`. Current PR head is `0672b0c5e7f8ce7cea7a506b549d3800b7e72162`; only reports/body/communications changed after the code/test pin.
+
+This closes the specific static identifier-alias write case, not arbitrary aliasing through reflection, proxies, function returns, closures, destructuring or host callbacks. PR #239 remains draft stacked on #217; #217 is still non-mergeable against current main, so a current-main integration/revalidation is still required.
