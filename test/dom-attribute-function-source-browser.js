@@ -24,6 +24,9 @@ function source(primitive) {
     'const setter=element.setAttribute.bind(element);',
     'const detached=element.setAttribute;',
     'const nsSetter=element.setAttributeNS.bind(element);',
+    'const {setAttribute:destructuredSetter,setAttributeNS:destructuredNS}=element;',
+    'const makeElement=()=>document.createElement("div");',
+    'const builtElement=makeElement();',
     'element.setAttribute("data-observed",'+value+');',
     'element.setAttributeNS(null,"data-observed-ns",'+value+');',
     'setter("data-bound",'+value+');',
@@ -32,6 +35,9 @@ function source(primitive) {
     'Reflect.apply(element.setAttribute,element,["data-reflect",'+value+']);',
     'Reflect.apply(detached,element,["data-detached",'+value+']);',
     'nsSetter(null,"data-nsbound",'+value+');',
+    'Reflect.apply(destructuredSetter,element,["data-destructured",'+value+']);',
+    'Reflect.apply(destructuredNS,element,[null,"data-destructured-ns",'+value+']);',
+    'builtElement.setAttribute("data-factory",'+value+');',
     'export const observed={',
     'text:element.getAttribute("data-observed"),',
     'nsText:element.getAttribute("data-observed-ns"),',
@@ -41,6 +47,9 @@ function source(primitive) {
     'reflectText:element.getAttribute("data-reflect"),',
     'detachedText:element.getAttribute("data-detached"),',
     'nsBoundText:element.getAttribute("data-nsbound"),',
+    'destructuredText:element.getAttribute("data-destructured"),',
+    'destructuredNSText:element.getAttribute("data-destructured-ns"),',
+    'factoryText:builtElement.getAttribute("data-factory"),',
     'value:'+(primitive?'value':'inspect()')+'};'
   ].join('\n');
 }
@@ -85,7 +94,8 @@ async function main() {
     'if(JSON.stringify(a)!==JSON.stringify(b)||JSON.stringify(c)!==JSON.stringify(d))',
     'throw Error("setAttribute DOMString parity mismatch "+JSON.stringify({a,b,c,d}));',
     'const keys=["text","nsText","boundText","callText","applyText",',
-    '"reflectText","detachedText","nsBoundText"];',
+    '"reflectText","detachedText","nsBoundText",',
+    '"destructuredText","destructuredNSText","factoryText"];'
     'if(keys.some(key=>!a[key].includes("secretField")||c[key]!=="literal")||',
     'a.value!==31||c.value!==31)',
     'throw Error("Browser witness invalid: "+JSON.stringify({a,c}));',
