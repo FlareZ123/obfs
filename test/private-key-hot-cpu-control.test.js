@@ -186,6 +186,7 @@ test('real COO protected private string and Symbol keys preserve behavior and re
     }
     console.log('PRIVATE_KEY_CPU_PROFILE '+JSON.stringify({
       source:identity(original),node:process.version,platform:process.platform,
+      preconditioningCallsPerVariant:2000000,
       warmCallsPerArm:warm,hotCallsPerArm:hot,pairedSamplesPerVariant:pairs,
       protectionSelected:true,results
     }));
