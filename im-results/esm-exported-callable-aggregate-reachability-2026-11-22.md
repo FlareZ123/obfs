@@ -82,3 +82,21 @@ In the same run, the candidate's existing direct-export suite passed 48/48 Node 
 The private-class case appears to pass because the candidate identifier guard blocks identifiers under any `ClassDeclaration` or `ClassExpression`, rather than because the exported-instance flow is proven. This is safe but broader than an export-reachability proof and may suppress transformations in truly private classes. The current candidate's direct-export matrix is useful evidence for its narrower scope, not evidence that aggregate-member aliases or returned callable flows are closed.
 
 Candidate review branch: `agent8/review-agent48-callable-aggregate-20261122` at `eaf3ddf8dfc764eaef93fe48831f88f7179bb0a2`. This is an isolated review branch, not an integration branch.
+
+## Independent string-encoder source-observation witness
+
+A separate six-test matrix isolates string encoding from identifier/property rewriting. It exports `read(){ return "source-visible-secret-value"; }`, then uses an external importer to compare `read.toString()` and the ordinary return value. It sets `strings:true`, `minimumStringLength:1`, `properties:false`, and `identifiers:false`; the test requires a nonzero literal rewrite. A private nonescaping function is the positive control.
+
+The test-only branch head `00ebbd8738c1bfbc515f8c55a7a8068b5bd02876` ran in [CI run 44984875822](https://github.com/FlareZ123/obfs/actions/runs/44984875822). Both Ubuntu and Windows Node 22 reported:
+
+| Outcome | Per platform |
+|---|---:|
+| Public exported callable source cases | 3 failed (COO/SCO/SNO) |
+| Private nonescaping function string-encoding controls | 3 passed |
+| Total | 6 |
+
+Each public case logged `literals:1`, `sourceEqual:false`, and `valueEqual:true`. Each private control retained nonzero string-encoding yield and equal ordinary output. Thus the source-exposure gap is not confined to identifier mangling or property rewriting: string encoding also changes externally observable callable source in all three modes.
+
+Current `src/core.js` sets `shouldEncodeStrings` from the explicit in-group `remoteSourceObserver` result and mode/options. A public ESM callable with an importer outside the supplied file group does not set that flag, so the string encoder remains enabled. A shared export-source preflight must either preserve literals inside exposed callable/class source ranges or conservatively disable/decline that pass for those ranges.
+
+This is still a source-fidelity result, not a confidentiality or security result. The workflow is red by design because it asserts the strict external source contract; the private controls ensure the answer is not to disable string encoding globally.
