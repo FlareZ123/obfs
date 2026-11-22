@@ -40,8 +40,8 @@ failed Ubuntu because the constructor source was admitted where a refusal
 was required. The tagged source was unreachable after the first assertion
 failed, so the historical run is **not** evidence about that tag case.
 
-The correction and seven regressions across selected/direct and two audited
-transitive private-graph depths are on
+The correction and two focused regression tests, each exercised across selected/direct and
+both audited transitive private-graph depths, are on
 `agent36/sco-typeof-new-tagged-20261122`, source + test commit
 `4b3ac8a2e1dfeceb2924bb713fc5be0613532cc7`.
 [Targeted graph workflow 45004530815](https://github.com/FlareZ123/obfs/actions/runs/45004530815)
