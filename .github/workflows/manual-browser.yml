@@ -29,6 +29,10 @@ jobs:
         env:
           CHROMIUM_BIN: google-chrome
         run: node test/classic-script-global-callable-browser.js
+      - name: Compare protected private ESM fields and public source with real Chromium
+        env:
+          CHROMIUM_BIN: google-chrome
+        run: node test/esm-public-callable-browser.js
       - name: Verify native COO and SCO V8 failed-operand text under Chromium CSP
         env:
           CHROMIUM_BIN: google-chrome
