@@ -559,7 +559,7 @@ function createScoHandler(sourceFiles,options={}) {
   // The original HTML asset carries immutable SRI hashes. Per-response
   // randomized literal spellings would invalidate the browser's integrity
   // check even if all JavaScript expression values remained unchanged.
-  const interfileSourceObserver=hasPinnedLocalJavaScriptIntegrity(normalized) ||
+  const interfileSourceObserver=hasPinnedLocalJavaScriptIntegrity(normalized,prefix) ||
     normalized.some(file=>
     file.sourceType!=='asset' && typeof file.code==='string' &&
     (observesDistributedSource(parse(file.code,file.sourceType),importedKeyProof.get(file.path)) ||
