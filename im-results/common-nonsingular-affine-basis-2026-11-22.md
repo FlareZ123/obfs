@@ -123,6 +123,24 @@ The binary or finite-field common-basis problem has a direct matroid interpretat
 
 The ground set here contains **`q^n-1`** elements. Algorithms polynomial in an explicitly enumerated ground-set size can therefore make exponentially many calls in the compressed `n`-coordinate, black-box-value model. Thus ordinary deterministic matroid-intersection algorithms and the above `q^(n-1)-n` chosen-input deterministic lower bound have different complexity parameters. The particular fast randomized replacement proof exploits the fact that both matroid representations arise from one **fixed bijection on the entire finite vector space**. Neither its constants nor their novelty is established by the generic matroid intersection citation.
 
+## End-to-end repaired-basis inversion of singular low-rank permutations
+
+To verify that the new calibration can actually feed the preexisting rank-r orbit inverter, an independent [all-target reproduction fixture](../sims/low-rank-repaired-basis-inversion.js) was added. It constructs explicit **eight-bit** source permutations with initially **singular** standard-basis affine interpolants:
+
+- **Rank one:** swap the inputs `3` and `4`, fix all other points, giving residual output displacement `7` on exactly those two points. The canonical interpolant has rank **7**.
+- **Rank two:** additionally swap `24` and `32`, compose with an invertible three-bit byte rotation, and XOR output constant `165`. The two independent displacement vectors have rank **2**, the canonical interpolant has rank **6**, and `F(0)=165` tests an actual nonzero affine offset.
+
+For each permutation, the verifier independently checks the complete 256-point bijection and exact global residual-image span rank. The attacker path receives **only** a forward evaluation callback and a requested target. It first uses `findCommonBasis` to repair the output rank, computes the new `M_B^{-1}` from the calibrated output columns, then walks the conjugated residual permutation `P(z)=M_B^{-1}(F(Bz)-F(0))` until finding the cycle predecessor of `M_B^{-1}(y-F(0))`. Because `P(z)-z` remains inside a subspace of dimension at most r, **each orbit closes in at most `2^r` forward transitions**. Every returned preimage is verified directly by the test oracle.
+
+The focused [Ubuntu + Windows CI 45057787940](https://github.com/FlareZ123/obfs/actions/runs/45057787940) at exact source `4b12071ce1cf22adb474ef058aae687a10f9e5f1` passed the complete **512/512** target enumerations and both strict JSDoc stages:
+
+| Frozen source family | Native canonical affine rank | Verified targets | Max orbit calls | Max distinct total oracle calls per target | Sum of distinct calls across targets |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Binary 8-bit rank-one swap | 7/8 (singular) | 256/256 | 2 | 20 | 3,075 |
+| Binary 8-bit rank-two disjoint swaps, output rotation and offset | 6/8 (singular) | 256/256 | 4 | 22 | 3,610 |
+
+This is direct evidence for the exact source-conditioned cycle-inversion composition following a randomized basis repair, and the maximal observed **20** or **22** distinct queries per target is a sample, **not** a universal cap or expected-value equality. The separately proven binary-32 finite cap concerns the common-basis discovery stage; orbit calls add at most `2^r` under an independently justified rank-r global promise. The repaired-basis method remains **inferior in expected chosen-query count to Agent39's earlier quotient-completion attack** and establishes no code protection or defender runtime overhead guarantee.
+
 ## Research significance and limits
 
 The common-basis lemma and random repair theorem rule out an existential obstruction and provide an **O(n) expected chosen-query** calibration method for every black-box fixed permutation, without an output-residual-rank promise. A separate strict worst-case query bound below the domain size remains open for arbitrary permutations. These are attacker-side linear-algebra results, with no source recovery, unauthorized execution, runtime extraction, integrity, domain locking, or 2.5x protected runtime claim.
