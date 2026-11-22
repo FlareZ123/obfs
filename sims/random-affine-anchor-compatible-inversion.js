@@ -14,7 +14,10 @@ const {
  * permutations. Instead of assuming the canonical 0/basis probes are
  * clean, try a succession of public, independently seeded affine bases.
  * Each trial verifies the final target rather than claiming its learned
- * matrix is necessarily the true composite A.
+ * matrix is necessarily the true composite A. When the sampled matrix
+ * is conjugate to a compatible invertible linear baseline, the initial
+ * candidate already has the low bit correct, yielding at most 2n+1
+ * distinct oracle queries (65 at n=32) for a successful trial.
  *
  * @param {(input:number)=>number} oracle
  * @param {number} target
@@ -53,13 +56,13 @@ function invertByReanchoring(oracle,target,randomSeed,maxBases=4) {
       continue;
     }
     let candidate=u32(anchor^solve(u32(target^base)));
-    for(let correction=0;correction<=32;correction++) {
+    for(let correction=0;correction<32;correction++) {
       const observed=query(candidate);
       if(observed===(target>>>0)) {
         return {value:candidate,queries:seen.size,
           basesTried:basis+1,corrections:correction,anchor,failedBases};
       }
-      if(correction===32)break;
+      if(correction===31)break;
       candidate=u32(candidate^solve(u32(target^observed)));
     }
     failedBases.push({anchor,reason:'no-target-equality',queries:seen.size});
@@ -265,7 +268,7 @@ function runEvidence() {
     const control=invertByReanchoring(fixture.oracle,controlTarget,attackSeed,4);
     assert.equal(rare.value,fixture.secret,'Targeted rare source');
     assert.equal(control.value,fixture.control,'Ordinary source');
-    assert.ok(rare.queries<=4*66&&control.queries<=4*66);
+    assert.ok(rare.queries<=4*65&&control.queries<=4*65);
     assert.equal(fixture.canonicalRankFull,!fixture.poisonInputOddParity);
     assert.equal(directRare.status==='no-target-equality',!fixture.canonicalRankFull);
     rareRecovered++;
