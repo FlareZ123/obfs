@@ -39,3 +39,29 @@ The repair changes only build/handler initialization admission, apart from the p
 A service using `allowedHosts:[]` as an explicit deny-all list now gets a configuration error at startup, which prevents accidental unrestricted output. Integrators who intend an unrestricted build should omit the property. This can be a deliberate API migration for callers that previously passed empty arrays as a default.
 
 **A nonempty hostname allowlist still is not runtime authentication.** Host headers are requester-controlled; browser `location.hostname` is observable and modifiable in attacker-controlled runtimes, and COO/SNO have no trustworthy client-side confidentiality boundary. SCO must use trusted server-side `authorizeRead`, `authorizeRpc`, and `authorizeOperation` policies. No universal 2.5× compute guarantee or stronger obfuscation security result follows.
+
+## 22 November follow-up: caller policy getter is a single startup snapshot
+
+An additional regression uncovered repeated reads of the programmatic
+`options.allowedHosts` property. A caller-owned getter returning a
+nonempty list on its first read and `undefined` on its second could make
+the compiler throw or derive inconsistent policy. The repaired compiler
+reads the property exactly once, then validates and canonicalizes that
+value; the SCO handler already took a single external-options snapshot.
+The host-list canonicalizer now also fixes the declared array length
+before reading elements and explicitly declines holes.
+
+Reproduction: source-pinned two-platform red
+[45043347822](https://github.com/FlareZ123/obfs/actions/runs/45043347822)
+at `50d0324f5929ad29f96f7117eed997ad0734e462`;
+two new tests in `test/host-policy-snapshot.test.js` cover COO
+one-read plus generated VM execution and SNO one-read explicit rejection.
+The green [45043418423](https://github.com/FlareZ123/obfs/actions/runs/45043418423)
+at `98268345900982c2266f31e8be6cce5e4c13fa92`
+**passed both tests and both project/external JSDoc gates on Ubuntu and
+Windows**.
+
+This applies to an application passing a getter-bearing configuration
+object or mutating its own options during initialization. It does not
+make a hostile browser runtime trusted, and it does not claim to solve
+all Proxy/object getter behaviors in JavaScript.
