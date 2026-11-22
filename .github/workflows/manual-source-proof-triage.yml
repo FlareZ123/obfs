@@ -28,6 +28,9 @@ jobs:
       - name: Positive identifier yield for unescaped private class methods
         if: ${{ !cancelled() }}
         run: node --test test/esm-private-class-positive-yield.test.js
+      - name: External source parity for narrowly admitted primitive-leaf source island
+        if: ${{ !cancelled() }}
+        run: node --test test/source-observer-islands-external-callable-source.test.js
       - name: Inspect inert-clone group versus local owner proofs
         run: node sims/inert-clone-source-triage.js
       - name: Direct declaration reader interprocedural proof and native ESM differential
