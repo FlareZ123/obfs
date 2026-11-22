@@ -183,31 +183,6 @@ function collectDirectCarrierFactories(ast) {
     }
     if(indices.size)factories.set(name,[...indices]);
   });
-  /** @param {AstNode|null|undefined} value @returns {boolean} */
-  function isDocumentReceiver(value) {
-    if(value?.type==='Identifier')return documentRoots.has(value.name);
-    if(value?.type!=='MemberExpression'||value.object.type!=='Identifier'||
-       !globals.has(value.object.name))return false;
-    const key=value.computed ? staticString(value.property) :
-      value.property.type==='Identifier'?value.property.name:null;
-    return key==='document';
-  }
-  /** @param {AstNode|null|undefined} value @returns {boolean} */
-  function createsDomScript(value) {
-    if(value?.type!=='CallExpression'||value.callee.type!=='MemberExpression'||
-       !isDocumentReceiver(value.callee.object))return false;
-    const method=value.callee.computed ? staticString(value.callee.property) :
-      value.callee.property.type==='Identifier'?value.callee.property.name:null;
-    if(method!=='createElement'&&method!=='createElementNS')return false;
-    const tagArg=value.arguments[method==='createElement'?0:1];
-    const tag=tagArg?.type==='SpreadElement'?null:tagArg?staticString(tagArg):null;
-    return tag===null || tag.toLowerCase()==='script';
-  }
-  /** @param {AstNode|null|undefined} value @returns {boolean} */
-  function isScriptElementTarget(value) {
-    return value?.type==='Identifier' && scriptElementRoots.has(value.name) ||
-      createsDomScript(value);
-  }
   let changed;
   do {
     changed=false;
@@ -3412,6 +3387,31 @@ function observesDistributedSource(ast,importedStrings=new Map()) {
        expression.callee.name!=='require' || !expression.arguments[0])return false;
     return ['process','node:process'].includes(
       staticString(expression.arguments[0])??'');
+  }
+  /** @param {AstNode|null|undefined} value @returns {boolean} */
+  function isDocumentReceiver(value) {
+    if(value?.type==='Identifier')return documentRoots.has(value.name);
+    if(value?.type!=='MemberExpression'||value.object.type!=='Identifier'||
+       !globals.has(value.object.name))return false;
+    const key=value.computed ? staticString(value.property) :
+      value.property.type==='Identifier'?value.property.name:null;
+    return key==='document';
+  }
+  /** @param {AstNode|null|undefined} value @returns {boolean} */
+  function createsDomScript(value) {
+    if(value?.type!=='CallExpression'||value.callee.type!=='MemberExpression'||
+       !isDocumentReceiver(value.callee.object))return false;
+    const method=value.callee.computed ? staticString(value.callee.property) :
+      value.callee.property.type==='Identifier'?value.callee.property.name:null;
+    if(method!=='createElement'&&method!=='createElementNS')return false;
+    const tagArg=value.arguments[method==='createElement'?0:1];
+    const tag=tagArg?.type==='SpreadElement'?null:tagArg?staticString(tagArg):null;
+    return tag===null || tag.toLowerCase()==='script';
+  }
+  /** @param {AstNode|null|undefined} value @returns {boolean} */
+  function isScriptElementTarget(value) {
+    return value?.type==='Identifier' && scriptElementRoots.has(value.name) ||
+      createsDomScript(value);
   }
   let changed;
   do {
