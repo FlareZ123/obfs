@@ -64,7 +64,7 @@ for(const mode of /** @type {const} */(['sno','coo','sco'])) {
       strings:true,identifiers:false,properties:false}).files[0];
     assert.equal(await runEsm(String(emitted.code)),await runEsm(source));
     assert.equal(observesFunctionSource(parse(source,'module')),true);
-  }
+  });
 
   test(mode+' native MIME params private-positive primitive-only literal',()=>{
     const source="'use strict';const {MIMEType}=require('node:util');"+
