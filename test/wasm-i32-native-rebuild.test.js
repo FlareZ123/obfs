@@ -12,7 +12,9 @@ const source='// new globalThis.WebAssembly.Module(globalThis.Uint8Array.from([1
   "'use strict';\n"+
   'function first(a){return ((a^137)&255);}\n'+
   'function second(b,c){return (((b|c)^31)>>>0);}\n'+
-  'module.exports={first,second};\n';
+  'function publicFirst(a){return first(a);}\n'+
+  'function publicSecond(b,c){return second(b,c);}\n'+
+  'module.exports={first:publicFirst,second:publicSecond};\n';
 
 /**
  * @param {string} code
