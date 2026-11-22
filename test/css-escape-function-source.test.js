@@ -17,7 +17,8 @@ function execute(source) {
   const module={exports:null};
   const CSS={escape:/** @param {unknown} value */value=>String(value)};
   vm.runInNewContext(source,{module,CSS},{timeout:3000});
-  return /** @type {{observed:string,value:number}} */(module.exports);
+  const result=/** @type {{observed:string,value:number}} */(module.exports);
+  return {observed:result.observed,value:result.value};
 }
 
 const declaration='function inspect(){const inner={secretField:19};return inner.secretField;}';
