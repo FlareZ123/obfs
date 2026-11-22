@@ -778,7 +778,10 @@ test('SCO refuses implicit AbortError stack origins after realm relocation',()=>
     'return AbortSignal.abort().reason.stack;',
     'const Signal=AbortSignal;return Signal.abort().reason.stack;',
     'const controller=new AbortController();controller.abort(undefined);return controller.signal.reason.stack;',
-    'return AbortSignal.abort(void 0).reason.stack;'
+    'return AbortSignal.abort(void 0).reason.stack;',
+    'const controller=new AbortController();controller.abort.call(controller);return controller.signal.reason.stack;',
+    'const controller=new AbortController();const act=controller.abort;act.call(controller);return controller.signal.reason.stack;',
+    'const act=AbortSignal.abort;return act().reason.stack;'
   ];
   for(const body of unsafe){
     const code='export async function protectedOp(){'+body+'}'+
