@@ -1144,9 +1144,33 @@ function privateDirectMemberReaders(ast,bindings) {
   /** @param {AstNode} fn @returns {boolean} */
   function pureMemberReturn(fn) {
     if(fn.async||fn.generator||fn.params.length)return false;
-    const expression=fn.body.type==='BlockStatement'&&
-      fn.body.body.length===1&&fn.body.body[0].type==='ReturnStatement' ?
-      fn.body.body[0].argument : fn.body;
+    /** @type {AstNode|null} */
+    let expression=fn.body;
+    if(fn.body.type==='BlockStatement') {
+      const statements=fn.body.body;
+      if(statements.length===1&&statements[0].type==='ReturnStatement') {
+        expression=statements[0].argument;
+      } else if(statements.length===2&&statements[0].type==='VariableDeclaration'&&
+        statements[0].kind==='const'&&statements[0].declarations.length===1&&
+        statements[0].declarations[0].id.type==='Identifier'&&
+        statements[0].declarations[0].init?.type==='Literal'&&
+        typeof statements[0].declarations[0].init.value==='string'&&
+        statements[1].type==='ReturnStatement') {
+        const name=statements[0].declarations[0].id.name;
+        const returned=statements[1].argument;
+        const other=returned?.type==='BinaryExpression'&&returned.operator==='+' ?
+          returned.right : null;
+        const left=returned?.type==='BinaryExpression'&&returned.operator==='+' ?
+          returned.left : null;
+        if(other?.type!=='MemberExpression'||other.computed||other.optional||
+           other.object.type!=='Identifier'||other.object.name!==name||
+           staticName(other.property)!=='length'||left?.type!=='MemberExpression'||
+           left.optional||left.object.type!=='Identifier'||
+           (left.computed?staticString(left.property):staticName(left.property))===null)
+          return false;
+        return true;
+      } else return false;
+    }
     return expression?.type==='MemberExpression'&&!expression.optional&&
       expression.object.type==='Identifier'&&
       (expression.computed?staticString(expression.property):staticName(expression.property))!==null;
