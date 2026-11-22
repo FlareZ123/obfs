@@ -1148,6 +1148,9 @@ function singleUseFactoryObject(ast,bindings,expression) {
 function collectPrivateDirectCallables(ast,bindings=collectBindings(ast)) {
   const inventory=collectProofInventory(ast);
   const scopes=collectBindingScopes(ast);
+  /** @type {WeakMap<AstNode,AstNode[]>} */
+  const lexicalAncestors=new WeakMap();
+  for(const use of inventory.identifiers)lexicalAncestors.set(use.node,use.ancestors);
   /** @type {Set<AstNode>} */
   const directCallables=new Set();
   if(inventory.dynamicScope)return new Set();
@@ -1335,7 +1338,8 @@ function collectPrivateDirectCallables(ast,bindings=collectBindings(ast)) {
       // object. Its getter executes in the caller's stack and can inspect
       // this function through Function.caller without call/member syntax.
       if(node.type==='Identifier'&&
-         (!scopes.has(node.name)||!ancestors.includes(scopes.get(node.name)))&&
+         (!scopes.has(node.name)||
+          !lexicalAncestors.get(node)?.includes(scopes.get(node.name)))&&
          !['arguments','undefined','NaN','Infinity'].includes(node.name)){
         const syntaxOnly=parent?.type==='MemberExpression'&&key==='property'&&!parent.computed||
           parent?.type==='Property'&&key==='key'&&!parent.computed||
