@@ -64,6 +64,9 @@ test('symbolic static minified parser refuses unnormalized or nonaffine expressi
     'function n(x){return (x.y+3)|0;}',
     'function n(x){return (x|0)+outside|0;}',
     'function n(x){return x+1;}',
+    'function n(x){return (x|0)+17;}',
+    'function n(x){return ((x|0)+17)-4;}',
+    'function n(x){return (x|0)|1;}',
     'function n(x){return ((x|0)*2)|0;}',
     'function n(x,y){return (x|0)+2|0;}',
     'function n(x){const a=x|0;return a+2|0;}'
