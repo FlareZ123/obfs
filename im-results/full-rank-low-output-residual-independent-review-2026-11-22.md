@@ -88,8 +88,9 @@ validated identical table counts on Ubuntu and Windows at
 The independent reproducer was then added to both
 `jsconfig.affine-low-rank-peer.json` and the focused strict
 external-JSDoc gate, without creating a new CI workflow.
-The continuation [source-pinned strict-JSDoc run](https://github.com/FlareZ123/obfs/actions/runs/45036058370)
-is reported separately if its final status becomes available.
+The continuation [source-pinned strict-JSDoc run 45036018002](https://github.com/FlareZ123/obfs/actions/runs/45036018002)
+was dispatched against commit `29b68b88015f4633c3e1bf2f4557168653269121`; its
+final result must be checked before treating that typecheck as verified.
 The existing large `manual-low-rank-target-inversion.yml` workflow
 also now includes the peer test for subsequent full-suite CI.
 
