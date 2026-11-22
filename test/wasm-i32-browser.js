@@ -13,7 +13,8 @@ const {pairedBudgetBound}=require('../sims/paired-budget-bound');
  * @returns {Promise<void>}
  */
 async function main() {
-  const source='export function scramble(x){return (((x^137)&(x>>>3))|(x<<7));}';
+  const source='function scramble(x){return (((x^137)&(x>>>3))|(x<<7));}'+
+    'export function run(x){return scramble(x);}';
   const built=obfuscateFiles([{path:'scramble.mjs',sourceType:'module',code:source}],{
     mode:'coo',seed:'wasm-i32-browser-2026-11-15',
     strings:false,properties:false,identifiers:false,
@@ -23,7 +24,8 @@ async function main() {
   const transformed=String(built.files[0].code);
   assert.ok(transformed.includes('WebAssembly.Module('));
 
-  const tripleSource='export function fuse(a,b,c){return (((a^b)&(c>>>3))|((b<<c)^0x13579));}';
+  const tripleSource='function fuse(a,b,c){return (((a^b)&(c>>>3))|((b<<c)^0x13579));}'+
+    'export function run(a,b,c){return fuse(a,b,c);}';
   const tripleBuilt=obfuscateFiles([
     {path:'fuse.mjs',sourceType:'module',code:tripleSource}
   ],{
@@ -47,10 +49,10 @@ async function main() {
     "});",
     "</script>",
     "<script type=\"module\">",
-    "import {scramble as native} from \"/native.mjs\";",
-    "import {scramble as encoded} from \"/encoded.mjs\";",
-    "import {fuse as native3} from \"/native3.mjs\";",
-    "import {fuse as encoded3} from \"/encoded3.mjs\";",
+    "import {run as native} from \"/native.mjs\";",
+    "import {run as encoded} from \"/encoded.mjs\";",
+    "import {run as native3} from \"/native3.mjs\";",
+    "import {run as encoded3} from \"/encoded3.mjs\";",
     "let compared=0;",
     "for(let i=-2048;i<=2048;i++){",
     "  if(!Object.is(native(i),encoded(i)))throw Error('i32 mismatch '+i);",
