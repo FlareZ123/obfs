@@ -95,7 +95,7 @@ async function main() {
     'throw Error("setAttribute DOMString parity mismatch "+JSON.stringify({a,b,c,d}));',
     'const keys=["text","nsText","boundText","callText","applyText",',
     '"reflectText","detachedText","nsBoundText",',
-    '"destructuredText","destructuredNSText","factoryText"];'
+    '"destructuredText","destructuredNSText","factoryText"];',
     'if(keys.some(key=>!a[key].includes("secretField")||c[key]!=="literal")||',
     'a.value!==31||c.value!==31)',
     'throw Error("Browser witness invalid: "+JSON.stringify({a,c}));',
