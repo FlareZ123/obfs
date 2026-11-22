@@ -72,7 +72,8 @@ test('proven primitive inline bound coercers preserve private field yield',()=>{
   const original='const owner={hiddenCount:41,secretDelta:2};'+
     'String.bind(null)("safe");JSON.parse.bind(JSON)("1");'+
     'encodeURIComponent.bind(null)("plain");'+
-    'module.exports=()=>owner.hiddenCount+owner.secretDelta;';
+    'function privateCompute(){return owner.hiddenCount+owner.secretDelta;}'+
+    'module.exports=()=>privateCompute();';
   assert.equal(observesFunctionSource(parse(original,'commonjs')),false);
   for(const mode of /** @type {('coo'|'sno')[]} */(['coo','sno'])) {
     const compiled=obfuscateFiles([{
