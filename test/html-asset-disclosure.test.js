@@ -465,3 +465,43 @@ test('dynamic SRI setter aliases and attribute writers are observed without pena
       'Read-only data integrity fields must remain transformable in '+mode);
   }
 });
+
+
+test('SCO handler honors SRI dynamically assigned by another published script',async ()=>{
+  const source='globalThis.dynamicSCO="the real SCO response has source-byte integrity";';
+  const hash=require('node:crypto').createHash('sha256').update(source).digest('base64');
+  const bootstrap='const script=document.createElement("script");'+
+    'script.src="./client.js";script.integrity="sha256-'+hash+'";document.head.append(script);';
+  const control=bootstrap.replace('script.integrity="sha256-'+hash+'";','');
+  const script={path:'client.js',sourceType:/** @type {const} */('script'),code:source};
+  const html={path:'index.html',sourceType:/** @type {const} */('asset'),
+    code:Buffer.from('<script src="./bootstrap.js"></script>')};
+  const observed=createScoHandler([
+    script,{path:'bootstrap.js',sourceType:'script',code:bootstrap},html
+  ],{routePrefix:'/obfs/'});
+  const unobserved=createScoHandler([
+    script,{path:'bootstrap.js',sourceType:'script',code:control},html
+  ],{routePrefix:'/obfs/'});
+  for(const [label,handler] of /** @type {const} */([
+    ['integrity',observed],['no integrity',unobserved]
+  ])){
+    const server=require('node:http').createServer(handler);
+    await new Promise((resolve,reject)=>{
+      server.once('error',reject);
+      server.listen(0,'127.0.0.1',()=>resolve(undefined));
+    });
+    try{
+      const addr=server.address();
+      assert.ok(addr&&typeof addr==='object');
+      const response=await fetch('http://127.0.0.1:'+addr.port+'/obfs/client.js');
+      assert.equal(response.status,200);
+      const emitted=await response.text();
+      if(label==='integrity')assert.equal(emitted,source);
+      else assert.notEqual(emitted,source,
+        'No-integrity live SCO control must actually mutate response bytes');
+    }finally{
+      await new Promise((resolve,reject)=>
+        server.close(error=>error?reject(error):resolve(undefined)));
+    }
+  }
+});
