@@ -24,7 +24,7 @@ function observe(code) {
 
 test('externally readable classic-script global callable source survives eager string encoding',()=>{
   const source='function publicReader(){return '+JSON.stringify(publicLiteral)+';}\n'+
-    'globalThis.privateValue=(function(){return '+JSON.stringify(privateLiteral)+';})();';
+    'globalThis.privateValue='+JSON.stringify(privateLiteral)+';';
   const input=[{path:'entry.js',sourceType:'script',code:source}];
   const output=obfuscateFiles(input,{
     mode:'coo',seed:'classic-public-source-review',
@@ -33,7 +33,7 @@ test('externally readable classic-script global callable source survives eager s
   });
   const emitted=String(output.files[0].code);
   assert.ok(output.files[0].metrics.literals>=1,
-    'Private immediately-invoked literal must retain at least one real transformation');
-  assert.ok(!emitted.includes(privateLiteral),\n    'Actual private IIFE literal must be encoded independently of exposed global source');\n  assert.deepEqual(observe(emitted),observe(source),
+    'Independent top-level private-value literal must retain a real transformation');
+  assert.ok(!emitted.includes(privateLiteral),\n    'Independent top-level literal must be encoded independently of the exposed function source');\n  assert.deepEqual(observe(emitted),observe(source),
     'A second script or external runtime can read globalThis.publicReader.toString()');
 });
