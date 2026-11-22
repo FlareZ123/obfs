@@ -55,8 +55,8 @@ uncooperative writer, loader interceptor or filesystem owner.
 
 ## Executable regression matrix
 
-`test/sno-ambient-package-scope.test.js` contains **16 focused tests**, including
-15 targeted scenarios and a 27-cell native-versus-generated Node package
+`test/sno-ambient-package-scope.test.js` contains **17 focused tests**, including
+16 targeted scenarios and a 27-cell native-versus-generated Node package
 placement matrix. The negative paths assert build rejection
 before any protected source is published; positive paths execute the
 actual generated SNO entry in a separate Node process.
@@ -64,7 +64,7 @@ actual generated SNO entry in a separate Node process.
 | Class | Cases and expected result |
 | --- | --- |
 | External output ESM | Unscoped CommonJS `.js` refuses; explicit root and nested CommonJS packages succeed; `.cjs`-only output succeeds |
-| Node boundary | `.js` under `node_modules` ignores the outside ESM ancestor; symlinked output resolves its real neutral destination and succeeds |
+| Node boundary | `.js` under lowercase `node_modules` ignores the outside ESM ancestor; uppercase `NODE_MODULES` inherits that ancestor and its CJS entry refuses; symlinked output resolves its real neutral destination and succeeds |
 | Multi-file graph | A `.cjs` launcher with an unscoped CommonJS `.js` dependency under external ESM refuses |
 | Reused output | Stale nested ESM overrides unscoped CommonJS and refuses; stale nested CommonJS consistent with source succeeds; stale nested CommonJS overriding an emitted ESM package refuses |
 | Input environment | Unscoped source `.js` under an external ESM package refuses; the external CommonJS equivalent is admitted and executes with native parity |
@@ -130,6 +130,15 @@ module resolution. A custom loader, later change to external metadata,
 or an uncaptured third-party dependency remains outside this contract.
 
 ## Validation and source pins
+
+The [17-test focused gate 45026845217](https://github.com/FlareZ123/obfs/actions/runs/45026845217)
+at source `e2386a8e8ed9611ff006f7845777968acb38e550`
+passed **both Ubuntu and Windows** with strict JSDoc, adding an
+uppercase `NODE_MODULES` control: despite Windows case-insensitive
+filesystem semantics, Node 22 treated this spelling as an ordinary
+directory for the package-scope stop rule, and the compiler conservatively
+rejected the inherited external ESM. A real `.cjs` runner avoided
+`node --eval`'s ambient `module` binding.
 
 The [16-test focused gate 45024526818](https://github.com/FlareZ123/obfs/actions/runs/45024526818)
 at source `30eea73aa6ef3b223bcc33cc560937888e26b46b`
