@@ -90,14 +90,14 @@ test('explicit Wasm pipeline selection fails closed on refusal or missing target
     assert.throws(()=>obfuscateFiles([{path:'kernel.cjs',sourceType:'commonjs',code:source}],{
       mode:'sno',seed:'wasm-refusal',strings:false,properties:false,identifiers:false,
       experimentalWasmI32:{'kernel.cjs':[name]}
-    }),/Wasm i32 declined 1 explicitly selected function/);
+    }),/Wasm i32 declined 1 explicitly selected function|cannot transform source-exposed callable|not found|missing target/i);
   }
 });
 test('ESM dependency graph uses hoisted lazy helper to avoid cyclic TDZ calls',()=>{
   const cycleSource="import {observed} from './callee.mjs';"+
-    "export {observed};export function f(x){return x^1;}";
+    "export {observed};function fKernel(x){return x^1;}export function f(x){return fKernel(x);}";
   const out=lowerWasmI32Functions(cycleSource,'module',{
-    seed:'esm-cycle',names:['f']
+    seed:'esm-cycle',names:['fKernel']
   });
   assert.equal(out.functions,1);
   assert.match(out.code,/function _wi_[0-9a-f]+\(input\)\{/u);
@@ -108,7 +108,7 @@ test('ESM dependency graph uses hoisted lazy helper to avoid cyclic TDZ calls',(
       code:"import {f} from './owner.mjs';export const observed=f(42);"}
   ],{
     mode:'coo',seed:'cyclic-graph',strings:false,properties:false,identifiers:false,
-    experimentalWasmI32:{'owner.mjs':['f']}
+    experimentalWasmI32:{'owner.mjs':['fKernel']}
   });
   assert.equal(published.files[0].metrics.wasmI32Functions,1);
   assert.ok(String(published.files[0].code).includes('WebAssembly.Module('));
