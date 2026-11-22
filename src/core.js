@@ -2918,6 +2918,17 @@ function obfuscateFiles(files, options = {}) {
       }
     }
   }
+  if(cross.files.some(input=>input.path==='mutator.cjs'&&
+     typeof input.code==='string'&&input.code.includes('unrelated.get='))) {
+    console.log('AGENT42_MODULE_GRAPH_DEBUG',{
+      objectCreate:[...projectObjectCreateFiles],
+      potentialSensitive:[...projectPotentialSensitiveFiles],
+      unknown:[...unknownModuleDependencies],
+      dependencies:[...moduleDependencies].map(([key,value])=>[key,[...value]]),
+      closures:[...moduleClosures].map(([key,value])=>[key,[...value]]),
+      related:[...relatedObjectCreateFiles]
+    });
+  }
   let unsafeDecoderIntrinsic=false;
   if (shouldEncodeStrings) {
     // Classic scripts share one page-global lexical environment. Reserve every
