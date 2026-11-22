@@ -151,12 +151,12 @@ test('same-module export specifier may appear before its proven initializer',asy
   ),1);
 });
 
-test('same-module later local key stays outside the private-owner proof',async()=>{
+test('acyclic later local key with named export alias is provable',async()=>{
   await compare(graph(
     'export const bag={secretField:8};const internalKey="secretField";'+
       'export {internalKey as publicKey};',
     'import {bag,publicKey} from "./state.mjs";console.log(bag[publicKey]);'
-  ),0);
+  ),1);
 });
 
 test('cyclic earlier named local key is safe after exported owner initialization',async()=>{
@@ -221,10 +221,14 @@ test('dynamic third-module key remains outside the acyclic proof',async()=>{
   ),0);
 });
 
-for(const [name,state,main,extras] of [
-  ['key initialized after owner',
+test('acyclic directly exported later key is also provable',async()=>{
+  await compare(graph(
     'export const bag={secretField:8};export const key="secretField";',
-    'import {bag,key} from "./state.mjs";console.log(bag[key]);',[]],
+    'import {bag,key} from "./state.mjs";console.log(bag[key]);'
+  ),1);
+});
+
+for(const [name,state,main,extras] of [
   ['mutable local alias remains dynamic',
     'export const key="secretField";export const bag={secretField:8};',
     'import {bag,key} from "./state.mjs";let local=key;console.log(bag[local]);',[]],
