@@ -81,12 +81,28 @@ validates actual browser-native `CSS.escape` via separate Chromium pages.
 with the host coercion fixture injected outside distributed source bytes.
 `.github/workflows/manual-browser.yml` runs the browser differential.
 
-The 16-case reflection-integrated final `src/ast.js` revision
-`41865c3119701ee8a9fec272af4e05f6592dc561` has a green
-two-OS focused test, but the full-browser and full-Node green runs above
-were pinned to its **earlier** `18d6266` ancestor. A new full
-integration run at or after the reflection revision would close that
-validation gap.
+The updated reflection-integrated branch at
+`c5f3036e4bc8d01bbcfc7fc13ffb2e9e2798775a` passed
+**full Ubuntu and Windows Node integration**
+[run 45084317811](https://github.com/FlareZ123/obfs/actions/runs/45084317811)
+and **full native Chromium**
+[run 45083899262](https://github.com/FlareZ123/obfs/actions/runs/45083899262).
+The latter includes the new actual Chrome two-module
+`test/css-escape-esm-browser.js` private-source import case, as well
+as the original direct/detached/bound native cases. Its literal-only
+positive still transforms an unrelated private property.
+An independently imported `export const escape=CSS.escape`
+through a separate `method.mjs` already preserved source text through
+the existing general source-observer safety guard, with no extra
+compiler analysis required; see
+[focused two-OS run 45083892055](https://github.com/FlareZ123/obfs/actions/runs/45083892055)
+at the same exact SHA. The final branch has JSDoc, focused,
+full runtime, and Chromium evidence at one source pin.
+
+The proof is pinned to the source described above; moving this
+guard onto the evolving canonical main branch requires another run against
+the merged source. Its test outcomes are facts about the measured cases,
+not about all JavaScript environments.
 
 The predicate remains finite and conservative. It cannot prove safety under
 arbitrary runtime-selected aliases, hostile monkey-patching, or opaque
