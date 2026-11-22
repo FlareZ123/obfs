@@ -227,7 +227,9 @@
     "test/a2mba-hybrid-opcode-heldout.test.js",
     "test/html-sri-foreign-base-browser.js",
     "test/sco-sri-encoded-route-browser.js",
-    "test/html-sri-filename-browser.js"
+    "test/html-sri-filename-browser.js",
+    "test/factory-destructuring-crossfile-grid.test.js",
+    "test/factory-destructuring-browser.js"
   ],
   "exclude": [
     "node_modules"
