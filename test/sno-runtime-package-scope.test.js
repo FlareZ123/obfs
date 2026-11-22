@@ -137,6 +137,6 @@ test('SNO runtime check identifies --preserve-symlinks package-context divergenc
       ['--preserve-symlinks','--preserve-symlinks-main',loader],
       {encoding:'utf8',timeout:15000});
     assert.notEqual(both.status,0);
-    assert.match(both.stderr,/SNO runtime package-scope mismatch: entry\\.js/u);
+    assert.match(both.stderr,/SNO runtime package-scope mismatch: entry\.js/u);
   });
 });
