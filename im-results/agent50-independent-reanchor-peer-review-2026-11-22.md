@@ -26,7 +26,7 @@ The explicit construction is a permutation: both component maps are involutions,
 
 At the three-bit anchors, the independently observed columns are:
 
-| Anchor | (M_r(e_0),M_r(e_1),M_r(e_2)) |
+| Anchor | M_r(e_0), M_r(e_1), M_r(e_2) |
 |---:|---|
 | 0 | 5, 6, 3 |
 | 1 | 5, 2, 7 |
@@ -43,7 +43,7 @@ The hidden input basis does repair the witness: directions `[1,2,7]` produce nat
 
 ### 2. The 64 × 24 width-three census
 
-The independent exhaustive census enumerated all 168 matrices in (GL(3,2)), all 128 compatible permutations, and all eight anchors for each of the 21,504 source pairs: 172,032 anchor checks.
+The independent exhaustive census enumerated all 168 matrices in `GL(3,2)`, all 128 compatible permutations, and all eight anchors for each of the 21,504 source pairs: 172,032 anchor checks.
 
 | Classification | Source pairs | Anchor matrices |
 |---|---:|---:|
@@ -51,26 +51,26 @@ The independent exhaustive census enumerated all 168 matrices in (GL(3,2)), all 
 | No compatible anchor | 1,536 | 12,288 singular matrices |
 | Mixed | 0 | 0 |
 
-The analytic count also reproduced independently. The top-bit quadratic coefficient (alpha) is the parity of the four values in its two-input truth table; exactly 64 compatible permutations have (alpha=1). For the input matrix, exactly six ordered independent first-row pairs—((3,5),(3,6),(5,3),(5,6),(6,3),(6,5))—satisfy the determinant-flip condition ( (a_0 mathbin{&} a_1)cdot v=1), where (v) is the unique nonzero vector orthogonal to (a_0,a_1). Each pair has four admissible third rows, giving 24 bad invertible matrices. Therefore the exact count is (64\times24=1,536).
+The analytic count also reproduced independently. The top-bit quadratic coefficient alpha is the parity of the four values in its two-input truth table; exactly 64 compatible permutations have alpha = 1. For the input matrix, exactly six ordered independent first-row pairs—(3,5), (3,6), (5,3), (5,6), (6,3), (6,5)—satisfy the determinant-flip condition: the GF(2) dot product of (a0 AND a1) with v is 1, where v is the unique nonzero vector orthogonal to a0 and a1. Each pair has four admissible third rows, giving 24 bad invertible matrices. Therefore the exact count is 64 × 24 = 1,536.
 
 This agrees with Agent 2's reported classification and explains why the width-three family has no mixed-anchor cases.
 
 ### 3. The four-bit full-rank-but-incompatible witness
 
-The independent implementation confirms all 16 source and output values are distinct, the output map is compatible triangular, and the input map is invertible. Across all 16 anchors it found eight singular matrices, eight full-rank matrices, and **zero** matrices whose normalized (B_r=M_rA^{-1}) is lower-unitriangular.
+The independent implementation confirms all 16 source and output values are distinct, the output map is compatible triangular, and the input map is invertible. Across all 16 anchors it found eight singular matrices, eight full-rank matrices, and **zero** matrices whose normalized B_r = M_r A^-1 is lower-unitriangular.
 
 At anchor 11:
 
-- (M_r) columns: ([3,10,5,4])
-- normalized (B_r) columns: ([15,10,8,12])
-- target (F(1)=5)
-- fixed-point trajectory: (14\to6\to9\to14), with none of those inputs mapping to 5.
+- M_r columns: [3, 10, 5, 4]
+- normalized B_r columns: [15, 10, 8, 12]
+- target F(1) = 5
+- fixed-point trajectory: 14 -> 6 -> 9 -> 14, with none of those inputs mapping to 5.
 
 The same target is reached accidentally from anchors 0 and 3. This is a useful nuance: the example falsifies “full rank is sufficient” and shows the specified update can cycle, but it does not show that every anchor or every inversion method fails.
 
 ### 4. General common-basis lemma
 
-The proof is valid. With (g(u)=F(r\oplus u)\oplus F(r)), if the current input and output spans (U,W) both have dimension (k<n), a next direction is forbidden only if it lies in (U\cup g^{-1}(W)). Both sets have size (2^k) and contain zero, so their union has at most (2^{k+1}-1<2^n) elements. A direction outside the union increases both dimensions. Induction gives a basis whose output differences also form a basis.
+The proof is valid. With g(u) = F(r XOR u) XOR F(r), if the current input and output spans U and W both have dimension k < n, a next direction is forbidden only if it lies in U union g^-1(W). Both sets have size 2^k and contain zero, so their union has at most 2^(k+1) - 1 < 2^n elements. A direction outside the union increases both dimensions. Induction gives a basis whose output differences also form a basis.
 
 An exhaustive check covered all 40,320 permutations of an eight-element domain at all eight anchors: **322,560 permutation-anchor pairs, zero failures**.
 
