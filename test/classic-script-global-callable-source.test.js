@@ -34,6 +34,8 @@ test('externally readable classic-script global callable source survives eager s
   const emitted=String(output.files[0].code);
   assert.ok(output.files[0].metrics.literals>=1,
     'Independent top-level private-value literal must retain a real transformation');
-  assert.ok(!emitted.includes(privateLiteral),\n    'Independent top-level literal must be encoded independently of the exposed function source');\n  assert.deepEqual(observe(emitted),observe(source),
+  assert.ok(!emitted.includes(privateLiteral),
+    'Independent top-level literal must be encoded independently of the exposed function source');
+  assert.deepEqual(observe(emitted),observe(source),
     'A second script or external runtime can read globalThis.publicReader.toString()');
 });
