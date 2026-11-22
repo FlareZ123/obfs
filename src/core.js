@@ -1776,6 +1776,10 @@ function mutatesDecoderIntrinsic(ast,rejectCommonJsExportEscape=false,rejectEsmE
   const descriptorBindings=new Map();
   /** @type {Map<string,Set<string>>} */
   const descriptorAliases=new Map();
+  // An alias read from a descriptor-map entry may later receive its getter
+  // through a separate identifier. Resolve these may-alias writes fail-closed.
+  /** @type {Map<string,Set<string>>} */
+  const descriptorMemberReadAliases=new Map();
   /** @type {Map<string,Array<{key:string|null,value:import('./ast').AstNode}>>} */
   const descriptorMemberWrites=new Map();
   /** @type {Map<string,import('./ast').AstNode[]>} */
@@ -1809,6 +1813,23 @@ function mutatesDecoderIntrinsic(ast,rejectCommonJsExportEscape=false,rejectEsmE
         if(key==='create')objectCreateAliases.add(property.value.name);
       }
     }
+    // Destructuring reads the same descriptor-entry object as a direct
+    // member expression: `const {ref:entry}=descriptors` may later mutate
+    // `entry.get`. Track the entry conservatively even for computed keys.
+    const readPattern=node.type==='VariableDeclarator'&&
+      node.id.type==='ObjectPattern'&&node.init?.type==='Identifier'?
+      {source:node.init.name,pattern:node.id}:
+      node.type==='AssignmentExpression'&&node.operator==='='&&
+      node.left.type==='ObjectPattern'&&node.right.type==='Identifier'?
+      {source:node.right.name,pattern:node.left}:null;
+    if(readPattern){
+      const aliases=descriptorMemberReadAliases.get(readPattern.source)??new Set();
+      for(const property of readPattern.pattern.properties){
+        if(property.type==='Property'&&property.value.type==='Identifier')
+          aliases.add(property.value.name);
+      }
+      if(aliases.size)descriptorMemberReadAliases.set(readPattern.source,aliases);
+    }
     if(node.type==='VariableDeclarator'&&node.id.type==='Identifier'&&node.init){
       const entries=descriptorBindings.get(node.id.name)??[];
       entries.push(node.init);
@@ -1817,6 +1838,13 @@ function mutatesDecoderIntrinsic(ast,rejectCommonJsExportEscape=false,rejectEsmE
         const aliases=descriptorAliases.get(node.init.name)??new Set();
         aliases.add(node.id.name);
         descriptorAliases.set(node.init.name,aliases);
+      }
+      if(node.init.type==='MemberExpression'&&
+         node.init.object.type==='Identifier') {
+        const source=node.init.object.name;
+        const aliases=descriptorMemberReadAliases.get(source)??new Set();
+        aliases.add(node.id.name);
+        descriptorMemberReadAliases.set(source,aliases);
       }
     } else if(node.type==='AssignmentExpression'&&node.operator==='='&&
               node.left.type==='Identifier') {
@@ -1827,6 +1855,13 @@ function mutatesDecoderIntrinsic(ast,rejectCommonJsExportEscape=false,rejectEsmE
         const aliases=descriptorAliases.get(node.right.name)??new Set();
         aliases.add(node.left.name);
         descriptorAliases.set(node.right.name,aliases);
+      }
+      if(node.right.type==='MemberExpression'&&
+         node.right.object.type==='Identifier') {
+        const source=node.right.object.name;
+        const aliases=descriptorMemberReadAliases.get(source)??new Set();
+        aliases.add(node.left.name);
+        descriptorMemberReadAliases.set(source,aliases);
       }
     }
   });
@@ -1892,6 +1927,26 @@ function mutatesDecoderIntrinsic(ast,rejectCommonJsExportEscape=false,rejectEsmE
       });
   }
   /**
+   * A descriptor entry read through `alias = descriptors.ref` can receive a
+   * getter through `alias.get = fn`. Follow later identifier aliases of the
+   * entry as a conservative may-alias closure. This does not assert that an
+   * arbitrary host member read is safe to rename or otherwise rewrite.
+   * @param {string} name
+   * @param {Set<string>} [visited]
+   * @returns {boolean}
+   */
+  function memberReadAliasWritesDecoderGetter(name,visited=new Set()) {
+    if(visited.has(name))return false;
+    visited.add(name);
+    return (descriptorMemberWrites.get(name)??[]).some(
+      write=>(write.key===null||write.key==='get')&&
+        proxyGetMayReturnDecoderIntrinsic(write.value))||
+      (objectAssignSources.get(name)??[]).some(
+        source=>descriptorHasSensitiveGetter(source))||
+      [...(descriptorAliases.get(name)??[])].some(
+        alias=>memberReadAliasWritesDecoderGetter(alias,visited));
+  }
+  /**
    * Object.create's outer map may use a computed property name. The name
    * cannot make a decoder-sensitive accessor harmless if it is later read.
    * @param {import('./ast').AstNode} expression
@@ -1915,6 +1970,8 @@ function mutatesDecoderIntrinsic(ast,rejectCommonJsExportEscape=false,rejectEsmE
         write=>descriptorHasSensitiveGetter(write.value))||
       (objectAssignSources.get(name)??[]).some(
         source=>objectCreateMayExposeDecoder(source,visited))||
+      [...(descriptorMemberReadAliases.get(name)??[])].some(
+        alias=>memberReadAliasWritesDecoderGetter(alias))||
       [...(descriptorAliases.get(name)??[])].some(
         alias=>objectCreateMayExposeDecoderIdentifier(alias,visited));
     // The caller provides a fresh set per root query. Retaining completed
