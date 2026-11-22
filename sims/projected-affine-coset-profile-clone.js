@@ -108,7 +108,7 @@ function learnProjectedAffineOracle(
     const candidate={bits,rank,table,coordinates,affineCorrections};
     if(heldout.every(x=>evaluateProjectedAffineModel(candidate,x)===ask(x))){
       return {...candidate,queries:responses.size,attempts:attempt,
-        verificationSamples,failureBound};
+        verificationSamples:validationSamples,failureBound};
     }
   }
   throw new Error('No verified rank-bounded projected affine model within the predeclared query cap');
