@@ -17,11 +17,16 @@ function observe(code) {
   const sandbox={module:{exports:exposed},exports:exposed};
   vm.runInNewContext(code,sandbox,{timeout:2000});
   const pub=sandbox.module.exports;
+  const sourceValue=value=>typeof value==='function'?
+    Function.prototype.toString.call(value):value;
   if(typeof pub==='function')
-    return JSON.stringify([Function.prototype.toString.call(pub),pub()]);
+    return JSON.stringify([Function.prototype.toString.call(pub),sourceValue(pub())]);
   if(pub&&typeof pub==='object'&&'read' in pub &&
-     typeof pub.read==='function')
-    return JSON.stringify([Function.prototype.toString.call(pub.read),pub.read()]);
+     typeof pub.read==='function') {
+    const getter=Object.getOwnPropertyDescriptor(pub,'read')?.get;
+    return JSON.stringify([getter?Function.prototype.toString.call(getter):null,
+      Function.prototype.toString.call(pub.read),sourceValue(pub.read())]);
+  }
   return JSON.stringify(pub);
 }
 
@@ -63,7 +68,19 @@ const leaked=[
   ['module.exports property assignment',
     'module.exports.read=()=>owner.secretField;'],
   ['nested returned callable in public method',
-    'module.exports={read(){return ()=>owner.secretField;}};']
+    'module.exports={read(){return ()=>owner.secretField;}};'],
+  ['post-export aggregate member assignment',
+    'function read(){return owner.secretField;}const api={};module.exports=api;api.read=read;'],
+  ['post-export Object.assign publication',
+    'function read(){return owner.secretField;}const api={};module.exports=api;Object.assign(api,{read});'],
+  ['class instance field callable',
+    'class Api{read=()=>owner.secretField;}module.exports=new Api();'],
+  ['class static callable member',
+    'function hidden(){return owner.secretField;}class Api{}Api.read=hidden;module.exports={read:Api.read};'],
+  ['getter returning a callable',
+    'const hidden=()=>owner.secretField;module.exports={get read(){return hidden;}};'],
+  ['callable returned by public factory',
+    'const hidden=()=>owner.secretField;module.exports=function get(){return hidden;}']
 ];
 
 for(const [label,code] of leaked) {
