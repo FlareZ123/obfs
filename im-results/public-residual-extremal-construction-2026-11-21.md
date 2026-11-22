@@ -58,22 +58,35 @@ The projection of `F(x)` onto its first r output bits is linear in x and equals 
 
 Any invertible affine input/output reparameterization preserves the intrinsic residual rank. Invertible output linear maps also preserve the interpolant's rank. Thus these examples can be concealed under arbitrary invertible affine wrappers without changing the residual-rank profile. The executable reference below uses the explicit unwrapped form.
 
-### Proof that the residual span is independent of the affine frame
+### Coordinate-free second-difference characterization
 
-This invariance does not depend on the permutation property. Let V and W be finite-dimensional vector spaces over GF(2), let F:V->W be any function, and let B=(b_0,b_0+v_1,...,b_0+v_n) be an affine frame of V, where v_1,...,v_n is a basis. Let L_B:V->W be the unique affine map agreeing with F on B, and define
-
-```text
-D_B(x) = F(x) xor L_B(x)
-R_B = span{D_B(x): x in V}.
-```
-
-Take any second affine frame C and its interpolant L_C. Set Q=L_B xor L_C; Q is affine, and D_B xor D_C=Q. On every point c in C, D_C(c)=0, so Q(c)=D_B(c) is in R_B. The values of an affine map on any affine frame span all of its values: writing Q(x)=q_0+T x, each Q(x) is a linear combination of Q(c_0),Q(c_0+w_1),...,Q(c_0+w_n) for the frame directions w_i. Therefore Q(V) is contained in R_B. It follows that D_C(x)=D_B(x) xor Q(x) is in R_B for every x, so R_C is contained in R_B. Interchanging B and C gives the reverse inclusion. Hence
+For a function F:V->W over GF(2), define its second finite difference by
 
 ```text
-R_B = R_C.
+Delta_u Delta_v F(x)
+  = F(x) xor F(x xor u) xor F(x xor v) xor F(x xor u xor v).
 ```
 
-For an invertible affine input wrapper F'(x)=F(Ax+b), the standard frame in the new coordinates maps to the affine frame (b,b+Ae_1,...,b+Ae_n) in the old coordinates. The output residual span is therefore exactly the same R_F. For an invertible affine output wrapper F'(x)=B F(x)+c, its interpolant is B L_F(x)+c and its residuals are B D_F(x); its residual span is B R_F and has the same dimension.
+For any affine frame B, let L_B be the affine interpolant through the frame and let D_B=F xor L_B. Then
+
+```text
+R_B = span{D_B(x): x in V}
+    = span{Delta_u Delta_v F(x): x,u,v in V}.
+```
+
+**Proof.** Every second difference of an affine map is zero. Therefore each `Delta_u Delta_v F(x)` is the xor of four values of D_B, proving that the second-difference span is contained in R_B.
+
+For the reverse inclusion, change coordinates to the frame B, so D_B(0)=D_B(e_i)=0 for every basis vector e_i. Let S be the span of the second differences in the display. We prove by induction on Hamming weight that every D_B(x) lies in S. The claim holds at weights zero and one because those residuals vanish. For weight at least two, choose distinct i,j in the support of x and set y=x xor e_i xor e_j. Then
+
+```text
+Delta_e_i Delta_e_j D_B(y)
+  = D_B(y) xor D_B(y xor e_i)
+    xor D_B(y xor e_j) xor D_B(x).
+```
+
+The first three arguments have strictly smaller Hamming weight than x, so their residuals lie in S by induction. The left-hand side is a second difference and lies in S by definition. Hence D_B(x) also lies in S. This proves R_B is contained in the second-difference span and establishes equality.
+
+The right-hand side is independent of the affine frame, so the residual span itself—not just its dimension—is independent of the chosen public interpolation basis. In particular, an invertible affine input wrapper merely reindexes the points and directions in the same second-difference set. An invertible affine output wrapper F'(x)=B F(x)+c maps every second difference by B, preserving its dimension when B is invertible.
 
 **Important distinction:** this proves invariance of the residual span/rank, not invariance of the public interpolant's rank under input affine wrappers. For the r=3 reference completion used by the executable constructor, replacing the input basis (e_0,e_1,e_2,e_3,e_4,e_5) by (e_0,e_0+e_1,e_2,e_3,e_4,e_5) is an invertible shear (column integers [1,3,4,8,16,32] in the constructor's bit order). The unwrapped public interpolant has rank 3; the sheared input has interpolant rank 4, while the residual rank remains 3. Invertible output-linear wrappers do preserve interpolant rank because they left-multiply its matrix by an invertible matrix.
 
