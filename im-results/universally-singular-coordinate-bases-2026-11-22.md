@@ -81,7 +81,9 @@ Write the independent rows of the input mixing matrix `A` as `a0,a1,a2`. The non
 - `test/reanchor-all-anchor-singular.test.js`: four independent `node:test` assertions on both involutions, every three-bit anchor, 32-bit integration, and the exhaustive census. External dependency-free, CommonJS/JSDoc.
 - The output bits and matrix dependence were also checked in a separate Python GF(2) enumerator before the Node implementation. That independent code counted exactly 19,968 all-valid source pairs and 1,536 no-valid pairs, with all 12,288 invalid anchor matrices singular.
 
-The attached focused two-platform CI receipt is recorded below when verified.
+[**Focused two-platform run 45019289608**](https://github.com/FlareZ123/obfs/actions/runs/45019289608) at exact source `dc0ab8bdcaffb509e939e8b26b7aea8d731e4650` **passed** on Node 22 Ubuntu and Windows, including all four theorem tests, strict project JSDoc and external JSDoc. This pin predates the document-only report addition and covers the executable simulation and test bytes.
+
+
 
 ## Interpretation and limits
 
