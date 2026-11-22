@@ -59,7 +59,7 @@ jobs:
       - name: Paired source-exact A2MBA heldout CPU against minified native control
         run: node sims/a2mba-heldout-source-paired-cpu.js
       - name: Recover A2MBA PureIR opcode with one post-freeze probe
-        run: node --test test/a2mba-hybrid-opcode-heldout.test.js
+        run: node --test test/a2mba-hybrid-opcode-heldout.test.js test/a2mba-opcode-residual-rank.test.js
       - name: Profile A2MBA rotated-core selected work
         run: node sims/a2mba-rotated-core-int32-pilot.js
       - name: JSDoc
