@@ -309,3 +309,90 @@ test('imported browser source-reader key retains whole-graph refusal',async()=>{
     'import {bag,key} from "./state.mjs";console.log(bag.secretField,typeof globalThis[key]);'
   ),0);
 });
+
+
+test('acyclic named string re-export preserves imported computed-key rewrite',async()=>{
+  await compare(graph(
+    'export const bag={secretField:8};',
+    'import {bag} from "./state.mjs";import {lookup} from "./relay.mjs";'+
+      'console.log(bag[lookup]);',
+    [
+      {path:'key.mjs',sourceType:'module',code:'export const key="secretField";'},
+      {path:'relay.mjs',sourceType:'module',code:'export {key as lookup} from "./key.mjs";'}
+    ]
+  ),1);
+});
+
+test('named string re-export resolves two-hop aliases even in reversed input order',async()=>{
+  await compare(graph(
+    'export const bag={secretField:8};',
+    'import {bag} from "./state.mjs";import {lookup} from "./relay2.mjs";'+
+      'console.log(bag[lookup]);',
+    [
+      {path:'relay2.mjs',sourceType:'module',code:'export {mid as lookup} from "./relay1.mjs";'},
+      {path:'relay1.mjs',sourceType:'module',code:'export {key as mid} from "./key.mjs";'},
+      {path:'key.mjs',sourceType:'module',code:'export const key="secretField";'}
+    ]
+  ),1);
+});
+
+test('cyclic named string re-export preserves early TDZ access',async()=>{
+  await compare(graph(
+    'import {probe} from "./main.mjs";export const bag={secretField:8};'+
+      'try{console.log(probe());}catch(error){console.log(error.name);}',
+    'import {bag} from "./state.mjs";import {lookup} from "./relay.mjs";'+
+      'export function probe(){return bag[lookup];}console.log(bag[lookup]);',
+    [
+      {path:'key.mjs',sourceType:'module',code:'export const key="secretField";'},
+      {path:'relay.mjs',sourceType:'module',code:'export {key as lookup} from "./key.mjs";'}
+    ]
+  ),0);
+});
+
+test('named string re-export retains function-source observer refusal',async()=>{
+  await compare(graph(
+    'export const bag={secretField:8};',
+    'import {bag} from "./state.mjs";import {lookup} from "./relay.mjs";'+
+      'function inspect(){return bag.secretField;}console.log(inspect[lookup]());',
+    [
+      {path:'key.mjs',sourceType:'module',code:'export const key="toString";'},
+      {path:'relay.mjs',sourceType:'module',code:'export {key as lookup} from "./key.mjs";'}
+    ]
+  ),0);
+});
+
+test('namespace-like export-star does not prove immutable string provenance',async()=>{
+  await compare(graph(
+    'export const bag={secretField:8};',
+    'import {bag} from "./state.mjs";import {key} from "./relay.mjs";'+
+      'console.log(bag[key]);',
+    [
+      {path:'key.mjs',sourceType:'module',code:'export const key="secretField";'},
+      {path:'relay.mjs',sourceType:'module',code:'export * from "./key.mjs";'}
+    ]
+  ),0);
+});
+
+test('mutable named string re-export remains unproved',async()=>{
+  await compare(graph(
+    'export const bag={secretField:8};',
+    'import {bag} from "./state.mjs";import {lookup} from "./relay.mjs";'+
+      'console.log(bag[lookup]);',
+    [
+      {path:'key.mjs',sourceType:'module',code:'export let key="secretField";'},
+      {path:'relay.mjs',sourceType:'module',code:'export {key as lookup} from "./key.mjs";'}
+    ]
+  ),0);
+});
+
+test('named re-export with query spelling is outside exact graph proof',async()=>{
+  await compare(graph(
+    'export const bag={secretField:8};',
+    'import {bag} from "./state.mjs";import {lookup} from "./relay.mjs";'+
+      'console.log(bag[lookup]);',
+    [
+      {path:'key.mjs',sourceType:'module',code:'export const key="secretField";'},
+      {path:'relay.mjs',sourceType:'module',code:'export {key as lookup} from "./key.mjs?tag";'}
+    ]
+  ),0);
+});
