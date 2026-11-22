@@ -2376,7 +2376,8 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
   function isNativeMimeParamsInstance(node) {
     return Boolean(node&&(node.type==='Identifier'&&nativeMimeParams.has(node.name)||
       node.type==='NewExpression'&&isNodeUtilMimeParamsConstructor(node.callee)||
-      node.type==='MemberExpression'&&memberName(node)==='params'&&
+      node.type==='MemberExpression'&&
+        (memberName(node)==='params'||node.computed&&memberName(node)===null)&&
         isNativeMimeTypeInstance(node.object)));
   }
   /** @param {AstNode|null|undefined} node @returns {boolean} */
