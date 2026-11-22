@@ -75,6 +75,7 @@ async function main() {
         {mode:'coo',seed:'dom-serialization/'+label,strings:false,identifiers:true}).files[0];
       const native=await browser(dir,label+'-native',original,sourceType);
       const renamed=await browser(dir,label+'-renamed',renamedCode,sourceType);
+      assert.ok(typeof compiled.code==='string');
       const emitted=await browser(dir,label+'-emitted',compiled.code,sourceType);
       assert.deepEqual(native,{value:8,sourceMatch:true});
       assert.deepEqual(renamed,{value:8,sourceMatch:false});
