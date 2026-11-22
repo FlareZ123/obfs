@@ -116,6 +116,13 @@ function injectHostLock(source, ast, hosts, completeStaticGraph=false) {
       statement.type === 'ExportNamedDeclaration' && statement.source)) {
     throw new TypeError('Host locking ESM static imports or reexports requires a complete closed-world module group');
   }
+  // The guard executes before user declarations. A local globalThis binding
+  // can shadow the host object or remain in its temporal dead zone.
+  // Conservatively decline whenever the source declares that name, including
+  // aliases introduced by imports, destructuring, or function parameters.
+  if (collectBindings(ast).has('globalThis')) {
+    throw new TypeError('Host locking cannot preserve a shadowed globalThis binding');
+  }
   const allowed=canonicalAllowedHosts(hosts);
   const snippet = `;(()=>{const h=globalThis.location?.hostname?.toLowerCase();if(!${JSON.stringify(allowed)}.includes(h))throw Error('Unauthorized execution host')})();\n`;
   let offset = 0;
