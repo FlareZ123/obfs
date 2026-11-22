@@ -1,7 +1,8 @@
 # Element.setAttribute DOMString function-source conversion
 
-**Status: behavior-changing two-OS Node and native Chromium red differentials
-proven; current patch green in two-OS focused CI and awaiting native Chrome green.** Agent 19,
+**Status: behavior-changing two-OS Node and native Chromium red
+differentials reproduced; bounded guard green in full native Chromium and
+two-OS focused CI.** Agent 19,
 22 November 2026. Research branch
 `agent19/dom-attribute-string-source-20261122`. Companion red branch
 `agent19/dom-string-native-red-20261122`. This work targets semantic
@@ -56,10 +57,26 @@ therefore modify a private function passed to native
   `negativeContainsSecret=false`; actual output text substituted generated
   `_v...` and `_p...` tokens, while primitive positive still renamed
   its unrelated private property. The patched native Chromium comparator
-  at `ea25ffe178326124bd7bb8e92693d78c3443d9d9` is
+  at `ea25ffe178326124bd7bb8e92693d78c3443d9d9`,
   [run 45084466723](https://github.com/FlareZ123/obfs/actions/runs/45084466723),
-  pending final status. A later test-only change retains the same native
-  browser emitter contract.
+  passed the complete native Chrome workflow.
+- **Bound and reflected methods:** Added seven extra native attribute
+  invocation cases: bound setter, transitive bound alias, direct
+  `.call`/`.apply`, `Reflect.apply` on direct and detached method
+  references, and bound namespaced setter. The initial first guard
+  [red focused 45084846257](https://github.com/FlareZ123/obfs/actions/runs/45084846257)
+  at `43dfe3e9a6890c6f598c7438811460b6f785bc3a`
+  failed three out of seven new negative cases on both OSes while its
+  existing positive remained safe.
+  Fixed bounded arity and method alias proof in
+  [two-OS focused green 45084975460](https://github.com/FlareZ123/obfs/actions/runs/45084975460)
+  at `9733deb2453f1fd1f7ced2ddd1b5c11304eaa7fa` with strict JSDoc.
+  **Full native Chromium** including all eight direct, namespace, bound,
+  `.call`, `.apply`, `Reflect.apply`, detached and namespaced
+  attribute readback paths passed
+  [run 45085069381](https://github.com/FlareZ123/obfs/actions/runs/45085069381)
+  at `dbf4fbae8fa586af55ce02670ff8d6b8ff4497e2`.
+  The literal-only positive still renamed its unrelated private property.
 
 ## Compiler fix and limits
 
@@ -72,14 +89,21 @@ name/value argument, exact source-preservation is required.
 Provably primitive inputs retain normal private renaming. No runtime
 instruction is added.
 
-This finite proof does not yet follow arbitrary property containers,
+The method-refinement additionally follows locally acquired native
+setters across direct `.bind`, `.call`, `.apply`, simple identifier
+aliases, and `Reflect.apply`. It conservatively records the greatest
+potential DOMString-input arity for a variable that may refer to multiple
+setters. This adds compile-time analysis without adding runtime work.
+
+This finite proof does not follow arbitrary property containers,
 interprocedural element factories, opaque externally supplied Element
-receivers, or detached/native method call-bind-reflection wrappers.
-Shadowed global names can conservatively refuse otherwise eligible
-transforms. These are documented coverage/yield limits, not security
-guarantees.
+receivers, or opaque reflection aliases without a known native setter
+capability. Shadowed global names can conservatively refuse otherwise
+eligible transformations. These are documented coverage/yield limits,
+not security guarantees.
 
 The release decision in [results/README.md](../results/README.md)
-remains **RELEASE-BLOCKED**. Promote only after the native Chromium
-test, current-main integration, and a new source-pinned two-OS full
-validation.
+remains **RELEASE-BLOCKED**. Native Chromium and focused two-OS
+tests pass on the implementation above. Full Node integration at final
+branch SHA and integration onto the canonical current-main source observer
+remain separate prerequisites for promotion.
