@@ -116,7 +116,7 @@ function runWidth3() {
         const clean=inner.every(column=>(p(column^b)^first)===column);
         if(!clean){dirtyConfigurations++;continue;}
         cleanConfigurations++;
-        if(Array.from({length:8},(_,x)=>p(x)^x).some(shift=>shift!==first^b)) {
+        if(Array.from({length:8},(_,x)=>p(x)^x).some(shift=>shift!==(first^b))) {
           nontrivialCleanConfigurations++;
         }
         for(let j=0;j<outers.length;j++) {
