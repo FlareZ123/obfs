@@ -62,6 +62,23 @@ Every count was reproduced on each OS independently, using different cryptograph
 
 This externally visible source mismatch is already a known project-wide compatibility pressure point. It is recorded here as an exact limitation of this new same-source challenge, **not** claimed as newly discovered general source-reflection theory or a unique defect against the obfuscator.
 
+### Source-matched repeated-execution CPU tradeoff
+
+The next experiment addresses the distinct **2.5x repeated-compute budget** with `sims/llm-matched-affine-cpu-control.js`. It samples a separate fresh hidden-source three-export program in each mode and each OS run, compiles the actual obfuscated ESM and ordinary esbuild ESM from that single source, commits both three-export answers before revealing the original source, imports all three code variants, validates identical checksums, and warms each function. Thirteen counterbalanced rounds then execute **8,000,000 input-dependent calls per export** for native, generated and minified functions (24 million calls per variant per round). It records CPU and wall milliseconds with full raw samples, hashes, arm identities and source in a per-OS artifact. Startup/JIT costs are excluded in all three arms, so this is a **post-initialization hot-leaf** measurement. For COO it cannot establish a full startup-inclusive budget pass.
+
+Source-pinned two-platform [run 45023836263](https://github.com/FlareZ123/obfs/actions/runs/45023836263) at exact SHA `4cf4d48f8230e07cdda06e87699e223af7f83c3c` passed, with the following observed paired `generated/native` CPU ratios. The interval is the existing `pairedBudgetBound` 95% nominal distribution-free **median-of-paired-ratios** interval (attained confidence 95.3857% under independent stationary rounds), and `supported` means its sample-based upper bound is below the threshold:
+
+| Execution host | Mode | Median generated/native CPU ratio | 95% median interval | Within 2.5x pairs |
+| --- | --- | ---: | --- | ---: |
+| Ubuntu Node 22 | COO | 1.260x | [1.251, 1.261] | 13/13 |
+| Ubuntu Node 22 | SNO | 1.302x | [1.299, 1.304] | 13/13 |
+| Windows Node 22 | COO | 1.220x | [1.220, 1.326] | 13/13 |
+| Windows Node 22 | SNO | 1.343x | [1.326, 1.496] | 13/13 |
+
+Ordinary same-source esbuild-minified median/native CPU ratios were about 1.0x on both platforms/modes. The Windows `process.cpuUsage()` clock reports coarse intervals; an earlier 1,000,000-call trial [run 45023705232](https://github.com/FlareZ123/obfs/actions/runs/45023705232) failed on Windows when a CPU measurement was reported as zero, despite an approximately 16–32 ms wall-duration sample. The 8,000,000-call trial length mitigated that measurement failure and passed. Windows CPU bounds should still be interpreted with quantization uncertainty, and no OS result is a random sample of all real workloads. Existing whole-app/fresh-process sessions remain necessary for a production release decision.
+
+This is a useful **performance-positive, confidentiality-negative** tradeoff. The backend can run this hot arithmetic family within the sampled post-init CPU threshold, but every public instance in the earlier matched static suite was source-only reconstructed, and all external source-reflection comparisons above differed. Neither CPU result creates a new source secrecy or strong environment-enforcement boundary.
+
 ## Executable evidence and limitations
 
 The focused `test/llm-matched-affine-challenge.test.js` is a **mechanics/parity control**, deliberately not an LLM attack. It loads each public artifact as an actual Node ESM data module, obtains numeric translation answers from one public runtime probe, verifies same-source answer equality, runs 1,024 original-versus-both-public hold-outs per export, grades both arms in one shot and audits the salted commitment after reveal. It also verifies malformed answer refusal and one-shot replay rejection in the host. A separate strict `jsconfig.llm-matched-affine.json` covers both new files. These tests should be run on both Node22 Ubuntu and Windows using the pre-existing manual polyvariant affine workflow.
