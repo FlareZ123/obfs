@@ -1191,15 +1191,20 @@ function privateDirectMemberReaders(ast,bindings) {
  * A conservative proof failure leaves the complete file unchanged for that object.
  * @param {string} source
  * @param {AstNode} ast
- * @param {{seed:string}} options
+ * @param {{seed:string,sourceType?:'module'|'commonjs'|'script'}} options
  * @returns {{code:string,objects:number,properties:number}}
  */
 function renameLocalProperties(source, ast, options) {
   const bindings = collectBindings(ast);
-  const directlyPrivateReaders=privateDirectMemberReaders(ast,bindings);
+  // Explicit closed-world ESM owners have a separate export/consumer proof.
+  // Local CommonJS exports require this additional external callable-source
+  // guard because require() callers can inspect functions outside this graph.
+  const guardCommonJsSources=options.sourceType!=='module';
+  const directlyPrivateReaders=guardCommonJsSources ?
+    privateDirectMemberReaders(ast,bindings) : new Set();
   /** @type {WeakSet<AstNode>} */
   const sourceExposedEdits=new WeakSet();
-  walk(ast,(node,parent,key,ancestors)=>{
+  if(guardCommonJsSources)walk(ast,(node,parent,key,ancestors)=>{
     if(ancestors.some(ancestor=>
       ['FunctionDeclaration','FunctionExpression','ArrowFunctionExpression']
         .includes(ancestor.type)&&!directlyPrivateReaders.has(ancestor)))
@@ -1236,10 +1241,11 @@ function renameLocalProperties(source, ast, options) {
     // Reading a renamed property inside an externally observable callable
     // changes Function#toString. Only uniquely bound pure member readers
     // proven direct-call-only are allowed to contain edited property nodes.
-    if(proof.members.some(member=>sourceExposedEdits.has(member))||
-       proof.patterns.some(pattern=>sourceExposedEdits.has(pattern))||
-       proof.inChecks.some(check=>sourceExposedEdits.has(check))||
-       proof.reflections.some(reflection=>sourceExposedEdits.has(reflection.call)))continue;
+    if(guardCommonJsSources&&
+       (proof.members.some(member=>sourceExposedEdits.has(member))||
+        proof.patterns.some(pattern=>sourceExposedEdits.has(pattern))||
+        proof.inChecks.some(check=>sourceExposedEdits.has(check))||
+        proof.reflections.some(reflection=>sourceExposedEdits.has(reflection.call))))continue;
     // An unowned field may invoke an inherited getter with this=object. That
     // getter can enumerate own keys, making otherwise private renaming visible.
     const ownNames=new Set(candidate.properties.map(ownPropertyName));
