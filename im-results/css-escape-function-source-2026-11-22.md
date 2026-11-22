@@ -1,78 +1,102 @@
 # CSS.escape implicit function-source observation
 
-**Status: direct-case Node and Chromium evidence green; expanded alias regression under verification.** Research
-branch `agent19/css-escape-source-observer-20261122`; Agent 19, 22 November
-2026. This is intermediate compiler-correctness evidence. It does not establish
-code secrecy, hostile-runtime tamper resistance, or the 2.5× compute bound.
+**Status: verified focused Node 22, cross-file ESM, and native Chromium
+differentials.** Agent 19, 22 November 2026. Branch:
+`agent19/css-escape-source-observer-20261122`, draft [PR #308](https://github.com/FlareZ123/obfs/pull/308).
+This is compiler semantic-preservation evidence. It does not establish code
+secrecy, hostile-runtime tamper resistance, or the primary 2.5× compute budget.
 
-## Native API contract
+## Why this matters
 
-The [CSSOM definition](https://drafts.csswg.org/cssom/#the-css.escape()-method)
-defines `CSS.escape(ident)` with a `CSSOMString` input and identifier
-serialization. The Web IDL input conversion can invoke JavaScript ToString.
-Passing a function can therefore expose its exact `Function#toString`
-spelling inside the returned escaped string. A private field rename inside
-that function can change observable output.
+The [CSSOM `CSS.escape` definition](https://drafts.csswg.org/cssom/#the-css.escape()-method)
+accepts `CSSOMString` and serializes a CSS identifier. Web IDL converts
+`CSSOMString` inputs using ECMAScript ToString. Passing a function can
+serialize its original `Function#toString` spelling; renaming a private field
+in the function changes an observable result even though the source never
+directly invokes `.toString()`. The existing
+`src/ast.js::observesFunctionSource` missed this browser API.
 
-This is an architectural source-observation contract, even when a program
-never calls `.toString()` explicitly. The repository's existing
-`src/ast.js::observesFunctionSource` recognized many Web IDL coercers but
-did not explicitly recognize `CSS.escape`.
+The compile-time patch recognizes directly addressed
+`CSS.escape`, `globalThis.CSS.escape`, `window.CSS.escape`,
+`self.CSS.escape`, sequence wrappers, detached/bound/transitive
+aliases, destructuring, `.call`/`.apply`/`.bind`,
+`Reflect.apply`, and bounded `Reflect.get` extractions.
+Its source-observer refusal preserves the original source bytes when a
+function-valued argument cannot be ruled out. Literal-only calls still
+permit unrelated private-field renaming. There is no generated runtime
+overhead from this guard.
 
-## Reproducible red/green test
+## Reproducible red-green record
 
-- **Red:** [focused Node 22 CI 45081766566](https://github.com/FlareZ123/obfs/actions/runs/45081766566),
-  exact `70cb53ed0cfcdb2636e130bbae19e860ccd981e1`. All three
-  negative analyzer checks returned `false` rather than `true` for direct,
-  `globalThis`, and `Reflect.apply` CSS.escape source uses. The fourth
-  positive-control assertion failed for an independent test-harness mistake:
-  cross-realm `vm` objects were compared with `deepStrictEqual` without
-  converting them to a host-realm record. The test was corrected before green.
-- **Green:** [focused Node 22 CI 45081865621](https://github.com/FlareZ123/obfs/actions/runs/45081865621),
-  exact `ab7c3e622c0e9ce2df7642dbabf8ca71069b0675`.
-  Both Ubuntu and Windows passed the CSS.escape unit test, strict project
-  JSDoc and strict external JSDoc. The test uses a `CSS.escape` host stub
-  that models *argument string conversion only*.
-- **Browser-native follow-up:** `test/css-escape-source-browser.js`
-  executes native and compiled COO ES modules in separate Chromium pages.
-  The source-bearing negative must preserve literal spellings; a
-  primitive-only positive must still rename one private object. Triggered by
-  `.github/workflows/manual-browser.yml` at
-  `1a5cb304c9a6784086d90b9412e8acc4439d16e3`.
-  The complete native Chromium browser workflow passed at exact
-  `1a5cb304c9a6784086d90b9412e8acc4439d16e3`,
-  [run 45081997792](https://github.com/FlareZ123/obfs/actions/runs/45081997792).
-  That pin predates the alias extension, which must be checked separately.
+1. Original source miss: [focused CI 45081766566](https://github.com/FlareZ123/obfs/actions/runs/45081766566)
+   at `70cb53ed0cfcdb2636e130bbae19e860ccd981e1`,
+   direct `CSS.escape`, global path, and `Reflect.apply` analyzer checks
+   false rather than true. A separate positive-control failure was a
+   test-only cross-realm `vm` equality mistake, subsequently corrected.
+   [Focused green 45081865621](https://github.com/FlareZ123/obfs/actions/runs/45081865621)
+   at `ab7c3e622c0e9ce2df7642dbabf8ca71069b0675` passed Ubuntu,
+   Windows, project JSDoc, and external JSDoc.
+2. Additional alias misses: [focused red 45082280292](https://github.com/FlareZ123/obfs/actions/runs/45082280292)
+   at `b8efe8e965f49b1c994f1a27ab9dc5511d4c649f`
+   passed 8/12, failing sequence wrapper, transitive alias,
+   direct bound call and destructuring. A bounded fixed-point alias
+   summary produced [focused green 45082324122](https://github.com/FlareZ123/obfs/actions/runs/45082324122)
+   at `7761e83ba8da05a3aa93aef3575f9dbdd34be054`, both OSes.
+3. Reflection access misses: [focused red 45082749131](https://github.com/FlareZ123/obfs/actions/runs/45082749131)
+   at `6ee6fdc5bae18518f2a05e7a2f91a2fdb9ded1af`
+   passed 12/16 and failed four `Reflect.get` acquisition forms.
+   An initial fix exposed a temporal-dead-zone initialization error
+   under one detached alias: [red 45082808042](https://github.com/FlareZ123/obfs/actions/runs/45082808042)
+   at `9278456a7b2d4b4c237c8d49f5c69874da742757`.
+   Collection of direct aliases now runs first; reflected aliases use
+   a separate fixed point after the reflective method summaries are
+   initialized. [Focused green 45082973397](https://github.com/FlareZ123/obfs/actions/runs/45082973397)
+   at `41865c3119701ee8a9fec272af4e05f6592dc561` passed both OSes,
+   including all 16 source cases and strict JSDoc.
+4. Native Chromium differential: [browser run 45081997792](https://github.com/FlareZ123/obfs/actions/runs/45081997792)
+   at `1a5cb304c9a6784086d90b9412e8acc4439d16e3`
+   passed direct function-source and safe primitive-positive tests.
+   [Expanded full browser run 45082435227](https://github.com/FlareZ123/obfs/actions/runs/45082435227)
+   at `18d62668ec829e7aadd22f7e5c06f4e61ee87eec`
+   passed direct, detached, destructured, and bound native
+   source-observer cases with a separately transformed private-key positive.
+   The **full Node Ubuntu and Windows integration workflow also passed**
+   [run 45082444152](https://github.com/FlareZ123/obfs/actions/runs/45082444152)
+   at the same SHA.
+5. Two-file ESM differential: four source-bearing imports from
+   `logic.mjs` into `observer.mjs` passed initially; the primitive
+   positive first failed because a host mock's `String(value)` was
+   accidentally embedded in the protected source. Moving that mock
+   outside the analyzed graph corrected the fixture:
+   [focused two-OS green 45082599712](https://github.com/FlareZ123/obfs/actions/runs/45082599712)
+   at `1c77a84cafc1f42df679012df2822cd2dc935516`.
 
-An expanded test at exact `b8efe8e965f49b1c994f1a27ab9dc5511d4c649f`
-reproduced four additional false-negative cases on both Node 22 runners:
-sequence wrapper, transitive immutable alias, direct bound call and object
-destructuring alias. The [red focused run 45082280292](https://github.com/FlareZ123/obfs/actions/runs/45082280292)
-passed 8/12 cases and failed the other four. A new fixed-point, conservative
-may-flow proof tracks named and destructured CSS.escape aliases and direct
-`.bind()` wrappers, with no generated hot-loop operations. New validation
-is pending at `7761e83ba8da05a3aa93aef3575f9dbdd34be054`.
+## Reproduction and limitations
 
-The change adds a predicate for directly addressed `CSS.escape` and
-`globalThis.CSS.escape`, `window.CSS.escape`, `self.CSS.escape`. It also
-conservatively flags `.call`, `.apply`, `.bind`, and `Reflect.apply`
-on recognized methods where source-bearing arguments may be passed.
-Only the compile-time source-observation check changes. No runtime
-instructions are added by the guard.
+The Node focused fixture `test/css-escape-function-source.test.js`
+uses a mock of the **string-conversion step** only; it is not a
+native CSS escaping implementation. `test/css-escape-source-browser.js`
+validates actual browser-native `CSS.escape` via separate Chromium pages.
+`test/css-escape-interfile-source.test.js` validates real ESM graph loading
+with the host coercion fixture injected outside distributed source bytes.
+`.github/workflows/manual-browser.yml` runs the browser differential.
 
-## Boundary and follow-up
+The 16-case reflection-integrated final `src/ast.js` revision
+`41865c3119701ee8a9fec272af4e05f6592dc561` has a green
+two-OS focused test, but the full-browser and full-Node green runs above
+were pinned to its **earlier** `18d6266` ancestor. A new full
+integration run at or after the reflection revision would close that
+validation gap.
 
-This finite predicate does not follow arbitrary runtime-selected aliases, monkey-patched
-namespaces, host object interception, or calls through unproved wrappers.
-It may conservatively refuse source transformations on a program with a
-shadowing local `CSS` binding. Such refusal is a positive correctness
-tradeoff rather than evidence of attacker resistance.
+The predicate remains finite and conservative. It cannot prove safety under
+arbitrary runtime-selected aliases, hostile monkey-patching, or opaque
+external functions. A shadowed `CSS` identifier may cause unnecessary
+source-preservation refusal. That is a yield limitation, not a claim of
+obfuscator strength. The project [decision index](../results/README.md)
+remains **RELEASE-BLOCKED**; there is no new empirical attack-cost
+or authorized-environment-resistance result.
 
-A future maintainer should validate browser behavior at a fixed source SHA,
-then integrate the smallest proven guard into the canonical source-observer
-branch owned by Agent 3. Maintain an independently transformed private-key
-positive fixture to avoid accidentally converting the compiler into a
-trivial all-source refusal.
-
-The project-wide [decision index](../results/README.md) remains
-**RELEASE-BLOCKED** for the primary strong-protection objective.
+Agent 3 was contacted in
+`communications/agent3/20261122T231400Z_agent19_css-escape-source-observer.md`
+as the canonical source-observer integrator. Merge only the smallest
+proven compatible slice after resolving any concurrent changes.
