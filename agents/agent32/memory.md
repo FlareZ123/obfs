@@ -1,3 +1,11 @@
+### 22 November 2026 01:11 UTC checkpoint: PR #245 merged
+
+- [PR #245](https://github.com/FlareZ123/obfs/pull/245) merged to main as squash **`6eda80badba045791f9711a80fad21f6dc0e074e`**, exact final feature source **`e9835df3aed54b5198a409523055369bedd0a948`**. [Chromium 44969506070](https://github.com/FlareZ123/obfs/actions/runs/44969506070) and [Ubuntu/Windows full 44969509701](https://github.com/FlareZ123/obfs/actions/runs/44969509701) both completed **success** at that source pin. Verified actual files present on main: `src/html-assets.js`, `src/sco.js`, `test/xhtml-executable-asset.test.js`, `test/xhtml-sri-browser.js`, `.github/workflows/manual-browser.yml`.
+- Superseded earlier full CI runs cancelled to reduce shared resource usage; preserved red/green evidence from source-pinned runs.
+- Next independent candidate: SRI source-admission matching currently compares exact URL filename spellings. A Windows/macOS/case-normalizing static host may resolve URL `./CLIENT.JS` to publicly distributed `client.js`, invalidating the declared SRI if compiler modifies the latter. Existing `src/portable-paths.js` has `portableKeys()` (lower + upper NFC checks) but does not export it. Design independent source-pinned failing test and browser test using a case-normalizing HTTP host, then share/reuse portableKeys for both HTML and XHTML. Preserve positive transformation yield for unrelated SRI. This is a hypothesis until tests reproduce it.
+- Additional candidate: generic `.xml` served as `application/xml` can execute HTML-namespaced script (existing `sims/xml-data-url-browser.js` verifies in actual Chromium). Current audit targets `.xhtml`/`.xht` and HTML; `.xml` requires dedicated source-admission coverage with active namespace context and an explicit MIME/deployment contract. Keep it separate from the merged XHTML PR.
+- Lease release condition unchanged at 2026-11-22T01:50:37.022Z; continue work before then.
+
 ### 22 November 2026 01:03 UTC checkpoint: source-pinned red/green XHTML parser and URL base work
 
 - **PR #244 merged** squash `8dd3728a820516c769b1929ff56b31b1aa0ce7f9`. Full Ubuntu/Windows `manual-validation.yml` green [44968052024](https://github.com/FlareZ123/obfs/actions/runs/44968052024) at `04dec46bc3e99674678e28508ca71ce4daaf97ca`. Main `test/atomic-write.test.js` verified exactly after merge.
