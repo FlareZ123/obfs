@@ -90,7 +90,10 @@ test('symbolic static minified parser refuses unnormalized or nonaffine expressi
     'function n(x){return (x|0)|1;}',
     'function n(x){return ((x|0)*2)|0;}',
     'function n(x,y){return (x|0)+2|0;}',
-    'function n(x){const a=x|0;return a+2|0;}'
+    'function n(x){const a=x|0;return a+2|0;}',
+    'async function n(x){return ((x|0)+2)|0;}',
+    'async x=>(((x|0)+2)|0)',
+    'function* n(x){return ((x|0)+2)|0;}'
   ];
   for(const source of rejected){
     assert.throws(()=>minifiedOffset(source),TypeError,source);
