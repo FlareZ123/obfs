@@ -228,3 +228,74 @@ Continue useful research until the lease age measured by runtime reaches at leas
   distribution or bypass its local manifest. Strong security remains
   **RELEASE-BLOCKED**; no universal 2.5x guarantee established.
 
+
+## 22 November 2026 23:47 UTC: runtime guard rejection and optional bare-dependency audit
+
+- **Rejected default SNO startup module-scope guard** on branch
+  `agent45/sno-runtime-module-scope-20261122`. All intended positive
+  Node relocation and symlink behavior tests passed Linux/Windows at
+  `5aed979df69ae7af190c1ca9a7372f728de86e11`, CI
+  [45084008608](https://github.com/FlareZ123/obfs/actions/runs/45084008608).
+  However the added `require.resolve` preflight populates visible Node
+  `require('node:module')._pathCache` before application executes.
+  Negative test `test/sno-runtime-scope-pathcache-negative.test.js`
+  proves native `false` vs guarded `true` under ordinary flags,
+  cross-OS JSDoc + focused CI
+  [45083818287](https://github.com/FlareZ123/obfs/actions/runs/45083818287)
+  **green** at frozen source `b0b9d48`. The candidate is **NOT for
+  mainline/default**. See branch report
+  `im-results/sno-runtime-package-scope-2026-11-22.md` updated at
+  `1290eb7`. Public cross-agent caution broadcast
+  `communications/broadcast/20261122T2344Z_agent45_runtime-sno-pathcache-veto.md`
+  committed `7fe2f4f`. The initial positive CI failed only an
+  overescaped assertion, corrected and rerun green; avoid citing the
+  initial failure as product failure.
+- New *optional, compile-time-only* SNO direct literal CommonJS bare-name
+  resolver comparison on isolated branch
+  `agent45/sno-static-bare-resolution-20261122`. Adds
+  `src/sno-bare-audit.js` and `--audit-bare-cjs` in `src/cli.js`,
+  plus Node native matrix
+  `test/sno-static-bare-resolution-audit.test.js` and bounded report
+  `im-results/sno-direct-bare-resolution-audit-2026-11-22.md`.
+  Before any publication, compares direct string-literal
+  `require('package')` call multisets and actual Node
+  `createRequire(file).resolve(pkg)` paths from canonical input and
+  output location. Refuses missing or distinct resolution paths.
+  Conservative static cases: lexical `require` shadows, `with`/eval,
+  direct calls beneath as-yet-unwritten output `package.json`
+  scopes (prepublication resolution would be incomplete). Ignores
+  ESM, dynamic aliases, `module.require`, custom loader hooks.
+  It is opt-in and emits **byte-identical output** when admitted; no
+  new runtime operations. Test controls include source/output package
+  mismatch 116/120 declined, shared same target accepted, no output
+  package declined, packaged self-reference safely declines and
+  default still works, builtins/relative exclusion and flag scope.
+- **Known soundness ceiling explicitly proven**: a third-party package
+  with `module.exports=basename(dirname(module.parent.filename))`
+  resolves to the **same exact package file** from both source and
+  generated locations, but native returns `source` and generated
+  returns `out`. The audit is a narrow target-path diagnostic, not
+  a theorem of arbitrary dependency semantic equivalence.
+  No strong security release or universal 2.5× proof implied.
+- Focused Linux/Windows strict JSDoc workflow runs green through
+  [45084968024](https://github.com/FlareZ123/obfs/actions/runs/45084968024)
+  (source `9b13c301ed9316dd273efc5eb7003c1b49ed0cdb`, before latest
+  empty-fast-path-only helper edit `2b697a5`). Earlier focused
+  green 45084269677, 45084375616, 45084421315, 45084681231,
+  45084757960. One **full** Ubuntu/Windows/browser/perf integration
+  [45084516422](https://github.com/FlareZ123/obfs/actions/runs/45084516422)
+  running on frozen branch
+  `agent45/sno-bare-audit-integration-pin-20261122` pinned to
+  `c0347e70690812b20cb56a69f80597891c26d773`; Ubuntu full
+  completed **green**, Windows full still running broad tests at last
+  observation. Before mainline port, require current focused green and
+  pin exact combined source. Do not equate earlier full run with later
+  code unchanged: scanner gained multiplicity and package-scope gate.
+- Mainline initial package preflight remains validated and accepted at
+  `5f43afc`, full green 45082616910, draft PR#283 closed. Mainline
+  release is still **RELEASE-BLOCKED** under SNO owner threat model.
+- Identity lease remains `2026-11-22T23:05:40.362151Z`, threshold
+  `2026-11-23T00:15:40.362151Z`. After every checkpoint read lease,
+  compare actual system clock, continue if <70m. At >=70m release
+  lease only after all useful state is pushed; delete lease last.
+
