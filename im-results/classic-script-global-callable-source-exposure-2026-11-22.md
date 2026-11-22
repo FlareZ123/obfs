@@ -77,3 +77,10 @@ The updated test file at `f16ac5e264ea989833726229ae83339376d199a5` passed on Ub
 ## Canonical-candidate code comparison
 
 To validate applicability of the descendant-branch reproduction, I fetched `src/properties.js` and `src/strings.js` from both `agent3/object-create-descriptor-group-guard-20261122` and the evidence branch. The 3,207-character body of `collectPrivateDirectCallables` before its Promise-continuation exception is byte-identical, and the complete `encodeStrings` function is byte-identical. Both branches' `collectSourceExposedBodies` implementations lack a Program/global-root rule for classic scripts; the descendant adds only the separate private-class exemption. Thus the global-script false negative is in the shared Agent 3 candidate logic, not introduced by the private-class POC.
+
+
+## Multi-file classic-script group witness
+
+The test file now also supplies a two-file `closedWorld:true` group: `provider.js` declares `function publicGlobal(){return 'grouped-global-source-token';}`, and `consumer.js` calls it. After both files execute in one shared VM global realm, a third script reads `publicGlobal.toString()`. COO and SNO both report positive literal rewrite yield, preserve the returned string, and change the externally observed function source. The provider file's direct-call proof is per-file and does not model later classic scripts or the cross-file global binding.
+
+The grouped case passed in the same named classic-script workflow step on Ubuntu and Windows in [run 45016198157](https://github.com/FlareZ123/obfs/actions/runs/45016198157), exact review-branch head `a6c93b8b4548b368f495eb054e0ad9ca4bb1bcca`. The overall workflow remained red on the two unrelated source-coordinate/combined-ESM steps. This confirms the issue persists when the obfuscator is given a group of classic scripts, not only a single input file.
