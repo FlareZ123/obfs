@@ -34,6 +34,6 @@ test('externally readable classic-script global callable source survives eager s
   const emitted=String(output.files[0].code);
   assert.ok(output.files[0].metrics.literals>=1,
     'Private immediately-invoked literal must retain at least one real transformation');
-  assert.deepEqual(observe(emitted),observe(source),
+  assert.ok(!emitted.includes(privateLiteral),\n    'Actual private IIFE literal must be encoded independently of exposed global source');\n  assert.deepEqual(observe(emitted),observe(source),
     'A second script or external runtime can read globalThis.publicReader.toString()');
 });
