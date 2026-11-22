@@ -10,6 +10,20 @@ A **constructor-export scanner is insufficient**: `module.exports=new Reader()` 
 
 These observations are reproducible under both hashed-string and opt-in Symbol-key owner lowering. A separately verified open-world ESM module exporting an instance gives the same source mismatch in real Chromium and Node ESM.
 
+## Compatibility versus source secrecy: a conditional impossibility observation
+
+Consider an original module whose public interface exposes an ordinary user-defined callable `F`, executed in a host where the built-in `Function.prototype.toString` returns its available original source text `S`. The consumer can capture the host's native intrinsic **before** importing the transformed file, then evaluate `Function.prototype.toString.call(F)`. If the protection contract demands exact observational equivalence for **all** such consumers, a transformed callable `F'` must satisfy the equality:
+
+```text
+Function.prototype.toString.call(F') === S
+```
+
+Otherwise the independent consumer distinguishes the original and transformed program by a one-expression test. Therefore a compliant transformation cannot simultaneously **withhold `S` from that consumer** and preserve this exact source-observation contract. In particular, replacing `F` with a source-hiding Proxy or a custom own `.toString` is insufficient under a captured native intrinsic if it changes this observation. The argument is direct logical implication from observational equivalence and needs no claim of computational hardness. It concerns the source text of **that publicly reachable callable**, not necessarily the source text of all private helpers or unrelated modules.
+
+This conditional bound applies when the host actually exposes `[[SourceText]]` under [ECMAScript 2026 `20.2.3.5](https://tc39.es/ecma262/2026/multipage/fundamental-objects.html#sec-function.prototype.tostring) and when native reflection is part of the required behavior. A host permitted to withhold source, a deliberately narrowed API contract, or a server-controlled private implementation outside the client's trusted runtime changes its premises. Those are explicit tradeoffs rather than proof that arbitrary client-side public source can be hidden under exact parity. Node 22/Chrome real-loader canaries in the independent evidence branch instantiate the stated observation.
+
+Consequently, the source-closure admission proof is simultaneously a **compatibility constraint** and a limit on the strength available to the obfuscator for truly public function bodies. Treat protected private spans as separate candidates requiring their own escape and reflection proofs. A zero-rewrite "safe" public boundary is semantically valid yet provides no new static resistance on that body.
+
 ## Candidate analysis abstraction
 
 Use a **source-reachability analysis before owner edits**, cached once per parsed immutable AST. It needs explicit summaries of both *values* and *source bodies*. A deliberately small abstract domain could be:
