@@ -77,13 +77,15 @@ async function readPage(url) {
  * this diagnostic, not a correctness acceptance condition for a fixed compiler.
  * The separate Node matrix asserts that actual semantic parity is required.
  *
- * @returns {Promise<{cases:number,sourceMismatches:number,ordinaryValueMatches:number,positiveRewrites:number}>}
+ * @returns {Promise<{cases:number,sourceMismatches:number,ordinaryValueMatches:number,positiveRewrites:number,declaredMatches:number}>}
  */
 async function main() {
   /** @type {Map<string,string>} */
   const resources=new Map();
   /** @type {{mode:'coo'|'sco'|'sno',name:string,sourceUrl:string,emittedUrl:string,rewrites:number}[]} */
   const pairs=[];
+  /** @type {{mode:'coo'|'sco'|'sno',sourceUrl:string,emittedUrl:string}[]} */
+  const declaredPairs=[];
   for(const fixture of fixtures) {
     for(const mode of /** @type {const} */ (['coo','sco','sno'])) {
       const prefix='/'+mode+'/'+fixture.name;
@@ -106,6 +108,40 @@ async function main() {
         emittedUrl:prefix+'/emitted/index.html',rewrites});
     }
   }
+  // A declared importer lets the compiler recognize Function#toString and
+  // refuse edits. Its browser observer is part of the compile-time group,
+  // unlike the six external imports above.
+  for(const mode of /** @type {const} */ (['coo','sco','sno'])) {
+    const root='/'+mode+'/declared-observer';
+    /** @type {SourceFile[]} */
+    const files=[
+      {path:'private.mjs',sourceType:'module',
+        code:'const owner={secretField:59};export function read(){return owner.secretField;}'},
+      {path:'observe.mjs',sourceType:'module',
+        code:'import {read} from "./private.mjs";export const observed={source:read.toString(),value:read()};'}
+    ];
+    const emitted=obfuscateFiles(files,{
+      mode,closedWorld:true,seed:'esm-declared-browser-'+mode,
+      strings:false,properties:true,identifiers:true
+    });
+    const privateModule=emitted.files.find(file=>file.path==='private.mjs');
+    assert.ok(privateModule);
+    assert.equal(privateModule.metrics.properties,0,'Declared inspector must veto field edits');
+    assert.equal(privateModule.metrics.bindings,0,'Declared inspector must veto binding edits');
+    for(const [variant,group] of /** @type {Array<[string,SourceFile[]]>} */ (
+      [['original',files],['emitted',emitted.files]]
+    )) {
+      for(const file of group)resources.set(root+'/'+variant+'/'+file.path,String(file.code));
+      resources.set(root+'/'+variant+'/index.html',
+        '<!doctype html><html><body><script type="module">'+
+        'const m=await import("./observe.mjs");'+
+        'const p=document.createElement("pre");p.id="result";'+
+        'p.textContent=btoa(JSON.stringify(m.observed));document.body.append(p);'+
+        '</script></body></html>');
+    }
+    declaredPairs.push({mode,sourceUrl:root+'/original/index.html',
+      emittedUrl:root+'/emitted/index.html'});
+  }
   const server=http.createServer((request,response)=>{
     const pathname=new URL(request.url??'/','http://127.0.0.1').pathname;
     const body=resources.get(pathname);
@@ -124,6 +160,7 @@ async function main() {
   let sourceMismatches=0;
   let ordinaryValueMatches=0;
   let positiveRewrites=0;
+  let declaredMatches=0;
   try {
     const address=server.address();
     if(!address||typeof address==='string')throw new Error('Missing loopback server port');
@@ -140,15 +177,26 @@ async function main() {
         mode:pair.mode,case:pair.name,sourceEqual,valueEqual,rewrites:pair.rewrites
       }));
     }
+    for(const pair of declaredPairs) {
+      const baseline=await readPage(origin+pair.sourceUrl);
+      const transformed=await readPage(origin+pair.emittedUrl);
+      assert.deepEqual(transformed,baseline,
+        'Declaring the observer must preserve browser function source');
+      declaredMatches++;
+      console.log('ESM_DECLARED_BROWSER '+JSON.stringify({
+        mode:pair.mode,sourceEqual:true,valueEqual:true
+      }));
+    }
   } finally {
     await new Promise(resolve=>server.close(resolve));
   }
-  const summary={cases:pairs.length,sourceMismatches,ordinaryValueMatches,positiveRewrites};
+  const summary={cases:pairs.length,sourceMismatches,ordinaryValueMatches,positiveRewrites,declaredMatches};
   assert.equal(summary.cases,18);
   assert.equal(summary.ordinaryValueMatches,18,'Ordinary return values must be equal');
   assert.equal(summary.sourceMismatches,18,
     'Historical red witness no longer reproduces; update to an actual parity test');
   assert.equal(summary.positiveRewrites,18,'Each historical red case must edit source');
+  assert.equal(summary.declaredMatches,3,'All three declared browser controls must pass');
   console.log('ESM_PUBLIC_BROWSER_SUMMARY '+JSON.stringify(summary));
   return summary;
 }
