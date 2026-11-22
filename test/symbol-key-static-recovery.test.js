@@ -26,7 +26,7 @@ test('seedless public-output attacker removes every Symbol key in generated exam
 });
 
 test('attacker also recovers private property accesses after ordinary identifier pass',()=>{
-  const source='const bag={privateFlag:7,gate:2};function f(x){bag.privateFlag+=x;return bag.privateFlag^bag.gate;}module.exports=f;';
+  const source='const bag={privateFlag:7,gate:2};function hidden(x){bag.privateFlag+=x;return bag.privateFlag^bag.gate;}function f(x){return hidden(x);}module.exports=f;'
   const output=obfuscateFiles([{path:'entry.cjs',code:source,sourceType:'commonjs'}],{
     mode:'sno',seed:'seed-unknown-to-attacker',strings:true,experimentalSymbolKeys:true
   });
