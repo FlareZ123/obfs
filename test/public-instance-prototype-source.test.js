@@ -25,6 +25,7 @@ test('COO/SNO exported instance prototype retains method source and private yiel
   for(const row of rows){
     assert.equal(row.valuesEqual,true,JSON.stringify(row));
     assert.ok(row.propertyRenames>0,JSON.stringify(row));
+    assert.ok(row.privatePropertyRenames>0,JSON.stringify(row));
   }
   assert.ok(rows.every(row=>row.sourceEqual),JSON.stringify(rows,null,2));
   assert.equal(child.status,0,child.stderr);
