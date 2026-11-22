@@ -107,7 +107,7 @@ function learnProjectedAffineOracle(
     if(coordinates.length!==bits)continue;
     const candidate={bits,rank,table,coordinates,affineCorrections};
     if(heldout.every(x=>evaluateProjectedAffineModel(candidate,x)===ask(x))){
-      return {...candidate,queries:responses.size,attempts,
+      return {...candidate,queries:responses.size,attempts:attempt,
         verificationSamples,failureBound};
     }
   }
