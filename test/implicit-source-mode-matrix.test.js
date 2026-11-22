@@ -56,7 +56,8 @@ for(const mode of ['coo','sco']) {
 
 test('cross-module primitive-only logging does not suppress all transforms',()=>{
   const producer="const owner={longPrivateField:73};"+
-    "export function calculate(){return owner.longPrivateField;}";
+    "function privateCalculate(){return owner.longPrivateField;}"+
+    "export function calculate(){return privateCalculate();}";
   const consumer="import {calculate} from './producer.mjs';"+
     "console.log(42);export const value=calculate();";
   const output=obfuscateFiles([
@@ -78,7 +79,8 @@ test('real multi-file ESM native and emitted console traces stay equivalent',asy
     {
       name:'primitive',
       producer:"const owner={longPrivateField:73};"+
-        "export function compute(){return owner.longPrivateField;}",
+        "function privateCompute(){return owner.longPrivateField;}"+
+        "export function compute(){return privateCompute();}",
       consumer:"import {compute} from './producer.mjs';"+
         "console.log(42,compute());"
     },
