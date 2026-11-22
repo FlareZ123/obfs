@@ -132,3 +132,26 @@ The source-pinned `AbortSignal.timeout(1)` plus `await` abort-event listener, re
 The [green patch `a99fd73fce61fb2df4776c5aa0bad08cd0acf783`](https://github.com/FlareZ123/obfs/commit/a99fd73fce61fb2df4776c5aa0bad08cd0acf783) adds an approximately nine-line compile-time-only `AbortSignal.timeout`/unknown-member guard on tracked constructors, with direct, alias, global-root, computed-key and extracted-method test variants. [Focused run 45078434015](https://github.com/FlareZ123/obfs/actions/runs/45078434015) passed **Ubuntu and Windows** with project/external strict JSDoc, retaining `AbortSignal.abort('explicit').reason` as a selected-positive control. The compiler check changes admission only and adds no protected-code runtime operations. The branch is [`agent8/sco-abort-signal-timeout-red-20261122`](https://github.com/FlareZ123/obfs/tree/agent8/sco-abort-signal-timeout-red-20261122), handed off to Agent 40 in `communications/agent40/20261122T2242Z_agent8_abort-signal-timeout-stack-red-green.md`.
 
 The experiment is a two-OS static compiler-admission and native-Node proof. A heterogeneous browser/Node end-to-end RPC session and comprehensive canonical/Chromium regression still require exact-source owner validation. The strong-obfuscation release remains RELEASE-BLOCKED.
+
+## Reproducible actual Chromium-versus-Node native-source differential
+
+The prior compiler-admission tests conservatively rejected cross-host native object and method sources. A separate empirical browser/Node check now measures the same *unmodified* standard APIs in actual independent JavaScript engines, without involving the obfuscator.
+
+The opt-in standalone [`test/sco-host-native-source-browser.test.js`](https://github.com/FlareZ123/obfs/blob/dfca64114160458d5d9f02bcd5e19fbfeb1bacd6/test/sco-host-native-source-browser.test.js) was committed to main at exact SHA `dfca64114160458d5d9f02bcd5e19fbfeb1bacd6`. The focused [workflow 45079125382](https://github.com/FlareZ123/obfs/actions/runs/45079125382) **passed Ubuntu and Windows** on that exact source, including both strict project and external JSDoc. The test uses the already declared `puppeteer-core` dependency with installed Chrome, computes four native values on both sides, compares their full strings, and logs SHA256/length/prefix observations. Ordinary `npm test` skips this opt-in browser test, so Chromium is not a general project requirement.
+
+The following byte lengths come from the audited CI logs. Both OS jobs used Node `v22.23.4`, Chrome `157.0.8103.78` on Linux and Chrome `157.0.8103.79` on Windows.
+
+| Observation | Ubuntu Node | Ubuntu Chrome | Windows Node | Windows Chrome |
+|---|---:|---:|---:|---:|
+| `String(Blob)` | 7366 | 33 | 7630 | 33 |
+| `String(new Blob([]).slice)` | 932 | 34 | 966 | 34 |
+| `String(new Blob([]).stream().constructor)` | 11871 | 43 | 12246 | 43 |
+| `String(AbortSignal.timeout(10).reason.stack)` after abort | 299 | 30 | 299 | 30 |
+
+The exact native outputs visibly differ both **between Node and Chromium on the same OS** and, for the first three rows, between Windows and Linux Node installations. The latter differences correspond to CRLF versus LF source-line endings in shipped Node built-in implementations, a separate source-observation channel from the `Blob({endings:'native'})` byte conversion issue.
+
+On the independent local runtime, Node `v22.16.0` on Linux and Chromium `144.0.0.0` produced the same qualitative four differences, with the same Linux Node source lengths and Chrome source lengths. Two independent configurations therefore confirmed the native-string mismatch. This is real browser/Node observation, although **it does not constitute a heterogeneous SCO RPC end-to-end test**, and does not prove arbitrary JS programs portable after partitioning.
+
+A shell-free manual reproduction needs Node 22, project dependencies including `puppeteer-core`, and Chrome/Chromium selected using the `CHROMIUM_BIN` environment variable or Puppeteer's normal `channel:'chrome'` discovery. The opt-in GitHub manual-validation focused workflow is the authoritative source-pinned reproducer and prints its own runtime metadata.
+
+The table is evidence that a compiler must preserve the origin of native function source and DOMException stacks before moving code between environments. It does not quantify resistance to static deobfuscation, online relaying, filesystem compromise or the project-wide 2.5× compute budget.
