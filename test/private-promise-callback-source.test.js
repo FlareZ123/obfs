@@ -45,7 +45,9 @@ test('host-replaced Promise.then sees original callback source spelling',()=>{
   assert.equal(observe(result.code),observe(source),result.code);
 });
 
-test('native-looking Promise continuation remains an identifier-yield target',()=>{
-  const result=compile(source);
+test('separately proved direct-call helper retains identifier-renaming yield',()=>{
+  const ordinary='function privateReader(){const localSecret=17;return localSecret;}module.exports=privateReader();';
+  const result=compile(ordinary);
+  assert.equal(observe(result.code),'17',result.code);
   assert.ok(result.metrics.bindings>0,result.code);
 });
