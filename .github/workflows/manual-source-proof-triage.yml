@@ -34,6 +34,7 @@ jobs:
           CHROMIUM_BIN: google-chrome
         run: node test/source-observer-islands-browser.js
       - name: Independent external ESM source parity, three modes
+        if: ${{ !cancelled() }}
         run: node --test test/esm-public-source-reachability.test.js
       - name: Real Chromium external ESM source parity, three modes
         if: ${{ matrix.os == 'ubuntu-latest' && !cancelled() }}
