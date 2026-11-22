@@ -310,3 +310,29 @@ test('exporter-local public callable source blocks a cross-file property map',as
   };
   assert.equal(await observeBoth(output.files),await observeBoth(sourceFiles));
 });
+
+
+test('reflected property-key literals inside exported callable source remain byte-for-byte visible',async()=>{
+  const source='const owner={secretField:3};export function read(){return Object.getOwnPropertyDescriptor(owner,"secretField").value;}';
+  const output=obfuscateFiles([{path:'entry.mjs',sourceType:'module',code:source}],{
+    mode:'coo',closedWorld:true,seed:'esm-public-reflection-source',
+    strings:true,identifiers:true,properties:true,controlFlow:false
+  });
+  assert.equal(output.metrics.properties,0,JSON.stringify(output.metrics));
+  assert.ok(output.files[0].code.includes('Object.getOwnPropertyDescriptor(owner,"secretField")'),output.files[0].code);
+  const observeBoth=async code=>{
+    const dir=await fs.mkdtemp(path.join(os.tmpdir(),'obfs-esm-public-reflection-'));
+    try{
+      const file=path.join(dir,'entry.mjs');
+      await fs.writeFile(file,code,'utf8');
+      const url=pathToFileURL(file).href;
+      const script=`import(${JSON.stringify(url)}).then(m=>process.stdout.write(JSON.stringify([m.read.toString(),m.read()])))`;
+      const child=spawnSync(process.execPath,['--input-type=module','-e',script],{encoding:'utf8'});
+      assert.equal(child.status,0,child.stderr);
+      return child.stdout;
+    }finally{
+      await fs.rm(dir,{recursive:true,force:true});
+    }
+  };
+  assert.equal(await observeBoth(output.files[0].code),await observeBoth(source));
+});
