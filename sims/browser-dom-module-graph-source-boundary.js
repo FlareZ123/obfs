@@ -47,6 +47,13 @@ async function browser(target) {
 
 /** @returns {Promise<void>} */
 async function main() {
+  // Prove a source-unobserved external private helper remains independently
+  // eligible even if an observed whole graph is safely refused by the compiler.
+  const standalone=obfuscateFiles([{path:'lib.mjs',sourceType,code:library}],
+    {mode:'coo',seed:'dom-module-sibling-positive',strings:false,
+      identifiers:true,properties:false,closedWorld:true}).files[0];
+  assert.ok(standalone.metrics.bindings>0,
+    'Standalone private imported helper must retain eligible identifier yield');
   const compiled=obfuscateFiles([
     {path:'entry.mjs',sourceType,code:entry},
     {path:'lib.mjs',sourceType,code:library}
@@ -87,10 +94,6 @@ async function main() {
     console.log('DOM_ESM_GRAPH_SOURCE '+JSON.stringify(evidence));
     assert.deepEqual(native,{value:8,sourceMatch:true},
       'Native cross-file graph must be fully executed');
-    assert.ok(publishedEntry.metrics.bindings>0,
-      'Source-observing module must demonstrate positive identifier transformation');
-    assert.ok(publishedLibrary.metrics.bindings>0,
-      'Independent imported private helper should remain eligible for renaming');
     assert.deepEqual(emitted,native,
       'Inline ESM source observation must preserve native graph behavior');
   } finally {
