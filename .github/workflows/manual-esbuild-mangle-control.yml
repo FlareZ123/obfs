@@ -1,4 +1,4 @@
-name: Manual source-only esbuild property-mangling control
+name: Manual matched esbuild property-mangling semantic control
 
 on:
   workflow_dispatch:
@@ -23,5 +23,5 @@ jobs:
         run: npm install --no-package-lock --ignore-scripts
       - name: Strict JSDoc external simulator checking
         run: npm run typecheck:external
-      - name: Matched source-only recovery versus standard property mangling
-        run: node sims/semantic-sketch-esbuild-mangle-control.js
+      - name: Matched real ESM esbuild property mangling and dynamic-key refusal
+        run: node --test test/cross-file-mangleprops-comparator.test.js
