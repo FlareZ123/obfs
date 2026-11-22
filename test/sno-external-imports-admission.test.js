@@ -110,3 +110,27 @@ test('stale nested output package #imports mapping refuses',async()=>{
     await assert.rejects(fs.stat(path.join(output,'nested','entry.cjs')),{code:'ENOENT'});
   });
 });
+
+test('external imports metadata under an ESM dependency refuses SNO',async()=>{
+  await withFixture(async root=>{
+    const source=path.join(root,'source');
+    const output=path.join(root,'output');
+    const loader="require(process.argv[1]).then(value=>process.stdout.write(String(value))).catch(error=>{console.error(error);process.exitCode=1;});";
+    await atomicWrite(path.join(source,'entry.cjs'),
+      "module.exports=import('./modern/value.mjs').then(mod=>mod.value);");
+    await atomicWrite(path.join(source,'modern','value.mjs'),'export const value=131;');
+    await atomicWrite(path.join(output,'modern','package.json'),JSON.stringify({
+      imports:{'#token':'./different.mjs'}
+    }));
+
+    const native=spawnSync(process.execPath,['--eval',loader,
+      path.join(source,'entry.cjs')],{encoding:'utf8',timeout:15000});
+    assert.equal(native.status,0,native.stderr);
+    assert.equal(native.stdout,'131');
+    await assert.rejects(
+      main('sno',['--root',source,'--entry','entry.cjs','--out',output]),
+      /SNO output executable inherits external package imports/
+    );
+    await assert.rejects(fs.stat(path.join(output,'modern','value.mjs')),{code:'ENOENT'});
+  });
+});
