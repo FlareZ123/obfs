@@ -35,7 +35,7 @@ Let
 p_6=\prod_{i=0}^{4}(1-2^{i-6})
 =\frac{615195}{1048576}\approx0.5866956711.
 \]
-A nonzero scalar component of \(T_5\), under the codimension-at-most-six promise, has a five-dimensional quotient by its radical. Six independently uniform random directions project to six independent uniform vectors in that quotient. They span it with probability at least \(p_6\); when they do, at least one of their six five-element subsets is a basis and yields a nonzero vector-valued fifth-derivative witness. The six directions need not be linearly independent in the original input space.
+A nonzero scalar component of \(T_5\), under the codimension-at-most-six promise, has a five-dimensional quotient by its radical: its radical contains the joint radical \(R\), so its codimension is at most six, while a nonzero alternating five-form on a space of dimension at most six has radical codimension exactly five. Six independently uniform random directions project to six independent uniform vectors in that quotient. They span it with probability at least \(p_6\); when they do, at least one of their six five-element subsets is a basis and yields a nonzero vector-valued fifth-derivative witness. The six directions need not be linearly independent in the original input space.
 
 With independent trials and failure target \(\delta\), define
 \[
