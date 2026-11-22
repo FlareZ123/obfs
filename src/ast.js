@@ -2768,6 +2768,30 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
        (['type','subtype'].includes(memberName(node.left)??'')||
         node.left.computed&&memberName(node.left)===null)&&
        !isDefinitelyPrimitive(node.right))observed=true;
+    if(node.type==='CallExpression'&&node.callee.type==='MemberExpression'&&
+       isReflectiveReceiver(node.callee.object)&&
+       isNativeMimeTypeInstance(node.arguments[0])) {
+      const action=memberName(node.callee);
+      if(action==='set'&&node.arguments[2]&&
+         (['type','subtype'].includes(sourceStringKey(node.arguments[1])??'')||
+          sourceStringKey(node.arguments[1])===null)&&
+         !isDefinitelyPrimitive(node.arguments[2]))observed=true;
+      if(action==='assign') {
+        for(const source of node.arguments.slice(1)) {
+          if(source.type!=='ObjectExpression') {
+            observed=true;
+            continue;
+          }
+          for(const property of source.properties) {
+            if(property.type!=='Property') {observed=true;continue;}
+            const name=property.computed?sourceStringKey(property.key):
+              property.key.type==='Identifier'?property.key.name:staticString(property.key);
+            if((['type','subtype'].includes(name??'')||name===null)&&
+               !isDefinitelyPrimitive(property.value))observed=true;
+          }
+        }
+      }
+    }
     if(node.type==='TaggedTemplateExpression'&&isStringRaw(node.tag) &&
        node.quasi.expressions.some((/** @type {AstNode} */ value)=>
          !isDefinitelyPrimitive(value)))observed=true;
