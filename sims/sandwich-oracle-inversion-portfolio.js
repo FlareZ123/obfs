@@ -99,7 +99,9 @@ function main(){
     const unresolved=[];
     for(let index=firstIndex;index<lastIndexExclusive;index++){
       const item=family.make(index);
-      const attack=invertPortfolio(item.oracle,item.target,item.attackSeed);
+      // Public attacker-chosen seed is fixed across all hidden source cases.
+      // It carries no fixture-derived knowledge about private map generation.
+      const attack=invertPortfolio(item.oracle,item.target,0x510e527f);
       if(attack.value!==null && item.oracle(attack.value)!==item.target){
         throw new Error('Non-matching accepted target '+family.name+':'+index);
       }
@@ -124,7 +126,7 @@ function main(){
     firstIndex,lastIndexExclusive,
     attackOrder:['rank-one interpolation','CEGAR validation8','CEGAR validation128'],
     actualQueryCost:'One outer memo of distinct chosen inputs shared across all attempts',
-    sourceKnowledge:'Only the experiment fixture knows its source family and true secret',
+    sourceKnowledge:'Only the experiment fixture knows its source family and true secret; attack RNG seed is the same public constant for every fixture',
     scope:'Failure records retained; no universal solver theorem for interacting shears',
     rows
   },null,2));
