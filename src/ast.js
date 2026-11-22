@@ -3696,7 +3696,7 @@ function observesDistributedSource(ast,importedStrings=new Map()) {
       if(isDocument && (method==='write'||method==='writeln')) {
         for(const arg of node.arguments) {
           const text=arg.type==='SpreadElement'?null:knownKey(arg);
-          if(text===null || /integrity\\s*=/iu.test(text))observed=true;
+          if(text===null || /integrity\s*=/iu.test(text))observed=true;
         }
       }
     }
