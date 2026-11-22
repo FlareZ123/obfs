@@ -117,6 +117,37 @@ async function run(){
           checked++;
         }
       }
+      /** @type {Array<(trace:string[])=>unknown>} */
+      const exoticFactories=[
+        trace=>({valueOf(){trace.push('valueOf');return 19.75;}}),
+        trace=>({valueOf(){trace.push('valueOf');return {};},
+          toString(){trace.push('toString');return '-8';}}),
+        trace=>({
+          /** @param {string} hint */
+          [Symbol.toPrimitive](hint){trace.push('hint:'+hint);return '42';}
+        }),
+        trace=>({valueOf(){trace.push('valueOf');throw new RangeError('sentinel');}})
+      ];
+      /** @param {(input:unknown)=>number} fn
+       * @param {(trace:string[])=>unknown} make
+       * @returns {string}
+       */
+      function exoticObservation(fn,make){
+        /** @type {string[]} */
+        const trace=[];
+        return JSON.stringify({...observe(fn,make(trace)),trace});
+      }
+      let exoticChecked=0;
+      for(const name of names){
+        for(const factory of exoticFactories){
+          const expected=exoticObservation(modules.native[name],factory);
+          for(const variant of ['generated','minified','rebuilt']){
+            if(exoticObservation(modules[variant][name],factory)!==expected)
+              throw new Error('Different browser coercion trace '+variant+'/'+name);
+            exoticChecked++;
+          }
+        }
+      }
       const reflection=Object.fromEntries(
         ['generated','minified','rebuilt'].map(variant=>[
           variant,names.map(name=>({
@@ -172,10 +203,11 @@ async function run(){
           sampleMs[variant].push(ms);
         }
       }
-      return {checked,inputs:inputs.length,reflection,
+      return {checked,exoticChecked,inputs:inputs.length,reflection,
         callsPerExport,rounds,checksum,sampleMs};
     });
     assert.equal(observed.checked,3*(8192+20));
+    assert.equal(observed.exoticChecked,3*4*3);
     assert.equal(observed.callsPerExport,2000000);
     assert.equal(observed.rounds,9);
     for(const route of serverFiles.keys())assert.equal(requests[route],1,route);
@@ -185,7 +217,7 @@ async function run(){
       sourceBytes:Object.fromEntries(Object.entries(codes).map(([name,source])=>
         [name,Buffer.byteLength(source)])),
       zeroRuntimeOracleQueries:0,
-      checked:observed.checked,inputs:observed.inputs,
+      checked:observed.checked,exoticChecked:observed.exoticChecked,inputs:observed.inputs,
       rounds:observed.rounds,callsPerExport:observed.callsPerExport,
       reflection:observed.reflection,sampleMs:observed.sampleMs,
       generatedVsNative:pairedBudgetBound(
