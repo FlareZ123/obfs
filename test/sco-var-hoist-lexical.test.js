@@ -128,6 +128,7 @@ test('class static var stays inside its own static-block environment',async()=>{
   for(const body of escaped){
     assert.equal(firstUnprovedFreeReference(sourceBody(body),new Set(),
       new Set(),shared,true),'v',body);
+    assert.throws(()=>compile(body),/unproved free global: v/u,body);
     await assert.rejects(vm.runInNewContext('"use strict";(async function(){'+
       body+'})()',{}),/v is not defined/u,body);
   }
@@ -245,6 +246,7 @@ test('switch discriminant can use a proved outer lexical binding',async()=>{
   const body='let v=1;switch(v){case 1:let v=3;break;}return 11;';
   assert.equal(firstUnprovedFreeReference(sourceBody(body),new Set(),
     new Set(),shared,true),null);
+  assert.deepEqual(compile(body).privateNames,['protectedOp']);
   assert.equal(await vm.runInNewContext('"use strict";(async function(){'+
     body+'})()',{}),11);
 });
