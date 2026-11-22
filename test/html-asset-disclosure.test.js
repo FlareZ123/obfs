@@ -246,3 +246,42 @@ test('SCO public handler preserves SRI-pinned script response bytes',async()=>{
       server.close(error=>error?reject(error):resolve(undefined)));
   }
 });
+
+test('SCO closed-world cross-file property pass preserves an SRI-pinned ESM entry',async()=>{
+  const source='export const state={secretField:23};';
+  const entry='import {state} from "./state.mjs";console.log(state.secretField);';
+  const files=[
+    {path:'state.mjs',sourceType:/** @type {const} */('module'),code:source},
+    {path:'entry.mjs',sourceType:/** @type {const} */('module'),code:entry}
+  ];
+  const control=obfuscateFiles(files,{
+    mode:'coo',closedWorld:true,seed:'sri-crossfile-positive',
+    strings:false,identifiers:false,properties:true
+  });
+  assert.equal(control.crossFile.properties,1,
+    'The unobserved ESM graph must expose a real prior cross-file rewrite');
+  assert.notEqual(control.files[1].code,entry,
+    'The SRI-pinned module is the actual cross-file rewrite target');
+  const integrity=require('node:crypto').createHash('sha256').update(entry).digest('base64');
+  const pinned={path:'index.html',sourceType:/** @type {const} */('asset'),
+    code:Buffer.from('<script type="module" src="./entry.mjs" '+
+      'integrity="sha256-'+integrity+'"></script>')};
+  const handler=createScoHandler([...files,pinned],{closedWorld:true});
+  const server=require('node:http').createServer(handler);
+  await new Promise((resolve,reject)=>{
+    server.once('error',reject);
+    server.listen(0,'127.0.0.1',()=>resolve(undefined));
+  });
+  try{
+    const addr=server.address();
+    assert.ok(addr&&typeof addr==='object');
+    const origin='http://127.0.0.1:'+addr.port;
+    const result=await fetch(origin+'/obfs/entry.mjs');
+    assert.equal(result.status,200);
+    assert.equal(await result.text(),entry,
+      'Cross-file renaming must not invalidate a pinned ESM integrity attribute');
+  }finally{
+    await new Promise((resolve,reject)=>
+      server.close(error=>error?reject(error):resolve(undefined)));
+  }
+});
