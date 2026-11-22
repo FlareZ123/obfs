@@ -1229,6 +1229,7 @@ function collectPrivateDirectCallables(ast,bindings=collectBindings(ast)) {
   }
   /**
    * @param {AstNode} fn
+   * @param {string|null} binding
    * @returns {boolean}
    */
   function hasSelfSourceObserver(fn,binding) {
