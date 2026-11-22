@@ -110,7 +110,12 @@ emitted with the code. No source rewrite is needed.
   at `bac633570dccaa20d76965cf1c2b2548ae81abc6` passed
   both OSes, including positive included-package `#target`,
   negative external source, external output and stale nested output,
-  plus a mixed CommonJS/ESM dependency case.
+  plus a mixed CommonJS/ESM dependency case. The later
+  [six-case gate 45026177849](https://github.com/FlareZ123/obfs/actions/runs/45026177849)
+  at `b9cb319396de658bb7ac896560570cccc07bf4e4`
+  passed both OSes after adding an admitted control: a packaged
+  root scope shields the program from unrelated outer imports
+  mappings on both source and emitted paths.
 - [Four-case focused named exports gate 45025723893](https://github.com/FlareZ123/obfs/actions/runs/45025723893)
   at `ed9fc0a3224cd51f25ab697e3a5d57fec62c987f` passed
   both OSes, including packaged self-reference, external source/output
@@ -153,8 +158,14 @@ passed **both Ubuntu and Windows** at frozen source
 refined nested/input package implementation, behavioral suites,
 strict project/external JSDoc and the configured workload/browser
 checks. That full integration source predates the later external
-`imports` and named self-reference guards, so a fresh full run is
-required before claiming integration coverage of those guards.
+`imports` and named self-reference guards. The
+[combined full integration run 45025911407](https://github.com/FlareZ123/obfs/actions/runs/45025911407)
+subsequently **passed on both Ubuntu and Windows**, including
+behavioral/adversarial suites, strict project and external JSDoc,
+and configured browser and performance steps, at the frozen combined
+implementation source `3c77bffa1ee8a6eb122dc3e3b50a01ae03e37922`.
+Later changes add the nearest-package positive control test and
+documentation without modifying the compiled implementation.
 The earlier [full run 45022860316](https://github.com/FlareZ123/obfs/actions/runs/45022860316)
 also passed both platforms at older source
 `838a48462d563ac8a1e6168e9a4b31ee87ab00dc`;
@@ -172,6 +183,28 @@ package dependencies from `node_modules` and application-specific
 loader hooks require an independent integrator review. The red/green
 cases above establish bounded refusal against two real mis-resolutions,
 with a packaged-metadata positive control.
+
+### Node 22 automatic syntax detection: explicit support boundary
+
+In Node 22.23.4, an unscoped `.js` containing a static ESM
+`export const answer=167` can be imported by a native CommonJS
+`.cjs` entry through syntax detection and returns **167**. In an
+otherwise identical real source group with an explicit
+`{"type":"module"}` file, the SNO compiler emits a package-preserving
+distribution that also returns **167**. With **no package.json type**,
+the current CLI treats `.js` as CommonJS, and Acorn's early source-map
+preflight throws
+`SyntaxError: 'import' and 'export' may appear only with 'sourceType: module'`
+before emission.
+
+The source and positive control are frozen at
+`3dc148f9173063920bb85214d7619fe7d64d2489`;
+[focused run 45026373084](https://github.com/FlareZ123/obfs/actions/runs/45026373084)
+confirms this *safe rejection* with a passing explicit-type control on
+Ubuntu and Windows. This shows a **support gap** for Node 22's typeless
+source ESM syntax inference, not a generated-output semantic mismatch.
+Package an explicit `"type":"module"` scope or use `.mjs`.
+See [Node 22 package syntax detection](https://nodejs.org/download/release/v22.23.3/docs/api/packages.html#syntax-detection).
 
 The check assumes default Node symlink realpath resolution. A distinct
 Node 22.16.0 native reproduction loaded the same CommonJS `.js` file
