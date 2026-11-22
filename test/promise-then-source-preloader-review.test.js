@@ -101,7 +101,7 @@ for(const mode of /** @type {const} */ (['coo','sno','sco'])) {
       'module.exports=Promise.resolve(5).then(function exposedParameter(parameterSpelling){',
       '  return owner.secretField+parameterSpelling+independentValue+privateLength;',
       '});'
-    ].join('\\n');
+    ].join('\n');
     const native=await execute(source,'then');
     assert.match(native.callbackSource,/parameterSpelling/u);
     assert.match(native.callbackSource,/secretField/u);
