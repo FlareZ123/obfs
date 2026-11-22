@@ -4034,6 +4034,8 @@ function collectExportedCallableNodes(ast) {
     if(node.type==='NewExpression') {
       const klass=localCallable(node.callee,depth+1);
       if(klass&&isClass(klass))markTree(klass);
+      for(const argument of node.arguments??[])
+        markValue(argument.type==='SpreadElement'?argument.argument:argument,depth+1);
       return;
     }
     if(node.type==='CallExpression') {
