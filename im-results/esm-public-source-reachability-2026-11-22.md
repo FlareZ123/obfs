@@ -42,3 +42,13 @@ This intermediate compatibility study does not demonstrate confidentiality, anti
 On **Ubuntu**, earlier native, source-island, and real Chromium steps completed successfully, but an independent `CacheStorage browser source-byte observation counterfactual and admission` step failed **before** this newly appended matrix. Do **not** report an Ubuntu parity outcome from this run. Both jobs consequently failed the workflow, for **different reasons**.
 
 The matrix was subsequently corrected in `9e4a32d5eaba5b5ef412ae9aef1f8d24e43ffa35` to allow safe refusal of public source edits while retaining private positive-yield assertions. The existing workflow reorders the new step before the unrelated CacheStorage step in `085627426b9add2b005fc66e4c37d89490c8b8a1`. A new validation workflow was dispatched at that corrected branch head; its result must be recorded independently rather than inferred from the earlier run.
+
+## Corrected Ubuntu and Windows cross-mode matrix: fully reproduced
+
+The corrected [source-pinned validation run 44981145682](https://github.com/FlareZ123/obfs/actions/runs/44981145682) on commit `085627426b9add2b005fc66e4c37d89490c8b8a1` reached the standalone ESM external-source matrix **on both Ubuntu and Windows Node 22 runners**, ahead of the unrelated browser CacheStorage step. Each platform recorded **21 tests: 3 pass, 18 fail**. Both failed jobs identify exactly the independent external ESM callable source observation matrix as the failing workflow step.
+
+The six externally reachable export shapes each failed source parity in all three COO/SCO/SNO variants, with positive source edits and ordinary returned values unchanged. The three separate nonescaping, private-function property-rewrite controls passed in all three modes. The Windows job ID was `137081689154`, Ubuntu `137081689448`. The logs show representative differences such as `owner.secretField` becoming `owner._p...` in exported class/reexport/array methods and exposed `secretParam` becoming `_v...`.
+
+This cross-platform failure is an intentionally retained **red-first compatibility regression**, not evidence that the branch itself introduced a new compiler defect. The branch contains a test and workflow-step ordering adjustment, with **no compiler implementation change**. Source parity for an undeclared external importer remains an integrator-contract boundary worth resolving: conservative refusal is a legal semantic solution when the importer is part of the intended behavioral contract. Any implementation fix and positive private-yield preservation must be tested at the same merged source commit.
+
+**Correction of prior pending status:** the second cross-platform CI result is now confirmed. The release/security decision remains **RELEASE-BLOCKED**.
