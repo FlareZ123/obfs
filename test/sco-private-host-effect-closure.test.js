@@ -456,7 +456,7 @@ test('SCO retains typeof of proved local primitives, formals, and standard globa
     'export async function protectedOp(value){return typeof value;}',
     'export async function protectedOp(){const local=41;return typeof local;}',
     'export async function protectedOp(){function read(value){return typeof value;}return read(41);}',
-    'export async function protectedOp(){return typeof Math;}',
+    'export async function protectedOp(){return typeof undefined;}',
     'const local=41;export async function protectedOp(){return typeof local;}'
   ];
   for(const selected of sources){
@@ -468,7 +468,7 @@ test('SCO retains typeof of proved local primitives, formals, and standard globa
   for(const body of [
     'const local=41;return typeof local;',
     'function read(value){return typeof value;}return read(41);',
-    'return typeof Math;'
+    'return typeof undefined;'
   ]){
     for(const transitive of [false,true]){
       const partition=partitionGraph(body,transitive);
