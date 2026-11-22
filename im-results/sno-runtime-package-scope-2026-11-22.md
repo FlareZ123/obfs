@@ -61,7 +61,20 @@ application exports become visible.
 
 Candidate source and tests are committed to the research branch. A syntax
 compilation check of `src/sno.js` passed in an isolated V8 runtime.
-**Cross-platform CI on the candidate and its negative controls is being evaluated; no result is asserted here yet.** Record exact
+**Cross-platform source-pinned focused validation is complete.** On frozen
+`b0b9d48a81fdc008c70b9586f5ded8034c4bc7d3`,
+[negative-path-cache run 45083818287](https://github.com/FlareZ123/obfs/actions/runs/45083818287)
+**passed Ubuntu and Windows** with strict JSDoc. The initial
+[positive run 45083811503](https://github.com/FlareZ123/obfs/actions/runs/45083811503)
+had 3/4 green tests and failed an accidentally double-escaped *test regex*
+despite the actual runtime producing the correct mismatch error.
+The corrected positive suite at
+[`5aed979df69ae7af190c1ca9a7372f728de86e11`](https://github.com/FlareZ123/obfs/commit/5aed979df69ae7af190c1ca9a7372f728de86e11)
+**passed Ubuntu and Windows** in
+[run 45084008608](https://github.com/FlareZ123/obfs/actions/runs/45084008608),
+including strict JSDoc. The evidence establishes both designed refusal
+and the observable loader-state incompatibility. Therefore the
+experimental runtime package-scope guard is **rejected for default integration**. Record exact
 immutable SHA, Ubuntu/Windows focused run, strict JSDoc result and full
 integration verdict before proposing integration to main.
 
