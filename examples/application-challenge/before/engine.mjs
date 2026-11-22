@@ -1,7 +1,14 @@
-import {state,readOffset,readSalt,identity} from './private.mjs';
+import {state,identity} from './private.mjs';
 import {hostValue} from './host.mjs';
 
-// Module initialization reads private fields across ESM ownership boundaries.
+/** @typedef {{secretOffset:number,secretSalt:number}} EngineKeys */
+/** @param {EngineKeys} owner */
+function readOffset(owner){return owner.secretOffset;}
+/** @param {EngineKeys} owner */
+function readSalt(owner){return owner["secretSalt"];}
+
+// The exported engine source calls private readers; their property spellings
+// are not part of an externally observable Function#toString surface.
 const offset=readOffset(identity(state));
 const salt=readSalt(state);
 
