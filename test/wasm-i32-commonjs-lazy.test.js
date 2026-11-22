@@ -40,7 +40,8 @@ test('CommonJS opted-in deferred Wasm compiles only invoked functions on first u
   const source='"use strict";'+
     'function hot(x){return (x^17)>>2;}'+
     'function cold(x){return (x<<3)^7;}'+
-    'module.exports={hot,cold};';
+    'function publicHot(x){return hot(x);}function publicCold(x){return cold(x);}'+
+    'module.exports={hot:publicHot,cold:publicCold};';
   const lowered=lowerWasmI32Functions(source,'commonjs',{
     seed:'lazy-commonjs-first-call',names:['hot','cold'],
     deferCommonJsInitialization:true
@@ -63,7 +64,8 @@ test('CommonJS lazy helper remains callable during top-level module initializati
   const source='"use strict";'+
     'function hot(x){return x^13;}'+
     'function cold(x){return x&255;}'+
-    'const initial=hot(42);module.exports={hot,cold,initial};';
+    'function publicHot(x){return hot(x);}function publicCold(x){return cold(x);}'+
+    'const initial=hot(42);module.exports={hot:publicHot,cold:publicCold,initial};';
   const lowered=lowerWasmI32Functions(source,'commonjs',{
     seed:'lazy-commonjs-top-level',names:['hot','cold'],
     deferCommonJsInitialization:true
@@ -82,7 +84,8 @@ test('CommonJS lazy helper remains callable during top-level module initializati
 
 test('CommonJS default eager setup remains available for server initialization',()=>{
   const source='function hot(x){return x^17;}'+
-    'function cold(x){return x&255;}module.exports={hot,cold};';
+    'function cold(x){return x&255;}function publicHot(x){return hot(x);}'+
+    'function publicCold(x){return cold(x);}module.exports={hot:publicHot,cold:publicCold};';
   const eager=lowerWasmI32Functions(source,'commonjs',{
     seed:'commonjs-default-eager',names:['hot','cold']
   });
@@ -100,7 +103,8 @@ test('CommonJS default eager setup remains available for server initialization',
 
 test('SNO group API and CLI retain eager initialization after runtime budget falsifier',()=>{
   const source='function hot(x){return x^17;}function cold(x){return x&255;}'+
-    'module.exports={hot,cold};';
+    'function publicHot(x){return hot(x);}function publicCold(x){return cold(x);}'+
+    'module.exports={hot:publicHot,cold:publicCold};';
   const selected={'entry.cjs':['hot','cold']};
   const emitted=obfuscateFiles([
     {path:'entry.cjs',sourceType:'commonjs',code:source}
