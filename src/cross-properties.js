@@ -887,6 +887,8 @@ function safeClosedCallerRecordRead(modules,module,member,ancestors) {
     const hostContainers=new Set();
     /** @type {[string,string][]} */
     const aliasEdges=[];
+    /** @type {Map<string,AstNode[]>} */
+    const expressionOrigins=new Map();
     // A host-controlled callable can perform runtime imports that are
     // invisible to the statically closed ESM graph. Resolve direct aliases
     // of the global root before recognizing extracted host functions.
@@ -901,6 +903,11 @@ function safeClosedCallerRecordRead(modules,module,member,ancestors) {
         node.type==='AssignmentExpression'&&node.operator==='='?node.left:null;
       const value=node.type==='VariableDeclarator'?node.init:
         node.type==='AssignmentExpression'?node.right:null;
+      if(binding?.type==='Identifier'&&value&&value.type!=='Identifier') {
+        const candidates=expressionOrigins.get(binding.name)??[];
+        candidates.push(value);
+        expressionOrigins.set(binding.name,candidates);
+      }
       if(binding?.type==='Identifier' && value?.type==='MemberExpression' &&
          value.object.type==='Identifier') {
         const owner=value.object.name;
@@ -1184,6 +1191,13 @@ function safeClosedCallerRecordRead(modules,module,member,ancestors) {
           if(formal.type==='AssignmentPattern') {
             actual??=formal.right;
             formal=formal.left;
+          }
+          if(formal.type==='ObjectPattern'&&actual?.type==='Identifier') {
+            // A locally named value can originate from an opaque expression.
+            // Recheck that origin against the formal's required own fields.
+            const expressions=expressionOrigins.get(actual.name)??[];
+            if(expressions.some(expression=>
+              !closedLiteralFormalActual(formal,expression)))changedIntrinsic=true;
           }
           if(formal.type==='ObjectPattern'&&actual?.type!=='Identifier') {
             // Binding a function may capture only a prefix of its formals.
