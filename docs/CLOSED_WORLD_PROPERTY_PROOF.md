@@ -6,7 +6,7 @@
 
 `closedWorld:true` is a *claim by the integrator* that the supplied ESM modules and their statically resolved imports form the complete relevant distribution unit. The flag cannot itself establish that all consumers or behavioral dependencies of those modules are known.
 
-The compiler's bounded proof can reason about direct named ESM imports/exports, explicit named source re-exports of already-proved read-only reader helpers, certain immutable identity/reader wrappers, literal record ownership, and a restricted grammar of statically keyed accesses. The compiler deliberately declines many ambiguous uses, such as opaque imports, reflection, escapes, unknown calls, runtime source observers, or dynamic property keys. For arbitrary JS, especially dynamic importers and cross-realm callbacks, the static AST is only a partial observation.
+The compiler's bounded proof can reason about direct named ESM imports/exports, explicit named source re-exports of already-proved read-only reader helpers, certain immutable identity/reader wrappers, literal record ownership, and a restricted grammar of statically keyed accesses. The compiler deliberately declines many ambiguous uses, such as opaque imports, unknown or dynamic reflection, escapes, unknown calls, runtime source observers, or dynamic property keys. A narrow direct literal-key ESM reflection lane is documented in §4.2; it is not general reflection support. For arbitrary JS, especially dynamic importers and cross-realm callbacks, the static AST is only a partial observation.
 
 A real deployment should explicitly establish the following environmental premises before accepting property renaming as preserving its application's API:
 
@@ -104,6 +104,25 @@ measurement; the baseline comparison establishes only newly admitted positive
 work and no proven reverse-engineering resistance. The full validation suite
 and current outcome are tracked in
 [the intermediate integration record](../im-results/immutable-string-reexport-integration-2026-11-22.md).
+
+
+## 4.2. Direct literal-key ESM reflection (22 November 2026)
+
+A narrow cross-file owner-proof extension admits these direct, noncomputed calls when the first argument is the already-proved private owner (or a proved alias) and the property key is a string literal:
+
+- `Reflect.get`, `Reflect.has`, and `Reflect.getOwnPropertyDescriptor`;
+- `Object.hasOwn` and `Object.getOwnPropertyDescriptor`;
+- `Reflect.set` only with exactly three arguments `(owner, key, value)`.
+
+The proof does not admit spread arguments, a fourth `Reflect.set` receiver, patched or captured intrinsic methods, shadowed/aliased `Object` or `Reflect`, global-root access, a Proxy-wrapped owner, or accessor-defined owner fields. The graph-wide intrinsic-stability check is source-based and therefore does **not** establish hostile-host or cross-realm integrity. Deployments must still satisfy the realm-integrity and graph-closure premises in §1.
+
+The implementation is covered by `test/cross-reflection.test.js`, `test/direct-reflection-shape-grid.test.js`, the deterministic three-module differential in `test/direct-reflection-three-module-fuzz.test.js`, and the external-importer regression in `test/direct-reflection-exported-callable-source.test.js`. The current-main candidate's 64-case run recorded 64/64 native/emitted output matches, 49 positive transformed graphs, 15 conservative refusals, and 98 private-field rewrites; its exact source pin and cross-platform/browser result are recorded in `im-results/direct-reflection-current-main-integration-2026-11-22.md`. The paired profile in `sims/direct-reflection-native-minified-profile.js` also runs a seedless source-only normalizer against the actual emitted ESM.
+
+
+
+**Unresolved external callable-source contract:** the external-importer regression is red on both platforms. Initial [run 45019270926](https://github.com/FlareZ123/obfs/actions/runs/45019270926) caught exported reflective reads; extended [run 45019876773](https://github.com/FlareZ123/obfs/actions/runs/45019876773) catches exported `Reflect.get` and `Reflect.set` bodies plus callable object methods; [run 45021087466](https://github.com/FlareZ123/obfs/actions/runs/45021087466) also reproduces a host-patched `Promise.prototype.then` capturing a private callback whose `Function#toString()` reveals a rewritten key. Emitted `Function#toString()` changes from original `"secretField"` to generated keys even though ordinary return values are unchanged. Both unexported private-helper positive controls still permit one rewrite each, and the native-Promise private-callback positive control in run 45021087466 also retains one rewrite. The host-patched Promise callback itself leaks `_p9199ea81ce8b` through its captured `toString()` source. The same 4/7 source-observer failures persist on both platforms after the btoa and console source-parity merges in [run 45022226243](https://github.com/FlareZ123/obfs/actions/runs/45022226243). Consequently this lane is **not yet 1:1 compatible** for exported callable source and must remain draft until the shared cross-pass source-observer gate handles exported functions and callable members without erasing safe private-helper yield. See [the source-observation report](../im-results/esm-exported-callable-source-observability-2026-11-22.md).
+
+This is **semantic compatibility coverage**, not confidentiality or anti-tamper evidence. The normalizer recovers both emitted field names in the tested application, and no universal 2.5× workload bound follows from the sampled hot-loop profile. Unknown reflective forms must continue to refuse unless a separate proof is established.
 
 ## 5. What qualifies as future progress
 

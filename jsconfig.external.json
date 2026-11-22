@@ -2,6 +2,11 @@
   "extends": "./jsconfig.json",
   "include": [
     "test/property-reflection.test.js",
+    "test/direct-reflection-native-minified-profile.test.js",
+    "test/indirect-native-reflection.test.js",
+    "test/direct-reflection-exported-callable-source.test.js",
+    "test/direct-reflection-three-module-fuzz.test.js",
+    "sims/direct-reflection-native-minified-profile.js",
     "test/closedworld-private-wrapper.test.js",
     "test/property-private-wrapper-profile.test.js",
     "test/source-stable-bound-export.test.js",
