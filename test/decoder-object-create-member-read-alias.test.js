@@ -151,3 +151,39 @@ for(const mode of /** @type {const} */ (['coo','sno','sco'])) {
     });
 }
 
+
+
+const transitiveMemberReadAliasWrite =
+  'const descriptors={ref:{}};const wrapped=descriptors;'+
+  'let entry;entry=wrapped["ref"];const indirect=entry;'+
+  'indirect.get=function(){return TARGET.prototype};'+
+  'const box=Object.create(null,descriptors);';
+
+for(const mode of /** @type {const} */(['coo','sno','sco'])){
+  for(const intrinsic of /** @type {const} */(['String','Number'])){
+    test('computed member-read + assignment + alias getter: '+mode+' '+intrinsic,
+      async()=>{
+        const mutator=transitiveMemberReadAliasWrite.replace('TARGET',intrinsic)+
+          (intrinsic==='String'?
+            'box.ref.charCodeAt=()=>0;':'box.ref.unrelated=1;');
+        const input=graph(mutator);
+        const emitted=obfuscateFiles(input,{
+          mode,strings:true,identifiers:false,properties:false,
+          seed:'agent5-transitive-member-read/'+mode+'/'+intrinsic
+        });
+        const target=emitted.files.find(file=>file.path==='target.cjs');
+        assert.ok(target);
+        const root=await fs.mkdtemp(path.join(os.tmpdir(),'obfs-member-transitive-'));
+        try{
+          const native=await execute(path.join(root,'native'),input);
+          const compiled=await execute(path.join(root,'emitted'),emitted.files);
+          assert.equal(native.status,0,native.stderr);
+          assert.deepEqual(compiled,native,'native/emitted transitive alias parity');
+        }finally{
+          await fs.rm(root,{recursive:true,force:true});
+        }
+        assert.equal(target.metrics.literals,intrinsic==='String'?0:1,
+          'sensitive getter declines decoder; benign control encodes payload');
+      });
+  }
+}
