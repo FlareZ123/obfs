@@ -158,3 +158,35 @@ test('Selected SCO refuses direct private exports and helpers with migrated host
   );
   assert.deepEqual(partition.privateNames,['protectedOp']);
 });
+
+
+test('Private static ESM graph refuses browser-only ambient objects in direct and transitive leaves',()=>{
+  const sensitive=[
+    'return localStorage.getItem("session");',
+    'return sessionStorage.getItem("session");',
+    'return indexedDB.databases();',
+    'return history.length;',
+    'return screen.width;',
+    'return customElements.get("x-widget");',
+    'return new DOMParser().parseFromString("<p>ok</p>","text/html").body.textContent;',
+    'return new XMLHttpRequest().readyState;'
+  ];
+  for(const body of sensitive){
+    for(const transitive of [false,true]){
+      assert.throws(()=>partitionGraph(body,transitive),
+        /SCO private static dependency (?:has unproved client host state|contains unproved cross-realm host API)/u,
+        body+' / transitive='+transitive);
+    }
+  }
+});
+
+test('Private source audit keeps browser API spellings in inert record keys eligible',()=>{
+  const body='const data={localStorage:10,sessionStorage:11,indexedDB:12,'+
+    'history:3,screen:2,customElements:4,DOMParser:0,XMLHttpRequest:0};'+
+    'return data.localStorage+data.sessionStorage+data.indexedDB+'+
+    'data.history+data.screen+data.customElements+data.DOMParser+data.XMLHttpRequest;';
+  for(const transitive of [false,true]){
+    const partition=partitionGraph(body,transitive);
+    assert.deepEqual(partition.privateNames,['protectedOp']);
+  }
+});
