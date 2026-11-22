@@ -707,7 +707,7 @@ test('SCO composite typeof distinguishes lazy nested functions from invoked clos
 
 test('Negative witness: composite typeof sees free names in constructed or tagged functions',()=>{
   const bodies=[
-    'return typeof new (function(){this.x=externalBridge;})();',
+    'return typeof new (function(){return externalBridge;})();',
     'return typeof ((strings)=>externalBridge)`tag`;'
   ];
   for(const body of bodies){
