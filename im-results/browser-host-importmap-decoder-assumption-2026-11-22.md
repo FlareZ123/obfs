@@ -33,6 +33,24 @@ The script asserts positive encoding (`metrics.literals=1`), normal-host native/
 
 The temporary research branch `agent27/importmap-hidden-mutator-20261122` at source `887af264c292e7564cf54c5445b25ac7f22856fb` inserted this probe into the **existing** manual browser workflow. Its [pinned CI run 45016334134](https://github.com/FlareZ123/obfs/actions/runs/45016334134) passed the probe and all remaining browser checks; the probe printed exactly the record above. The reusable harness was separately copied unchanged into `main` at commit `06175fdf12a4c889c1929c056a242df5b3e59275`, without adding a permanent CI job.
 
+## Same-origin remapping under a restrictive CSP
+
+The first witness uses an inline `data:` module. A second independent [same-origin CSP script](../sims/importmap-host-csp-same-origin-counterexample-browser.js), copied unchanged into `main` at `6ef57f1b9d0c3433163fd20ca28d59d0ded55392`, removes that potential deployment objection. It uses an HTML response with:
+
+```http
+Content-Security-Policy: script-src 'self' 'nonce-fixture-nonce'; object-src 'none'; base-uri 'none'
+```
+
+The import map and inline bootstrap each have the matching CSP nonce. Instead of a `data:` module, the map redirects `./side.mjs` to a **same-origin** `./host-mutator.mjs` endpoint outside the compiler's supplied file group. The host module patches `String.fromCharCode` before the emitted target decoder runs. Because the substituted resource is same-origin, `script-src 'self'` admits its load without a `data:` exception.
+
+The second full [Chromium workflow 45017367781](https://github.com/FlareZ123/obfs/actions/runs/45017367781) passed at research source `87850e48e2623c38c959bff62cdbc7e0eed00427`, including both host-import-map negative probes and the remaining repository browser checks. The CSP probe printed exactly:
+
+```json
+{"browser":"Chromium","csp":"script-src 'self' 'nonce-fixture-nonce'; object-src 'none'; base-uri 'none'","plainParity":true,"original":"protected-literal-value","remappedEmitted":"???????????????????????","protectedLiterals":1}
+```
+
+This confirms the same native/emitted mismatch under a same-origin-only script policy. The experiment shows a **host-resolver trust condition**; CSP still protects its stated origins and inline-script authorization according to the configured policy, and a nonce-bearing host page is allowed to choose its own import map. The test does not imply CSP is bypassed.
+
 ## Interpretation and adoption rule
 
 This is an explicit **untrusted-host dependency-resolution counterexample**, outside the bounded compiler-supplied file graph that PR #277 checks. It does **not** contradict the CI evidence proving semantics when Node's ordinary module resolver or Chrome without a hidden import map loads the supplied group. It does invalidate a stronger statement that a statically known relative import ensures the same code is executed in *all* browser deployments.
