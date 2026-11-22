@@ -29,7 +29,7 @@ function median(nums) {
  *   minProtectedSha256:string,ratios:Record<'protectedOverNative'|
  *   'protectedOverMinNative'|'minProtectedOverNative'|'minProtectedOverMinNative',number>,
  *   breaches:Record<'protectedOverNative'|'protectedOverMinNative'|
- *   'minProtectedOverNative'|'minProtectedOverMinNative',number>,samples:Timings}>}>}
+ *   'minProtectedOverNative'|'minProtectedOverMinNative',number>,samples:Timings,checksums:number[]}>}>}
  */
 async function runChromium(options={}) {
   const count=options.count??5000000;
@@ -45,7 +45,7 @@ async function runChromium(options={}) {
    * minProtectedSha256:string,ratios:Record<'protectedOverNative'|
    * 'protectedOverMinNative'|'minProtectedOverNative'|'minProtectedOverMinNative',number>,
    * breaches:Record<'protectedOverNative'|'protectedOverMinNative'|
-   * 'minProtectedOverNative'|'minProtectedOverMinNative',number>,samples:Timings}>} */
+   * 'minProtectedOverNative'|'minProtectedOverMinNative',number>,samples:Timings,checksums:number[]}>} */
   const rows=[];
   try {
     const chrome=await browser.version();
@@ -152,7 +152,7 @@ async function runChromium(options={}) {
         rows.push({index:example.index,rotation:example.rotation,
           sourceSha256:createHash('sha256').update(example.source).digest('hex'),
           minProtectedSha256:createHash('sha256').update(protectedMin).digest('hex'),
-          ratios,breaches,samples});
+          ratios,breaches,samples,checksums:measured.checksums});
       }finally {
         await page.close();
       }
