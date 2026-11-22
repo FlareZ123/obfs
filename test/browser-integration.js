@@ -129,15 +129,15 @@ async function main(){
   const readerSet=obfuscateFiles([
     {path:'reader-state.mjs',sourceType:'module',
       code:'export const state={secretValue:29,otherValue:12};'+
-        'const secretValue=state.secretValue;'+
-        'export function peek(value){return secretValue;}'},
+        'export function peek(value){return value;}'},
     {path:'reader-identity.mjs',sourceType:'module',
       code:'export const identity=payload=>payload;'},
     {path:'reader-entry.mjs',sourceType:'module',
       code:'import {state,peek} from "./reader-state.mjs";'+
         'import {identity} from "./reader-identity.mjs";'+
         'const forward=part=>part;'+
-        'window.hostApi.accept(peek(forward(identity(state)))+state.otherValue);'}
+        'const owner=peek(forward(identity(state)));'+
+        'window.hostApi.accept(owner.secretValue+owner.otherValue);'}
   ],{mode:'coo',closedWorld:true,seed:'chrome-nested-readers',
     identifiers:false,strings:false});
   assert.equal(readerSet.crossFile.properties,2);
