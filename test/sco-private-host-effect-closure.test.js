@@ -704,3 +704,23 @@ test('SCO composite typeof distinguishes lazy nested functions from invoked clos
     }
   }
 });
+
+test('Negative witness: composite typeof sees free names in constructed or tagged functions',()=>{
+  const bodies=[
+    'return typeof new (function(){this.x=externalBridge;})();',
+    'return typeof ((strings)=>externalBridge)`tag`;'
+  ];
+  for(const body of bodies){
+    const source='export async function protectedOp(){'+body+'}'+
+      'export function visible(){return 7;}';
+    assert.throws(()=>partitionScoSelectedAsyncExports(
+      {path:'mixed.mjs',code:source,sourceType:'module'},
+      {seed:'sco-noncall-executing-typeof-20261122',privateNames:['protectedOp']}
+    ),/Private SCO export or helper uses unproved free typeof reference/u,body);
+    for(const transitive of [false,true]){
+      assert.throws(()=>partitionGraph(body,transitive),
+        /SCO private static dependency has unproved free typeof reference/u,
+        body+' transitive='+transitive);
+    }
+  }
+});
