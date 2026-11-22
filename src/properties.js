@@ -1134,7 +1134,7 @@ function singleUseFactoryObject(ast,bindings,expression) {
  * A conservative proof failure leaves the complete file unchanged for that object.
  * @param {string} source
  * @param {AstNode} ast
- * @param {{seed:string}} options
+ * @param {{seed:string,propertySafeExports?:Set<string>|null}} options
  * @returns {{code:string,objects:number,properties:number}}
  */
 function renameLocalProperties(source, ast, options) {
