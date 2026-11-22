@@ -67,6 +67,11 @@ async function main() {
     '<html xmlns="http://www.w3.org/1999/xhtml"><head>'+
     '<script><![CDATA[document.documentElement.setAttribute("data-inline","executed");]]></script>'+
     '</head><body><p>XHTML inline script</p></body></html>';
+  const inlineSvg='<?xml version="1.0" encoding="UTF-8"?>'+
+    '<html xmlns="http://www.w3.org/1999/xhtml"><head>'+
+    '<svg:svg xmlns:svg="http://www.w3.org/2000/svg">'+
+    '<svg:script><![CDATA[document.documentElement.setAttribute("data-svg-inline","executed");]]></svg:script>'+
+    '</svg:svg></head><body><p>XHTML SVG inline script</p></body></html>';
   const inlinePrefixed=inline.replace('<script>',
     '<h:script xmlns:h="http://www.w3.org/1999/xhtml">').replace('</script>','</h:script>');
   /** @type {Map<string,Map<string,string>>} */
@@ -79,6 +84,7 @@ async function main() {
     ['prefixed-unsafe',new Map([['client.js',/** @type {string} */(unsafe.files[0].code)],
       ['index.xhtml',prefixedMarkup]])],
     ['inline-prefixed',new Map([['index.xhtml',inlinePrefixed]])],
+    ['inline-svg',new Map([['index.xhtml',inlineSvg]])],
     ['inline',new Map([['index.xhtml',inline]])]
   ]);
   const server=http.createServer((request,response)=>{
@@ -101,15 +107,17 @@ async function main() {
     const browser=process.env.CHROMIUM_BIN??'google-chrome';
     /** @type {Record<string,boolean>} */
     const outcomes={};
-    for(const variant of ['native','safe','unsafe','prefixed','prefixed-unsafe','inline','inline-prefixed']) {
+    for(const variant of ['native','safe','unsafe','prefixed','prefixed-unsafe','inline','inline-prefixed','inline-svg']) {
       const page=await readBrowser(browser,origin+'/'+variant+'/index.xhtml');
       assert.match(page,/XHTML (?:SRI browser|inline script)/u);
-      outcomes[variant]=variant.startsWith('inline')?
+      outcomes[variant]=variant==='inline-svg'?
+        /data-svg-inline="executed"/u.test(page):variant.startsWith('inline')?
         /data-inline="executed"/u.test(page):/data-xhtml-sri="loaded"/u.test(page);
     }
     assert.deepEqual(outcomes,{
       native:true,safe:true,unsafe:false,prefixed:true,
-      'prefixed-unsafe':false,inline:true,'inline-prefixed':true
+      'prefixed-unsafe':false,inline:true,'inline-prefixed':true,
+      'inline-svg':true
     },'XHTML executes inline script and rejects integrity-invalid external scripts');
     process.stdout.write('XHTML_SRI_BROWSER '+JSON.stringify(outcomes)+'\n');
   } finally {
