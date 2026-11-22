@@ -731,3 +731,44 @@ test('cross-file opaque integrity setters conservatively observe sha384 and sha5
     }
   }
 });
+
+test('document.write argument and statement fragments can jointly form a script SRI attribute',()=>{
+  const source='globalThis.fragmentedDocumentWriteSRI="script integrity split across parser writes";';
+  const digest=require('node:crypto').createHash('sha256').update(source).digest('base64');
+  const prefix='<script src="./client.js" integ';
+  const suffix='rity="sha256-'+digest+'"></script>';
+  const cases=[
+    ['separate arguments','document.write('+JSON.stringify(prefix)+','+
+      JSON.stringify(suffix)+');'],
+    ['successive parser writes','document.write('+JSON.stringify(prefix)+');'+
+      'document.write('+JSON.stringify(suffix)+');'],
+    ['writeln multi-arguments','document.writeln('+JSON.stringify(prefix)+','+
+      JSON.stringify(suffix)+');']
+  ];
+  const client={path:'client.js',sourceType:/** @type {const} */('script'),code:source};
+  const html={path:'index.html',sourceType:/** @type {const} */('asset'),
+    code:Buffer.from('<script src="./bootstrap.js"></script>')};
+  for(const mode of /** @type {const} */(['coo','sco','sno'])){
+    const options={mode,seed:'fragmented-document-write-sri/'+mode,
+      strings:true,identifiers:false,properties:false};
+    const control=obfuscateFiles([
+      client,{path:'bootstrap.js',sourceType:'script',
+        code:'document.write("<script src=\\"./client.js\\"></script>");'},html
+    ],options);
+    assert.notEqual(control.files[0].code,source,
+      'A single unpinned parser-written script must keep rewrite yield in '+mode);
+    const unpinnedParts=obfuscateFiles([
+      client,{path:'bootstrap.js',sourceType:'script',
+        code:'document.write("<scr","ipt src=\\\"./client.js\\\"></script>");'},html
+    ],options);
+    assert.notEqual(unpinnedParts.files[0].code,source,
+      'An argument-split script without SRI must remain transformable in '+mode);
+    for(const [name,code] of cases){
+      const pinned=obfuscateFiles([
+        client,{path:'bootstrap.js',sourceType:'script',code},html
+      ],options);
+      assert.equal(pinned.files[0].code,source,
+        name+' can form a runtime SRI commitment in '+mode);
+    }
+  }
+});

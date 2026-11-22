@@ -3782,10 +3782,21 @@ function observesDistributedSource(ast,importedStrings=new Map()) {
           (receiver.computed ? knownKey(receiver.property) :
             receiver.property.type==='Identifier'?receiver.property.name:null)==='document';
       if(isDocument && (method==='write'||method==='writeln')) {
+        // The HTML parser receives all arguments as a single concatenated
+        // character stream. A split "integ" + "rity=" is still an SRI attribute.
+        // A dangling start-tag prefix can also be completed by a later
+        // document.write call, whose execution order cannot be proven here.
+        let markup='';
         for(const arg of node.arguments) {
-          const text=arg.type==='SpreadElement'?null:knownKey(arg);
-          if(text===null || /integrity\s*=/iu.test(text))observed=true;
+          const fragment=arg.type==='SpreadElement'?null:knownKey(arg);
+          if(fragment===null) {
+            observed=true;
+            break;
+          }
+          markup+=fragment;
         }
+        if(/integrity\s*=/iu.test(markup) ||
+           /<(?:[A-Za-z!?/][^>]*|)$/u.test(markup))observed=true;
       }
     }
     if(node.type==='CallExpression' && node.callee.type==='MemberExpression') {
