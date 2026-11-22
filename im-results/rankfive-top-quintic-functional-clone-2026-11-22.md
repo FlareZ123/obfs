@@ -65,6 +65,16 @@ Unrestricted degree-five ANF interpolation requires
 \]
 chosen inputs. The conditional learner therefore uses at most about 5.46 times fewer chosen queries than generic degree-five interpolation. These are **oracle-query counts**, not a CPU-time ratio or proof of the 2.5× target-runtime budget.
 
+### Information-theoretic query lower bound
+
+The promised class contains every vector-valued degree-at-most-four map, since \(T_5=0\) gives joint-radical codimension zero. Let
+\[
+L(n)=\sum_{j=0}^{4}\binom nj.
+\]
+There are \(2^{nL(n)}\) such n-bit-output functions: each of the \(L(n)\) ANF coefficients in each of the n output coordinates is independent. A deterministic adaptive learner making q queries has at most \(2^{nq}\) possible transcripts, because each answer contains n bits; it can reconstruct at most one function per transcript. For a randomized learner, fixing its random seed gives the same bound, so its average success fraction over this subclass is at most \(2^{n(q-L(n))}\). Consequently, any learner with worst-case success probability greater than \(2^{-n}\) must make at least \(L(n)\) queries.
+
+At n=32, this lower bound is 41,449 queries. The 44,455-query upper bound is therefore only 3,006 queries, or about 7.25%, above this information-theoretic floor. This is a near-optimality statement in **oracle-query count** for the promised class; it says nothing about CPU time, memory, target runtime, or the 2.5× constraint.
+
 ## Reconstruction argument
 
 After finding anchors \(a_1,\ldots,a_5\) with
