@@ -31,12 +31,12 @@ function withPrivateReaderHelpers(files) {
     assert.ok(file.code.includes(beforeOffset)&&file.code.includes(beforeSalt),
       'Expected frozen private reader shape');
     return {...file,code:file.code.replace(beforeOffset,
-      'function secretOffsetOf(owner){return owner.secretOffset;}\\n'+
-      '/** @param {EngineKeys} owner */\\n'+
+      'function secretOffsetOf(owner){return owner.secretOffset;}\n'+
+      '/** @param {EngineKeys} owner */\n'+
       'export function readOffset(owner){return secretOffsetOf(owner);}')
       .replace(beforeSalt,
-      'const secretSaltOf=owner=>owner["secretSalt"];\\n'+
-      '/** @param {EngineKeys} owner */\\n'+
+      'const secretSaltOf=owner=>owner["secretSalt"];\n'+
+      '/** @param {EngineKeys} owner */\n'+
       'export const readSalt=owner=>secretSaltOf(owner);')};
   });
 }
