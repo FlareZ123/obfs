@@ -1986,8 +1986,9 @@ function mutatesDecoderIntrinsic(ast,rejectCommonJsExportEscape=false,rejectEsmE
        expression.callee.type==='MemberExpression'&&
        isObjectIntrinsic(expression.callee.object)&&
        memberName(expression.callee)==='assign') {
-      return expression.arguments.flatMap(source=>
-        descriptorMemberValues(source,property,visited));
+      return expression.arguments.flatMap(
+        (/** @type {import('./ast').AstNode} */ source)=>
+          descriptorMemberValues(source,property,visited));
     }
     if(expression.type==='SequenceExpression'&&expression.expressions.length) {
       return descriptorMemberValues(
