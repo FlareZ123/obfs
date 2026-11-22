@@ -1605,6 +1605,15 @@ function partitionScoSelectedAsyncExports(file,options) {
   // same ambient root is consumed on both sides of the partition.
   const sharedAmbient=privateAmbient.size>0&&publicAmbient.size>0;
   for(const body of privateBodies){
+    // The selected function and helpers execute in a different ESM module
+    // on a trusted Node server. Module metadata and dynamic import therefore
+    // resolve against the server-side module instead of the client module.
+    // Reject these operations until a true cross-host equivalence proof exists.
+    walk(body,node=>{
+      if(node.type==='MetaProperty'||node.type==='ImportExpression'){
+        throw new TypeError('Private SCO export or helper uses unproved module-relative execution');
+      }
+    });
     if(usesUnprovedCrossRealmHostApi(body)){
       throw new TypeError('Private SCO export or helper contains unproved cross-realm host API');
     }
