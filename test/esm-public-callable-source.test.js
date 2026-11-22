@@ -41,6 +41,19 @@ test('exported ESM function source preserves captured owner and property spellin
     await observe(source,'[Function.prototype.toString.call(m.read),m.read()]'));
 });
 
+test('exported callable source preserves raw comments and whitespace byte-for-byte',async()=>{
+  const source='/* module prelude */\\nconst owner={secretField:3};\\n'+
+    'export function read(secretParam) {\\n  /* source-visible body comment */\\n'+
+    '  return secretParam + owner.secretField;\\n}\\n';
+  const output=obfuscateFiles([{path:'entry.mjs',sourceType:'module',code:source}],{
+    mode:'coo',closedWorld:true,seed:'esm-exported-callable-raw-bytes',
+    strings:false,properties:true,identifiers:true
+  });
+  assert.deepEqual(await observe(output.files[0].code,
+    '[Function.prototype.toString.call(m.read),m.read(4)]'),
+    await observe(source,'[Function.prototype.toString.call(m.read),m.read(4)]'));
+});
+
 test('exported object method source preserves captured owner and property spellings',async()=>{
   const source='const owner={secretField:5};export const api={read(){return owner.secretField;}};';
   const output=obfuscateFiles([{path:'entry.mjs',sourceType:'module',code:source}],{
