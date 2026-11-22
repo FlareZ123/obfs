@@ -4,7 +4,7 @@ const assert=require('node:assert/strict');
 const {test}=require('node:test');
 const vm=require('node:vm');
 const {lowerWasmI32Functions}=require('../src/wasm-i32');
-const {recoverPublicWasmExpression}=require('../sims/wasm-i32-static-recover');
+const {reconstructPublicWasmCommonJs}=require('../sims/wasm-i32-native-rebuild');
 
 /**
  * Nested grammar fuzz uses deterministic xorshift32 and no original/compiler
@@ -31,12 +31,12 @@ function expression(depth) {
   return '('+expression(depth-1)+ops[next()%ops.length]+expression(depth-1)+')';
 }
 
-/** @param {string} source @returns {(x:number)=>number} */
+/** @param {string} source @returns {{publicF:(x:number)=>number}} */
 function load(source) {
   /** @type {{exports:unknown}} */
   const module={exports:null};
   vm.runInNewContext(source,{module,globalThis},{timeout:2000});
-  return /** @type {(x:number)=>number} */(module.exports);
+  return /** @type {{publicF:(x:number)=>number}} */(module.exports);
 }
 
 test('nested native/Wasm and independent-source reconstruction differential fuzz',()=>{
@@ -44,8 +44,9 @@ test('nested native/Wasm and independent-source reconstruction differential fuzz
   let nativeComparisons=0,staticComparisons=0,reconstructed=0,declined=0;
   for(let index=0;index<120;index++) {
     const expr=expression(2+(index%4));
-    const source='function f(x){return '+expr+';}module.exports=f;';
-    const original=load(source);
+    const source='function f(x){return '+expr+';}'+
+      'function publicF(x){return f(x);}module.exports={publicF};';
+    const original=load(source).publicF;
     for(let variant=0;variant<3;variant++) {
       const generated=lowerWasmI32Functions(source,'commonjs',{
         seed:'nested-wasm-fuzz-'+index+'/'+variant,names:['f']
@@ -55,9 +56,9 @@ test('nested native/Wasm and independent-source reconstruction differential fuzz
         continue;
       }
       assert.equal(generated.functions,1,expr);
-      const compiled=load(generated.code);
-      const recovered=recoverPublicWasmExpression(generated.code);
-      const cloned=load('function f(x){return '+recovered.expression+';}module.exports=f;');
+      const compiled=load(generated.code).publicF;
+      const recovered=reconstructPublicWasmCommonJs(generated.code);
+      const cloned=load(recovered.code).publicF;
       reconstructed++;
       for(let j=0;j<60;j++) {
         const input=j<selected.length?selected[j]:(next()|0);
