@@ -3985,6 +3985,12 @@ function collectExportedCallableNodes(ast) {
       } else {
         const klass=localCallable(node.object,depth+1);
         if(klass&&isClass(klass))markTree(klass);
+        else if(['CallExpression','NewExpression','MemberExpression'].includes(node.object.type)) {
+          // A factory result or class instance may expose a local callable
+          // through the selected member. Resolve its local return/constructor
+          // graph conservatively rather than treating the member as opaque.
+          markValue(node.object,depth+1);
+        }
       }
       return;
     }
