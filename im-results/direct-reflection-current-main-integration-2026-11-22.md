@@ -45,3 +45,29 @@ The profile shows no sampled strict runtime cost veto **for this hot workload**.
 This change is an incremental conservative semantic coverage improvement. To merge, rebase/cherry-pick the narrow branch changes onto a frozen current-main source, verify all relevant separate witnesses at that exact head, and run one full correctness integration with native/compiled, ordinary control, strict JSDoc and real browser checks. Do not blindly merge historical #159, and do not relax the realm-integrity or exported-entrypoint API assumptions of [the closed-world proof contract](../docs/CLOSED_WORLD_PROPERTY_PROOF.md).
 
 The [primary release decision](../results/README.md) remains **RELEASE-BLOCKED** for strong confidentiality, anti-tamper, environment locking and universal 2.5× compliance.
+
+
+## Subsequent source-coincident fuzz, static cleanup and rebase
+
+After the initial semantic port and green source pins, the branch was **rebased onto updated main** at \`205d74600a4d4782b4de311c05fed7a53b159873\` in commit \`c634ee526eaf39f062d41cc7bebca1b3e4cf16b2\`, preserving only the one overlapping \`jsconfig.external.json\` addition from main. The pre-rebase source remains available at [archived branch](https://github.com/FlareZ123/obfs/tree/archive/agent1-direct-reflection-pre-rebase-20261122), head \`86786cc315f8ac622a4e71b876a82eb6b0dc0304\`. The [old-source full two-OS correctness run 45001570823](https://github.com/FlareZ123/obfs/actions/runs/45001570823) passed at the archived head. It does **not** cover the newer base.
+
+A new [64-case three-module COO differential test](../test/direct-reflection-three-module-fuzz.test.js) generates deterministic \`state.mjs\`, \`worker.mjs\`, and \`entry.mjs\` graphs using xorshift \`0x73a5f21c\`. The worker varies direct \`Reflect.get/has/set/getOwnPropertyDescriptor\`, \`Object.hasOwn/getOwnPropertyDescriptor\` and ordinary field reads, with shared mutation across repeated calls. Every case runs native and genuinely transformed ESM in separate Node subprocesses. The entry also includes intentional \`Object.keys(state)\` and public \`run.toString()\` observations on known seed indices. At immutable \`55583e4adc53d48529f93a25fd967ca785ca2d93\`, **64/64 stdout parity**, **49/64 actual protected graphs**, **15/64 conservative zero-renaming refusals**, **98 total rewritten private fields** and the strict direct \`Object.keys\` no-rename requirement passed on Ubuntu and Windows with strict JSDoc ([45002293312](https://github.com/FlareZ123/obfs/actions/runs/45002293312)). The earlier red run [45002191905](https://github.com/FlareZ123/obfs/actions/runs/45002191905) already had 64/64 native/emitted parity but uncovered a JSDoc input type mistake in the **harness** (\`OutputFile.code: string|Buffer\`), subsequently corrected without changing compiler behavior.
+
+### Fourth-arm, source-only attacker-normalized control
+
+The initial three-arm esbuild minifier profile minified the original ESM but did not attempt to mangle property names in reflective call arguments. It is a hot-CPU comparator; it does **not** isolate any static reconstruction advantage relative to equal-key private-name competitors. To measure publicly reproducible simplification, the [profile](../sims/direct-reflection-native-minified-profile.js) now adds an **attacker-normalized-and-esbuild-minified fourth arm**. The normalizer receives only the *actual emitted protected files* and no original private names, build seed, compiler AST, or runtime instrumentation. It replaces **2/2** generated private names with stable readable labels and then uses ordinary \`esbuild.transform(...,{minify:true})\`. This is a post-processing attack on the compiler output, **not** an independently obfuscating competitor starting from the original source. All four hot applications execute identical code semantics.
+
+At immutable source \`67631481667afb99ef489e433bd8f348153f5606\`, [both Ubuntu and Windows focused source/JSDoc runs 45002575707](https://github.com/FlareZ123/obfs/actions/runs/45002575707) passed seven 1,000,000-iteration CPU pairs per OS, with genuine 2/2 compilation rewrites and 2/2 seedless normalized fields:
+
+| Measurement | Ubuntu Node 22 | Windows Node 22 |
+| --- | ---: | ---: |
+| Protected/native median CPU | **1.01996×** | **1.00917×** |
+| Ordinary minified/native median CPU | 1.00142× | 1.00000× |
+| Attacker normalized + minified/native median CPU | **0.99911×** | **1.00000×** |
+| Strict >2.5× pairs per arm | 0/7 | 0/7 |
+
+The four source sizes were native **498 bytes**, actual compiler output **541 bytes**, ordinary minifier output **377 bytes**, seedlessly normalized and minified compiler output **409 bytes**. All execution results, including repeated state mutation, agreed. First-import timings are retained in logs but are order-biased and are excluded from claims. Windows CPU samples remain coarse; the observed medians cannot imply a universal performance bound. The successful seedless recovery rules out treating the new private labels as a static secret for this family.
+
+One initial fourth-arm run [45002494044](https://github.com/FlareZ123/obfs/actions/runs/45002494044) already completed behavioral parity and normalization, but strict JSDoc rejected a generic \`SourceType\` (\`asset\` permitted) passed to the ESM-only attacker. The measured source was explicitly narrowed to known ESM modules and revalidated on both OS. No compiler proof was relaxed.
+
+**Decision unchanged:** incremental closed-world semantics coverage is technically validated in focused cross-platform checks. Full validation at a single latest rebased head and integration with moving main are prerequisites for merging. The strong-obfuscation release remains **RELEASE-BLOCKED**, and neither attacker profiling nor property renaming demonstrates anti-instrumentation protection.
