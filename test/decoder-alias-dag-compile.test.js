@@ -29,6 +29,19 @@ function makeProgram(depth,sensitive=false){
   return lines.join('\n');
 }
 
+/**
+ * Expose one ordinary literal outside a source-spelled failed-call operand.
+ * Its positive encoding control makes sensitive-getter refusal nonvacuous.
+ * @param {number} depth
+ * @param {boolean} sensitive
+ * @returns {string}
+ */
+function exposedLiteralProgram(depth,sensitive=false){
+  return makeProgram(depth,sensitive).replace(
+    "'obfs-alias-dag-sentinel'.charCodeAt(0)",
+    "'obfs-alias-dag-sentinel'");
+}
+
 /** @param {string} source @returns {string} */
 function evaluate(source){
   const context={module:{exports:null}};
@@ -61,9 +74,18 @@ test('descriptor alias diamonds retain output and provide compile-time scaling e
   console.log('ALIAS_DAG_PROFILE '+JSON.stringify(samples));
 });
 
+test('plain alias diamonds retain eligible string literal encoding',()=>{
+  for(const depth of [2,4,6]){
+    const source=exposedLiteralProgram(depth);
+    const output=compile(source);
+    assert.equal(output.metrics.literals,1,'safe depth '+depth);
+    assert.equal(evaluate(String(output.code)),evaluate(source),'safe depth '+depth);
+  }
+});
+
 test('a descriptor getter write through a deep alias conservatively blocks eager decoding',()=>{
   for(const depth of [2,4,6]){
-    const source=makeProgram(depth,true);
+    const source=exposedLiteralProgram(depth,true);
     const output=compile(source);
     assert.equal(evaluate(String(output.code)),evaluate(source),'depth '+depth);
     assert.equal(output.metrics.literals,0,
