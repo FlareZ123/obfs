@@ -85,6 +85,32 @@ function usesUnprovedCrossRealmHostApi(body){
 }
 
 /**
+ * The browser URL constructor and Node's URL constructor both support
+ * deterministic parsing, but their static object-URL registries belong to
+ * different runtimes. A browser-created blob: URL cannot be replaced by a
+ * Node blob:nodedata: URL without changing observable behavior.
+ *
+ * Allow direct `new URL(...)` constructor syntax, and conservatively decline
+ * other first-class URL references in relocated private functions. This
+ * includes static method extraction, constructor aliases and dynamic members;
+ * it does not prove behavior for all possible indirect constructor recovery.
+ * @param {import('./ast').AstNode} body
+ * @returns {boolean}
+ */
+function usesUnprovedRelocatedUrlStatic(body){
+  let observed=false;
+  walk(body,(node,parent,key)=>{
+    if(node.type!=='Identifier'||node.name!=='URL'||isStaticKey(parent,key))return;
+    if(parent?.type==='NewExpression'&&key==='callee')return;
+    if(key==='id'&&['VariableDeclarator','FunctionDeclaration',
+      'FunctionExpression','ClassDeclaration','ClassExpression']
+      .includes(parent?.type??''))return;
+    observed=true;
+  });
+  return observed;
+}
+
+/**
  * Admit only a direct Node.js process.env property read with an explicit
  * static UPPER_SNAKE_CASE key. The private original module runs on the server;
  * this opt-in never copies the environment variable into a client facade.
@@ -1588,6 +1614,9 @@ function partitionScoSelectedAsyncExports(file,options) {
     });
     if(usesUnprovedCrossRealmHostApi(body)){
       throw new TypeError('Private SCO export or helper contains unproved cross-realm host API');
+    }
+    if(usesUnprovedRelocatedUrlStatic(body)){
+      throw new TypeError('Private SCO export or helper uses unproved cross-realm object URL API');
     }
     const realmEffect=realmStateObservation(body,true);
     if(realmEffect) {
