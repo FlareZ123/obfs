@@ -63,6 +63,14 @@ The external importer reads `instance.value()`, `instance.constructor.toString()
 
 The extra `closedWorld:false` setting is significant: the compiler makes no claim that the unseen importer is part of an exhaustively supplied module graph. An earlier experimental pin with `closedWorld:true` was discarded for this open-world finding because such a setting would assume a distribution closure that this fixture does not provide. The accepted evidence relies on the open-world source SHA above.
 
+## Pre-import intrinsic `toString` adversarial control
+
+The final versions of both SFTs first save the native `Function.prototype.toString` intrinsic **before** loading the protected CJS module or dynamically importing the protected ESM module. All exposed function/class/method reads then use the captured intrinsic's `.call(target)`. This prevents a deceptive pass via mutating a target function's own `.toString` property or replacing `Function.prototype.toString` during protected module initialization.
+
+Exact combined test source `22947b020fe0b15e305f0f7873c52f8320c3db88`. [CJS Ubuntu/Windows run 45081917388](https://github.com/FlareZ123/obfs/actions/runs/45081917388) reproduces **28 tests per OS, 20 expected public-source failures and eight passing private positive controls**, now with the pre-import intrinsic source observer. [Node/real Chromium ESM run 45081921054](https://github.com/FlareZ123/obfs/actions/runs/45081921054) likewise reproduces the class-source mismatch while preserving native-versus-compiled Node/Chromium matching-variant agreement and the protected primitive-only positive. The ESM importer uses top-level `await import("./leaf.mjs")` after saving the intrinsic; the test still compiles the leaf in an explicitly **open world**.
+
+These runs are deliberately RED on source-parity. They strengthen the witness against superficial source-spoofing fixes; they do not establish that no other host hook can observe or change the result.
+
 ## Language-standard support for the observation contract
 
 ECMAScript 2026 §20.2.3.5 [`Function.prototype.toString`](https://tc39.es/ecma262/2026/multipage/fundamental-objects.html#sec-function.prototype.tostring) specifies returning available source text for callable objects carrying a `[[SourceText]]` slot. The negative fixtures observe the source of real Node-defined class and method objects in the same host before and after compilation. Since the emitted `[[SourceText]]` changes under either private-key backend, external importers can distinguish the variants through that standard language operation. The spec permits host source unavailability, so the **measured** finding is stated for Node 22.23.4 on Ubuntu/Windows, rather than asserting every browser/host must reveal the same bytes.
