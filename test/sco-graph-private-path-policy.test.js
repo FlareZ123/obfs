@@ -701,3 +701,36 @@ test('SCO graph refuses cluster workers that launch undeclared Node entry module
     await fs.rm(root,{recursive:true,force:true});
   }
 });
+
+
+test('SCO private path preflight uses the same Unicode alias keys as public output inventory',()=>{
+  // Greek final sigma and long s differ under lowercasing but share an
+  // uppercase spelling. A portable source-policy inventory rejects both.
+  for(const [privateName,publishedName] of /** @type {const} */ ([
+    ['σ','ς'],['ς','σ'],['s','ſ'],['ſ','s'],['ẞ','ß']
+  ])){
+    const facade={
+      path:'public.mjs',sourceType:/** @type {const} */ ('module'),
+      code:'export const allowed=1;',
+      privateModulePaths:['private/'+privateName+'.mjs']
+    };
+    const published={
+      path:'private/'+publishedName+'.mjs',
+      sourceType:/** @type {const} */ ('module'),
+      code:'export const privateMarker=9241;'
+    };
+    assert.throws(()=>createScoHandler([facade,published]),
+      /SCO must not serve private source/,
+      'facade-first '+privateName+'/'+publishedName);
+    assert.throws(()=>createScoHandler([published,facade]),
+      /SCO must not serve private source/,
+      'private-first '+privateName+'/'+publishedName);
+  }
+  // A genuinely distinct public path remains independently publishable.
+  assert.doesNotThrow(()=>createScoHandler([{
+    path:'public.mjs',sourceType:'module',code:'export const allowed=1;',
+    privateModulePaths:['private/σ.mjs']
+  },{
+    path:'private/τ.mjs',sourceType:'module',code:'export const unrelated=2;'
+  }]));
+});
