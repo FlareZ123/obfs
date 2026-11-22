@@ -97,24 +97,20 @@ function isPrimitiveConstantExpression(node,directBigInt=true) {
     return ['+','-','!','~','void','typeof'].includes(node.operator)&&
       isPrimitiveConstantExpression(node.argument,false);
   }
-  if(node.type==='BinaryExpression')return
-    ['+','-','*','/','%','**','<<','>>','>>>','&','|','^',
+  if(node.type==='BinaryExpression')return     ['+','-','*','/','%','**','<<','>>','>>>','&','|','^',
       '==','!=','===','!==','<','<=','>','>='].includes(node.operator)&&
     isPrimitiveConstantExpression(node.left,false)&&
     isPrimitiveConstantExpression(node.right,false);
-  if(node.type==='LogicalExpression')return
-    ['&&','||','??'].includes(node.operator)&&
+  if(node.type==='LogicalExpression')return     ['&&','||','??'].includes(node.operator)&&
     isPrimitiveConstantExpression(node.left,false)&&
     isPrimitiveConstantExpression(node.right,false);
-  if(node.type==='ConditionalExpression')return
-    isPrimitiveConstantExpression(node.test,false)&&
+  if(node.type==='ConditionalExpression')return     isPrimitiveConstantExpression(node.test,false)&&
     isPrimitiveConstantExpression(node.consequent,false)&&
     isPrimitiveConstantExpression(node.alternate,false);
   if(node.type==='SequenceExpression')return node.expressions.length>0&&
     node.expressions.every((/** @type {AstNode} */ value)=>
       isPrimitiveConstantExpression(value,false));
-  if(node.type==='TemplateLiteral')return
-    node.expressions.every((/** @type {AstNode} */ value)=>
+  if(node.type==='TemplateLiteral')return     node.expressions.every((/** @type {AstNode} */ value)=>
       isPrimitiveConstantExpression(value,false));
   return false;
 }
