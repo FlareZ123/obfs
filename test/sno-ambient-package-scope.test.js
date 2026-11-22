@@ -372,3 +372,28 @@ test('SNO matches native Node across 27 package-scope placement combinations',as
     }
   }
 });
+
+test('uppercase NODE_MODULES does not stop Node package-scope inheritance',async()=>{
+  await withFixture(async directory=>{
+    const input=path.join(directory,'source');
+    const host=path.join(directory,'host');
+    const output=path.join(host,'NODE_MODULES','pkg');
+    const entry=path.join(input,'entry.js');
+    await atomicWrite(entry,'module.exports=163;');
+    await atomicWrite(path.join(host,'package.json'),'{"type":"module"}');
+    await atomicWrite(path.join(output,'entry.js'),'module.exports=163;');
+    const original=runCommonJs(entry);
+    const relocated=runCommonJs(path.join(output,'entry.js'));
+    assert.equal(original.status,0,original.stderr);
+    assert.equal(original.stdout,'163');
+    assert.notEqual(relocated.status,0,
+      'Uppercase NODE_MODULES still inherits the ancestor ESM package scope');
+
+    await assert.rejects(
+      main('sno',['--root',input,'--entry','entry.js','--out',output]),
+      /SNO output \.js inherits external ESM package scope/
+    );
+    await assert.rejects(fs.stat(path.join(output,'sno-entry.cjs')),{code:'ENOENT'});
+    assert.equal(await fs.readFile(path.join(output,'entry.js'),'utf8'),'module.exports=163;');
+  });
+});
