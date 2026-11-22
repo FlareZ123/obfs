@@ -73,6 +73,32 @@ A *single unpaired timing sample*, excluding parser time, measured the prior and
 
 The prior visitor workload grows with repeated enclosed subtrees; the pruned version visits no descendants after crossing a nested function boundary. Runtime of arbitrary compile graphs can still have other bottlenecks (parser, AST walker, property proof, filesystem, and server serialization). The above measurements do not establish a whole-compiler speedup.
 
+## Paired local visitor timing replication
+
+A second local Node 22.16.0 / Acorn 8.15.0 run parsed each ladder once,
+warmed the prior and subtree-pruned visitors, and alternated execution order
+over eight consecutive A/B pairs for each ladder depth. The timing covers
+collection over *all* function variable environments of the parsed ladder,
+excluding parser time and all other compiler phases.
+
+| Nested functions | Previous visitor median (ms) | Pruned visitor median (ms) |
+| ---: | ---: | ---: |
+| 80 | 5.838 | 0.133 |
+| 160 | 28.884 | 0.049 |
+| 320 | 176.111 | 0.095 |
+| 640 | 1,303.281 | 0.239 |
+
+All eight raw pairs for each depth and the actual measurement protocol are
+preserved in
+[`sco-var-hoist-pruned-paired-2026-11-22.json`](sco-var-hoist-pruned-paired-2026-11-22.json).
+`sims/sco-var-hoist-pruned-audit.js` now emits the same alternating-pair
+method (revision `853a48efb04a6bd80c996b6215afd16bbd8f7b30`).
+A single development host and synthetic nested-function source cannot
+establish general compiler throughput or the protected-runtime 2.5× contract.
+These measurements support the specific repeated-descendant-traversal cost
+diagnosis; the full `firstUnprovedFreeReference` checker has additional
+walks and scopes whose costs are measured separately.
+
 ## Independent switch-discriminant boundary reconciliation
 
 The same branch now carries Agent29's earlier independently tested
