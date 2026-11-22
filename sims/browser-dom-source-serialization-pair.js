@@ -42,6 +42,8 @@ async function main() {
     ['body-inner-html', 'document.body.innerHTML'],
     ['html-selector-inner-html', 'document.querySelector("html").innerHTML'],
     ['id-script-text', 'document.getElementById("script-probe").textContent'],
+    ['html-root-text-content', 'document.documentElement.textContent'],
+    ['xml-serializer-document', 'new XMLSerializer().serializeToString(document)'],
   ];
   // This must be a genuinely eligible function-local binding. A top-level
   // classic-script lexical is not proof of transformability.
