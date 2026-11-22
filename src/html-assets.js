@@ -1,6 +1,89 @@
 'use strict';
 
 const {parse}=require('parse5');
+const {SaxesParser}=require('saxes');
+const xhtmlNamespace='http://www.w3.org/1999/xhtml';
+
+/**
+ * XHTML uses XML syntax and permits namespace-qualified HTML script elements.
+ * An HTML parser cannot prove the absence of such elements. Check XML
+ * well-formedness, namespace identity, CDATA and attribute values directly.
+ * The audit remains conservative about source-bearing XML instructions.
+ * @param {string} xml
+ * @returns {string|null}
+ */
+function findInlineXhtmlSource(xml) {
+  const parser=new SaxesParser({xmlns:true});
+  /** @type {string|null} */
+  let issue=null;
+  let scriptDepth=0;
+  let styleDepth=0;
+  let stylesheet='';
+  parser.on('xmldecl',declaration=>{
+    if(declaration.encoding&&!/^utf-?8$/iu.test(declaration.encoding))
+      issue??='non-UTF-8 XML declaration';
+  });
+  parser.on('doctype',declaration=>{
+    if(declaration.trim().toLowerCase()!=='html')issue??='DTD declaration';
+  });
+  parser.on('processinginstruction',instruction=>{
+    if(instruction.target.toLowerCase()==='xml-stylesheet')
+      issue??='XML stylesheet processing instruction';
+  });
+  parser.on('opentag',tag=>{
+    const isHtml=tag.uri===xhtmlNamespace;
+    const name=tag.local.toLowerCase();
+    if(scriptDepth)issue??='nested markup inside script';
+    if(styleDepth)issue??='nested markup inside style element';
+    if(name==='script')scriptDepth++;
+    if(name==='style'){styleDepth++;stylesheet='';}
+    const attributes=Object.values(tag.attributes);
+    /** @param {string} key @returns {string|undefined} */
+    const attr=key=>attributes.find(item=>item.uri===''&&item.local.toLowerCase()===key)?.value;
+    for(const attribute of attributes) {
+      const key=attribute.local.toLowerCase();
+      if(key==='srcdoc')issue??='embedded iframe source';
+      if(/^on[a-z]/u.test(key))issue??='inline event handler';
+      const animationValues=key==='values'&&
+        ['animate','animatemotion','animatetransform'].includes(name);
+      if(animationValues?
+          attribute.value.split(';').some(isEmbeddedExecutableUrl):
+          ['src','href','action','formaction','xlink:href','data','poster',
+            'from','to','by','values'].includes(key)&&
+            isEmbeddedExecutableUrl(attribute.value))issue??='embedded executable URL';
+      if(name==='script'&&['src','href'].includes(key)&&isDataUrl(attribute.value))
+        issue??='embedded script data URL';
+    }
+    if(!isHtml)return;
+    if(name==='link'&&/(?:^|\s)stylesheet(?:\s|$)/iu.test(attr('rel')??'')&&
+        attr('href')&&isDataUrl(/** @type {string} */(attr('href'))))
+      issue??='embedded stylesheet data URL';
+    if(name==='meta'&&attr('http-equiv')?.trim().toLowerCase()==='refresh'&&
+        attr('content')&&isEmbeddedRefreshUrl(/** @type {string} */(attr('content'))))
+      issue??='embedded executable refresh URL';
+  });
+  /** @param {string} value */
+  function observeText(value) {
+    if(scriptDepth&&/\S/u.test(value))issue??='inline script source';
+    if(styleDepth)stylesheet+=value;
+  }
+  parser.on('text',observeText);
+  parser.on('cdata',observeText);
+  parser.on('closetag',tag=>{
+    const name=tag.local.toLowerCase();
+    if(name==='script')scriptDepth--;
+    if(name==='style') {
+      if(hasCssSourceMapDirective(stylesheet))issue??='inline CSS source-map directive';
+      if(hasCssDataImport(stylesheet))issue??='embedded stylesheet data import';
+      styleDepth--;
+      stylesheet='';
+    }
+  });
+  parser.on('error',error=>{throw new TypeError('Malformed XHTML XML: '+error.message);});
+  parser.write(xml).close();
+  return issue;
+}
+
 const {TextDecoder}=require('node:util');
 const {hasCssSourceMapDirective}=require('./css-source-maps');
 const {hasCssDataImport}=require('./css-data-imports');
@@ -151,7 +234,7 @@ function decodeMarkup(path,code,kind) {
 }
 
 /**
- * Audit HTML assets before their bytes are copied to an output directory
+ * Audit HTML and XHTML assets before their bytes are copied to an output directory
  * or offered by SCO. A detected inline execution path is rejected rather
  * than silently stripped, which could change program behavior.
  * @param {string} path
@@ -159,14 +242,15 @@ function decodeMarkup(path,code,kind) {
  * @returns {void}
  */
 function assertNoInlineHtmlSource(path,code) {
-  if(!/\.html?$/iu.test(path))return;
+  if(!/\.(?:html?|xhtml|xht)$/iu.test(path))return;
   const html=decodeMarkup(path,code,'HTML');
-  const issue=findInlineHtmlSource(html);
+  const issue=/\.(?:xhtml|xht)$/iu.test(path)?
+    findInlineXhtmlSource(html):findInlineHtmlSource(html);
   if(issue)throw new TypeError('HTML asset contains '+issue+': '+path);
 }
 
 /**
- * Declared HTML can pin fetched JavaScript response bytes using SRI. Changing
+ * Declared HTML and XHTML can pin fetched JavaScript response bytes using SRI. Changing
  * the JS bytes while leaving the HTML unchanged makes that script fail its
  * browser integrity check, even when all JS expression results are identical.
  *
@@ -206,9 +290,90 @@ function hasPinnedLocalJavaScriptIntegrity(files,routePrefix='') {
     }catch(error){return null;}
   }
 
+
+  /**
+   * XML-namespaced elements may be written as <h:script>, which HTML parsing
+   * reads as a different tag. Resolve recognized script/link SRI with an XML
+   * namespace parser. XML base affects only a descendant pinned element or
+   * an actual HTML base; URL candidates include all declared base tags.
+   * @param {string} xml
+   * @param {string} filename
+   * @returns {boolean}
+   */
+  function pinnedXhtml(xml,filename) {
+    const parser=new SaxesParser({xmlns:true});
+    /** @type {string[]} */
+    const pinnedUrls=[];
+    /** @type {string[]} */
+    const declaredBases=[];
+    /** @type {boolean[]} */
+    const xmlBaseStack=[];
+    let activeXmlBase=0;
+    let ambiguousBase=false;
+    let xmlBaseAffectsPin=false;
+    parser.on('opentag',tag=>{
+      const attributes=Object.values(tag.attributes);
+      const localXmlBase=attributes.some(attr=>
+        attr.uri==='http://www.w3.org/XML/1998/namespace'&&attr.local==='base');
+      xmlBaseStack.push(localXmlBase);
+      if(localXmlBase)activeXmlBase++;
+      if(tag.uri!==xhtmlNamespace)return;
+      const name=tag.local.toLowerCase();
+      /** @param {string} key @returns {string|undefined} */
+      const attr=key=>attributes.find(item=>item.uri===''&&item.local.toLowerCase()===key)?.value;
+      if(name==='base'&&attr('href')!==undefined) {
+        declaredBases.push(/** @type {string} */(attr('href')));
+        if(activeXmlBase)ambiguousBase=true;
+      }
+      const integrity=attr('integrity');
+      if(!integrity?.trim())return;
+      const rel=(attr('rel')??'').toLowerCase().split(/\s+/u);
+      const linked=name==='link'&&(rel.includes('modulepreload')||
+        rel.includes('preload')&&(attr('as')??'').toLowerCase()==='script');
+      const address=name==='script'?attr('src'):linked?attr('href'):null;
+      if(address) {
+        pinnedUrls.push(address);
+        if(activeXmlBase)xmlBaseAffectsPin=true;
+      }
+    });
+    parser.on('closetag',()=>{
+      if(xmlBaseStack.pop())activeXmlBase--;
+    });
+    parser.on('error',error=>{throw new TypeError('Malformed XHTML XML: '+error.message);});
+    parser.write(xml).close();
+    if(!pinnedUrls.length)return false;
+    // XML base changes URI resolution only for its own element/subtree.
+    // A base tag with that feature needs a separate XML URI proof.
+    if(xmlBaseAffectsPin||ambiguousBase)return true;
+    const documentBase=new URL('/'+filename,'https://obfs.invalid/');
+    /** @type {URL[]} */
+    const bases=[documentBase];
+    // All candidate <base href> elements, including those inside an inert
+    // template, are considered. A later live base must never be hidden by an
+    // earlier inert one that the XML parser cannot classify without a DOM.
+    for(const href of declaredBases) {
+      try {bases.push(new URL(href,documentBase));}
+      catch(error){/* An invalid base cannot add a resolvable local URL. */}
+    }
+    for(const address of pinnedUrls) {
+      for(const candidateBase of bases) {
+        const target=targetPath(address,candidateBase);
+        if(target!==null&&(javascriptPaths.has(target)||
+            mountedPrefix&&target.startsWith(mountedPrefix)&&
+              javascriptPaths.has(target.slice(mountedPrefix.length))))
+          return true;
+      }
+    }
+    return false;
+  }
+
   for(const file of files) {
-    if(file.sourceType!=='asset'||!/\.html?$/iu.test(file.path))continue;
+    if(file.sourceType!=='asset'||!/\.(?:html?|xhtml|xht)$/iu.test(file.path))continue;
     const html=decodeMarkup(file.path,file.code,'HTML');
+    if(/\.(?:xhtml|xht)$/iu.test(file.path)){
+      if(pinnedXhtml(html,file.path))return true;
+      continue;
+    }
     const root=/** @type {HtmlNode} */(/** @type {unknown} */(parse(html)));
     /** @type {string|null} */
     let baseHref=null;
