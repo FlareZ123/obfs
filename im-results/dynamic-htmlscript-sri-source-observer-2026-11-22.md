@@ -1,6 +1,6 @@
 # JavaScript-created HTMLScriptElement integrity can pin sibling source bytes
 
-**Status:** Reproduced browser-source mutation and source-pinned red/green conservative source-observer repair.
+**Status:** Reproduced browser-source mutation and source-pinned red/green conservative source-observer repair; targeted Chrome and strict JSDoc passed.
 **Modes:** COO, SCO, SNO, with verified no-integrity transformation positive controls.
 **Scope:** Common explicit DOM integrity assignments; this is a deliberately bounded compatibility detector.
 
@@ -14,7 +14,7 @@ The compiler already treated static HTML and XHTML SRI metadata as a graph-wide 
 
 - **Red:** [manual browser workflow 44977660241](https://github.com/FlareZ123/obfs/actions/runs/44977660241), code SHA `57a589d2b1389130919144892e6f5edd558c5966`. Sixteen existing HTML source-byte tests passed; the new COO case failed because the compiler rewrote a dynamically SRI-pinned sibling script.
 - **Initial green:** [manual browser workflow 44977800490](https://github.com/FlareZ123/obfs/actions/runs/44977800490), source SHA `0794917341601ee1714522e88d2b01a3d9291a49`, passed all existing browser steps, real Chromium native/protected/unsafe dynamic SRI comparison, and strict JSDoc.
-- **Extended candidate:** additional Node cases for static and computed `integrity` assignments, `setAttribute`, `setAttributeNS`, `Reflect.set`, and `Object.assign` plus a negative test proving an unrelated read-only `integrity` data field still permits actual script rewriting. Later source-pinned workflow result required before any green claim for the extended surface.
+- **Extended green:** [manual browser workflow 44978147150](https://github.com/FlareZ123/obfs/actions/runs/44978147150), source SHA `9bd84430c44a160c0e335836b4da8e6287ab02a3`, passed the full browser workflow including the static/computed `integrity` assignments, `setAttribute`, `setAttributeNS`, `Reflect.set`, and `Object.assign` variants, negative read-only `integrity` control, real Chromium, and strict JSDoc. A separate live SCO handler source-pinning test at SHA `242f40c842bc15e7b18de8c64e6a37217b8acd3b` is also included in this green source.
 
 ## Repair and proof limits
 
