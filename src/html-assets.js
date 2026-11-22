@@ -6,14 +6,14 @@ const {portableKeys}=require('./portable-paths');
 const xhtmlNamespace='http://www.w3.org/1999/xhtml';
 
 /**
- * XHTML uses XML syntax and permits namespace-qualified HTML script elements.
+ * XML-syntax browser documents can contain namespace-qualified HTML script elements.
  * An HTML parser cannot prove the absence of such elements. Check XML
  * well-formedness, namespace identity, CDATA and attribute values directly.
  * The audit remains conservative about source-bearing XML instructions.
  * @param {string} xml
  * @returns {string|null}
  */
-function findInlineXhtmlSource(xml) {
+function findInlineXmlSource(xml) {
   const parser=new SaxesParser({xmlns:true});
   /** @type {string|null} */
   let issue=null;
@@ -219,7 +219,7 @@ function findInlineHtmlSource(html) {
  * from a UTF-8-only parser before the browser applies a different charset.
  * @param {string} path
  * @param {string|Buffer} code
- * @param {'HTML'|'SVG'} kind
+ * @param {'HTML'|'XML'|'SVG'} kind
  * @returns {string}
  */
 function decodeMarkup(path,code,kind) {
@@ -235,7 +235,7 @@ function decodeMarkup(path,code,kind) {
 }
 
 /**
- * Audit HTML and XHTML assets before their bytes are copied to an output directory
+ * Audit HTML and XML browser-document assets before their bytes are copied to an output directory
  * or offered by SCO. A detected inline execution path is rejected rather
  * than silently stripped, which could change program behavior.
  * @param {string} path
@@ -243,15 +243,15 @@ function decodeMarkup(path,code,kind) {
  * @returns {void}
  */
 function assertNoInlineHtmlSource(path,code) {
-  if(!/\.(?:html?|xhtml|xht)$/iu.test(path))return;
-  const html=decodeMarkup(path,code,'HTML');
-  const issue=/\.(?:xhtml|xht)$/iu.test(path)?
-    findInlineXhtmlSource(html):findInlineHtmlSource(html);
+  if(!/\.(?:html?|xhtml|xht|xml)$/iu.test(path))return;
+  const isXml=/\.(?:xhtml|xht|xml)$/iu.test(path);
+  const markup=decodeMarkup(path,code,isXml?'XML':'HTML');
+  const issue=isXml?findInlineXmlSource(markup):findInlineHtmlSource(markup);
   if(issue)throw new TypeError('HTML asset contains '+issue+': '+path);
 }
 
 /**
- * Declared HTML and XHTML can pin fetched JavaScript response bytes using SRI. Changing
+ * Declared HTML and XML browser documents can pin fetched JavaScript response bytes using SRI. Changing
  * the JS bytes while leaving the HTML unchanged makes that script fail its
  * browser integrity check, even when all JS expression results are identical.
  *
@@ -315,7 +315,7 @@ function hasPinnedLocalJavaScriptIntegrity(files,routePrefix='') {
    * @param {string} filename
    * @returns {boolean}
    */
-  function pinnedXhtml(xml,filename) {
+  function pinnedXml(xml,filename) {
     const parser=new SaxesParser({xmlns:true});
     /** @type {string[]} */
     const pinnedUrls=[];
@@ -381,10 +381,11 @@ function hasPinnedLocalJavaScriptIntegrity(files,routePrefix='') {
   }
 
   for(const file of files) {
-    if(file.sourceType!=='asset'||!/\.(?:html?|xhtml|xht)$/iu.test(file.path))continue;
-    const html=decodeMarkup(file.path,file.code,'HTML');
-    if(/\.(?:xhtml|xht)$/iu.test(file.path)){
-      if(pinnedXhtml(html,file.path))return true;
+    if(file.sourceType!=='asset'||!/\.(?:html?|xhtml|xht|xml)$/iu.test(file.path))continue;
+    const isXml=/\.(?:xhtml|xht|xml)$/iu.test(file.path);
+    const html=decodeMarkup(file.path,file.code,isXml?'XML':'HTML');
+    if(isXml){
+      if(pinnedXml(html,file.path))return true;
       continue;
     }
     const root=/** @type {HtmlNode} */(/** @type {unknown} */(parse(html)));
