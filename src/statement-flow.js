@@ -1,7 +1,8 @@
 'use strict';
 
 const {createHash}=require('node:crypto');
-const {parse,walk,applyEdits,observesFunctionSource}=require('./ast');
+const {parse,walk,applyEdits,observesFunctionSource,
+  collectExportedCallableNodes,isWithinExportedCallableSource}=require('./ast');
 
 /** @typedef {import('./ast').AstNode} AstNode */
 /** @typedef {{kind:'next',code:string,next:number}|{kind:'test',code:string,yes:number,no:number}|{kind:'return',code:string}|{kind:'throw',code:string}} FlowBlock */
@@ -177,6 +178,7 @@ function flattenStatementFlow(source,sourceType,options){
   const targets=new Set(options.names);
   if(!targets.size)return {code:source,functions:0,blocks:0,declined:0};
   const ast=parse(source,sourceType);
+  const exportedCallableSource=collectExportedCallableNodes(ast);
   const used=new Set();
   let unsafe=false;
   walk(ast,node=>{
@@ -206,6 +208,7 @@ function flattenStatementFlow(source,sourceType,options){
     const matching=candidates.get(name);
     if(!matching||matching.length!==1){declined++;continue;}
     const fn=matching[0];
+    if(isWithinExportedCallableSource(fn,exportedCallableSource)){declined++;continue;}
     // Rewriting a validated asm.js body would erase its specialized runtime
     // compilation contract and can break the hard 2.5x compute target.
     if(fn.async||fn.generator||
