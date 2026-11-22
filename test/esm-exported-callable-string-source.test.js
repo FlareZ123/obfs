@@ -57,6 +57,26 @@ for(const mode of /** @type {const} */ (['coo','sco','sno'])) {
       'an external ESM importer can inspect the encoded callable source');
   });
 
+  test('string encoding preserves externally observed exported class source: '+mode,async()=>{
+    const files=[{path:'private.mjs',sourceType:'module',code:
+      'export class Api{static label="source-visible-class-field";}'}];
+    const observer='import {Api} from "./private.mjs";console.log(JSON.stringify([Function.prototype.toString.call(Api),Api.label]));';
+    const native=await observe(files,observer);
+    const transformed=obfuscateFiles(files,{
+      mode,closedWorld:true,seed:'exported-class-string-source-'+mode,
+      strings:true,minimumStringLength:1,properties:false,identifiers:false
+    });
+    const literals=transformed.files.reduce((sum,file)=>sum+file.metrics.literals,0);
+    const emitted=await observe(transformed.files,observer);
+    const sourceEqual=emitted===native;
+    const valueEqual=JSON.parse(emitted)[1]===JSON.parse(native)[1];
+    console.log('EXPORTED_CLASS_STRING '+JSON.stringify({mode,literals,sourceEqual,valueEqual}));
+    assert.ok(literals>0,'the string encoder must actually transform the class literal');
+    assert.equal(valueEqual,true,'ordinary static field value must remain equal');
+    assert.equal(sourceEqual,true,
+      'an external ESM importer can inspect the exported class constructor source');
+  });
+
   test('private nonescaping function retains string-encoding yield: '+mode,async()=>{
     const files=[{path:'private.mjs',sourceType:'module',code:
       'function privateRead(){return "private-only-value";}const value=privateRead();export {value};'}];
