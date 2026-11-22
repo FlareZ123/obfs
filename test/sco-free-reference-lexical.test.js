@@ -169,3 +169,59 @@ test('SCO confines proven Node-only global names to their trusted private contex
   assert.throws(()=>selected('return externalBridge;'),
     /unproved free global: externalBridge/u);
 });
+
+test('204 cross-product decoy and owned-binding lexical cases remain scope precise',()=>{
+  const reads=[
+    'return externalBridge;',
+    'return ({read:externalBridge}).read;',
+    'return [externalBridge][0];',
+    'return (()=>externalBridge)();',
+    'return (function(){return externalBridge;})();',
+    'const f=(x=externalBridge)=>x;return f();',
+    'const {[externalBridge]:v}={"41":1};return v;',
+    'const o={[externalBridge]:1};return Object.keys(o).length;',
+    'return externalBridge?.x ?? 0;',
+    'return String(externalBridge);',
+    'const obj={get x(){return externalBridge;}};return obj.x;',
+    'const v=externalBridge;return v;'
+  ];
+  const decoys=[
+    'function decoy(){const externalBridge=1;}',
+    'const decoy=()=>{const externalBridge=1;return externalBridge;};',
+    '{const externalBridge=1;}',
+    'if(true){let externalBridge=1;}',
+    'try{throw 1;}catch(externalBridge){}',
+    'for(let externalBridge=0;externalBridge<1;externalBridge++){}',
+    'function decoy(externalBridge){return externalBridge;}',
+    'class Decoy{static externalBridge=1;}',
+    'switch(1){case 1: {const externalBridge=1;} break;}',
+    'const decoy={externalBridge:1};'
+  ];
+  const owned=[
+    'const externalBridge=41;',
+    'let externalBridge=41;',
+    'var externalBridge=41;',
+    'function externalBridge(){return 41;}',
+    'const {externalBridge}={externalBridge:41};',
+    'const [externalBridge]=[41];',
+    'const decoy=1;const externalBridge=decoy;'
+  ];
+  let cases=0;
+  for(const prefix of decoys){
+    for(const expression of reads){
+      const body=prefix+expression;
+      assert.equal(firstUnprovedFreeReference(selectedBody(body),new Set(),
+        new Set(),shared,true),'externalBridge',body);
+      cases++;
+    }
+  }
+  for(const prefix of owned){
+    for(const expression of reads){
+      const body=prefix+expression;
+      assert.equal(firstUnprovedFreeReference(selectedBody(body),new Set(),
+        new Set(),shared,true),null,body);
+      cases++;
+    }
+  }
+  assert.equal(cases,204);
+});
