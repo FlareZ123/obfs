@@ -50,6 +50,31 @@ header chain as deployment evidence. See the
 
 **SNO:** Node executes the compiled entrypoint on a fully attacker-controlled server. Optional static public assets served by the surrounding application require their own deployment contract. The manifest cannot defend local execution integrity against the stipulated server owner.
 
+## HTTP request-variant limitation
+
+[RFC 9110 §12.5.5](https://www.rfc-editor.org/rfc/rfc9110.html#name-vary)
+describes `Vary` as a description of request header fields involved in
+representation selection. The [W3C Fetch Metadata specification](https://www.w3.org/TR/fetch-metadata/)
+defines browser request destinations such as `Sec-Fetch-Dest: script`.
+A generic Node Fetch staging request and a real Chromium `<script>`
+request can therefore produce materially different selected responses at
+the same URL.
+
+The optional audit currently refuses a response with declared `Vary`
+context fields other than `Accept-Encoding`. This is a conservative
+check of *honestly advertised* variation; RFC 9110 allows origins to
+elide `Vary` in some cache-policy circumstances, and a hostile server can
+simply omit or falsify the field. Accepting compression-only variation also
+depends on the host serving semantically equivalent decoded resources for
+every content coding. A one-shot verifier cannot establish those
+conditional guarantees for a publisher it does not control.
+
+Evidence should compare an independently approved inert resource fetched
+as a generic client to the same path fetched by a real browser script,
+including an honest `Vary: Sec-Fetch-Dest` refusal and a dishonest
+no-`Vary` negative case. Such a result would bound the staging API
+without claiming that the auditor can defeat a malicious host.
+
 ## Minimum test matrix
 
 1. Red/green for prolog-less XHTML-namespace inline script in `document.blob` advertised over real HTTP as `application/xml` and `application/xhtml+xml`.
