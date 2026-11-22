@@ -6,7 +6,7 @@ const {program} = require('./browser-dom-external-module-source-parity');
 
 /** @typedef {import('puppeteer-core').Browser} Browser */
 /** @typedef {'inline'|'blob'} Embedding */
-/** @typedef {{value:number,sourceMatch:boolean}} Observation */
+/** @typedef {{value:number,sourceMatch:boolean,column?:number}} Observation */
 
 /**
  * Read an unchanged native module from within an actual Chromium page.
@@ -32,7 +32,9 @@ async function observe(browser, embedding, source) {
     await page.waitForFunction('typeof globalThis.result === "object"', {timeout:15000});
     return await page.evaluate(() => {
       const result = Reflect.get(globalThis, 'result');
-      return {value:result.value, sourceMatch:result.sourceMatch};
+      const observed = {value:result.value, sourceMatch:result.sourceMatch};
+      return typeof result.column === 'number' ?
+        {...observed, column:result.column} : observed;
     });
   } finally {
     await page.close();
@@ -51,6 +53,21 @@ function sourceFetchProgram(renamed) {
     'const selfSource=await(await fetch(import.meta.url)).text();' +
     'globalThis.result={value:owner.' + key +
     ',sourceMatch:selfSource.includes("internal"+"Secret")};';
+}
+
+/**
+ * Stack coordinates are an observable source-length side channel for an
+ * external module, independently of DOM or text-fetch APIs.
+ * @param {boolean} renamed
+ * @returns {string}
+ */
+function stackFrameProgram(renamed) {
+  const key = renamed ? 'k' : 'internalSecret';
+  return 'const owner={' + key + ':8};' +
+    'const frame=String(new Error().stack).split("\n")[1]||"";' +
+    'const match=/:([0-9]+):([0-9]+)\)?$/.exec(frame);' +
+    'globalThis.result={value:owner.' + key +
+    ',sourceMatch:false,column:match?Number(match[2]):-1};';
 }
 
 /** @returns {Promise<void>} */
@@ -88,14 +105,27 @@ async function main() {
     cases += 2;
     console.log(JSON.stringify({name:'source-fetch',embedding:'blob',
       original:ownSource,renamed:editedSource}));
+    const originalStack = await observe(browser,'blob',stackFrameProgram(false));
+    const rewrittenStack = await observe(browser,'blob',stackFrameProgram(true));
+    assert.equal(originalStack.value,8);
+    assert.equal(rewrittenStack.value,8);
+    assert.ok(typeof originalStack.column === 'number' &&
+      Number.isSafeInteger(originalStack.column) && originalStack.column > 0);
+    assert.ok(typeof rewrittenStack.column === 'number' &&
+      Number.isSafeInteger(rewrittenStack.column) && rewrittenStack.column > 0);
+    assert.ok(originalStack.column > rewrittenStack.column,
+      'Shorter property spelling must move the external Blob stack column');
+    cases += 2;
+    console.log(JSON.stringify({name:'stack-column',embedding:'blob',
+      original:originalStack,renamed:rewrittenStack}));
   } finally {
     await browser.close();
   }
-  assert.equal(cases,14);
+  assert.equal(cases,16);
   console.log('Chromium verified '+cases+' native source-embedding observations');
 }
 
 if (require.main === module) {
   main().catch(error => {console.error(error);process.exitCode=1;});
 }
-module.exports = {main,observe,sourceFetchProgram};
+module.exports = {main,observe,sourceFetchProgram,stackFrameProgram};
