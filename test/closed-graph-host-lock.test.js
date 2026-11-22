@@ -175,12 +175,12 @@ test('closed ESM dependency chain accepts canonical IPv6 and rejects denied host
 
 test('hostname guard declines files with a local globalThis binding',()=>{
   const native='const globalThis={value:7};globalThis.value;';
-  const allowedHost={location:{hostname:'allowed.example'}};
-  assert.equal(vm.runInNewContext(native,allowedHost),7);
+  const allowedHost=()=>({location:{hostname:'allowed.example'}});
+  assert.equal(vm.runInNewContext(native,allowedHost()),7);
   // This is the pre-fix output's guard position: the original lexical
   // globalThis is still uninitialized when the guard reads it.
   const guard=';(()=>{const h=globalThis.location?.hostname?.toLowerCase();})();\n';
-  assert.throws(()=>vm.runInNewContext(guard+native,allowedHost),
+  assert.throws(()=>vm.runInNewContext(guard+native,allowedHost()),
     /Cannot access 'globalThis' before initialization/);
 
   const inputs=/** @type {const} */ ([
