@@ -9,4 +9,5 @@ function calculate(_v6d4f7d00d1c2) {
   return privateState._p60807327ca*_v6d4f7d00d1c2+privateState._p385d8f2593+_ve03c43331155.length+_v212ab07689eb.length;
 }
 
-module.exports={calculate};
+function exportedCalculate(value){return calculate(value);}
+module.exports={calculate:exportedCalculate};
