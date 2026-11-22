@@ -278,6 +278,17 @@ SCO now serves only the named browser entry and its static ESM imports/reexports
 
 For browser module graphs that use `.js` rather than `.mjs` extensions, add `--js-module` to the COO or SCO CLI invocation. This explicitly treats every input `.js` file as an ES module; do not enable it for mixed classic-script or CommonJS `.js` trees. The flag is rejected in SNO. `.mjs` is recognized as a module without the flag. The SNO CLI detects explicit nested Node `package.json` module scopes for `.js` dependencies, allowing a CommonJS entry to dynamically import ESM modules.
 
+**SNO deployment scope:** Node interprets a `.js` file using its nearest
+`package.json`, including an ancestor *outside* the emitted directory. If
+an emitted `.js` has no packaged nearest scope and the build destination
+inherits an external `{"type":"module"}`, the CLI now refuses publication:
+a CommonJS file could otherwise run as ESM or fail at runtime. Explicitly
+package `{"type":"commonjs"}` where CommonJS `.js` is intended, or name
+CommonJS entry files `.cjs`. The check covers the **build destination
+only**; relocating output into a different package tree requires a fresh
+deployment-level check. It is a compatibility safeguard, not a hostile-runtime
+integrity claim. See the [scope reproduction](im-results/sno-ambient-output-package-scope-2026-11-22.md).
+
 The programmatic API is `require('./src')`, exporting `virtualizeExpressionGraphs`, `lowerWasmI32Functions`, `obfuscateFiles`, `createSnoLauncher`, `createScoHandler`, `createScoRpcClientSource`, `createScoBatchMethod`, `preflightScoBatchState`, `partitionScoAsyncModule`, `bindScoModuleExports`, `partitionScoAsyncGraph`, and `bindScoGraphExports`. A file is `{path,code,sourceType?}`. Modes are `coo`, `sco`, `sno`; supported source types are `script`, `module`, `commonjs`, `asset`.
 
 ## Implemented transformations
