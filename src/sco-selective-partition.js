@@ -1001,6 +1001,22 @@ function realmStateObservation(body,checkHostConfiguration=false){
         }
       }
     }
+    // An unproved first-class Blob constructor can be invoked indirectly
+    // through Reflect.construct, bind, a returned registry, or an opaque
+    // callback. A direct new-expression is audited above, and an ordinary
+    // identifier alias remains subject to that same later constructor check.
+    if(checkHostConfiguration&&isBlobConstructor(node)&&parent&&
+       !(parent.type==='NewExpression'&&parent.callee===node)&&
+       !(parent.type==='VariableDeclarator'&&
+         (parent.id===node||parent.init===node&&parent.id.type==='Identifier'))&&
+       !(parent.type==='AssignmentExpression'&&parent.operator==='='&&
+         (parent.left===node||parent.right===node&&parent.left.type==='Identifier'))&&
+       !(parent.type==='MemberExpression'&&key==='property'&&!parent.computed)&&
+       !(parent.type==='Property'&&key==='key'&&!parent.computed)&&
+       !(key==='id'&&['FunctionDeclaration','FunctionExpression',
+         'ClassDeclaration','ClassExpression'].includes(parent.type))){
+      configurationTouched=true;
+    }
     // Extracted host abort methods can later be invoked via .call/.apply,
     // a local alias, or an opaque callback. Unlike a proven direct call with
     // a primitive reason, their eventual default-reason behavior is unproved.
