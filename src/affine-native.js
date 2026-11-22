@@ -222,6 +222,7 @@ function lowerPolyvariantAffine(source,sourceType,options) {
   const variants=options.variants??4;
   const shift=variants===2?1:variants===4?2:3;
   const ast=parse(source,sourceType);
+  const exportedCallableSource=collectExportedCallableNodes(ast);
   /** @type {Set<string>} */
   const reserved=new Set();
   let unsafe=false;
@@ -253,6 +254,7 @@ function lowerPolyvariantAffine(source,sourceType,options) {
     const matches=candidates.get(name);
     if(!matches||matches.length!==1){declined++;continue;}
     const fn=matches[0],param=fn.params[0],statement=fn.body.body[0];
+    if(isWithinExportedCallableSource(fn,exportedCallableSource)){declined++;continue;}
     if(fn.async||fn.generator||fn.params.length!==1||
        param?.type!=='Identifier'||param.name==='arguments'||
        fn.body.body.length!==1||statement?.type!=='ReturnStatement'||
