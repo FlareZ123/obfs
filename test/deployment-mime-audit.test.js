@@ -1,0 +1,174 @@
+'use strict';
+
+const assert=require('node:assert/strict');
+const {createHash}=require('node:crypto');
+const http=require('node:http');
+const {gzipSync}=require('node:zlib');
+const {test}=require('node:test');
+const {verifyPublishedDeployment}=require('../src');
+
+/** @typedef {'asset'|'script'|'module'|'commonjs'} SourceType */
+/** @typedef {{path:string,code:string|Buffer,sourceType:SourceType}} File */
+/** @typedef {{path:string,sha256:string,contentType:string}} Approval */
+/** @typedef {{type:string,body:Buffer,headers?:Record<string,string>,status?:number}} Reply */
+
+/**
+ * @param {File[]} files
+ * @param {string[]} types
+ * @returns {Approval[]}
+ */
+function approve(files,types){
+  return files.map((file,i)=>({
+    path:file.path,
+    sha256:createHash('sha256').update(file.code).digest('hex'),
+    contentType:types[i]
+  }));
+}
+
+/**
+ * @param {Map<string,Reply>} responses
+ * @param {(origin:string)=>Promise<void>} use
+ * @returns {Promise<void>}
+ */
+async function withServer(responses,use){
+  const server=http.createServer((request,response)=>{
+    const pathname=new URL(request.url??'/','http://127.0.0.1').pathname;
+    const route=responses.get(pathname);
+    if(!route){response.writeHead(404).end();return;}
+    response.writeHead(route.status??200,{
+      'content-type':route.type,
+      'x-content-type-options':'nosniff',
+      ...route.headers
+    });
+    response.end(route.body);
+  });
+  await new Promise((resolve,reject)=>{
+    server.once('error',reject);
+    server.listen(0,'127.0.0.1',()=>resolve(undefined));
+  });
+  try{
+    const address=server.address();
+    assert.ok(address&&typeof address!=='string');
+    await use('http://127.0.0.1:'+address.port+'/');
+  }finally{
+    await new Promise((resolve,reject)=>
+      server.close(error=>error?reject(error):resolve(undefined)));
+  }
+}
+
+test('reviewed staging MIME and exact response bytes admit safe assets and transformed scripts',async()=>{
+  /** @type {File[]} */
+  const files=[
+    {path:'client.js',sourceType:'script',code:'globalThis.witness="public-decoder";'},
+    {path:'state.blob',sourceType:'asset',
+      code:'<r xmlns:d="urn:records"><d:item>data</d:item></r>'},
+    {path:'styles/site.blob',sourceType:'asset',code:'body{color:navy}'}
+  ];
+  const types=['text/javascript; charset=utf-8','application/xml','text/css'];
+  const responses=new Map([
+    ['/client.js',{type:types[0],body:Buffer.from(files[0].code)}],
+    ['/state.blob',{type:types[1],body:Buffer.from(files[1].code)}],
+    ['/styles/site.blob',{type:types[2],body:Buffer.from(files[2].code)}]
+  ]);
+  await withServer(responses,async origin=>{
+    assert.deepEqual(await verifyPublishedDeployment(origin,files,approve(files,types)),
+      {verified:3,sourceFiles:1,assets:2});
+  });
+});
+
+test('opaque JavaScript MIME, active HTML/XML/SVG and CSS disclosures are refused independently of suffix',async()=>{
+  const cases=[
+    ['text/javascript','window.untransformed=9;',/executable JavaScript/],
+    ['application/javascript','globalThis.untransformed=9;',/executable JavaScript/],
+    ['application/xml',
+      '<h:html xmlns:h="http://www.w3.org/1999/xhtml"><h:script>window.plain=9;</h:script></h:html>',
+      /HTML asset contains/],
+    ['application/xhtml+xml',
+      '<h:html xmlns:h="http://www.w3.org/1999/xhtml"><h:button onclick="alert(1)"/></h:html>',
+      /HTML asset contains/],
+    ['text/html','<html><script>window.plain=9;</script></html>',/HTML asset contains/],
+    ['image/svg+xml',
+      '<svg xmlns="http://www.w3.org/2000/svg"><script>window.plain=9;</script></svg>',
+      /SVG asset contains/],
+    ['text/css','body{background:url(data:text/css;base64,YQ==)}',
+      /CSS data import/],
+    ['application/pdf','%PDF-1.4'+String.fromCharCode(10),
+      /Executable-capable PDF/],
+    ['application/atom+xml','<feed/>',/Unsupported public asset MIME/]
+  ];
+  for(const [type,code,expected] of cases){
+    assert.equal(typeof code,'string');
+    assert.ok(expected instanceof RegExp);
+    /** @type {File[]} */
+    const files=[{path:'payload.blob',sourceType:'asset',code}];
+    await assert.rejects(()=>
+      verifyPublishedDeployment('http://127.0.0.1:1/',files,approve(files,[type])),
+      expected,type+' must be audited before any HTTP request');
+  }
+});
+
+test('untrusted HTTP MIME, bytes, redirects and nosniff omissions fail the contract',async()=>{
+  /** @type {File[]} */
+  const files=[{path:'icon.bin',sourceType:'asset',code:Buffer.from([1,2,3,4])}];
+  const manifest=approve(files,['image/png']);
+  const response={type:'image/png',body:Buffer.from([1,2,3,4])};
+  const responses=new Map([['/icon.bin',response]]);
+  await withServer(responses,async origin=>{
+    assert.deepEqual(await verifyPublishedDeployment(origin,files,manifest),
+      {verified:1,sourceFiles:0,assets:1});
+    response.type='text/javascript';
+    await assert.rejects(()=>
+      verifyPublishedDeployment(origin,files,manifest),/Content-Type differs/);
+    response.type='image/png';
+    response.body=Buffer.from([1,2,3,5]);
+    await assert.rejects(()=>
+      verifyPublishedDeployment(origin,files,manifest),/bytes differ/);
+    response.body=Buffer.from([1,2,3,4]);
+    response.headers={'x-content-type-options':'invalid'};
+    await assert.rejects(()=>
+      verifyPublishedDeployment(origin,files,manifest),/lacks nosniff/);
+    response.headers=undefined;
+    response.status=302;
+    await assert.rejects(()=>
+      verifyPublishedDeployment(origin,files,manifest),/HTTP 200/);
+  });
+});
+
+test('decoded gzip publication and literal URL hash/percent path segments are reviewed byte-exact',async()=>{
+  /** @type {File[]} */
+  const files=[
+    {path:'pages/hash#inside/file%25.blob',sourceType:'asset',
+      code:'<r><item>uncompressed reviewed XML bytes</item></r>'}
+  ];
+  const type='application/xml; charset=utf-8';
+  const responses=new Map([[
+    '/pages/hash%23inside/file%2525.blob',
+    {type,body:gzipSync(Buffer.from(files[0].code)),
+      headers:{'content-encoding':'gzip'}}
+  ]]);
+  await withServer(responses,async origin=>{
+    assert.deepEqual(await verifyPublishedDeployment(origin,files,approve(files,[type])),
+      {verified:1,sourceFiles:0,assets:1});
+  });
+});
+
+test('manifest hashes and complete portable path inventory are required before network access',async()=>{
+  /** @type {File[]} */
+  const files=[{path:'data.bin',sourceType:'asset',code:'immutable'}];
+  const record=approve(files,['application/octet-stream'])[0];
+  await assert.rejects(()=>
+    verifyPublishedDeployment('http://127.0.0.1:1/',files,
+      [{...record,sha256:'0'.repeat(64)}]),/Local publication differs/);
+  await assert.rejects(()=>
+    verifyPublishedDeployment('http://127.0.0.1:1/',files,[]),/Missing exact reviewed response/);
+  await assert.rejects(()=>
+    verifyPublishedDeployment('http://127.0.0.1:1/',files,[record,record]),/Duplicate reviewed response/);
+  await assert.rejects(()=>
+    verifyPublishedDeployment('http://127.0.0.1:1/',[
+      ...files,{path:'DATA.bin',sourceType:'asset',code:'immutable'}
+    ],[record,{...record,path:'DATA.bin'}]),/Unsafe|duplicate|Duplicate/i);
+  await assert.rejects(()=>
+    verifyPublishedDeployment('file:///unsafe/',files,[record]),/bare HTTP/);
+  await assert.rejects(()=>
+    verifyPublishedDeployment('http://127.0.0.1:1/subdir/',files,[record]),/bare HTTP/);
+});
