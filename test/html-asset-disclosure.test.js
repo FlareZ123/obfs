@@ -405,6 +405,206 @@ test('foreign SVG base cannot hide a later HTML base from SRI source-byte protec
   }
 });
 
+
+test('a script dynamically inserted with integrity must retain the pinned sibling bytes',()=>{
+  const source='globalThis.dynamicSRI="a dynamically created script preserves original source bytes";';
+  const digest=require('node:crypto').createHash('sha256').update(source).digest('base64');
+  const html='<html><head><script src="./bootstrap.js"></script></head><body></body></html>';
+  const originalLoader='const script=document.createElement("script");'+
+    'script.src="./client.js";script.integrity="sha256-'+digest+'";document.head.append(script);';
+  const unpinnedLoader='const script=document.createElement("script");'+
+    'script.src="./client.js";document.head.append(script);';
+  for(const mode of /** @type {const} */(['coo','sco','sno'])){
+    const opts={mode,seed:'dynamic-sri/'+mode,
+      strings:true,properties:false,identifiers:false};
+    const sourceFile={path:'client.js',sourceType:/** @type {const} */('script'),code:source};
+    const asset={path:'index.html',sourceType:/** @type {const} */('asset'),code:Buffer.from(html)};
+    const bootstrap={path:'bootstrap.js',sourceType:/** @type {const} */('script'),code:originalLoader};
+    const control=obfuscateFiles([
+      sourceFile,{...bootstrap,code:unpinnedLoader},asset
+    ],opts);
+    assert.notEqual(control.files[0].code,source,
+      'No-integrity dynamic loader must admit actual client rewriting in '+mode);
+    const result=obfuscateFiles([sourceFile,bootstrap,asset],opts);
+    assert.equal(result.files[0].code,source,
+      'DOM HTMLScriptElement.integrity pins original distributed script bytes in '+mode);
+  }
+});
+
+
+test('dynamic SRI setter aliases and attribute writers are observed without penalizing pure data reads',()=>{
+  const source='globalThis.dynamicSRISetter="a dynamically hashed sibling must keep its source";';
+  const hash=require('node:crypto').createHash('sha256').update(source).digest('base64');
+  const prefix='const script=document.createElement("script");script.src="./client.js";';
+  const variants=[
+    ['constant computed key','const key="integrity";script[key]="sha256-'+hash+'";'],
+    ['concatenated computed key','script["inte"+"grity"]="sha256-'+hash+'";'],
+    ['setAttribute','script.setAttribute("INTEGRITY","sha256-'+hash+'");'],
+    ['setAttributeNS','script.setAttributeNS(null,"integrity","sha256-'+hash+'");'],
+    ['Reflect.set','Reflect.set(script,"integrity","sha256-'+hash+'");'],
+    ['Object.assign','Object.assign(script,{integrity:"sha256-'+hash+'"});']
+  ];
+  const client={path:'client.js',sourceType:/** @type {const} */('script'),code:source};
+  const html={path:'index.html',sourceType:/** @type {const} */('asset'),
+    code:Buffer.from('<script src="./bootstrap.js"></script>')};
+  for(const mode of /** @type {const} */(['coo','sco','sno'])){
+    const options={mode,seed:'dynamic-sri-method/'+mode,
+      strings:true,identifiers:false,properties:false};
+    for(const [name,setter] of variants){
+      const bootstrap={path:'bootstrap.js',sourceType:/** @type {const} */('script'),
+        code:prefix+setter+'document.head.append(script);'};
+      const result=obfuscateFiles([client,bootstrap,html],options);
+      assert.equal(result.files[0].code,source,
+        name+' must recognize a dynamic integrity commitment in '+mode);
+    }
+    const dataRead='const data={integrity:17};'+
+      'globalThis.dynamicReadOnlyIntegrity=data.integrity;';
+    const output=obfuscateFiles([
+      client,{path:'bootstrap.js',sourceType:'script',code:dataRead},html
+    ],options);
+    assert.notEqual(output.files[0].code,source,
+      'Read-only data integrity fields must remain transformable in '+mode);
+  }
+});
+
+
+test('SCO handler honors SRI dynamically assigned by another published script',async ()=>{
+  const source='globalThis.dynamicSCO="the real SCO response has source-byte integrity";';
+  const hash=require('node:crypto').createHash('sha256').update(source).digest('base64');
+  const bootstrap='const script=document.createElement("script");'+
+    'script.src="./client.js";script.integrity="sha256-'+hash+'";document.head.append(script);';
+  const control=bootstrap.replace('script.integrity="sha256-'+hash+'";','');
+  const script={path:'client.js',sourceType:/** @type {const} */('script'),code:source};
+  const html={path:'index.html',sourceType:/** @type {const} */('asset'),
+    code:Buffer.from('<script src="./bootstrap.js"></script>')};
+  const observed=createScoHandler([
+    script,{path:'bootstrap.js',sourceType:'script',code:bootstrap},html
+  ],{routePrefix:'/obfs/'});
+  const unobserved=createScoHandler([
+    script,{path:'bootstrap.js',sourceType:'script',code:control},html
+  ],{routePrefix:'/obfs/'});
+  for(const [label,handler] of /** @type {const} */([
+    ['integrity',observed],['no integrity',unobserved]
+  ])){
+    const server=require('node:http').createServer(handler);
+    await new Promise((resolve,reject)=>{
+      server.once('error',reject);
+      server.listen(0,'127.0.0.1',()=>resolve(undefined));
+    });
+    try{
+      const addr=server.address();
+      assert.ok(addr&&typeof addr==='object');
+      const response=await fetch('http://127.0.0.1:'+addr.port+'/obfs/client.js');
+      assert.equal(response.status,200);
+      const emitted=await response.text();
+      if(label==='integrity')assert.equal(emitted,source);
+      else assert.notEqual(emitted,source,
+        'No-integrity live SCO control must actually mutate response bytes');
+    }finally{
+      await new Promise((resolve,reject)=>
+        server.close(error=>error?reject(error):resolve(undefined)));
+    }
+  }
+});
+
+
+test('document.write-inserted integrity attribute pins original sibling script bytes',()=>{
+  const source='globalThis.documentWriteSRI="parser-inserted SRI bytes must remain intact";';
+  const hash=require('node:crypto').createHash('sha256').update(source).digest('base64');
+  const pinned='document.write('+
+    JSON.stringify('<script src="./client.js" integrity="sha256-'+hash+'"></script>')+');';
+  const plain='document.write('+
+    JSON.stringify('<script src="./client.js"></script>')+');';
+  const client={path:'client.js',sourceType:/** @type {const} */('script'),code:source};
+  const html={path:'index.html',sourceType:/** @type {const} */('asset'),
+    code:Buffer.from('<script src="./bootstrap.js"></script>')};
+  for(const mode of /** @type {const} */(['coo','sco','sno'])){
+    const options={mode,seed:'document-write-sri/'+mode,strings:true,
+      identifiers:false,properties:false};
+    const control=obfuscateFiles([
+      client,{path:'bootstrap.js',sourceType:'script',code:plain},html
+    ],options);
+    assert.notEqual(control.files[0].code,source,
+      'No-integrity document.write control must transform in '+mode);
+    const pinnedFiles=obfuscateFiles([
+      client,{path:'bootstrap.js',sourceType:'script',code:pinned},html
+    ],options);
+    assert.equal(pinnedFiles.files[0].code,source,
+      'DOM-written integrity metadata must pin sibling source bytes in '+mode);
+  }
+});
+
+
+test('document-write SRI guard follows proven document aliases and opaque markup',()=>{
+  const source='globalThis.aliasDocumentWriteSRI="the original parser-written script is pinned";';
+  const hash=require('node:crypto').createHash('sha256').update(source).digest('base64');
+  const markup=JSON.stringify('<script src="./client.js" INTEGRITY = "sha256-'+hash+'"></script>');
+  const cases=[
+    ['local alias','const doc=document;doc.write('+markup+');'],
+    ['window.document alias','const doc=window.document;doc.writeln('+markup+');'],
+    ['destructured document alias','const {document:doc}=globalThis;doc.write('+markup+');'],
+    ['computed method','const method="wri"+"te";document[method]('+markup+');'],
+    ['global member','globalThis.document.write('+markup+');'],
+    ['computed global member','window["document"].writeln('+markup+');'],
+    ['opaque parser write','const html=opaqueHtml();document.write(html);']
+  ];
+  const file={path:'client.js',sourceType:/** @type {const} */('script'),code:source};
+  const html={path:'index.html',sourceType:/** @type {const} */('asset'),
+    code:Buffer.from('<script src="./bootstrap.js"></script>')};
+  for(const mode of /** @type {const} */(['coo','sco','sno'])){
+    const options={mode,seed:'document-alias/'+mode,strings:true,
+      properties:false,identifiers:false};
+    for(const [name,code] of cases){
+      const result=obfuscateFiles([
+        file,{path:'bootstrap.js',sourceType:'script',code},html
+      ],options);
+      assert.equal(result.files[0].code,source,
+        name+' must preserve possible parser-written SRI in '+mode);
+    }
+    const safe=obfuscateFiles([
+      file,{path:'bootstrap.js',sourceType:'script',
+        code:'const doc=document;doc.write("<p>an ordinary literal</p>");'},html
+    ],options);
+    assert.notEqual(safe.files[0].code,source,
+      'A known unrelated literal document.write must keep transformation yield in '+mode);
+  }
+});
+
+
+test('unknown computed DOM script integrity keys conservatively pin sibling source',()=>{
+  const source='globalThis.computedScriptSRI="opaque property names may be integrity";';
+  const hash=require('node:crypto').createHash('sha256').update(source).digest('base64');
+  const prefix='const script=document.createElement("script");'+
+    'script.src="./client.js";const attr=globalThis.optionalAttr||"integrity";';
+  const cases=[
+    ['computed write','script[attr]="sha256-'+hash+'";'],
+    ['setAttribute','script.setAttribute(attr,"sha256-'+hash+'");'],
+    ['Reflect.set','Reflect.set(script,attr,"sha256-'+hash+'");'],
+    ['Object.assign','Object.assign(script,{[attr]:"sha256-'+hash+'"});']
+  ];
+  const html={path:'index.html',sourceType:/** @type {const} */('asset'),
+    code:Buffer.from('<script src="./bootstrap.js"></script>')};
+  const client={path:'client.js',sourceType:/** @type {const} */('script'),code:source};
+  for(const mode of /** @type {const} */(['coo','sno','sco'])){
+    const options={mode,seed:'computed-script-integrity/'+mode,
+      strings:true,identifiers:false,properties:false};
+    const control=obfuscateFiles([
+      client,{path:'bootstrap.js',sourceType:'script',
+        code:prefix+'document.head.append(script);'},html
+    ],options);
+    assert.notEqual(control.files[0].code,source,
+      'No-SRI computed-key control must transform in '+mode);
+    for(const [name,setter] of cases){
+      const result=obfuscateFiles([
+        client,{path:'bootstrap.js',sourceType:'script',
+          code:prefix+setter+'document.head.append(script);'},html
+      ],options);
+      assert.equal(result.files[0].code,source,
+        name+' on a known DOM script with an opaque key may set integrity in '+mode);
+    }
+  }
+});
+
 test('fragment marker in HTML filename must not hide a pinned relative JavaScript URL',()=>{
   const source='globalThis.fragmentFilenameSRI="original JS bytes must survive URL path encoding";';
   const digest=require('node:crypto').createHash('sha256').update(source).digest('base64');

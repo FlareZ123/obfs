@@ -39,6 +39,14 @@ jobs:
         env:
           CHROMIUM_BIN: google-chrome
         run: node test/html-sri-foreign-base-browser.js
+      - name: Verify source bytes pinned by dynamically injected HTMLScriptElement
+        env:
+          CHROMIUM_BIN: google-chrome
+        run: node test/dynamic-script-sri-browser.js
+      - name: Verify document.write parser-inserted script SRI in Chromium
+        env:
+          CHROMIUM_BIN: google-chrome
+        run: node test/document-write-sri-browser.js
       - name: Compare native and SCO SRI at percent-encoded HTTP route mounts
         env:
           CHROMIUM_BIN: google-chrome
