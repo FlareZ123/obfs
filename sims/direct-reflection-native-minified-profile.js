@@ -89,9 +89,15 @@ async function run(iterations=1_000_000,trials=9) {
   // The attack is seedless and reads only the actual public compiler output.
   // Minifying that normalized output measures whether the emitted private
   // labels impose an irreducible execution cost or static naming barrier.
-  const normalized=normalizePublicFields(compiled.files.map(file=>({
-    path:file.path,sourceType:file.sourceType,code:String(file.code)
-  })),{preserveFreeMemberReceivers:false});
+  assert.ok(compiled.files.every(file=>file.sourceType==='module'),
+    'measured graph must consist solely of emitted ESM modules');
+  /** @type {Input[]} */
+  const publishedModules=compiled.files.map(file=>({
+    path:file.path,sourceType:'module',code:String(file.code)
+  }));
+  const normalized=normalizePublicFields(publishedModules,{
+    preserveFreeMemberReceivers:false
+  });
   assert.equal(normalized.properties,2,'source-only attacker must normalize both generated keys');
   const normalizedMinified=await Promise.all(normalized.files.map(async file=>({
     ...file,
