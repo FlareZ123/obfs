@@ -3,6 +3,7 @@
   "include": [
     "sims/llm-matched-affine-challenge.js",
     "sims/llm-matched-affine-static-attack.js",
+    "sims/llm-matched-affine-cpu-control.js",
     "test/llm-matched-affine-challenge.test.js",
     "test/llm-matched-affine-static-attack.test.js"
   ]
