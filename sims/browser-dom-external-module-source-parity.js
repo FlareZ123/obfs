@@ -59,7 +59,7 @@ async function evaluate(browserExecutable, mode, moduleSource) {
   try {
     await new Promise((resolve, reject) => {
       server.once('error', reject);
-      server.listen(0, '127.0.0.1', resolve);
+      server.listen(0, '127.0.0.1', () => resolve(undefined));
     });
     const address = server.address();
     if (!address || typeof address === 'string') throw Error('Missing server port');
