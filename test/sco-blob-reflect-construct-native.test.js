@@ -27,7 +27,12 @@ test('RED: reflected Blob native endings must not cross browser/Node realms',()=
     "const blob=Reflect.construct(Blob,[['A\\nB'],{endings:'native'}]);",
     "const maker=Reflect.construct;const blob=maker(Blob,[['A\\nB'],{endings:'native'}]);",
     "const Ctor=Blob;const blob=Reflect.construct(Ctor,[['A\\nB'],{endings:'native'}]);",
-    "const Ctor=Blob.bind(null);const blob=new Ctor(['A\\nB'],{endings:'native'});"
+    "const Ctor=Blob.bind(null);const blob=new Ctor(['A\\nB'],{endings:'native'});",
+    "const blob=Reflect.construct(...[Blob,[['A\\nB'],{endings:'native'}]]);",
+    "const tuple=[Blob,[['A\\nB'],{endings:'native'}]];const blob=Reflect.construct(...tuple);",
+    "const Ctor=new Proxy(Blob,{});const blob=new Ctor(['A\\nB'],{endings:'native'});",
+    "const factories={Ctor:Blob};const blob=Reflect.construct(factories.Ctor,[['A\\nB'],{endings:'native'}]);",
+    "const factories=[Blob];const blob=new factories[0](['A\\nB'],{endings:'native'});"
   ];
   for(const source of sources){
     assert.throws(()=>partition(source+bytes),TypeError,
