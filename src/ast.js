@@ -3388,6 +3388,20 @@ function observesDistributedSource(ast,importedStrings=new Map()) {
     return ['process','node:process'].includes(
       staticString(expression.arguments[0])??'');
   }
+  /**
+   * A literal SRI hash fed to an opaque computed property can reach a
+   * different file's DOM script even when the receiver's provenance is
+   * unavailable locally. Use the real SRI base64 grammar as a conservative
+   * whole-graph source-byte observer.
+   * @param {AstNode|null|undefined} value
+   * @returns {boolean}
+   */
+  function looksLikeSriHash(value) {
+    if(!value)return false;
+    const known=knownKey(value);
+    return known!==null &&
+      /(?:^|\s)sha(?:256|384|512)-[A-Za-z0-9+/]{8,}/u.test(known);
+  }
   /** @param {AstNode|null|undefined} value @returns {boolean} */
   function isDocumentReceiver(value) {
     if(value?.type==='Identifier')return documentRoots.has(value.name);
@@ -3711,7 +3725,7 @@ function observesDistributedSource(ast,importedStrings=new Map()) {
       const key=node.left.computed ? knownKey(node.left.property) :
         node.left.property.type==='Identifier'?node.left.property.name:null;
       if(key==='integrity' || key===null && node.left.computed &&
-         isScriptElementTarget(node.left.object))observed=true;
+         (isScriptElementTarget(node.left.object)||looksLikeSriHash(node.right)))observed=true;
     }
     // A parser-active document.write may create SRI-pinned script/link
     // resources even if no provided static HTML contains an integrity tag.
@@ -3742,15 +3756,17 @@ function observesDistributedSource(ast,importedStrings=new Map()) {
       if((method==='setAttribute'||method==='setAttributeNS') &&
          node.arguments[method==='setAttribute'?0:1]) {
         const key=knownKey(node.arguments[method==='setAttribute'?0:1]);
-        if(key?.toLowerCase()==='integrity' || key===null && scriptReceiver)
-          observed=true;
+        if(key?.toLowerCase()==='integrity' || key===null &&
+           (scriptReceiver || looksLikeSriHash(node.arguments[
+             method==='setAttribute'?1:2])))observed=true;
       }
       if(node.callee.object.type==='Identifier' &&
          node.callee.object.name==='Reflect' && method==='set' &&
          node.arguments[1]) {
         const key=knownKey(node.arguments[1]);
         if(key==='integrity' || key===null &&
-           isScriptElementTarget(node.arguments[0]))observed=true;
+           (isScriptElementTarget(node.arguments[0])||looksLikeSriHash(node.arguments[2])))
+          observed=true;
       }
       if(node.callee.object.type==='Identifier' &&
          node.callee.object.name==='Object' && method==='assign') {
@@ -3767,7 +3783,8 @@ function observesDistributedSource(ast,importedStrings=new Map()) {
             }
             const key=prop.computed ? knownKey(prop.key) :
               prop.key.type==='Identifier'?prop.key.name:knownKey(prop.key);
-            if(key==='integrity'||key===null&&scriptTarget)observed=true;
+            if(key==='integrity'||key===null&&
+               (scriptTarget||looksLikeSriHash(prop.value)))observed=true;
           }
         }
       }
