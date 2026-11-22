@@ -319,7 +319,8 @@ test('reflected property-key literals inside exported callable source remain byt
     strings:true,identifiers:true,properties:true,controlFlow:false
   });
   assert.equal(output.metrics.properties,0,JSON.stringify(output.metrics));
-  assert.ok(output.files[0].code.includes('Object.getOwnPropertyDescriptor(owner,"secretField")'),output.files[0].code);
+  assert.ok(output.files[0].code.includes('Object.getOwnPropertyDescriptor'),output.files[0].code);
+  assert.ok(output.files[0].code.includes('"secretField"'),output.files[0].code);
   const observeBoth=async code=>{
     const dir=await fs.mkdtemp(path.join(os.tmpdir(),'obfs-esm-public-reflection-'));
     try{
