@@ -16,7 +16,9 @@ const {
 
 /** @param {import('node:http').Server} server @returns {Promise<string>} */
 async function listen(server){
-  await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));
+  /** @type {Promise<void>} */
+  const ready=new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));
+  await ready;
   const address=server.address();
   assert.ok(address&&typeof address!=='string');
   return 'http://127.0.0.1:'+address.port;
@@ -24,7 +26,9 @@ async function listen(server){
 
 /** @param {import('node:http').Server} server @returns {Promise<void>} */
 async function close(server){
-  await new Promise((resolve,reject)=>server.close(error=>error?reject(error):resolve()));
+  /** @type {Promise<void>} */
+  const ended=new Promise((resolve,reject)=>server.close(error=>error?reject(error):resolve()));
+  await ended;
 }
 
 test('selected SCO actual RPC cannot preserve an injected client-only free global',{
@@ -44,6 +48,7 @@ test('selected SCO actual RPC cannot preserve an injected client-only free globa
       const expression=expressions[index];
       const source='export async function protectedOp(){return '+expression+';}'+
         'export function visible(){return 7;}';
+      /** @type {{path:string,sourceType:'module',code:string}} */
       const file={path:'module'+index+'.mjs',sourceType:'module',code:source};
       const generated=partitionScoSelectedAsyncExports(file,{
         seed:'sco-free-rpc-'+index,privateNames:['protectedOp']
