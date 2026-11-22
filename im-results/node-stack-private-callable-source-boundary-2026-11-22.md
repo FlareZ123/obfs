@@ -115,3 +115,35 @@ that V8 `CallSite.getFunction()` returns `undefined` for the tested strict
 helper frame. The result narrows the current extraction witness: it is
 effective for the demonstrated non-strict synchronous shapes. The full-control
 SNO attacker retains other memory/debugging capabilities outside this API.
+
+
+## Matched ordinary-minifier control
+
+A further source-pinned browser variant at
+[`8315757f700f467613a3415bc6a651f9ffcdd592`](https://github.com/FlareZ123/obfs/commit/8315757f700f467613a3415bc6a651f9ffcdd592)
+passed [focused 45082743796](https://github.com/FlareZ123/obfs/actions/runs/45082743796)
+on both CI jobs (Chromium on Ubuntu, Windows browser deliberately skipped), with
+all three new test files included in strict external JSDoc. It adds a control
+compiled by ordinary `esbuild@0.28.2` using
+`transformSync(original,{loader:'js',target:'es2022',minifyIdentifiers:true,minifyWhitespace:true,minifySyntax:false})`.
+The host stack formatter locates a live function by its `Math.random`
+expression instead of relying on a potentially mangled function name.
+
+The browser emitted:
+
+```json
+{"nativeValue":18,"emittedValue":17,"nativeSourceCaptured":true,"emittedSourceCaptured":true,"renamedBindings":1,"strictNativeValue":17,"strictEmittedValue":17,"strictSourceUnavailable":true,"minifierValue":17,"minifierSourceCaptured":true}
+```
+
+The **ordinary minifier produces the same host-source-dependent value
+difference** and also exposes its live function source. This is a negative
+control against attributing the specific mismatch or source-recovery path to
+an exceptional weakness of the obfuscator. The experiment shows that an
+arbitrary external source-sensitive callback conflicts with ordinary
+identifier rewriting under these host conditions. No measured attacker-cost
+separation from standard minification follows.
+
+The same run also verified a strict-script Chromium control: both strict
+native and strict emitted variants returned 17 and reported source
+unavailable to the selected `CallSite.getFunction()` observer. The
+strict-mode conclusion is scoped to this API and call shape.
