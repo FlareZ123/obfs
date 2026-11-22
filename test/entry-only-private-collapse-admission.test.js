@@ -5,9 +5,9 @@ const {test}=require('node:test');
 const {obfuscateFiles}=require('../src');
 
 const OWNER='const privateOwner={hiddenFirst:7,hiddenSecond:5};'+
-  'const readPrivate=value=>value.hiddenFirst+value.hiddenSecond;';
+  'const readPrivate=()=>privateOwner.hiddenFirst+privateOwner.hiddenSecond;';
 const ENTRY='export function publicRun(n){return work(n);}'+
-  'function work(n){let total=0;for(let i=0;i<n;i++)total+=readPrivate(privateOwner);return total;}';
+  'function work(n){let total=0;for(let i=0;i<n;i++)total+=readPrivate();return total;}';
 const COLLAPSED=OWNER+'\n'+ENTRY;
 
 /** @param {string} source @param {string} name */
