@@ -39,3 +39,14 @@ test('JsDeObsBench yield diagnostics rejects malformed transformation metrics',(
     filename:'bad.js',original:'const x=1;',obfs_metrics:{bindings:-1}
   }],'script'),/Invalid benchmark row/);
 });
+
+test('a static fs import is counted even when the only read target is stdin',()=>{
+  const result=analyzeRows([{
+    filename:'stdin-reader.js',
+    original:"const fs=require('fs'); const input=fs.readFileSync('/dev/stdin','utf8'); console.log(input);",
+    obfs_metrics:{bindings:0}
+  }],'script');
+  assert.equal(result.distributedSourceObserved,1);
+  assert.equal(result.distributedReasonFiles['file-module-require'],1);
+  assert.equal(result.observerFilesWithoutBindings,1);
+});
