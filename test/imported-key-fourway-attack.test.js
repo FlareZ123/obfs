@@ -72,7 +72,7 @@ function sourceGraph(index) {
       code:'import {bag,key} from "./state.mjs";'+
         'import {identity} from "./identity.mjs";'+
         'const owner=identity(bag);'+
-        'console.log(owner[key]+owner.guard,Reflect.get(bag,key));'}
+        'console.log(owner[key]+owner.guard,bag[key]);'}
   ];
 }
 
