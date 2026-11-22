@@ -3,7 +3,7 @@
 const path = require('node:path');
 const {createHash} = require('node:crypto');
 const {walk,applyEdits,parse,observesFunctionSource,observesDistributedSource,staticString,collectDirectCarrierFactories} = require('./ast');
-const {collectBindings,proveLocalObject,staticName,patternPropertyEdits,inOperatorPropertyEdits,isLiteralValue,isPrimitiveConstantExpression,ownPropertyName,singleUseFactoryObject} = require('./properties');
+const {collectBindings,collectSourceExposedBodies,proveLocalObject,staticName,patternPropertyEdits,inOperatorPropertyEdits,isLiteralValue,isPrimitiveConstantExpression,ownPropertyName,singleUseFactoryObject} = require('./properties');
 const {proveDirectReaderPrimitives}=require('./direct-reader-primitives');
 
 /** @typedef {import('./core').SourceFile & {sourceType:import('./core').SourceType}} SourceFile */
@@ -2003,6 +2003,45 @@ function isInertEarlierValue(value,ownerStart,primitives) {
  * @param {string} seed
  * @returns {{files:SourceFile[],objects:number,properties:number}}
  */
+/**
+ * Collect static property spellings that occur inside source-exposed callable
+ * or class bodies. Cross-file maps must not rewrite any such spelling in the
+ * exporting module, even when the corresponding object is otherwise private.
+ * @param {AstNode} ast
+ * @param {Set<AstNode>} sourceExposedBodies
+ * @returns {Set<string>}
+ */
+function collectSourceExposedPropertyNames(ast,sourceExposedBodies) {
+  const names=new Set();
+  walk(ast,(node,parent,key,ancestors)=>{
+    if(!ancestors.some(ancestor=>sourceExposedBodies.has(ancestor)))return;
+    if(node.type==='MemberExpression') {
+      const name=node.computed?staticString(node.property):staticName(node.property);
+      if(name!==null)names.add(name);
+    } else if(node.type==='Property') {
+      const name=ownPropertyName(node);
+      if(name!==null)names.add(name);
+    } else if(node.type==='BinaryExpression'&&node.operator==='in') {
+      const name=staticString(node.left);
+      if(name!==null)names.add(name);
+    } else if(node.type==='CallExpression') {
+      const callee=node.callee;
+      const method=callee?.type==='MemberExpression'?staticName(callee.property):null;
+      const receiver=callee?.type==='MemberExpression'?staticName(callee.object):null;
+      if(receiver==='Object'&&
+         ['defineProperty','getOwnPropertyDescriptor','hasOwn'].includes(method??'')) {
+        const name=staticString(node.arguments[1]);
+        if(name!==null)names.add(name);
+      }
+      if(receiver==='Reflect'&&['get','set','has'].includes(method??'')) {
+        const name=staticString(node.arguments[1]);
+        if(name!==null)names.add(name);
+      }
+    }
+  });
+  return names;
+}
+
 function renameCrossFileProperties(files,seed) {
   // Mixed executable formats can hide ESM consumers. The closed-world
   // integrator additionally promises that these explicitly declared inert
@@ -2017,12 +2056,20 @@ function renameCrossFileProperties(files,seed) {
   })) {
     return {files,objects:0,properties:0};
   }
-  /** @type {Map<string,{file:SourceFile,ast:AstNode,bindings:Map<string,number>}>} */
+  /** @type {Map<string,{file:SourceFile,ast:AstNode,bindings:Map<string,number>,sourceExposedEdits:WeakSet<AstNode>,sourceExposedPropertyNames:Set<string>}>} */
   const modules=new Map();
   for(const file of files) {
     if ((file.sourceType ?? (file.path.endsWith('.mjs') ? 'module' : 'script'))==='module' && typeof file.code==='string') {
       const ast=parse(file.code,'module');
-      modules.set(file.path,{file,ast,bindings:collectBindings(ast)});
+      const bindings=collectBindings(ast);
+      const sourceExposedBodies=collectSourceExposedBodies(ast,bindings);
+      const sourceExposedEdits=new WeakSet();
+      walk(ast,(node,parent,key,ancestors)=>{
+        if(ancestors.some(ancestor=>sourceExposedBodies.has(ancestor)))
+          sourceExposedEdits.add(node);
+      });
+      const sourceExposedPropertyNames=collectSourceExposedPropertyNames(ast,sourceExposedBodies);
+      modules.set(file.path,{file,ast,bindings,sourceExposedEdits,sourceExposedPropertyNames});
     }
   }
   const knownFiles=new Set(files.map(file=>file.path));
@@ -2653,6 +2700,20 @@ function renameCrossFileProperties(files,seed) {
           if(node.type==='ExportSpecifier' && node.local.name===exportName) reexported=true;
         });
         if(reexported) continue;
+        if(props.some(prop=>{
+             const name=ownPropertyName(prop);
+             return exporter.sourceExposedEdits.has(prop)||
+               (name!==null&&exporter.sourceExposedPropertyNames.has(name));
+           })||
+           users.some(user=>{
+             const exposed=modules.get(user.file)?.sourceExposedEdits;
+             return Boolean(exposed&&(
+               user.proof.members.some(member=>exposed.has(member))||
+               user.proof.patterns.some(property=>exposed.has(property))||
+               user.proof.inChecks.some(check=>exposed.has(check))||
+               user.proof.reflections.some(reflection=>exposed.has(reflection.key))
+             ));
+           }))continue;
         const mapping=new Map();
         for(const prop of props) {
           const old=ownPropertyName(prop);
@@ -2852,6 +2913,20 @@ function renameCrossFileProperties(files,seed) {
       if(failed)break;
     }
     if(failed || !users.length)continue;
+    if(props.some(prop=>{
+             const name=ownPropertyName(prop);
+             return exporter.sourceExposedEdits.has(prop)||
+               (name!==null&&exporter.sourceExposedPropertyNames.has(name));
+           })||
+       users.some(user=>{
+         const exposed=modules.get(user.file)?.sourceExposedEdits;
+         return Boolean(exposed&&(
+           user.proof.members.some(member=>exposed.has(member))||
+           user.proof.patterns.some(property=>exposed.has(property))||
+           user.proof.inChecks.some(check=>exposed.has(check))||
+           user.proof.reflections.some(reflection=>exposed.has(reflection.key))
+         ));
+       }))continue;
 
     const ownNames=new Set(names);
     if(users.some(user=>
