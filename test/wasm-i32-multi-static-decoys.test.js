@@ -109,7 +109,7 @@ test('unrelated executable Module constructors do not count as compiler outputs'
     'if(false) new globalThis.WebAssembly.Instance('+
     'new globalThis.WebAssembly.Module(globalThis.Uint8Array.from([4,5,6])));\n';
   const lowered=lowerWasmI32Functions(source,'commonjs',{
-    seed:'other-executable-module',names:['first','second']
+    seed:'other-executable-module',names:['firstKernel','secondKernel']
   });
   assert.equal(lowered.functions,2);
   const delivered=sourceWithOtherModule+lowered.code;
