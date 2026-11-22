@@ -13,8 +13,9 @@ const run = promisify(execFile);
 /** @param {string} observation @param {boolean} changed @returns {string} */
 function program(observation, changed) {
   const name = changed ? 'q' : 'privateNumber';
-  return `const ${name}=8; const observed=${observation};` +
-    `globalThis.result={value:${name},sourceMatch:observed.includes("private"+"Number")};`;
+  return 'function calculate(input){const '+name+'=input+5;return '+name+';}' +
+    'const observed='+observation+';' +
+    'globalThis.result={value:calculate(3),sourceMatch:observed.includes("private"+"Number")};';
 }
 
 /** @param {string} dir @param {string} name @param {string} code @returns {Promise<{value:number,sourceMatch:boolean}>} */
@@ -42,6 +43,16 @@ async function main() {
     ['html-selector-inner-html', 'document.querySelector("html").innerHTML'],
     ['id-script-text', 'document.getElementById("script-probe").textContent'],
   ];
+  // This must be a genuinely eligible function-local binding. A top-level
+  // classic-script lexical is not proof of transformability.
+  const inert='function calculate(input){const privateNumber=input+5;'+
+    'return privateNumber;}globalThis.result=calculate(3);';
+  const eligible=obfuscateFiles([{path:'inline.js',sourceType:'script',code:inert}],
+    {mode:'coo',seed:'dom-serialization/positive-control',strings:false,identifiers:true}).files[0];
+  console.log(JSON.stringify({label:'inert-positive-rename',
+    bindings:eligible.metrics.bindings,changed:eligible.code!==inert}));
+  assert.ok(eligible.metrics.bindings>0,
+    'The identifier transform must have positive eligible rewrite yield');
   const dir=await fs.mkdtemp(path.join(os.tmpdir(),'dom-serialization-audit-'));
   try {
     for (const [label, observation] of observations) {
