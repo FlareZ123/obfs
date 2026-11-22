@@ -372,9 +372,11 @@ async function readReviewedAssets(sourceRoot,filename) {
 }
 
 /**
- * Refuse a SNO .js file whose actual input or output package scope differs
- * from its declared source type. Node resolves the nearest package.json,
- * including files outside the supplied tree and stale nested output files.
+ * Refuse a SNO executable whose external package context is not included
+ * in its declared source tree. For .js, compare the actual Node module kind
+ * with its declared source type. For .js/.cjs/.mjs, refuse an untracked
+ * package imports mapping that could change relative to the emitted tree.
+ * Node may read ancestors and stale nested package metadata.
  * This checks the current filesystem; relocation requires a new check.
  * @param {SourceFile[]} files
  * @param {string} root
@@ -385,8 +387,8 @@ async function assertSnoPackageScope(files,root,context) {
   const emitted=new Set(files.map(file=>file.path));
   // Every .js may encounter a stale package.json in a reused output tree,
   // including beneath an emitted package.json that would otherwise govern it.
-  const javascript=files.filter(file=>file.path.endsWith('.js'));
-  if(javascript.length===0)return;
+  const scripts=files.filter(file=>/\.(?:[cm]?js)$/.test(file.path));
+  if(scripts.length===0)return;
 
   // Node resolves filesystem aliases before loading files. Resolve the
   // nearest existing ancestor so a symlinked output does not hide its scope.
@@ -404,10 +406,11 @@ async function assertSnoPackageScope(files,root,context) {
     }
   }
 
-  /** @type {Map<string,'module'|'other'|'missing'>} */
+  /** @type {Map<string,{type:'module'|'other',hasImports:boolean}|'missing'>} */
   const scopes=new Map();
-  for(const file of javascript) {
+  for(const file of scripts) {
     const expectedModule=file.sourceType==='module';
+    const jsFile=file.path.endsWith('.js');
     let relative=path.posix.dirname(file.path);
     let directory=path.dirname(path.join(canonical,file.path));
     for(;;) {
@@ -433,14 +436,21 @@ async function assertSnoPackageScope(files,root,context) {
             throw new TypeError('Invalid SNO '+context+' external package metadata: '+
               path.join(directory,'package.json'));
           }
-          type=ownsType && metadata.type==='module'?'module':'other';
+          type={
+            type:ownsType && metadata.type==='module'?'module':'other',
+            hasImports:Object.hasOwn(metadata,'imports')
+          };
         } else type='missing';
         scopes.set(directory,type);
       }
       if(type!=='missing') {
-        if((type==='module')!==expectedModule) {
+        if(jsFile && (type.type==='module')!==expectedModule) {
           throw new Error('SNO '+context+' .js inherits external '+
-            (type==='module'?'ESM':'CommonJS')+' package scope: '+
+            (type.type==='module'?'ESM':'CommonJS')+' package scope: '+
+            path.join(directory,'package.json'));
+        }
+        if(type.hasImports) {
+          throw new Error('SNO '+context+' executable inherits external package imports: '+
             path.join(directory,'package.json'));
         }
         break;
