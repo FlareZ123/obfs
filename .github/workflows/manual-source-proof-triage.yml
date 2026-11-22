@@ -20,6 +20,8 @@ jobs:
         with:
           node-version: '22'
       - run: npm install --no-package-lock --ignore-scripts
+      - name: Independent exported aggregate and returned callable source reachability
+        run: node --test test/esm-exported-callable-aggregate-reachability.test.js
       - name: Inspect inert-clone group versus local owner proofs
         run: node sims/inert-clone-source-triage.js
       - name: Direct declaration reader interprocedural proof and native ESM differential
