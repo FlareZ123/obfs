@@ -43,6 +43,12 @@ jobs:
         env:
           CHROMIUM_BIN: google-chrome
         run: node test/xhtml-sri-browser.js
+      - name: Reject generic XML browser-document source and preserve SRI
+        run: node --test test/xml-document-asset.test.js
+      - name: Check application/xml namespace scripts and SRI in real Chromium
+        env:
+          CHROMIUM_BIN: google-chrome
+        run: node test/xml-document-asset-browser.js
       - name: Run live browser integration suite
         env:
           CHROMIUM_BIN: google-chrome
