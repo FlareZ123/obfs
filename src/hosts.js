@@ -38,7 +38,14 @@ function canonicalAllowedHosts(hosts) {
   if(!Array.isArray(hosts)||!hosts.length) {
     throw new TypeError('allowedHosts must be a nonempty array');
   }
-  return [...new Set(hosts.map(canonicalAllowedHost))];
+  /** @type {string[]} */
+  const canonical=[];
+  for(let index=0;index<hosts.length;index++) {
+    // Array#map skips sparse slots and could silently shrink the policy.
+    if(!Object.hasOwn(hosts,index))throw new TypeError('allowedHosts must contain strings');
+    canonical.push(canonicalAllowedHost(hosts[index]));
+  }
+  return [...new Set(canonical)];
 }
 
 /**
