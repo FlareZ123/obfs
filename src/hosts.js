@@ -40,7 +40,8 @@ function canonicalAllowedHosts(hosts) {
   }
   /** @type {string[]} */
   const canonical=[];
-  for(let index=0;index<hosts.length;index++) {
+  const declaredLength=hosts.length;
+  for(let index=0;index<declaredLength;index++) {
     // Array#map skips sparse slots and could silently shrink the policy.
     if(!Object.hasOwn(hosts,index))throw new TypeError('allowedHosts must contain strings');
     canonical.push(canonicalAllowedHost(hosts[index]));
