@@ -20,7 +20,10 @@ async function main() {
   const child=spawn(process.execPath,['--test','--test-reporter=tap',...tests],{
     stdio:['ignore','pipe','inherit'],windowsHide:true
   });
-  let status=null;
+  const completed=new Promise((resolve,reject)=>{
+    child.once('error',reject);
+    child.once('close',(code,signal)=>resolve(code??1));
+  });
   /** @type {string[][]} */
   const failures=[];
   /** @type {string[]} */
@@ -40,7 +43,7 @@ async function main() {
     if(active&&active.length<65)active.push(line);
     if(/^#\s+(?:tests|suites|pass|fail|cancelled|skipped|todo|duration_ms)\b/u.test(line))summary.push(line);
   }
-  status=await new Promise(resolve=>child.once('close',(code,signal)=>resolve(code??1)));
+  const status=await completed;
   process.stdout.write('TEST_DIAGNOSTIC '+JSON.stringify({
     fileCount:tests.length,seenLines,failedBlocks:failures.length,status
   })+'\n');
