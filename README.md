@@ -298,6 +298,11 @@ after distribution. Include required package metadata within `--root`
 to retain the intended package resolution. The check does not certify
 arbitrary third-party dependencies or custom loaders. See the
 [source-pinned scope reproduction](im-results/sno-ambient-output-package-scope-2026-11-22.md).
+Node 22 can also **syntax-detect** ESM in a typeless `.js` file. The SNO CLI
+currently declines such a source if it contains ESM-only syntax; give the
+declared group a `package.json` with `{"type":"module"}` or use `.mjs`
+to enable the supported ESM dependency path. This is an explicit source
+admission limit, not a transformed-output differential.
 
 The programmatic API is `require('./src')`, exporting `virtualizeExpressionGraphs`, `lowerWasmI32Functions`, `obfuscateFiles`, `createSnoLauncher`, `createScoHandler`, `createScoRpcClientSource`, `createScoBatchMethod`, `preflightScoBatchState`, `partitionScoAsyncModule`, `bindScoModuleExports`, `partitionScoAsyncGraph`, and `bindScoGraphExports`. A file is `{path,code,sourceType?}`. Modes are `coo`, `sco`, `sno`; supported source types are `script`, `module`, `commonjs`, `asset`.
 
