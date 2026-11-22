@@ -36,7 +36,11 @@ const consumers=[
   ['transitive immutable alias','(()=>{const one=CSS.escape;const two=one;return two(inspect);})()'],
   ['bound CSS.escape alias','(()=>{const escape=CSS.escape.bind(CSS);return escape(inspect);})()'],
   ['direct bound CSS.escape call','CSS.escape.bind(CSS)(inspect)'],
-  ['CSS.escape destructuring alias','(()=>{const {escape:selector}=CSS;return selector(inspect);})()']
+  ['CSS.escape destructuring alias','(()=>{const {escape:selector}=CSS;return selector(inspect);})()'],
+  ['Reflect.get CSS.escape','Reflect.get(CSS,"escape")(inspect)'],
+  ['detached Reflect.get CSS.escape','(()=>{const selector=Reflect.get(CSS,"escape");return selector(inspect);})()'],
+  ['Reflect.get constant key','(()=>{const key="escape";return Reflect.get(CSS,key)(inspect);})()'],
+  ['detached Reflect.get accessor','(()=>{const getter=Reflect.get;return getter(CSS,"escape")(inspect);})()']
 ];
 
 for(const [name,expression] of consumers) {
