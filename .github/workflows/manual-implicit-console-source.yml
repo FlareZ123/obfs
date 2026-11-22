@@ -51,6 +51,9 @@ jobs:
       - name: Node CommonJS enclosing function source under private-class proof
         if: ${{ !cancelled() }}
         run: node --test test/cjs-wrapper-source-observer.test.js
+      - name: Host preloader observes private class source through sloppy CJS wrapper
+        if: ${{ !cancelled() }}
+        run: node --test test/private-class-host-caller-source-review.test.js
       - name: Browser verifies positive private class rename yield
         if: ${{ !cancelled() && matrix.os == 'ubuntu-latest' }}
         env:
