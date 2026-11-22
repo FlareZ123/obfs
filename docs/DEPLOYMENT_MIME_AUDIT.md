@@ -5,6 +5,8 @@ checks a specific, already deployed public distribution against a separately
 reviewed byte/MIME manifest. It is intended for staging verification before
 activating or advertising the distribution. The publisher retains responsibility
 for configuring the actual server and preventing subsequent unreviewed changes.
+The staging origin must use HTTPS, except for loopback-only HTTP development
+on localhost, 127.0.0.1 or [::1].
 
 ## Example
 
