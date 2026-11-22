@@ -32,11 +32,12 @@ test('bound public export keeps native source and callable metadata while privat
     identifiers:true,strings:false
   });
   assert.equal(output.files[0].metrics.properties,2,'two private keys must actually change');
-  assert.doesNotMatch(output.files[0].code,/secretField|otherField/u);
+  const protectedCode=/** @type {string} */ (output.files[0].code);
+  assert.doesNotMatch(protectedCode,/secretField|otherField/u);
   const root=await fs.mkdtemp(path.join(os.tmpdir(),'obfs-bound-source-'));
   try {
     const original=await load(path.join(root,'original.mjs'),native);
-    const protectedEntry=await load(path.join(root,'protected.mjs'),output.files[0].code);
+    const protectedEntry=await load(path.join(root,'protected.mjs'),protectedCode);
     assert.equal(protectedEntry.hot.toString(),original.hot.toString());
     assert.equal(protectedEntry.hot.name,original.hot.name);
     assert.equal(protectedEntry.hot.length,original.hot.length);
