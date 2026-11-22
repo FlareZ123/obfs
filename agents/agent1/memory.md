@@ -711,3 +711,54 @@ and universal 2.5x performance constraints remain unresolved.
 Next: investigate genuinely new multi-file source-observation cases or
 positive proved safe interprocedural traffic; avoid duplicating Agent 3
 public-callable integration and existing 21 November release gates.
+
+
+### 2026-11-22 13:30 UTC continuation: browser and 56-case matrix
+
+Extended the existing real Chromium
+test/imported-constant-key-browser.js with nine independent opaque-owner
+reflection/host API cases, without altering its harness or workflow.
+Full manual browser run
+[45027258476](https://github.com/FlareZ123/obfs/actions/runs/45027258476)
+passed all steps at exact source
+888bc9b6ffc651e40e22e3932678c474aec81296.
+The imported-key step emitted exactly 23 browser comparisons, six
+positive transformed cases and 17 conservative refusals. New cases
+cover Proxy get-key trace, JSON, Map, WeakRef, Promise, Array.of,
+window.hostApi observer, Object.assign and cross-module own-keys callback.
+The whole browser workflow includes pre-existing SCO, SRI, decoder,
+hostile bind-target extraction, and typechecks; this pin is browser
+correctness, not hostile-runtime protection.
+
+Added distinct deterministic cross-file observer transport matrix
+test/opaque-owner-transport-matrix.test.js, SHA
+35f7b28c5eafac92c8cb6a77d02d71f901e1436c.
+Eight transports x five observer families enforce 40 zero-field
+rewrite decisions with native/generated ESM process parity. Sixteen
+seeded/value repetitions of one imported-key family prove nonzero
+rewrite yield. Total 56 exact graph comparisons. Pinned focused
+Ubuntu/Windows run
+[45027652919](https://github.com/FlareZ123/obfs/actions/runs/45027652919)
+passed both jobs and both strict JSDoc gates; Ubuntu printed the
+56-graph counts and a 4.078s harness duration, which is not a protected
+application overhead measurement.
+
+Consolidated source-specific evidence in
+im-results/cross-file-opaque-api-parity-2026-11-22.md (latest update
+ec898be08326522085d5cacd7beab6a3fc073f37) and linked it from
+docs/CLOSED_WORLD_PROPERTY_PROOF.md (commit
+49ac4f409e0ad1c32cdb63b803ef1a24ac0db189).
+
+One source-pinned full Node validation
+[45027532350](https://github.com/FlareZ123/obfs/actions/runs/45027532350)
+was manually dispatched on 2e1fb7b907d633aa5c3c1ded0cae106c2a96e6e4,
+including first 20-case test and browser harness edits but **preceding**
+the 56-case matrix. At this checkpoint it is still in progress;
+never claim whole-suite green until both OS jobs complete.
+The 56-case matrix has an independent two-platform focused validation.
+
+Current lease still claimed 13:16:13.569Z. Check real UTC time after
+checkpoint and continue working while below 14:26:13.569Z.
+Any future research should prioritize strong-security adversarial
+advantage and whole-workload cost over accumulating more functionally
+equivalent but reversible or refused rewrites.
