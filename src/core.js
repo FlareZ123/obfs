@@ -1813,6 +1813,23 @@ function mutatesDecoderIntrinsic(ast,rejectCommonJsExportEscape=false,rejectEsmE
         if(key==='create')objectCreateAliases.add(property.value.name);
       }
     }
+    // Destructuring reads the same descriptor-entry object as a direct
+    // member expression: `const {ref:entry}=descriptors` may later mutate
+    // `entry.get`. Track the entry conservatively even for computed keys.
+    const readPattern=node.type==='VariableDeclarator'&&
+      node.id.type==='ObjectPattern'&&node.init?.type==='Identifier'?
+      {source:node.init.name,pattern:node.id}:
+      node.type==='AssignmentExpression'&&node.operator==='='&&
+      node.left.type==='ObjectPattern'&&node.right.type==='Identifier'?
+      {source:node.right.name,pattern:node.left}:null;
+    if(readPattern){
+      const aliases=descriptorMemberReadAliases.get(readPattern.source)??new Set();
+      for(const property of readPattern.pattern.properties){
+        if(property.type==='Property'&&property.value.type==='Identifier')
+          aliases.add(property.value.name);
+      }
+      if(aliases.size)descriptorMemberReadAliases.set(readPattern.source,aliases);
+    }
     if(node.type==='VariableDeclarator'&&node.id.type==='Identifier'&&node.init){
       const entries=descriptorBindings.get(node.id.name)??[];
       entries.push(node.init);
