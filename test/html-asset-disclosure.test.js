@@ -532,3 +532,39 @@ test('document.write-inserted integrity attribute pins original sibling script b
       'DOM-written integrity metadata must pin sibling source bytes in '+mode);
   }
 });
+
+
+test('document-write SRI guard follows proven document aliases and opaque markup',()=>{
+  const source='globalThis.aliasDocumentWriteSRI="the original parser-written script is pinned";';
+  const hash=require('node:crypto').createHash('sha256').update(source).digest('base64');
+  const markup=JSON.stringify('<script src="./client.js" INTEGRITY = "sha256-'+hash+'"></script>');
+  const cases=[
+    ['local alias','const doc=document;doc.write('+markup+');'],
+    ['window.document alias','const doc=window.document;doc.writeln('+markup+');'],
+    ['destructured document alias','const {document:doc}=globalThis;doc.write('+markup+');'],
+    ['computed method','const method="wri"+"te";document[method]('+markup+');'],
+    ['global member','globalThis.document.write('+markup+');'],
+    ['computed global member','window["document"].writeln('+markup+');'],
+    ['opaque parser write','const html=opaqueHtml();document.write(html);']
+  ];
+  const file={path:'client.js',sourceType:/** @type {const} */('script'),code:source};
+  const html={path:'index.html',sourceType:/** @type {const} */('asset'),
+    code:Buffer.from('<script src="./bootstrap.js"></script>')};
+  for(const mode of /** @type {const} */(['coo','sco','sno'])){
+    const options={mode,seed:'document-alias/'+mode,strings:true,
+      properties:false,identifiers:false};
+    for(const [name,code] of cases){
+      const result=obfuscateFiles([
+        file,{path:'bootstrap.js',sourceType:'script',code},html
+      ],options);
+      assert.equal(result.files[0].code,source,
+        name+' must preserve possible parser-written SRI in '+mode);
+    }
+    const safe=obfuscateFiles([
+      file,{path:'bootstrap.js',sourceType:'script',
+        code:'const doc=document;doc.write("<p>an ordinary literal</p>");'},html
+    ],options);
+    assert.notEqual(safe.files[0].code,source,
+      'A known unrelated literal document.write must keep transformation yield in '+mode);
+  }
+});
