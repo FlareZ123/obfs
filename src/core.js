@@ -1990,6 +1990,9 @@ function mutatesDecoderIntrinsic(ast,rejectCommonJsExportEscape=false,rejectEsmE
         (/** @type {import('./ast').AstNode} */ source)=>
           descriptorMemberValues(source,property,visited));
     }
+    if(expression.type==='NewExpression'||expression.type==='CallExpression') {
+      return [expression];
+    }
     if(expression.type==='SequenceExpression'&&expression.expressions.length) {
       return descriptorMemberValues(
         expression.expressions[expression.expressions.length-1],property,visited);
@@ -2081,6 +2084,12 @@ function mutatesDecoderIntrinsic(ast,rejectCommonJsExportEscape=false,rejectEsmE
       return expression.arguments.some(
         (/** @type {import('./ast').AstNode} */ source)=>
           objectCreateMayExposeDecoder(source,visited));
+    }
+    // Unknown constructors/factories may synthesize descriptor maps through
+    // proxies or reflective traps. If this source also writes a sensitive
+    // decoder intrinsic, fail closed rather than assuming a plain object.
+    if(expression.type==='NewExpression'||expression.type==='CallExpression') {
+      return sensitiveAccessorWrite;
     }
     if(expression.type!=='ObjectExpression')return false;
     return expression.properties.some(
