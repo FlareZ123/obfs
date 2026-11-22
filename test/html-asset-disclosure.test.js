@@ -757,6 +757,12 @@ test('document.write argument and statement fragments can jointly form a script 
     ],options);
     assert.notEqual(control.files[0].code,source,
       'A single unpinned parser-written script must keep rewrite yield in '+mode);
+    const unpinnedParts=obfuscateFiles([
+      client,{path:'bootstrap.js',sourceType:'script',
+        code:'document.write("<scr","ipt src=\\\"./client.js\\\"></script>");'},html
+    ],options);
+    assert.notEqual(unpinnedParts.files[0].code,source,
+      'An argument-split script without SRI must remain transformable in '+mode);
     for(const [name,code] of cases){
       const pinned=obfuscateFiles([
         client,{path:'bootstrap.js',sourceType:'script',code},html
