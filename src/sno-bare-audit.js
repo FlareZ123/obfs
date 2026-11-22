@@ -67,7 +67,10 @@ function directBareRequires(files) {
           node.callee.name!=='require')return;
       if(!node.arguments?.length ||
          node.arguments[0]?.type!=='Literal'||
-         typeof node.arguments[0].value!=='string')return;
+         typeof node.arguments[0].value!=='string') {
+        unprovedRequire=true;
+        return;
+      }
       const specifier=/** @type {string} */(node.arguments[0].value);
       if(specifier==='.'||specifier==='..'||
           specifier.startsWith('./')||specifier.startsWith('../')||
