@@ -7,8 +7,10 @@ const {obfuscateFiles}=require('../src');
 
 /** @param {string} code @returns {string|undefined} */
 function execute(code) {
+  /** @type {{module:{exports:unknown}}} */
   const sandbox={module:{exports:null}};
   vm.runInNewContext(code,sandbox,{timeout:2000});
+  if(typeof sandbox.module.exports==='function')return sandbox.module.exports.toString();
   return JSON.stringify(sandbox.module.exports);
 }
 
@@ -88,6 +90,17 @@ check('owner key reflection',
 check('private object escapes through public module export',
   'const seedValue=17;const privateOwner={secretField:seedValue,otherField:5};'+
   'module.exports=privateOwner;',false);
+check('exported function source text remains observable',
+  'const seedValue=17;const privateOwner={secretField:seedValue,otherField:5};'+
+  'module.exports=function publicReader(){return privateOwner.secretField;};',false);
+check('local function toString observes original private property spelling',
+  'const seedValue=17;const privateOwner={secretField:seedValue,otherField:5};'+
+  'function reader(){return privateOwner.secretField;}'+
+  'module.exports=[reader(),reader.toString()];',false);
+check('function source from object-valued public result declines',
+  'const seedValue=17;const privateOwner={secretField:seedValue,otherField:5};'+
+  'module.exports=[privateOwner.secretField,(()=>privateOwner.otherField).toString()];',false);
+
 check('dynamic key from own-key reflection',
   'const seedValue=17;const privateOwner={secretField:seedValue,otherField:5};'+
   'module.exports=privateOwner[Object.keys(privateOwner)[0]];',false);
