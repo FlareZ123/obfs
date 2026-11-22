@@ -85,3 +85,15 @@ test('SCO refuses first-class Blob instance methods with unproved source identit
   ];
   for(const body of bodies)assert.throws(()=>compile(body),TypeError,body);
 });
+
+test('native Blob.stream returns a host ReadableStream constructor',()=>{
+  const stream=new Blob([]).stream();
+  assert.equal(stream.constructor,ReadableStream);
+  assert.match(String(stream.constructor),/ReadableStream/u);
+  assert.ok(String(stream.constructor).length>20);
+});
+
+test('SCO refuses unproved Blob.stream result constructor source',()=>{
+  const body="return String(new Blob([]).stream().constructor).slice(0,80);";
+  assert.throws(()=>compile(body),TypeError);
+});
