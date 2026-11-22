@@ -12,8 +12,8 @@ const source='// new globalThis.WebAssembly.Module(globalThis.Uint8Array.from([1
   "'use strict';\n"+
   'function first(a){return ((a^137)&255);}\n'+
   'function second(b,c){return (((b|c)^31)>>>0);}\n'+
-  'function publicFirst(a){return first(a);}\n'+
-  'function publicSecond(b,c){return second(b,c);}\n'+
+  'function publicFirst(a){\n  /* public wrapper source must remain byte-exact */\n  return first(a);\n}\n'+
+  'function publicSecond(b,c){\n  /* second wrapper source must remain byte-exact */\n  return second(b,c);\n}\n'+
   'module.exports={first:publicFirst,second:publicSecond};\n';
 
 /**
@@ -48,6 +48,12 @@ test('automated public-only native replacement needs no WebAssembly, original so
     assert.ok(attack.replacementBytes<attack.sourceBytes);
     assert.doesNotMatch(attack.code,/WebAssembly|Uint8Array/u);
     const compiled=load(emitted.code,globalThis);
+    const originalSources=[Function.prototype.toString.call(original.first),
+      Function.prototype.toString.call(original.second)];
+    assert.deepEqual([Function.prototype.toString.call(compiled.first),
+      Function.prototype.toString.call(compiled.second)],originalSources);
+    assert.deepEqual([Function.prototype.toString.call(replacement.first),
+      Function.prototype.toString.call(replacement.second)],originalSources);
     // Deliberately exclude Wasm from the attacker's replacement runtime.
     const replacement=load(attack.code,Object.freeze({}));
     assert.deepEqual(Object.keys(replacement).sort(),['first','second']);
