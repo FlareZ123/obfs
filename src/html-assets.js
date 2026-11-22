@@ -322,8 +322,8 @@ function hasPinnedLocalJavaScriptIntegrity(files,routePrefix='') {
     try {
       const url=new URL(href,base);
       if(url.protocol!=='http:'&&url.protocol!=='https:')return null;
-      // A configured SCO mount can retain percent-encoded characters in
-      // the HTTP pathname, so match that exact public spelling first.
+      // SCO may preserve percent-encoded mount path bytes. Recognize an
+      // exact raw distributed pathname before checking decoded aliases.
       const encodedPath=url.pathname.slice(1);
       if(matchesDistributedScript(encodedPath))return encodedPath;
       const pathname=decodeURIComponent(url.pathname);

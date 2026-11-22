@@ -12,6 +12,19 @@ According to [XML 1.0](https://www.w3.org/TR/xml/), the XML declaration is optio
 
 For each distributed public resource, record reviewed immutable bytes, the canonical published URL or route, the expected media type, and the exact content encoding. A strict mode would reject any public asset whose eventual HTTP representation cannot be assigned a reviewed type. An optional relaxed mode can preserve current compatibility, but must not imply that opaque assets were fully audited.
 
+The standards distinguish parser modes by actual HTTP content type. The
+[WHATWG MIME Sniffing Standard](https://mimesniff.spec.whatwg.org/) defines
+JavaScript MIME type essence matches and XML types (including `+xml`
+subtypes). The [WHATWG HTML Standard](https://html.spec.whatwg.org/multipage/introduction.html)
+defines HTML and XML document parsing according to delivery MIME. The
+[Fetch Standard](https://fetch.spec.whatwg.org/) specifies that
+`X-Content-Type-Options: nosniff` can reject script-like destinations with
+non-JavaScript MIME types, and CSS destinations with non-CSS MIME types.
+A correctly declared `text/javascript` opaque resource can still execute
+under that header, so nosniff alone does not prove code went through
+obfuscator admission. The independently hosted response and any redirects
+must be included in the deployment check.
+
 A proof checker should normalize media type tokens separately from parameters, and classify each typed resource by its **declared delivery semantics**:
 
 - XML-family (`application/xml`, `text/xml`, `application/xhtml+xml`, `image/svg+xml`, and `+xml` subtypes): namespace-aware source, URL, stylesheet and SRI review, including documents without an XML declaration.
@@ -21,6 +34,13 @@ A proof checker should normalize media type tokens separately from parameters, a
 - Other media types: explicit review policy and exact-byte output control, with no inference that unknown MIME is intrinsically inert.
 
 Do not validate a manifest against only its own untrusted file bytes; the existing reviewed-asset SHA-256 trust model requires independent approval. Snapshot input file data and metadata only once before preflight to avoid getter/Buffer drift. A verified compiler inventory must be bound to the actual deployment representation: a build-time manifest alone does not force a third-party server or proxy to honor its contents.
+
+A browser script-integrity digest concerns the representation consumed
+by the browser. If a host applies `Content-Encoding` compression, distinguish
+wire encoded bytes from the decoded resource representation; verify the
+latter when comparing against declared SRI. Keep the exact encoding and
+header chain as deployment evidence. See the
+[W3C Subresource Integrity specification](https://www.w3.org/TR/SRI/).
 
 ## Mode-specific expectations
 
