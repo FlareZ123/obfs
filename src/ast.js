@@ -3781,4 +3781,89 @@ function observesDistributedSource(ast,importedStrings=new Map()) {
   return observed;
 }
 
-module.exports = {parse, walk, applyEdits, observesFunctionSource, observesDistributedSource, staticString, collectDirectCarrierFactories, sourceSpelledErrorOperand};
+/**
+ * Identify callable AST nodes whose source text is externally observable
+ * because the callable (or an object containing it) is exported from this
+ * module. This intentionally handles direct declarations, exported variable
+ * initializers, and local export aliases. It does not attempt to infer every
+ * callable returned through arbitrary data flow.
+ *
+ * The returned node identities can be used as source-frozen ranges by
+ * transformations. Nested functions are included because an enclosing
+ * function's Function#toString text contains their source.
+ *
+ * @param {AstNode} ast
+ * @returns {Set<AstNode>}
+ */
+function collectExportedCallableNodes(ast) {
+  /** @type {Set<AstNode>} */
+  const exposed=new Set();
+  /** @type {Map<string,AstNode|null|undefined>} */
+  const topLevelBindings=new Map();
+  /** @param {AstNode|null|undefined} root @returns {void} */
+  function markTree(root) {
+    if(!root||typeof root!=='object')return;
+    walk(root,node=>{
+      if(['FunctionDeclaration','FunctionExpression','ArrowFunctionExpression'].includes(node.type)) {
+        exposed.add(node);
+      }
+    });
+  }
+  /** @param {string} name @param {Set<string>} [seen] @returns {void} */
+  function markBinding(name,seen=new Set()) {
+    if(seen.has(name))return;
+    seen.add(name);
+    const value=topLevelBindings.get(name);
+    if(!value)return;
+    if(value.type==='Identifier') {
+      markBinding(value.name,seen);
+      return;
+    }
+    markTree(value);
+  }
+
+  for(const statement of ast.body||[]) {
+    const declaration=statement.type==='ExportNamedDeclaration'?
+      statement.declaration:statement;
+    if(!declaration)continue;
+    if((declaration.type==='FunctionDeclaration'||
+        declaration.type==='ClassDeclaration')&&declaration.id) {
+      topLevelBindings.set(declaration.id.name,declaration);
+    } else if(declaration.type==='VariableDeclaration') {
+      for(const item of declaration.declarations) {
+        if(item.id.type==='Identifier')topLevelBindings.set(item.id.name,item.init);
+      }
+    }
+  }
+
+  for(const statement of ast.body||[]) {
+    if(statement.type==='ExportNamedDeclaration') {
+      const declaration=statement.declaration;
+      if(declaration) {
+        if(declaration.type==='FunctionDeclaration'||
+           declaration.type==='ClassDeclaration')markTree(declaration);
+        else if(declaration.type==='VariableDeclaration') {
+          for(const item of declaration.declarations) {
+            if(item.id.type==='Identifier')markBinding(item.id.name);
+            else markTree(item.init);
+          }
+        }
+      } else {
+        for(const specifier of statement.specifiers||[]) {
+          if(specifier.type==='ExportSpecifier'&&specifier.local.type==='Identifier') {
+            markBinding(specifier.local.name);
+          }
+        }
+      }
+    } else if(statement.type==='ExportDefaultDeclaration') {
+      if(statement.declaration.type==='Identifier') {
+        markBinding(statement.declaration.name);
+      } else {
+        markTree(statement.declaration);
+      }
+    }
+  }
+  return exposed;
+}
+
+module.exports = {parse, walk, applyEdits, observesFunctionSource, observesDistributedSource, staticString, collectDirectCarrierFactories, sourceSpelledErrorOperand, collectExportedCallableNodes};
