@@ -185,6 +185,8 @@
     "sims/compatible-permutation-linear-sandwich-sparse-counterexample.js",
     "sims/low-rank-shear-quotient-pilot.js",
     "test/compatible-permutation-linear-sandwich-counterexample.test.js",
+    "sims/mba-permutation-component-inverse.js",
+    "sims/mba-permutation-heldout-inverse.js",
     "sims/mba-author-int32-component-inverse.js",
     "sims/mba-author-int32-heldout.js",
     "test/mba-author-int32-heldout.test.js",
