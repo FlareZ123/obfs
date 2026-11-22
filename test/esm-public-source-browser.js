@@ -205,7 +205,7 @@ async function main() {
   }
   const summary={cases:pairs.length,sourceMismatches,ordinaryValueMatches,positiveRewrites,declaredMatches};
   assert.equal(summary.cases,27);
-  assert.equal(summary.ordinaryValueMatches,18,'Ordinary return values must be equal');
+  assert.equal(summary.ordinaryValueMatches,27,'Ordinary return values must be equal');
   assert.equal(summary.sourceMismatches,0,
     'Candidate must preserve external callable source in Chromium');
   // Public-callable edit refusal is valid; private rewrite yield is checked
