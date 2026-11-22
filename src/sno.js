@@ -119,8 +119,8 @@ function createSnoLauncher(files,entry) {
     moduleScopes.push([file.path,file.sourceType==='module'?'module':'commonjs']);
   }
   const runtimeScopeCheck=moduleScopes.length ?
-    \`const scopes=\${JSON.stringify(moduleScopes)};\\n\` +
-    \`for(const [file,expected] of scopes){let folder=path.dirname(path.join(__dirname,file));let kind='commonjs';for(;;){let data;try{data=fs.readFileSync(path.join(folder,'package.json'),'utf8');}catch(error){if(error.code!=='ENOENT')throw error;}if(data!==undefined){const metadata=JSON.parse(data.charCodeAt(0)===0xfeff?data.slice(1):data);kind=metadata.type==='module'?'module':'commonjs';break;}if(path.basename(folder)==='node_modules')break;const parent=path.dirname(folder);if(parent===folder)break;folder=parent;}if(kind!==expected)throw Error('SNO runtime package-scope mismatch: '+file);}\\n\` : '';
+    `const scopes=${JSON.stringify(moduleScopes)};\n` +
+    `for(const [file,expected] of scopes){let folder=path.dirname(path.join(__dirname,file));let kind='commonjs';for(;;){let data;try{data=fs.readFileSync(path.join(folder,'package.json'),'utf8');}catch(error){if(error.code!=='ENOENT')throw error;}if(data!==undefined){const metadata=JSON.parse(data.charCodeAt(0)===0xfeff?data.slice(1):data);kind=metadata.type==='module'?'module':'commonjs';break;}if(path.basename(folder)==='node_modules')break;const parent=path.dirname(folder);if(parent===folder)break;folder=parent;}if(kind!==expected)throw Error('SNO runtime package-scope mismatch: '+file);}\n` : '';
   return `'use strict';\n` +
     `const fs=require('node:fs');const crypto=require('node:crypto');const path=require('node:path');\n` +
     `const checks=${JSON.stringify(manifest)};\n` +
