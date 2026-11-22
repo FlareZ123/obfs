@@ -128,7 +128,22 @@ function nestedBody(depth){
   return ast.body[0].declaration.body;
 }
 
-/** @param {number} depth @returns {{depth:number,previous_ms:number,pruned_ms:number}} */
+/**
+ * @param {number[]} values
+ * @returns {number}
+ */
+function median(values){
+  const sorted=[...values].sort((a,b)=>a-b);
+  return Number(((sorted[3]+sorted[4])/2).toFixed(3));
+}
+
+/**
+ * @param {number} depth
+ * @returns {{
+ *   depth:number,scopes:number,previous_ms:number[],
+ *   pruned_ms:number[],previous_median_ms:number,pruned_median_ms:number
+ * }}
+ */
 function bench(depth){
   const source=nestedSource(depth);
   const ast=parse(source,'module');
@@ -144,9 +159,24 @@ function bench(depth){
     for(const scope of scopes)run(scope);
     return Number((performance.now()-start).toFixed(3));
   }
-  const previous_ms=elapsed(previousHoists);
-  const pruned_ms=elapsed(prunedHoists);
-  return {depth,previous_ms,pruned_ms};
+  const previous_ms=[];
+  const pruned_ms=[];
+  // Warm both visitors before alternating measurement order. A/B is one
+  // parsed fixture, no parser or module-loader time included.
+  elapsed(previousHoists);
+  elapsed(prunedHoists);
+  for(let pair=0;pair<8;pair++){
+    if(pair%2===0){
+      previous_ms.push(elapsed(previousHoists));
+      pruned_ms.push(elapsed(prunedHoists));
+    }else{
+      pruned_ms.push(elapsed(prunedHoists));
+      previous_ms.push(elapsed(previousHoists));
+    }
+  }
+  return {depth,scopes:scopes.length,previous_ms,pruned_ms,
+    previous_median_ms:median(previous_ms),
+    pruned_median_ms:median(pruned_ms)};
 }
 
 function main(){
@@ -173,6 +203,7 @@ function main(){
   console.log(JSON.stringify({
     seed:'0x4f2a1bc0',fixtures:400,scope_comparisons:compared,
     tested_production_depths:[32,128,256],node:process.version,
+    method:'eight alternating previous/pruned pairs after warmup; AST parsing excluded',
     costs
   },null,2));
 }
