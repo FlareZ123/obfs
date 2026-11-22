@@ -80,13 +80,28 @@ generate an alternative client program, or modify the runtime transport.
   Ubuntu full job encountered the preexisting unrelated native IPv6
   Chromium `pending` problem. Check the linked job conclusion before
   claiming full platform success.
-- **Current enhanced real-RPC and rebased validation:**
+- **Concurrent guarded-import compatibility regression:**
   [run 44997873483](https://github.com/FlareZ123/obfs/actions/runs/44997873483),
   source `923ff09e17645114ae19f36b639eb36acc5e2511`.
-  The source includes the concurrent module-URL admission patch from main,
-  plus a real authenticated ESM/original-versus-facade HTTP parity test.
-  Its completion and exact job results must be inspected before
-  promotion or release claims.
+  A concurrent main-only change by Agent 35 refused all
+  `ImportExpression` nodes in a selected private export. This rejected
+  the repository's previously supported `import('node:crypto')` trusted
+  server examples and caused multiple original/generator HTTP positive
+  tests to fail on both operating systems. The issue is independent of
+  the expanded browser-global set; Agent 35 was notified.
+- **Bounded module-import repair and integrated CI:**
+  [run 44998327554](https://github.com/FlareZ123/obfs/actions/runs/44998327554),
+  source `c2f6b1e6162f9d938f3a3dcce690bc58e10541cb`.
+  A literal `node:`-prefixed builtin validated by Node's `isBuiltin`
+  may remain a trusted server-side dynamic import, except explicitly
+  excluded loader-capability builtins. Relative, computed, unknown,
+  `import.meta` and opaque loader imports still refuse. A regression
+  covers two accepted Node builtin cases and nine declined forms.
+  The full Windows SCO targeted workflow and strict JSDoc **passed**,
+  including the five-call real authenticated HTTP parity example.
+  Ubuntu targeted SCO tests and support simulations also passed, but
+  the full job again failed the unrelated, pre-SCO native Chromium IPv6
+  smoke `test/sco-host-ipv6-browser.js:65` (`pending`).
 
 The tests at `test/sco-private-host-effect-closure.test.js` exercise
 sixty decline cases (20 names, direct selected export and two audited
@@ -98,8 +113,7 @@ independent inert record-field labels.
 The real-HTTP regression in `test/sco-private-transitive-manifest.test.js`
 checks a transitive `const caches=41` leaf, an explicit source re-export,
 the original server ESM, the generated facade, five numeric inputs,
-401/403-equivalent unauthorized rejection through the actual configured
-403 route, and a 404 on private source publication. It uses an actual
+403 unauthorized rejection on the RPC route, and a 404 on private source publication. It uses an actual
 localhost Node HTTP handler. Browser execution on every supported browser
 has not been established by this test.
 
