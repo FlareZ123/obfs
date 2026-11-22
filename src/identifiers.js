@@ -44,7 +44,7 @@ function renameLocalIdentifiers(source,ast,options) {
   if(observesFunctionSource(ast)) return {code:source,bindings:0};
   const counts=collectBindings(ast);
   const sourceExposedBodies=options.preserveCallableSource===true ?
-    collectSourceExposedBodies(ast,counts) : new Set();
+    collectSourceExposedBodies(ast,counts,options.sourceType) : new Set();
   /** @type {{identifier:AstNode,name:string,scope:AstNode}[]} */
   const candidates=[];
   /** @type {{node:AstNode,parent:AstNode|null,key:string|null,ancestors:AstNode[]}[]} */
