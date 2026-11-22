@@ -23,10 +23,19 @@ The source-paired `test/object-create-bound-count-dag-compile.test.js` generates
 | 18 | 821 | 114.015 | 23.048 |
 | 20 | 905 | 404.642 | 21.549 |
 
-The depth-20 Ubuntu single-sample improvement is **18.78×** in compiler wall time on the selected source, subject to runner noise. Smaller depths do not show a consistent improvement. These numbers concern source analysis before execution and do not imply the emitted code is faster.
+| Depth | Input bytes | Unchanged Windows compiler (ms) | Memoized Windows compiler (ms) |
+|---|---:|---:|---:|
+| 4 | 276 | 7.008 | 14.077 |
+| 8 | 412 | 12.011 | 32.663 |
+| 12 | 569 | 24.806 | 21.350 |
+| 16 | 737 | 47.404 | 20.409 |
+| 18 | 821 | 139.415 | 26.352 |
+| 20 | 905 | 502.380 | 39.132 |
 
-- **Unchanged control:** commit `5b6f5912c4abbff330b0076402f0a210973f12e1`, [full workflow 45050775649](https://github.com/FlareZ123/obfs/actions/runs/45050775649). Ubuntu completed successfully with Node 22, project/external JSDoc, sampled performance and Chromium; Windows validation was in progress during this draft.
-- **Memoized candidate:** commit `47efb5db9905810d7e1c4688b194a787d3858cc1`, [full workflow 45050779839](https://github.com/FlareZ123/obfs/actions/runs/45050779839). Ubuntu completed successfully on the same workflow; Windows validation was in progress during this draft.
+The depth-20 single-sample improvements are **18.78× on Ubuntu** and **12.84× on Windows** in compiler wall time on this selected source, subject to runner noise. Smaller depths do not show a consistent improvement. These numbers concern source analysis before execution and do not imply the emitted code is faster.
+
+- **Unchanged control:** commit `5b6f5912c4abbff330b0076402f0a210973f12e1`, [full workflow 45050775649](https://github.com/FlareZ123/obfs/actions/runs/45050775649). **Ubuntu and Windows both completed successfully** with Node 22, project/external JSDoc and sampled performance; Ubuntu also passed real Chromium.
+- **Memoized candidate:** commit `47efb5db9905810d7e1c4688b194a787d3858cc1`, [full workflow 45050779839](https://github.com/FlareZ123/obfs/actions/runs/45050779839). **Ubuntu and Windows both completed successfully** on the same full workflow, including Ubuntu real Chromium.
 
 The `test/object-create-bound-count-memo-model.test.js` supplement includes a deterministic seeded graph corpus with independent exhaustive simple-path enumeration and an exhaustive three-node weighted edge grammar. The `test/object-create-bound-count-dag-crossfile.test.js` supplement compares native/emitted CJS behavior across COO/SNO/SCO, depths 2/5/8 and String-versus-Number descriptor getter controls: the String case must suppress eager string encoding, whereas the Number case must retain one positive encoding opportunity. The source pin and full two-OS outcome for these supplemental tests must be reported after the final workflow concludes.
 
