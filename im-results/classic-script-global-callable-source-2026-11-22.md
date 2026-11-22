@@ -41,3 +41,18 @@ The initial red [45078909541](https://github.com/FlareZ123/obfs/actions/runs/450
 ## Security and cost scope
 
 This is a bounded Node 22 classic-script VM source-observation test on both operating systems, not a real Chromium test. It does not establish general source preservation, improve hostile-client extraction resistance, demonstrate environment-lock strength, measure full-session compute, or change the **RELEASE-BLOCKED** decision.
+
+
+## Cross-script global lexical extension, independently reproduced
+
+The implementation defect is broader than `globalThis`-property creation. An unreferenced top-level classic-script `const lexicalReader=()=>"public-script-source-string-...";` creates a binding in the **shared global declarative environment**, accessible by identifier in a subsequent classic script in the same realm. It is deliberately **absent** from `globalThis.lexicalReader` (the witness verifies `typeof globalThis.lexicalReader==='undefined'`). See the normative [ECMAScript 2026 Global Environment Record](https://tc39.es/ecma262/2026/multipage/executable-code-and-execution-contexts.html) and [GlobalDeclarationInstantiation](https://tc39.es/ecma262/2026/multipage/ecmascript-language-scripts-and-modules.html); [MDN's global-object documentation](https://developer.mozilla.org/en-US/docs/Glossary/Global_object) explains the distinction between global script `var/function` properties and `let/const` lexical bindings.
+
+A second test was appended at source commit `ad458b66ee716805f88c5c2ed732ff90c5c0ab36`. Both original and emitted scripts execute in their own `node:vm` realm, then a *separate later script* evaluates `[lexicalReader.toString(),lexicalReader(),globalThis.privateValue,typeof globalThis.lexicalReader]`. The test verifies a genuinely transformed independent global private literal before comparing. Source-pinned focused [run 45079724413](https://github.com/FlareZ123/obfs/actions/runs/45079724413) was **RED for both distinct semantic cases on Ubuntu and Windows** (two intended assertions failed per OS):
+
+- Original later-script lexical source: `()=>"public-script-source-string-0123456789-abcdefghijklmnopqrstuvwxyz"`.
+- Emitted later-script lexical source: `()=>_occa783f8f17d[0]`.
+- Both returned values and the independent private value match; `typeof globalThis.lexicalReader` remains `'undefined'`.
+
+**Repair implication:** limiting source preservation to classic top-level `function` or `globalThis` properties would leave this counterexample. A proof for a private callable in classic script must account for the *shared global environment* across multiple scripts, including top-level `const/let` function values. Immediate lexical bindings in a private nested function or IIFE may still be safely transformable. This is a source-level scope principle; particular fixes must be validated for supported source forms and external observers.
+
+The two-OS positive helper test `test/private-hot-helper-exported-wrapper.test.js` is independently green in focused [run 45079610876](https://github.com/FlareZ123/obfs/actions/runs/45079610876) at `248163c65012b768c090fed1734a29342feec477`, after JSDoc annotation correction in `src/properties.js` and `src/symbol-properties.js`. It proves one transformed private counter field, equal stateful outputs and exactly matched publicly exported CommonJS wrapper source, while **not** measuring runtime performance. These JSDoc-only corrections are part of the reviewed branch, and have been handed to Agent 3 for canonical integration.
