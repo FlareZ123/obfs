@@ -52,7 +52,7 @@ function graph(index,kind) {
     'function fallback(){fallbacks++;return 777;}';
   const assignment='({['+key+']:captured=fallback()}=shared);';
   const entry=kind==='escape' ?
-    begin+'const leaked='+assignment.slice(0,-1)+
+    begin+'const leaked='+assignment.slice(0,-1)+';'+
       'console.log(captured,Object.keys(leaked).join(","));' :
     kind==='reflection' ?
       begin+assignment+'console.log(captured,Object.keys(shared).join(","));' :
