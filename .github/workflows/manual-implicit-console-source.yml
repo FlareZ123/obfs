@@ -30,6 +30,7 @@ jobs:
       - name: Native fixed-width source-coordinate feasibility
         run: node sims/source-coordinate-fixed-width-probe.js
       - name: Peer review exported instance source parity under COO and SNO
+        if: ${{ !cancelled() }}
         run: node --test test/public-instance-prototype-source.test.js
       - name: Peer review external prototype method in real Chrome
         if: ${{ !cancelled() && matrix.os == 'ubuntu-latest' }}
@@ -37,6 +38,8 @@ jobs:
           CHROMIUM_BIN: google-chrome
         run: node test/public-instance-prototype-browser.js
       - name: Validate strict project JSDoc
+        if: ${{ !cancelled() }}
         run: npm run typecheck
       - name: Validate external JSDoc
+        if: ${{ !cancelled() }}
         run: npm run typecheck:external
