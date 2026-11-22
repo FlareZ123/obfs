@@ -26,10 +26,18 @@ The new `test/decoder-alias-dag-compile.test.js` constructs two alias identifier
 | 10 | 476 | 169.235 | 7.838 |
 | 12 | 560 | 1,810.749 | 7.148 |
 
-The single-run depth-12 ratio is **253.32×** compiler-time improvement for this adversarially shaped source on this runner, subject to timing noise and warmup differences. Both versions recorded `literals:0` for this shape; the measured cost is analysis/preflight and does not claim improvements in emitted-code speed. This one sample does not establish a global complexity bound for the entire compiler.
+| Depth | Bytes | Unmodified Windows compile (ms) | Revised Windows compile (ms) |
+|---|---:|---:|---:|
+| 4 | 268 | 8.046 | 6.605 |
+| 6 | 336 | 30.614 | 5.889 |
+| 8 | 404 | 32.294 | 6.341 |
+| 10 | 476 | 248.176 | 13.945 |
+| 12 | 560 | 2,359.894 | 8.629 |
 
-- Unmodified [run 45049074145](https://github.com/FlareZ123/obfs/actions/runs/45049074145), source `1f954b4`: Ubuntu complete success including behavior, strict type checks, performance steps and browser checks; Windows was still in progress when this report was drafted.
-- Revised [run 45049206320](https://github.com/FlareZ123/obfs/actions/runs/45049206320), source `dbb3f19`: Ubuntu complete success across the same workflow; Windows was still in progress when this report was drafted.
+The single-run depth-12 ratios are **253.32× on Ubuntu** and **273.50× on Windows** for this adversarially shaped source, subject to timing noise and warmup differences. Both versions recorded `literals:0` for this shape; the measured cost is analysis/preflight and does not claim improvements in emitted-code speed. This one sample does not establish a global complexity bound for the entire compiler.
+
+- Unmodified [run 45049074145](https://github.com/FlareZ123/obfs/actions/runs/45049074145), source `1f954b4`: **Ubuntu and Windows completed successfully.** Both ran full Node 22 behavioral/adversarial, strict JSDoc, and sampled performance/profile steps. Ubuntu also passed real Chromium.
+- Revised [run 45049206320](https://github.com/FlareZ123/obfs/actions/runs/45049206320), source `dbb3f19`: **Ubuntu and Windows completed successfully** across the same full workflow, including Ubuntu real Chromium.
 
 ## Limitations and integration
 
