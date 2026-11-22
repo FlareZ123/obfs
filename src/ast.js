@@ -3683,6 +3683,21 @@ function observesDistributedSource(ast,importedStrings=new Map()) {
          knownKey(node.arguments[0])?.toLowerCase()==='integrity' ||
          method==='setAttributeNS' && node.arguments[1] &&
          knownKey(node.arguments[1])?.toLowerCase()==='integrity')observed=true;
+      if(node.callee.object.type==='Identifier' &&
+         node.callee.object.name==='Reflect' && method==='set' &&
+         node.arguments[1] && knownKey(node.arguments[1])==='integrity') {
+        observed=true;
+      }
+      if(node.callee.object.type==='Identifier' &&
+         node.callee.object.name==='Object' && method==='assign') {
+        for(const item of node.arguments.slice(1)) {
+          if(item.type==='ObjectExpression' && item.properties.some(prop=>
+            prop.type==='Property' &&
+              (prop.computed ? knownKey(prop.key) :
+                prop.key.type==='Identifier'?prop.key.name:
+                  knownKey(prop.key))==='integrity'))observed=true;
+        }
+      }
     }
     if(node.type==='ImportDeclaration' || node.type==='ExportAllDeclaration' ||
        node.type==='ExportNamedDeclaration' && node.source) {
