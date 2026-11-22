@@ -81,7 +81,7 @@ for(const mode of /** @type {Array<'coo'|'sno'>} */ (['coo','sno'])){
 test('static source-only ESM reconstruction refuses a missing advertised export',()=>{
   assert.throws(()=>attackPublishedSource(
     'export function round1(input){return (((input|0)+3)|0);}'
-  ),/Unavailable static function export round2|Missing proved public Int32 translation/u);
+  ),/Unavailable static function export round2|Missing proved public Int32 translation|Unproved public export set/u);
 });
 
 test('source-only rebuilt ESM refuses unproved module-level mutations',()=>{
@@ -98,6 +98,13 @@ test('source-only rebuilt ESM refuses unproved module-level mutations',()=>{
     assert.throws(()=>attackPublishedSource(source),
       /Unproved module-time side effect or mutable binding/u,source);
   }
+});
+
+test('source-only ESM synthesis refuses an unadvertised fourth export',()=>{
+  const source=['round1','round2','round3'].map(name=>
+    'export function '+name+'(x){return (((x|0)+1)|0);}'
+  ).join('\\n')+'\\nexport function extra(x){return x;}';
+  assert.throws(()=>attackPublishedSource(source),/Unproved public export set/u);
 });
 
 test('two samples per public switch arm are not universal affine equivalence proofs',async()=>{
