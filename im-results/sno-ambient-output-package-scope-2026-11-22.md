@@ -55,8 +55,9 @@ uncooperative writer, loader interceptor or filesystem owner.
 
 ## Executable regression matrix
 
-`test/sno-ambient-package-scope.test.js` contains 15 focused
-cross-platform Node tests. The negative paths assert build rejection
+`test/sno-ambient-package-scope.test.js` contains **16 focused tests**, including
+15 targeted scenarios and a 27-cell native-versus-generated Node package
+placement matrix. The negative paths assert build rejection
 before any protected source is published; positive paths execute the
 actual generated SNO entry in a separate Node process.
 
@@ -69,8 +70,21 @@ actual generated SNO entry in a separate Node process.
 | Input environment | Unscoped source `.js` under an external ESM package refuses; the external CommonJS equivalent is admitted and executes with native parity |
 | Invalid packages | External output `{"type":null}` and external input non-object metadata both refuse |
 | Byte identity | Matched seeded outputs under no external package and an external CommonJS package are byte-for-byte identical, including `entry.js` and `sno-entry.cjs`, and both run with result 97 |
+| Exhaustive placement matrix | Root input package type × output ancestor type × stale nested output type, each chosen from absent/CommonJS/ESM: all 27 original-versus-generated cases completed, with 17 admitted/native-matching builds and 10 expected refusals |
 
 ## Validation and source pins
+
+The [16-test focused gate 45024526818](https://github.com/FlareZ123/obfs/actions/runs/45024526818)
+at source `30eea73aa6ef3b223bcc33cc560937888e26b46b`
+passed on both Ubuntu and Windows Node 22.23.4, including the 27-cell
+native/generated matrix and both JSDoc typecheck steps. One preceding
+[matrix run 45024388982](https://github.com/FlareZ123/obfs/actions/runs/45024388982)
+failed for an **independently identified test-oracle error**: an
+`--eval` wrapper supplied a global `module` binding, so using
+`typeof module` to classify ESM falsely reported CommonJS. The
+corrected oracle observes lexical top-level `this`, and the entire
+matrix then passed on both operating systems. This red run is retained
+to keep the oracle correction auditable.
 
 The [15-case focused gate 45024087840](https://github.com/FlareZ123/obfs/actions/runs/45024087840),
 source `bf420229bb4e56fd926587f8083e55813a1a0987`,
@@ -81,14 +95,36 @@ the later test commit adds only the matched emitted-byte control.
 
 The earlier [14-case focused run 45023994969](https://github.com/FlareZ123/obfs/actions/runs/45023994969)
 also passed on both operating systems at `dd465a0870599383ea637a7030a6366943473bd8`.
-The [full integration run 45022860316](https://github.com/FlareZ123/obfs/actions/runs/45022860316)
-passed Ubuntu and Windows at older source
-`838a48462d563ac8a1e6168e9a4b31ee87ab00dc`.
-That full run predates the refined nested/input package checks and
-must **not** be used as their integration sign-off. Exact later
-full-matrix results, if any, must be documented separately.
+The [full repository integration run 45024226049](https://github.com/FlareZ123/obfs/actions/runs/45024226049)
+passed **both Ubuntu and Windows** at frozen source
+`dfda4d67a6a59c356c987be601725064f94cb82e`, including the
+refined nested/input package implementation, behavioral suites,
+strict project/external JSDoc and the configured workload/browser
+checks. Later source commits changed only this scoped test file and
+documentation, leaving the executable implementation identical.
+The earlier [full run 45022860316](https://github.com/FlareZ123/obfs/actions/runs/45022860316)
+also passed both platforms at older source
+`838a48462d563ac8a1e6168e9a4b31ee87ab00dc`;
+it is historical coverage rather than the refined implementation pin.
 
 ## Constraints and release meaning
+
+This package preflight checks **module format and external package
+metadata validity**. Node package `imports`, `exports`, self-reference
+resolution and other dependency-environment differences remain outside
+its proof. In a separate native Node 22.16.0 reproduction, a CommonJS
+entry using a parent package's `{"imports":{"#target":"./source/target.cjs"}}`
+returned 103 in the source tree, while the same entry bytes copied to
+a package-free output failed to resolve `#target`. This is an explicit
+remaining relocation boundary, not a verified compiled-CLI counterexample.
+
+The check assumes default Node symlink realpath resolution. A distinct
+Node 22.16.0 native reproduction loaded the same CommonJS `.js` file
+through a symlink whose lexical ancestor was ESM: default Node returned
+79, whereas `node --preserve-symlinks` failed. The flag is documented
+by [Node's CLI reference](https://nodejs.org/download/release/latest-jod/docs/api/cli.html).
+Therefore environments using this flag or custom loaders require
+separate source/deployment parity validation.
 
 The proof envelope is a finite build-time test suite, not a general
 theorem for arbitrary JavaScript. External package metadata can still
