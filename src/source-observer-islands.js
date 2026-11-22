@@ -313,4 +313,4 @@ function proveSourceObserverIslands(files,selections) {
   return new Set(selections);
 }
 
-module.exports={proveSourceObserverIslands};
+module.exports={proveSourceObserverIslands,purePrimitiveLeafExports};
