@@ -35,6 +35,10 @@ jobs:
         env:
           CHROMIUM_BIN: google-chrome
         run: node test/html-sri-foreign-base-browser.js
+      - name: Compare native and SCO SRI at percent-encoded HTTP route mounts
+        env:
+          CHROMIUM_BIN: google-chrome
+        run: node test/sco-sri-encoded-route-browser.js
       - name: Verify SRI with URL-encoded document filename segments
         env:
           CHROMIUM_BIN: google-chrome
