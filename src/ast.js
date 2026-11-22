@@ -3966,8 +3966,28 @@ function collectExportedCallableNodes(ast,propertySafeExports=null) {
       markTree(node);
       return;
     }
-    if(node.type==='AwaitExpression'||node.type==='YieldExpression') {
-      if(node.argument)markValue(node.argument,depth+1);
+    if(node.type==='AwaitExpression'||node.type==='YieldExpression'||
+       node.type==='ChainExpression') {
+      const value=node.type==='ChainExpression'?node.expression:node.argument;
+      if(value)markValue(value,depth+1);
+      return;
+    }
+    if(node.type==='ConditionalExpression') {
+      markValue(node.consequent,depth+1);
+      markValue(node.alternate,depth+1);
+      return;
+    }
+    if(node.type==='LogicalExpression') {
+      markValue(node.left,depth+1);
+      markValue(node.right,depth+1);
+      return;
+    }
+    if(node.type==='SequenceExpression') {
+      for(const expression of node.expressions)markValue(expression,depth+1);
+      return;
+    }
+    if(node.type==='AssignmentExpression') {
+      markValue(node.right,depth+1);
       return;
     }
     if(node.type==='Identifier') {
