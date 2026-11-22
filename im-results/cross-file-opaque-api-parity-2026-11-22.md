@@ -120,3 +120,7 @@ for the focused test. That is harness wall time, not protected
 application compute cost. The experiment's result is finite
 closed-world/host-API semantic parity, without a general proof or
 incremental source-secrecy advantage over ordinary minification.
+
+## Combined pre-matrix full integration gate
+
+The full `manual-validation.yml` [run 45027532350](https://github.com/FlareZ123/obfs/actions/runs/45027532350) passed its complete Ubuntu and Windows Node 22 jobs, including behavior/adversarial suites, strict project/external JSDoc, the declared benchmarks, and Ubuntu real Chromium checks, at exact source `2e1fb7b907d633aa5c3c1ded0cae106c2a96e6e4`. The expanded 20-case suite and nine-case browser fixture extension were in that source. The separate 56-case transport matrix was committed afterward at `35f7b28` and has its own focused two-platform green run. Do not interpret the full run as covering the later matrix source, or as proving the strong-protection objective.
