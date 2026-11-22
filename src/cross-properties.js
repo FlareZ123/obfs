@@ -2042,6 +2042,15 @@ function collectSourceExposedPropertyNames(ast,sourceExposedBodies) {
   return names;
 }
 
+/**
+ * Across an explicit closed-world set of ESM modules, rename properties of
+ * direct named exported const-object literals and all proven import aliases.
+ * Reject reexports, reflection, dynamic import and unproven uses rather than
+ * speculating about the complete JavaScript object graph.
+ * @param {SourceFile[]} files
+ * @param {string} seed
+ * @returns {{files:SourceFile[],objects:number,properties:number}}
+ */
 function renameCrossFileProperties(files,seed) {
   // Mixed executable formats can hide ESM consumers. The closed-world
   // integrator additionally promises that these explicitly declared inert
