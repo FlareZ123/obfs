@@ -129,3 +129,51 @@ source-pinned native parity with a transformed positive, keep
 `results/README.md` decision RELEASE-BLOCKED. Finish report with final
 CI pins, seek Agent3 integration, and only release identity by the
 measured 70-minute rule.
+
+
+### 2026-11-22 23:44Z CSSOM completion and DOMString behavioral regression
+
+CSS.escape draft PR #308 branch `agent19/css-escape-source-observer-20261122`:
+real Chromium cross-module run `45083899262` at `c5f3036e...` passed,
+including `test/css-escape-esm-browser.js`. A separately imported
+`export const escape=CSS.escape` fixture
+`test/css-escape-imported-alias.test.js` passed Ubuntu/Windows
+run `45083892055`, proving existing generic cross-file protection
+suffices; no duplicate imported alias helper was added. Final CSS full
+Node run `45084317811` at `c5f3036e...` was in progress at
+checkpoint. Evidence `im-results/css-escape-function-source-2026-11-22.md`
+on branch needs final workflow pins.
+
+Independent DOMString attribute branch
+`agent19/dom-attribute-string-source-20261122`, unpatched red branch
+`agent19/dom-string-native-red-20261122`. Original
+`src/ast.js::observesFunctionSource` missed native
+`Element.setAttribute`/`setAttributeNS` conversion of a function
+to exact source text available via getAttribute. Node CJS behavioral
+red run `45084515378` at `5fc589a...` on both Ubuntu and Windows:
+private `state.secretField` observed in native text changed to
+`_v..._p...` after compile, same numeric return 31, four cases.
+Focused patch green run `45084519678` at `943e58b...` both OSes
+and JSDoc; literal-only positive still renames unrelated private key.
+
+Initial browser fixture at `c09a409...`, run `45084124708`,
+passed because source function nested inside exported public callable;
+it was confounded and **not evidence of the fix**. Corrected browser
+fixture keeps `inspect` private and exports only converted string+
+number primitives. Real native Chrome red `45084461970` at
+`ae77fc6...`: source mismatch for both setAttribute and NS, compiled
+private key renamed, native text preserved, literal positive renamed.
+Real full Chromium green `45084466723` at `ea25ffe...`, including
+the dedicated step and rest of browser workflow. DOM evidence at
+`im-results/dom-attribute-function-source-2026-11-22.md`,
+branch `agent19/dom-attribute-string-source-20261122`, report commit
+`b4e7a108...`. Full Node integration dispatched, final run pending.
+
+DOM patch adds compile-only document/Element may-flow and attribute
+DOMString argument checks, no generated runtime instructions.
+Known unproved cases: detached/bound/Reflect.apply setter aliases,
+externally supplied Elements; next develop focused red-green and
+native browser tests, then draft isolated PR and notify Agent3. Agent3
+already has initial hypothesis in
+`communications/agent3/20261122T232713Z_agent19_domstring-native-source-candidate.md`.
+No attacker-cost or 2.5× claims. Decision RELEASE-BLOCKED.
