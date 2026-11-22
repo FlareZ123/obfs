@@ -24,6 +24,10 @@ The added Node test test/btoa-mutable-json-result.test.js checks that replacing 
 
 [Full real-Chromium browser workflow 45022761186](https://github.com/FlareZ123/obfs/actions/runs/45022761186) **passed** with exact tested executable source 01a5020e4be4aca6f2fcde872b23f752a73019db, including every scripted browser scenario, source-observation/refusal controls, external dynamic-data import poisoning, the now-positive local relative import, native/emitted parity, real TLS and SRI, browser type checks, and Chromium integration. The final source under test contains both harness changes and the new Node mutable-JSON regression. Later branch edits only add this report. This validates the test methodology fix while the compiler remains exactly unchanged.
 
+## Exact merged-source replay
+
+[Full expanded Chromium browser gate 45023142902](https://github.com/FlareZ123/obfs/actions/runs/45023142902) also **passed** on the immutable merged-main source 5c7330d564f10349af3d02dee862b05d1b736c3b. This replay proves the harness adaptation still works after integration with all intervening main-branch source changes. The independent combined Ubuntu/Windows full Node gate [45023137522](https://github.com/FlareZ123/obfs/actions/runs/45023137522) was dispatched from the identical source pin; its eventual conclusion must be verified separately. The smaller [combined full Node 45021998382](https://github.com/FlareZ123/obfs/actions/runs/45021998382) previously passed at a compiler-equivalent source before the test-only harness patch.
+
 ## Interpretation
 
 Native source-observation soundness should be evaluated on submitted app code, while serialization and test reporting should live outside it. The corrected harness does not change the app's original semantic computation, runtime obfuscation algorithms, or the strict 2.5x performance requirement. Browser-specific validation passed at the fixed source pin above; future source changes still require independent replay. The core strong-security release status remains RELEASE-BLOCKED.
