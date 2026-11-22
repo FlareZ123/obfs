@@ -1923,6 +1923,8 @@ function mutatesDecoderIntrinsic(ast,rejectCommonJsExportEscape=false,rejectEsmE
     return (descriptorMemberWrites.get(name)??[]).some(
       write=>(write.key===null||write.key==='get')&&
         proxyGetMayReturnDecoderIntrinsic(write.value))||
+      (objectAssignSources.get(name)??[]).some(
+        source=>descriptorHasSensitiveGetter(source))||
       [...(descriptorAliases.get(name)??[])].some(
         alias=>memberReadAliasWritesDecoderGetter(alias,visited));
   }
