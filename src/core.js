@@ -1885,16 +1885,39 @@ function mutatesDecoderIntrinsic(ast,rejectCommonJsExportEscape=false,rejectEsmE
    * @param {Set<string>} [visited]
    * @returns {boolean}
    */
+  /**
+   * @param {string} name
+   * @returns {Set<string>}
+   */
+  function descriptorAliasNames(name){
+    const aliases=new Set([name]);
+    let changed=true;
+    while(changed){
+      changed=false;
+      for(const [candidate,sources] of descriptorBindings){
+        if(aliases.has(candidate))continue;
+        if(sources.some(source=>source.type==='Identifier'&&
+          aliases.has(source.name))){
+          aliases.add(candidate);
+          changed=true;
+        }
+      }
+    }
+    return aliases;
+  }
+
   function objectCreateMayExposeDecoder(expression,visited=new Set()){
     if(expression.type==='Identifier'){
       if(visited.has(expression.name))return false;
       visited.add(expression.name);
-      const found=(descriptorBindings.get(expression.name)??[]).some(
-        source=>objectCreateMayExposeDecoder(source,visited))||
-        (descriptorMemberWrites.get(expression.name)??[]).some(
+      const aliases=descriptorAliasNames(expression.name);
+      const found=[...aliases].some(name=>
+        (descriptorBindings.get(name)??[]).some(
+          source=>objectCreateMayExposeDecoder(source,visited))||
+        (descriptorMemberWrites.get(name)??[]).some(
           write=>descriptorHasSensitiveGetter(write.value))||
-        (objectAssignSources.get(expression.name)??[]).some(
-          source=>objectCreateMayExposeDecoder(source,visited));
+        (objectAssignSources.get(name)??[]).some(
+          source=>objectCreateMayExposeDecoder(source,visited)));
       visited.delete(expression.name);
       return found;
     }
