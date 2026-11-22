@@ -854,15 +854,21 @@ function proveLocalObject(ast, rootName, bindings, importedIdentityFunctions=new
       continue;
     }
     if (allowDirectReflection && parent.type==='CallExpression' && key==='arguments' &&
-        parent.arguments[0]===node && parent.arguments.length===2 &&
+        parent.arguments[0]===node &&
         parent.arguments[1]?.type==='Literal' &&
         typeof parent.arguments[1].value==='string' &&
         parent.callee.type==='MemberExpression' && !parent.callee.computed &&
         parent.callee.object.type==='Identifier') {
       const host=parent.callee.object.name;
       const method=staticName(parent.callee.property);
-      if(host==='Reflect' && method==='get' ||
-         host==='Object' && method==='hasOwn') {
+      const supported=host==='Reflect' &&
+          ['get','has','set','getOwnPropertyDescriptor'].includes(method??'') ||
+        host==='Object' &&
+          ['hasOwn','getOwnPropertyDescriptor'].includes(method??'');
+      const expectedArguments=host==='Reflect'&&method==='set'?3:2;
+      const hasSpread=parent.arguments.some(
+        (/** @type {AstNode} */ argument)=>argument.type==='SpreadElement');
+      if(supported&&!hasSpread&&parent.arguments.length===expectedArguments) {
         reflections.push({call:parent,key:parent.arguments[1],property:parent.arguments[1].value});
         continue;
       }
