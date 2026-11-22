@@ -24,5 +24,7 @@ jobs:
         run: node --test test/array-sort-function-source.test.js test/array-detached-source-coercion.test.js test/array-mutator-source-observation.test.js test/array-derived-source-observation.test.js test/iterable-function-source.test.js test/iterable-wasm-source-observer.test.js test/iterable-statement-flow-source-observer.test.js test/cross-file-iterable-source.test.js test/source-coercion-array.test.js test/source-coercion-alias.test.js test/string-method-source-observation.test.js test/implicit-comparison-source.test.js
       - name: Decoder Proxy getter semantic parity and positive yield
         run: node --test test/decoder-proxy-get.test.js
+      - name: Object.create nested descriptor member-alias differential and positive yield
+        run: node --test test/decoder-object-create-nested-member-alias.test.js
       - name: JSDoc check
         run: npm run typecheck
