@@ -104,6 +104,8 @@ test('96-case six-module ESM reflection and alias matrix preserves native behavi
     mode:'coo',closedWorld:true,seed:'crossfile-mixed-96',
     identifiers:false,strings:false,properties:true
   });
+  assert.ok(transformed.crossFile.properties>=1,
+    'Mixed graph must retain at least one real cross-file property transformation');
   const actual=await execute(transformed.files);
   assert.deepEqual(actual,baseline,
     'Cross-module property preservation must include own-key and cloned-object observers');
