@@ -34,7 +34,7 @@ function hasIfI32(bytes){
 }
 
 test('cost-aware auto chooses lazy if, explicit select stays eager and both remain statically recoverable',()=>{
-  const source='function f(a,b,c,d){return (a?'+heavy+':d);}module.exports=f;';
+  const source='function f(a,b,c,d){return (a?'+heavy+':d);}function publicF(a,b,c,d){return f(a,b,c,d);}module.exports=publicF;';
   const seed='lazy-if-20261116-coverage';
   /** @param {'auto'|'select'|'if'} conditionalStrategy */
   function compile(conditionalStrategy){
@@ -111,7 +111,7 @@ test('cost-aware auto chooses lazy if, explicit select stays eager and both rema
 });
 
 test('nested structured if maintains stack operands and the source-only attacker reconstructs it',()=>{
-  const source='function f(a,b,c,d){return ((a?'+heavy+':d)^(a&3));}module.exports=f;';
+  const source='function f(a,b,c,d){return ((a?'+heavy+':d)^(a&3));}function publicF(a,b,c,d){return f(a,b,c,d);}module.exports=publicF;';
   const native=load(source);
   for(const strategy of /** @type {('if'|'auto')[]} */ (['if','auto'])){
     const generated=lowerWasmI32Functions(source,'commonjs',{
@@ -143,7 +143,7 @@ test('invalid conditional strategies fail closed before compilation',()=>{
 test('large balanced conditional arms use lazy Wasm if with exact independent recovery',()=>{
   const heavyB='((((b^d)&(c>>>2))^((c|b)<<(d&7)))|'+
     '((((b^c)<<3)&(d|1))^((c^d)>>>5)))';
-  const source='function f(a,b,c,d){return (a?'+heavy+':'+heavyB+');}module.exports=f;';
+  const source='function f(a,b,c,d){return (a?'+heavy+':'+heavyB+');}function publicF(a,b,c,d){return f(a,b,c,d);}module.exports=publicF;';
   const original=load(source);
   const automatic=lowerWasmI32Functions(source,'commonjs',{
     seed:'balanced-lazy-grid-20261116',names:['f']
