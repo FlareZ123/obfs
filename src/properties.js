@@ -1247,6 +1247,7 @@ function renameLocalProperties(source, ast, options) {
   });
 
   const sourceExposedBodies=collectSourceExposedBodies(ast,bindings);
+  /** @type {WeakSet<AstNode>} */
   const sourceExposedEdits=new WeakSet();
   walk(ast,(node,parent,key,ancestors)=>{
     if(ancestors.some(ancestor=>sourceExposedBodies.has(ancestor)))
