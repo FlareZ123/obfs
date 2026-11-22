@@ -161,6 +161,12 @@ function firstUnprovedFreeReference(root,moduleBindings,rootFormals,realmGlobals
       ancestors[index-1].operator==='typeof'&&
       ancestors[index-1].argument===scope);
     if(inertTypeofFunction)return;
+    // A normal function supplies its own arguments object. Arrows inherit it
+    // from the nearest ordinary function, including the selected root body.
+    // Top-level audited ESM modules have no implicit arguments binding.
+    if(node.name==='arguments'&&(root.type==='BlockStatement'||
+      ancestors.some(scope=>scope.type==='FunctionDeclaration'||
+        scope.type==='FunctionExpression')))return;
     const name=node.name;
     if(rootFormals.has(name)||ancestors.some(scope=>scopeDeclares(scope,name))||
       moduleBindings.has(name)||realmGlobals.has(name))return;
