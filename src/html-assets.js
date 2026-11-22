@@ -310,6 +310,12 @@ function hasPinnedLocalJavaScriptIntegrity(files,routePrefix='') {
     try {
       const url=new URL(href,base);
       if(url.protocol!=='http:'&&url.protocol!=='https:')return null;
+      // A configured SCO mount may intentionally include percent-encoded
+      // path bytes. Its HTTP handler matches the raw URL pathname, while the
+      // inventory's mount prefix is declared in exactly that spelling. Check
+      // the raw path first, then the decoded path for ordinary script aliases.
+      const encodedPath=url.pathname.slice(1);
+      if(matchesDistributedScript(encodedPath))return encodedPath;
       const pathname=decodeURIComponent(url.pathname);
       if(!pathname.startsWith('/')||pathname.includes('\\'))return null;
       return pathname.slice(1);
