@@ -154,6 +154,13 @@ test('untrusted HTTP MIME, bytes, redirects and nosniff omissions fail the contr
     response.headers={'x-content-type-options':'invalid'};
     await assert.rejects(()=>
       verifyPublishedDeployment(origin,files,manifest),/lacks nosniff/);
+    response.headers={'vary':'Sec-Fetch-Dest'};
+    await assert.rejects(()=>
+      verifyPublishedDeployment(origin,files,manifest),/varies by request context/);
+    response.headers={'vary':'Accept-Encoding'};
+    assert.deepEqual(await verifyPublishedDeployment(origin,files,manifest),
+      {verified:1,sourceFiles:0,assets:1},
+      'Only decoded compression variants are accepted as byte-identical');
     response.headers=undefined;
     response.status=302;
     await assert.rejects(()=>
