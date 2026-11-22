@@ -47,6 +47,33 @@ also passed at `5de2c8569be9dc4b98faca278e1ade5cb6426551`.
 Each test reexecuted original and transformed ESM graphs through Node's
 actual module loader, not an AST interpreter or in-VM mocked loader.
 
+## Real Chromium cross-module validation
+
+A separate [headless Chromium HTTP/ESM reproducer](../test/factory-destructuring-browser.js)
+serves eight deterministic owner-factory graphs in two versions, each with a
+positive imported computed-key destructuring path and an independent
+`Object.keys(owner)` reflection refusal. It requests separately published
+original and transformed module URLs under the same browser host, performs
+native ESM imports, and compares exported result arrays in Chromium rather
+than trusting a Node-only VM. **Eight positive browser graphs rewrote two
+field keys each (16 protected keys); eight reflected graphs refused owner
+renaming.** Every native-versus-emitted result agreed.
+
+A first [red source-pinned browser run 45032860095](https://github.com/FlareZ123/obfs/actions/runs/45032860095)
+at `27b4e94f7cf979c3153d52fe48461e309dc97b0e` passed the new
+Chromium probe but failed the later strict JSDoc step because a
+`string | Buffer` file-content type had not been narrowed in one code path.
+The annotation was corrected, and the **full existing real-browser workflow**
+[45033055044](https://github.com/FlareZ123/obfs/actions/runs/45033055044)
+completed **successfully** at exact SHA
+`a8d40562678d4615d237cb1e5bb625281151274f`, including project
+and external JSDoc typechecks. No dedicated new CI workflow was introduced.
+The browser test is included in `.github/workflows/manual-browser.yml`.
+
+This is browser parity evidence for a finite selected source family.
+It does not exercise full hostile-browser ownership, self-referential inline
+source readers, browser version-specific locks, or sustained CPU cost.
+
 ## Limits and next actions
 
 This finite corpus does not prove arbitrary application equivalence,
