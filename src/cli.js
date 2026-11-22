@@ -389,7 +389,7 @@ async function main(mode,argv) {
   if (mode === 'sco') {
     // Server-only .js/.mjs/.cjs files under --root are private by default.
     const clientFiles=selectScoPublicFiles(source,entry,publicScripts,publicAssets);
-    const server = http.createServer(createScoHandler(clientFiles,{allowedHosts:hosts,closedWorld,reviewedOpaqueAssets}));
+    const server = http.createServer(createScoHandler(clientFiles,{allowedHosts:hosts.length?hosts:undefined,closedWorld,reviewedOpaqueAssets}));
     /** @type {Promise<void>} */
     const listening=new Promise(resolve=>server.listen(port,()=>resolve()));
     await listening;
@@ -405,7 +405,7 @@ async function main(mode,argv) {
     portableKeys(file.path.split('/',1)[0]).some(key=>reservedLauncherKeys.has(key)))) {
     throw new Error('SNO launcher filename collides with an input file');
   }
-  const result = obfuscateFiles(source,{mode,seed,allowedHosts:hosts,closedWorld,reviewedOpaqueAssets,experimentalRegisterVm,experimentalExpressionVm,experimentalNativeGraph,experimentalStatementFlow,experimentalStatementFlowCompact,experimentalPolyvariantAffine,experimentalPolyvariantCount,experimentalWasmI32,experimentalSymbolKeys});
+  const result = obfuscateFiles(source,{mode,seed,allowedHosts:hosts.length?hosts:undefined,closedWorld,reviewedOpaqueAssets,experimentalRegisterVm,experimentalExpressionVm,experimentalNativeGraph,experimentalStatementFlow,experimentalStatementFlowCompact,experimentalPolyvariantAffine,experimentalPolyvariantCount,experimentalWasmI32,experimentalSymbolKeys});
   /** @type {string|undefined} */
   let launcher;
   if (mode === 'sno') {
