@@ -27,10 +27,19 @@ test('native reflected AbortController abort creates a readable DOMException sta
   assert.match(reason.stack,/sco-reflective-abort-stack\.test\.js/u);
 });
 
-test('SCO refuses relocated reflected default-abort reason stack',()=>{
-  const body='const controller=Reflect.construct(AbortController,[]);'+
-    'controller.abort();return controller.signal.reason.stack;';
-  assert.throws(()=>compile(body),TypeError);
+test('SCO refuses first-class AbortController constructors whose default reason exposes stack',()=>{
+  const variants=[
+    ['reflected','const controller=Reflect.construct(AbortController,[]);'],
+    ['global member','const controller=Reflect.construct(globalThis.AbortController,[]);'],
+    ['aliased reflected','const Ctor=AbortController;const controller=Reflect.construct(Ctor,[]);'],
+    ['bound constructor','const controller=new (AbortController.bind(null))();'],
+    ['owned registry','const controller=new ({Ctor:AbortController}).Ctor();'],
+    ['reflective apply','const controller=Reflect.apply(Reflect.construct,Reflect,[AbortController,[]]);']
+  ];
+  for(const [name,setup] of variants){
+    assert.throws(()=>compile(setup+
+      'controller.abort();return controller.signal.reason.stack;'),TypeError,name);
+  }
 });
 
 test('SCO already refuses direct new AbortController default-abort reason stack',()=>{
@@ -41,6 +50,13 @@ test('SCO already refuses direct new AbortController default-abort reason stack'
 
 test('SCO can relocate explicit primitive AbortController reason',()=>{
   const body='const controller=new AbortController();'+
+    'controller.abort("intentional");return controller.signal.reason;';
+  assert.deepEqual(compile(body).privateNames,['protectedOp']);
+});
+
+
+test('SCO keeps an identifier-aliased AbortController with explicit primitive reason',()=>{
+  const body='const Ctor=AbortController;const controller=new Ctor();'+
     'controller.abort("intentional");return controller.signal.reason;';
   assert.deepEqual(compile(body).privateNames,['protectedOp']);
 });
