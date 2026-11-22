@@ -44,8 +44,8 @@ function canonicalAllowedHosts(hosts) {
 /**
  * Extract the routing hostname from a requester-supplied HTTP Host field.
  * A bracketed IPv6 literal can contain an optional numeric port, with no
- * userinfo, path or trailing suffix. DNS entries retain prior colon/port
- * behavior for compatibility with existing handlers.
+ * userinfo, path or trailing suffix. ASCII DNS/IPv4 entries also accept a
+ * single optional numeric port and use browser-equivalent host normalization.
  * @param {string} header
  * @returns {string|null}
  */
