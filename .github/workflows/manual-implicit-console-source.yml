@@ -51,6 +51,11 @@ jobs:
       - name: Node CommonJS enclosing function source under private-class proof
         if: ${{ !cancelled() }}
         run: node --test test/cjs-wrapper-source-observer.test.js
+      - name: Browser verifies positive private class rename yield
+        if: ${{ !cancelled() && matrix.os == 'ubuntu-latest' }}
+        env:
+          CHROMIUM_BIN: google-chrome
+        run: node test/private-class-browser-positive.js
       - name: Validate strict project JSDoc
         if: ${{ !cancelled() }}
         run: npm run typecheck
