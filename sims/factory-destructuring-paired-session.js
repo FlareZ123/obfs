@@ -11,7 +11,11 @@ const {atomicWrite}=require('../src/atomic');
 
 /** @typedef {'coo'|'sno'|'sco'} Mode */
 /** @typedef {{answer:[number,number],hotCpuUs:number,sessionCpuUs:number,hotMs:number}} Observation */
-/** @typedef {{nativeCpuUs:number,candidateCpuUs:number,ratio:number,nativeSessionCpuUs:number,candidateSessionCpuUs:number,sessionRatio:number}} Pair */
+/** @typedef {{
+ *  nativeCpuUs:number,candidateCpuUs:number,ratio:number|null,
+ *  nativeSessionCpuUs:number,candidateSessionCpuUs:number,sessionRatio:number|null,
+ *  nativeHotMs:number,candidateHotMs:number,wallRatio:number|null
+ * }} Pair */
 
 /**
  * This two-file graph runs one genuinely imported, private factory object.
@@ -76,8 +80,11 @@ function observe(folder) {
   const value=JSON.parse(run.stdout.trim());
   assert.ok(Array.isArray(value.answer)&&value.answer.length===2);
   assert.equal(value.answer[1],0,'Default expression must not execute');
-  assert.ok(Number.isFinite(value.hotCpuUs)&&value.hotCpuUs>0);
-  assert.ok(Number.isFinite(value.sessionCpuUs)&&value.sessionCpuUs>0);
+  // Windows may report zero process-CPU ticks for short real work.
+  // Preserve those raw observations as inconclusive rather than failing
+  // before reporting, or accidentally emitting an infinite/zero ratio.
+  assert.ok(Number.isFinite(value.hotCpuUs)&&value.hotCpuUs>=0);
+  assert.ok(Number.isFinite(value.sessionCpuUs)&&value.sessionCpuUs>=0);
   assert.ok(Number.isFinite(value.hotMs)&&value.hotMs>=0);
   return value;
 }
@@ -103,7 +110,7 @@ function rounded(n) {
  * @param {string} control
  * @param {string} candidate
  * @param {number} repetitions
- * @returns {{pairs:Pair[],hotMedianRatio:number,hotWorstRatio:number,hotStrictBreaches:number,sessionMedianRatio:number,sessionWorstRatio:number,sessionStrictBreaches:number}}
+ * @returns {{pairs:Pair[],hotMedianRatio:number|null,hotWorstRatio:number|null,hotValidPairs:number,hotZeroTickPairs:number,hotStrictBreaches:number,sessionMedianRatio:number|null,sessionWorstRatio:number|null,sessionValidPairs:number,sessionZeroTickPairs:number,sessionStrictBreaches:number,wallMedianRatio:number|null,wallWorstRatio:number|null,wallValidPairs:number,wallZeroTickPairs:number,wallStrictBreaches:number}}
  */
 function compare(control,candidate,repetitions) {
   /** @type {Pair[]} */
@@ -118,20 +125,35 @@ function compare(control,candidate,repetitions) {
     pairs.push({
       nativeCpuUs:native.hotCpuUs,
       candidateCpuUs:transformed.hotCpuUs,
-      ratio:rounded(transformed.hotCpuUs/native.hotCpuUs),
+      ratio:native.hotCpuUs>0&&transformed.hotCpuUs>0?
+        rounded(transformed.hotCpuUs/native.hotCpuUs):null,
       nativeSessionCpuUs:native.sessionCpuUs,
       candidateSessionCpuUs:transformed.sessionCpuUs,
-      sessionRatio:rounded(transformed.sessionCpuUs/native.sessionCpuUs)
+      sessionRatio:native.sessionCpuUs>0&&transformed.sessionCpuUs>0?
+        rounded(transformed.sessionCpuUs/native.sessionCpuUs):null,
+      nativeHotMs:native.hotMs,
+      candidateHotMs:transformed.hotMs,
+      wallRatio:native.hotMs>0&&transformed.hotMs>0?
+        rounded(transformed.hotMs/native.hotMs):null
     });
   }
+  const hot=pairs.map(pair=>pair.ratio).filter(value=>value!==null);
+  const session=pairs.map(pair=>pair.sessionRatio).filter(value=>value!==null);
+  const wall=pairs.map(pair=>pair.wallRatio).filter(value=>value!==null);
   return {
     pairs,
-    hotMedianRatio:rounded(median(pairs.map(pair=>pair.ratio))),
-    hotWorstRatio:rounded(Math.max(...pairs.map(pair=>pair.ratio))),
-    hotStrictBreaches:pairs.filter(pair=>pair.ratio>2.5).length,
-    sessionMedianRatio:rounded(median(pairs.map(pair=>pair.sessionRatio))),
-    sessionWorstRatio:rounded(Math.max(...pairs.map(pair=>pair.sessionRatio))),
-    sessionStrictBreaches:pairs.filter(pair=>pair.sessionRatio>2.5).length
+    hotMedianRatio:hot.length?rounded(median(hot)):null,
+    hotWorstRatio:hot.length?rounded(Math.max(...hot)):null,
+    hotValidPairs:hot.length,hotZeroTickPairs:pairs.length-hot.length,
+    hotStrictBreaches:hot.filter(ratio=>ratio>2.5).length,
+    sessionMedianRatio:session.length?rounded(median(session)):null,
+    sessionWorstRatio:session.length?rounded(Math.max(...session)):null,
+    sessionValidPairs:session.length,sessionZeroTickPairs:pairs.length-session.length,
+    sessionStrictBreaches:session.filter(ratio=>ratio>2.5).length,
+    wallMedianRatio:wall.length?rounded(median(wall)):null,
+    wallWorstRatio:wall.length?rounded(Math.max(...wall)):null,
+    wallValidPairs:wall.length,wallZeroTickPairs:pairs.length-wall.length,
+    wallStrictBreaches:wall.filter(ratio=>ratio>2.5).length
   };
 }
 
