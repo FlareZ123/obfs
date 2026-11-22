@@ -307,3 +307,56 @@ This repair changes build/publisher-side refusal for ambiguous names.
 Accepted JavaScript output is unchanged, so no new recurring protected-code
 instructions are introduced. No release-wide integration, static secrecy,
 anti-instrumentation, host-locking, or universal 2.5× claim follows.
+
+
+## 22 November follow-up: reuse the compiler's exact path validator
+
+The first path-identity repair above did not yet apply the compiler's
+`safePath` validation to standalone reviewed/published opaque records.
+Thus standalone review could admit a matching hash for `../theme.css`,
+`CON.txt`, an absolute path, a backslash-separated path, or a
+`~digits` short-name spelling, even though the complete compiler
+would reject those inputs. This was an independent API-contract gap,
+not evidence that the compiler distributed such assets.
+
+The `safePath` function was moved **byte-for-byte** from
+`src/core.js` into the existing `src/portable-paths.js`, while
+`src/core.js` continues exporting the same function. Both the
+compiler and `assertReviewedOpaqueAssets` now use that single
+implementation. The indexed manifest and published asset scans each
+invoke it after capturing the filename once. A dedicated test checks
+10 unsafe names in **both** lists, plus a canonical positive control,
+while the preceding Unicode/directory cases remain active.
+
+- [Shared helper 97190bb](https://github.com/FlareZ123/obfs/commit/97190bb113838c5ed36afc164c1d2f5170a1c311);
+  [compiler reuse 6de159e](https://github.com/FlareZ123/obfs/commit/6de159e1df0ccd79e97b1f24bfc9d1053170be4e);
+  [standalone review 172ae6d](https://github.com/FlareZ123/obfs/commit/172ae6d939a1d374a8dc6c648cbee26adcf17746).
+- [Unsafe-path test 67f5162](https://github.com/FlareZ123/obfs/commit/67f5162f2da45856d4adc300432e4aa61077c24c),
+  with one corrected trailing-space fixture
+  [94939e3](https://github.com/FlareZ123/obfs/commit/94939e30326d62a9b2afeca55b97a242a5ee0d14).
+- [Two-platform review gate 44980591717](https://github.com/FlareZ123/obfs/actions/runs/44980591717)
+  **passed all steps** at exact source `94939e30326d62a9b2afeca55b97a242a5ee0d14`,
+  including existing historical manifest bypasses, the indexed
+  adversarial corpus, executable three-mode CLI sample, and both
+  compiler/external JSDoc checks.
+
+A separate filesystem hypothesis concerned a Microsoft-documented
+[Win32 leading ASCII space normalization rule](https://learn.microsoft.com/en-us/troubleshoot/windows-client/shell-experience/file-folder-name-whitespace-characters).
+No equality was assumed. The existing `sims/path-alias-grid.js`
+was extended with three raw-name pairs and added to the
+already-existing focused review workflow. Its
+[Ubuntu/Windows run 44980902260](https://github.com/FlareZ123/obfs/actions/runs/44980902260)
+completed **green** at `e8c5d1a2ae8bce4d5747f59a6b56dde202ac0aac`,
+with Node `v22.23.5` on both runners. The Windows exclusive-create
+observations found `" probe.js"` and `"probe.js"` separately present;
+likewise `" .probe.js"` and `".probe.js"`, and the ideographic
+leading-space control. Ubuntu also kept all three pairs distinct.
+This is an observed **non-alias on those Node/runner paths**; it does
+not establish equivalence across Windows API namespaces, volume
+settings or future filesystems. The existing `safePath` rule was
+left unchanged for leading ASCII spaces.
+
+The compiler's emitted runtime logic and public obfuscation modes
+are untouched by this refactor. These are trusted-build path
+admission checks; they do not upgrade the current release-blocked
+static, dynamic, host-authentication or 2.5× adversarial verdict.
