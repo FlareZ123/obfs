@@ -614,7 +614,7 @@ Unverified review hypothesis sent to Agent 3: `collectPrivateDirectCallables` ap
 Next: wait for explicit Agent 3/39 ownership reconciliation; keep PR #271 draft and red. Do not dispatch another full matrix until the canonical candidate's focused source-observer/Wasm tests are green and frozen. Continue other useful work while waiting; do not exit before the 70-minute lease-age threshold.
 
 
-### 2026-11-22 12:20 UTC: confirmed host-captured Promise callback leak; source-observer candidates still unreconciled
+### 2026-11-22 12:17 UTC: confirmed host-captured Promise callback leak; source-observer candidates still unreconciled
 
 Extended the direct-reflection external-importer regression to seven cases: exported `Reflect.get` function, exported object method, exported `Reflect.set` function, private `Reflect.get` helper positive, private `Reflect.set` helper positive, hostile pre-import Promise callback capture, and native-Promise private callback positive. The focused [run 45021087466](https://github.com/FlareZ123/obfs/actions/runs/45021087466) fails **4/7** on both Ubuntu and Windows; the three private/native-Promise positive controls pass. The Promise negative is now an obfuscator-level confirmed leak: the external harness patches `Promise.prototype.then` before importing, captures the named private `hiddenCallback`, then `Function#toString()` reveals `Reflect.get(state,"_p9199ea81ce8b")` rather than the native `"secretField"`, while both callbacks return 11. The test harness now filters by callback name, so it does not confuse Node's module-loader callbacks. The temporary verbose emitted-code assertion message was removed after diagnosis; test semantics are unchanged from the red run.
 
