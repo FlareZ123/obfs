@@ -49,6 +49,10 @@ The expanded combined suite has **22 tests per OS, 16 source parity failures and
 
 The focused [Ubuntu/Windows run 45080385587](https://github.com/FlareZ123/obfs/actions/runs/45080385587), source SHA `6e4a681da3982b116d3e99fb1b846635617d8903`, used `test/private-class-source-yield.test.js` as the passing focused selection. **Both OS jobs passed** the positive private-class fixture, strict project JSDoc and strict external-tool JSDoc. This certifies that the added files typecheck within the checked configurations. The red 12-case class-source suite was not selected in this run and remains 10/12 failing at its separate `5b17a603` pin. The positive check does not repair or supersede the red proof.
 
+## Language-standard support for the observation contract
+
+ECMAScript 2026 §20.2.3.5 [`Function.prototype.toString`](https://tc39.es/ecma262/2026/multipage/fundamental-objects.html#sec-function.prototype.tostring) specifies returning available source text for callable objects carrying a `[[SourceText]]` slot. The negative fixtures observe the source of real Node-defined class and method objects in the same host before and after compilation. Since the emitted `[[SourceText]]` changes under either private-key backend, external importers can distinguish the variants through that standard language operation. The spec permits host source unavailability, so the **measured** finding is stated for Node 22.23.4 on Ubuntu/Windows, rather than asserting every browser/host must reveal the same bytes.
+
 ## Proof obligation and bounded interpretation
 
 The current local owner alias proof in `src/properties.js` sees a class-method read of a private literal owner but cannot establish whether the method's **callable source text** is externally observable. A CommonJS module may export a class, an instance, a bound constructor, or another alias that exposes that body. An undeclared importer may use `Function.prototype.toString` without any `.toString` token inside the compiler's input set.
