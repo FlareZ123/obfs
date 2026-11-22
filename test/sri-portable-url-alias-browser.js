@@ -48,8 +48,8 @@ async function dump(browser,href){
 }
 
 /**
- * A host that canonicalizes case and Unicode (as some filesystem-backed
- * deployments do) can serve the exact distributed client.js through a URL
+ * A host that canonicalizes case, Unicode and terminal Win32 dots/spaces
+ * can serve the exact distributed client.js through a URL
  * spelled differently in SRI-bearing HTML. Prove native and corrected output
  * loads, while the deliberately obfuscated source is rejected by real Chrome.
  * @returns {Promise<void>}
@@ -59,7 +59,12 @@ async function main(){
   const scenarios=[
     {name:'case-html',scriptPath:'client.js',urlPath:'./CLIENT.JS',documentPath:'index.html'},
     {name:'unicode-xhtml',scriptPath:'caf\u00e9.js',urlPath:'./cafe\u0301.js',
-      documentPath:'index.xhtml'}
+      documentPath:'index.xhtml'},
+    {name:'dot-html',scriptPath:'client.js',urlPath:'./client.js.',documentPath:'index.html'},
+    {name:'space-xhtml',scriptPath:'client.js',urlPath:'./client.js%20',
+      documentPath:'index.xhtml'},
+    {name:'directory-html',scriptPath:'assets/client.js',urlPath:'./assets./client.js',
+      documentPath:'index.html'}
   ];
   const source='document.documentElement.setAttribute("data-portable-sri","loaded");'+
     'globalThis.portableSRI="unchanged original source payload";';
@@ -93,7 +98,8 @@ async function main(){
     const parts=decodeURIComponent(new URL(request.url??'/','http://127.0.0.1').pathname)
       .split('/').filter(Boolean);
     const variant=parts.shift()??'';
-    const normalized=parts.join('/').normalize('NFC').toLowerCase();
+    const normalized=parts.join('/').normalize('NFC').toLowerCase()
+      .split('/').map(segment=>segment.replace(/[. ]+$/u,'')).join('/');
     const available=variants.get(variant);
     const name=available&&[...available.keys()].find(key=>
       key.normalize('NFC').toLowerCase()===normalized);
@@ -129,7 +135,10 @@ async function main(){
       'case-html-unsafe':false,
       'unicode-xhtml-native':true,
       'unicode-xhtml-safe':true,
-      'unicode-xhtml-unsafe':false
+      'unicode-xhtml-unsafe':false,
+      'dot-html-native':true,'dot-html-safe':true,'dot-html-unsafe':false,
+      'space-xhtml-native':true,'space-xhtml-safe':true,'space-xhtml-unsafe':false,
+      'directory-html-native':true,'directory-html-safe':true,'directory-html-unsafe':false
     },'SRI must accept original and exact compiler output while rejecting changed bytes');
     process.stdout.write('PORTABLE_SRI_BROWSER '+JSON.stringify(outcomes)+'\n');
   }finally{
