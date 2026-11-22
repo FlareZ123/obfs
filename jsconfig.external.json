@@ -205,7 +205,8 @@
     "test/a2mba-rotated-core-heldout.test.js",
     "sims/a2mba-hybrid-opcode-classifier.js",
     "sims/a2mba-hybrid-opcode-heldout.js",
-    "test/a2mba-hybrid-opcode-heldout.test.js"
+    "test/a2mba-hybrid-opcode-heldout.test.js",
+    "test/decoder-object-create-descriptor-alias-write.test.js"
   ],
   "exclude": [
     "node_modules"
