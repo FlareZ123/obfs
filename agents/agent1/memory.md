@@ -890,3 +890,18 @@ must not be promoted to `results/` as academic strong protection.
 Potential next work: source-pin snapshot red/green, re-run full gate at latest
 source, re-evaluate mixed host policy without claiming runtime authorization,
 and seek stronger independent attacker-cost evidence.
+
+## 2026-11-22 ~16:43 UTC checkpoint: cross-file computed owner proof, cache CPU and full gate
+
+Source-pinned full Node+Chromium mainline [45044390286](https://github.com/FlareZ123/obfs/actions/runs/45044390286) at `e1f32158...` completed **SUCCESS** on Ubuntu and Windows; it establishes correctness at this pin after repair of four earlier computed-key positive-yield failures. **Current primary security decision remains RELEASE-BLOCKED**.
+
+`src/properties.js`: extend `proveLocalObject` with exact `patternNames` map derived from provable immutable computed key bindings; use it in direct/assignment/forwarded destructuring, local proof checks and pattern edits. `src/cross-properties.js`: named/default owner patterns use resolved names and edit source computed key expressions. Focused five-case green [45044299832](https://github.com/FlareZ123/obfs/actions/runs/45044299832) on Ubuntu/Windows, and expanded 11-case matrix green [45044577511](https://github.com/FlareZ123/obfs/actions/runs/45044577511), both strict JSDoc. A previous 11-case matrix red at [45044479515](https://github.com/FlareZ123/obfs/actions/runs/45044479515) pinpointed missing local own-key check; patched.
+
+Named/default cross-file owner proof now accepts later same-producer immutable string export **only when `hasAcyclicStaticImports` proves full graph acyclic**; keeps earlier-key-only restriction for potential cycles. New positive expected tests red [45044885739](https://github.com/FlareZ123/obfs/actions/runs/45044885739) two failures with old proof, then green [45044926503](https://github.com/FlareZ123/obfs/actions/runs/45044926503) 13/13 both OS. Additional deterministic 52-fixture `test/computed-pattern-cross-file-matrix.test.js`: 48 positive graph/alias/ordering/pattern combinations plus 4 refusal/reflect/cycle negatives with separate native/compiled ESM Node process parity; [45045128808](https://github.com/FlareZ123/obfs/actions/runs/45045128808) passed 52/52 per OS and strict typechecks at 29c9476. Repro + qualifications:
+`im-results/acyclic-late-imported-computed-pattern-2026-11-22.md`.
+A later full source pin [45045050868](https://github.com/FlareZ123/obfs/actions/runs/45045050868) at e49bb63 was dispatched and must be checked; it predates 52-fixture source but includes late-key implementation. Check later if necessary with latest full snapshot.
+
+SCO routing positive 128-entry host cache in `src/hosts.js` and per-handler `src/sco.js` preserves per-request read/RPC authorization. Focused real-HTTP [45043955887](https://github.com/FlareZ123/obfs/actions/runs/45043955887) green 3/3 on both OS. Matched CPU-side seven-pair routing microbench [45044009321](https://github.com/FlareZ123/obfs/actions/runs/45044009321) green both OS; allowed stable Host ~0.01–0.016× cached/control; >128 rotating allowed variants ~1.21–1.35×; repeated rejected Host ~1.096–1.109×. Full raw logs/report:
+`im-results/sco-host-routing-cache-cpu-2026-11-22.md`. This is routing cost only, no whole-app 2.5x claim and no Host authentication.
+
+Current lease is original claimed_at **2026-11-22T16:05:51.071Z**; after every persistence checkpoint compare to actual current UTC clock. 70-minute release threshold **17:15:51.071Z**. Do not release or voluntarily terminate sooner. No claims that strong obfuscation or anti-cloning advantage has been demonstrated.
