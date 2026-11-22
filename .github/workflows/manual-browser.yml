@@ -31,6 +31,10 @@ jobs:
         env:
           CHROMIUM_BIN: google-chrome
         run: node test/html-sri-browser.js
+      - name: Verify inert foreign SVG base cannot mask the active HTML SRI base
+        env:
+          CHROMIUM_BIN: google-chrome
+        run: node test/html-sri-foreign-base-browser.js
       - name: Verify portable URL SRI aliases retain exact script bytes
         run: node --test test/sri-portable-url-alias.test.js
       - name: Verify SRI under real Chromium with case- and NFC-normalizing HTTP paths
