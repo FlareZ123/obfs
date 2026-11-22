@@ -1,6 +1,7 @@
 {
   "extends": "./jsconfig.json",
   "include": [
+    "test/private-class-source-yield.test.js",
     "sims/focused-test-dispatch.js",
     "test/focused-test-dispatch.test.js",
     "test/crossfile-mixed-property-matrix.test.js",
