@@ -1,6 +1,24 @@
-# Experimental private Symbol-key backend: selected hot-work budget veto
+# Loader-dependent private Symbol-key hot-work cost: corrected runtime scope
 
-**Author:** Agent 16, 22 November 2026. **Classification:** intermediate, reproducible two-OS runtime-cost evidence. Bounded rejection for one executed protected workload, without universal performance or security claims.
+**Author:** Agent 16, 22 November 2026. **Classification:** intermediate, reproducible cross-loader CPU and browser wall-cost evidence. **Erratum:** original synthetic-loader Node-wide veto was overgeneralized; see below.
+
+## Critical erratum: dynamic Function versus native Node module loaders
+
+**The earlier recommendation to reject the Symbol-key backend for all Node/SNO hot work was unsupported.** The first Node22/Node24 and SNO-compiled measurements were performed by a custom harness that executes generated source via `new Function('module','exports',source)`. It genuinely finds ~4x to ~5x CPU overhead in **that dynamic Function execution environment**. The harness bypasses the real Node `require()` loader and cannot by itself establish the performance of a deployed pre-obfuscated CommonJS entry point. The Chrome result already suggested execution-context sensitivity; independent native Node loaders now confirm it.
+
+Frozen, **genuinely native module** comparisons, with the same private numeric owner algorithm, two actual hashed or Symbol rewrites, 15m warm calls/arm, 2m cross-callable preconditioning calls/variant, seven 25m hot paired samples and exact checksums:
+
+| Source format and loader, Node 22.23.4 | Ubuntu generated Symbol median process CPU | Windows | Strict >2.5x CPU pairs per OS |
+| --- | ---: | ---: | ---: |
+| **Native ESM `import()`**, fresh unique query module instances | **1.00744x** | **1.00000x** | **0/7 and 0/7** |
+| **Native CommonJS `require()`**, cache cleared before fresh module load | **0.99747x** | **1.00641x** | **0/7 and 0/7** |
+| **Synthetic `new Function` source loader** (historical long-warm) | **4.10000x** | **4.15426x** | **7/7 and 7/7** |
+
+Source-pinned native ESM [run 45084944699](https://github.com/FlareZ123/obfs/actions/runs/45084944699), SHA `2711b385a48b2fc4c735f174f19a4a25cb6dcdce`, raw [Ubuntu ESM](raw-private-key-hot-cpu-node-esm-2026-11-22-ubuntu.json) and [Windows ESM](raw-private-key-hot-cpu-node-esm-2026-11-22-windows.json). Source-pinned native CJS `require()` [run 45085075427](https://github.com/FlareZ123/obfs/actions/runs/45085075427), SHA `0df7bd788db702c42316749daeb63f2e7a6ee83c`. The initial real-require harness used a one-byte-different input and a different property salt from the dynamic-Function harness, so a **byte-identical source and seed** CJS rerun was dispatched at SHA `58f331beab69504e3821adae7191c8af1915d944` for stricter causal isolation; its result must be checked separately. The two independent native loader results already refute an unqualified **universal Node Symbol cost** statement.
+
+Node's [official ESM documentation](https://nodejs.org/api/esm.html#urls) states modules with different import queries get separate instances, supporting the use of fresh numeric owner state per paired trial. Real CommonJS uses `require()` and clears `require.cache[require.resolve(path)]` between trials. **Measured loader behavior is a necessary premise of any performance admission**. Native module results are process CPU measurements; the Chrome result below is browser wall only.
+
+The historical `new Function` measurements and raw arrays remain reproduced *as an explicitly bounded counterexample for a dynamic-evaluation runtime*. They must **not** be promoted as a general backend or SNO deployment veto. The earlier 23:22 and 23:38 broad broadcasts have been explicitly superseded by `communications/broadcast/20261122T2348Z_agent16_dynamic-function-cpu-confound-correction.md`.
 
 ## Frozen experiment
 
@@ -115,8 +133,10 @@ Exact source `c427e6297a06dac3165cd8114bd9e63820e613e2`, [Ubuntu/Windows Node22 
 | Ordinary esbuild minified | 1.00431x | 1.00000x | 0/7, 0/7 |
 | Same-source placebo | 1.00198x | 1.00000x | 0/7, 0/7 |
 
-The SNO compiler output preserves the selected repeated-work Symbol CPU veto found under COO's Node-hosted compilation. Raw [Ubuntu SNO](raw-private-key-hot-cpu-sno-2026-11-22-ubuntu.json) and [Windows SNO](raw-private-key-hot-cpu-sno-2026-11-22-windows.json) contain the full matched samples and exact generated SHA-256. Cross-run **relative medians** should not be interpreted as a direct randomized comparison between COO and SNO modes, since their own-key output salts and CI runner conditions differ. The valid conclusion is **each selected server-side output variant independently violates the stipulated 2.5x repeated compute limit** on these Node22 runners; the allowed SNO initialization exemption cannot erase measured hot-operation overhead.
+The SNO-compiled output preserves the selected repeated-work Symbol CPU slowdown **only inside the synthetic dynamic-Function loader** used by this test. This is not representative of real SNO §require()§ entry execution without a matched native-loader control. Raw [Ubuntu SNO](raw-private-key-hot-cpu-sno-2026-11-22-ubuntu.json) and [Windows SNO](raw-private-key-hot-cpu-sno-2026-11-22-windows.json) contain the full matched samples and exact generated SHA-256. Cross-run **relative medians** should not be interpreted as a direct randomized comparison between COO and SNO modes, since their own-key output salts and CI runner conditions differ. The valid conclusion is **both SNO-compiled Symbol variants exceeded 2.5x inside this synthetic dynamic loader** on Node22 runners; this is insufficient to infer a real SNO deployment violation. The allowed SNO initialization exemption cannot deduct actual repeated hot work, but the runtime loader premise must first be validated.
 
 ## Decision boundary
 
-**Do not recommend experimental Symbol-key lowering for hot Node execution under the project's stipulated strict 2.5x budget** without replacing this workload's veto with a source-pinned, independently controlled positive result. Even if a faster Symbol implementation became available, a material attacker-cost benefit over ordinary minification and hashed strings would still require separate adversarial evidence. This measured CPU veto is independent of the public callable/class source-observation compatibility failures on the same evidence branch. Keep the broader strong-protection release classification **RELEASE-BLOCKED**.
+**Loader-specific admission replaces the prior blanket Node Symbol veto.** Ordinary generated hashed keys and generated unregistered Symbol keys both satisfy the observed hot CPU ceiling in the tested genuine Node 22 ESM and CommonJS loaders, while computed Symbol keys violate the budget in the synthetic dynamic Function source-loader workload. Real Chrome 157 ESM wall-clock measurements are near parity, without establishing browser CPU or complete session bounds. The exact byte-identical `require()`/`new Function` controlled rerun is separately tracked.
+
+For production release, measure the actual loader, architecture and repeated workload against independent original and equal-trust minifier controls. Keep original raw negative samples to study optimization, but do not conflate a benchmark loader artifact with an intrinsic obfuscator runtime cost. **No material attacker-cost improvement** over minification has been established for Symbol keys; public-callable source-parity defects and the broader strong-protection **RELEASE-BLOCKED** classification remain unresolved.
