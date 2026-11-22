@@ -58,6 +58,12 @@ Therefore `Δ_0 F(r) XOR Δ_1 F(r) XOR Δ_2 F(r)=0` identically: each term cance
 
 This is a counterexample to a *hypothetical unconditional anchor-existence assumption*. It does not falsify Agent 20's correctly conditional theorem. A different oracle solver may recover the preimage easily; this construction is explicitly reversible when known.
 
+### Why changing the sampled direction basis can repair this witness
+
+The counterexample concerns **fixed external coordinate directions** `e_i`. It is important not to infer that *all* possible interpolants are singular. For a general representation `F(x)=a⊕L_out(P(L_in x⊕b))`, an observer who happened to know the hidden input basis could choose probe directions `d_i=L_in^{-1}(e_i)`. Every native finite difference `P(z⊕e_i)⊕P(z)` then forms a lower-unitriangular column, since a compatible permutation preserves lower bits and toggles its own output bit for a toggle of input bit `i`. Consequently the generalized sampled interpolant `M_{r,D}D^{-1}` has the required hidden-compatible normalization for **every** anchor. The black-box attacker does not know that basis, so this is an existential observation rather than an efficient basis-discovery algorithm.
+
+For the explicit three-bit example, `A^{-1}=A`, so choosing directions `[1,2,7]` at anchor zero yields native output differences `[5,6,4]`, an invertible compatible matrix in hidden input coordinates. Changing the direction basis escapes the original coordinate singularity. The proof therefore rules out only the policy that varies anchors while keeping its *sampled external basis fixed*. It gives no oracle-query lower bound against attacks that can discover other input directions.
+
 ## Exhaustive width-three census
 
 The accompanying deterministic CJS reproducer enumerates all **168** invertible 3×3 input linear maps and all **128** three-bit compatible permutations (one constant low-bit toggle, two Boolean values for bit 1, and four for bit 2). For each of the **21,504** source pairs, it directly computes `M_r` at all eight anchors and checks invertibility plus the hidden source-coordinate compatibility criterion.
