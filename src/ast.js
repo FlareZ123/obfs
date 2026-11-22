@@ -183,6 +183,31 @@ function collectDirectCarrierFactories(ast) {
     }
     if(indices.size)factories.set(name,[...indices]);
   });
+  /** @param {AstNode|null|undefined} value @returns {boolean} */
+  function isDocumentReceiver(value) {
+    if(value?.type==='Identifier')return documentRoots.has(value.name);
+    if(value?.type!=='MemberExpression'||value.object.type!=='Identifier'||
+       !globals.has(value.object.name))return false;
+    const key=value.computed ? staticString(value.property) :
+      value.property.type==='Identifier'?value.property.name:null;
+    return key==='document';
+  }
+  /** @param {AstNode|null|undefined} value @returns {boolean} */
+  function createsDomScript(value) {
+    if(value?.type!=='CallExpression'||value.callee.type!=='MemberExpression'||
+       !isDocumentReceiver(value.callee.object))return false;
+    const method=value.callee.computed ? staticString(value.callee.property) :
+      value.callee.property.type==='Identifier'?value.callee.property.name:null;
+    if(method!=='createElement'&&method!=='createElementNS')return false;
+    const tagArg=value.arguments[method==='createElement'?0:1];
+    const tag=tagArg?.type==='SpreadElement'?null:tagArg?staticString(tagArg):null;
+    return tag===null || tag.toLowerCase()==='script';
+  }
+  /** @param {AstNode|null|undefined} value @returns {boolean} */
+  function isScriptElementTarget(value) {
+    return value?.type==='Identifier' && scriptElementRoots.has(value.name) ||
+      createsDomScript(value);
+  }
   let changed;
   do {
     changed=false;
@@ -3371,6 +3396,8 @@ function observesDistributedSource(ast,importedStrings=new Map()) {
   const performanceRoots=new Set(['performance']);
   // Script-producing DOM writes may publish hash-pinned script elements.
   const documentRoots=new Set(['document']);
+  // Track DOM script-element creation and aliases for opaque integrity keys.
+  const scriptElementRoots=new Set();
   // Module-registry objects can reach Node's internal source-file loader.
   // Follow simple aliases monotonically, conservatively accepting over-refusal.
   const requireRoots=new Set(['require']);
@@ -3396,7 +3423,7 @@ function observesDistributedSource(ast,importedStrings=new Map()) {
       const initial=node.type==='VariableDeclarator' ? node.init :
         node.type==='AssignmentExpression' ? node.right : null;
       if(binding?.type==='Identifier' && initial?.type==='Identifier') {
-        for(const roots of [globals,requireRoots,moduleRoots,processRoots,performanceRoots,documentRoots]) {
+        for(const roots of [globals,requireRoots,moduleRoots,processRoots,performanceRoots,documentRoots,scriptElementRoots]) {
           if(roots.has(initial.name) && !roots.has(binding.name)) {
             roots.add(binding.name);
             changed=true;
@@ -3405,6 +3432,11 @@ function observesDistributedSource(ast,importedStrings=new Map()) {
       }
       // The Node process builtin is available from a CJS require and from
       // ESM namespace/default imports as well as from the global object.
+      if(binding?.type==='Identifier' && createsDomScript(initial) &&
+         !scriptElementRoots.has(binding.name)) {
+        scriptElementRoots.add(binding.name);
+        changed=true;
+      }
       if(binding?.type==='Identifier' && isProcessModuleRequire(initial) &&
          !processRoots.has(binding.name)) {
         processRoots.add(binding.name);
@@ -3678,7 +3710,8 @@ function observesDistributedSource(ast,importedStrings=new Map()) {
        node.left.type==='MemberExpression') {
       const key=node.left.computed ? knownKey(node.left.property) :
         node.left.property.type==='Identifier'?node.left.property.name:null;
-      if(key==='integrity')observed=true;
+      if(key==='integrity' || key===null && node.left.computed &&
+         isScriptElementTarget(node.left.object))observed=true;
     }
     // A parser-active document.write may create SRI-pinned script/link
     // resources even if no provided static HTML contains an integrity tag.
@@ -3703,24 +3736,39 @@ function observesDistributedSource(ast,importedStrings=new Map()) {
     if(node.type==='CallExpression' && node.callee.type==='MemberExpression') {
       const method=node.callee.computed ? knownKey(node.callee.property) :
         node.callee.property.type==='Identifier'?node.callee.property.name:null;
-      if(method==='setAttribute' && node.arguments[0] &&
-         knownKey(node.arguments[0])?.toLowerCase()==='integrity' ||
-         method==='setAttributeNS' && node.arguments[1] &&
-         knownKey(node.arguments[1])?.toLowerCase()==='integrity')observed=true;
+      // Opaque attribute names can be `integrity` when written to a
+      // proven DOM script instance. Exact known unrelated names remain safe.
+      const scriptReceiver=isScriptElementTarget(node.callee.object);
+      if((method==='setAttribute'||method==='setAttributeNS') &&
+         node.arguments[method==='setAttribute'?0:1]) {
+        const key=knownKey(node.arguments[method==='setAttribute'?0:1]);
+        if(key?.toLowerCase()==='integrity' || key===null && scriptReceiver)
+          observed=true;
+      }
       if(node.callee.object.type==='Identifier' &&
          node.callee.object.name==='Reflect' && method==='set' &&
-         node.arguments[1] && knownKey(node.arguments[1])==='integrity') {
-        observed=true;
+         node.arguments[1]) {
+        const key=knownKey(node.arguments[1]);
+        if(key==='integrity' || key===null &&
+           isScriptElementTarget(node.arguments[0]))observed=true;
       }
       if(node.callee.object.type==='Identifier' &&
          node.callee.object.name==='Object' && method==='assign') {
+        const scriptTarget=isScriptElementTarget(node.arguments[0]);
         for(const item of node.arguments.slice(1)) {
-          if(item.type==='ObjectExpression' && item.properties.some(
-            /** @param {AstNode} prop */ prop=>
-            prop.type==='Property' &&
-              (prop.computed ? knownKey(prop.key) :
-                prop.key.type==='Identifier'?prop.key.name:
-                  knownKey(prop.key))==='integrity'))observed=true;
+          if(item.type!=='ObjectExpression'){
+            if(scriptTarget)observed=true;
+            continue;
+          }
+          for(const prop of item.properties) {
+            if(prop.type!=='Property'){
+              if(scriptTarget)observed=true;
+              continue;
+            }
+            const key=prop.computed ? knownKey(prop.key) :
+              prop.key.type==='Identifier'?prop.key.name:knownKey(prop.key);
+            if(key==='integrity'||key===null&&scriptTarget)observed=true;
+          }
         }
       }
     }
