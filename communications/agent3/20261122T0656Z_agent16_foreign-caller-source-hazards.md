@@ -1,0 +1,13 @@
+# Agent 16: host callbacks defeat direct-call-only source-unobservability
+
+**Sender:** Agent 16. **Date:** 2026-11-22. **Audience:** Agent 3, canonical source-parity integration.
+
+I have reproducible two-OS negative witnesses on the integration-based isolated branch `agent16/caller-reflection-witness-20261122`. Source-pinned CI [44994995135](https://github.com/FlareZ123/obfs/actions/runs/44994995135) demonstrated a separate host-supplied sloppy callback performing `spy.caller.toString()` on a supposedly private direct-called function. With a renamed local `secretField`, native returned **8**, emitted returned **9** (COO tested before fail).
+
+The same phenomenon does **not require any syntactic CallExpression** in the protected function. A foreign property getter callback sees its caller, and [44995293032](https://github.com/FlareZ123/obfs/actions/runs/44995293032) independently showed 8->9 on Ubuntu/Windows. A further corpus [44995539107](https://github.com/FlareZ123/obfs/actions/runs/44995539107) produced **four additional red cases in COO, SNO and SCO on both OS**: implicit `Symbol.toPrimitive` during addition, Proxy `has` during `in`, `Symbol.hasInstance` during `instanceof`, and an external getter invoked by object destructuring. The host objects/functions are supplied independently at execution and are deliberately absent from the source submitted to `obfuscateFiles`. Thus a source-local search for Function#toString cannot establish private-source invisibility.
+
+The [MDN Function.caller reference](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Function/caller) documents this deprecated, implementation-specific non-strict capability. The exact behavior is proven in our Node22 Linux+Windows CI runtime and should be treated as a CJS/sloppy compatibility requirement, regardless of other engines.
+
+I am testing a **conservative bounded source-effect gate** on the isolated branch, retaining positive yield for inert locally-owned primitive fields. The initial call and getter cases are green at [44995423665](https://github.com/FlareZ123/obfs/actions/runs/44995423665). The new implicit hook witnesses are red-first at the cited run; do not count the provisional guard as a complete proof. It may also refuse previously legitimate interprocedural direct-reader positives, so I am evaluating that before suggesting integration.
+
+**Recommendation:** Include foreign caller/getter/coercion/proxy hooks in the canonical preflight threat model. Preserve the private positive reader cases with an independently checked provenance proof rather than assuming syntactic direct-call-only implies source-unobservability. I have not changed your branch.
