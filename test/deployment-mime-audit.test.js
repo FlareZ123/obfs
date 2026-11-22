@@ -62,35 +62,39 @@ test('reviewed staging MIME and exact response bytes admit safe assets and trans
     {path:'client.js',sourceType:'script',code:'globalThis.witness="public-decoder";'},
     {path:'state.blob',sourceType:'asset',
       code:'<r xmlns:d="urn:records"><d:item>data</d:item></r>'},
-    {path:'styles/site.blob',sourceType:'asset',code:'body{color:navy}'}
+    {path:'styles/site.blob',sourceType:'asset',code:'body{color:navy}'},
+    {path:'page.blob',sourceType:'asset',
+      code:'<!doctype html><html><body><p>safe data document</p></body></html>'}
   ];
-  const types=['text/javascript; charset=utf-8','application/xml','text/css'];
+  const types=['text/javascript; charset=utf-8','application/xml',
+    'text/css; charset=utf-8','text/html; charset=utf-8'];
   const responses=new Map([
     ['/client.js',{type:types[0],body:Buffer.from(files[0].code)}],
     ['/state.blob',{type:types[1],body:Buffer.from(files[1].code)}],
-    ['/styles/site.blob',{type:types[2],body:Buffer.from(files[2].code)}]
+    ['/styles/site.blob',{type:types[2],body:Buffer.from(files[2].code)}],
+    ['/page.blob',{type:types[3],body:Buffer.from(files[3].code)}]
   ]);
   await withServer(responses,async origin=>{
     assert.deepEqual(await verifyPublishedDeployment(origin,files,approve(files,types)),
-      {verified:3,sourceFiles:1,assets:2});
+      {verified:4,sourceFiles:1,assets:3});
   });
 });
 
 test('opaque JavaScript MIME, active HTML/XML/SVG and CSS disclosures are refused independently of suffix',async()=>{
   const cases=[
-    ['text/javascript','window.untransformed=9;',/executable JavaScript/],
-    ['application/javascript','globalThis.untransformed=9;',/executable JavaScript/],
+    ['text/javascript; charset=utf-8','window.untransformed=9;',/executable JavaScript/],
+    ['application/javascript; charset=utf-8','globalThis.untransformed=9;',/executable JavaScript/],
     ['application/xml',
       '<h:html xmlns:h="http://www.w3.org/1999/xhtml"><h:script>window.plain=9;</h:script></h:html>',
       /HTML asset contains/],
     ['application/xhtml+xml',
       '<h:html xmlns:h="http://www.w3.org/1999/xhtml"><h:button onclick="alert(1)"/></h:html>',
       /HTML asset contains/],
-    ['text/html','<html><script>window.plain=9;</script></html>',/HTML asset contains/],
+    ['text/html; charset=utf-8','<html><script>window.plain=9;</script></html>',/HTML asset contains/],
     ['image/svg+xml',
       '<svg xmlns="http://www.w3.org/2000/svg"><script>window.plain=9;</script></svg>',
       /SVG asset contains/],
-    ['text/css','@import url("data:text/css;base64,YQ==");',
+    ['text/css; charset=utf-8','@import url("data:text/css;base64,YQ==");',
       /CSS data import/],
     ['application/pdf','%PDF-1.4'+String.fromCharCode(10),
       /Executable-capable PDF/],
@@ -104,6 +108,29 @@ test('opaque JavaScript MIME, active HTML/XML/SVG and CSS disclosures are refuse
     await assert.rejects(()=>
       verifyPublishedDeployment('http://127.0.0.1:1/',files,approve(files,[type])),
       expected,type+' must be audited before any HTTP request');
+  }
+});
+
+test('executable text response charset cannot silently diverge from UTF-8 audit',async()=>{
+  const candidates=[
+    {sourceType:'script',code:'globalThis.plain=7;',type:'text/javascript',
+      expected:/explicit UTF-8 charset/},
+    {sourceType:'script',code:'globalThis.plain=7;',type:'text/javascript; charset=windows-1252',
+      expected:/explicit UTF-8 charset/},
+    {sourceType:'asset',code:'<html><body>safe</body></html>',type:'text/html',
+      expected:/explicit UTF-8 charset/},
+    {sourceType:'asset',code:'body{color:blue}',type:'text/css; charset=iso-8859-1',
+      expected:/explicit UTF-8 charset/},
+    {sourceType:'asset',code:'<root/>',type:'application/xml; charset=utf-16le',
+      expected:/non-UTF-8 charset/}
+  ];
+  for(const sample of candidates){
+    /** @type {File[]} */
+    const files=[{path:'document.blob',
+      sourceType:/** @type {SourceType} */(sample.sourceType),code:sample.code}];
+    await assert.rejects(()=>
+      verifyPublishedDeployment('http://127.0.0.1:1/',files,
+        approve(files,[sample.type])),sample.expected,sample.type);
   }
 });
 
