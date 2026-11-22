@@ -36,6 +36,7 @@ function mixedGraph() {
       `export function ${returned}(){return ${record};}`
     );
     imported[group].push(record,returned);
+    // Proxy handlers must preserve observable dynamic property-key spellings.
     const read=[
       `${record}.${key}`,
       `${returned}().${key}`,
@@ -52,7 +53,7 @@ function mixedGraph() {
       `(()=>{const receiver=Object.create(${record});return receiver.${key};})()`,
       `(()=>{const clone={...${record}};return clone.${key};})()`,
       `(()=>{const copy=Object.assign({},${record});return Object.keys(copy).join('|');})()`,
-      `(()=>{const proxy=new Proxy(${record},{get(t,k,r){return Reflect.get(t,k,r)}});return proxy.${key};})()`
+      `(()=>{const proxy=new Proxy(${record},{get(t,k,r){return String(k)+':'+Reflect.get(t,k,r)}});return proxy.${key};})()`
     ][i%16];
     observations.push(read);
   }
