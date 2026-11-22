@@ -1960,6 +1960,35 @@ function mutatesDecoderIntrinsic(ast,rejectCommonJsExportEscape=false,rejectEsmE
       isObjectCreateCallable(value.callee.object);
   }
   /**
+   * Count statically bound leading arguments on a first-class Object.create
+   * callable. Object.create's descriptor map is parameter 1, so binding its
+   * prototype parameter shifts the descriptor position to call argument 0.
+   * @param {import('./ast').AstNode} value
+   * @param {Set<string>} [visited]
+   * @returns {number}
+   */
+  function objectCreateBoundArgumentCount(value,visited=new Set()) {
+    if(value.type==='SequenceExpression'&&value.expressions.length) {
+      return objectCreateBoundArgumentCount(
+        value.expressions[value.expressions.length-1],visited);
+    }
+    if(value.type==='Identifier') {
+      if(visited.has(value.name))return 0;
+      visited.add(value.name);
+      const counts=(descriptorBindings.get(value.name)??[]).map(
+        source=>objectCreateBoundArgumentCount(source,visited));
+      visited.delete(value.name);
+      return counts.length?Math.max(...counts):0;
+    }
+    if(value.type==='CallExpression'&&value.callee.type==='MemberExpression'&&
+       memberName(value.callee)==='bind'&&
+       isObjectCreateCallable(value.callee.object)) {
+      return objectCreateBoundArgumentCount(value.callee.object,visited)+
+        Math.max(0,value.arguments.length-1);
+    }
+    return 0;
+  }
+  /**
    * @param {string} objectName
    * @param {string} field
    * @returns {boolean}
@@ -2037,21 +2066,29 @@ function mutatesDecoderIntrinsic(ast,rejectCommonJsExportEscape=false,rejectEsmE
    */
   function objectCreateDescriptorArgument(node) {
     if(node.type!=='CallExpression')return null;
-    if(isObjectCreateCallable(node.callee))return node.arguments[1]??null;
+    if(isObjectCreateCallable(node.callee)) {
+      const index=1-objectCreateBoundArgumentCount(node.callee);
+      return index>=0?node.arguments[index]??null:null;
+    }
     if(node.callee.type!=='MemberExpression')return null;
     const method=memberName(node.callee);
     const receiver=node.callee.object;
     if(method==='call'&&isObjectCreateCallable(receiver)) {
-      return node.arguments[2]??null;
+      const index=2-objectCreateBoundArgumentCount(receiver);
+      return index>=1?node.arguments[index]??null:null;
     }
     if(method==='apply'&&isObjectCreateCallable(receiver)) {
+      const index=1-objectCreateBoundArgumentCount(receiver);
       const args=node.arguments[1];
-      return args?.type==='ArrayExpression'?args.elements[1]??null:null;
+      return index>=0&&args?.type==='ArrayExpression'?
+        args.elements[index]??null:null;
     }
     if(method==='apply'&&isReflectIntrinsic(receiver)&&
        node.arguments[0]&&isObjectCreateCallable(node.arguments[0])) {
+      const index=1-objectCreateBoundArgumentCount(node.arguments[0]);
       const args=node.arguments[2];
-      return args?.type==='ArrayExpression'?args.elements[1]??null:null;
+      return index>=0&&args?.type==='ArrayExpression'?
+        args.elements[index]??null:null;
     }
     return null;
   }
