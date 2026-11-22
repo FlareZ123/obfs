@@ -50,6 +50,7 @@
     "sims/projected-affine-coset-profile-clone.js",
     "sims/sco-rankfive-arbitrary-table-real-http.js",
     "test/projected-affine-coset-profile-clone.test.js",
-    "sims/sco-vs-native-rank6-matched-oracle.js"
+    "sims/sco-vs-native-rank6-matched-oracle.js",
+    "sims/low-rank-coset-permutation-audit.js"
   ]
 }
