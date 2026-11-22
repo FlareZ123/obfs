@@ -2,6 +2,9 @@ name: Manual obfuscation output sample
 
 on:
   workflow_dispatch:
+  push:
+    branches:
+      - agent14/llm-matched-affine-evaluation-20261122
 
 permissions:
   contents: read
