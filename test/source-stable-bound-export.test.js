@@ -24,8 +24,8 @@ async function load(file,source) {
 
 test('bound public export keeps native source and callable metadata while private primitive keys change',async()=>{
   const native='const owner={secretField:7,otherField:11};'+
-    'function internal(privateFirst,privateSecond){'+
-    'return ((privateFirst+owner.secretField)^owner.otherField)+privateSecond;}'+
+    'const internal=(privateFirst,privateSecond)=>{'+
+    'return ((privateFirst+owner.secretField)^owner.otherField)+privateSecond;};'+
     'export const hot=internal.bind(null);';
   const output=obfuscateFiles([{path:'entry.mjs',sourceType:'module',code:native}],{
     mode:'coo',closedWorld:true,seed:'bound-public-private-record',
@@ -41,6 +41,9 @@ test('bound public export keeps native source and callable metadata while privat
     assert.equal(protectedEntry.hot.name,original.hot.name);
     assert.equal(protectedEntry.hot.length,original.hot.length);
     assert.deepEqual(Reflect.ownKeys(protectedEntry.hot),Reflect.ownKeys(original.hot));
+    assert.throws(()=>Reflect.construct(original.hot,[1,2]),TypeError,
+      'a bound arrow exposes no target constructor through instance prototype');
+    assert.throws(()=>Reflect.construct(protectedEntry.hot,[1,2]),TypeError);
     for(const a of [0,1,7,19,-101]) {
       for(const b of [0,3,13,-2]) {
         assert.equal(protectedEntry.hot(a,b),original.hot(a,b));
