@@ -969,6 +969,34 @@ function realmStateObservation(body,checkHostConfiguration=false){
       (value.value===null||
         ['string','number','boolean','bigint'].includes(typeof value.value));
   }
+  /**
+   * Only directly owned JSON-safe literals have a bounded, inert clone
+   * result. A function, proxy, getter or unknown expression can throw a
+   * native DataCloneError with host-specific observable message wording.
+   * @param {import('./ast').AstNode|null|undefined} value
+   * @param {number} [depth]
+   * @returns {boolean}
+   */
+  function provedCloneLiteral(value,depth=0){
+    if(!value||depth>32)return false;
+    if(value.type==='Literal'&&value.regex===undefined){
+      return value.value===null||
+        ['string','boolean'].includes(typeof value.value)||
+        typeof value.value==='number'&&Number.isFinite(value.value);
+    }
+    if(value.type==='ArrayExpression')return value.elements.every(element=>
+      element!==null&&element.type!=='SpreadElement'&&
+      provedCloneLiteral(element,depth+1));
+    if(value.type==='ObjectExpression')return value.properties.every(property=>{
+      if(property.type!=='Property'||property.kind!=='init'||property.computed||
+         property.method||property.shorthand)return false;
+      const name=property.key.type==='Identifier'?property.key.name:
+        property.key.type==='Literal'?String(property.key.value):null;
+      return name!==null&&name!=='__proto__'&&
+        provedCloneLiteral(property.value,depth+1);
+    });
+    return false;
+  }
   let stackTouched=false;
   let configurationTouched=false;
   let entropyTouched=false;
@@ -1096,6 +1124,21 @@ function realmStateObservation(body,checkHostConfiguration=false){
          receiver.type==='NewExpression'&&
          isAbortConstructor(receiver.callee,abortControllerConstructors)){
         stackTouched=true;
+      }
+    }
+    // Noncloneable inputs produce native DataCloneError messages that differ
+    // between Chromium and Node. Relocate only a syntactically owned inert
+    // JSON-literal argument; unproved aliases and first-class calls refuse.
+    const cloneRef=node.type==='Identifier'&&node.name==='structuredClone'||
+      node.type==='MemberExpression'&&
+        node.object.type==='Identifier'&&
+        globalNames.has(node.object.name)&&keyName(node)==='structuredClone';
+    if(checkHostConfiguration&&cloneRef&&!isStaticKey(parent,key)&&
+       !(node.type==='Identifier'&&parent?.type==='VariableDeclarator'&&key==='id')&&
+       !(node.type==='Identifier'&&parent?.type==='FunctionDeclaration'&&key==='id')){
+      if(parent?.type!=='CallExpression'||parent.callee!==node||
+         parent.arguments.length!==1||!provedCloneLiteral(parent.arguments[0])){
+        configurationTouched=true;
       }
     }
     // Both AbortController#abort and AbortSignal.abort can synthesize a
