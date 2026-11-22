@@ -2024,7 +2024,8 @@ function renameCrossFileProperties(files,seed) {
       const ast=parse(file.code,'module');
       const bindings=collectBindings(ast);
       const sourceExposedBodies=collectSourceExposedBodies(ast,bindings);
-      const sourceExposedEdits=new WeakSet();
+      /** @type {WeakSet<AstNode>} */
+  const sourceExposedEdits=new WeakSet();
       walk(ast,(node,parent,key,ancestors)=>{
         if(ancestors.some(ancestor=>sourceExposedBodies.has(ancestor)))
           sourceExposedEdits.add(node);
