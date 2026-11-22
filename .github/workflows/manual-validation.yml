@@ -116,6 +116,11 @@ jobs:
 
   focused:
     if: ${{ inputs.focused_test != '' }}
+    # Repeated identical probes should not consume overlapping two-OS runners.
+    # Keep OS and source pin in the key to retain independent matrix jobs.
+    concurrency:
+      group: obfs-focused-${{ github.ref }}-${{ github.sha }}-${{ inputs.focused_test }}-${{ matrix.os }}
+      cancel-in-progress: true
     strategy:
       fail-fast: false
       matrix:
