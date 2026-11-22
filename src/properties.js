@@ -1168,7 +1168,7 @@ function renameLocalProperties(source, ast, options) {
       earlierPrimitives.set(item.id.name,item.end);
     }
   }
-  /** @type {{node:AstNode,name:string,properties:AstNode[]}[]} */
+  /** @type {{node:AstNode,name:string,properties:AstNode[],usesEarlierPrimitive:boolean}[]} */
   const candidates = [];
   walk(ast,(node,parent,key,ancestors) => {
     if (parent?.type !== 'VariableDeclarator' || key !== 'init' ||
@@ -1189,7 +1189,10 @@ function renameLocalProperties(source, ast, options) {
              directTopLevelOwner && isEarlierTopLevelPrimitive(p.value,parent.start,earlierPrimitives))))) return;
     const names = properties.map(ownPropertyName);
     if (new Set(names).size !== names.length) return;
-    candidates.push({node:literal,name:parent.id.name,properties});
+    const usesEarlierPrimitive=properties.some(property=>
+      !isLiteralValue(property.value)&&directTopLevelOwner&&
+      isEarlierTopLevelPrimitive(property.value,parent.start,earlierPrimitives));
+    candidates.push({node:literal,name:parent.id.name,properties,usesEarlierPrimitive});
   });
 
   /** @type {import('./ast').Edit[]} */
@@ -1199,6 +1202,24 @@ function renameLocalProperties(source, ast, options) {
   for (const candidate of candidates) {
     const proof = proveLocalObject(ast, candidate.name, bindings);
     if (!proof || (!proof.members.length && !proof.patterns.length && !proof.inChecks.length)) continue;
+    // A callable may expose its original source text through a public
+    // module export, callback return, or another unproved host path.
+    // The earlier-primitive lane declines every rewritten read inside a
+    // function body instead of guessing which callables are unobservable.
+    // Existing literal/direct-parameter proof behavior remains unchanged.
+    if(candidate.usesEarlierPrimitive) {
+      const renamedUses=new Set([
+        ...proof.members,...proof.patterns,...proof.inChecks,
+        ...proof.reflections.map(reflection=>reflection.call)
+      ]);
+      let callableSourceExposed=false;
+      walk(ast,(node,parent,key,ancestors)=>{
+        if(renamedUses.has(node)&&ancestors.some(ancestor=>
+          ['FunctionDeclaration','FunctionExpression','ArrowFunctionExpression']
+            .includes(ancestor.type)))callableSourceExposed=true;
+      });
+      if(callableSourceExposed)continue;
+    }
     // An unowned field may invoke an inherited getter with this=object. That
     // getter can enumerate own keys, making otherwise private renaming visible.
     const ownNames=new Set(candidate.properties.map(ownPropertyName));
