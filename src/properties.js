@@ -1410,13 +1410,13 @@ function collectPrivateDirectCallables(ast,bindings=collectBindings(ast)) {
   walk(ast,(node,parent,key)=>{
     if(['FunctionExpression','ArrowFunctionExpression'].includes(node.type)&&
        parent?.type==='CallExpression'&&key==='callee'&&parent.callee===node&&
-       !parent.optional)directCallables.add(node);
+       !parent.optional&&!hasSelfSourceObserver(node,null))directCallables.add(node);
     if(['FunctionExpression','ArrowFunctionExpression'].includes(node.type)&&
        parent?.type==='CallExpression'&&key==='arguments'&&
        parent.arguments.includes(node)&&parent.callee?.type==='MemberExpression'&&
        ['then','catch','finally'].includes(staticName(parent.callee.property)??'')&&
-       !parent.callee.optional&&isKnownPromiseExpression(parent.callee.object))
-      directCallables.add(node);
+       !parent.callee.optional&&isKnownPromiseExpression(parent.callee.object)&&
+       !hasSelfSourceObserver(node,null))directCallables.add(node);
   });
   /** @type {Set<AstNode>} */
   const permitted=new Set();
