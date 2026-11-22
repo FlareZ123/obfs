@@ -1,0 +1,61 @@
+name: Agent40 SCO lexical admission validation
+
+on:
+  push:
+    branches:
+      - agent40/sco-var-hoist-proof-20261122
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  focused:
+    name: focused-${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.23.4'
+      - name: Install declared dependencies
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Lexical var, switch, native realms, proxy inventory and baseline
+        run: node --test --test-reporter=spec test/sco-var-hoist-lexical.test.js test/sco-var-hoist-native-realm.test.js test/sco-lexical-inventory-complexity.test.js test/sco-free-reference-lexical.test.js
+      - name: Strict project JSDoc
+        run: npm run typecheck
+      - name: Strict external JSDoc
+        run: npm run typecheck:external
+
+  full:
+    name: full-${{ matrix.os }}
+    needs: focused
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.23.4'
+      - name: Install declared dependencies
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Full Node behavior and adversarial suites
+        run: node --test --test-reporter=spec test/*.test.js
+      - name: Strict project JSDoc
+        run: npm run typecheck
+      - name: Strict external JSDoc
+        run: npm run typecheck:external
+      - name: Browser integration under real Chromium
+        if: matrix.os == 'ubuntu-latest'
+        env:
+          CHROMIUM_BIN: google-chrome
+        run: npm run test:browser
