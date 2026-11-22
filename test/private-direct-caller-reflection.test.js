@@ -111,7 +111,7 @@ test('an externally owned property getter can observe the source of its private 
     '  const caller=reader.caller;',
     '  return caller&&caller.toString().includes("secretField")?7:8;',
     '})'
-  ].join('\\n')));
+  ].join('\n')));
   const host=Object.defineProperty({},'value',{get:getter});
   const source=[
     'function privateFn(){',
@@ -119,7 +119,7 @@ test('an externally owned property getter can observe the source of its private 
     '  return host.value+secret.secretField;',
     '}',
     'module.exports=privateFn();'
-  ].join('\\n');
+  ].join('\n');
   assert.equal(execute(source,undefined,host),8);
   compare(source,'host-getter',undefined,host);
 });
