@@ -403,3 +403,26 @@ test('foreign SVG base cannot hide a later HTML base from SRI source-byte protec
       ': SVG <base> is not an HTMLBaseElement, so the live HTML base pins the script');
   }
 });
+
+test('fragment marker in HTML filename must not hide a pinned relative JavaScript URL',()=>{
+  const source='globalThis.fragmentFilenameSRI="original JS bytes must survive URL path encoding";';
+  const digest=require('node:crypto').createHash('sha256').update(source).digest('base64');
+  const html='<html><body><script src="../client.js" integrity="sha256-'+digest+'"></script></body></html>';
+  const assets=[
+    {path:'pages/client.js',sourceType:/** @type {const} */('script'),code:source},
+    {path:'pages/hash#inside/index.html',sourceType:/** @type {const} */('asset'),code:Buffer.from(html)}
+  ];
+  for(const mode of /** @type {const} */(['coo','sco','sno'])){
+    const options={mode,seed:'fragment-filename-sri/'+mode,
+      strings:true,properties:false,identifiers:false};
+    const unpinned=obfuscateFiles([
+      assets[0],
+      {...assets[1],code:Buffer.from('<html><body><script src="../client.js"></script></body></html>')}
+    ],options);
+    assert.notEqual(unpinned.files[0].code,source,
+      'No-SRI positive control should actually obfuscate in '+mode);
+    const pinned=obfuscateFiles(assets,options);
+    assert.equal(pinned.files[0].code,source,
+      'A fragment marker in the path is a filename byte, not a URL fragment in '+mode);
+  }
+});
