@@ -32,6 +32,82 @@ const browserOnlyRoots=new Set(['window','document','navigator','location',
   'MutationObserver','ResizeObserver','IntersectionObserver',
   'FileReader','FileList','Image','Audio','HTMLElement','Element','Node']);
 
+const standardRealmGlobals=new Set([
+  'Infinity','NaN','undefined','eval','isFinite','isNaN',
+  'parseFloat','parseInt','decodeURI','decodeURIComponent',
+  'encodeURI','encodeURIComponent','escape','unescape',
+  'Object','Function','Boolean','Symbol','Error','AggregateError',
+  'EvalError','RangeError','ReferenceError','SyntaxError','TypeError',
+  'URIError','Number','BigInt','Math','Date','String','RegExp','Array',
+  'Int8Array','Uint8Array','Uint8ClampedArray','Int16Array','Uint16Array',
+  'Int32Array','Uint32Array','Float32Array','Float64Array',
+  'BigInt64Array','BigUint64Array','Map','Set','WeakMap','WeakSet',
+  'ArrayBuffer','SharedArrayBuffer','DataView','JSON','Promise',
+  'Reflect','Proxy','Intl','Atomics','WebAssembly',
+  'WeakRef','FinalizationRegistry'
+]);
+
+/**
+ * Whether an AST literal is an owned primitive whose typeof result does not
+ * depend on a host global. RegExp syntax carries an object, so exclude it.
+ * @param {import('./ast').AstNode|null|undefined} node
+ * @returns {boolean}
+ */
+function isProvedTypeofLiteral(node){
+  return Boolean(node&&node.type==='Literal'&&node.regex===undefined&&
+    (node.value===null||
+      ['string','number','boolean','bigint'].includes(typeof node.value)));
+}
+
+/**
+ * Find the first unproved unqualified typeof read in a relocated source.
+ * A unique binding is necessary, but is not alone sufficient: a sibling
+ * function's declaration is not in lexical scope. Accept only the explicit
+ * module binding or a literal/parameter/function binding in an ancestor scope.
+ * Unknown host roots remain conservatively unproved, even when typeof would
+ * return "undefined" instead of throwing on one particular machine.
+ *
+ * @param {import('./ast').AstNode} root
+ * @param {Map<string,number>} bindings
+ * @param {Set<string>} moduleBindings
+ * @param {Set<string>} rootFormals
+ * @returns {string|null}
+ */
+function firstUnprovedTypeofReference(root,bindings,moduleBindings,rootFormals){
+  /** @type {string|null} */
+  let unproved=null;
+  walk(root,(node,_parent,_key,ancestors)=>{
+    if(unproved!==null||node.type!=='UnaryExpression'||node.operator!=='typeof'||
+       node.argument?.type!=='Identifier')return;
+    const name=node.argument.name;
+    const bindingCount=bindings.get(name)??0;
+    if(bindingCount===0&&(name==='globalThis'||standardRealmGlobals.has(name)))return;
+    if(bindingCount!==1){unproved=name;return;}
+    if(moduleBindings.has(name)||rootFormals.has(name))return;
+    for(const scope of ancestors){
+      if(['FunctionDeclaration','FunctionExpression','ArrowFunctionExpression']
+          .includes(scope.type)){
+        if(scope.id?.type==='Identifier'&&scope.id.name===name)return;
+        if(Array.isArray(scope.params)&&scope.params.some(
+          (/** @type {import('./ast').AstNode} */ parameter)=>
+            parameter.type==='Identifier'&&parameter.name===name))return;
+      }
+      if(scope.type!=='BlockStatement')continue;
+      for(const statement of scope.body){
+        if(statement.type==='FunctionDeclaration'&&
+           statement.id?.type==='Identifier'&&statement.id.name===name)return;
+        if(statement.type!=='VariableDeclaration'||statement.kind!=='const')continue;
+        for(const declaration of statement.declarations){
+          if(declaration.id.type==='Identifier'&&declaration.id.name===name&&
+             declaration.start<node.start&&isProvedTypeofLiteral(declaration.init))return;
+        }
+      }
+    }
+    unproved=name;
+  });
+  return unproved;
+}
+
 /**
  * Copy the declared numeric array slots without invoking caller-controlled
  * map, iterator or species methods. An accessor at each slot is read once.
@@ -978,17 +1054,24 @@ function collectPrivateStaticImportClosure(directPaths,sources) {
     // stay unproved: syntax-only name resolution cannot safely unify them.
     const localBindings=collectBindings(ast);
     const provenModuleOwnedBrowserNames=new Set();
+    const provenModuleTypeofNames=new Set();
     for(const statement of ast.body){
+      if(statement.type==='ImportDeclaration'){
+        for(const specifier of statement.specifiers){
+          if(specifier.local?.type==='Identifier'&&
+             localBindings.get(specifier.local.name)===1){
+            provenModuleTypeofNames.add(specifier.local.name);
+          }
+        }
+      }
       const declaration=statement.type==='VariableDeclaration'?statement:
         statement.type==='ExportNamedDeclaration'?statement.declaration:null;
       if(declaration?.type!=='VariableDeclaration'||declaration.kind!=='const')continue;
       for(const item of declaration.declarations){
-        if(item.id.type!=='Identifier'||!item.init||
-           item.init.type!=='Literal'||item.init.regex!==undefined||
-           !browserOnlyGlobals.has(item.id.name)||
+        if(item.id.type!=='Identifier'||!isProvedTypeofLiteral(item.init)||
            localBindings.get(item.id.name)!==1)continue;
-        if(item.init.value===null||
-           ['string','number','boolean','bigint'].includes(typeof item.init.value)){
+        provenModuleTypeofNames.add(item.id.name);
+        if(browserOnlyGlobals.has(item.id.name)){
           provenModuleOwnedBrowserNames.add(item.id.name);
         }
       }
@@ -1043,6 +1126,12 @@ function collectPrivateStaticImportClosure(directPaths,sources) {
         }
       }
     });
+    const freeTypeof=firstUnprovedTypeofReference(ast,localBindings,
+      provenModuleTypeofNames,new Set());
+    if(freeTypeof!==null){
+      throw new TypeError('SCO private static dependency has unproved free typeof reference: '+
+        filename+':'+freeTypeof);
+    }
     walk(ast,node=>{
       // Destructuring can carry process.getBuiltinModule or a global root
       // into an untracked binding. Refuse these opaque first-class escapes.
@@ -1414,6 +1503,17 @@ function partitionScoSelectedAsyncExports(file,options) {
   const privateChunks=[];
   /** @type {import('./ast').AstNode[]} */
   const privateBodies=[];
+  /** @type {WeakMap<import('./ast').AstNode,Set<string>>} */
+  const privateFormals=new WeakMap();
+  /** @param {import('./ast').AstNode} fn @returns {void} */
+  function addPrivateBody(fn){
+    privateBodies.push(fn.body);
+    const parameters=new Set();
+    for(const parameter of fn.params){
+      if(parameter.type==='Identifier')parameters.add(parameter.name);
+    }
+    privateFormals.set(fn.body,parameters);
+  }
   const ambientRoots=new Set(['globalThis','window','self','document','navigator','location','process','global']);
   /**
    * Prove a literal-only object constructed independently within the function.
@@ -1564,7 +1664,7 @@ function partitionScoSelectedAsyncExports(file,options) {
     }else{
       privateHelperNames.add(name);
       privateHelperChunks.push(helper.text);
-      privateBodies.push(fn.body);
+      addPrivateBody(fn);
       const localAmbient=ownedLocalAmbientNames(fn.body);
       walk(fn.body,(node,parent,key)=>{
         if(node.type==='Identifier'&&!isStaticKey(parent,key)&&ambientRoots.has(node.name)&&
@@ -1653,7 +1753,7 @@ function partitionScoSelectedAsyncExports(file,options) {
     if(selected.has(name)){
       if(!fn.async||fn.generator)throw new TypeError('Private SCO export must be async: '+name);
       privateChunks.push(text);
-      privateBodies.push(fn.body);
+      addPrivateBody(fn);
       const localAmbient=ownedLocalAmbientNames(fn.body);
       walk(fn.body,(node,parent,key)=>{
         if(node.type==='Identifier'&&!isStaticKey(parent,key)&&ambientRoots.has(node.name)&&
@@ -1676,23 +1776,10 @@ function partitionScoSelectedAsyncExports(file,options) {
   // Even the standard globalThis property is a distinct mutable host object
   // in each realm. Refuse nested self-references rather than allowing aliases
   // such as globalThis.globalThis.externalBridge around this guard.
-  const standardRealmGlobals=new Set([
-    'Infinity','NaN','undefined','eval','isFinite','isNaN',
-    'parseFloat','parseInt','decodeURI','decodeURIComponent',
-    'encodeURI','encodeURIComponent','escape','unescape',
-    'Object','Function','Boolean','Symbol','Error','AggregateError',
-    'EvalError','RangeError','ReferenceError','SyntaxError','TypeError',
-    'URIError','Number','BigInt','Math','Date','String','RegExp','Array',
-    'Int8Array','Uint8Array','Uint8ClampedArray','Int16Array','Uint16Array',
-    'Int32Array','Uint32Array','Float32Array','Float64Array',
-    'BigInt64Array','BigUint64Array','Map','Set','WeakMap','WeakSet',
-    'ArrayBuffer','SharedArrayBuffer','DataView','JSON','Promise',
-    'Reflect','Proxy','Intl','Atomics','WebAssembly',
-    'WeakRef','FinalizationRegistry'
-  ]);
   // Preserve the previously established shared-state diagnostic when the
   // same ambient root is consumed on both sides of the partition.
   const sharedAmbient=privateAmbient.size>0&&publicAmbient.size>0;
+  const allPrivateBindings=collectBindings(ast);
   for(const body of privateBodies){
     // The selected function and helpers execute in a different ESM module
     // on a trusted Node server. Module metadata and dynamic import therefore
@@ -1806,6 +1893,11 @@ function partitionScoSelectedAsyncExports(file,options) {
         throw new TypeError('Private SCO export uses dynamic lexical execution: '+node.name);
       }
     });
+    const freeTypeof=firstUnprovedTypeofReference(body,allPrivateBindings,
+      serverConstants,privateFormals.get(body)??new Set());
+    if(freeTypeof!==null){
+      throw new TypeError('Private SCO export or helper uses unproved free typeof reference: '+freeTypeof);
+    }
   }
   // Global roots can alias across spellings, e.g. window versus globalThis.
   // Decline any cross-boundary ambient use rather than proving deep aliases.
