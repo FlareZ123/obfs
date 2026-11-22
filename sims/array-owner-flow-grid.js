@@ -59,7 +59,7 @@ function runGrid(){
       // original source while all owning-field accesses stay in a private
       // direct-call-only helper. Unsafe ownership cases still have to refuse.
       const originalBody=head+fixtures[caseIndex];
-      const code=originalBody.replace(/module\\.exports=n=>(.*);$/u,
+      const code=originalBody.replace(/module\.exports=n=>(.*);$/u,
         'function privateRun(n){return $1;}module.exports=n=>privateRun(n);');
       assert.notEqual(code,originalBody,'Every matrix case requires a real source-paired wrapper');
       const native=execute(code);
