@@ -522,3 +522,19 @@ test('SCO retains typeof of proved local primitives, formals, and standard globa
     }
   }
 });
+
+
+test('Unrelated sibling binding cannot disguise a free typeof host reference',()=>{
+  const body='function sibling(){const externalBridge=41;return typeof externalBridge;}'+
+    'return typeof externalBridge;';
+  const source='export async function protectedOp(){'+body+'}'+
+    'export function visible(){return 7;}';
+  assert.throws(()=>partitionScoSelectedAsyncExports(
+    {path:'mixed.mjs',code:source,sourceType:'module'},
+    {seed:'sco-lexical-typeof-sibling-20261122',privateNames:['protectedOp']}
+  ),/Private SCO export or helper uses unproved free typeof reference/u);
+  for(const transitive of [false,true]){
+    assert.throws(()=>partitionGraph(body,transitive),
+      /SCO private static dependency has unproved free typeof reference/u);
+  }
+});
