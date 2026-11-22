@@ -52,6 +52,29 @@ and strict JSDoc at exact source
 A full Node/Chromium integration matrix has not yet been attributed to this
 source pin.
 
+## Constructor recovery follow-up
+
+The initial direct-spelling guard could be bypassed through a freshly built
+URL instance: `(new URL("https://example.org")).constructor.createObjectURL(...)`.
+A red-first regression also tested an assigned instance and computed
+`["constructor"]` property, with an unrelated owned-record constructor
+as the positive control. The
+[Ubuntu/Windows run 44998354035](https://github.com/FlareZ123/obfs/actions/runs/44998354035)
+at exact source `30cde7e41ad1c691f01e1025907db82ef23bbdd6`
+failed on both platforms for the first recovered-constructor expression.
+Local Node 22.16.0 independently confirmed `new URL("https://example.org").constructor===URL`
+and that it exposes the `blob:nodedata:` object URL method.
+
+The scanner now traces simple local variable/assignment aliases originating
+from direct `new URL(...)` and declines their `constructor` extraction,
+computed unknown property reads, and direct new-instance constructor access.
+The same existing graph workflow
+[44998450266](https://github.com/FlareZ123/obfs/actions/runs/44998450266)
+at exact source `e9e18b219fc56d5a63f4fc46769f1715936ff991`
+passed **all targeted cases and strict JSDoc on Ubuntu and Windows**.
+This is still a bounded syntactic proof; arbitrary nested destructuring and
+higher-order value escapes require separate analysis.
+
 ## Boundaries and next investigations
 
 The refusal covers directly spelled `URL` constructor uses in the selected
