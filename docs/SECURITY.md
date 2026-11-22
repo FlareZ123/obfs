@@ -621,7 +621,10 @@ locations even though `require.resolve` selects **the same package
 file**. Therefore passing the audit is only evidence about that
 specific resolution-path condition, not whole-program package parity.
 
-The audit ignores dynamic require aliases, `module.require`, ESM
+The audit declines direct require calls governed by a `package.json`
+that the compiler has not published yet, since Node cannot resolve a
+future package scope soundly before publication. It ignores dynamic
+require aliases, `module.require`, ESM
 imports, runtime loader hooks and dependencies modified after compile.
 No runtime checks are emitted and this optional compiler check cannot
 prevent an attacker with SNO filesystem/runtime/memory access from
