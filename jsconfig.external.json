@@ -235,7 +235,9 @@
     "sims/low-output-residual-common-basis-peercheck.js",
     "test/common-basis-existence.test.js",
     "sims/low-output-common-basis-repair.js",
-    "test/common-basis-random-repair.test.js"
+    "test/common-basis-random-repair.test.js",
+    "sims/common-basis-gf3-exhaustive.js",
+    "test/common-basis-gf3-exhaustive.test.js"
   ],
   "exclude": [
     "node_modules"
