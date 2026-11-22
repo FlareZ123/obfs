@@ -33,6 +33,10 @@ jobs:
         run: node test/html-sri-browser.js
       - name: Verify portable URL SRI aliases retain exact script bytes
         run: node --test test/sri-portable-url-alias.test.js
+      - name: Verify SRI under real Chromium with case- and NFC-normalizing HTTP paths
+        env:
+          CHROMIUM_BIN: google-chrome
+        run: node test/sri-portable-url-alias-browser.js
       - name: Reject XHTML XML-namespace inline JavaScript and preserve SRI
         run: node --test test/xhtml-executable-asset.test.js
       - name: Check executable XHTML and SRI-pinned scripts in real Chromium
