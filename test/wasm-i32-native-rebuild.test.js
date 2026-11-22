@@ -48,14 +48,14 @@ test('automated public-only native replacement needs no WebAssembly, original so
     assert.ok(attack.replacementBytes<attack.sourceBytes);
     assert.doesNotMatch(attack.code,/WebAssembly|Uint8Array/u);
     const compiled=load(emitted.code,globalThis);
+    // Deliberately exclude Wasm from the attacker's replacement runtime.
+    const replacement=load(attack.code,Object.freeze({}));
     const originalSources=[Function.prototype.toString.call(original.first),
       Function.prototype.toString.call(original.second)];
     assert.deepEqual([Function.prototype.toString.call(compiled.first),
       Function.prototype.toString.call(compiled.second)],originalSources);
     assert.deepEqual([Function.prototype.toString.call(replacement.first),
       Function.prototype.toString.call(replacement.second)],originalSources);
-    // Deliberately exclude Wasm from the attacker's replacement runtime.
-    const replacement=load(attack.code,Object.freeze({}));
     assert.deepEqual(Object.keys(replacement).sort(),['first','second']);
     for(let i=0;i<256;i++){
       const a=i32(),b=i32(),c=i32();
