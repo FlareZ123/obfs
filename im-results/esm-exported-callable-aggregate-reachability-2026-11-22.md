@@ -133,3 +133,22 @@ I added `test/source-observer-islands-external-callable-source.test.js`, which:
 This narrow positive case passed 3/3 modes on both Ubuntu and Windows on mainline [run 44985281120](https://github.com/FlareZ123/obfs/actions/runs/44985281120) and the candidate review branch [run 44985283845](https://github.com/FlareZ123/obfs/actions/runs/44985283845). Thus a source-exposure gate must preserve this specific source-stable exception; a blanket veto of all exported callables would lose valid property-renaming yield. Do not generalize the exception to returned functions, aggregates, member expressions, getters, parameters or arbitrary calls without extending the proof and tests.
 
 The broader candidate review branch still has a separate private-class yield failure (0/3 modes) under its blanket class-ancestor veto, while the mainline private-class control passes 3/3 modes; see the preceding section.
+
+## Real-browser external-importer validation and strict JSDoc
+
+The external primitive-leaf callable-source check was also executed in real Chromium by `test/source-observer-islands-external-callable-browser.js`. The page is not part of the compiler input; it imports `independent.mjs` directly and calls `Function.prototype.toString.call(unrelated)`. It compares the original, emitted and public-normalized graphs.
+
+On mainline test branch [run 44985651991](https://github.com/FlareZ123/obfs/actions/runs/44985651991), Chromium reported:
+
+```
+SOURCE_ISLAND_EXTERNAL_CALLABLE_BROWSER {
+  "browser":"Chromium",
+  "fields":2,
+  "matchedGraphs":3,
+  "normalizedFields":2
+}
+```
+
+The same Chromium step passed on the Agent 48 candidate review branch [run 44985655281](https://github.com/FlareZ123/obfs/actions/runs/44985655281). This confirms the exact callable-source preservation and two genuine local property rewrites in the browser ESM linker, not only Node's ESM loader.
+
+All five new test files were added to `jsconfig.external.json`. The mainline review run [44985868808](https://github.com/FlareZ123/obfs/actions/runs/44985868808) passed both `npm run typecheck` and `npm run typecheck:external` on Ubuntu and Windows. The overall workflow remains red only because the intentional source-parity witnesses are expected to fail against the unfixed compiler; the strict JSDoc checks themselves pass.
