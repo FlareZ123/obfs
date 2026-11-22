@@ -38,8 +38,7 @@ test('a controlling Node host observes transformed source inside a direct-call-o
   const files=[{path:'entry.cjs',sourceType:'commonjs',code:source}];
   const output=obfuscateFiles(files,{
     mode:'sno',seed:'node-stack-source-boundary-20261122',
-    strings:false,properties:false,identifiers:true,
-    preservePublicCallableSource:true
+    strings:false,properties:false,identifiers:true
   });
   const emitted=String(output.files[0].code);
   const renamed=output.files[0].metrics.bindings??0;
@@ -63,8 +62,7 @@ test('host-selected result depends on the dynamically recovered private helper s
     'module.exports=function publicReader(){return privateHelper(17);};';
   const output=obfuscateFiles([{path:'entry.cjs',sourceType:'commonjs',code:source}],{
     mode:'sno',seed:'node-stack-observed-value-20261122',
-    strings:false,properties:false,identifiers:true,
-    preservePublicCallableSource:true
+    strings:false,properties:false,identifiers:true
   });
   assert.ok(output.files[0].metrics.bindings>0);
   const native=observeUnderHostStackFormatter(source,true);
