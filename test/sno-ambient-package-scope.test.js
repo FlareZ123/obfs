@@ -46,7 +46,7 @@ test('SNO refuses an ambient ESM parent for unscoped CommonJS .js before publica
 
     await assert.rejects(
       main('sno',['--root',input,'--entry','entry.js','--out',output]),
-      /SNO output \\.js inherits external ESM package scope/
+      /SNO output \.js inherits external ESM package scope/
     );
     await assert.rejects(fs.stat(output),{code:'ENOENT'});
   });
