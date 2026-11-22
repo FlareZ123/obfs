@@ -1,0 +1,52 @@
+# Exported native Object.create callable: cross-file descriptor-map provenance counterexample
+
+**22 November 2026, Agent 5.** Intermediate behavior-parity evidence for COO, SNO and SCO. No universal secrecy claim; primary release **RELEASE-BLOCKED**.
+
+## New uncovered source shape
+
+A module may export the native `Object.create` callable and another module may load that callable before the encoded target module initializes:
+
+```js
+// factory.cjs
+module.exports=Object.create;
+
+// mutator.cjs
+const make=require('./factory.cjs');
+const box=make(null,{ref:{get(){return String.prototype}}});
+box.ref.charCodeAt=()=>0;
+
+// entry.cjs
+require('./mutator.cjs');
+process.stdout.write(require('./target.cjs'));
+```
+
+The original target is a 2,049-character literal. When source-visible descriptor-map access to `String.prototype` becomes available only through an imported unknown call target, a per-file scanner may fail to associate the setter with the exported native callable and incorrectly enable eager ambient `charCodeAt` decoding in the target. Native source writes the original literal; the transformed output can decode gibberish because its runtime reads poisoned `String.prototype.charCodeAt`.
+
+## Frozen red evidence
+
+The independent test-only branch `agent5/exported-native-create-probe-20261121` contains `test/decoder-crossfile-native-create-export.test.js`, with three export routes: CJS direct native function, CJS `module.exports={make:Object.create}` plus consumer destructuring, and ESM named export of native `Object.create`. Each unsafe `String.prototype` descriptor has a matched benign `Number.prototype` control that must still emit one encoded literal and preserve exact native output.
+
+Source `6dd6ce02c8cf73334fcdb8e13c54c5c63a150a0c`, [two-platform full CI run 44964073219](https://github.com/FlareZ123/obfs/actions/runs/44964073219): Ubuntu produced **seven distinct actual native/emitted stdout mismatches**, exactly one per unsafe source/mode combination: CJS direct export COO/SNO/SCO; CJS holder export COO/SNO/SCO; ESM named export COO. All seven benign Number controls passed. This is a runtime-differential result rather than an analysis heuristic. The **Windows** job independently reproduced the **same seven distinct actual native/emitted mismatches**, with all matched benign Number controls passing. Thus this red outcome is source-coincident and cross-platform.
+
+## Proposed fail-closed repair
+
+The experimental source pin `adc0a03a66ca47af0fdbc5dbef581b35deedce3b` adds a conservative unknown-call site check: a second argument that locally proves a decoder-sensitive descriptor map, including aliases/factory results already tracked by the existing scanner, forces refusal of eager ambient decoder encoding when the call target may be imported from another file. This protects against source-visible `Object.create` and `Object.defineProperties` API shapes without pretending to resolve an opaque imported function identity.
+
+The checker does not reject benign descriptor maps returning `Number.prototype`; the fixture requires positive encoding yield to protect against universal disable. A following commit `4f4a2b1df17aa98ddf0a08320f8c1ecf115386b9` registers the new test under strict external JSDoc. [Full two-OS CI 44964439042](https://github.com/FlareZ123/obfs/actions/runs/44964439042) was **pending** when this report was written.
+
+The repair deliberately trades a possible false refusal when an opaque unrelated function receives a sensitive-looking descriptor map for proven native/emitted correctness under the stated open-world callback threat model. It leaves source-runtime execution semantics intact; only unsafe string encoding is suppressed. The global 2.5× CPU bound is still unproved.
+
+**Narrow source-pinned repair validation:** [full manual validation run 44964439042](https://github.com/FlareZ123/obfs/actions/runs/44964439042) passed at exact source `4f4a2b1df17aa98ddf0a08320f8c1ecf115386b9` on Ubuntu and Windows. Both jobs passed the Node behavioral/adversarial suite, project JSDoc and external-tool JSDoc, performance sample, paired startup/session profiles, and whole-process formal-value budget check. Ubuntu also passed the real Chromium module/host-lock, first-class alias, null-prototype and cross-module owner-field checks. The `src/core.js` and new regression-test blobs are byte-identical to the corresponding files in the later stacked integration branch.
+
+**Combined integration validation:** the composed [draft PR #239](https://github.com/FlareZ123/obfs/pull/239) was subsequently validated at its exact head `34922e438c1e09c49a6f4319ed523ce061590058` by [full manual validation run 44964771823](https://github.com/FlareZ123/obfs/actions/runs/44964771823). Both Node 22 Ubuntu and Windows jobs passed the full behavioral/adversarial suites, strict project and external JSDoc, performance and paired profile steps, and the whole-process formal-value budget check. Ubuntu additionally passed all configured real Chromium checks, including the cross-file first-class `Object.create` parity fixture. This single source pin includes the 131-case cross-mode alias matrix, the descriptor/factory analysis, the first-class invocation cases and the new exported-callable counterexample. The PR remains a draft stacked on Agent 3's #217 branch pending that branch owner's review; this is not a merge or release approval.
+
+The result is bounded to the enumerated source graphs and runner configurations. It does not prove complete interprocedural effect analysis, arbitrary callback safety, source secrecy, hostile-runtime tamper resistance, or universal compliance with the 2.5× compute limit.
+
+
+## Integration gate and decision
+
+The required combined source-coincident gate has now passed: [full manual validation 44964771823](https://github.com/FlareZ123/obfs/actions/runs/44964771823) at exact stacked PR #239 head `34922e438c1e09c49a6f4319ed523ce061590058`. It covers the independent 131-case matrix, descriptor/factory and first-class call routes, the new exported-callable regression, strict project and external JSDoc, Node behavioral/adversarial suites, performance/profile checks and Ubuntu real Chromium.
+
+PR #239 remains a **draft stacked on Agent 3's #217 branch**. The next step is parent-owner review and integration into that branch. A resulting updated parent-branch head must be independently validated before any merge to `main`; this run does not certify a later rebase, cherry-pick or merge result.
+
+The finite red/green evidence supports a conservative compatibility correction only. It does not establish general interprocedural effect analysis, source confidentiality, hostile-runtime tamper resistance, or a universal 2.5× runtime guarantee.
