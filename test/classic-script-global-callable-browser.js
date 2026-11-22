@@ -13,6 +13,7 @@ const source='function publicReader(){return '+JSON.stringify(publicText)+';}\n'
   'const lexicalReader=()=>'+JSON.stringify(publicText)+';\n'+
   'var varReader=function(){return '+JSON.stringify(publicText)+';};\n'+
   'let letReader=()=>'+JSON.stringify(publicText)+';\n'+
+  'class GlobalReader{read(){return '+JSON.stringify(publicText)+';}}\n'+
   'globalThis.privateValue='+JSON.stringify(privateText)+';';
 
 /** @returns {string} */
@@ -27,7 +28,9 @@ function page() {
     'lexicalReader.toString(),lexicalReader(),',
     'globalThis.varReader.toString(),globalThis.varReader(),',
     'letReader.toString(),letReader(),globalThis.privateValue,',
-    'typeof globalThis.lexicalReader,typeof globalThis.letReader];',
+    'typeof globalThis.lexicalReader,typeof globalThis.letReader,',
+    'GlobalReader.toString(),GlobalReader.prototype.read.toString(),',
+    'new GlobalReader().read(),typeof globalThis.GlobalReader];',
     'document.getElementById("result").textContent=btoa(JSON.stringify(result));',
     '}catch(error){document.getElementById("result").textContent="ERROR:"+String(error.stack||error);}',
     '</script></body></html>'
@@ -68,7 +71,7 @@ async function main() {
     const address=server.address();
     assert.ok(address&&typeof address!=='string');
     const origin='http://127.0.0.1:'+address.port;
-    /** @param {'native'|'emitted'} variant @returns {Promise<[string,string,string,string,string,string,string,string,string,string,string]>} */
+    /** @param {'native'|'emitted'} variant @returns {Promise<string[]>} */
     async function run(variant) {
       const {stdout}=await runBrowser(process.env.CHROMIUM_BIN??'google-chrome',[
         '--headless','--no-sandbox','--disable-gpu','--disable-dev-shm-usage',
@@ -78,7 +81,7 @@ async function main() {
       const match=/<pre id="result">([^<]*)<\/pre>/u.exec(String(stdout));
       assert.ok(match&&match[1]&&!match[1].startsWith('ERROR:'),
         String(stdout).slice(-3000));
-      return /** @type {[string,string,string,string,string,string,string,string,string,string,string]} */ (
+      return /** @type {string[]} */ (
         JSON.parse(Buffer.from(match[1],'base64').toString('utf8')));
     }
     const native=await run('native');
@@ -95,10 +98,15 @@ async function main() {
     assert.equal(native[8],privateText);
     assert.equal(native[9],'undefined');
     assert.equal(native[10],'undefined');
+    assert.ok(native[11].includes(publicText),'Class source must remain visible to later scripts');
+    assert.ok(native[12].includes(publicText),'Class method source must remain visible to later scripts');
+    assert.equal(native[13],publicText);
+    assert.equal(native[14],'undefined');
     process.stdout.write('CHROMIUM_CLASSIC_GLOBAL_SOURCE_PARITY '+
       JSON.stringify({matched:true,privateEncodedLiterals:output.files[0].metrics.literals,
         publicSourceLength:native[0].length,lexicalSourceLength:native[2].length,
-        varSourceLength:native[4].length,letSourceLength:native[6].length})+'\n');
+        varSourceLength:native[4].length,letSourceLength:native[6].length,
+        classSourceLength:native[11].length,methodSourceLength:native[12].length})+'\n');
   }finally {
     await new Promise(resolve=>server.close(resolve));
   }
