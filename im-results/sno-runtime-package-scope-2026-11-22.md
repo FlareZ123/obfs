@@ -39,9 +39,10 @@ The candidate changes `createSnoLauncher` in
    path and content record. No property is reread after caller getters.
 2. Verify the existing emitted-file SHA-256 manifest before environment
    preflight.
-3. For every declared JavaScript `.js` source, walk `__dirname`-relative
-   ancestor package metadata as the running Node loader would see the
-   file's path. Refuse a CommonJS-versus-ESM package type mismatch.
+3. For every declared JavaScript `.js` source, obtain the nested file path through Node's native
+   `require.resolve()` and then walk its ancestor package metadata.
+   Resolution must follow the effective nested-loader symlink mode rather
+   than the launcher's `__dirname` alone. Refuse a CommonJS-versus-ESM package type mismatch.
    `sourceType: 'module'` without an included package scope is conservatively
    excluded because Node can syntax-detect typeless modules.
 4. Keep direct `createSnoLauncher` calls without `sourceType` metadata
@@ -50,7 +51,9 @@ The candidate changes `createSnoLauncher` in
 The test `test/sno-runtime-package-scope.test.js` covers a built and
 later relocated CommonJS entry, an explicitly packaged ESM dependency
 positive control, direct API no-metadata output, and symlink-preserving
-runtime refusal. All tests await actual native Node execution; they check
+runtime refusal. Additional controls explicitly distinguish
+`--preserve-symlinks-main` alone from the combination of both
+symlink-preservation flags. All tests await actual native Node execution; they check
 that the manifest has not changed and that a mismatch is refused before
 application exports become visible.
 
@@ -61,6 +64,32 @@ compilation check of `src/sno.js` passed in an isolated V8 runtime.
 **No cross-platform CI verdict is asserted here yet.** Record exact
 immutable SHA, Ubuntu/Windows focused run, strict JSDoc result and full
 integration verdict before proposing integration to main.
+
+
+### Loader-flag false positive and correction
+
+An initial candidate used `path.join(__dirname,file)` directly when
+examining the nearest package metadata. In a native Node 22.16.0 control,
+executing the launcher as the main module with
+`--preserve-symlinks-main` retains the launcher's alias `__dirname`,
+yet ordinary nested `require('./entry.js')` still resolves the **actual**
+file realpath. That initial check would spuriously refuse a valid
+CommonJS execution merely because an ESM package file was located above
+the lexical alias.
+
+With both `--preserve-symlinks` and `--preserve-symlinks-main`, the
+nested file itself retains the alias and Node actually sees the external
+ESM package. The revised candidate inspects
+`path.dirname(require.resolve(path.join(__dirname,file)))`, explicitly
+matching the real path selected for native nested CommonJS resolution
+in these controls. A minimal isolated V8 virtual-filesystem simulation
+of the generated launcher accepted 314 under the actual CommonJS
+directory and refused the same hashed entry under the ESM host parent.
+A byte-exact comparison of generated launchers without sourceType
+metadata found **identical output** before and after this candidate,
+with an added 652 source bytes for one explicitly declared .js file.
+These are bounded simulations and local Node controls. Cross-platform
+tests still have final authority before integration.
 
 ## Limits and risks
 
