@@ -534,6 +534,7 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
     'Error','TypeError','RangeError','ReferenceError','SyntaxError',
     'URIError','EvalError']);
   const coercers=new Set(builtinCoercers);
+  const nodeBufferNamespaces=new Set();
   // JSON.parse and JSON.rawJSON call ToString on their text input.
   // Their SyntaxError.message can reveal a function's original source.
   const jsonNamespaces=new Set(['JSON']);
@@ -690,12 +691,20 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
       isGlobal(node.object) && memberName(node)==='JSON'));
   }
   /** @param {AstNode|null|undefined} node @returns {boolean} */
+  function isNodeBufferNamespace(node) {
+    return Boolean(node && (node.type==='Identifier' &&
+      nodeBufferNamespaces.has(node.name) || isRequireCall(node) &&
+      node.arguments.length===1 &&
+      ['buffer','node:buffer'].includes(staticString(node.arguments[0])??'')));
+  }
+  /** @param {AstNode|null|undefined} node @returns {boolean} */
   function isCoercer(node) {
     if(!node)return false;
     if(node.type==='Identifier')return coercers.has(node.name);
     if(node.type!=='MemberExpression')return false;
     const name=memberName(node);
     return isGlobal(node.object) && name!==null && builtinCoercers.has(name) ||
+      name==='btoa' && isNodeBufferNamespace(node.object) ||
       name==='for' && isSymbolConstructor(node.object) ||
       isJsonNamespace(node.object) &&
       (['parse','rawJSON'].includes(name??'')||node.computed&&name===null);
@@ -986,6 +995,7 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
         const value=node.type==='VariableDeclarator'?node.init:node.right;
         if(isStringValue(value))changed=add(strings,name)||changed;
         if(isJsonNamespace(value))changed=add(jsonNamespaces,name)||changed;
+        if(isNodeBufferNamespace(value))changed=add(nodeBufferNamespaces,name)||changed;
         if(isCoercer(value) || value?.type==='CallExpression' &&
            value.callee.type==='MemberExpression' &&
            memberName(value.callee)==='bind' &&
@@ -1393,6 +1403,16 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
           }
           if(stringCtor && name==='raw')
             changed=add(stringRawAliases,property.value.name)||changed;
+        }
+      }
+      if(node.type==='VariableDeclarator' && node.id.type==='ObjectPattern' &&
+         isNodeBufferNamespace(node.init)) {
+        for(const property of node.id.properties) {
+          if(property.type!=='Property'||property.value.type!=='Identifier')continue;
+          const name=property.computed?staticString(property.key):
+            property.key.type==='Identifier'?property.key.name:staticString(property.key);
+          if(name===null || name==='btoa')
+            changed=add(coercers,property.value.name)||changed;
         }
       }
       if(node.type==='VariableDeclarator' && node.id.type==='ObjectPattern' &&
