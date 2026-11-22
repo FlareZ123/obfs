@@ -299,14 +299,6 @@ function hasPinnedLocalJavaScriptIntegrity(files,routePrefix='') {
   }
 
   /**
-   * The URL parser applies ./ and ../ resolution and strips query/fragment.
-   * Decode path escapes once, after URL resolution, against the declared
-   * normalized file inventory. Unknown/unsupported targets are ignored.
-   * @param {string} href
-   * @param {URL} base
-   * @returns {string|null}
-   */
-  /**
    * Encode every declared document-path segment as a URL path component.
    * A source filename containing # or % is not a URL fragment or escape;
    * the browser requests those bytes with URL percent encoding.
@@ -318,6 +310,14 @@ function hasPinnedLocalJavaScriptIntegrity(files,routePrefix='') {
       'https://obfs.invalid/');
   }
 
+  /**
+   * The URL parser applies ./ and ../ resolution and strips query/fragment.
+   * Decode path escapes once, after URL resolution, against the declared
+   * normalized file inventory. Unknown/unsupported targets are ignored.
+   * @param {string} href
+   * @param {URL} base
+   * @returns {string|null}
+   */
   function targetPath(href,base) {
     try {
       const url=new URL(href,base);
