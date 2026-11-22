@@ -8,9 +8,9 @@ const {obfuscateFiles}=require('../src');
 const {ROOT,NAMES,SEED}=require('../examples/application-challenge/build.cjs');
 
 /**
- * Deliberately changes two source-observer expressions to isolate the
- * compiler's proof refusal. This is a diagnostic ablation, not a
- * semantics-preserving or deployable source rewrite.
+ * Deliberately removes dynamic record reflection and opaque CLI
+ * coercion to isolate the compiler's proof refusal. This is a diagnostic
+ * ablation, not a semantics-preserving or deployable source rewrite.
  * @param {{path:string,sourceType:'module',code:string}[]} files
  * @param {'reflect'|'entry'|'both'|'none'} variant
  * @returns {{path:string,sourceType:'module',code:string}[]}
@@ -18,15 +18,16 @@ const {ROOT,NAMES,SEED}=require('../examples/application-challenge/build.cjs');
 function ablate(files,variant){
   return files.map(file=>{
     let code=file.code;
-    if(file.path==='reflect.mjs'&&['reflect','both'].includes(variant)){
-      const original='Object.getOwnPropertyDescriptor(schema,key)';
-      assert.ok(code.includes(original));
-      code=code.replace(original,'Object.getOwnPropertyDescriptor(schema,"externalFormat")');
+    if(file.path==='app.mjs'&&['reflect','both'].includes(variant)){
+      const original='function inspectRecord(key){const hasOwn=Object.prototype.hasOwnProperty.call(schema,key);const descriptor=Object.getOwnPropertyDescriptor(schema,key);const value=hasOwn?schema[key]:"<missing>";return {key,hasOwn,value,enumerable:descriptor?.enumerable===true,keys:Reflect.ownKeys(schema).sort()};}';
+      const fixed='function inspectRecord(key){const hasOwn=key==="externalFormat"||key==="auditCount";const descriptor=hasOwn?{enumerable:true}:undefined;const value=key==="externalFormat"?schema.externalFormat:key==="auditCount"?schema.auditCount:"<missing>";return {key,hasOwn,value,enumerable:descriptor?.enumerable===true,keys:[]};}';
+      assert.ok(code.includes(original),'Expected dynamic record reflection in app.mjs');
+      code=code.replace(original,fixed);
     }
     if(file.path==='entry.mjs'&&['entry','both'].includes(variant)){
-      const original="JSON.stringify(cases.map(([seed,count])=>evaluate(seed,count)))+'\\n'";
-      assert.ok(code.includes(original));
-      code=code.replace(original,"JSON.stringify(cases.map(([seed,count])=>evaluate(seed,count)))");
+      const original="const cases=JSON.parse(process.argv[2]||'[[1,1000]]');";
+      assert.ok(code.includes(original),'Expected opaque CLI JSON.parse in entry.mjs');
+      code=code.replace(original,'const cases=[[1,1000]];');
     }
     return {...file,code};
   });
@@ -59,7 +60,7 @@ function withOwnKeyCalls(files) {
  */
 function withNullPrototypeRecord(files){
   return files.map(file=>{
-    if(file.path!=='reflect.mjs')return file;
+    if(file.path!=='app.mjs')return file;
     const original="const schema={externalFormat:'audit-v1',auditCount:3};";
     assert.ok(file.code.includes(original),'Expected original private record');
     return {...file,code:file.code.replace(original,
@@ -117,10 +118,9 @@ async function main(){
   // removing unrelated reflection/stringification expressions. Only the two
   // explicitly type-guarded positive contracts can prove the input primitive.
   assert.deepEqual(rows.map(row=>row.observerPaths),[
-    ['reflect.mjs','entry.mjs'],['entry.mjs'],
-    ['reflect.mjs','entry.mjs'],['entry.mjs'],[],[]
+    ['entry.mjs'],['entry.mjs'],[],[],[],[]
   ]);
-  assert.deepEqual(rows.map(row=>row.propertyRenames),[0,0,0,0,2,2],
+  assert.deepEqual(rows.map(row=>row.propertyRenames),[0,2,0,2,2,2],
     'Plain missing keys decline; changed own-key-only and null-prototype programs retain coverage');
   process.stdout.write('APPLICATION_SOURCE_OBSERVER_ABLATION '+JSON.stringify(rows)+'\n');
   return rows;
