@@ -22,7 +22,7 @@ async function load(file,source) {
   );
 }
 
-test('bound public export keeps native source and callable metadata while private primitive keys change',async()=>{
+test('bound public export keeps source and metadata while pre-bind target exposure prevents private key edits',async()=>{
   const native='const owner={secretField:7,otherField:11};'+
     'const internal=(privateFirst,privateSecond)=>{'+
     'return ((privateFirst+owner.secretField)^owner.otherField)+privateSecond;};'+
@@ -31,9 +31,11 @@ test('bound public export keeps native source and callable metadata while privat
     mode:'coo',closedWorld:true,seed:'bound-public-private-record',
     identifiers:true,strings:false
   });
-  assert.equal(output.files[0].metrics.properties,2,'two private keys must actually change');
+  assert.equal(output.files[0].metrics.properties,0,
+    'A host can intercept the internal target before binding and observe its native source');
   const protectedCode=/** @type {string} */ (output.files[0].code);
-  assert.doesNotMatch(protectedCode,/secretField|otherField/u);
+  assert.match(protectedCode,/secretField|otherField/u,
+    'Host-observable target source must preserve the original own-key names');
   const root=await fs.mkdtemp(path.join(os.tmpdir(),'obfs-bound-source-'));
   try {
     const original=await load(path.join(root,'original.mjs'),native);
