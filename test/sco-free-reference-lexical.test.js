@@ -52,11 +52,11 @@ test('25 lexical free-reference cases separate scope from mere binding-count pre
   ];
   for(const body of negatives){
     assert.equal(firstUnprovedFreeReference(selectedBody(body),new Set(),
-      new Set(),shared),'externalBridge',body);
+      new Set(),shared,true),'externalBridge',body);
   }
   for(const body of positives){
     assert.equal(firstUnprovedFreeReference(selectedBody(body),new Set(),
-      new Set(),shared),null,body);
+      new Set(),shared,true),null,body);
   }
   assert.equal(negatives.length+positives.length,25);
 });
