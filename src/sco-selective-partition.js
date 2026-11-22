@@ -1610,7 +1610,19 @@ function partitionScoSelectedAsyncExports(file,options) {
     // resolve against the server-side module instead of the client module.
     // Reject these operations until a true cross-host equivalence proof exists.
     walk(body,node=>{
-      if(node.type==='MetaProperty'||node.type==='ImportExpression'){
+      if(node.type==='MetaProperty'){
+        throw new TypeError('Private SCO export or helper uses unproved module-relative execution');
+      }
+      if(node.type==='ImportExpression'){
+        // A fixed Node builtin module resolves independently of the current
+        // ESM module URL. Server-private crypto code historically relies on
+        // import('node:crypto'); computed, relative and loader-capability
+        // imports cannot use this exception.
+        const specifier=node.source.type==='Literal'?node.source.value:null;
+        if(typeof specifier==='string'&&specifier.startsWith('node:')&&
+           isBuiltin(specifier)&&
+           !['node:module','node:vm','node:worker_threads',
+             'node:child_process','node:process'].includes(specifier))return;
         throw new TypeError('Private SCO export or helper uses unproved module-relative execution');
       }
     });
