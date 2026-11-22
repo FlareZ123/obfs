@@ -65,7 +65,9 @@ D_G(2^i,2^i,0,0) =
   2^31                  for i = 31.
 ```
 
-The 32 resulting columns are triangular over GF(2), with a `1` on every diagonal position; hence their determinant is one and the **exact whole-domain residual span rank is 32**, the output-space maximum. The reproducible `verifyFullRankCertificate` checks the 32 evaluated residuals against their closed form and independently row-reduces them. This certificate establishes a structural property of this specific function. It supplies no security lower bound. The four rotated variants are checked for corresponding rank and parity in the sampled harness; the exact certificate is stated for the native expression.
+The 32 resulting columns are triangular over GF(2), with a `1` on every diagonal position; hence their determinant is one and the **exact whole-domain residual span rank is 32**, the output-space maximum.
+
+By the previously documented [residual-rank and nonlinear-ANF coefficient characterization](affine-residual-minimal-rank-characterization-2026-11-21.md), this also rules out an affine baseline plus a nonlinear output remainder confined to fewer than 32 dimensions **for this full 128-to-32-bit function**. The earlier result expressly distinguishes nonpermutations from its stronger minimum-*invertible*-baseline characterization; our four-word-to-one-word region is not a permutation of a 128-bit space. This is an application of an existing characterization, not a new general rank theorem. The reproducible `verifyFullRankCertificate` checks the 32 evaluated residuals against their closed form and independently row-reduces them. This certificate establishes a structural property of this specific function. It supplies no security lower bound. The four rotated variants are checked for corresponding rank and parity in the sampled harness; the exact certificate is stated for the native expression.
 
 ## Interpretation
 
