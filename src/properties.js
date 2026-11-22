@@ -290,6 +290,10 @@ function collectBindingScopes(ast) {
     } else if(node.type==='FunctionDeclaration') {
       if(node.id?.type==='Identifier') scopes.set(node.id.name,enclosing(ancestors));
       for(const param of node.params) if(param.type==='Identifier')scopes.set(param.name,node);
+    } else if(node.type==='ClassDeclaration' && node.id?.type==='Identifier') {
+      scopes.set(node.id.name,enclosing(ancestors));
+    } else if(node.type==='ClassExpression' && node.id?.type==='Identifier') {
+      scopes.set(node.id.name,node);
     } else if(node.type==='FunctionExpression'||node.type==='ArrowFunctionExpression') {
       for(const param of node.params) if(param.type==='Identifier')scopes.set(param.name,node);
     } else if(/^Import(?:Default|Namespace)?Specifier$/.test(node.type) && node.local?.type==='Identifier') {
