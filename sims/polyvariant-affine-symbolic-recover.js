@@ -148,6 +148,8 @@ function recoverSymbolicAffine(source,name,sourceType='module'){
     node?.type==='FunctionDeclaration'&&node.id?.name===name);
   if(candidates.length!==1)throw new TypeError('Target must be a unique function');
   const fn=candidates[0];
+  if(!fn||fn.type!=='FunctionDeclaration')
+    throw new TypeError('Unproved function declaration');
   if(fn.async||fn.generator||fn.params.length!==1||
      fn.params[0].type!=='Identifier'||fn.body.body.length!==2)
     throw new TypeError('Unexpected callable shape');
