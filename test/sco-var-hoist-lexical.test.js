@@ -240,3 +240,11 @@ test('switch case var remains hoisted into its discriminant scope',async()=>{
     body+'})()',{}),3);
   assert.deepEqual(compile(body).privateNames,['protectedOp']);
 });
+
+test('switch discriminant can use a proved outer lexical binding',async()=>{
+  const body='let v=1;switch(v){case 1:let v=3;break;}return 11;';
+  assert.equal(firstUnprovedFreeReference(sourceBody(body),new Set(),
+    new Set(),shared,true),null);
+  assert.equal(await vm.runInNewContext('"use strict";(async function(){'+
+    body+'})()',{}),11);
+});
