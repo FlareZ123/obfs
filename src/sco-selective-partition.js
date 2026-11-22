@@ -993,6 +993,23 @@ function realmStateObservation(body,checkHostConfiguration=false){
       expression.type==='Identifier'&&blobInstances.has(expression.name);
   }
   walk(body,(node,parent,key,ancestors)=>{
+    // A first-class AbortController constructor can be invoked through
+    // Reflect.construct, bind, object registries, or opaque callbacks. The
+    // resulting controller's default AbortError stack exposes the host and
+    // source position after relocation. Track only plain aliases and direct
+    // new-expression uses through the existing constructor/instance proof.
+    if(checkHostConfiguration&&isAbortConstructor(node,abortControllerConstructors)&&
+       parent&&!(parent.type==='NewExpression'&&parent.callee===node)&&
+       !(parent.type==='VariableDeclarator'&&
+         (parent.id===node||parent.init===node&&parent.id.type==='Identifier'))&&
+       !(parent.type==='AssignmentExpression'&&parent.operator==='='&&
+         (parent.left===node||parent.right===node&&parent.left.type==='Identifier'))&&
+       !(parent.type==='MemberExpression'&&key==='property'&&!parent.computed)&&
+       !(parent.type==='Property'&&key==='key'&&!parent.computed)&&
+       !(key==='id'&&['FunctionDeclaration','FunctionExpression',
+         'ClassDeclaration','ClassExpression'].includes(parent.type))){
+      stackTouched=true;
+    }
     // A local Blob instance can leak its constructor to callbacks, containers,
     // proxies or other first-class consumers. Only a direct member receiver,
     // a plain local alias, or typeof can be followed by this bounded proof.
@@ -1000,7 +1017,8 @@ function realmStateObservation(body,checkHostConfiguration=false){
       const directReceiver=parent?.type==='MemberExpression'&&parent.object===node;
       const simpleAlias=parent?.type==='VariableDeclarator'&&(
         parent.id===node||parent.init===node&&parent.id.type==='Identifier')||
-        parent?.type==='AssignmentExpression'&&parent.right===node&&
+        parent?.type==='AssignmentExpression'&&parent.operator==='='&&
+          parent.right===node&&
           parent.left.type==='Identifier';
       const harmlessTypeof=parent?.type==='UnaryExpression'&&
         parent.operator==='typeof'&&parent.argument===node;
@@ -1030,7 +1048,8 @@ function realmStateObservation(body,checkHostConfiguration=false){
       const directNew=parent?.type==='NewExpression'&&parent.callee===node;
       const simpleAlias=parent?.type==='VariableDeclarator'&&(
         parent.id===node||parent.init===node&&parent.id.type==='Identifier')||
-        parent?.type==='AssignmentExpression'&&parent.right===node&&
+        parent?.type==='AssignmentExpression'&&parent.operator==='='&&
+          parent.right===node&&
           parent.left.type==='Identifier';
       const lexicalDeclaration=(parent?.type==='FunctionDeclaration'||
         parent?.type==='FunctionExpression'||parent?.type==='ClassDeclaration'||
