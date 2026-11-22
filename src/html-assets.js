@@ -23,7 +23,9 @@ function findInlineXhtmlSource(xml) {
     if(declaration.encoding&&!/^utf-?8$/iu.test(declaration.encoding))
       issue??='non-UTF-8 XML declaration';
   });
-  parser.on('doctype',()=>{issue??='DTD declaration';});
+  parser.on('doctype',declaration=>{
+    if(declaration.trim().toLowerCase()!=='html')issue??='DTD declaration';
+  });
   parser.on('processinginstruction',instruction=>{
     if(instruction.target.toLowerCase()==='xml-stylesheet')
       issue??='XML stylesheet processing instruction';
@@ -33,8 +35,8 @@ function findInlineXhtmlSource(xml) {
     const name=tag.local.toLowerCase();
     if(scriptDepth)issue??='nested markup inside script';
     if(styleDepth)issue??='nested markup inside style element';
-    if(isHtml&&name==='script')scriptDepth++;
-    if(isHtml&&name==='style'){styleDepth++;stylesheet='';}
+    if(name==='script')scriptDepth++;
+    if(name==='style'){styleDepth++;stylesheet='';}
     const attributes=Object.values(tag.attributes);
     /** @param {string} key @returns {string|undefined} */
     const attr=key=>attributes.find(item=>item.uri===''&&item.local.toLowerCase()===key)?.value;
@@ -42,9 +44,14 @@ function findInlineXhtmlSource(xml) {
       const key=attribute.local.toLowerCase();
       if(key==='srcdoc')issue??='embedded iframe source';
       if(/^on[a-z]/u.test(key))issue??='inline event handler';
-      if(['src','href','action','formaction','xlink:href','data','poster'].includes(key)&&
-          isEmbeddedExecutableUrl(attribute.value))issue??='embedded executable URL';
-      if(isHtml&&name==='script'&&key==='src'&&isDataUrl(attribute.value))
+      const animationValues=key==='values'&&
+        ['animate','animatemotion','animatetransform'].includes(name);
+      if(animationValues?
+          attribute.value.split(';').some(isEmbeddedExecutableUrl):
+          ['src','href','action','formaction','xlink:href','data','poster',
+            'from','to','by','values'].includes(key)&&
+            isEmbeddedExecutableUrl(attribute.value))issue??='embedded executable URL';
+      if(name==='script'&&['src','href'].includes(key)&&isDataUrl(attribute.value))
         issue??='embedded script data URL';
     }
     if(!isHtml)return;
@@ -63,7 +70,6 @@ function findInlineXhtmlSource(xml) {
   parser.on('text',observeText);
   parser.on('cdata',observeText);
   parser.on('closetag',tag=>{
-    if(tag.uri!==xhtmlNamespace)return;
     const name=tag.local.toLowerCase();
     if(name==='script')scriptDepth--;
     if(name==='style') {
