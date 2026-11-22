@@ -329,6 +329,20 @@ SCO: The obfuscation-controlled server can keep undistributed secrets and enforc
 
 SNO: Under the stated attacker model the adversary owns code, filesystem, and process memory. A hash manifest inside a launcher cannot prevent code modification or bypass. A native Windows/Ubuntu reproduction in [the local-owner manifest attack](../im-results/sno-owner-self-hash-bypass-2026-11-15.md) changes the SNO entry, observes an integrity rejection, then recomputes the expected digest in the attacker-controlled launcher and executes the modified entry successfully. A [second pinned two-platform attack](../im-results/sno-runtime-preload-bypass-2026-11-16.md) uses an attacker-controlled Node loader prelude to change the launched program's result after hash verification while keeping the distributed launcher and entry file byte-identical. This shows a runtime-only interference channel separate from editing the on-disk manifest. For integrity, deploy a remote trust anchor or OS/TEE-backed attestation beyond this project's capabilities.
 
+A separate SNO **packaging compatibility** boundary concerns Node module
+classification. An emitted CommonJS `.js` with no nearest included
+`package.json` may inherit `{"type":"module"}` from a parent of the
+output directory, changing its module semantics even though the emitted
+source bytes and hashes are unchanged. The SNO CLI checks the actual build
+location and rejects that ambient ESM scope before output publication;
+`.cjs` files and explicitly scoped `.js` files retain their supported
+behavior. Outputs copied into a different package tree need an independent
+deployment-level scope verification. The programmatic
+`createSnoLauncher(files,entry)` API does not receive a deployment path,
+so callers must provide this guarantee themselves. The check cannot
+constrain a filesystem-controlling attacker. See the
+[bounded reproduction](../im-results/sno-ambient-output-package-scope-2026-11-22.md).
+
 ## Independently reviewed opaque public assets
 
 The optional `reviewedOpaqueAssets` manifest provides a positive byte-identity
