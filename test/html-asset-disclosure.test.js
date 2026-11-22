@@ -169,3 +169,211 @@ test('HTML source audit refuses UTF-16 BOM, NUL padding and malformed UTF-8',()=
     assert.deepEqual(Buffer.from(asset.code),utf8Bom);
   }
 });
+
+test('declared HTML script SRI refuses byte-mutating JavaScript output',()=>{
+  const source='globalThis.sriOutput="an unchanged source-boundary canary string";';
+  const hash=require('node:crypto').createHash('sha256').update(source).digest('base64');
+  const variants=[
+    ['relative script','index.html','./client.js','script'],
+    ['root script','index.html','/client.js','script'],
+    ['encoded script','index.html','./%63lient.js?version=1#fragment','script'],
+    ['parent script','pages/index.html','../client.js','script'],
+    ['module preload','index.html','./client.js','modulepreload'],
+    ['script preload','index.html','./client.js','preload'],
+    ['declared HTML base','pages/index.html','./client.js','script','<base href="/">'],
+    ['parent HTML base','pages/index.html','./client.js','script','<base href="../">'],
+    ['absolute same-target path','index.html','https://deploy.example/client.js','script']
+  ];
+  for(const [label,htmlPath,href,kind,baseTag] of variants) {
+    const tag=kind==='script' ?
+      '<script src="'+href+'" integrity="sha256-'+hash+'"></script>' :
+      '<link rel="'+kind+'" '+(kind==='preload'?'as="script" ':'')+
+      'href="'+href+'" integrity="sha256-'+hash+'">';
+    for(const mode of /** @type {const} */ (['coo','sco','sno'])) {
+      const files=[
+        {path:'client.js',sourceType:/** @type {const} */ ('script'),code:source},
+        {path:htmlPath,sourceType:/** @type {const} */ ('asset'),
+          code:Buffer.from('<!doctype html><html><head>'+(baseTag??'')+tag+'</head></html>')}
+      ];
+      const compiled=obfuscateFiles(files,{mode,closedWorld:true,
+        seed:'html-sri/'+label+'/'+mode,strings:true,identifiers:false,properties:false});
+      assert.equal(compiled.files[0].code,source,label+' '+mode+
+        ': integrity metadata pins the exact original JavaScript response');
+      assert.deepEqual(compiled.files[1].code,files[1].code);
+    }
+  }
+});
+
+test('SRI in unrelated external script does not disable eligible local obfuscation',()=>{
+  const source='globalThis.sriOutput="an unchanged source-boundary canary string";';
+  const files=[
+    {path:'client.js',sourceType:/** @type {const} */ ('script'),code:source},
+    {path:'index.html',sourceType:/** @type {const} */ ('asset'),
+      code:Buffer.from('<script src="https://cdn.example.test/unrelated.js" '+
+        'integrity="sha256-'+'a'.repeat(43)+'=" crossorigin="anonymous"></script>')}
+  ];
+  const compiled=obfuscateFiles(files,{
+    mode:'coo',seed:'remote-sri-positive',strings:true,identifiers:false,properties:false
+  });
+  assert.notEqual(compiled.files[0].code,source);
+  assert.ok(compiled.files[0].metrics.literals>0);
+});
+
+test('SCO public handler preserves SRI-pinned script response bytes',async()=>{
+  const source='globalThis.sriOutput="an unchanged source-boundary canary string";';
+  const hash=require('node:crypto').createHash('sha256').update(source).digest('base64');
+  const handler=createScoHandler([
+    {path:'client.js',sourceType:'script',code:source},
+    {path:'index.html',sourceType:'asset',code:Buffer.from(
+      '<script src="./client.js" integrity="sha256-'+hash+'"></script>')}
+  ]);
+  const server=require('node:http').createServer(handler);
+  await new Promise((resolve,reject)=>{
+    server.once('error',reject);
+    server.listen(0,'127.0.0.1',()=>resolve(undefined));
+  });
+  try{
+    const address=server.address();
+    assert.ok(address&&typeof address==='object');
+    const url='http://127.0.0.1:'+address.port+'/obfs/client.js';
+    for(let index=0;index<2;index++){
+      const response=await fetch(url);
+      assert.equal(response.status,200);
+      assert.equal(await response.text(),source);
+    }
+  }finally{
+    await new Promise((resolve,reject)=>
+      server.close(error=>error?reject(error):resolve(undefined)));
+  }
+});
+
+test('SCO closed-world cross-file property pass preserves an SRI-pinned ESM entry',async()=>{
+  const source='export const state={secretField:23};';
+  const entry='import {state} from "./state.mjs";console.log(state.secretField);';
+  const files=[
+    {path:'state.mjs',sourceType:/** @type {const} */('module'),code:source},
+    {path:'entry.mjs',sourceType:/** @type {const} */('module'),code:entry}
+  ];
+  const control=obfuscateFiles(files,{
+    mode:'coo',closedWorld:true,seed:'sri-crossfile-positive',
+    strings:false,identifiers:false,properties:true
+  });
+  assert.equal(control.crossFile.properties,1,
+    'The unobserved ESM graph must expose a real prior cross-file rewrite');
+  assert.notEqual(control.files[1].code,entry,
+    'The SRI-pinned module is the actual cross-file rewrite target');
+  const integrity=require('node:crypto').createHash('sha256').update(entry).digest('base64');
+  const pinned={path:'index.html',sourceType:/** @type {const} */('asset'),
+    code:Buffer.from('<script type="module" src="./entry.mjs" '+
+      'integrity="sha256-'+integrity+'"></script>')};
+  const handler=createScoHandler([...files,pinned],{closedWorld:true});
+  const server=require('node:http').createServer(handler);
+  await new Promise((resolve,reject)=>{
+    server.once('error',reject);
+    server.listen(0,'127.0.0.1',()=>resolve(undefined));
+  });
+  try{
+    const addr=server.address();
+    assert.ok(addr&&typeof addr==='object');
+    const origin='http://127.0.0.1:'+addr.port;
+    const result=await fetch(origin+'/obfs/entry.mjs');
+    assert.equal(result.status,200);
+    assert.equal(await result.text(),entry,
+      'Cross-file renaming must not invalidate a pinned ESM integrity attribute');
+  }finally{
+    await new Promise((resolve,reject)=>
+      server.close(error=>error?reject(error):resolve(undefined)));
+  }
+});
+
+test('SRI source commitment rejects a byte-changing host guard in both publishers',()=>{
+  const script='globalThis.hostGuardPin="an external script integrity commitment";';
+  const integrity=require('node:crypto').createHash('sha256').update(script).digest('base64');
+  const sources=[
+    {path:'client.js',sourceType:/** @type {const} */('script'),code:script},
+    {path:'index.html',sourceType:/** @type {const} */('asset'),code:Buffer.from(
+      '<script src="./client.js" integrity="sha256-'+integrity+'"></script>')}
+  ];
+  assert.throws(()=>obfuscateFiles(sources,{
+    mode:'coo',seed:'sri-host-guard-refusal',allowedHosts:['allowed.example'],
+    strings:false,identifiers:false,properties:false
+  }),/Host locking cannot preserve observable source bytes/u);
+  assert.throws(()=>createScoHandler(sources,{
+    allowedHosts:['allowed.example']
+  }),/Host locking cannot preserve observable source bytes/u);
+});
+
+test('ordinary local script without SRI retains explicit string obfuscation',()=>{
+  const source='globalThis.sriOutput="an unchanged source-boundary canary string";';
+  const files=[
+    {path:'client.js',sourceType:/** @type {const} */('script'),code:source},
+    {path:'index.html',sourceType:/** @type {const} */('asset'),code:Buffer.from(
+      '<script src="./client.js"></script>')}
+  ];
+  const compiled=obfuscateFiles(files,{
+    mode:'coo',seed:'no-integrity-positive',strings:true,
+    properties:false,identifiers:false
+  });
+  assert.notEqual(compiled.files[0].code,source);
+  assert.ok(compiled.files[0].metrics.literals>0);
+});
+
+test('SCO route-prefix-qualified SRI paths preserve the exact served script',async()=>{
+  const source='globalThis.sriOutput="an unchanged source-boundary canary string";';
+  const integrity=require('node:crypto').createHash('sha256').update(source).digest('base64');
+  for(const prefix of ['/obfs/','/protected/scripts/']) {
+    const html='<script src="'+prefix+'client.js" '+
+      'integrity="sha256-'+integrity+'"></script>';
+    const handler=createScoHandler([
+      {path:'client.js',sourceType:'script',code:source},
+      {path:'index.html',sourceType:'asset',code:Buffer.from(html)}
+    ],{routePrefix:prefix});
+    const server=require('node:http').createServer(handler);
+    await new Promise((resolve,reject)=>{
+      server.once('error',reject);
+      server.listen(0,'127.0.0.1',()=>resolve(undefined));
+    });
+    try{
+      const address=server.address();
+      assert.ok(address&&typeof address==='object');
+      const response=await fetch('http://127.0.0.1:'+address.port+prefix+'client.js');
+      assert.equal(response.status,200);
+      assert.equal(await response.text(),source,'SRI pins the mounted SCO script at '+prefix);
+    }finally{
+      await new Promise((resolve,reject)=>
+        server.close(error=>error?reject(error):resolve(undefined)));
+    }
+  }
+});
+
+test('inert template base cannot redirect a later live script SRI target',()=>{
+  const source='globalThis.sriOutput="an unchanged source-boundary canary string";';
+  const integrity=require('node:crypto').createHash('sha256').update(source).digest('base64');
+  const html='<html><head><template><base href="/unrelated/"></template>'+
+    '<script src="./client.js" integrity="sha256-'+integrity+'"></script></head></html>';
+  for(const mode of /** @type {const} */(['coo','sco','sno'])){
+    const output=obfuscateFiles([
+      {path:'client.js',sourceType:'script',code:source},
+      {path:'index.html',sourceType:'asset',code:Buffer.from(html)}
+    ],{mode,seed:'template-base-opaque/'+mode,
+      strings:true,properties:false,identifiers:false});
+    assert.equal(output.files[0].code,source,
+      'A template DocumentFragment base is not an active document base in '+mode);
+  }
+});
+
+test('a base element later than an SRI script cannot invalidate its original URL',()=>{
+  const source='globalThis.sriOutput="an unchanged source-boundary canary string";';
+  const integrity=require('node:crypto').createHash('sha256').update(source).digest('base64');
+  const html='<html><head><script src="./client.js" '+
+    'integrity="sha256-'+integrity+'"></script>'+
+    '<base href="/unrelated/"></head></html>';
+  for(const mode of /** @type {const} */(['coo','sco','sno'])){
+    const output=obfuscateFiles([
+      {path:'client.js',sourceType:'script',code:source},
+      {path:'index.html',sourceType:'asset',code:Buffer.from(html)}
+    ],{mode,seed:'late-base-original-url/'+mode,
+      strings:true,properties:false,identifiers:false});
+    assert.equal(output.files[0].code,source,'Protect the earlier script in '+mode);
+  }
+});

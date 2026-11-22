@@ -408,3 +408,30 @@ The CLI emits executable JavaScript using normal JS operations. String decoding 
 ## Compatibility
 
 Acorn parses standard stage-4 JavaScript, CommonJS and ESM. JSX, experimental syntax, non-JavaScript languages, unrecognized bundler conventions, native add-on binary changes, code that depends on function-toString source, and unmodeled reflection require other handling. Module specifiers and file paths are preserved. The output writing API uses cross-process lock files with atomic rename within the same filesystem. Paths reject traversal, Windows device names, unsafe Windows filename characters, and case-insensitive collisions. The multi-file directory is not a transactional snapshot.
+
+### HTML Subresource Integrity and external script bytes
+
+A declared HTML asset can pin external JavaScript bytes with
+`<script src="./client.js" integrity="sha256-...">`. If the emitted
+JavaScript differs while that HTML remains unchanged, browsers reject the
+load. The compiler therefore performs an explicit, bounded parse5 scan of
+declared `.html` and `.htm` assets for SRI-bound scripts, `modulepreload`,
+and script preload links whose resolved pathname is in the JavaScript
+inventory. For those groups it preserves the original JavaScript bytes and
+refuses requested host wrappers incompatible with the commitment. SCO also
+maps its configured route prefix (such as `/obfs/`) before deciding whether
+a published script is SRI-pinned, so per-request spelling variation is
+suppressed for that group.
+
+The scanner resolves relative URLs, `<base href>`, percent-escaped paths,
+and query/fragment decorations. It considers the fallback document base
+for scripts loaded before a later base, and does not treat base elements
+inside inert template fragments as the live document base. Absolute origin
+and deployment routing assumptions are conservative. Undeclared HTML,
+dynamically generated SRI, proxy URL rewrites and server response headers
+cannot be established from this static input inventory. See the
+[reproducible real-Chromium and SCO SRI report](../im-results/html-sri-public-script-compatibility-2026-11-22.md).
+
+This is a semantic compatibility boundary. SRI is an external
+integrity commitment, and leaving that JavaScript original makes no new
+claim about obfuscation secrecy, browser authorization, or attacker cost.

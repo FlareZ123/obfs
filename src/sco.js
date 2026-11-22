@@ -36,6 +36,7 @@ const {getScoBatchCalls,isScoBatchMethod} = require('./rpc-batch');
 const {ScoIsolationBusyError} = require('./rpc-keyed-isolation');
 const {canonicalAllowedHosts,routingHostname}=require('./hosts');
 const {assertNoSourceMapDisclosure} = require('./source-maps');
+const {hasPinnedLocalJavaScriptIntegrity}=require('./html-assets');
 const {assertReviewedOpaqueAssets}=require('./reviewed-assets');
 
 /** @typedef {import('./core').SourceFile} SourceFile */
@@ -555,7 +556,11 @@ function createScoHandler(sourceFiles,options={}) {
     collectVerifiedImportedCloneAliases(normalized) : new Map();
   const importedUrlStaticProof=normalized.length>1 ?
     collectVerifiedImportedUrlStaticAliases(normalized) : new Map();
-  const interfileSourceObserver=normalized.some(file=>
+  // The original HTML asset carries immutable SRI hashes. Per-response
+  // randomized literal spellings would invalidate the browser's integrity
+  // check even if all JavaScript expression values remained unchanged.
+  const interfileSourceObserver=hasPinnedLocalJavaScriptIntegrity(normalized,prefix) ||
+    normalized.some(file=>
     file.sourceType!=='asset' && typeof file.code==='string' &&
     (observesDistributedSource(parse(file.code,file.sourceType),importedKeyProof.get(file.path)) ||
       normalized.length>1 && observesFunctionSource(parse(file.code,file.sourceType),

@@ -165,4 +165,110 @@ function assertNoInlineHtmlSource(path,code) {
   if(issue)throw new TypeError('HTML asset contains '+issue+': '+path);
 }
 
-module.exports={findInlineHtmlSource,isEmbeddedExecutableUrl,isEmbeddedRefreshUrl,assertNoInlineHtmlSource,decodeMarkup};
+/**
+ * Declared HTML can pin fetched JavaScript response bytes using SRI. Changing
+ * the JS bytes while leaving the HTML unchanged makes that script fail its
+ * browser integrity check, even when all JS expression results are identical.
+ *
+ * The HTML asset paths and JavaScript inventory are the reviewed publication
+ * group. This is deliberately conservative for same-path absolute URLs: a
+ * deployment's actual origin cannot be inferred at compile time. Only an
+ * exact matching supplied JavaScript target triggers the group-wide veto.
+ *
+ * @typedef {{path:string,sourceType:string,code:string|Buffer}} IntegrityFile
+ * @param {IntegrityFile[]} files
+ * @param {string} [routePrefix] Exact SCO mount prefix when available.
+ * @returns {boolean}
+ */
+function hasPinnedLocalJavaScriptIntegrity(files,routePrefix='') {
+  // The SCO HTTP route prefix is a public URL namespace, not part of the
+  // file inventory. Resolve both declared paths and mounted route paths.
+  const mountedPrefix=routePrefix.startsWith('/')?routePrefix.slice(1):routePrefix;
+  const javascriptPaths=new Set(files.filter(file=>file.sourceType!=='asset')
+    .map(file=>file.path));
+  if(!javascriptPaths.size)return false;
+
+  /**
+   * The URL parser applies ./ and ../ resolution and strips query/fragment.
+   * Decode path escapes once, after URL resolution, against the declared
+   * normalized file inventory. Unknown/unsupported targets are ignored.
+   * @param {string} href
+   * @param {URL} base
+   * @returns {string|null}
+   */
+  function targetPath(href,base) {
+    try {
+      const url=new URL(href,base);
+      if(url.protocol!=='http:'&&url.protocol!=='https:')return null;
+      const pathname=decodeURIComponent(url.pathname);
+      if(!pathname.startsWith('/')||pathname.includes('\\'))return null;
+      return pathname.slice(1);
+    }catch(error){return null;}
+  }
+
+  for(const file of files) {
+    if(file.sourceType!=='asset'||!/\.html?$/iu.test(file.path))continue;
+    const html=decodeMarkup(file.path,file.code,'HTML');
+    const root=/** @type {HtmlNode} */(/** @type {unknown} */(parse(html)));
+    /** @type {string|null} */
+    let baseHref=null;
+    /** @param {HtmlNode} node */
+    function findBase(node){
+      if(baseHref!==null)return;
+      if(node.tagName==='base'){
+        const href=node.attrs?.find(attr=>attr.name==='href')?.value;
+        if(href!==undefined){baseHref=href;return;}
+      }
+      for(const child of node.childNodes??[])findBase(child);
+      // Template content belongs to a DocumentFragment, never to the
+      // currently executing document's base URL tree.
+    }
+    findBase(root);
+    const documentBase=new URL('/'+file.path,'https://obfs.invalid/');
+    /** @type {URL} */
+    let base=documentBase;
+    if(baseHref!==null){
+      try{base=new URL(baseHref,documentBase);}
+      catch(error){base=documentBase;}
+    }
+    let observed=false;
+    /** @param {HtmlNode} node */
+    function visit(node){
+      if(observed)return;
+      const attrs=node.attrs??[];
+      const integrity=attrs.find(attr=>attr.name==='integrity')?.value;
+      if(integrity?.trim()){
+        const src=attrs.find(attr=>attr.name==='src')?.value;
+        const href=attrs.find(attr=>attr.name==='href')?.value;
+        const rel=attrs.find(attr=>attr.name==='rel')?.value??'';
+        const as=attrs.find(attr=>attr.name==='as')?.value??'';
+        const relation=rel.toLowerCase().split(/\s+/u);
+        const linked=node.tagName==='link' &&
+          (relation.includes('modulepreload')||
+           relation.includes('preload') && as.toLowerCase()==='script');
+        const address=node.tagName==='script'?src:linked?href:null;
+        if(address){
+          // The parser may already have started fetching a script before a
+          // later <base> takes effect. Also consider the document fallback
+          // rather than assuming a static base was active at fetch time.
+          for(const candidateBase of [documentBase,base]){
+            const target=targetPath(address,candidateBase);
+            if(target!==null&&
+               (javascriptPaths.has(target) ||
+                mountedPrefix && target.startsWith(mountedPrefix) &&
+                  javascriptPaths.has(target.slice(mountedPrefix.length)))){
+              observed=true;return;
+            }
+          }
+        }
+      }
+      for(const child of node.childNodes??[])visit(child);
+      if(node.content)visit(node.content);
+    }
+    visit(root);
+    if(observed)return true;
+  }
+  return false;
+}
+
+module.exports={findInlineHtmlSource,isEmbeddedExecutableUrl,isEmbeddedRefreshUrl,assertNoInlineHtmlSource,decodeMarkup,hasPinnedLocalJavaScriptIntegrity};
