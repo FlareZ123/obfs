@@ -529,6 +529,8 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
   // or the output of URI encoders even without an explicit String(...) call.
   const builtinCoercers=new Set(['String','BigInt','RegExp','Symbol','encodeURI',
     'encodeURIComponent','decodeURI','decodeURIComponent','escape','unescape',
+    // Web-compatible btoa performs ToString on its input before Base64 encoding.
+    'btoa',
     'Error','TypeError','RangeError','ReferenceError','SyntaxError',
     'URIError','EvalError']);
   const coercers=new Set(builtinCoercers);
