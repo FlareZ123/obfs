@@ -83,6 +83,8 @@ jobs:
         run: node sims/vector-top-tensor-quotient-peer.js
       - name: Exact rank-five quartic top-tensor full-function offline clone
         run: node sims/rankfive-top-quartic-functional-clone.js
+      - name: Arbitrary nonlinear rank-four-to-six source-independent offline coset clone
+        run: node --test test/projected-affine-coset-profile-clone.test.js
       - name: Rank-three quadratic bilinear early clone and fallback
         run: node sims/rankthree-quadratic-bilinear-shortcut.js
       - name: Random-basis low-rank quadratic clone negative control
