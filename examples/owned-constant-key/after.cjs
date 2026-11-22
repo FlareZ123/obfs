@@ -8,4 +8,5 @@ function calculate(_v5213db2fef41) {
   return ((internal["_p036be60b25"]+globalThis[key])*_v5213db2fef41)^internal._p1147e89b98;
 }
 
-module.exports={calculate};
+function exportedCalculate(x){return calculate(x);}
+module.exports={calculate:exportedCalculate};
