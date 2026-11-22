@@ -40,10 +40,18 @@ test('RED: reflected Blob native endings must not cross browser/Node realms',()=
   }
 });
 
-test('direct transparent Blob remains a supported portable positive control',()=>{
-  const result=partition(
-    "const blob=new Blob(['A\\nB'],{endings:'transparent'});"+bytes);
-  assert.deepEqual(result.privateNames,['protectedOp']);
+test('direct and locally aliased transparent Blob remain portable positives',()=>{
+  const safe=[
+    "const blob=new Blob(['A\\nB'],{endings:'transparent'});",
+    "const Ctor=Blob;const blob=new Ctor(['A\\nB'],{endings:'transparent'});",
+    "const Ctor=globalThis.Blob;const blob=new Ctor(['A\\nB'],{endings:'transparent'});",
+    "const {Blob:Ctor}=globalThis;const blob=new Ctor(['A\\nB'],{endings:'transparent'});"
+  ];
+  for(const source of safe){
+    const result=partition(source+bytes);
+    assert.deepEqual(result.privateNames,['protectedOp'],
+      'Proven direct/local construction must remain admitted: '+source);
+  }
 });
 
 test('native reflected Blob and direct Blob share host line ending semantics',async()=>{
