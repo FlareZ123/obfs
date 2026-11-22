@@ -21,12 +21,20 @@ const {atomicWrite}=require('../src/atomic');
  */
 async function execute(files) {
   const directory=await fs.mkdtemp(path.join(os.tmpdir(),'css-escape-graph-'));
+  const previous=Object.getOwnPropertyDescriptor(globalThis,'CSS');
+  // The test fixture supplies the native Web IDL-style string conversion
+  // outside the published source group, as a browser host would.
+  Object.defineProperty(globalThis,'CSS',{
+    configurable:true,value:{escape:/** @param {unknown} value */value=>String(value)}
+  });
   try {
     for(const file of files)
       await atomicWrite(path.join(directory,file.path),file.code);
     const observer=await import(pathToFileURL(path.join(directory,'observer.mjs')).href);
     return await observer.observe();
   }finally {
+    if(previous)Object.defineProperty(globalThis,'CSS',previous);
+    else Reflect.deleteProperty(globalThis,'CSS');
     await fs.rm(directory,{recursive:true,force:true});
   }
 }
@@ -41,7 +49,6 @@ function sourceGraph(expression,primitive=false) {
     {path:'logic.mjs',sourceType:'module',code:logic},
     {path:'observer.mjs',sourceType:'module',code:
       'import {inspect} from "./logic.mjs";'+
-      'const CSS={escape:function(value){return String(value);}};'+
       'export function observe(){return {observed:'+expression+',value:inspect()};}'}
   ];
 }
