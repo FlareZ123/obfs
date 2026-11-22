@@ -30,6 +30,39 @@ The standard compiler ORs this witness into its group-wide source-observation re
 
 The checker performs a finite declared-source scan; undeclared HTML, host-injected markup, server-side URL rewrites, unusual media-type routing, redirects, unknown deployment origins, proxy-normalization rules and response-header integrity policies are outside its proven compatibility envelope. The conservative whole-group decision can over-refuse, and no promise is made about general obfuscation when original JS source bytes are committed by external integrity metadata.
 
+## SCO route-prefix evidence
+
+SCO's public handler serves a logical `client.js` at a URL under its
+`routePrefix` (default `/obfs/`), so source HTML may legitimately pin
+`<script src="/obfs/client.js" integrity="sha256-...">`. A declared
+JavaScript filename cannot be equated with the URL pathname directly.
+
+A second independently falsifiable regression,
+`SCO route-prefix-qualified SRI paths preserve the exact served script`,
+covered both the default `/obfs/` and a custom
+`/protected/scripts/` prefix. At pre-repair commit
+`340075fc86813c1107c4a5e716e7537a63045a86`, the existing
+[browser workflow 44965714278](https://github.com/FlareZ123/obfs/actions/runs/44965714278)
+failed that single new case while the earlier SRI cases passed. The
+SCO handler was still changing strings in a script which was integrity
+committed by an absolute URL under its actual public mount.
+
+The scanner now optionally accepts that trusted publisher route prefix and
+strips it from the URL pathname before comparing against its logical
+JavaScript file inventory. `createScoHandler` supplies the already
+validated handler prefix; `obfuscateFiles` without a known public mount
+still uses relative and root paths from the declared HTML. Prefix-aware
+matching is part of the finite compilation context and does not establish
+general correctness for undeclared CDN/proxy routing.
+
+A further SCO closed-world regression confirms that an HTML asset is a
+non-inert file and already causes the existing cross-file renamer to
+decline, independently of the new integrity observer. The handler must
+still disable its per-request source-spelling variation. A host-lock
+negative control asserts that emitting a new guard conflicts with the
+original SRI, and a no-SRI same-origin positive control preserves ordinary
+string obfuscation.
+
 ## Reproduction and release interpretation
 
 - Run `node --test test/html-asset-disclosure.test.js` with the repository's declared dependencies and Node 22.
