@@ -37,20 +37,62 @@ function graph(mutator) {
   ];
 }
 
-const nestedMemberAlias =
-  'const descriptors={ref:{}};const entry=descriptors.ref;'+
-  'entry.get=()=>TARGET.prototype;'+
-  'const box=Object.create(null,descriptors);';
+/** @type {{name:string,setup:string}[]} */
+const variants=[
+  {
+    name:'single member-expression alias',
+    setup:'const entry=descriptors.ref;entry.get=()=>TARGET.prototype;'
+  },
+  {
+    name:'multi-hop member-expression alias',
+    setup:'const first=descriptors.ref;const entry=first;entry.get=()=>TARGET.prototype;'
+  },
+  {
+    name:'computed member-expression alias',
+    setup:"const entry=descriptors['ref'];entry.get=()=>TARGET.prototype;"
+  },
+  {
+    name:'assigned member-expression alias',
+    setup:'let entry;entry=descriptors.ref;entry.get=()=>TARGET.prototype;'
+  },
+  {
+    name:'Object.assign through member-expression alias',
+    setup:'const entry=descriptors.ref;Object.assign(entry,{get:()=>TARGET.prototype});'
+  },
+  {
+    name:'Object.defineProperty through member-expression alias',
+    setup:"const entry=descriptors.ref;Object.defineProperty(entry,'get',{value:()=>TARGET.prototype});"
+  },
+  {
+    name:'destructured nested descriptor alias',
+    setup:'const {ref:entry}=descriptors;entry.get=()=>TARGET.prototype;'
+  },
+  {
+    name:'direct nested member write baseline',
+    setup:'descriptors.ref.get=()=>TARGET.prototype;'
+  }
+];
 
-for(const mode of /** @type {const} */(['coo','sno','sco'])) {
-  test('Object.create nested descriptor value written through member alias: '+mode,
-    async()=>{
-      const mutator=nestedMemberAlias.replace('TARGET','String')+
-        'box.ref.charCodeAt=()=>0;';
-      const input=graph(mutator);
+/** @param {string} setup @param {'String'|'Number'} target @returns {string} */
+function mutatorFor(setup,target) {
+  return 'const descriptors={ref:{}};'+setup.replaceAll('TARGET',target)+
+    'const box=Object.create(null,descriptors);'+
+    (target==='String'?'box.ref.charCodeAt=()=>0;':'box.ref.unrelated=1;');
+}
+
+/**
+ * Every mutation shape has a decoder-sensitive String case and a matched
+ * harmless Number control. The direct-member baseline confirms the existing
+ * obvious path is still recognized while nested aliases are varied.
+ */
+for(const variant of variants) {
+  for(const mode of /** @type {const} */(['coo','sno','sco'])) {
+    test('Object.create descriptor member alias blocks String decoder: '+
+      variant.name+' / '+mode,async()=>{
+      const input=graph(mutatorFor(variant.setup,'String'));
       const emitted=obfuscateFiles(input,{
         mode,strings:true,identifiers:false,properties:false,
-        seed:'agent42-nested-member-alias/'+mode
+        seed:'agent42-nested-member-alias/'+variant.name+'/'+mode
       });
       const target=emitted.files.find(file=>file.path==='target.cjs');
       assert.ok(target);
@@ -65,16 +107,14 @@ for(const mode of /** @type {const} */(['coo','sno','sco'])) {
         await fs.rm(root,{recursive:true,force:true});
       }
       assert.equal(target.metrics.literals,0,
-        'Nested descriptor member alias must block eager decoder encoding');
+        'Decoder-sensitive nested descriptor alias must block eager encoding');
     });
-  test('Object.create nested descriptor Number control retains encoding: '+mode,
-    async()=>{
-      const mutator=nestedMemberAlias.replace('TARGET','Number')+
-        'box.ref.unrelated=1;';
-      const input=graph(mutator);
+    test('Object.create descriptor member alias Number positive yield: '+
+      variant.name+' / '+mode,async()=>{
+      const input=graph(mutatorFor(variant.setup,'Number'));
       const emitted=obfuscateFiles(input,{
         mode,strings:true,identifiers:false,properties:false,
-        seed:'agent42-nested-member-alias-number/'+mode
+        seed:'agent42-nested-member-alias-number/'+variant.name+'/'+mode
       });
       const target=emitted.files.find(file=>file.path==='target.cjs');
       assert.ok(target);
@@ -89,6 +129,7 @@ for(const mode of /** @type {const} */(['coo','sno','sco'])) {
         await fs.rm(root,{recursive:true,force:true});
       }
       assert.equal(target.metrics.literals,1,
-        'Benign Number.prototype access must retain positive decoder yield');
+        'Harmless Number.prototype access must retain positive decoder yield');
     });
+  }
 }
