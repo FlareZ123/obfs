@@ -54,6 +54,7 @@ async function atomicWrite(destination,content,options={}) {
 
 /**
  * Serialize a multi-file publication by cooperating compiler processes.
+ * Resolve symlink/junction aliases to a common lock identity first.
  * Atomic per-file writes remain necessary: non-participating readers may
  * still observe a partially updated directory during publication.
  * @template T
@@ -63,7 +64,16 @@ async function atomicWrite(destination,content,options={}) {
  * @returns {Promise<T>}
  */
 async function withDirectoryLock(directory,action,options={}) {
-  return withLock(path.resolve(directory)+'.obfs.lock',action,options);
+const resolved=path.resolve(directory);
+  await fs.mkdir(path.dirname(resolved),{recursive:true});
+  /** @type {string} */
+  let canonical;
+  try { canonical=await fs.realpath(resolved); }
+  catch(error) {
+    if(/** @type {NodeJS.ErrnoException} */(error).code!=='ENOENT')throw error;
+    canonical=path.join(await fs.realpath(path.dirname(resolved)),path.basename(resolved));
+  }
+  return withLock(canonical+'.obfs.lock',action,options);
 }
 
 module.exports={atomicWrite,withDirectoryLock};
