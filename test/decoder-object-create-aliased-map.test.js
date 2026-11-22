@@ -108,6 +108,13 @@ const variants=[
   ['descriptor-map member-read alias write',
     'const descriptors={ref:{}};const entry=descriptors.ref;'+
     'entry.get=function(){return TARGET.prototype};'+
+    'const box=Object.create(null,descriptors);'],
+  ['descriptor map from holder property',
+    'const holder={descriptors:{ref:{get(){return TARGET.prototype}}}};'+
+    'const box=Object.create(null,holder.descriptors);'],
+  ['descriptor map through member-read variable',
+    'const holder={descriptors:{ref:{get(){return TARGET.prototype}}}};'+
+    'const descriptors=holder.descriptors;'+
     'const box=Object.create(null,descriptors);']
 ];
 
