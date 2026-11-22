@@ -141,6 +141,23 @@ collects a per-scope name set in a `WeakMap` **once per
 and direct statement-declaration rules feed that set, retaining source
 positions for the switch discriminator refusal.
 
+The cached declaration membership is exactly the disjunction of the
+old direct-declaration predicate over the same scope's binding locations:
+the immutable Acorn AST supplies a finite collection of direct
+statements or formal patterns, `collectPatternNodes` enumerates the
+identifier leaves of each pattern, and set membership answers whether
+**any** leaf matches the requested name. For the direct statement
+forms, both versions accept VariableDeclaration, FunctionDeclaration,
+ClassDeclaration, ImportDeclaration, and Export-wrapped declarations;
+for Function/Class/Catch/For environments they inspect the same
+corresponding binding formals. The switch-discriminant range exclusion
+runs *before* cache lookup in both versions. This supplies a finite
+structural-equivalence argument under immutable ordinary ESTree,
+supported by the 15,000 independently generated comparisons. The cache
+is allocated inside each preflight invocation, so no facts survive
+between separate parsed programs. Mutable or hostile AST Proxy inputs
+are outside the source-compiler premise.
+
 A deterministic synthetic-ESTree V8 test counted indexed reads from a
 `Proxy` surrounding the block's statement array, while invoking the
 **entire** scanner at exact old and new sources. Both scanners returned
