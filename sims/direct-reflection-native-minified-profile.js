@@ -9,6 +9,7 @@ const {pathToFileURL} = require('node:url');
 const esbuild = require('esbuild');
 const {obfuscateFiles} = require('../src');
 const {atomicWrite} = require('../src/atomic');
+const {normalizePublicFields} = require('./public-token-normalizer');
 
 /** @typedef {{path:string,sourceType:'module',code:string}} Input */
 /** @typedef {{user:number,system:number}} CpuSample */
@@ -85,11 +86,25 @@ async function run(iterations=1_000_000,trials=9) {
       loader:'js',format:'esm',target:'es2022',minify:true
     })).code
   })));
-  /** @type {{name:'native'|'protected'|'minified',files:{path:string,code:string}[]}[]} */
+  // The attack is seedless and reads only the actual public compiler output.
+  // Minifying that normalized output measures whether the emitted private
+  // labels impose an irreducible execution cost or static naming barrier.
+  const normalized=normalizePublicFields(compiled.files.map(file=>({
+    path:file.path,sourceType:file.sourceType,code:String(file.code)
+  })),{preserveFreeMemberReceivers:false});
+  assert.equal(normalized.properties,2,'source-only attacker must normalize both generated keys');
+  const normalizedMinified=await Promise.all(normalized.files.map(async file=>({
+    ...file,
+    code:(await esbuild.transform(file.code,{
+      loader:'js',format:'esm',target:'es2022',minify:true
+    })).code
+  })));
+  /** @type {{name:'native'|'protected'|'minified'|'normalizedMinified',files:{path:string,code:string}[]}[]} */
   const variants=[
     {name:'native',files:native},
     {name:'protected',files:compiled.files.map(file=>({path:file.path,code:String(file.code)}))},
-    {name:'minified',files:minified}
+    {name:'minified',files:minified},
+    {name:'normalizedMinified',files:normalizedMinified}
   ];
   const root=await fs.mkdtemp(path.join(os.tmpdir(),'obfs-direct-reflection-'));
   try {
@@ -112,38 +127,50 @@ async function run(iterations=1_000_000,trials=9) {
       const baseline=runners.native(input,2500);
       assert.equal(runners.protected(input,2500),baseline);
       assert.equal(runners.minified(input,2500),baseline);
+      assert.equal(runners.normalizedMinified(input,2500),baseline);
     }
     for(let warm=0;warm<3;warm++){
       for(const variant of variants) runners[variant.name](warm,30000);
     }
-    /** @type {{trial:number,native:TimedResult,protected:TimedResult,minified:TimedResult,protectedCpuRatio:number,minifiedCpuRatio:number}[]} */
+    /** @type {{trial:number,native:TimedResult,protected:TimedResult,minified:TimedResult,normalizedMinified:TimedResult,protectedCpuRatio:number,minifiedCpuRatio:number,normalizedMinifiedCpuRatio:number}[]} */
     const rows=[];
     for(let trial=0;trial<trials;trial++) {
       /** @type {Record<string,TimedResult>} */
       const readings={};
-      const order=trial%3===0?
-        ['protected','native','minified']:
-        trial%3===1?['minified','native','protected']:['native','protected','minified'];
+      const order=trial%4===0?
+        ['protected','native','normalizedMinified','minified']:
+        trial%4===1?
+        ['normalizedMinified','minified','native','protected']:
+        trial%4===2?
+        ['native','protected','minified','normalizedMinified']:
+        ['minified','normalizedMinified','protected','native'];
       for(const variant of order) readings[variant]=measure(runners[variant],trial,iterations);
       assert.equal(readings.protected.value,readings.native.value);
       assert.equal(readings.minified.value,readings.native.value);
+      assert.equal(readings.normalizedMinified.value,readings.native.value);
       assert.ok(readings.native.cpuUs>0,'a source CPU measurement must be nonzero');
       rows.push({
-        trial,native:readings.native,protected:readings.protected,minified:readings.minified,
+        trial,native:readings.native,protected:readings.protected,
+        minified:readings.minified,normalizedMinified:readings.normalizedMinified,
         protectedCpuRatio:readings.protected.cpuUs/readings.native.cpuUs,
-        minifiedCpuRatio:readings.minified.cpuUs/readings.native.cpuUs
+        minifiedCpuRatio:readings.minified.cpuUs/readings.native.cpuUs,
+        normalizedMinifiedCpuRatio:readings.normalizedMinified.cpuUs/readings.native.cpuUs
       });
     }
     return {
       mode:'COO',sourceFields:2,rewrittenFields:compiled.crossFile.properties,
+      normalizedFields:normalized.properties,
       iterations,trials,firstLoadWallMs,
       nativeSourceBytes:native.reduce((n,f)=>n+Buffer.byteLength(f.code),0),
       protectedSourceBytes:compiled.files.reduce((n,f)=>n+Buffer.byteLength(f.code),0),
       minifiedSourceBytes:minified.reduce((n,f)=>n+Buffer.byteLength(f.code),0),
+      normalizedMinifiedSourceBytes:normalizedMinified.reduce((n,f)=>n+Buffer.byteLength(f.code),0),
       protectedMedianCpuRatio:median(rows.map(row=>row.protectedCpuRatio)),
       minifiedMedianCpuRatio:median(rows.map(row=>row.minifiedCpuRatio)),
+      normalizedMinifiedMedianCpuRatio:median(rows.map(row=>row.normalizedMinifiedCpuRatio)),
       protectedStrictOver25:rows.filter(row=>row.protectedCpuRatio>2.5).length,
       minifiedStrictOver25:rows.filter(row=>row.minifiedCpuRatio>2.5).length,
+      normalizedMinifiedStrictOver25:rows.filter(row=>row.normalizedMinifiedCpuRatio>2.5).length,
       rows
     };
   }finally {
