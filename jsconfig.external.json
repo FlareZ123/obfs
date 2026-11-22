@@ -1,6 +1,7 @@
 {
   "extends": "./jsconfig.json",
   "include": [
+    "test/private-direct-class-structured-fuzz.test.js",
     "test/private-class-browser-positive.js",
     "test/cjs-wrapper-source-observer.test.js",
     "test/private-direct-class-escape-proof.test.js",
