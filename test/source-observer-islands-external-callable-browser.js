@@ -19,7 +19,7 @@ const original=[
     code:'const recordB={privateB:23,otherB:19};const valueB=recordB.privateB;export function unrelated(){\n  // this comment and whitespace are part of the observable source\n  return valueB;\n}'},
   {path:'entry.mjs',sourceType:'module',
     code:'import {watched} from "./watched.mjs";import {unrelated} from "./independent.mjs";'+
-      'export const answer={source:watched.toString(),value:unrelated()};'}
+      'export const answer={source:Function.prototype.toString.call(watched),value:unrelated()};'}
 ];
 
 /** @returns {string} */
