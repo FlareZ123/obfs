@@ -5,6 +5,7 @@ const assert=require('node:assert/strict');
 const fs=require('node:fs/promises');
 const os=require('node:os');
 const path=require('node:path');
+const {pathToFileURL}=require('node:url');
 const {spawnSync}=require('node:child_process');
 const {obfuscateFiles}=require('../src');
 const {atomicWrite}=require('../src/atomic');
@@ -28,7 +29,7 @@ async function run(files){
       'return nextResolve(specifier,context);}});';
     await atomicWrite(path.join(dir,'hook.mjs'),preloader);
     const child=spawnSync(process.execPath,[
-      '--import',path.join(dir,'hook.mjs'),
+      '--import',pathToFileURL(path.join(dir,'hook.mjs')).href,
       path.join(dir,'entry.mjs')
     ],{encoding:'utf8',timeout:10000,windowsHide:true});
     if(child.error)throw child.error;
