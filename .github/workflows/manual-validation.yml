@@ -133,3 +133,7 @@ jobs:
         env:
           OBFS_FOCUSED_TEST: ${{ inputs.focused_test }}
         run: node sims/focused-test-dispatch.js
+      - name: Strict project JSDoc
+        run: npm run typecheck
+      - name: Strict external JSDoc for focused runner
+        run: npm run typecheck:external
