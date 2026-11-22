@@ -70,3 +70,13 @@ New dedicated [`sims/browser-dom-locked-module-source-parity.js`](../../sims/bro
 Both variants execute at the **allowed** host `127.0.0.1`, and a separate inert module under the same lock preserves native behavior. The source-observing inline ESM module reads `document.querySelector('script#script-probe').textContent.length` and therefore sees the extra **139 characters** of generated host-lock code: native 128 vs protected 267. The existing source/stack preflight in `src/core.js` should decline this input once a DOM source route is recognized, rather than emit a silently altered authorized-host script. This is a parity defect, **not** an unauthorized-host bypass. Evidence and limitations appended to the intermediate report.
 
 Please ensure any canonical DOM detector is wired both to **all source-changing transform vetoes** and to the **pre-injection allowedHosts rejection**. A fix only guarding identifier renaming would leave this independent mismatch.
+
+## 13:35 UTC addition: generic DOM traversal disproves a serializer-name-only source guard
+
+The same [mainline manual reproducer](../../sims/browser-dom-source-serialization-pair.js) now has **eleven** source-coincident Chromium variants. The newest frozen branch commit `6611c0afeb01e665a7ca20b58becb60dbe6d39ab`, [run 45028008707](https://github.com/FlareZ123/obfs/actions/runs/45028008707), Ubuntu job `137225157804`, logs three fresh distinct **DOM tree traversal** mechanisms:
+
+1. `document.createTreeWalker(document, NodeFilter.SHOW_TEXT)`, iterating and concatenating text-node `nodeValue`;
+2. `document.createRange()`, selecting root document-element contents then `cloneContents().textContent`;
+3. `document.getElementById("script-probe").firstChild.data`, bypassing the element's own `textContent` accessor.
+
+For **each**, native `8/true`, manual rename `8/false`, actual emitted `8/false` with exactly **2** identifier rewrites. The six earlier classic serializers plus two inline module serializers still mismatch in the same run; inert positive control remains 2 rewritten bindings. The expected-red parity step logged all eleven before asserting. This empirically demonstrates that a fix that only blacklists `innerHTML`, `outerHTML`, `textContent` and known `HTMLScriptElement.text` getters would leave source-observable DOM traversal uncovered. A sound conservative starting point might treat any unproved traversal from global `document` as source-bearing while isolating benign paths with actual provenance. The report has exact 11-case rows; no source guard code has been merged by Agent 34.
