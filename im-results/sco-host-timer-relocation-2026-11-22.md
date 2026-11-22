@@ -139,6 +139,42 @@ passed **79/79 tests**, generated graph checks and strict JSDoc
 on both Ubuntu and Windows. This improves the selected compiler's
 supported source subset under an explicit server-trust boundary.
 
+## Mutable function-declaration provenance
+
+A locally declared function is a mutable binding in JavaScript, so a
+lexical name and unique declaration alone do not establish that a call
+still targets the owned function. The first local-function positive-yield
+patch admitted the selected source
+
+```js
+export async function protectedOp(replacement){
+  function setTimeout(value){return value+1;}
+  setTimeout=replacement;
+  return typeof setTimeout;
+}
+```
+
+through the host-name exemption. The red-first regression at exact source
+`781d7a8d4f00128b86040a3843397cb8f58ade6a` reproduced this
+missing refusal on Ubuntu and Windows in
+[CI 45000609881](https://github.com/FlareZ123/obfs/actions/runs/45000609881),
+with 81/82 graph tests passing per OS. While this specific JSON-valued
+example does not independently demonstrate changed execution output,
+the original checker had no proof of the resulting function identity.
+
+The admission check now scans assignment expressions, update expressions,
+and `for...in` / `for...of` targets for writes to host-spelled local
+bindings, including nested destructuring target identifiers. These names
+are excluded from the uniquely owned immutable-function admission set.
+Existing unmodified immediate-scope `function` and `const` helper positive
+controls remain eligible, while the new mutable forms are refused. On
+[CI 45000699724](https://github.com/FlareZ123/obfs/actions/runs/45000699724),
+source `5e74f8ba8411e7f761ae396ad81d9eb18ad3541d`, the targeted graph
+and strict JSDoc checks passed on both OS after this correction.
+Additional destructuring and `for...in` cases were added afterwards.
+This remains a conservative syntactic provenance check, not a whole-program
+analysis of all possible variable writes.
+
 ## Scope and remaining proof obligations
 
 The scanner is deliberately syntactic and conservatively declines shadowed
