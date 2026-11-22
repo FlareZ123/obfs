@@ -115,6 +115,21 @@ The negative source-bearing cases failed the **actual native-versus-emitted sema
 
 This is **bounded source reflection**, not an attack on cross-file property alias consistency or an assertion that every DOM read must suppress all property renaming. It does not establish additional reconstruction resistance, lock bypass or performance conformance. The deliberate source observation occurs in an inline ESM module under native DOM APIs; external-only script deployments require separate provenance analysis.
 
+## Inter-file delegated DOM source reader: private property owner across a call boundary
+
+The [`sims/browser-dom-delegated-cross-file-source-parity.js`](../sims/browser-dom-delegated-cross-file-source-parity.js) proof addresses the explicit **interprocedural and cross-file** source-observer requirement. Two ESM files are passed to the compiler as one closed group. The inline browser entry creates a private record with `owner.secretToken` and calls an **imported function** `readDocument(document)`, implemented in a separate HTTP-served `reader.mjs`. That exported helper accepts the `Document` as parameter `d`, then returns either `d.title` (benign control) or `d.documentElement.outerHTML` (source-bearing case). The inline entry compares the returned string to the split lookup `"secret"+"Token"`. The private record itself never escapes; only its numeric value leaves the local function. **This deliberately crosses file, function-call, parameter-flow and host-DOM boundaries.**
+
+Frozen source `7e26b3674b24b34b778c92d7e410275025a8b1c9`, [manual CI run 45029381832](https://github.com/FlareZ123/obfs/actions/runs/45029381832), Ubuntu Chromium job `137229369209` reported:
+
+| Imported reader | Native result | COO emitted result | Inline entry private rewrites | Imported reader rewrites |
+| --- | --- | --- | ---: | ---: |
+| `readDocument(d) => d.title` | `8/false` | **`8/false`** | 1 private property | 0 |
+| `readDocument(d) => d.documentElement.outerHTML` | `8/true` | **`8/false`** | 1 private property | 0 |
+
+Both actual browser versions import their respective emitted or original `reader.mjs` via HTTP; the same untransformed script in the HTML page gathers results after `window.load`. Compiler options deliberately disable **identifier and string rewrites**, enable closed-world **property** rewriting, and pass both modules together. The emitted source-reader helper does not rewrite any keys, so only the inline entry's private `secretToken` spelling is responsible for the changed source-dependent observation. The test enforced positive private-property yield for **both** deployments, confirms the benign reader's exact parity, then fails on the one actual cross-file source-exposing mismatch. The JSDoc gate for the expanded evidence suite passed on both Linux and Windows. The Windows browser step was intentionally skipped, while its ordinary cross-reader/JSDoc steps passed.
+
+The derived integration requirement is stronger than a direct syntactic scan for `document.documentElement` in the candidate source file: a source observer in an imported function can receive a `Document` object through a parameter alias, serialize the caller's inline source and reveal an otherwise privately renamed field. Conservatively setting the group-wide `remoteSourceObserver` when source reachability is unproved may protect parity, at the cost of measured benign transformation yield. A precise selective proof must account for delegated cross-file host-object flow and deployment provenance. This finite demonstration does not constitute a proof for arbitrary interprocedural aliasing, custom loader imports or adversarial host monkey patching.
+
 ## Threat, compatibility and performance limitations
 
 These are **eleven finite semantic mismatches**, not proof of generalized property analysis unsoundness or of an attacker resisting reverse engineering. Source reflection by the executing classic script is part of its observable program behavior. The measured 8/true versus 8/false difference makes byte-preserving transformation or explicit refusal necessary for this input under the 1:1 parity objective.
