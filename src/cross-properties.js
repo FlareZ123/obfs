@@ -93,7 +93,7 @@ function collectVerifiedImportedStrings(files) {
         if(statement.type!=='ExportNamedDeclaration'||!statement.source||
            statement.source.type!=='Literal'||
            typeof statement.source.value!=='string'||
-           /[?#%\\\\]/.test(statement.source.value))continue;
+           /[?#%\\]/.test(statement.source.value))continue;
         const origin=resolveImport(relayName,statement.source.value);
         const available=origin?exported.get(origin):null;
         if(!available)continue;
