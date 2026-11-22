@@ -140,7 +140,7 @@ test('external ESM class-instance source and private-primitive contrast in Node 
         });
         await new Promise((resolve,reject)=>{
           server.once('error',reject);
-          server.listen(0,'127.0.0.1',resolve);
+          server.listen(0,'127.0.0.1',()=>resolve(undefined));
         });
         try {
           const address=server.address();
