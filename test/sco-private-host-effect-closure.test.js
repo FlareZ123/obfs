@@ -669,3 +669,38 @@ test('Composite typeof local values preserve admitted direct and private-graph f
     }
   }
 });
+
+test('SCO composite typeof distinguishes lazy nested functions from invoked closures',()=>{
+  const nonExecuting=[
+    'return typeof (()=>externalBridge);',
+    'return typeof function(){return externalBridge;};'
+  ];
+  const executing=[
+    'return typeof (()=>externalBridge)();',
+    'return typeof (function(){return externalBridge;})();'
+  ];
+  for(const body of nonExecuting){
+    const source='export async function protectedOp(){'+body+'}'+
+      'export function visible(){return 7;}';
+    assert.doesNotThrow(()=>partitionScoSelectedAsyncExports(
+      {path:'mixed.mjs',code:source,sourceType:'module'},
+      {seed:'sco-lazy-typeof-closure-20261122',privateNames:['protectedOp']}
+    ),body);
+    for(const transitive of [false,true]){
+      assert.deepEqual(partitionGraph(body,transitive).privateNames,['protectedOp']);
+    }
+  }
+  for(const body of executing){
+    const source='export async function protectedOp(){'+body+'}'+
+      'export function visible(){return 7;}';
+    assert.throws(()=>partitionScoSelectedAsyncExports(
+      {path:'mixed.mjs',code:source,sourceType:'module'},
+      {seed:'sco-invoked-typeof-closure-20261122',privateNames:['protectedOp']}
+    ),/Private SCO export or helper uses unproved free typeof reference/u,body);
+    for(const transitive of [false,true]){
+      assert.throws(()=>partitionGraph(body,transitive),
+        /SCO private static dependency has unproved free typeof reference/u,
+        body+' transitive='+transitive);
+    }
+  }
+});
