@@ -183,26 +183,42 @@ function cloneTopQuintic(oracle, n, draw = secureWord, delta = 1e-10) {
     return result >>> 0;
   }
 
-  const witnessProbability = (31 / 32) * (30 / 32) * (28 / 32) * (24 / 32) * (16 / 32);
+  // A six-direction cube contains all six five-subsets. A nonzero scalar
+  // five-form factors through a five-dimensional quotient; six random
+  // directions span that quotient with probability p6 below.
+  const witnessProbability = (63 / 64) * (62 / 64) * (60 / 64) * (56 / 64) * (48 / 64);
   const trialCap = Math.ceil(Math.log(delta) / Math.log(1 - witnessProbability));
   /** @type {number[]} */
   let anchors = [];
   let witness = 0;
   let trials = 0;
   for (; trials < trialCap; trials++) {
-    const tuple = Array.from({length: 5}, () => ((draw() >>> 0) & inputMask) >>> 0);
-    const observed = fifthDerivative(tuple);
-    if (observed !== 0) {
-      anchors = tuple;
-      witness = observed;
-      trials++;
-      break;
+    const directions = Array.from({length: 6}, () => ((draw() >>> 0) & inputMask) >>> 0);
+    // Cache the whole six-cube once; every five-subset derivative below is
+    // computed from these same 64 values (at most 63 new queries).
+    for (let subset = 0; subset < 64; subset++) {
+      let input = 0;
+      for (let j = 0; j < 6; j++) {
+        if (((subset >>> j) & 1) !== 0) input ^= directions[j];
+      }
+      ask(input >>> 0);
     }
+    for (let omitted = 0; omitted < 6; omitted++) {
+      const tuple = directions.filter((_, j) => j !== omitted);
+      const observed = fifthDerivative(tuple);
+      if (observed !== 0) {
+        anchors = tuple;
+        witness = observed;
+        trials++;
+        break;
+      }
+    }
+    if (witness !== 0) break;
   }
 
   if (witness === 0) {
     const lower = Array.from(lowerCoefficients.entries()).filter(([,value]) => value !== 0);
-    assert.ok(cache.size <= masksThroughWeight(n, 4).length + 31 * trialCap);
+    assert.ok(cache.size <= masksThroughWeight(n, 4).length + 63 * trialCap);
     return {bits:n, lower, top:[], degree:4, queries:cache.size,
       trials, quotientRank:0, trialCap};
   }
@@ -277,7 +293,7 @@ function cloneTopQuintic(oracle, n, draw = secureWord, delta = 1e-10) {
   }
 
   const lower = Array.from(lowerCoefficients.entries()).filter(([,value]) => value !== 0);
-  const queryCap = masksThroughWeight(n, 4).length + 31 * trialCap + 30 * n;
+  const queryCap = masksThroughWeight(n, 4).length + 63 * trialCap + 30 * n;
   assert.ok(cache.size <= queryCap, 'fifth-derivative clone exceeded its distinct-query cap');
   return {bits:n, lower, top:topCoefficients, degree:5, queries:cache.size,
     trials, quotientRank, trialCap};
@@ -391,7 +407,7 @@ function rankSevenPromiseViolation() {
     }
     return result >>> 0;
   };
-  const forcedBasisWitness = [1, 2, 4, 8, 16];
+  const forcedBasisWitness = [1, 2, 4, 8, 16, 32];
   let drawIndex = 0;
   assert.throws(() => cloneTopQuintic(source, width,
     () => forcedBasisWitness[drawIndex++ % forcedBasisWitness.length]),
@@ -415,11 +431,11 @@ function rankSevenSilentPromiseViolation() {
     (((input & 31) === 31) ? 1 : 0) ^
     (((input & 124) === 124) ? 2 : 0)
   ) >>> 0;
-  const forcedAnchors = [1, 2, 4, 8, 16];
+  const forcedDirections = [1, 2, 4, 8, 16, 32];
   let drawIndex = 0;
   const model = cloneTopQuintic(source, width,
-    () => forcedAnchors[drawIndex++ % forcedAnchors.length]);
-  assert.equal(drawIndex, 5);
+    () => forcedDirections[drawIndex++ % forcedDirections.length]);
+  assert.equal(drawIndex, 6);
   assert.equal(model.degree, 5);
   assert.equal(model.quotientRank, 5);
   assert.deepEqual(model.top, [[31, 1]]);
@@ -534,7 +550,7 @@ function main() {
     }, 32, learnerRng);
     online = false;
     assert.equal(calls, model.queries);
-    assert.ok(calls <= 44455, `query cap exceeded: ${calls}`);
+    assert.ok(calls <= 44110, `query cap exceeded: ${calls}`);
     if (topActive) assert.equal(model.degree, 5);
     else assert.equal(model.degree, 4);
     for (let sample = 0; sample < 128; sample++) {
@@ -556,7 +572,7 @@ function main() {
     finite:{cases:finiteCases,outputs:finiteOutputs,topRank5:finiteTop5,
       topRank6:finiteTop6,degree4Fallback:finiteFallback,maxQueries:finiteMaxQueries},
     width32:{cases:wideCases,heldouts:wideHeldouts,maxQueries:wideMaxQueries,
-      maxTopCoefficients:wideMaxTopTerms,hardCap:44455,trialCap:66},
+      maxTopCoefficients:wideMaxTopTerms,hardCap:44110,trialCap:27},
     rankSevenSignatureOverflowControl:rankSevenControl,
     rankSevenSilentPromiseViolation:rankSevenSilentControl,
     promiseCheck:'signature-span overflow fails closed; no overflow does not certify the source promise',
