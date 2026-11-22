@@ -5,89 +5,80 @@ const {walk}=require('./ast');
 /** @typedef {import('./ast').AstNode} AstNode */
 
 /**
- * Check whether a name is introduced by an ESTree binding pattern. Computed
- * pattern keys and default values are expressions, never binding locations.
+ * Convert binding patterns into stable name sets. The node collector excludes
+ * computed keys and initializer expressions, which are reads, not bindings.
  * @param {AstNode|null|undefined} pattern
- * @param {string} name
- * @returns {boolean}
+ * @param {Set<string>} names
+ * @returns {void}
  */
-function patternDeclares(pattern,name){
-  if(!pattern)return false;
-  if(pattern.type==='Identifier')return pattern.name===name;
-  if(pattern.type==='RestElement')return patternDeclares(pattern.argument,name);
-  if(pattern.type==='AssignmentPattern')return patternDeclares(pattern.left,name);
-  if(pattern.type==='ArrayPattern')return pattern.elements.some(
-    (/** @type {AstNode|null} */ item)=>patternDeclares(item,name));
-  if(pattern.type==='ObjectPattern')return pattern.properties.some(
-    (/** @type {AstNode} */ item)=>patternDeclares(
-      item.type==='RestElement'?item.argument:item.value,name));
-  return false;
+function addPatternNames(pattern,names){
+  /** @type {Set<AstNode>} */
+  const nodes=new Set();
+  collectPatternNodes(pattern,nodes);
+  for(const node of nodes)names.add(node.name);
 }
 
 /**
- * A declaration may be wrapped in a named export. Only direct declarations
- * belong to the given lexical block; declarations inside another function or
- * nested block must not lend their names to this scope.
+ * Include only direct declarations in the current lexical statement list.
+ * Nested blocks/functions cannot donate lexical names to this scope.
  * @param {AstNode} statement
- * @param {string} name
- * @returns {boolean}
+ * @param {Set<string>} names
+ * @returns {void}
  */
-function statementDeclares(statement,name){
+function addStatementNames(statement,names){
   const node=statement.type==='ExportNamedDeclaration'||
     statement.type==='ExportDefaultDeclaration'?statement.declaration:statement;
-  if(!node)return false;
-  if(node.type==='VariableDeclaration')return node.declarations.some(
-    (/** @type {AstNode} */ item)=>patternDeclares(item.id,name));
-  if(['FunctionDeclaration','ClassDeclaration'].includes(node.type)){
-    return node.id?.type==='Identifier'&&node.id.name===name;
+  if(!node)return;
+  if(node.type==='VariableDeclaration'){
+    for(const declaration of node.declarations)addPatternNames(declaration.id,names);
+    return;
   }
-  if(node.type==='ImportDeclaration')return node.specifiers.some(
-    (/** @type {AstNode} */ item)=>item.local?.type==='Identifier'&&
-      item.local.name===name);
-  return false;
+  if(['FunctionDeclaration','ClassDeclaration'].includes(node.type)){
+    addPatternNames(node.id,names);
+    return;
+  }
+  if(node.type==='ImportDeclaration'){
+    for(const specifier of node.specifiers)addPatternNames(specifier.local,names);
+  }
 }
 
 /**
- * Check only the lexical ancestor chain of a reference. A syntactically
- * present binding in an unrelated sibling scope is insufficient evidence.
- * The separate var-declaration walk resolves ordinary function/module
- * hoists without lending nested function or class static-block bindings to
- * unrelated scopes.
+ * Resolve lexical membership from a cached per-scope declaration inventory.
+ * A switch discriminant evaluates outside its case-block lexical environment.
  * @param {AstNode} scope
  * @param {string} name
- * @param {AstNode} reference The value reference being resolved
+ * @param {AstNode} reference
+ * @param {WeakMap<AstNode,Set<string>>} cache
  * @returns {boolean}
  */
-function scopeDeclares(scope,name,reference){
-  if(['FunctionDeclaration','FunctionExpression','ArrowFunctionExpression']
-    .includes(scope.type)){
-    if(scope.id?.type==='Identifier'&&scope.id.name===name)return true;
-    return scope.params.some(
-      (/** @type {AstNode} */ param)=>patternDeclares(param,name));
-  }
-  if(['ClassDeclaration','ClassExpression'].includes(scope.type)){
-    return scope.id?.type==='Identifier'&&scope.id.name===name;
-  }
-  if(scope.type==='CatchClause')return patternDeclares(scope.param,name);
-  if(['ForStatement','ForInStatement','ForOfStatement'].includes(scope.type)){
-    const declaration=scope.type==='ForStatement'?scope.init:scope.left;
-    return declaration?.type==='VariableDeclaration'&&
-      statementDeclares(declaration,name);
-  }
-  // Switch discriminants evaluate before the case-block lexical environment
-  // exists. A let/const/function declared in a case does not bind the
-  // discriminant. Function-scoped var declarations remain handled separately.
+function scopeDeclares(scope,name,reference,cache){
   if(scope.type==='SwitchStatement'&&
      reference.start>=scope.discriminant.start&&
      reference.end<=scope.discriminant.end)return false;
-  if(scope.type==='SwitchStatement')return scope.cases.some(
-    (/** @type {AstNode} */ item)=>item.consequent.some(
-      (/** @type {AstNode} */ statement)=>statementDeclares(statement,name)));
-  if(['Program','BlockStatement','StaticBlock'].includes(scope.type)){
-    return scope.body.some(
-      (/** @type {AstNode} */ statement)=>statementDeclares(statement,name));
+  let names=cache.get(scope);
+  if(!names){
+    names=new Set();
+    cache.set(scope,names);
+    if(['FunctionDeclaration','FunctionExpression','ArrowFunctionExpression']
+      .includes(scope.type)){
+      addPatternNames(scope.id,names);
+      for(const param of scope.params)addPatternNames(param,names);
+    }else if(['ClassDeclaration','ClassExpression'].includes(scope.type)){
+      addPatternNames(scope.id,names);
+    }else if(scope.type==='CatchClause'){
+      addPatternNames(scope.param,names);
+    }else if(['ForStatement','ForInStatement','ForOfStatement'].includes(scope.type)){
+      const declaration=scope.type==='ForStatement'?scope.init:scope.left;
+      if(declaration?.type==='VariableDeclaration')addStatementNames(declaration,names);
+    }else if(scope.type==='SwitchStatement'){
+      for(const clause of scope.cases){
+        for(const statement of clause.consequent)addStatementNames(statement,names);
+      }
+    }else if(['Program','BlockStatement','StaticBlock'].includes(scope.type)){
+      for(const statement of scope.body)addStatementNames(statement,names);
+    }
   }
-  return false;
+  return names.has(name);
 }
 
 /**
@@ -136,6 +127,8 @@ function firstUnprovedFreeReference(root,moduleBindings,rootFormals,realmGlobals
   // var is scoped to the closest function, module or class static block.
   // A selected function body's BlockStatement is the caller-supplied root.
   // Cache per lexical scope to avoid rescanning on every reference.
+  /** @type {WeakMap<AstNode,Set<string>>} */
+  const lexicalNames=new WeakMap();
   /** @type {WeakMap<AstNode,Set<string>>} */
   const hoistedVars=new WeakMap();
   /**
@@ -228,7 +221,8 @@ function firstUnprovedFreeReference(root,moduleBindings,rootFormals,realmGlobals
       ancestors.some(scope=>scope.type==='FunctionDeclaration'||
         scope.type==='FunctionExpression')))return;
     const name=node.name;
-    const boundLexically=ancestors.some(scope=>scopeDeclares(scope,name,node));
+    const boundLexically=ancestors.some(scope=>
+      scopeDeclares(scope,name,node,lexicalNames));
     const boundByVar=ancestors.some(scope=>{
       if(scope!==root&&!['Program','FunctionDeclaration','FunctionExpression',
         'ArrowFunctionExpression','StaticBlock'].includes(scope.type))return false;
