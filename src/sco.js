@@ -391,7 +391,8 @@ function createScoHandler(sourceFiles,options={}) {
   }
   // Compile an immutable routing lookup at server initialization rather than
   // allocating and lowercasing a complete allowlist on every HTTP request.
-  const routingHostnames=allowedHosts?.length ? new Set(canonicalAllowedHosts(allowedHosts)) : null;
+  const routingHostnames=allowedHosts===undefined ? null :
+    new Set(canonicalAllowedHosts(allowedHosts));
   if (!prefix.startsWith('/') || !prefix.endsWith('/')) throw new TypeError('routePrefix must start and end with /');
   if (remoteMethods && typeof authorizeRpc!=='function') {
     throw new TypeError('Remote operations require authorizeRpc');
