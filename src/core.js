@@ -191,9 +191,10 @@ function staticallyImportedEsmTargets(files) {
  * @param {import('./ast').AstNode} ast
  * @param {boolean} [rejectCommonJsExportEscape]
  * @param {boolean} [rejectEsmExportEscape]
+ * @param {boolean} [projectHasObjectCreate]
  * @returns {boolean}
  */
-function mutatesDecoderIntrinsic(ast,rejectCommonJsExportEscape=false,rejectEsmExportEscape=false) {
+function mutatesDecoderIntrinsic(ast,rejectCommonJsExportEscape=false,rejectEsmExportEscape=false,projectHasObjectCreate=false) {
   const safeCapturedReflectGet=provenLocalReflectGetCaptures(ast);
   // A supplied binding named Object, Reflect or Array may replace the
   // presumed intrinsic. Numeric-argument prototype provenance is then unsafe.
@@ -2143,6 +2144,17 @@ function mutatesDecoderIntrinsic(ast,rejectCommonJsExportEscape=false,rejectEsmE
       if((key===null||key==='get')&&
          proxyGetMayReturnDecoderIntrinsic(node.right))sensitiveAccessorWrite=true;
     }
+    if(node.type==='CallExpression'&&node.callee.type==='MemberExpression'&&
+       node.callee.object.type==='Identifier'&&
+       (node.callee.object.name==='Object'||node.callee.object.name==='Reflect')&&
+       memberName(node.callee)==='defineProperty'&&
+       node.arguments[1]&&node.arguments[2]) {
+      const key=staticString(node.arguments[1]);
+      if((key===null||key==='get')&&
+         descriptorDefinePropertyMayExposeDecoder(node.arguments[2])) {
+        sensitiveAccessorWrite=true;
+      }
+    }
   });
   /** @type {Map<string,Set<string>>} */
   const objectCreateHolderFields=new Map();
@@ -2330,8 +2342,12 @@ function mutatesDecoderIntrinsic(ast,rejectCommonJsExportEscape=false,rejectEsmE
     return null;
   }
   /** @type {boolean} */
+  // When the file group contains Object.create and any file contains a
+  // decoder-sensitive accessor write, file-local alias facts cannot prove
+  // that the two are unrelated. Fail closed for eager string decoding across
+  // the whole group until project-wide points-to/call/module analysis exists.
   let mutated=opaqueReflectiveSensitiveWrite||
-    unmodeledCreateReference&&sensitiveAccessorWrite;
+    (unmodeledCreateReference||projectHasObjectCreate)&&sensitiveAccessorWrite;
   walk(ast,(node,parent)=>{
     if(rejectCommonJsExportEscape&&node.type==='AssignmentExpression'&&
        node.operator==='='&&isCommonJsExportTarget(node.left)&&
@@ -2716,6 +2732,19 @@ function obfuscateFiles(files, options = {}) {
     staticallyRequiredCommonJsTargets(cross.files):new Set();
   const importedEsmTargets=shouldEncodeStrings?
     staticallyImportedEsmTargets(cross.files):new Set();
+  const projectHasObjectCreate=shouldEncodeStrings&&cross.files.some(input=>{
+    if(input.sourceType==='asset'||typeof input.code!=='string')return false;
+    const inputAst=parse(input.code,input.sourceType);
+    let found=false;
+    walk(inputAst,node=>{
+      if(node.type!=='MemberExpression'||node.object.type!=='Identifier'||
+         node.object.name!=='Object')return;
+      const key=node.computed?staticString(node.property):
+        node.property.type==='Identifier'?node.property.name:staticString(node.property);
+      if(key==='create')found=true;
+    });
+    return found;
+  });
   let unsafeDecoderIntrinsic=false;
   if (shouldEncodeStrings) {
     // Classic scripts share one page-global lexical environment. Reserve every
@@ -2729,7 +2758,7 @@ function obfuscateFiles(files, options = {}) {
       });
       reservedSources.push(input.code);
       if (mutatesDecoderIntrinsic(inputAst,requiredCommonJsTargets.has(input.path),
-            importedEsmTargets.has(input.path)) ||
+            importedEsmTargets.has(input.path),projectHasObjectCreate) ||
           input.sourceType==='script' && collectBindings(inputAst).has('String')) {
         unsafeDecoderIntrinsic=true;
       }
