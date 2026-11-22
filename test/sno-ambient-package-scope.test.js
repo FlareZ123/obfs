@@ -98,3 +98,18 @@ test('SNO .cjs-only output does not depend on an ancestor package type',async()=
     assert.equal(result.stdout,'37');
   });
 });
+
+test('SNO does not inherit an ambient ESM scope across node_modules',async()=>{
+  await withFixture(async directory=>{
+    const input=path.join(directory,'source');
+    const host=path.join(directory,'host');
+    const output=path.join(host,'node_modules','package');
+    await atomicWrite(path.join(host,'package.json'),'{"type":"module"}');
+    await atomicWrite(path.join(input,'entry.js'),'module.exports=41;');
+
+    await main('sno',['--root',input,'--entry','entry.js','--out',output]);
+    const result=runCommonJs(path.join(output,'sno-entry.cjs'));
+    assert.equal(result.status,0,result.stderr);
+    assert.equal(result.stdout,'41');
+  });
+});
