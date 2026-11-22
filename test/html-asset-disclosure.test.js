@@ -345,3 +345,19 @@ test('SCO route-prefix-qualified SRI paths preserve the exact served script',asy
     }
   }
 });
+
+test('inert template base cannot redirect a later live script SRI target',()=>{
+  const source='globalThis.sriOutput="an unchanged source-boundary canary string";';
+  const integrity=require('node:crypto').createHash('sha256').update(source).digest('base64');
+  const html='<html><head><template><base href="/unrelated/"></template>'+
+    '<script src="./client.js" integrity="sha256-'+integrity+'"></script></head></html>';
+  for(const mode of /** @type {const} */(['coo','sco','sno'])){
+    const output=obfuscateFiles([
+      {path:'client.js',sourceType:'script',code:source},
+      {path:'index.html',sourceType:'asset',code:Buffer.from(html)}
+    ],{mode,seed:'template-base-opaque/'+mode,
+      strings:true,properties:false,identifiers:false});
+    assert.equal(output.files[0].code,source,
+      'A template DocumentFragment base is not an active document base in '+mode);
+  }
+});
