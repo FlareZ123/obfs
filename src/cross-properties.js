@@ -2040,9 +2040,10 @@ function collectSourceExposedPropertyNames(ast,sourceExposedBodies) {
  * speculating about the complete JavaScript object graph.
  * @param {SourceFile[]} files
  * @param {string} seed
+ * @param {{preserveCallableSource?:boolean}} [options]
  * @returns {{files:SourceFile[],objects:number,properties:number}}
  */
-function renameCrossFileProperties(files,seed) {
+function renameCrossFileProperties(files,seed,options={}) {
   // Mixed executable formats can hide ESM consumers. The closed-world
   // integrator additionally promises that these explicitly declared inert
   // style/image/font assets are served with non-JavaScript MIME types and
@@ -2062,7 +2063,8 @@ function renameCrossFileProperties(files,seed) {
     if ((file.sourceType ?? (file.path.endsWith('.mjs') ? 'module' : 'script'))==='module' && typeof file.code==='string') {
       const ast=parse(file.code,'module');
       const bindings=collectBindings(ast);
-      const sourceExposedBodies=collectSourceExposedBodies(ast,bindings);
+      const sourceExposedBodies=options.preserveCallableSource===true ?
+        collectSourceExposedBodies(ast,bindings) : new Set();
       const sourceExposedEdits=new WeakSet();
       walk(ast,(node,parent,key,ancestors)=>{
         if(ancestors.some(ancestor=>sourceExposedBodies.has(ancestor)))
