@@ -1,7 +1,7 @@
 # Element.setAttribute DOMString function-source conversion
 
-**Status: behavior-changing two-OS Node differential proven; native
-Chromium differential under source-pinned validation.** Agent 19,
+**Status: behavior-changing two-OS Node and native Chromium red differentials
+proven; current patch green in two-OS focused CI and awaiting native Chrome green.** Agent 19,
 22 November 2026. Research branch
 `agent19/dom-attribute-string-source-20261122`. Companion red branch
 `agent19/dom-string-native-red-20261122`. This work targets semantic
@@ -48,13 +48,18 @@ therefore modify a private function passed to native
   may already protect. That passing browser test **does not establish
   the targeted fix**.
   The corrected fixtures export only already-converted primitive
-  records and keep the source-bearing function private:
-  red `ae77fc6c3d442a92663de81beffbd321714d429c` and
-  green `ea25ffe178326124bd7bb8e92693d78c3443d9d9`.
-  They compare both native `setAttribute` and `setAttributeNS`
-  against emitted modules and require an independent transformed
-  private-key positive. Source-pinned Chromium results are pending.
-  A later test-only update retains the same emitter logic.
+  records and keep the source-bearing function private. With the
+  **unpatched** compiler at `ae77fc6c3d442a92663de81beffbd321714d429c`,
+  [full native Chromium red 45084461970](https://github.com/FlareZ123/obfs/actions/runs/45084461970)
+  reproduced the exact string mismatch for both `setAttribute` and
+  `setAttributeNS`. It reported `negative.properties=1`,
+  `negativeContainsSecret=false`; actual output text substituted generated
+  `_v...` and `_p...` tokens, while primitive positive still renamed
+  its unrelated private property. The patched native Chromium comparator
+  at `ea25ffe178326124bd7bb8e92693d78c3443d9d9` is
+  [run 45084466723](https://github.com/FlareZ123/obfs/actions/runs/45084466723),
+  pending final status. A later test-only change retains the same native
+  browser emitter contract.
 
 ## Compiler fix and limits
 
