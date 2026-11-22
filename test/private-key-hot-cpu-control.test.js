@@ -104,10 +104,11 @@ function median(values) {
   return sorted[Math.floor(sorted.length/2)];
 }
 
-test('real COO protected private string and Symbol keys preserve behavior and report paired hot CPU',
+test('real protected private string and Symbol keys preserve behavior and report paired hot CPU',
   () => {
+    const mode=process.env.OBFS_PRIVATE_KEY_MODE==='sno'?'sno':'coo';
     const input=[{path:'entry.cjs',sourceType:/** @type {const} */ ('commonjs'),code:original}];
-    const base={mode:/** @type {const} */ ('coo'),seed:'symbol-private-hot-cpu-20261122',
+    const base={mode,seed:'symbol-private-hot-cpu-20261122',
       identifiers:false,strings:false,properties:true};
     const hashed=obfuscateFiles(input,base).files[0];
     const symbol=obfuscateFiles(input,{...base,experimentalSymbolKeys:true}).files[0];
@@ -185,7 +186,7 @@ test('real COO protected private string and Symbol keys preserve behavior and re
       });
     }
     console.log('PRIVATE_KEY_CPU_PROFILE '+JSON.stringify({
-      source:identity(original),node:process.version,platform:process.platform,
+      source:identity(original),mode,node:process.version,platform:process.platform,
       preconditioningCallsPerVariant:2000000,
       warmCallsPerArm:warm,hotCallsPerArm:hot,pairedSamplesPerVariant:pairs,
       protectionSelected:true,results
