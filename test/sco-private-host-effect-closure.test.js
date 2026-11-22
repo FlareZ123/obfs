@@ -174,7 +174,7 @@ test('Private static ESM graph refuses browser-only ambient objects in direct an
   for(const body of sensitive){
     for(const transitive of [false,true]){
       assert.throws(()=>partitionGraph(body,transitive),
-        /SCO private static dependency has unproved client host state/u,
+        /SCO private static dependency (?:has unproved client host state|contains unproved cross-realm host API)/u,
         body+' / transitive='+transitive);
     }
   }
