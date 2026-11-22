@@ -3691,7 +3691,8 @@ function observesDistributedSource(ast,importedStrings=new Map()) {
       if(node.callee.object.type==='Identifier' &&
          node.callee.object.name==='Object' && method==='assign') {
         for(const item of node.arguments.slice(1)) {
-          if(item.type==='ObjectExpression' && item.properties.some(prop=>
+          if(item.type==='ObjectExpression' && item.properties.some(
+            /** @param {AstNode} prop */ prop=>
             prop.type==='Property' &&
               (prop.computed ? knownKey(prop.key) :
                 prop.key.type==='Identifier'?prop.key.name:
