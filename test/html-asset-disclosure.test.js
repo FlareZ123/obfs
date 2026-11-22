@@ -505,3 +505,30 @@ test('SCO handler honors SRI dynamically assigned by another published script',a
     }
   }
 });
+
+
+test('document.write-inserted integrity attribute pins original sibling script bytes',()=>{
+  const source='globalThis.documentWriteSRI="parser-inserted SRI bytes must remain intact";';
+  const hash=require('node:crypto').createHash('sha256').update(source).digest('base64');
+  const pinned='document.write('+
+    JSON.stringify('<script src="./client.js" integrity="sha256-'+hash+'"></script>')+');';
+  const plain='document.write('+
+    JSON.stringify('<script src="./client.js"></script>')+');';
+  const client={path:'client.js',sourceType:/** @type {const} */('script'),code:source};
+  const html={path:'index.html',sourceType:/** @type {const} */('asset'),
+    code:Buffer.from('<script src="./bootstrap.js"></script>')};
+  for(const mode of /** @type {const} */(['coo','sco','sno'])){
+    const options={mode,seed:'document-write-sri/'+mode,strings:true,
+      identifiers:false,properties:false};
+    const control=obfuscateFiles([
+      client,{path:'bootstrap.js',sourceType:'script',code:plain},html
+    ],options);
+    assert.notEqual(control.files[0].code,source,
+      'No-integrity document.write control must transform in '+mode);
+    const pinnedFiles=obfuscateFiles([
+      client,{path:'bootstrap.js',sourceType:'script',code:pinned},html
+    ],options);
+    assert.equal(pinnedFiles.files[0].code,source,
+      'DOM-written integrity metadata must pin sibling source bytes in '+mode);
+  }
+});
