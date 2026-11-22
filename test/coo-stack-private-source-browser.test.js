@@ -13,8 +13,8 @@ const runBrowser=promisify(execFile);
 const FILES=[{
   path:'client.js',
   sourceType:'script',
-  code:'const observedResult=(()=>{function privateHelper(secretLocal){return secretLocal+Math.random();}'+
-    'return privateHelper(17);})();'
+  code:'let observedResult;{const privateHelper=(secretLocal)=>secretLocal+Math.random();'+
+    'observedResult=privateHelper(17);}'
 }];
 
 /** @param {string} sourcePath @returns {string} */
