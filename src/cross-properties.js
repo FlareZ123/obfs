@@ -2635,7 +2635,8 @@ function renameCrossFileProperties(files,seed) {
         const ownNames=new Set(names);
         if (users.some(user=>
           user.proof.members.some(member=>{const field=user.proof.memberNames.get(member);return typeof field!=='string'||!ownNames.has(field);}) ||
-          user.proof.patterns.some(property=>!ownNames.has(ownPropertyName(property))) ||
+          user.proof.patterns.some(property=>
+            !ownNames.has(user.proof.patternNames.get(property)??ownPropertyName(property))) ||
           user.proof.inChecks.some(check=>!ownNames.has(check.left.value)) ||
           user.proof.reflections.some(reflection=>!ownNames.has(reflection.property)))) continue;
         // Prevent externally exposed exports of the same object via an export specifier.
@@ -2671,7 +2672,7 @@ function renameCrossFileProperties(files,seed) {
             if(old!==undefined && mapping.has(old)) add(user.file,{start:member.property.start,end:member.property.end,
               text:member.computed ? JSON.stringify(mapping.get(old)) : mapping.get(old)});
           }
-          for (const edit of patternPropertyEdits(user.source,user.proof.patterns,mapping)) {
+          for (const edit of patternPropertyEdits(user.source,user.proof.patterns,mapping,user.proof.patternNames)) {
             add(user.file,edit);
           }
           for (const edit of inOperatorPropertyEdits(user.proof.inChecks,mapping)) {
@@ -2843,7 +2844,8 @@ function renameCrossFileProperties(files,seed) {
         const field=user.proof.memberNames.get(member);
         return typeof field!=='string'||!ownNames.has(field);
       }) ||
-      user.proof.patterns.some(property=>!ownNames.has(ownPropertyName(property))) ||
+      user.proof.patterns.some(property=>
+            !ownNames.has(user.proof.patternNames.get(property)??ownPropertyName(property))) ||
       user.proof.inChecks.some(check=>!ownNames.has(check.left.value)) ||
       user.proof.reflections.some(reflection=>!ownNames.has(reflection.property))))continue;
 
@@ -2874,7 +2876,7 @@ function renameCrossFileProperties(files,seed) {
           });
         }
       }
-      for(const edit of patternPropertyEdits(user.source,user.proof.patterns,mapping)) {
+      for(const edit of patternPropertyEdits(user.source,user.proof.patterns,mapping,user.proof.patternNames)) {
         add(user.file,edit);
       }
       for(const edit of inOperatorPropertyEdits(user.proof.inChecks,mapping)) {
