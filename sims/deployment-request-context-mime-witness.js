@@ -66,6 +66,7 @@ async function main(){
     const scriptRequest=destination==='script';
     const contentType=scriptRequest?
       'text/javascript; charset=utf-8':'application/octet-stream';
+    /** @type {Record<string,string>} */
     const headers={
       'content-type':contentType,
       'x-content-type-options':'nosniff'
