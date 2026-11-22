@@ -1962,6 +1962,62 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
       args.slice(1).some(value=>
         value.type==='SpreadElement'||!isDefinitelyPrimitive(value)));
   }
+  // Native Element.setAttribute and setAttributeNS convert their name/value
+  // arguments to DOMString. When a function reaches that conversion, its
+  // Function#toString bytes can be read back through getAttribute.
+  const domDocumentRoots=new Set(['document']);
+  const domElementRoots=new Set();
+  /** @param {AstNode|null|undefined} candidate @returns {boolean} */
+  function isDomDocument(candidate) {
+    return Boolean(candidate && (candidate.type==='Identifier' &&
+      domDocumentRoots.has(candidate.name) ||
+      candidate.type==='MemberExpression'&&isGlobal(candidate.object)&&
+      memberName(candidate)==='document'));
+  }
+  /** @param {AstNode|null|undefined} candidate @returns {boolean} */
+  function isDomElement(candidate) {
+    if(!candidate)return false;
+    if(candidate.type==='Identifier')return domElementRoots.has(candidate.name);
+    if(candidate.type==='MemberExpression'&&isDomDocument(candidate.object))
+      return ['body','head','documentElement'].includes(memberName(candidate)??'');
+    if(candidate.type!=='CallExpression'||candidate.callee.type!=='MemberExpression'||
+       !isDomDocument(candidate.callee.object))return false;
+    const method=memberName(candidate.callee);
+    return ['createElement','createElementNS','getElementById','querySelector']
+      .includes(method??'')||candidate.callee.computed&&method===null;
+  }
+  let domChanged;
+  do {
+    domChanged=false;
+    walk(ast,node=>{
+      const variable=node.type==='VariableDeclarator'&&node.id.type==='Identifier'?
+        node.id:node.type==='AssignmentExpression'&&node.operator==='='&&
+        node.left.type==='Identifier'?node.left:null;
+      const value=node.type==='VariableDeclarator'?node.init:
+        node.type==='AssignmentExpression'&&node.operator==='='?node.right:null;
+      if(!variable||!value)return;
+      if(isDomDocument(value)&&!domDocumentRoots.has(variable.name)) {
+        domDocumentRoots.add(variable.name);
+        domChanged=true;
+      }
+      if(isDomElement(value)&&!domElementRoots.has(variable.name)) {
+        domElementRoots.add(variable.name);
+        domChanged=true;
+      }
+    });
+  }while(domChanged);
+  /** @param {AstNode|null|undefined} node @returns {boolean} */
+  function domAttributeObservesSource(node) {
+    if(node?.type!=='CallExpression'||node.callee.type!=='MemberExpression'||
+       !isDomElement(node.callee.object))return false;
+    const method=memberName(node.callee);
+    if(method!=='setAttribute'&&method!=='setAttributeNS'&&
+       !(node.callee.computed&&method===null))return false;
+    const inputs=method==='setAttribute'?node.arguments.slice(0,2):
+      node.arguments.slice(0,3);
+    return inputs.some((/** @type {AstNode} */ input)=>
+      input.type==='SpreadElement'||!isDefinitelyPrimitive(input));
+  }
   /**
    * Object.groupBy converts each callback result to a property key, and a
    * function-valued key is observable as exact Function#toString source.
@@ -3061,6 +3117,7 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
          boundCollatorCompares.has(node.arguments[0].name) &&
          node.arguments[2] &&
          mayCoerceSourceWithinWebRecord(node.arguments[2]))observed=true;
+      if(domAttributeObservesSource(node))observed=true;
       // URL.parse can expose the original Function#toString in its encoded URL.
       if(isUrlStaticMethod(callee) &&
           node.arguments.slice(0,2).some((/** @type {AstNode} */ value)=>
