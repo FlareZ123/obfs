@@ -112,6 +112,24 @@ The SNO CLI checks actual input and output build locations before publishing .js
 
 A separate [native/compiled bare dependency resolution regression](test/sno-external-bare-module-resolution.test.js) demonstrates that an unbundled `require('package')` may resolve to different `node_modules` bytes across the source and output trees. Supply and verify production dependencies in their actual deployment context; the SNO integrity manifest covers emitted files, not arbitrary external packages.
 
+**Optional SNO literal bare-dependency audit:** `--audit-bare-cjs` compares the
+actual Node resolution target for each direct `require('package')`
+literal in the declared CommonJS source and transformed files from their
+respective build locations. A missing or distinct resolved file causes a
+prepublication refusal under the compiler's output lock. A positive
+shared-package control emits byte-identical launcher and source to the
+same-seed build without the audit, adding no application runtime work.
+Known lexical aliases and computed direct `require` arguments are
+conservatively refused; independently constructed resolver functions,
+reflective import paths and ESM imports remain outside the audit. It
+also declines direct calls under an emitted
+`package.json` because prepublication Node resolution cannot see that
+future package scope. Even an identical resolved package can observe
+`module.parent.filename` and return different values when relocated;
+see the [bounded experiment and negative control](im-results/sno-direct-bare-resolution-audit-2026-11-22.md).
+This optional check is a deployment diagnostic, not proof of arbitrary
+dependency equivalence or hostile-owner integrity.
+
 ## Entrypoints
 
 `bin/coo.js` transforms a directory into static browser files, preserving relative ESM import paths and non-JavaScript assets. Example:
