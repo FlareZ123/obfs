@@ -50,9 +50,10 @@ test('SNO cannot conceal a nonconstructible bound private target from host befor
     strings:false,identifiers:true,properties:true
   });
   const file=obfuscated.files[0];
-  assert.equal(file.metrics.properties,2,'the SNO private record must actually change');
+  assert.equal(file.metrics.properties,0,
+    'The SNO host can intercept the bound target and observe its source');
   const protectedCode=/** @type {string} */ (file.code);
-  assert.doesNotMatch(protectedCode,/secretField|otherField/u);
+  assert.match(protectedCode,/secretField|otherField/u);
   const root=await fs.mkdtemp(path.join(os.tmpdir(),'obfs-sno-host-bind-'));
   try{
     const originalPath=path.join(root,'native.cjs');
@@ -64,7 +65,8 @@ test('SNO cannot conceal a nonconstructible bound private target from host befor
     assert.equal(protectedResult.value,original.value);
     assert.equal(protectedResult.boundSource,original.boundSource);
     assert.ok(original.targets.some(code=>code.includes('owner.secretField')));
-    assert.ok(protectedResult.targets.some(code=>/owner\._p[0-9a-f]{10}/u.test(code)));
+    assert.ok(protectedResult.targets.some(code=>code.includes('owner.secretField')));
+    assert.ok(!protectedResult.targets.some(code=>/owner\._p[0-9a-f]{10}/u.test(code)));
   }finally{
     await fs.rm(root,{recursive:true,force:true});
   }
