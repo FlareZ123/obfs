@@ -53,7 +53,6 @@ function invertByReanchoring(oracle,target,randomSeed,maxBases=4) {
       continue;
     }
     let candidate=u32(anchor^solve(u32(target^base)));
-    let solved=false;
     for(let correction=0;correction<=32;correction++) {
       const observed=query(candidate);
       if(observed===(target>>>0)) {
@@ -63,7 +62,7 @@ function invertByReanchoring(oracle,target,randomSeed,maxBases=4) {
       if(correction===32)break;
       candidate=u32(candidate^solve(u32(target^observed)));
     }
-    if(!solved)failedBases.push({anchor,reason:'no-target-equality',queries:seen.size});
+    failedBases.push({anchor,reason:'no-target-equality',queries:seen.size});
   }
   throw new Error('No successful reanchored inversion after '+maxBases+' bases');
 }
@@ -181,6 +180,8 @@ function denseControls() {
         if(result.value!==secret)throw new Error('Nonunique recovered value');
         exact++;
       }catch(error) {
+        if(!(error instanceof Error)||
+           error.message!=='No successful reanchored inversion after 4 bases')throw error;
         failures++;
       }
       queries.push(counted.size);
