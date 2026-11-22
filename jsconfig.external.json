@@ -3,6 +3,7 @@
   "include": [
     "test/property-reflection.test.js",
     "test/direct-reflection-native-minified-profile.test.js",
+    "test/direct-reflection-three-module-fuzz.test.js",
     "sims/direct-reflection-native-minified-profile.js",
     "test/closedworld-private-wrapper.test.js",
     "test/property-private-wrapper-profile.test.js",
