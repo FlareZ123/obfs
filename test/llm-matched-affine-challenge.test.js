@@ -144,6 +144,37 @@ for(const mode of /** @type {Array<'coo'|'sno'>} */(['coo','sno'])){
   });
 }
 
+
+for(const mode of /** @type {Array<'coo'|'sno'>} */(['coo','sno'])){
+  test(mode+' exact source reflection is an explicit non-equivalence boundary',async()=>{
+    const trial=createMatchedBlindAffineChallenge(mode);
+    const published=await Promise.all(trial.questions.map(q=>publicModule(q.source)));
+    const guesses=published.map(esm=>
+      Object.fromEntries(names.map(name=>[name,esm[name](0)]))
+    );
+    assert.ok(trial.verify(guesses).every(verdict=>verdict.passed));
+    const reveal=trial.reveal();
+    const original=await publicModule(reveal.originalSource);
+    for(const [index,esm] of published.entries()){
+      const metrics=names.map(name=>({
+        exposed:name,
+        nameEqual:original[name].name===esm[name].name,
+        lengthEqual:original[name].length===esm[name].length,
+        sourceEqual:Function.prototype.toString.call(original[name])===
+          Function.prototype.toString.call(esm[name])
+      }));
+      // The announced output-function contract is narrower than the
+      // externally observable ECMAScript function-object contract.
+      assert.ok(metrics.every(metric=>metric.lengthEqual));
+      assert.ok(metrics.some(metric=>!metric.sourceEqual),
+        'The transformed source must remain observable to a source-reading host');
+      console.log('MATCHED_AFFINE_SOURCE_REFLECTION '+JSON.stringify({
+        mode,arm:reveal.arms[index],nativeVsPublished:metrics
+      }));
+    }
+  });
+}
+
 test('matched one-shot grading keeps correct and incorrect arms separate',()=>{
   const trial=createMatchedBlindAffineChallenge('coo');
   const checked=trial.verify([
