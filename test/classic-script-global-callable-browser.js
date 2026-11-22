@@ -68,7 +68,7 @@ async function main() {
     const address=server.address();
     assert.ok(address&&typeof address!=='string');
     const origin='http://127.0.0.1:'+address.port;
-    /** @param {'native'|'emitted'} variant @returns {Promise<[string,string,string,string,string,string,string,string,string,string]>} */
+    /** @param {'native'|'emitted'} variant @returns {Promise<[string,string,string,string,string,string,string,string,string,string,string]>} */
     async function run(variant) {
       const {stdout}=await runBrowser(process.env.CHROMIUM_BIN??'google-chrome',[
         '--headless','--no-sandbox','--disable-gpu','--disable-dev-shm-usage',
@@ -78,7 +78,7 @@ async function main() {
       const match=/<pre id="result">([^<]*)<\/pre>/u.exec(String(stdout));
       assert.ok(match&&match[1]&&!match[1].startsWith('ERROR:'),
         String(stdout).slice(-3000));
-      return /** @type {[string,string,string,string,string,string,string,string,string,string]} */ (
+      return /** @type {[string,string,string,string,string,string,string,string,string,string,string]} */ (
         JSON.parse(Buffer.from(match[1],'base64').toString('utf8')));
     }
     const native=await run('native');
@@ -94,6 +94,7 @@ async function main() {
     assert.equal(native[7],publicText);
     assert.equal(native[8],privateText);
     assert.equal(native[9],'undefined');
+    assert.equal(native[10],'undefined');
     process.stdout.write('CHROMIUM_CLASSIC_GLOBAL_SOURCE_PARITY '+
       JSON.stringify({matched:true,privateEncodedLiterals:output.files[0].metrics.literals,
         publicSourceLength:native[0].length,lexicalSourceLength:native[2].length,
