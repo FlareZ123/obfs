@@ -645,3 +645,25 @@ test('Composite typeof local values preserve admitted direct and private-graph f
     }
   }
 });
+
+
+test('Negative witness: relocated SCO declines otherwise unproved bare application global reads',()=>{
+  for(const expression of [
+    'externalBridge','externalBridge?.value','externalBridge.value ?? 0'
+  ]){
+    const body='return '+expression+';';
+    const source='export async function protectedOp(){'+body+'}'+
+      'export function visible(){return 7;}';
+    assert.throws(()=>partitionScoSelectedAsyncExports(
+      {path:'mixed.mjs',code:source,sourceType:'module'},
+      {seed:'sco-free-global-read-20261122',privateNames:['protectedOp']}
+    ),/unproved (?:application|host|free) global/u,
+    'Selected-private unqualified global source was admitted: '+expression);
+    for(const transitive of [false,true]){
+      assert.throws(()=>partitionGraph(body,transitive),
+        /unproved (?:application|host|free) global/u,
+        'Static audited unqualified global source was admitted: '+
+          expression+' transitive='+transitive);
+    }
+  }
+});
