@@ -372,15 +372,16 @@ async function readReviewedAssets(sourceRoot,filename) {
 }
 
 /**
- * Refuse a SNO output whose unscoped .js files would inherit an external
- * ESM package type. The compiler classifies .js files using the input tree,
- * but Node uses the nearest package.json around the deployed output.
- * This checks the present build location; relocation requires a new check.
+ * Refuse a SNO .js file whose actual input or output package scope differs
+ * from its declared source type. Node resolves the nearest package.json,
+ * including files outside the supplied tree and stale nested output files.
+ * This checks the current filesystem; relocation requires a new check.
  * @param {SourceFile[]} files
- * @param {string} output
+ * @param {string} root
+ * @param {'input'|'output'} context
  * @returns {Promise<void>}
  */
-async function assertSnoOutputPackageScope(files,output) {
+async function assertSnoPackageScope(files,root,context) {
   const emitted=new Set(files.map(file=>file.path));
   // Every .js may encounter a stale package.json in a reused output tree,
   // including beneath an emitted package.json that would otherwise govern it.
@@ -389,7 +390,7 @@ async function assertSnoOutputPackageScope(files,output) {
 
   // Node resolves filesystem aliases before loading files. Resolve the
   // nearest existing ancestor so a symlinked output does not hide its scope.
-  let canonical=path.resolve(output);
+  let canonical=path.resolve(root);
   let ancestor=canonical;
   for(;;) {
     try {
@@ -430,7 +431,7 @@ async function assertSnoOutputPackageScope(files,output) {
       }
       if(type!=='missing') {
         if((type==='module')!==expectedModule) {
-          throw new Error('SNO output .js inherits external '+
+          throw new Error('SNO '+context+' .js inherits external '+
             (type==='module'?'ESM':'CommonJS')+' package scope: '+
             path.join(directory,'package.json'));
         }
@@ -459,6 +460,7 @@ async function main(mode,argv) {
     file.path.endsWith('.js') && (jsModule || mode === 'sno' && entryUsesEsmPackage(sourceTree,file.path)) ?
       {...file,sourceType:/** @type {'module'} */ ('module')} : file);
   if (!source.some(file=>file.path===entry)) throw new Error(`Entry ${entry} not found under ${root}`);
+  if (mode==='sno') await assertSnoPackageScope(source,absRoot,'input');
   if (mode === 'sco') {
     // Server-only .js/.mjs/.cjs files under --root are private by default.
     const clientFiles=selectScoPublicFiles(source,entry,publicScripts,publicAssets);
@@ -503,7 +505,7 @@ async function main(mode,argv) {
     if(launcher!==undefined){
       await assertNoOutputJunctions(absOut,'sno-entry.cjs');
       await assertOutputOutsideInput(absRoot,path.join(absOut,'sno-entry.cjs'));
-      await assertSnoOutputPackageScope(result.files,absOut);
+      await assertSnoPackageScope(result.files,absOut,'output');
     }
     for (const file of result.files) await atomicWrite(path.join(absOut,file.path),file.code);
     if (launcher !== undefined) await atomicWrite(path.join(absOut,'sno-entry.cjs'),launcher);
