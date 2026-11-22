@@ -42,6 +42,7 @@ test('private direct-call reader source remains observable through sloppy caller
   const output=compile(source);
   assert.equal(outcome(source),JSON.stringify([19,5]));
   assert.equal(outcome(output.code),outcome(source),output.code);
+  assert.equal(output.metrics.objects,0,'Caller-source observer must preserve source spelling: '+output.code);
 });
 
 test('ordinary direct-call reader still admits a private owner mapping',()=>{
