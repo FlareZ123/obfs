@@ -47,6 +47,9 @@ async function main() {
     ['id-script-text', 'document.getElementById("script-probe").textContent', 'script'],
     ['html-root-text-content', 'document.documentElement.textContent', 'script'],
     ['xml-serializer-document', 'new XMLSerializer().serializeToString(document)', 'script'],
+    ['tree-walker-text', '(()=>{const w=document.createTreeWalker(document,NodeFilter.SHOW_TEXT);let t="";let n;while((n=w.nextNode()))t+=n.nodeValue;return t;})()', 'script'],
+    ['range-clone-text', '(()=>{const r=document.createRange();r.selectNodeContents(document.documentElement);return r.cloneContents().textContent;})()', 'script'],
+    ['script-child-data', 'document.getElementById("script-probe").firstChild.data', 'script'],
     // Inline module source is present in the document even though currentScript
     // is null during module execution.
     ['module-document-root-outer-html', 'document.documentElement.outerHTML', 'module'],
