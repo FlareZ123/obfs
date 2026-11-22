@@ -168,7 +168,7 @@ test('combined property, identifier, and string passes preserve exported source 
   const privateText='private-combined-string-0123456789-abcdefghijklmnopqrstuvwxyz-ABCDEFGHIJKLMNOPQRSTUVWXYZ';
   const publicText='public-combined-string-0123456789-abcdefghijklmnopqrstuvwxyz-ABCDEFGHIJKLMNOPQRSTUVWXYZ';
   const publicSource='const publicOwner={secretField:3};'+
-    'export function publicRead(publicParam){return publicOwner.secretField+'+JSON.stringify(publicText)+';}';
+    'export function publicRead(publicParam){const marker='+JSON.stringify(publicText)+';return publicOwner.secretField;}';
   const privateSource='const privateOwner={privateField:4};const value=privateOwner.privateField;'+
     'function privateHelper(privateParam){return '+JSON.stringify(privateText)+';}'+
     'export const privateResult=privateHelper(5);export const standaloneValue=value;';
