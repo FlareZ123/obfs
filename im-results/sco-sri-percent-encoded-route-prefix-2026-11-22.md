@@ -1,6 +1,6 @@
 # SCO source-byte integrity under percent-encoded route prefixes
 
-**Status:** Source-pinned red/green SCO browser compatibility repair.
+**Status:** Source-pinned red/green SCO source-byte repair, fully validated on Ubuntu, Windows, and Chromium.
 **Impact:** SRI compatibility for valid `routePrefix` spellings, including percent-encoded reserved path bytes.
 
 ## Mechanism
@@ -25,6 +25,6 @@ The scope of valid route-path aliases is exercised by `/obfs%23/`, `/obfs%25/`, 
 
 ## Status and limits
 
-[Green manual browser workflow 44977475241](https://github.com/FlareZ123/obfs/actions/runs/44977475241) **passed** all Chrome and strict JSDoc gates at source SHA `746cf4c02c77bef0e2868abb747e8387c4db62fd`, including the SCO native/protected/mutated HTTP-browser comparison and encoded mount assertions. No full Linux/Windows source-coincident matrix result is asserted yet. This test does not show that arbitrary reverse-proxy rewrites, URL decoding performed by intermediate infrastructure, or unknown source-document mounts are modeled. SRI-constrained source is distributed in original bytes; this necessarily limits source confidentiality and does not establish the overarching tamper-resistance objective. The global release remains **BLOCKED**.
+[Green manual browser workflow 44977475241](https://github.com/FlareZ123/obfs/actions/runs/44977475241) **passed** all Chrome and strict JSDoc gates at source SHA `746cf4c02c77bef0e2868abb747e8387c4db62fd`, including the SCO native/protected/mutated HTTP-browser comparison and encoded mount assertions. [Combined-main full validation 44978776593](https://github.com/FlareZ123/obfs/actions/runs/44978776593) **passed** at source SHA `9206c808b2cd562e19dcfadbb412cb9504e34086`, including Ubuntu and Windows Node22 behavior, strict JSDoc, profiles, and Ubuntu Chromium. [Combined-main Chromium workflow 44978772437](https://github.com/FlareZ123/obfs/actions/runs/44978772437) **passed** at the identical source SHA. Earlier full CI failures at `f47f6e4...` and `faa9bead...` were caused by staggered concurrent Agent47 host-lock test/implementation changes in the branch snapshot and were resolved by reconciling the entire latest main at `9206c80...`; they are not evidence of an SCO SRI regression. This test does not show that arbitrary reverse-proxy rewrites, URL decoding performed by intermediate infrastructure, or unknown source-document mounts are modeled. SRI-constrained source is distributed in original bytes; this necessarily limits source confidentiality and does not establish the overarching tamper-resistance objective. The global release remains **BLOCKED**.
 
 Reference: [WHATWG URL Standard](https://url.spec.whatwg.org/), path percent encoding and URL path serialization.
