@@ -219,7 +219,8 @@ test('switch discriminant cannot borrow lexical case bindings',async()=>{
   const cases=[
     'switch(v){case 1:let v=3;break;}return 11;',
     'switch(v){case 1:const v=3;break;}return 11;',
-    'switch(v){case 1:class v{};break;}return 11;'
+    'switch(v){case 1:class v{};break;}return 11;',
+    'switch(v){case 1:function v(){};break;}return 11;'
   ];
   for(const body of cases){
     assert.equal(firstUnprovedFreeReference(sourceBody(body),new Set(),
