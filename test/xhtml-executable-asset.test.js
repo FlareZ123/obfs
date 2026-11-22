@@ -43,7 +43,9 @@ test('XHTML extensions refuse embedded executable source in all three publicatio
     const cases=[
       xhtml('<script>globalThis.xhtmlSecret="plain-text-private-source";</script>'),
       xhtml('<script><![CDATA[globalThis.xhtmlSecret="xml-cdata-private-source";]]></script>'),
-      xhtml('<button onclick="globalThis.xhtmlSecret=1">Click</button>')
+      xhtml('<button onclick="globalThis.xhtmlSecret=1">Click</button>'),
+      xhtml('<h:script xmlns:h="http://www.w3.org/1999/xhtml">'+
+        'globalThis.xhtmlSecret="prefixed-script-plaintext";</h:script>')
     ];
     for(const asset of cases){
       for(const mode of /** @type {Mode[]} */(['coo','sno','sco'])){
@@ -61,6 +63,8 @@ test('XHTML SRI-pinned local script retains exact source bytes in COO SNO and SC
   const source='globalThis.xhtmlResult="unchanged-public-source-canary-value";';
   const integrity=createHash('sha256').update(source).digest('base64');
   const pinned=xhtml('<script src="./client.js" integrity="sha256-'+integrity+'"></script>');
+  const prefixed=xhtml('<h:script xmlns:h="http://www.w3.org/1999/xhtml" '+
+    'src="./client.js" integrity="sha256-'+integrity+'"></h:script>');
   const unpinned=xhtml('<script src="./client.js"></script>');
   for(const extension of ['xhtml','xht']){
     for(const mode of /** @type {Mode[]} */(['coo','sno','sco'])){
@@ -72,6 +76,9 @@ test('XHTML SRI-pinned local script retains exact source bytes in COO SNO and SC
       assert.notEqual(free.files[0].code,source,
         extension+' '+mode+': safe ordinary XHTML should retain positive rewrite yield');
       assert.deepEqual(free.files[1].code,unpinned);
+      const namespaced=compile(extension,prefixed,mode);
+      assert.equal(namespaced.files[0].code,source,
+        extension+' '+mode+': XML namespace-prefixed script integrity pins the source');
     }
   }
 });
