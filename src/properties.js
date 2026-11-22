@@ -1245,6 +1245,7 @@ function renameLocalProperties(source, ast, options) {
   const sourceExposedEdits=new WeakSet();
   walk(ast,(node,parent,key,ancestors)=>{
     if(ancestors.some(ancestor=>
+      ['ClassDeclaration','ClassExpression'].includes(ancestor.type)||
       ['FunctionDeclaration','FunctionExpression','ArrowFunctionExpression']
         .includes(ancestor.type)&&!directlyPrivateReaders.has(ancestor)))
       sourceExposedEdits.add(node);
