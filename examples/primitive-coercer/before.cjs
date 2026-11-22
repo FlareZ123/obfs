@@ -9,4 +9,5 @@ function calculate(value) {
   return privateState.secretField*value+privateState.offset+message.length+text.length;
 }
 
-module.exports={calculate};
+function exportedCalculate(value){return calculate(value);}
+module.exports={calculate:exportedCalculate};
