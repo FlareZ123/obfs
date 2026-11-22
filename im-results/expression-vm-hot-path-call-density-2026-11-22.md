@@ -21,17 +21,17 @@ Source-pinned workflow: [44974192395](https://github.com/FlareZ123/obfs/actions/
 
 ## Results
 
-<text>Node v22.23.5, V8 12.4.254.21-node.57, x64. Ubuntu runner CPU: Intel Xeon Platinum 8370C. Windows runner CPU: AMD EPYC 7763.</text>
+Node v22.23.5, V8 12.4.254.21-node.57, x64. Ubuntu runner CPU: Intel Xeon Platinum 8370C. Windows runner CPU: AMD EPYC 7763.
 
 | VM call period | Calls / 3M iterations | Ubuntu ratio | Windows ratio | 2.5x result on both |
 |---:|---:|---:|---:|---|
-| 1 / 1 | 3,000,000 | 6.625x | 5.575x | <badge color="danger">Exceeds</badge> |
-| 1 / 2 | 1,500,000 | 5.420x | 4.931x | <badge color="danger">Exceeds</badge> |
-| 1 / 8 | 375,000 | 3.367x | 2.885x | <badge color="danger">Exceeds</badge> |
-| 1 / 16 | 187,500 | 2.295x | 2.011x | <badge color="success">Within</badge> |
-| 1 / 32 | 93,750 | 1.698x | 1.555x | <badge color="success">Within</badge> |
-| 1 / 64 | 46,875 | 1.387x | 1.272x | <badge color="success">Within</badge> |
-| 1 / 512 | 5,860 | 1.030x | 1.034x | <badge color="success">Within</badge> |
+| 1 / 1 | 3,000,000 | 6.625x | 5.575x | Exceeds |
+| 1 / 2 | 1,500,000 | 5.420x | 4.931x | Exceeds |
+| 1 / 8 | 375,000 | 3.367x | 2.885x | Exceeds |
+| 1 / 16 | 187,500 | 2.295x | 2.011x | Within |
+| 1 / 32 | 93,750 | 1.698x | 1.555x | Within |
+| 1 / 64 | 46,875 | 1.387x | 1.272x | Within |
+| 1 / 512 | 5,860 | 1.030x | 1.034x | Within |
 
 The measured crossover for this sample lies between 1/8 and 1/16 call density on both platforms. This is a workload-specific observation, not a universal safe-frequency guarantee.
 
