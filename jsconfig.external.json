@@ -3,6 +3,7 @@
   "include": [
     "test/decoder-crossfile-native-create-export.test.js",
     "test/decoder-crossfile-bound-native-create-export.test.js",
+    "test/decoder-object-create-descriptor-alias-write.test.js",
     "test/decoder-object-create-aliased-map.test.js",
     "test/decoder-object-create-invocation.test.js",
     "test/decoder-object-create-aliased-browser.js",
