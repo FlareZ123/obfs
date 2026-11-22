@@ -39,7 +39,14 @@ const cases=[
   ['direct setAttribute','(()=>{const el=document.createElement("div");el.setAttribute("data-observed",inspect);return el.getAttribute("data-observed");})()'],
   ['computed setAttribute','(()=>{const el=document.createElement("div");el["setAttribute"]("data-observed",inspect);return el.getAttribute("data-observed");})()'],
   ['aliased element setAttribute','(()=>{const el=document.createElement("div");const other=el;other.setAttribute("data-observed",inspect);return other.getAttribute("data-observed");})()'],
-  ['setAttributeNS value','(()=>{const el=document.createElement("div");el.setAttributeNS(null,"data-observed",inspect);return el.getAttribute("data-observed");})()']
+  ['setAttributeNS value','(()=>{const el=document.createElement("div");el.setAttributeNS(null,"data-observed",inspect);return el.getAttribute("data-observed");})()'],
+  ['bound setAttribute','(()=>{const el=document.createElement("div");const setter=el.setAttribute.bind(el);setter("data-observed",inspect);return el.getAttribute("data-observed");})()'],
+  ['transitive bound alias','(()=>{const el=document.createElement("div");const setter=el.setAttribute.bind(el);const alias=setter;alias("data-observed",inspect);return el.getAttribute("data-observed");})()'],
+  ['setAttribute.call','(()=>{const el=document.createElement("div");el.setAttribute.call(el,"data-observed",inspect);return el.getAttribute("data-observed");})()'],
+  ['setAttribute.apply','(()=>{const el=document.createElement("div");el.setAttribute.apply(el,["data-observed",inspect]);return el.getAttribute("data-observed");})()'],
+  ['Reflect.apply setAttribute','(()=>{const el=document.createElement("div");Reflect.apply(el.setAttribute,el,["data-observed",inspect]);return el.getAttribute("data-observed");})()'],
+  ['detached Reflect.apply','(()=>{const el=document.createElement("div");const setter=el.setAttribute;Reflect.apply(setter,el,["data-observed",inspect]);return el.getAttribute("data-observed");})()'],
+  ['bound namespaced attribute','(()=>{const el=document.createElement("div");const setter=el.setAttributeNS.bind(el);setter(null,"data-observed",inspect);return el.getAttribute("data-observed");})()']
 ];
 
 for(const [name,expression] of cases) {
