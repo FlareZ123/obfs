@@ -150,3 +150,60 @@ for(const mode of /** @type {const} */ (['coo','sno','sco'])) {
         'Benign Number.prototype access must retain positive decoder yield');
     });
 }
+
+
+const memberReadDescriptorAlias =
+  'const descriptors={ref:{}};const entry=descriptors.ref;'+
+  'entry.get=function(){return TARGET.prototype};'+
+  'const box=Object.create(null,descriptors);';
+
+for(const mode of /** @type {const} */ (['coo','sno','sco'])) {
+  test('Object.create descriptor map member-read alias: '+mode,
+    async()=>{
+      const mutator=memberReadDescriptorAlias.replace('TARGET','String')+
+        'box.ref.charCodeAt=()=>0;';
+      const input=graph(mutator);
+      const emitted=obfuscateFiles(input,{
+        mode,strings:true,identifiers:false,properties:false,
+        seed:'agent1-object-create-member-read-alias/'+mode
+      });
+      const target=emitted.files.find(file=>file.path==='target.cjs');
+      assert.ok(target);
+      const root=await fs.mkdtemp(path.join(os.tmpdir(),'obfs-agent1-member-read-alias-'));
+      try {
+        const native=await execute(path.join(root,'native'),input);
+        const protectedRun=await execute(path.join(root,'emitted'),emitted.files);
+        assert.equal(native.status,0,native.stderr);
+        assert.deepEqual(protectedRun,native,
+          'Obfuscated eager decoder diverged from native source');
+      } finally {
+        await fs.rm(root,{recursive:true,force:true});
+      }
+      assert.equal(target.metrics.literals,0,
+        'String.prototype mutation through a member-read alias must block encoding');
+    });
+  test('Object.create member-read alias Number control retains encoding: '+mode,
+    async()=>{
+      const mutator=memberReadDescriptorAlias.replace('TARGET','Number')+
+        'box.ref.unrelated=1;';
+      const input=graph(mutator);
+      const emitted=obfuscateFiles(input,{
+        mode,strings:true,identifiers:false,properties:false,
+        seed:'agent1-object-create-member-read-number/'+mode
+      });
+      const target=emitted.files.find(file=>file.path==='target.cjs');
+      assert.ok(target);
+      const root=await fs.mkdtemp(path.join(os.tmpdir(),'obfs-agent1-member-read-number-'));
+      try {
+        const native=await execute(path.join(root,'native'),input);
+        const protectedRun=await execute(path.join(root,'emitted'),emitted.files);
+        assert.equal(native.status,0,native.stderr);
+        assert.deepEqual(protectedRun,native,
+          'Benign Number.prototype descriptor changed native behavior');
+      } finally {
+        await fs.rm(root,{recursive:true,force:true});
+      }
+      assert.equal(target.metrics.literals,1,
+        'Benign Number.prototype access must retain positive decoder yield');
+    });
+}
