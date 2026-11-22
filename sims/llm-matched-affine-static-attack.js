@@ -7,7 +7,7 @@ const {recoverMinifiedPublicMath}=require('./polyvariant-app-minified-static-att
 
 const targetNames=Object.freeze(['round1','round2','round3']);
 
-/** @typedef {{factor:number,offset:number,normalized:boolean,magnitude:number}} Linear */
+/** @typedef {{factor:number,offset:number,normalized:boolean,magnitude:number,reads:number}} Linear */
 /** @typedef {{kind:'generated'|'esbuild-minified',offsets:Record<string,number>,reconstructedSource:string,bytes:number,attackMs:number}} Attack */
 
 /**
@@ -15,6 +15,8 @@ const targetNames=Object.freeze(['round1','round2','round3']);
  * minified function's AST, without calling the function or the original.
  * It declines if a parameter appears outside explicit |0 normalization.
  * The grammar is narrow by design: signed integer literals and +,-,|0.
+ * A symbolic factor of one is insufficient if the input is read repeatedly:
+ * user-defined valueOf / Symbol.toPrimitive may change each read.
  *
  * @param {import('../src/ast').AstNode} node
  * @param {string} parameter
@@ -25,16 +27,16 @@ function linear(node,parameter,depth){
   if(depth>64)throw new TypeError('Symbolic grammar exceeds depth bound');
   if(node.type==='Identifier'){
     if(node.name!==parameter)throw new TypeError('Unknown symbolic variable');
-    return {factor:1,offset:0,normalized:false,magnitude:Infinity};
+    return {factor:1,offset:0,normalized:false,magnitude:Infinity,reads:1};
   }
   if(node.type==='Literal'&&typeof node.value==='number'&&
      Number.isInteger(node.value)&&Math.abs(node.value)<=2147483647){
-    return {factor:0,offset:node.value|0,normalized:true,magnitude:Math.abs(node.value)};
+    return {factor:0,offset:node.value|0,normalized:true,magnitude:Math.abs(node.value),reads:0};
   }
   if(node.type==='UnaryExpression'&&(node.operator==='+'||node.operator==='-')){
     const arg=linear(node.argument,parameter,depth+1);
     return node.operator==='-'?
-      {factor:(-arg.factor)|0,offset:(-arg.offset)|0,normalized:arg.normalized,magnitude:arg.magnitude}:arg;
+      {factor:(-arg.factor)|0,offset:(-arg.offset)|0,normalized:arg.normalized,magnitude:arg.magnitude,reads:arg.reads}:arg;
   }
   if(node.type==='BinaryExpression'&&node.operator==='|'){
     if(node.right.type!=='Literal'||node.right.value!==0)
@@ -44,7 +46,7 @@ function linear(node,parameter,depth){
       node.left.name===parameter;
     const normalized=arg.normalized||directlyCoercedInput;
     return {factor:arg.factor|0,offset:arg.offset|0,normalized,
-      magnitude:normalized?2147483648:Infinity};
+      magnitude:normalized?2147483648:Infinity,reads:arg.reads};
   }
   if(node.type==='BinaryExpression'&&(node.operator==='+'||node.operator==='-')){
     const left=linear(node.left,parameter,depth+1);
@@ -58,7 +60,7 @@ function linear(node,parameter,depth){
     return {
       factor:(left.factor+multiplier*right.factor)|0,
       offset:(left.offset+multiplier*right.offset)|0,
-      normalized:true,magnitude
+      normalized:true,magnitude,reads:left.reads+right.reads
     };
   }
   throw new TypeError('Unsupported minified expression '+node.type);
@@ -89,7 +91,7 @@ function minifiedOffset(publicFunction){
      expression.right.type!=='Literal'||expression.right.value!==0)
     throw new TypeError('Int32 result normalization is not proved');
   const result=linear(expression,fn.params[0].name,0);
-  if(result.factor!==1||!result.normalized)
+  if(result.factor!==1||!result.normalized||result.reads!==1)
     throw new TypeError('Unproved single Int32 translation');
   return result.offset;
 }
