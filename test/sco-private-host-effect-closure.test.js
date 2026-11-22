@@ -212,7 +212,7 @@ test('SCO selected direct and static private ESM sources decline browser-only Wi
     assert.throws(()=>partitionScoSelectedAsyncExports(
       {path:'mixed.mjs',code:source,sourceType:'module'},
       {seed:'sco-browser-only-window-roots-20261122',privateNames:['protectedOp']}
-    ),/Selective SCO cannot migrate browser-global state/u,
+    ),/Private SCO export uses browser-only ambient state/u,
     name+' in selected private export');
   }
 });
