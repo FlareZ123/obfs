@@ -1129,6 +1129,64 @@ function singleUseFactoryObject(ast,bindings,expression) {
 }
 
 /**
+ * A pure scalar member reader may keep its source private when every use of
+ * its unique binding is a direct call. Any exported, aliased, reflective,
+ * anonymous, or method-valued callable is outside this narrow guarantee.
+ * @param {AstNode} ast
+ * @param {Map<string,number>} bindings
+ * @returns {Set<AstNode>}
+ */
+function privateDirectMemberReaders(ast,bindings) {
+  const inventory=collectProofInventory(ast);
+  const scopes=collectBindingScopes(ast);
+  /** @type {Set<AstNode>} */
+  const permitted=new Set();
+  /** @param {AstNode} fn @returns {boolean} */
+  function pureMemberReturn(fn) {
+    if(fn.async||fn.generator||fn.params.length)return false;
+    const expression=fn.body.type==='BlockStatement'&&
+      fn.body.body.length===1&&fn.body.body[0].type==='ReturnStatement' ?
+      fn.body.body[0].argument : fn.body;
+    return expression?.type==='MemberExpression'&&!expression.optional&&
+      expression.object.type==='Identifier'&&
+      (expression.computed?staticString(expression.property):staticName(expression.property))!==null;
+  }
+  /**
+   * @param {string} name
+   * @param {AstNode} definition
+   * @returns {boolean}
+   */
+  function directCallOnly(name,definition) {
+    if(bindings.get(name)!==1)return false;
+    const scope=scopes.get(name);
+    if(!scope)return false;
+    for(const use of inventory.identifierUses.get(name)??[]) {
+      if(use.node===definition)continue;
+      if(!use.ancestors.includes(scope)||
+         use.parent?.type!=='CallExpression'||use.key!=='callee'||
+         use.parent.optional)return false;
+    }
+    return true;
+  }
+  for(const fn of inventory.functionDeclarations) {
+    if(fn.type!=='FunctionDeclaration'||fn.id?.type!=='Identifier'||
+       !pureMemberReturn(fn)||!directCallOnly(fn.id.name,fn.id)||
+       /^Export/.test(inventory.parents.get(fn)?.type??''))continue;
+    permitted.add(fn);
+  }
+  for(const decl of inventory.callableDeclarators) {
+    const container=inventory.parents.get(decl);
+    if(container?.type!=='VariableDeclaration'||container.kind!=='const'||
+       decl.id.type!=='Identifier'||
+       !decl.init||!['ArrowFunctionExpression','FunctionExpression'].includes(decl.init.type)||
+       !pureMemberReturn(decl.init)||!directCallOnly(decl.id.name,decl.id)||
+       /^Export/.test(inventory.parents.get(container)?.type??''))continue;
+    permitted.add(decl.init);
+  }
+  return permitted;
+}
+
+/**
  * Rename selected object-literal own keys only when a closed-world use proof succeeds.
  * A conservative proof failure leaves the complete file unchanged for that object.
  * @param {string} source
@@ -1138,6 +1196,15 @@ function singleUseFactoryObject(ast,bindings,expression) {
  */
 function renameLocalProperties(source, ast, options) {
   const bindings = collectBindings(ast);
+  const directlyPrivateReaders=privateDirectMemberReaders(ast,bindings);
+  /** @type {WeakSet<AstNode>} */
+  const sourceExposedEdits=new WeakSet();
+  walk(ast,(node,parent,key,ancestors)=>{
+    if(ancestors.some(ancestor=>
+      ['FunctionDeclaration','FunctionExpression','ArrowFunctionExpression']
+        .includes(ancestor.type)&&!directlyPrivateReaders.has(ancestor)))
+      sourceExposedEdits.add(node);
+  });
   /** @type {{node:AstNode,name:string,properties:AstNode[]}[]} */
   const candidates = [];
   walk(ast,(node,parent,key,ancestors) => {
@@ -1166,6 +1233,13 @@ function renameLocalProperties(source, ast, options) {
   for (const candidate of candidates) {
     const proof = proveLocalObject(ast, candidate.name, bindings);
     if (!proof || (!proof.members.length && !proof.patterns.length && !proof.inChecks.length)) continue;
+    // Reading a renamed property inside an externally observable callable
+    // changes Function#toString. Only uniquely bound pure member readers
+    // proven direct-call-only are allowed to contain edited property nodes.
+    if(proof.members.some(member=>sourceExposedEdits.has(member))||
+       proof.patterns.some(pattern=>sourceExposedEdits.has(pattern))||
+       proof.inChecks.some(check=>sourceExposedEdits.has(check))||
+       proof.reflections.some(reflection=>sourceExposedEdits.has(reflection.call)))continue;
     // An unowned field may invoke an inherited getter with this=object. That
     // getter can enumerate own keys, making otherwise private renaming visible.
     const ownNames=new Set(candidate.properties.map(ownPropertyName));
