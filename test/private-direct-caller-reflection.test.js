@@ -255,3 +255,19 @@ test('a declaration in a sibling scope does not bind an ambient host getter',()=
   assert.equal(execute(source,undefined,host,globals),87);
   compare(source,'sibling-scope-ambient-getter',undefined,host,globals);
 });
+
+test('host replacement of Promise.resolve and then may inspect callback source',()=>{
+  const fakePromise={
+    resolve(){return {then(callback){
+      return callback.toString().includes('secretField')?7:8;
+    }};}
+  };
+  const source=[
+    'module.exports=Promise.resolve(1).then(function(){',
+    '  const secret={secretField:1};',
+    '  return secret.secretField;',
+    '});'
+  ].join('\n');
+  assert.equal(execute(source,undefined,undefined,{Promise:fakePromise}),7);
+  compare(source,'host-promise-source-reader',undefined,undefined,{Promise:fakePromise});
+});
