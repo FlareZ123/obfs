@@ -1,0 +1,5 @@
+'use strict';
+require('./classic-script-global-callable-source.test');
+require('./private-promise-callback-source.test');
+require('./cjs-exported-class-source.test');
+require('./private-hot-helper-exported-wrapper.test');
