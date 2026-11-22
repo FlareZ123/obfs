@@ -48,7 +48,7 @@ function next() {state^=state<<13;state^=state>>>17;state^=state<<5;return state
 test('seedless static Wasm bytecode attacker exactly reconstructs all 120 bitvector ASTs',()=>{
   let reconstructions=0,comparisons=0;
   for(const expression of expressions) {
-    const source='function f(x){return '+expression+';}module.exports=f;';
+    const source='function f(x){return '+expression+';}function publicF(x){return f(x);}module.exports=publicF;';
     const original=load(source);
     for(let n=0;n<24;n++) {
       const transformed=lowerWasmI32Functions(source,'commonjs',{
