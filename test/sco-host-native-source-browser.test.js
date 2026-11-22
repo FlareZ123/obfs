@@ -13,7 +13,10 @@ const {test}=require('node:test');
  *   BlobSliceMethod:string,
  *   BlobStreamConstructor:string,
  *   TimeoutErrorStack:string,
- *   StructuredCloneErrorMessage:string
+ *   StructuredCloneErrorMessage:string,
+ *   InvalidUrlErrorMessage:string,
+ *   InvalidAtobErrorMessage:string,
+ *   InvalidDecoderErrorMessage:string
  * }} HostWitness
  */
 
@@ -29,7 +32,15 @@ async function observeHost(){
     if(!(error instanceof DOMException)||error.name!=='DataCloneError')throw error;
     cloneMessage=error.message;
   }
+  /** @param {()=>unknown} action @returns {string} */
+  function caughtMessage(action){
+    try {action();return '';}
+    catch(error){return error instanceof Error?error.message:String(error);}
+  }
   return {
+    InvalidUrlErrorMessage:caughtMessage(()=>new URL('%%%')),
+    InvalidAtobErrorMessage:caughtMessage(()=>atob('bad?')),
+    InvalidDecoderErrorMessage:caughtMessage(()=>new TextDecoder('not-a-charset')),
     StructuredCloneErrorMessage:cloneMessage,
     BlobConstructor:String(Blob),
     BlobSliceMethod:String(new Blob([]).slice),
