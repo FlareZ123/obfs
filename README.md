@@ -129,8 +129,9 @@ SCO additionally requires explicit `--asset relative-file` publication
 selection; the reviewed manifest must match that selected asset set.
 For cross-platform SHA-256 consistency, pin text-asset checkout bytes
 (for example with `.gitattributes`) before approving the manifest.
-The standalone reviewer also rejects ambiguous Unicode and directory-name
-aliases under the compiler's conservative portable-path policy; see the
+The standalone reviewer applies the compiler's canonical path safety and
+conservative Unicode/directory identity rules to approved and published assets;
+see the
 [source-pinned two-platform parity check](im-results/reviewed-opaque-manifest-snapshot-2026-11-18.md#22-november-standalone-reviewed-asset-portable-name-parity).
 See the [runnable reviewed-asset example](examples/reviewed-assets-cli/README.md)
 and the [trust and deployment limitations](docs/SECURITY.md).
