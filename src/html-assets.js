@@ -240,6 +240,18 @@ function decodeMarkup(path,code,kind) {
 }
 
 /**
+ * XML declarations can occur in opaque assets served with executable XML or
+ * HTML media types. This is a deliberately narrow content signature: XML
+ * declarations are optional, and deployment headers remain outside the proof.
+ * @param {string|Buffer} code
+ * @returns {boolean}
+ */
+function hasXmlDeclaration(code) {
+  const prefix=Buffer.isBuffer(code)?code.subarray(0,24).toString('utf8'):code.slice(0,24);
+  return /^\uFEFF?<\?xml(?:[ \t\r\n]|\?>)/u.test(prefix);
+}
+
+/**
  * Audit HTML and XHTML assets before their bytes are copied to an output directory
  * or offered by SCO. A detected inline execution path is rejected rather
  * than silently stripped, which could change program behavior.
@@ -248,10 +260,17 @@ function decodeMarkup(path,code,kind) {
  * @returns {void}
  */
 function assertNoInlineHtmlSource(path,code) {
-  if(!/\.(?:html?|xhtml|xht|xml)$/iu.test(path))return;
+  // The dedicated SVG preflight owns SVG parsing and its diagnostic contract.
+  if(/\.svg$/iu.test(path))return;
+  const namedXml=/\.(?:xhtml|xht|xml)$/iu.test(path);
+  const namedHtml=/\.html?$/iu.test(path);
+  const signedXml=hasXmlDeclaration(code);
+  const scanXml=namedXml||signedXml&&!namedHtml;
+  const scanHtml=namedHtml||signedXml&&!namedXml;
+  if(!scanXml&&!scanHtml)return;
   const html=decodeMarkup(path,code,'HTML');
-  const issue=/\.(?:xhtml|xht|xml)$/iu.test(path)?
-    findInlineXhtmlSource(html):findInlineHtmlSource(html);
+  const issue=(scanXml?findInlineXhtmlSource(html):null)||
+    (scanHtml?findInlineHtmlSource(html):null);
   if(issue)throw new TypeError('HTML asset contains '+issue+': '+path);
 }
 
@@ -322,6 +341,10 @@ function hasPinnedLocalJavaScriptIntegrity(files,routePrefix='') {
     try {
       const url=new URL(href,base);
       if(url.protocol!=='http:'&&url.protocol!=='https:')return null;
+      // SCO may preserve percent-encoded mount path bytes. Recognize an
+      // exact raw distributed pathname before checking decoded aliases.
+      const encodedPath=url.pathname.slice(1);
+      if(matchesDistributedScript(encodedPath))return encodedPath;
       const pathname=decodeURIComponent(url.pathname);
       if(!pathname.startsWith('/')||pathname.includes('\\'))return null;
       return pathname.slice(1);
@@ -404,12 +427,16 @@ function hasPinnedLocalJavaScriptIntegrity(files,routePrefix='') {
   }
 
   for(const file of files) {
-    if(file.sourceType!=='asset'||!/\.(?:html?|xhtml|xht|xml)$/iu.test(file.path))continue;
+    if(file.sourceType!=='asset'||/\.svg$/iu.test(file.path))continue;
+    const namedXml=/\.(?:xhtml|xht|xml)$/iu.test(file.path);
+    const namedHtml=/\.html?$/iu.test(file.path);
+    const signedXml=hasXmlDeclaration(file.code);
+    const scanXml=namedXml||signedXml&&!namedHtml;
+    const scanHtml=namedHtml||signedXml&&!namedXml;
+    if(!scanXml&&!scanHtml)continue;
     const html=decodeMarkup(file.path,file.code,'HTML');
-    if(/\.(?:xhtml|xht|xml)$/iu.test(file.path)){
-      if(pinnedXhtml(html,file.path))return true;
-      continue;
-    }
+    if(scanXml&&pinnedXhtml(html,file.path))return true;
+    if(!scanHtml)continue;
     const root=/** @type {HtmlNode} */(/** @type {unknown} */(parse(html)));
     /** @type {string|null} */
     let baseHref=null;
