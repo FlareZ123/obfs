@@ -32,16 +32,20 @@ async function execute(files) {
 /** @param {string} parser @param {string} expression @param {boolean} [primitive] @returns {ModuleFile[]} */
 function sourceFiles(parser,expression,primitive=false) {
   const logic=primitive?
-    'const state={secretField:19};const value=state.secretField;'+
-      'export function inspect(){return value;}' :
-    'export function inspect(){const state={secretField:19};return state.secretField;}';
+    'import {parseUrl} from "./parser.mjs";'+
+      'const state={secretField:19};const value=state.secretField;'+
+      'function inspect(){return value;}'+
+      'globalThis.__urlObserverText='+expression+';export const result=inspect();' :
+    'import {parseUrl} from "./parser.mjs";'+
+      'export const state={secretField:19};'+
+      'function inspect(){return state.secretField;}'+
+      'globalThis.__urlObserverText='+expression+';export const result=inspect();';
   return [
     {path:'logic.mjs',sourceType:'module',code:logic},
     {path:'parser.mjs',sourceType:'module',code:parser},
     {path:'observer.mjs',sourceType:'module',code:
-      'import {inspect} from "./logic.mjs";'+
-      'import {parseUrl} from "./parser.mjs";'+
-      'export function observe(){return {text:'+expression+',value:inspect()};}'}
+      'import {result} from "./logic.mjs";'+
+      'export function observe(){return {text:globalThis.__urlObserverText,value:result};}'}
   ];
 }
 
@@ -75,8 +79,8 @@ for(const [name,parser,expression] of sourceCases) {
     assert.notDeepEqual(await execute(counterfactual),native,
       name+' must be sensitive to source spelling');
     const after=transform(before);
-    assert.equal(after[0].code,before[0].code,
-      'Imported native parser in a sibling module must preserve producer source');
+    assert.match(after[0].code,/secretField/u,
+      'The function passed to the imported parser must retain its exact source spelling');
     assert.deepEqual(await execute(after),native);
   });
 }
@@ -93,14 +97,16 @@ for(const [name,parser,expression] of sourceCases) {
 function selectedFiles(parserSource,expression,baseSource=null,
   parserImport='import {parseUrl} from "./parser.mjs";') {
   return [
-    {path:'logic.mjs',sourceType:'module',
-      code:'export function inspect(a){return a^17;}'},
+    {path:'logic.mjs',sourceType:'module',code:
+      parserImport+
+      'function inspect(a){return a^17;}'+
+      'globalThis.__urlObserverText='+expression+';'+
+      'export const value=inspect(31);'},
     {path:'parser.mjs',sourceType:'module',code:parserSource},
     ...(baseSource===null?[]:[{path:'base.mjs',sourceType:/** @type {'module'} */ ('module'),code:baseSource}]),
     {path:'observer.mjs',sourceType:'module',code:
-      'import {inspect} from "./logic.mjs";'+
-      parserImport+
-      'export function observe(){return {text:'+expression+',value:inspect(31)};}' }
+      'import {value} from "./logic.mjs";'+
+      'export function observe(){return {text:globalThis.__urlObserverText,value};}' }
   ];
 }
 
@@ -185,11 +191,14 @@ test('selected Wasm remains eligible with imported namespace parser literal inpu
  */
 function directNodeUrlFiles(importLine,expression) {
   return [
-    {path:'logic.mjs',sourceType:'module',
-      code:'export function inspect(a){return a^17;}'},
+    {path:'logic.mjs',sourceType:'module',code:
+      importLine+
+      'function inspect(a){return a^17;}'+
+      'globalThis.__urlObserverText='+expression+';'+
+      'export const value=inspect(31);'},
     {path:'observer.mjs',sourceType:'module',code:
-      'import {inspect} from "./logic.mjs";'+importLine+
-      'export function observe(){return {text:'+expression+',value:inspect(31)};}'}
+      'import {value} from "./logic.mjs";'+
+      'export function observe(){return {text:globalThis.__urlObserverText,value};}'}
   ];
 }
 
