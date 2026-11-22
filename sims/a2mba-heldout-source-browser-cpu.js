@@ -32,7 +32,7 @@ function median(nums) {
  *   'minProtectedOverNative'|'minProtectedOverMinNative',number>,samples:Timings}>}>}
  */
 async function runChromium(options={}) {
-  const count=options.count??500000;
+  const count=options.count??5000000;
   const trials=options.trials??7;
   assert.ok(Number.isSafeInteger(count)&&count>0);
   assert.ok(Number.isSafeInteger(trials)&&trials>0);
@@ -82,9 +82,9 @@ async function runChromium(options={}) {
           };
           /** @param {(a:number,b:number,c:number,d:number)=>number} kernel */
           function makeWork(kernel) {
-            /** @param {number} size */
-            return function work(size){
-              let state=0x12345678|0;
+            /** @param {number} size @param {number} seed */
+            return function work(size,seed){
+              let state=seed|0;
               let sum=0;
               for(let index=0;index<size;index++){
                 state=(Math.imul(state,1664525)+1013904223)|0;
@@ -103,25 +103,30 @@ async function runChromium(options={}) {
           /** @type {Record<'native'|'minNative'|'protected'|'minProtected',number[]>} */
           const samples={native:[],minNative:[],protected:[],minProtected:[]};
           for(let warmup=0;warmup<4;warmup++){
-            const expected=work.native(200000);
+            const seed=(0x12345678^Math.imul(warmup+1,0x9e3779b1))|0;
+            const expected=work.native(200000,seed);
             for(const name of names)
-              if(work[name](200000)!==expected)throw Error('warmup parity '+name);
+              if(work[name](200000,seed)!==expected)throw Error('warmup parity '+name);
           }
+          /** @type {number[]} */
+          const checksums=[];
           for(let trial=0;trial<trials;trial++){
+            const seed=(0x12345678^Math.imul(trial+17,0x9e3779b1))|0;
             const sequence=names.slice(trial%4).concat(names.slice(0,trial%4));
             /** @type {number|null} */
             let previous=null;
             for(const lane of sequence) {
               const start=performance.now();
-              const checksum=work[lane](count);
+              const checksum=work[lane](count,seed);
               const time=performance.now()-start;
-              if(previous===null)previous=checksum;
+              if(previous===null){previous=checksum;checksums.push(checksum);}
               else if(checksum!==previous)throw Error('protected-native parity '+lane);
               if(!Number.isFinite(time)||time<=0)throw Error('invalid browser clock');
               samples[lane].push(time);
             }
           }
-          return {samples,clock:'Chromium renderer performance.now wall milliseconds'};
+          if(new Set(checksums).size<2)throw Error('nonvarying benchmark checksums');
+          return {samples,checksums,clock:'Chromium renderer performance.now wall milliseconds'};
         },{count,trials});
         /** @type {Timings} */
         const samples=measured.samples;
