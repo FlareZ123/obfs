@@ -619,6 +619,17 @@ function realmStateObservation(body,checkHostConfiguration=false){
       expression.object.type==='Identifier' &&
       globalNames.has(expression.object.name)&&keyName(expression)==='Math';
   }
+  // Atomics.wait depends on the calling agent's [[CanBlock]] capability.
+  // Browser main-thread agents generally cannot block, while Node private
+  // work can. The same shared memory and expected value can therefore yield
+  // TypeError in the client and "not-equal" in the relocated private realm.
+  /** @param {import('./ast').AstNode} expression @returns {boolean} */
+  function isAtomicsRoot(expression){
+    return expression.type==='Identifier'&&intrinsicKinds.get(expression.name)==='Atomics'||
+      expression.type==='MemberExpression'&&
+      expression.object.type==='Identifier'&&
+      globalNames.has(expression.object.name)&&keyName(expression)==='Atomics';
+  }
   /** @param {import('./ast').AstNode} expression @returns {'entropy'|'clock'|undefined} */
   function hostSourceKind(expression){
     if(expression.type==='Identifier')return hostSources.get(expression.name);
@@ -841,6 +852,7 @@ function realmStateObservation(body,checkHostConfiguration=false){
   let configurationTouched=false;
   let entropyTouched=false;
   let clockTouched=false;
+  let agentBlockingTouched=false;
   let prototypeTouched=false;
   let regexpTouched=false;
   let intrinsicTouched=false;
@@ -880,6 +892,14 @@ function realmStateObservation(body,checkHostConfiguration=false){
          isAbortConstructor(receiver.callee,abortControllerConstructors)){
         stackTouched=true;
       }
+    }
+    // A synchronous wait can succeed in Node's main agent while browser
+    // main-thread code cannot suspend. Include computed literal keys,
+    // constructor aliases, and unknown dynamic members of Atomics.
+    if(checkHostConfiguration&&node.type==='MemberExpression'&&
+       isAtomicsRoot(node.object)){
+      const member=keyName(node);
+      if(member===null||member==='wait')agentBlockingTouched=true;
     }
     // Destructuring directly in a catch parameter reads the thrown Error's
     // realm-local stack without introducing an identifier receiver. The
@@ -949,6 +969,11 @@ function realmStateObservation(body,checkHostConfiguration=false){
       node.type==='AssignmentExpression'&&node.operator==='='?node.left:null;
     const source=node.type==='VariableDeclarator'?node.init:
       node.type==='AssignmentExpression'&&node.operator==='='?node.right:null;
+    if(checkHostConfiguration&&pattern?.type==='ObjectPattern'&&source&&
+       isAtomicsRoot(source)&&pattern.properties.some(
+         (/** @type {import('./ast').AstNode} */ property)=>
+           property.type!=='Property'||keyName(property)===null||
+           keyName(property)==='wait'))agentBlockingTouched=true;
     if(pattern?.type==='ObjectPattern'&&source){
       if(isStackReceiver(source)&&pattern.properties.some(
         (/** @type {import('./ast').AstNode} */ property)=>
@@ -1115,6 +1140,7 @@ function realmStateObservation(body,checkHostConfiguration=false){
     intrinsicTouched?'intrinsic state':stackTouched?'error stack':
     checkHostConfiguration&&entropyTouched?'entropy':
     checkHostConfiguration&&clockTouched?'clock':
+    checkHostConfiguration&&agentBlockingTouched?'agent blocking':
     checkHostConfiguration&&configurationTouched?'configuration':null;
 }
 
