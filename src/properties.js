@@ -315,12 +315,7 @@ function collectOwnedConstantKeys(ast,rootName,bindings,scopes) {
   let declarations=constantDeclaratorsCache.get(ast);
   if(!declarations){
     declarations=[];
-    let dynamicScope=false;
-  walk(ast,(node,parent)=>{
-    if(node.type==='WithStatement'||
-       (node.type==='CallExpression'||node.type==='NewExpression')&&
-       node.callee?.type==='Identifier'&&
-       ['eval','Function'].includes(node.callee.name))dynamicScope=true;
+    walk(ast,(node,parent)=>{
       if(node.type==='VariableDeclarator' && node.id.type==='Identifier' &&
           parent?.type==='VariableDeclaration' && parent.kind==='const'){
         /** @type {AstNode[]} */ (declarations).push(node);
@@ -1138,7 +1133,7 @@ function singleUseFactoryObject(ast,bindings,expression) {
  * A conservative proof failure leaves the complete file unchanged for that object.
  * @param {string} source
  * @param {AstNode} ast
- * @param {{seed:string,sourceType?:'script'|'module'|'commonjs'}} options
+ * @param {{seed:string}} options
  * @returns {{code:string,objects:number,properties:number}}
  */
 /**
@@ -1148,7 +1143,6 @@ function singleUseFactoryObject(ast,bindings,expression) {
  * may retain them as positive-yield targets.
  * @param {AstNode} ast
  * @param {Map<string,number>} [bindings]
- * @param {'script'|'module'|'commonjs'} [sourceType]
  * @returns {Set<AstNode>}
  */
 function collectPrivateDirectCallables(ast,bindings=collectBindings(ast)) {
@@ -1285,7 +1279,12 @@ function collectPrivateDirectClasses(ast,bindings,sourceType) {
   const parents=new WeakMap();
   /** @type {Map<string,AstNode[]>} */
   const identifiers=new Map();
+  let dynamicScope=false;
   walk(ast,(node,parent)=>{
+    if(node.type==='WithStatement'||
+       (node.type==='CallExpression'||node.type==='NewExpression')&&
+       node.callee?.type==='Identifier'&&
+       ['eval','Function'].includes(node.callee.name))dynamicScope=true;
     if(parent)parents.set(node,parent);
     if(node.type!=='Identifier')return;
     const uses=identifiers.get(node.name)??[];
@@ -1362,6 +1361,7 @@ function collectPrivateDirectClasses(ast,bindings,sourceType) {
  * also exposed when its enclosing callable source is exposed.
  * @param {AstNode} ast
  * @param {Map<string,number>} [bindings]
+ * @param {'script'|'module'|'commonjs'} [sourceType]
  * @returns {Set<AstNode>}
  */
 function collectSourceExposedBodies(ast,bindings=collectBindings(ast),sourceType='script') {
@@ -1387,7 +1387,7 @@ function collectSourceExposedBodies(ast,bindings=collectBindings(ast),sourceType
  * A conservative proof failure leaves the complete file unchanged for that object.
  * @param {string} source
  * @param {AstNode} ast
- * @param {{seed:string}} options
+ * @param {{seed:string,sourceType?:'script'|'module'|'commonjs'}} options
  * @returns {{code:string,objects:number,properties:number}}
  */
 function renameLocalProperties(source, ast, options) {
