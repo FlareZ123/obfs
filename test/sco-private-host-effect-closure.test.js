@@ -216,6 +216,34 @@ test('Selected SCO still accepts deterministic URL parsing and inert object URL 
   }
 });
 
+
+test('Selected SCO declines object URL access through a freshly constructed URL instance',()=>{
+  const cases=[
+    'return (new URL("https://example.org/a")).constructor.createObjectURL(new Blob(["x"]));',
+    'const item=new URL("https://example.org/a");'+
+      'return item.constructor.createObjectURL(new Blob(["x"]));',
+    'const item=new URL("https://example.org/a");'+
+      'return item["constructor"]["createObjectURL"](new Blob(["x"]));'
+  ];
+  for(const body of cases){
+    assert.throws(()=>partitionScoSelectedAsyncExports(
+      {path:'mixed.mjs',sourceType:'module',
+        code:'export async function protectedOp(){'+body+'}'+
+          'export function visible(){return 7;}'},
+      {seed:'sco-object-url-constructor-20261122',privateNames:['protectedOp']}
+    ),/Private SCO export or helper uses unproved cross-realm object URL API/u,body);
+  }
+  const allowed=partitionScoSelectedAsyncExports(
+    {path:'mixed.mjs',sourceType:'module',
+      code:'export async function protectedOp(){'+
+        'const record={constructor:{createObjectURL:()=>42}};'+
+        'return record.constructor.createObjectURL();}'+
+        'export function visible(){return 7;}'},
+    {seed:'sco-object-url-local-constructor-20261122',privateNames:['protectedOp']}
+  );
+  assert.deepEqual(allowed.privateNames,['protectedOp']);
+});
+
 test('Private static ESM graph refuses browser-only ambient objects in direct and transitive leaves',()=>{
   const sensitive=[
     'return localStorage.getItem("session");',
