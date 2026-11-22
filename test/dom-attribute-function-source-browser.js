@@ -7,28 +7,28 @@ const {promisify}=require('node:util');
 const {obfuscateFiles}=require('../src');
 
 /**
- * Compare a browser's native Element.setAttribute DOMString conversion before
- * and after compilation. Return the attribute value for exact source parity.
+ * Evaluate a private function before any public export. Both the original
+ * and emitted modules export only an already-converted primitive record,
+ * avoiding unrelated public-callable Function#toString protections.
  * @param {boolean} primitive
  * @returns {string}
  */
 function source(primitive) {
   if(primitive)return [
-    'const state={secretField:31};',
-    'const value=state.secretField;',
-    'export function observe(){',
+    'const state={secretField:31};const value=state.secretField;',
     'const element=document.createElement("div");',
     'element.setAttribute("data-observed","literal");',
-    'return {text:element.getAttribute("data-observed"),value};',
-    '}'
+    'element.setAttributeNS(null,"data-observed-ns","literal");',
+    'export const observed={text:element.getAttribute("data-observed"),',
+    'nsText:element.getAttribute("data-observed-ns"),value};'
   ].join('\n');
   return [
-    'export function observe(){',
     'function inspect(){const state={secretField:31};return state.secretField;}',
     'const element=document.createElement("div");',
     'element.setAttribute("data-observed",inspect);',
-    'return {text:element.getAttribute("data-observed"),value:inspect()};',
-    '}'
+    'element.setAttributeNS(null,"data-observed-ns",inspect);',
+    'export const observed={text:element.getAttribute("data-observed"),',
+    'nsText:element.getAttribute("data-observed-ns"),value:inspect()};'
   ].join('\n');
 }
 
@@ -48,12 +48,16 @@ function transform(code,seed) {
 /** @returns {Promise<void>} */
 async function main() {
   const beforeNegative=source(false),beforePositive=source(true);
-  const negative=transform(beforeNegative,'domstring-attribute-native-negative');
-  const positive=transform(beforePositive,'domstring-attribute-native-positive');
+  const negative=transform(beforeNegative,'domstring-private-attribute-negative');
+  const positive=transform(beforePositive,'domstring-private-attribute-positive');
+  process.stdout.write('DOMSTRING_COMPILE_METRICS '+JSON.stringify({
+    negative:negative.metrics,positive:positive.metrics,
+    negativeContainsSecret:negative.code.includes('secretField')
+  })+'\n');
   assert.equal(positive.metrics.properties,1,
     'Primitive DOMString positive must still rename a safe private property');
   assert.ok(!positive.code.includes('secretField'),
-    'Positive should prove that private property rewriting was exercised');
+    'Positive must prove the private property rewrite was exercised');
 
   const html=[
     '<!doctype html><meta charset="utf-8"><pre id="result">pending</pre>',
@@ -62,11 +66,12 @@ async function main() {
     'const [an,bn,ap,bp]=await Promise.all([',
     'import("/native-negative.mjs"),import("/compiled-negative.mjs"),',
     'import("/native-positive.mjs"),import("/compiled-positive.mjs")]);',
-    'const a=an.observe(),b=bn.observe(),c=ap.observe(),d=bp.observe();',
+    'const a=an.observed,b=bn.observed,c=ap.observed,d=bp.observed;',
     'if(JSON.stringify(a)!==JSON.stringify(b)||JSON.stringify(c)!==JSON.stringify(d))',
     'throw Error("setAttribute DOMString parity mismatch "+JSON.stringify({a,b,c,d}));',
-    'if(!a.text.includes("secretField")||a.value!==31||',
-    'c.text!=="literal"||c.value!==31)',
+    'if(!a.text.includes("secretField")||',
+    '!a.nsText.includes("secretField")||a.value!==31||',
+    'c.text!=="literal"||c.nsText!=="literal"||c.value!==31)',
     'throw Error("Browser witness invalid: "+JSON.stringify({a,c}));',
     'document.getElementById("result").textContent="PASS setAttribute DOMString";',
     '}catch(error){document.getElementById("result").textContent=',
@@ -103,8 +108,8 @@ async function main() {
     assert.match(stdout,
       /<pre id="result">PASS setAttribute DOMString<\/pre>/u,String(stderr));
     process.stdout.write(JSON.stringify({
-      browser:'Chromium',api:'Element.setAttribute',
-      sourceObserved:true,positivePropertyRenamed:true,
+      browser:'Chromium',api:'Element.setAttribute / setAttributeNS',
+      privateSourceObserved:true,positivePropertyRenamed:true,
       nativeEmittedDifferential:'PASS'
     })+'\n');
   }finally {
