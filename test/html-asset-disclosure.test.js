@@ -429,3 +429,39 @@ test('a script dynamically inserted with integrity must retain the pinned siblin
       'DOM HTMLScriptElement.integrity pins original distributed script bytes in '+mode);
   }
 });
+
+
+test('dynamic SRI setter aliases and attribute writers are observed without penalizing pure data reads',()=>{
+  const source='globalThis.dynamicSRISetter="a dynamically hashed sibling must keep its source";';
+  const hash=require('node:crypto').createHash('sha256').update(source).digest('base64');
+  const prefix='const script=document.createElement("script");script.src="./client.js";';
+  const variants=[
+    ['constant computed key','const key="integrity";script[key]="sha256-'+hash+'";'],
+    ['concatenated computed key','script["inte"+"grity"]="sha256-'+hash+'";'],
+    ['setAttribute','script.setAttribute("INTEGRITY","sha256-'+hash+'");'],
+    ['setAttributeNS','script.setAttributeNS(null,"integrity","sha256-'+hash+'");'],
+    ['Reflect.set','Reflect.set(script,"integrity","sha256-'+hash+'");'],
+    ['Object.assign','Object.assign(script,{integrity:"sha256-'+hash+'"});']
+  ];
+  const client={path:'client.js',sourceType:/** @type {const} */('script'),code:source};
+  const html={path:'index.html',sourceType:/** @type {const} */('asset'),
+    code:Buffer.from('<script src="./bootstrap.js"></script>')};
+  for(const mode of /** @type {const} */(['coo','sco','sno'])){
+    const options={mode,seed:'dynamic-sri-method/'+mode,
+      strings:true,identifiers:false,properties:false};
+    for(const [name,setter] of variants){
+      const bootstrap={path:'bootstrap.js',sourceType:/** @type {const} */('script'),
+        code:prefix+setter+'document.head.append(script);'};
+      const result=obfuscateFiles([client,bootstrap,html],options);
+      assert.equal(result.files[0].code,source,
+        name+' must recognize a dynamic integrity commitment in '+mode);
+    }
+    const dataRead='const data={integrity:17};'+
+      'globalThis.dynamicReadOnlyIntegrity=data.integrity;';
+    const output=obfuscateFiles([
+      client,{path:'bootstrap.js',sourceType:'script',code:dataRead},html
+    ],options);
+    assert.notEqual(output.files[0].code,source,
+      'Read-only data integrity fields must remain transformable in '+mode);
+  }
+});
