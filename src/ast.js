@@ -3781,4 +3781,307 @@ function observesDistributedSource(ast,importedStrings=new Map()) {
   return observed;
 }
 
-module.exports = {parse, walk, applyEdits, observesFunctionSource, observesDistributedSource, staticString, collectDirectCarrierFactories, sourceSpelledErrorOperand};
+
+/**
+ * Find source ranges whose Function#toString/class source is externally
+ * observable through an ESM export. The returned nodes are deliberately
+ * range containers, not just callable nodes: method syntax includes its
+ * Property/MethodDefinition key, and class source includes the full class.
+ *
+ * This is a bounded static reachability proof. It follows direct top-level
+ * bindings, immutable aliases, object/array literals, static member reads,
+ * simple local factory returns, and callable values passed to calls from an
+ * exposed callable. Unknown external values are not mistaken for local source.
+ * Mutable exported bindings fail closed by freezing every local callable.
+ *
+ * @param {AstNode} ast
+ * @returns {Set<AstNode>}
+ */
+function collectExportedCallableNodes(ast) {
+  /** @type {Set<AstNode>} */
+  const exposed=new Set();
+  /** @type {Map<string,{node:AstNode,kind:string,init:AstNode|null}>} */
+  const bindings=new Map();
+  /** @type {Set<string>} */
+  const exported=new Set();
+  /** @type {Set<string>} */
+  const written=new Set();
+  /** @type {Set<AstNode>} */
+  const inspected=new Set();
+  /** @type {Set<AstNode>} */
+  const resolving=new Set();
+
+  for(const statement of ast.body??[]) {
+    const declaration=statement.type==='ExportNamedDeclaration'?
+      statement.declaration:statement;
+    if(declaration?.type==='FunctionDeclaration'&&declaration.id) {
+      bindings.set(declaration.id.name,{node:declaration,kind:'function',init:null});
+    } else if(declaration?.type==='ClassDeclaration'&&declaration.id) {
+      bindings.set(declaration.id.name,{node:declaration,kind:'class',init:null});
+    } else if(declaration?.type==='VariableDeclaration') {
+      for(const item of declaration.declarations) {
+        if(item.id.type==='Identifier') {
+          bindings.set(item.id.name,{node:item,kind:declaration.kind,init:item.init??null});
+        }
+      }
+    }
+    if(statement.type==='ExportNamedDeclaration') {
+      if(statement.declaration?.type==='FunctionDeclaration'||
+         statement.declaration?.type==='ClassDeclaration') {
+        if(statement.declaration.id)exported.add(statement.declaration.id.name);
+      } else if(statement.declaration?.type==='VariableDeclaration') {
+        for(const item of statement.declaration.declarations) {
+          if(item.id.type==='Identifier')exported.add(item.id.name);
+        }
+      } else if(!statement.source) {
+        for(const specifier of statement.specifiers??[]) {
+          if(specifier.type==='ExportSpecifier'&&specifier.local.type==='Identifier') {
+            exported.add(specifier.local.name);
+          }
+        }
+      }
+    } else if(statement.type==='ExportDefaultDeclaration'&&
+        statement.declaration.type==='Identifier') {
+      exported.add(statement.declaration.name);
+    }
+  }
+
+  walk(ast,node=>{
+    if(node.type==='AssignmentExpression'&&node.operator==='='&&
+       node.left.type==='Identifier'&&bindings.has(node.left.name)) {
+      written.add(node.left.name);
+    }
+    if(node.type==='UpdateExpression'&&node.argument.type==='Identifier'&&
+       bindings.has(node.argument.name))written.add(node.argument.name);
+  });
+
+  /** @param {AstNode} node @returns {boolean} */
+  function isFunction(node) {
+    return ['FunctionDeclaration','FunctionExpression','ArrowFunctionExpression'].includes(node.type);
+  }
+  /** @param {AstNode} node @returns {boolean} */
+  function isClass(node) {
+    return node.type==='ClassDeclaration'||node.type==='ClassExpression';
+  }
+  /** @param {AstNode} node @returns {void} */
+  function markTree(node) {
+    /** @type {AstNode[]} */
+    const callables=[];
+    walk(node,(child,parent)=>{
+      if(isFunction(child)||isClass(child)) {
+        exposed.add(child);
+        callables.push(child);
+      }
+      if(child.type==='Property'&&child.method)exposed.add(child);
+      if(child.type==='MethodDefinition')exposed.add(child);
+    });
+    for(const callable of callables)inspectCallable(callable);
+  }
+  /** @param {AstNode} node @param {number} depth @returns {AstNode|null} */
+  function objectValue(node,depth) {
+    if(depth>24)return null;
+    if(node.type==='ObjectExpression')return node;
+    if(node.type==='Identifier') {
+      const binding=bindings.get(node.name);
+      if(!binding||resolving.has(binding.node))return null;
+      if(binding.kind==='const'&&binding.init) {
+        resolving.add(binding.node);
+        const result=objectValue(binding.init,depth+1);
+        resolving.delete(binding.node);
+        return result;
+      }
+    }
+    if(node.type==='CallExpression'&&node.callee.type==='MemberExpression'&&
+       node.callee.object.type==='Identifier'&&node.callee.object.name==='Object'&&
+       ['freeze','seal','preventExtensions'].includes(
+         node.callee.computed?staticString(node.callee.property):
+           node.callee.property.type==='Identifier'?node.callee.property.name:null)) {
+      return node.arguments[0] ? objectValue(node.arguments[0],depth+1) : null;
+    }
+    return null;
+  }
+  /** @param {AstNode} node @param {number} depth @returns {AstNode|null} */
+  function localCallable(node,depth) {
+    if(depth>24)return null;
+    if(isFunction(node)||isClass(node))return node;
+    if(node.type==='Identifier') {
+      const binding=bindings.get(node.name);
+      if(!binding||resolving.has(binding.node))return null;
+      if(binding.kind==='function'||binding.kind==='class')return binding.node;
+      if(binding.kind==='const'&&binding.init) {
+        resolving.add(binding.node);
+        const result=localCallable(binding.init,depth+1);
+        resolving.delete(binding.node);
+        return result;
+      }
+    }
+    return null;
+  }
+  /** @param {AstNode} fn @returns {void} */
+  function inspectCallable(fn) {
+    if(inspected.has(fn))return;
+    inspected.add(fn);
+    if(!isFunction(fn))return;
+    if(fn.body.type!=='BlockStatement') {
+      markValue(fn.body,0);
+      return;
+    }
+    walk(fn.body,(node,parent,key,ancestors)=>{
+      if(node.type!=='ReturnStatement'&&node.type!=='CallExpression')return;
+      if(ancestors.some(ancestor=>ancestor!==fn&&isFunction(ancestor)))return;
+      if(node.type==='ReturnStatement') {
+        if(node.argument)markValue(node.argument,0);
+      } else {
+        for(const argument of node.arguments??[]) {
+          if(argument.type==='SpreadElement')markValue(argument.argument,0);
+          else markValue(argument,0);
+        }
+      }
+    });
+  }
+  /** @param {AstNode} node @param {number} depth @returns {void} */
+  function markValue(node,depth) {
+    if(depth>24)return;
+    if(isFunction(node)||isClass(node)) {
+      markTree(node);
+      return;
+    }
+    if(node.type==='Identifier') {
+      markBinding(node.name,depth+1);
+      return;
+    }
+    if(node.type==='ObjectExpression') {
+      for(const property of node.properties??[]) {
+        if(property.type==='SpreadElement') {
+          markValue(property.argument,depth+1);
+        } else if(property.type==='Property') {
+          if(property.method||property.kind==='get'||property.kind==='set') {
+            exposed.add(property);
+            markTree(property.value);
+          } else {
+            markValue(property.value,depth+1);
+          }
+        }
+      }
+      return;
+    }
+    if(node.type==='ArrayExpression') {
+      for(const element of node.elements??[])if(element)markValue(element,depth+1);
+      return;
+    }
+    if(node.type==='MemberExpression') {
+      const object=objectValue(node.object,depth+1);
+      if(object) {
+        const key=node.computed?staticString(node.property):
+          node.property.type==='Identifier'?node.property.name:null;
+        const matches=object.properties.filter(property=>
+          property.type==='Property'&&
+          (key===null||String(property.key.type==='Identifier'?property.key.name:
+            property.key.value)===key));
+        for(const property of matches) {
+          if(property.method||property.kind==='get'||property.kind==='set')exposed.add(property);
+          markValue(property.value,depth+1);
+        }
+      } else {
+        const klass=localCallable(node.object,depth+1);
+        if(klass&&isClass(klass))markTree(klass);
+      }
+      return;
+    }
+    if(node.type==='NewExpression') {
+      const klass=localCallable(node.callee,depth+1);
+      if(klass&&isClass(klass))markTree(klass);
+      return;
+    }
+    if(node.type==='CallExpression') {
+      const callee=localCallable(node.callee,depth+1);
+      if(callee&&isFunction(callee))inspectCallable(callee);
+      else if(node.callee.type==='MemberExpression'&&
+          node.callee.object.type==='Identifier'&&node.callee.object.name==='Object'&&
+          ['freeze','seal','preventExtensions'].includes(
+            node.callee.computed?staticString(node.callee.property):
+              node.callee.property.type==='Identifier'?node.callee.property.name:null)) {
+        if(node.arguments[0])markValue(node.arguments[0],depth+1);
+      }
+      // A host or unknown callee can retain a local callback argument and
+      // inspect its source after this exported callable returns.
+      for(const argument of node.arguments??[]) {
+        if(argument.type==='SpreadElement')markValue(argument.argument,depth+1);
+        else markValue(argument,depth+1);
+      }
+      return;
+    }
+    if(node.type==='ConditionalExpression') {
+      markValue(node.consequent,depth+1);
+      markValue(node.alternate,depth+1);
+      return;
+    }
+    if(node.type==='LogicalExpression') {
+      markValue(node.left,depth+1);
+      markValue(node.right,depth+1);
+      return;
+    }
+    if(node.type==='SequenceExpression') {
+      const last=node.expressions.at(-1);
+      if(last)markValue(last,depth+1);
+      return;
+    }
+    if(node.type==='AssignmentExpression') {
+      markValue(node.right,depth+1);
+      return;
+    }
+    if(node.type==='AwaitExpression'||node.type==='YieldExpression'||
+       node.type==='ChainExpression') {
+      if(node.argument)markValue(node.argument,depth+1);
+      else if(node.expression)markValue(node.expression,depth+1);
+    }
+  }
+  /** @param {string} name @param {number} depth @returns {void} */
+  function markBinding(name,depth) {
+    const binding=bindings.get(name);
+    if(!binding||depth>24||resolving.has(binding.node))return;
+    if(binding.kind!=='const'||written.has(name)) {
+      // Reassignment can publish a different local callable after evaluation.
+      markAllCallables();
+      return;
+    }
+    resolving.add(binding.node);
+    if(binding.kind==='function'||binding.kind==='class')markTree(binding.node);
+    else if(binding.init)markValue(binding.init,depth+1);
+    resolving.delete(binding.node);
+  }
+  /** @returns {void} */
+  function markAllCallables() {
+    walk(ast,node=>{
+      if(isFunction(node)||isClass(node)) {
+        exposed.add(node);
+        if(node.type==='MethodDefinition'&&node.parent)exposed.add(node.parent);
+      }
+      if(node.type==='Property'&&node.method)exposed.add(node);
+      if(node.type==='MethodDefinition')exposed.add(node);
+    });
+  }
+
+  for(const name of exported)markBinding(name,0);
+  for(const statement of ast.body??[]) {
+    if(statement.type==='ExportDefaultDeclaration'&&
+       statement.declaration.type!=='Identifier')markValue(statement.declaration,0);
+  }
+  return exposed;
+}
+
+/**
+ * Test whether an AST node's complete source spelling lies inside a range
+ * whose callable/class source is visible through an ESM export.
+ * @param {AstNode} node
+ * @param {Set<AstNode>} exposed
+ * @returns {boolean}
+ */
+function isWithinExportedCallableSource(node,exposed) {
+  for(const range of exposed) {
+    if(node.start>=range.start&&node.end<=range.end)return true;
+  }
+  return false;
+}
+
+module.exports = {parse, walk, applyEdits, observesFunctionSource, observesDistributedSource, staticString, collectDirectCarrierFactories, sourceSpelledErrorOperand, collectExportedCallableNodes, isWithinExportedCallableSource};
