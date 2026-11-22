@@ -2118,12 +2118,23 @@ function obfuscateFiles(files, options = {}) {
     let code = file.code;
     let ast = parse(code,sourceType);
     const salt = createHash('sha256').update(`${seed}/${filename}`).digest('hex');
-    const privateDirectCallables=collectPrivateDirectCallables(ast);
+    const bindings=collectBindings(ast);
+    const privateDirectCallables=collectPrivateDirectCallables(ast,bindings);
+    const sourceExposedBodies=collectSourceExposedBodies(ast,bindings);
+    /** @type {Set<AstNode>} */
+    const unsafePrivateTargets=new Set();
+    walk(ast,(node,parent,key,ancestors)=>{
+      if(sourceExposedBodies.has(node)) {
+        for(const ancestor of ancestors)
+          if(privateDirectCallables.has(ancestor))unsafePrivateTargets.add(ancestor);
+      }
+    });
     /** @type {Set<string>} */
     const privateDirectFunctionNames=new Set();
     walk(ast,node=>{
       if(node.type==='FunctionDeclaration'&&node.id?.type==='Identifier'&&
-         privateDirectCallables.has(node))privateDirectFunctionNames.add(node.id.name);
+         privateDirectCallables.has(node)&&!unsafePrivateTargets.has(node))
+        privateDirectFunctionNames.add(node.id.name);
     });
     /**
      * @param {string[]} names
