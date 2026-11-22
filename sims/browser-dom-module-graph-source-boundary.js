@@ -10,7 +10,7 @@ const run = promisify(execFile);
 
 // The browser imports the external module, while only the entry script's text
 // is embedded in the HTML document that the entry inspects.
-/** @type {const} */
+/** @type {'module'} */
 const sourceType = 'module';
 const library =
   'function compute(input){const hiddenWorker=input+5;return hiddenWorker;}' +
@@ -55,8 +55,8 @@ async function main() {
   const publishedEntry=compiled.files.find(file=>file.path==='entry.mjs');
   const publishedLibrary=compiled.files.find(file=>file.path==='lib.mjs');
   assert.ok(publishedEntry && publishedLibrary,'Compiled graph missing modules');
-  assert.equal(typeof publishedEntry.code,'string');
-  assert.equal(typeof publishedLibrary.code,'string');
+  assert.ok(typeof publishedEntry.code==='string');
+  assert.ok(typeof publishedLibrary.code==='string');
   const routes=new Map([
     ['/native/index.html',{type:'text/html',body:html(entry)}],
     ['/native/lib.mjs',{type:'text/javascript',body:library}],
