@@ -3,7 +3,7 @@
 const path = require('node:path');
 const {randomBytes, createHash} = require('node:crypto');
 const {parse,walk,observesFunctionSource,observesDistributedSource,staticString} = require('./ast');
-const {renameLocalProperties,collectBindings} = require('./properties');
+const {renameLocalProperties,collectBindings,collectPrivateDirectCallables,collectSourceExposedBodies} = require('./properties');
 const {symbolizeLocalProperties} = require('./symbol-properties');
 const {encodeStrings} = require('./strings');
 const {provenLocalReflectGetCaptures} = require('./decoder-safe-reads');
@@ -2000,7 +2000,15 @@ function obfuscateFiles(files, options = {}) {
   if((remoteSourceObserver||hostLockSourceObserver) && options.allowedHosts?.length) {
     throw new TypeError('Host locking cannot preserve observable source bytes');
   }
-  const cross = !remoteSourceObserver && options.closedWorld && options.properties !== false ?
+  // External importers can inspect exported/re-exported callable source even
+  // when they are not in this closed-world file group. Disable only the
+  // cross-file property pass in that case; local passes retain per-callable
+  // source-exposure proofs and can still transform private direct-callables.
+  const hasSourceExposedBodies=prepared.some(file=>file.sourceType!=='asset'&&
+    typeof file.code==='string'&&
+    collectSourceExposedBodies(parse(file.code,file.sourceType)).size>0);
+  const cross = !remoteSourceObserver && !hasSourceExposedBodies &&
+    options.closedWorld && options.properties !== false ?
     renameCrossFileProperties(prepared,seed) : {files:prepared,objects:0,properties:0};
   const shouldEncodeStrings=!remoteSourceObserver &&
     (options.strings === true || (options.strings === undefined && mode === 'sno'));
@@ -2110,7 +2118,25 @@ function obfuscateFiles(files, options = {}) {
     let code = file.code;
     let ast = parse(code,sourceType);
     const salt = createHash('sha256').update(`${seed}/${filename}`).digest('hex');
-    const vmNames=selectedFunctionNames.get('Register VM')?.get(filename)??[];
+    const privateDirectCallables=collectPrivateDirectCallables(ast);
+    /** @type {Set<string>} */
+    const privateDirectFunctionNames=new Set();
+    walk(ast,node=>{
+      if(node.type==='FunctionDeclaration'&&node.id?.type==='Identifier'&&
+         privateDirectCallables.has(node))privateDirectFunctionNames.add(node.id.name);
+    });
+    /**
+     * @param {string[]} names
+     * @param {string} label
+     * @returns {string[]}
+     */
+    function sourceSafeTargets(names,label) {
+      const unsafe=names.filter(name=>!privateDirectFunctionNames.has(name));
+      if(unsafe.length)throw new TypeError(label+
+        ' cannot transform source-exposed callable(s): '+unsafe.join(', '));
+      return names;
+    }
+    const vmNames=sourceSafeTargets(selectedFunctionNames.get('Register VM')?.get(filename)??[],'Register VM');
     let vmFunctions=0,vmInstructions=0;
     if(vmNames.length) {
       if(sourceType==='script'||remoteSourceObserver) {
@@ -2126,7 +2152,7 @@ function obfuscateFiles(files, options = {}) {
       vmInstructions=virtualized.instructions;
       ast=parse(code,sourceType);
     }
-    const expressionNames=selectedFunctionNames.get('Expression VM')?.get(filename)??[];
+    const expressionNames=sourceSafeTargets(selectedFunctionNames.get('Expression VM')?.get(filename)??[],'Expression VM');
     let expressionVmFunctions=0,expressionVmInstructions=0;
     if(expressionNames.length) {
       if(sourceType==='script'||remoteSourceObserver) {
@@ -2142,7 +2168,7 @@ function obfuscateFiles(files, options = {}) {
       expressionVmInstructions=virtualized.instructions;
       ast=parse(code,sourceType);
     }
-    const nativeNames=selectedFunctionNames.get('Native graph')?.get(filename)??[];
+    const nativeNames=sourceSafeTargets(selectedFunctionNames.get('Native graph')?.get(filename)??[],'Native graph');
     let nativeGraphFunctions=0,nativeGraphInstructions=0;
     if(nativeNames.length) {
       if(sourceType==='script'||remoteSourceObserver) {
@@ -2163,7 +2189,7 @@ function obfuscateFiles(files, options = {}) {
       nativeGraphInstructions=optimized.instructions;
       ast=parse(code,sourceType);
     }
-    const branchNames=selectedFunctionNames.get('Branch blocks')?.get(filename)??[];
+    const branchNames=sourceSafeTargets(selectedFunctionNames.get('Branch blocks')?.get(filename)??[],'Branch blocks');
     let branchFunctions=0,branchBlocks=0;
     if(branchNames.length) {
       if(sourceType==='script'||remoteSourceObserver) {
@@ -2180,7 +2206,7 @@ function obfuscateFiles(files, options = {}) {
       branchBlocks=flattened.blocks;
       ast=parse(code,sourceType);
     }
-    const statementNames=selectedFunctionNames.get('Statement flow')?.get(filename)??[];
+    const statementNames=sourceSafeTargets(selectedFunctionNames.get('Statement flow')?.get(filename)??[],'Statement flow');
     let statementFlowFunctions=0,statementFlowBlocks=0;
     if(statementNames.length){
       if(sourceType==='script'||remoteSourceObserver){
@@ -2202,7 +2228,7 @@ function obfuscateFiles(files, options = {}) {
       statementFlowBlocks=transformed.blocks;
       ast=parse(code,sourceType);
     }
-    const wasmNames=selectedFunctionNames.get('Wasm i32')?.get(filename)??[];
+    const wasmNames=sourceSafeTargets(selectedFunctionNames.get('Wasm i32')?.get(filename)??[],'Wasm i32');
     let wasmI32Functions=0,wasmI32Instructions=0,wasmI32Bytes=0;
     if(wasmNames.length) {
       if(sourceType==='script'||remoteSourceObserver) {
@@ -2226,7 +2252,7 @@ function obfuscateFiles(files, options = {}) {
       wasmI32Bytes=lowered.wasmBytes;
       ast=parse(code,sourceType);
     }
-    const polyvariantNames=selectedFunctionNames.get('Polyvariant affine')?.get(filename)??[];
+    const polyvariantNames=sourceSafeTargets(selectedFunctionNames.get('Polyvariant affine')?.get(filename)??[],'Polyvariant affine');
     let polyvariantFunctions=0,polyvariantPaths=0,polyvariantSteps=0;
     if(polyvariantNames.length) {
       if(sourceType==='script'||remoteSourceObserver) {
