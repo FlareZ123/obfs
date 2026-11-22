@@ -22,7 +22,7 @@ jobs:
       - name: Install pinned dependencies
         run: npm ci --ignore-scripts --no-audit --no-fund
       - name: Reproduce original PR15 reflected intrinsic alias suite against current main
-        run: node --test test/closed-record-reflect-alias-overwrite.test.js
+        run: node --test test/closed-record-inherited-setter-host.test.js
       - name: Compile JSDoc source contracts
         run: npm run typecheck
       - name: Compile external test JSDoc
