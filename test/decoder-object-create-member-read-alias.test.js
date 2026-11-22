@@ -222,3 +222,34 @@ for(const mode of /** @type {const} */(['coo','sno','sco'])){
       });
   }
 }
+
+
+for(const mode of /** @type {const} */(['coo','sno','sco'])){
+  test('unrelated sensitive member-read getter preserves positive encoding: '+mode,
+    async()=>{
+      const mutator=[
+        'const descriptors={ref:{value:17}};',
+        'const unrelated={ref:{}};const entry=unrelated.ref;',
+        'entry.get=function(){return String.prototype};',
+        'const box=Object.create(null,descriptors);void box.ref;'
+      ].join('');
+      const input=graph(mutator);
+      const compiled=obfuscateFiles(input,{
+        mode,strings:true,identifiers:false,properties:false,
+        seed:'agent5-unrelated-member-read/'+mode
+      });
+      const target=compiled.files.find(file=>file.path==='target.cjs');
+      assert.ok(target);
+      assert.equal(target.metrics.literals,1,
+        'unrelated String getter must not suppress eligible target encoding');
+      const root=await fs.mkdtemp(path.join(os.tmpdir(),'obfs-unrelated-member-'));
+      try{
+        const native=await execute(path.join(root,'native'),input);
+        const emitted=await execute(path.join(root,'emitted'),compiled.files);
+        assert.equal(native.status,0,native.stderr);
+        assert.deepEqual(emitted,native);
+      }finally{
+        await fs.rm(root,{recursive:true,force:true});
+      }
+    });
+}
