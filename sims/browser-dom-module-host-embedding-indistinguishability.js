@@ -64,11 +64,9 @@ async function main(){
   assert.ok(!libraryResult.code.includes('hiddenWorker'),
     'Emitted external module must actually rename the mirrored identifier');
   const routes=new Map();
-  for(const [policy,mirrored] of [
-    /** @type {Array<['external'|'mirrored',boolean]>} */([
-      ['external',false],['mirrored',true]
-    ])
-  ]){
+  /** @type {Array<['external'|'mirrored',boolean]>} */
+  const policies=[['external',false],['mirrored',true]];
+  for(const [policy,mirrored] of policies){
     routes.set('/'+policy+'-native/index.html',
       {type:'text/html',body:html(entry,mirrored?library:null)});
     routes.set('/'+policy+'-native/lib.mjs',
