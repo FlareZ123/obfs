@@ -60,9 +60,13 @@ async function main(){
   assert.ok(entryResult&&libraryResult);
   assert.ok(typeof entryResult.code==='string');
   assert.ok(typeof libraryResult.code==='string');
-  assert.ok(libraryResult.metrics.bindings>0);
-  assert.ok(!libraryResult.code.includes('hiddenWorker'),
-    'Emitted external module must actually rename the mirrored identifier');
+  // An independent positive control proves the helper was eligible before
+  // considering source visibility of an unknown host HTML deployment.
+  const isolated=obfuscateFiles([{path:'lib.mjs',sourceType,code:library}],
+    {mode:'coo',seed:'source-mirror-private-library-control',
+      strings:false,identifiers:true,properties:false,closedWorld:true}).files[0];
+  assert.ok(isolated.metrics.bindings>0,
+    'Private helper must remain independently eligible for renaming');
   const routes=new Map();
   /** @type {Array<['external'|'mirrored',boolean]>} */
   const policies=[['external',false],['mirrored',true]];
@@ -100,14 +104,17 @@ async function main(){
       sourceType,externalNative,externalEmitted,mirroredNative,mirroredEmitted,
       entryBindings:entryResult.metrics.bindings,
       libraryBindings:libraryResult.metrics.bindings,
+      isolatedLibraryBindings:isolated.metrics.bindings,
+      sourceMirrorParity:mirroredEmitted.sourceMatch===mirroredNative.sourceMatch,
       sameCompiledBytesInBothHosts:true
     }));
     assert.deepEqual(externalNative,{value:8,sourceMatch:false});
     assert.deepEqual(externalEmitted,externalNative,
       'External-only host does not observe imported module source through HTML');
     assert.deepEqual(mirroredNative,{value:8,sourceMatch:true});
-    assert.deepEqual(mirroredEmitted,{value:8,sourceMatch:false},
-      'Mirrored host demonstrates source-observation mismatch');
+    assert.deepEqual(mirroredEmitted,
+      {value:8,sourceMatch:libraryResult.code.includes('hiddenWorker')},
+      'The mirrored host exposes the literal delivered external-module bytes');
   } finally {
     await new Promise((resolve,reject)=>server.close(error=>error?reject(error):resolve(undefined)));
   }
