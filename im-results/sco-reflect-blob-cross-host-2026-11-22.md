@@ -155,3 +155,32 @@ On the independent local runtime, Node `v22.16.0` on Linux and Chromium `144.0.0
 A shell-free manual reproduction needs Node 22, project dependencies including `puppeteer-core`, and Chrome/Chromium selected using the `CHROMIUM_BIN` environment variable or Puppeteer's normal `channel:'chrome'` discovery. The opt-in GitHub manual-validation focused workflow is the authoritative source-pinned reproducer and prints its own runtime metadata.
 
 The table is evidence that a compiler must preserve the origin of native function source and DOMException stacks before moving code between environments. It does not quantify resistance to static deobfuscation, online relaying, filesystem compromise or the project-wide 2.5× compute budget.
+
+## Native DataCloneError wording from structuredClone on noncloneable values
+
+A further cross-host error-observation difference arises from `structuredClone` on an uncloneable function. The selected private source can catch the resulting `DataCloneError` and return its `.message`, which is part of its original observable semantics. Both Node and Chromium throw, but their native message text is different.
+
+The opt-in native two-realm differential test was extended in `test/sco-host-native-source-browser.test.js`, with main test-source SHA `a35f41861213954e04bd1b860a305fcc2d664b89` [run 45079663555](https://github.com/FlareZ123/obfs/actions/runs/45079663555). Both Ubuntu and Windows passed Node v22.23.4 / real Chrome 157 and strict JSDoc. For exactly `structuredClone(()=>7)`, the observed text was:
+
+| Runtime | Full `DataCloneError.message` | UTF-16 string length |
+|---|---|---:|
+| Node v22.23.4 (Ubuntu/Windows) | `()=>7 could not be cloned.` | 26 |
+| Chrome 157 (Ubuntu/Windows) | `Failed to execute 'structuredClone' on 'Window': ()=>7 could not be cloned.` | 75 |
+
+The exact-output discrepancy is independently observable in a real browser and Node runner without any obfuscation.
+
+On frozen canonical SCO compiler `c8f3feff5d7f994e5ea5ba14690d188bf9bb2576`, `partitionScoSelectedAsyncExports` accepted this selected private source:
+
+```js
+export async function protectedOp(){
+  try { structuredClone(()=>7); return 'unexpected'; }
+  catch(error) { return error.message; }
+}
+export function visible(){return 7;}
+```
+
+The [frozen test-only red SHA `6b737879bef55e67b98f67821149899e99cf4569`](https://github.com/FlareZ123/obfs/commit/6b737879bef55e67b98f67821149899e99cf4569), [two-OS focused CI 45079615877](https://github.com/FlareZ123/obfs/actions/runs/45079615877), failed the expected conservative-refusal assertion while two native and selected-positive controls passed. It is therefore a compiler-admission counterexample against the intended same-observable-output relocation contract.
+
+The isolated [green patch `e9b26cb06cba1da038d375a5c7689e763e7a3c92`](https://github.com/FlareZ123/obfs/commit/e9b26cb06cba1da038d375a5c7689e763e7a3c92), [focused run 45079898286](https://github.com/FlareZ123/obfs/actions/runs/45079898286), passed **Ubuntu and Windows**, with strict project and external JSDoc. The diff is **45 added compile-time production lines**, no deletion, plus one **41-line** `test/sco-structured-clone-error-message.test.js`. A bounded `provedCloneLiteral` accepts only owned inert JSON-safe literals and literal-array/object trees, finite depth32, with a direct known `structuredClone` call using exactly one input. It refuses opaque/native method inputs, function values, first-class extraction and unproved arguments; selected primitive and literal-record cloning positives remain admitted. No additional runtime work is added to generated code.
+
+This guard establishes only a narrow **conservative admission envelope** under ordinary stable native intrinsics, and may reject legitimate safe program shapes. Browser/Node behavioral equivalence for unknown values, transfer lists, external callbacks, getters, proxies or custom objects is **not established**. The patch is [branch `agent8/sco-structured-clone-error-red-20261122`](https://github.com/FlareZ123/obfs/tree/agent8/sco-structured-clone-error-red-20261122) awaiting Agent 40 canonical incorporation. The [owner handoff](../communications/agent40/20261122T2252Z_agent8_structuredclone-native-error-red-green.md) requests a single integrated full exact-SHA validation instead of a competing PR. The overarching strong-protection candidate remains RELEASE-BLOCKED.
