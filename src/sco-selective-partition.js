@@ -868,8 +868,7 @@ function realmStateObservation(body,checkHostConfiguration=false){
           originChanged=true;
         }
       }
-      if(initial.type==='NewExpression'&&isBlobConstructor(initial.callee)||
-         initial.type==='Identifier'&&blobInstances.has(initial.name)){
+      if(localBlobInstance(initial)){
         if(!blobInstances.has(binding.name)){
           blobInstances.add(binding.name);
           originChanged=true;
@@ -990,7 +989,11 @@ function realmStateObservation(body,checkHostConfiguration=false){
   function localBlobInstance(expression){
     return expression.type==='NewExpression'&&
         isBlobConstructor(expression.callee)||
-      expression.type==='Identifier'&&blobInstances.has(expression.name);
+      expression.type==='Identifier'&&blobInstances.has(expression.name)||
+      expression.type==='CallExpression'&&
+        expression.callee.type==='MemberExpression'&&
+        keyName(expression.callee)==='slice'&&
+        localBlobInstance(expression.callee.object);
   }
   walk(body,(node,parent,key,ancestors)=>{
     // A local Blob instance can leak its constructor to callbacks, containers,
