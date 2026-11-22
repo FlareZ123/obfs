@@ -124,7 +124,8 @@ conservatively refused; independently constructed resolver functions,
 reflective import paths and ESM imports remain outside the audit. It
 also declines direct calls under an emitted
 `package.json` because prepublication Node resolution cannot see that
-future package scope. Even an identical resolved package can observe
+future package scope. Opaque or asset-marked JavaScript files are
+refused instead of silently excluded. Even an identical resolved package can observe
 `module.parent.filename` and return different values when relocated;
 see the [bounded experiment and negative control](im-results/sno-direct-bare-resolution-audit-2026-11-22.md).
 This optional check is a deployment diagnostic, not proof of arbitrary

@@ -623,7 +623,8 @@ specific resolution-path condition, not whole-program package parity.
 
 The audit declines direct require calls governed by a `package.json`
 that the compiler has not published yet, since Node cannot resolve a
-future package scope soundly before publication. It refuses known lexical `require` aliases and dynamic direct
+future package scope soundly before publication. Opaque or asset-marked
+`.js`/`.cjs` source files cannot be statically audited and are refused. It refuses known lexical `require` aliases and dynamic direct
 specifiers, while independently constructed require functions,
 reflective indirections and ESM
 imports, runtime loader hooks and dependencies modified after compile.

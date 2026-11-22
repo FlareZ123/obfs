@@ -45,8 +45,11 @@ function directBareRequires(files) {
   /** @type {Map<string,string[]>} */
   const entries=new Map();
   for(const file of files) {
-    if(!/\.(?:cjs|js)$/u.test(file.path)||file.sourceType==='module'||
-        file.sourceType==='asset'||typeof file.code!=='string')continue;
+    if(!/\.(?:cjs|js)$/iu.test(file.path)||file.sourceType==='module')continue;
+    if(file.sourceType==='asset'||typeof file.code!=='string') {
+      throw new TypeError(
+        'SNO bare dependency audit cannot inspect opaque JavaScript: '+file.path);
+    }
     const ast=parse(file.code,'commonjs');
     /** @type {string[]} */
     const refs=[];
