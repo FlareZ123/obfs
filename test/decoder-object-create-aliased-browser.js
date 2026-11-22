@@ -125,6 +125,22 @@ async function main() {
         'function build(){return {get:function(){return Number.prototype}};}'+
         'Object.assign(entry,build());const box=Object.create(null,descriptors);'+
         'box.ref.unrelated=1;'},
+    {name:'reflected Object.defineProperty descriptor entry String getter',safe:false,
+      mutation:'const descriptors={ref:{}};const entry=descriptors.ref;'+
+        'Object.defineProperty(entry,"get",{value:function(){return String.prototype}});'+
+        'const box=Object.create(null,descriptors);box.ref.charCodeAt=()=>0;'},
+    {name:'reflected Object.defineProperty descriptor entry Number getter',safe:true,
+      mutation:'const descriptors={ref:{}};const entry=descriptors.ref;'+
+        'Object.defineProperty(entry,"get",{value:function(){return Number.prototype}});'+
+        'const box=Object.create(null,descriptors);box.ref.unrelated=1;'},
+    {name:'reflected Reflect.set descriptor entry String getter',safe:false,
+      mutation:'const descriptors={ref:{}};const entry=descriptors.ref;'+
+        'Reflect.set(entry,"get",function(){return String.prototype});'+
+        'const box=Object.create(null,descriptors);box.ref.charCodeAt=()=>0;'},
+    {name:'reflected Reflect.set descriptor entry Number getter',safe:true,
+      mutation:'const descriptors={ref:{}};const entry=descriptors.ref;'+
+        'Reflect.set(entry,"get",function(){return Number.prototype});'+
+        'const box=Object.create(null,descriptors);box.ref.unrelated=1;'},
     {name:'prebound prototype with invocation-time descriptor map',safe:false,
       mutation:'const maker=Object.create.bind(null,null);'+
         'const box=maker({ref:{get(){return String.prototype}}});'+
