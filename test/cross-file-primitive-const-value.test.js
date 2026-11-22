@@ -86,6 +86,46 @@ test('default object export accepts preceding primitive constant value',async()=
     'const seedValue=17;export default {secretField:seedValue,otherField:5};',defaultEntry));
 });
 
+
+for(const [name,initializer] of /** @type {[string,string][]} */ ([
+  ['string with source escape','"private:\\u0000value"'],
+  ['boolean','true'],
+  ['null','null'],
+  ['template primitive','\`prefix3\`'],
+  ['logical primitive','0??7'],
+  ['undefined primitive','void 0']
+])) {
+  test('source-ordered constant primitive category: '+name,async()=>{
+    await expectRewritten(name,graph(
+      'const seedValue='+initializer+';'+
+      'export const state={secretField:seedValue,otherField:5};',namedEntry));
+  });
+}
+
+test('default owner accepts preceding string-template primitive',async()=>{
+  await expectRewritten('default template',graph(
+    'const seedValue=\`prefix20\`;'+
+    'export default {secretField:seedValue,otherField:5};',defaultEntry));
+});
+
+test('BigInt const alias remains unproved despite direct literal support',async()=>{
+  await expectRefused('BigInt alias',graph(
+    'const seedValue=1n;export const state={secretField:seedValue,otherField:5};',
+    'import {state} from "./state.mjs";console.log(String(state.secretField));'));
+});
+
+test('record-valued const alias remains unproved',async()=>{
+  await expectRefused('record value',graph(
+    'const seedValue={inner:17};export const state={secretField:seedValue,otherField:5};',
+    'import {state} from "./state.mjs";console.log(state.secretField.inner);'));
+});
+
+test('transitive const aliases without a direct primitive initializer remain unproved',async()=>{
+  await expectRefused('transitive alias',graph(
+    'const initial=17;const seedValue=initial;'+
+    'export const state={secretField:seedValue,otherField:5};',namedEntry));
+});
+
 test('later declaration cannot initialize an earlier exported owner',()=>{
   const files=graph('export const state={secretField:seedValue,otherField:5};const seedValue=17;',namedEntry);
   assert.equal(compile(files).crossFile.properties,0);
