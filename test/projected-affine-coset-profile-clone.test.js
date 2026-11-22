@@ -148,6 +148,64 @@ test('exhaustive small-width truth tables and affine references',()=>{
   process.stdout.write('PROFILE_CLONE_EXHAUSTIVE '+JSON.stringify({cases,outputs})+'\n');
 });
 
+
+test('arbitrary hidden rank seven and eight tables also clone offline',()=>{
+  let cases=0,heldouts=0,maxQueries=0;
+  for(const rank of [7,8]){
+    for(let trial=0;trial<6;trial++){
+      const native=secretOracle(32,rank,
+        seeded((0xd081a000^rank*103+trial*8191)>>>0),
+        trial%2===0,trial%3===0);
+      let online=true,calls=0;
+      const oracle=/** @type {(input:number)=>number} */ (x=>{
+        if(!online)throw Error('Source oracle is closed');
+        calls++;
+        return native(x);
+      });
+      const model=learnProjectedAffineOracle(oracle,32,rank,
+        seeded((0xac061000^rank*1013+trial*1997)>>>0));
+      online=false;
+      assert.equal(calls,model.queries);
+      assert.ok(calls<=(rank===7?295021:598506));
+      assert.ok(model.failureBound<1e-10);
+      const offline=/** @type {typeof model} */ (
+        JSON.parse(JSON.stringify(model))
+      );
+      const generate=seeded((0x117d3000^rank*197+trial*1237)>>>0);
+      for(let i=0;i<1024;i++){
+        const input=generate();
+        assert.equal(evaluateProjectedAffineModel(offline,input),native(input));
+        heldouts++;
+      }
+      maxQueries=Math.max(maxQueries,calls);
+      cases++;
+    }
+  }
+  assert.equal(cases,12);
+  assert.equal(heldouts,12288);
+  process.stdout.write('PROFILE_CLONE_RANK7_8 '+JSON.stringify({
+    cases,heldouts,maxQueries,oracleClosedAfterTraining:true
+  })+'\n');
+});
+
+test('rank-seven promise violations can be detected by exhaustive independent oracle witnesses',()=>{
+  // This deterministic coverage test intentionally makes no i.i.d confidence
+  // claim. The actual source contains a degree-eight monomial on eight inputs:
+  // every rank-seven candidate has degree<=7 and must differ somewhere.
+  let drawCount=0;
+  const random=seeded(0x54e2a008);
+  const sample=()=>{
+    const i=drawCount++;
+    return i<4096?i%256:random();
+  };
+  const outOfFamily=/** @type {(input:number)=>number} */ (
+    x=>((x&255)===255?0x9764c301:0)
+  );
+  assert.throws(()=>
+    learnProjectedAffineOracle(outOfFamily,8,7,sample),
+    /No verified rank-bounded projected affine model/u);
+});
+
 test('rank family and failure-risk parameter validation',()=>{
   assert.throws(()=>learnProjectedAffineOracle(()=>0,0,1),RangeError);
   assert.throws(()=>learnProjectedAffineOracle(()=>0,32,9),RangeError);
