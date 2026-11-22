@@ -1,4 +1,4 @@
-# Node util.toUSVString callable source coercion (22 November 2026)
+# Node util native callable-source coercion: toUSVString and MIMEType (22 November 2026)
 
 **Status:** Source-pinned two-platform RED/GREEN clean-runtime compatibility finding. The separate full integration result is pending. **Mode scope:** COO, SCO, SNO native Node 22 JavaScript.
 
@@ -17,9 +17,21 @@ In unprotected source, `function nativeUsvSourceFunction(){return 'UNTRANSFORMED
 
 The positive test shows ordinary `util.toUSVString('plain-value')` remains transform-eligible and that safe literal encryption still produces nonzero compiler metrics.
 
+## Additional native MIMEType caught-error observer
+
+The Node `util.MIMEType` constructor documents string coercion of its argument, and the invalid-MIME TypeError contains the coerced input's text. When passed a function, the caught error message includes the full original callable source. Rewriting a string literal inside that function changes a normal, caught exception message even if the program never explicitly requests `Function.prototype.toString`.
+
+- **MIME TypeError RED:** [45060263606](https://github.com/FlareZ123/obfs/actions/runs/45060263606) at `b6300761b5fd3c1f2f70af1557bc2f658696187d` on Node 22 Ubuntu/Windows. Direct/aliased, computed/destructured, ESM named and `Reflect.construct` calls transformed a `PRIVATE_MIME_SOURCE_MARKER_20261122` function body into a decoder-table lookup in the emitted TypeError message.
+- **MIME TypeError GREEN:** [45060559615](https://github.com/FlareZ123/obfs/actions/runs/45060559615) at `9df7892f737d7f1837eda13e75528207ccb0d57d`, Node 22 Ubuntu/Windows and both strict JSDoc suites.
+- **Expanded MIME coercer GREEN:** [45060683743](https://github.com/FlareZ123/obfs/actions/runs/45060683743) at `e8c61aec8ba3e2d4fe3c3ff30d3499db2af513af`, adding bound constructor, defaulted destructuring, unknown computed destructuring and aliased `Reflect.construct`. Primitive valid MIME inputs remain rewrite-eligible with positive `literals>0` metrics.
+
+The branch extends the same `nodeUtilMethod` native-module method and constructor alias analysis for `MIMEType`, including the preexisting `constructObservesSource` helper for reflective construction. This is a clean-runtime observable diagnostic parity fix, with no claim that caught errors are secrecy protection.
+
+Official Node 22 documentation: https://nodejs.org/download/release/latest-jod/docs/api/util.html#new-mimetypeinput .
+
 ## Conservative fix
 
-The branch `agent2-node-util-usv-source-parity-20261122` extends the existing `nodeUtilMethod` provenance inference in `src/ast.js`. It recognizes `toUSVString` on the exact `node:util`/`util` builtin, including named ESM exports, namespace/default ESM imports and direct CommonJS imports; follows known method aliases; and conservatively treats unknown computed selectors on the native namespace as potentially calling the source-coercing method. It checks unproved function-valued input positions across direct, bound, `call`/`apply` and `Reflect.apply` forms. Object destructuring accepts default-initializer aliases.
+The branch `agent2-node-util-usv-source-parity-20261122` extends the existing `nodeUtilMethod` provenance inference in `src/ast.js`. It recognizes `toUSVString` and the `MIMEType` constructor on the exact `node:util`/`util` builtin, including named ESM exports, namespace/default ESM imports and direct CommonJS imports; follows known method aliases; and conservatively treats unknown computed selectors on the native namespace as potentially selecting either source-coercing method or constructor. It checks unproved function-valued input positions across direct, bound, `call`/`apply`, `Reflect.apply`, native construction and `Reflect.construct`. Object destructuring accepts default-initializer aliases.
 
 ## Boundaries
 
