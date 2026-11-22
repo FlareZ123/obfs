@@ -144,20 +144,35 @@ function firstUnprovedFreeReference(root,moduleBindings,rootFormals,realmGlobals
     const vars=new Set();
     const body=['FunctionDeclaration','FunctionExpression','ArrowFunctionExpression']
       .includes(scope.type)?scope.body:scope;
-    walk(body,(node,_parent,_key,ancestors)=>{
-      if(node.type!=='VariableDeclaration'||node.kind!=='var')return;
-      if(ancestors.some(ancestor=>ancestor!==body&&
-        ['FunctionDeclaration','FunctionExpression','ArrowFunctionExpression',
-          'StaticBlock'].includes(ancestor.type)))return;
-      // Every binding pattern contributes a var binding, even though computed
-      // keys and assignment defaults still carry ordinary reference reads.
-      for(const declaration of node.declarations){
-        /** @type {Set<AstNode>} */
-        const boundNodes=new Set();
-        collectPatternNodes(declaration.id,boundNodes);
-        for(const part of boundNodes)vars.add(part.name);
+    // Stop at nested function/static-block environments before visiting their
+    // descendants. A full subtree walk per function has quadratic work on
+    // nested-function ladders despite ignoring their var declarations.
+    /** @type {AstNode[]} */
+    const todo=[body];
+    while(todo.length){
+      const node=todo.pop();
+      if(!node)continue;
+      if(node!==body&&['FunctionDeclaration','FunctionExpression',
+        'ArrowFunctionExpression','StaticBlock'].includes(node.type))continue;
+      if(node.type==='VariableDeclaration'&&node.kind==='var'){
+        for(const declaration of node.declarations){
+          /** @type {Set<AstNode>} */
+          const boundNodes=new Set();
+          collectPatternNodes(declaration.id,boundNodes);
+          for(const part of boundNodes)vars.add(part.name);
+        }
       }
-    });
+      for(const [key,child] of Object.entries(node)){
+        if(key==='parent'||key==='comments')continue;
+        if(Array.isArray(child)){
+          for(const item of child){
+            if(item&&typeof item==='object'&&typeof item.type==='string')todo.push(item);
+          }
+        }else if(child&&typeof child==='object'&&typeof child.type==='string'){
+          todo.push(child);
+        }
+      }
+    }
     hoistedVars.set(scope,vars);
     return vars;
   }
