@@ -37,6 +37,10 @@ jobs:
         run: node sims/sandwich-cegar-defect-sweep.js
       - name: Stress two-sided inverter on higher-degree and forced-exception families
         run: node sims/sandwich-cegar-hard-family-stress.js
+      - name: Source-agnostic target inversion portfolio on unseen structured families
+        run: node sims/sandwich-oracle-inversion-portfolio.js
+      - name: Portfolio oracle-only regression controls
+        run: node --test test/sandwich-oracle-inversion-portfolio.test.js
       - name: Strict JSDoc check for target-inversion experiments
         run: npx --no-install tsc -p jsconfig.sandwich-cegar-ablation.json
       - name: Prove bounded SCO algorithm cloning through authorized oracle
