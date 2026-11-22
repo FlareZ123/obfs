@@ -4,6 +4,7 @@ const fs=require('node:fs/promises');
 const path=require('node:path');
 const {createRequire,isBuiltin}=require('node:module');
 const {parse,walk}=require('./ast');
+const {collectBindings}=require('./properties');
 
 /** @typedef {import('./core').SourceFile} SourceFile */
 
@@ -49,15 +50,8 @@ function directBareRequires(files) {
     const ast=parse(file.code,'commonjs');
     /** @type {Set<string>} */
     const refs=new Set();
-    let shadow=false;
-    walk(ast,(node,parent,key)=>{
-      if(node.type==='Identifier'&&node.name==='require' &&
-         parent && (parent.type==='VariableDeclarator'&&key==='id'||
-           parent.type==='FunctionDeclaration'&&key==='id'||
-           parent.type==='FunctionExpression'&&key==='id'||
-           parent.type==='ImportSpecifier' ||
-           parent.type==='Property'&&parent.shorthand&&key==='value'&&
-              parent.value===node))shadow=true;
+    const shadow=collectBindings(ast).has('require');
+    walk(ast,node=>{
       if(node.type!=='CallExpression'||node.callee?.type!=='Identifier'||
           node.callee.name!=='require')return;
       if(node.arguments?.length!==1 ||
