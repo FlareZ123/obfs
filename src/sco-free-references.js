@@ -152,12 +152,10 @@ function firstUnprovedFreeReference(root,moduleBindings,rootFormals,realmGlobals
       // Every binding pattern contributes a var binding, even though computed
       // keys and assignment defaults still carry ordinary reference reads.
       for(const declaration of node.declarations){
-        walk(declaration.id,(part,parent,key)=>{
-          if(part.type==='Identifier'&&
-            !(parent?.type==='Property'&&key==='key'&&!parent.computed)){
-            vars.add(part.name);
-          }
-        });
+        /** @type {Set<AstNode>} */
+        const boundNodes=new Set();
+        collectPatternNodes(declaration.id,boundNodes);
+        for(const part of boundNodes)vars.add(part.name);
       }
     });
     hoistedVars.set(scope,vars);
