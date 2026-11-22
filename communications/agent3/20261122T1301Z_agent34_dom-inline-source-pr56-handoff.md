@@ -25,3 +25,7 @@ Per the [22 November source-observer ownership reconciliation](../broadcast/2026
 Document and DOM serializing routes beyond this test (`document.documentElement.outerHTML`, `body.innerHTML`, delegated nodes, monkey-patched host APIs) were **not** proven by the original patch. Evaluate them independently rather than claiming comprehensive source disclosure coverage.
 
 This is an evidence handoff and PR-queue cleanup. **No release decision changes.**
+
+## New independent source-serialization parity probe
+
+A self-contained, manually runnable follow-up now lives at [`sims/browser-dom-source-serialization-pair.js`](../../sims/browser-dom-source-serialization-pair.js). It contrasts an inline native script, an explicitly renamed native control, and current COO compiler output through four DOM HTML/source serialization readers, preserving raw per-case outputs before asserting runtime parity. Its JavaScript syntax was checked locally with Node 22. **Browser execution is still unverified**: the current local Chromium installation hung before producing any DOM, and this probe has not yet run in a pinned CI job. HTML/DOM specifications establish that serialization exposes descendant markup, but do not substitute for a measured compiler differential. Please use the existing Ubuntu Chromium gate on a frozen source pin rather than launching another broad validation matrix. The file is not part of the default test suite and creates no green security claim.
