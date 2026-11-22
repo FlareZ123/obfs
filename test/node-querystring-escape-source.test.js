@@ -32,7 +32,15 @@ const cases=[
   ['direct unescape function coercion',
     "module.exports=require('node:querystring').unescape(visibleQueryStringFunction);"],
   ['destructured unescape function coercion',
-    "const {unescape:dec}=require('node:querystring');module.exports=dec(visibleQueryStringFunction);"]
+    "const {unescape:dec}=require('node:querystring');module.exports=dec(visibleQueryStringFunction);"],
+  ['computed native member',
+    "const ns=require('node:querystring');const method='escape';module.exports=ns[method](visibleQueryStringFunction);"],
+  ['computed destructure from native namespace',
+    "const ns=require('node:querystring');const method='unescape';const {[method]:dec}=ns;module.exports=dec(visibleQueryStringFunction);"],
+  ['bound native callable captures function',
+    "const ns=require('node:querystring');const enc=ns.escape.bind(null,visibleQueryStringFunction);module.exports=enc();"],
+  ['Reflect.apply on native method',
+    "const ns=require('node:querystring');module.exports=Reflect.apply(ns.escape,null,[visibleQueryStringFunction]);"]
 ];
 
 for(const mode of /** @type {const} */(['sno','coo','sco'])) {
@@ -85,7 +93,9 @@ const esmCases=[
   ['namespace import',
     "import * as ns from 'node:querystring';export const result=ns.escape(visibleQueryStringFunction);"],
   ['default import',
-    "import ns from 'node:querystring';export const result=ns.unescape(visibleQueryStringFunction);"]
+    "import ns from 'node:querystring';export const result=ns.unescape(visibleQueryStringFunction);"],
+  ['computed imported native member',
+    "import * as ns from 'node:querystring';const method='escape';export const result=ns[method](visibleQueryStringFunction);"]
 ];
 
 for(const mode of /** @type {const} */(['sno','coo','sco'])) {
