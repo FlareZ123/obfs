@@ -981,7 +981,7 @@ function realmStateObservation(body,checkHostConfiguration=false){
     if(argument?.type!=='Literal'||typeof argument.value!=='string')return false;
     if(api==='atob')return /^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/u
       .test(argument.value);
-    if(api==='btoa')return !/[\\u0100-\\uFFFF]/u.test(argument.value);
+    if(api==='btoa')return !/[\u0100-\uFFFF]/u.test(argument.value);
     return false;
   }
   let stackTouched=false;
