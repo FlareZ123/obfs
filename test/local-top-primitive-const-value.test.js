@@ -90,6 +90,18 @@ check('owner key reflection',
 check('private object escapes through public module export',
   'const seedValue=17;const privateOwner={secretField:seedValue,otherField:5};'+
   'module.exports=privateOwner;',false);
+check('local reader in a function body deliberately keeps original keys',
+  'const seedValue=17;const privateOwner={secretField:seedValue,otherField:5};'+
+  'function reader(){return privateOwner.secretField;}module.exports=reader();',false);
+check('function-body destructuring conservatively keeps public source spelling',
+  'const seedValue=17;const privateOwner={secretField:seedValue,otherField:5};'+
+  'function reader(){const {secretField}=privateOwner;return secretField;}'+
+  'module.exports=reader();',false);
+check('function-body own membership conservatively keeps original field',
+  'const seedValue=17;const privateOwner={secretField:seedValue,otherField:5};'+
+  'function reader(){return "secretField" in privateOwner;}'+
+  'module.exports=reader();',false);
+
 check('exported function source text remains observable',
   'const seedValue=17;const privateOwner={secretField:seedValue,otherField:5};'+
   'module.exports=function publicReader(){return privateOwner.secretField;};',false);
