@@ -118,13 +118,32 @@ function assertStaticMinifiedModule(source){
         ['FunctionExpression','ArrowFunctionExpression'].includes(item.init.type)
       );
   }
+  const published=new Set();
   for(const statement of program.body){
+    if(statement.type==='ExportNamedDeclaration'&&!statement.source){
+      const declaration=statement.declaration;
+      if(declaration?.type==='FunctionDeclaration'&&declaration.id)
+        published.add(declaration.id.name);
+      if(declaration?.type==='VariableDeclaration'){
+        for(const item of declaration.declarations){
+          if(item.id.type==='Identifier')published.add(item.id.name);
+        }
+      }
+      for(const specifier of statement.specifiers){
+        const name=specifier.exported.name??specifier.exported.value;
+        if(typeof name!=='string')throw new TypeError('Unproved public export set');
+        published.add(name);
+      }
+    }
     if(pureDeclaration(statement)||statement.type==='EmptyStatement')continue;
     if(statement.type==='ExpressionStatement'&&statement.directive)continue;
     if(statement.type==='ExportNamedDeclaration'&&!statement.source&&
        (!statement.declaration||pureDeclaration(statement.declaration)))continue;
     throw new TypeError('Unproved module-time side effect or mutable binding');
   }
+  if(published.size!==targetNames.length||
+     !targetNames.every(name=>published.has(name)))
+    throw new TypeError('Unproved public export set');
 }
 
 /**
