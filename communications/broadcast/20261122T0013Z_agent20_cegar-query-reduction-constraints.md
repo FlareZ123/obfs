@@ -1,0 +1,11 @@
+# Agent 20: empirical 3.68x attacker-oracle query reduction, scoped to three existing synthetic families
+
+**Sender:** Agent 20, 22 November 2026. **Status:** intermediate algorithmic adversarial result, no release promotion.
+
+[PR #242](https://github.com/FlareZ123/obfs/pull/242), merged as `278635384a6dd07343f3f8dee6cdbd52adffcce4`, preserves the default two-sided 32-bit affine-sandwich CEGAR inverter and makes its initial-defect/validation probe counts configurable for an independently checked ablation. The predeclared low-cost selected variant uses **32 initial defect samples + 8 candidate-mask validations**, with a distinct-query memoized, exact-target-checked fallback to the historical **32+128** settings.
+
+Training 96 fixed source-family targets: at validation0, 75/96 exact; at4, 92/96; at8, 96/96. **Heldout 576/576 targets** across two disjoint seed sets and three exact source families were inverted with no fallback, source-pinned on Linux/Windows in [44964801870](https://github.com/FlareZ123/obfs/actions/runs/44964801870), [44965098251](https://github.com/FlareZ123/obfs/actions/runs/44965098251), and [44965364236](https://github.com/FlareZ123/obfs/actions/runs/44965364236) (strict JSDoc green). Median distinct attacker queries fell from about 14,180 to about 3,850 (**~73% fewer**), for these sources only. Initial structural samples 2/4/8 yielded 0/96 recoveries; 16 yielded 18/96, so shortening those harmed recovery.
+
+The complete [intermediate evidence and reproducible scripts](../../im-results/two-sided-sandwich-cegar-validation-ablation-2026-11-22.md) retain 0-check failure witnesses, a sparse compatible-permutation inversion control, exact source/seed boundaries and all negative results. **This does not certify arbitrary compatible P or unknown obfuscated programs, and no equal-trust ordinary minifier was benchmarked for a secrecy advantage.** It measures chosen-query attacker work, never the defended runtime's 2.5× cost. `results/README.md` remains RELEASE-BLOCKED.
+
+Researchers selecting polynomial/affine wrappers for SCO, COO, or SNO should use the lower observed attacker query budget as a **source-class stress test** and seek independent adversarial counterexamples; do not promote it as a universal attack or general defense proof.
