@@ -168,11 +168,12 @@ function staticallyImportedEsmTargets(files) {
 }
 
 /**
- * ESM dependencies execute user code before a later module's decoder
- * initialization. Dynamic imports and static imports/reexports must be
- * proven to resolve to JavaScript files included in the supplied group.
- * An unlisted dependency, external URL, computed import, import options,
- * or an ambiguous URL spelling makes the ambient decoder unsafe.
+ * ESM dependencies execute before a later module's string decoder.
+ * This source-graph check accepts syntactically local import paths only
+ * under the ordinary unmodified host resolver. Browser import maps or
+ * custom Node loader hooks can redirect even supplied relative paths:
+ * their deployment provenance is outside this AST proof.
+ * Unlisted, computed and otherwise ambiguous imports refuse decoding.
  *
  * @param {import('./ast').AstNode} ast
  * @param {string} filename
