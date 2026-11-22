@@ -33,7 +33,7 @@ const cjsCases=[
   ['MIMEType subtype setter diagnostic',
     "const {MIMEType}=require('node:util');const mime=new MIMEType('text/plain');try{mime.subtype=nativeMimeParamsVisibleFunction;}catch(error){module.exports=error.message;}"],
   ['MIMEParams.set native method call',
-    "const {MIMEParams}=require('node:util');const mime=new MIMEParams();mime.set.call(mime,'label',nativeMimeParamsVisibleFunction);module.exports=mime.params.get('label');"],
+    "const {MIMEParams}=require('node:util');const mime=new MIMEParams();mime.set.call(mime,'label',nativeMimeParamsVisibleFunction);module.exports=mime.get('label');"],
   ['MIMEParams constructor alias',
     "const util=require('node:util');const ns=util;const {MIMEParams:Params}=ns;const p=new Params();p.set('label',nativeMimeParamsVisibleFunction);module.exports=p.get('label');"]
 ];
