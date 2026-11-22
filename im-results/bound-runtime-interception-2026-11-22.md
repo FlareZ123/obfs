@@ -147,6 +147,10 @@ Both platform logs reported:
 `{"originalBytes":200,"minifiedBytes":113,"protectedBytes":216,"attackerInterceptionMethod":"Function.prototype.bind","capturedTargetsPerBuild":1}`.
 The test was promoted unchanged to main in `6af9bdd06a4b3f25d7f3489ff6e098ce550d7f7e`
 and enrolled in strict external JSDoc by `3b93c0ec697205e9cbf2bed6dfa2bc7b4adef3c3`.
+The main source-pin [45000680653](https://github.com/FlareZ123/obfs/actions/runs/45000680653)
+at that exact `3b93c0ec697205e9cbf2bed6dfa2bc7b4adef3c3`
+also completed **green on Ubuntu and Windows**, with the real matched
+minifier attack test, project JSDoc, and strict external JSDoc all passing.
 
 ## Limits and implications
 
