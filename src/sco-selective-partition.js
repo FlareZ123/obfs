@@ -77,8 +77,8 @@ function usesUnprovedCrossRealmHostApi(body){
     'BroadcastChannel','MessageChannel',
     'setTimeout','clearTimeout','setInterval','clearInterval',
     'setImmediate','clearImmediate','queueMicrotask',
-    'requestAnimationFrame','cancelAnimationFrame',
-    'requestIdleCallback','cancelIdleCallback',
+    // Browser-only frame/idle APIs are handled by browserOnlyRoots below,
+    // preserving their established browser-ambient diagnostic.
     'postMessage','addEventListener','removeEventListener','dispatchEvent',
     'alert','confirm','prompt'
   ]);
