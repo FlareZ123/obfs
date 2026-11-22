@@ -212,7 +212,8 @@
     "sims/a2mba-hybrid-opcode-heldout.js",
     "test/a2mba-hybrid-opcode-heldout.test.js",
     "test/html-sri-foreign-base-browser.js",
-    "test/dynamic-script-sri-browser.js"
+    "test/dynamic-script-sri-browser.js",
+    "test/document-write-sri-browser.js"
   ],
   "exclude": [
     "node_modules"
