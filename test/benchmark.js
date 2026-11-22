@@ -43,43 +43,50 @@ function bench(label,code,minProperties=0) {
 }
 
 bench('numeric arithmetic',`function run(n){let x=0;for(let i=0;i<n;i++)x+=(i*7)%13;return x;}module.exports=run;`);
-bench('hot object property',`const state={counter:0};function run(n){for(let i=0;i<n;i++){state.counter++;}return state.counter;}module.exports=run;`,1);
-bench('hot string comparison',`const state={label:'label-long-constant'};function run(n){let x=0;for(let i=0;i<n;i++){if(state.label==='label-long-constant')x++;}return x;}module.exports=run;`,1);
+// Exported run() source is public; keep private property operations in a direct-call-only helper.
+bench('hot object property',`const state={counter:0};function increment(){state.counter++;return state.counter;}function run(n){let value=0;for(let i=0;i<n;i++)value=increment();return value;}module.exports=run;`,1);
+bench('hot string comparison',`const state={label:'label-long-constant'};function matches(){return state.label==='label-long-constant';}function run(n){let x=0;for(let i=0;i<n;i++){if(matches())x++;}return x;}module.exports=run;`,1);
 bench('interprocedural local reader',`const state={secretField:7,otherField:5};
 const read=value=>value.secretField;
-function run(n){let x=0;for(let i=0;i<n;i++)x+=read(state)+state.otherField;return x;}
+const readOther=()=>state.otherField;
+function run(n){let x=0;for(let i=0;i<n;i++)x+=read(state)+readOther();return x;}
 module.exports=run;`,2);
 bench('forwarded object-pattern read',`const state={secretField:7,otherField:5};
 const identity=value=>value;
-function run(n){let sum=0;for(let i=0;i<n;i++){
-  const {secretField:read}=identity(state);sum+=read;
-}return sum;}
+function readState(){const {secretField:read}=identity(state);return read+state.otherField;}
+function run(n){let sum=0;for(let i=0;i<n;i++)sum+=readState();return sum;}
 module.exports=run;`,2);
 
 bench('forwarded immediate member read',`const state={secretField:7};const identity=value=>value;
-function run(n){let sum=0;for(let i=0;i<n;i++)sum+=identity(state).secretField;return sum;}
+function readState(){return identity(state).secretField;}
+function run(n){let sum=0;for(let i=0;i<n;i++)sum+=readState();return sum;}
 module.exports=run;`,1);
 
 bench('single-use function factory',`function make(){return {secretField:7,otherField:5};}
 const state=make();
-function run(n){let sum=0;for(let i=0;i<n;i++)sum+=state.secretField+state.otherField;return sum;}
+function readState(){return state.secretField+state.otherField;}
+function run(n){let sum=0;for(let i=0;i<n;i++)sum+=readState();return sum;}
 module.exports=run;`,2);
 bench('single-use arrow factory',`const make=()=>({secretField:7,otherField:5});
 const state=make();
-function run(n){let sum=0;for(let i=0;i<n;i++)sum+=state.secretField+state.otherField;return sum;}
+function readState(){return state.secretField+state.otherField;}
+function run(n){let sum=0;for(let i=0;i<n;i++)sum+=readState();return sum;}
 module.exports=run;`,2);
 
 bench('single-slot private-array owner access',`const state={secretField:7,otherField:5};
 const holder=[state];const alias=holder[0];
-function run(n){let sum=0;for(let i=0;i<n;i++)sum+=alias.secretField+state.otherField;return sum;}
+function readState(){return alias.secretField+state.otherField;}
+function run(n){let sum=0;for(let i=0;i<n;i++)sum+=readState();return sum;}
 module.exports=run;`,2);
 
 bench('fixed-slot private-tuple owner access',`const state={secretField:7,otherField:5};
 const holder=[false,"private-metadata",state,0];const alias=holder[2];
-function run(n){let sum=0;for(let i=0;i<n;i++)sum+=alias.secretField+state.otherField;return sum;}
+function readState(){return alias.secretField+state.otherField;}
+function run(n){let sum=0;for(let i=0;i<n;i++)sum+=readState();return sum;}
 module.exports=run;`,2);
 
 bench('fixed-field private-record owner access',`const state={secretField:7,otherField:5};
 const holder={tag:"private-metadata",owned:state,nonce:0};const alias=holder.owned;
-function run(n){let sum=0;for(let i=0;i<n;i++)sum+=alias.secretField+state.otherField;return sum;}
+function readState(){return alias.secretField+state.otherField;}
+function run(n){let sum=0;for(let i=0;i<n;i++)sum+=readState();return sum;}
 module.exports=run;`,2);
