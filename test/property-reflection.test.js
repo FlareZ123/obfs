@@ -66,3 +66,25 @@ test('an initial own literal key shadows a same-named inherited getter',()=>{
     get(){return 91}});const a={secretField:8};
     module.exports=a.secretField;`,1);
 });
+
+test('Object.hasOwn observes original own-key spelling',()=>{
+  compare(`'use strict';const a={secretField:11};
+    module.exports=[Object.hasOwn(a,"secretField"),a.secretField];`,0);
+});
+
+test('Object.getOwnPropertyDescriptors exposes own-key spelling',()=>{
+  compare(`'use strict';const a={secretField:12};
+    const descriptors=Object.getOwnPropertyDescriptors(a);
+    module.exports=[Object.keys(descriptors),descriptors.secretField.value];`,0);
+});
+
+test('Reflect.getOwnPropertyDescriptor observes static original key',()=>{
+  compare(`'use strict';const a={secretField:13};
+    const descriptor=Reflect.getOwnPropertyDescriptor(a,"secretField");
+    module.exports=descriptor&&descriptor.value;`,0);
+});
+
+test('Reflect.ownKeys exposes own-key spelling',()=>{
+  compare(`'use strict';const a={secretField:14};
+    module.exports=[Reflect.ownKeys(a),a.secretField];`,0);
+});
