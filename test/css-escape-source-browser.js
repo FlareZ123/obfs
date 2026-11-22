@@ -53,6 +53,15 @@ async function main() {
   const scenarios=[
     {name:'function-source',denied:true,
       code:common+'globalThis.__cssResult={observed:CSS.escape(inspect),value:inspect()};'},
+    {name:'detached-function-source',denied:true,
+      code:common+'const sourceEscape=CSS.escape;'+
+        'globalThis.__cssResult={observed:sourceEscape(inspect),value:inspect()};'},
+    {name:'destructured-function-source',denied:true,
+      code:common+'const {escape:sourceEscape}=CSS;'+
+        'globalThis.__cssResult={observed:sourceEscape(inspect),value:inspect()};'},
+    {name:'bound-function-source',denied:true,
+      code:common+'const sourceEscape=CSS.escape.bind(CSS);'+
+        'globalThis.__cssResult={observed:sourceEscape(inspect),value:inspect()};'},
     {name:'literal-positive',denied:false,
       code:'const state={secretField:13};'+
         'globalThis.__cssResult={observed:CSS.escape("literal"),value:state.secretField};'}
