@@ -98,3 +98,36 @@ test('directory lock serializes two-file publication by another Node process',as
     assert.deepEqual(await fs.readdir(parent),['output']);
   });
 });
+
+
+test('filesystem aliases share a directory lock, including a missing child',async t=>{
+  await withTemporaryDirectory(async parent=>{
+    const actual=path.join(parent,'real');
+    const alias=path.join(parent,'alias');
+    await fs.mkdir(actual);
+    try { await fs.symlink(actual,alias,process.platform==='win32'?'junction':'dir'); }
+    catch(error) {
+      if(process.platform==='win32'&&['EPERM','EACCES'].includes(/** @type {NodeJS.ErrnoException} */(error).code||'')) {
+        t.skip('junction creation unavailable');
+        return;
+      }
+      throw error;
+    }
+    /** @param {string} pathAlias @param {string} canonical */
+    async function expectBlocked(pathAlias,canonical) {
+      const held=await fs.open(canonical+'.obfs.lock','wx',0o600);
+      try {
+        let callbackRan=false;
+        await assert.rejects(withDirectoryLock(pathAlias,async()=>{callbackRan=true;},{timeoutMs:80}),
+          /** @param {unknown} error */ error=>
+            Boolean(error&&typeof error==='object'&&'code' in error&&error.code==='EEXIST'));
+        assert.equal(callbackRan,false,'Alias must not bypass an existing publisher lock');
+      } finally {
+        await held.close();
+        await fs.rm(canonical+'.obfs.lock',{force:true});
+      }
+    }
+    await expectBlocked(alias,actual);
+    await expectBlocked(path.join(alias,'new-child'),path.join(actual,'new-child'));
+  });
+});
