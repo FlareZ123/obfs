@@ -49,9 +49,12 @@ async function main(){
     mode:'coo',closedWorld:true,seed:'hostile-browser-bind-interception',
     properties:true,identifiers:true,strings:false
   });
-  assert.equal(emitted.files[0].metrics.properties,2);
+  // A hostile browser can intercept bind() before the module initializes.
+  // The target function source is therefore observable and its fields must
+  // retain their original spellings, even though bound hot() looks generic.
+  assert.equal(emitted.files[0].metrics.properties,0);
   const protectedCode=/** @type {string} */ (emitted.files[0].code);
-  assert.doesNotMatch(protectedCode,/secretField|otherField/u);
+  assert.match(protectedCode,/secretField|otherField/u);
   const variants=new Map([
     ['/native/entry.mjs',source],
     ['/protected/entry.mjs',protectedCode],
@@ -99,12 +102,13 @@ async function main(){
       'the public bound function reports the same generic source');
     assert.ok(native.sources.some(text=>text.includes('owner.secretField')),
       'the browser must intercept the native private target');
-    assert.ok(protectedResult.sources.some(text=>/owner\._p[0-9a-f]{10}/u.test(text)),
-      'the hostile browser must capture the rewritten private target source');
-    assert.ok(!protectedResult.sources.some(text=>text.includes('secretField')));
+    assert.ok(protectedResult.sources.some(text=>text.includes('owner.secretField')),
+      'a pre-instrumented host can still observe the unchanged original private-target source');
+    assert.ok(!protectedResult.sources.some(text=>/owner\._p[0-9a-f]{10}/u.test(text)),
+      'a sound source-observation proof must refuse protected key mutation');
     const result={
       browser:'Chromium',
-      protectedKeys:emitted.files[0].metrics.properties,
+      refusedKeyMutations:2-emitted.files[0].metrics.properties,
       capturedFunctions:protectedResult.sources.length
     };
     console.log('BOUND_RUNTIME_BROWSER_INTERCEPTION '+JSON.stringify(result));
