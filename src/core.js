@@ -1909,6 +1909,13 @@ function mutatesDecoderIntrinsic(ast,rejectCommonJsExportEscape=false,rejectEsmE
     return aliases;
   }
 
+  /**
+   * Determine whether a source-visible descriptor/container value can expose
+   * a decoder-sensitive accessor, including aliases and argument wrappers.
+   * @param {import('./ast').AstNode} expression
+   * @param {Set<string>} [visited]
+   * @returns {boolean}
+   */
   function objectCreateMayExposeDecoder(expression,visited=new Set()){
     if(expression.type==='Identifier'){
       if(visited.has(expression.name))return false;
