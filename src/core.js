@@ -2025,6 +2025,7 @@ function mutatesDecoderIntrinsic(ast,rejectCommonJsExportEscape=false,rejectEsmE
    * @returns {boolean}
    */
   function objectCreateMayExposeDecoder(expression,visited=new Set()){
+    if(isDecoderGetterMap(expression)||isDecoderGetterMapFactory(expression))return true;
     if(expression.type==='Identifier'){
       if(visited.has(expression.name))return false;
       visited.add(expression.name);
