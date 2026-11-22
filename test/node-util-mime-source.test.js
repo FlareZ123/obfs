@@ -26,7 +26,11 @@ const cjsCases=[
   ['namespace alias', "const util=require('node:util');const ns=util;try{new ns.MIMEType(nativeMimeVisibleFunction);}catch(error){module.exports=error.message;}"],
   ['destructured native constructor', "const {MIMEType:Type}=require('node:util');try{new Type(nativeMimeVisibleFunction);}catch(error){module.exports=error.message;}"],
   ['computed constructor member', "const util=require('node:util');const key='MIMEType';try{new util[key](nativeMimeVisibleFunction);}catch(error){module.exports=error.message;}"],
-  ['Reflect.construct', "const util=require('node:util');try{Reflect.construct(util.MIMEType,[nativeMimeVisibleFunction]);}catch(error){module.exports=error.message;}"]
+  ['Reflect.construct', "const util=require('node:util');try{Reflect.construct(util.MIMEType,[nativeMimeVisibleFunction]);}catch(error){module.exports=error.message;}"],
+  ['bound constructor captures callable', "const {MIMEType:Type}=require('node:util');const Bound=Type.bind(null,nativeMimeVisibleFunction);try{new Bound();}catch(error){module.exports=error.message;}"],
+  ['defaulted destructuring', "const {MIMEType:Type=class{}}=require('node:util');try{new Type(nativeMimeVisibleFunction);}catch(error){module.exports=error.message;}"],
+  ['computed unknown destructuring', "function selected(){return 'MIMEType';}const {[selected()]:Type}=require('node:util');try{new Type(nativeMimeVisibleFunction);}catch(error){module.exports=error.message;}"],
+  ['Reflect.construct bound method alias', "const {construct:make}=Reflect;const {MIMEType:Type}=require('node:util');try{make(Type,[nativeMimeVisibleFunction]);}catch(error){module.exports=error.message;}"]
 ];
 
 for(const mode of /** @type {const} */(['sno','coo','sco'])) {
