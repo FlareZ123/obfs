@@ -177,9 +177,13 @@ function assertNoInlineHtmlSource(path,code) {
  *
  * @typedef {{path:string,sourceType:string,code:string|Buffer}} IntegrityFile
  * @param {IntegrityFile[]} files
+ * @param {string} [routePrefix] Exact SCO mount prefix when available.
  * @returns {boolean}
  */
-function hasPinnedLocalJavaScriptIntegrity(files) {
+function hasPinnedLocalJavaScriptIntegrity(files,routePrefix='') {
+  // The SCO HTTP route prefix is a public URL namespace, not part of the
+  // file inventory. Resolve both declared paths and mounted route paths.
+  const mountedPrefix=routePrefix.startsWith('/')?routePrefix.slice(1):routePrefix;
   const javascriptPaths=new Set(files.filter(file=>file.sourceType!=='asset')
     .map(file=>file.path));
   if(!javascriptPaths.size)return false;
@@ -244,7 +248,12 @@ function hasPinnedLocalJavaScriptIntegrity(files) {
         const address=node.tagName==='script'?src:linked?href:null;
         if(address){
           const target=targetPath(address,base);
-          if(target!==null&&javascriptPaths.has(target)){observed=true;return;}
+          if(target!==null&&
+             (javascriptPaths.has(target) ||
+              mountedPrefix && target.startsWith(mountedPrefix) &&
+                javascriptPaths.has(target.slice(mountedPrefix.length)))){
+            observed=true;return;
+          }
         }
       }
       for(const child of node.childNodes??[])visit(child);
