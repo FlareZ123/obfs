@@ -341,6 +341,10 @@ function hasPinnedLocalJavaScriptIntegrity(files,routePrefix='') {
     try {
       const url=new URL(href,base);
       if(url.protocol!=='http:'&&url.protocol!=='https:')return null;
+      // SCO may preserve percent-encoded mount path bytes. Recognize an
+      // exact raw distributed pathname before checking decoded aliases.
+      const encodedPath=url.pathname.slice(1);
+      if(matchesDistributedScript(encodedPath))return encodedPath;
       const pathname=decodeURIComponent(url.pathname);
       if(!pathname.startsWith('/')||pathname.includes('\\'))return null;
       return pathname.slice(1);

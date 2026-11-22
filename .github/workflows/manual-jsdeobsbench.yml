@@ -2,6 +2,12 @@ name: Manual external JsDeObsBench differential
 
 on:
   workflow_dispatch:
+    inputs:
+      diagnostics_only:
+        description: 'Run corpus and yield diagnostics without Docker differential execution'
+        required: false
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -49,16 +55,16 @@ jobs:
       - name: Diagnose whole-file source-observer gates behind identifier yield
         run: node sims/jsdeobsbench-yield-diagnostics.js ./jsdeobsbench-obfuscated.jsonl ${{ matrix.sourceType }}
       - name: Publish source-only attacker view without native programs
-        if: matrix.mode == 'sno'
+        if: ${{ inputs.diagnostics_only == false && matrix.mode == 'sno' }}
         run: node sims/jsdeobsbench-public-protocol.js --publish ./jsdeobsbench-obfuscated.jsonl ./jsdeobsbench-public-only.jsonl
       - name: Stage strictly public attacker filesystem
-        if: matrix.mode == 'sno'
+        if: ${{ inputs.diagnostics_only == false && matrix.mode == 'sno' }}
         run: |
           node sims/jsdeobsbench-public-protocol.js --stage ./jsdeobsbench-public-only.jsonl ./isolated-attacker
           mkdir ./isolated-attacker-out
           chmod 0777 ./isolated-attacker-out
       - name: Recover strings in unprivileged networkless isolated attacker
-        if: matrix.mode == 'sno'
+        if: ${{ inputs.diagnostics_only == false && matrix.mode == 'sno' }}
         shell: bash
         run: |
           docker run --rm --network none --read-only --cpus 2 --memory 512m --pids-limit 64 \
@@ -72,10 +78,10 @@ jobs:
               --output /output/recovered.jsonl \
               --require-progress
       - name: Verify recovered code against withheld compiler metrics
-        if: matrix.mode == 'sno'
+        if: ${{ inputs.diagnostics_only == false && matrix.mode == 'sno' }}
         run: node sims/jsdeobsbench-public-protocol.js --verify ./jsdeobsbench-obfuscated.jsonl ./isolated-attacker-out/recovered.jsonl ./jsdeobsbench-verified-recovered.jsonl
       - name: Compare recovered public code with native behavior in restricted Docker
-        if: matrix.mode == 'sno'
+        if: ${{ inputs.diagnostics_only == false && matrix.mode == 'sno' }}
         shell: bash
         run: |
           docker run --rm --network none --read-only --cpus 2 --memory 1g --pids-limit 64 \
@@ -89,6 +95,7 @@ jobs:
               --sample 0 --cases 6 --timeout 3000 \
               --seed pinned-jsdeobsbench-20261115
       - name: Independently execute paired baseline and transformed code in restricted Docker
+        if: ${{ inputs.diagnostics_only == false }}
         shell: bash
         run: |
           docker run --rm --network none --read-only --cpus 2 --memory 1g --pids-limit 64 \
