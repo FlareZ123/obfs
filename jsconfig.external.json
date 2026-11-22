@@ -251,7 +251,8 @@
     "test/coo-stack-source-admission-matrix.test.js",
     "test/entry-only-private-collapse-admission.test.js",
     "workplace/private-leaf-collapse.js",
-    "test/private-leaf-collapse.test.js"
+    "test/private-leaf-collapse.test.js",
+    "test/private-leaf-collapse-browser.test.js"
   ],
   "exclude": [
     "node_modules"
