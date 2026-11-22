@@ -87,12 +87,12 @@ test('static source-only ESM reconstruction refuses a missing advertised export'
 test('source-only rebuilt ESM refuses unproved module-level mutations',()=>{
   const declarations=['round1','round2','round3'].map((name,index)=>
     'export function '+name+'(input){return (((input|0)+'+index+')|0);}'
-  ).join('\\n');
+  ).join('\n');
   const unsafe=[
-    declarations+'\\nround1=function(input){return 42;}',
-    declarations+'\\nglobalThis.observedSideEffect=true;',
-    declarations+'\\nimport "./unknown-side-effect.mjs";',
-    declarations+'\\nexport let extra=1;'
+    declarations+'\nround1=function(input){return 42;}',
+    declarations+'\nglobalThis.observedSideEffect=true;',
+    declarations+'\nimport "./unknown-side-effect.mjs";',
+    declarations+'\nexport let extra=1;'
   ];
   for(const source of unsafe){
     assert.throws(()=>attackPublishedSource(source),
