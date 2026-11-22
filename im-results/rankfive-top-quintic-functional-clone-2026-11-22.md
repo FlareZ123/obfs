@@ -32,38 +32,42 @@ The proof below is stated for vector-valued outputs; the current Node implementa
 
 Let
 \[
-p_5=\prod_{i=0}^{4}(1-2^{i-5})
-=\frac{9765}{32768}\approx0.2980041504.
+p_6=\prod_{i=0}^{4}(1-2^{i-6})
+=\frac{615195}{1048576}\approx0.5866956711.
 \]
-A nonzero scalar component of \(T_5\), under the codimension-at-most-six promise, factors through a five-dimensional quotient. A uniformly random five-tuple gives a nonzero witness whenever its projection is a basis of that quotient, which occurs with probability at least \(p_5\). With independent uniform trials, the miss probability after 66 trials is
+A nonzero scalar component of \(T_5\), under the codimension-at-most-six promise, has a five-dimensional quotient by its radical. Six independently uniform random directions project to six independent uniform vectors in that quotient. They span it with probability at least \(p_6\); when they do, at least one of their six five-element subsets is a basis and yields a nonzero vector-valued fifth-derivative witness. The six directions need not be linearly independent in the original input space.
+
+With independent trials and failure target \(\delta\), define
 \[
-(1-p_5)^{66}\approx7.2124021643\times10^{-11}.
+t=\left\lceil\frac{\log\delta}{\log(1-p_6)}\right\rceil.
+\]
+For \(\delta=10^{-10}\), \(t=27\), and
+\[
+(1-p_6)^{27}\approx4.3580153939\times10^{-11};
+\quad
+(1-p_6)^{26}\approx1.0544325546\times10^{-10}.
 \]
 
-For failure target \(\delta\), define
-\[
-t=\left\lceil\frac{\log\delta}{\log(1-p_5)}\right\rceil.
-\]
 A conservative distinct-oracle-query bound is
 \[
 Q(n,\delta)\le
-\sum_{j=0}^{4}\binom nj+31t+30n.
+\sum_{j=0}^{4}\binom nj+63t+30n.
 \]
 
 The terms are:
 - \(\sum_{j=0}^{4}\binom nj\) low-Hamming-weight queries, which recover all degree-at-most-four ANF coefficients by Boolean Möbius inversion;
-- at most 31 new values per fifth-derivative witness trial, since the 32-point derivative cube includes \(F(0)\), already queried;
-- at most 30 new values per basis vector for its five anchor-signature contractions: their union contains at most 31 points and the empty-subset point is the already queried basis vector.
+- at most 63 new values per witness trial: query the full six-direction cube of 64 subset sums once, with \(F(0)\) already cached. All six five-subset derivatives are then computed from these same cached values;
+- at most 30 new values per standard basis vector for its five anchor-signature contractions: their union contains at most 31 points and the empty-subset point is the already queried basis vector.
 
 At n=32 and \(\delta=10^{-10}\):
 \[
-Q\le41,449+31(66)+30(32)=44,455.
+Q\le41,449+63(27)+30(32)=44,110.
 \]
 Unrestricted degree-five ANF interpolation requires
 \[
 \sum_{j=0}^{5}\binom{32}{j}=242,825
 \]
-chosen inputs. The conditional learner therefore uses at most about 5.46 times fewer chosen queries than generic degree-five interpolation. These are **oracle-query counts**, not a CPU-time ratio or proof of the 2.5× target-runtime budget.
+chosen inputs. The conditional learner therefore uses at most about 5.505 times fewer chosen queries than generic degree-five interpolation. These are **oracle-query counts**, not a CPU-time ratio or proof of the 2.5× target-runtime budget.
 
 ### Information-theoretic query lower bound
 
@@ -73,7 +77,7 @@ L(n)=\sum_{j=0}^{4}\binom nj.
 \]
 There are \(2^{nL(n)}\) such n-bit-output functions: each of the \(L(n)\) ANF coefficients in each of the n output coordinates is independent. A deterministic adaptive learner making q queries has at most \(2^{nq}\) possible transcripts, because each answer contains n bits; it can reconstruct at most one function per transcript. For a randomized learner, fixing its random seed gives the same bound, so its average success fraction over this subclass is at most \(2^{n(q-L(n))}\). Consequently, any learner with worst-case success probability greater than \(2^{-n}\) must make at least \(L(n)\) queries.
 
-At n=32, this lower bound is 41,449 queries. The 44,455-query upper bound is therefore only 3,006 queries, or about 7.25%, above this information-theoretic floor. This is a near-optimality statement in **oracle-query count** for the promised class; it says nothing about CPU time, memory, target runtime, or the 2.5× constraint.
+At n=32, this lower bound is 41,449 queries. The 44,110-query upper bound is therefore only 2,661 queries, or about 6.42%, above this information-theoretic floor. This is a near-optimality statement in **oracle-query count** for the promised class; it says nothing about CPU time, memory, target runtime, or the 2.5× constraint.
 
 ## Reconstruction argument
 
@@ -99,19 +103,19 @@ Implementation:
 - strict JSDoc project \`jsconfig.affine-low-rank-peer.json\`
 - existing workflow \`.github/workflows/manual-low-rank-target-inversion.yml\`
 
-No new workflow was added. The source-pinned run [44983197425](https://github.com/FlareZ123/obfs/actions/runs/44983197425), commit \`30e794cd427248d667bdfa7869e0bc28062d0ef9\`, passed on both Ubuntu and Windows, including the full manual low-rank suite and strict JSDoc.
+No new workflow was added. The final six-cube implementation passed the full existing manual low-rank workflow on both Ubuntu and Windows, including strict JSDoc, at source pin \`64932e0c8d80783f2bd366559defe60b5efa331d\`: [run 44984558684](https://github.com/FlareZ123/obfs/actions/runs/44984558684). The preceding five-tuple version also passed in run 44983197425; the six-cube run is the current validated implementation.
 
 The deterministic peer corpus reported:
 - 48 finite sources at widths 5–8; all 5,760 truth-table outputs matched;
 - 27 rank-five and 9 rank-six top-tensor cases, plus 12 exact degree-four fallbacks;
 - 8 width-32 sources and 1,024 held-out evaluations;
-- maximum observed width-32 query count 43,495, below the conservative 44,455 cap;
+- maximum observed width-32 query count 43,150, below the conservative 44,110 cap;
 - maximum reconstructed top-coefficient count 123,109;
-- trial cap 66.
+- six-cube trial cap 27.
 
-The width-32 maximum observed query count includes degree-four fallback cases that exhaust all 66 witness trials but do not require the extra signature queries. The 44,455 expression remains the conservative upper bound for a promised source whose witness arrives on the final trial and whose signatures require all 30n new values.
+The width-32 maximum observed query count is from degree-four fallback cases that exhaust all 27 six-cube trials but do not require the extra signature queries. The 44,110 expression remains the conservative upper bound for a promised source whose witness arrives on the final trial and whose signatures require all 30n new values.
 
-A first CI attempt exposed a strict-JSDoc literal-narrowing error in the new boundary fixture; it was corrected by computing the mismatch boolean before asserting the two exact values. A subsequent green run exposed a latent n=5 test-generator issue: masking after \`draw() || 1\` could erase the intended nonzero top coefficient. The generator now masks before the nonzero fallback, and finite tests assert that active top terms produce the expected degree and quotient rank. The final source-pinned run above passed with the corrected 27/9/12 case counts.
+A first CI attempt exposed a strict-JSDoc literal-narrowing error in the boundary fixture; it was corrected by computing the mismatch boolean before asserting the two exact values. A subsequent green run exposed a latent n=5 test-generator issue: masking after \`draw() || 1\` could erase the intended nonzero top coefficient. The generator now masks before the nonzero fallback, and finite tests assert that active top terms produce the expected degree and quotient rank. The final source-pinned six-cube run above passed with the corrected 27/9/12 case counts and 44,110 query ceiling.
 
 ## Paired rank-seven boundary controls
 
