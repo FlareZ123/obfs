@@ -16,8 +16,10 @@ const {reconstructPublicWasmEsm}=require('../sims/wasm-i32-esm-native-rebuild');
 /** @type {Array<{path:string,sourceType:'module',code:string}>} */
 const files=[
   {path:'kernel.mjs',sourceType:'module',
-    code:'export function scramble(a,b,c,d){return (((a^b)&(c|d))^((a>>>d)|(c<<b)));}'+
-      'export function mask(x){return x?((x^137)&255):((~x)|7);}'},
+    code:'function scrambleKernel(a,b,c,d){return (((a^b)&(c|d))^((a>>>d)|(c<<b)));}'+
+      'function maskKernel(x){return x?((x^137)&255):((~x)|7);}'+
+      'export function scramble(a,b,c,d){return scrambleKernel(a,b,c,d);}'+
+      'export function mask(x){return maskKernel(x);}'},
   {path:'bridge.mjs',sourceType:'module',
     code:'export function forward(value,label){return globalThis.externalBridge.deliver(value,label);}'},
   {path:'entry.mjs',sourceType:'module',
@@ -54,7 +56,7 @@ test('unconstrained label string coercion declines cross-file Wasm rewriting',()
     experimentalWasmI32:{'kernel.mjs':['scramble','mask']}
   };
   assert.throws(()=>obfuscateFiles(observed,options),
-    /Wasm i32 requires a module/u);
+    /Wasm i32 requires a module|source-exposed callable/u);
   const safe=obfuscateFiles(files,options);
   assert.equal(safe.files.find(file=>file.path==='kernel.mjs')?.metrics.wasmI32Functions,2);
 });
