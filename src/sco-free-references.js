@@ -50,8 +50,9 @@ function statementDeclares(statement,name){
 /**
  * Check only the lexical ancestor chain of a reference. A syntactically
  * present binding in an unrelated sibling scope is insufficient evidence.
- * This deliberately ignores some safe var-hoisting paths and thus may refuse
- * additional sources rather than inferring an unproved binding.
+ * The separate var-declaration walk resolves ordinary function/module
+ * hoists without lending nested function or class static-block bindings to
+ * unrelated scopes.
  * @param {AstNode} scope
  * @param {string} name
  * @returns {boolean}
@@ -125,6 +126,43 @@ function collectPatternNodes(pattern,bindings){
  */
 function firstUnprovedFreeReference(root,moduleBindings,rootFormals,realmGlobals,
   rootHasArguments=false){
+  // var is scoped to the closest function, module or class static block.
+  // A selected function body's BlockStatement is the caller-supplied root.
+  // Cache per lexical scope to avoid rescanning on every reference.
+  /** @type {WeakMap<AstNode,Set<string>>} */
+  const hoistedVars=new WeakMap();
+  /**
+   * Traverse only the current var-environment, excluding nested functions
+   * and class static blocks. A for/switch/try/if block does not stop var
+   * binding inheritance, including when the branch never executes.
+   * @param {AstNode} scope
+   * @returns {Set<string>}
+   */
+  function hoistsIn(scope){
+    const known=hoistedVars.get(scope);
+    if(known)return known;
+    const vars=new Set();
+    const body=['FunctionDeclaration','FunctionExpression','ArrowFunctionExpression']
+      .includes(scope.type)?scope.body:scope;
+    walk(body,(node,_parent,_key,ancestors)=>{
+      if(node.type!=='VariableDeclaration'||node.kind!=='var')return;
+      if(ancestors.some(ancestor=>ancestor!==body&&
+        ['FunctionDeclaration','FunctionExpression','ArrowFunctionExpression',
+          'StaticBlock'].includes(ancestor.type)))return;
+      // Every binding pattern contributes a var binding, even though computed
+      // keys and assignment defaults still carry ordinary reference reads.
+      for(const declaration of node.declarations){
+        walk(declaration.id,(part,parent,key)=>{
+          if(part.type==='Identifier'&&
+            !(parent?.type==='Property'&&key==='key'&&!parent.computed)){
+            vars.add(part.name);
+          }
+        });
+      }
+    });
+    hoistedVars.set(scope,vars);
+    return vars;
+  }
   /** @type {Set<AstNode>} */
   const bindings=new Set();
   walk(root,node=>{
@@ -170,7 +208,12 @@ function firstUnprovedFreeReference(root,moduleBindings,rootFormals,realmGlobals
       ancestors.some(scope=>scope.type==='FunctionDeclaration'||
         scope.type==='FunctionExpression')))return;
     const name=node.name;
-    if(rootFormals.has(name)||ancestors.some(scope=>scopeDeclares(scope,name))||
+    const boundLexically=ancestors.some(scope=>scopeDeclares(scope,name));
+    const boundByVar=ancestors.some(scope=>
+      (scope===root||['Program','FunctionDeclaration','FunctionExpression',
+        'ArrowFunctionExpression','StaticBlock'].includes(scope.type))&&
+      hoistsIn(scope).has(name));
+    if(rootFormals.has(name)||boundLexically||boundByVar||
       moduleBindings.has(name)||realmGlobals.has(name))return;
     unproved=name;
   });
