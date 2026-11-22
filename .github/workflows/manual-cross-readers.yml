@@ -51,6 +51,11 @@ jobs:
         env:
           CHROMIUM_BIN: google-chrome
         run: node sims/browser-dom-source-serialization-pair.js
+      - name: Browser inline ESM import-graph DOM source-boundary parity
+        if: ${{ matrix.os == 'ubuntu-latest' }}
+        env:
+          CHROMIUM_BIN: google-chrome
+        run: node sims/browser-dom-module-graph-source-boundary.js
       # The historical computed-refusal ablation is source-anchored to a
       # removed compiler clause and cannot run against modern main; its pinned
       # counterfactual evidence remains in sims/computed-refusal-ablation.js.
