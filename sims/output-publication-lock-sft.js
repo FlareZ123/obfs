@@ -46,6 +46,21 @@ function awaitMessage(child,type) {
   });
 }
 
+
+/**
+ * Stop children before removing Windows output files they might still use.
+ * @param {import('node:child_process').ChildProcess|undefined} child
+ * @returns {Promise<void>}
+ */
+async function stopChild(child) {
+  if(!child||child.exitCode!==null||child.signalCode!==null)return;
+  await new Promise(resolve=>{
+    child.once('exit',resolve);
+    if(child.exitCode!==null||child.signalCode!==null)resolve();
+    else child.kill();
+  });
+}
+
 /** @param {string} mode @returns {Promise<{first:string,second:string}>} */
 async function runPair(mode) {
   const parent=await fs.mkdtemp(path.join(os.tmpdir(),'obfs-publish-sft-'));
@@ -79,7 +94,7 @@ async function runPair(mode) {
     console.log(mode+': final pair '+JSON.stringify({first,second}));
     return {first,second};
   }finally {
-    a.kill();b?.kill();
+    await Promise.all([stopChild(a),stopChild(b)]);
     await fs.rm(parent,{recursive:true,force:true});
   }
 }
