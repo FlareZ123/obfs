@@ -87,11 +87,13 @@ test('64 deterministic three-module reflective owner differential cases', {timeo
       assert.equal(protectedOutput,nativeOutput,
         'native/compiled ESM observable mismatch at seed index '+index);
       assert.ok(transformed.crossFile.properties>=0&&transformed.crossFile.properties<=2);
+      if(index%7===0)assert.equal(transformed.crossFile.properties,0,
+        'direct Object.keys observer requires all owner names to remain public');
       if(transformed.crossFile.properties>0)positives++;
       else refusals++;
       transformedFields+=transformed.crossFile.properties;
     }
-    assert.ok(positives>0,'random corpus must exercise a real private field rename');
+    assert.ok(positives>=32,'random corpus must prove broad private field rename coverage');
     assert.ok(refusals>0,'random corpus must contain a genuine unsafe-refusal case');
     console.log('reflection-fuzz='+JSON.stringify({
       seed:'0x73a5f21c',cases:64,positives,refusals,transformedFields
