@@ -1907,7 +1907,11 @@ function obfuscateFiles(files, options = {}) {
   if (!Array.isArray(files) || !files.length) throw new TypeError('Expected a nonempty array of source files');
   const mode = options.mode ?? 'coo';
   if (!['coo','sco','sno'].includes(mode)) throw new TypeError(`Unknown mode ${mode}`);
-  if (mode === 'sno' && options.allowedHosts?.length) throw new TypeError('Browser host locking does not apply to SNO');
+  if (mode === 'sno' && options.allowedHosts !== undefined) throw new TypeError('Browser host locking does not apply to SNO');
+  // An explicitly configured empty/invalid allowlist must not turn the
+  // execution guard off. Omission alone selects the unlocked build mode.
+  const allowedHosts=options.allowedHosts===undefined ? undefined :
+    canonicalAllowedHosts(options.allowedHosts);
   const seed = options.seed ?? randomBytes(24).toString('hex');
   const paths = createPathInventory();
   /** @type {(SourceFile & {sourceType:SourceType})[]} */
@@ -1973,7 +1977,7 @@ function obfuscateFiles(files, options = {}) {
   }
   // Validate the entire published static graph before permitting a host
   // guard below an ESM import. Each dependency is independently guarded.
-  const completeStaticHostGraph=Boolean(options.allowedHosts?.length && options.closedWorld &&
+  const completeStaticHostGraph=Boolean(allowedHosts?.length && options.closedWorld &&
     completeGuardedModuleGraph(prepared));
   // Fail before any output is generated: source maps can undo an entire
   // transformation by retaining original text and symbol mappings.
@@ -2008,7 +2012,7 @@ function obfuscateFiles(files, options = {}) {
   // wrapper itself has no later per-transform guard. Reuse the same broad
   // source-observer proof used for multi-file publication so Error.stack,
   // console/native stack formatting and related observers fail closed.
-  const hostLockSourceObserver=Boolean(options.allowedHosts?.length) &&
+  const hostLockSourceObserver=Boolean(allowedHosts?.length) &&
     prepared.some(file=>file.sourceType!=='asset' && typeof file.code==='string' &&
       observesFunctionSource(parse(file.code,file.sourceType),
         importedStringProof.get(file.path),importedCloneProof.get(file.path),
@@ -2031,7 +2035,7 @@ function obfuscateFiles(files, options = {}) {
   // A hostname wrapper prepends source bytes and source coordinates. Code
   // that observes either must reject the explicit host lock rather than
   // publishing a semantically different stack/source view.
-  if((remoteSourceObserver||hostLockSourceObserver) && options.allowedHosts?.length) {
+  if((remoteSourceObserver||hostLockSourceObserver) && allowedHosts?.length) {
     throw new TypeError('Host locking cannot preserve observable source bytes');
   }
   const cross = !remoteSourceObserver && options.closedWorld && options.properties !== false ?
@@ -2250,9 +2254,9 @@ function obfuscateFiles(files, options = {}) {
       literals = modified.count;
       ast = parse(code,sourceType);
     }
-    if (options.allowedHosts?.length) {
+    if (allowedHosts?.length) {
       if (sourceType === 'commonjs') throw new TypeError(`Host lock unavailable for CommonJS file ${filename}`);
-      code = injectHostLock(code,ast,options.allowedHosts,completeStaticHostGraph);
+      code = injectHostLock(code,ast,allowedHosts,completeStaticHostGraph);
       parse(code,sourceType);
     }
     /** @type {OutputFile['metrics']} */
