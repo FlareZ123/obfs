@@ -36,6 +36,27 @@ const sources=[
     label:'btoa in nested direct call',
     source:"'use strict';function inspect(){return 'original-function-source-ABC123';}"+
       "function observer(){return btoa(inspect);}module.exports=observer();"
+  },
+  {
+    label:'globalThis.btoa(function) source',
+    source:"'use strict';function inspect(){return 'original-function-source-ABC123';}"+
+      "module.exports=globalThis.btoa(inspect);"
+  },
+  {
+    label:'btoa.call receiver source',
+    source:"'use strict';function inspect(){return 'original-function-source-ABC123';}"+
+      "module.exports=btoa.call(null,inspect);"
+  },
+  {
+    label:'btoa.apply receiver source',
+    source:"'use strict';function inspect(){return 'original-function-source-ABC123';}"+
+      "module.exports=btoa.apply(null,[inspect]);"
+  },
+  {
+    label:'detached globalThis.btoa alias',
+    source:"'use strict';const binaryEncode=globalThis.btoa;"+
+      "function inspect(){return 'original-function-source-ABC123';}"+
+      "module.exports=binaryEncode(inspect);"
   }
 ];
 
@@ -67,5 +88,20 @@ for(const mode of /** @type {const} */(['sno','coo','sco'])) {
     assert.equal(execute(String(transformed.code)),execute(source));
     assert.ok(transformed.metrics.literals>0,
       'Unobserved private work should remain eligible for transformation');
+  });
+}
+
+for(const mode of /** @type {const} */(['sno','coo','sco'])) {
+  test(mode+' keeps btoa primitive-string input eligible for encoding',()=>{
+    const source="'use strict';module.exports=btoa('safe-ordinary-string-for-encoding-123456');";
+    const transformed=obfuscateFiles([
+      {path:'primitive.cjs',sourceType:'commonjs',code:source}
+    ],{
+      mode,seed:'btoa-primitive-positive/'+mode,
+      strings:true,identifiers:false,properties:false
+    }).files[0];
+    assert.equal(execute(String(transformed.code)),execute(source));
+    assert.ok(transformed.metrics.literals>0,
+      'A primitive btoa argument cannot expose function source');
   });
 }
