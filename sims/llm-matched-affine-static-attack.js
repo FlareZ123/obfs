@@ -96,7 +96,7 @@ function attackPublishedSource(source){
   const begun=performance.now();
   const bytes=Buffer.byteLength(source);
   /** @type {Record<string,number>} */
-  const offsets=Object.create(null);
+  const offsets={};
   /** @type {'generated'|'esbuild-minified'} */
   let kind;
   if(source.includes('_ap_input_')&&source.includes('switch(')){
