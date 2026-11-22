@@ -329,7 +329,11 @@ test('Mutable host-spelled function declarations are not proven local host-indep
     'function setInterval(value){return value+1;}'+
       'setInterval++;return typeof setInterval;',
     'function clearTimeout(value){return value+1;}'+
-      'for(clearTimeout of [42]){}return typeof clearTimeout;'
+      'for(clearTimeout of [42]){}return typeof clearTimeout;',
+    'function setTimeout(value){return value+1;}'+
+      '({setTimeout}=replacement);return typeof setTimeout;',
+    'function clearInterval(value){return value+1;}'+
+      'for(clearInterval in {key:42}){}return typeof clearInterval;'
   ];
   for(const body of cases){
     assert.throws(()=>partitionScoSelectedAsyncExports(
