@@ -168,3 +168,26 @@ for(const fixture of fixtures) {
     }));
   });
 }
+
+for(const mode of /** @type {const} */ (['coo','sco','sno'])) {
+  test('nested literal source visible through separately exported containing callable: '+mode,async()=>{
+    const sources=[{path:'private.mjs',sourceType:/** @type {const} */('module'),
+      code:'function helper(record){return record.secretField;}'+
+        'function publicRead(){const owner={secretField:41};return helper(owner);}'+
+        'export {publicRead};'}];
+    const observer='import {publicRead} from "./private.mjs";'+
+      'console.log(JSON.stringify([publicRead.toString(),publicRead()]));';
+    const native=await observe(sources,observer);
+    const transformed=obfuscateFiles(sources,{
+      mode,closedWorld:true,seed:'esm-literal-inside-export-'+mode,
+      strings:false,properties:true,identifiers:false
+    });
+    const result=await observe(transformed.files,observer);
+    console.log('ESM_NESTED_PUBLIC_LITERAL '+JSON.stringify({
+      mode,sourceEqual:result===native,
+      propertyRewrites:transformed.files[0].metrics.properties,
+      valueEqual:JSON.parse(native)[1]===JSON.parse(result)[1]
+    }));
+    assert.equal(result,native,'Externally visible parent callable source must remain identical');
+  });
+}
