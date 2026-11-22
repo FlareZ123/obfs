@@ -50,6 +50,10 @@ const leaked=[
   ['direct exported function declaration',
     'function publicReader(){return owner.secretField;}'+
       'module.exports=publicReader;'],
+  ['raw comment and whitespace source preservation',
+    '/* module prelude */\\nfunction read(secretParam) {\\n'+
+      '  /* source-visible body comment */\\n'+
+      '  return secretParam + owner.secretField;\\n}module.exports=read;'],
   ['indirect exported named arrow',
     'const publicReader=()=>owner.secretField;'+
       'module.exports=publicReader;'],
