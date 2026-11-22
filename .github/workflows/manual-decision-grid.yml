@@ -31,5 +31,7 @@ jobs:
         run: node sims/sandwich-cegar-validation-sweep.js
       - name: Verify validation budget selection preserves linear cases
         run: node --test test/sandwich-cegar-validation-budget.test.js
+      - name: Held-out 32-bit CEGAR inversion with eight-check fallback and unchanged baseline
+        run: node sims/sandwich-cegar-heldout-adaptive.js
       - name: Prove bounded SCO algorithm cloning through authorized oracle
         run: node sims/sco-oracle-clone.js
