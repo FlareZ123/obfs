@@ -23,7 +23,7 @@ async function browser(filename) {
     '--no-first-run','--virtual-time-budget=3000','--dump-dom',
     pathToFileURL(filename).href
   ],{encoding:'utf8',timeout:45000,maxBuffer:4*1024*1024});
-  const encoded=stdout.match(/<pre id="result">([A-Za-z0-9+/=]+)<\\/pre>/u)?.[1];
+  const encoded=stdout.match(/<pre id="result">([A-Za-z0-9+/=]+)<\/pre>/u)?.[1];
   assert.ok(encoded,'Chromium did not evaluate the CSS.escape module: '+stdout.slice(0,1000));
   return JSON.parse(Buffer.from(encoded,'base64').toString('utf8'));
 }
@@ -71,7 +71,7 @@ async function main() {
       if(scenario.denied)assert.match(native.observed,/secretField/u);
       process.stdout.write('BROWSER_CSS_ESCAPE '+JSON.stringify({
         scenario:scenario.name,properties:emitted.metrics.properties,parity:true
-      })+'\\n');
+      })+'\n');
     }
   }finally{
     await fs.rm(dir,{recursive:true,force:true});
