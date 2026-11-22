@@ -14,7 +14,7 @@ const FILES=[{
   path:'client.js',
   sourceType:'script',
   code:'(()=>{function privateHelper(secretLocal){return secretLocal+Math.random();}'+
-    'window.publicReader=function publicReader(){return privateHelper(17);};})();'
+    'window.observedResult=privateHelper(17);})();'
 }];
 
 /** @param {string} sourcePath @returns {string} */
@@ -33,7 +33,7 @@ function page(sourcePath) {
     '<script src="'+sourcePath+'"></script>',
     '<script>',
     'try{',
-    'const result={value:window.publicReader(),helperSource:window.capturedHelper};',
+    'const result={value:window.observedResult,helperSource:window.capturedHelper};',
     'document.getElementById("result").textContent=btoa(JSON.stringify(result));',
     '}catch(error){document.getElementById("result").textContent="ERROR:"+String(error.stack||error);}',
     '</script></body></html>'
