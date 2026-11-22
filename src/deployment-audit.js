@@ -186,6 +186,14 @@ async function verifyPublishedDeployment(origin,files,approved) {
     if(response.status!==200) {
       throw new TypeError('Deployment route did not return HTTP 200: '+file.path);
     }
+    // A staged generic fetch cannot prove a browser's script/navigation
+    // representation when the host advertises header-dependent variants.
+    // Compression variants are safe only because we hash decoded content.
+    const vary=response.headers.get('vary');
+    if(vary&&vary.split(',').some(token=>
+      token.trim().toLowerCase()!=='accept-encoding')) {
+      throw new TypeError('Deployment response varies by request context: '+file.path);
+    }
     const delivered=response.headers.get('content-type');
     if(!delivered||String(new MIMEType(delivered))!==file.contentType) {
       throw new TypeError('Deployment Content-Type differs from review: '+file.path);
