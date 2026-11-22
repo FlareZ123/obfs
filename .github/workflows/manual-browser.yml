@@ -71,6 +71,10 @@ jobs:
         env:
           CHROMIUM_BIN: google-chrome
         run: node sims/xml-data-url-browser.js
+      - name: Observe executable XML MIME under unrecognized asset extension
+        env:
+          CHROMIUM_BIN: google-chrome
+        run: node sims/undeclared-xml-mime-source-witness.js
       - name: Verify public-only XOR string decoding under real Chromium CSP
         env:
           CHROMIUM_BIN: google-chrome
