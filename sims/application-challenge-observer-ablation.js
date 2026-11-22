@@ -19,8 +19,8 @@ function ablate(files,variant){
   return files.map(file=>{
     let code=file.code;
     if(file.path==='app.mjs'&&['reflect','both'].includes(variant)){
-      const original='function inspectRecord(key){const hasOwn=Object.prototype.hasOwnProperty.call(schema,key);const descriptor=Object.getOwnPropertyDescriptor(schema,key);const value=hasOwn?schema[key]:"<missing>";return {key,hasOwn,value,enumerable:descriptor?.enumerable===true,keys:Reflect.ownKeys(schema).sort()};}';
-      const fixed='function inspectRecord(key){const hasOwn=key==="externalFormat"||key==="auditCount";const descriptor=hasOwn?{enumerable:true}:undefined;const value=key==="externalFormat"?schema.externalFormat:key==="auditCount"?schema.auditCount:"<missing>";return {key,hasOwn,value,enumerable:descriptor?.enumerable===true,keys:[]};}';
+      const original="function inspectRecord(key) {\\n  const keys=Reflect.ownKeys(schema).sort();\\n  const value=Object.prototype.hasOwnProperty.call(schema,key)?schema[key]:'<missing>';\\n  const enumerable=Object.getOwnPropertyDescriptor(schema,key)?.enumerable===true;\\n  return {keys,value,enumerable};\\n}";
+      const fixed="function inspectRecord(key) {\\n  const value=key==='externalFormat'?schema.externalFormat:key==='auditCount'?schema.auditCount:'<missing>';\\n  const enumerable=key==='externalFormat'||key==='auditCount';\\n  return {keys:[],value,enumerable};\\n}";
       assert.ok(code.includes(original),'Expected dynamic record reflection in app.mjs');
       code=code.replace(original,fixed);
     }
