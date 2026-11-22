@@ -22,17 +22,20 @@ function median(values){
  * @param {number} iterations
  * @param {number} trials
  * @param {boolean} [abortPrincipalLookup]
- * @returns {Promise<{resolverKind:string,abortPrincipalLookup:boolean,workBytes:number,iterations:number,
+ * @param {boolean} [sameCodeControl] Test-only identical helper configurations.
+ * @returns {Promise<{resolverKind:string,abortPrincipalLookup:boolean,sameCodeControl:boolean,workBytes:number,iterations:number,
  *   trials:number,pairs:Pair[],strictCpuBreaches:number,strictWallBreaches:number,
  *   unresolvedCpuPairs:number,medianCpuRatio:number|null,medianWallRatio:number}>}
  */
-async function experiment(resolverKind,workBytes,iterations=10000,trials=7,abortPrincipalLookup=false){
+async function experiment(resolverKind,workBytes,iterations=10000,trials=7,abortPrincipalLookup=false,sameCodeControl=false){
   const resolvePrincipal=resolverKind==='sync'?
     ()=> 'verified' : async()=> 'verified';
-  const baseline=createScoKeyedIsolation(resolvePrincipal,{maxPendingTotal:2});
-  const deadline=createScoKeyedIsolation(resolvePrincipal,{
-    maxPendingTotal:2,maxPrincipalResolutionMs:10000,abortPrincipalLookup
-  });
+  const guardedOptions={maxPendingTotal:2,maxPrincipalResolutionMs:10000,abortPrincipalLookup};
+  // Identical-source placebo tests whether Windows CPU clock quantization
+  // and scheduler noise alone can create strict over-2.5x paired ratios.
+  const baseline=createScoKeyedIsolation(resolvePrincipal,sameCodeControl?
+    guardedOptions:{maxPendingTotal:2});
+  const deadline=createScoKeyedIsolation(resolvePrincipal,guardedOptions);
   const request=/** @type {import('node:http').IncomingMessage} */ (
     /** @type {unknown} */ ({}));
   const payload=Buffer.alloc(workBytes,71);
@@ -87,7 +90,7 @@ async function experiment(resolverKind,workBytes,iterations=10000,trials=7,abort
     pairs.push({cpu,wall:guarded.wallMs/direct.wallMs});
   }
   const resolvedCpu=pairs.flatMap(x=>x.cpu===null?[]:[x.cpu]);
-  return {resolverKind,abortPrincipalLookup,workBytes,iterations,trials,pairs,
+  return {resolverKind,abortPrincipalLookup,sameCodeControl,workBytes,iterations,trials,pairs,
     strictCpuBreaches:resolvedCpu.filter(value=>value>2.5).length,
     strictWallBreaches:pairs.filter(x=>x.wall>2.5).length,
     unresolvedCpuPairs:trials-resolvedCpu.length,
@@ -106,6 +109,7 @@ if(require.main===module){
           await experiment(resolverKind,bytes,bytes?25000:250000,21,true));
       }
     }
+    results.push(await experiment('async',0,250000,21,true,true));
     process.stdout.write('OBFS_SCO_PRINCIPAL_DEADLINE_COST '+JSON.stringify({
       node:process.version,platform:process.platform,results
     })+'\n');
