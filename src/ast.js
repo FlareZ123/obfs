@@ -2309,7 +2309,7 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
   /** @type {Map<string,string>} */
   const nodeUtilMethods=new Map();
   const inspectedUtilMethods=new Set(['inspect','format','formatWithOptions',
-    'getCallSites','getCallSite']);
+    'getCallSites','getCallSite','toUSVString']);
   /** @param {AstNode|null|undefined} node @returns {boolean} */
   function isNodeUtilRequire(node) {
     return Boolean(node?.type==='CallExpression' &&
@@ -2736,6 +2736,26 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
       const utilMethod=nodeUtilMethod(callee);
       // Node util.getCallSites returns the live caller's source columns.
       if(utilMethod==='getCallSites'||utilMethod==='getCallSite')observed=true;
+      if(utilMethod==='toUSVString' && node.arguments[0] &&
+         !isDefinitelyPrimitive(node.arguments[0]))observed=true;
+      if(callee.type==='MemberExpression' &&
+         memberName(callee)==='bind' &&
+         nodeUtilMethod(callee.object)==='toUSVString' &&
+         node.arguments[1]&&!isDefinitelyPrimitive(node.arguments[1]))
+        observed=true;
+      if(callee.type==='MemberExpression' &&
+         nodeUtilMethod(callee.object)==='toUSVString' &&
+         ['call','apply'].includes(memberName(callee)??'')) {
+        const input=memberName(callee)==='call'?node.arguments[1]:node.arguments[1];
+        if(memberName(callee)==='call' && input &&
+           !isDefinitelyPrimitive(input))observed=true;
+        if(memberName(callee)==='apply' && input) {
+          if(input.type==='ArrayExpression') {
+            if(input.elements[0] && !isDefinitelyPrimitive(input.elements[0]))
+              observed=true;
+          } else observed=true;
+        }
+      }
       if(utilMethod==='inspect' && node.arguments[0] &&
          !isDefinitelyPrimitive(node.arguments[0]) ||
          utilMethod==='format' && node.arguments.some(
