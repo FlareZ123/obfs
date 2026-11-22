@@ -8,7 +8,7 @@ const {obfuscateFiles}=require('../src');
 const {ROOT,NAMES,SEED}=require('../examples/application-challenge/build.cjs');
 
 /**
- * Deliberately removes dynamic record reflection and opaque CLI
+ * Deliberately removes property-name reflection and opaque CLI
  * coercion to isolate the compiler's proof refusal. This is a diagnostic
  * ablation, not a semantics-preserving or deployable source rewrite.
  * @param {{path:string,sourceType:'module',code:string}[]} files
@@ -20,7 +20,7 @@ function ablate(files,variant){
     let code=file.code;
     if(file.path==='app.mjs'&&['reflect','both'].includes(variant)){
       const original="function inspectRecord(key) {\n  const keys=Reflect.ownKeys(schema).sort();\n  const value=Object.prototype.hasOwnProperty.call(schema,key)?schema[key]:'<missing>';\n  const enumerable=Object.getOwnPropertyDescriptor(schema,key)?.enumerable===true;\n  return {keys,value,enumerable};\n}";
-      const fixed="function inspectRecord(key) {\n  const value=key==='externalFormat'?schema.externalFormat:key==='auditCount'?schema.auditCount:'<missing>';\n  const enumerable=key==='externalFormat'||key==='auditCount';\n  return {keys:[],value,enumerable};\n}";
+      const fixed="function inspectRecord(key) {\n  const keys=['auditCount','externalFormat'];\n  const value=Object.prototype.hasOwnProperty.call(schema,key)?schema[key]:'<missing>';\n  const enumerable=key==='externalFormat'||key==='auditCount';\n  return {keys,value,enumerable};\n}";
       assert.ok(code.includes(original),'Expected dynamic record reflection in app.mjs');
       code=code.replace(original,fixed);
     }
