@@ -304,6 +304,15 @@ test('symbolic recovery proves 96 compact and native emitted CJS and ESM cases',
             };
             assert.deepEqual(outcome(fnUnderTest,unusual),outcome(native,23));
             assert.equal(reads,1,'Original input must be coerced once');
+            let failedReads=0;
+            const throwing={
+              [Symbol.toPrimitive](){
+                failedReads++;
+                throw new RangeError('fixture-coercion');
+              }
+            };
+            assert.deepEqual(outcome(fnUnderTest,throwing),['throw','RangeError']);
+            assert.equal(failedReads,1,'Thrown coercion must occur once');
           }
         }
       }
