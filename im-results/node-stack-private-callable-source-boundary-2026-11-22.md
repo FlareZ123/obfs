@@ -31,3 +31,31 @@ For the supplied SNO threat model, the attacker already controls files, loader, 
 ## Implications for the canonical source contract
 
 The canonical current-main integration in [PR #299](https://github.com/FlareZ123/obfs/pull/299) is a separate candidate branch. This evidence is from the stated mainline test source; it does not by itself evaluate or invalidate PR #299's optional public source contract. Where an application promises strict source-byte parity to external host instrumentation, private direct-call-only selection needs an explicit host trust assumption or a refusal. Where source-byte parity is outside the application contract, this is a threat-boundary observation rather than a code defect. The independent runtime extraction evidence should remain in `im-results/`.
+
+## Second test: host-visible source changes an observed result
+
+A focused follow-up added a second fixture at exact test SHA
+[`2dec566dc1d13d88fe4c8a935790418200cd73be`](https://github.com/FlareZ123/obfs/commit/2dec566dc1d13d88fe4c8a935790418200cd73be).
+[Two-platform run 45081214457](https://github.com/FlareZ123/obfs/actions/runs/45081214457)
+completed **SUCCESS** with strict JSDoc. The host's replacement `Math.random` now
+returns `Number(capturedFunctionSource.includes("secretLocal"))` after triggering
+the same stack formatter, making the native and transformed calculations depend
+on the function's source spelling.
+
+Both operating systems confirmed the deliberate native-versus-emitted value
+discrepancy:
+
+```json
+{"mode":"sno","nativeResult":18,"emittedResult":17,"sourceVisibleToHost":true}
+```
+
+This gives an executable **semantic parity counterexample under a controlling
+V8 host** for the selected identifier renaming, alongside the first test's
+value-preserving source-extraction observation. It relies on a deliberately
+source-sensitive external hook and does not establish that ordinary unmodified
+`Math.random` changes output. An attacker with the specified SNO full process
+control could create the hook; a compiler cannot simultaneously preserve
+arbitrary externally observed function-source spelling and rename that
+spelling. Deployment must explicitly define whether such host-controlled
+source observers fall within its claimed compatibility contract. It does
+not expand the static attack capability or demonstrate a source secrecy gain.
