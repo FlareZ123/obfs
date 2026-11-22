@@ -27,7 +27,9 @@ function ablate(files,variant){
     if(file.path==='entry.mjs'&&['entry','both'].includes(variant)){
       const original="const cases=JSON.parse(process.argv[2]||'[[1,1000]]');";
       assert.ok(code.includes(original),'Expected opaque CLI JSON.parse in entry.mjs');
-      code=code.replace(original,'const cases=[[1,1000]];');
+      code=code.replace(original,
+        "const inputValue=process.argv[2];"+
+        "const cases=JSON.parse(typeof inputValue==='string'?inputValue:'[[1,1000]]');");
     }
     return {...file,code};
   });
