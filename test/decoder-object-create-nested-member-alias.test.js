@@ -215,3 +215,44 @@ for(const mode of /** @type {const} */(['coo','sno','sco'])) {
         'Cross-file Number control must retain positive decoder yield');
     });
 }
+
+
+/** A safe Object.create plus an unrelated getter-like property write. */
+function unrelatedAccessorGraph() {
+  return [
+    {path:'entry.cjs',sourceType:'commonjs',
+      code:"require('./mutator.cjs');require('./factory.cjs');process.stdout.write(require('./target.cjs'));"},
+    {path:'mutator.cjs',sourceType:'commonjs',
+      code:'const unrelated={};unrelated.get=()=>String.prototype;'},
+    {path:'factory.cjs',sourceType:'commonjs',
+      code:'const descriptors={ref:{}};const box=Object.create(null,descriptors);box.ref.charCodeAt=()=>0;'},
+    {path:'target.cjs',sourceType:'commonjs',
+      code:'module.exports='+JSON.stringify('Z'.repeat(2048)+'P')+';'}
+  ];
+}
+
+for(const mode of /** @type {const} */(['coo','sno','sco'])) {
+  test('unrelated getter-like write must not suppress safe string encoding: '+mode,
+    async()=>{
+      const input=unrelatedAccessorGraph();
+      const emitted=obfuscateFiles(input,{
+        mode,strings:true,identifiers:false,properties:false,
+        seed:'agent42-unrelated-getter-positive/'+mode
+      });
+      const target=emitted.files.find(file=>file.path==='target.cjs');
+      assert.ok(target);
+      const root=await fs.mkdtemp(path.join(os.tmpdir(),'obfs-agent42-unrelated-getter-'));
+      try {
+        const native=await execute(path.join(root,'native'),input);
+        const protectedRun=await execute(path.join(root,'emitted'),emitted.files);
+        assert.equal(native.status,0,native.stderr);
+        assert.ok(protectedRun.status===native.status&&
+          protectedRun.stdout===native.stdout&&protectedRun.stderr===native.stderr,
+          'Unrelated getter-like write changed native behavior');
+      } finally {
+        await fs.rm(root,{recursive:true,force:true});
+      }
+      assert.equal(target.metrics.literals,1,
+        'Unrelated getter-like write must retain positive string-encoding yield');
+    });
+}
