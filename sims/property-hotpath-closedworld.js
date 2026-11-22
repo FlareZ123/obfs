@@ -89,7 +89,12 @@ async function measure(style,iterations,trials,valueKind='literal') {
     mode:'coo',closedWorld:true,strings:false,identifiers:false,
     seed:'property-hotpath/'+style
   });
-  assert.equal(result.crossFile.properties,2,style+' must protect two properties');
+  const counts=result.files.map(file=>({
+    path:file.path,objects:file.metrics.objects,properties:file.metrics.properties
+  }));
+  assert.equal(result.crossFile.properties,2,
+    style+'/'+valueKind+' must protect two properties; per-file metrics: '+
+    JSON.stringify(counts));
   const root=await fs.mkdtemp(path.join(os.tmpdir(),'obfs-property-hot-'));
   try {
     // Each cold import has a fresh module URL. Alternating first-import
