@@ -40,7 +40,8 @@ for(const [name,body] of [
 }
 
 test('Map itself preserves function identity as key without source coercion',()=>{
-  const original="'use strict';function inspect(){const state={secretField:31};return state.secretField;}"+
+  const original="'use strict';function hiddenInspect(){const state={secretField:31};return state.secretField;}"+
+    "function inspect(){return hiddenInspect();}"+
     "const map=new Map([[inspect,1]]);module.exports=map.get(inspect)+inspect();";
   const result=obfuscateFiles([{path:'case.cjs',sourceType:'commonjs',code:original}],{
     mode:'sno',seed:'source-map-key-identity',strings:false
