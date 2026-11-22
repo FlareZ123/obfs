@@ -3,6 +3,7 @@
 const acorn=require('acorn');
 const {performance}=require('node:perf_hooks');
 const {recover}=require('./polyvariant-affine-static-recover');
+const {recoverSymbolicAffine}=require('./polyvariant-affine-symbolic-recover');
 const {recoverMinifiedPublicMath}=require('./polyvariant-app-minified-static-attacker');
 
 const targetNames=Object.freeze(['round1','round2','round3']);
@@ -150,7 +151,7 @@ function assertStaticMinifiedModule(source){
 /**
  * Independently recover the same announced Int32 translation family from
  * one distributed source, with no function execution or runtime oracle.
- * The generated branch uses an existing source-only published interpreter;
+ * The generated branch now proves the compiler-emitted affine grammar;
  * the ordinary esbuild branch uses a separate restrictive AST algebra.
  * The selected branch is recognized by the actual public text grammar.
  *
@@ -166,8 +167,9 @@ function attackPublishedSource(source){
   let kind;
   if(source.includes('_ap_input_')&&source.includes('switch(')){
     kind='generated';
+    assertStaticMinifiedModule(source);
     for(const name of targetNames){
-      const learned=recover(source,name,'module');
+      const learned=recoverSymbolicAffine(source,name,'module');
       if(learned.cases!==2)throw new Error('Missing two public paths');
       offsets[name]=learned.offset;
     }
