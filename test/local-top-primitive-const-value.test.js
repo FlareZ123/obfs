@@ -108,7 +108,10 @@ check('dynamic key from own-key reflection',
 for(const [label,expression] of /** @type {[string,string][]} */ ([
   ['invalid direct call','privateOwner.secretField()'],
   ['invalid constructor','new privateOwner.secretField()'],
-  ['invalid optional call','privateOwner.secretField?.()']
+  ['invalid optional call','privateOwner.secretField?.()'],
+  ['invalid spread operand','[...privateOwner.secretField]'],
+  ['invalid for-of operand','for(const item of privateOwner.secretField){}'],
+  ['invalid array destructuring','const [item]=privateOwner.secretField']
 ])) {
   check('source-spelled TypeError '+label,
     'const seedValue=17;const privateOwner={secretField:seedValue,otherField:5};'+
