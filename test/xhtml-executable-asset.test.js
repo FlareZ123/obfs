@@ -108,7 +108,7 @@ test('XHTML DTD entity declarations and embedded SVG style maps are refused',()=
     '</svg:svg>');
   for(const mode of /** @type {Mode[]} */(['coo','sno','sco'])) {
     assert.throws(()=>compile('xhtml',Buffer.from(dtd),mode),
-      /DTD declaration|Malformed XHTML XML/);
+      /DTD declaration|Malformed XML browser document/);
     assert.throws(()=>compile('xhtml',css,mode),
       /HTML asset contains inline CSS source-map directive/);
   }
