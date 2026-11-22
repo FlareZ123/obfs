@@ -56,6 +56,7 @@ function independentBasis(pick,width) {
  * @returns {number[]}
  */
 function randomSubspace(pick,width,rank) {
+  /** @type {number[]} */
   const basis=[];
   const domain=1<<width;
   while(basis.length<rank){
