@@ -357,6 +357,33 @@ test('Selected SCO requires proven local reads for freshly constructed URL value
   }
 });
 
+
+test('Selected SCO keeps explicitly server-owned timer-spelled imports and constants',()=>{
+  const cases=[
+    {source:'import {setTimeout} from "node:timers/promises";'+
+      'export async function protectedOp(){await setTimeout(0);return 42;}'+
+      'export function visible(){return 7;}',
+    options:{allowServerImports:true}},
+    {source:'const setInterval=42;'+
+      'export async function protectedOp(){return setInterval;}'+
+      'export function visible(){return 7;}',
+    options:{}}
+  ];
+  for(const fixture of cases){
+    const partition=partitionScoSelectedAsyncExports(
+      {path:'mixed.mjs',sourceType:'module',code:fixture.source},
+      {seed:'sco-server-owned-timer-bindings-20261122',
+        privateNames:['protectedOp'],...fixture.options}
+    );
+    assert.deepEqual(partition.privateNames,['protectedOp'],fixture.source);
+  }
+  assert.throws(()=>partitionScoSelectedAsyncExports(
+    {path:'mixed.mjs',sourceType:'module',code:cases[0].source},
+    {seed:'sco-server-owned-timer-import-no-optin-20261122',
+      privateNames:['protectedOp']}
+  ),/only admits explicitly enabled named Node builtin imports/u);
+});
+
 test('Private static ESM graph refuses browser-only ambient objects in direct and transitive leaves',()=>{
   const sensitive=[
     'return localStorage.getItem("session");',
