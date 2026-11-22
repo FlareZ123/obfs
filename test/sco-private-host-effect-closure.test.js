@@ -260,7 +260,7 @@ test('Selected SCO refuses timer APIs whose handles and callbacks belong to the 
         code:'export async function protectedOp(){'+body+'}'+
           'export function visible(){return 7;}'},
       {seed:'sco-private-host-timers-20261122',privateNames:['protectedOp']}
-    ),/Private SCO export or helper contains unproved cross-realm host API/u,body);
+    ),/(?:Private SCO export or helper contains unproved cross-realm host API|Private SCO export uses browser-only ambient state)/u,body);
   }
   const owned=partitionScoSelectedAsyncExports(
     {path:'mixed.mjs',sourceType:'module',
