@@ -73,3 +73,28 @@ test('provably unrelated SRI paths do not suppress positive source transformatio
     }
   }
 });
+
+test('HTML and XHTML SRI pin through possible Win32 trailing-dot and space aliases',()=>{
+  const aliases=[
+    {source:'public/client.js',url:'./client.js.'},
+    {source:'public/client.js',url:'./client.js%20'},
+    {source:'public/docs/client.js',url:'./docs./client.js'}
+  ];
+  for(const mode of /** @type {Mode[]} */(['coo','sno','sco'])){
+    for(const extension of ['html','xhtml']){
+      for(const alias of aliases){
+        const result=compile(alias.source,'public/index.'+extension,alias.url,mode);
+        assert.equal(result.emitted,result.source,
+          extension+' '+mode+': potential Win32 path alias '+alias.url);
+      }
+    }
+  }
+});
+
+test('nonmatching trailing-dot and space URLs preserve positive transformation yield',()=>{
+  for(const mode of /** @type {Mode[]} */(['coo','sno','sco'])){
+    const result=compile('public/client.js','public/index.html','./other.js.',mode);
+    assert.notEqual(result.emitted,result.source,
+      mode+': unrelated trailing-dot SRI must not disable source transforms');
+  }
+});
