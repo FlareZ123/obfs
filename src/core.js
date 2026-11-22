@@ -2234,7 +2234,7 @@ function obfuscateFiles(files, options = {}) {
         options.properties !== false && sourceType !== 'script') {
       const modified = options.experimentalSymbolKeys === true ?
         symbolizeLocalProperties(code,ast,{seed:salt}) :
-        renameLocalProperties(code,ast,{seed:salt});
+        renameLocalProperties(code,ast,{seed:salt,sourceType});
       code = modified.code;
       objects = modified.objects;
       properties = modified.properties;
