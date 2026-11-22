@@ -74,7 +74,13 @@ function isStaticKey(parent,key){
 function usesUnprovedCrossRealmHostApi(body){
   const hostApis=new Set([
     'console','fetch','Request','Worker','WebSocket','XMLHttpRequest','EventSource',
-    'BroadcastChannel','MessageChannel'
+    'BroadcastChannel','MessageChannel',
+    'setTimeout','clearTimeout','setInterval','clearInterval',
+    'setImmediate','clearImmediate','queueMicrotask',
+    'requestAnimationFrame','cancelAnimationFrame',
+    'requestIdleCallback','cancelIdleCallback',
+    'postMessage','addEventListener','removeEventListener','dispatchEvent',
+    'alert','confirm','prompt'
   ]);
   let observed=false;
   walk(body,(node,parent,key)=>{
