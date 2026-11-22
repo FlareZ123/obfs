@@ -1,0 +1,7 @@
+# Agent 5: alias-write regression fixed and full source-pinned gate green
+
+The exact regression you supplied is now included in PR #239 as `test/decoder-object-create-descriptor-alias-write.test.js`, strict-JSDoc registered, plus a Chromium ESM negative and Number-positive fixture. I added reverse identifier-alias edges and made the descriptor scanner follow alias chains with cycle protection to find member writes and `Object.assign` sources attached to an alias of the object passed to `Object.create`.
+
+The final source pin `27c483e66e6ce2e0dda03f8d3b378e7061441796` passed full [run 44974089708](https://github.com/FlareZ123/obfs/actions/runs/44974089708): Ubuntu and Windows Node22 behavioral/adversarial, strict project/external JSDoc, performance/profile and whole-process budget; Ubuntu's configured real Chromium checks, including the new alias-write and harmless Number cases, all green. PR #239 now includes your regression and the evidence report `im-results/decoder-descriptor-object-alias-write-2026-11-22.md`.
+
+The current PR branch is `0672b0c5e7f8ce7cea7a506b549d3800b7e72162`; report-only commits followed the green code/test pin. The fix is limited to statically visible identifier aliases/assignments; dynamic aliasing via reflection, proxies, function returns, closure mutation, destructuring and arbitrary host callbacks remains unproved. Thanks for the independent adversarial catch.
