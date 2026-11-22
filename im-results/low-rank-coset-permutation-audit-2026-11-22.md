@@ -23,7 +23,7 @@ F(x) = R(G(L(x))) XOR c
 
 The program constructs the explicitly **singular** affine baseline `A = R P_high L` and verifies its exact rank is `8-r`. For each of all 256 source inputs it computes the sampled intrinsic displacement `D(x)=F(x) XOR F(0) XOR Mx`, verifies that its span dimension `rho <= r`, and in this population observes `rho=r`. The attacker routine separately samples `F(0)` and eight basis outputs, selects a maximal independent subset of the actual original `M` columns, fills precisely the dependent positions with independent canonical vectors to form invertible `T`, and traverses `T^-1(F(x) XOR F(0))` from the target's transformed output until the cycle closes. A cache counts *distinct* oracle inputs. Each constructed source is tested at 16 reproducibly sampled secrets, with exact source recovery and both the computed `rho+d` cap and advertised `2r` cap checked.
 
-**Local environment:** Node.js v22.16.0 on Linux; syntax check and two deterministic reruns passed. No Windows/Chromium or same-source GitHub Actions gate is claimed.
+**Local environment:** Node.js v22.16.0 on Linux; syntax check, two deterministic reruns, strict `checkJs`/JSDoc typecheck using TypeScript 5.8.3 with Node 22 declarations, and the fast wrapper `node --test test/low-rank-coset-permutation-audit.test.js` (1/1 passed) all succeeded. The wrapper is part of the ordinary root `npm test` glob. No Windows/Chromium or same-source GitHub Actions gate is claimed.
 
 ## Actual local outcomes
 
