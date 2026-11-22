@@ -21,6 +21,8 @@ jobs:
           node-version: '22'
       - name: Install declared dependencies
         run: npm install --no-package-lock --ignore-scripts
+      - name: Source-ordered top-level primitive private owner proof
+        run: node --test test/local-top-primitive-const-value.test.js
       - name: Probe rest and arguments ambient property integrity
         run: node --test test/closed-record-host-formal-provenance.test.js
       - name: Probe ambient thisArg reflection transfer and safe positive yield
