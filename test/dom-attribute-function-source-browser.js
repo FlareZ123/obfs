@@ -42,7 +42,7 @@ function source(primitive) {
     'detachedText:element.getAttribute("data-detached"),',
     'nsBoundText:element.getAttribute("data-nsbound"),',
     'value:'+(primitive?'value':'inspect()')+'};'
-  ].join('\\n');
+  ].join('\n');
 }
 
 /**
