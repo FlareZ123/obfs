@@ -186,7 +186,6 @@ test('hostname guard declines files with a local globalThis binding',()=>{
   const inputs=/** @type {const} */ ([
     {path:'entry.js',sourceType:'script',code:native},
     {path:'entry.mjs',sourceType:'module',code:'const globalThis={value:8};export const result=globalThis.value;'},
-    {path:'entry.cjs',sourceType:'commonjs',code:'var globalThis=4;module.exports=globalThis;'},
     {path:'entry.mjs',sourceType:'module',code:'class globalThis {} export const value=1;'},
     {path:'entry.mjs',sourceType:'module',code:'function nested(globalThis){return globalThis;}export const value=nested(9);'}
   ]);
@@ -197,6 +196,12 @@ test('hostname guard declines files with a local globalThis binding',()=>{
     }),/Host locking cannot preserve a shadowed globalThis binding/,
     file.sourceType+' '+file.code);
   }
+  // The existing CommonJS refusal takes precedence over host-guard injection.
+  assert.throws(()=>obfuscateFiles([{
+    path:'entry.cjs',sourceType:'commonjs',
+    code:'var globalThis=4;module.exports=globalThis;'
+  }],{mode:'coo',allowedHosts:['allowed.example']}),
+  /Host lock unavailable for CommonJS file/);
   const safe=obfuscateFiles([{
     path:'ordinary.js',sourceType:'script',
     code:'globalThis.allowedValue=29;'
