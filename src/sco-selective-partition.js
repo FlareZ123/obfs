@@ -9,7 +9,6 @@ const {collectBindings}=require('./properties');
 const {partitionScoAsyncModule,bindScoModuleExports}=require('./sco-partition');
 const {createScoHandler}=require('./sco');
 const {snapshotSelectedOptions}=require('./sco-selected-options');
-const {collectBindings}=require('./properties');
 
 /** @typedef {import('./sco-partition').ScoModulePartition} ScoModulePartition */
 /** @typedef {{path:string,code:string}} ScoPrivateModuleSource */
