@@ -45,6 +45,9 @@ jobs:
       - name: Peer review private direct-class positive property yield
         if: ${{ !cancelled() }}
         run: node --test test/private-class-source-yield.test.js
+      - name: Adversarially verify private-class source escape proof
+        if: ${{ !cancelled() }}
+        run: node --test test/private-direct-class-escape-proof.test.js
       - name: Validate strict project JSDoc
         if: ${{ !cancelled() }}
         run: npm run typecheck
