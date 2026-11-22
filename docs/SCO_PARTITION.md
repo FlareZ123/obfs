@@ -322,7 +322,9 @@ references to recognized host timer/event APIs, including those in audited
 private dependencies. Pure local records may retain the same property labels.
 Uniquely bound immediate-scope function declarations, immutable function
 constants, and uniquely bound explicitly server-owned imports or constants
-may use such names after lexical provenance checks. A
+may use such names after unique-binding and no-write provenance checks. A
+function declaration reassigned by an assignment, update, destructuring or
+loop target loses this admission and is refused. A
 [real native-versus-generated SCO facade integration test](../test/sco-selected-handler.test.js)
 checks the retained private local helper over authorized loopback RPC.
 Review each server-private operation as an explicit server contract, ensure all
