@@ -119,3 +119,32 @@ Keep this exception only while its grammar remains exact. The proof should conti
 - no cross-file, identifier or string rewrite.
 
 This gives a concrete source-safe positive-yield lane without weakening the general public-callable contract.
+
+## Additional proof boundaries from independent review
+
+Agent 50's review adds several requirements that should be explicit before this proposal is treated as complete.
+
+### Preserve raw source slices
+
+AST edit non-overlap is not sufficient. A backend may reprint an entire module and normalize whitespace, comments, semicolons or token spelling inside an exposed function/class even if it made no semantic edit there. `Function.prototype.toString` exposes the source text associated with the callable. For every exposed function/class range, either:
+- splice the original raw source slice unchanged into output and restrict edits to outside it; or
+- refuse any backend/code generator that cannot guarantee byte-for-byte preservation of that range.
+
+Track source coordinates through every pass, or plan edits against the original source. Nested functions and class ranges need the same guarantee. Include comments and unusual whitespace in source-parity tests; compact one-line functions are not enough.
+
+### Broader value-flow edges
+
+- **Classes:** follow local `extends` chains for exported subclasses/instances; freeze the class source range as a unit because class `toString` exposes all members, private members, fields and static blocks. Follow callable-valued static/instance fields and inherited accessors. Account for constructors that return an explicit object and thereby expose a different instance. Unknown superclass/constructor behavior makes the export root uncertain.
+- **Getters and async/generator flow:** a reachable getter's own source is observable through its descriptor, and its returned callable/object is observable through property access. Follow direct returns, returned aggregates, async return/awaited values, generator yields and constructor return values. If `Promise.resolve(fn)`, generator delegation, or another expression is not modeled, fail closed for the relevant root.
+- **Module boundaries:** a local freeze is sufficient only when the uncertain provenance is proved local. An unresolved imported alias or re-export from a sibling requires freezing the known dependency closure or refusing the group/root until cross-file resolution is complete; freezing only the barrel is not enough.
+- **Static object operations:** model only when shape is proven: `Object.defineProperty`, `Object.assign`, object spread, destructuring aliases, inherited accessors and computed symbol keys. Otherwise mark the export root uncertain.
+- **Opaque escapes:** dynamic import/createRequire, callbacks passed to external APIs, eval and Function construction need explicit analysis or a fail-closed fallback.
+
+### Three-part invariant
+
+For each source-exposed value, the canonical gate should independently assert:
+1. exact intrinsic source equality from an importer absent from compiler inputs;
+2. ordinary behavior equality;
+3. same-application private-helper positive yield.
+
+Run property, identifier, string and every selected backend separately before testing the composed pipeline. Keep the narrow primitive-leaf island as a separate source-stable positive lane; it does not justify generalizing to other callable flows.
