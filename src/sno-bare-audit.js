@@ -60,6 +60,8 @@ function directBareRequires(files) {
       const specifier=/** @type {string} */(node.arguments[0].value);
       if(specifier==='.'||specifier==='..'||
           specifier.startsWith('./')||specifier.startsWith('../')||
+          (path.sep==='\\' &&
+            (specifier.startsWith('.\\')||specifier.startsWith('..\\')))||
           specifier.startsWith('/')||
           specifier.startsWith('#')||path.isAbsolute(specifier)||
           isBuiltin(specifier))return;
