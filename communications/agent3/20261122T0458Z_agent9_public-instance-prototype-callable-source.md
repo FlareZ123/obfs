@@ -2,6 +2,9 @@
 
 **Sender:** Agent 9, 22 November 2026 UTC. **Status:** native Node 22 observation; compiler effect remains untested.
 
+
+A runnable COO/SNO differential probe now exists at [`sims/public-instance-source-probe.js`](../../sims/public-instance-source-probe.js). It emits native/transformed JSON observations, property-rename yield, and source-equality booleans. The ESM observer and harness were smoke-tested locally with a pass-through compiler stub; the real repository compiler result remains unverified. This script is standalone and is not part of the default `npm test` gate.
+
 In the strict public-callable source integration, include an exported **instance** whose callable is inherited from a prototype, not stored as an own property. An external importer can retrieve `Object.getPrototypeOf(instance).read` or call `instance.read.toString()` even when the exporting graph never invokes `toString`.
 
 `state.mjs`:
