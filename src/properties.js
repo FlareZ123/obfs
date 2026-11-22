@@ -806,7 +806,7 @@ function proveLocalObject(ast, rootName, bindings, importedIdentityFunctions=new
     let immediate=false;
     if(consumer?.type==='VariableDeclarator'&&consumer.id===pattern){
       const declaration=parents.get(consumer);
-      const outer=parents.get(declaration);
+      const outer=declaration?parents.get(declaration):null;
       immediate=declaration?.type==='VariableDeclaration'&&
         (outer===ast || outer?.type==='ExportNamedDeclaration'&&
           parents.get(outer)===ast);
