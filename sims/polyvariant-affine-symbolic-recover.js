@@ -217,6 +217,10 @@ function recoverSymbolicAffine(source,name,sourceType='module'){
          slot.declarations[0].id.type!=='Identifier'||
          !slot.declarations[0].init)
         throw new TypeError('Unproved branch-local state');
+      // A case-local declaration with the normalized input's own name
+      // shadows that outer binding during its initializer (TDZ).
+      if(slot.declarations[0].id.name===normalized)
+        throw new TypeError('Unproved branch-local normalized input shadow');
       assertRestoration(slot.declarations[0].init,normalized,shift,label);
       environment.set(slot.declarations[0].id.name,{
         factor:1,offset:0,bound:2147483648
