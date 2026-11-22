@@ -4093,8 +4093,19 @@ function collectExportedCallableNodes(ast) {
       node.type==='MemberExpression'&&isCjsExportObject(node.object);
   }
   /** @type {Set<string>} */
-  const exportedObjectBindings=new Set();
+  const exportedObjectBindings=new Set(['exports']);
   walk(ast,node=>{
+    if(node.type==='VariableDeclarator'&&node.id.type==='Identifier'&&
+       node.init&&(isCjsExportObject(node.init)||
+         node.init.type==='Identifier'&&exportedObjectBindings.has(node.init.name))) {
+      exportedObjectBindings.add(node.id.name);
+    }
+    if(node.type==='AssignmentExpression'&&node.operator==='='&&
+       node.left.type==='Identifier'&&
+       (isCjsExportObject(node.right)||
+        node.right.type==='Identifier'&&exportedObjectBindings.has(node.right.name))) {
+      exportedObjectBindings.add(node.left.name);
+    }
     if(node.type==='AssignmentExpression'&&node.operator==='=') {
       if(isCjsExportTarget(node.left)) {
         if(isModuleExports(node.left)&&node.right.type==='Identifier') {
@@ -4135,10 +4146,17 @@ function collectExportedCallableNodes(ast) {
     aliasChanged=false;
     walk(ast,node=>{
       if(node.type==='VariableDeclarator'&&node.id.type==='Identifier'&&
-         node.init?.type==='Identifier'&&exportedObjectBindings.has(node.init.name)&&
-         !exportedObjectBindings.has(node.id.name)) {
-        exportedObjectBindings.add(node.id.name);
-        aliasChanged=true;
+         node.init?.type==='Identifier') {
+        if(exportedObjectBindings.has(node.init.name)&&
+           !exportedObjectBindings.has(node.id.name)) {
+          exportedObjectBindings.add(node.id.name);
+          aliasChanged=true;
+        }
+        if(exportedObjectBindings.has(node.id.name)&&
+           !exportedObjectBindings.has(node.init.name)) {
+          exportedObjectBindings.add(node.init.name);
+          aliasChanged=true;
+        }
       }
     });
   } while(aliasChanged);
