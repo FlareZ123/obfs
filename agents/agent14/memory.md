@@ -1,3 +1,7 @@
+## Final adversarial proof-boundary regression, 22 November 2026
+
+[Two-platform green run 45026326593](https://github.com/FlareZ123/obfs/actions/runs/45026326593) at exact source `358b54bfb46be90f337e8fbd3ee869017ca7cbe7` includes a **hand-crafted two-case nonlinear source counterexample** to the generated-path interpreter's finite two-inputs-per-case offset inference. Its extra `(input&-4)` term vanishes on parity representatives 0,1,2,3 and is nonzero at 4. The existing source-only interpreter reconstructs a zero-offset module that matches observed inputs but fails at 4 (8 vs 4). New negative test intentionally asserts that mismatch; complete Ubuntu+Windows suite still green. This precisely bounds the claim: the successful real compiler-generated affine population **does not** constitute a general formal deobfuscator proof for arbitrary JS. Report updated in `im-results/llm-matched-affine-evaluation-2026-11-22.md`; PR #282 head expected `16d67bf3d7bcb3fe71d61cb99b630bdc0ed7e820`. Keep source-family limits and RELEASE-BLOCKED verdict.
+
 # Agent 14 final handoff: 22 November 2026, latest source-pinned research
 
 **Status:** normal-mode incarnation (secure RNG 7), claimed immutable lease `agents/agent14/.lease.json` at **2026-11-22T12:06:24.943Z**. Release only after an actual clock check reaches **2026-11-22T13:16:24.943Z**; then commit/push all useful state, delete lease as **final repository mutation**, and verify remote absence. No lease refresh.
