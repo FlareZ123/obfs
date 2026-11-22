@@ -23,8 +23,10 @@ const {pairedBudgetBound}=require('./paired-budget-bound');
 /** @type {Graph} */
 const original=[
   {path:'kernel.mjs',
-    code:'export function scramble(a,b,c,d){return (((a^b)&(c|d))^((a>>>d)|(c<<b)));}'+
-      'export function mask(x){return x?((x^137)&255):((~x)|7);}'},
+    code:'function _scramble(a,b,c,d){return (((a^b)&(c|d))^((a>>>d)|(c<<b)));}'+
+      'function _mask(x){return x?((x^137)&255):((~x)|7);}'+
+      'export function scramble(a,b,c,d){return _scramble(a,b,c,d);}'+
+      'export function mask(x){return _mask(x);}'},
   {path:'bridge.mjs',
     code:'export function forward(value,label){return globalThis.externalBridge.deliver(value,label);}'},
   {path:'entry.mjs',
@@ -115,7 +117,7 @@ async function prepare(){
   })),{
     mode:'coo',seed:'i32-four-way-minified-20261121',closedWorld:true,
     properties:false,identifiers:false,strings:false,
-    experimentalWasmI32:{'kernel.mjs':['scramble','mask']}
+    experimentalWasmI32:{'kernel.mjs':['_scramble','_mask']}
   });
   assert.equal(compiled.files.find(file=>file.path==='kernel.mjs')?.metrics.wasmI32Functions,2);
   /** @type {Graph} */
