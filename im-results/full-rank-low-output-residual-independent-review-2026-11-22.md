@@ -88,9 +88,16 @@ validated identical table counts on Ubuntu and Windows at
 The independent reproducer was then added to both
 `jsconfig.affine-low-rank-peer.json` and the focused strict
 external-JSDoc gate, without creating a new CI workflow.
-The continuation [source-pinned strict-JSDoc run 45036018002](https://github.com/FlareZ123/obfs/actions/runs/45036018002)
-was dispatched against commit `29b68b88015f4633c3e1bf2f4557168653269121`; its
-final result must be checked before treating that typecheck as verified.
+The first [strict-JSDoc run 45036018002](https://github.com/FlareZ123/obfs/actions/runs/45036018002)
+at `29b68b88015f4633c3e1bf2f4557168653269121` failed
+on both operating systems with TypeScript's `TS7034/TS7005`: an
+inferred empty subspace-basis array had an implicit `any[]` type.
+The executable mathematical regression itself remained green.
+Adding `/** @type {number[]} */` to that local basis was sufficient.
+The fully [source-pinned focused and strict-JSDoc follow-up run 45036165639](https://github.com/FlareZ123/obfs/actions/runs/45036165639)
+then passed on **Ubuntu and Windows** at
+`0f3acfb098b27f17be8d6b4ff935e86f4e351d29`. The finite
+target counts and query outcomes were unchanged.
 The existing large `manual-low-rank-target-inversion.yml` workflow
 also now includes the peer test for subsequent full-suite CI.
 
