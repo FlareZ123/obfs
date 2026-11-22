@@ -183,7 +183,7 @@ test('generated factory sample is byte exact and static labels remain reversible
 test('private ESM factory preserves two-file native Node execution',async()=>{
   const input=[
     {path:'state.mjs',sourceType:'module',code:
-      'function make(){return {secretField:17,otherField:5};}const owner=make();export function read(){return owner.secretField+owner.otherField;}'},
+      'function make(){return {secretField:17,otherField:5};}const owner=make();function privateRead(){return owner.secretField+owner.otherField;}export function read(){return privateRead();}'},
     {path:'entry.mjs',sourceType:'module',code:
       'import {read} from "./state.mjs";console.log(read());'}
   ];
