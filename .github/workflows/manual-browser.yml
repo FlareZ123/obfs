@@ -29,6 +29,10 @@ jobs:
         env:
           CHROMIUM_BIN: google-chrome
         run: node sims/importmap-host-intrinsic-counterexample-browser.js
+      - name: Probe same-origin host import map under restrictive Chromium CSP
+        env:
+          CHROMIUM_BIN: google-chrome
+        run: node sims/importmap-host-csp-same-origin-counterexample-browser.js
       - name: Verify native COO and SCO V8 failed-operand text under Chromium CSP
         env:
           CHROMIUM_BIN: google-chrome
