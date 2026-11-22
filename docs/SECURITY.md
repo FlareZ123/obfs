@@ -7,30 +7,19 @@ XOR string encoding, locally proven identifier renaming, and seeded names raise 
 
 ## Windows DOS device-name admission
 
-The compiler's portable path validator also refuses the Windows console
-endpoints `CONIN# Threat-model and proof boundaries
+The compiler's portable path validator conservatively refuses the console
+spellings `CONIN$` and `CONOUT$`, their extension-qualified forms, digit-zero
+serial/parallel port forms, and reserved device stems padded with spaces before
+an extension. See `test/windows-device-paths.test.js` and Microsoft's
+[RtlIsDosDeviceName_U documentation](https://learn.microsoft.com/en-us/windows/win32/devnotes/rtlisdosdevicename_u).
 
-## Static and dynamic analysis
-
-XOR string encoding, locally proven identifier renaming, and seeded names raise the cost of casual inspection. They are trivially reversible by an adversary who can run JavaScript, observe the decoder, inspect memory, or instrument property access. A measured time slowdown says nothing about deobfuscation resistance.
-
-
- and `CONOUT# Threat-model and proof boundaries
-
-## Static and dynamic analysis
-
-XOR string encoding, locally proven identifier renaming, and seeded names raise the cost of casual inspection. They are trivially reversible by an adversary who can run JavaScript, observe the decoder, inspect memory, or instrument property access. A measured time slowdown says nothing about deobfuscation resistance.
-
-
-, digit-zero serial/parallel port forms,
-and reserved device stems followed by spaces before an extension. Microsoft's
-`RtlIsDosDeviceName_U` documentation lists these DOS device classes; it does
-not require an actual console to be available to justify conservative refusal
-in cross-platform output trees. Benign names containing similar text remain
-eligible. See `test/windows-device-paths.test.js`. This is an input-path
-safety policy and does not establish remote authorization or obfuscation
-resistance. Reference:
-https://learn.microsoft.com/en-us/windows/win32/devnotes/rtlisdosdevicename_u
+This is a **cross-platform input-admission policy**, not proof that these
+names would redirect this compiler's directory-qualified output to a device.
+In a [source-pinned Windows Node 22 experiment](https://github.com/FlareZ123/obfs/actions/runs/44960761551),
+`CONIN$`, `CONOUT$` and their extension-qualified forms were writable and
+readable as ordinary directory-qualified filenames. The conservative
+refusal can therefore exclude valid input. It gives no hostile-runtime
+integrity or source-confidentiality guarantee.
 
 ## Windows DOS 8.3 output-path aliases
 
