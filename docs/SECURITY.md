@@ -409,29 +409,51 @@ The CLI emits executable JavaScript using normal JS operations. String decoding 
 
 Acorn parses standard stage-4 JavaScript, CommonJS and ESM. JSX, experimental syntax, non-JavaScript languages, unrecognized bundler conventions, native add-on binary changes, code that depends on function-toString source, and unmodeled reflection require other handling. Module specifiers and file paths are preserved. The output writing API uses cross-process lock files with atomic rename within the same filesystem. Paths reject traversal, Windows device names, unsafe Windows filename characters, and case-insensitive collisions. The multi-file directory is not a transactional snapshot.
 
-### HTML Subresource Integrity and external script bytes
+### HTML, XHTML, and XML script integrity and executable public assets
 
-A declared HTML asset can pin external JavaScript bytes with
-`<script src="./client.js" integrity="sha256-...">`. If the emitted
-JavaScript differs while that HTML remains unchanged, browsers reject the
-load. The compiler therefore performs an explicit, bounded parse5 scan of
-declared `.html` and `.htm` assets for SRI-bound scripts, `modulepreload`,
-and script preload links whose resolved pathname is in the JavaScript
-inventory. For those groups it preserves the original JavaScript bytes and
-refuses requested host wrappers incompatible with the commitment. SCO also
-maps its configured route prefix (such as `/obfs/`) before deciding whether
-a published script is SRI-pinned, so per-request spelling variation is
-suppressed for that group.
+An HTML, XHTML, or XML document can pin a local JavaScript response using
+Subresource Integrity (SRI). A compiler transformation that changes that
+script's bytes can cause a browser to reject it, even when the transformed
+JavaScript would otherwise behave identically. The publication preflight
+therefore preserves original JavaScript bytes when a declared local script
+may be bound by SRI. This condition also refuses requested SCO wrappers
+that would violate the published integrity commitment.
 
-The scanner resolves relative URLs, `<base href>`, percent-escaped paths,
-and query/fragment decorations. It considers the fallback document base
-for scripts loaded before a later base, and does not treat base elements
-inside inert template fragments as the live document base. Absolute origin
-and deployment routing assumptions are conservative. Undeclared HTML,
-dynamically generated SRI, proxy URL rewrites and server response headers
-cannot be established from this static input inventory. See the
-[reproducible real-Chromium and SCO SRI report](../im-results/html-sri-public-script-compatibility-2026-11-22.md).
+Declared `.html` and `.htm` assets are parsed with parse5 to recognize
+script tags, modulepreload links, and script preloads. Declared `.xhtml`,
+`.xht` and `.xml` assets use a namespace-aware SAXES XML parser to inspect
+HTML- and SVG-namespace scripts, attributes and CDATA without conflating
+unrelated XML data elements with executable source. The admission policy
+rejects recognized inline executable source, including script bodies,
+event handlers, executable data URLs, and executable script-bearing SVG
+content. XML DTDs other than a simple `<!DOCTYPE html>` and XML stylesheet
+processing instructions remain conservative refusals. Benign XML data
+may remain byte-identical while associated JavaScript is transformed.
 
-This is a semantic compatibility boundary. SRI is an external
-integrity commitment, and leaving that JavaScript original makes no new
-claim about obfuscation secrecy, browser authorization, or attacker cost.
+For SRI, the compiler resolves document-relative URLs, query and fragment
+decorations, escaped path characters, possible HTML `<base href>` candidates,
+and a scoped XML `xml:base` where relevant. A configured SCO route prefix
+is included in published file-path matching. It also compares possible
+case- and Unicode-NFC-equivalent filename identities using the output tree's
+existing portable path inventory policy. This may preserve original
+JavaScript on case-sensitive hosts whose actual URL router distinguishes
+those names; that is a deliberate safety preference when deployment
+semantics have not been supplied.
+
+SCO publishes accepted `.xhtml` and `.xht` files as
+`application/xhtml+xml; charset=utf-8` and `.xml` files as
+`application/xml; charset=utf-8`. The browser tests separately exercise
+`text/xml` execution. Positive-yield tests require unrelated SRI URLs
+and ordinary XML data to leave useful transformations enabled.
+
+These guards use the explicitly declared file inventory and known resource
+pathnames. They do not establish arbitrary proxy routing, undecorated
+cross-origin URL equivalence, dynamically inserted integrity attributes,
+content served under an unrecognized extension or MIME type, or complete
+protection from source disclosure. They preserve observable browser
+compatibility and do not establish authorized-environment enforcement or
+a quantified attacker reconstruction cost.
+
+Supporting reproducibility: [HTML/SRI study](../im-results/html-sri-public-script-compatibility-2026-11-22.md),
+[namespace-aware XHTML and direct XML source regression](https://github.com/FlareZ123/obfs/pull/248),
+and [portable URL alias browser regression](https://github.com/FlareZ123/obfs/pull/247).
