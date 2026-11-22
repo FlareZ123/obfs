@@ -1026,16 +1026,22 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
   do {
     changed=false;
     walk(ast,node=>{
-      if(node.type==='VariableDeclarator' && node.id.type==='ObjectPattern' &&
-         isNodeQuerystringNamespace(node.init)) {
-        for(const property of node.id.properties) {
+      const querystringPattern=node.type==='VariableDeclarator'&&
+        node.id.type==='ObjectPattern'?node.id:
+        node.type==='AssignmentExpression'&&node.operator==='='&&
+          node.left.type==='ObjectPattern'?node.left:null;
+      const querystringSource=node.type==='VariableDeclarator'?node.init:
+        node.type==='AssignmentExpression'?node.right:null;
+      if(querystringPattern && isNodeQuerystringNamespace(querystringSource)) {
+        for(const property of querystringPattern.properties) {
           if(property.type!=='Property')continue;
           const name=property.computed?staticString(property.key):
             property.key.type==='Identifier'?property.key.name:staticString(property.key);
+          const bound=property.value.type==='AssignmentPattern'?
+            property.value.left:property.value;
           if((['escape','unescape'].includes(name??'') ||
-              property.computed && name===null) &&
-             property.value.type==='Identifier')
-            changed=add(coercers,property.value.name)||changed;
+              property.computed && name===null) &&bound.type==='Identifier')
+            changed=add(coercers,bound.name)||changed;
         }
       }
       if(node.type==='VariableDeclarator' && node.id.type==='Identifier' ||
