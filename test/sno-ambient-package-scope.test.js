@@ -320,3 +320,55 @@ test('SNO admitted external CommonJS scope does not change emitted bytes',async(
     assert.equal(runCommonJs(path.join(scoped,'sno-entry.cjs')).stdout,'97');
   });
 });
+
+test('SNO matches native Node across 27 package-scope placement combinations',async()=>{
+  const types=['none','commonjs','module'];
+  for(const sourceType of types) {
+    for(const outerType of types) {
+      for(const nestedType of types) {
+        await withFixture(async directory=>{
+          const source=path.join(directory,'source');
+          const host=path.join(directory,'host');
+          const output=path.join(host,'output');
+          const marker=sourceType+'/'+outerType+'/'+nestedType;
+          const dependency="globalThis.__obfsScopeKind=typeof module==='undefined'?'module':'commonjs';";
+          const entry="module.exports=import('./nested/dependency.js').then(()=>globalThis.__obfsScopeKind);";
+          await atomicWrite(path.join(source,'entry.cjs'),entry);
+          await atomicWrite(path.join(source,'nested','dependency.js'),dependency);
+          if(sourceType!=='none') {
+            await atomicWrite(path.join(source,'package.json'),JSON.stringify({type:sourceType}));
+          }
+          if(outerType!=='none') {
+            await atomicWrite(path.join(host,'package.json'),JSON.stringify({type:outerType}));
+          }
+          if(nestedType!=='none') {
+            await atomicWrite(path.join(output,'nested','package.json'),JSON.stringify({type:nestedType}));
+          }
+
+          const runner="require(process.argv[1]).then(value=>process.stdout.write(String(value))).catch(error=>{console.error(error);process.exitCode=1;});";
+          const native=spawnSync(process.execPath,['--eval',runner,path.join(source,'entry.cjs')],{
+            encoding:'utf8',timeout:15000
+          });
+          assert.equal(native.status,0,marker+': native '+native.stderr);
+          const expected=sourceType==='module'?'module':'commonjs';
+          assert.equal(native.stdout,expected,marker+': native package scope');
+
+          const actual=nestedType!=='none'?nestedType:
+            sourceType!=='none'?sourceType:outerType!=='none'?outerType:'commonjs';
+          const args=['--root',source,'--entry','entry.cjs','--out',output];
+          if(actual!==expected) {
+            await assert.rejects(main('sno',args),
+              /SNO output \.js inherits external (?:ESM|CommonJS) package scope/,
+              marker+': divergent output must refuse');
+          } else {
+            await main('sno',args);
+            const compiled=spawnSync(process.execPath,['--eval',runner,
+              path.join(output,'sno-entry.cjs')],{encoding:'utf8',timeout:15000});
+            assert.equal(compiled.status,0,marker+': compiled '+compiled.stderr);
+            assert.equal(compiled.stdout,native.stdout,marker+': native versus compiled');
+          }
+        });
+      }
+    }
+  }
+});
