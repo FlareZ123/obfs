@@ -83,6 +83,14 @@ async function main() {
     {name:'assigned descriptor map entry',safe:false,
       mutation:'const descriptors={};descriptors.ref={get(){return String.prototype}};'+
         'const box=Object.create(null,descriptors);box.ref.charCodeAt=()=>0;'},
+    {name:'prebound prototype with invocation-time descriptor map',safe:false,
+      mutation:'const maker=Object.create.bind(null,null);'+
+        'const box=maker({ref:{get(){return String.prototype}}});'+
+        'box.ref.charCodeAt=()=>0;'},
+    {name:'prebound prototype with harmless Number getter',safe:true,
+      mutation:'const maker=Object.create.bind(null,null);'+
+        'const box=maker({ref:{get(){return Number.prototype}}});'+
+        'box.ref.unrelated=1;'},
     {name:'unrelated String getter',safe:true,
       mutation:'const unused={get(){return String.prototype}};'+
         'const box=Object.create(null,{});box.unrelated=17;'}
