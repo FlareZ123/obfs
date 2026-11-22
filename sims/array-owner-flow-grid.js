@@ -55,7 +55,13 @@ function runGrid(){
     for(let caseIndex=0;caseIndex<fixtures.length;caseIndex++){
       const head='const vault={privateCash:17,hiddenFee:6};'+
         'const holder=[vault];const left=holder[0];const right=holder[0];';
-      const code=head+fixtures[caseIndex];
+      // Source-pair the application: a publicly exported arrow retains its
+      // original source while all owning-field accesses stay in a private
+      // direct-call-only helper. Unsafe ownership cases still have to refuse.
+      const originalBody=head+fixtures[caseIndex];
+      const code=originalBody.replace(/module\\.exports=n=>(.*);$/u,
+        'function privateRun(n){return $1;}module.exports=n=>privateRun(n);');
+      assert.notEqual(code,originalBody,'Every matrix case requires a real source-paired wrapper');
       const native=execute(code);
       programs++;
       if(!shouldRename)negative++;
@@ -74,6 +80,8 @@ function runGrid(){
           if(shouldRename)assert.doesNotMatch(output,/privateCash|hiddenFee/u);
           else assert.equal(output,code,'Refused source must remain exact: '+labelPrefix);
           const rewritten=execute(output);
+          assert.equal(rewritten.toString(),native.toString(),
+            labelPrefix+' public exported callable source');
           for(let input=-25;input<=25;input++){
             assert.equal(rewritten(input),native(input),labelPrefix+' at '+input);
             comparisons++;
