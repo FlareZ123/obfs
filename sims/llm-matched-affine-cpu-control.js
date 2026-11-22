@@ -9,7 +9,9 @@ const {pairedBudgetBound}=require('./paired-budget-bound');
 const {createMatchedBlindAffineChallenge}=require('./llm-matched-affine-challenge');
 
 const names=Object.freeze(['round1','round2','round3']);
-const population=Object.freeze([1_000_000,13]);
+// Windows process.cpuUsage can report sub-16ms intervals as zero; a
+// >100ms native measurement makes per-pair CPU quantization tolerable.
+const population=Object.freeze([8_000_000,13]);
 
 /** @typedef {'native'|'generated'|'esbuild-minified'} Variant */
 /** @typedef {Record<string,(input:number)=>number>} NumericExports */
