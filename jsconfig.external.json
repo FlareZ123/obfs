@@ -1,6 +1,7 @@
 {
   "extends": "./jsconfig.json",
   "include": [
+    "test/cjs-wrapper-source-observer.test.js",
     "test/private-direct-class-escape-proof.test.js",
     "test/private-class-source-yield.test.js",
     "test/sco-exported-instance-http-source-browser.js",
