@@ -382,7 +382,9 @@ async function readReviewedAssets(sourceRoot,filename) {
  */
 async function assertSnoOutputPackageScope(files,output) {
   const emitted=new Set(files.map(file=>file.path));
-  const inherited=files.some(file=>{
+  // The relevant scope belongs to each .js file, including a nested
+  // package.json that may be left in an existing output tree.
+  const unscoped=files.filter(file=>{
     if(!file.path.endsWith('.js'))return false;
     let directory=path.posix.dirname(file.path);
     for(;;) {
@@ -391,7 +393,7 @@ async function assertSnoOutputPackageScope(files,output) {
       directory=path.posix.dirname(directory);
     }
   });
-  if(!inherited)return;
+  if(unscoped.length===0)return;
 
   // Node resolves filesystem aliases before loading files. Resolve the
   // nearest existing ancestor so a symlinked output does not hide its scope.
@@ -409,25 +411,35 @@ async function assertSnoOutputPackageScope(files,output) {
     }
   }
 
-  for(let directory=canonical;;) {
-    if(path.basename(directory)==='node_modules')return;
-    /** @type {string|undefined} */
-    let content;
-    try { content=await fs.readFile(path.join(directory,'package.json'),'utf8'); }
-    catch(error) {
-      if(/** @type {NodeJS.ErrnoException} */(error).code!=='ENOENT')throw error;
-    }
-    if(content!==undefined) {
-      const json=content.charCodeAt(0)===0xfeff?content.slice(1):content;
-      if(JSON.parse(json).type==='module') {
+  const scopes=new Map();
+  for(const file of unscoped) {
+    let directory=path.dirname(path.join(canonical,file.path));
+    for(;;) {
+      if(path.basename(directory)==='node_modules')break;
+      /** @type {'module'|'other'|undefined} */
+      let type=scopes.get(directory);
+      if(type===undefined) {
+        /** @type {string|undefined} */
+        let content;
+        try { content=await fs.readFile(path.join(directory,'package.json'),'utf8'); }
+        catch(error) {
+          if(/** @type {NodeJS.ErrnoException} */(error).code!=='ENOENT')throw error;
+        }
+        if(content!==undefined) {
+          const json=content.charCodeAt(0)===0xfeff?content.slice(1):content;
+          type=JSON.parse(json).type==='module'?'module':'other';
+          scopes.set(directory,type);
+        }
+      }
+      if(type==='module') {
         throw new Error('SNO output .js inherits external ESM package scope: '+
           path.join(directory,'package.json'));
       }
-      return;
+      if(type==='other')break;
+      const parent=path.dirname(directory);
+      if(parent===directory)break;
+      directory=parent;
     }
-    const parent=path.dirname(directory);
-    if(parent===directory)return;
-    directory=parent;
   }
 }
 
@@ -476,7 +488,6 @@ async function main(mode,argv) {
     if (!entrySource) throw new Error(`Missing obfuscated entry ${entry}`);
     if (entrySource.sourceType==='module') throw new Error('SNO entry must be CommonJS');
     launcher = createSnoLauncher(result.files,entry);
-    await assertSnoOutputPackageScope(result.files,absOut);
   }
   // Cooperating builds publish each output tree under one exclusive lock,
   // preventing concurrent compilers from interleaving distinct generations.
@@ -491,6 +502,7 @@ async function main(mode,argv) {
     if(launcher!==undefined){
       await assertNoOutputJunctions(absOut,'sno-entry.cjs');
       await assertOutputOutsideInput(absRoot,path.join(absOut,'sno-entry.cjs'));
+      await assertSnoOutputPackageScope(result.files,absOut);
     }
     for (const file of result.files) await atomicWrite(path.join(absOut,file.path),file.code);
     if (launcher !== undefined) await atomicWrite(path.join(absOut,'sno-entry.cjs'),launcher);
