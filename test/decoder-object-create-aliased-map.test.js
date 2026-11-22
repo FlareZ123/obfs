@@ -95,7 +95,20 @@ const variants=[
     'const box=(0,create)(null,{ref:{get(){return TARGET.prototype}}});'],
   ['local descriptor factory',
     'function make(){return {ref:{get(){return TARGET.prototype}}}};'+
-    'const box=Object.create(null,make());']
+    'const box=Object.create(null,make());'],
+  ['descriptor map alias write',
+    'const descriptors={};const alias=descriptors;'+
+    'alias.ref={get(){return TARGET.prototype}};'+
+    'const box=Object.create(null,descriptors);'],
+  ['inner descriptor object alias write',
+    'const descriptor={};const alias=descriptor;'+
+    'alias.get=function(){return TARGET.prototype};'+
+    'const descriptors={ref:descriptor};'+
+    'const box=Object.create(null,descriptors);'],
+  ['descriptor-map member-read alias write',
+    'const descriptors={ref:{}};const entry=descriptors.ref;'+
+    'entry.get=function(){return TARGET.prototype};'+
+    'const box=Object.create(null,descriptors);']
 ];
 
 for(const [name,mutator] of variants) {
