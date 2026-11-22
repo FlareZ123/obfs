@@ -16,7 +16,7 @@ function execute(code) {
   vm.runInContext(code,context,{filename:'global-api.js',timeout:1000});
   return {
     value:context.result,
-    source:/** @type {Function} */ (context.publicGlobal).toString()
+    source:vm.runInContext('publicGlobal.toString()',context,{timeout:1000})
   };
 }
 
@@ -65,6 +65,34 @@ for(const mode of /** @type {Array<'coo'|'sno'>} */ (['coo','sno'])) {
     assert.equal(emitted.value,native.value);
     assert.match(native.source,/publicParam/);
     assert.doesNotMatch(emitted.source,/publicParam/);
+    assert.notEqual(emitted.source,native.source);
+  });
+}
+
+
+for(const mode of /** @type {Array<'coo'|'sno'>} */ (['coo','sno'])) {
+  test(mode+' classic-script top-level const callable is source-visible to later scripts',()=>{
+    const source=[
+      "const publicGlobal=(publicParam)=>'global-lexical-visible-token'+publicParam;",
+      'function invokeGlobal(){return publicGlobal(5);}',
+      'globalThis.result=invokeGlobal();'
+    ].join('');
+    const output=obfuscateFiles([{
+      path:'global-lexical-api.js',sourceType:'script',code:source
+    }],{
+      mode,seed:'classic-global-lexical-source/'+mode,
+      strings:true,properties:false,identifiers:true
+    });
+    assert.ok(output.files[0].metrics.literals>0,output.files[0].code);
+    assert.ok(output.files[0].metrics.bindings>0,output.files[0].code);
+    const native=execute(source);
+    const emitted=execute(output.files[0].code);
+    assert.equal(native.value,'global-lexical-visible-token5');
+    assert.equal(emitted.value,native.value);
+    assert.match(native.source,/publicParam/);
+    assert.match(native.source,/global-lexical-visible-token/);
+    assert.doesNotMatch(emitted.source,/publicParam/);
+    assert.doesNotMatch(emitted.source,/global-lexical-visible-token/);
     assert.notEqual(emitted.source,native.source);
   });
 }
