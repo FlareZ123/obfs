@@ -3853,6 +3853,34 @@ function collectExportedCallableNodes(ast,propertySafeExports=null) {
     }
   }
 
+  function patternBindsName(pattern,name) {
+    if(!pattern)return false;
+    if(pattern.type==='Identifier')return pattern.name===name;
+    if(pattern.type==='RestElement')return patternBindsName(pattern.argument,name);
+    if(pattern.type==='AssignmentPattern')return patternBindsName(pattern.left,name);
+    if(pattern.type==='ArrayPattern')
+      return pattern.elements.some(element=>patternBindsName(element,name));
+    if(pattern.type==='ObjectPattern')
+      return pattern.properties.some(property=>patternBindsName(
+        property.type==='RestElement'?property.argument:property.value,name));
+    return false;
+  }
+  let promiseShadowed=bindings.has('Promise');
+  walk(ast,node=>{
+    if((node.type==='FunctionDeclaration'||node.type==='FunctionExpression'||
+        node.type==='ClassDeclaration'||node.type==='ClassExpression')&&
+       node.id?.name==='Promise')promiseShadowed=true;
+    if((node.type==='FunctionDeclaration'||node.type==='FunctionExpression'||
+        node.type==='ArrowFunctionExpression')&&
+       node.params.some(param=>patternBindsName(param,'Promise')))promiseShadowed=true;
+    if(node.type==='VariableDeclarator'&&patternBindsName(node.id,'Promise'))
+      promiseShadowed=true;
+    if(node.type==='CatchClause'&&patternBindsName(node.param,'Promise'))
+      promiseShadowed=true;
+    if(node.type==='ImportDeclaration'&&node.specifiers.some(specifier=>
+      specifier.local?.name==='Promise'))promiseShadowed=true;
+  });
+
   walk(ast,node=>{
     if(node.type==='AssignmentExpression'&&node.operator==='='&&
        node.left.type==='Identifier'&&bindings.has(node.left.name)) {
@@ -4084,7 +4112,7 @@ function collectExportedCallableNodes(ast,propertySafeExports=null) {
       const receiver=callCallee.type==='MemberExpression'?callCallee.object:null;
       const method=callCallee.type==='MemberExpression'&&!callCallee.computed&&
         callCallee.property.type==='Identifier'?callCallee.property.name:null;
-      const nativePromiseHandler=!bindings.has('Promise')&&
+      const nativePromiseHandler=!promiseShadowed&&
         ['then','catch','finally'].includes(method??'')&&
         receiver?.type==='CallExpression'&&
         receiver.callee.type==='MemberExpression'&&!receiver.callee.computed&&
