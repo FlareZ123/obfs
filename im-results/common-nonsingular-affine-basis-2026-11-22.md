@@ -32,7 +32,7 @@ This is **existence rather than efficient online discoverability**: the proof ma
 
 As a consistency cross-check with the earlier independent width-3 inversion research: averaging the histogram over the `168` possible input bases gives full-rank interpolation probability exactly `0.8` for an arbitrary fixed basis under uniformly enumerated permutations. Across all `8!=40,320` permutations with arbitrary `F(0)`, this yields `32,256` full-rank and `8,064` singular standard-basis interpolants, matching the existing pinned exhaustive counts. This is a check of the finite combinatorics, not an independent confirmation of the entire rank-r inversion algorithm.
 
-The source fixture uses integer XOR on bit vectors (q=2). Its exhaustive check validates widths 3 only; the all-width and all-field conclusion follows from the displayed proof. A strict JSDoc config and optional cross-platform workflow are provided as `jsconfig.common-basis.json` and `.github/workflows/manual-common-basis-lemma.yml`.
+The source fixture uses integer XOR on bit vectors (q=2). Its exhaustive check validates widths 3 only; the all-width and all-field conclusion follows from the displayed proof. The standalone checker is also exposed through `test/common-basis-existence.test.js`, which can be run on both operating systems through the repository's existing focused manual-validation workflow; `jsconfig.external.json` includes both files for strict JSDoc checking.
 
 ## Research significance and limits
 
