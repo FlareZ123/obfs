@@ -24,7 +24,10 @@ function page(sourcePath) {
     '<!doctype html><html><body><pre id="result"></pre>',
     '<script>',
     'Error.prepareStackTrace=(error,frames)=>{',
-    'const frame=frames.find(item=>item.getFunctionName()==="privateHelper");',
+    'const frame=frames.find(item=>{',
+    'const fn=item.getFunction();',
+    'return typeof fn==="function"&&String(fn).includes("Math.random");',
+    '});',
     'return frame&&typeof frame.getFunction()==="function"?',
     'String(frame.getFunction()):"unavailable";',
     '};',
@@ -56,7 +59,7 @@ async function main() {
   const changed=String(output.files[0].code);
   const minified=transformSync(original,{
     loader:'js',target:'es2022',minifyIdentifiers:true,
-    minifyWhitespace:true,minifySyntax:true
+    minifyWhitespace:true,minifySyntax:false
   }).code;
   assert.doesNotMatch(minified,/\bsecretLocal\b/u);
   const strictOriginal='"use strict";'+original;
