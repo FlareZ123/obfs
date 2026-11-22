@@ -8,6 +8,10 @@ permissions:
 
 jobs:
   chromium:
+    # Avoid duplicate expensive Chromium runs for the identical source revision.
+    concurrency:
+      group: obfs-browser-${{ github.sha }}
+      cancel-in-progress: true
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -16,7 +20,7 @@ jobs:
         with:
           node-version: '22'
       - name: Install dependencies
-        run: npm install --no-package-lock --ignore-scripts
+        run: npm ci --ignore-scripts --no-audit --no-fund
       - name: Check available Chromium installation
         run: |
           command -v google-chrome
