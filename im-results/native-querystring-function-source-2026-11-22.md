@@ -28,7 +28,9 @@ The implementation reuses the existing conservative `isCoercer` source-observati
 
 - [Focused Node 22 Ubuntu/Windows run 45058235640](https://github.com/FlareZ123/obfs/actions/runs/45058235640) at `4c7c006e9db20723ec14da71ba6363f3aacd01b2` passed the original CommonJS source-parity matrix, primitive positive controls, and strict project/external JSDoc.
 - [Expanded focused Node 22 Ubuntu/Windows run 45058345572](https://github.com/FlareZ123/obfs/actions/runs/45058345572) at `52a214903b59a0d5e0c82651a076586cd05c70ba` passed the additional `unescape` and native dynamic-data-URL ESM import variants plus strict project/external JSDoc.
-- A full Node/Chromium integration replay at the expanded candidate source was dispatched separately; its result must be checked before claiming broad integration.
+- [Second adversarial two-platform run 45058825800](https://github.com/FlareZ123/obfs/actions/runs/45058825800) at `8840e6ef6b30359b0b284148fb093de19f46eae5` revealed a remaining source-observer gap for computed native method selectors `namespace[method]` and computed destructuring. Both operating systems observed a changed string result after a function literal rewrite.
+- [Computed-key repair focused Node 22 Ubuntu/Windows run 45058918686](https://github.com/FlareZ123/obfs/actions/runs/45058918686) at `3aad66daa1c3379e52810b4f47ac79afcefcd235` passed CommonJS, ESM, bound method, `Reflect.apply`, dynamically selected native method, and primitive positive controls with both strict JSDoc gates.
+- A full Node/Chromium integration replay at earlier source `52a214903` was dispatched separately. The final computed-key repaired source `3aad66daa` requires its own full integration replay before broad integration can be claimed.
 
 ## Boundaries
 
