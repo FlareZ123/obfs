@@ -139,9 +139,9 @@ function reconstructPublicWasmCommonJs(publicSource){
     .map(name=>wrappers.get(name)).filter(Boolean).sort((a,b)=>a.start-b.start)
     .map(wrapper=>wrapper.source);
   const exported=exportsList.map(item=>JSON.stringify(item.name)+':'+item.localName).join(',');
-  const code="'use strict';\\n"+declarations.join('\\n')+
-    (preservedWrappers.length?'\\n'+preservedWrappers.join('\\n'):'')+
-    '\\nmodule.exports={'+exported+'};\\n';
+  const code="'use strict';\n"+declarations.join('\n')+
+    (preservedWrappers.length?'\n'+preservedWrappers.join('\n'):'')+
+    '\nmodule.exports={'+exported+'};\n';
   return {code,functions,sourceBytes:Buffer.byteLength(publicSource),
     replacementBytes:Buffer.byteLength(code)};
 }
