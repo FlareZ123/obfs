@@ -239,14 +239,6 @@ function decodeMarkup(path,code,kind) {
 }
 
 /**
- * Audit HTML and XHTML assets before their bytes are copied to an output directory
- * or offered by SCO. A detected inline execution path is rejected rather
- * than silently stripped, which could change program behavior.
- * @param {string} path
- * @param {string|Buffer} code
- * @returns {void}
- */
-/**
  * XML declarations can occur in opaque assets served with executable XML or
  * HTML media types. This is a deliberately narrow content signature: XML
  * declarations are optional, and deployment headers remain outside the proof.
@@ -258,6 +250,14 @@ function hasXmlDeclaration(code) {
   return /^\uFEFF?<\?xml(?:[ \t\r\n]|\?>)/u.test(prefix);
 }
 
+/**
+ * Audit HTML and XHTML assets before their bytes are copied to an output directory
+ * or offered by SCO. A detected inline execution path is rejected rather
+ * than silently stripped, which could change program behavior.
+ * @param {string} path
+ * @param {string|Buffer} code
+ * @returns {void}
+ */
 function assertNoInlineHtmlSource(path,code) {
   const namedXml=/\.(?:xhtml|xht|xml)$/iu.test(path);
   const namedHtml=/\.html?$/iu.test(path);
