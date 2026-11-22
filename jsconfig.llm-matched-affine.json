@@ -1,0 +1,7 @@
+{
+  "extends": "./jsconfig.json",
+  "include": [
+    "sims/llm-matched-affine-challenge.js",
+    "test/llm-matched-affine-challenge.test.js"
+  ]
+}
