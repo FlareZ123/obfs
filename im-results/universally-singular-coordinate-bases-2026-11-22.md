@@ -14,6 +14,10 @@ If its source-coordinate normalization is an invertible compatible linear map, o
 
 **Answer: no.** There is a reversible triangular oracle for every bit width `n >= 3` for which **every** such `M_r` is singular, irrespective of the anchor. Any strategy that only varies the anchor and insists on invertible coordinate interpolants cannot use this theorem on the example, even with exhaustive anchor search.
 
+## Minimal dimension for universal coordinate-basis singularity
+
+The phenomenon requires at least **three bits** within this exact compatible-permutation class. Every compatible permutation in dimensions one and two is affine: output bit zero has only its original bit and a constant; output bit one toggles its own bit plus an arbitrary Boolean function of the sole lower bit, and every one-input Boolean function is affine over GF(2). Composing affine P with invertible affine input/output wrappers yields an invertible affine F. Its finite-difference matrix is independent of anchor and equals F's invertible linear part. Thus no rank-deficient M_r exists at n≤2. The explicit n=3 counterexample below is therefore **dimension-minimal** for this fixed-coordinate singularity property. This statement is a short mathematical implication, separate from the executable width-three census.
+
 ## Explicit construction and algebraic proof
 
 Work over GF(2), with bits indexed least-significant first. Define the invertible linear input map `A`, affecting only the first three coordinates:
