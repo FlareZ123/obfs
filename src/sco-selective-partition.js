@@ -1005,7 +1005,7 @@ function realmStateObservation(body,checkHostConfiguration=false){
        localBlobInstance(node.init)&&node.id.properties.some(
          (/** @type {import('./ast').AstNode} */ property)=>
            property.type!=='Property'||keyName(property)==='constructor'||
-           property.computed&&keyName(property)===null))){
+           property.computed&&keyName(property)===null)){
       configurationTouched=true;
     }
     // Blob is host-dependent when its constructor options request native
