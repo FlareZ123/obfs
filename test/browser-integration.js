@@ -115,10 +115,15 @@ async function main(){
       code:'export const state={secretValue:29,otherValue:12};'},
     {path:'reflection-entry.mjs',sourceType:'module',
       code:'import {state} from "./reflection-state.mjs";'+
-        'const value=Reflect.get(state,"secretValue")+state.otherValue;'+
+        'const before=Reflect.getOwnPropertyDescriptor(state,"secretValue").value;'+
+        'const other=Object.getOwnPropertyDescriptor(state,"otherValue").value;'+
+        'const has=Reflect.has(state,"secretValue");'+
         'const own=Object.hasOwn(state,"otherValue");'+
+        'const changed=Reflect.set(state,"secretValue",31);'+
+        'const value=Reflect.get(state,"secretValue")+state.otherValue;'+
         'document.getElementById("answer").textContent='+
-        '(value===41&&own?"reflection-ok":"reflection-fail");'}
+        '(before===29&&other===12&&has&&own&&changed&&value===43?'+
+        '"reflection-ok":"reflection-fail");'}
   ],{mode:'coo',closedWorld:true,seed:'chrome-direct-reflection',
     identifiers:false,strings:false});
   assert.equal(reflectionSet.crossFile.properties,2);
