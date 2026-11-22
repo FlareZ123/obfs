@@ -1879,13 +1879,6 @@ function mutatesDecoderIntrinsic(ast,rejectCommonJsExportEscape=false,rejectEsmE
       });
   }
   /**
-   * Object.create's outer map may use a computed property name. The name
-   * cannot make a decoder-sensitive accessor harmless if it is later read.
-   * @param {import('./ast').AstNode} expression
-   * @param {Set<string>} [visited]
-   * @returns {boolean}
-   */
-  /**
    * @param {string} name
    * @returns {Set<string>}
    */
@@ -1906,6 +1899,13 @@ function mutatesDecoderIntrinsic(ast,rejectCommonJsExportEscape=false,rejectEsmE
     return aliases;
   }
 
+  /**
+   * Object.create's outer map may use a computed property name. The name
+   * cannot make a decoder-sensitive accessor harmless if it is later read.
+   * @param {import('./ast').AstNode} expression
+   * @param {Set<string>} [visited]
+   * @returns {boolean}
+   */
   function objectCreateMayExposeDecoder(expression,visited=new Set()){
     if(expression.type==='Identifier'){
       if(visited.has(expression.name))return false;
