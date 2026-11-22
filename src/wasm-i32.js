@@ -2,7 +2,6 @@
 
 const {createHash}=require('node:crypto');
 const {parse,walk,applyEdits}=require('./ast');
-const {collectPrivateDirectCallables}=require('./properties');
 
 /** @typedef {import('./ast').AstNode} AstNode */
 /** @typedef {{code:string,functions:number,instructions:number,wasmBytes:number,declined:number}} WasmI32Result */
@@ -220,7 +219,6 @@ function lowerWasmI32Functions(source,sourceType,options) {
   const targets=new Set(options.names);
   if(!targets.size)return {code:source,functions:0,instructions:0,wasmBytes:0,declined:0};
   const ast=parse(source,sourceType);
-  const privateCallables=collectPrivateDirectCallables(ast);
   /** @type {Set<string>} */
   const used=new Set();
   let dynamic=false;
@@ -254,7 +252,6 @@ function lowerWasmI32Functions(source,sourceType,options) {
     const matches=functions.get(name);
     if(!matches||matches.length!==1) {declined++;continue;}
     const fn=matches[0];
-    if(!privateCallables.has(fn)){declined++;continue;}
     const parameters=/** @type {AstNode[]} */ (fn.params);
     const names=/** @type {string[]} */ (
       parameters.filter(param=>param.type==='Identifier').map(param=>param.name));
