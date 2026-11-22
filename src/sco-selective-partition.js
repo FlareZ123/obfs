@@ -5,6 +5,7 @@ const {isBuiltin}=require('node:module');
 const {createHash}=require('node:crypto');
 const path=require('node:path');
 const {safePath}=require('./core');
+const {collectBindings}=require('./properties');
 const {partitionScoAsyncModule,bindScoModuleExports}=require('./sco-partition');
 const {createScoHandler}=require('./sco');
 const {snapshotSelectedOptions}=require('./sco-selected-options');
@@ -883,6 +884,26 @@ function collectPrivateStaticImportClosure(directPaths,sources) {
     // Keep known ECMAScript global names outside this narrow host check;
     // realmStateObservation handles their mutable intrinsic hazards.
     const browserOnlyGlobals=browserOnlyRoots;
+    // A unique module-scope const literal supplies an owned primitive even
+    // when its spelling matches a browser global. Nested same-name bindings
+    // stay unproved: syntax-only name resolution cannot safely unify them.
+    const localBindings=collectBindings(ast);
+    const provenModuleOwnedBrowserNames=new Set();
+    for(const statement of ast.body){
+      const declaration=statement.type==='VariableDeclaration'?statement:
+        statement.type==='ExportNamedDeclaration'?statement.declaration:null;
+      if(declaration?.type!=='VariableDeclaration'||declaration.kind!=='const')continue;
+      for(const item of declaration.declarations){
+        if(item.id.type!=='Identifier'||!item.init||
+           item.init.type!=='Literal'||item.init.regex!==undefined||
+           !browserOnlyGlobals.has(item.id.name)||
+           localBindings.get(item.id.name)!==1)continue;
+        if(item.init.value===null||
+           ['string','number','boolean','bigint'].includes(typeof item.init.value)){
+          provenModuleOwnedBrowserNames.add(item.id.name);
+        }
+      }
+    }
     const standardGlobalKeys=new Set([
       'Infinity','NaN','undefined','eval','isFinite','isNaN','process',
       'parseFloat','parseInt','decodeURI','decodeURIComponent',
@@ -914,6 +935,7 @@ function collectPrivateStaticImportClosure(directPaths,sources) {
     }
     walk(ast,(node,parent,key)=>{
       if(node.type==='Identifier'&&browserOnlyGlobals.has(node.name)&&
+         !provenModuleOwnedBrowserNames.has(node.name)&&
          !isStaticKey(parent,key)&&
          !(parent?.type==='VariableDeclarator'&&key==='id')&&
          !(parent?.type==='FunctionDeclaration'&&key==='id')){
