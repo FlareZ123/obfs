@@ -1,6 +1,7 @@
 {
   "extends": "./jsconfig.json",
   "include": [
+    "test/sco-exported-instance-http-source-browser.js",
     "sims/public-instance-source-probe.js",
     "test/public-instance-prototype-source.test.js",
     "test/public-instance-prototype-browser.js",
