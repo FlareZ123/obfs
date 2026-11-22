@@ -229,6 +229,19 @@ test('the stated traversal procedure attains n+2^r distinct queries on full cycl
   }
 });
 
+test('n+1 calibration calls cannot certify the hidden global residual rank',()=>{
+  const {table,width,target}=maximalCycle(1);
+  const affine=Array.from({length:1<<width},(_,x)=>x);
+  const sampled=[0,...Array.from({length:width},(_,bit)=>1<<bit)];
+  for(const x of sampled)assert.equal(table[x],affine[x]);
+  // Both permutations agree on every calibration call and the same
+  // published target output y. Their correct preimages nevertheless differ.
+  const y=table[target];
+  assert.notEqual(target,y);
+  assert.equal(affine.indexOf(y),y);
+  assert.equal(table.indexOf(y),target);
+});
+
 test('independent finite-table coset-cycle inversion, all small widths and ranks',()=>{
   const result=verify();
   assert.ok(result.eligible>0);
