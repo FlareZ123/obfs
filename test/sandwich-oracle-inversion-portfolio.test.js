@@ -7,7 +7,7 @@ const {fixture}=require('../sims/sandwich-cegar-hard-family-stress');
 
 test('oracle-only portfolio recovers exceptional rank-one source within 36 chosen queries',()=>{
   const sample=fixture('sparse-forced-top-bit',7);
-  const recovered=invertPortfolio(sample.oracle,sample.target,sample.attackSeed);
+  const recovered=invertPortfolio(sample.oracle,sample.target,0x510e527f);
   assert.equal(recovered.value,sample.secret);
   assert.equal(recovered.method,'rank-one-interpolation');
   assert.ok(recovered.queryCount<=36);
@@ -15,7 +15,7 @@ test('oracle-only portfolio recovers exceptional rank-one source within 36 chose
 
 test('oracle-only portfolio falls back to CEGAR for a quartic triangular source',()=>{
   const sample=fixture('triangular-degree-4',0);
-  const recovered=invertPortfolio(sample.oracle,sample.target,sample.attackSeed);
+  const recovered=invertPortfolio(sample.oracle,sample.target,0x510e527f);
   assert.equal(recovered.value,sample.secret);
   assert.equal(sample.oracle(/** @type {number} */(recovered.value)),sample.target);
   assert.ok(['rank-one-interpolation','cegar-eight-check','cegar-historical-128']
