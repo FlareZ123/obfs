@@ -113,3 +113,51 @@ test('SNO does not inherit an ambient ESM scope across node_modules',async()=>{
     assert.equal(result.stdout,'41');
   });
 });
+
+test('SNO rejects ambient ESM for a CommonJS .js dependency of a .cjs entry',async()=>{
+  await withFixture(async directory=>{
+    const input=path.join(directory,'source');
+    const host=path.join(directory,'host');
+    const output=path.join(host,'distribution');
+    await atomicWrite(path.join(input,'entry.cjs'),"module.exports=require('./helper.js')*2;");
+    await atomicWrite(path.join(input,'helper.js'),'module.exports=12;');
+    await atomicWrite(path.join(host,'package.json'),'{"type":"module"}');
+
+    const native=runCommonJs(path.join(input,'entry.cjs'));
+    assert.equal(native.status,0,native.stderr);
+    assert.equal(native.stdout,'24');
+
+    await assert.rejects(
+      main('sno',['--root',input,'--entry','entry.cjs','--out',output]),
+      /SNO output \.js inherits external ESM package scope/
+    );
+    await assert.rejects(fs.stat(output),{code:'ENOENT'});
+  });
+});
+
+test('SNO resolves output symlink target before checking ancestor package scope',async t=>{
+  await withFixture(async directory=>{
+    const input=path.join(directory,'source');
+    const external=path.join(directory,'esm-parent');
+    const actual=path.join(directory,'neutral','actual');
+    const alias=path.join(external,'alias');
+    await atomicWrite(path.join(external,'package.json'),'{"type":"module"}');
+    await fs.mkdir(actual,{recursive:true});
+    try { await fs.symlink(actual,alias,process.platform==='win32'?'junction':'dir'); }
+    catch(error) {
+      const code=/** @type {NodeJS.ErrnoException} */(error).code;
+      if(process.platform==='win32'&&['EPERM','EACCES'].includes(code||'')) {
+        t.skip('Windows junction creation unavailable');
+        return;
+      }
+      throw error;
+    }
+    await atomicWrite(path.join(input,'entry.js'),'module.exports=43;');
+
+    const output=path.join(alias,'distribution');
+    await main('sno',['--root',input,'--entry','entry.js','--out',output]);
+    const result=runCommonJs(path.join(output,'sno-entry.cjs'));
+    assert.equal(result.status,0,result.stderr);
+    assert.equal(result.stdout,'43');
+  });
+});
