@@ -22,7 +22,16 @@ jobs:
       - name: Install dependencies
         run: npm install --no-package-lock --ignore-scripts
       - name: Matched same-source challenge and randomized control parity
+        env:
+          OBFS_AFFINE_RECEIPT_DIR: llm-affine-receipts
         run: node --test test/llm-matched-affine-challenge.test.js test/llm-matched-affine-static-attack.test.js
+      - name: Archive exact matched public and private source receipts after grading
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: matched-affine-${{ runner.os }}
+          path: llm-affine-receipts/
+          if-no-files-found: error
       - name: Strict JSDoc for matched challenge verifier
         run: npx tsc -p jsconfig.llm-matched-affine.json
       - name: Generate actual output and verify behavior
@@ -92,7 +101,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: obfs-output-sample
+          name: obfs-output-sample-${{ runner.os }}
           path: |
             obfs-output-sample/
             examples/register-vm/before.cjs
