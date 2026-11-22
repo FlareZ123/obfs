@@ -7,13 +7,14 @@ const {performance}=require('node:perf_hooks');
 const {atomicWrite}=require('../src/atomic');
 const {pairedBudgetBound}=require('./paired-budget-bound');
 const {createMatchedBlindAffineChallenge}=require('./llm-matched-affine-challenge');
+const {attackPublishedSource}=require('./llm-matched-affine-static-attack');
 
 const names=Object.freeze(['round1','round2','round3']);
 // Windows process.cpuUsage can report sub-16ms intervals as zero; a
 // >100ms native measurement makes per-pair CPU quantization tolerable.
 const population=Object.freeze([8_000_000,13]);
 
-/** @typedef {'native'|'generated'|'esbuild-minified'} Variant */
+/** @typedef {'native'|'generated'|'esbuild-minified'|'reconstructed'} Variant */
 /** @typedef {Record<string,(input:number)=>number>} NumericExports */
 /** @typedef {{cpuMs:number,wallMs:number,checksum:number}} TimedWork */
 /** @typedef {{cpuMs:number[],wallMs:number[]}} Samples */
@@ -76,29 +77,35 @@ function measure(functions,callsPerExport){
  */
 async function runMode(mode){
   const trial=createMatchedBlindAffineChallenge(mode);
-  const exposed=await Promise.all(trial.questions.map(x=>sourceModule(x.source)));
-  const guesses=exposed.map(functions=>
-    Object.fromEntries(names.map(name=>[name,functions[name](0)]))
-  );
-  assert.ok(trial.verify(guesses).every(result=>result.passed));
+  // Commit the source-only reconstruction before any distributed execution:
+  // no chosen-value oracle is needed to recover this affine family.
+  const attacks=trial.questions.map(question=>attackPublishedSource(question.source));
+  assert.deepEqual(attacks[0].offsets,attacks[1].offsets);
+  assert.ok(trial.verify(attacks.map(attacker=>attacker.offsets))
+    .every(result=>result.passed));
   const revealed=trial.reveal();
+  const exposed=await Promise.all(trial.questions.map(x=>sourceModule(x.source)));
   const original=await sourceModule(revealed.originalSource);
+  const reconstructed=await sourceModule(
+    attacks[revealed.arms.indexOf('generated')].reconstructedSource
+  );
   const variants=/** @type {Record<Variant,NumericExports>} */({
     native:original,
     generated:exposed[revealed.arms.indexOf('generated')],
-    'esbuild-minified':exposed[revealed.arms.indexOf('esbuild-minified')]
+    'esbuild-minified':exposed[revealed.arms.indexOf('esbuild-minified')],
+    reconstructed
   });
   const [callsPerExport,rounds]=population;
   const expected=exercise(original,callsPerExport);
   for(const name of Object.keys(variants))
     assert.equal(exercise(variants[/** @type {Variant} */(name)],callsPerExport),expected,
-      'Same-source generated and minifier outputs must match native checksum');
+      'Same-source public, rebuilt, and minifier outputs must match native checksum');
 
   // Pre-heat the individual wrapped code before timing, so the only claimed
   // boundary is repeated work after normal JS JIT and import initialization.
   for(let warm=0;warm<3;warm++){
     for(const kind of /** @type {Variant[]} */(
-      ['native','generated','esbuild-minified']
+      ['native','generated','esbuild-minified','reconstructed']
     )) assert.equal(exercise(variants[kind],100_000),
       exercise(original,100_000),'Warmup changed outputs');
   }
@@ -106,12 +113,14 @@ async function runMode(mode){
   const samples={
     native:{cpuMs:[],wallMs:[]},
     generated:{cpuMs:[],wallMs:[]},
-    'esbuild-minified':{cpuMs:[],wallMs:[]}
+    'esbuild-minified':{cpuMs:[],wallMs:[]},
+    reconstructed:{cpuMs:[],wallMs:[]}
   };
   const orders=/** @type {Variant[][]} */([
-    ['native','generated','esbuild-minified'],
-    ['esbuild-minified','native','generated'],
-    ['generated','esbuild-minified','native']
+    ['native','generated','esbuild-minified','reconstructed'],
+    ['reconstructed','esbuild-minified','generated','native'],
+    ['esbuild-minified','native','reconstructed','generated'],
+    ['generated','reconstructed','native','esbuild-minified']
   ]);
   for(let round=0;round<rounds;round++){
     for(const variant of orders[round%orders.length]){
@@ -125,10 +134,13 @@ async function runMode(mode){
   const native=samples.native;
   const generated=samples.generated;
   const minified=samples['esbuild-minified'];
+  const rebuilt=samples.reconstructed;
   const diagnostics={
     generatedVsNative:pairedBudgetBound(native.cpuMs,generated.cpuMs),
     minifiedVsNative:pairedBudgetBound(native.cpuMs,minified.cpuMs),
     generatedVsMinified:pairedBudgetBound(minified.cpuMs,generated.cpuMs),
+    reconstructedVsNative:pairedBudgetBound(native.cpuMs,rebuilt.cpuMs),
+    reconstructedVsGenerated:pairedBudgetBound(generated.cpuMs,rebuilt.cpuMs),
     generatedVsNativeWall:pairedBudgetBound(native.wallMs,generated.wallMs),
     minifiedVsNativeWall:pairedBudgetBound(native.wallMs,minified.wallMs)
   };
@@ -141,21 +153,25 @@ async function runMode(mode){
     sourceBytes:{
       native:Buffer.byteLength(revealed.originalSource),
       generated:Buffer.byteLength(trial.questions[revealed.arms.indexOf('generated')].source),
-      minified:Buffer.byteLength(trial.questions[revealed.arms.indexOf('esbuild-minified')].source)
+      minified:Buffer.byteLength(trial.questions[revealed.arms.indexOf('esbuild-minified')].source),
+      reconstructed:Buffer.byteLength(attacks[revealed.arms.indexOf('generated')].reconstructedSource)
     },
     initializationExcluded:true,
     environmentBoundary:mode==='coo'?
       'Post-init COO hot-leaf lower-bound diagnostic, not full startup-inclusive COO budget':
       'Post-init SNO hot-leaf CPU with symmetric native JIT warmup',
     raw:samples,diagnostics,strictCpuExceedances,
+    staticAttacks:attacks.map(x=>({kind:x.kind,bytes:x.bytes,attackMs:x.attackMs})),
+    independentStaticOracleQueries:0,
     source: 'sims/llm-matched-affine-cpu-control.js',
-    witness: 'Attacker and source code are revealed only after verifier commitment'
+    witness: 'Static attacker reads only public bytes and commits before original source reveal'
   };
   const folder=process.env.OBFS_AFFINE_CPU_RECEIPT_DIR;
   if(folder){
     await fs.mkdir(folder,{recursive:true});
     await atomicWrite(path.join(folder,mode+'-cpu.json'),JSON.stringify({
-      evidence,questions:trial.questions,revealed
+      evidence,questions:trial.questions,revealed,
+      reconstructedSource:attacks[revealed.arms.indexOf('generated')].reconstructedSource
     },null,2)+'\n');
   }
   return evidence;
