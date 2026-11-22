@@ -75,10 +75,31 @@ function fixture(seed,kind) {
       'export const value=alias.'+field+'+alias.'+other+';';
     // A rename is optional here. Prove native ESM behavior for either outcome.
     expectedProperties=null;
+  }else if(kind===9) {
+    scenario='async-owner-reflection';
+    logic='export const value=Promise.resolve(state).then(owner=>'+
+      'Object.keys(owner).sort().join("|"));';
+    expectedProperties=0;
+  }else if(kind===10) {
+    scenario='async-external-reader';
+    logic='import "./api.mjs";export const value=Promise.resolve(state).then(owner=>'+
+      'globalThis.window.api.read(owner));';
+    expectedProperties=0;
+  }else if(kind===11) {
+    scenario='boxed-identity-reflection';
+    logic='function box(owner){return {held:owner};}'+
+      'const boxed=box(state);'+
+      'export const value=Reflect.ownKeys(boxed.held).sort().join("|");';
+    expectedProperties=0;
+  }else if(kind===12) {
+    scenario='array-shared-reference-reflection';
+    logic='const owners=[state];const [alias]=owners;'+
+      'export const value=Object.getOwnPropertyNames(alias).sort().join("|");';
+    expectedProperties=0;
   }else {
     throw new RangeError('Unknown graph shape');
   }
-  if(kind===1||kind===4)files.push({
+  if(kind===1||kind===4||kind===10)files.push({
     path:'api.mjs',sourceType:'module',
     code:'globalThis.window={api:{key:'+JSON.stringify(field)+
       ',read(object){return object['+JSON.stringify(field)+']+7;}}};'
@@ -87,7 +108,7 @@ function fixture(seed,kind) {
     code:'import {state} from "./state.mjs";'+logic});
   files.push({path:'entry.mjs',sourceType:'module',
     code:'import {value} from "./bridge.mjs";export {value};'});
-  return {index:seed*9+kind,scenario,files,expectedProperties};
+  return {index:kind<9?seed*9+kind:1000000+seed*4+kind-9,scenario,files,expectedProperties};
 }
 
 /**
@@ -108,7 +129,7 @@ async function execute(root,fixtures) {
     }
   }
   const body='const out=[];'+fixtures.map(f=>
-    'out.push((await import("./'+f.index+'/entry.mjs")).value);'
+    'out.push(await (await import("./'+f.index+'/entry.mjs")).value);'
   ).join('')+'console.log(JSON.stringify(out));';
   const runner=path.join(root,'runner.mjs');
   await atomicWrite(runner,body);
@@ -130,7 +151,7 @@ async function runApiFuzz(seedCount=20) {
     /** @type {Fixture[]} */
     const cases=[];
     for(let seed=0;seed<seedCount;seed++) {
-      for(let kind=0;kind<9;kind++)cases.push(fixture(seed,kind));
+      for(let kind=0;kind<13;kind++)cases.push(fixture(seed,kind));
     }
     let positive=0,negative=0,parityOnly=0,positiveProperties=0;
     const transformed=cases.map(item=>{
