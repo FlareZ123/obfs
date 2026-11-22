@@ -29,6 +29,11 @@ jobs:
         run: node sims/unhandled-rejection-source-boundary.js
       - name: Native fixed-width source-coordinate feasibility
         run: node sims/source-coordinate-fixed-width-probe.js
+      - name: External exported-instance prototype source parity in real Chromium
+        if: ${{ matrix.os == 'ubuntu-latest' }}
+        env:
+          CHROMIUM_BIN: google-chrome
+        run: node test/public-instance-prototype-browser.js
       - name: Validate strict project JSDoc
         run: npm run typecheck
       - name: Validate external JSDoc
