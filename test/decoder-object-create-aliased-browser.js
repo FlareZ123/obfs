@@ -83,6 +83,14 @@ async function main() {
     {name:'assigned descriptor map entry',safe:false,
       mutation:'const descriptors={};descriptors.ref={get(){return String.prototype}};'+
         'const box=Object.create(null,descriptors);box.ref.charCodeAt=()=>0;'},
+    {name:'descriptor map member write through identifier alias',safe:false,
+      mutation:'const descriptors={};const alias=descriptors;'+
+        'alias.ref={get(){return String.prototype}};'+
+        'const box=Object.create(null,descriptors);box.ref.charCodeAt=()=>0;'},
+    {name:'descriptor map alias with harmless Number getter',safe:true,
+      mutation:'const descriptors={};const alias=descriptors;'+
+        'alias.ref={get(){return Number.prototype}};'+
+        'const box=Object.create(null,descriptors);box.ref.unrelated=1;'},
     {name:'prebound prototype with invocation-time descriptor map',safe:false,
       mutation:'const maker=Object.create.bind(null,null);'+
         'const box=maker({ref:{get(){return String.prototype}}});'+
