@@ -1012,9 +1012,16 @@ function realmStateObservation(body,checkHostConfiguration=false){
     // Even when the instance remains local, reading its constructor or an
     // unproved computed property can recover the host-specific constructor.
     if(checkHostConfiguration&&node.type==='MemberExpression'&&
-       localBlobInstance(node.object)&&
-       (keyName(node)===null||keyName(node)==='constructor')){
-      configurationTouched=true;
+       localBlobInstance(node.object)){
+      const member=keyName(node);
+      const directCall=parent?.type==='CallExpression'&&parent.callee===node;
+      const primitiveField=member==='size'||member==='type';
+      // An extracted native method is a first-class Function value whose
+      // source spelling and identity belong to the original host realm.
+      // Its direct invocation retains the established narrower method proof.
+      if(member===null||member==='constructor'||!directCall&&!primitiveField){
+        configurationTouched=true;
+      }
     }
     if(checkHostConfiguration&&node.type==='VariableDeclarator'&&
        node.id.type==='ObjectPattern'&&node.init&&
