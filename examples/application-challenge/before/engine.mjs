@@ -1,16 +1,10 @@
-import {state,identity} from './private.mjs';
+import {state} from './private.mjs';
 import {hostValue} from './host.mjs';
 
-/** @typedef {{secretOffset:number,secretSalt:number}} EngineKeys */
-/** @param {EngineKeys} owner */
-function readOffset(owner){return owner.secretOffset;}
-/** @param {EngineKeys} owner */
-function readSalt(owner){return owner["secretSalt"];}
-
-// The exported engine source calls private readers; their property spellings
-// are not part of an externally observable Function#toString surface.
-const offset=readOffset(identity(state));
-const salt=readSalt(state);
+// Keep private state-field reads at module scope. Exported callable source
+// references only the captured numeric values, never the private key tokens.
+const offset=state.secretOffset;
+const salt=state.secretSalt;
 
 /**
  * Stateful 32-bit native arithmetic with observable host interactions.
