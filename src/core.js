@@ -1665,9 +1665,8 @@ function mutatesDecoderIntrinsic(ast,rejectCommonJsExportEscape=false,rejectEsmE
           if(property.type!=='Property')return true;
           const field=property.computed?staticString(property.key):
             property.key.type==='Identifier'?property.key.name:staticString(property.key);
-          return (field===null||field==='get'||
-            field==='value'&&proxyGetMayReturnDecoderIntrinsic(property.value)) &&
-            (field!=='value'||proxyGetMayReturnDecoderIntrinsic(property.value));
+          return (field===null||field==='get'||field==='value')&&
+            proxyGetMayReturnDecoderIntrinsic(property.value);
         })) {
           sensitiveAccessorWrite=true;
         }
