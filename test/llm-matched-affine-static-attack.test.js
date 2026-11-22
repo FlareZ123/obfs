@@ -84,6 +84,30 @@ test('static source-only ESM reconstruction refuses a missing advertised export'
   ),/Unavailable static function export round2|Missing proved public Int32 translation/u);
 });
 
+test('two samples per public switch arm are not universal affine equivalence proofs',async()=>{
+  // Every observed parity representative 0,1,2,3 has the same offset zero.
+  // At input four, the additional AND term becomes nonzero. This module is
+  // adversarial hand-crafted source, not output from the actual compiler.
+  const source=['round1','round2','round3'].map(name=>
+    'export function '+name+'(input){'+
+      'const _ap_input_witness=(input|0);'+
+      'switch(_ap_input_witness&1){'+
+        'case 0:{return ((_ap_input_witness+(_ap_input_witness&-4))|0);}'+
+        'case 1:{return ((_ap_input_witness+(_ap_input_witness&-4))|0);}'+
+      '}}'
+  ).join('\n');
+  const recovered=attackPublishedSource(source);
+  assert.equal(recovered.kind,'generated');
+  assert.deepEqual(recovered.offsets,{round1:0,round2:0,round3:0});
+  const [actual,clone]=await Promise.all([
+    source,recovered.reconstructedSource
+  ].map(code=>import('data:text/javascript;charset=utf-8,'+encodeURIComponent(code))));
+  assert.equal(actual.round1(2),clone.round1(2));
+  assert.equal(actual.round1(3),clone.round1(3));
+  assert.notEqual(actual.round1(4),clone.round1(4),
+    'An arbitrary nonlinear public source can fool finite local parity sampling');
+});
+
 test('symbolic static minified parser refuses unnormalized or nonaffine expressions',()=>{
   const rejected=[
     'function n(x){return (x+1)|0;}',
