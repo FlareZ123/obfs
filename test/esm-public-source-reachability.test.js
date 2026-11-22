@@ -252,3 +252,32 @@ for(const mode of /** @type {const} */ (['coo','sco','sno'])) {
     assert.equal(result,native,'Externally visible class static block source must remain identical');
   });
 }
+
+for(const mode of /** @type {const} */ (['coo','sco','sno'])) {
+  for(const scenario of [
+    {kind:'properties',code:'const owner={secretField:83};'+
+      'class InternalClass{static value=owner.secretField;}export const instance=new InternalClass();'},
+    {kind:'bindings',code:'const privateValue=89;'+
+      'class InternalClass{static value=privateValue;}export const instance=new InternalClass();'}
+  ]) {
+    test('class source reachable through exported instance constructor: '+mode+' / '+scenario.kind,async()=>{
+      const sources=[{path:'private.mjs',sourceType:/** @type {const} */('module'),code:scenario.code}];
+      const observer='import {instance} from "./private.mjs";const ctor=instance.constructor;'+
+        'console.log(JSON.stringify([ctor.toString(),ctor.value]));';
+      const native=await observe(sources,observer);
+      const transformed=obfuscateFiles(sources,{
+        mode,closedWorld:true,seed:'esm-class-instance-'+mode+'-'+scenario.kind,
+        strings:false,properties:scenario.kind==='properties',
+        identifiers:scenario.kind==='bindings'
+      });
+      const result=await observe(transformed.files,observer);
+      console.log('ESM_EXPORTED_INSTANCE_CLASS '+JSON.stringify({
+        mode,kind:scenario.kind,sourceEqual:result===native,
+        propertyRewrites:transformed.files[0].metrics.properties,
+        identifierRewrites:transformed.files[0].metrics.bindings,
+        valueEqual:JSON.parse(native)[1]===JSON.parse(result)[1]
+      }));
+      assert.equal(result,native,'Exporting an instance exposes its class constructor source');
+    });
+  }
+}
