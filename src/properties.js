@@ -1329,7 +1329,8 @@ function renameLocalProperties(source, ast, options) {
        candidate.properties.some(property=>sourceExposedEdits.has(property))||
        proof.members.some(member=>sourceExposedEdits.has(member))||
        proof.patterns.some(property=>sourceExposedEdits.has(property))||
-       proof.inChecks.some(check=>sourceExposedEdits.has(check)))continue;
+       proof.inChecks.some(check=>sourceExposedEdits.has(check))||
+       proof.reflections.some(reflection=>sourceExposedEdits.has(reflection.key)))continue;
     // An unowned field may invoke an inherited getter with this=object. That
     // getter can enumerate own keys, making otherwise private renaming visible.
     const ownNames=new Set(candidate.properties.map(ownPropertyName));
