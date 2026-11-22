@@ -829,3 +829,64 @@ Lease unchanged: claimed 2026-11-22T13:16:13.569Z, threshold
 2026-11-22T14:26:13.569Z. Mandatory real clock check after checkpoint;
 do not release before threshold. Continue useful analysis and preserve
 further reports before the final lease deletion.
+
+## 2026-11-22 16:05 UTC normal-mode incarnation: host canonicalization and explicit-policy admission
+
+Actual initial RNG draw **2** selected normal research mode. Claimed Agent 1 at
+`2026-11-22T16:05:51.071Z` with run_id
+`agent1-20261122T1606Z-compatibility-parity`. Verified remotely at claim
+commit `5b8a9881bc223a263a33ff2dd8507bdeda30a0be`. **70-minute threshold
+17:15:51.071Z**; do not release the lease before measuring clock against
+that original time after a checkpoint. Release must be the last repository
+mutation after all useful state is pushed.
+
+Research/repaired behavior: configured IPv4 host aliases such as `127.1`,
+`0x7f000001` and `1.2.3.004` previously disagreed with normalized browser
+`location.hostname` or raw SCO Host routing. `src/hosts.js` now applies the
+WHATWG URL hostname parser to ASCII IPv4/DNS and bracketed IPv6, refuses
+malformed numeric/port/userinfo Host strings, and rejects sparse allowlists.
+A new real Chromium host alias case was integrated into
+`test/browser-integration.js`. Source-pinned Ubuntu/Windows focused
+[45042333383](https://github.com/FlareZ123/obfs/actions/runs/45042333383)
+passed 3/3 per runner + project/external JSDoc at 86f9ecb.
+Full real Chromium workflow
+[45042577743](https://github.com/FlareZ123/obfs/actions/runs/45042577743)
+passed at source 37d10c8. Report:
+`im-results/whatwg-ipv4-host-alias-2026-11-22.md`.
+
+Found independently a higher-impact fail-open configuration:
+`obfuscateFiles(...,{allowedHosts:[]})` in COO and
+`createScoHandler(...,{allowedHosts:[]})` previously silently omitted
+the requested hostname filter; SNO also ignored explicit [].
+Red Ubuntu/Windows [45042974353](https://github.com/FlareZ123/obfs/actions/runs/45042974353),
+source 5d52ed7, verified three failures/one omission control pass.
+Repairs in `src/core.js`, `src/sco.js`, `src/cli.js`, `src/hosts.js`
+validate supplied lists, distinguish omission `undefined`, preserve
+default COO/SNO CLI invocations without --host, and snapshot caller
+configuration. Green policy suite focused [45043033724](https://github.com/FlareZ123/obfs/actions/runs/45043033724)
+at 096759a: 4/4 and two strict JSDoc suites on both OS.
+Green end-to-end COO/SNO CLI omission suite focused
+[45043150348](https://github.com/FlareZ123/obfs/actions/runs/45043150348)
+at 7a21009: all tests and typechecks passed both OS.
+
+New `test/host-policy-snapshot.test.js` red at
+[45043347822](https://github.com/FlareZ123/obfs/actions/runs/45043347822),
+source 50d0324: repeatedly reading caller-controlled policy getter
+was inconsistent. Repaired by assigning `suppliedHosts=options.allowedHosts`
+once before mode rejection and canonicalizing from that snapshot.
+The report `im-results/explicit-empty-host-policy-2026-11-22.md` documents
+the empty-list red/green. The snapshot follow-up is undergoing two-platform
+validation [45043418423](https://github.com/FlareZ123/obfs/actions/runs/45043418423)
+at 982683459. The full correctness workflow
+[45043230588](https://github.com/FlareZ123/obfs/actions/runs/45043230588)
+was manually dispatched at 7a21009 (prior to snapshot changes) and must be
+checked for final outcome; do not claim green prematurely.
+Root README now links both admission reports.
+
+Security limitations unchanged: attacker-controlled browser/Host can bypass
+routing; there is no genuine full-control anti-cloning improvement or
+universal 2.5x compute guarantee. Incremental correctness/routing repairs
+must not be promoted to `results/` as academic strong protection.
+Potential next work: source-pin snapshot red/green, re-run full gate at latest
+source, re-evaluate mixed host policy without claiming runtime authorization,
+and seek stronger independent attacker-cost evidence.
