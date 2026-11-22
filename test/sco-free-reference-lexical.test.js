@@ -20,7 +20,7 @@ function selectedBody(body){
   return ast.body[0].declaration.body;
 }
 
-test('23 lexical free-reference cases separate scope from mere binding-count presence',()=>{
+test('25 lexical free-reference cases separate scope from mere binding-count presence',()=>{
   const negatives=[
     'function decoy(){const externalBridge=1;} return externalBridge;',
     'if(false){const externalBridge=1;} return externalBridge;',
@@ -46,7 +46,9 @@ test('23 lexical free-reference cases separate scope from mere binding-count pre
     'const x=4; function inner(){return x;}return inner();',
     'let a=1; for (let i=0;i<3;i++)a+=i; return a;',
     'return typeof (()=>externalBridge);',
-    'return typeof function(){return externalBridge;};'
+    'return typeof function(){return externalBridge;};',
+    'return arguments[0];',
+    'const reader=()=>arguments[0];return reader();'
   ];
   for(const body of negatives){
     assert.equal(firstUnprovedFreeReference(selectedBody(body),new Set(),
@@ -56,7 +58,7 @@ test('23 lexical free-reference cases separate scope from mere binding-count pre
     assert.equal(firstUnprovedFreeReference(selectedBody(body),new Set(),
       new Set(),shared),null,body);
   }
-  assert.equal(negatives.length+positives.length,23);
+  assert.equal(negatives.length+positives.length,25);
 });
 
 /** @param {string} body @returns {ReturnType<typeof partitionScoSelectedAsyncExports>} */
@@ -99,7 +101,8 @@ test('SCO selected export declines unproved bare globals but retains real local 
     'const {externalBridge}={externalBridge:41};return externalBridge+1;',
     'return Math.imul(6,7);',
     'return typeof (()=>externalBridge);',
-    'return typeof function(){return externalBridge;};'
+    'return typeof function(){return externalBridge;};',
+    'return arguments[0];'
   ]){
     assert.deepEqual(selected(body).privateNames,['protectedOp'],body);
   }
@@ -116,7 +119,8 @@ test('SCO audited graph declines unproved globals and preserves local/imported p
   for(const body of [
     'const externalBridge=41;return externalBridge+1;',
     'const {externalBridge}={externalBridge:41};return externalBridge+1;',
-    'return Math.imul(6,7);'
+    'return Math.imul(6,7);',
+    'return arguments[0];'
   ]){
     assert.deepEqual(audited(body).privateNames,['protectedOp'],body);
   }
