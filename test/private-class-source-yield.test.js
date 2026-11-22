@@ -26,14 +26,13 @@ const source=[
 function evaluate(code){
   const context={module:{exports:null}};
   vm.runInNewContext(code,context,{filename:'private-class.cjs',timeout:2000});
-  return /** @type {number} */ (context.module.exports);
+  return Number(context.module.exports);
 }
 
 for(const mode of /** @type {Array<'coo'|'sno'>} */ (['coo','sno'])){
   test(mode+' private direct-use class preserves value and permits private owner rename',()=>{
     const result=obfuscateFiles([{
-      path:'private-class.cjs',sourceType:'commonjs',code
-        :source
+      path:'private-class.cjs',sourceType:'commonjs',code:source
     }],{mode,seed:'private-class-source-yield/'+mode,
       properties:true,identifiers:false,strings:false});
     const emitted=result.files[0];
