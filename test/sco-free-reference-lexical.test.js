@@ -155,3 +155,17 @@ test('SCO ordinary functions own arguments but module-level arrows do not',()=>{
     new Set(),new Set(),shared
   ),null);
 });
+
+test('SCO confines proven Node-only global names to their trusted private contexts',()=>{
+  assert.deepEqual(selected('return Buffer.from("abc","utf8").length;').privateNames,
+    ['protectedOp'],'Node Buffer remains usable in selected private execution');
+  assert.deepEqual(audited('return process.env.SCO_TEST_SUFFIX;').privateNames,
+    ['protectedOp'],'Node process.env remains usable in server-owned static ESM');
+  assert.deepEqual(audited('return Buffer.from("xyz","utf8").length;').privateNames,
+    ['protectedOp'],'Node Buffer remains usable in static server-only ESM');
+  assert.throws(()=>selected('return process.env.SCO_TEST_SUFFIX;'),
+    /unproved free global: process/u,
+    'An unapproved selected browser-to-Node ambient process read remains refused');
+  assert.throws(()=>selected('return externalBridge;'),
+    /unproved free global: externalBridge/u);
+});
