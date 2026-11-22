@@ -128,15 +128,16 @@ async function main(){
   // window.hostApi.accept interface exactly as written.
   const readerSet=obfuscateFiles([
     {path:'reader-state.mjs',sourceType:'module',
-      code:'export const state={secretValue:29,otherValue:12};'},
+      code:'export const state={secretValue:29,otherValue:12};'+
+        'function peek(value){return value.secretValue;}'+
+        'export function publicPeek(value){return peek(value);}'},
     {path:'reader-identity.mjs',sourceType:'module',
       code:'export const identity=payload=>payload;'},
     {path:'reader-entry.mjs',sourceType:'module',
-      code:'import {state} from "./reader-state.mjs";'+
+      code:'import {state,publicPeek} from "./reader-state.mjs";'+
         'import {identity} from "./reader-identity.mjs";'+
-        'const peek=value=>value.secretValue;'+
         'const forward=part=>part;'+
-        'window.hostApi.accept(peek(forward(identity(state)))+state.otherValue);'}
+        'window.hostApi.accept(publicPeek(forward(identity(state)))+state.otherValue);'}
   ],{mode:'coo',closedWorld:true,seed:'chrome-nested-readers',
     identifiers:false,strings:false});
   assert.equal(readerSet.crossFile.properties,2);
