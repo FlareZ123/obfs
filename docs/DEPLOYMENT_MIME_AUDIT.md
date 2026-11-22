@@ -44,8 +44,10 @@ the same release step would defeat that independent trust boundary.
 - The checker requests the percent-encoded path segments from the given
   HTTP(S) root, refuses redirects and non-200 responses, checks the normalized
   full `Content-Type` including parameters and requires the response
-  `X-Content-Type-Options: nosniff` value. It hashes response bytes after
-  content decoding and compares against the approved manifest.
+  `X-Content-Type-Options: nosniff` value. It refuses declared
+  request-dependent representations through the `Vary` response header,
+  except `Vary: Accept-Encoding` because decoded bytes are compared. It
+  hashes the response after content decoding against the approved digest.
 - JavaScript MIME on an opaque `sourceType:'asset'` is refused. Published
   `script`, `module` and `commonjs` resources must have recognized
   JavaScript MIME. HTML, CSS and JavaScript sources must declare an explicit
@@ -71,6 +73,10 @@ verification costs.
 
 An HTTPS publisher, CDN, proxy, service worker or local attacker may change
 content later; a completed verification cannot bind those future responses.
+A host that varies output by script/document fetch headers, cookies,
+User-Agent or source IP without advertising `Vary` can still defeat the
+single staging request. The checker cannot prove browser and Node Fetch
+request equivalence under arbitrary request-dependent server logic.
 The checker does not establish the full browser dependency graph, future
 redirect chains, any `eval` consumers, CSP, cross-origin CORS permissions,
 Subresource Integrity correctness, or application-level authorization.
