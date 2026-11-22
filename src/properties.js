@@ -89,8 +89,15 @@ function isPrimitiveConstantExpression(node) {
   // Direct BigInt literal property values remain eligible via isLiteralValue.
   if(node.type==='Literal')return node.value===null||
     ['string','number','boolean'].includes(typeof node.value);
-  if(node.type==='UnaryExpression')return ['+','-','!','~','void','typeof'].includes(node.operator)&&
-    isPrimitiveConstantExpression(node.argument);
+  if(node.type==='UnaryExpression') {
+    // A directly spelled BigInt literal is a primitive, but unary plus
+    // throws. Do not admit BigInt arithmetic or other potentially throwing
+    // expression trees through the ordinary numeric grammar below.
+    if(node.argument.type==='Literal' && typeof node.argument.value==='bigint')
+      return ['-','~','!','void','typeof'].includes(node.operator);
+    return ['+','-','!','~','void','typeof'].includes(node.operator)&&
+      isPrimitiveConstantExpression(node.argument);
+  }
   if(node.type==='BinaryExpression')return     ['+','-','*','/','%','**','<<','>>','>>>','&','|','^',
       '==','!=','===','!==','<','<=','>','>='].includes(node.operator)&&
     isPrimitiveConstantExpression(node.left)&&
