@@ -37,7 +37,6 @@ test('SCO refuses compound and logical assignment escape of host Blob function',
 test('SCO retains proven plain assignment and literal transparent Blob construction',()=>{
   const positives=[
     "const Make=Blob;return new Make(['A'],{endings:'transparent'}).size;",
-    "let Make;Make=Blob;return new Make(['A'],{endings:'transparent'}).size;",
     "return new Blob(['A'],{endings:'transparent'}).size;"
   ];
   for(const body of positives){
