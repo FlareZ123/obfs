@@ -205,4 +205,6 @@ test('manifest hashes and complete portable path inventory are required before n
     verifyPublishedDeployment('file:///unsafe/',files,[record]),/bare HTTP/);
   await assert.rejects(()=>
     verifyPublishedDeployment('http://127.0.0.1:1/subdir/',files,[record]),/bare HTTP/);
+  await assert.rejects(()=>
+    verifyPublishedDeployment('http://example.com/',files,[record]),/HTTPS or loopback HTTP/);
 });
