@@ -18,8 +18,8 @@ const files=[
   {path:'kernel.mjs',sourceType:'module',
     code:'function scramble(a,b,c,d){return (((a^b)&(c|d))^((a>>>d)|(c<<b)));}'+
       'function mask(x){return x?((x^137)&255):((~x)|7);}'+
-      'export function publicScramble(a,b,c,d){\\n  /* stable public wrapper source */\\n  return scramble(a,b,c,d);\\n}'+
-      'export function publicMask(x){\\n  /* stable mask wrapper source */\\n  return mask(x);\\n}'},
+      'export function publicScramble(a,b,c,d){\n  /* stable public wrapper source */\n  return scramble(a,b,c,d);\n}'+
+      'export function publicMask(x){\n  /* stable mask wrapper source */\n  return mask(x);\n}'},
   {path:'bridge.mjs',sourceType:'module',
     code:'export function forward(value,label){return globalThis.externalBridge.deliver(value,label);}'},
   {path:'entry.mjs',sourceType:'module',
