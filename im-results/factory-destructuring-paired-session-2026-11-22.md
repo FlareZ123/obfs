@@ -85,6 +85,57 @@ selected-work hot ratio stayed at or below 2.06667×. No measured emitted
 COO/SNO/SCO pair exceeded 2.5× in this finite test on either OS. The
 sample does not eliminate startup noise or establish a bound on new workloads.
 
+## Follow-up: Windows zero-tick diagnostics and a longer protected session
+
+A source-pinned **red measurement-harness run**
+[45035177971](https://github.com/FlareZ123/obfs/actions/runs/45035177971)
+at `3ccc3945dc32b4280fea4359fd5a2951d1d72980` exposed a
+Windows run where the 11-million-operation worker registered
+**zero** measured hot process CPU microseconds. The original harness
+aborted at its strict-positive counter assertion and therefore could
+not report every later pair. A CPU ratio with a zero counter is
+**inconclusive**; it cannot be replaced with zero, infinity, a
+favorable bound or an omitted observation without disclosure.
+
+The harness now retains raw CPU counters including zero, records
+the number of unusable CPU pairs and a separately measured
+`performance.now()` wall-clock ratio, and excludes invalid CPU
+ratios from that CPU metric's descriptive median. Every strict
+measured breach remains counted, even when it appears in a control.
+Two source-identical protocols run sequentially: the original
+11-million-iteration protected worker and a higher-resolution
+**60-million-iteration** worker. The existing source-paired
+esbuild and unchanged-code placebo arms remain in both. A zero-tick
+count of zero in a later sample **does not erase the previous red
+measurement**.
+
+The amended [Ubuntu+Windows CI 45035359947](https://github.com/FlareZ123/obfs/actions/runs/45035359947)
+completed **successfully** at exact SHA
+`af1e1f3dd375f7cd7b2357fc411119e7e9693d1e`.
+All 288 pairs across the two operating systems, two workload lengths,
+three compiler modes and three comparator arms were executed and
+printed with raw counters. All pairs in this successful sample had
+positive CPU ticks, so no nullable CPU ratios were needed for this
+particular run. Across the **96 emitted-vs-native pairs**, none
+strictly exceeded 2.5× in hot CPU, process-lifetime CPU or worker
+wall-clock ratio; the ordinary minifier and placebo also had no
+strict exceedances in this follow-up sample.
+
+| OS | Protected iterations | COO hot median / worst | SNO hot median / worst | SCO hot median / worst | Strict emitted hot, session, wall breaches |
+| --- | ---: | ---: | ---: | ---: | --- |
+| Ubuntu | 11,000,000 | 1.00121 / 1.01436× | 1.00122 / 1.00675× | 1.00091 / 1.00453× | 0 / 0 / 0 |
+| Ubuntu | 60,000,000 | 1.00043 / 1.00690× | 1.00052 / 1.00180× | 1.00036 / 1.00349× | 0 / 0 / 0 |
+| Windows | 11,000,000 | 1.01667 / 2.06667× | 1.00000 / 1.93750× | 1.03280 / 1.93750× | 0 / 0 / 0 |
+| Windows | 60,000,000 | 1.00000 / 1.15957× | 1.00459 / 1.17021× | 1.00000 / 1.41026× | 0 / 0 / 0 |
+
+Each source/mode/OS/work-length cell has eight emitted-vs-native
+pairs, and the same number for each comparator arm. The longer-work
+Windows sample narrows the worst apparent selected-work CPU
+variation relative to short runs but still exhibits scheduling and
+clock quantization. This is an empirical resolution check rather
+than proof of universal performance or an assertion that every
+Windows zero-tick event is fixed.
+
 ## Security and decision
 
 The prior three-mode composition
