@@ -91,6 +91,8 @@ None of the three distinct visited inputs maps to the target. Thus **merely chec
 
 The exact fixture and exhaustive sixteen-anchor audit live in `sims/reanchor-incompatible-four-bit-cycle.js` and `test/reanchor-incompatible-four-bit-cycle.test.js`.
 
+[**Focused two-platform run 45019761577**](https://github.com/FlareZ123/obfs/actions/runs/45019761577) at exact executable source `15abb640eebc0710264313d216b1d487980ae3c9` **passed** Node 22 Ubuntu/Windows for the three four-bit tests and both strict JSDoc gates. This pin predates the accompanying documentation-only edit.
+
 ## Reproducibility
 
 - `sims/reanchor-all-anchor-singular.js`: explicit reversible oracle, all-eight-anchor proof checks, width-32 embedding, full width-three census, and stable count assertions. Its standalone invocation prints the count vector.
