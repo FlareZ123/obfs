@@ -1916,6 +1916,37 @@ function mutatesDecoderIntrinsic(ast,rejectCommonJsExportEscape=false,rejectEsmE
   }
 
   /**
+   * Resolve member values from one descriptor-map identifier, including
+   * identifier aliases and writes to the named property.
+   * @param {string} name
+   * @param {string|null} property
+   * @param {Set<string>} visited
+   * @returns {import('./ast').AstNode[]}
+   */
+  function descriptorMemberValuesForIdentifier(name,property,visited){
+    const marker='member:'+name+':'+(property??'*');
+    if(visited.has(marker))return [];
+    visited.add(marker);
+    const values=[];
+    for(const source of descriptorBindings.get(name)??[]) {
+      values.push(...descriptorMemberValues(source,property,visited));
+    }
+    for(const write of descriptorMemberWrites.get(name)??[]) {
+      if(property===null||write.key===null||write.key===property)values.push(write.value);
+    }
+    for(const source of objectAssignSources.get(name)??[]) {
+      values.push(...descriptorMemberValues(source,property,visited));
+    }
+    for(const alias of descriptorAliasNames(name)) {
+      if(alias!==name) {
+        values.push(...descriptorMemberValuesForIdentifier(alias,property,visited));
+      }
+    }
+    visited.delete(marker);
+    return values;
+  }
+
+  /**
    * Resolve source-visible values of a static property on an object-like
    * expression. This connects member-read aliases such as
    * `const entry=descriptors.ref` to the descriptor value in the map.
@@ -1926,31 +1957,8 @@ function mutatesDecoderIntrinsic(ast,rejectCommonJsExportEscape=false,rejectEsmE
    */
   function descriptorMemberValues(expression,property,visited=new Set()){
     if(isDecoderGetterMap(expression))return [expression];
-    if(expression.type==='Identifier'){
-      const marker='member:'+expression.name+':'+(property??'*');
-      if(visited.has(marker))return [];
-      visited.add(marker);
-      const values=[];
-      for(const source of descriptorBindings.get(expression.name)??[]) {
-        values.push(...descriptorMemberValues(source,property,visited));
-      }
-      for(const write of descriptorMemberWrites.get(expression.name)??[]) {
-        if(property===null||write.key===null||write.key===property) {
-          values.push(write.value);
-        }
-      }
-      for(const source of objectAssignSources.get(expression.name)??[]) {
-        values.push(...descriptorMemberValues(source,property,visited));
-      }
-      for(const alias of descriptorAliasNames(expression.name)) {
-        if(alias!==expression.name) {
-          values.push(...descriptorMemberValues(
-            /** @type {import('./ast').AstNode} */ ({type:'Identifier',name:alias}),
-            property,visited));
-        }
-      }
-      visited.delete(marker);
-      return values;
+    if(expression.type==='Identifier') {
+      return descriptorMemberValuesForIdentifier(expression.name,property,visited);
     }
     if(expression.type==='ObjectExpression'){
       const values=[];
@@ -1985,10 +1993,16 @@ function mutatesDecoderIntrinsic(ast,rejectCommonJsExportEscape=false,rejectEsmE
       return descriptorMemberValues(
         expression.expressions[expression.expressions.length-1],property,visited);
     }
-    if(expression.type==='ConditionalExpression'||expression.type==='LogicalExpression') {
+    if(expression.type==='ConditionalExpression') {
       return [
-        ...descriptorMemberValues(expression.consequent??expression.left,property,visited),
-        ...descriptorMemberValues(expression.alternate??expression.right,property,visited)
+        ...descriptorMemberValues(expression.consequent,property,visited),
+        ...descriptorMemberValues(expression.alternate,property,visited)
+      ];
+    }
+    if(expression.type==='LogicalExpression') {
+      return [
+        ...descriptorMemberValues(expression.left,property,visited),
+        ...descriptorMemberValues(expression.right,property,visited)
       ];
     }
     if(expression.type==='ChainExpression') {
