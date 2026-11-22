@@ -1886,7 +1886,8 @@ function mutatesDecoderIntrinsic(ast,rejectCommonJsExportEscape=false,rejectEsmE
    * @returns {boolean}
    */
   /**
-   * Resolve the finite identifier-alias closure for descriptor maps. Member
+   * Resolve a conservative alias closure for descriptor maps, including
+   * identifiers loaded from properties of a descriptor-map candidate. Member
    * writes may be recorded against an alias different from the identifier
    * eventually passed to Object.create.
    * @param {string} name
@@ -1899,8 +1900,13 @@ function mutatesDecoderIntrinsic(ast,rejectCommonJsExportEscape=false,rejectEsmE
       changed=false;
       for(const [candidate,sources] of descriptorBindings){
         if(aliases.has(candidate))continue;
-        if(sources.some(source=>source.type==='Identifier'&&
-          aliases.has(source.name))){
+        if(sources.some(source=>{
+          if(source.type==='Identifier')return aliases.has(source.name);
+          if(source.type!=='MemberExpression')return false;
+          let object=source.object;
+          while(object.type==='MemberExpression')object=object.object;
+          return object.type==='Identifier'&&aliases.has(object.name);
+        })){
           aliases.add(candidate);
           changed=true;
         }
