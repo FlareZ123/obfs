@@ -75,6 +75,35 @@ passed **all targeted cases and strict JSDoc on Ubuntu and Windows**.
 This is still a bounded syntactic proof; arbitrary nested destructuring and
 higher-order value escapes require separate analysis.
 
+## URL instance escape closure
+
+The constructor-alias fix still accepted `const {constructor:C}=new URL(...)`
+and higher-order containers that could recover the static Node URL API.
+A broader red-first suite also covered returning URL instances, which would
+cross the selected JSON-RPC interface as a value of a different type from
+the original browser object. The
+[Ubuntu/Windows CI 44999708261](https://github.com/FlareZ123/obfs/actions/runs/44999708261)
+at exact source `cb14f0f12dd66f765f59327273654c269afefbb9`
+failed as expected on the destructured-constructor case.
+
+The compiler now tracks fresh `new URL(...)` origins and simple local
+aliases and requires their use to stay in a bounded scalar-member subset
+(`href`, `origin`, `protocol`, `username`, `password`, `host`,
+`hostname`, `port`, `pathname`, `search`, `hash`) or a direct
+no-argument `toString()`/`toJSON()` call. Destructuring, containers,
+unknown higher-order calls, first-class constructor access and URL instance
+returns are conservatively refused, as are unproved computed members.
+The three new positive forms, including a local alias then scalar property
+read, stay admitted.
+
+At [CI 44999816986](https://github.com/FlareZ123/obfs/actions/runs/44999816986)
+and exact source `c4c0dc2240f2d57df59c4bf95438ee07a82439d2`,
+the targeted SCO graph suite, generated facade checks and strict JSDoc
+passed on Ubuntu and Windows. The proof concerns source-level use within
+the compiler's declared subset. Arbitrary reflective recovery and
+unrecognized indirect references remain outside its established boundary;
+whole-program equivalence is not claimed.
+
 ## Boundaries and next investigations
 
 The refusal covers directly spelled `URL` constructor uses in the selected
