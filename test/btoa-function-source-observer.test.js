@@ -14,7 +14,7 @@ const {obfuscateFiles}=require('../src');
  * @returns {string}
  */
 function execute(source) {
-  const context=vm.createContext({module:{exports:null},btoa});
+  const context=vm.createContext({module:{exports:null},btoa,require});
   vm.runInContext(source,context,{timeout:2500});
   return String(context.module.exports);
 }
@@ -57,6 +57,30 @@ const sources=[
     source:"'use strict';const binaryEncode=globalThis.btoa;"+
       "function inspect(){return 'original-function-source-ABC123';}"+
       "module.exports=binaryEncode(inspect);"
+  },
+  {
+    label:'node:buffer extracted property alias',
+    source:"'use strict';const binaryEncode=require('node:buffer').btoa;"+
+      "function inspect(){return 'original-function-source-ABC123';}"+
+      "module.exports=binaryEncode(inspect);"
+  },
+  {
+    label:'node:buffer destructured property alias',
+    source:"'use strict';const {btoa:binaryEncode}=require('node:buffer');"+
+      "function inspect(){return 'original-function-source-ABC123';}"+
+      "module.exports=binaryEncode(inspect);"
+  },
+  {
+    label:'node:buffer namespace property',
+    source:"'use strict';const namespace=require('node:buffer');"+
+      "function inspect(){return 'original-function-source-ABC123';}"+
+      "module.exports=namespace.btoa(inspect);"
+  },
+  {
+    label:'node:buffer namespace alias',
+    source:"'use strict';const namespace=require('node:buffer');"+
+      "const other=namespace;function inspect(){return 'original-function-source-ABC123';}"+
+      "module.exports=other.btoa(inspect);"
   }
 ];
 
