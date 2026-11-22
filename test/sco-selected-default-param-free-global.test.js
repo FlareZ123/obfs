@@ -23,11 +23,11 @@ function compile(privateFunction){
 
 test('RED witness: selected-private defaults must not access unproved browser globals',()=>{
   const bodies=[
-    'export async function protectedOp(value=externalBridge){return value;}',
-    'export async function protectedOp(value=externalBridge){const externalBridge=5;return value;}',
-    'export async function protectedOp(value=externalBridge){var externalBridge=5;return value;}',
-    'export const protectedOp=async (value=externalBridge)=>value;',
-    'export const protectedOp=async function(value=externalBridge){return value;}'
+    'export async function protectedOp(value=externalBridge){return 7;}',
+    'export async function protectedOp(value=externalBridge){const externalBridge=5;return 7;}',
+    'export async function protectedOp(value=externalBridge){var externalBridge=5;return 7;}',
+    'export const protectedOp=async (value=externalBridge)=>7;',
+    'export const protectedOp=async function(value=externalBridge){return 7;}'
   ];
   for(const source of bodies){
     assert.throws(()=>compile(source),/unproved free global: externalBridge/u,
