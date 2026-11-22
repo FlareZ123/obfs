@@ -285,12 +285,25 @@ async function main(){
   content.set('/blocked.html','<!doctype html><html><body><div id="answer">initial</div><script src="/blocked.js"></script></body></html>');
   content.set('/rpc-good.html','<!doctype html><html><body><div id="answer">initial</div><script type="module">import remote from "/obfs/remote.mjs";try{document.getElementById("answer").textContent=await remote.score(19)}catch{document.getElementById("answer").textContent="denied"}</script></body></html>');
   content.set('/rpc-bad.html','<!doctype html><html><body><div id="answer">initial</div><script type="module">import remote from "/obfs/remote.mjs";try{document.getElementById("answer").textContent=await remote.score(19)}catch{document.getElementById("answer").textContent="denied"}</script></body></html>');
+  // SharedArrayBuffer exists in the isolated browser tab, so the observable
+  // difference below comes specifically from the main agent's inability to
+  // block, rather than from a missing constructor or inaccessible memory.
+  assert.equal(Atomics.wait(new Int32Array(new SharedArrayBuffer(4)),0,1,0),'not-equal');
+  content.set('/atomics-canblock.html','<!doctype html><html><body><pre id="answer">initial</pre>'+
+    '<script>const out=document.getElementById("answer");'+
+    'if(!crossOriginIsolated||typeof SharedArrayBuffer!=="function"){out.textContent="not-isolated";}'+
+    'else{try{out.textContent=String(Atomics.wait(new Int32Array(new SharedArrayBuffer(4)),0,1,0));}'+
+    'catch(error){out.textContent=error.name;}}</script></body></html>');
   const server=http.createServer((request,response)=>{
     const url=new URL(request.url??'/', 'http://127.0.0.1');
     if(url.pathname.startsWith('/obfs/')){rpcHandler(request,response);return;}
     const body=content.get(url.pathname);
     if(body===undefined){response.writeHead(404).end();return;}
     if(url.pathname==='/rpc-good.html') response.setHeader('set-cookie','session=accepted; Path=/; SameSite=Lax');
+    if(url.pathname==='/atomics-canblock.html'){
+      response.setHeader('Cross-Origin-Opener-Policy','same-origin');
+      response.setHeader('Cross-Origin-Embedder-Policy','require-corp');
+    }
     response.setHeader('content-type',url.pathname.endsWith('.html')?'text/html; charset=utf-8':'text/javascript; charset=utf-8');
     response.end(body);
   });
@@ -311,7 +324,8 @@ async function main(){
       ['/container.html','37'],
       ['/good.html','permitted'],['/blocked.html','initial'],
       ['/trace.html','37:browser-dormant-plaintext-canary'],
-      ['/rpc-good.html','57'],['/rpc-bad.html','denied']
+      ['/rpc-good.html','57'],['/rpc-bad.html','denied'],
+      ['/atomics-canblock.html','TypeError']
     ]){
       const html=await dumpDom(chromium,base+path);
       assert.match(html,new RegExp(`id="answer">${result}<`),`Browser ${path}: ${html}`);
