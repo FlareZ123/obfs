@@ -39,6 +39,7 @@ async function observe(files) {
 
 for(const mode of /** @type {const} */ (['coo','sco','sno'])) {
   test('unescaped private class method retains positive identifier yield: '+mode,async()=>{
+    /** @type {SourceFile[]} */
     const files=[{path:'private.mjs',sourceType:'module',code:
       'class PrivateApi{read(privateParam){return privateParam+9;}}const value=new PrivateApi().read(3);export {value};'}];
     const native=await observe(files);
