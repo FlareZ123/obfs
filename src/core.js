@@ -1774,6 +1774,8 @@ function mutatesDecoderIntrinsic(ast,rejectCommonJsExportEscape=false,rejectEsmE
   const objectCreateAliases=new Set();
   /** @type {Map<string,import('./ast').AstNode[]>} */
   const descriptorBindings=new Map();
+  /** @type {Map<string,Set<string>>} */
+  const descriptorAliases=new Map();
   /** @type {Map<string,Array<{key:string|null,value:import('./ast').AstNode}>>} */
   const descriptorMemberWrites=new Map();
   /** @type {Map<string,import('./ast').AstNode[]>} */
@@ -1811,11 +1813,21 @@ function mutatesDecoderIntrinsic(ast,rejectCommonJsExportEscape=false,rejectEsmE
       const entries=descriptorBindings.get(node.id.name)??[];
       entries.push(node.init);
       descriptorBindings.set(node.id.name,entries);
+      if(node.init.type==='Identifier') {
+        const aliases=descriptorAliases.get(node.init.name)??new Set();
+        aliases.add(node.id.name);
+        descriptorAliases.set(node.init.name,aliases);
+      }
     } else if(node.type==='AssignmentExpression'&&node.operator==='='&&
               node.left.type==='Identifier') {
       const entries=descriptorBindings.get(node.left.name)??[];
       entries.push(node.right);
       descriptorBindings.set(node.left.name,entries);
+      if(node.right.type==='Identifier') {
+        const aliases=descriptorAliases.get(node.right.name)??new Set();
+        aliases.add(node.left.name);
+        descriptorAliases.set(node.right.name,aliases);
+      }
     }
   });
   /** @param {import('./ast').AstNode} expression @returns {boolean} */
@@ -1885,18 +1897,36 @@ function mutatesDecoderIntrinsic(ast,rejectCommonJsExportEscape=false,rejectEsmE
    * @param {Set<string>} [visited]
    * @returns {boolean}
    */
-  function objectCreateMayExposeDecoder(expression,visited=new Set()){
-    if(expression.type==='Identifier'){
-      if(visited.has(expression.name))return false;
-      visited.add(expression.name);
-      const found=(descriptorBindings.get(expression.name)??[]).some(
+  /**
+   * Follow reverse identifier aliases as well as initializer provenance. A
+   * member write through `alias = descriptors` mutates the same object later
+   * passed to Object.create under the original identifier.
+   * @param {string} name
+   * @param {Set<string>} visited
+   * @returns {boolean}
+   */
+  function objectCreateMayExposeDecoderIdentifier(name,visited) {
+    if(visited.has(name))return false;
+    visited.add(name);
+    const found=(descriptorBindings.get(name)??[]).some(
+      source=>objectCreateMayExposeDecoder(source,visited))||
+      (descriptorMemberWrites.get(name)??[]).some(
+        write=>descriptorHasSensitiveGetter(write.value))||
+      (objectAssignSources.get(name)??[]).some(
         source=>objectCreateMayExposeDecoder(source,visited))||
-        (descriptorMemberWrites.get(expression.name)??[]).some(
-          write=>descriptorHasSensitiveGetter(write.value))||
-        (objectAssignSources.get(expression.name)??[]).some(
-          source=>objectCreateMayExposeDecoder(source,visited));
-      visited.delete(expression.name);
-      return found;
+      [...(descriptorAliases.get(name)??[])].some(
+        alias=>objectCreateMayExposeDecoderIdentifier(alias,visited));
+    visited.delete(name);
+    return found;
+  }
+  /**
+   * @param {import('./ast').AstNode} expression
+   * @param {Set<string>} [visited]
+   * @returns {boolean}
+   */
+  function objectCreateMayExposeDecoder(expression,visited=new Set()){
+    if(expression.type==='Identifier') {
+      return objectCreateMayExposeDecoderIdentifier(expression.name,visited);
     }
     if(expression.type==='CallExpression'&&
        expression.callee.type==='MemberExpression'&&
