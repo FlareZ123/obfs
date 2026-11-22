@@ -102,6 +102,33 @@ These measurements support the specific repeated-descendant-traversal cost
 diagnosis; the full `firstUnprovedFreeReference` checker has additional
 walks and scopes whose costs are measured separately.
 
+## Exact-source whole preflight scanner control
+
+To avoid confusing the isolated `hoistsIn` improvement with the total
+free-reference checker, a separate V8 Code Mode harness loaded **exact**
+source versions `eecd05c6c587a13f04bf5725c73edf147e642573` (before pruning)
+and `aa7d644500c1d332ef224b30e16919755856a849` (after pruning and
+switch guard). Both were supplied the same generic AST walker and the same
+synthetic AST. Each sample performed ten full
+`firstUnprovedFreeReference` calls; each of eight A/B pairs alternated
+the measurement order after one warmup per arm. All sample invocations
+returned `null` on the positive root-var fixture.
+
+| Nested functions | Old whole-scanner median (ms/call) | New median (ms/call) |
+| ---: | ---: | ---: |
+| 128 | 2.60 | 1.70 |
+| 256 | 5.55 | 3.85 |
+| 512 | 13.80 | 9.05 |
+
+Full raw eight-pair samples, code versions and assumptions:
+[`sco-var-hoist-fullscanner-paired-2026-11-22.json`](sco-var-hoist-fullscanner-paired-2026-11-22.json).
+The V8 sandbox's `Date.now()` has coarse millisecond resolution; ten
+scans were averaged per sample. This is **compiler preflight work on
+constructed ESTree**, rather than an original-versus-obfuscated runtime
+comparison or a Node/browser release benchmark. Whole-scanner results are
+substantially more modest than the hoist-collector-only timings because
+generic reference walks and scope checks still execute.
+
 ## Independent switch-discriminant boundary reconciliation
 
 The same branch now carries Agent29's earlier independently tested
