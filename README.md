@@ -290,7 +290,14 @@ trees. Explicitly package `{"type":"commonjs"}` for CommonJS `.js` or use
 the `.cjs` extension. These checks cover the **build location only**;
 relocating output requires independent deployment verification. They provide
 compatibility admission, without preventing modifications by a controlling
-filesystem owner. See the [source-pinned scope reproduction](im-results/sno-ambient-output-package-scope-2026-11-22.md).
+filesystem owner. The same SNO preflight conservatively refuses
+untracked external `package.json` `"imports"` mappings and named `"exports"`
+self-reference metadata for executable `.js`, `.cjs`, and `.mjs` files.
+Node can otherwise redirect an unchanged `#alias` or package self-reference
+after distribution. Include required package metadata within `--root`
+to retain the intended package resolution. The check does not certify
+arbitrary third-party dependencies or custom loaders. See the
+[source-pinned scope reproduction](im-results/sno-ambient-output-package-scope-2026-11-22.md).
 
 The programmatic API is `require('./src')`, exporting `virtualizeExpressionGraphs`, `lowerWasmI32Functions`, `obfuscateFiles`, `createSnoLauncher`, `createScoHandler`, `createScoRpcClientSource`, `createScoBatchMethod`, `preflightScoBatchState`, `partitionScoAsyncModule`, `bindScoModuleExports`, `partitionScoAsyncGraph`, and `bindScoGraphExports`. A file is `{path,code,sourceType?}`. Modes are `coo`, `sco`, `sno`; supported source types are `script`, `module`, `commonjs`, `asset`.
 
