@@ -100,7 +100,7 @@ test('identifier renaming keeps exported parameter names and renames a private h
   });
   assert.match(output.files[0].code,/export function publicRead\(publicParam\)/);
   assert.doesNotMatch(output.files[0].code,/privateParam/);
-  assert.deepEqual(await observe(output.files[0].code,'[m.publicRead.toString(),m.publicRead(9),m.privateResult]'),
+  assert.deepEqual(await observe(output.files[0].code,'[Function.prototype.toString.call(m.publicRead),m.publicRead(9),m.privateResult]'),
     ['function publicRead(publicParam){return publicParam;}',9,4]);
 });
 
@@ -118,11 +118,11 @@ test('identifier preservation follows aggregate aliases, private classes, and re
   const cases=[
     {
       source:'function read(secretParam){return secretParam;}export const api={read};',
-      expression:'[m.api.read.toString(),m.api.read(4)]'
+      expression:'[Function.prototype.toString.call(m.api.read),m.api.read(4)]'
     },
     {
       source:'class Api{read(secretParam){return secretParam;}}export const instance=new Api();',
-      expression:'[m.instance.read.toString(),m.instance.read(4)]'
+      expression:'[Function.prototype.toString.call(m.instance.read),m.instance.read(4)]'
     },
     {
       source:'function hidden(secretParam){return secretParam;}export const api={get read(){return hidden;}};',
@@ -130,11 +130,11 @@ test('identifier preservation follows aggregate aliases, private classes, and re
     },
     {
       source:'const api={};function read(secretParam){return secretParam;}api.read=read;export {api};',
-      expression:'[m.api.read.toString(),m.api.read(4)]'
+      expression:'[Function.prototype.toString.call(m.api.read),m.api.read(4)]'
     },
     {
       source:'const api={};const alias=api;function read(secretParam){return secretParam;}alias.read=read;export {api};',
-      expression:'[m.api.read.toString(),m.api.read(4)]'
+      expression:'[Function.prototype.toString.call(m.api.read),m.api.read(4)]'
     }
   ];
   for(const [index,entry] of cases.entries()) {
@@ -171,7 +171,7 @@ test('cross-file owner reads inside an exported callable retain source while pri
     await fs.writeFile(path.join(dir,'reader.mjs'),protectedOutput.files[1].code,'utf8');
     const url=pathToFileURL(path.join(dir,'reader.mjs')).href;
     const child=spawnSync(process.execPath,['--input-type=module','-e',
-      'import('+JSON.stringify(url)+').then(m=>process.stdout.write(JSON.stringify([m.read.toString(),m.read()])))'
+      'import('+JSON.stringify(url)+').then(m=>process.stdout.write(JSON.stringify([Function.prototype.toString.call(m.read),m.read()])))'
     ],{encoding:'utf8'});
     assert.equal(child.status,0,child.stderr);
     assert.deepEqual(JSON.parse(child.stdout),['function read(){return owner.secretField;}',13]);
