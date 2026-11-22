@@ -978,16 +978,27 @@ function realmStateObservation(body,checkHostConfiguration=false){
     return member.type==='MemberExpression'&&rootedInIntrinsic(member.object);
   }
   walk(body,(node,parent,key,ancestors)=>{
-    // First-class Blob constructor values can reach Reflect.construct,
-    // Function.prototype.bind or another user-defined constructor wrapper.
-    // Their eventual options bag cannot be proved here; refuse these escape
-    // routes rather than silently crossing OS-native newline semantics.
-    if(checkHostConfiguration&&node.type==='CallExpression'&&(
-       node.arguments.some((/** @type {import('./ast').AstNode} */ argument)=>
-         isBlobConstructor(argument))||
-       node.callee.type==='MemberExpression'&&
-         isBlobConstructor(node.callee.object))){
-      configurationTouched=true;
+    // Blob is host-dependent when its constructor options request native
+    // newline conversion. Direct new expressions have a separate options
+    // proof below. Plain local constructor aliases can be followed here;
+    // first-class escapes through Reflect.construct, bind, Proxy, containers,
+    // spread and callbacks have no bounded options proof and must be refused.
+    if(checkHostConfiguration&&isBlobConstructor(node)&&!isStaticKey(parent,key)){
+      const directNew=parent?.type==='NewExpression'&&parent.callee===node;
+      const simpleAlias=parent?.type==='VariableDeclarator'&&(
+        parent.id===node||parent.init===node&&parent.id.type==='Identifier')||
+        parent?.type==='AssignmentExpression'&&parent.right===node&&
+          parent.left.type==='Identifier';
+      const lexicalDeclaration=(parent?.type==='FunctionDeclaration'||
+        parent?.type==='FunctionExpression'||parent?.type==='ClassDeclaration'||
+        parent?.type==='ClassExpression')&&parent.id===node;
+      const patternBinding=parent?.type==='Property'&&key==='value'&&
+        ancestors.some((/** @type {import('./ast').AstNode} */ ancestor)=>
+          ancestor.type==='ObjectPattern');
+      const harmlessTypeof=parent?.type==='UnaryExpression'&&
+        parent.operator==='typeof'&&parent.argument===node;
+      if(!directNew&&!simpleAlias&&!lexicalDeclaration&&!patternBinding&&
+         !harmlessTypeof)configurationTouched=true;
     }
     // A Blob with an unproved options bag may request OS-native newline
     // conversion. Admit absent options or a literal bag only when its
