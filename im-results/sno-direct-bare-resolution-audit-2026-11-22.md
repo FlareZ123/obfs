@@ -63,6 +63,20 @@ exclusion, lexical `require` shadowing and COO/SCO flag refusal.
 At this drafting stage, the source-pinned cross-platform CI verdict
 is pending; promote no claim before it passes.
 
+### Parent-module identity remains observable
+
+A newly added same-path negative control uses a third-party package
+whose source reads `module.parent.filename`. Both native and
+generated CommonJS entries resolve **exactly the same package file**.
+The audit therefore accepts their resolution, but native execution
+returns `source` and the generated distribution returns `out`
+because the application's entry directory changed. This explicitly
+demonstrates that path-equality admission is *insufficient* to guarantee
+arbitrary downstream package semantics. It is a useful bounded
+preflight, with a known counterexample to whole-program equivalence.
+The additional test is in
+[`test/sno-static-bare-resolution-audit.test.js`](../test/sno-static-bare-resolution-audit.test.js).
+
 ## Scope and limits
 
 The finite static scanner examines **direct, literal CommonJS calls**.
