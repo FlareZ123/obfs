@@ -11,9 +11,10 @@ const {obfuscateFiles}=require('../src');
  * even though the application never exports that helper.
  *
  * @param {string} code
+ * @param {boolean} [hostReturnsObservedSourceByte]
  * @returns {{result:number,helperSource:string}}
  */
-function observeUnderHostStackFormatter(code) {
+function observeUnderHostStackFormatter(code,hostReturnsObservedSourceByte=false) {
   const context=vm.createContext({module:{exports:null}});
   vm.runInContext([
     'Error.prepareStackTrace=(error,frames)=>{',
@@ -21,7 +22,8 @@ function observeUnderHostStackFormatter(code) {
     '  return frame&&typeof frame.getFunction()==="function"?',
     '    String(frame.getFunction()):"unavailable";',
     '};',
-    'Math.random=()=>{globalThis.capturedHelper=new Error().stack;return 0;};'
+    'Math.random=()=>{globalThis.capturedHelper=new Error().stack;return '+
+      (hostReturnsObservedSourceByte?'Number(globalThis.capturedHelper.includes("secretLocal"));':'0;')+'};'
   ].join('\n'),context);
   vm.runInContext(code,context);
   const result=Number(vm.runInContext('module.exports()',context));
@@ -54,4 +56,23 @@ test('a controlling Node host observes transformed source inside a direct-call-o
     JSON.stringify({mode:'sno',renamedBindings:renamed,
       nativeResult:native.result,obfuscatedResult:obfuscated.result,
       sourceRecovered:true,sourceIdentical:false})+'\n');
+});
+
+test('host-selected result depends on the dynamically recovered private helper source',()=>{
+  const source='function privateHelper(secretLocal){return secretLocal+Math.random();}'+
+    'module.exports=function publicReader(){return privateHelper(17);};';
+  const output=obfuscateFiles([{path:'entry.cjs',sourceType:'commonjs',code:source}],{
+    mode:'sno',seed:'node-stack-observed-value-20261122',
+    strings:false,properties:false,identifiers:true,
+    preservePublicCallableSource:true
+  });
+  assert.ok(output.files[0].metrics.bindings>0);
+  const native=observeUnderHostStackFormatter(source,true);
+  const emitted=observeUnderHostStackFormatter(String(output.files[0].code),true);
+  assert.equal(native.result,18);
+  assert.equal(emitted.result,17);
+  assert.notEqual(native.result,emitted.result);
+  process.stdout.write('NODE_STACK_HOST_VALUE_COUNTEREXAMPLE '+
+    JSON.stringify({mode:'sno',nativeResult:native.result,
+      emittedResult:emitted.result,sourceVisibleToHost:true})+'\n');
 });
