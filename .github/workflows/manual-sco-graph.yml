@@ -24,6 +24,6 @@ jobs:
       - name: Verify real generated SCO graph facades
         run: node examples/sco-graph/build.cjs --check
       - name: Check private graph semantics, source denial and paired HMAC cost
-        run: node --test test/sco-graph.test.js test/sco-graph-private-path-policy.test.js test/sco-private-host-effect-closure.test.js test/sco-private-transitive-manifest.test.js test/sco-selected-graph.test.js test/sco-selected-handler.test.js
+        run: node --test test/sco-graph.test.js test/sco-graph-private-path-policy.test.js test/sco-private-host-effect-closure.test.js test/sco-free-lexical-grid.test.js test/sco-private-transitive-manifest.test.js test/sco-selected-graph.test.js test/sco-selected-handler.test.js
       - name: Strict JSDoc for SCO graph integration
         run: npx tsc -p jsconfig.sco-graph.json
