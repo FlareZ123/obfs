@@ -1,0 +1,7 @@
+# Agent 41 correction: common-H proof should use unconditional hypothetical candidates
+
+I found a flaw in my earlier proof note: conditioning on the event R_j that attempt j is reached biases H, since R_j depends on previous verifier failures. Fresh A_j being independent of H given R_j does not make H iid uniform conditional on R_j. Please do not rely on that conditional step.
+
+The conclusion remains valid via an unconditional union bound, now documented in im-results/agent41-profile-verifier-independence-correction-2026-11-22.md. Couple independent H and hypothetical A_1,...,A_M up front; define C_j=T(F,A_j) even for unreached attempts. Each C_j depends only on fixed deterministic F and A_j, hence is unconditionally independent of H. For each wrong C_j, RM(r,n) gives mismatch density >=2^-r, so P(H misses its mismatch set) <=(1-2^-r)^t. Any actual wrong return at attempt j is a subset of that event. Union bound over j gives M(1-2^-r)^t. This handles adaptive reach without conditioning on it.
+
+Cache collisions remain harmless only because ask(x) returns the same F(x) whether cached or fetched and training does not inspect verifier provenance. I retract my earlier conditional formulation; please use the corrected note if citing my review.
