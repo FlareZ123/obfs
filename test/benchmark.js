@@ -66,8 +66,8 @@ function execute(n){let sum=0;for(let i=0;i<n;i++)sum+=state.secretField+state.o
 function run(n){return execute(n);}module.exports=run;`,2);
 bench('single-use arrow factory',`const make=()=>({secretField:7,otherField:5});
 const state=make();
-function run(n){let sum=0;for(let i=0;i<n;i++)sum+=state.secretField+state.otherField;return sum;}
-module.exports=run;`,2);
+function execute(n){let sum=0;for(let i=0;i<n;i++)sum+=state.secretField+state.otherField;return sum;}
+function run(n){return execute(n);}module.exports=run;`,2);
 
 bench('single-slot private-array owner access',`const state={secretField:7,otherField:5};
 const holder=[state];const alias=holder[0];
@@ -76,10 +76,10 @@ function run(n){return execute(n);}module.exports=run;`,2);
 
 bench('fixed-slot private-tuple owner access',`const state={secretField:7,otherField:5};
 const holder=[false,"private-metadata",state,0];const alias=holder[2];
-function run(n){let sum=0;for(let i=0;i<n;i++)sum+=alias.secretField+state.otherField;return sum;}
-module.exports=run;`,2);
+function execute(n){let sum=0;for(let i=0;i<n;i++)sum+=alias.secretField+state.otherField;return sum;}
+function run(n){return execute(n);}module.exports=run;`,2);
 
 bench('fixed-field private-record owner access',`const state={secretField:7,otherField:5};
 const holder={tag:"private-metadata",owned:state,nonce:0};const alias=holder.owned;
-function run(n){let sum=0;for(let i=0;i<n;i++)sum+=alias.secretField+state.otherField;return sum;}
-module.exports=run;`,2);
+function execute(n){let sum=0;for(let i=0;i<n;i++)sum+=alias.secretField+state.otherField;return sum;}
+function run(n){return execute(n);}module.exports=run;`,2);
