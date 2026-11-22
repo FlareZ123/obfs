@@ -2008,6 +2008,11 @@ function mutatesDecoderIntrinsic(ast,rejectCommonJsExportEscape=false,rejectEsmE
     visited.delete(name);
     return found;
   }
+  /**
+   * @param {import('./ast').AstNode} expression
+   * @param {Set<string>} [visited]
+   * @returns {boolean}
+   */
   function descriptorHasSensitiveGetter(expression,visited=new Set()) {
     if(expression.type==='Identifier') {
       return descriptorHasSensitiveGetterIdentifier(expression.name,visited);
