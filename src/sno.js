@@ -10,7 +10,7 @@ const {createPathInventory,registerFilePath,portableKeys} = require('./portable-
  * SNO bootloader: one executable entry point; verifies all artifacts once,
  * then loads the original application's obfuscated entry file via require().
  * This detects accidental tampering but cannot resist a filesystem owner.
- * @param {{path:string,code:string|Buffer}[]} files
+ * @param {{path:string,code:string|Buffer,sourceType?:import('./core').SourceType}[]} files
  * @param {string} entry
  * @returns {string}
  */
@@ -20,7 +20,7 @@ function createSnoLauncher(files,entry) {
   // Read each indexed caller entry and its bytes exactly once. A package
   // scope getter, filename getter or mutable Buffer cannot describe a
   // different manifest after the entry or package checks have run.
-  /** @type {{path:string,code:string|Buffer}[]} */
+  /** @type {{path:string,code:string|Buffer,sourceType?:import('./core').SourceType}[]} */
   const snapshots=[];
   const length=files.length;
   for(let index=0;index<length;index++){
@@ -33,7 +33,12 @@ function createSnoLauncher(files,entry) {
     if(typeof supplied!=='string'&&!Buffer.isBuffer(supplied)){
       throw new TypeError(name+' content must be a string or Buffer');
     }
-    snapshots.push({path:name,code:Buffer.isBuffer(supplied)?Buffer.from(supplied):supplied});
+    const sourceType=file.sourceType;
+    if(sourceType!==undefined&&!['script','commonjs','module','asset'].includes(sourceType)) {
+      throw new TypeError(name+' has an invalid sourceType');
+    }
+    snapshots.push({path:name,code:Buffer.isBuffer(supplied)?Buffer.from(supplied):supplied,
+      sourceType});
   }
   // Root launcher path cannot also be a protected input file.
   const reservedKeys=new Set(portableKeys('sno-entry.cjs'));
@@ -86,10 +91,41 @@ function createSnoLauncher(files,entry) {
     }
     manifest.push([name,createHash('sha256').update(code).digest('hex')]);
   }
+  // A CLI-provided sourceType is stable build provenance. Detect a
+  // different effective package scope at execution, including a distribution
+  // moved after compilation or loaded through --preserve-symlinks. Direct
+  // pathless API records without sourceType retain their earlier behavior.
+  /** @type {[string,'module'|'commonjs'][]} */
+  const moduleScopes=[];
+  for(const file of snapshots) {
+    if(!file.path.endsWith('.js') || typeof file.code!=='string' ||
+        !['script','commonjs','module'].includes(file.sourceType||''))continue;
+    // Node 22 can syntax-detect unscoped ESM. A direct API caller who labels
+    // a typeless .js as a module has no demonstrated package-type proof.
+    // The SNO CLI always includes its explicit ESM package metadata.
+    if(file.sourceType==='module') {
+      let directory=path.posix.dirname(file.path);
+      let hasPackage=false;
+      for(;;) {
+        if(snapshots.some(item=>item.path===path.posix.join(directory,'package.json'))) {
+          hasPackage=true;
+          break;
+        }
+        if(directory==='.')break;
+        directory=path.posix.dirname(directory);
+      }
+      if(!hasPackage)continue;
+    }
+    moduleScopes.push([file.path,file.sourceType==='module'?'module':'commonjs']);
+  }
+  const runtimeScopeCheck=moduleScopes.length ?
+    \`const scopes=\${JSON.stringify(moduleScopes)};\\n\` +
+    \`for(const [file,expected] of scopes){let folder=path.dirname(path.join(__dirname,file));let kind='commonjs';for(;;){let data;try{data=fs.readFileSync(path.join(folder,'package.json'),'utf8');}catch(error){if(error.code!=='ENOENT')throw error;}if(data!==undefined){const metadata=JSON.parse(data.charCodeAt(0)===0xfeff?data.slice(1):data);kind=metadata.type==='module'?'module':'commonjs';break;}if(path.basename(folder)==='node_modules')break;const parent=path.dirname(folder);if(parent===folder)break;folder=parent;}if(kind!==expected)throw Error('SNO runtime package-scope mismatch: '+file);}\\n\` : '';
   return `'use strict';\n` +
     `const fs=require('node:fs');const crypto=require('node:crypto');const path=require('node:path');\n` +
     `const checks=${JSON.stringify(manifest)};\n` +
     `for(const [file,expected] of checks){const actual=crypto.createHash('sha256').update(fs.readFileSync(path.join(__dirname,file))).digest('hex');if(actual!==expected)throw Error('Integrity check failed: '+file);}\n` +
+    runtimeScopeCheck +
     `module.exports=require(path.join(__dirname,${JSON.stringify(checkedEntry)}));\n`;
 }
 
