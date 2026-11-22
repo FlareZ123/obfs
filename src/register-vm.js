@@ -1,7 +1,8 @@
 'use strict';
 
 const {createHash}=require('node:crypto');
-const {parse,walk,applyEdits,observesFunctionSource}=require('./ast');
+const {parse,walk,applyEdits,observesFunctionSource,
+  collectExportedCallableNodes,isWithinExportedCallableSource}=require('./ast');
 
 /** @typedef {'module'|'commonjs'} SourceType */
 /** @typedef {import('./ast').AstNode} AstNode */
@@ -84,6 +85,7 @@ function virtualizeRegisterChains(source,sourceType,options) {
   const targets=new Set(options.names);
   if(!targets.size)return {code:source,functions:0,instructions:0,declined:0};
   const ast=parse(source,sourceType);
+  const exportedCallableSource=collectExportedCallableNodes(ast);
   let dynamic=false;
   /** @type {Set<string>} */
   const used=new Set();
@@ -116,6 +118,7 @@ function virtualizeRegisterChains(source,sourceType,options) {
     const matches=candidates.get(name);
     if(!matches||matches.length!==1) {declined++;continue;}
     const fn=matches[0];
+    if(isWithinExportedCallableSource(fn,exportedCallableSource)){declined++;continue;}
     const param=fn.params[0];
     const body=fn.body.body;
     if(fn.async||fn.generator||fn.params.length!==1||param?.type!=='Identifier'||
