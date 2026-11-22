@@ -121,6 +121,32 @@ test('opt-in audit refuses an external package missing from the intended output'
   });
 });
 
+test('opt-in declines future emitted package metadata before resolving bare self references',async()=>{
+  await fixture(async temp=>{
+    const source=path.join(temp,'source');
+    const out=path.join(temp,'out');
+    await atomicWrite(path.join(source,'package.json'),JSON.stringify({
+      name:'test-self-scope',type:'commonjs',
+      exports:{'./token':'./token.cjs'}
+    }));
+    await atomicWrite(path.join(source,'entry.cjs'),
+      "module.exports=require('test-self-scope/token');");
+    await atomicWrite(path.join(source,'token.cjs'),'module.exports=613;');
+    assert.equal(run(path.join(source,'entry.cjs')),'613');
+
+    await assert.rejects(main('sno',[
+      '--root',source,'--entry','entry.cjs',
+      '--out',out,'--audit-bare-cjs'
+    ]),/SNO bare dependency audit cannot model future package scope/u);
+    await assert.rejects(fs.stat(path.join(out,'sno-entry.cjs')),{code:'ENOENT'});
+
+    // The optional narrow audit declines; the existing ordinary compiler
+    // retains packaged self-reference behavior.
+    await main('sno',['--root',source,'--entry','entry.cjs','--out',out]);
+    assert.equal(run(path.join(out,'sno-entry.cjs')),'613');
+  });
+});
+
 test('audit scope is direct bare CJS calls and refuses lexical require shadowing',()=>{
   const files=[
     {path:'entry.cjs',sourceType:'commonjs',code:
