@@ -36,11 +36,10 @@ test('invalid budget values must fail closed',()=>{
 });
 
 
-test('a sparse compatible top-bit swap exposes the finite-sampling limitation',()=>{
-  // A valid 32-bit compatible permutation flips only the top bit for the
-  // single matching 31-bit prefix. The two exceptional inputs are swapped.
-  // A source-only CEGAR attacker that misses the rare defect can mistake
-  // the mapping for identity, then fail exact target equality at the end.
+test('target-guided inversion can still recover a two-point sparse swap',()=>{
+  // This compatible 32-bit permutation swaps only the two inputs with one
+  // selected 31-bit prefix. A target-directed inversion may need much less
+  // information than a global affine certificate.
   const trigger=0x21503a7b;
   /** @param {number} input @returns {number} */
   const oracle=input=>(
@@ -50,9 +49,22 @@ test('a sparse compatible top-bit swap exposes the finite-sampling limitation',(
   assert.notEqual(target,trigger);
   assert.equal(oracle(target),trigger);
   for(const budget of [0,8,128]) {
-    assert.throws(()=>invertLinearSandwich(oracle,target,0x510e527f,
-      {validationTrials:budget}),
-    /sandwich inversion failed final equality|no output functional|no validated output functional/,
-    'budget '+budget);
+    const result=invertLinearSandwich(oracle,target,0x510e527f,
+      {validationTrials:budget});
+    assert.equal(result.value,trigger,'budget '+budget);
+    assert.equal(oracle(result.value),target);
   }
+});
+
+test('a real nonlinear target rejects an under-validated affine mask',()=>{
+  const {makeTriangularCompatiblePermutation}=
+    require('../sims/compatible-permutation-linear-sandwich-blackbox');
+  const sample=fixture({
+    name:'nonlinear-triangular',make:makeTriangularCompatiblePermutation
+  },6);
+  assert.throws(()=>invertLinearSandwich(sample.oracle,sample.target,sample.attackSeed,
+    {validationTrials:0}),/sandwich inversion failed final equality/);
+  assert.equal(
+    invertLinearSandwich(sample.oracle,sample.target,sample.attackSeed,
+      {validationTrials:128}).value,sample.secret);
 });
