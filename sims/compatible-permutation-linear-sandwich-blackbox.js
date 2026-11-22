@@ -177,9 +177,16 @@ function makeRivestPermutation(degree,seed){
  * @param {(input:number)=>number} oracle
  * @param {number} target
  * @param {number} seed
+ * @param {{validationTrials?:number}} [options] Number of independently chosen
+ *   direction/point checks per candidate output functional. The historical
+ *   default remains 128. Reduced counts are a deliberate attack experiment.
  * @returns {{value:number,queryCount:number,refinements:number}}
  */
-function invertLinearSandwich(oracle,target,seed){
+function invertLinearSandwich(oracle,target,seed,options={}){
+  const validationTrials=options.validationTrials??128;
+  if(!Number.isSafeInteger(validationTrials)||validationTrials<0||validationTrials>128){
+    throw new RangeError('validationTrials must be an integer from 0 through 128');
+  }
   const next=makeRng(seed);
   /** @type {Map<number,number>} */
   const cache=new Map();
@@ -217,7 +224,7 @@ function invertLinearSandwich(oracle,target,seed){
         const inputLabels=inputBasis.map(vector=>parity32(mask&u32(query(vector)^base)));
         if(!inputLabels.includes(1))continue;
         let valid=true;
-        for(let trial=0;trial<128;trial+=1){
+        for(let trial=0;trial<validationTrials;trial+=1){
           const direction=randomVector(inputBasis,next);
           const point=next();
           const defect=u32(query(point)^query(point^direction)^base^query(direction));
@@ -286,4 +293,7 @@ function main(){
 }
 
 if(require.main===module)main();
-module.exports={invertLinearSandwich};
+module.exports={
+  invertLinearSandwich,makeRng,makeLinearTransform,applyLinear,
+  makeTriangularCompatiblePermutation,makeRivestPermutation,u32
+};
