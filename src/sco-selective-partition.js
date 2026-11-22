@@ -6,6 +6,7 @@ const {createHash}=require('node:crypto');
 const path=require('node:path');
 const {safePath}=require('./core');
 const {collectBindings}=require('./properties');
+const {firstUnprovedFreeReference}=require('./sco-free-references');
 const {partitionScoAsyncModule,bindScoModuleExports}=require('./sco-partition');
 const {createScoHandler}=require('./sco');
 const {snapshotSelectedOptions}=require('./sco-selected-options');
@@ -46,6 +47,12 @@ const standardRealmGlobals=new Set([
   'Reflect','Proxy','Intl','Atomics','WebAssembly',
   'WeakRef','FinalizationRegistry'
 ]);
+
+const provedSharedGlobalReads=new Set([...standardRealmGlobals,'globalThis',
+  'URL','URLSearchParams','TextEncoder','TextDecoder','atob','btoa',
+  'structuredClone','AbortController','AbortSignal','DOMException','Blob']);
+const provedAuditedNodeGlobalReads=new Set([...provedSharedGlobalReads,'process','Buffer']);
+const provedSelectedNodeGlobalReads=new Set([...provedSharedGlobalReads,'Buffer']);
 
 /**
  * Whether an AST literal is an owned primitive whose typeof result does not
@@ -446,7 +453,7 @@ function isServerEnvironmentRead(expression){
  *
  * @param {import('./ast').AstNode} body
  * @param {boolean} [checkHostConfiguration] Only relocated private code inherits a new host configuration.
- * @returns {'prototype'|'RegExp match'|'intrinsic state'|'error stack'|'configuration'|'entropy'|'clock'|null}
+ * @returns {'prototype'|'RegExp match'|'intrinsic state'|'error stack'|'configuration'|'entropy'|'clock'|'agent blocking'|null}
  */
 function realmStateObservation(body,checkHostConfiguration=false){
   const intrinsicNames=new Set(['Object','Array','Function','String','Number',
@@ -691,6 +698,50 @@ function realmStateObservation(body,checkHostConfiguration=false){
       expression.object.type==='Identifier' &&
       globalNames.has(expression.object.name)&&keyName(expression)==='Math';
   }
+  // Moving synchronous Atomics.wait from a browser main agent to Node can
+  // change TypeError into a normal return because AgentCanSuspend differs.
+  /** @param {import('./ast').AstNode} expression @returns {boolean} */
+  function isAtomicsRoot(expression){
+    return expression.type==='Identifier'&&intrinsicKinds.get(expression.name)==='Atomics'||
+      expression.type==='MemberExpression'&&
+      expression.object.type==='Identifier'&&
+      globalNames.has(expression.object.name)&&keyName(expression)==='Atomics';
+  }
+  // Blob endings:"native" converts newline sequences to the current host OS
+  // spelling. Private Node can have a different OS from the browser client.
+  // Constructor aliases are deliberately overapproximated as unsafe if a
+  // declaration shadows or reassigns them.
+  const blobConstructors=new Set(['Blob']);
+  /** @param {import('./ast').AstNode} expression @returns {boolean} */
+  function isBlobConstructor(expression){
+    return expression.type==='Identifier'&&blobConstructors.has(expression.name)||
+      expression.type==='MemberExpression'&&
+      expression.object.type==='Identifier'&&
+      globalNames.has(expression.object.name)&&keyName(expression)==='Blob';
+  }
+  let blobChanged=true;
+  while(blobChanged){
+    blobChanged=false;
+    walk(body,node=>{
+      const target=node.type==='VariableDeclarator'?node.id:
+        node.type==='AssignmentExpression'&&node.operator==='='?node.left:null;
+      const source=node.type==='VariableDeclarator'?node.init:
+        node.type==='AssignmentExpression'&&node.operator==='='?node.right:null;
+      if(!source)return;
+      /** @param {string} name @returns {void} */
+      function add(name){
+        if(!blobConstructors.has(name)){blobConstructors.add(name);blobChanged=true;}
+      }
+      if(target?.type==='Identifier'&&isBlobConstructor(source))add(target.name);
+      if(target?.type==='ObjectPattern'&&source.type==='Identifier'&&
+         globalNames.has(source.name)){
+        for(const property of target.properties){
+          if(property.type==='Property'&&keyName(property)==='Blob'&&
+             property.value.type==='Identifier')add(property.value.name);
+        }
+      }
+    });
+  }
   /** @param {import('./ast').AstNode} expression @returns {'entropy'|'clock'|undefined} */
   function hostSourceKind(expression){
     if(expression.type==='Identifier')return hostSources.get(expression.name);
@@ -913,6 +964,7 @@ function realmStateObservation(body,checkHostConfiguration=false){
   let configurationTouched=false;
   let entropyTouched=false;
   let clockTouched=false;
+  let agentBlockingTouched=false;
   let prototypeTouched=false;
   let regexpTouched=false;
   let intrinsicTouched=false;
@@ -926,6 +978,29 @@ function realmStateObservation(body,checkHostConfiguration=false){
     return member.type==='MemberExpression'&&rootedInIntrinsic(member.object);
   }
   walk(body,(node,parent,key,ancestors)=>{
+    // A Blob with an unproved options bag may request OS-native newline
+    // conversion. Admit absent options or a literal bag only when its
+    // endings are provably "transparent", the Web IDL default.
+    if(checkHostConfiguration&&node.type==='NewExpression'&&
+       isBlobConstructor(node.callee)){
+      const options=node.arguments[1];
+      if(options){
+        if(options.type!=='ObjectExpression')configurationTouched=true;
+        else for(const property of options.properties){
+          if(property.type!=='Property'||property.kind!=='init'||
+             keyName(property)===null){
+            configurationTouched=true;
+            break;
+          }
+          if(keyName(property)==='endings'&&
+             !(property.value.type==='Literal'&&
+               property.value.value==='transparent')){
+            configurationTouched=true;
+            break;
+          }
+        }
+      }
+    }
     // Extracted host abort methods can later be invoked via .call/.apply,
     // a local alias, or an opaque callback. Unlike a proven direct call with
     // a primitive reason, their eventual default-reason behavior is unproved.
@@ -952,6 +1027,11 @@ function realmStateObservation(body,checkHostConfiguration=false){
          isAbortConstructor(receiver.callee,abortControllerConstructors)){
         stackTouched=true;
       }
+    }
+    if(checkHostConfiguration&&node.type==='MemberExpression'&&
+       isAtomicsRoot(node.object)){
+      const member=keyName(node);
+      if(member===null||member==='wait')agentBlockingTouched=true;
     }
     // Destructuring directly in a catch parameter reads the thrown Error's
     // realm-local stack without introducing an identifier receiver. The
@@ -1021,6 +1101,11 @@ function realmStateObservation(body,checkHostConfiguration=false){
       node.type==='AssignmentExpression'&&node.operator==='='?node.left:null;
     const source=node.type==='VariableDeclarator'?node.init:
       node.type==='AssignmentExpression'&&node.operator==='='?node.right:null;
+    if(checkHostConfiguration&&pattern?.type==='ObjectPattern'&&source&&
+       isAtomicsRoot(source)&&pattern.properties.some(
+         (/** @type {import('./ast').AstNode} */ property)=>
+           property.type!=='Property'||keyName(property)===null||
+           keyName(property)==='wait'))agentBlockingTouched=true;
     if(pattern?.type==='ObjectPattern'&&source){
       if(isStackReceiver(source)&&pattern.properties.some(
         (/** @type {import('./ast').AstNode} */ property)=>
@@ -1187,6 +1272,7 @@ function realmStateObservation(body,checkHostConfiguration=false){
     intrinsicTouched?'intrinsic state':stackTouched?'error stack':
     checkHostConfiguration&&entropyTouched?'entropy':
     checkHostConfiguration&&clockTouched?'clock':
+    checkHostConfiguration&&agentBlockingTouched?'agent blocking':
     checkHostConfiguration&&configurationTouched?'configuration':null;
 }
 
@@ -1542,6 +1628,12 @@ function collectPrivateStaticImportClosure(directPaths,sources) {
         throw new TypeError('SCO private static graph contains an unproved runtime loader: '+filename);
       }
     });
+    const freeRead=firstUnprovedFreeReference(ast,new Set(),new Set(),
+      provedAuditedNodeGlobalReads);
+    if(freeRead!==null){
+      throw new TypeError('SCO private static dependency has unproved free global: '+
+        filename+':'+freeRead);
+    }
     for(const statement of ast.body) {
       const imported=statement.type==='ImportDeclaration' ||
         statement.type==='ExportAllDeclaration' ||
@@ -1772,6 +1864,8 @@ function partitionScoSelectedAsyncExports(file,options) {
   const privateBodies=[];
   /** @type {WeakMap<import('./ast').AstNode,Set<string>>} */
   const privateFormals=new WeakMap();
+  /** @type {WeakMap<import('./ast').AstNode,boolean>} */
+  const privateRootArguments=new WeakMap();
   /** @param {import('./ast').AstNode} fn @returns {void} */
   function addPrivateBody(fn){
     privateBodies.push(fn.body);
@@ -1779,7 +1873,9 @@ function partitionScoSelectedAsyncExports(file,options) {
     for(const parameter of fn.params){
       if(parameter.type==='Identifier')parameters.add(parameter.name);
     }
+    if(fn.id?.type==='Identifier')parameters.add(fn.id.name);
     privateFormals.set(fn.body,parameters);
+    privateRootArguments.set(fn.body,fn.type!=='ArrowFunctionExpression');
   }
   const ambientRoots=new Set(['globalThis','window','self','document','navigator','location','process','global']);
   /**
@@ -2047,6 +2143,8 @@ function partitionScoSelectedAsyncExports(file,options) {
   // same ambient root is consumed on both sides of the partition.
   const sharedAmbient=privateAmbient.size>0&&publicAmbient.size>0;
   const allPrivateBindings=collectBindings(ast);
+  /** @type {string[]} */
+  const unprovedPrivateReads=[];
   // Server imports and primitive constants were already admitted as explicit
   // immutable private bindings. Exempt only globally unique lexical names;
   // a shadowed formal or nested declaration cannot inherit their provenance.
@@ -2173,11 +2271,20 @@ function partitionScoSelectedAsyncExports(file,options) {
     if(freeTypeof!==null){
       throw new TypeError('Private SCO export or helper uses unproved free typeof reference: '+freeTypeof);
     }
+    const selectedModuleNames=new Set([...serverConstants,...privateHelperNames,...selected]);
+    const freeRead=firstUnprovedFreeReference(body,selectedModuleNames,
+      privateFormals.get(body)??new Set(),provedSelectedNodeGlobalReads,
+      privateRootArguments.get(body)??false);
+    if(freeRead!==null)unprovedPrivateReads.push(freeRead);
   }
   // Global roots can alias across spellings, e.g. window versus globalThis.
   // Decline any cross-boundary ambient use rather than proving deep aliases.
   if(privateAmbient.size && publicAmbient.size){
     throw new TypeError('Private/public exports share ambient state roots');
+  }
+  if(unprovedPrivateReads.length){
+    throw new TypeError('Private SCO export or helper uses unproved free global: '+
+      unprovedPrivateReads[0]);
   }
   const partition=partitionScoAsyncModule({
     path:file.path,sourceType:'module',code:serverConstantChunks.join('\n')+'\n'+privateHelperChunks.join('\n')+'\n'+privateChunks.join('\n')
