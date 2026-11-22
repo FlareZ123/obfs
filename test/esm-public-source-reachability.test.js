@@ -191,3 +191,25 @@ for(const mode of /** @type {const} */ (['coo','sco','sno'])) {
     assert.equal(result,native,'Externally visible parent callable source must remain identical');
   });
 }
+
+for(const mode of /** @type {const} */ (['coo','sco','sno'])) {
+  test('exported class static field initializer is observable through class source: '+mode,async()=>{
+    const sources=[{path:'private.mjs',sourceType:/** @type {const} */('module'),
+      code:'const owner={secretField:53};'+
+        'class PublicClass{static value=owner.secretField;}export {PublicClass};'}];
+    const observer='import {PublicClass} from "./private.mjs";'+
+      'console.log(JSON.stringify([PublicClass.toString(),PublicClass.value]));';
+    const native=await observe(sources,observer);
+    const transformed=obfuscateFiles(sources,{
+      mode,closedWorld:true,seed:'esm-class-static-source-'+mode,
+      strings:false,properties:true,identifiers:false
+    });
+    const result=await observe(transformed.files,observer);
+    console.log('ESM_CLASS_STATIC_SOURCE '+JSON.stringify({
+      mode,sourceEqual:result===native,
+      propertyRewrites:transformed.files[0].metrics.properties,
+      valueEqual:JSON.parse(native)[1]===JSON.parse(result)[1]
+    }));
+    assert.equal(result,native,'Externally visible class initializer source must remain identical');
+  });
+}
