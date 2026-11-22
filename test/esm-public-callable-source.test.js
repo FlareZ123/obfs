@@ -21,7 +21,7 @@ async function observe(code){
     const file=path.join(dir,'entry.mjs');
     await fs.writeFile(file,code,'utf8');
     const url=pathToFileURL(file).href;
-    const script=`import(${JSON.stringify(url)}).then(m=>process.stdout.write(JSON.stringify([m.read.toString(),m.read()])))`;
+    const script=`import(${JSON.stringify(url)}).then(m=>process.stdout.write(JSON.stringify([m.read.toString(),m.read(3)])))`;
     const child=spawnSync(process.execPath,['--input-type=module','-e',script],{encoding:'utf8'});
     assert.equal(child.status,0,child.stderr);
     return child.stdout;
@@ -54,7 +54,7 @@ test('exported ESM object method source preserves captured private owner keys',a
       const file=path.join(dir,'entry.mjs');
       await fs.writeFile(file,code,'utf8');
       const url=pathToFileURL(file).href;
-      const script=`import(${JSON.stringify(url)}).then(m=>process.stdout.write(JSON.stringify([m.api.read.toString(),m.api.read()])))`;
+      const script=`import(${JSON.stringify(url)}).then(m=>process.stdout.write(JSON.stringify([m.api.read.toString(),m.api.read(3)])))`;
       const child=spawnSync(process.execPath,['--input-type=module','-e',script],{encoding:'utf8'});
       assert.equal(child.status,0,child.stderr);
       return child.stdout;
@@ -85,4 +85,15 @@ test('unexported ESM function remains eligible for private owner-key rewriting',
   }finally{
     await fs.rm(dir,{recursive:true,force:true});
   }
+});
+
+test('exported ESM function source preserves parameter names observable to importers',async()=>{
+  const source='export function read(secretParam){return secretParam;}';
+  const files=[{path:'entry.mjs',sourceType:'module',code:source}];
+  const output=obfuscateFiles(files,{
+    mode:'coo',closedWorld:true,seed:'esm-exported-identifier-source',
+    strings:false,properties:false,controlFlow:false,identifiers:true
+  });
+  assert.equal(await observe(output.files[0].code),await observe(source),
+    'Function#toString observed by an external ESM importer must retain the original parameter spelling');
 });
