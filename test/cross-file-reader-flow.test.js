@@ -181,13 +181,23 @@ test('direct imported identity return can feed a static object-pattern declarati
   ],1);
 });
 
-test('dynamic destructuring key on imported identity result declines',async()=>{
+test('immutable computed destructuring key follows a proven imported identity result',async()=>{
   await preserves([
     {path:'state.mjs',sourceType:'module',code:exposed},
     {path:'identity.mjs',sourceType:'module',code:'export const identity=value=>value;'},
     {path:'main.mjs',sourceType:'module',code:
       'import {state} from "./state.mjs";import {identity} from "./identity.mjs";'+
       'const key="secretField";const {[key]:read}=identity(state);console.log(read);'}
+  ],1);
+});
+
+test('mutable computed destructuring key on imported identity result declines',async()=>{
+  await preserves([
+    {path:'state.mjs',sourceType:'module',code:exposed},
+    {path:'identity.mjs',sourceType:'module',code:'export const identity=value=>value;'},
+    {path:'main.mjs',sourceType:'module',code:
+      'import {state} from "./state.mjs";import {identity} from "./identity.mjs";'+
+      'let key="secretField";const {[key]:read}=identity(state);console.log(read);'}
   ],0);
 });
 

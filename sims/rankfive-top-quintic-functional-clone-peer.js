@@ -183,26 +183,42 @@ function cloneTopQuintic(oracle, n, draw = secureWord, delta = 1e-10) {
     return result >>> 0;
   }
 
-  const witnessProbability = (31 / 32) * (30 / 32) * (28 / 32) * (24 / 32) * (16 / 32);
+  // A six-direction cube contains all six five-subsets. A nonzero scalar
+  // five-form factors through a five-dimensional quotient; six random
+  // directions span that quotient with probability p6 below.
+  const witnessProbability = (63 / 64) * (62 / 64) * (60 / 64) * (56 / 64) * (48 / 64);
   const trialCap = Math.ceil(Math.log(delta) / Math.log(1 - witnessProbability));
   /** @type {number[]} */
   let anchors = [];
   let witness = 0;
   let trials = 0;
   for (; trials < trialCap; trials++) {
-    const tuple = Array.from({length: 5}, () => ((draw() >>> 0) & inputMask) >>> 0);
-    const observed = fifthDerivative(tuple);
-    if (observed !== 0) {
-      anchors = tuple;
-      witness = observed;
-      trials++;
-      break;
+    const directions = Array.from({length: 6}, () => ((draw() >>> 0) & inputMask) >>> 0);
+    // Cache the whole six-cube once; every five-subset derivative below is
+    // computed from these same 64 values (at most 63 new queries).
+    for (let subset = 0; subset < 64; subset++) {
+      let input = 0;
+      for (let j = 0; j < 6; j++) {
+        if (((subset >>> j) & 1) !== 0) input ^= directions[j];
+      }
+      ask(input >>> 0);
     }
+    for (let omitted = 0; omitted < 6; omitted++) {
+      const tuple = directions.filter((_, j) => j !== omitted);
+      const observed = fifthDerivative(tuple);
+      if (observed !== 0) {
+        anchors = tuple;
+        witness = observed;
+        trials++;
+        break;
+      }
+    }
+    if (witness !== 0) break;
   }
 
   if (witness === 0) {
     const lower = Array.from(lowerCoefficients.entries()).filter(([,value]) => value !== 0);
-    assert.ok(cache.size <= masksThroughWeight(n, 4).length + 31 * trialCap);
+    assert.ok(cache.size <= masksThroughWeight(n, 4).length + 63 * trialCap);
     return {bits:n, lower, top:[], degree:4, queries:cache.size,
       trials, quotientRank:0, trialCap};
   }
@@ -229,9 +245,12 @@ function cloneTopQuintic(oracle, n, draw = secureWord, delta = 1e-10) {
   assert.ok(signatureBasis.length === 5 || signatureBasis.length === 6);
   const coordinatesTable = spanCoordinates(signatureBasis);
   assert.equal(coordinatesTable.size, 2 ** signatureBasis.length);
+  // Under the source promise this span has dimension <=6. An overflow is
+  // rejected, but a span of dimension <=6 does not certify the promise: a
+  // higher-dimensional tensor can hide directions from this anchor signature.
   const coordinates = observedSignatures.map(value => {
     const result = coordinatesTable.get(value);
-    assert.notEqual(result, undefined, 'fifth-derivative radical codimension exceeds six');
+    assert.notEqual(result, undefined, 'fifth-derivative signature span exceeds six');
     return /** @type {number} */ (result);
   });
 
@@ -274,7 +293,7 @@ function cloneTopQuintic(oracle, n, draw = secureWord, delta = 1e-10) {
   }
 
   const lower = Array.from(lowerCoefficients.entries()).filter(([,value]) => value !== 0);
-  const queryCap = masksThroughWeight(n, 4).length + 31 * trialCap + 30 * n;
+  const queryCap = masksThroughWeight(n, 4).length + 63 * trialCap + 30 * n;
   assert.ok(cache.size <= queryCap, 'fifth-derivative clone exceeded its distinct-query cap');
   return {bits:n, lower, top:topCoefficients, degree:5, queries:cache.size,
     trials, quotientRank, trialCap};
@@ -345,7 +364,7 @@ function makeSource(n, draw, projectionRank, topActive, lowerTermsPerDegree) {
   const topTerms = [];
   if (topActive) {
     if (projectionRank === 5) {
-      topTerms.push([31, draw() || 1]);
+      topTerms.push([31, (draw() & inputMask) || 1]);
     } else {
       const outputBasis = randomIndependentVectors(6, draw);
       for (let omitted = 0; omitted < 6; omitted++) {
@@ -388,12 +407,83 @@ function rankSevenPromiseViolation() {
     }
     return result >>> 0;
   };
-  const forcedBasisWitness = [1, 2, 4, 8, 16];
+  const forcedBasisWitness = [1, 2, 4, 8, 16, 32];
   let drawIndex = 0;
   assert.throws(() => cloneTopQuintic(source, width,
     () => forcedBasisWitness[drawIndex++ % forcedBasisWitness.length]),
-  /fifth-derivative radical codimension exceeds six/);
+  /fifth-derivative signature span exceeds six/);
   return {width,topCoefficients:terms.length,outputRank:21,rejected:true};
+}
+
+
+/**
+ * A degree-five source with joint-radical codimension seven that is silently
+ * accepted when the five anchors miss a second independent top-form support.
+ * This is outside the theorem's promise and demonstrates that signature-span
+ * non-overflow is not a general promise certificate.
+ *
+ * @returns {{width:number,jointRadicalCodimension:number,signatureRank:number,sourceAt124:number,cloneAt124:number,silentMismatch:boolean}}
+ */
+function rankSevenSilentPromiseViolation() {
+  const width = 7;
+  /** @param {number} input @returns {number} */
+  const source = input => (
+    (((input & 31) === 31) ? 1 : 0) ^
+    (((input & 124) === 124) ? 2 : 0)
+  ) >>> 0;
+  const forcedDirections = [1, 2, 4, 8, 16, 32];
+  let drawIndex = 0;
+  const model = cloneTopQuintic(source, width,
+    () => forcedDirections[drawIndex++ % forcedDirections.length]);
+  assert.equal(drawIndex, 6);
+  assert.equal(model.degree, 5);
+  assert.equal(model.quotientRank, 5);
+  assert.deepEqual(model.top, [[31, 1]]);
+
+  // Independently verify the joint radical by testing contractions against
+  // every four-fold standard-basis wedge. Multilinearity makes this complete.
+  /** @param {number[]} directions @returns {number} */
+  function directFifthDerivative(directions) {
+    let result = 0;
+    for (let subset = 0; subset < 32; subset++) {
+      let input = 0;
+      for (let j = 0; j < 5; j++) {
+        if (((subset >>> j) & 1) !== 0) input ^= directions[j];
+      }
+      result ^= source(input);
+    }
+    return result >>> 0;
+  }
+  const fourTuples = masksOfWeight(width, 4)
+    .map(support => bitIndices(width, support).map(index => 1 << index));
+  let radicalCount = 0;
+  for (let x = 0; x < (1 << width); x++) {
+    let inRadical = true;
+    for (const tuple of fourTuples) {
+      if (directFifthDerivative([x, ...tuple]) !== 0) {
+        inRadical = false;
+        break;
+      }
+    }
+    if (inRadical) radicalCount++;
+  }
+  assert.equal(radicalCount, 1, 'the joint fifth-derivative radical is {0}');
+
+  const sourceAt124 = source(124);
+  const cloneAt124 = evaluateClone(model, 124);
+  const silentMismatch = sourceAt124 !== cloneAt124;
+  assert.equal(sourceAt124, 2);
+  assert.equal(cloneAt124, 0);
+  assert.equal(silentMismatch, true);
+  assert.equal(evaluateClone(model, 31), source(31));
+  return {
+    width,
+    jointRadicalCodimension: width - Math.log2(radicalCount),
+    signatureRank: model.quotientRank,
+    sourceAt124,
+    cloneAt124,
+    silentMismatch
+  };
 }
 
 /** @returns {object} */
@@ -420,6 +510,13 @@ function main() {
       }, n, learnerRng);
       online = false;
       assert.equal(calls, model.queries);
+      if (topActive) {
+        assert.equal(model.degree, 5, `active top term lost at n=${n}, case=${caseIndex}`);
+        assert.equal(model.quotientRank, projectionRank);
+      } else {
+        assert.equal(model.degree, 4, `inactive top term unexpectedly witnessed at n=${n}, case=${caseIndex}`);
+        assert.equal(model.quotientRank, 0);
+      }
       for (let input = 0; input < 2 ** n; input++) {
         assert.equal(evaluateClone(model, input), source(input),
           `finite mismatch n=${n}, case=${caseIndex}, input=${input}`);
@@ -453,7 +550,7 @@ function main() {
     }, 32, learnerRng);
     online = false;
     assert.equal(calls, model.queries);
-    assert.ok(calls <= 44455, `query cap exceeded: ${calls}`);
+    assert.ok(calls <= 44110, `query cap exceeded: ${calls}`);
     if (topActive) assert.equal(model.degree, 5);
     else assert.equal(model.degree, 4);
     for (let sample = 0; sample < 128; sample++) {
@@ -468,14 +565,17 @@ function main() {
   }
 
   const rankSevenControl = rankSevenPromiseViolation();
+  const rankSevenSilentControl = rankSevenSilentPromiseViolation();
   const summary = {
     seed:'0x5a202611',
     promise:'fixed degree<=5, fifth-derivative joint-radical codimension<=6',
     finite:{cases:finiteCases,outputs:finiteOutputs,topRank5:finiteTop5,
       topRank6:finiteTop6,degree4Fallback:finiteFallback,maxQueries:finiteMaxQueries},
     width32:{cases:wideCases,heldouts:wideHeldouts,maxQueries:wideMaxQueries,
-      maxTopCoefficients:wideMaxTopTerms,hardCap:44455,trialCap:66},
-    rankSevenPromiseViolation:rankSevenControl,
+      maxTopCoefficients:wideMaxTopTerms,hardCap:44110,trialCap:27},
+    rankSevenSignatureOverflowControl:rankSevenControl,
+    rankSevenSilentPromiseViolation:rankSevenSilentControl,
+    promiseCheck:'signature-span overflow fails closed; no overflow does not certify the source promise',
     note:'Seeded tests validate implementation only; the 1e-10 failure bound requires independent uniform draws and the stated source promise'
   };
   console.log('TOP_QUINTIC_OFFLINE_FUNCTION_CLONE ' + JSON.stringify(summary));
@@ -483,4 +583,4 @@ function main() {
 }
 
 if (require.main === module) main();
-module.exports = {cloneTopQuintic,evaluateClone,main,rankSevenPromiseViolation};
+module.exports = {cloneTopQuintic,evaluateClone,main,rankSevenPromiseViolation,rankSevenSilentPromiseViolation};

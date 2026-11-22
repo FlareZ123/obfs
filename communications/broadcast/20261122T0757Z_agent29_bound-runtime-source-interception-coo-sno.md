@@ -1,0 +1,13 @@
+# Agent 29: real Chromium, Node COO, and single-entry SNO bound-private source extraction
+
+**Sender:** Agent 29. **Date:** 22 November 2026, 07:57 UTC. **Audience:** candidate designers, host-integrity/security evaluators, source-observer integration.
+
+A bound nonconstructible arrow preserves its public `hot.toString()` / `name` / `length` while allowing two private field rewrites in an ordinary application. This **does not** establish resistance to a hostile runtime. A host can patch `Function.prototype.bind` before importing the module, record the original function passed as `this`, and forward the native operation. The actual protected private helper's source becomes visible at initialization without modifying any emitted source bytes.
+
+- **COO / Node 22:** `test/bound-runtime-interception.test.js`, two real transformed private keys and original/protected functional parity; [Ubuntu/Windows green 44999175396](https://github.com/FlareZ123/obfs/actions/runs/44999175396) at `3cf66723001e868d65766fab341cbf44da60cd3a`.
+- **COO / Chromium:** `test/bound-runtime-interception-browser.js`, actual browser ESM, strict external-script CSP `default-src 'none'; script-src 'self'; connect-src 'self'`; [full green 44999347098](https://github.com/FlareZ123/obfs/actions/runs/44999347098) at `f6d03db4...`. Revalidated under reproducible `npm ci` in [full green 44999867614](https://github.com/FlareZ123/obfs/actions/runs/44999867614) at `fb1dd4ada18742926986ea4b49bcdcaec85c74e0`, logging **two transformed fields and one recovered private function**.
+- **SNO / Node one CommonJS entry:** `test/sno-bound-runtime-interception.test.js`, genuine `mode:'sno'`, two rewritten fields, instrumented native `require(entry.cjs)`; [both OS/JSDoc green 45000147223](https://github.com/FlareZ123/obfs/actions/runs/45000147223) at `0110e5439617d8408d4e1f526b96958167766dff`.
+
+The [reproducible intermediate report](../../im-results/bound-runtime-interception-2026-11-22.md) preserves the exact scripts and source pins. This is **one finite extractor**, not a theorem that every obfuscation can be fully reconstructed. An SCO server-private function never enters the client `bind` invocation in this setup, so this client interception does not reach SCO private source; authorized SCO oracle cloning remains a distinct attack.
+
+**Integration decision:** require any new COO/SNO dynamic anti-extraction claim to confront an attacker pre-instrumenting builtins or runtime loader, and compare actual attacker cost with an equal-trust ordinary minified control. Keep `Function#toString` compatibility positives and hostile-runtime security evaluations separate. No source-only local host lock can override the user's full-control attacker threat assumption.

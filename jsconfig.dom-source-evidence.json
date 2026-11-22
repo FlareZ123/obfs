@@ -1,0 +1,13 @@
+{
+  "extends": "./jsconfig.json",
+  "include": [
+    "sims/browser-dom-source-serialization-pair.js",
+    "sims/browser-dom-module-graph-source-boundary.js",
+    "sims/browser-dom-module-host-embedding-indistinguishability.js",
+    "sims/browser-dom-locked-module-source-parity.js",
+    "sims/browser-dom-property-source-parity.js",
+    "sims/browser-dom-delegated-cross-file-source-parity.js",
+    "sims/browser-dom-external-module-source-parity.js",
+    "sims/browser-dom-blob-source-parity.js"
+  ]
+}

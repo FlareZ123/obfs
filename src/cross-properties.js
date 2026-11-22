@@ -81,6 +81,36 @@ function collectVerifiedImportedStrings(files) {
     }
     exported.set(filename,names);
   }
+  // Carry immutable string metadata through explicit source-named reexports.
+  // Runtime key rewrites remain gated independently on the full acyclic ESM graph.
+  let changed;
+  do {
+    changed=false;
+    for(const [relayName,relay] of modules) {
+      const exposed=exported.get(relayName);
+      if(!exposed)continue;
+      for(const statement of relay.ast.body) {
+        if(statement.type!=='ExportNamedDeclaration'||!statement.source||
+           statement.source.type!=='Literal'||
+           typeof statement.source.value!=='string'||
+           /[?#%\\]/.test(statement.source.value))continue;
+        const origin=resolveImport(relayName,statement.source.value);
+        const available=origin?exported.get(origin):null;
+        if(!available)continue;
+        for(const spec of statement.specifiers) {
+          if(spec.type!=='ExportSpecifier')continue;
+          const sourceName=spec.local.name??spec.local.value;
+          const publicName=spec.exported.name??spec.exported.value;
+          if(typeof sourceName!=='string'||typeof publicName!=='string')continue;
+          const value=available.get(sourceName);
+          if(value!==undefined&&!exposed.has(publicName)){
+            exposed.set(publicName,value);
+            changed=true;
+          }
+        }
+      }
+    }
+  }while(changed);
   /** @type {Map<string,Map<string,string>>} */
   const imported=new Map();
   for(const [filename,module] of modules) {
@@ -2531,8 +2561,16 @@ function renameCrossFileProperties(files,seed) {
                 if(spec.type!=='ImportSpecifier')continue;
                 const exportedName=spec.imported.name ?? spec.imported.value;
                 if(exportedName===exportName)importedAliases.push(spec.local.name);
-                const key=earlierKeyExports.get(exportedName);
-                if(key!==undefined&&importer.bindings.get(spec.local.name)===1) {
+                // Cyclic evaluation permits only keys initialized before
+                // this owner. In an acyclic graph, the imported module has
+                // finished evaluation before the consumer body starts, so a
+                // uniquely proved later exported const string is safe too.
+                const key=earlierKeyExports.get(exportedName) ??
+                  (acyclicImports ?
+                    verifiedStrings.get(importerName)?.get(spec.local.name) :
+                    undefined);
+                if(key!==undefined&&names.includes(key)&&
+                   importer.bindings.get(spec.local.name)===1) {
                   importedKeys.set(spec.local.name,key);
                 }
               }
@@ -2605,7 +2643,8 @@ function renameCrossFileProperties(files,seed) {
         const ownNames=new Set(names);
         if (users.some(user=>
           user.proof.members.some(member=>{const field=user.proof.memberNames.get(member);return typeof field!=='string'||!ownNames.has(field);}) ||
-          user.proof.patterns.some(property=>!ownNames.has(ownPropertyName(property))) ||
+          user.proof.patterns.some(property=>
+            !ownNames.has(user.proof.patternNames.get(property)??ownPropertyName(property))) ||
           user.proof.inChecks.some(check=>!ownNames.has(check.left.value)) ||
           user.proof.reflections.some(reflection=>!ownNames.has(reflection.property)))) continue;
         // Prevent externally exposed exports of the same object via an export specifier.
@@ -2641,7 +2680,7 @@ function renameCrossFileProperties(files,seed) {
             if(old!==undefined && mapping.has(old)) add(user.file,{start:member.property.start,end:member.property.end,
               text:member.computed ? JSON.stringify(mapping.get(old)) : mapping.get(old)});
           }
-          for (const edit of patternPropertyEdits(user.source,user.proof.patterns,mapping)) {
+          for (const edit of patternPropertyEdits(user.source,user.proof.patterns,mapping,user.proof.patternNames)) {
             add(user.file,edit);
           }
           for (const edit of inOperatorPropertyEdits(user.proof.inChecks,mapping)) {
@@ -2769,9 +2808,16 @@ function renameCrossFileProperties(files,seed) {
           }
           if(spec.type==='ImportSpecifier') {
             const exposed=spec.imported.name??spec.imported.value;
+            // Same acyclic pre-initialization proof as named objects:
+            // a later const export becomes available after the producer's
+            // complete module body, while cycles retain earlier-key gating.
             const key=typeof exposed==='string' ?
-              earlierKeyExports.get(exposed) : undefined;
-            if(key!==undefined && importer.bindings.get(spec.local.name)===1) {
+              (earlierKeyExports.get(exposed) ??
+                (acyclicImports ?
+                  verifiedStrings.get(importerName)?.get(spec.local.name) :
+                  undefined)) : undefined;
+            if(key!==undefined && names.includes(key) &&
+               importer.bindings.get(spec.local.name)===1) {
               importedKeys.set(spec.local.name,key);
             }
           }
@@ -2813,7 +2859,8 @@ function renameCrossFileProperties(files,seed) {
         const field=user.proof.memberNames.get(member);
         return typeof field!=='string'||!ownNames.has(field);
       }) ||
-      user.proof.patterns.some(property=>!ownNames.has(ownPropertyName(property))) ||
+      user.proof.patterns.some(property=>
+            !ownNames.has(user.proof.patternNames.get(property)??ownPropertyName(property))) ||
       user.proof.inChecks.some(check=>!ownNames.has(check.left.value)) ||
       user.proof.reflections.some(reflection=>!ownNames.has(reflection.property))))continue;
 
@@ -2844,7 +2891,7 @@ function renameCrossFileProperties(files,seed) {
           });
         }
       }
-      for(const edit of patternPropertyEdits(user.source,user.proof.patterns,mapping)) {
+      for(const edit of patternPropertyEdits(user.source,user.proof.patterns,mapping,user.proof.patternNames)) {
         add(user.file,edit);
       }
       for(const edit of inOperatorPropertyEdits(user.proof.inChecks,mapping)) {

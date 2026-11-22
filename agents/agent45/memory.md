@@ -48,3 +48,124 @@ Continue useful research until the lease age measured by runtime reaches at leas
 1. Formally and empirically investigate safe per-module source observer provenance with Agent39's frozen graph and my transformed leaf island. Maintain exact behavior under reflective, dynamic, external source observations and unknown re-exports; fail closed.
 2. Evaluate any genuinely new structural obfuscator candidate against the **same** 96-case stateful app, 12,288 static probes, direct-ESM execution, manifest rewrite and in-memory loader substitution at the 2.5x real work budget. Recovery and copying currently succeed despite 3 changed arithmetic leaves and exact cross-OS output. Compare normalized attack budgets, not syntax size.
 3. Keep the SNO full-owner negative results separated from SCO server-private source withholding and COO semantics. SNO local digest remains an accidental corruption check under this threat model. User demands strongest possible obfuscator but the current suite has **not** established static/dynamic/tamper resistance of a substantial protected graph.
+
+
+## 22 November 2026: SNO ambient package-scope compatibility gate
+
+- Invocation RNG returned **4** (normal mode). Claimed stale Agent 45 identity at
+  `2026-11-22T12:26:25.411Z` via confirmed main commit
+  `0367217e318b4733482d8a7a27a0172f3f2d3781`. **Do not refresh lease.**
+  At first checkpoint of at least 70 minutes (13:36:25.411 UTC), update memory,
+  commit/push useful work, and delete lease as final mutation.
+- Audited `src/cli.js` and `src/sno.js`; the compiler infers .js package
+  scope from input files but an emitted SNO CommonJS .js file can inherit an
+  unrelated output ancestor `{"type":"module"}`. A direct Node 22.16.0
+  isolated experiment reproduced unchanged CommonJS source failing as ESM
+  with `ReferenceError: module is not defined`.
+- Draft [PR #283](https://github.com/FlareZ123/obfs/pull/283), branch
+  `agent45/sno-ambient-package-scope-20261122`, adds a **build-time**
+  fail-closed SNO output-scope check, four admissible/refusal positive controls
+  plus a `node_modules` boundary test, README/security notes, and bounded
+  [intermediate report](../../im-results/sno-ambient-output-package-scope-2026-11-22.md).
+  The check canonicalizes the output path and refuses an external ESM package
+  scope when an emitted .js file has no emitted nearest package.json.
+- Focused [Ubuntu/Windows run 45022626170](https://github.com/FlareZ123/obfs/actions/runs/45022626170)
+  green at four-case source `a93a8c6e9ba2d79420dbb1f848c6c2d1c7a716df`.
+  Expanded five-case [focused run 45022956596](https://github.com/FlareZ123/obfs/actions/runs/45022956596)
+  green at `d8eb149c1264f72a7d7e5566e5e8c175c390938f`, including both strict
+  JSDoc gates per OS.
+- One full integrated [run 45022860316](https://github.com/FlareZ123/obfs/actions/runs/45022860316)
+  dispatched at intermediate documentation source
+  `838a48462d563ac8a1e6168e9a4b31ee87ab00dc`; it includes the exact
+  executable code and first four cases. Record its result when complete.
+  No second full run is necessary for the extra node_modules positive control.
+- Sent [Agent 20 a Windows case-variant package-metadata falsification question](../../communications/agent20/20261122T1236Z_agent45_sno-package-json-case-identity-question.md).
+  An uppercase `PACKAGE.JSON` on a case-insensitive checkout may influence
+  Node's nearest package scope while the CLI exact-path predicate ignores it;
+  this remains **unverified** and should not be asserted as a bug.
+- This is SNO packaging compatibility, **not** obfuscation resistance:
+  relocating output, direct `createSnoLauncher`, hostile loader and
+  filesystem-owner attacks are outside this preflight's guarantee.
+  Release remains blocked. The branch is an isolated PR, not merged main.
+
+### 22 November continuation checkpoint: full package-scope validation
+
+- Draft PR #283 executable helper `assertSnoPackageScope(files,root,context)`
+  now detects external source and output module format mismatches,
+  stale nested package metadata (including reversed ESM=>CJS), invalid
+  external type/shape, `node_modules` boundary, and symlink realpath.
+  Input preflight runs before compilation; output preflight runs within
+  `withDirectoryLock` before writes. No emitted runtime source changes.
+- **Green focused source:** [run 45024526818](https://github.com/FlareZ123/obfs/actions/runs/45024526818)
+  at `30eea73aa6ef3b223bcc33cc560937888e26b46b`: Ubuntu/Windows
+  Node 22.23.4 and two strict JSDoc gates pass. The test file has 15
+  named focused cases plus a single 27-cell exhaustive source/output
+  package placement matrix, covering **17 admitted, 10 refused**
+  configurations. A seeded matched case emits identical loader and
+  source bytes in two compatible environments.
+- **Initial matrix red was a harness defect**, [run 45024388982](https://github.com/FlareZ123/obfs/actions/runs/45024388982):
+  `node --eval` exposed a global `module` binding, so the first
+  `typeof module` witness mislabeled ESM; lexical top-level `this`
+  fixed the oracle. Preserve the red/green receipt, do not claim a
+  compiler defect.
+- **Green full integration:** [run 45024226049](https://github.com/FlareZ123/obfs/actions/runs/45024226049)
+  at `dfda4d67a6a59c356c987be601725064f94cb82e`: both Ubuntu
+  and Windows full validation passed. The later matrix additions and
+  documentation commits do not modify executable compiler source.
+- Latest [intermediate synthesized report](../../im-results/sno-ambient-output-package-scope-2026-11-22.md)
+  now distinguishes full vs focused source pins and retains bounds
+  `--preserve-symlinks` (realpath vs lexical loader behavior) and
+  `package.json` `imports`/`exports` module resolution beyond type.
+  Native-only Node 22.16.0 probes reproduce both flag and imports
+  differences; they do **not** establish a compiled-CLI counterexample.
+- All changes remain in [draft PR #283](https://github.com/FlareZ123/obfs/pull/283),
+  branch `agent45/sno-ambient-package-scope-20261122`.
+  Never promote the packaging check to obfuscation strength, owner
+  integrity or universal 2.5× proof. Overall RELEASE-BLOCKED unchanged.
+- One unverified Agent20 Windows casing question remains outstanding
+  in `communications/agent20/20261122T1236Z_agent45_sno-package-json-case-identity-question.md`.
+  Preserve result without inventing a casing conclusion.
+
+### 22 November extension: external package imports and self-exports
+
+- Separate **source-pinned two-OS red reproduction** of SNO `.cjs`
+  `require('#target')` under untracked parent `"imports"`:
+  native **103**, generated **107**, positive bundled metadata **103**.
+  Red branch `agent45/sno-external-package-imports-20261122`,
+  test `test/sno-external-imports-parity-red.test.js`, source
+  `c1c8b659a04b02e2570b6464fa6ba04f7f905710`,
+  [run 45025118109](https://github.com/FlareZ123/obfs/actions/runs/45025118109).
+  This is a real CLI semantic mismatch with a passing control.
+- Same red branch includes second **two-OS named package self-export**
+  reproduction, `require('scope-pkg/value')`, native **137**,
+  generated **139**, packaged `name`+`exports` control **137**;
+  source `26f736611a04641b76fb67f224202e391ec84ccc`,
+  [run 45025620272](https://github.com/FlareZ123/obfs/actions/runs/45025620272).
+- Draft PR #283 now extends `assertSnoPackageScope` input/output
+  preflight to all executable .js/.cjs/.mjs, refusing an **external
+  unbundled package `"imports"` key** or an external package with
+  both nonempty string `"name"` and own `"exports"`. An emitted
+  package.json in the declared graph stops this check, preserving
+  controllable mappings. The guard is intentionally conservative,
+  even if the source doesn't actually use the mapping.
+- New green [imports focused gate 45025545478](https://github.com/FlareZ123/obfs/actions/runs/45025545478)
+  at `bac633570dccaa20d76965cf1c2b2548ae81abc6`: **5/5**
+  real Node cases both OS, strict JSDoc. New green
+  [named exports focused gate 45025723893](https://github.com/FlareZ123/obfs/actions/runs/45025723893)
+  at `ed9fc0a3224cd51f25ab697e3a5d57fec62c987f`: **4/4**
+  cases both OS, strict JSDoc.
+- Updated PR README, `docs/SECURITY.md` and
+  `im-results/sno-ambient-output-package-scope-2026-11-22.md`
+  with red/green results and limitations; sent broad review request
+  `communications/broadcast/20261122T1309Z_agent45_sno-native-package-compatibility.md`
+  on main.
+- **Full combined two-OS integration**
+  [run 45025911407](https://github.com/FlareZ123/obfs/actions/runs/45025911407)
+  dispatched at `3c77bffa1ee8a6eb122dc3e3b50a01ae03e37922`;
+  result pending at this checkpoint. Do not cite earlier full
+  `45024226049` as coverage of external imports/exports guards.
+- The second red branch is intentionally failing and should remain an
+  isolated counterexample, never merged to main unguarded. Main
+  integration PR #283 is draft. Threat model SNO attacker owns files
+  and Node runtime, so a build-time metadata check offers **no**
+  hostile-owner integrity. RELEASE-BLOCKED remains the answer.

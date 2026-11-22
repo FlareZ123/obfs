@@ -199,3 +199,63 @@ test('approval is not an override for independently forbidden source-bearing ass
     }),/source.map|inline script/i,'SCO handler '+asset.path);
   }
 });
+
+test('reviewed manifest follows portable canonical path collision policy',()=>{
+  const collisions=[
+    ['Σ.css','ς.css'],
+    ['Café.css','Cafe\u0301.css'],
+    ['straße.css','STRASSE.css'],
+    ['Images/a.css','images/b.css']
+  ];
+  for(const [first,second] of collisions){
+    const files=[
+      {path:first,sourceType:/** @type {const} */('asset'),code:safe},
+      {path:second,sourceType:/** @type {const} */('asset'),code:other}
+    ];
+    const approved=[
+      {path:first,sha256:digest(safe)},
+      {path:second,sha256:digest(other)}
+    ];
+    assert.throws(()=>assertReviewedOpaqueAssets(files,approved),
+      /Duplicate reviewedOpaqueAssets path|Ambiguous directory spelling/,
+      'reviewed paths must use compiler-equivalent portable identities');
+    assert.throws(()=>assertReviewedOpaqueAssets(files,[approved[0]]),
+      /Duplicate published opaque asset path|Ambiguous directory spelling/,
+      'published paths must also enforce portable identities');
+  }
+  const independent=[
+    {path:'σ.css',sourceType:/** @type {const} */('asset'),code:safe},
+    {path:'λ.css',sourceType:/** @type {const} */('asset'),code:other}
+  ];
+  assert.doesNotThrow(()=>assertReviewedOpaqueAssets(independent,[
+    {path:'σ.css',sha256:digest(safe)},
+    {path:'λ.css',sha256:digest(other)}
+  ]));
+});
+
+test('standalone asset review refuses compiler-unsafe paths in both input inventories',()=>{
+  const invalid=[
+    '../theme.css',
+    'assets/../theme.css',
+    '/theme.css',
+    'assets\\theme.css',
+    'CON.txt',
+    'assets/aux.css',
+    'public~1.css',
+    'assets//theme.css',
+    'assets/trailing ',
+    'bad\uD800.css'
+  ];
+  for(const name of invalid){
+    const approved=[{path:name,sha256:digest(safe)}];
+    assert.throws(()=>assertReviewedOpaqueAssets([safeFile],approved),
+      /Unsafe/, 'invalid reviewed path: '+name);
+    assert.throws(()=>assertReviewedOpaqueAssets([
+      {path:name,sourceType:/** @type {const} */('asset'),code:safe}
+    ],[{path:'theme.css',sha256:digest(safe)}]),
+    /Unsafe/, 'invalid published asset path: '+name);
+  }
+  assert.doesNotThrow(()=>assertReviewedOpaqueAssets([
+    {path:'assets/theme.css',sourceType:/** @type {const} */('asset'),code:safe}
+  ],[{path:'assets/theme.css',sha256:digest(safe)}]));
+});

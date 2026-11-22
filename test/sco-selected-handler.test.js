@@ -105,6 +105,69 @@ test('selective compiler-owned SCO handler serves only generated facade and matc
   }
 });
 
+
+test('locally bound timer-spelled function executes through the generated authenticated SCO facade',{
+  timeout:30000
+},async()=>{
+  const source='export async function protectedCalc(value){'+
+    'const setTimeout=x=>x+1;return setTimeout(value);}'+
+    'export function visible(){return 7;}';
+  const partition=partitionScoSelectedAsyncExports(
+    {path:'mixed.mjs',sourceType:'module',code:source},
+    {seed:'sco-owned-local-host-facade-20261122',privateNames:['protectedCalc']}
+  );
+  const root=await fs.mkdtemp(path.join(os.tmpdir(),'obfs-sco-owned-local-host-'));
+  const nativeFetch=globalThis.fetch;
+  /** @type {import('node:http').Server|undefined} */
+  let server;
+  try{
+    await atomicWrite(path.join(root,'mixed.mjs'),source);
+    const native=await import(pathToFileURL(path.join(root,'mixed.mjs')).href);
+    server=http.createServer(createScoSelectedHandler(partition,native,{
+      authorizeRead:req=>req.headers['x-test-session']==='allow',
+      authorizeRpc:req=>req.headers['x-test-session']==='allow',
+      authorizeOperation:(req,method,args)=>
+        req.headers['x-test-session']==='allow'&&
+        method===partition.methodNames.protectedCalc&&
+        args.length===1&&typeof args[0]==='number'
+    }));
+    const activeServer=server;
+    await new Promise(resolve=>activeServer.listen(0,'127.0.0.1',()=>resolve(undefined)));
+    const address=server.address();
+    assert.ok(address&&typeof address!=='string');
+    const origin='http://127.0.0.1:'+address.port;
+    const served=await nativeFetch(origin+'/obfs/mixed.mjs',{
+      headers:{'x-test-session':'allow'}
+    });
+    assert.equal(served.status,200);
+    const clientText=await served.text();
+    assert.equal(clientText,partition.clientFile.code);
+    assert.doesNotMatch(clientText,/const setTimeout=x=>x\+1/u);
+    await atomicWrite(path.join(root,'client.mjs'),clientText);
+    globalThis.fetch=(url,options)=>nativeFetch(new URL(String(url),origin),{
+      ...options,headers:{...options?.headers,'x-test-session':'allow'}
+    });
+    const client=await import(pathToFileURL(path.join(root,'client.mjs')).href);
+    for(const value of [1,3,-4,17,987654]){
+      assert.equal(await client.protectedCalc(value),await native.protectedCalc(value));
+      assert.equal(client.visible(),native.visible());
+    }
+    const disallowed=await nativeFetch(origin+'/obfs/rpc',{
+      method:'POST',headers:{'content-type':'application/json'},
+      body:JSON.stringify({method:partition.methodNames.protectedCalc,args:[1]})
+    });
+    assert.equal(disallowed.status,403);
+  }finally{
+    globalThis.fetch=nativeFetch;
+    if(server){
+      const activeServer=server;
+      await new Promise((resolve,reject)=>
+        activeServer.close(error=>error?reject(error):resolve(undefined)));
+    }
+    await fs.rm(root,{recursive:true,force:true});
+  }
+});
+
 test('sealed selective publication excludes private sources missed by the bounded dynamic-loader audit',{
   timeout:30000
 },async()=>{

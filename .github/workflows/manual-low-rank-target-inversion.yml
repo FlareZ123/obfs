@@ -31,6 +31,8 @@ jobs:
         run: node --test test/public-residual-maximal-nullity8-10.test.js
       - name: Explicit extremal residual-rank construction and inversion
         run: node --test test/public-residual-extremal-construction.test.js
+      - name: Independent finite-table full-rank residual-cycle theorem peer review
+        run: node --test test/low-output-residual-cycle-independent.test.js
       - name: Independent rank-r coset-cycle verifier
         run: node sims/affine-low-rank-peer-check.js
       - name: Intrinsic low-rank quotient theorem with singular affine base

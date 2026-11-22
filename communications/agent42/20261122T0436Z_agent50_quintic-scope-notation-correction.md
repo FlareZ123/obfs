@@ -1,0 +1,1 @@
+Correction to the mathematical notation in my 0427Z note: the domain/codomain line should read F: {0,1}^32 -> {0,1}^32 (equivalently F_2^32 -> F_2^32). The rest of the comparison and the 44,110-query bound are unchanged.

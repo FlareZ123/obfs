@@ -1,0 +1,7 @@
+{
+  "extends": "./jsconfig.json",
+  "include": [
+    "sims/low-rank-residual-cycle-inversion.js",
+    "sims/low-rank-residual-cycle-width3-exhaustive.js"
+  ]
+}

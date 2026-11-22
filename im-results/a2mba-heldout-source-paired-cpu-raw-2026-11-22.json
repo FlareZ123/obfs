@@ -1,0 +1,360 @@
+{
+  "description": "Four fixed post-freeze A2MBA heldout source cases, warmed selected-work CPU versus source-recovered native and esbuild-minified native control",
+  "capturedDate": "2026-11-22",
+  "ciRunId": 45062436784,
+  "ciUrl": "https://github.com/FlareZ123/obfs/actions/runs/45062436784",
+  "sourceCommit": "ccaa1d76da9c9ba06d563233cef232c0665ad0b5",
+  "esbuildVersion": "0.28.2",
+  "platforms": [
+    {
+      "jobId": 137331126441,
+      "node": "v22.23.5",
+      "platform": "linux",
+      "count": 2000000,
+      "trials": 7,
+      "seed": "heldout-after-2c478bb5:2026-11-19:agent38:a2mba-rotated-core:v1",
+      "attackerCommit": "2c478bb5e9418cc6ba0c59ef5d963a9cc3cb9614",
+      "results": [
+        {
+          "index": 0,
+          "rotation": 9,
+          "sourceSha256": "99981800d68c0ee82e01431b715586d24dfb51f16fd27933f090161daf0c4971",
+          "nativeMedianMicros": 723422,
+          "minifiedMedianMicros": 725743,
+          "protectedMedianMicros": 2297460,
+          "protectedToNativeMedian": 3.175822687172909,
+          "protectedToMinifiedMedian": 3.165666082897114,
+          "breachesNative": 7,
+          "breachesMinified": 7,
+          "maxNativePair": 3.2497382430987587,
+          "maxMinifiedPair": 3.237086578760764,
+          "nativeSamples": [
+            723422,
+            743520,
+            721655,
+            722044,
+            722694,
+            725562,
+            725419
+          ],
+          "minifiedSamples": [
+            725395,
+            726337,
+            725743,
+            724866,
+            727236,
+            724675,
+            727849
+          ],
+          "protectedSamples": [
+            2279629,
+            2309315,
+            2279211,
+            2346454,
+            2297460,
+            2291350,
+            2300101
+          ]
+        },
+        {
+          "index": 9,
+          "rotation": 15,
+          "sourceSha256": "7b24c9c132b211931ccf91a6d29985a98e523aa51d0ca8dea73437abe0e63eab",
+          "nativeMedianMicros": 728219,
+          "minifiedMedianMicros": 725165,
+          "protectedMedianMicros": 2352150,
+          "protectedToNativeMedian": 3.230003611550921,
+          "protectedToMinifiedMedian": 3.2436066274571993,
+          "breachesNative": 7,
+          "breachesMinified": 7,
+          "maxNativePair": 3.2457733163167846,
+          "maxMinifiedPair": 3.2767920185470376,
+          "nativeSamples": [
+            728747,
+            728223,
+            727091,
+            728444,
+            728219,
+            722434,
+            727038
+          ],
+          "minifiedSamples": [
+            729766,
+            719468,
+            725034,
+            725165,
+            725513,
+            722845,
+            725286
+          ],
+          "protectedSamples": [
+            2340712,
+            2357547,
+            2343971,
+            2352150,
+            2354940,
+            2344857,
+            2352248
+          ]
+        },
+        {
+          "index": 18,
+          "rotation": 31,
+          "sourceSha256": "44473000bc88fbc6eec037fd04cf24a902d57e4bee2a4e77d7dd87899bf80897",
+          "nativeMedianMicros": 724691,
+          "minifiedMedianMicros": 726286,
+          "protectedMedianMicros": 2337339,
+          "protectedToNativeMedian": 3.2252905031247803,
+          "protectedToMinifiedMedian": 3.218207427927841,
+          "breachesNative": 7,
+          "breachesMinified": 7,
+          "maxNativePair": 3.2364276113897192,
+          "maxMinifiedPair": 3.257190212906079,
+          "nativeSamples": [
+            722441,
+            723769,
+            724248,
+            724691,
+            748564,
+            725845,
+            725945
+          ],
+          "minifiedSamples": [
+            726863,
+            726330,
+            725835,
+            726286,
+            725813,
+            725081,
+            728724
+          ],
+          "protectedSamples": [
+            2338128,
+            2330944,
+            2326876,
+            2331728,
+            2364111,
+            2342779,
+            2337339
+          ]
+        },
+        {
+          "index": 27,
+          "rotation": 15,
+          "sourceSha256": "e207ff6eb26605c6e898c3fdfc0a9b6459d2665a4c976562e956b3311d4b24fe",
+          "nativeMedianMicros": 726406,
+          "minifiedMedianMicros": 722917,
+          "protectedMedianMicros": 2281114,
+          "protectedToNativeMedian": 3.140274171744176,
+          "protectedToMinifiedMedian": 3.155430014787313,
+          "breachesNative": 7,
+          "breachesMinified": 7,
+          "maxNativePair": 3.157272883629734,
+          "maxMinifiedPair": 3.167633941612947,
+          "nativeSamples": [
+            725705,
+            725758,
+            727778,
+            726406,
+            726496,
+            726775,
+            726398
+          ],
+          "minifiedSamples": [
+            722790,
+            718858,
+            725868,
+            739474,
+            722917,
+            724747,
+            722351
+          ],
+          "protectedSamples": [
+            2258261,
+            2277079,
+            2273531,
+            2284891,
+            2281114,
+            2294627,
+            2284794
+          ]
+        }
+      ]
+    },
+    {
+      "jobId": 137331126764,
+      "node": "v22.23.5",
+      "platform": "win32",
+      "count": 2000000,
+      "trials": 7,
+      "seed": "heldout-after-2c478bb5:2026-11-19:agent38:a2mba-rotated-core:v1",
+      "attackerCommit": "2c478bb5e9418cc6ba0c59ef5d963a9cc3cb9614",
+      "results": [
+        {
+          "index": 0,
+          "rotation": 9,
+          "sourceSha256": "99981800d68c0ee82e01431b715586d24dfb51f16fd27933f090161daf0c4971",
+          "nativeMedianMicros": 703000,
+          "minifiedMedianMicros": 703000,
+          "protectedMedianMicros": 2110000,
+          "protectedToNativeMedian": 3.001422475106686,
+          "protectedToMinifiedMedian": 3.001422475106686,
+          "breachesNative": 7,
+          "breachesMinified": 7,
+          "maxNativePair": 3.216463414634146,
+          "maxMinifiedPair": 3.0931586608442503,
+          "nativeSamples": [
+            703000,
+            703000,
+            703000,
+            703000,
+            656000,
+            688000,
+            703000
+          ],
+          "minifiedSamples": [
+            687000,
+            688000,
+            704000,
+            703000,
+            703000,
+            687000,
+            704000
+          ],
+          "protectedSamples": [
+            2125000,
+            2109000,
+            2125000,
+            2109000,
+            2110000,
+            2125000,
+            2109000
+          ]
+        },
+        {
+          "index": 9,
+          "rotation": 15,
+          "sourceSha256": "7b24c9c132b211931ccf91a6d29985a98e523aa51d0ca8dea73437abe0e63eab",
+          "nativeMedianMicros": 703000,
+          "minifiedMedianMicros": 703000,
+          "protectedMedianMicros": 2109000,
+          "protectedToNativeMedian": 3,
+          "protectedToMinifiedMedian": 3,
+          "breachesNative": 7,
+          "breachesMinified": 7,
+          "maxNativePair": 3.162202380952381,
+          "maxMinifiedPair": 3.0227596017069702,
+          "nativeSamples": [
+            687000,
+            672000,
+            703000,
+            703000,
+            703000,
+            703000,
+            703000
+          ],
+          "minifiedSamples": [
+            719000,
+            703000,
+            703000,
+            703000,
+            704000,
+            719000,
+            703000
+          ],
+          "protectedSamples": [
+            2063000,
+            2125000,
+            2109000,
+            2125000,
+            2109000,
+            2094000,
+            2125000
+          ]
+        },
+        {
+          "index": 18,
+          "rotation": 31,
+          "sourceSha256": "44473000bc88fbc6eec037fd04cf24a902d57e4bee2a4e77d7dd87899bf80897",
+          "nativeMedianMicros": 703000,
+          "minifiedMedianMicros": 703000,
+          "protectedMedianMicros": 2110000,
+          "protectedToNativeMedian": 3.001422475106686,
+          "protectedToMinifiedMedian": 3.001422475106686,
+          "breachesNative": 7,
+          "breachesMinified": 7,
+          "maxNativePair": 3.138392857142857,
+          "maxMinifiedPair": 3.069868995633188,
+          "nativeSamples": [
+            703000,
+            703000,
+            672000,
+            704000,
+            703000,
+            703000,
+            687000
+          ],
+          "minifiedSamples": [
+            703000,
+            704000,
+            687000,
+            703000,
+            703000,
+            688000,
+            703000
+          ],
+          "protectedSamples": [
+            2125000,
+            2125000,
+            2109000,
+            2109000,
+            2110000,
+            2109000,
+            2110000
+          ]
+        },
+        {
+          "index": 27,
+          "rotation": 15,
+          "sourceSha256": "e207ff6eb26605c6e898c3fdfc0a9b6459d2665a4c976562e956b3311d4b24fe",
+          "nativeMedianMicros": 703000,
+          "minifiedMedianMicros": 703000,
+          "protectedMedianMicros": 2125000,
+          "protectedToNativeMedian": 3.0227596017069702,
+          "protectedToMinifiedMedian": 3.0227596017069702,
+          "breachesNative": 7,
+          "breachesMinified": 7,
+          "maxNativePair": 3.0886627906976742,
+          "maxMinifiedPair": 3.071324599708879,
+          "nativeSamples": [
+            703000,
+            703000,
+            704000,
+            703000,
+            703000,
+            719000,
+            688000
+          ],
+          "minifiedSamples": [
+            687000,
+            703000,
+            703000,
+            687000,
+            703000,
+            703000,
+            703000
+          ],
+          "protectedSamples": [
+            2110000,
+            2125000,
+            2140000,
+            2110000,
+            2125000,
+            2109000,
+            2125000
+          ]
+        }
+      ]
+    }
+  ]
+}

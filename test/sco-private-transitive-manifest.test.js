@@ -298,3 +298,65 @@ test('static constructor key aliases must not hide runtime imports',{timeout:150
     code:'const fn=(v)=>v; export function deriveProof(v){return fn["name"].length+v;}'}]),
     'Known non-constructor properties of callables stay eligible');
 });
+
+
+test('literal-owned browser-spelling source survives real authenticated SCO RPC',{
+  timeout:60000
+},async()=>{
+  const browserLocalLeaf={
+    path:'private/deep/secret.mjs',
+    code:'const caches=41;export function deriveProof(value){return caches+value;}'
+  };
+  const reexport={
+    path:'private/engine.mjs',
+    code:'export {deriveProof} from "./deep/secret.mjs";'
+  };
+  const generated=emit([reexport,browserLocalLeaf]);
+  const folder=await fs.mkdtemp(path.join(os.tmpdir(),'obfs-sco-local-shadow-'));
+  const nativeFetch=globalThis.fetch;
+  /** @type {import('node:http').Server|undefined} */
+  let server;
+  try{
+    await atomicWrite(path.join(folder,'mixed.mjs'),entry);
+    await atomicWrite(path.join(folder,reexport.path),reexport.code);
+    await atomicWrite(path.join(folder,browserLocalLeaf.path),browserLocalLeaf.code);
+    await atomicWrite(path.join(folder,'client.mjs'),generated.clientFile.code);
+    const native=await import(pathToFileURL(path.join(folder,'mixed.mjs')).href);
+    const methods=bindScoModuleExports(generated,native);
+    server=http.createServer(createScoHandler([generated.clientFile],{
+      remoteMethods:methods,
+      authorizeRead:req=>req.headers['x-test-session']==='allow',
+      authorizeRpc:req=>req.headers['x-test-session']==='allow',
+      authorizeOperation:(req,method,args)=>
+        req.headers['x-test-session']==='allow' &&
+        method===generated.methodNames.protectedDigest &&
+        args.length===1 && typeof args[0]==='number'
+    }));
+    await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));
+    const address=server.address();
+    assert.ok(address&&typeof address!=='string');
+    const origin='http://127.0.0.1:'+address.port;
+    const unauthorized=await nativeFetch(origin+'/obfs/rpc',{
+      method:'POST',headers:{'content-type':'application/json'},
+      body:JSON.stringify({method:generated.methodNames.protectedDigest,args:[2]})
+    });
+    assert.equal(unauthorized.status,403);
+    const privateSource=await nativeFetch(origin+'/obfs/'+browserLocalLeaf.path,{
+      headers:{'x-test-session':'allow'}
+    });
+    assert.equal(privateSource.status,404);
+    globalThis.fetch=(url,options)=>nativeFetch(new URL(String(url),origin),{
+      ...options,headers:{...options?.headers,'x-test-session':'allow'}
+    });
+    const client=await import(pathToFileURL(path.join(folder,'client.mjs')).href);
+    for(const value of [0,1,-3,25,987654]){
+      assert.equal(await native.protectedDigest(value),41+value);
+      assert.equal(await client.protectedDigest(value),await native.protectedDigest(value));
+    }
+  }finally{
+    globalThis.fetch=nativeFetch;
+    if(server)await new Promise((resolve,reject)=>
+      server.close(error=>error?reject(error):resolve()));
+    await fs.rm(folder,{recursive:true,force:true});
+  }
+});

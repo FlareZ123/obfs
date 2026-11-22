@@ -37,6 +37,39 @@ merged as `9d8becb59aaf3e51ec24bfad25016da3eef19e1f`.
 The XML-only precursor [PR #251](https://github.com/FlareZ123/obfs/pull/251)
 merged as `7788bdf2e85b2551cc97b1c9489e0c4b64c5877a`.
 
+## Paired MIME/nosniff browser control
+
+The subsequent [PR #262](https://github.com/FlareZ123/obfs/pull/262)
+was merged as `393e925ffd981a07826dee6fcd46b3f86fcca2ce`.
+It uses the **same emitted opaque JavaScript bytes**, and three byte-identical
+HTML publisher pages. The HTTP server explicitly sets
+`X-Content-Type-Options: nosniff` for every page, script and XML response.
+Only the script response media type changes:
+
+| Declared HTTP Content-Type | Browser executes opaque script? |
+| --- | --- |
+| `text/javascript; charset=utf-8` | Yes |
+| `application/octet-stream` | No |
+| `text/plain; charset=utf-8` | No |
+
+The full [real Chromium run 44979264571](https://github.com/FlareZ123/obfs/actions/runs/44979264571)
+**completed success** at immutable source
+`3c06743c1cca3089a854546f16bf48329e452747`.
+Its machine-readable result included:
+
+```json
+{"nosniffControls":{"javascript":true,"javascript-inert":false,"javascript-plain":false},"browserExecuted":{"xhtml":true,"xml":true},"opaqueJavaScriptExecuted":true}
+```
+
+The XML and XHTML document controls still execute their original
+HTML-namespace script despite the nosniff header, since the server's
+document MIME is executable in those routes. The script refused under an
+inert media type remains publicly available byte-for-byte; nosniff is a
+browser-execution compatibility constraint, not a source confidentiality
+mechanism. This comparison isolates the HTTP type effect under one local
+Chrome setup and does not establish execution properties across all browsers,
+request contexts, caches, proxies or future deployment revisions.
+
 ## Standards and non-claims
 
 The [WHATWG MIME Sniffing Standard](https://mimesniff.spec.whatwg.org/)

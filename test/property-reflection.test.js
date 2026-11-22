@@ -5,20 +5,27 @@ const assert = require('node:assert/strict');
 const vm = require('node:vm');
 const {obfuscateFiles} = require('../src');
 
-/** @param {string} code @returns {string} */
-function evaluate(code) {
-  const context={module:{exports:null}};
+/** @param {string} code @param {string|undefined} [activeKey] @returns {string} */
+function evaluate(code,activeKey) {
+  const context={module:{exports:null,activeKey}};
   vm.runInNewContext(code,context,{timeout:1000});
   return JSON.stringify(context.module.exports);
 }
 
-/** @param {string} code @param {number} safeObjects */
-function compare(code,safeObjects) {
+/**
+ * @param {string} code
+ * @param {number} safeObjects
+ * @param {(string|undefined)[]} [activeKeys]
+ */
+function compare(code,safeObjects,activeKeys=[undefined]) {
   const output=obfuscateFiles([{path:'main.cjs',sourceType:'commonjs',code}],{
     mode:'sno',seed:'receiver-reflection-safety',strings:false
   }).files[0];
-  assert.equal(evaluate(output.code),evaluate(code),output.code);
-  assert.equal(output.metrics.objects,safeObjects,output.code);
+  const protectedCode=/** @type {string} */ (output.code);
+  for(const key of activeKeys) {
+    assert.equal(evaluate(protectedCode,key),evaluate(code,key),protectedCode);
+  }
+  assert.equal(output.metrics.objects,safeObjects,protectedCode);
 }
 
 test('hasOwnProperty observes the original key name',()=>{
@@ -65,4 +72,30 @@ test('an initial own literal key shadows a same-named inherited getter',()=>{
   compare(`'use strict';Object.defineProperty(Object.prototype,"secretField",{
     get(){return 91}});const a={secretField:8};
     module.exports=a.secretField;`,1);
+});
+
+test('Object.hasOwn preserves unknown external lookup-key semantics',()=>{
+  compare(`'use strict';const a={secretField:11};
+    const key=module.activeKey||"secretField";
+    module.exports=[Object.hasOwn(a,key),key,a.secretField];`,0,
+    ['secretField','missingField','toString']);
+});
+
+test('Object.getOwnPropertyDescriptors exposes own-key spelling',()=>{
+  compare(`'use strict';const a={secretField:12};
+    const descriptors=Object.getOwnPropertyDescriptors(a);
+    module.exports=[Object.keys(descriptors),descriptors.secretField.value];`,0);
+});
+
+test('Reflect.getOwnPropertyDescriptor preserves unknown external lookup key',()=>{
+  compare(`'use strict';const a={secretField:13};
+    const key=module.activeKey||"secretField";
+    const descriptor=Reflect.getOwnPropertyDescriptor(a,key);
+    module.exports=[key,descriptor&&descriptor.value];`,0,
+    ['secretField','missingField','toString']);
+});
+
+test('Reflect.ownKeys exposes own-key spelling',()=>{
+  compare(`'use strict';const a={secretField:14};
+    module.exports=[Reflect.ownKeys(a),a.secretField];`,0);
 });

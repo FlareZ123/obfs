@@ -5,6 +5,63 @@
 XOR string encoding, locally proven identifier renaming, and seeded names raise the cost of casual inspection. They are trivially reversible by an adversary who can run JavaScript, observe the decoder, inspect memory, or instrument property access. A measured time slowdown says nothing about deobfuscation resistance.
 
 
+## Browser DOM-visible executable source
+
+An inline classic script or inline ESM module may read the exact JavaScript
+source text embedded in its own HTML document. The current COO identifier and
+private-record property rewriters can preserve computed values while changing
+source-dependent output observed through `document.documentElement.outerHTML`,
+`innerHTML`, `XMLSerializer`, DOM text-node traversal, `Range`, or an
+imported helper receiving the browser `Document`. Even when identifiers and
+properties are disabled, an authorized `allowedHosts` wrapper can change
+observable inline source length. Source-pinned real Chromium evidence covering
+these distinct passes and benign positive controls is preserved in the
+[DOM source-observation report](../im-results/browser-dom-source-serialization-parity-2026-11-22.md)
+and [manual cross-pass acceptance run](https://github.com/FlareZ123/obfs/actions/runs/45030057373).
+The acceptance run remains red because the compiler has not integrated a
+sound general DOM source-observer guard.
+
+A source-read can pass through module imports, parameter aliases and host DOM
+serialization. A JavaScript-only graph also does not establish what additional
+source copies the surrounding HTML may expose: identical compiled modules
+behaved differently when one host mirrored an imported library's source in
+inert HTML. The current HTML asset preflight rejects that specific
+script-element mirror if supplied, but cannot establish properties of absent
+deployment assets. Until the source-observer integration is validated, require
+native-versus-emitted browser parity for applications that read embedded source,
+and refuse incompatible optional transforms instead of treating untested
+obfuscation output as equivalent. A conservative refusal may preserve
+correctness while producing zero obfuscation yield; retained positive private
+rewrites must be measured separately. These are **compatibility and admission
+limits**, with no demonstrated incremental static/dynamic reconstruction cost,
+host-lock bypass resistance or universal 2.5× runtime guarantee.
+
+
+## Ambient decoder provenance and host-resolved module imports
+
+The eager string decoder consults mutable JavaScript intrinsics, including
+`String.fromCharCode`. The compiler's conservative static, dynamic ESM, and
+CommonJS dependency checks refuse string encoding when a source-visible
+module may mutate those intrinsics before another module initializes.
+This preserves native behavior for the proved input graphs in the pinned
+[dynamic/static ESM and CommonJS red-green evidence](../im-results/decoder-external-dynamic-import-intrinsic-parity-2026-11-22.md).
+It does not prove that the surrounding deployment executes every locally
+named import using the compiler's assumed resolver.
+
+A host HTML import map can remap a supplied local ESM path to a `data:`
+module, changing an encoded target literal while leaving the original value
+unchanged in real Chromium. The [pinned import-map witness](../im-results/browser-host-importmap-decoder-assumption-2026-11-22.md)
+runs that native/emitted differential under the same browser host.
+A Node 22 `--import` preload can similarly register a loader hook that
+remaps `node:path` to arbitrary code, falsifying a proposed trust-by-builtin
+whitelist. The [Node loader-hook report](../im-results/sno-native-builtin-loader-hook-whitelist-counterexample-2026-11-22.md)
+records the unsafe candidate and the merged safe refusal regression.
+A deployed application must audit the actual HTML import maps, Node loader
+hooks and preload code if it relies on ambient decoder equivalence. A hostile
+COO browser or fully controlled SNO runtime cannot furnish that trust.
+These boundaries are independent of confidentiality, tamper resistance,
+and the strict 2.5× runtime requirement.
+
 ## Windows DOS device-name admission
 
 The compiler's portable path validator conservatively refuses the console
@@ -167,6 +224,60 @@ See the [generated pair](../examples/wasm-i32/README.md) and
 ## Property-name transformation
 
 The implementation only edits properties of literal objects whose relevant local uses are proved by a deliberately narrow static analysis. Objects with dynamic keys, unknown consumers, escaping references (including const exported aliases), ambiguous bindings, unsupported syntax, visible-scope mismatches, nonprimitive writes, or reflection are excluded. `--closed-world` permits direct ES module export/import use only when the deployment's module set is genuinely complete and all consumers are rewritten together. It is unsafe to enable the option for a library with unknown consumers. This proof should be fuzzed further before production use. The analysis permits explicitly declared CSS, raster-image, and font assets to accompany an ESM graph only under an integrator guarantee that each is served with a non-JavaScript MIME type and never interpreted as source. File extensions alone are insufficient evidence of safe execution. HTML, SVG, unknown assets, and other executable JavaScript formats force the cross-file pass to decline renaming.
+
+### Public callable source and protected private work
+
+An ESM entrypoint can expose the exact source of its exported functions through
+`Function.prototype.toString`. A field rewrite inside the body of an exported
+function changes that value even if the function's numeric outputs remain the
+same. Keep such a public wrapper's body unchanged and perform private field
+reads in a module-local helper when the application's declared entry contract
+allows that separation.
+
+The [source-stable wrapper regression](../test/closedworld-private-wrapper.test.js)
+uses two ESM modules, checks `hot.toString()` for exact native/emitted equality,
+asserts six numeric probes, and requires two genuine cross-file private-key
+rewrites. The source-pinned [Ubuntu/Windows focused run
+44997812169](https://github.com/FlareZ123/obfs/actions/runs/44997812169)
+passed at `18ad424d34646d455b8e2ee38348925775f6c589`.
+The test's supported public entry is `worker.mjs`; `state.mjs` is an internal
+declared dependency under the explicit closed-world option. Importing the
+internal module from an untracked consumer invalidates that scope and could
+observe its original keys. This compatibility design does not confer
+confidentiality, hostile-loader safety, or independent environment locking.
+
+### Bound callable targets and hostile-runtime extraction
+
+For a constructible target `function internal(){...}` exported only through
+`internal.bind(null)`, ordinary `hot.toString()` exposes a generic native
+bound-function string. A host can nevertheless execute
+`Reflect.construct(hot,[]).constructor.toString()` to recover the original
+target function source through its constructed instance. With field and
+identifier rewrites this changes an observable value. The exact two-platform
+counterexample and conservative-refusal control are documented in
+[bound export source reachability](../im-results/bound-export-source-reachability-2026-11-22.md).
+One bounded compatibility alternative uses a nonconstructible arrow target
+and asserts that `Reflect.construct` throws in both original and emitted code.
+
+Even that arrow cannot hide its source from a fully controlled client runtime.
+A host can patch `Function.prototype.bind` before dynamically importing the
+protected module, record the actual original function supplied to
+`bind`, and forward the normal binding call. This captures the transformed
+private function itself while preserving numeric behavior. The exact
+[Node and Chromium runtime-interception study](../im-results/bound-runtime-interception-2026-11-22.md)
+includes actual two-platform Node 22 execution and a real Chromium ESM test
+under `default-src 'none'; script-src 'self'; connect-src 'self'`.
+This specific attack extracts a target passed to a patchable method; it does
+not establish complete extraction of every arbitrary obfuscated application.
+A [matched esbuild comparison](../im-results/bound-runtime-interception-2026-11-22.md#property-mangled-equal-key-negative-control)
+also removed the same two original private key spellings from an ordinary
+minified build. On both Ubuntu and Windows, one identical pre-import bind
+interception recovered the underlying private function from that
+property-mangled control and from the obfuscated build. The tested
+interception therefore has no demonstrated extra barrier over the
+equal-key-mangled control; the experiment does not measure end-to-end
+reverse-engineering effort or runtime cost. All COO deployments remain
+within the full-control client attacker model.
 
 ## Distributed source-byte observation
 
@@ -450,6 +561,20 @@ SCO publishes accepted `.xhtml` and `.xht` files as
 `application/xml; charset=utf-8`. The browser tests separately exercise
 `text/xml` execution. Positive-yield tests require unrelated SRI URLs
 and ordinary XML data to leave useful transformations enabled.
+
+A bounded additional admission guard recognizes a literal leading XML
+declaration in public assets with otherwise unrecognized file extensions.
+It applies both XML namespace-aware and HTML source checks to such files,
+including local script SRI pinning; named `.svg` assets retain their dedicated
+SVG parser and diagnostics. All three COO/SNO/SCO modes have cross-platform
+regressions covering `#`, percent-encoded, plus and Unicode path segments
+([PR #255](https://github.com/FlareZ123/obfs/pull/255);
+[final Linux and Windows validation](https://github.com/FlareZ123/obfs/actions/runs/44979568762)).
+This signature is optional in valid XML and cannot establish the eventual
+HTTP MIME type. The independently [observed prolog-less XML browser
+counterexample](../im-results/undeclared-xml-mime-extension-witness-2026-11-22.md)
+and [opaque executable JavaScript MIME counterexample](../im-results/opaque-javascript-mime-source-witness-2026-11-22.md)
+remain valid, so this change does not justify source-secrecy claims.
 
 These guards use the explicitly declared file inventory and known resource
 pathnames. They do not establish arbitrary proxy routing, undecorated

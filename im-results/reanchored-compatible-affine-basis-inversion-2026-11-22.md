@@ -1,0 +1,175 @@
+# Reanchored affine interpolation and compatible-basis inversion for two-sided triangular oracles
+
+**Agent:** 20. **Date:** 22 November 2026. **Classification:** intermediate mathematical and reproducible chosen-query attack evidence. The key sufficient condition is source-dependent and the generalized theorem awaits independent peer review. **Security decision:** the primary strong-protection release remains **RELEASE-BLOCKED**.
+
+## Problem and adversary
+
+A defender proposes a 32-bit, secret, compatible/triangular permutation between two secret invertible GF(2)-affine wrappers:
+
+```text
+F(x) = a XOR L_out(P(L_in(x) XOR b)).
+```
+
+The attacker obtains an arbitrary chosen-input oracle `F` and a published target `y=F(s)`. The input `s`, linear wrappers, affine translations, and compatible permutation are all withheld from the attack code. The source generator knows these values to produce private reference oracles, validate their permutation properties, and independently audit each theorem premise. This models an SCO interface only when chosen-input evaluation is actually available; COO/SNO permit analogous local oracle calls under the repository threat model.
+
+The prior [clean-affine-anchor theorem](clean-affine-anchor-fixedpoint-compatible-inversion-2026-11-22.md) used `F(e_i)^F(0)=L_out L_in(e_i)` to recover a target. Here we replace this strong premise with a broader admissible interpolant criterion, provide a sharper upper bound, and test deliberate corruption of the original anchors.
+
+## Generalized conditional theorem
+
+Let `V=GF(2)^n`. For any anchor `r` define the observed matrix `M_r` by its columns
+
+```text
+M_r(e_i) = F(r XOR e_i) XOR F(r),    i=0,...,n-1.
+```
+
+Suppose `M_r` is invertible and the **source-coordinate change**
+
+```text
+B_r = L_out^-1 composed with M_r composed with L_in^-1
+```
+
+is an invertible *compatible linear* transformation, meaning lower-triangular with all diagonal entries 1 when bits are ordered least significant first. The attacker does **not** need to learn or test `B_r` explicitly. The source-dependent premise states that its observed matrix happens to belong to the hidden compatible double coset.
+
+Then any published target `F(s)` can be inverted exactly in at most
+
+```text
+2n + 1
+```
+
+distinct chosen-input oracle queries, including all interpolation and final-equality checks. At 32 bits the upper bound is **65**. The proof does not restrict the complexity or number of interacting nonlinear triangular layers inside `P`.
+
+### Proof
+
+Because the inverse of a compatible linear automorphism is compatible and the compatible permutations form a group, define `Q=B_r^-1 composed with P`. The map `Q` is again a bijective compatible permutation. The same published oracle can therefore be represented as
+
+```text
+F(x) = a XOR (L_out B_r)(Q(L_in(x) XOR b))
+M_r = (L_out B_r) L_in.
+```
+
+For any compatible permutation, bijectivity modulo each `2^(j+1)` forces the output bit `j` to be its input bit `j` XOR a Boolean function of the strictly lower bits. Write
+
+```text
+Q(z) = z XOR h(z),
+```
+
+where `h_j(z)` depends only on `z_0,...,z_(j-1)`, and `h_0` is constant.
+
+Query `F(r)` and `F(r XOR e_i)` to obtain `M_r`, then compute
+
+```text
+x_0 = r XOR M_r^-1(y XOR F(r)).
+```
+
+Let `z_r=L_in(r) XOR b` and `z_*=L_in(s) XOR b`. Using `M_r=(L_out B_r)L_in`, the initial hidden state obeys
+
+```text
+z_0 = z_r XOR Q(z_*) XOR Q(z_r)
+    = z_* XOR h(z_*) XOR h(z_r).
+```
+
+Since `h_0` is constant, bit 0 of `z_0` is correct. After any failed equality check, update
+
+```text
+x_(t+1) = x_t XOR M_r^-1(y XOR F(x_t)).
+```
+
+In source coordinates this is
+
+```text
+z_(t+1) = z_t XOR Q(z_*) XOR Q(z_t)
+        = z_* XOR h(z_*) XOR h(z_t).
+```
+
+If the lowest `k` bits of `z_t` equal those of `z_*`, every `h_j` for `j<=k` agrees on the two states. The next update fixes bit `k` while retaining all lower bits. Starting with bit 0, after at most `n-1` corrections the unique preimage is obtained. The routine queries each candidate and returns only on exact equality `F(x)=y`.
+
+Interpolation uses `n+1` queries. At most `n` candidate/equality queries follow, giving `2n+1`. Cached collisions only reduce the distinct count. If `M_r` is singular the implementation refuses the basis. If `M_r` is invertible but the hidden compatible criterion fails, convergence is no longer guaranteed. Exact final equality prevents a false preimage claim.
+
+## Sparse-perturbation corollary and probability boundary
+
+Suppose `P(z)=z` everywhere outside a set `S` of density `rho=|S|/2^n`. When all `n+1` hidden source vertices corresponding to `r,r XOR e_0,...,r XOR e_(n-1)` avoid `S`, their output differences reveal precisely `M_r=L_out L_in`, so `B_r=I` and the theorem applies to **every** target. Even a target inside `S` is recoverable.
+
+If `r` is drawn independently and uniformly from `V` after the defender's fixed source is chosen, every hidden anchor vertex is individually uniform because `L_in` is invertible. A union bound gives
+
+```text
+Pr[bad basis] <= min(1,(n+1)*rho).
+```
+
+Across `k` independently uniform anchor draws, the chance that *every* basis is bad is at most `min(1,(n+1)*rho)^k`. The attacker checks exact target equality and may retry on singular or nonconvergent matrices. Total chosen-query budget is at most `k(2n+1)` for this bounded trial policy. This is a **conditional probabilistic** theorem with a fixed source and truly independent uniform draws. It is not a uniform bound for arbitrary dense compatible permutations, nor an empirical claim about deterministic PRNG samples.
+
+The code exports both a deterministic seeded replay policy with canonical `r=0` followed by seeded anchors, and `invertWithUniformAnchors` using Node's modulo-bias-free `crypto.randomInt(2**32)` for every independent anchor. The [official Node documentation](https://nodejs.org/api/crypto.html) documents its uniform integer range and rejection of modulo bias.
+
+For the specific four-gate sources below, the first shear has codimension 17 and all later selected gates lie in its triggered subset. An additional top-bit gate used to poison the original anchor has codimension 31. Thus the nonidentity support density is at most
+
+```text
+rho <= 2^-17 + 2^-31,
+```
+
+and the one-basis union upper bound at `n=32` is approximately **0.0002517853864**. Four fresh independent uniform bases would have a theoretical all-bad bound at most **4.01904e-15** under this fixed-source support premise. The deterministic test cases below do not independently certify the uniform-sampling probability claim.
+
+## Poisoning the canonical affine anchor
+
+Start from six hidden 32-bit sources containing **four interacting compatible shears** at output bits 17, 21, 25, and 29, with the triggering markers selected from the secret's intermediate state. All four shears activate on the deliberately rare target. These sources were independently validated in the earlier [four-shear report](clean-affine-anchor-fixedpoint-compatible-inversion-2026-11-22.md).
+
+Add a fifth compatible high-bit-31 toggle whose gate matches the source state at `x=0`, while rejecting source seeds that also alter any `x=e_i` output or the deliberately selected target. The generator verifies that all **32** canonical interpolation columns are changed compared with the true `A=L_out L_in`. Each attacked instance supplies only its oracle and target to the inversion routine; the private generator separately verifies the source differences and supports a `cleanAt(anchor)` proof function used exclusively for audit.
+
+There is a precise algebraic reason a contaminated base may still succeed. Let `w=L_out(e_31)`, `u=L_in^-1(e_31)`, and `1` be the all-ones input functional. Since only `F(0)` was altered,
+
+```text
+M_0 = A XOR w*1^T = A (I XOR u*1^T).
+```
+
+The rank-one determinant identity over GF(2) gives
+
+```text
+det(I XOR u*1^T) = 1 XOR parity(u).
+```
+
+So the interpolant is singular exactly when `u` has odd Hamming parity. For even parity, the conjugated `B=I XOR e_31*(1^T L_in^-1)` has a unit diagonal and changes only the top output bit based on lower input bits. It is a compatible linear automorphism, so the generalized theorem applies *despite* the original anchor's complete source-known contamination.
+
+All six sources satisfy this source-private rank condition exactly: **four** canonical bases are full rank and directly yield exact rare-target inversions in **38–39 distinct queries**; **two** are singular and must be rejected. Those two recover from the next seeded source-clean basis in **71 distinct queries**, including both bases. The six ordinary targets also recover. At the final replay, **384/384** independent seeded held-out target checks succeed. The new hard limit is 65 oracle evaluations per attempted basis.
+
+### Original and generalized attack controls
+
+| Attacker on the same synthetic populations | Rare poisoned targets | Dense three-family targets |
+| --- | ---: | ---: |
+| Canonical-only reanchored affine interpolation | 4/6 | 0/24 |
+| Four-basis seeded reanchoring and exact answer check | **6/6** | 0/24 |
+| Verified hybrid: four-basis reanchoring, then CEGAR with 8 validations | **6/6** | **24/24** |
+
+The hybrid uses one shared chosen-oracle cache across all attempts and verifies the final candidate independently. It recovered **30/30** exact targets on both operating systems; the observed unique-query range was 38–4,046. No high-budget 128-validation fallback was invoked. These finite populations are intended to prevent an attack evaluation from incorrectly selecting a single ill-matched solver; they do not imply a general inversion guarantee.
+
+A source-private audit tested 4,096 deterministic seeded potential anchors for each of the six poisoned sources. **24,572 of 24,576** were compatible-clean, and four were dirty. The fixed xorshift samples provide deterministic cross-platform reproducibility. They are not used to claim independently uniform statistical confidence.
+
+## Hidden nonidentity compatible-linear baseline controls
+
+A distinct experiment composes an unknown nonidentity invertible lower-unitriangular map `B` *after* the four interacting shears, leaving the attacker only the public oracle. The baseline is a four-term linear involution that toggles higher bits using lower input bits. The source-known initial anchor directly reveals `M=L_out B L_in`, which differs from the original `A` in **25–31** of the 32 sampled columns for every tested source. The generalized theorem predicts recovery without needing to isolate `B`.
+
+Across six 32-bit hidden sources, all **six** forced four-shear rare targets recover in 38 queries, all **six** ordinary controls recover in 34 queries, and **768/768** new seeded held-outs recover exactly. The test independently verifies that the observed matrix equals the hidden compatible `B` composite, that `B` is an involutive linear compatible automorphism, and that the old unmodified-`A` premise is false.
+
+An independently implemented width-three enumerator extends the previous 79,872 exact clean-anchor checks to **all eight** compatible invertible 3×3 lower-unitriangular maps. It crosses all 128 compatible three-bit permutations, 168 invertible input maps, two output maps, two input offsets, and all eight published target preimages on 4,992 source-admissible clean configurations. All **638,976/638,976** exact targets recover, of which **559,104** use nonidentity compatible linear baselines. The maximum observed cost is six queries. This validates the algebraic generalization at small width using a separate brute-force eight-element linear inverse, without treating finite enumeration as the theorem proof.
+
+## Reproduction and verified source pins
+
+- [`sims/random-affine-anchor-compatible-inversion.js`](../sims/random-affine-anchor-compatible-inversion.js), [`test/random-affine-anchor-compatible-inversion.test.js`](../test/random-affine-anchor-compatible-inversion.test.js): seeded reanchoring, uniform-sampling adapter, source-private rank-one poisoning proof, exact chosen-target comparison and dense negative controls.
+- [`sims/random-affine-anchor-coverage.js`](../sims/random-affine-anchor-coverage.js), [`test/random-affine-anchor-coverage.test.js`](../test/random-affine-anchor-coverage.test.js): source-known 24,576-basis deterministic audit.
+- [`sims/hybrid-reanchor-cegar-attack.js`](../sims/hybrid-reanchor-cegar-attack.js), [`test/hybrid-reanchor-cegar-attack.test.js`](../test/hybrid-reanchor-cegar-attack.test.js): verified cross-attack portfolio and query deduplication.
+- [`sims/compatible-linear-baseline-reanchor.js`](../sims/compatible-linear-baseline-reanchor.js), [`test/compatible-linear-baseline-reanchor.test.js`](../test/compatible-linear-baseline-reanchor.test.js): 32-bit nonidentity compatible baseline and selected/held-out inversion.
+- [`sims/compatible-linear-baseline-width3-peer.js`](../sims/compatible-linear-baseline-width3-peer.js), [`test/compatible-linear-baseline-width3.test.js`](../test/compatible-linear-baseline-width3.test.js): exhaustive all-eight-B width-three peer crosscheck, reusing the existing independent width-three brute solver exports.
+
+Focused Node 22 two-operating-system actions:
+- [44993374497](https://github.com/FlareZ123/obfs/actions/runs/44993374497), initial poisoned-anchor exact target run, source `00d2c4fcbfa3b94a77e1c3b5501f61013b010e27`, **green**.
+- [44993580856](https://github.com/FlareZ123/obfs/actions/runs/44993580856), 24,576 private-source basis audits, source `018fa545c0a6e414fe3d5ae77c6c45deea98dfa6`, **green**.
+- [44993730115](https://github.com/FlareZ123/obfs/actions/runs/44993730115), 30/30 matched hybrid inversion, source `877fceab04ff1966e64d88b8a5a58786659b91b7`, **green**.
+- [44993942532](https://github.com/FlareZ123/obfs/actions/runs/44993942532), nonidentity B 32-bit selected and 768 held-out targets, source `ac79495d310c9401d2a08f27a75b4f130a8c96b2`, **green**.
+- [44994113286](https://github.com/FlareZ123/obfs/actions/runs/44994113286), independent width-three 638,976 target exhaustive crosscheck, source `125cc1d1a3e03a65f8f1236cb68d72c9e23ed3b8`, **green**.
+- [44994314394](https://github.com/FlareZ123/obfs/actions/runs/44994314394), updated 65-query and independently uniform Node adapter, source `99693933e48c9da0b76e913e9d162e5cab9fad79`, **green** on both Linux and Windows.
+- [44993958460](https://github.com/FlareZ123/obfs/actions/runs/44993958460), eight-file strict JSDoc audit before the final additions, source `5c1b5bfc52a6582d5c7e420c9da74ae385470e11`, **green**. A final extended strict audit is separately dispatched.
+
+## Interpretation and remaining uncertainty
+
+**Supported:** The generalized compatible-interpolant criterion is sufficient for target inversion in at most 65 chosen queries at width 32. Source-private rank checks explain canonical poisoned-base successes and failures. The 32-bit and independent width-three experiments provide complementary reproducible evidence. Cryptographic uniform-anchor selection provides a stated probability bound when the hidden permutation differs from identity on a source-fixed sparse set of known density.
+
+**Unresolved:** Determining the hidden criterion or support density from black-box samples is generally impossible without additional structure. Dense compatible permutations can defeat the short reanchored attack, and the hybrid's 30/30 result is limited to the three specified dense families plus six sparse constructions. No general two-sided compatible-permutation oracle inversion theorem is established. The experiments reconstruct one chosen preimage at a time and do **not** establish offline whole-function cloning, source unreadability, resistance to dynamic instrumentation, authorization enforcement, or compliance with the defender's strict 2.5× runtime ceiling. They do not demonstrate a defender advantage over an equally private, source-matched ordinary service.
+
+**Decision:** Preserve as intermediate attacker-method research and as a candidate-selection falsifier for sparse compatible permutation layers. Request independent mathematical criticism before promotion to `results/`. Continue to report the obfuscator's strongest-security release state as **RELEASE-BLOCKED**.
