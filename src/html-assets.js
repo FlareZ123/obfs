@@ -284,9 +284,70 @@ function hasPinnedLocalJavaScriptIntegrity(files,routePrefix='') {
     }catch(error){return null;}
   }
 
+
+  /**
+   * XML-namespaced elements may be written as <h:script>, which HTML parsing
+   * reads as a different tag. Resolve recognized script/link SRI with an XML
+   * namespace parser. Any xml:base makes the deployment path uncertain, so
+   * such a pinned XHTML document conservatively preserves all JS input bytes.
+   * @param {string} xml
+   * @param {string} filename
+   * @returns {boolean}
+   */
+  function pinnedXhtml(xml,filename) {
+    const parser=new SaxesParser({xmlns:true});
+    /** @type {string[]} */
+    const pinnedUrls=[];
+    /** @type {string|null} */
+    let baseHref=null;
+    let hasXmlBase=false;
+    parser.on('opentag',tag=>{
+      const attributes=Object.values(tag.attributes);
+      if(attributes.some(attr=>attr.uri==='http://www.w3.org/XML/1998/namespace'&&
+          attr.local==='base'))hasXmlBase=true;
+      if(tag.uri!==xhtmlNamespace)return;
+      const name=tag.local.toLowerCase();
+      /** @param {string} key @returns {string|undefined} */
+      const attr=key=>attributes.find(item=>item.uri===''&&item.local.toLowerCase()===key)?.value;
+      if(name==='base'&&baseHref===null&&attr('href')!==undefined)
+        baseHref=/** @type {string} */(attr('href'));
+      const integrity=attr('integrity');
+      if(!integrity?.trim())return;
+      const rel=(attr('rel')??'').toLowerCase().split(/\s+/u);
+      const linked=name==='link'&&(rel.includes('modulepreload')||
+        rel.includes('preload')&&(attr('as')??'').toLowerCase()==='script');
+      const address=name==='script'?attr('src'):linked?attr('href'):null;
+      if(address)pinnedUrls.push(address);
+    });
+    parser.on('error',error=>{throw new TypeError('Malformed XHTML XML: '+error.message);});
+    parser.write(xml).close();
+    if(!pinnedUrls.length)return false;
+    if(hasXmlBase)return true;
+    const documentBase=new URL('/'+filename,'https://obfs.invalid/');
+    /** @type {URL} */
+    let base=documentBase;
+    if(baseHref!==null){
+      try{base=new URL(baseHref,documentBase);}catch(error){base=documentBase;}
+    }
+    for(const address of pinnedUrls) {
+      for(const candidateBase of [documentBase,base]) {
+        const target=targetPath(address,candidateBase);
+        if(target!==null&&(javascriptPaths.has(target)||
+            mountedPrefix&&target.startsWith(mountedPrefix)&&
+              javascriptPaths.has(target.slice(mountedPrefix.length))))
+          return true;
+      }
+    }
+    return false;
+  }
+
   for(const file of files) {
     if(file.sourceType!=='asset'||!/\.(?:html?|xhtml|xht)$/iu.test(file.path))continue;
     const html=decodeMarkup(file.path,file.code,'HTML');
+    if(/\.(?:xhtml|xht)$/iu.test(file.path)){
+      if(pinnedXhtml(html,file.path))return true;
+      continue;
+    }
     const root=/** @type {HtmlNode} */(/** @type {unknown} */(parse(html)));
     /** @type {string|null} */
     let baseHref=null;
