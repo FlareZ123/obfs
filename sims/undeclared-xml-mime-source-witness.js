@@ -28,11 +28,13 @@ async function documentSource(browser,url){
 async function main(){
   const sentry='PUBLIC_INLINE_XML_SOURCE_CANARY';
   const original='globalThis.mimeSidecar="private-script-transform-control";';
-  const asset='<?xml version="1.0" encoding="UTF-8"?>'+
-    '<h:html xmlns:h="http://www.w3.org/1999/xhtml"><h:head>'+
+  // XML declarations are optional. This keeps the MIME-contract negative
+  // control independent of the separate literal-prolog preflight guard.
+  const asset='<h:html xmlns:h="http://www.w3.org/1999/xhtml"><h:head>'+
     '<h:script><![CDATA[document.documentElement.setAttribute('+
     '"data-mime-witness","'+sentry+'");]]></h:script>'+
     '</h:head><h:body><h:p>nonstandard extension XML MIME</h:p></h:body></h:html>';
+  assert.ok(!asset.startsWith('<?xml'), 'No XML declaration: deployment MIME remains unknown');
   const result=obfuscateFiles([
     {path:'client.js',sourceType:/** @type {const} */('script'),code:original},
     {path:'index.blob',sourceType:/** @type {const} */('asset'),code:Buffer.from(asset)}
