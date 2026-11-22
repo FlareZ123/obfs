@@ -234,7 +234,7 @@ test('single-read symbolic grammar preserves 300 deterministic exotic-input case
   }
 });
 
-test('symbolic recovery proves deterministic emitted 2/4/8-path CJS and ESM graphs',async()=>{
+test('symbolic recovery proves 96 compact and native emitted CJS and ESM cases',async()=>{
   /** @param {string} source @param {'module'|'commonjs'} sourceType */
   async function load(source,sourceType){
     if(sourceType==='module'){
@@ -273,36 +273,38 @@ test('symbolic recovery proves deterministic emitted 2/4/8-path CJS and ESM grap
         const fn='function round1(input){return ('+expression+'|0);}\n';
         const source=(sourceType==='module'?'export ':'')+fn+
           (sourceType==='commonjs'?'module.exports=round1;\n':'');
-        const lowered=lowerPolyvariantAffine(source,sourceType,{
-          seed:'symbolic-emitted-grammar/'+variants+'/'+sourceType+'/'+iteration,
-          names:['round1'],variants
-        });
-        assert.equal(lowered.functions,1);
-        assert.equal(lowered.paths,variants);
-        const exact=recoverSymbolicAffine(lowered.code,'round1',sourceType);
-        assert.equal(exact.cases,variants);
-        assert.equal(exact.offset,offset|0);
-        const native=await load(source,sourceType);
-        const generated=await load(lowered.code,sourceType);
-        /** @param {unknown} input @returns {number} */
-        const clone=input=>(((/** @type {number} */(input)|0)+exact.offset)|0);
-        for(const input of fixtures){
-          const expected=outcome(native,input);
-          assert.deepEqual(outcome(generated,input),expected);
-          assert.deepEqual(outcome(clone,input),expected);
-        }
-        for(const fnUnderTest of [native,generated,clone]){
-          let reads=0;
-          const unusual={
-            /** @param {string} hint */
-            [Symbol.toPrimitive](hint){
-              assert.equal(hint,'number');
-              reads++;
-              return 23;
-            }
-          };
-          assert.deepEqual(outcome(fnUnderTest,unusual),outcome(native,23));
-          assert.equal(reads,1,'Original input must be coerced once');
+        for(const compact of [false,true]){
+          const lowered=lowerPolyvariantAffine(source,sourceType,{
+            seed:'symbolic-emitted-grammar/'+variants+'/'+sourceType+'/'+iteration+'/'+compact,
+            names:['round1'],variants,compact
+          });
+          assert.equal(lowered.functions,1);
+          assert.equal(lowered.paths,variants);
+          const exact=recoverSymbolicAffine(lowered.code,'round1',sourceType);
+          assert.equal(exact.cases,variants);
+          assert.equal(exact.offset,offset|0);
+          const native=await load(source,sourceType);
+          const generated=await load(lowered.code,sourceType);
+          /** @param {unknown} input @returns {number} */
+          const clone=input=>(((/** @type {number} */(input)|0)+exact.offset)|0);
+          for(const input of fixtures){
+            const expected=outcome(native,input);
+            assert.deepEqual(outcome(generated,input),expected);
+            assert.deepEqual(outcome(clone,input),expected);
+          }
+          for(const fnUnderTest of [native,generated,clone]){
+            let reads=0;
+            const unusual={
+              /** @param {string} hint */
+              [Symbol.toPrimitive](hint){
+                assert.equal(hint,'number');
+                reads++;
+                return 23;
+              }
+            };
+            assert.deepEqual(outcome(fnUnderTest,unusual),outcome(native,23));
+            assert.equal(reads,1,'Original input must be coerced once');
+          }
         }
       }
     }
