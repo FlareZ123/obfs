@@ -24,6 +24,7 @@ jobs:
       - name: Run implicit source-coordinate differential
         run: node --test test/implicit-console-stack-source.test.js test/node-util-format-source-observation.test.js test/implicit-source-mode-matrix.test.js test/implicit-source-mode-fuzz.test.js test/node-process-warning-source-observation.test.js
       - name: Preserve classic-script global callable source
+        if: ${{ !cancelled() }}
         run: node --test test/classic-script-global-callable-source-guard.test.js
       - name: Dynamic-input host source-boundary reproduction
         run: node sims/host-dynamic-exception-boundary.js
