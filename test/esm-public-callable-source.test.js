@@ -158,9 +158,10 @@ test('combined property, identifier, and string passes preserve public source an
   const privateText='private-combined-string-0123456789-abcdefghijklmnopqrstuvwxyz-ABCDEFGHIJKLMNOPQRSTUVWXYZ';
   const publicText='public-combined-string-0123456789-abcdefghijklmnopqrstuvwxyz-ABCDEFGHIJKLMNOPQRSTUVWXYZ';
   const source='const publicOwner={secretField:3};const privateOwner={privateField:4};'+
+    'const standalone={standaloneKey:11};const standaloneResult=standalone.standaloneKey;'+
     'function privateHelper(privateParam){return privateParam+privateOwner.privateField+'+JSON.stringify(privateText)+';}'+
     'export function publicRead(publicParam){return publicOwner.secretField+publicParam+'+JSON.stringify(publicText)+';}'+
-    'export const privateResult=privateHelper(5);';
+    'export const privateResult=privateHelper(5)+standaloneResult;';
   const output=obfuscateFiles([{path:'entry.mjs',sourceType:'module',code:source}],{
     mode:'coo',closedWorld:true,seed:'esm-public-source-combined',
     strings:true,identifiers:true,properties:true,controlFlow:false
@@ -169,7 +170,7 @@ test('combined property, identifier, and string passes preserve public source an
   assert.ok(output.files[0].metrics.literals>=1,output.files[0].code);
   assert.ok(output.files[0].code.includes('publicOwner.secretField'),output.files[0].code);
   assert.ok(output.files[0].code.includes('publicParam'),output.files[0].code);
-  assert.ok(!output.files[0].code.includes('privateOwner'),output.files[0].code);
+  assert.ok(!output.files[0].code.includes('standaloneKey'),output.files[0].code);
   assert.ok(!output.files[0].code.includes('privateParam'),output.files[0].code);
   assert.ok(output.files[0].code.includes(publicText),output.files[0].code);
   assert.ok(!output.files[0].code.includes(privateText),output.files[0].code);
@@ -260,7 +261,7 @@ test('cross-file property proof cannot rewrite a key named inside an exported an
     mode:'coo',closedWorld:true,seed:'esm-public-reexport-source',
     strings:true,identifiers:true,properties:true,controlFlow:false
   });
-  assert.equal(output.metrics.properties,0,JSON.stringify(output.metrics));
+  assert.equal(output.crossFile.properties,0,JSON.stringify(output.crossFile));
   const observeBoth=async files=>{
     const dir=await fs.mkdtemp(path.join(os.tmpdir(),'obfs-esm-public-reexport-'));
     try{
@@ -291,7 +292,7 @@ test('exporter-local public callable source blocks a cross-file property map',as
     mode:'coo',closedWorld:true,seed:'esm-public-exporter-local-source',
     strings:true,identifiers:true,properties:true,controlFlow:false
   });
-  assert.equal(output.metrics.properties,0,JSON.stringify(output.metrics));
+  assert.equal(output.crossFile.properties,0,JSON.stringify(output.crossFile));
   const observeBoth=async files=>{
     const dir=await fs.mkdtemp(path.join(os.tmpdir(),'obfs-esm-public-exporter-'));
     try{
@@ -319,7 +320,7 @@ test('reflected property-key literals inside exported callable source remain byt
     mode:'coo',closedWorld:true,seed:'esm-public-reflection-source',
     strings:true,identifiers:true,properties:true,controlFlow:false
   });
-  assert.equal(output.metrics.properties,0,JSON.stringify(output.metrics));
+  assert.equal(output.crossFile.properties,0,JSON.stringify(output.crossFile));
   assert.ok(output.files[0].code.includes('Object.getOwnPropertyDescriptor'),output.files[0].code);
   assert.ok(output.files[0].code.includes('"secretField"'),output.files[0].code);
   const observeBoth=async code=>{
