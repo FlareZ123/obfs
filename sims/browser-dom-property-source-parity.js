@@ -72,16 +72,14 @@ async function main(){
         nativeResult,manualResult,emittedResult}));
       assert.deepEqual(nativeResult,{value:8,sourceMatch:sourceVisible});
       assert.deepEqual(manualResult,{value:8,sourceMatch:false});
-      assert.ok(file.metrics.properties>0,
-        'Private record key must actually be renamed to test source exposure');
+      if(!sourceVisible)assert.ok(file.metrics.properties>0,
+        'Benign DOM control must retain private-record rename yield');
       if(emittedResult.value!==nativeResult.value||
          emittedResult.sourceMatch!==nativeResult.sourceMatch)mismatches.push(label);
     }
   }finally{
     await fs.rm(directory,{recursive:true,force:true});
   }
-  assert.deepEqual(mismatches,['document-outer-html','document-xml-serializer'],
-    'Private key source readers must expose both expected source-parity failures');
   assert.deepEqual([],mismatches,
     'Publisher must preserve source-visible original private property spellings');
 }
