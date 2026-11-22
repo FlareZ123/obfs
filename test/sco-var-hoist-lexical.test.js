@@ -26,7 +26,9 @@ const unowned=[
   ['nested-arrow','const decoy=()=>{var v=1;};return v;'],
   ['static-block','class C{static {var v=1;}}return v;'],
   ['nested-let','if(false){let v=1;}return v;'],
-  ['for-let','for(let v=0;v<1;v++){}return v;']
+  ['for-let','for(let v=0;v<1;v++){}return v;'],
+  ['computed-var-key','var {[v]:owned}={};return v;'],
+  ['default-var-value','var {owned=v}={};return v;']
 ];
 
 /** @param {string} body @returns {import('../src/ast').AstNode} */
