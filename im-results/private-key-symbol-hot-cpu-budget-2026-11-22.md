@@ -68,6 +68,23 @@ Each browser pair imports independent native and alternate ES modules from live 
 
 This distinction is evidence that the particular cost is sensitive to engine/runtime environment. A strong release-grade cross-target decision still needs browser CPU, full end-to-end session cost, cold start including COO initialization, and independent reconstruction resistance. Neither result can be substituted for the other.
 
+## Repeat with longer warm-up and preconditioned polymorphic callsites
+
+The initial seven-pair Node sample set contained first-pair phase changes for both ordinary hashed-string and Symbol variants. A controlled follow-up extended every arm's warm-up from 1 million to **15 million calls** and primed the shared `work()` callsite with an additional **2 million invocations per alternate callable shape** before any timed pair. All timed samples still executed 25 million hot calls per arm, with independent fresh module state, native/alternate checksum equivalence, alternating order, the six same-trust comparators, and both strict JSDoc configurations.
+
+**Exact source pin** `ec6c6a46ff022546a27de5040a117b29d0238ee3`, [Ubuntu and Windows green focused run 45084162697](https://github.com/FlareZ123/obfs/actions/runs/45084162697), Node 22.23.4. All CPU denominators were positive and every native/emitted checksum matched.
+
+| Variant | Ubuntu longer-warm CPU median | Windows longer-warm CPU median | Strict >2.5x CPU pairs, Ubuntu/Windows |
+| --- | ---: | ---: | ---: |
+| Generated hashed-string, 2 protected keys | 0.99939x | 1.00000x | **0/7, 0/7** |
+| Generated unregistered Symbol, 2 protected keys | **4.10000x** | **4.15426x** | **7/7, 7/7** |
+| Handwritten computed Symbol | **4.13441x** | **4.17112x** | **7/7, 7/7** |
+| Handwritten computed string | 1.08333x | 1.07979x | 0/7, 0/7 |
+| Ordinary esbuild minified | 1.00164x | 1.00000x | 0/7, 0/7 |
+| Same-code placebo | 0.99905x | 1.00535x | 0/7, 0/7 |
+
+Raw records: [Ubuntu](raw-private-key-hot-cpu-longwarm-2026-11-22-ubuntu.json) and [Windows](raw-private-key-hot-cpu-longwarm-2026-11-22-windows.json). Each preserves all 42 CPU/wall time pairs and checksums per OS, warm and preconditioning call counts, actual rewritten-key metrics, and artifact SHA-256/lengths. The longer-warm intervention eliminated the first-pair *hashed-string* strict breaches while the generated and independent handwritten Symbol arms each exceeded the project budget in **all** seven pairs on both OSes. This provides a stronger workload-specific Symbol CPU veto with an ordinary hashed-string positive counterpart. It does not retroactively erase the earlier observed first-pair violations, which remain part of the record for their explicitly shorter warm-up conditions.
+
 ## Decision boundary
 
 **Do not recommend experimental Symbol-key lowering for hot Node execution under the project's stipulated strict 2.5x budget** without replacing this workload's veto with a source-pinned, independently controlled positive result. Even if a faster Symbol implementation became available, a material attacker-cost benefit over ordinary minification and hashed strings would still require separate adversarial evidence. This measured CPU veto is independent of the public callable/class source-observation compatibility failures on the same evidence branch. Keep the broader strong-protection release classification **RELEASE-BLOCKED**.
