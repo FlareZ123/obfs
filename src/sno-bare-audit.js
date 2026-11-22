@@ -98,6 +98,24 @@ function directBareRequires(files) {
 async function assertSnoDirectBareRequireParity(original,generated,inputRoot,outputRoot) {
   const sources=directBareRequires(original);
   const targets=directBareRequires(generated);
+  // Resolving before publication cannot see package.json files that this
+  // build will emit. They can introduce a self-reference or override an
+  // external ancestor's package namespace. Decline the opt-in audit for
+  // direct calls beneath a future package scope rather than assert parity
+  // against a stale or incomplete resolver environment.
+  const packaged=new Set(generated.filter(file=>
+    file.path==='package.json'||file.path.endsWith('/package.json')
+  ).map(file=>file.path));
+  for(const filename of sources.keys()) {
+    let directory=path.posix.dirname(filename);
+    for(;;) {
+      if(packaged.has(path.posix.join(directory,'package.json'))) {
+        throw new Error('SNO bare dependency audit cannot model future package scope: '+filename);
+      }
+      if(directory==='.')break;
+      directory=path.posix.dirname(directory);
+    }
+  }
   for(const [name,refs] of sources) {
     const transformed=targets.get(name);
     if(!transformed||JSON.stringify(transformed)!==JSON.stringify(refs)) {
