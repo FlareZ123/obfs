@@ -79,3 +79,22 @@ for(const mode of /** @type {const} */(['sno','coo','sco'])) {
     assert.ok(result.metrics.literals>0);
   });
 }
+
+for(const mode of /** @type {const} */(['sno','coo','sco'])) {
+  test(mode+' records same-file private yield under Node util native source observer',()=>{
+    const source="'use strict';"+
+      "function visibleNativeSource(){return 'PUBLIC_UTIL_SOURCE_BODY';}"+
+      "const native=require('node:util');"+
+      "const privateLiteral='INERT_PRIVATE_SAMEFILE_UTIL_20261122';"+
+      "module.exports={source:native.toUSVString(visibleNativeSource),privateValue:privateLiteral};";
+    const emitted=obfuscateFiles([{
+      path:'util-source-yield.cjs',sourceType:'commonjs',code:source
+    }],{mode,seed:'util-samefile-yield/'+mode,
+      strings:true,identifiers:false,properties:false}).files[0];
+    assert.equal(JSON.stringify(runCjs(String(emitted.code))),
+      JSON.stringify(runCjs(source)));
+    console.log('NODE_UTIL_SAMEFILE_YIELD '+JSON.stringify({
+      mode,nativeSourceParity:true,rewrittenLiterals:emitted.metrics.literals
+    }));
+  });
+}
