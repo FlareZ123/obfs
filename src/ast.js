@@ -3369,6 +3369,8 @@ function observesDistributedSource(ast,importedStrings=new Map()) {
   // Resource timing methods can be called through a mutable property name
   // on performance itself, or a simple alias of globalThis.performance.
   const performanceRoots=new Set(['performance']);
+  // Script-producing DOM writes may publish hash-pinned script elements.
+  const documentRoots=new Set(['document']);
   // Module-registry objects can reach Node's internal source-file loader.
   // Follow simple aliases monotonically, conservatively accepting over-refusal.
   const requireRoots=new Set(['require']);
@@ -3394,7 +3396,7 @@ function observesDistributedSource(ast,importedStrings=new Map()) {
       const initial=node.type==='VariableDeclarator' ? node.init :
         node.type==='AssignmentExpression' ? node.right : null;
       if(binding?.type==='Identifier' && initial?.type==='Identifier') {
-        for(const roots of [globals,requireRoots,moduleRoots,processRoots,performanceRoots]) {
+        for(const roots of [globals,requireRoots,moduleRoots,processRoots,performanceRoots,documentRoots]) {
           if(roots.has(initial.name) && !roots.has(binding.name)) {
             roots.add(binding.name);
             changed=true;
@@ -3440,7 +3442,8 @@ function observesDistributedSource(ast,importedStrings=new Map()) {
             prop.key.type==='Literal'?prop.key.value:null;
           const roots=field==='process'?processRoots:
             field==='require'?requireRoots:field==='module'?moduleRoots:
-              field==='performance'?performanceRoots:null;
+              field==='performance'?performanceRoots:
+              field==='document'?documentRoots:null;
           if(roots&&!roots.has(alias.name)){
             roots.add(alias.name);
             changed=true;
@@ -3455,7 +3458,8 @@ function observesDistributedSource(ast,importedStrings=new Map()) {
           initial.property.type==='Identifier' ? initial.property.name : null;
         const roots=name==='process' ? processRoots :
           name==='require' ? requireRoots : name==='module' ? moduleRoots :
-            name==='performance'?performanceRoots:null;
+            name==='performance'?performanceRoots:
+            name==='document'?documentRoots:null;
         if(roots && !roots.has(binding.name)) {
           roots.add(binding.name);
           changed=true;
@@ -3675,6 +3679,26 @@ function observesDistributedSource(ast,importedStrings=new Map()) {
       const key=node.left.computed ? knownKey(node.left.property) :
         node.left.property.type==='Identifier'?node.left.property.name:null;
       if(key==='integrity')observed=true;
+    }
+    // A parser-active document.write may create SRI-pinned script/link
+    // resources even if no provided static HTML contains an integrity tag.
+    // Preserve source bytes for explicit integrity HTML or opaque writes;
+    // a proved unrelated literal write remains transformable.
+    if(node.type==='CallExpression' && node.callee.type==='MemberExpression') {
+      const method=node.callee.computed ? knownKey(node.callee.property) :
+        node.callee.property.type==='Identifier'?node.callee.property.name:null;
+      const receiver=node.callee.object;
+      const isDocument=receiver.type==='Identifier' && documentRoots.has(receiver.name) ||
+        receiver.type==='MemberExpression' && receiver.object.type==='Identifier' &&
+          globals.has(receiver.object.name) &&
+          (receiver.computed ? knownKey(receiver.property) :
+            receiver.property.type==='Identifier'?receiver.property.name:null)==='document';
+      if(isDocument && (method==='write'||method==='writeln')) {
+        for(const arg of node.arguments) {
+          const text=arg.type==='SpreadElement'?null:knownKey(arg);
+          if(text===null || /integrity\\s*=/iu.test(text))observed=true;
+        }
+      }
     }
     if(node.type==='CallExpression' && node.callee.type==='MemberExpression') {
       const method=node.callee.computed ? knownKey(node.callee.property) :
