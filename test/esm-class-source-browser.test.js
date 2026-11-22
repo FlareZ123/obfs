@@ -24,10 +24,11 @@ const cases = [
   {
     label: 'exported-instance',
     leaf: owner + 'export const instance=new Reader();',
-    entry: 'import {instance} from "./leaf.mjs";' +
+    entry: 'const intrinsicFunctionSource=Function.prototype.toString;' +
+      'const {instance}=await import("./leaf.mjs");' +
       'export const report={value:instance.value(),' +
-      'classSource:instance.constructor.toString(),' +
-      'methodSource:instance.value.toString()};',
+      'classSource:intrinsicFunctionSource.call(instance.constructor),' +
+      'methodSource:intrinsicFunctionSource.call(instance.value)};',
     expectedRenames: 0
   },
   {
