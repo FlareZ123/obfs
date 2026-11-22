@@ -153,6 +153,14 @@ function createMatchedBlindAffineChallenge(mode='coo'){
   const questions=/** @type {[Question,Question]} */(
     arms.map(arm=>question(arm==='generated'?generated:minified,commitment,mode))
   );
+  // The host may hand the same public question object to multiple
+  // reviewers. Freeze its bytes, hashes, schema and two-arm ordering so an
+  // accidental edit cannot silently invalidate the precommitted trial.
+  for(const publicQuestion of questions){
+    Object.freeze(publicQuestion.exports);
+    Object.freeze(publicQuestion);
+  }
+  Object.freeze(questions);
   let submitted=false;
   return {
     questions,
