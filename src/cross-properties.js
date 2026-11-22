@@ -2003,6 +2003,45 @@ function isInertEarlierValue(value,ownerStart,primitives) {
  * @param {string} seed
  * @returns {{files:SourceFile[],objects:number,properties:number}}
  */
+/**
+ * Collect static property spellings that occur inside source-exposed callable
+ * or class bodies. Cross-file maps must not rewrite any such spelling in the
+ * exporting module, even when the corresponding object is otherwise private.
+ * @param {AstNode} ast
+ * @param {Set<AstNode>} sourceExposedBodies
+ * @returns {Set<string>}
+ */
+function collectSourceExposedPropertyNames(ast,sourceExposedBodies) {
+  const names=new Set();
+  walk(ast,(node,parent,key,ancestors)=>{
+    if(!ancestors.some(ancestor=>sourceExposedBodies.has(ancestor)))return;
+    if(node.type==='MemberExpression') {
+      const name=node.computed?staticString(node.property):staticName(node.property);
+      if(name!==null)names.add(name);
+    } else if(node.type==='Property') {
+      const name=ownPropertyName(node);
+      if(name!==null)names.add(name);
+    } else if(node.type==='BinaryExpression'&&node.operator==='in') {
+      const name=staticString(node.left);
+      if(name!==null)names.add(name);
+    } else if(node.type==='CallExpression') {
+      const callee=node.callee;
+      const method=callee?.type==='MemberExpression'?staticName(callee.property):null;
+      const receiver=callee?.type==='MemberExpression'?staticName(callee.object):null;
+      if(receiver==='Object'&&
+         ['defineProperty','getOwnPropertyDescriptor','hasOwn'].includes(method??'')) {
+        const name=staticString(node.arguments[1]);
+        if(name!==null)names.add(name);
+      }
+      if(receiver==='Reflect'&&['get','set','has'].includes(method??'')) {
+        const name=staticString(node.arguments[1]);
+        if(name!==null)names.add(name);
+      }
+    }
+  });
+  return names;
+}
+
 function renameCrossFileProperties(files,seed) {
   // Mixed executable formats can hide ESM consumers. The closed-world
   // integrator additionally promises that these explicitly declared inert
@@ -2017,7 +2056,7 @@ function renameCrossFileProperties(files,seed) {
   })) {
     return {files,objects:0,properties:0};
   }
-  /** @type {Map<string,{file:SourceFile,ast:AstNode,bindings:Map<string,number>,sourceExposedEdits:WeakSet<AstNode>}>} */
+  /** @type {Map<string,{file:SourceFile,ast:AstNode,bindings:Map<string,number>,sourceExposedEdits:WeakSet<AstNode>,sourceExposedPropertyNames:Set<string>}>} */
   const modules=new Map();
   for(const file of files) {
     if ((file.sourceType ?? (file.path.endsWith('.mjs') ? 'module' : 'script'))==='module' && typeof file.code==='string') {
@@ -2025,12 +2064,13 @@ function renameCrossFileProperties(files,seed) {
       const bindings=collectBindings(ast);
       const sourceExposedBodies=collectSourceExposedBodies(ast,bindings);
       /** @type {WeakSet<AstNode>} */
-  const sourceExposedEdits=new WeakSet();
+      const sourceExposedEdits=new WeakSet();
       walk(ast,(node,parent,key,ancestors)=>{
         if(ancestors.some(ancestor=>sourceExposedBodies.has(ancestor)))
           sourceExposedEdits.add(node);
       });
-      modules.set(file.path,{file,ast,bindings,sourceExposedEdits});
+      const sourceExposedPropertyNames=collectSourceExposedPropertyNames(ast,sourceExposedBodies);
+      modules.set(file.path,{file,ast,bindings,sourceExposedEdits,sourceExposedPropertyNames});
     }
   }
   const knownFiles=new Set(files.map(file=>file.path));
@@ -2652,7 +2692,11 @@ function renameCrossFileProperties(files,seed) {
           if(node.type==='ExportSpecifier' && node.local.name===exportName) reexported=true;
         });
         if(reexported) continue;
-        if(props.some(prop=>exporter.sourceExposedEdits.has(prop))||
+        if(props.some(prop=>{
+             const name=ownPropertyName(prop);
+             return exporter.sourceExposedEdits.has(prop)||
+               (name!==null&&exporter.sourceExposedPropertyNames.has(name));
+           })||
            users.some(user=>{
              const exposed=modules.get(user.file)?.sourceExposedEdits;
              return Boolean(exposed&&(
@@ -2854,7 +2898,11 @@ function renameCrossFileProperties(files,seed) {
       if(failed)break;
     }
     if(failed || !users.length)continue;
-    if(props.some(prop=>exporter.sourceExposedEdits.has(prop))||
+    if(props.some(prop=>{
+         const name=ownPropertyName(prop);
+         return exporter.sourceExposedEdits.has(prop)||
+           (name!==null&&exporter.sourceExposedPropertyNames.has(name));
+       })||
        users.some(user=>{
          const exposed=modules.get(user.file)?.sourceExposedEdits;
          return Boolean(exposed&&(
