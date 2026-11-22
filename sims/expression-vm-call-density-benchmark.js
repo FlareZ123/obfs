@@ -12,7 +12,7 @@ const vmMix = require('../examples/expression-vm/after.cjs');
 const iterations = 3_000_000;
 const warmups = 4;
 const samplesPerDensity = 7;
-const callPeriods = [1, 2, 8, 64, 512];
+const callPeriods = [1, 2, 8, 16, 32, 64, 512];
 
 /** @param {(input:number)=>number} fn @param {number} every @returns {number} */
 function run(fn, every) {
