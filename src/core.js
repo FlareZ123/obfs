@@ -2000,15 +2000,11 @@ function obfuscateFiles(files, options = {}) {
   if((remoteSourceObserver||hostLockSourceObserver) && options.allowedHosts?.length) {
     throw new TypeError('Host locking cannot preserve observable source bytes');
   }
-  // External importers can inspect exported/re-exported callable source even
-  // when they are not in this closed-world file group. Disable only the
-  // cross-file property pass in that case; local passes retain per-callable
-  // source-exposure proofs and can still transform private direct-callables.
-  const hasSourceExposedBodies=prepared.some(file=>file.sourceType!=='asset'&&
-    typeof file.code==='string'&&
-    collectSourceExposedBodies(parse(file.code,file.sourceType)).size>0);
-  const cross = !remoteSourceObserver && !hasSourceExposedBodies &&
-    options.closedWorld && options.properties !== false ?
+  // Cross-file property rewriting performs its own per-node source-exposure
+  // proof. Exported callable source blocks only mappings that touch that
+  // source, not unrelated private object properties in the same module graph.
+  const cross = !remoteSourceObserver && options.closedWorld &&
+    options.properties !== false ?
     renameCrossFileProperties(prepared,seed) : {files:prepared,objects:0,properties:0};
   const shouldEncodeStrings=!remoteSourceObserver &&
     (options.strings === true || (options.strings === undefined && mode === 'sno'));
