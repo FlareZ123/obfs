@@ -22,7 +22,7 @@ function run(code) {
 }
 
 test('local Symbol keys preserve mutation and are generated only once',()=>{
-  const source="'use strict';\nconst bag={pulse:7,mask:3};\nfunction calc(x){bag.pulse+=x;return (bag.pulse^bag.mask)|0;}\nmodule.exports=calc;\n";
+  const source="'use strict';\nconst bag={pulse:7,mask:3};\nfunction privateCalc(x){bag.pulse+=x;return (bag.pulse^bag.mask)|0;}\nfunction calc(x){return privateCalc(x);}\nmodule.exports=calc;\n";
   const result=symbolizeLocalProperties(source,parse(source,'commonjs'),{seed:'symbol-example-v1'});
   assert.equal(result.objects,1);
   assert.equal(result.properties,2);
@@ -89,7 +89,7 @@ test('COO and SNO opt-in generate executable, separate Symbol keys; default stay
 test('real ESM two-file caller observes native values after local Symbol transformation',async()=>{
   const original=[
     {path:'state.mjs',sourceType:/** @type {'module'} */ ('module'),
-      code:'const privateState={pulse:5,mask:3};export function touch(x){privateState.pulse+=x;return privateState.pulse^privateState.mask;}\n'},
+      code:'const privateState={pulse:5,mask:3};function privateTouch(x){privateState.pulse+=x;return privateState.pulse^privateState.mask;}export function touch(x){return privateTouch(x);}\n'},
     {path:'entry.mjs',sourceType:/** @type {'module'} */ ('module'),
       code:'import {touch} from "./state.mjs";console.log(touch(2),touch(4));\n'}
   ];
