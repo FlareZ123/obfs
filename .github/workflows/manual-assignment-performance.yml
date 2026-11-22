@@ -25,6 +25,10 @@ jobs:
         run: node sims/destructuring-assignment-performance.js
       - name: Source-paired cross-file factory/destructuring Node CPU session plus minified and native placebo controls
         run: node sims/factory-destructuring-paired-session.js
+      - name: Longer protected work to distinguish Windows CPU counter quantization
+        env:
+          OBFS_FACTORY_WORK_COUNT: 60000000
+        run: node sims/factory-destructuring-paired-session.js
       - name: Main compiler JSDoc check
         run: npm run typecheck
       - name: Research tool strict JSDoc check
