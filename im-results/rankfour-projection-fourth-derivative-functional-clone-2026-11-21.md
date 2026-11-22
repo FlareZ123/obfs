@@ -25,33 +25,40 @@ source, hidden projection, coefficients, or oracle internals.
 Let
 
 \[
-p_4=\frac{15}{16}\frac{14}{16}\frac{12}{16}\frac{8}{16}
-=\frac{315}{1024},\quad
-t=\left\lceil\frac{\ln\delta}{\ln(1-p_4)}\right\rceil.
+p_4=\frac{315}{1024},\qquad
+t_4=\left\lceil\frac{\ln\delta}{\ln(1-p_4)}\right\rceil,
+\]
+and, for a quartic-free source,
+\[
+p_3=\frac{21}{64},\qquad
+t_3=\left\lceil\frac{\ln\delta}{\ln(1-p_3)}\right\rceil.
 \]
 
-There is a randomized full-function offline cloning algorithm
-that succeeds with probability at least 1-delta and needs at most
+The integrated randomized full-function clone succeeds with
+probability at least \(1-\delta\) and needs at most
 
 \[
-Q\le
-\max\left(
-n+1+(2^4-1)t+(2^4-2)n,\quad
-(2^4-1)t+\sum_{j=0}^{3}\binom nj
+Q\le\max\left(
+n+1+15t_4+14n,\quad
+15t_4+7t_3+6n+8+\sum_{j=0}^{2}\binom nj
 \right)
 \]
 
-distinct chosen forward calls. The two terms refer to a
-nonzero quartic and cubic-or-lower fallback, respectively.
-They are alternatives for a single fixed F; there is no
-sum of branch failure probabilities. With n=32 and
-delta=10^-10, t=63 and (709/1024)^63 about
-**8.746122346045706e-11**:
+distinct chosen forward calls. The first term is the genuine
+quartic path. The second is the quartic-free cubic-rescue path:
+the quartic stage and cubic stage both query \(F(0)\) and
+all \(F(e_i)\), so the shared \(n+1\) basis values are
+subtracted once. These are mutually exclusive source classes
+for a fixed F; the failure probability is bounded by
+\(\max((1-p_4)^{t_4},(1-p_3)^{t_3})\), not their sum.
+With n=32 and delta=10^-10, t4=63 and t3=58; the two miss
+probabilities are approximately **8.746122346045706e-11**
+and **9.610189081665655e-11**, respectively:
 
 | Branch | Maximum distinct oracle evaluations |
 | --- | ---: |
 | Genuine quartic coefficient detected | **1,426** |
-| Quartic absent, full cubic ANF fallback | **6,434** |
+| Quartic absent, cubic tensor rescue plus quadratic residual | **2,080** |
 | Unrestricted degree-four generic ANF (different, broader class) | 41,449 |
 
 Once learned, either model reproduces the **entire** function offline
@@ -139,18 +146,37 @@ F(x)=c\oplus\bigoplus_j x_j L_j\oplus H(p(x)).
 All coefficients and coordinate maps are learned numeric data.
 The resulting clone has no dependency on the server oracle.
 
-If the quartic coefficient w is zero or rank(V)<4,
-then F truly has total degree at most three in its original n
-input variables. The existing independently tested generic
-degree-three full ANF interpolation uses exactly
-\(\sum_{j=0}^{3}\binom nj\) chosen values, and is exact
-without any additional structural assumption.
-The earlier quartic attempts cost at most 15t extra; their
-previously cached responses may decrease the distinct
-value count. If w is actually nonzero but all t uniform
-quartic probes miss, the fallback may be incorrect; this is
-the only failure event under the source promise, bounded
-by \((1-p_4)^t\).
+If the quartic coefficient is zero (including rank(V)<4),
+then F has degree at most three. The integrated fallback
+uses the independently tested [rank-four cubic tensor rescue](rankfour-projection-cubic-tensor-rescue-2026-11-21.md).
+For a random triple, its third mixed derivative is nonzero
+with probability at least \(p_3=21/64\) whenever the
+vector-valued cubic component is nonzero on a rank-at-most-four
+projection. After finding a witness triple (at most
+\(7t_3\) new values), the signature
+\(S(x)=(T_3(x,a,b),T_3(x,a,c),T_3(x,b,c))\)
+recovers the cubic-support coordinates. The signature kernel
+equals the joint radical in the at-most-four-dimensional
+quotient; Agent 11 independently reviewed this lemma.
+Computing the signatures on all standard basis inputs costs
+at most \(6n\) additional values because the three
+third-difference cubes share six nonempty anchor subsets.
+A three- or four-anchor cube (at most eight additional
+values) recovers the homogeneous cubic component. Subtract
+that component and interpolate the residual degree-at-most-two
+function using \(\sum_{j=0}^{2}\binom nj\) values.
+
+The standalone cubic-rescue cap is
+\(7t_3+6n+8+\sum_{j=0}^{2}\binom nj\).
+Because the outer quartic phase has already cached
+\(F(0),F(e_1),\ldots,F(e_n)\), the integrated union bound
+subtracts those shared \(n+1\) values, yielding the second
+term in Q. If the quartic coefficient is nonzero but all
+quartic probes miss, the cubic fallback need not be correct;
+that event is already bounded by the quartic miss probability.
+If the quartic coefficient is zero, the cubic miss probability
+is bounded by \((1-p_3)^{t_3}\); if both cubic and quartic
+terms vanish, the quadratic fallback is exact.
 
 ## Independent mathematical and executable checks
 
@@ -166,10 +192,12 @@ The independent [strict-JSDoc CommonJS functional clone and full
 verifier](../sims/rankfour-projected-fourth-derivative-oracle-clone.js)
 contains its own fourth derivative, sample-response cache,
 coordinate recovery, Boolean Möbius interpolation and
-JSON-serializable offline evaluator. It uses the existing
-repository bounded-degree cubic learner only in its
-quartic-zero fallback. The test disables the original
-oracle callback before evaluating all held-out outputs.
+JSON-serializable offline evaluator. Its quartic-free path now
+calls the [cubic tensor rescue](../sims/rankfour-projected-cubic-rescue.js),
+which recovers the homogeneous cubic component and delegates
+the residual to the generic quadratic learner. The test
+disables the original oracle callback before evaluating all
+held-out outputs.
 
 One complete Ubuntu Node22 execution of the new source
 reported:
@@ -186,7 +214,8 @@ reported:
 | 32-bit quartic branch instances | 8 |
 | 32-bit cubic-or-lower fallback instances | 4 |
 | Maximum observed 32-bit quartic calls | 571 |
-| Maximum observed 32-bit fallback calls | 6,434 |
+| Maximum observed 32-bit quartic-free integrated fallback calls | 1,681 |
+| Maximum observed 32-bit total calls | 1,681 |
 | Incorrect outputs or failed computational assertions | **0** |
 
 The four-bit exhaustive collection uses a fixed identity
@@ -206,17 +235,22 @@ The implementation was committed at
 The existing research CI workflow and strict peer JSDoc
 configuration were extended in
 [9ffdcd0](https://github.com/FlareZ123/obfs/commit/9ffdcd01e97446e5a1ce09dbae693df977a95af8),
-without creating a new CI workflow family. The complete
-[run 44960231507](https://github.com/FlareZ123/obfs/actions/runs/44960231507),
+without creating a new CI workflow family. The earlier
+[run 44960231507](https://github.com/FlareZ123/obfs/actions/runs/44960231507)
+passed the initial quartic-only implementation. The integrated
+quartic/cubic dispatcher and matched control were subsequently
+verified by [run 44973169956](https://github.com/FlareZ123/obfs/actions/runs/44973169956),
 source pinned at
-da7c3d8543df11bd38ead0ba24dbafbc0f38aafa,
-**passed both Ubuntu and Windows** rank-four executable,
-every earlier rank-two and rank-three peer step,
-the matched-source generic cubic baseline, the exact
-quadratic-triple probability witness, and all strict
-JSDoc/typecheck gates. This green status applies to the
-exact cited source pin and does not independently certify
-the theorem's general-uniform probability guarantee.
+`a39ee02a207719ff29cc2194bf39a762cbdf9067`.
+Both Ubuntu and Windows jobs passed the rank-four full clone,
+quartic-free cubic rescue, matched rank-four control, and
+strict project JSDoc/typecheck steps. The integrated source
+changes are [05eadbe](https://github.com/FlareZ123/obfs/commit/05eadbe4372b5d3baee025d016dd366a1d3abdf1)
+and [a9a3fbf](https://github.com/FlareZ123/obfs/commit/a9a3fbfc2f6ffa2fe6a299ebd649e3b9a75b3d09).
+This green status validates the fixed deterministic test
+transcripts and implementation on both platforms; it does
+not independently certify the theorem's general-uniform
+probability guarantee.
 
 ## Limits and candidate consequences
 
@@ -232,7 +266,7 @@ or a hidden server secret.
 The result weakens a candidate SCO protection theory that
 relies on **only four input features** as the hidden source
 of nonlinearity: a client with unlimited legitimate calls
-can learn the complete function with at most 6,434 values
+can learn the complete function with at most 2,080 values
 at the specified confidence, and at most 1,426 when the
 top quartic coefficient is actually present and found.
 These are attacker capability bounds, not runtime
@@ -263,29 +297,33 @@ is evaluated offline.
 | Source functions | 8 | 8 |
 | Verified identical held-out outputs per method | 1,024 | 1,024 |
 | Minimum chosen evaluations in one source | 496 | 41,449 |
-| Maximum chosen evaluations in one source | 6,434 | 41,449 |
-| **Total** chosen evaluations | **27,750** | **331,592** |
+| Maximum chosen evaluations in one source | 1,880 | 41,449 |
+| **Total** chosen evaluations | **9,157** | **331,592** |
 | Wrong held-out outputs | 0 | 0 |
 
-The specialized learner saves **303,842** chosen oracle
-evaluations, or **91.63%** across this particular matched
-source set. The generic learner used **11.95 times** as
-many chosen evaluations in aggregate. The fallback quartic-zero
-cases exhausted the conservative 6,434 cap, whereas
-observed quartic cases needed 496-511 calls. For this
+The specialized learner saves **322,435** chosen oracle
+evaluations, or **97.24%** across this particular matched
+source set. The generic learner used **36.21 times** as
+many chosen evaluations in aggregate. The quartic-free
+cubic-rescue cases used 1,688-1,880 calls, below the 2,080
+cap; observed quartic cases needed 496-511 calls. For this
 source-aware attacker comparison, the price of the broader
 unrestricted polynomial source class is directly visible.
 
-The [source-pinned Ubuntu and Windows CI run
-44960530618](https://github.com/FlareZ123/obfs/actions/runs/44960530618),
-at immutable head
-22a936fccca27146d188dc7225222ac2cdd8be90,
-passed the matched benchmark, rank-four full-domain verifier,
-all earlier research steps, and strict JSDoc type checking on
-both platforms. This is matched **chosen-query cost**, and
-does not evaluate obfuscator-vs-minifier protection, source
-reconstruction, runtime slowdowns, network cost or the
-required 2.5x compute ceiling.
+The earlier [source-pinned Ubuntu and Windows CI run
+44960530618](https://github.com/FlareZ123/obfs/actions/runs/44960530618)
+passed the original matched benchmark. The integrated
+matched control is now source-pinned by
+[run 44973169956](https://github.com/FlareZ123/obfs/actions/runs/44973169956)
+at `a39ee02a207719ff29cc2194bf39a762cbdf9067`; both
+platforms reported identical results: eight source cases,
+1,024 matched held-out outputs per learner, specialized
+min/max/total queries 496/1,880/9,157, generic total
+331,592, and 322,435 saved queries. This is matched
+**chosen-query cost**, and does not evaluate
+obfuscator-vs-minifier protection, source reconstruction,
+runtime slowdowns, network cost or the required 2.5x
+compute ceiling.
 
 The tested result is a negative candidate-selection
 criterion. It does not establish academic originality
