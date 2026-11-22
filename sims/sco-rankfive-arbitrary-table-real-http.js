@@ -36,7 +36,7 @@ function privateSource(){
     'const OBFS_PRIVATE_MASK2=0xe5ab17c2;',
     'const OBFS_PRIVATE_MASK3=0x4692ed7f;',
     'const OBFS_PRIVATE_MASK4=0x1fa37cc9;',
-    'const OBFS_PRIVATE_VECTOR_TABLE='+JSON.stringify(table)+';',
+    ...table.map((value,index)=>'const OBFS_PRIVATE_T'+index+'='+value+';'),
     'const OBFS_PRIVATE_OFFSET=0x5a9bc7e1;',
     'function obfsPrivateParity(x){',
     '  x^=x>>>16;x^=x>>>8;x^=x>>>4;x^=x>>>2;x^=x>>>1;',
@@ -51,7 +51,11 @@ function privateSource(){
     '  const z4=obfsPrivateParity(x&OBFS_PRIVATE_MASK4);',
     '  const index=z0|(z1<<1)|(z2<<2)|(z3<<3)|(z4<<4);',
     '  const affine=((x<<5)|(x>>>27))^((x<<13)|(x>>>19));',
-    '  return (affine^OBFS_PRIVATE_OFFSET^OBFS_PRIVATE_VECTOR_TABLE[index])>>>0;',
+    '  let nonlinear=0;',
+    '  switch(index){',
+    ...table.map((_,index)=>'    case '+index+': nonlinear=OBFS_PRIVATE_T'+index+';break;'),
+    '  }',
+    '  return (affine^OBFS_PRIVATE_OFFSET^nonlinear)>>>0;',
     '}',
     'export function publicIdentity(value){return value>>>0;}'
   ].join('\n');
@@ -152,7 +156,7 @@ async function executeArm(arm,source,draws){
         seed:'sco-arbitrary-table-rankfive-live',
         privateNames:['protectedGenericFive']
       });
-      publishedPrivateNames=/OBFS_PRIVATE_MASK|OBFS_PRIVATE_VECTOR_TABLE|OBFS_PRIVATE_OFFSET/u
+      publishedPrivateNames=/OBFS_PRIVATE_MASK|OBFS_PRIVATE_T|OBFS_PRIVATE_OFFSET/u
         .test(selected.clientFile.code);
       assert.equal(publishedPrivateNames,false,
         'A private implementation identifier was published');
@@ -229,7 +233,7 @@ async function executeArm(arm,source,draws){
       assert.equal(published.status,200);
       const sourceBytes=await published.text();
       assert.doesNotMatch(sourceBytes,
-        /OBFS_PRIVATE_MASK|OBFS_PRIVATE_VECTOR_TABLE|OBFS_PRIVATE_OFFSET/u);
+        /OBFS_PRIVATE_MASK|OBFS_PRIVATE_T|OBFS_PRIVATE_OFFSET/u);
       const route=sourceBytes.match(
         /export async function protectedGenericFive\([^)]*\)\{return await [\w$]+\("([^"]+)",\[\.\.\.arguments\]\);\}/u
       );
