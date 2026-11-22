@@ -1602,6 +1602,8 @@ function partitionScoSelectedAsyncExports(file,options) {
   const privateBodies=[];
   /** @type {WeakMap<import('./ast').AstNode,Set<string>>} */
   const privateFormals=new WeakMap();
+  /** @type {WeakMap<import('./ast').AstNode,boolean>} */
+  const privateRootArguments=new WeakMap();
   /** @param {import('./ast').AstNode} fn @returns {void} */
   function addPrivateBody(fn){
     privateBodies.push(fn.body);
@@ -1611,6 +1613,7 @@ function partitionScoSelectedAsyncExports(file,options) {
     }
     if(fn.id?.type==='Identifier')parameters.add(fn.id.name);
     privateFormals.set(fn.body,parameters);
+    privateRootArguments.set(fn.body,fn.type!=='ArrowFunctionExpression');
   }
   const ambientRoots=new Set(['globalThis','window','self','document','navigator','location','process','global']);
   /**
@@ -2003,7 +2006,8 @@ function partitionScoSelectedAsyncExports(file,options) {
     }
     const selectedModuleNames=new Set([...serverConstants,...privateHelperNames,...selected]);
     const freeRead=firstUnprovedFreeReference(body,selectedModuleNames,
-      privateFormals.get(body)??new Set(),provedSharedGlobalReads);
+      privateFormals.get(body)??new Set(),provedSharedGlobalReads,
+      privateRootArguments.get(body)??false);
     if(freeRead!==null){
       throw new TypeError('Private SCO export or helper uses unproved free global: '+freeRead);
     }
