@@ -43,6 +43,23 @@ Local Linux Node 22.16.0 with Acorn 8.15.0 executed an independent prior-walker-
 
 **Audit limitation:** the independently copied walker comparison is an algorithmic equality screen for this generated grammar subset; it does not prove equivalence for arbitrary ESTree inputs, and it does not validate the complete obfuscator. No latest-commit full GitHub Actions run has been performed. Earlier complete and focused Ubuntu/Windows validations at pre-optimization `eecd05c6c587a13f04bf5725c73edf147e642573` are [45004883858](https://github.com/FlareZ123/obfs/actions/runs/45004883858) and [45004810174](https://github.com/FlareZ123/obfs/actions/runs/45004810174).
 
+## Additional native-realm sensitivity acceptance grid (unvalidated on CI)
+
+Commit `47225f20730dcaafc139084cc7daa51b09221211` adds
+`test/sco-var-hoist-native-realm.test.js`: **136 source templates**
+(72 safely owned lexical / var cases and 64 deliberately external-name
+cases), each invoked twice in fresh strict Node VM realms with the
+application global `v` absent or supplied as 73. The test requires the
+free-reference preflight to approve owned bindings and reject all cases
+whose result relies on the external global, while comparing the observed
+native behavior. Cases exercise function-body var, nested closures,
+`switch` lexical and var boundaries, class static isolation, inner
+parameter defaults, loop lexical bindings, and catch parameters. This is
+a submitted **test specification**, with no claim that current-head
+GitHub Actions has executed it. The earlier deterministic 400-fixture
+collector equality observation and standalone native spot checks remain
+separately described above.
+
 ## Local scaling pilot
 
 A *single unpaired timing sample*, excluding parser time, measured the prior and pruned scanners over every function scope of one nested-function ladder. These are local process measurements and **not a stabilized CPU benchmark**:
