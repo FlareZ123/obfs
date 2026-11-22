@@ -1,7 +1,8 @@
 'use strict';
 
 const {createHash} = require('node:crypto');
-const {walk, applyEdits, observesFunctionSource, sourceSpelledErrorOperand} = require('./ast');
+const {walk, applyEdits, observesFunctionSource, sourceSpelledErrorOperand,
+  collectExportedCallableNodes,isWithinExportedCallableSource} = require('./ast');
 const {collectBindings} = require('./properties');
 
 /** @typedef {import('./ast').AstNode} AstNode */
@@ -60,6 +61,7 @@ function mayAppearInFailedOperand(node,ancestors) {
  */
 function encodeStrings(source, ast, options) {
   if(observesFunctionSource(ast)) return {code:source,count:0};
+  const exportedCallableSource=collectExportedCallableNodes(ast);
   // The decoder uses the ambient String intrinsic. A file-level or nested
   // lexical binding with this name can shadow it, including before TDZ init.
   if (collectBindings(ast).has('String')) return {code:source,count:0};
@@ -86,7 +88,8 @@ function encodeStrings(source, ast, options) {
   ]);
   walk(ast, (node, parent, key, ancestors) => {
     if (node.type !== 'Literal' || typeof node.value !== 'string' ||
-        node.value.length < minimumLength || !parent) return;
+        node.value.length < minimumLength || !parent ||
+        isWithinExportedCallableSource(node,exportedCallableSource)) return;
     if (parent.type === 'ExpressionStatement' && parent.directive) return;
     if (hasEagerDependencies && ancestors.some(ancestor => ancestor.type === 'FunctionDeclaration')) return;
     if (opaqueWithScope && ancestors.some(ancestor => sourceBodies.has(ancestor.type))) return;
