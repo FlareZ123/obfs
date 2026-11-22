@@ -47,17 +47,21 @@ for(const [name,expression] of cases) {
     const source=owner+'module.exports={observed:'+expression+',value:inspect()};';
     const native=execute(source);
     assert.ok(native.observed.includes('secretField'),name);
-    assert.equal(observesFunctionSource(parse(source,'commonjs')),true,name);
     for(const mode of /** @type {const} */(['coo','sno','sco'])) {
       const emitted=obfuscateFiles([
         {path:'input.cjs',sourceType:'commonjs',code:source}
       ],{mode,seed:'domstring-native/'+name,
         properties:true,identifiers:true,strings:true}).files[0];
+      if(mode==='coo')process.stdout.write('DOMSTRING_FOCUSED_METRICS '+JSON.stringify({
+        name,properties:emitted.metrics.properties,
+        originalSpellingKept:String(emitted.code).includes('secretField')
+      })+'\\n');
       assert.deepEqual(execute(/** @type {string} */(emitted.code)),native,mode+'/'+name);
       assert.equal(emitted.metrics.properties,0,mode+'/'+name);
       assert.equal(emitted.metrics.bindings,0,mode+'/'+name);
       assert.equal(emitted.metrics.literals,0,mode+'/'+name);
     }
+    assert.equal(observesFunctionSource(parse(source,'commonjs')),true,name);
   });
 }
 
