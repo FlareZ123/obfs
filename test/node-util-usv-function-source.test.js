@@ -29,7 +29,14 @@ const cases=[
   ['direct require', "module.exports=require('node:util').toUSVString(nativeUsvSourceFunction);"],
   ['namespace and alias', "const n=require('node:util');const q=n;module.exports=q.toUSVString(nativeUsvSourceFunction);"],
   ['destructured native method', "const {toUSVString:enc}=require('node:util');module.exports=enc(nativeUsvSourceFunction);"],
-  ['detached native method', "const n=require('node:util');const enc=n.toUSVString;module.exports=enc(nativeUsvSourceFunction);"]
+  ['detached native method', "const n=require('node:util');const enc=n.toUSVString;module.exports=enc(nativeUsvSourceFunction);"],
+  ['computed method', "const n=require('node:util');const name='toUSVString';module.exports=n[name](nativeUsvSourceFunction);"],
+  ['direct bind captured callable', "const n=require('node:util');const f=n.toUSVString.bind(null,nativeUsvSourceFunction);module.exports=f();"],
+  ['direct call', "const n=require('node:util');module.exports=n.toUSVString.call(null,nativeUsvSourceFunction);"],
+  ['direct apply', "const n=require('node:util');module.exports=n.toUSVString.apply(null,[nativeUsvSourceFunction]);"],
+  ['reflect apply', "const n=require('node:util');module.exports=Reflect.apply(n.toUSVString,null,[nativeUsvSourceFunction]);"],
+  ['assigned destructure', "const n=require('node:util');let enc;({toUSVString:enc}=n);module.exports=enc(nativeUsvSourceFunction);"],
+  ['default destructure', "const n=require('node:util');const {toUSVString:enc=(x)=>x}=n;module.exports=enc(nativeUsvSourceFunction);"]
 ];
 
 for(const mode of /** @type {const} */(['sno','coo','sco'])) {
