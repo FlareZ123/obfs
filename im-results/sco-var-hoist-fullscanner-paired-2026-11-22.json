@@ -1,0 +1,84 @@
+{
+  "environment": "Code Mode V8, Date.now resolution 1ms, ten firstUnprovedFreeReference calls per sample",
+  "source_old": "eecd05c6c587a13f04bf5725c73edf147e642573",
+  "source_new": "aa7d644500c1d332ef224b30e16919755856a849",
+  "fixture": "hand-constructed ESTree BlockStatement with a root var v and 128/256/512 nested function declarations, each deepest return v",
+  "protocol": "8 alternating previous/optimized pairs after 1 warmup per implementation; same AST and generic walker; no parse, file IO, transform, network or obfuscated-runtime timing",
+  "data": [
+    {
+      "depth": 128,
+      "prior_ms_each": [
+        2.6,
+        2.6,
+        2.6,
+        2.6,
+        2.5,
+        2.9,
+        2.4,
+        2.4
+      ],
+      "pruned_ms_each": [
+        1.7,
+        1.9,
+        1.7,
+        1.7,
+        1.7,
+        1.7,
+        1.6,
+        1.7
+      ],
+      "prior_median_ms": 2.6,
+      "pruned_median_ms": 1.7
+    },
+    {
+      "depth": 256,
+      "prior_ms_each": [
+        5.5,
+        5.6,
+        5.4,
+        5.6,
+        5.6,
+        5.6,
+        5.5,
+        5.5
+      ],
+      "pruned_ms_each": [
+        3.7,
+        3.9,
+        4.5,
+        4.3,
+        4.5,
+        3.7,
+        3.7,
+        3.8
+      ],
+      "prior_median_ms": 5.55,
+      "pruned_median_ms": 3.85
+    },
+    {
+      "depth": 512,
+      "prior_ms_each": [
+        13.9,
+        13.2,
+        13.3,
+        14.9,
+        13.7,
+        14.1,
+        15.2,
+        13.5
+      ],
+      "pruned_ms_each": [
+        9.4,
+        9,
+        8.8,
+        9.1,
+        9.5,
+        9.1,
+        9,
+        8.9
+      ],
+      "prior_median_ms": 13.8,
+      "pruned_median_ms": 9.05
+    }
+  ]
+}
