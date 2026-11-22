@@ -21,10 +21,11 @@ function compare(code,safeObjects,activeKeys=[undefined]) {
   const output=obfuscateFiles([{path:'main.cjs',sourceType:'commonjs',code}],{
     mode:'sno',seed:'receiver-reflection-safety',strings:false
   }).files[0];
+  const protectedCode=/** @type {string} */ (output.code);
   for(const key of activeKeys) {
-    assert.equal(evaluate(output.code,key),evaluate(code,key),output.code);
+    assert.equal(evaluate(protectedCode,key),evaluate(code,key),protectedCode);
   }
-  assert.equal(output.metrics.objects,safeObjects,output.code);
+  assert.equal(output.metrics.objects,safeObjects,protectedCode);
 }
 
 test('hasOwnProperty observes the original key name',()=>{
