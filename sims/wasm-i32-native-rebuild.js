@@ -10,10 +10,11 @@ const {recoverPublicWasmExpression,isGeneratedWasmExportReference}=
  * source original, compiler seed, or execution of the protected module.
  *
  * Scope: one top-level module.exports object of direct function references,
- * where every exported function simply forwards its own parameters to an
- * eagerly initialized Wasm helper. Unsupported graphs refuse reconstruction.
+ * where each exported wrapper forwards through zero or more unchanged local
+ * wrappers to an eagerly initialized Wasm helper. The private kernel wrapper
+ * is reconstructed; public wrapper source is copied byte-for-byte.
  *
- * @typedef {{name:string,localName:string,parameters:string[],expression:string,wasmBytes:number}} RecoveredExport
+ * @typedef {{name:string,localName:string,exportLocalName:string,parameters:string[],expression:string,wasmBytes:number}} RecoveredExport
  */
 
 /**
@@ -26,7 +27,7 @@ function reconstructPublicWasmCommonJs(publicSource){
     allowReturnOutsideFunction:true,allowHashBang:true});
   /** @type {Map<string,string>} */
   const helpers=new Map();
-  /** @type {Map<string,{parameters:string[],helper:string}>} */
+  /** @type {Map<string,{parameters:string[],helper:string,source:string,start:number}>} */
   const wrappers=new Map();
   /** @type {Array<{name:string,localName:string}>} */
   let exportsList=[];
@@ -62,7 +63,10 @@ function reconstructPublicWasmCommonJs(publicSource){
           expression.arguments.some((arg,index)=>arg.type!=='Identifier'||
             arg.name!==parameters[index])||wrappers.has(item.id.name))
         throw new TypeError('Unsupported CommonJS Wasm forwarding');
-      wrappers.set(item.id.name,{parameters,helper:expression.callee.name});
+      wrappers.set(item.id.name,{
+        parameters,helper:expression.callee.name,
+        source:publicSource.slice(item.start,item.end),start:item.start
+      });
       continue;
     }
     if(item.type!=='ExpressionStatement')throw new TypeError('Unproved CommonJS top-level effect');
@@ -94,25 +98,50 @@ function reconstructPublicWasmCommonJs(publicSource){
     throw new TypeError('Expected one unambiguous CommonJS export-object assignment');
   /** @type {RecoveredExport[]} */
   const functions=[];
+  const usedWrappers=new Set();
+  const usedHelpers=new Set();
+  const kernelNames=new Set();
   for(const item of exportsList){
-    const wrapper=wrappers.get(item.localName);
-    const initializer=wrapper&&helpers.get(wrapper.helper);
-    if(!wrapper||!initializer)
-      throw new TypeError('No reconstructable Wasm wrapper for '+item.name);
-    const recovered=recoverPublicWasmExpression(initializer,wrapper.parameters);
-    functions.push({name:item.name,localName:item.localName,
-      parameters:wrapper.parameters,expression:recovered.expression,
-      wasmBytes:recovered.bytes});
+    let currentName=item.localName;
+    const chain=[];
+    const seen=new Set();
+    while(true){
+      const wrapper=wrappers.get(currentName);
+      if(!wrapper||seen.has(currentName))
+        throw new TypeError('No reconstructable Wasm wrapper chain for '+item.name);
+      seen.add(currentName);
+      chain.push(currentName);
+      if(helpers.has(wrapper.helper)){
+        const recovered=recoverPublicWasmExpression(
+          helpers.get(wrapper.helper),wrapper.parameters);
+        functions.push({name:item.name,localName:currentName,
+          exportLocalName:item.localName,parameters:wrapper.parameters,
+          expression:recovered.expression,wasmBytes:recovered.bytes});
+        kernelNames.add(currentName);
+        usedHelpers.add(wrapper.helper);
+        for(const name of chain)usedWrappers.add(name);
+        break;
+      }
+      const next=wrappers.get(wrapper.helper);
+      if(!next||next.parameters.length!==wrapper.parameters.length)
+        throw new TypeError('No reconstructable Wasm helper chain for '+item.name);
+      currentName=wrapper.helper;
+    }
   }
-  const usedWrappers=new Set(exportsList.map(item=>item.localName));
-  const usedHelpers=new Set([...usedWrappers].map(name=>wrappers.get(name)?.helper));
   if(usedWrappers.size!==wrappers.size||usedHelpers.size!==helpers.size)
     throw new TypeError('Unreferenced CommonJS function or helper');
-  const declarations=functions.map(item=>'function '+item.localName+
+  const uniqueKernels=new Map();
+  for(const item of functions)if(!uniqueKernels.has(item.localName))
+    uniqueKernels.set(item.localName,item);
+  const declarations=[...uniqueKernels.values()].map(item=>'function '+item.localName+
     '('+item.parameters.join(',')+'){return '+item.expression+';}');
-  const exported=functions.map(item=>JSON.stringify(item.name)+':'+item.localName).join(',');
-  const code="'use strict';\n"+declarations.join('\n')+
-    '\nmodule.exports={'+exported+'};\n';
+  const preservedWrappers=[...usedWrappers].filter(name=>!kernelNames.has(name))
+    .map(name=>wrappers.get(name)).filter(Boolean).sort((a,b)=>a.start-b.start)
+    .map(wrapper=>wrapper.source);
+  const exported=exportsList.map(item=>JSON.stringify(item.name)+':'+item.localName).join(',');
+  const code="'use strict';\\n"+declarations.join('\\n')+
+    (preservedWrappers.length?'\\n'+preservedWrappers.join('\\n'):'')+
+    '\\nmodule.exports={'+exported+'};\\n';
   return {code,functions,sourceBytes:Buffer.byteLength(publicSource),
     replacementBytes:Buffer.byteLength(code)};
 }
