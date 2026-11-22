@@ -1,0 +1,37 @@
+# Source-byte integrity and browser-executable non-JavaScript assets
+
+**Agent 32, 22 November 2026. Status: intermediate, empirical compatibility evidence.** This report consolidates reproducible source-pinned findings about public asset admission and SRI byte commitments. It documents semantic correctness limits in COO, SCO and SNO. It does not demonstrate static reconstruction resistance, tamper resistance against a hostile runtime, authorization of execution, or a universal 2.5× runtime bound.
+
+## Overview
+
+The compiler accepts JavaScript files and declared binary/text assets. A browser can interpret certain assets as executable documents. If the compiler preserves such an asset byte-for-byte while changing an external script named in an SRI attribute, the browser may decline to execute the modified script. If a publicly emitted asset contains inline script text, that original inline source remains directly visible regardless of whether the separately supplied JavaScript files were obfuscated. SCO's public MIME type and mount path affect whether the asset executes and how SRI resolves.
+
+The acceptance policy studied here follows a conservative source-observation rule: reject recognized executable inline source; preserve original JavaScript bytes when declared SRI metadata may identify an emitted script; otherwise retain positive transformation yield when the external commitment is provably unrelated. A conservative refusal can lower obfuscation strength, so every negative test has a positive-yield counterpart.
+
+## 1. Atomic publication and cross-process output consistency
+
+[PR #244](https://github.com/FlareZ123/obfs/pull/244), merged as `8dd3728a820516c769b1929ff56b31b1aa0ce7f9`, added `test/atomic-write.test.js` with four scenarios: byte-for-byte binary writes and temporary-file cleanup; deadline behavior while another writer owns the lock; genuine separate-process serialization; cleanup/recovery after a failed directory replacement. The tests passed five repeated local runs and the source-pinned [Ubuntu/Windows workflow 44968052024](https://github.com/FlareZ123/obfs/actions/runs/44968052024) at `04dec46bc3e99674678e28508ca71ce4daaf97ca`. This validates limited publication consistency and does not imply protection after an attacker has obtained a file.
+
+## 2. XML namespaces and executable asset admission
+
+A browser can execute HTML-namespace scripts in XML-syntax documents served as XHTML, application/xml or text/xml. An HTML parser does not correctly identify a namespace-prefixed `<h:script>`, and inspecting only `.html`/`.htm` ignores executable `.xhtml`, `.xht` and `.xml`.
+
+### XHTML
+
+[PR #245](https://github.com/FlareZ123/obfs/pull/245), merged as `6eda80badba045791f9711a80fad21f6dc0e074e`, added SAXES namespace-aware source and SRI scanning for `.xhtml`/`.xht`. Source-pinned [red Chromium 44968694215](https://github.com/FlareZ123/obfs/actions/runs/44968694215) reproduced missed prefixed-script source and SRI failures. [Red 44969234146](https://github.com/FlareZ123/obfs/actions/runs/44969234146) separately demonstrated that the first inert template base could obscure a later effective base and that unrelated `xml:base` caused unnecessary refusal. URL resolution now considers all statically declared bases as potential candidates and tracks scoped XML bases. Native, corrected, and deliberately SRI-invalid Chromium outputs are compared in `test/xhtml-sri-browser.js`. Nested SVG script execution is observed directly. [Chromium 44969506070](https://github.com/FlareZ123/obfs/actions/runs/44969506070) and [Linux/Windows 44969509701](https://github.com/FlareZ123/obfs/actions/runs/44969509701) were green at `e9835df3aed54b5198a409523055369bedd0a948`.
+
+### Generic XML documents
+
+[PR #248](https://github.com/FlareZ123/obfs/pull/248), merged as `e5bbe5b265ae4d7694a31490d7900ead800ebdeb`, extends the XML parser's declared-asset coverage to `.xml`, including SCO's `application/xml` response MIME. Source-pinned [red 44970552505](https://github.com/FlareZ123/obfs/actions/runs/44970552505) showed executable inline source admission, SRI-unaware external JS rewrites, and incorrect octet-stream SCO MIME. A second [red 44970827414](https://github.com/FlareZ123/obfs/actions/runs/44970827414) showed a precision regression: unrelated custom-namespace `<script>` and `<style>` as XML data were rejected. The corrected scanner applies executable element/attribute rules only to HTML and SVG namespaces, while safely checking XML CDATA, DTD and processing-instruction boundaries. `test/xml-sri-browser.js` verifies native, byte-preserved and intentionally SRI-invalid paths in real Chromium under `application/xml` and `text/xml`. [Chromium 44971011192](https://github.com/FlareZ123/obfs/actions/runs/44971011192) and [Linux/Windows 44971014840](https://github.com/FlareZ123/obfs/actions/runs/44971014840) passed the combined source SHA `4b33be52228a13f6d9f3b084afd0798589d18eb1`.
+
+## 3. Portable filename identities for SRI URLs
+
+[PR #247](https://github.com/FlareZ123/obfs/pull/247), merged as `694b3f20984fd2f1c2bd62cf0dd40071e86a97c6`, addresses local SRI URLs whose filename spelling differs from a declared script only through case or Unicode NFC/NFD representation. A case-insensitive or Unicode-normalizing host can serve the same JavaScript file through these URLs, so rewriting the script without updating the asset invalidates SRI. Source-pinned [red 44970193904](https://github.com/FlareZ123/obfs/actions/runs/44970193904) confirmed two false negatives with an unrelated-path positive control. The scanner now reuses `portableKeys()` from the output tree's portable filename identity policy, including the SCO route prefix when supplied. `test/sri-portable-url-alias-browser.js` uses real Chromium and an explicit case/NFC-normalizing host. Native and byte-preserved script responses execute; the intentionally rewritten response fails SRI. [Chromium 44970397437](https://github.com/FlareZ123/obfs/actions/runs/44970397437) and [Linux/Windows 44970401548](https://github.com/FlareZ123/obfs/actions/runs/44970401548) passed source `927b6ee66008017db107a92bfe6a57e906f3ad86`.
+
+A case-sensitive server may distinguish all spellings. Conservative matching can therefore suppress some transformations unnecessarily. The evidence supports compatibility under the explicitly modeled host normalization, without establishing universally equivalent URL routing.
+
+## Reproduction and interpretation
+
+All included static suites run under the repository's declared Node 22 environment. The corresponding real-browser harnesses use Chromium and accept `CHROMIUM_BIN` to locate Chrome. The GitHub Actions `manual-browser.yml` and `manual-validation.yml` record exact source commits and run the browser and two-platform suites, respectively. Reproduction commands and fixtures are in the test files and workflows named above.
+
+The established public release decision remains **RELEASE-BLOCKED** for the overarching obfuscator objective. These findings address source admission, file publication, and browser integrity contracts. They do not overcome the explicit hostile-runtime access assumptions for COO, SCO or SNO. See [the results synthesis](../results/README.md) for independent attack and cost evidence. Source-observation refusals preserve correctness under an external byte commitment, and may deliberately yield unmodified original JavaScript to an attacker.
