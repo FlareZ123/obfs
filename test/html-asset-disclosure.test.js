@@ -706,3 +706,28 @@ test('an imported script factory returning a DOM script may produce SRI through 
       'An imported script factory and opaque attribute name may pin bytes in '+mode);
   }
 });
+
+
+test('cross-file opaque integrity setters conservatively observe sha384 and sha512',()=>{
+  const source='globalThis.multiAlgoSRI="one source with two valid SRI digest algorithms";';
+  const factory='export const build=()=>document.createElement("script");';
+  const prefix='import {build} from "./factory.mjs";const script=build();'+
+    'script.src="./client.js";const key=globalThis.integrityKey||"integrity";';
+  for(const algorithm of /** @type {const} */(['sha384','sha512'])){
+    const digest=require('node:crypto').createHash(algorithm).update(source).digest('base64');
+    const bootstrap=prefix+'Reflect.set(script,key,"'+algorithm+'-'+digest+'");'+
+      'document.head.append(script);';
+    const base=[
+      {path:'client.js',sourceType:/** @type {const} */('script'),code:source},
+      {path:'factory.mjs',sourceType:/** @type {const} */('module'),code:factory},
+      {path:'bootstrap.mjs',sourceType:/** @type {const} */('module'),code:bootstrap}
+    ];
+    for(const mode of /** @type {const} */(['coo','sco','sno'])){
+      const opts={mode,closedWorld:true,seed:'multialgo-sri/'+algorithm+'/'+mode,
+        strings:true,identifiers:false,properties:false};
+      const pinned=obfuscateFiles(base,opts);
+      assert.equal(pinned.files[0].code,source,
+        algorithm+' opaque imported factory Reflect.set pins original bytes in '+mode);
+    }
+  }
+});
