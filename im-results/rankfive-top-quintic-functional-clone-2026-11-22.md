@@ -67,7 +67,7 @@ Unrestricted degree-five ANF interpolation requires
 \[
 \sum_{j=0}^{5}\binom{32}{j}=242,825
 \]
-chosen inputs. The conditional learner therefore uses at most about 5.505 times fewer chosen queries than generic degree-five interpolation. These are **oracle-query counts**, not a CPU-time ratio or proof of the 2.5× target-runtime budget.
+chosen inputs. The generic baseline is about 5.505 times the conditional learner's query cap; equivalently, the learner uses about 18.17% as many queries (an 81.83% reduction). These are **oracle-query counts**, not a CPU-time ratio or proof of the 2.5× target-runtime budget.
 
 ### Information-theoretic query lower bound
 
