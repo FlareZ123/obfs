@@ -3665,6 +3665,25 @@ function observesDistributedSource(ast,importedStrings=new Map()) {
   }while(reflectionChanged);
   let observed=false;
   walk(ast,node=>{
+    // HTMLScriptElement.integrity can pin another published script's exact
+    // response bytes even when no static HTML asset declares SRI. The target
+    // may be chosen dynamically, so conservatively retain the entire group.
+    // This check uses proved constant keys and avoids refusing ordinary
+    // reads of unrelated values named "integrity".
+    if(node.type==='AssignmentExpression' &&
+       node.left.type==='MemberExpression') {
+      const key=node.left.computed ? knownKey(node.left.property) :
+        node.left.property.type==='Identifier'?node.left.property.name:null;
+      if(key==='integrity')observed=true;
+    }
+    if(node.type==='CallExpression' && node.callee.type==='MemberExpression') {
+      const method=node.callee.computed ? knownKey(node.callee.property) :
+        node.callee.property.type==='Identifier'?node.callee.property.name:null;
+      if(method==='setAttribute' && node.arguments[0] &&
+         knownKey(node.arguments[0])?.toLowerCase()==='integrity' ||
+         method==='setAttributeNS' && node.arguments[1] &&
+         knownKey(node.arguments[1])?.toLowerCase()==='integrity')observed=true;
+    }
     if(node.type==='ImportDeclaration' || node.type==='ExportAllDeclaration' ||
        node.type==='ExportNamedDeclaration' && node.source) {
       if(fileModules.has(node.source?.value) ||
