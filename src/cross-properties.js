@@ -2,7 +2,8 @@
 
 const path = require('node:path');
 const {createHash} = require('node:crypto');
-const {walk,applyEdits,parse,observesFunctionSource,observesDistributedSource,staticString,collectDirectCarrierFactories} = require('./ast');
+const {walk,applyEdits,parse,observesFunctionSource,observesDistributedSource,staticString,
+  collectDirectCarrierFactories,collectExportedCallableNodes,isWithinExportedCallableSource} = require('./ast');
 const {collectBindings,proveLocalObject,staticName,patternPropertyEdits,inOperatorPropertyEdits,isLiteralValue,isPrimitiveConstantExpression,ownPropertyName,singleUseFactoryObject} = require('./properties');
 const {proveDirectReaderPrimitives}=require('./direct-reader-primitives');
 
@@ -2026,6 +2027,25 @@ function renameCrossFileProperties(files,seed) {
     }
   }
   const knownFiles=new Set(files.map(file=>file.path));
+  const exposedCallables=new Map([...modules].map(([filename,module])=>
+    [filename,collectExportedCallableNodes(module.ast)]));
+  /**
+   * A cross-module owner rename must refuse if any proved read is embedded
+   * in a callable whose source is observable through an ESM export.
+   * @param {string} filename
+   * @param {NonNullable<ReturnType<typeof proveLocalObject>>} proof
+   * @returns {boolean}
+   */
+  function proofTouchesExposedCallable(filename,proof) {
+    const exposed=exposedCallables.get(filename)??new Set();
+    const edits=[
+      ...proof.members.map(member=>member.property),
+      ...proof.patterns.map(property=>property.key),
+      ...proof.inChecks.map(check=>check.left),
+      ...proof.reflections.map(reflection=>reflection.key)
+    ];
+    return edits.some(node=>isWithinExportedCallableSource(node,exposed));
+  }
   const verifiedStrings=collectVerifiedImportedStrings(files);
   const verifiedClones=collectVerifiedImportedCloneAliases(files);
   const verifiedUrlStatics=collectVerifiedImportedUrlStaticAliases(files);
@@ -2634,10 +2654,13 @@ function renameCrossFileProperties(files,seed) {
         // object's original own keys even when the reference never escapes.
         const ownNames=new Set(names);
         if (users.some(user=>
+          proofTouchesExposedCallable(user.file,user.proof) ||
           user.proof.members.some(member=>{const field=user.proof.memberNames.get(member);return typeof field!=='string'||!ownNames.has(field);}) ||
           user.proof.patterns.some(property=>!ownNames.has(ownPropertyName(property))) ||
           user.proof.inChecks.some(check=>!ownNames.has(check.left.value)) ||
-          user.proof.reflections.some(reflection=>!ownNames.has(reflection.property)))) continue;
+          user.proof.reflections.some(reflection=>!ownNames.has(reflection.property))) ||
+          [...readers.values()].some(reader=>isWithinExportedCallableSource(
+            reader.member.property,exposedCallables.get(exporterName)??new Set()))) continue;
         // Prevent externally exposed exports of the same object via an export specifier.
         let reexported=false;
         walk(exporter.ast,(node,parent)=>{
@@ -2839,6 +2862,7 @@ function renameCrossFileProperties(files,seed) {
 
     const ownNames=new Set(names);
     if(users.some(user=>
+      proofTouchesExposedCallable(user.file,user.proof) ||
       user.proof.members.some(member=>{
         const field=user.proof.memberNames.get(member);
         return typeof field!=='string'||!ownNames.has(field);
