@@ -2000,6 +2000,11 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
     if(candidate.type==='CallExpression'&&candidate.callee.type==='MemberExpression'&&
        memberName(candidate.callee)==='bind')
       return isCssEscape(candidate.callee.object);
+    const reflected=reflectGetInvocation(candidate);
+    if(reflected&&isCssEscapeNamespace(reflected[0])) {
+      const name=sourceStringKey(reflected[1]);
+      return name==='escape'||name===null;
+    }
     if(candidate.type!=='MemberExpression'||!isCssEscapeNamespace(candidate.object))
       return false;
     const name=memberName(candidate);
