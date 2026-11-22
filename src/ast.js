@@ -3810,6 +3810,8 @@ function collectExportedCallableNodes(ast) {
   const inspected=new Set();
   /** @type {Set<AstNode>} */
   const resolving=new Set();
+  /** @type {Set<string>} */
+  const resolvingMembers=new Set();
 
   for(const statement of ast.body??[]) {
     const declaration=statement.type==='ExportNamedDeclaration'?
@@ -4004,6 +4006,27 @@ function collectExportedCallableNodes(ast) {
           // through the selected member. Resolve its local return/constructor
           // graph conservatively rather than treating the member as opaque.
           markValue(node.object,depth+1);
+        }
+      }
+      const objectName=rootBinding(node.object);
+      if(objectName) {
+        const selectedKey=node.computed?staticString(node.property):
+          node.property.type==='Identifier'?node.property.name:null;
+        const token=objectName+'.'+(selectedKey??'*');
+        if(!resolvingMembers.has(token)) {
+          resolvingMembers.add(token);
+          walk(ast,candidate=>{
+            if(candidate.type!=='AssignmentExpression'||
+               candidate.left.type!=='MemberExpression'||
+               rootBinding(candidate.left)!==objectName)return;
+            const assignedKey=candidate.left.computed?
+              staticString(candidate.left.property):
+              candidate.left.property.type==='Identifier'?
+                candidate.left.property.name:null;
+            if(selectedKey===null||assignedKey===selectedKey)
+              markValue(candidate.right,depth+1);
+          });
+          resolvingMembers.delete(token);
         }
       }
       return;
