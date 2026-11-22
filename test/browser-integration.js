@@ -128,13 +128,13 @@ async function main(){
   // window.hostApi.accept interface exactly as written.
   const readerSet=obfuscateFiles([
     {path:'reader-state.mjs',sourceType:'module',
-      code:'export const state={secretValue:29,otherValue:12};'+
-        'export const peek=value=>value.secretValue;'},
+      code:'export const state={secretValue:29,otherValue:12};'},
     {path:'reader-identity.mjs',sourceType:'module',
       code:'export const identity=payload=>payload;'},
     {path:'reader-entry.mjs',sourceType:'module',
-      code:'import {state,peek} from "./reader-state.mjs";'+
+      code:'import {state} from "./reader-state.mjs";'+
         'import {identity} from "./reader-identity.mjs";'+
+        'const peek=value=>value.secretValue;'+
         'const forward=part=>part;'+
         'window.hostApi.accept(peek(forward(identity(state)))+state.otherValue);'}
   ],{mode:'coo',closedWorld:true,seed:'chrome-nested-readers',
