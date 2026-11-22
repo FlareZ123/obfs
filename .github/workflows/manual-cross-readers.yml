@@ -46,6 +46,11 @@ jobs:
       # Red-first compatibility probe: new DOM serializations can observe
       # inline script text even where the current source guard may miss it.
       # This is an evidence branch, not a new release gate.
+      - name: Compare identical ESM graph under two DOM source-exposing hosts
+        if: ${{ matrix.os == 'ubuntu-latest' }}
+        env:
+          CHROMIUM_BIN: google-chrome
+        run: node sims/browser-dom-module-host-embedding-indistinguishability.js
       - name: Browser inline ESM import-graph DOM source-boundary parity
         if: ${{ matrix.os == 'ubuntu-latest' }}
         env:
