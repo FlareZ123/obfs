@@ -208,10 +208,12 @@ async function executeArm(arm,source,draws){
       });
     }
     const running=server;
-    await new Promise((resolve,reject)=>{
+    /** @type {Promise<void>} */
+    const listening=new Promise((resolve,reject)=>{
       running.once('error',reject);
       running.listen(0,'127.0.0.1',resolve);
     });
+    await listening;
     const address=running.address();
     assert.ok(address&&typeof address!=='string');
     const origin='http://127.0.0.1:'+address.port;
@@ -238,8 +240,10 @@ async function executeArm(arm,source,draws){
     assert.equal(privateExecutions,clone.queries);
     const model=/** @type {Model} */ (JSON.parse(JSON.stringify(clone.model)));
     const stopped=server;
-    await new Promise((resolve,reject)=>
+    /** @type {Promise<void>} */
+    const stoppedPromise=new Promise((resolve,reject)=>
       stopped.close(error=>error?reject(error):resolve()));
+    await stoppedPromise;
     server=undefined;
     let heldouts=0;
     for(let i=0;i<1024;i++){
@@ -262,8 +266,10 @@ async function executeArm(arm,source,draws){
   }finally{
     if(server){
       const remaining=server;
-      await new Promise((resolve,reject)=>
+      /** @type {Promise<void>} */
+      const cleaned=new Promise((resolve,reject)=>
         remaining.close(error=>error?reject(error):resolve()));
+      await cleaned;
     }
   }
 }
