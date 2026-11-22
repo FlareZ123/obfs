@@ -79,6 +79,33 @@ test('unrelated XML data and ordinary binary assets preserve transformation yiel
   }
 });
 
+test('XML prolog SRI in opaque names resolves encoded document path segments',()=>{
+  const original='globalThis.opaqueMimeCanary="a-plain-unique-string";';
+  const digest=createHash('sha256').update(original).digest('base64');
+  for(const directory of ['hash#inside','literal%2Finside','plus+inside','café']){
+    const documentPath='pages/'+directory+'/document.blob';
+    const pinned=xml('<h:script src="../client.js" integrity="sha256-'+digest+'"/>');
+    const unpinned=xml('<h:script src="../client.js"/>');
+    for(const mode of /** @type {Mode[]} */(['coo','sno','sco'])){
+      /** @param {Buffer} asset */
+      function compilePath(asset){
+        return obfuscateFiles([
+          {path:'pages/client.js',sourceType:/** @type {const} */('script'),code:original},
+          {path:documentPath,sourceType:/** @type {const} */('asset'),code:asset}
+        ],{mode,seed:'opaque-xml-reserved-url-'+mode,closedWorld:true,
+          strings:true,properties:false,identifiers:false});
+      }
+      const fixed=compilePath(pinned);
+      assert.equal(fixed.files[0].code,original,
+        mode+': local SRI survives literal reserved pathname '+directory);
+      assert.deepEqual(fixed.files[1].code,pinned);
+      const free=compilePath(unpinned);
+      assert.notEqual(free.files[0].code,original,
+        mode+': positive transformation without SRI '+directory);
+    }
+  }
+});
+
 test('SVG declaration remains covered by SVG-specific diagnostic and parser',()=>{
   const svg='<?xml version="1.0" encoding="UTF-16"?>'+
     '<svg xmlns="http://www.w3.org/2000/svg"/>';
