@@ -38,8 +38,6 @@ jobs:
         env:
           CHROMIUM_BIN: google-chrome
         run: node test/esm-public-source-browser.js
-      - name: Independent external ESM callable source observation matrix
-        run: node --test test/esm-public-source-reachability.test.js
       - name: CacheStorage browser source-byte observation counterfactual and admission
         if: ${{ matrix.os == 'ubuntu-latest' }}
         env:
@@ -51,3 +49,6 @@ jobs:
         run: npm run typecheck
       - name: Strict external proof and adversarial JSDoc
         run: npm run typecheck:external
+      - name: Independent external ESM callable source observation matrix
+        if: ${{ !cancelled() }}
+        run: node --test test/esm-public-source-reachability.test.js
