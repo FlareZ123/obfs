@@ -17,6 +17,12 @@ const CASES=[
     code:'function privateHelper(secretLocal){return secretLocal+Math.random();}const observedResult=privateHelper(17);'},
   {name:'top-level-commonjs',sourceType:'commonjs',
     code:'function privateHelper(secretLocal){return secretLocal+Math.random();}const observedResult=privateHelper(17);'},
+  {name:'block-const-arrow-script',sourceType:'script',
+    code:'let observedResult;{const privateHelper=(secretLocal)=>secretLocal+Math.random();observedResult=privateHelper(17);}'},
+  {name:'block-const-function-script',sourceType:'script',
+    code:'let observedResult;{const privateHelper=function privateHelper(secretLocal){return secretLocal+Math.random();};observedResult=privateHelper(17);}'},
+  {name:'block-const-arrow-commonjs',sourceType:'commonjs',
+    code:'let observedResult;{const privateHelper=(secretLocal)=>secretLocal+Math.random();observedResult=privateHelper(17);}'},
   {name:'simple-script',sourceType:'script',
     code:'const observedResult=(()=>{function privateHelper(secretLocal){return secretLocal+1;}return privateHelper(17);})();'},
   {name:'simple-commonjs',sourceType:'commonjs',
@@ -38,5 +44,5 @@ test('diagnostic matrix for private callable admission in classic script',()=>{
       renamed:!String(output.files[0].code).includes('secretLocal')});
   }
   process.stdout.write('CLASSIC_SCRIPT_CALLABLE_ADMISSION_MATRIX '+JSON.stringify(rows)+'\n');
-  assert.equal(rows.find(row=>row.name==='top-level-commonjs')?.bindings,1);
+  assert.equal(rows.find(row=>row.name==='top-level-commonjs')?.bindings,2);
 });
