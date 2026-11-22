@@ -5,7 +5,7 @@ const path = require('node:path');
 const http = require('node:http');
 const {isUtf8} = require('node:buffer');
 const {obfuscateFiles,createSnoLauncher,createScoHandler} = require('./index');
-const {atomicWrite} = require('./atomic');
+const {atomicWrite,withDirectoryLock} = require('./atomic');
 const {safePath} = require('./core');
 const {parse,walk}=require('./ast');
 
@@ -414,19 +414,23 @@ async function main(mode,argv) {
     if (entrySource.sourceType==='module') throw new Error('SNO entry must be CommonJS');
     launcher = createSnoLauncher(result.files,entry);
   }
-  // Resolve every intended output location before the first file write.
-  // A nested output symlink/junction can otherwise bypass the root-only
-  // outside-input check and silently overwrite original source files.
-  for(const file of result.files){
-    await assertNoOutputJunctions(absOut,file.path);
-    await assertOutputOutsideInput(absRoot,path.join(absOut,file.path));
-  }
-  if(launcher!==undefined){
-    await assertNoOutputJunctions(absOut,'sno-entry.cjs');
-    await assertOutputOutsideInput(absRoot,path.join(absOut,'sno-entry.cjs'));
-  }
-  for (const file of result.files) await atomicWrite(path.join(absOut,file.path),file.code);
-  if (launcher !== undefined) await atomicWrite(path.join(absOut,'sno-entry.cjs'),launcher);
+  // Cooperating builds publish each output tree under one exclusive lock,
+  // preventing concurrent compilers from interleaving distinct generations.
+  await withDirectoryLock(absOut,async()=>{
+    // Resolve every intended output location before the first file write.
+    // A nested output symlink/junction can otherwise bypass the root-only
+    // outside-input check and silently overwrite original source files.
+    for(const file of result.files){
+      await assertNoOutputJunctions(absOut,file.path);
+      await assertOutputOutsideInput(absRoot,path.join(absOut,file.path));
+    }
+    if(launcher!==undefined){
+      await assertNoOutputJunctions(absOut,'sno-entry.cjs');
+      await assertOutputOutsideInput(absRoot,path.join(absOut,'sno-entry.cjs'));
+    }
+    for (const file of result.files) await atomicWrite(path.join(absOut,file.path),file.code);
+    if (launcher !== undefined) await atomicWrite(path.join(absOut,'sno-entry.cjs'),launcher);
+  },{timeoutMs:120000});
   process.stdout.write(`Processed ${result.files.length} files; mode ${mode}; output ${absOut}\n`);
 }
 
