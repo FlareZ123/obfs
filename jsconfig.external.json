@@ -210,7 +210,9 @@
     "test/a2mba-rotated-core-heldout.test.js",
     "sims/a2mba-hybrid-opcode-classifier.js",
     "sims/a2mba-hybrid-opcode-heldout.js",
-    "test/a2mba-hybrid-opcode-heldout.test.js"
+    "test/a2mba-hybrid-opcode-heldout.test.js",
+    "test/html-sri-foreign-base-browser.js",
+    "test/html-sri-filename-browser.js"
   ],
   "exclude": [
     "node_modules"

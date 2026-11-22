@@ -4,7 +4,7 @@ const {createHash} = require('node:crypto');
 const path = require('node:path');
 const {isUtf8} = require('node:buffer');
 const {safePath} = require('./core');
-const {createPathInventory,registerFilePath} = require('./portable-paths');
+const {createPathInventory,registerFilePath,portableKeys} = require('./portable-paths');
 
 /**
  * SNO bootloader: one executable entry point; verifies all artifacts once,
@@ -36,7 +36,8 @@ function createSnoLauncher(files,entry) {
     snapshots.push({path:name,code:Buffer.isBuffer(supplied)?Buffer.from(supplied):supplied});
   }
   // Root launcher path cannot also be a protected input file.
-  if (snapshots.some(file => file.path.toLowerCase() === 'sno-entry.cjs')) {
+  const reservedKeys=new Set(portableKeys('sno-entry.cjs'));
+  if (snapshots.some(file => portableKeys(file.path.split('/',1)[0]).some(key=>reservedKeys.has(key)))) {
     throw new Error('SNO launcher path is reserved: sno-entry.cjs');
   }
   if (!snapshots.some(file => file.path === checkedEntry)) throw new Error(`Missing SNO entry ${entry}`);

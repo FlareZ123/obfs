@@ -23,7 +23,22 @@ The source-pinned [Chromium workflow 44972046950](https://github.com/FlareZ123/o
 {"compilerAccepted":true,"assetExtension":"blob","plainSourceVisible":true,"adjacentScriptTransformed":true,"browserExecuted":{"xhtml":true,"xml":true}}
 ```
 
-That workflow's final status was **failure due to unrelated external JSDoc errors** in `sims/jsimplifier-static-attacker.js`; the MIME witness itself completed and passed as intended. A later source-pinned run, with those already independently repaired JSDoc errors merged, is [44972289711](https://github.com/FlareZ123/obfs/actions/runs/44972289711) at `4bf4608a728c8b6deb730f719a9de0599f420c36`. Its final status must be checked before promotion.
+That workflow's final status was **failure due to unrelated external JSDoc errors** in `sims/jsimplifier-static-attacker.js`; the MIME witness itself completed and passed as intended. A later source-pinned [full Chromium run 44972289711](https://github.com/FlareZ123/obfs/actions/runs/44972289711) at `4bf4608a728c8b6deb730f719a9de0599f420c36` **completed success** after the unrelated type errors were fixed. Its witness still included an XML declaration.
+
+## Prolog-less independent negative control and integration
+
+A separate narrow guard [PR #255](https://github.com/FlareZ123/obfs/pull/255)
+now proposes recognizing a literal XML declaration even under unknown extensions.
+That signature cannot settle HTTP deployment MIME contracts, because XML
+declarations are optional. The witness removed its initial `<?xml ...?>`
+prolog to remain valid XML under the same two executable MIME types and to
+exclude overlap with this signature. The exact revised
+[Chromium workflow 44977253862](https://github.com/FlareZ123/obfs/actions/runs/44977253862)
+at `476b7042402e3f59b17e7c97096f04afc82c4d2b` completed
+**success**, and [PR #251](https://github.com/FlareZ123/obfs/pull/251)
+was squash-merged as `7788bdf2e85b2551cc97b1c9489e0c4b64c5877a`.
+This browser result establishes the gap independently of XML declaration
+recognition, under the explicit tested HTTP delivery semantics.
 
 ## What this establishes
 

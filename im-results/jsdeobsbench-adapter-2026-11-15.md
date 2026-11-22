@@ -130,3 +130,57 @@ The pinned upstream 1,301-program JSONL has **2,984 total official input/output 
 The harness has since been updated to derive a positive 31-bit per-file/per-case seed from SHA-256 of the pinned experiment seed, filename and case index. Both independent Node processes receive the same V8 --random-seed option before source execution. This changes the evaluation environment equally for original and transformed source, avoiding global monkeypatches and making Math.random() reproducible across the pair. Strict independent source/output SHA-256 checks remain required. New synthetic tests assert fixed-seed repeatability and seed differentiation.
 
 The rerun should re-establish the paired error counts. Other nondeterminism sources such as time, concurrent external state, OS scheduling and cryptographic entropy remain outside this one-control guarantee. A single matching seeded trajectory does not prove equivalence over every possible random stream.
+
+
+## Full official-case follow-up (2026-11-22)
+
+The earlier sections above document the historical 2,200-case subset and its 2,199 eligible baseline executions. The existing manual-only workflow was expanded from `--cases 2` to `--cases 6` (the pinned corpus maximum) without adding a new workflow. [Run 44976974874](https://github.com/FlareZ123/obfs/actions/runs/44976974874) completed successfully at source commit `bbf8aa29057f62ab706ecf7e17f009166eadd3b2`. It verified the same upstream JSONL Git blob and exercised all **2,984/2,984 official cases** across all **1,301/1,301 programs** in each lane.
+
+### Differential results
+
+| Lane / comparison | Cases attempted | Baseline pass | Baseline failure | Transformed matches | Mismatches | Errors | Median process ratio | P95 process ratio | Maximum process ratio |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| COO script: native vs compiled | 2,984 | 2,983 | 1 | 2,983 | 0 | 0 | 0.99787x | 1.03159x | 1.35127x |
+| SNO script: native vs recovered public code | 2,984 | 2,983 | 1 | 2,983 | 0 | 0 | 0.99750x | 1.03586x | 1.69782x |
+| SNO script: native vs compiled | 2,984 | 2,983 | 1 | 2,983 | 0 | 0 | 0.99760x | 1.08410x | 1.25603x |
+| SNO CommonJS: native vs recovered public code | 2,984 | 2,983 | 1 | 2,983 | 0 | 0 | 1.00015x | 1.03478x | 1.44575x |
+| SNO CommonJS: native vs compiled | 2,984 | 2,983 | 1 | 2,983 | 0 | 0 | 0.99950x | 1.03325x | 1.31908x |
+
+All five comparisons reported zero baseline/official disagreements, zero transformed mismatches, zero transformed errors, and zero samples over the 2.5x *process-level* threshold. The one excluded baseline failure is unchanged in every lane: `p02618_1`, case 0, fails in the original program with `ReferenceError: input is not defined`. It is not a transformation failure.
+
+**Timing limitation:** every ratio above measures the whole Node process, including process spawn and V8 startup. It is not a repeated hot-path compute measurement and cannot establish the prompt's 2.5x runtime budget.
+
+### Current transform coverage at the tested compiler revision
+
+| Measure | COO script | SNO script | SNO CommonJS |
+| --- | ---: | ---: | ---: |
+| Source UTF-8 bytes | 719,005 | 719,005 | 719,005 |
+| Output UTF-8 bytes | 722,612 | 750,117 | 750,117 |
+| Aggregate output/source ratio | 1.00502x | 1.04327x | 1.04327x |
+| Programs with binding rewrites | 53 | 53 | 53 |
+| Total binding rewrites | 135 | 135 | 135 |
+| Programs with private-property rewrites | 0 | 0 | 0 |
+| Private-property rewrites | 0 | 0 | 0 |
+| Programs with encoded string literals | 0 | 59 | 59 |
+| Encoded string literals | 0 | 134 | 134 |
+
+The pinned corpus audit still reports 1,301 valid unique programs, 2,984 cases (minimum 1, median 2, maximum 6), 1,211 stdin-oriented rows, 1,249 rows containing Node `require`, 168 non-ASCII sources, and 50 possible source observers. The corpus remains a single-file, algorithm-heavy compatibility population; it provides no positive evidence for private-property renaming because every lane records zero property rewrites.
+
+### Public-only SNO string-recovery result
+
+The isolated attacker received only the published source rows, public attacker code, its generic atomic-file helper, and Acorn's standalone parser files. The original programs, official test cases, compiler metrics, and compiler seed were not mounted in the attacker container. In both SNO grammars, the static source-only attacker recovered **134/134** compiler-reported encoded literal references across 59 programs, with zero unrecognized tables and zero incomplete references:
+
+| SNO grammar | Programs | Encoded tables | Encoded literals | Recovered literals | Static decode wall time | Per-program median | Per-program P95 |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| Script | 1,301 | 59 | 134 | 134 | 366.40 ms | 0.146 ms | 0.644 ms |
+| CommonJS | 1,301 | 59 | 134 | 134 | 456.54 ms | 0.211 ms | 0.910 ms |
+
+The recovered code then matched the native program on all 2,983 baseline-eligible official cases in both grammars. This is a bounded negative result for the current public XOR string encoder, not a general deobfuscation theorem.
+
+### Yield change versus the historical run
+
+The historical three-lane run `43704598450` at compiler commit `816e064ca5f085101ca73a759f3a67cd415a879c` reported 830/1,301 programs and 2,929 binding rewrites in COO and SNO script, and 842 programs / 3,118 rewrites in SNO CommonJS. The current revision reports 53 programs / 135 rewrites in every lane. This is a substantial cross-revision yield reduction, not a controlled ablation. The AST source-observer analysis and source-spelled-error operand guards have expanded since the historical run; their individual causal contribution has not been isolated. Agent13 requested review from the recent source-observer and identifier-guard contributors in `communications/agent7/` and `communications/agent8/`. Do not describe the change as a regression or intentional safety win until that comparison is reproduced and explained.
+
+## Interpretation
+
+The full official-case run materially strengthens compatibility coverage from 73.73% to 100% of the pinned published case set. It does not increase the corpus's value for multi-file property analysis, and it does not change the security conclusion: current string-table encoding is statically recoverable, property-renaming yield on this corpus is zero, and the process-level timing is not a hot-path budget proof.
