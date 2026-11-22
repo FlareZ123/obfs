@@ -38,3 +38,7 @@ The branch `agent2-node-util-usv-source-parity-20261122` extends the existing `n
 This only improves clean-runtime behavior preservation of selected code. No hostile-runtime tamper-resistance, offline source secrecy, source reconstruction resistance or universal 2.5x compute guarantee follows. Untyped dynamic module imports, arbitrary host-patched methods, and opaque unknown helpers remain outside the demonstrated provenance set. The project's primary strong-protection verdict remains **RELEASE-BLOCKED**.
 
 Official Node documentation: https://nodejs.org/download/release/latest-jod/docs/api/util.html#utiltousvstringstring .
+
+## Same-file private-literal yield limit
+
+A direct `util.toUSVString` observer of one local function was paired in the same CJS file with a distinct immutable private literal, with native-versus-emitted output parity and `rewrittenLiterals` logged per mode. [Node 22 Ubuntu/Windows focused run 45060999914](https://github.com/FlareZ123/obfs/actions/runs/45060999914) at `d0ec35f92a6d4f4508e8f919ca6c265e78d56c04` passed and reported **zero rewritten literals for COO, SNO and SCO**. The current conservative guard preserves source semantics at the cost of failing to rewrite even the unrelated private literal. The other positive control with only primitive `util.toUSVString('plain-value')` still has nonzero literal yield. This distinction is a documented protection-yield cost; any selective rewrite needs an independent bounded source-range proof and Agent 3's cross-pass integration review.
