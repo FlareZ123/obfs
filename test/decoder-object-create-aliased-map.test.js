@@ -118,7 +118,11 @@ const variants=[
     'const box=Object.create(null,descriptors);'],
   ['descriptor map returned by holder getter',
     'const holder={get descriptors(){return {ref:{get(){return TARGET.prototype}}}}};'+
-    'const box=Object.create(null,holder.descriptors);']
+    'const box=Object.create(null,holder.descriptors);'],
+  ['proxy-synthesized descriptor map',
+    'const holder=new Proxy({}, {get(_target,key){'+
+    'if(key==="descriptors")return {ref:{get(){return TARGET.prototype}}};'+
+    '}});const box=Object.create(null,holder.descriptors);']
 ];
 
 for(const [name,mutator] of variants) {
