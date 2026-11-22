@@ -129,8 +129,8 @@ function assertRestoration(node,normalizedName,shift,label){
 
 /**
  * Recover the exact affine translation, or fail closed for unproved code.
- * The promised grammar is the non-compact native polyvariant emitter, with
- * pure case-local arithmetic and one original input ToInt32 before dispatch.
+ * Covers both native masked-register and compact additive case emitters,
+ * with pure case-local arithmetic and one input ToInt32 before dispatch.
  * For the recognized grammar this is a symbolic proof, not sample fitting.
  *
  * @param {string} source
@@ -197,19 +197,30 @@ function recoverSymbolicAffine(source,name,sourceType='module'){
     if(outer.type!=='BlockStatement'||outer.body.length!==2)
       throw new TypeError('Unexpected case body');
     const slot=outer.body[0],inner=outer.body[1];
-    if(slot.type!=='VariableDeclaration'||slot.kind!=='const'||
-       slot.declarations.length!==1||
-       slot.declarations[0].id.type!=='Identifier'||
-       !slot.declarations[0].init||inner.type!=='BlockStatement')
-      throw new TypeError('Unproved branch-local state');
-    assertRestoration(slot.declarations[0].init,normalized,shift,label);
     /** @type {Map<string,Affine>} */
     const environment=new Map([[normalized,{
       factor:1,offset:0,bound:2147483648
-    }],[slot.declarations[0].id.name,{
-      factor:1,offset:0,bound:2147483648
     }]]);
-    const result=block(inner,environment);
+    /** @type {Affine|null} */
+    let result;
+    if(inner.type==='BlockStatement'){
+      // Non-compact native masking: prove the case-domain restoration
+      // before treating the narrow slot as the original normalized input.
+      if(slot.type!=='VariableDeclaration'||slot.kind!=='const'||
+         slot.declarations.length!==1||
+         slot.declarations[0].id.type!=='Identifier'||
+         !slot.declarations[0].init)
+        throw new TypeError('Unproved branch-local state');
+      assertRestoration(slot.declarations[0].init,normalized,shift,label);
+      environment.set(slot.declarations[0].id.name,{
+        factor:1,offset:0,bound:2147483648
+      });
+      result=block(inner,environment);
+    }else if(inner.type==='ReturnStatement'){
+      // Compact emitter: no narrowing slot, just a pure additive register
+      // plus the terminal normalized expression over the single input value.
+      result=block(outer,environment);
+    }else throw new TypeError('Unexpected case body');
     if(!result||result.factor!==1)
       throw new TypeError('Non-translation or missing return');
     offsets.add(result.offset);
