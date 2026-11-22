@@ -260,7 +260,9 @@
     "test/object-create-bound-count-memo-model.test.js",
     "test/decoder-object-create-member-read-alias.test.js",
     "test/decoder-object-create-default-entry-alias.test.js",
-    "test/decoder-object-create-array-entry-alias.test.js"
+    "test/decoder-object-create-array-entry-alias.test.js",
+    "test/commonjs-public-callable-source.test.js",
+    "test/esm-public-callable-source.test.js"
   ],
   "exclude": [
     "node_modules"
