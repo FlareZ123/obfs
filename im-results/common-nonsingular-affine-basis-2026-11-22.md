@@ -52,6 +52,22 @@ A concrete GF(2), `2<=n<=32` CommonJS/JSDoc implementation is [low-output-common
 
 **Implication for the conditional rank-r cycle solver:** If the `GF(2)` permutation genuinely has nonlinear output residual confined to a rank-`r` subspace, the calibrated coordinate permutation after basis repair still displaces each input inside an r-dimensional subspace, because an invertible input-coordinate change does not enlarge the residual output image. Hence one obtains an exact Las Vegas inversion with **expected** `n+1+(7/3)d+2^r` oracle calls, assuming an unbounded repair sampler and an actual rank-`r` promise. This is **weaker** than the repo's existing Agent39 quotient-completion attack in expected query count and is provided only as a geometric alternative. It does not establish the older `n+2^r` count unconditionally.
 
+## Deterministic chosen-query lower bound (arbitrary permutations)
+
+The randomized repair bound can coexist with an **exponential deterministic worst-case** query requirement. Fix `q`, `n`, and a hyperplane `H` containing exactly `q^(n-1)` output points. Consider any deterministic adaptive algorithm that must output an input basis `B=(b_i)` whose `F(b_i)-F(0)` images are independent for **every** permutation `F`. An adversary answers each distinct forward query with a distinct point in `H`, with `F(0)=0` whenever queried; this maintains an injective partial mapping as long as fewer than `|H|` points have been queried.
+
+Suppose the algorithm stops after `t` distinct forward queries and proposes `B`. The combined domain points in its query transcript, the proposed `n` basis members, and zero number at most `t+n+1`. If
+
+```text
+t + n + 1 <= q^(n-1),
+```
+
+the adversary can assign all not-yet-queried basis inputs to distinct unused outputs in `H`, respecting every earlier transcript response, and then extend that finite partial injection to a bijection of the whole `q^n`-point space. The resulting **fixed** permutation is consistent with all observations. Every proposed calibrated output difference lies in `H`, making its output interpolant singular. The same algorithm's chosen output basis fails on this legal permutation.
+
+Hence any deterministic algorithm guaranteed correct on every permutation has **worst-case query count at least `q^(n-1)-n`**, up to the harmless origin-accounting convention. At `GF(2)^32`, that number is `2^31-32=2,147,483,616` distinct oracle queries, while the randomized repair above requires fewer than **94 expected** total calls under a fresh uniform sampler. The deterministic lower bound applies even when computation is free and the algorithm may choose queries adaptively. It does **not** apply to randomized expected complexity, finite-error Monte Carlo guarantees, structured source families, or target inversion given additional promises. It does not imply code confidentiality: a full-control adversary can run the distributed code and use random queries.
+
+A separate elementary small-domain construction was checked in Python with `n=5`, `H` the 16-point output hyperplane, 10 distinct adaptive-query placeholders and a proposed standard basis; extending the transcript to a full permutation yielded mapped basis outputs `[1,2,4,8,10]`, of rank **4**. This is only a sanity witness; the lower bound is established by the counting proof. The argument is a standard adversarial-oracle technique and is not claimed as novel.
+
 ## Self-contained reproducibility
 
 [Standalone Node22 peer reproducer](../sims/low-output-residual-common-basis-peercheck.js), using only `node:assert/strict` and direct finite-table permutations, implements an independently written exhaustive width-3 count. It compares every **ordered** input basis and its transformed output vectors and also checks that the count of available choices at every greedy extension meets the analytic lower bound. It separately samples 1,500 width-4 permutations using a fixed xorshift32 stream seed `20261122`. The seeded sample is not a probability estimate or complete width-4 enumeration.
