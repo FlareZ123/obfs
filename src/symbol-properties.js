@@ -23,7 +23,7 @@ const {staticString}=require('./ast');
  *
  * @param {string} source
  * @param {AstNode} ast
- * @param {{seed:string}} options
+ * @param {{seed:string,preserveCallableSource?:boolean,sourceType?:'script'|'module'|'commonjs'}} options
  * @returns {{code:string,objects:number,properties:number}}
  */
 function symbolizeLocalProperties(source,ast,options) {
