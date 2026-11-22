@@ -28,7 +28,7 @@ const {canonicalAllowedHosts}=require('./hosts');
 /** @typedef {{path:string,code:string|Buffer,sourceType?:SourceType,privateModulePaths?:string[],privateOriginalDigests?:string[]}} SourceFile */
 /** @typedef {{path:string,code:string|Buffer,sourceType:SourceType,metrics:{literals:number,objects:number,properties:number,bindings:number,vmFunctions?:number,vmInstructions?:number,expressionVmFunctions?:number,expressionVmInstructions?:number,nativeGraphFunctions?:number,nativeGraphInstructions?:number,branchFunctions?:number,branchBlocks?:number,statementFlowFunctions?:number,statementFlowBlocks?:number,polyvariantFunctions?:number,polyvariantPaths?:number,polyvariantSteps?:number,wasmI32Functions?:number,wasmI32Instructions?:number,wasmI32Bytes?:number,symbolKeys?:number}}} OutputFile */
 /**
- * @typedef {{mode?:ObfuscationMode,seed?:string,strings?:boolean,properties?:boolean,identifiers?:boolean,minimumStringLength?:number,experimentalFixedArityStrings?:boolean,allowedHosts?:string[],closedWorld?:boolean,experimentalRegisterVm?:Record<string,string[]>,experimentalExpressionVm?:Record<string,string[]>,experimentalNativeGraph?:Record<string,string[]>,experimentalBranchBlocks?:Record<string,string[]>,experimentalBranchStateBlinding?:boolean,experimentalStatementFlow?:Record<string,string[]>,experimentalStatementFlowCompact?:boolean,experimentalPolyvariantAffine?:Record<string,string[]>,experimentalPolyvariantCount?:2|4|8,experimentalPolyvariantCompact?:boolean,experimentalWasmI32?:Record<string,string[]>,experimentalSymbolKeys?:boolean,experimentalSourceObserverIslands?:string[],reviewedOpaqueAssets?:import('./reviewed-assets').ReviewedOpaqueAsset[]}} ObfuscationOptions
+ * @typedef {{mode?:ObfuscationMode,seed?:string,strings?:boolean,properties?:boolean,identifiers?:boolean,minimumStringLength?:number,preservePublicCallableSource?:boolean,experimentalFixedArityStrings?:boolean,allowedHosts?:string[],closedWorld?:boolean,experimentalRegisterVm?:Record<string,string[]>,experimentalExpressionVm?:Record<string,string[]>,experimentalNativeGraph?:Record<string,string[]>,experimentalBranchBlocks?:Record<string,string[]>,experimentalBranchStateBlinding?:boolean,experimentalStatementFlow?:Record<string,string[]>,experimentalStatementFlowCompact?:boolean,experimentalPolyvariantAffine?:Record<string,string[]>,experimentalPolyvariantCount?:2|4|8,experimentalPolyvariantCompact?:boolean,experimentalWasmI32?:Record<string,string[]>,experimentalSymbolKeys?:boolean,experimentalSourceObserverIslands?:string[],reviewedOpaqueAssets?:import('./reviewed-assets').ReviewedOpaqueAsset[]}} ObfuscationOptions
  */
 
 /**
@@ -2720,7 +2720,7 @@ function obfuscateFiles(files, options = {}) {
     throw new TypeError('Host locking cannot preserve observable source bytes');
   }
   const cross = !remoteSourceObserver && options.closedWorld && options.properties !== false ?
-    renameCrossFileProperties(prepared,seed) : {files:prepared,objects:0,properties:0};
+    renameCrossFileProperties(prepared,seed,{preserveCallableSource:options.preservePublicCallableSource===true}) : {files:prepared,objects:0,properties:0};
   const shouldEncodeStrings=!remoteSourceObserver &&
     (options.strings === true || (options.strings === undefined && mode === 'sno'));
   /** @type {Set<string>} */
@@ -2764,8 +2764,10 @@ function obfuscateFiles(files, options = {}) {
     let ast = parse(code,sourceType);
     const salt = createHash('sha256').update(`${seed}/${filename}`).digest('hex');
     const lexicalBindings=collectBindings(ast);
-    const privateDirectCallables=collectPrivateDirectCallables(ast,lexicalBindings);
-    const sourceExposedBodies=collectSourceExposedBodies(ast,lexicalBindings);
+    const privateDirectCallables=options.preservePublicCallableSource===true ?
+      collectPrivateDirectCallables(ast,lexicalBindings) : new Set();
+    const sourceExposedBodies=options.preservePublicCallableSource===true ?
+      collectSourceExposedBodies(ast,lexicalBindings) : new Set();
     /** @type {Set<import('./ast').AstNode>} */
     const unsafePrivateTargets=new Set();
     walk(ast,(node,parent,key,ancestors)=>{
@@ -2787,6 +2789,7 @@ function obfuscateFiles(files, options = {}) {
      * @returns {string[]}
      */
     function sourceSafeTargets(names,label) {
+      if(options.preservePublicCallableSource!==true)return names;
       const unsafe=names.filter(name=>!privateDirectFunctionNames.has(name));
       if(unsafe.length)throw new TypeError(label+
         ' cannot transform source-exposed callable(s): '+unsafe.join(', '));
@@ -2940,8 +2943,8 @@ function obfuscateFiles(files, options = {}) {
     if ((!remoteSourceObserver || sourceObserverIslands.has(filename)) &&
         options.properties !== false && sourceType !== 'script') {
       const modified = options.experimentalSymbolKeys === true ?
-        symbolizeLocalProperties(code,ast,{seed:salt}) :
-        renameLocalProperties(code,ast,{seed:salt});
+        symbolizeLocalProperties(code,ast,{seed:salt,preserveCallableSource:options.preservePublicCallableSource===true}) :
+        renameLocalProperties(code,ast,{seed:salt,preserveCallableSource:options.preservePublicCallableSource===true});
       code = modified.code;
       objects = modified.objects;
       properties = modified.properties;
@@ -2950,7 +2953,7 @@ function obfuscateFiles(files, options = {}) {
     }
     let bindings=0;
     if(!remoteSourceObserver && options.identifiers!==false) {
-      const renamed=renameLocalIdentifiers(code,ast,{seed:salt,sourceType});
+      const renamed=renameLocalIdentifiers(code,ast,{seed:salt,sourceType,preserveCallableSource:options.preservePublicCallableSource===true});
       code=renamed.code;
       bindings=renamed.bindings;
       ast=parse(code,sourceType);
@@ -2959,7 +2962,7 @@ function obfuscateFiles(files, options = {}) {
     // Startup decoding counts toward SCO/COO client runtime. These modes
     // require explicit opt-in for eager string encoding; SNO can amortize init.
     if (shouldEncodeStrings && !unsafeDecoderIntrinsic) {
-      const modified = encodeStrings(code,ast,{seed:salt,minimumLength:options.minimumStringLength,reservedNames,reservedSources,fixedArity:options.experimentalFixedArityStrings===true});
+      const modified = encodeStrings(code,ast,{seed:salt,minimumLength:options.minimumStringLength,reservedNames,reservedSources,fixedArity:options.experimentalFixedArityStrings===true,preserveCallableSource:options.preservePublicCallableSource===true});
       code = modified.code;
       literals = modified.count;
       ast = parse(code,sourceType);
