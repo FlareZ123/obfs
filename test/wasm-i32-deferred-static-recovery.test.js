@@ -31,7 +31,8 @@ function randomI32() {
 test('public-only Wasm bytecode reconstruction still clones deferred CommonJS output',()=>{
   const originalSource='function first(a,b){return ((a^b)&255);}\n'+
     'function second(x){return x?((x^17)&255):((~x)|7);}\n'+
-    'module.exports={first,second};';
+    'function publicFirst(a,b){return first(a,b);}function publicSecond(x){return second(x);}'+
+    'module.exports={first:publicFirst,second:publicSecond};';
   const original=load(originalSource);
   let reconstructed=0,checks=0;
   for(let seed=0;seed<16;seed++) {
