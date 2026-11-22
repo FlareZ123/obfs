@@ -78,6 +78,17 @@ const fixtures=[
       'Function.prototype.toString.call(fn),fn(3)]));'
   },
   {
+    name:'shadowed Promise parameter keeps unknown callback source observable',
+    files:[{path:'private.mjs',sourceType:'module',code:
+      'function hidden(secretParam){return secretParam+11;}'+
+      'export function run(Promise){return Promise.resolve(1).then(()=>hidden);}'}],
+    observer:'import {run} from "./private.mjs";'+
+      'const PromiseLike={resolve(){return {then(callback){return callback();}};}};'+
+      'const fn=run(PromiseLike);'+
+      'console.log(JSON.stringify([Function.prototype.toString.call(run),'+
+      'Function.prototype.toString.call(fn),fn(3)]));'
+  },
+  {
     name:'async factory result publishes a private callable',
     files:[{path:'private.mjs',sourceType:'module',code:
       'function hidden(secretParam){return secretParam+8;}'+
