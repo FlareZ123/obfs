@@ -248,3 +248,28 @@ test('switch discriminant can use a proved outer lexical binding',async()=>{
   assert.equal(await vm.runInNewContext('"use strict";(async function(){'+
     body+'})()',{}),11);
 });
+
+test('SCO selected export admits function var hoists within audited static ESM import',()=>{
+  for(const [name,body] of [
+    ['if-block','if(false){var v=1;}return v;'],
+    ['switch-case','switch(0){case 1:var v=3;}return v;'],
+    ['for-loop','for(var v=0;v<3;v++){}return v;'],
+    ['try-catch','try{throw 1;}catch(e){var v=7;}return v;']
+  ]){
+    const result=partitionScoSelectedAsyncExports({
+      path:'mixed.mjs',sourceType:'module',
+      code:'import {compute} from "./private/engine.mjs";'+
+        'export async function protectedOp(){return compute();}'+
+        'export function visible(){return 7;}'
+    },{
+      seed:'sco-var-hoist-audited-20261122',
+      privateNames:['protectedOp'],
+      privateModuleImports:['./private/engine.mjs'],
+      privateModuleSources:[{
+        path:'private/engine.mjs',
+        code:'export function compute(){'+body+'}'
+      }]
+    });
+    assert.deepEqual(result.privateNames,['protectedOp'],name);
+  }
+});
