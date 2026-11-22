@@ -32,6 +32,11 @@ jobs:
         env:
           CHROMIUM_BIN: /usr/bin/google-chrome
         run: node test/cross-file-primitive-const-browser.js
+      - name: Real Chromium nonthrowing unary BigInt owner and reflection parity
+        if: ${{ matrix.os == 'ubuntu-latest' }}
+        env:
+          CHROMIUM_BIN: /usr/bin/google-chrome
+        run: node test/bigint-unary-owner-browser.js
       - name: Real Chromium immutable import alias and reflection refusal
         if: ${{ matrix.os == 'ubuntu-latest' }}
         env:
