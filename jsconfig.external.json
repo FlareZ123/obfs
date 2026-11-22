@@ -1,6 +1,8 @@
 {
   "extends": "./jsconfig.json",
   "include": [
+    "sims/public-instance-allpass-source-probe.js",
+    "test/public-instance-allpass-source.test.js",
     "test/private-direct-class-structured-fuzz.test.js",
     "test/private-class-browser-positive.js",
     "test/cjs-wrapper-source-observer.test.js",
