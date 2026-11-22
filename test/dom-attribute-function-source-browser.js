@@ -19,7 +19,9 @@ function source(primitive) {
     'export function observe(){',
     'const element=document.createElement("div");',
     'element.setAttribute("data-observed","literal");',
-    'return {text:element.getAttribute("data-observed"),value};',
+    'element.setAttributeNS(null,"data-observed-ns","literal");',
+    'return {text:element.getAttribute("data-observed"),',
+    'nsText:element.getAttribute("data-observed-ns"),value};',
     '}'
   ].join('\n');
   return [
@@ -27,7 +29,9 @@ function source(primitive) {
     'function inspect(){const state={secretField:31};return state.secretField;}',
     'const element=document.createElement("div");',
     'element.setAttribute("data-observed",inspect);',
-    'return {text:element.getAttribute("data-observed"),value:inspect()};',
+    'element.setAttributeNS(null,"data-observed-ns",inspect);',
+    'return {text:element.getAttribute("data-observed"),',
+    'nsText:element.getAttribute("data-observed-ns"),value:inspect()};',
     '}'
   ].join('\n');
 }
@@ -65,8 +69,9 @@ async function main() {
     'const a=an.observe(),b=bn.observe(),c=ap.observe(),d=bp.observe();',
     'if(JSON.stringify(a)!==JSON.stringify(b)||JSON.stringify(c)!==JSON.stringify(d))',
     'throw Error("setAttribute DOMString parity mismatch "+JSON.stringify({a,b,c,d}));',
-    'if(!a.text.includes("secretField")||a.value!==31||',
-    'c.text!=="literal"||c.value!==31)',
+    'if(!a.text.includes("secretField")||',
+    '!a.nsText.includes("secretField")||a.value!==31||',
+    'c.text!=="literal"||c.nsText!=="literal"||c.value!==31)',
     'throw Error("Browser witness invalid: "+JSON.stringify({a,c}));',
     'document.getElementById("result").textContent="PASS setAttribute DOMString";',
     '}catch(error){document.getElementById("result").textContent=',
