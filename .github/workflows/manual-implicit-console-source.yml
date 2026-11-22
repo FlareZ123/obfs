@@ -42,6 +42,9 @@ jobs:
         env:
           CHROMIUM_BIN: google-chrome
         run: node test/sco-exported-instance-http-source-browser.js
+      - name: Peer review private direct-class positive property yield
+        if: ${{ !cancelled() }}
+        run: node --test test/private-class-source-yield.test.js
       - name: Validate strict project JSDoc
         if: ${{ !cancelled() }}
         run: npm run typecheck
