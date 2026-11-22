@@ -285,3 +285,35 @@ test('SCO closed-world cross-file property pass preserves an SRI-pinned ESM entr
       server.close(error=>error?reject(error):resolve(undefined)));
   }
 });
+
+test('SRI source commitment rejects a byte-changing host guard in both publishers',()=>{
+  const script='globalThis.hostGuardPin="an external script integrity commitment";';
+  const integrity=require('node:crypto').createHash('sha256').update(script).digest('base64');
+  const sources=[
+    {path:'client.js',sourceType:/** @type {const} */('script'),code:script},
+    {path:'index.html',sourceType:/** @type {const} */('asset'),code:Buffer.from(
+      '<script src="./client.js" integrity="sha256-'+integrity+'"></script>')}
+  ];
+  assert.throws(()=>obfuscateFiles(sources,{
+    mode:'coo',seed:'sri-host-guard-refusal',allowedHosts:['allowed.example'],
+    strings:false,identifiers:false,properties:false
+  }),/Host locking cannot preserve observable source bytes/u);
+  assert.throws(()=>createScoHandler(sources,{
+    allowedHosts:['allowed.example']
+  }),/Host locking cannot preserve observable source bytes/u);
+});
+
+test('ordinary local script without SRI retains explicit string obfuscation',()=>{
+  const source='globalThis.sriOutput="an unchanged source-boundary canary string";';
+  const files=[
+    {path:'client.js',sourceType:/** @type {const} */('script'),code:source},
+    {path:'index.html',sourceType:/** @type {const} */('asset'),code:Buffer.from(
+      '<script src="./client.js"></script>')}
+  ];
+  const compiled=obfuscateFiles(files,{
+    mode:'coo',seed:'no-integrity-positive',strings:true,
+    properties:false,identifiers:false
+  });
+  assert.notEqual(compiled.files[0].code,source);
+  assert.ok(compiled.files[0].metrics.literals>0);
+});
