@@ -43,7 +43,7 @@ function mixedGraph() {
       `Reflect.get(${record},'${key}')`,
       `Object.keys(${record}).join('|')`,
       `Object.hasOwn(${record},'${key}')`,
-      `(()=>{const k='${key}';return ${record}[k];})()`,
+      `(()=>{const k${i}='${key}';return ${record}[k${i}];})()`,
       `Object.getOwnPropertyDescriptor(${record},'${key}')?.value`,
       `JSON.stringify(${record})`,
       `Object.entries(${record}).map(p=>p.join(':')).join('|')`,
@@ -53,7 +53,7 @@ function mixedGraph() {
       `(()=>{const receiver=Object.create(${record});return receiver.${key};})()`,
       `(()=>{const clone={...${record}};return clone.${key};})()`,
       `(()=>{const copy=Object.assign({},${record});return Object.keys(copy).join('|');})()`,
-      `(()=>{const proxy=new Proxy(${record},{get(t,k,r){return String(k)+':'+Reflect.get(t,k,r)}});return proxy.${key};})()`
+      `(()=>{const proxy=new Proxy(${record},{get(t,k){return k+':'+t.${key};}});return proxy.${key};})()`
     ][i%16];
     observations.push(read);
   }
@@ -126,4 +126,22 @@ test('mixed-graph refusal does not disable independent safe ESM field rewrites',
   assert.ok(compiled.crossFile.properties>=1,
     'Positive control must actually transform at least one proven property');
   assert.deepEqual(await execute(compiled.files),await execute(originals));
+});
+
+
+test('opaque Proxy dynamic Reflect.get is conservatively refused in a closed graph',async()=>{
+  /** @type {ModuleFile[]} */
+  const originals=[
+    {path:'state.mjs',sourceType:'module',
+      code:'export const state={secretField:42};'},
+    {path:'entry.mjs',sourceType:'module',
+      code:"import {state} from './state.mjs';const proxy=new Proxy(state,{get(t,k,r){return String(k)+':'+Reflect.get(t,k,r)}});console.log(proxy.secretField);"}
+  ];
+  const transformed=obfuscateFiles(originals,{
+    mode:'coo',closedWorld:true,seed:'crossfile-dynamic-proxy-negative',
+    identifiers:false,strings:false,properties:true
+  });
+  assert.equal(transformed.crossFile.properties,0,
+    'An unproved dynamic native property read must preserve original key names');
+  assert.deepEqual(await execute(transformed.files),await execute(originals));
 });
