@@ -68,3 +68,19 @@ test('a real nonlinear target rejects an under-validated affine mask',()=>{
     invertLinearSandwich(sample.oracle,sample.target,sample.attackSeed,
       {validationTrials:128}).value,sample.secret);
 });
+
+
+test('default defect samples match explicit 32 and reject invalid counts',()=>{
+  const oracle=x=>x>>>0;
+  const target=0x4ea0376d;
+  const implicit=invertLinearSandwich(oracle,target,0x40aabb11,
+    {validationTrials:8});
+  const explicit=invertLinearSandwich(oracle,target,0x40aabb11,
+    {validationTrials:8,defectSamples:32});
+  assert.deepEqual(implicit,explicit);
+  for(const count of [0,-1,33,2.5,NaN,Infinity,'8']){
+    assert.throws(()=>invertLinearSandwich(oracle,target,0x40aabb11,
+      {validationTrials:8,defectSamples:/** @type {number} */(count)}),
+    /defectSamples/);
+  }
+});
