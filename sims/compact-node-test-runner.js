@@ -20,6 +20,7 @@ async function main() {
   const child=spawn(process.execPath,['--test','--test-reporter=tap',...tests],{
     stdio:['ignore','pipe','inherit'],windowsHide:true
   });
+  /** @type {Promise<number>} */
   const completed=new Promise((resolve,reject)=>{
     child.once('error',reject);
     child.once('close',(code,signal)=>resolve(code??1));
