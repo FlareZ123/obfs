@@ -65,8 +65,13 @@ document loads an external `bootstrap.mjs` with
 The bootstrap installs the same bind interception before dynamically
 importing `entry.mjs`. It reports actual Chromium results using an HTML
 data element, without bypassing CSP, changing the emitted program, or using
-DevTools/CDP extraction. The browser-specific observation should be promoted
-to confirmed only after source-pinned Chromium workflow completion.
+DevTools/CDP extraction. The [real Chromium workflow 44999347098](https://github.com/FlareZ123/obfs/actions/runs/44999347098)
+completed successfully at exact SHA `f6d03db4bdd39f5ef27e9c443d7f2baddf6864bd`.
+The dedicated step passed and emitted
+`BOUND_RUNTIME_BROWSER_INTERCEPTION {"browser":"Chromium","protectedKeys":2,"capturedFunctions":1}`.
+This is an actual Chromium ESM/import/CSP execution result, rather than a
+Node-only proxy. The later strict-JSDoc inclusion of this browser file
+was made in a separate commit and is validated independently.
 
 ## Limits and implications
 
