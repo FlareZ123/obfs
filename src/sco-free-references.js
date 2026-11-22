@@ -54,9 +54,10 @@ function statementDeclares(statement,name){
  * additional sources rather than inferring an unproved binding.
  * @param {AstNode} scope
  * @param {string} name
+ * @param {AstNode} reference The reference being resolved
  * @returns {boolean}
  */
-function scopeDeclares(scope,name){
+function scopeDeclares(scope,name,reference){
   if(['FunctionDeclaration','FunctionExpression','ArrowFunctionExpression']
     .includes(scope.type)){
     if(scope.id?.type==='Identifier'&&scope.id.name===name)return true;
@@ -72,6 +73,11 @@ function scopeDeclares(scope,name){
     return declaration?.type==='VariableDeclaration'&&
       statementDeclares(declaration,name);
   }
+  // The discriminant evaluates in the enclosing lexical environment. The
+  // case block environment is created only after that evaluation completes.
+  if(scope.type==='SwitchStatement' &&
+     reference.start>=scope.discriminant.start &&
+     reference.end<=scope.discriminant.end)return false;
   if(scope.type==='SwitchStatement')return scope.cases.some(
     (/** @type {AstNode} */ item)=>item.consequent.some(
       (/** @type {AstNode} */ statement)=>statementDeclares(statement,name)));
@@ -170,7 +176,7 @@ function firstUnprovedFreeReference(root,moduleBindings,rootFormals,realmGlobals
       ancestors.some(scope=>scope.type==='FunctionDeclaration'||
         scope.type==='FunctionExpression')))return;
     const name=node.name;
-    if(rootFormals.has(name)||ancestors.some(scope=>scopeDeclares(scope,name))||
+    if(rootFormals.has(name)||ancestors.some(scope=>scopeDeclares(scope,name,node))||
       moduleBindings.has(name)||realmGlobals.has(name))return;
     unproved=name;
   });
