@@ -854,6 +854,19 @@ function realmStateObservation(body,checkHostConfiguration=false){
     return member.type==='MemberExpression'&&rootedInIntrinsic(member.object);
   }
   walk(body,(node,parent,key,ancestors)=>{
+    // Extracted host abort methods can later be invoked via .call/.apply,
+    // a local alias, or an opaque callback. Unlike a proven direct call with
+    // a primitive reason, their eventual default-reason behavior is unproved.
+    if(node.type==='MemberExpression'&&keyName(node)==='abort'&&
+       !(parent?.type==='CallExpression'&&parent.callee===node)){
+      const receiver=node.object;
+      if(isAbortConstructor(receiver,abortSignalConstructors)||
+         receiver.type==='Identifier'&&abortControllers.has(receiver.name)||
+         receiver.type==='NewExpression'&&
+         isAbortConstructor(receiver.callee,abortControllerConstructors)){
+        stackTouched=true;
+      }
+    }
     // Both AbortController#abort and AbortSignal.abort can synthesize a
     // source-location-bearing DOMException when no proven defined reason is
     // supplied. Unknown argument expressions may evaluate to undefined.
