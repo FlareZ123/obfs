@@ -1926,6 +1926,45 @@ function safeClosedCallerRecordRead(modules,module,member,ancestors) {
 }
 
 /**
+ * Record only uniquely bound, source-ordered module-local immutable primitive
+ * constants. An imported value, potentially effectful initializer, inner
+ * lexical binding or later TDZ read remains outside this proof.
+ * @param {AstNode} ast
+ * @param {Map<string,number>} bindings
+ * @returns {Map<string,number>}
+ */
+function topLevelPrimitiveValues(ast,bindings) {
+  /** @type {Map<string,number>} */
+  const values=new Map();
+  for(const statement of ast.body) {
+    const declaration=statement.type==='VariableDeclaration' ? statement :
+      statement.type==='ExportNamedDeclaration' && !statement.source ?
+        statement.declaration : null;
+    if(declaration?.type!=='VariableDeclaration'||declaration.kind!=='const')continue;
+    for(const item of declaration.declarations) {
+      if(item.id.type!=='Identifier'||!item.init||
+          bindings.get(item.id.name)!==1||
+          !isPrimitiveConstantExpression(item.init))continue;
+      values.set(item.id.name,item.end);
+    }
+  }
+  return values;
+}
+
+/**
+ * @param {AstNode} value
+ * @param {number} ownerStart
+ * @param {Map<string,number>} primitives
+ * @returns {boolean}
+ */
+function isInertEarlierValue(value,ownerStart,primitives) {
+  if(isLiteralValue(value))return true;
+  if(value.type!=='Identifier')return false;
+  const initializedAt=primitives.get(value.name);
+  return initializedAt!==undefined && initializedAt<ownerStart;
+}
+
+/**
  * Across an explicit closed-world set of ESM modules, rename properties of
  * direct named exported const-object literals and all proven import aliases.
  * Reject reexports, reflection, dynamic import and unproven uses rather than
@@ -2337,6 +2376,7 @@ function renameCrossFileProperties(files,seed) {
   let objects=0;
   let properties=0;
   for(const [exporterName,exporter] of modules) {
+    const primitiveValues=topLevelPrimitiveValues(exporter.ast,exporter.bindings);
     for(const declaration of exporter.ast.body) {
       if (declaration.type !== 'ExportNamedDeclaration' || declaration.source ||
           declaration.declaration?.type !== 'VariableDeclaration' || declaration.declaration.kind!=='const') continue;
@@ -2349,7 +2389,7 @@ function renameCrossFileProperties(files,seed) {
         /** @type {AstNode[]} */
         const props=literal.properties;
         if (!props.length || props.some(p => p.type!=='Property' || p.method || p.shorthand ||
-              p.kind!=='init' || !isLiteralValue(p.value) || !ownPropertyName(p) ||
+              p.kind!=='init' || !isInertEarlierValue(p.value,decl.start,primitiveValues) || !ownPropertyName(p) ||
               ['__proto__','constructor','prototype'].includes(String(ownPropertyName(p))))) continue;
         const names=props.map(ownPropertyName);
         if (new Set(names).size!==names.length) continue;
@@ -2628,6 +2668,7 @@ function renameCrossFileProperties(files,seed) {
   // imports and source reexports are declined because they create additional
   // access paths to the default value that this narrow lane does not rewrite.
   for(const [exporterName,exporter] of modules) {
+    const primitiveValues=topLevelPrimitiveValues(exporter.ast,exporter.bindings);
     const defaults=exporter.ast.body.filter((/** @type {AstNode} */ statement)=>
       statement.type==='ExportDefaultDeclaration');
     if(defaults.length!==1)continue;
@@ -2640,7 +2681,7 @@ function renameCrossFileProperties(files,seed) {
     const props=literal.properties;
     if(!props.length || props.some(prop=>
       prop.type!=='Property' || prop.method || prop.shorthand ||
-      prop.kind!=='init' || !isLiteralValue(prop.value) ||
+      prop.kind!=='init' || !isInertEarlierValue(prop.value,declaration.start,primitiveValues) ||
       !ownPropertyName(prop) ||
       ['__proto__','constructor','prototype'].includes(String(ownPropertyName(prop)))))continue;
     const names=props.map(ownPropertyName);

@@ -25,6 +25,13 @@ jobs:
         run: |
           npm run typecheck
           npx tsc -p jsconfig.cross-identity.json
+      - name: Source-ordered primitive const-value ESM owner and unsafe refusal tests
+        run: node --test test/cross-file-primitive-const-value.test.js
+      - name: Real Chromium primitive const-value owners versus ordinary minification
+        if: ${{ matrix.os == 'ubuntu-latest' }}
+        env:
+          CHROMIUM_BIN: /usr/bin/google-chrome
+        run: node test/cross-file-primitive-const-browser.js
       - name: Real Chromium immutable import alias and reflection refusal
         if: ${{ matrix.os == 'ubuntu-latest' }}
         env:
