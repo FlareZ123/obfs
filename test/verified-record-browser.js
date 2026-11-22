@@ -80,11 +80,11 @@ async function main(){
     'const ownChanged=cases.map(([seed,count])=>ownCompiled.evaluate(seed,count));',
     'const nullRaw=cases.map(([seed,count])=>nullNative.evaluate(seed,count));',
     'const nullChanged=cases.map(([seed,count])=>nullCompiled.evaluate(seed,count));',
-    'const missingTypes=[typeof nullRaw[0].missing.value,',
-    '  typeof nullChanged[0].missing.value];',
+    'const missingValues=[nullRaw[0].missing.value,',
+    '  nullChanged[0].missing.value];',
     'const pre=document.createElement("pre");',
     'pre.id="result";pre.textContent=btoa(JSON.stringify({',
-    '  ownRaw,ownChanged,nullRaw,nullChanged,missingTypes',
+    '  ownRaw,ownChanged,nullRaw,nullChanged,missingValues',
     '}));document.body.append(pre);',
     '} catch(error) {',
     'const pre=document.createElement("pre");pre.id="failure";',
@@ -140,12 +140,12 @@ async function main(){
       'Real Chromium must preserve own-key-only ESM app outputs exactly');
     assert.deepEqual(result.nullChanged,result.nullRaw,
       'Real Chromium must preserve null-prototype ESM app outputs exactly');
-    assert.deepEqual(result.missingTypes,['undefined','undefined'],
+    assert.deepEqual(result.missingValues,['<missing>','<missing>'],
       'Host Function injected on Object.prototype must not reach a null-prototype record');
     process.stdout.write('VERIFIED_RECORD_CHROMIUM '+JSON.stringify({
       cases:CASES.length,renamedPrivateFields:ownCompiled.crossFile.properties,
       nullPrototypePrivateFieldsRenamed:nullCompiled.crossFile.properties,
-      nullPrototypeMissingKeyWithHostFunction:'undefined',
+      nullPrototypeMissingKeyWithHostFunction:'<missing>',
       privateSourcePubliclyFetchable:true,allOutputsMatch:true,
       originalGraphFiles:ownNative.length,emittedGraphFiles:ownCompiled.files.length,
       distinctSourceVariants:2
