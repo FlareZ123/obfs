@@ -19,6 +19,7 @@ const independent={path:'independent.mjs',sourceType:'module',
 /** @type {SourceFile} */
 const another={path:'another.mjs',sourceType:'module',
   code:'const recordC={privateC:43};const valueC=recordC.privateC;export function third(){return valueC;}'};
+/** @type {SourceFile} */
 const entry={path:'entry.mjs',sourceType:'module',code:
   'import {watched} from "./watched.mjs";import {unrelated} from "./independent.mjs";'+
   'import {third} from "./another.mjs";console.log(JSON.stringify({source:watched.toString(),a:unrelated(),b:third()}));'};
@@ -53,6 +54,7 @@ async function execute(files,scriptPath,script) {
 
 for(const mode of /** @type {const} */ (['coo','sco','sno'])) {
   test('primitive-leaf island preserves externally observed exported callable source: '+mode,async()=>{
+    /** @type {SourceFile[]} */
     const originals=[watched,independent,another,entry];
     const options={mode,closedWorld:true,seed:'external-island-source-'+mode,strings:false,identifiers:false};
     const result=obfuscateFiles(originals,{
