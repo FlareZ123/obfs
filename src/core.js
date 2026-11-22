@@ -167,6 +167,40 @@ function staticallyImportedEsmTargets(files) {
 }
 
 /**
+ * A dynamic module can execute code outside the supplied graph before a
+ * later module initializes its ambient String decoder. Admit only literal,
+ * unadorned relative imports that resolve to supplied JavaScript sources.
+ * Unproved URL imports, computed imports, and import options require a
+ * conservative group-wide decoder refusal.
+ *
+ * @param {import('./ast').AstNode} ast
+ * @param {string} filename
+ * @param {Set<string>} knownJavaScript
+ * @returns {boolean}
+ */
+function hasUnprovedDynamicImport(ast,filename,knownJavaScript) {
+  let unproved=false;
+  walk(ast,node=>{
+    if(node.type!=='ImportExpression')return;
+    const source=node.source;
+    if(node.options||source.type!=='Literal'||typeof source.value!=='string') {
+      unproved=true;
+      return;
+    }
+    const specifier=source.value;
+    if((!specifier.startsWith('./')&&!specifier.startsWith('../'))||
+       /[?#%\\]/u.test(specifier)) {
+      unproved=true;
+      return;
+    }
+    const target=path.posix.normalize(
+      path.posix.join(path.posix.dirname(filename),specifier));
+    if(!knownJavaScript.has(target))unproved=true;
+  });
+  return unproved;
+}
+
+/**
  * Detect direct writes that can replace String decoder methods or the Array
  * iterator consumed by chunked string spread. An imported ESM dependency executes before this file's
  * decoder, so a write anywhere in the supplied file group must disable that
@@ -1978,6 +2012,7 @@ function obfuscateFiles(files, options = {}) {
       reservedSources.push(input.code);
       if (mutatesDecoderIntrinsic(inputAst,requiredCommonJsTargets.has(input.path),
             importedEsmTargets.has(input.path)) ||
+          hasUnprovedDynamicImport(inputAst,input.path,knownJavaScript) ||
           input.sourceType==='script' && collectBindings(inputAst).has('String')) {
         unsafeDecoderIntrinsic=true;
       }
