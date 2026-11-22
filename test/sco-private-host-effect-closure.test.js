@@ -190,3 +190,42 @@ test('Private source audit keeps browser API spellings in inert record keys elig
     assert.deepEqual(partition.privateNames,['protectedOp']);
   }
 });
+
+
+test('SCO selected direct and static private ESM sources decline browser-only Window globals',()=>{
+  const names=[
+    'caches','origin','devicePixelRatio','isSecureContext',
+    'crossOriginIsolated','matchMedia','requestAnimationFrame',
+    'cancelAnimationFrame','requestIdleCallback','cancelIdleCallback',
+    'MutationObserver','ResizeObserver','IntersectionObserver',
+    'FileReader','FileList','Image','Audio','HTMLElement','Element','Node'
+  ];
+  for(const name of names){
+    const body='return typeof '+name+';';
+    for(const transitive of [false,true]){
+      assert.throws(()=>partitionGraph(body,transitive),
+        /SCO private static dependency has unproved client host state/u,
+        name+' in static graph / transitive='+transitive);
+    }
+    const source='export async function protectedOp(){'+body+'}'+
+      'export function visible(){return 7;}';
+    assert.throws(()=>partitionScoSelectedAsyncExports(
+      {path:'mixed.mjs',code:source,sourceType:'module'},
+      {seed:'sco-browser-only-window-roots-20261122',privateNames:['protectedOp']}
+    ),/Selective SCO cannot migrate browser-global state/u,
+    name+' in selected private export');
+  }
+});
+
+test('New browser Window roots stay valid in inert object field labels',()=>{
+  const body='const record={caches:1,origin:2,devicePixelRatio:3,'+
+    'isSecureContext:4,crossOriginIsolated:5,matchMedia:6,'+
+    'MutationObserver:7,FileReader:8,HTMLElement:9};'+
+    'return record.caches+record.origin+record.devicePixelRatio+'+
+    'record.isSecureContext+record.crossOriginIsolated+record.matchMedia+'+
+    'record.MutationObserver+record.FileReader+record.HTMLElement;';
+  for(const transitive of [false,true]){
+    const generated=partitionGraph(body,transitive);
+    assert.deepEqual(generated.privateNames,['protectedOp']);
+  }
+});
