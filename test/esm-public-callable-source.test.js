@@ -37,7 +37,7 @@ test('exported ESM function source preserves captured owner and property spellin
     strings:false,properties:true,identifiers:true
   });
   assert.equal(output.files[0].metrics.properties,0);
-  assert.equal(await observe(output.files[0].code,'[m.read.toString(),m.read()]'),
+  assert.deepEqual(await observe(output.files[0].code,'[m.read.toString(),m.read()]'),
     await observe(source,'[m.read.toString(),m.read()]'));
 });
 
@@ -47,7 +47,7 @@ test('exported object method source preserves captured owner and property spelli
     mode:'coo',closedWorld:true,seed:'esm-exported-method-source',
     strings:false,properties:true,identifiers:true
   });
-  assert.equal(await observe(output.files[0].code,'[m.api.read.toString(),m.api.read()]'),
+  assert.deepEqual(await observe(output.files[0].code,'[m.api.read.toString(),m.api.read()]'),
     await observe(source,'[m.api.read.toString(),m.api.read()]'));
 });
 
@@ -57,7 +57,7 @@ test('callable aliased through an exported object keeps its function source',asy
     mode:'coo',closedWorld:true,seed:'esm-exported-object-alias-source',
     strings:false,properties:true,identifiers:true
   });
-  assert.equal(await observe(output.files[0].code,'[m.api.read.toString(),m.api.read()]'),
+  assert.deepEqual(await observe(output.files[0].code,'[m.api.read.toString(),m.api.read()]'),
     await observe(source,'[m.api.read.toString(),m.api.read()]'));
 });
 
@@ -67,7 +67,7 @@ test('exported class source and methods preserve captured owner spellings',async
     mode:'coo',closedWorld:true,seed:'esm-exported-class-source',
     strings:false,properties:true,identifiers:true
   });
-  assert.equal(await observe(output.files[0].code,'[m.Api.toString(),m.Api.prototype.read.toString(),new m.Api().read()]'),
+  assert.deepEqual(await observe(output.files[0].code,'[m.Api.toString(),m.Api.prototype.read.toString(),new m.Api().read()]'),
     await observe(source,'[m.Api.toString(),m.Api.prototype.read.toString(),new m.Api().read()]'));
 });
 
@@ -77,7 +77,7 @@ test('nested functions inside an exported callable retain their captured source'
     mode:'coo',closedWorld:true,seed:'esm-exported-nested-source',
     strings:false,properties:true,identifiers:true
   });
-  assert.equal(await observe(output.files[0].code,'[m.read.toString(),m.read()]'),
+  assert.deepEqual(await observe(output.files[0].code,'[m.read.toString(),m.read()]'),
     await observe(source,'[m.read.toString(),m.read()]'));
 });
 
@@ -88,7 +88,7 @@ test('string encoding preserves exported callable source but retains private-hel
     strings:true,properties:false,identifiers:false
   });
   assert.equal(output.files[0].metrics.literals,1);
-  assert.equal(await observe(output.files[0].code,'[m.publicRead.toString(),m.publicRead(),m.privateValue]'),
+  assert.deepEqual(await observe(output.files[0].code,'[m.publicRead.toString(),m.publicRead(),m.privateValue]'),
     await observe(source,'[m.publicRead.toString(),m.publicRead(),m.privateValue]'));
 });
 
@@ -100,7 +100,7 @@ test('identifier renaming keeps exported parameter names and renames a private h
   });
   assert.match(output.files[0].code,/export function publicRead\(publicParam\)/);
   assert.doesNotMatch(output.files[0].code,/privateParam/);
-  assert.equal(await observe(output.files[0].code,'[m.publicRead.toString(),m.publicRead(9),m.privateResult]'),
+  assert.deepEqual(await observe(output.files[0].code,'[m.publicRead.toString(),m.publicRead(9),m.privateResult]'),
     ['function publicRead(publicParam){return publicParam;}',9,4]);
 });
 
