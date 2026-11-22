@@ -48,6 +48,20 @@ The minified static interpreter was subsequently tightened to require a terminal
 
 For a **black-box-only** attacker that knows the three independent translation functions but cannot read code, one legitimate evaluation of each at zero gives its exact `k`, after which `((input|0)+k)|0` is an offline clone. Three chosen evaluations are sufficient, matching the separate one-query-per-export control. In the worst case, a deterministic exact black-box learner that skips one independent function cannot distinguish two sources differing only in that missing translation offset, so one observation from each export is necessary for guaranteed recovery. This elementary query bound applies to the promised family and a pure black-box oracle; the source-only attacker above succeeds with **zero** oracle evaluations precisely because it has the distributed program text.
 
+### Verified function-object reflection counterexample
+
+A later **separate, full JavaScript observability check** demonstrates that numeric and coercion parity do not imply `Function.prototype.toString` or `.name` parity. On [Ubuntu and Windows run 45023439919](https://github.com/FlareZ123/obfs/actions/runs/45023439919), exact source `ac425b0e19b1f0fb1f016f8d75ff1d000e405e45`, each OS compared the three native exported functions against both public artifact arms in both modes:
+
+| Observed exported-function attribute | COO generated (3) | SNO generated (3) | COO minified (3) | SNO minified (3) |
+| --- | ---: | ---: | ---: | ---: |
+| Exact `Function.prototype.toString` matches native | 0 | 0 | 0 | 0 |
+| Exact `Function.name` matches native | 3 | 3 | 0 | 0 |
+| Exact `Function.length` matches native | 3 | 3 | 3 | 3 |
+
+Every count was reproduced on each OS independently, using different cryptographically sampled program source. Both public artifact arms also passed the numeric parity and unusual-input coercion/error tests, while their returned function objects differed visibly under source reflection. Thus a caller executing `f.toString()` can distinguish the obfuscated implementation, and ordinary esbuild also changes source and local function names. The bounded challenge contract explicitly excludes the function-object source/metadata API. A general-purpose **1:1 JavaScript semantic-preservation** claim would need an additional source-observer admission rule or a restricted caller contract; the current matched arithmetic evidence does not satisfy that broader promise.
+
+This externally visible source mismatch is already a known project-wide compatibility pressure point. It is recorded here as an exact limitation of this new same-source challenge, **not** claimed as newly discovered general source-reflection theory or a unique defect against the obfuscator.
+
 ## Executable evidence and limitations
 
 The focused `test/llm-matched-affine-challenge.test.js` is a **mechanics/parity control**, deliberately not an LLM attack. It loads each public artifact as an actual Node ESM data module, obtains numeric translation answers from one public runtime probe, verifies same-source answer equality, runs 1,024 original-versus-both-public hold-outs per export, grades both arms in one shot and audits the salted commitment after reveal. It also verifies malformed answer refusal and one-shot replay rejection in the host. A separate strict `jsconfig.llm-matched-affine.json` covers both new files. These tests should be run on both Node22 Ubuntu and Windows using the pre-existing manual polyvariant affine workflow.
