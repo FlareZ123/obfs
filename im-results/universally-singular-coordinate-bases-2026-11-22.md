@@ -75,6 +75,22 @@ There is a compact independent count of the 1,536 universal failures. Every thre
 
 Write the independent rows of the input mixing matrix `A` as `a0,a1,a2`. The nonlinear interpolation difference perturbs its top row by `d=a0 AND a1` (bitwise AND). Anchor dependence only adds linear combinations of the first two rows, which cannot change determinant. Let `v` be the unique nonzero bit vector orthogonal to `a0,a1`; by invertibility, `a2·v=1`. The determinant flips to zero precisely when `d·v=1`. Among the 42 ordered independent pairs `(a0,a1)`, this happens for exactly the six ordered pairings among `011, 101, 110`. For each such pair there are four admissible `a2`, hence **24** bad invertible matrices, giving **64 × 24 = 1,536** singular sources. This also explains the observed all-or-none anchor classification at width three.
 
+## Complementary four-bit witness: invertible M can still be incompatible
+
+A separate complete-width-four oracle `F=P∘A` has invertible linear input column vectors `A(e_i)=[9,2,3,12]`, and compatible output `P` given by independent lower-prefix truth-table masks `h_0=0`, `h_1=1`, `h_2=14`, `h_3=111` (bit `j` toggles if the bit indexed by its lower-`j)-bit prefix in `h_j` is set). Each map is a permutation of sixteen values.
+
+The executable exhaustive audit finds **eight** singular external-coordinate bases and **eight** full-rank bases, with **zero** anchors whose normalized `B_r=M_r A^{-1}` is compatible. In particular, the ordinary measured matrix at anchor `r=11` has columns `[3,10,5,4]`, so it has full rank, while its hidden normalized columns are `[15,10,8,12]`, which violate lower-unitriangular compatibility.
+
+For the published target `y=F(1)=5`, starting from the reanchored `x_0=r⊕M_r^{-1}(y⊕F(r))`, the proposed conditional fixed-point correction instead cycles:
+
+```text
+x_0=14 -> x_1=6 -> x_2=9 -> x_3=14 -> ...
+```
+
+None of the three distinct visited inputs maps to the target. Thus **merely checking that `M_r` is nonsingular does not certify convergence**, even for an invertible four-bit wrapped compatible oracle. This is consistent with the original theorem, which requires source-coordinate compatibility in addition to invertibility. It does not show that a different anchor or attack algorithm is incapable of finding the preimage; here no anchor passes the stated theorem premise, but some anchors succeed accidentally without it.
+
+The exact fixture and exhaustive sixteen-anchor audit live in `sims/reanchor-incompatible-four-bit-cycle.js` and `test/reanchor-incompatible-four-bit-cycle.test.js`.
+
 ## Reproducibility
 
 - `sims/reanchor-all-anchor-singular.js`: explicit reversible oracle, all-eight-anchor proof checks, width-32 embedding, full width-three census, and stable count assertions. Its standalone invocation prints the count vector.
