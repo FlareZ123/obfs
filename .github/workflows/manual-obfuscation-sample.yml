@@ -34,6 +34,17 @@ jobs:
           if-no-files-found: error
       - name: Strict JSDoc for matched challenge verifier
         run: npx tsc -p jsconfig.llm-matched-affine.json
+      - name: Measure paired native/minified/obfuscated resident CPU from same new private source
+        env:
+          OBFS_AFFINE_CPU_RECEIPT_DIR: llm-affine-cpu-receipts
+        run: node sims/llm-matched-affine-cpu-control.js
+      - name: Archive exact paired CPU and source provenance
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: matched-affine-cpu-${{ runner.os }}
+          path: llm-affine-cpu-receipts/
+          if-no-files-found: error
       - name: Generate actual output and verify behavior
         shell: bash
         run: |
