@@ -31,6 +31,10 @@ jobs:
         env:
           CHROMIUM_BIN: google-chrome
         run: node test/html-sri-browser.js
+      - name: Check executable XHTML and SRI-pinned scripts in real Chromium
+        env:
+          CHROMIUM_BIN: google-chrome
+        run: node test/xhtml-sri-browser.js
       - name: Run live browser integration suite
         env:
           CHROMIUM_BIN: google-chrome
