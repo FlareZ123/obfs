@@ -1262,6 +1262,7 @@ function collectPrivateDirectCallables(ast,bindings=collectBindings(ast)) {
  * also exposed when its enclosing callable source is exposed.
  * @param {AstNode} ast
  * @param {Map<string,number>} [bindings]
+ * @param {'script'|'module'|'commonjs'} [sourceType]
  * @returns {Set<AstNode>}
  */
 function collectSourceExposedBodies(ast,bindings=collectBindings(ast),sourceType='script') {
