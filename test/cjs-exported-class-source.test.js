@@ -35,14 +35,16 @@ async function loadFromOutside(source, importer) {
 /**
  * @param {string} source
  * @param {'coo'|'sno'} mode
+ * @param {boolean} [symbols]
  * @returns {{code:string,renamed:number}}
  */
-function compile(source, mode) {
+function compile(source, mode, symbols=false) {
   const file = obfuscateFiles([{
     path: 'entry.cjs', sourceType: 'commonjs', code: source
   }], {
     mode, seed: 'cjs-exported-class-source/' + mode,
-    properties: true, identifiers: false, strings: false
+    properties: true, identifiers: false, strings: false,
+    experimentalSymbolKeys: symbols
   }).files[0];
   return {code: /** @type {string} */ (file.code), renamed: file.metrics.properties};
 }
@@ -111,6 +113,44 @@ for (const mode of /** @type {Array<'coo'|'sno'>} */ (['coo', 'sno'])) {
       assert.equal(await loadFromOutside(transformed.code, importer), '7');
       assert.ok(transformed.renamed > 0,
         'Conservative public-callable guard should retain private positive yield');
+    }
+  );
+}
+
+for (const mode of /** @type {Array<'coo'|'sno'>} */ (['coo', 'sno'])) {
+  for (const fixture of [
+    {name: 'public constructor', assignment: 'module.exports={Reader};',
+      importer: 'const C=require(process.argv[1]).Reader;' +
+        'process.stdout.write(JSON.stringify({result:new C().value(),' +
+        'classSource:C.toString(),methodSource:C.prototype.value.toString()}));'},
+    {name: 'public instance', assignment: 'module.exports=new Reader();',
+      importer: 'const x=require(process.argv[1]);' +
+        'process.stdout.write(JSON.stringify({result:x.value(),' +
+        'classSource:x.constructor.toString(),methodSource:x.value.toString()}));'}
+  ]) {
+    test(mode + ' experimental Symbol backend preserves exported class source: ' +
+      fixture.name, async () => {
+      const original = classBody + fixture.assignment;
+      const transformed = compile(original, mode, true);
+      const native = await loadFromOutside(original, fixture.importer);
+      const emitted = await loadFromOutside(transformed.code, fixture.importer);
+      assert.equal(JSON.parse(native).result, 7);
+      assert.equal(emitted, native,
+        'Symbol keys altered callable source: ' +
+        JSON.stringify({mode, fixture: fixture.name, renamed: transformed.renamed}));
+      assert.equal(transformed.renamed, 0,
+        'Public symbol-key lowering must prove absent external source observers');
+    });
+  }
+  test(mode + ' experimental Symbol backend keeps genuinely private class key yield',
+    async () => {
+      const original = classBody + 'module.exports=new Reader().value();';
+      const transformed = compile(original, mode, true);
+      const importer = 'process.stdout.write(String(require(process.argv[1])));';
+      assert.equal(await loadFromOutside(original, importer), '7');
+      assert.equal(await loadFromOutside(transformed.code, importer), '7');
+      assert.ok(transformed.renamed > 0,
+        'Positive Symbol backend control must lower an actual own field');
     }
   );
 }
