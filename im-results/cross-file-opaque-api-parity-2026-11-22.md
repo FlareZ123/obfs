@@ -93,3 +93,30 @@ This verifies that one source version only.
 Browser CSP checks add a real-engine and ambient API boundary to the
 Node-only corpus, but do not imply an instrumented hostile browser is
 restricted or that attacker-cost resistance improved.
+
+
+## Deterministic interprocedural transport/observer cross-product
+
+A follow-on test, test/opaque-owner-transport-matrix.test.js at exact
+source 35f7b28c5eafac92c8cb6a77d02d71f901e1436c, crosses
+**eight transport mechanisms** (direct identity, array, record,
+Map, Set, Promise, rest-parameter, and empty-handler Proxy)
+with **five property-observation mechanisms** (Object.keys,
+Reflect.ownKeys, Object.getOwnPropertyNames, JSON.stringify,
+and for-in). It requires 40/40 conservative zero-rename decisions
+and exact original/generated Node ESM behavior, including asynchronous
+top-level-await forwarding. Sixteen deterministic seed/value variations
+of the *same* independently proved imported-key source family require
+strictly positive actual field rewriting and matching output.
+These are 56 graph comparisons, not 56 unrelated program grammars.
+
+The independently pinned manual focused
+[Ubuntu/Windows run 45027652919](https://github.com/FlareZ123/obfs/actions/runs/45027652919)
+passed both Node 22 jobs and both strict project/external JSDoc checks.
+The Ubuntu log emitted
+OPAQUE_OWNER_TRANSPORT_MATRIX with transports=8, observers=5,
+refused=40, positive=16, comparisons=56 and measured 4077.94 ms
+for the focused test. That is harness wall time, not protected
+application compute cost. The experiment's result is finite
+closed-world/host-API semantic parity, without a general proof or
+incremental source-secrecy advantage over ordinary minification.
