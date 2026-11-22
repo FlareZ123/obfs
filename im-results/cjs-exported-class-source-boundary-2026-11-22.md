@@ -35,6 +35,10 @@ The six initial failing shapes cover `module.exports={Reader}`, `module.exports=
 
 The positive controls export only `new Reader().value()`, a primitive numeric result. Their source remains behaviorally identical after the same one-field obfuscation, and `metrics.properties > 0` in both COO and SNO. This ensures that global blanket disabling of all class-contained fields is not an adequate regression fix.
 
+## Separate green build-quality and private-yield control
+
+The focused [Ubuntu/Windows run 45080385587](https://github.com/FlareZ123/obfs/actions/runs/45080385587), source SHA `6e4a681da3982b116d3e99fb1b846635617d8903`, used `test/private-class-source-yield.test.js` as the passing focused selection. **Both OS jobs passed** the positive private-class fixture, strict project JSDoc and strict external-tool JSDoc. This certifies that the added files typecheck within the checked configurations. The red 12-case class-source suite was not selected in this run and remains 10/12 failing at its separate `5b17a603` pin. The positive check does not repair or supersede the red proof.
+
 ## Proof obligation and bounded interpretation
 
 The current local owner alias proof in `src/properties.js` sees a class-method read of a private literal owner but cannot establish whether the method's **callable source text** is externally observable. A CommonJS module may export a class, an instance, a bound constructor, or another alias that exposes that body. An undeclared importer may use `Function.prototype.toString` without any `.toString` token inside the compiler's input set.
