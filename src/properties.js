@@ -1152,6 +1152,65 @@ function collectPrivateDirectCallables(ast,bindings=collectBindings(ast)) {
   const directCallables=new Set();
   if(inventory.dynamicScope)return new Set();
   /**
+   * @param {AstNode|null|undefined} value
+   * @returns {Set<string>|null}
+   */
+  function primitiveOwnNames(value){
+    if(value?.type!=='ObjectExpression'||!value.properties.length)return null;
+    /** @type {Set<string>} */
+    const keys=new Set();
+    for(const property of value.properties){
+      if(property.type!=='Property'||property.kind!=='init'||property.method||
+         !isPrimitiveConstantExpression(property.value))return null;
+      const name=ownPropertyName(property);
+      if(name===null||name==='__proto__'||keys.has(name))return null;
+      keys.add(name);
+    }
+    return keys;
+  }
+  /** @type {Map<string,Set<string>>} */
+  const primitiveRoots=new Map();
+  for(const declaration of inventory.declarations){
+    if(declaration.id.type!=='Identifier'||bindings.get(declaration.id.name)!==1||
+       inventory.parents.get(declaration)?.kind!=='const')continue;
+    const keys=primitiveOwnNames(declaration.init);
+    if(keys)primitiveRoots.set(declaration.id.name,keys);
+  }
+  /** @type {Map<string,ReturnType<typeof proveLocalObject>>} */
+  const rootProofs=new Map();
+  /**
+   * Prove a formal's actual argument is the same closed-world primitive
+   * record at every direct call, and this exact field read is accounted for
+   * in the established whole-object use analysis.
+   * @param {AstNode} fn
+   * @param {string|null} binding
+   * @param {AstNode} member
+   * @returns {boolean}
+   */
+  function trustedParameterRead(fn,binding,member){
+    if(!binding||member.object.type!=='Identifier')return false;
+    const formal=fn.params.findIndex((/** @type {AstNode} */ p)=>
+      p.type==='Identifier'&&p.name===member.object.name);
+    if(formal<0)return false;
+    const field=member.computed?staticString(member.property):staticName(member.property);
+    if(field===null)return false;
+    const calls=inventory.calls.get(binding);
+    if(!calls?.length)return false;
+    /** @type {string|null} */
+    let root=null;
+    for(const call of calls){
+      const argument=call.arguments[formal];
+      if(argument?.type!=='Identifier'||root!==null&&root!==argument.name)
+        return false;
+      root=argument.name;
+    }
+    if(root===null||!primitiveRoots.get(root)?.has(field))return false;
+    if(!rootProofs.has(root))rootProofs.set(root,proveLocalObject(ast,root,bindings));
+    const proof=rootProofs.get(root);
+    return Boolean(proof?.members.includes(member)&&
+      proof.memberNames.get(member)===field);
+  }
+  /**
    * @param {string} name
    * @param {AstNode} definition
    * @returns {boolean}
@@ -1172,7 +1231,7 @@ function collectPrivateDirectCallables(ast,bindings=collectBindings(ast)) {
    * @param {AstNode} fn
    * @returns {boolean}
    */
-  function hasSelfSourceObserver(fn) {
+  function hasSelfSourceObserver(fn,binding) {
     let observed=false;
     const functionTypes=new Set([
       'FunctionDeclaration','FunctionExpression','ArrowFunctionExpression'
@@ -1196,18 +1255,8 @@ function collectPrivateDirectCallables(ast,bindings=collectBindings(ast)) {
       if(node.type!=='VariableDeclarator'||parent?.type!=='VariableDeclaration'||
          parent.kind!=='const'||node.id.type!=='Identifier'||
          node.init?.type!=='ObjectExpression'||bindings.get(node.id.name)!==1)return;
-      /** @type {Set<string>} */
-      const keys=new Set();
-      const safe=node.init.properties.length>0&&
-        node.init.properties.every((/** @type {AstNode} */ property)=>{
-          if(property.type!=='Property'||property.kind!=='init'||property.method||
-             !isPrimitiveConstantExpression(property.value))return false;
-          const name=ownPropertyName(property);
-          if(name===null||name==='__proto__'||keys.has(name))return false;
-          keys.add(name);
-          return true;
-        });
-      if(safe)knownOwnData.set(node.id.name,{definition:node.id,keys});
+      const keys=primitiveOwnNames(node.init);
+      if(keys)knownOwnData.set(node.id.name,{definition:node.id,keys});
     });
     // Any alias, return, write-through or unknown reference invalidates the
     // local-record exemption; a record may only appear as a member receiver.
@@ -1244,7 +1293,8 @@ function collectPrivateDirectCallables(ast,bindings=collectBindings(ast)) {
           knownOwnData.get(expression.object.name):undefined;
         const name=expression.computed?staticString(expression.property):
           staticName(expression.property);
-        return Boolean(own&&name!==null&&own.keys.has(name));
+        return Boolean(own&&name!==null&&own.keys.has(name)||
+          trustedParameterRead(fn,binding,expression));
       }
       if(expression.type==='UnaryExpression'&&
          ['+','-','!','~','void','typeof'].includes(expression.operator))
@@ -1283,7 +1333,8 @@ function collectPrivateDirectCallables(ast,bindings=collectBindings(ast)) {
       if(node.type==='MemberExpression'){
         const own=node.object.type==='Identifier'?knownOwnData.get(node.object.name):undefined;
         const name=node.computed?staticString(node.property):staticName(node.property);
-        if(!own||name===null||!own.keys.has(name))observed=true;
+        if((!own||name===null||!own.keys.has(name))&&
+           !trustedParameterRead(fn,binding,node))observed=true;
       }
       // JavaScript invokes user-defined hooks implicitly for coercion,
       // proxy membership, instanceof and destructuring, without a call AST.
@@ -1327,7 +1378,7 @@ function collectPrivateDirectCallables(ast,bindings=collectBindings(ast)) {
   }
   for(const fn of inventory.functionDeclarations) {
     if(fn.type!=='FunctionDeclaration'||fn.id?.type!=='Identifier'||
-       !directCallOnly(fn.id.name,fn.id)||hasSelfSourceObserver(fn)||
+       !directCallOnly(fn.id.name,fn.id)||hasSelfSourceObserver(fn,fn.id.name)||
        /^Export/.test(inventory.parents.get(fn)?.type??''))continue;
     directCallables.add(fn);
   }
@@ -1336,7 +1387,7 @@ function collectPrivateDirectCallables(ast,bindings=collectBindings(ast)) {
     if(container?.type!=='VariableDeclaration'||container.kind!=='const'||
        decl.id.type!=='Identifier'||!decl.init||
        !['ArrowFunctionExpression','FunctionExpression'].includes(decl.init.type)||
-       !directCallOnly(decl.id.name,decl.id)||hasSelfSourceObserver(decl.init)||
+       !directCallOnly(decl.id.name,decl.id)||hasSelfSourceObserver(decl.init,decl.id.name)||
        /^Export/.test(inventory.parents.get(container)?.type??''))continue;
     directCallables.add(decl.init);
   }
