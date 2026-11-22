@@ -16,7 +16,7 @@ const original=[
   {path:'watched.mjs',sourceType:'module',
     code:'const recordA={privateA:17};const valueA=recordA.privateA;export function watched(){return valueA;}'},
   {path:'independent.mjs',sourceType:'module',
-    code:'const recordB={privateB:23,otherB:19};const valueB=recordB.privateB;export function unrelated(){\\n  // this comment and whitespace are part of the observable source\\n  return valueB;\\n}'},
+    code:'const recordB={privateB:23,otherB:19};const valueB=recordB.privateB;export function unrelated(){\n  // this comment and whitespace are part of the observable source\n  return valueB;\n}'},
   {path:'entry.mjs',sourceType:'module',
     code:'import {watched} from "./watched.mjs";import {unrelated} from "./independent.mjs";'+
       'export const answer={source:watched.toString(),value:unrelated()};'}
@@ -101,7 +101,7 @@ async function main(){
     assert.deepEqual(baseline,{
       source:'function watched(){return valueA;}',
       value:23,
-      publicSource:'function unrelated(){\\n  // this comment and whitespace are part of the observable source\\n  return valueB;\\n}',
+      publicSource:'function unrelated(){\n  // this comment and whitespace are part of the observable source\n  return valueB;\n}',
       publicValue:23
     });
     const outcome={
