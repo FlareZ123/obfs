@@ -119,20 +119,24 @@ applies esbuild's documented single-module
 [`transformSync` minification](https://esbuild.github.io/api/#transform)
 to the **same 200-byte input** as the obfuscator, using
 `loader:'js',format:'esm',minify:true,target:'es2022'`. A fresh
-instrumented Node 22 ESM subprocess loads each of three published artifacts:
-original 200 bytes, plain esbuild-minified **113 bytes**, and obfuscated
-**216 bytes**. One host-patched native `Function.prototype.bind` is
-installed in each same-trust process **before** module import; it records
-the actual private target function object. Both published functions return
-the same numeric output and expose the same generic public bound
-`Function#toString`.
+instrumented Node 22 ESM subprocess loads four variants:
+original **200 bytes**, plain esbuild-minified **113 bytes**, esbuild with
+explicit **two-property mangling, 75 bytes**, and obfuscated **216 bytes**.
+The property-mangled control uses the reviewed closed-world
+`mangleProps:/^(secretField|otherField)$/` pattern so both esbuild and the
+obfuscator transform the same two private own keys. One host-patched native
+`Function.prototype.bind` is installed in each same-trust process
+**before** module import; it records the actual private target function.
+All three protected/minified variants preserve the native numeric output
+and public bound `Function#toString`.
 
-The attack recovers exactly **one private arithmetic target** from the
-minified output and exactly **one** from the obfuscated output, after the
-same single interception point. The minified function source still
-contains `secretField`; the obfuscated source contains the actual
-rewritten `_p...` property spelling. The latter truly has **two**
-renamed record fields. This directly demonstrates **no additional barrier
+The attack recovers exactly **one private arithmetic target** from
+each plain minified, property-mangled and obfuscated output through the
+same interception point. The plain-minified function source still
+contains `secretField`; the property-mangled source removes both
+original field spellings, while the obfuscated source contains the actual
+rewritten `_p...` property spelling. Both the property-mangled control
+and the obfuscated build alter **the same two own keys**. This directly demonstrates **no additional barrier
 to this particular pre-import bind interception** over an ordinary
 minifier, at the tested input and instrumentation point. It does not
 compare algorithm-reconstruction effort after the extracted source is
@@ -151,6 +155,30 @@ The main source-pin [45000680653](https://github.com/FlareZ123/obfs/actions/runs
 at that exact `3b93c0ec697205e9cbf2bed6dfa2bc7b4adef3c3`
 also completed **green on Ubuntu and Windows**, with the real matched
 minifier attack test, project JSDoc, and strict external JSDoc all passing.
+
+### Property-mangled equal-key negative control
+
+The first additional branch source `522eacd0a4c5fc4a98c8d010c2ff973182fd409c`
+failed [run 45000922469](https://github.com/FlareZ123/obfs/actions/runs/45000922469)
+because esbuild delegates its property regex compilation to Go:
+the JavaScript `/u` flag was rendered as unsupported `(?u)` in the
+pattern. Removing the unnecessary Unicode flag produced the reviewed
+exact source `aa5b89901c3e81445f09a95e1cbec881f09afc53`,
+[Ubuntu and Windows green 45000997264](https://github.com/FlareZ123/obfs/actions/runs/45000997264).
+
+That source logged the identical four-arm observations on both OS:
+`{"originalBytes":200,"minifiedBytes":113,"mangledBytes":75,"protectedBytes":216,"attackerInterceptionMethod":"Function.prototype.bind","capturedTargetsPerBuild":1}`.
+The main comparator was updated at
+`fd81a4fc71582c180400345cc774e21b9a5f807c` and
+[Ubuntu/Windows strict typechecks and focused execution were green in run
+45001089964](https://github.com/FlareZ123/obfs/actions/runs/45001089964).
+This stronger control rules out plaintext property names as the reason
+the same host-interception operation succeeded: **both** equal-key
+published variants hid those names before the private target was
+captured. It remains a scoped, single-operation finding with
+precommitted field-name selection for the esbuild control. It is not
+a matched test of arbitrary-program automatic property discovery or
+post-capture reverse-engineering effort.
 
 ## Limits and implications
 
