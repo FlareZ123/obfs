@@ -38,7 +38,7 @@ for(const mode of /** @type {const} */(['sno','coo','sco'])) {
   test(mode+' preserves private-literal transformation with provably primitive btoa',()=>{
     const source="'use strict';"+
       "const secret='safe-primitive-output-mutation-boundary-ABC';"+
-      "module.exports=btoa('fixed-text')+secret;";
+      "btoa('fixed-text');module.exports=secret;";
     assert.equal(observesFunctionSource(parse(source,'commonjs')),false);
     const emitted=obfuscateFiles([{
       path:'primitive-json.cjs',sourceType:'commonjs',code:source
