@@ -154,3 +154,37 @@ for (const mode of /** @type {Array<'coo'|'sno'>} */ (['coo', 'sno'])) {
     }
   );
 }
+
+for (const mode of /** @type {Array<'coo'|'sno'>} */ (['coo', 'sno'])) {
+  test(mode + ' exported factory returning class instance leaks private method source',
+    async () => {
+      const original = classBody + 'module.exports=()=>new Reader();';
+      const transformed = compile(original, mode);
+      const importer = 'const make=require(process.argv[1]);const instance=make();' +
+        'process.stdout.write(JSON.stringify({result:instance.value(),' +
+        'factorySource:make.toString(),classSource:instance.constructor.toString(),' +
+        'methodSource:instance.value.toString()}));';
+      const native = await loadFromOutside(original, importer);
+      const emitted = await loadFromOutside(transformed.code, importer);
+      assert.equal(JSON.parse(native).result, 7);
+      assert.equal(emitted, native,
+        'A public factory can return a source-observable class instance');
+      assert.equal(transformed.renamed, 0);
+    }
+  );
+  test(mode + ' exported primitive-result factory retains private class renaming',
+    async () => {
+      const original = classBody + 'module.exports=()=>new Reader().value();';
+      const transformed = compile(original, mode);
+      const importer = 'const fn=require(process.argv[1]);' +
+        'process.stdout.write(JSON.stringify({result:fn(),source:fn.toString()}));';
+      const native = await loadFromOutside(original, importer);
+      const emitted = await loadFromOutside(transformed.code, importer);
+      assert.equal(JSON.parse(native).result, 7);
+      assert.equal(emitted, native,
+        'An exported function that returns only a primitive must retain source parity');
+      assert.ok(transformed.renamed > 0,
+        'Private class body can still be protected behind a primitive-returning factory');
+    }
+  );
+}
