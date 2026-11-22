@@ -113,6 +113,40 @@ test('statement-flow refuses an exported callable while leaving private-helper t
 });
 
 
+
+test('identifier preservation follows aggregate aliases, private classes, and returned getter callables',async()=>{
+  const cases=[
+    {
+      source:'function read(secretParam){return secretParam;}export const api={read};',
+      expression:'[m.api.read.toString(),m.api.read(4)]'
+    },
+    {
+      source:'class Api{read(secretParam){return secretParam;}}export const instance=new Api();',
+      expression:'[m.instance.read.toString(),m.instance.read(4)]'
+    },
+    {
+      source:'function hidden(secretParam){return secretParam;}export const api={get read(){return hidden;}};',
+      expression:'[Object.getOwnPropertyDescriptor(m.api,"read").get.toString(),m.api.read.toString(),m.api.read(4)]'
+    },
+    {
+      source:'const api={};function read(secretParam){return secretParam;}api.read=read;export {api};',
+      expression:'[m.api.read.toString(),m.api.read(4)]'
+    },
+    {
+      source:'const api={};const alias=api;function read(secretParam){return secretParam;}alias.read=read;export {api};',
+      expression:'[m.api.read.toString(),m.api.read(4)]'
+    }
+  ];
+  for(const [index,entry] of cases.entries()) {
+    const output=obfuscateFiles([{path:'entry.mjs',sourceType:'module',code:entry.source}],{
+      mode:'coo',closedWorld:true,seed:'esm-exported-aggregate-'+index,
+      strings:false,properties:false,identifiers:true
+    });
+    assert.deepEqual(await observe(output.files[0].code,entry.expression),
+      await observe(entry.source,entry.expression),entry.source+'\n'+output.files[0].code);
+  }
+});
+
 test('callable returned by an exported function keeps its captured source',async()=>{
   const source='const owner={secretField:8};function helper(){return owner.secretField;}export function get(){return helper;}';
   const output=obfuscateFiles([{path:'entry.mjs',sourceType:'module',code:source}],{
