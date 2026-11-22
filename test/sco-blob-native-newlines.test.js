@@ -57,7 +57,8 @@ test('SCO declines Blob native newline host variation across platforms',()=>{
     'return await new Blob(["alpha\\nomega"],{endings:"native"}).text();',
     'const value=new Blob(["alpha\\nomega"],{endings:"native"});return value.size;',
     'const NativeBlob=Blob;return await new NativeBlob(["alpha\\nomega"],{endings:"native"}).text();',
-    'const options={endings:"native"};return await new Blob(["alpha\\nomega"],options).text();'
+    'const options={endings:"native"};return await new Blob(["alpha\\nomega"],options).text();',
+    'return await new Blob(["alpha\\nomega"],{__proto__:{endings:"native"}}).text();'
   ];
   /** @type {string[]} */
   const admitted=[];
