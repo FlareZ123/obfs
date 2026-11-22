@@ -1098,6 +1098,15 @@ function realmStateObservation(body,checkHostConfiguration=false){
         stackTouched=true;
       }
     }
+    // AbortSignal.timeout synthesizes a host-owned TimeoutError with native
+    // stack and timer semantics. Browser timeouts count active document time,
+    // which cannot be proved equivalent to a relocated Node.js event loop.
+    // Refuse both direct calls and first-class extraction of the method.
+    if(checkHostConfiguration&&node.type==='MemberExpression'&&
+       isAbortConstructor(node.object,abortSignalConstructors)&&
+       (keyName(node)==='timeout'||keyName(node)===null)){
+      configurationTouched=true;
+    }
     // Both AbortController#abort and AbortSignal.abort can synthesize a
     // source-location-bearing DOMException when no proven defined reason is
     // supplied. Unknown argument expressions may evaluate to undefined.
