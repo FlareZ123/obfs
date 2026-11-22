@@ -2310,7 +2310,7 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
   /** @type {Map<string,string>} */
   const nodeUtilMethods=new Map();
   const inspectedUtilMethods=new Set(['inspect','format','formatWithOptions',
-    'getCallSites','getCallSite','toUSVString','MIMEType']);
+    'getCallSites','getCallSite','toUSVString','MIMEType','MIMEParams']);
   /** @param {AstNode|null|undefined} node @returns {boolean} */
   function isNodeUtilRequire(node) {
     return Boolean(node?.type==='CallExpression' &&
@@ -2359,6 +2359,33 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
       Boolean(node?.type==='MemberExpression' && node.computed &&
         sourceStringKey(node.property)===null && isNodeUtilNamespace(node.object));
   }
+  /** @param {AstNode|null|undefined} node @returns {boolean} */
+  function isNodeUtilMimeParamsConstructor(node) {
+    return ['MIMEParams','possibleSourceCoercer'].includes(nodeUtilMethod(node)??'') ||
+      Boolean(node?.type==='MemberExpression'&&node.computed&&
+        sourceStringKey(node.property)===null&&isNodeUtilNamespace(node.object));
+  }
+  const nativeMimeTypes=new Set();
+  const nativeMimeParams=new Set();
+  /** @param {AstNode|null|undefined} node @returns {boolean} */
+  function isNativeMimeTypeInstance(node) {
+    return Boolean(node&&(node.type==='Identifier'&&nativeMimeTypes.has(node.name)||
+      node.type==='NewExpression'&&isNodeUtilMimeConstructor(node.callee)));
+  }
+  /** @param {AstNode|null|undefined} node @returns {boolean} */
+  function isNativeMimeParamsInstance(node) {
+    return Boolean(node&&(node.type==='Identifier'&&nativeMimeParams.has(node.name)||
+      node.type==='NewExpression'&&isNodeUtilMimeParamsConstructor(node.callee)||
+      node.type==='MemberExpression'&&memberName(node)==='params'&&
+        isNativeMimeTypeInstance(node.object)));
+  }
+  /** @param {AstNode|null|undefined} node @returns {boolean} */
+  function isNativeMimeParamsCoercer(node) {
+    return Boolean(node?.type==='MemberExpression'&&
+      isNativeMimeParamsInstance(node.object)&&
+      (['set','has','get','delete'].includes(memberName(node)??'')||
+       node.computed&&memberName(node)===null));
+  }
   walk(ast,node=>{
     if(node.type!=='ImportDeclaration' ||
        !['node:util','util'].includes(String(node.source?.value??'')))return;
@@ -2398,7 +2425,30 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
         }
         return;
       }
+      if(id.type==='ObjectPattern'&&isNativeMimeTypeInstance(value)) {
+        for(const property of id.properties) {
+          if(property.type!=='Property')continue;
+          const name=property.computed?sourceStringKey(property.key):
+            property.key.type==='Identifier'?property.key.name:staticString(property.key);
+          const bound=property.value.type==='AssignmentPattern'?
+            property.value.left:property.value;
+          if(bound.type==='Identifier'&&(name==='params'||property.computed&&name===null)&&
+             !nativeMimeParams.has(bound.name)) {
+            nativeMimeParams.add(bound.name);
+            changedNodeUtil=true;
+          }
+        }
+        return;
+      }
       if(id.type!=='Identifier')return;
+      if(isNativeMimeTypeInstance(value)&&!nativeMimeTypes.has(id.name)) {
+        nativeMimeTypes.add(id.name);
+        changedNodeUtil=true;
+      }
+      if(isNativeMimeParamsInstance(value)&&!nativeMimeParams.has(id.name)) {
+        nativeMimeParams.add(id.name);
+        changedNodeUtil=true;
+      }
       if(isNodeUtilNamespace(value)&&!nodeUtilNamespaces.has(id.name)) {
         nodeUtilNamespaces.add(id.name);
         changedNodeUtil=true;
@@ -2713,6 +2763,11 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
          'port','pathname','search','hash'].includes(memberName(node.left)??'')||
         node.left.computed&&memberName(node.left)===null) &&
        !isDefinitelyPrimitive(node.right))observed=true;
+    if(node.type==='AssignmentExpression'&&
+       node.left.type==='MemberExpression'&&isNativeMimeTypeInstance(node.left.object)&&
+       (['type','subtype'].includes(memberName(node.left)??'')||
+        node.left.computed&&memberName(node.left)===null)&&
+       !isDefinitelyPrimitive(node.right))observed=true;
     if(node.type==='TaggedTemplateExpression'&&isStringRaw(node.tag) &&
        node.quasi.expressions.some((/** @type {AstNode} */ value)=>
          !isDefinitelyPrimitive(value)))observed=true;
@@ -2941,6 +2996,33 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
       if(node.type==='NewExpression' && isNodeUtilMimeConstructor(callee) &&
          node.arguments[0]&&!isDefinitelyPrimitive(node.arguments[0]))
         observed=true;
+      if(node.type==='CallExpression'&&isNativeMimeParamsCoercer(callee)&&
+         node.arguments.some(
+           (/** @type {AstNode} */ value)=>!isDefinitelyPrimitive(value)))
+        observed=true;
+      if(node.type==='CallExpression'&&callee.type==='MemberExpression'&&
+         isNativeMimeParamsCoercer(callee.object)) {
+        const kind=memberName(callee);
+        if(kind==='bind')observed=true;
+        if(kind==='call'&&node.arguments.slice(1).some(
+             (/** @type {AstNode} */ value)=>!isDefinitelyPrimitive(value)))
+          observed=true;
+        if(kind==='apply'&&node.arguments[1]) {
+          const passed=node.arguments[1];
+          if(passed.type!=='ArrayExpression'||
+             passed.elements.some(
+               (/** @type {AstNode|null} */ value)=>value&&!isDefinitelyPrimitive(value)))
+            observed=true;
+        }
+      }
+      if(node.type==='CallExpression'&&isReflectApplyMethod(callee)&&
+         isNativeMimeParamsCoercer(node.arguments[0])&&node.arguments[2]) {
+        const passed=node.arguments[2];
+        if(passed.type!=='ArrayExpression'||
+           passed.elements.some(
+             (/** @type {AstNode|null} */ value)=>value&&!isDefinitelyPrimitive(value)))
+          observed=true;
+      }
       if(node.type==='CallExpression' && callee.type==='MemberExpression' &&
          isNodeUtilMimeConstructor(callee.object) &&
          memberName(callee)==='bind' && node.arguments[1] &&
