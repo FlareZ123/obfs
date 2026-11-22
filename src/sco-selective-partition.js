@@ -190,24 +190,38 @@ function usesUnprovedCrossRealmHostApi(body,explicitServerBindings=new Set()){
     'postMessage','addEventListener','removeEventListener','dispatchEvent',
     'alert','confirm','prompt'
   ]);
-  // A uniquely declared, immutable function in this immediate source scope
-  // shadows the ambient timer/API name throughout its lexical scope.
-  // Requiring one declaration throughout the AST excludes nested shadowing
-  // and function-parameter collisions without inferring unknown aliases.
+  // A uniquely declared function in this immediate source scope shadows
+  // the ambient host API name. Function declarations are mutable bindings;
+  // a later assignment or loop-target write destroys the local-function
+  // provenance. Track writes including destructuring before granting the
+  // bounded exemption, and decline ambiguous nested shadowing.
   const bindingCounts=collectBindings(body);
+  const mutatedBindings=new Set();
+  walk(body,node=>{
+    const target=node.type==='AssignmentExpression'?node.left:
+      node.type==='UpdateExpression'?node.argument:
+      (node.type==='ForInStatement'||node.type==='ForOfStatement')?node.left:null;
+    if(!target)return;
+    walk(target,(part,parent,key)=>{
+      if(part.type==='Identifier'&&hostApis.has(part.name)&&
+         !isStaticKey(parent,key))mutatedBindings.add(part.name);
+    });
+  });
   const ownedFunctions=new Set();
   if(body.type==='BlockStatement'||body.type==='Program'){
     for(const statement of body.body){
       if(statement.type==='FunctionDeclaration'&&
          statement.id?.type==='Identifier'&&
          hostApis.has(statement.id.name)&&
-         bindingCounts.get(statement.id.name)===1){
+         bindingCounts.get(statement.id.name)===1&&
+         !mutatedBindings.has(statement.id.name)){
         ownedFunctions.add(statement.id.name);
       }
       if(statement.type==='VariableDeclaration'&&statement.kind==='const'){
         for(const declaration of statement.declarations){
           if(declaration.id.type==='Identifier'&&hostApis.has(declaration.id.name)&&
-             bindingCounts.get(declaration.id.name)===1&&declaration.init&&
+             bindingCounts.get(declaration.id.name)===1&&
+             !mutatedBindings.has(declaration.id.name)&&declaration.init&&
              ['FunctionExpression','ArrowFunctionExpression'].includes(declaration.init.type)){
             ownedFunctions.add(declaration.id.name);
           }
