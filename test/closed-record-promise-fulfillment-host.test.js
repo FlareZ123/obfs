@@ -83,6 +83,18 @@ for(const [name,mutation] of [
   ['named Promise carrier',
     'const carrier=Promise.resolve(globalThis);'+
     "await carrier.then(root=>{const selector=['Ref','lect'].join('');"+
+    'root[selector].ownKeys=globalThis.HOST_REFLECT;});'],
+  ['Promise.all contains ambient root',
+    'await Promise.all([globalThis]).then(([root])=>{'+
+    "const selector=['Ref','lect'].join('');"+
+    'root[selector].ownKeys=globalThis.HOST_REFLECT;});'],
+  ['Promise.race forwards ambient root',
+    'await Promise.race([globalThis]).then(root=>{'+
+    "const selector=['Ref','lect'].join('');"+
+    'root[selector].ownKeys=globalThis.HOST_REFLECT;});'],
+  ['Promise executor resolves ambient root',
+    'await new Promise(resolve=>resolve(globalThis)).then(root=>{'+
+    "const selector=['Ref','lect'].join('');"+
     'root[selector].ownKeys=globalThis.HOST_REFLECT;});']
 ]){
   test('Promise fulfillment ambient capability: '+name,async()=>{
