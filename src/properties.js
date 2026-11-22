@@ -1179,6 +1179,13 @@ function collectPrivateDirectCallables(ast,bindings=collectBindings(ast)) {
     ]);
     walk(fn,(node,parent,key,ancestors)=>{
       if(ancestors.some(ancestor=>ancestor!==fn&&functionTypes.has(ancestor.type)))return;
+      // A called function may inspect its non-strict caller through the
+      // legacy Function.caller API, even if the caller binding itself never
+      // escapes or appears in an explicit source-to-string expression. Until
+      // a callee is independently proved inert, treat invocation as a source
+      // escape for the enclosing callable's original text.
+      if(node.type==='CallExpression'||node.type==='NewExpression'||
+         node.type==='TaggedTemplateExpression')observed=true;
       if(node.type==='MemberExpression'&&node.object?.type==='Identifier'&&
          node.object.name==='arguments'&&staticName(node.property)==='callee')
         observed=true;
