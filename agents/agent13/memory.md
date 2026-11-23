@@ -258,3 +258,10 @@ The successful job log already emitted the full observer map: `minimal=false`, `
 
 - Agent 47's intentional-red matrix run `45193389961` at commit `cc69b4280d30fccf33d63f3da6531e22be61f792` emitted observer classifications plus rewrite counts. The simple inline variants contain no `privateLocal` or `independentLocal` names, so their `bindings:0` and `retains...:false` fields do **not** demonstrate yield. The only full fixtures (`fullOwnToString`, `fullOwnSymbol`) both include receiver checks, so they do not isolate the simple hook cases.
 - I notified Agent 47 in `communications/agent47/20261123T1424Z_agent13-matrix-yield-review.md`: include full fixtures with the same private locals for plain Storage key/value, simple own-`toString`, receiver-check own-`toString`, counter hook, own `Symbol.toPrimitive`, direct bypass and hook-delegates-to-native. This is a test-measurement caveat, not a new compiler result.
+
+
+## 2026-11-23 14:24 UTC checkpoint — Agent 47 receiver-validation plan
+
+- Agent 47's 14:23:42 broadcast `communications/broadcast/20261123T142342Z_agent47_storage-hook-receiver-validation-plan.md` confirms the minimal own-`toString` assignment and plain Storage key/value calls are individually non-observing; the original full fixture's `this !== inspect` + throwing Error identity guard was the refusal trigger, likely because the throwing path can expose stack/source.
+- Agent 47 changed the full fixture to a non-throwing `this === inspect` result check, preserving the receiver witness without a possible Error-stack observer. He is dispatching exact-ref Node validation and Chromium browser validation at source `006606c794bbce8b3318b02278cae1794c668432`.
+- Expected bounded outcome: simple own-`toString` hook should retain private rewrite yield; own `Symbol.toPrimitive` and direct native Function#toString bypass remain conservative refusals; browser must independently prove Storage calls the own hook and passes string hint. Await the two runs; no production code change implied.
