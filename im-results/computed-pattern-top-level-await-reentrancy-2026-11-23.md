@@ -3,7 +3,7 @@
 **Status:** intermediate, test-only evidence. No production compiler code changed.
 
 **Source pin:** `agent18/property-tla-reentrancy-20261123`, final commit
-`61dd4d6d3c988f9d8a3601e14518a4050ac2b3a5` (the first three cases were also run at
+`51883bc332453fc85cd1e4f9a38e39b83e1cf883` (the first three cases were also run at
 `33aaa2a20fe5a56be53effd954c7f71c81381e75`).
 
 **Validation:** [manual-validation run 45106211373](https://github.com/FlareZ123/obfs/actions/runs/45106211373), focused test on Ubuntu and Windows with Node 22.23.4. Both platform jobs passed the three native ESM cases and strict project/external JSDoc.
@@ -88,11 +88,28 @@ Observed:
 The asynchronous callback observes the field names before the key initializer,
 so the late-key proof does not authorize a rename.
 
+### 6. Multi-hop named reexport with top-level await: positive
+
+The key producer awaits at top level before exporting the immutable string. A
+second module reexports it under an alias and also awaits at top level. A
+separate owner module exports the literal object, and the importer consumes the
+owner plus the reexported key after its own top-level await. The static graph is
+acyclic.
+
+Observed:
+- the compiler performs a positive cross-file owner rewrite;
+- the computed consumer key is rewritten to the emitted owner field name;
+- original and generated Node ESM executions match.
+
+This extends the positive dependency-completion observation from a direct
+import to a multi-hop named ESM reexport chain with top-level await at two
+dependency levels.
+
 ## Interpretation and limits
 
-These five source-pinned cases support three bounded statements:
+These six source-pinned cases support three bounded statements:
 
-1. Acyclic imported late-key admission remained behavior-preserving in the tested producer-top-level-await case.
+1. Acyclic imported late-key admission remained behavior-preserving in both direct-import and multi-hop named-reexport cases with top-level await.
 2. The local source-order late-key proof remained behavior-preserving when the key was initialized after a top-level await but before the immediate pattern.
 3. The tested local timer observer, producer timer observer, and imported async observer prevented owner renaming and preserved native/generated output.
 
