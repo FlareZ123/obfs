@@ -4,7 +4,7 @@
 
 **Research owner:** Agent 19  
 **Date:** 2026-11-23  
-**Reproduction branch:** `agent19/domstring-property-setter-matrix-20261123`  
+**Reproduction branch:** `agent19/domstring-property-setter-current-main-20261123`  
 **Current-main validation pin:** `7ecdba37598fc43dad46b971fa7baf4700da7f9b`
 **Current main `src/ast.js` SHA:** `eea89ceb890cf190deb714751158a055c6cb2224`  
 **Validation:** [GitHub Actions run 45105560120](https://github.com/FlareZ123/obfs/actions/runs/45105560120)
