@@ -237,7 +237,10 @@ test('selected SCO Web IDL method admission fails closed on alias and extraction
     "return new Headers({'x-demo':'café'}).get('x-demo');",
     "return new Headers().get('X-Demo');",
     "const querySuffix='1';return new URLSearchParams('a=1').get('a'+querySuffix);",
-    "const headerSuffix='k';return new Headers().append('x-demo','o'+headerSuffix);"
+    "const headerSuffix='k';return new Headers().append('x-demo','o'+headerSuffix);",
+    "const headerNameSuffix='demo';return new Headers({'x-demo':'ok'}).get('x-'+headerNameSuffix);",
+    "return new Headers({'x-demo':'ok'}).get(`x-${'demo'}`);",
+    "return new Headers({'x-demo':'ok'}).get('x-é');"
   ])assert.throws(()=>compile(body),/unproved cross-realm WebIDL constructor/,body);
   for(const body of [
     "const H=Reflect.get(globalThis,'Headers');return new H().get('x-demo');",
