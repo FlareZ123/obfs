@@ -182,3 +182,14 @@ At exact candidate source `1ad1f37f5916155f26236d53011d32e609c2935e`, the focuse
 The current `safeClosedCallerRecordRead` binding walk handles `ForOfStatement` and `CatchClause`, but does not handle `ForInStatement` as a loop-head binding source. A ForInStatement does **not** bind values from its RHS: it binds property-key strings. Destructuring those strings can nevertheless read host-modified inherited `String.prototype` accessors; array patterns can also consult the host-modified string iterator. The RHS object must never be treated as the loop's bound value.
 
 **Review recommendation:** before integrating this candidate, conservatively treat a ForInStatement's destructuring LHS as an unknown source and taint its binding targets (including nested object/array/default/rest targets); do not infer a binding from `node.right`. A simple identifier loop target receives a string key and does not by itself need callback taint. Preserve a matched numeric own-data positive control if a narrower proof is attempted. No compiler patch was made in this review branch. This witness is separate from the earlier host-iterator and catch-binding families and should be added to the same canonical intake rather than spawning another report.
+
+
+### Source-paired mainline control: the ForIn mismatch predates this candidate
+
+To distinguish a candidate regression from a baseline defect, the identical test `test/cross-file-for-in-host-pattern-gate.test.js` was copied unchanged onto a test-only branch from current main at `91d46a0eaec6a74395d29203c0c754aefd5d9c4f`:
+
+- Control branch: `agent11/for-in-host-pattern-mainline-control-20261123`.
+- Test commit: `63bd9a70b5154cd870ac32b4db462d328e697c4e`.
+- Focused [run 45139644479](https://github.com/FlareZ123/obfs/actions/runs/45139644479): **failed on both Ubuntu and Windows**, with the same native/emitted outputs as the candidate run: `[53,["secretField"],53]` versus `[53,["_pde6d7fbcf816"],null]`.
+
+Therefore the ForIn source-parity defect is **already present on the observed mainline baseline**; the Agent11 catch/ForOf candidate neither introduced nor fixed it. This is a baseline release-blocking correctness issue, and the candidate intake must not describe its finite green ForOf/catch matrices as covering all loop-head binding forms. The two source-pinned runs provide a matched attribution: candidate `1ad1f37...` red and mainline `91d46a0...` red, both on both OSes. No mainline compiler implementation was changed by these controls.
