@@ -46,6 +46,26 @@ const positives=[
     '}',
     'module.exports=compute({arbitrary:3});'
   ].join('\n'),1],
+  ['private own-membership in a direct local caller',[
+    'function check(){',
+    'const owner={secretField:17};',
+    'return "secretField" in owner;',
+    '}',
+    'module.exports=check();'
+  ].join('\n'),1],
+  ['top-level private owner read only by membership function',[
+    'const owner={secretField:17};',
+    'function check(){return "secretField" in owner;}',
+    'module.exports=check();'
+  ].join('\n'),1],
+  ['two owned records used by membership and arithmetic',[
+    'function check(){',
+    'const first={secretField:17};',
+    'const second={bonusField:5};',
+    'return ["secretField" in first,first.secretField+second.bonusField];',
+    '}',
+    'module.exports=check();'
+  ].join('\n'),2],
   ['private owner fields returned in an inert array',[
     'function compute(){',
     'const owner={secretField:17,bonusField:5};',
