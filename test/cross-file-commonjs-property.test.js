@@ -17,8 +17,8 @@ const graph=/** @type {CommonJsFile[]} */ ([
   {path:'worker.cjs',sourceType:'commonjs',code:[
     "const api=require('./api.cjs');",
     'const alias=api;',
-    'function read(value){return value.privateCount+value.hiddenAddend;}',
-    'module.exports=read(alias);'
+    'const total=alias.privateCount+alias.hiddenAddend;',
+    'module.exports=total;'
   ].join('\n')},
   {path:'entry.cjs',sourceType:'commonjs',code:[
     "const api=require('./api.cjs');",
