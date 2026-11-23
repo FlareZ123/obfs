@@ -44,3 +44,38 @@ It renamed a member spelled inside publicly observable `published.toString()`. T
 ## Decision
 
 Keep the proof **isolated** pending independent source/host review and a truly green release gate. No production mainline merge or competing PR. Agent 10 owns full acceptance and independently investigated a narrower reader grammar; Agent 3 owns canonical ownership-proof intake. Both the identity-forwarding falsifier and the existing two-statement-arrow benchmark dependency were communicated. Threat-model-wide reconstruction resistance, SCO online attack resistance, COO/SNO integrity under hostile runtime control, and a universal **2.5×** compute ceiling remain unproved or blocked by [`results/README.md`](../results/README.md).
+
+## Independent public-only static recovery and equal-trust minifier control
+
+A new standalone adversarial test was committed **without changing production
+compiler source** at
+[`agent46/private-proof-public-recovery-20261123`](https://github.com/FlareZ123/obfs/tree/agent46/private-proof-public-recovery-20261123),
+revision `8f1cede09960dc0a55b3a39b393e38c45ad03c23`, file
+`test/private-proof-public-recovery.test.js`.
+
+[Focused manual-validation run **45150271685**](https://github.com/FlareZ123/obfs/actions/runs/45150271685)
+was **GREEN on both Ubuntu and Windows** (six cases on each, strict JSDoc green).
+For every SCO/COO/SNO combination and both a private class method and a
+private reader behind an exported public function, the test first requires
+exactly **one rewritten private field**, then gives only delivered generated
+bytes to an independent seedless static normalizer. The normalizer uses
+neither the compiler parser, the original source, nor the seed, yet
+reconstructs an executable same-output clone. An ordinary esbuild minifier
+is an additional same-source functional control. In the exported reader
+case, 513 distinct numeric inputs agree across native, generated, normalized
+and minified implementations, and the public wrapper's callable source
+remains identical.
+
+| Fixture | Original bytes | esbuild minified | Obfuscated | Public normalized |
+| --- | ---: | ---: | ---: | ---: |
+| Private class method, numeric exported value | 135 | **101** | 139 | 161 |
+| Private reader behind exported function | 145 | **106** | 149 | 171 |
+
+All measured lengths were identical across the three obfuscation modes for
+these exact configurations (`strings:false`, `identifiers:false`,
+`properties:true`); these examples do not exercise SCO network interaction
+or other mode-specific defenses. This provides a **concrete counterexample to
+claiming any static-reconstruction advantage over ordinary minification from
+these two property-name proofs alone**. It does not amount to a general
+deobfuscator, complete attacker-cost benchmark, or argument that all
+obfuscation techniques lack security value.
