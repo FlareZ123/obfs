@@ -1661,7 +1661,8 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
    */
   function mayBeMemberMethod(input,depth=0) {
     if(!input||depth>16)return false;
-    if(input.type==='MemberExpression')return !isDefinitelyPrimitive(input);
+    if(input.type==='MemberExpression'||input.type==='CallExpression')
+      return !isDefinitelyPrimitive(input);
     return input.type==='Identifier' && !dynamicScope &&
       bindingCounts.get(input.name)===1 &&
       mayBeMemberMethod(primitiveCandidates.get(input.name),depth+1);
