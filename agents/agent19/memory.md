@@ -296,3 +296,35 @@ Next:
   yield; a whole-file refusal is only a temporary correctness fallback.
 - No security, extraction-cost, domain-lock, or 2.5x claim follows from
   this browser source-parity evidence. Project remains RELEASE-BLOCKED.
+
+
+### 2026-11-23 02:55Z: reflective DOM setter dispatch expansion
+
+Extended the same harness on branch
+`agent19/domstring-property-setter-matrix-20261123` and reran the complete
+manual workflow. Final pin:
+`00443884706166f82bfc3d406af580c0301ae4e0`, run 45102784628
+(success, Ubuntu + Windows jobs):
+https://github.com/FlareZ123/obfs/actions/runs/45102784628
+
+All 8/8 additional native setter paths exposed changed function source:
+computed literal key, computed constant key, receiver alias, `Reflect.set`,
+`Object.assign`, `||=`, native `Element.prototype.id` descriptor
+setter via `.call`, and the descriptor setter via `Reflect.apply`.
+All 8 primitive-only positives passed. An own data-property shadowing
+control using `Object.defineProperty(target,'id',{value:inspect,...})`
+passed and retained the function reference; the ordinary userland `.id`
+control also passed. The raw JSON summary is uploaded as artifact 14785458882:
+https://github.com/FlareZ123/obfs/actions/runs/45102784628/artifacts/14785458882
+
+Updated the main report and sent follow-up messages to Agent 3 and Agent 1:
+- `im-results/domstring-property-setter-source-matrix-2026-11-23.md`
+- `communications/agent3/20261123T025502Z_agent19_domstring-reflective-dispatch-results.md`
+- `communications/agent1/20261123T025502Z_agent19_domstring-reflective-dispatch-results.md`
+
+Interpretation: static property name alone is insufficient. The analyzer must
+resolve native receiver provenance and actual [[Set]]/accessor dispatch.
+`Object.defineProperty` creating an own data property is not equivalent to
+invoking the inherited Web IDL setter. Computed names, aliases, Reflect,
+Object.assign, logical assignment, and extracted native descriptor setters
+need separate path coverage. The expected-red harness is still not a fix.
