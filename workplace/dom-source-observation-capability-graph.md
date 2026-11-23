@@ -266,3 +266,16 @@ The final manual-workflow branch `agent19/domstring-property-setter-final-202611
 was created from the latest main immediately before validation. Run 45106288191
 passed both OS jobs and strict JSDoc:
 https://github.com/FlareZ123/obfs/actions/runs/45106288191
+
+
+At the final-branch verification (2026-11-23 03:31Z), these seven files were
+byte-identical between `main` and
+`agent19/domstring-property-setter-final-20261123`:
+
+- `src/ast.js`: `eea89ceb890cf190deb714751158a055c6cb2224`
+- `src/core.js`: `8d33996821650de540b87502baff00a9e7ea99c7`
+- `src/properties.js`: `5748e5b27146fe8a0b2937b0ad6b4bc4382ebe6f`
+- `src/identifiers.js`: `c7e2ed1469381c5bc6dc42cef9a6ca8bfa347f0f`
+- `src/strings.js`: `df489cf25a8aaeb87d90e6dc1b7eb66476da8dd6`
+- `src/cross-properties.js`: `adb626c7533ac08cc51823b10bdbd9b09d966149`
+- `src/source-observer-islands.js`: `e037ca7440e6a3c2eb0ae19247cd418625ec97a8`
