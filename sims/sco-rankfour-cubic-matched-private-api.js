@@ -27,6 +27,7 @@ const PROJECTION_MASKS = [0x00015555, 0x0002aaaa, 0x0000f0f0, 0x00033333];
  * @property {string} sourceHash
  * @property {number} queries
  * @property {number} heldouts
+ * @property {string} heldoutInputsSha256
  * @property {number} matched
  * @property {number} privateExecutions
  * @property {number} deniedStatus
@@ -350,11 +351,13 @@ async function runScoArm(source, tapes) {
 
     let matched = 0;
     let heldouts = 0;
+    const heldoutInputs = new Set();
     for (let i = 0; heldouts < 1028; i++) {
       const input = createHash('sha256')
         .update('rankfour-cubic-heldout/' + i)
         .digest().readUInt32BE(0);
-      if (clone.observed.has(input)) continue;
+      if (clone.observed.has(input) || heldoutInputs.has(input)) continue;
+      heldoutInputs.add(input);
       const expected = await privateModule.protectedCubic(input);
       assert.equal(evaluate(snapshot, input), expected);
       heldouts++;
@@ -367,6 +370,7 @@ async function runScoArm(source, tapes) {
       sourceHash: createHash('sha256').update(source).digest('hex'),
       queries: clone.queries,
       heldouts,
+      heldoutInputsSha256: createHash('sha256').update([...heldoutInputs].sort((a, b) => a - b).join('\n')).digest('hex'),
       matched,
       privateExecutions,
       deniedStatus: denied.status,
@@ -485,11 +489,13 @@ async function runMinifiedArm(source, method, tapes, expected) {
 
     let matched = 0;
     let heldouts = 0;
+    const heldoutInputs = new Set();
     for (let i = 0; heldouts < 1028; i++) {
       const input = createHash('sha256')
-        .update('rankfour-cubic-minified-heldout/' + i)
+        .update('rankfour-cubic-heldout/' + i)
         .digest().readUInt32BE(0);
-      if (clone.observed.has(input)) continue;
+      if (clone.observed.has(input) || heldoutInputs.has(input)) continue;
+      heldoutInputs.add(input);
       const expectedValue = await privateModule.protectedCubic(input);
       assert.equal(evaluate(snapshot, input), expectedValue);
       heldouts++;
@@ -504,6 +510,7 @@ async function runMinifiedArm(source, method, tapes, expected) {
       minifiedSha256: createHash('sha256').update(minified).digest('hex'),
       queries: clone.queries,
       heldouts,
+      heldoutInputsSha256: createHash('sha256').update([...heldoutInputs].sort((a, b) => a - b).join('\n')).digest('hex'),
       matched,
       privateExecutions,
       deniedStatus: denied.status,
@@ -547,6 +554,7 @@ async function main() {
   assert.equal(minified.deniedStatus, 403);
   assert.equal(sco.heldouts, 1028);
   assert.equal(minified.heldouts, 1028);
+  assert.equal(sco.heldoutInputsSha256, minified.heldoutInputsSha256);
   assert.equal(sco.matched, sco.heldouts);
   assert.equal(minified.matched, minified.heldouts);
   assert.equal(sco.privateExecutions, sco.queries);
@@ -568,6 +576,7 @@ async function main() {
     verificationQueries: sco.verificationQueries,
     verificationSamples: sco.verificationSamples,
     heldoutsEach: 1028,
+    heldoutInputsSha256: sco.heldoutInputsSha256,
     matchedEach: 1028,
     bothRejectedUnauthorized: true,
     scoPrivateNamesPublished: sco.publishedPrivateNames,
