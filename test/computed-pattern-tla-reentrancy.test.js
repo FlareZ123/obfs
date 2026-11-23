@@ -12,13 +12,13 @@ const {ownPropertyName}=require('../src/properties');
 const {atomicWrite}=require('../src/atomic');
 
 /** @typedef {{path:string,sourceType:'module',code:string}} ModuleFile */
-/** @typedef {{label:string,files:ModuleFile[],expectPositive:boolean}} Case */
+/** @typedef {{label:string,kind:'local'|'cross',files:ModuleFile[],expectPositive:boolean}} Case */
 
 /** @type {Case[]} */
 const cases=[
   {
     label:'acyclic imported late key after producer top-level await',
-    expectPositive:true,
+    kind:'cross',expectPositive:true,
     files:[
       {path:'state.mjs',sourceType:'module',
         code:'export const bag={secretField:41,bias:2};'+
@@ -30,7 +30,7 @@ const cases=[
   },
   {
     label:'top-level await timer callback observes owner before late key',
-    expectPositive:false,
+    kind:'cross',expectPositive:false,
     files:[
       {path:'state.mjs',sourceType:'module',
         code:'export const bag={secretField:41,bias:2};'+
@@ -44,7 +44,7 @@ const cases=[
   },
   {
     label:'acyclic imported async observer reenters during producer top-level await',
-    expectPositive:false,
+    kind:'cross',expectPositive:false,
     files:[
       {path:'observer.mjs',sourceType:'module',
         code:'export async function observe(record){'+
@@ -58,6 +58,27 @@ const cases=[
       {path:'main.mjs',sourceType:'module',
         code:'import {bag,key,observed} from "./state.mjs";'+
           'const {[key]:value}=bag;console.log(value,key,observed);'}
+    ]
+  },
+  {
+    label:'local later key after top-level await',
+    kind:'local',expectPositive:true,
+    files:[
+      {path:'main.mjs',sourceType:'module',
+        code:'const owner={secretField:41,bias:2};await Promise.resolve();'+
+          'const key="secretField";const {[key]:value}=owner;console.log(value);'}
+    ]
+  },
+  {
+    label:'local timer callback observes owner before late key',
+    kind:'local',expectPositive:false,
+    files:[
+      {path:'main.mjs',sourceType:'module',
+        code:'const owner={secretField:41,bias:2};'+
+          'const observed=await new Promise(resolve=>setTimeout(()=>'+
+          'resolve(Object.keys(owner).join(",")),0));'+
+          'const key="secretField";const {[key]:value}=owner;'+
+          'console.log(value,observed);'}
     ]
   }
 ];
@@ -84,9 +105,9 @@ async function execute(directory,files){
  * @param {ModuleFile[]} files
  * @returns {void}
  */
-function proveRewrittenOwner(files){
-  const owner=files.find(file=>file.path==='state.mjs');
-  const reader=files.find(file=>file.path==='main.mjs');
+function proveRewrittenOwner(files,ownerPath='state.mjs',readerPath='main.mjs'){
+  const owner=files.find(file=>file.path===ownerPath);
+  const reader=files.find(file=>file.path===readerPath);
   assert.ok(owner&&reader);
   /** @type {string[]} */
   const fields=[];
@@ -118,12 +139,15 @@ for(const [index,fixture] of cases.entries()){
       mode:'coo',closedWorld:true,identifiers:false,strings:false,
       seed:'computed-tla-reentrancy/'+index
     });
+    const yieldCount=fixture.kind==='cross'?compiled.crossFile.properties:
+      compiled.files.reduce((sum,file)=>sum+(file.metrics?.objects??0),0);
     if(fixture.expectPositive){
-      assert.ok(compiled.crossFile.properties>0,
+      assert.ok(yieldCount>0,
         fixture.label+' should retain a proved positive rewrite');
-      proveRewrittenOwner(/** @type {ModuleFile[]} */ (compiled.files));
+      proveRewrittenOwner(/** @type {ModuleFile[]} */ (compiled.files),
+        fixture.kind==='local'?'main.mjs':'state.mjs','main.mjs');
     }else{
-      assert.equal(compiled.crossFile.properties,0,
+      assert.equal(yieldCount,0,
         fixture.label+' must refuse an owner observable before key initialization');
     }
     const directory=await fs.mkdtemp(path.join(os.tmpdir(),'obfs-computed-tla-'));
