@@ -316,7 +316,11 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
     if(!node)return false;
     if(node.type==='Identifier')return opaqueFunctions.has(node.name)&&
       !importedStrings.has(node.name)&&!importedPrimitives.has(node.name);
-    if(node.type==='MemberExpression')return isOpaqueNamespace(node.object);
+    if(node.type==='MemberExpression') {
+      const method=memberName(node);
+      if(['call','apply','bind'].includes(method??''))return isOpaqueCallable(node.object);
+      return isOpaqueNamespace(node.object);
+    }
     return isRequireCall(node);
   }
   /** @param {AstNode|null|undefined} node @returns {boolean} */
