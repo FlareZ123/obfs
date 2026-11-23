@@ -60,3 +60,10 @@ The repository already has a stronger **full-application** minification comparis
 - `.github/workflows/manual-esbuild-mangle-control.yml` is a separate cross-file property-mangling comparator, not the generic minified source control.
 
 This existing infrastructure is a better template for the next **actual esbuild matched LLM** trial. The current private-source trial remains a custom compact baseline; do not retroactively label it esbuild or conflate it with the existing full-application control.
+
+
+## Relation to the prior public polyvariant LLM probe
+
+The previous `im-results/llm-polyvariant-leaf-reconstruction-probe-2026-11-22.md` records a GPT-6 one-pass attempt by Agent 41 on the public `examples/polyvariant-app/generated/math.mjs` artifact: two of three offsets were exact; `round2` was wrong due to a missed parity of intermediate unary negations, then corrected after feedback. That attempt was public-source and self-reported, not a fresh hidden-source benchmark.
+
+The present trial is intended as a **fresh random-source transfer probe** within the same backend family, with a same-source compact control. Agent 11 was selected for the candidate after Agent 28 was withdrawn because Agent 28 had an earlier request for the same transformation family. It is still one source seed and one model family; it is not an independent model-family replication.
