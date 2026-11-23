@@ -7,6 +7,9 @@ const holder=[owner];
 const first=holder[0];
 const second=holder[0];
 function read(value){return value.secretCount+value.privateDelta;}
-module.exports=function score(input){
+function privateScore(input){
   return read(first)+second.secretCount*input+first.privateDelta;
+}
+module.exports=function score(input){
+  return privateScore(input);
 };
