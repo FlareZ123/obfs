@@ -746,3 +746,45 @@ test('literal destructuring of numeric callback retains private ESM record renam
   assert.equal(await execute(compiled.files),native);
   assert.equal(compiled.crossFile.properties,1);
 });
+
+
+/** Nested patterns and defaults also propagate a callable result to a local. */
+for(const [name,binding] of /** @type {[string,string][]} */([
+  ['object default','const {callback=getFactory}={};'],
+  ['array default','const [callback=getFactory]=[];'],
+  ['nested object','const {inner:{callback}}={inner:{callback:getFactory}};'],
+  ['nested array','const [[callback]]=[[getFactory]];']
+])) {
+  test('nested/default host callback '+name+' preserves remote ESM spelling',async()=>{
+    const files=graph([
+      'function getFactory(){return globalThis.RUNTIME_FACTORY;}',
+      binding,
+      'const ctor=await Promise.resolve().then(callback);',
+      'const remote=await ctor("return import(\'./state.mjs\')")();',
+      "const result=[inspectRecord('auditCount').value,Object.keys(remote.state),remote.state.secretField];"
+    ].join('\n'));
+    const native=await execute(files,true);
+    assert.equal(native,'[41,[3,["secretField"],41]]\n');
+    const compiled=obfuscateFiles(files,{
+      mode:'coo',closedWorld:true,seed:'host-pattern-depth/'+name,
+      identifiers:false,strings:false,properties:true
+    });
+    assert.equal(await execute(compiled.files,true),native,name);
+    assert.equal(compiled.crossFile.properties,0,name);
+  });
+}
+
+test('numeric default array destructure retains one safe private field transform',async()=>{
+  const files=graph([
+    'const [callback=()=>7]=[];',
+    'const value=await Promise.resolve().then(callback);',
+    "const result=[inspectRecord('externalFormat').value,value];"
+  ].join('\n'));
+  const native=await execute(files);
+  const compiled=obfuscateFiles(files,{
+    mode:'coo',closedWorld:true,seed:'host-pattern-default-numeric',
+    identifiers:false,strings:false,properties:true
+  });
+  assert.equal(await execute(compiled.files),native);
+  assert.equal(compiled.crossFile.properties,1);
+});
