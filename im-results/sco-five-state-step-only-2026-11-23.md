@@ -57,6 +57,10 @@ Local environment: Node v22.16.0, Linux x64, AMD EPYC 9V74, four reported parall
 
 Workspace initialization, including canonical transition generation, candidate-array allocation and initial ID fill, took **649.041 ms**. The candidate array occupied **663,554,832 bytes**. The three learner calls took 12,416.843 ms total after workspace initialization. All **384 held-out traces** matched exactly.
 
+### Storage/performance alternative
+
+An exploratory bitset implementation is preserved at `workplace/sco-five-state-bitset-benchmark.js`. It replaces the 4-byte active candidate-ID array with a `Uint32Array` membership bitset (20,736,092 bytes) plus a `Uint8Array` current-state array (165,888,708 bytes), for **186,624,800 bytes total**—about 3.56× less candidate storage. It reuses the same canonical transition tables, query policy, and three fixtures. Local measurements: workspace initialization 449.66 ms; learner times 5,334.22 ms, 6,538.68 ms, and 5,318.17 ms; the same query counts, remaining candidates, scan counts, independent partition checks, and 384 held-out traces all passed. Peak process RSS was 223,092,736 bytes. This is approximately 1.38× slower in aggregate than the default active-ID representation, but substantially more memory efficient. The default learner keeps the faster active-ID array; the bitset prototype is exploratory and is not part of CI.
+
 For the random five-state fixture, the learner isolated one canonical candidate in 31 binary-output queries. The raw model-count information lower bound is (lceillog_2(165,888,708)ceil=28) binary outputs; this is only a coarse bound because behaviorally equivalent hypotheses need not be distinguished.
 
 ## Why the state bound is essential
@@ -80,9 +84,10 @@ This is a practical limit of this exhaustive representation, not a security thre
 
 The existing dispatch-only manual workflow was extended; no new workflow was created.
 
-- [Manual SCO authorized oracle run 45105195468](https://github.com/FlareZ123/obfs/actions/runs/45105195468)
-- Source head: `67379220ba581c3cbf31ec402f6c776fe8f4977f`
-- Ubuntu and Windows jobs succeeded, including the canonical five-state tests, existing four-state/live matched-control tests, and strict SCO JSDoc checks.
+- [Manual SCO authorized oracle run 45105822873](https://github.com/FlareZ123/obfs/actions/runs/45105822873)
+- Source head: `79b3f7c3febc3fa41cfdf1f97503fafd19b9cc94`
+- Ubuntu and Windows jobs succeeded, including uniqueness/reachability checks for all 160,675 generated five-state graphs, exhaustive canonical-set comparison of all 65,536 labelled four-state graphs, the five-state continuation tests, existing four-state/live matched-control tests, and strict SCO JSDoc checks.
+- The earlier five-state run 45105195468 was also green before the exhaustive generator assertions were added.
 - The five-state test enforces a 128-query cap and a 15-second per-fixture learner-time cap. The reusable workspace is allocated once per test and reused sequentially.
 
 Reproduction:
