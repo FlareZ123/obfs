@@ -13,22 +13,26 @@ const {atomicWrite}=require('../src/atomic');
 /** @typedef {{path:string,sourceType:'commonjs',code:string}} CommonJsFile */
 
 /**
- * Execute the exact same file graph under a Node preload resolver hook.
- * The preload and redirected module are deliberately outside the compiler input.
+ * Execute the exact same file graph with or without an external Node preload.
+ * The preload and redirected module are deliberately outside compiler input.
  * @param {CommonJsFile[]|ReturnType<typeof obfuscateFiles>['files']} files
  * @param {CommonJsFile[]} external
+ * @param {boolean} [useHook]
  * @returns {Promise<{status:number|null,stdout:string,stderr:string}>}
  */
-async function execute(files,external) {
+async function execute(files,external,useHook=true) {
   const directory=await fs.mkdtemp(path.join(os.tmpdir(),'obfs-cjs-builtin-hook-'));
   try {
     for(const file of [...files,...external]) {
       await atomicWrite(path.join(directory,file.path),file.code);
     }
-    const child=spawnSync(process.execPath,[
+    const args=useHook?[
       '--import',pathToFileURL(path.join(directory,'preload.mjs')).href,
       path.join(directory,'entry.cjs')
-    ],{encoding:'utf8',timeout:15000,windowsHide:true});
+    ]:[path.join(directory,'entry.cjs')];
+    const child=spawnSync(process.execPath,args,{
+      encoding:'utf8',timeout:15000,windowsHide:true
+    });
     if(child.error)throw child.error;
     return {status:child.status,stdout:child.stdout,stderr:child.stderr};
   } finally {
@@ -69,30 +73,37 @@ const external=[
  * isBuiltin("path") exception admits a redirected bare builtin.
  */
 test('bare CommonJS builtin can be redirected by a preloaded Node resolver hook',async()=>{
-  const native=await execute(graph('path'),external);
-  assert.deepEqual(native,{status:0,stdout:'protected-literal-value',stderr:''});
+  const files=graph('path');
+  const ordinaryNative=await execute(files,external,false);
+  assert.deepEqual(ordinaryNative,{status:0,stdout:'protected-literal-value',stderr:''});
+  const hookedNative=await execute(files,external,true);
+  assert.deepEqual(hookedNative,ordinaryNative);
 
   for(const mode of /** @type {const} */ (['coo','sno'])) {
-    const emitted=obfuscateFiles(graph('path'),{
+    const emitted=obfuscateFiles(files,{
       mode,strings:true,properties:false,identifiers:false,
       seed:'cjs-builtin-hook/'+mode
     });
     const target=emitted.files.find(file=>file.path==='target.cjs');
     assert.ok((target?.metrics.literals??0)>0,
       mode+' did not exercise the admitted builtin-dependent decoder');
-    const observed=await execute(emitted.files,external);
+    assert.deepEqual(await execute(emitted.files,external,false),ordinaryNative,
+      mode+' changed behavior under the ordinary Node resolver');
+    const observed=await execute(emitted.files,external,true);
     assert.equal(observed.status,0,observed.stderr);
     assert.equal(observed.stdout,'?'.repeat('protected-literal-value'.length),
       mode+' did not expose the expected decoder corruption under the hook');
-    assert.notDeepEqual(observed,native);
+    assert.notDeepEqual(observed,hookedNative);
   }
 });
 
 /** The node: scheme control is not redirected by this hook. */
 test('node-prefixed CommonJS builtin remains native under the same hook',async()=>{
   const files=graph('node:path');
-  const native=await execute(files,external);
-  assert.deepEqual(native,{status:0,stdout:'protected-literal-value',stderr:''});
+  const ordinaryNative=await execute(files,external,false);
+  assert.deepEqual(ordinaryNative,{status:0,stdout:'protected-literal-value',stderr:''});
+  const hookedNative=await execute(files,external,true);
+  assert.deepEqual(hookedNative,ordinaryNative);
   for(const mode of /** @type {const} */ (['coo','sno'])) {
     const emitted=obfuscateFiles(files,{
       mode,strings:true,properties:false,identifiers:false,
@@ -100,6 +111,7 @@ test('node-prefixed CommonJS builtin remains native under the same hook',async()
     });
     const target=emitted.files.find(file=>file.path==='target.cjs');
     assert.ok((target?.metrics.literals??0)>0);
-    assert.deepEqual(await execute(emitted.files,external),native);
+    assert.deepEqual(await execute(emitted.files,external,false),ordinaryNative);
+    assert.deepEqual(await execute(emitted.files,external,true),ordinaryNative);
   }
 });
