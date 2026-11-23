@@ -116,6 +116,9 @@ function assertNoPrivateImportMemberState(filename,source){
        node.type==='AssignmentPattern'&&carriesAlias(node.right)||
        node.type==='SpreadElement'&&carriesAlias(node.argument)||
        node.type==='Property'&&carriesAlias(node.value)||
+       node.type==='PropertyDefinition'&&carriesAlias(node.value)||
+       (node.type==='ClassDeclaration'||node.type==='ClassExpression')&&
+         carriesAlias(node.superClass)||
        node.type==='ArrayExpression'&&node.elements.some(
          (/** @type {import('./ast').AstNode|null} */ item)=>carriesAlias(item))||
        (node.type==='CallExpression'||node.type==='NewExpression')&&
