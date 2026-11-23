@@ -148,7 +148,7 @@ const fixtures = [
   { name: 'self', module: true, source: 'export {}; self.location.href;', expected: 'host-global-candidate' },
   { name: 'globalThis', module: true, source: 'export {}; globalThis.window;', expected: 'host-global-candidate' },
   { name: 'globalThis', module: true, source: 'export {}; function f(globalThis) { return globalThis.window; }', expected: 'shadowed-local' },
-  { name: 'window', source: 'function f(o) { with (o) { window.onerror = handler; } }', expected: 'unknown' },
+  { name: 'window', source: 'function f(o) { with (o) { window.onerror = handler; } }', expected: 'unknown-with' },
   { name: 'window', source: 'function f() { eval("var window = local"); window.onerror = handler; }', expected: 'unknown-direct-eval' },
   { name: 'window', source: 'function outer() { eval("var window = local"); return function inner() { window.onerror = handler; }; }', expected: 'unknown-direct-eval' },
   { name: 'window', source: 'function outer() { function sibling() { eval("var window = local"); } return function inner() { window.onerror = handler; }; }', expected: 'host-global-candidate' },
