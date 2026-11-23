@@ -110,7 +110,7 @@ test('Local-window records avoid false shared-ambient refusal, while genuine roo
     'return globalThis.Math.PI;'),/share ambient state/u);
   assert.throws(()=>partition(
     'const globalThis=probe();return globalThis.Math.PI;',
-    'return globalThis.Math.PI;'),/share ambient state|unproved host-global state|realm-local/u);
+    'return globalThis.Math.PI;'),/share ambient state|unproved host-global state|realm-local|unproved unqualified free reference: probe/u);
 });
 
 test('Nested shadowing of an owned local ambient name does not bypass shared-state refusal',()=>{
