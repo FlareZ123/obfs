@@ -195,6 +195,24 @@ const htmlApiCases=[
   nodeStreamMethodCase('Element.streamBeforeHTMLUnsafe','streamBeforeHTMLUnsafe','streamBeforeHTMLUnsafe'),
   nodeStreamMethodCase('Element.streamAfterHTMLUnsafe','streamAfterHTMLUnsafe','streamAfterHTMLUnsafe'),
   nodeStreamMethodCase('Element.streamReplaceWithHTMLUnsafe','streamReplaceWithHTMLUnsafe','streamReplaceWithHTMLUnsafe')
+];;
+
+/** @type {DispatchCase[]} */
+const legacyDocumentCases=[
+  {
+    name:'Document.write via iframe contentDocument',
+    setup:'const frame=document.createElement("iframe");document.body.appendChild(frame);const doc=frame.contentDocument;',
+    assignment:'doc.open();doc.write(inspect);doc.close();',
+    read:'doc.body.textContent',
+    positiveAssignment:'doc.open();doc.write("literal");doc.close();'
+  },
+  {
+    name:'Document.writeln via iframe contentDocument',
+    setup:'const frame=document.createElement("iframe");document.body.appendChild(frame);const doc=frame.contentDocument;',
+    assignment:'doc.open();doc.writeln(inspect);doc.close();',
+    read:'doc.body.textContent.replace(/\\n$/, "")',
+    positiveAssignment:'doc.open();doc.writeln("literal");doc.close();'
+  }
 ];
 
 /**
@@ -326,6 +344,30 @@ async function main() {
     bodies.set(pair.positiveNative,positive);
     bodies.set(pair.positiveCompiled,positiveOutput.code);
   }
+  /** @type {{name:string,native:string,compiled:string,positiveNative:string,positiveCompiled:string,negativeProperties:number,positiveProperties:number}[]} */
+  const legacyDocumentPairs=[];
+  for(let index=0;index<legacyDocumentCases.length;index++) {
+    const item=legacyDocumentCases[index];
+    const negative=sourceForDispatchCase(item,false);
+    const negativeOutput=compile(negative,'domstring-legacy-document-negative-'+index);
+    const positive=sourceForDispatchCase(item,true);
+    const positiveOutput=compile(positive,'domstring-legacy-document-positive-'+index);
+    const pair={
+      name:item.name,
+      native:'/legacy-document-native-'+index+'.mjs',
+      compiled:'/legacy-document-compiled-'+index+'.mjs',
+      positiveNative:'/legacy-document-positive-native-'+index+'.mjs',
+      positiveCompiled:'/legacy-document-positive-compiled-'+index+'.mjs',
+      negativeProperties:negativeOutput.properties,
+      positiveProperties:positiveOutput.properties
+    };
+    legacyDocumentPairs.push(pair);
+    bodies.set(pair.native,negative);
+    bodies.set(pair.compiled,negativeOutput.code);
+    bodies.set(pair.positiveNative,positive);
+    bodies.set(pair.positiveCompiled,positiveOutput.code);
+  }
+
   /** @type {{name:string,supportKey:string,native:string,compiled:string,positiveNative:string,positiveCompiled:string,negativeProperties:number,positiveProperties:number}[]} */
   const htmlApiPairs=[];
   for(let index=0;index<htmlApiCases.length;index++) {
@@ -479,6 +521,7 @@ async function main() {
     'const pairs='+JSON.stringify(pairs)+';',
     'const dispatchPairs='+JSON.stringify(dispatchPairs)+';',
     'const htmlApiPairs='+JSON.stringify(htmlApiPairs)+';',
+    'const legacyDocumentPairs='+JSON.stringify(legacyDocumentPairs)+';',
     'const htmlProbe=document.createElement("div");',
     'const nodeProbe=document.createTextNode("");',
     'const browserEnvironment={userAgent:navigator.userAgent,htmlApiSupport:{',
@@ -505,6 +548,8 @@ async function main() {
     ' streamBeforeHTMLUnsafe:typeof nodeProbe.streamBeforeHTMLUnsafe==="function",',
     ' streamAfterHTMLUnsafe:typeof nodeProbe.streamAfterHTMLUnsafe==="function",',
     ' streamReplaceWithHTMLUnsafe:typeof nodeProbe.streamReplaceWithHTMLUnsafe==="function",',
+    ' documentWrite:typeof Document.prototype.write==="function",',
+    ' documentWriteln:typeof Document.prototype.writeln==="function",',
     ' insertAdjacentHTML:typeof htmlProbe.insertAdjacentHTML==="function"',
     '}};',
     'try {',
@@ -526,6 +571,22 @@ async function main() {
     '     JSON.stringify(positiveNative)===JSON.stringify(positiveEmitted),',
     '   negativeProperties:pair.negativeProperties,',
     '   positiveProperties:pair.positiveProperties});',
+    ' }',
+    ' const legacyDocumentRows=[];',
+    ' for(const pair of legacyDocumentPairs){',
+    '  const [n,e,pn,pe]=await Promise.all([',
+    '   import(pair.native),import(pair.compiled),',
+    '   import(pair.positiveNative),import(pair.positiveCompiled)]);',
+    '  const native=n.observed,emitted=e.observed,',
+    '   positiveNative=pn.observed,positiveEmitted=pe.observed;',
+    '  legacyDocumentRows.push({name:pair.name,',
+    '   nativeSourceValid:native.source.includes("observedOwner.secretField"),',
+    '   sourceMismatch:native.source!==emitted.source,',
+    '   numericParity:native.value===emitted.value&&native.value===57,',
+    '   independentParity:native.independent===emitted.independent&&native.independent===73,',
+    '   positiveParity:positiveNative.source==="literal"&&',
+    '     JSON.stringify(positiveNative)===JSON.stringify(positiveEmitted),',
+    '   negativeProperties:pair.negativeProperties,positiveProperties:pair.positiveProperties});',
     ' }',
     ' const htmlApiRows=[];',
     ' for(const pair of htmlApiPairs){',
@@ -605,7 +666,7 @@ async function main() {
     '    JSON.stringify(pn.observed)===JSON.stringify(pe.observed),',
     '  negativeProperties:'+crossNegativeProperties+',',
     '  positiveProperties:'+crossPositiveProperties+'};',
-    ' document.getElementById("result").textContent=JSON.stringify({rows,dispatchRows,htmlApiRows,userland,dataPropertyControl,customAccessorControl,proxyStorageControl,proxyBrandCheckControl,htmlMethodControl,browserEnvironment,crossFile});',
+    ' document.getElementById("result").textContent=JSON.stringify({rows,dispatchRows,htmlApiRows,legacyDocumentRows,userland,dataPropertyControl,customAccessorControl,proxyStorageControl,proxyBrandCheckControl,htmlMethodControl,browserEnvironment,crossFile});',
     '}catch(error){document.getElementById("result").textContent=',
     ' "BROWSER_ERROR "+String(error.stack||error);}',
     '</script>'
@@ -640,6 +701,10 @@ async function main() {
     const browser=JSON.parse(match[1]);
     const browserEnvironment=browser.browserEnvironment;
     const htmlApiRows=browser.htmlApiRows;
+    const legacyDocumentRows=browser.legacyDocumentRows;
+    const legacyDocumentParity=legacyDocumentRows.length===legacyDocumentCases.length&&
+      legacyDocumentRows.every((/** @type {any} */ row)=>row.numericParity&&
+        row.independentParity&&row.positiveParity);
     const supportedHtmlApiCases=htmlApiCases.filter((/** @type {HtmlApiCase} */ item)=>
       !!browserEnvironment.htmlApiSupport[item.supportKey]);
     const htmlApiExpectedRed=htmlApiRows.length===htmlApiCases.length&&
@@ -699,13 +764,13 @@ async function main() {
       dispatchRows.every((/** @type {any} */ row)=>row.sourceMismatch&&row.numericParity&&
         row.independentParity&&row.positiveParity);
     const summary={
-      expectedRedReproduced:allExpectedRed&&userlandPositive&&crossFileExpectedRed&&dataPropertyPositive&&customAccessorPositive&&proxyStoragePositive&&proxyBrandCheckPositive&&htmlMethodExpectedRed&&htmlApiExpectedRed&&dispatchExpectedRed,
+      expectedRedReproduced:allExpectedRed&&userlandPositive&&crossFileExpectedRed&&dataPropertyPositive&&customAccessorPositive&&proxyStoragePositive&&proxyBrandCheckPositive&&htmlMethodExpectedRed&&htmlApiExpectedRed&&legacyDocumentParity&&dispatchExpectedRed,
       sinkCount:rows.length,
       sourceMismatchCount:rows.filter((/** @type {any} */ row)=>row.sourceMismatch).length,
       sourceMismatchNames:rows.filter((/** @type {any} */ row)=>row.sourceMismatch).map(
         (/** @type {any} */ row)=>row.name),
       crossFileExpectedRed,crossFile,dispatchSummary,dataPropertyControl,customAccessorControl,proxyStorageControl,proxyBrandCheckControl,
-      htmlMethodExpectedRed,htmlMethodControl,htmlApiExpectedRed,htmlApiRows,
+      htmlMethodExpectedRed,htmlMethodControl,htmlApiExpectedRed,htmlApiRows,legacyDocumentRows,
       htmlMethodProperties:{negative:htmlMethodOutput.properties,positive:htmlMethodPositiveOutput.properties},
       browserEnvironment,
       rows,userland,
