@@ -1,6 +1,7 @@
 'use strict';
 
 const {createHash}=require('node:crypto');
+const {exposesSloppyCallerSource}=require('./caller-source-purity');
 const {walk,applyEdits}=require('./ast');
 const {
   collectBindings,collectSourceExposedBodies,proveLocalObject,ownPropertyName,
@@ -23,7 +24,7 @@ const {staticString}=require('./ast');
  *
  * @param {string} source
  * @param {AstNode} ast
- * @param {{seed:string}} options
+ * @param {{seed:string,preserveCallableSource?:boolean}} options
  * @returns {{code:string,objects:number,properties:number}}
  */
 function symbolizeLocalProperties(source,ast,options) {
@@ -74,6 +75,7 @@ function symbolizeLocalProperties(source,ast,options) {
     if(candidate.properties.some(property=>sourceExposedEdits.has(property)))continue;
     const proof=proveLocalObject(ast,candidate.name,bindings);
     if(!proof||(!proof.members.length&&!proof.patterns.length&&!proof.inChecks.length))continue;
+    if(exposesSloppyCallerSource(ast,candidate.node,candidate.properties,proof))continue;
     if(proof.members.some(member=>sourceExposedEdits.has(member))||
        proof.patterns.some(property=>sourceExposedEdits.has(property))||
        proof.inChecks.some(check=>sourceExposedEdits.has(check))||
