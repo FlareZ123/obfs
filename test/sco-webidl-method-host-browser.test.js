@@ -216,7 +216,7 @@ test('selected SCO Web IDL method admission fails closed on alias and extraction
     "let root;root=globalThis;const H=root.Headers;return new H().get('x-demo');",
     "const a=globalThis;const b=a;const H=b.Headers;return new H().get('x-demo');",
     "const root=globalThis;let H;({Headers:H}=root);return new H().get('x-demo');"
-  ])assert.throws(()=>compile(body),TypeError,body);
+  ])assert.throws(()=>compile(body),/realm-local|unproved cross-realm WebIDL constructor/,body);
   for(const name of ['Headers','URLSearchParams']){
     const shadowed='export async function privateOp('+name+'){' +
       'return new '+name+'().get("x");}' +
