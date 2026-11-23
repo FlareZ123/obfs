@@ -27,6 +27,12 @@ The final 14-case Node matrix was independently rerun at exact source `4e8f5be6f
 
 The implementation at `src/cross-properties.js` now recognizes source-visible inline function/arrow callback bodies returning an ambient callable, named host-returning factory passed to otherwise unproved calls, and conservative local object/array holder aliasing, nested members, simple destructuring and namespace-qualified ESM callbacks. Unknown keys within a potentially host-carrying holder join conservatively; this is **safety by refusal**, not complete JavaScript points-to analysis.
 
+## Conservatism/positive-yield ablation
+
+A selected **15th** challenge combines a *declared but never invoked* host-returning factory with an unrelated `const safe={...{n:7}}` and `await Promise.resolve(safe)`. Without proving the spread's payload inert, the candidate returned `crossFile.properties=0` instead of the valid private rewrite count 1. The source outputs stayed equivalent, but protection yield regressed. Node 22 Ubuntu/Windows [red 45118340694](https://github.com/FlareZ123/obfs/actions/runs/45118340694) reproduced **14 pass / 1 yield failure** at `d3da92dfaaf606c206c18a4555bc6e19f7c6cce1`.
+
+The patch at `bbc1bf34ae98e11a8d019d720d9ca7bbf9f7b48b` adds a restricted inert spread literal recognizer: nested literal objects/arrays containing only primitive literal leaves and no computed keys, accessor/method properties or dynamic spreads. Such values cannot transfer an opaque callable through a spread operation under ordinary native literal semantics. Unknown dynamic spreads remain treated as possible capability transfers. [Focused 45118477476](https://github.com/FlareZ123/obfs/actions/runs/45118477476) passed all **15/15** tests on both platforms, including the regained 1/1 private-field positive and strict project/external JSDoc. This is a selected precision improvement, not a general static purity proof.
+
 The original positive controls remain transformed: a literal-only Promise callback and an object-held numeric callback still produce one private record-field rewrite and equal native/generated output. A universal all-zero rewrite would not satisfy those controls.
 
 ## Evidence boundaries and open work
