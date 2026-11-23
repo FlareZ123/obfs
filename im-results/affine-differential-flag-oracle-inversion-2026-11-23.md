@@ -115,6 +115,8 @@ For any target y=F(s), define x_0=r XOR A^-1(y XOR F(r)). If G(s)=0, x_0=s and t
 
 **Conditional bound:** One clean interpolation basis and at most two target checks suffice, at most n+3 distinct chosen-oracle calls (35 at n=32). This proof holds for any single-coordinate triangular gate G, with arbitrary hidden invertible affine wrappers, provided the chosen anchor's n+1 probes all avoid the gate. It does **not** establish that an attacker can efficiently find such a clean basis on every arbitrary gate, especially dense or deliberately anchor-poisoned instances.
 
+The clean-basis single-gate corollary is a strict special case of the repository's already established rank-one perturbation theorem in results/rank-one-nonlinear-perturbation-inversion.md. That stronger result proves the same n+3 query bound for any affine-plus-rank-one Boolean scalar permutation, including rank-deficient observed interpolants. The narrower clean-anchor argument here provides a transparent explanation of the selected fast portfolio route; it is **not an independent new security theorem**.
+
 The source-private 27-bit rare prefix has support density exactly 2^-27 in source coordinates. Its deterministic sample test is consistent with the clean-base lemma, but no independently uniform random sampling or theoretical clean-basis probability estimate is inferred from the eight seeded cases.
 
 ### Reproduction and scope
@@ -173,4 +175,50 @@ npm run typecheck:external
 
 The new self-contained checker, independent single-file Node test and strict typed file entries are in sims/compatible-derivative-greedy-exhaustive.js, test/compatible-derivative-greedy-exhaustive.test.js and jsconfig.external.json. The mathematical tool is exact enumeration of scalar Boolean-function linear structures, a standard concept in cryptanalysis, for example [Musukwa et al., A Note on Vectorial Boolean Functions as Embeddings (2024)](https://boolean.w.uib.no/files/2024/09/4_musukwa.pdf). This report does not claim novelty for that terminology or known basic derivative-subspace facts.
 
-**Unresolved:** Whether every globally legitimate greedy derivative choice can be extended for every bit-width n and every compatible permutation remains an unproved conjecture. The complete width-four census is evidence, not a proof in arbitrary dimension. It also does not show a polynomial-query procedure that finds globally valid masks from public black-box observations. The already documented sparse 32-bit failure under 16 samples per stage remains a decisive counterexample to that extrapolation. No claim about strong client-only or server-only obfuscation resistance follows. The strong-protection project release remains **RELEASE-BLOCKED**.
+**Update:** The exact-greedy extension question is resolved by the general constructive theorem below. The width-four census remains an independent exhaustive check of the theorem's input/output scalar and kernel semantics. What remains unresolved is a polynomial-query method for **discovering** genuinely globally valid masks from black-box samples. The already documented sparse 32-bit failure under 16 samples per stage remains a decisive counterexample to that extrapolation. No claim about strong client-only or server-only obfuscation resistance follows. The strong-protection project release remains **RELEASE-BLOCKED**.
+
+
+## General greedy extension theorem, any bit width
+
+**Analytic derivation on 23 November 2026; independent review requested.** This resolves the tentative arbitrary-width exact-greedy conjecture following the four-bit census, without assuming any source distribution, finite sampling success, or bound on black-box training queries.
+
+### Theorem: every nonzero input subspace admits a nonzero globally constant scalar derivative
+
+Let n>=1, work over GF(2)^n, let P be any compatible triangular permutation with components
+
+    P_j(z) = z_j XOR g_j(z_0,...,z_(j-1)),  j=0,...,n-1,
+
+where the g_j are arbitrary Boolean functions. Let A and B be invertible n-by-n binary matrices, a and b arbitrary offsets, and define F(x)=a XOR B P(Ax XOR b). Let U be **any** nonzero input linear subspace of GF(2)^n, even one constructed by earlier arbitrary scalar-kernel choices.
+
+Then there exists a nonzero output scalar mask w and a nonzero linear functional l on U such that
+
+    <w, F(x XOR h) XOR F(x)> = l(h)
+
+for **every** x in GF(2)^n and h in U.
+
+**Proof:** V=A U is a nonzero linear input subspace. Choose the smallest source-coordinate index j for which some v in V has v_j=1. By minimality, every v in V has v_0=...=v_(j-1)=0. Let the output mask w be the dual of source-coordinate j under the outer linear wrapper: w transpose=e_j transpose B inverse. Then w applied to the output difference removes B and a. For any x and h in U, put z=Ax XOR b and v=Ah in V. The strict-lower-bit arguments of g_j are identical at z and z XOR v because v_<j=0. Therefore
+
+    <w, F(x XOR h) XOR F(x)>
+      = P_j(z XOR v) XOR P_j(z)
+      = v_j
+      = (Ah)_j.
+
+This quantity is independent of x and is a nonzero linear form on U, since j was chosen to occur in some v in V. QED.
+
+### Corollary: arbitrary globally valid greedy choices never lead to a dead end
+
+Suppose a black-box learner has selected any globally legitimate scalar derivative mask w_k on a current nonzero subspace U_k, with nonzero measured linear form l_k, and shrinks to U_(k+1)=ker(l_k) within U_k. The new subspace has dimension one smaller. If it is nonzero, apply the theorem above to U_(k+1) to obtain another valid mask and direction. This works **regardless of which valid mask was selected at earlier stages**. After n steps the subspace is zero, so a complete derivative flag always exists from any globally valid greedy path.
+
+Every mask selected at a new stage is automatically independent of all previous masks. Their scalar derivatives vanish on the current U by the previous kernel definitions, whereas the newly chosen mask has a nonzero derivative there. The earlier conditional exact-inversion theorem therefore supplies an exact target preimage after at most n+1 further forward evaluations **if** the global masks have actually been found.
+
+The proof is unchanged by two-sided invertible affine wrappers, which are included explicitly. It uses only the source triangular component law and the minimum active source-coordinate argument. It makes no assertion that the attacker knows A, B, j, or w, and no assertion that polynomially many sampled probes can identify a true mask under adversarial sparse gates.
+
+### Relation to computation and existing work
+
+The source-pinned [four-bit exhaustive census 45089806133](https://github.com/FlareZ123/obfs/actions/runs/45089806133) independently verifies all choices across all 32,768 width-four triangular maps, with 180,224 eligible root masks and 64/64 unrelated negative controls.
+
+**Stronger arbitrary-subspace cross-check:** A separate exact-source refinement at 26ce52d46d18b696ae05df200a7ac54e55ffc5ca, [focused test 45090237138](https://github.com/FlareZ123/obfs/actions/runs/45090237138), constructs all 67 distinct linear subspaces of GF(2)^4 from independent generator closure. For every one of the 32,768 triangular source permutations, it checks the theorem's existence claim for **all 66 nonzero input subspaces**, regardless of whether the subspace lies on a greedy path. This is **2,162,688** exhaustive source/subspace witness checks, **zero failures**. Source-affine invariance gives the corresponding wrapped four-bit result. The computational census remains a finite independent check of the already proved any-width structural lemma. The theorem supplies the missing arbitrary-width reasoning that the finite census alone could not provide. Exact second-difference sample tests do not provide a certificate of global derivative constancy at width 32; the 8/8 false-learned sparse-gate cases remain a valid warning against treating empirical flags as proven ones.
+
+The basic concept of a Boolean scalar linear structure is standard in the Boolean-function literature. The contribution here is the explicit constructive **subspace-independent existence and arbitrary-greedy-extendability statement for this two-sided affine-compatible family**. Its relationship to existing equivalent formulations and its external novelty have not been independently reviewed. It is a structural observation relevant to falsifying claimed hardness of this candidate class, not a practical polynomial-query oracle attack and not a release claim.
+
+**Next unresolved problem:** Find a reliable public-oracle method to identify *globally valid* masks (or prove a query lower bound) under arbitrary compatible gates, including rare prefix gates intentionally absent from finite calibration samples. The source-separated portfolio attacks some dense and sparse controlled populations but has no universal completeness guarantee. The primary strong-protection release remains **RELEASE-BLOCKED**.
