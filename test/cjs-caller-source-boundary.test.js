@@ -64,6 +64,24 @@ const strictEntry=[
   'process.stdout.write(JSON.stringify(compute()));'
 ].join('\n');
 
+const coercionObserver=[
+  'let seen;',
+  'function coerce(){',
+  '  seen=Function.prototype.toString.call(coerce.caller);',
+  '  return 3;',
+  '}',
+  'module.exports={value:{[Symbol.toPrimitive]:coerce},seen(){return seen;}};'
+].join('\n');
+
+const coercionEntry=[
+  "const foreign=require('./observer.cjs');",
+  'function compute(input){',
+  '  const state={secretField:17,bonusField:5};',
+  '  return state.secretField+state.bonusField+input;',
+  '}',
+  'process.stdout.write(JSON.stringify([compute(foreign.value),foreign.seen()]));'
+].join('\n');
+
 const privateEntry=[
   'function compute(){',
   '  const state={secretField:17,bonusField:5};',
@@ -145,6 +163,34 @@ for(const bundled of [false,true]){
       assert.equal(protectedRun.status,0,protectedRun.stderr);
       assert.deepEqual(protectedRun,native,
         'A property getter in a separate module can inspect its non-strict calling function');
+    }finally{
+      await fs.rm(root,{recursive:true,force:true});
+    }
+  });
+}
+
+for(const bundled of [false,true]){
+  test('non-strict CJS ToPrimitive caller source parity / '+
+    (bundled?'included helper':'unbundled helper'),async()=>{
+    const input=bundled?
+      [sourceFile(coercionEntry),{path:'observer.cjs',sourceType:'commonjs',code:coercionObserver}]:
+      [sourceFile(coercionEntry)];
+    const output=obfuscateFiles(input,{
+      mode:'sno',seed:'cjs-coercion-caller-source-'+bundled,
+      identifiers:false,strings:false,properties:true
+    });
+    const entry=output.files.find(file=>file.path==='entry.cjs');
+    assert.ok(entry);
+    const emittedObserver=output.files.find(file=>file.path==='observer.cjs');
+    const root=await fs.mkdtemp(path.join(os.tmpdir(),'obfs-cjs-coercion-caller-'));
+    try{
+      const native=await run(path.join(root,'native'),coercionEntry,coercionObserver);
+      const protectedRun=await run(path.join(root,'output'),String(entry.code),
+        emittedObserver?String(emittedObserver.code):coercionObserver);
+      assert.equal(native.status,0,native.stderr);
+      assert.equal(protectedRun.status,0,protectedRun.stderr);
+      assert.deepEqual(protectedRun,native,
+        'An arithmetic ToPrimitive conversion can invoke a foreign non-strict source-reading callback');
     }finally{
       await fs.rm(root,{recursive:true,force:true});
     }
