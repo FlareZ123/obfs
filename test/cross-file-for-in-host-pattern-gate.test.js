@@ -146,3 +146,37 @@ test('simple ForIn identifier without destructuring preserves safe cross-file re
     'A plain ForIn identifier is only a string key; do not discard unrelated private rewrite yield');
   assert.equal(await executeWithPreloader(output.files),native);
 });
+
+
+test('ForIn StringKey provenance survives a cross-file function return before destructuring',async()=>{
+  /** @type {ModuleFile[]} */
+  const files=[
+    {path:'state.mjs',sourceType:'module',
+      code:'export const state={secretField:53};'},
+    {path:'keys.mjs',sourceType:'module',code:[
+      'export function getKey(){',
+      '  for(const key in ["x"])return key;',
+      '  return "";',
+      '}'
+    ].join('\n')},
+    {path:'main.mjs',sourceType:'module',code:[
+      'import {state} from "./state.mjs";',
+      'import {getKey} from "./keys.mjs";',
+      'const {callback:Loader}=getKey();',
+      'const injected=Loader('+JSON.stringify('return import("./state.mjs")')+');',
+      'const remote=await injected();',
+      'console.log(JSON.stringify([state.secretField,Object.keys(remote.state),remote.state.secretField]));'
+    ].join('\n')}
+  ];
+  const native=await executeWithPreloader(files);
+  assert.equal(native,'[53,["secretField"],53]\n');
+  const output=obfuscateFiles(files,{
+    mode:'coo',closedWorld:true,seed:'for-in-stringkey-cross-file-return',
+    strings:false,identifiers:false,properties:true
+  });
+  const emitted=await executeWithPreloader(output.files);
+  assert.equal(emitted,native,
+    'StringKey provenance must survive a cross-file function return before destructuring');
+  assert.equal(output.crossFile.properties,0,
+    'A function returning a ForIn property key must not hide later host String prototype access');
+});
