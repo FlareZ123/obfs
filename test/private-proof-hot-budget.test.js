@@ -66,13 +66,17 @@ for(const mode of /** @type {const} */ (['coo','sno','sco'])) {
       const nativeTimes=[];
       /** @type {number[]} */
       const generatedTimes=[];
-      const iterations=3000000;
+      // Windows CPU accounting is coarsely quantized; a short class loop
+      // can measure 0 ms and produce an invalid infinite ratio.
+      const iterations=label.includes('class')?60000000:3000000;
       const pairs=7;
       for(let trial=0;trial<pairs;trial++){
         const nativeRun=trial%2===0?sample(native,iterations):null;
         const obfuscatedRun=sample(protectedFn,iterations);
         const originalRun=nativeRun??sample(native,iterations);
         assert.equal(obfuscatedRun.digest,originalRun.digest);
+        assert.ok(originalRun.ms>0&&obfuscatedRun.ms>0,
+          'A zero-CPU sample cannot support a slowdown ratio');
         nativeTimes.push(originalRun.ms);
         generatedTimes.push(obfuscatedRun.ms);
         ratios.push(obfuscatedRun.ms/originalRun.ms);
