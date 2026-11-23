@@ -231,3 +231,33 @@ As with the preceding sections, these remain branch-specific correctness
 findings in stacked draft PR #291. Dynamic import path alias resolution,
 unknown external modules and current-main semantic/security release remain
 outside their proof.
+
+### Final source-paired validation of the opaque-import refusal
+
+The corrected source-paired opaque-import probe completed after the prior
+checkpoint. Control source
+`7aa74fe43551f7c3f724bb15add6e176d7654c2e` with shared test blob
+`30cc58fa26563b0b68339ad8e1b9692de4ef32f4` passed both Node 22 jobs in
+[run 45200799348](https://github.com/FlareZ123/obfs/actions/runs/45200799348):
+Ubuntu and Windows behavioral/adversarial suites, strict project/external
+JSDoc, sampled performance and paired profiles all succeeded. Ubuntu's
+real Chromium integration and all dedicated browser steps succeeded;
+Windows browser steps were skipped by the workflow matrix.
+
+Candidate source
+`a5888dc0279974e0290f8e686adfe2612a168194` with the identical test blob
+passed both Node 22 jobs and the same JSDoc/performance/profile steps in
+[run 45200808128](https://github.com/FlareZ123/obfs/actions/runs/45200808128).
+Ubuntu's real Chromium integration and dedicated browser steps succeeded;
+Windows browser steps were skipped. Thus the final corrected test contract
+is green on both platforms for both control and candidate, with a real
+browser pass on Ubuntu. The test demonstrates that identifier-valued
+`import(spec)` / `require(spec)` remain conservatively refused without
+breaking native/emitted parity. It does **not** demonstrate additional
+transformation yield or a new compiler repair. The earlier incorrect
+Number-yield assertion remains a test-contract mistake, not a semantic
+regression.
+
+This evidence is still branch-specific to stacked draft PR #291. It is
+not current-main acceptance and does not alter the RELEASE-BLOCKED decision.
+
