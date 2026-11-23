@@ -4,7 +4,7 @@ const assert=require('node:assert/strict');
 const {test}=require('node:test');
 const {learnFlag,parity}=require('../sims/affine-flag-oracle-attacker');
 const {
-  makeDenseOracle,makeSparseWitness,makeUnstructuredOracle
+  makeDenseOracle,makeSparseWitness,makeRareAffineOracle,makeUnstructuredOracle
 }=require('../sims/affine-flag-oracle-fixtures');
 
 /**
@@ -112,6 +112,32 @@ test('32-bit hidden two-sided affine triangular sources admit a sampled exact pr
   assert.equal(exactTargets,1280);
   console.log('AFFINE_FLAG_32BIT '+JSON.stringify({
     sources,exactTargets,totalTraining,maxTraining,additionalQueries
+  }));
+});
+
+test('32-bit hidden affine rare gate defeats bounded sampled-derivative calibration',()=>{
+  let rareMisses=0,unsupported=0;
+  for(let sample=1;sample<=8;sample++) {
+    const source=makeRareAffineOracle(Math.imul(sample+173,0x9e3779b9));
+    const target=source.evaluate(source.secret);
+    const learned=learnFlag(source.evaluate,{
+      bits:32,samplesPerStage:16,
+      sampleSeed:Math.imul(sample+991,0x85ebca6b),
+      maxQueries:15000
+    });
+    if(learned.status==='unsupported') {
+      unsupported++;
+      continue;
+    }
+    /** @type {import('../sims/affine-flag-oracle-attacker').InverseResult} */
+    const inverse=learned.invert(target);
+    if(!inverse.verified)rareMisses++;
+    else assert.equal(inverse.input,source.secret);
+  }
+  assert.equal(rareMisses+unsupported,8,
+    'Rare selected-gate source must expose sampled-calibration failures');
+  console.log('AFFINE_FLAG_RARE_32BIT '+JSON.stringify({
+    sources:8,rareMisses,unsupported,gatePrefixBits:27
   }));
 });
 
