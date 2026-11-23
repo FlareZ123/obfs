@@ -79,6 +79,9 @@ for(const [name,source] of /** @type {Array<[string,string]>} */ ([
   ['method with parameter',
     "const owner={privateField:7};class Reader{read(value){return owner.privateField;}}"+
     "const reader=new Reader();module.exports=reader.read();"],
+  ['side-effectful argument into method',
+    "const owner={privateField:7};class Reader{read(){return owner.privateField;}}"+
+    "const reader=new Reader();module.exports=reader.read(globalThis.sideEffect());"],
   ['return expression beyond one member read',
     "const owner={privateField:7};class Reader{read(){return owner.privateField+1;}}"+
     "const reader=new Reader();module.exports=reader.read();"],
