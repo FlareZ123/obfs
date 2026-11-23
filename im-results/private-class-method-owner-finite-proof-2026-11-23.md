@@ -159,3 +159,55 @@ class-method admission. Source confidentiality, anti-LLM claims,
 SCO online oracle resistance, SNO attacker-with-memory resistance and
 2.5× compute compliance remain independently unproved or blocked by
 existing negative evidence in [results/README.md](../results/README.md).
+
+## 23 November 2026, exact-main-based paired full validation
+
+To eliminate the old candidate/main branch divergence, Agent 46 forked a
+clean parent source `d1efacb1578b5443456a18b87839c2f3a024b24a`.
+The candidate `f985f490764d72a60b291bbf743add64914d375b` adds exactly
+one 4,475-character insertion to `src/properties.js` and a 57-case
+`test/private-class-method-proof-admission.test.js`. No other production
+file differs from this specific parent. The class proof also vetoes
+top-level `new Reader()` initializers occurring before the class declaration
+(`variable.start < cls.end`), addressing Agent 11's early-TDZ trigger
+within the native-host admitted domain. The comment describing the return
+value now avoids claiming every inert literal field is primitive.
+
+The two complete, unfocused, **source-paired** validation receipts are
+[unmodified-parent run 45143242424](https://github.com/FlareZ123/obfs/actions/runs/45143242424)
+and [candidate run 45142431470](https://github.com/FlareZ123/obfs/actions/runs/45142431470).
+Both are **RED**, and both run Node.js 22.23.4 on Ubuntu and Windows:
+
+| Exact source | OS | Tests | Pass | Fail | Skip |
+| --- | --- | ---: | ---: | ---: | ---: |
+| Parent `d1efacb1` | Ubuntu | 5,131 | 5,111 | **17** | 3 |
+| Parent `d1efacb1` | Windows | 5,131 | 5,103 | **18** | 10 |
+| Candidate `f985f490` | Ubuntu | 5,188 | 5,170 | **15** | 3 |
+| Candidate `f985f490` | Windows | 5,188 | 5,163 | **15** | 10 |
+
+The parent has the exact same 15 recurring positive-yield assertion failures
+as the candidate, plus the two `coo/sno private direct-use class`
+failure cases. Those two are absent from the candidate, and all 57 added
+candidate cases passed. The parent Windows run additionally recorded one
+`sco-step-only-live-rpc` `fetch failed` error (not observed on its Ubuntu
+job or either candidate OS). This is a distinct flaky/network-like witness
+that the source pair cannot attribute to the class patch; a generic
+cross-platform improvement of three failures is therefore unsupported.
+
+In both candidates, the failed step was the full behavioral/adversarial
+suite. The dedicated strict JSDoc and sample benchmark steps passed. Ubuntu
+also passed actual Chromium integration and native/emitted ESM observer
+differentials. Narrow candidate and historical class focused gates were
+also green [45142267490](https://github.com/FlareZ123/obfs/actions/runs/45142267490)
+and [45142274515](https://github.com/FlareZ123/obfs/actions/runs/45142274515).
+
+The paired evidence supports exactly **two resolved finite positive-yield
+failures with no additional named behavioral failure in the pinned full
+candidate**. It does not establish release acceptance, full JavaScript
+compatibility, a cold/hot 2.5× ceiling, or attacker-cost advantage. The
+experiment stays isolated at
+[`agent46/private-class-current-main-20261123`](https://github.com/FlareZ123/obfs/tree/agent46/private-class-current-main-20261123);
+Agent 3 owns canonical proof intake and Agent 10 owns full acceptance triage.
+An external `Error.prepareStackTrace` or hostile loader may still observe
+rewritten module-wrapper source after unrelated failures; the TDZ check only
+excludes the tested early-construction trigger.
