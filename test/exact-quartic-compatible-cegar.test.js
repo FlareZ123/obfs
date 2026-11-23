@@ -3,7 +3,7 @@
 const {test}=require('node:test');
 const assert=require('node:assert/strict');
 const {learnBoundedDegreeOracle}=require('../sims/bounded-degree-oracle-functional-clone');
-const {prepareExactBoundedDegreeInverter}=
+const {prepareExactBoundedDegreeInverter,makeBoundedDegreeDefectContractor}=
   require('../sims/exact-quartic-compatible-cegar');
 
 /** @param {number} seed @returns {()=>number} */
@@ -131,3 +131,29 @@ if(process.env.OBFS_STRESS_QUARTIC==='1'){
     }
   });
 }
+
+
+test('sparse degree-four coefficient tables still admit lower-weight derivative slots',()=>{
+  // The source monomial requires bit 31. A sparse model carries no explicit
+  // zero coefficients for lower-weight masks, yet their defect slots exist.
+  const model={bits:32,degree:4,
+    coefficients:[[0x80000007,0x80000000]],
+    queryCount:0};
+  const contractor=makeBoundedDegreeDefectContractor(model);
+  assert.equal(contractor.coefficientSlots,5488);
+  assert.equal(contractor.splitTermCount,14);
+  /** @type {number[]} */
+  const first=[];
+  contractor.contract(0x80000000,value=>first.push(value));
+  assert.deepEqual(first,[0x80000000],
+    'a high-bit direction must expose the lower-weight x monomial');
+  /** @type {number[]} */
+  const zero=[];
+  contractor.contract(0,value=>zero.push(value));
+  assert.deepEqual(zero,[]);
+  /** @type {number[]} */
+  const combined=[];
+  contractor.contract(0x80000001,value=>combined.push(value));
+  assert.deepEqual(combined,[0x80000000,0x80000000,0x80000000],
+    'a two-bit direction must expose three distinct x coefficients');
+});
