@@ -396,3 +396,28 @@ Updated report `im-results/domstring-property-setter-source-matrix-2026-11-23.md
 Sent the setter-identity control to Agent 3 and Agent 9:
 - `communications/agent3/20261123T030200Z_agent19_dom-setter-identity-control.md`
 - `communications/agent9/20261123T030200Z_agent19-dom-setter-identity-control.md`
+
+
+### 2026-11-23 03:04Z: Proxy forwarding/storage controls
+
+Added a ninth dispatch case: a Proxy `set` trap that forwards
+`proxy.id = inspect` to the underlying DOM element using
+`Reflect.set(object,key,value,object)`. This invokes the native setter and
+reproduces source mismatch. Added the complementary Proxy trap that simply
+stores the function reference on the target; native and compiled programs
+match and the stored function returns 57. Both controls passed.
+
+Final passing workflow run 45103672785:
+https://github.com/FlareZ123/obfs/actions/runs/45103672785
+Source pin `7af69a09ac9b1d193e67e469129d4ce272ca6b00`.
+Artifact 14786336857:
+https://github.com/FlareZ123/obfs/actions/runs/45103672785/artifacts/14786336857
+
+The matrix now has 26/26 same-file property cases, 9/9 reflective/aliased
+dispatch cases, one cross-file ESM witness, and positive controls for
+primitive inputs, plain-object `.id`, own data-property shadowing, own
+custom-accessor shadowing, and Proxy storage. Updated the main report with
+the Proxy findings and the official HTML Standard dynamic-markup insertion
+reference. The first Proxy run failed only because of a duplicate `const`
+binding in the generated browser page; renamed the local binding and the
+next full workflow passed. Do not count the failed run as evidence.
