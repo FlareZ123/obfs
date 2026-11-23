@@ -141,6 +141,28 @@ test('selected SCO query toString and safe private arithmetic retain yield',{
   assert.deepEqual(math,{refused:false,original:323,emitted:323,server:323});
 });
 
+
+test('selected SCO bounded Web IDL method matrix matches native host semantics',{
+  skip:!enabled,timeout:120000
+},async()=>{
+  const cases=[
+    {label:'query-get-all',body:"return JSON.stringify(new URLSearchParams('a=1&a=2').getAll('a'));",result:'["1","2"]'},
+    {label:'query-has',body:"return new URLSearchParams('a=1').has('a');",result:true},
+    {label:'query-delete',body:"return new URLSearchParams('a=1').delete('a')===undefined;",result:true},
+    {label:'query-set',body:"return new URLSearchParams('a=1').set('b','2')===undefined;",result:true},
+    {label:'query-sort',body:"return new URLSearchParams('b=2&a=1').sort()===undefined;",result:true},
+    {label:'headers-has',body:"return new Headers({'x-demo':'ok'}).has('x-demo');",result:true},
+    {label:'headers-append',body:"return new Headers().append('x-demo','ok')===undefined;",result:true},
+    {label:'headers-delete',body:"return new Headers({'x-demo':'ok'}).delete('x-demo')===undefined;",result:true}
+  ];
+  for(const fixture of cases){
+    const got=await compare(fixture.body,fixture.label);
+    assert.deepEqual(got,{
+      refused:false,original:fixture.result,emitted:fixture.result,server:fixture.result
+    },fixture.label);
+  }
+});
+
 test('selected SCO Web IDL method admission fails closed on alias and extraction',{
   skip:process.env.OBFS_FOCUSED_TEST!=='test/sco-webidl-method-host-browser.test.js'
 },()=>{
@@ -154,6 +176,8 @@ test('selected SCO Web IDL method admission fails closed on alias and extraction
     "new Headers().append('bad name','x');return 1;",
     "new URLSearchParams().append(Symbol('x'),'1');return 1;",
     "return new Headers().get('bad name');",
+    "return new Headers().has('bad name');",
+    "return new URLSearchParams().getAll(Symbol('x'));",
     "return new URLSearchParams().get(x);",
     "return new Headers().append('x-demo',x);",
     "const h=new Headers();return h.get('x-demo');",
