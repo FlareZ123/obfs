@@ -625,6 +625,10 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
   const webSocketInstances=new Set();
   const webSocketSendMethods=new Set();
   const boundWebSocketSendMethods=new Set();
+  // A different classic script can publish a native socket through a page
+  // global. Within one file it is an opaque value, not proof of a benign app
+  // object. Preserve source on a potentially external .send(function) call.
+  const opaqueGlobalObjectAliases=new Set();
   // Native Request/Response headers and URL searchParams are collection
   // objects that expose the same coercion methods as directly created ones.
   const webRecordInstances=new Set();
@@ -940,8 +944,18 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
     return key!==null ? keys?.has(key)??false : Boolean(node.computed&&keys?.size);
   }
   /**
-   * Keep provenance only for a native socket or its may-flow aliases;
-   * arbitrary application objects with a method called send remain safe.
+   * Externally sourced page-global references can carry native WebSocket
+   * instances, including when their defining script is compiled separately.
+   * @param {AstNode|null|undefined} node
+   * @returns {boolean}
+   */
+  function isOpaqueGlobalObject(node) {
+    return Boolean(node && (node.type==='MemberExpression'&&isGlobal(node.object) ||
+      node.type==='Identifier'&&opaqueGlobalObjectAliases.has(node.name)));
+  }
+  /**
+   * Preserve known native sockets and opaque page-global receivers that may
+   * be sockets. Other local application objects with send remain transformable.
    * @param {AstNode|null|undefined} node
    * @returns {boolean}
    */
@@ -950,7 +964,7 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
     if(node.type==='Identifier')return webSocketSendMethods.has(node.name);
     if(node.type!=='MemberExpression')return false;
     return (memberName(node)==='send'||node.computed&&memberName(node)===null) &&
-      isWebSocketInstance(node.object);
+      (isWebSocketInstance(node.object)||isOpaqueGlobalObject(node.object));
   }
   /** @param {AstNode|null|undefined} node @returns {boolean} */
   function isBoundWebSocketSendMethod(node) {
@@ -1234,6 +1248,8 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
         }
         if(isSymbolConstructor(value))changed=add(symbols,name)||changed;
         if(isGlobal(value))changed=add(globals,name)||changed;
+        if(isOpaqueGlobalObject(value))
+          changed=add(opaqueGlobalObjectAliases,name)||changed;
         if(value?.type==='Identifier'&&reflectiveReceivers.has(value.name) ||
            value?.type==='MemberExpression'&&isGlobal(value.object)&&
              ['Reflect','Object'].includes(memberName(value)??'')) {
