@@ -26,8 +26,8 @@ function execute(source) {
 
 /** @param {string} value @returns {string} */
 function fixture(value) {
-  return 'function inspect(){const observedOwner={observedSecret:31};'+
-    'return observedOwner.observedSecret;}'+
+  return 'const observedOwner={observedSecret:31};'+
+    'function inspect(){return observedOwner.observedSecret;}'+
     'const independentOwner={unrelatedSecret:73};'+
     'const style=document.createElement("div").style;'+
     'style.setProperty("--observed",'+value+');'+
