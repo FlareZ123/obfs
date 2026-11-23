@@ -10,7 +10,7 @@ const {transformSync}=require('esbuild');
 const execFileAsync=promisify(execFile);
 
 /** @typedef {import('../src/core').SourceFile} SourceFile */
-/** @typedef {{name:string,code:string,publicSource:boolean,transform?:'properties'}} Fixture */
+/** @typedef {{name:string,code:string,publicSource:boolean,transform?:'properties',externalObserver?:'domparser'|'attribute'}} Fixture */
 
 /** @type {Fixture[]} */
 const fixtures=[
@@ -81,6 +81,16 @@ const fixtures=[
     publicSource:true,transform:'properties'
   },
   {
+    name:'unsupplied-domparser-importer',
+    code:"export function observed(){return 'source-observed-literal';}",
+    publicSource:true,externalObserver:'domparser'
+  },
+  {
+    name:'unsupplied-attribute-importer',
+    code:"export function observed(){return 'source-observed-literal';}",
+    publicSource:true,externalObserver:'attribute'
+  },
+  {
     name:'nonescaping-owned-property-control',
     code:"const owner={secretField:53};"+
       "function observed(){return owner.secretField;}"+
@@ -101,6 +111,29 @@ function page() {
     'try{await import("./entry.mjs");'+
     'const pre=document.createElement("pre");pre.id="result";'+
     'pre.textContent=btoa(JSON.stringify(globalThis.__obfsResult));'+
+    'document.body.append(pre);'+
+    '}catch(error){const pre=document.createElement("pre");pre.id="failure";'+
+    'pre.textContent=String(error.stack||error);document.body.append(pre);}' +
+    '</script></body></html>';
+}
+
+/**
+ * The observer in this page deliberately is not among compiler input files.
+ * A declared source contract would need to account for this outside consumer.
+ * @param {'domparser'|'attribute'} kind
+ * @returns {string}
+ */
+function pageExternal(kind) {
+  const observer=kind==='domparser'?
+    'const doc=new DOMParser().parseFromString(observed,"text/html");'+
+      'const coerced=doc.body.textContent;':
+    'const element=document.createElement("span");'+
+      'element.setAttribute("data-source",observed);'+
+      'const coerced=element.getAttribute("data-source");';
+  return '<!doctype html><html><body><script type="module">'+
+    'try{const {observed}=await import("./entry.mjs");'+observer+
+    'const pre=document.createElement("pre");pre.id="result";'+
+    'pre.textContent=btoa(JSON.stringify({coerced,value:observed()}));'+
     'document.body.append(pre);'+
     '}catch(error){const pre=document.createElement("pre");pre.id="failure";'+
     'pre.textContent=String(error.stack||error);document.body.append(pre);}' +
@@ -153,9 +186,10 @@ async function main() {
       resources.set(prefix+'/minified/entry.mjs',transformSync(fixture.code,{
         format:'esm',target:'es2022',minify:true
       }).code);
-      resources.set(original,page());
-      resources.set(compiled,page());
-      resources.set(minified,page());
+      const html=fixture.externalObserver?pageExternal(fixture.externalObserver):page();
+      resources.set(original,html);
+      resources.set(compiled,html);
+      resources.set(minified,html);
       pairs.push({
         mode,name:fixture.name,publicSource:fixture.publicSource,
         transform:fixture.transform??'strings',original,emitted:compiled,minified,
@@ -228,9 +262,9 @@ async function main() {
     publicStringRewrites,publicPropertyRewrites,
     privateRewriteControls,privatePropertyRewriteControls
   };
-  assert.equal(summary.cases,30);
-  assert.equal(summary.valueMatches,30);
-  assert.equal(summary.minifiedValueMatches,30);
+  assert.equal(summary.cases,36);
+  assert.equal(summary.valueMatches,36);
+  assert.equal(summary.minifiedValueMatches,36);
   console.log('WEBIDL_FUNCTION_SOURCE_SUMMARY '+JSON.stringify(summary));
   return summary;
 }
