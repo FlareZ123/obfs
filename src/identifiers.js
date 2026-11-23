@@ -47,6 +47,11 @@ function renameLocalIdentifiers(source,ast,options) {
   const candidates=[];
   /** @type {{node:AstNode,parent:AstNode|null,key:string|null,ancestors:AstNode[]}[]} */
   const identifiers=[];
+  // The source text of a callable can be read by an unknown module consumer.
+  // Only a unique local function with direct-call-only uses can establish a
+  // narrow non-escape argument from this file alone.
+  /** @type {{node:AstNode,binding:AstNode|null,published:boolean,immediateCall:boolean}[]} */
+  const callableSpans=[];
   // Anonymous function/arrow/class expressions receive the assignment target's
   // name through NamedEvaluation. Mangling that binding changes observable
   // .name even when every lexical reference is rewritten correctly.
@@ -98,6 +103,13 @@ function renameLocalIdentifiers(source,ast,options) {
   let dynamic=false;
   walk(ast,(node,parent,key,ancestors)=>{
     if (node.type==='Identifier') identifiers.push({node,parent,key,ancestors});
+    if (['FunctionDeclaration','FunctionExpression','ArrowFunctionExpression'].includes(node.type)) {
+      const binding=node.type==='FunctionDeclaration' && node.id?.type==='Identifier'?
+        node.id:parent?.type==='VariableDeclarator' && parent.init===node &&
+        parent.id.type==='Identifier'?parent.id:null;
+      callableSpans.push({node,binding,published:Boolean(parent?.type.startsWith('Export')),
+        immediateCall:parent?.type==='CallExpression'&&parent.callee===node&&!parent.optional});
+    }
     const errorOperand=sourceSpelledErrorOperand(node);
     // Object spread accepts nullish sources and does not perform iteration.
     // Keep the existing proven-non-null object-pattern optimization too.
@@ -135,6 +147,18 @@ function renameLocalIdentifiers(source,ast,options) {
     }
   });
   if (dynamic) return {code:source,bindings:0};
+  // Unknown consumers can read exported Function#toString even when no
+  // source-observer syntax occurs in the original file. Retain the exact
+  // spelling inside every function whose non-escape was not proven locally.
+  const sourceVisibleCallables=callableSpans.filter(item=>{
+    if(options.sourceType==='script'||item.published)return true;
+    const {binding}=item;
+    if(!binding)return !item.immediateCall;
+    if(counts.get(binding.name)!==1)return true;
+    return identifiers.some(use=>use.node!==binding &&
+      use.node.name===binding.name &&
+      (use.parent?.type!=='CallExpression'||use.key!=='callee'||use.parent.optional));
+  });
   /** @type {import('./ast').Edit[]} */
   const edits=[];
   // A free identifier can be captured by a newly introduced local binding,
@@ -143,7 +167,9 @@ function renameLocalIdentifiers(source,ast,options) {
   let bindings=0;
   for(const candidate of candidates) {
     const {name,scope,identifier}=candidate;
-    if (counts.get(name)!==1 || inferredNames.has(name) || errorSpellingNames.has(name) ||
+    if (sourceVisibleCallables.some(item=>identifier.start>=item.node.start &&
+        identifier.end<=item.node.end) ||
+        counts.get(name)!==1 || inferredNames.has(name) || errorSpellingNames.has(name) ||
         ['arguments','eval','require','module','exports','globalThis','window'].includes(name)) continue;
     // TDZ ReferenceError messages expose the original binding spelling.
     // Until a control-flow dominance proof exists, reject a candidate when a
