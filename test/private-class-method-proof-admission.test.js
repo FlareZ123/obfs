@@ -73,7 +73,7 @@ for(const mode of /** @type {const} */ (['coo','sno','sco'])) {
         code:'import {value} from "./state.mjs";process.stdout.write(String(value));'}
     ];
     const emitted=obfuscateFiles(original,{mode,seed:'private-class-real-esm/'+mode,
-      properties:true,identifiers:false,strings:false});
+      closedWorld:true,properties:true,identifiers:false,strings:false});
     const state=emitted.files.find(file=>file.path==='state.mjs');
     assert.ok(state);
     assert.equal(state.metrics.properties,1);
