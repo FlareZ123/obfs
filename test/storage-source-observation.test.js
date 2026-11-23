@@ -119,7 +119,7 @@ const overriddenStorage=[
   'localStorage.setItem("overridden-storage",inspect);',
   'Storage.prototype.setItem=nativeSetItem;',
   'export function sample(){return inspect();}'
-].join('\\n');
+].join('\n');
 
 test('overridden Storage.prototype.setItem is not mistaken for native DOMString conversion',()=>{
   assert.equal(observesFunctionSource(parse(overriddenStorage,'module')),false);
