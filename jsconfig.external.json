@@ -273,7 +273,8 @@
     "test/classic-private-grid.test.js",
     "test/classic-private-properties.test.js",
     "examples/classic-private/build-sample.cjs",
-    "test/classic-private-cross-script-stringify.test.js"
+    "test/classic-private-cross-script-stringify.test.js",
+    "test/classic-private-cross-script-observer-parity.test.js"
   ],
   "exclude": [
     "node_modules"
