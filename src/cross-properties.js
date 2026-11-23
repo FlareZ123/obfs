@@ -1535,11 +1535,11 @@ function safeClosedCallerRecordRead(modules,module,member,ancestors) {
         /** @type {Set<string>} */
         const callbackHolders=new Set();
         /**
-         * An object/array spread is normally an unproved dynamic capability
-         * edge: accessors, iterators and proxies can execute arbitrary code.
-         * Only a strictly literal, inert primitive tree may be excluded from
-         * that uncertainty. This narrow proof retains useful private own-key
-         * renaming without trusting opaque spread values.
+         * A spread may be a dynamic capability edge: accessors, iterators
+         * and proxies can execute arbitrary code. For object spread only,
+         * the own-data payload of a strictly inert primitive literal tree
+         * may be excluded from that uncertainty. Array spread remains
+         * effectful because @@iterator can be supplied at runtime.
          *
          * @param {AstNode|null|undefined} value
          * @param {number} depth
@@ -1585,8 +1585,12 @@ function safeClosedCallerRecordRead(modules,module,member,ancestors) {
             // host callback even when the outer member is not a name.
             return holdsFactoryValue(value.object,depth+1);
           }
+          // Array spread invokes @@iterator and is not bounded merely
+          // by its literal elements when the runtime's iterator can change.
+          // Object spread of a strictly inert own-data literal has a
+          // narrower CopyDataProperties contract (handled below).
           if(value.type==='SpreadElement')
-            return !inertSpreadLiteral(value.argument,0);
+            return true;
           if(value.type==='ArrayExpression')
             return value.elements.some((/** @type {AstNode|null} */ item)=>
               holdsFactoryValue(item,depth+1));
@@ -1596,7 +1600,7 @@ function safeClosedCallerRecordRead(modules,module,member,ancestors) {
                 property.kind!=='init' || property.computed || property.method ||
                 holdsFactoryValue(property.value,depth+1):
               property.type==='SpreadElement'?
-                holdsFactoryValue(property,depth+1):true);
+                !inertSpreadLiteral(property.argument,0):true);
           return false;
         }
         let aliasChanged;
