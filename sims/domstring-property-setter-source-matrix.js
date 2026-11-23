@@ -576,12 +576,52 @@ async function main() {
   bodies.set('/compiled-positive-stream/logic.mjs',/** @type {string} */(positiveStreamLogicOutput.code));
   bodies.set('/compiled-positive-stream/observer.mjs',/** @type {string} */(positiveStreamObserverOutput.code));
 
+  /**
+   * @param {string} id
+   * @param {boolean} withDefaultPolicy
+   * @returns {string}
+   */
+  function trustedTypesSource(id,withDefaultPolicy) {
+    const lines=[
+      'const observedOwner={secretField:57};',
+      'function inspect(){return observedOwner.secretField;}',
+      'const independent={independentSecret:73};',
+      'const target=document.createElement("div");',
+      'let errorName=null;',
+      'let capturedValues=[];'
+    ];
+    if(withDefaultPolicy) lines.push(
+      'trustedTypes.createPolicy("default",{createHTML(value){capturedValues.push(String(value));return value;}});'
+    );
+    lines.push(
+      'try{target.innerHTML=inspect;}catch(error){errorName=error.name;}',
+      'let primitiveErrorName=null;',
+      'const primitiveTarget=document.createElement("div");',
+      'try{primitiveTarget.innerHTML="literal";}catch(error){primitiveErrorName=error.name;}',
+      'parent.postMessage({id:'+JSON.stringify(id)+',errorName,primitiveErrorName,',
+      'capturedValues,source:target.innerHTML,primitiveSource:primitiveTarget.innerHTML,',
+      'value:inspect(),independent:independent.independentSecret},"*");'
+    );
+    return lines.join('\n');
+  }
+  const ttNoPolicyNative=trustedTypesSource('tt-no-policy-native',false);
+  const ttNoPolicyCompiled=compile(ttNoPolicyNative,'domstring-trusted-types-no-policy').code;
+  const ttDefaultPolicyNative=trustedTypesSource('tt-default-policy-native',true);
+  const ttDefaultPolicyOutput=compile(ttDefaultPolicyNative,'domstring-trusted-types-default-policy');
+  const ttDefaultPolicyCompiled=ttDefaultPolicyOutput.code;
+
   const page=[    '<!doctype html><meta charset="utf-8"><pre id="result">pending</pre>',
     '<script type="module">',
     'const pairs='+JSON.stringify(pairs)+';',
     'const dispatchPairs='+JSON.stringify(dispatchPairs)+';',
     'const htmlApiPairs='+JSON.stringify(htmlApiPairs)+';',
     'const legacyDocumentPairs='+JSON.stringify(legacyDocumentPairs)+';',
+    'const ttPairs='+JSON.stringify({
+      noPolicyNative:{id:"tt-no-policy-native",code:ttNoPolicyNative},
+      noPolicyCompiled:{id:"tt-no-policy-compiled",code:ttNoPolicyCompiled},
+      defaultPolicyNative:{id:"tt-default-policy-native",code:ttDefaultPolicyNative},
+      defaultPolicyCompiled:{id:"tt-default-policy-compiled",code:ttDefaultPolicyCompiled}
+    })+';',
     'const htmlProbe=document.createElement("div");',
     'const nodeProbe=document.createTextNode("");',
     'const browserEnvironment={userAgent:navigator.userAgent,htmlApiSupport:{',
@@ -634,6 +674,21 @@ async function main() {
     '   negativeProperties:pair.negativeProperties,',
     '   positiveProperties:pair.positiveProperties});',
     ' }',
+    ' const runTTFrame=(id,code)=>new Promise(resolve=>{',
+    '  const frame=document.createElement("iframe");',
+    '  const handler=event=>{if(event.data&&event.data.id===id){',
+    '   window.removeEventListener("message",handler);frame.remove();resolve(event.data);}};',
+    '  window.addEventListener("message",handler);',
+    '  frame.srcdoc="<meta http-equiv=\\"Content-Security-Policy\\" content=\\"default-src \\'none\\'; script-src \\'unsafe-inline\\'; require-trusted-types-for \\'script\\'; trusted-types default\\"><script type=\\"module\\">"+code+"</script>";',
+    '  document.body.appendChild(frame);',
+    ' });',
+    ' const [ttn,ttc,ttdn,ttdc]=await Promise.all([',
+    '  runTTFrame(ttPairs.noPolicyNative.id,ttPairs.noPolicyNative.code),',
+    '  runTTFrame(ttPairs.noPolicyCompiled.id,ttPairs.noPolicyCompiled.code),',
+    '  runTTFrame(ttPairs.defaultPolicyNative.id,ttPairs.defaultPolicyNative.code),',
+    '  runTTFrame(ttPairs.defaultPolicyCompiled.id,ttPairs.defaultPolicyCompiled.code)]);',
+    ' const trustedTypesControl={noPolicyNative:ttn,noPolicyCompiled:ttc,',
+    '  defaultPolicyNative:ttdn,defaultPolicyCompiled:ttdc};',
     ' const legacyDocumentRows=[];',
     ' for(const pair of legacyDocumentPairs){',
     '  const [n,e,pn,pe]=await Promise.all([',
@@ -738,7 +793,7 @@ async function main() {
     '    JSON.stringify(pn.observed)===JSON.stringify(pe.observed),',
     '  negativeProperties:'+crossNegativeProperties+',',
     '  positiveProperties:'+crossPositiveProperties+'};',
-    ' document.getElementById("result").textContent=JSON.stringify({rows,dispatchRows,htmlApiRows,legacyDocumentRows,userland,dataPropertyControl,customAccessorControl,proxyStorageControl,proxyBrandCheckControl,htmlMethodControl,browserEnvironment,crossFile,crossStream});',
+    ' document.getElementById("result").textContent=JSON.stringify({rows,dispatchRows,htmlApiRows,legacyDocumentRows,userland,dataPropertyControl,customAccessorControl,proxyStorageControl,proxyBrandCheckControl,htmlMethodControl,browserEnvironment,crossFile,crossStream,trustedTypesControl});',
     '}catch(error){document.getElementById("result").textContent=',
     ' "BROWSER_ERROR "+String(error.stack||error);}',
     '</script>'
@@ -774,6 +829,22 @@ async function main() {
     const browserEnvironment=browser.browserEnvironment;
     const htmlApiRows=browser.htmlApiRows;
     const legacyDocumentRows=browser.legacyDocumentRows;
+    const trustedTypesControl=browser.trustedTypesControl;
+    const ttNoPolicy=trustedTypesControl.noPolicyNative.errorName==='TypeError'&&
+      trustedTypesControl.noPolicyCompiled.errorName==='TypeError'&&
+      trustedTypesControl.noPolicyNative.primitiveErrorName==='TypeError'&&
+      trustedTypesControl.noPolicyCompiled.primitiveErrorName==='TypeError'&&
+      trustedTypesControl.noPolicyNative.source===''&&trustedTypesControl.noPolicyCompiled.source===''&&
+      trustedTypesControl.noPolicyNative.value===57&&trustedTypesControl.noPolicyCompiled.value===57&&
+      trustedTypesControl.noPolicyNative.independent===73&&trustedTypesControl.noPolicyCompiled.independent===73;
+    const ttDefaultPolicy=trustedTypesControl.defaultPolicyNative.capturedValues[0].includes('observedOwner.secretField')&&
+      trustedTypesControl.defaultPolicyNative.capturedValues[0]!==trustedTypesControl.defaultPolicyCompiled.capturedValues[0]&&
+      trustedTypesControl.defaultPolicyNative.source!==trustedTypesControl.defaultPolicyCompiled.source&&
+      trustedTypesControl.defaultPolicyNative.primitiveSource==='literal'&&
+      trustedTypesControl.defaultPolicyCompiled.primitiveSource==='literal'&&
+      trustedTypesControl.defaultPolicyNative.value===57&&trustedTypesControl.defaultPolicyCompiled.value===57&&
+      trustedTypesControl.defaultPolicyNative.independent===73&&trustedTypesControl.defaultPolicyCompiled.independent===73&&
+      ttDefaultPolicyOutput.properties>=1;
     const legacyDocumentParity=legacyDocumentRows.length===legacyDocumentCases.length&&
       legacyDocumentRows.every((/** @type {any} */ row)=>row.numericParity&&
         row.independentParity&&row.positiveParity);
@@ -840,13 +911,13 @@ async function main() {
       dispatchRows.every((/** @type {any} */ row)=>row.sourceMismatch&&row.numericParity&&
         row.independentParity&&row.positiveParity);
     const summary={
-      expectedRedReproduced:allExpectedRed&&userlandPositive&&crossFileExpectedRed&&crossStreamExpectedRed&&dataPropertyPositive&&customAccessorPositive&&proxyStoragePositive&&proxyBrandCheckPositive&&htmlMethodExpectedRed&&htmlApiExpectedRed&&legacyDocumentParity&&dispatchExpectedRed,
+      expectedRedReproduced:allExpectedRed&&userlandPositive&&crossFileExpectedRed&&crossStreamExpectedRed&&dataPropertyPositive&&customAccessorPositive&&proxyStoragePositive&&proxyBrandCheckPositive&&htmlMethodExpectedRed&&htmlApiExpectedRed&&legacyDocumentParity&&ttNoPolicy&&ttDefaultPolicy&&dispatchExpectedRed,
       sinkCount:rows.length,
       sourceMismatchCount:rows.filter((/** @type {any} */ row)=>row.sourceMismatch).length,
       sourceMismatchNames:rows.filter((/** @type {any} */ row)=>row.sourceMismatch).map(
         (/** @type {any} */ row)=>row.name),
       crossFileExpectedRed,crossFile,crossStreamExpectedRed,crossStream,dispatchSummary,dataPropertyControl,customAccessorControl,proxyStorageControl,proxyBrandCheckControl,
-      htmlMethodExpectedRed,htmlMethodControl,htmlApiExpectedRed,htmlApiRows,legacyDocumentRows,
+      htmlMethodExpectedRed,htmlMethodControl,htmlApiExpectedRed,htmlApiRows,legacyDocumentRows,trustedTypesControl,ttNoPolicy,ttDefaultPolicy,
       htmlMethodProperties:{negative:htmlMethodOutput.properties,positive:htmlMethodPositiveOutput.properties},
       browserEnvironment,
       rows,userland,
