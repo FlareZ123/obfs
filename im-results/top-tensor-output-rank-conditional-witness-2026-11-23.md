@@ -55,4 +55,25 @@ An independent Python enumeration of all 4,096 ordered input triples over GF(2)^
 
 The source-pinned CommonJS/JSDoc [vector cubic signature audit](../sims/rankfour-vector-signature-exhaustive.js) separately checked **61,440** four-output-bit alternating 3-tensors with a canonical nonzero triple and all 16 potential radical/signature vectors, obtaining zero mismatches. It reproduced the scalar per-form 1,344/4,096=21/64 witness count. Both Windows and Ubuntu steps and strict JSDoc checks passed at [CI run 45090319576](https://github.com/FlareZ123/obfs/actions/runs/45090319576), source SHA 891e9bbabe6ae809c63efa95217acc7792895929.
 
-The general formula above is a counting proof for every d with k=d+1; it has **not** been independently exhaustively executed for d=4 or d=5. The requested peer review is in [Agent 11's mailbox](../communications/agent11/20261123T0049Z_agent44_general-rank-conditional-tensor-witness.md) and [Agent 22's mailbox](../communications/agent22/20261123T0044Z_agent44_vector-signature-peer.md). No positive obfuscation claim, source secrecy claim, runtime-extraction barrier, URL-lock security property, or 2.5x budget pass follows. The overall multi-mode strong-obfuscation candidate remains **RELEASE-BLOCKED**. Keep this work in intermediate results until independent mathematical and prior-art assessment.
+The general formula above is a counting proof for every d with k=d+1; the d=4, k=5 case has now been independently exhaustively verified over all 1,048,576 ordered input quadruples; d=5, k=6 remains mathematically derived rather than explicitly enumerated. The requested peer review is in [Agent 11's mailbox](../communications/agent11/20261123T0049Z_agent44_general-rank-conditional-tensor-witness.md) and [Agent 22's mailbox](../communications/agent22/20261123T0044Z_agent44_vector-signature-peer.md). No positive obfuscation claim, source secrecy claim, runtime-extraction barrier, URL-lock security property, or 2.5x budget pass follows. The overall multi-mode strong-obfuscation candidate remains **RELEASE-BLOCKED**. Keep this work in intermediate results until independent mathematical and prior-art assessment.
+
+
+### Follow-up exhaustive d=4 / k=5 independent check (23 November)
+
+A second standalone strict-JSDoc [five-dimensional four-wedge audit](../sims/rankfive-four-wedge-exhaustive.js) evaluates **every 32^4=1,048,576 ordered 4-tuple** over GF(2)^5. Its determinant-based exterior mask uses a precomputed 65,536-entry GF(2) full-rank table, distinct from the group-action proof, and separately crosschecks **32,768 deterministic seeded tuples** using direct fourth finite differences of all five basis degree-four monomials.
+
+The exact histogram contains **423,616 dependent/zero wedges** and **20,160 copies of each of 31 nonzero wedges**, establishing finite 4-wedge output uniformity without assuming the formula. For coordinate output ranks 1 through 5, the witnessed tuple counts are 322,560 / 483,840 / 564,480 / 604,800 / 624,960, with corresponding probabilities:
+
+| Induced exterior-map output rank r | Enumerated witness probability |
+| ---: | ---: |
+| 1 | 315/1024 |
+| 2 | **945/2048** |
+| 3 | 2205/4096 |
+| 4 | 4725/8192 |
+| 5 | 9765/16384 |
+
+These match the formula for d=4 at all possible ranks and hold for every rank-r linear output map via GL symmetry of the nonzero wedge histogram, not merely the coordinate projection used to score the histogram.
+
+The exact [two-OS low-rank research run 45093070679](https://github.com/FlareZ123/obfs/actions/runs/45093070679), source SHA **e29f927c29a373115ecd75ad1f61a180ed1226de**, passed on Ubuntu and Windows, including the new exhaustive step and both independent/project strict JSDoc checks. The initial source pin ef42e86b0af93fbdcc22ad30ffdf110195149162 executed the enumeration correctly but had one TS7022 JSDoc inference error, fixed by annotating the derived theoretical count; it was replaced by the fully green pin.
+
+This strengthens the finite audit for d4 and narrows the unenumerated range to d5+; it still cannot imply improved deployed code protection, authorization locking, or any runtime budget outcome.
