@@ -71,6 +71,7 @@
     "test/sco-triangular-quadratic-exact-cegar.test.js",
     "test/exact-quadratic-greedy-general-gates.test.js",
     "test/exact-cubic-compatible-cegar.test.js",
+    "test/exact-cubic-vs-symbolic-profile.test.js",
     "sims/sco-selected-graph-budget.js",
     "sims/sco-selected-graph-attacker.js",
     "sims/sco-selected-graph-relay.js",
