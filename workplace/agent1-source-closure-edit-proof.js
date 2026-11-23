@@ -134,7 +134,9 @@ function applyObservedFunctionEdits(source,sourceType,functionName,edits,options
   const newBindings=resolveLexicalReferences(result,sourceType);
   for(const oldRef of oldBindings.references){
     if(oldRef.start<fn.start||oldRef.end>fn.end)continue;
-    if(oldRef.resolution.kind!=='local')
+    const oldBindingId=oldRef.resolution.kind==='local'?
+      oldRef.resolution.bindingId:null;
+    if(oldBindingId===null)
       throw new TypeError('Observed callable has an unresolved reference');
     const fresh=newBindings.references.find(r=>r.start===mapped(oldRef.start)&&
       r.name===oldRef.name);
@@ -143,7 +145,7 @@ function applyObservedFunctionEdits(source,sourceType,functionName,edits,options
     if(nextBindingId===null)
       throw new TypeError('Observed callable lexical binding became unresolved');
     const oldDecls=oldBindings.declarations.filter(d=>
-      d.bindingId===oldRef.resolution.bindingId);
+      d.bindingId===oldBindingId);
     if(!oldDecls.length)throw new TypeError('Missing source binding declaration');
     for(const oldDecl of oldDecls){
       const nextDecl=newBindings.declarations.find(d=>
