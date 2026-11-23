@@ -318,7 +318,8 @@
     "sims/random-affine-graph-flag-inversion.js",
     "test/random-affine-graph-flag-inversion.test.js",
     "test/callsite-host-source-observation.test.js",
-    "test/callsite-host-chromium.test.js"
+    "test/callsite-host-chromium.test.js",
+    "test/callsite-classic-complete-graph.test.js"
   ],
   "exclude": [
     "node_modules"
