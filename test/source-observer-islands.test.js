@@ -330,8 +330,8 @@ test('source-observer islands rename only non-source-visible local bindings',asy
           filename+' should retain the existing safe property yield');
         assert.equal(emitted.metrics.bindings,1,
           filename+' should rename the outer owner binding but preserve its captured return binding');
-        assert.doesNotMatch(emitted.code,new RegExp('\\\\b'+outerName+'\\\\b','u'));
-        assert.match(emitted.code,new RegExp('export function '+fnName+'\\\\(\\\\)\\\\{return '+capturedName+';\\\\}'));
+        assert.equal(emitted.code.includes(outerName),false);
+        assert.ok(emitted.code.includes('export function '+fnName+'(){return '+capturedName+';}'));
       }
 
       // Probe the transformed leaf from a consumer outside the declared
