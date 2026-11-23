@@ -36,6 +36,7 @@ async function observe(browser, embedding, source) {
   try {
     await page.setContent('<!doctype html><html><head><title>boundary</title></head><body></body></html>',
       {waitUntil:'load'});
+    await page.evaluate(() => { globalThis.__resolveObfsResult=()=>{}; });
     await page.evaluate(({kind,code}) => {
       const script = document.createElement('script');
       script.type = 'module';
@@ -43,9 +44,9 @@ async function observe(browser, embedding, source) {
       else script.src = URL.createObjectURL(new Blob([code], {type:'text/javascript'}));
       document.body.append(script);
     }, {kind:embedding, code:source});
-    await page.waitForFunction('typeof globalThis.result === "object"', {timeout:15000});
+    await page.waitForFunction('typeof globalThis.__obfsResult === "object"', {timeout:30000});
     return await page.evaluate(() => {
-      const result = Reflect.get(globalThis, 'result');
+      const result = Reflect.get(globalThis, '__obfsResult');
       const observed = {value:result.value, sourceMatch:result.sourceMatch};
       return typeof result.column === 'number' ?
         {...observed, column:result.column} : observed;
@@ -65,8 +66,9 @@ function sourceFetchProgram(renamed) {
   const key = renamed ? 'k' : 'internalSecret';
   return 'const owner={' + key + ':8};' +
     'const selfSource=await(await fetch(import.meta.url)).text();' +
-    'globalThis.result={value:owner.' + key +
-    ',sourceMatch:selfSource.includes("internal"+"Secret")};';
+    'globalThis.__obfsResult={value:owner.' + key +
+    ',sourceMatch:selfSource.includes("internal"+"Secret")};' +
+    'globalThis.__resolveObfsResult();';
 }
 
 /**
@@ -80,8 +82,9 @@ function stackFrameProgram(renamed) {
   return 'const owner={' + key + ':8};' +
     'const frame=String(new Error().stack).split(String.fromCharCode(10))[1]||"";' +
     'const column=Number((frame.split(":").at(-1)||"").replace(")",""))||-1;' +
-    'globalThis.result={value:owner.' + key +
-    ',sourceMatch:false,column};';
+    'globalThis.__obfsResult={value:owner.' + key +
+    ',sourceMatch:false,column};' +
+    'globalThis.__resolveObfsResult();';
 }
 
 /** @returns {Promise<void>} */
