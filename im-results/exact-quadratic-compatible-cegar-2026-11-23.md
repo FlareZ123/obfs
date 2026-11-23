@@ -123,6 +123,8 @@ The 64-instance run used independent deterministic seeds, two dense invertible a
 | Local defect evaluations per instance | 16,896 |
 | Observed common-polar-radical codimensions | 29, 30, 31 |
 
+An additional 1,024-seed candidate-selection stress sweep used one target per instance and no held-out evaluations (the holdout checks are in the 64-instance suite above). It completed 1,024/1,024 exact inversions with 529 queries per instance. The observed common-polar-radical codimensions were 28, 29, 30, and 31. This is additional empirical peel evidence, not a substitute for the algebraic degree-two argument or the 64-instance holdout suite.
+
 ### Live SCO and matched ordinary-service control
 
 `runChallenge` starts both a real `createScoHandler` service and a conventional HTTP RPC service. They use the same private ESM module, hashed method identifier, credential, input validation, endpoint, and response envelope. The public SCO facade omits the private triangular parameters and affine matrices.
@@ -162,5 +164,6 @@ A separate rank-only flag-search experiment was not retained: it worked on a laz
 node sims/exact-quadratic-compatible-cegar.js
 node sims/sco-triangular-quadratic-exact-cegar.js
 node --test test/sco-triangular-quadratic-exact-cegar.test.js
+node -e "const {runSuite}=require('./sims/exact-quadratic-compatible-cegar'); const r=runSuite({trials:1024,holdouts:0,targets:1,seed:0x73000000}); console.log(JSON.stringify({instances:r.instances,exactInversions:r.exactInversions,radicalCodimensions:r.radicalCodimensions},null,2));"
 npm run typecheck:external
 ```
