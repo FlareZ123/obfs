@@ -123,6 +123,8 @@ test('selected SCO Headers get valid literal remains protected',{
 },async()=>{
   const result=await compare("return new Headers({'x-demo':'ok'}).get('x-demo');",'headers-get-valid');
   assert.deepEqual(result,{refused:false,original:'ok',emitted:'ok',server:'ok'});
+  const computed=await compare("return new Headers({'x-demo':'ok'})['get']('x-demo');",'headers-computed-get');
+  assert.deepEqual(computed,{refused:false,original:'ok',emitted:'ok',server:'ok'});
 });
 
 test('selected SCO literal append keeps defined result parity',{
@@ -137,6 +139,10 @@ test('selected SCO query toString and safe private arithmetic retain yield',{
 },async()=>{
   const query=await compare("return new URLSearchParams([['a','1'],['b','two']]).toString();",'urlsearchparams-tostring-valid');
   assert.deepEqual(query,{refused:false,original:'a=1&b=two',emitted:'a=1&b=two',server:'a=1&b=two'});
+  const tupleGet=await compare("return new URLSearchParams([['a','1'],['b','two']])['get']('b');",'urlsearchparams-tuples-computed-get');
+  assert.deepEqual(tupleGet,{refused:false,original:'two',emitted:'two',server:'two'});
+  const templateGet=await compare("return new URLSearchParams(`a=1`).get('a');",'urlsearchparams-template-get');
+  assert.deepEqual(templateGet,{refused:false,original:'1',emitted:'1',server:'1'});
   const math=await compare('return Math.imul(17,19);','native-private-math');
   assert.deepEqual(math,{refused:false,original:323,emitted:323,server:323});
 });
@@ -238,8 +244,11 @@ test('selected SCO Web IDL method admission fails closed on alias and extraction
   for(const body of [
     "return new URLSearchParams('a=1').get('a');",
     "return new URLSearchParams('a=1').toString();",
+    "return new URLSearchParams([['a','1']])['get']('a');",
+    "return new URLSearchParams(`a=1`).get('a');",
     "return new URLSearchParams('a=1').append('b','2')===undefined;",
     "return new Headers({'x-demo':'ok'}).get('x-demo');",
+    "return new Headers({'x-demo':'ok'})['get']('x-demo');",
     "return new Headers().set('x-demo','ok')===undefined;",
     "return Math.imul(17,19);"
   ])assert.deepEqual(compile(body).privateNames,['privateOp'],body);
