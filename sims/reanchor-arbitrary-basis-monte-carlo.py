@@ -345,6 +345,8 @@ def exact_width_three_census():
                     )
                 distribution[(compatible, common)] += 1
                 cases += 1
+    assert cases == 172032
+    assert distribution == Counter({(24, 24): 86016, (28, 28): 86016})
     return {
         "width": width,
         "input_linear_maps": len(matrices),
@@ -415,6 +417,12 @@ def exact_four_bit_witness():
             "compatible_ordered_bases": compatible,
             "standard_basis_compatible": standard_basis_compatible,
         })
+    assert all(
+        row["common_ordered_bases"] == 14400
+        and row["compatible_ordered_bases"] == 12480
+        and not row["standard_basis_compatible"]
+        for row in per_anchor
+    )
     return {
         "width": width,
         "input_matrix": input_matrix,
