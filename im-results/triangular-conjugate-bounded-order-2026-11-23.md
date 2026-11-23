@@ -116,6 +116,27 @@ A new standalone target-family generator [`sims/triangular-active-crosswrapped-i
 
 This supports the *existing* independently wrapped low-rank theorem on one controlled high-width triangular population. The 96 residual probes per source **do not** certify its global rank for an arbitrary opaque function; the source construction itself supplies that promise. The generated Boolean gate family is deterministic and narrower than every possible Boolean truth table, and 144 successes do not establish a worst-case empirical frequency or any security property.
 
+## Affine-heavy triangular gates: rank is bounded by nonlinear coordinates, not active coordinates
+
+The earlier order theorem counts all `k` nonzero gates; with every coordinate active it can give only the vacuous exponent `2^n`. However the **existing rank-completion attack** is much stronger for a triangular permutation with `t` *non-affine* coordinate gates, even when **all n gates are active**. Write
+
+```text
+P_i(z) = z_i XOR g_i(z_<i).
+```
+
+Whenever `g_i` is affine in its lower input bits, collect its linear terms into a triangular lower matrix `L` and its constant into a translation `c`. The matrix `L` has all ones on its diagonal and therefore is invertible. The only remaining nonlinear output coordinates are those of the `t` non-affine predicates:
+
+```text
+P(z)=Lz XOR c XOR h(z),   supp(h(z)) ⊆ E_t,
+F(x)=b XOR B P(Ax XOR a).
+```
+
+Here `A,B` are arbitrary unrelated invertible binary matrices. Thus `F(x)` equals an invertible affine function plus a displacement in `B(E_t)` of **dimension at most t**. The public basis-interpolation residual, although its coefficient matrix may be singular, also has global rank ≤t. Therefore Agent 7's [deterministic low-rank inversion theorem](affine-low-rank-deterministic-completion-2026-11-21.md) applies with `r=t`, supplying at most `n+1+2^min(n,2t)` forward queries and its sharper `n+1+2^(t+d)` bound when actual interpolant nullity `d` is known. At n32 the elementary t1/t2/t3/t4 worst-case bounds are **37/49/97/289**, with the dedicated rank-one theorem improving t1 from 37 to 35. The number of active affine gates does not matter to this low-rank criterion. This is a direct algebraic corollary of the **existing** low-rank result; the distinction between active and non-affine gates is important because the separate cycle-order theorem cannot make it.
+
+**Controlled high-width test:** Extended [`sims/triangular-active-crosswrapped-inversion.js`](../sims/triangular-active-crosswrapped-inversion.js) and its [regression](../test/triangular-active-crosswrapped-inversion.test.js) to build **48** deterministic 32-bit sources, 12 each for `t=1..4`. Each source has **32/32 provably nonzero triangular gates**, including a constant flip of bit zero, a nonzero affine lower-bit mask at every other coordinate, and exactly t genuinely nonlinear degree-two monomial controls with independent ANF coefficients. Two invertible input/output 32×32 matrices are drawn independently plus translations; they are not a same-basis conjugation. By construction the non-affine controls have global nonlinear residual rank **exactly t** after either wrapper. As a cross-check, 128 seeded held-out residual samples independently achieved rank t in **48/48** sources. The existing unchanged `invertLowRankDeterministic` got only an oracle and t, recovering **144/144** independently held-out target preimages with maxima **37, 47, 54, 82** forward calls for t1..t4, no cap violations and maximal observed interpolation nullity two. No original matrices, triangular monomial coordinates, offset, or affine masks were supplied to the attacker.
+
+**Source-pinned double OS:** [focused Ubuntu/Windows Node22 run 45110279630](https://github.com/FlareZ123/obfs/actions/runs/45110279630) on exact source `668284d1b37e0a712d1b132deb1aab4f360b145b`, both focus tests (including the prior sparse-active test) and strict project/external JSDoc green. These 144 tests are fixed-seed examples, **not** a random population success-rate estimate; their generality comes from the proven rank bound. This demonstrates that many dynamically active affine gates do not prevent a low-rank chosen-forward inverter from succeeding. It is an attack-side veto and cannot establish a universal 2.5× deployment performance guarantee.
+
 ## Scope, implications, and limits
 
 1. This is an **exact finite-order algebraic attack on a fixed permutation oracle**, not static deobfuscation or extraction of arbitrary JavaScript. The permutation domain and codomain must match so that successive oracle outputs can be fed back as inputs. If `k` is unknown, cycling `F` until the target first reappears recovers the previous state in at most `2^k` calls, although the prescribed fixed-iteration attack needs the public upper bound `k`.
