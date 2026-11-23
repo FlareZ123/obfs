@@ -1025,38 +1025,21 @@ function proveLocalObject(ast, rootName, bindings, importedIdentityFunctions=new
    */
   function privateConsumerArgument(node,parent,key) {
     if(parent?.type!=='CallExpression'||key!=='arguments'||parent.optional||
-       parent.callee.type!=='Identifier')return false;
-    const index=parent.arguments.indexOf(node);
+      parent.callee?.type!=='Identifier'||parent.arguments.length!==1||
+      parent.arguments[0]!==node)return false;
     const fn=functions.get(parent.callee.name);
-    const parameter=fn?.params[index];
     const reader=fn?.node;
     if(!fn||fn.external||fn.forwardIndex!==-1||fn.returnsRoot||
-       parameter?.type!=='Identifier'||!aliases.has(parameter.name)||!reader||
-       !privateFunctionNodes.has(reader)||
-       !['FunctionDeclaration','FunctionExpression','ArrowFunctionExpression'].includes(reader.type)||
-       reader.async||reader.generator||
-       !reader.params.every((/** @type {AstNode} */ item)=>item.type==='Identifier'))return false;
-    /** @type {AstNode|null|undefined} */
-    let read=reader.body;
-    if(read?.type==='BlockStatement') {
-      const statements=read.body;
-      if(statements.length===1&&statements[0].type==='ReturnStatement') {
-        read=statements[0].argument;
-      }else if(statements.length===2&&
-         statements[0].type==='VariableDeclaration'&&statements[0].kind==='const'&&
-         statements[0].declarations.length===1&&
-         statements[0].declarations[0].id.type==='Identifier'&&
-         statements[0].declarations[0].init?.type==='MemberExpression'&&
-         statements[1].type==='ReturnStatement'&&
-         statements[1].argument?.type==='Identifier'&&
-         statements[1].argument.name===statements[0].declarations[0].id.name) {
-        read=statements[0].declarations[0].init;
-      }else return false;
-    }
-    return Boolean(read?.type==='MemberExpression'&&!read.optional&&
-      read.object.type==='Identifier'&&read.object.name===parameter.name&&
-      (read.computed?staticString(read.property)!==null:
-        staticName(read.property)!==null));
+      !reader||reader.type!=='FunctionDeclaration'||!privateFunctionNodes.has(reader)||
+      reader.async||reader.generator||reader.params.length!==1)return false;
+    const parameter=reader.params[0];
+    if(parameter.type!=='Identifier'||!aliases.has(parameter.name))return false;
+    const body=reader.body?.body;
+    if(!Array.isArray(body)||body.length!==1||body[0]?.type!=='ReturnStatement')return false;
+    const value=body[0].argument;
+    return value?.type==='MemberExpression'&&!value.optional&&
+      value.object?.type==='Identifier'&&value.object.name===parameter.name&&
+      !value.computed&&staticName(value.property)!==null;
   }
   for (const {node,parent,key,ancestors} of aliasUses) {
     // An ESTree Identifier used as a noncomputed property name is a grammar
