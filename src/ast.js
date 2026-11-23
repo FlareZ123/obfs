@@ -617,6 +617,12 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
   const webStringNames=new Set(['Headers','URLSearchParams']);
   const webStringConstructors=new Set(webStringNames);
   const webStringInstances=new Set();
+  // Native WebSocket.send(data) converts non-Blob/Buffer values with ToString.
+  // Passing a function sends its original Function#toString source on the
+  // wire, even when the application never calls a string coercer explicitly.
+  const webSocketNames=new Set(['WebSocket']);
+  const webSocketConstructors=new Set(webSocketNames);
+  const webSocketInstances=new Set();
   // Native Request/Response headers and URL searchParams are collection
   // objects that expose the same coercion methods as directly created ones.
   const webRecordInstances=new Set();
@@ -1112,6 +1118,9 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
         if(isWebConstructor(value,webStringConstructors,webStringNames)) {
           changed=add(webStringConstructors,name)||changed;
         }
+        if(isWebConstructor(value,webSocketConstructors,webSocketNames)) {
+          changed=add(webSocketConstructors,name)||changed;
+        }
         if(isResponseRedirect(value) || value?.type==='CallExpression' &&
            value.callee.type==='MemberExpression' &&
            memberName(value.callee)==='bind' &&
@@ -1138,6 +1147,9 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
         }
         if(isWebStringCollection(value)) {
           changed=add(webStringInstances,name)||changed;
+        }
+        if(isWebInstance(value,webSocketInstances,webSocketConstructors,webSocketNames)) {
+          changed=add(webSocketInstances,name)||changed;
         }
         if(value?.type==='MemberExpression' &&
            nativeLocaleNames.has(memberName(value)??'') ||
@@ -3055,6 +3067,14 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
              callee.computed && method===null) &&
             node.arguments.some((/** @type {AstNode} */ value)=>
               !isDefinitelyPrimitive(value)))observed=true;
+        // On Node 22 and browsers, an actual WebSocket.send(function) sends
+        // function-source bytes; preserve them for proven socket receivers.
+        // Literal/known primitive data remains eligible for transformation.
+        if(isWebInstance(callee.object,webSocketInstances,webSocketConstructors,webSocketNames) &&
+           (method==='send'||callee.computed&&method===null) &&
+           node.arguments[0] && !isDefinitelyPrimitive(node.arguments[0])) {
+          observed=true;
+        }
       }
       // Bound, extracted and reflective native method invocations hide the
       // actual string-valued options behind an extra function-call layer.
