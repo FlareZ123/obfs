@@ -1,0 +1,50 @@
+# Opt-in WebAssembly i32 addition under explicit bitwise coercion (23 November 2026)
+
+**Status:** Source-pinned intermediate engineering result and bounded performance pilot. Not a security advance, complete JavaScript equivalence proof, all-profile 2.5x certificate, or release admission.
+
+## Why the grammar needed a semantic boundary
+
+The existing experimental `src/wasm-i32.js` backend transforms selected closed-world, pure, <=16-depth Int32 expressions to an embedded Wasm i32 function, and refuses uncoerced JavaScript addition. JavaScript Number addition returns a numeric sum, whereas Wasm `i32.add` wraps modulo `2**32`. A direct `return a+b` therefore **cannot** be lowered losslessly; nor can an uncoerced test `(a+b)?x:y`, because a sum of `2**32` is truthy in JavaScript and zero in i32.
+
+However, under the backend's existing explicit primitive signed-Int32 input contract, the resulting bits are equivalent when the sum's full value is consumed by an enclosing JavaScript bitwise ToInt32/ToUint32 operation, e.g. `return (a+b)|0`, `return ~(a+b)`, or `return (a+(b>>>0)) ^ c`. Unary `~`, binary `& | ^ << >> >>>`, and branches of a conditional inside such an operator are valid coercion sites. A conditional *test* never inherits the enclosing coercion permission.
+
+### Proof within the accepted AST subset
+
+The grammar has only numeric signed-Int32 parameters, in-range integer literals, pure bitwise operators, `~`, and pure conditionals; `>>>` may produce an unsigned number below `2**32`. It contains no calls, dynamic conversion, side effects, strings, objects, property reads or multiplication. Every additive expression occurs under at least one explicit bitwise operator; its children propagate modular-addition permission, but a conditional test starts an **uncoerced** context. Depth is bounded to 16. An additive tree has at most `2**16` leaves, each with absolute value strictly below `2**32`; its mathematical magnitude is below `2**48`, so all intermediate additions are exact IEEE-754 doubles (below `2**53`). Consequently, modulo-`2**32` addition is homomorphic through these sums, and the first bitwise coercion makes the Wasm and original JS i32 bit patterns equal. Bitwise shift counts are taken modulo 32 in both semantics. Other result-kind and source-observer refusals are unchanged.
+
+This is a **conditional** reasoning result: no proof is given for arbitrary Number, BigInt, string-coerced or object inputs; for `-0` supplied despite the signed-i32 value contract; or for operations with unrestricted side effects. Naked additions, uncoerced conditional tests, mixed signed/unsigned observable return modes, out-of-range literals, floating literals and multiplication continue to be declined.
+
+The independent public-bytecode-only attacker in `sims/wasm-i32-static-recover.js` now recognizes `0x6a` (`i32.add`) and emits an explicit JS `|0` after each decoded addition. The recovered source neither imports the compiler nor reads original source.
+
+## Frozen red/green and compatibility checks
+
+All runs use Node 22 on GitHub Actions; links pin immutable source and platform jobs.
+
+| Phase | Exact source | Workflow | Observed outcome |
+| --- | --- | --- | --- |
+| Red-first admission test only | `651739cdbdd95f933d23ff3dc9edcdf014dde077` | [45257163986](https://github.com/FlareZ123/obfs/actions/runs/45257163986) | Ubuntu/Windows each **1 pass, 1 fail**: original compiler correctly declines `(a+b)|0`, new positive assertion fails; unsafe refusal test passes |
+| Minimal compiler and static decoder patch | `f8e1252f446006079dfa401c166fbf2879e8d9c5` | [45257352692](https://github.com/FlareZ123/obfs/actions/runs/45257352692) | Ubuntu and Windows **2/2 green** with focused strict project/external JSDoc |
+| Warm hot-loop pilot | `a6e155eb45ca1be32a03082a4a0282010066a297` | [45257635701](https://github.com/FlareZ123/obfs/actions/runs/45257635701) | Ubuntu and Windows **3/3 green**, measurements below |
+| Preexisting bitvector/conditional/nested-fuzz regressions | `a6e155eb45ca1be32a03082a4a0282010066a297` | [45257684994](https://github.com/FlareZ123/obfs/actions/runs/45257684994), [45257692151](https://github.com/FlareZ123/obfs/actions/runs/45257692151), [45257698566](https://github.com/FlareZ123/obfs/actions/runs/45257698566) | Three focused workflows green on both OS, including their JSDoc gates |
+| Seeded nested additive/conditional/bitwise fuzz | `20cddb701f0eb9f9e4c7a3ab2a3a459a5f9f1644` | [45258033446](https://github.com/FlareZ123/obfs/actions/runs/45258033446) | Both OS green; 45 expression trees, 90 public Wasm variants, 7,200 typed-input comparisons against **both** native and independent recovered JS per platform |
+| End-to-end COO/SNO and ESM import | `4e8fb8e6c60f448184872ad8c282ccdbd6c3e9be` | [45258217968](https://github.com/FlareZ123/obfs/actions/runs/45258217968) | Both OS green, explicit `obfuscateFiles` selections plus native Node ESM imports |
+| Real browser static-clone/native/Wasm parity | `3731ba95e39b3b18239e169ea46469c1aafaeb49` | [45258425671](https://github.com/FlareZ123/obfs/actions/runs/45258425671) | **Ubuntu Chrome/157.0.8103.78**, 2,000 exact identical inputs across native, Wasm and recovered ESM under `script-src 'self' 'wasm-unsafe-eval'`; Windows browser test explicitly skipped (JSDoc job green) |
+
+The fixed representative fixture comprises 7 positive AST forms, 3 seed variants, 160 typed input tuples per variant (=3,360 native/Wasm and 3,360 native/recovered exact comparisons). It also asserts eight unsafe forms remain declined. The deterministic nested generator increases shape diversity beyond the seven fixed examples, while remaining inside a bounded grammar. These trials are implementation checks supporting—but not replacing—the above modular reasoning.
+
+## Measured CPU overhead, not a general budget guarantee
+
+The paired Node pilot warms both variants before 13 counterbalanced trials of 180,000 calls each, using identical pre-generated input tuples, `performance.now()` and within-platform medians. It is a *selected-kernel hot-loop sample* inside a Node VM, not a whole-page browser cost, whole-application runtime or matched ordinary minifier comparison.
+
+| Platform | Native median | Wasm median | Wasm/native median ratio | Startup Native / Wasm |
+| --- | ---: | ---: | ---: | --- |
+| Ubuntu Node22 | 0.9631 ms | 1.3527 ms | **1.4045×** | 0.664 / 0.749 ms |
+| Windows Node22 | 1.3302 ms | 1.7949 ms | **1.3493×** | 0.885 / 0.980 ms |
+
+These two observed hot ratios are under the objective's 2.5× ceiling **for this one workload**. The ratio for unused, cold, tiny or highly optimized call sites can differ; browser compilation/CSP behavior and server initialization exemptions require separate policies. The startup samples are noisy sub-millisecond measurements and do not establish a cold-start guarantee. The compiler remains explicit opt-in and does not autonomously certify a deployment's workload.
+
+## Security and integration disposition
+
+Static reconstruction resistance: **no measured gain**. All emitted Wasm bytes are public in a literal `Uint8Array.from([...])`; a source-only attacker decodes the `i32.add` opcode and reconstructs the selected function's behavior without a secret, with thousands of matched inputs and real Chromium parity. Dynamic extraction, modification resistance, environment locking, and SCO/SNO server trust boundaries were not strengthened or independently assessed by this feature. The positive result is an expanded **semantics-preserving optional compiler grammar** and a bounded hot-performance observation. Continue to mark strong protection in all three modes **RELEASE-BLOCKED** pending the repository's integrated safety and adversarial acceptance gates.
+
+**Reproduction source:** `src/wasm-i32.js`, `sims/wasm-i32-static-recover.js`, `test/wasm-i32-additive-coercion.test.js`, `test/wasm-i32-additive-browser.test.js`. The public static-decoder path is a negative security control, not an anti-reversing algorithm.
