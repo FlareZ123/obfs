@@ -132,6 +132,20 @@ function postCaptured(origin,method,args,token){
   });
 }
 
+/**
+ * Node process-wide CPU for one sequential operation. This includes the
+ * trusted loopback server and caller in the same process, and excludes the
+ * prior server initialization. It is not a client-only CPU measurement.
+ * @param {()=>Promise<string>} execute
+ * @returns {Promise<{cpuMs:number,result:string}>}
+ */
+async function sampleCpu(execute){
+  const before=process.cpuUsage();
+  const result=await execute();
+  const usage=process.cpuUsage(before);
+  return {cpuMs:(usage.user+usage.system)/1000,result};
+}
+
 test('real multi-module private SCO graph and equal-trust minified client allow the same authorized online relay',async()=>{
   const oldKey=process.env.OBFS_SCO_GRAPH_KEY;
   process.env.OBFS_SCO_GRAPH_KEY=randomBytes(32).toString('hex');
@@ -210,12 +224,40 @@ test('real multi-module private SCO graph and equal-trust minified client allow 
       replayed++;
     }
     assert.equal(replayed,8);
+
+    // The private HMAC is intentionally heavy, making a sampled
+    // caller+server CPU comparison meaningful. Preserve each raw pair rather
+    // than using only medians to conceal strict 2.5x counterexamples.
+    const cpu={native:[],sco:[],ordinary:[]};
+    for(let index=0;index<8;index++){
+      const input=Buffer.alloc(16,index+1).toString('hex');
+      const expected=await api.derive(input);
+      const order=index%2===0?['native','sco','ordinary']:['ordinary','sco','native'];
+      for(const kind of order){
+        const sample=await sampleCpu(async()=>{
+          if(kind==='native')return await api.derive(input);
+          if(kind==='sco')return (await captureClient(emitted.derive,sco.origin,token,input)).value;
+          return (await captureClient(
+            ordinaryImported.derive,ordinary.origin,token,input)).value;
+        });
+        assert.equal(sample.result,expected);
+        cpu[kind].push(sample.cpuMs);
+      }
+    }
+    const ratios=cpu.native.map((native,index)=>({
+      scoOverNative:cpu.sco[index]/native,
+      ordinaryOverNative:cpu.ordinary[index]/native,
+      scoOverOrdinary:cpu.sco[index]/cpu.ordinary[index]
+    }));
     console.log(JSON.stringify({
       experiment:'sco-multimodule-equal-trust-online-relay',
       originalPrivateModules:3,distributedFacades:2,
       publicMinifier:'esbuild',successfulHeldOutRelays:replayed,
       unauthorizedPostStatus:403,privateKeyAbsentFromDistributedText:true,
-      performanceClaim:'not-measured'
+      processCpuBoundary:'same-process trusted localhost caller and service, after init',
+      sampleCount:8,rawCpuMs:cpu,ratios,
+      strictBreaches:ratios.filter(item=>item.scoOverNative>2.5).length,
+      performanceClaim:'bounded-workload-only'
     }));
   }finally{
     if(ordinary)await new Promise((resolve,reject)=>
