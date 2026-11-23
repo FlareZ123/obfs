@@ -64,3 +64,17 @@ Source-pinned [GitHub Actions run 45185804896](https://github.com/FlareZ123/obfs
 Across three mode-labeled repetitions of each source fixture, **both** obfuscated and ordinary-esbuild-minified code changed the source text observed through DOMParser and Element.setAttribute, while both preserved all nine ordinary return values. The three inert controls also maintained text equality. The esbuild control establishes that the selected distinction is a general source-spelling/minification compatibility issue, not evidence that obfs is uniquely defective relative to an equal-source ordinary minifier. This control does not measure attack effort, authorization, code secrecy, or a strong semantic guarantee for either tool.
 
 The overall workflow remained **RED** on the same two earlier, unrelated positive-property-yield assertions in `test/function-declaration-reader-proof.test.js` on Ubuntu and Windows. The Chromium three-arm step was green and logged all nine triplets before those existing failures; no full matrix green claim follows. Neither the original compiler `src/` nor any production entrypoint changed.
+
+## Detached native calls, bound calls and Reflect.apply extension
+
+The independent same-source Chromium matrix was extended with four further syntactic paths: `DOMParser.prototype.parseFromString.call`, `Reflect.apply(DOMParser.prototype.parseFromString,...)`, `Element.prototype.setAttribute.bind` followed by a call, and `Reflect.apply(Element.prototype.setAttribute,...)`. These are not general proofs of alias tracking. Each example passes `observed` directly into the native method at runtime.
+
+At exact source pin `d0c915a4928d4e97c27f09961c31415af7af4b9f`, [GitHub Actions run 45186574961](https://github.com/FlareZ123/obfs/actions/runs/45186574961) executed the enlarged diagnostic in Ubuntu real Chromium. Summary:
+
+```json
+{"cases":21,"valueMatches":21,"minifiedValueMatches":21,"sourceMismatches":18,"minifiedSourceMismatches":18,"publicStringRewrites":18,"privateRewriteControls":3}
+```
+
+The six native source-coercion shapes (two original direct paths and four indirect paths) × three mode repetitions each changed observed callable text in **both** obfs and esbuild. All 21 original/compiled and original/minified ordinary values matched. Each of the 18 source-observing obfs compilations contained positive string rewrites, and all three nonescaping string-rewrite controls preserved runtime output. The targeted Chromium step passed; the broader workflow independently failed on two prior `function-declaration-reader-proof` positive-yield assertions on both platforms before reaching all remaining steps.
+
+This supplies bounded evidence that a fix recognizing only `DOMParser.parseFromString(...)` or `element.setAttribute(...)` direct spelling is incomplete for the stated native-source equivalence contract. The precise exposed-source behavior and private rewriting requirement must be checked at the compiled artifact, and any strong security claim needs a separate attacker-cost evaluation.
