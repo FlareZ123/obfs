@@ -71,6 +71,17 @@ test('preserves spans when edits only touch their boundaries',()=>{
   assert.deepEqual(result.mapSpan({start:2,end:4}),{start:1,end:3});
 });
 
+test('ignores no-op edits without invalidating protected spans',()=>{
+  const source='abcdef';
+  const result=applyEditsWithMap(source,[
+    {start:2,end:4,text:'cd'},
+    {start:3,end:3,text:''}
+  ]);
+  assert.equal(result.output,source);
+  assert.equal(result.edits.length,0);
+  assert.deepEqual(result.mapSpan({start:1,end:5}),{start:1,end:5});
+});
+
 test('rejects overlapping edits and ambiguous same-offset edits',()=>{
   assert.throws(()=>applyEditsWithMap('abcdef',[
     {start:1,end:4,text:'x'},
@@ -103,12 +114,13 @@ test('preserves 40,000 deterministic random spans across non-overlapping edits',
       cursor=start+width+1;
       if(cursor>=source.length)break;
     }
+    const effectiveEdits=edits.filter(edit=>edit.text!==source.slice(edit.start,edit.end));
     const result=applyEditsWithMap(source,edits);
     for(let k=0;k<20;k++){
       let start=Math.floor(random()*(source.length+1));
       let end=Math.floor(random()*(source.length+1));
       if(end<start)[start,end]=[end,start];
-      const overlaps=edits.some(edit=>edit.start===edit.end?
+      const overlaps=effectiveEdits.some(edit=>edit.start===edit.end?
         start<edit.start&&edit.start<end:
         edit.start<end&&edit.end>start);
       const mapped=result.mapSpan({start,end});
