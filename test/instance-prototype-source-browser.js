@@ -95,25 +95,36 @@ async function compareBrowser(resources) {
 
 /** @returns {Promise<void>} */
 async function main() {
-  const output=obfuscateFiles(declared,{
-    mode:'coo',closedWorld:true,properties:true,identifiers:false,
-    strings:false,seed:'instance-prototype-chromium-declared'
-  });
-  const rewritten=output.crossFile.properties+
-    output.files.reduce((sum,file)=>sum+file.metrics.properties,0);
-  assert.equal(rewritten,0,'Declared method source observer must refuse edits in this graph');
-  /** @type {Map<string,string>} */
-  const resources=new Map();
-  for(const file of declared)resources.set('/native/'+file.path,file.code);
-  for(const file of output.files){
-    assert.equal(typeof file.code,'string');
-    resources.set('/compiled/'+file.path,/** @type {string} */(file.code));
+  /** @type {Array<{method:string,rewrites:number}>} */
+  const scenarios=[];
+  for(const method of ['toString','toLocaleString']){
+    const files=declared.map(file=>file.path==='entry.mjs'?{
+      ...file,code:file.code.replace('.read.toString()', '.read.'+method+'()')
+    }:file);
+    assert.ok(files[3].code.includes('.read.'+method+'()'));
+    const output=obfuscateFiles(files,{
+      mode:'coo',closedWorld:true,properties:true,identifiers:false,
+      strings:false,seed:'instance-prototype-chromium-'+method
+    });
+    const rewritten=output.crossFile.properties+
+      output.files.reduce((sum,file)=>sum+file.metrics.properties,0);
+    assert.equal(rewritten,0,
+      'Declared '+method+' source observer must refuse edits in this graph');
+    /** @type {Map<string,string>} */
+    const resources=new Map();
+    for(const file of files)resources.set('/native/'+file.path,file.code);
+    for(const file of output.files){
+      assert.equal(typeof file.code,'string');
+      resources.set('/compiled/'+file.path,/** @type {string} */(file.code));
+    }
+    const results=await compareBrowser(resources);
+    assert.deepEqual(results.native,{
+      value:7,privateValue:13,source:'read(){return owner.secretField;}'
+    });
+    assert.deepEqual(results.compiled,results.native,
+      method+' emitted/native Chromium source mismatch');
+    scenarios.push({method,rewrites:rewritten});
   }
-  const results=await compareBrowser(resources);
-  assert.deepEqual(results.native,{
-    value:7,privateValue:13,source:'read(){return owner.secretField;}'
-  });
-  assert.deepEqual(results.compiled,results.native);
   const privateOnly=obfuscateFiles([declared[2]],{
     mode:'coo',properties:true,identifiers:false,strings:false,
     seed:'instance-prototype-chromium-isolated-private'
@@ -121,9 +132,9 @@ async function main() {
   assert.ok(privateOnly.files[0].metrics.properties>0,
     'Independent primitive record must preserve a nonzero safe rewrite');
   process.stdout.write('INSTANCE_PROTOTYPE_CHROMIUM '+JSON.stringify({
-    sourceParity:true,nativeValues:true,declaredGraphRewrites:rewritten,
+    scenarios,sourceParity:true,nativeValues:true,
     isolatedPrivateRewrites:privateOnly.files[0].metrics.properties
-  })+'\n');
+  })+'\\n');
 }
 
 if(require.main===module)main().catch(error=>{
