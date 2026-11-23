@@ -38,7 +38,7 @@ Two arms run the same source and JSON RPC contract:
 1. **SCO:** `partitionScoSelectedAsyncExports` hides the private export and dependencies; `createScoHandler` serves the generated facade and forwards authenticated calls to the private function.
 2. **Equal-trust conventional control:** the same private ESM source is transformed with esbuild (`format: esm`, `minify: true`, `target: es2022`) and loaded only on a conventional Node HTTP server. The minified implementation is not served to the caller.
 
-Both arms use the same realized witness and verification tapes. The caller receives only the method route, one legitimate credential, and the input/output protocol. No source text or private helper names are supplied to the cloning routine. An unauthenticated RPC attempt is made against each arm.
+Both arms are local loopback HTTP servers bound to `127.0.0.1`; this exercises the real HTTP/RPC serialization and authorization handlers, not WAN latency or a deployed remote service. Both arms use the same realized witness and verification tapes. The caller receives only the method route, one legitimate credential, and the input/output protocol. No source text or private helper names are supplied to the cloning routine. An unauthenticated RPC attempt is made against each arm.
 
 After learning, each HTTP server is closed. The serialized model is then evaluated on the same 1,028 distinct deterministic held-out inputs in both arms, none present in the query cache, and compared against the private evaluator in the test harness. The script hashes each sorted held-out set and asserts the hashes are identical across arms. Those direct held-out comparisons are not additional RPCs.
 
