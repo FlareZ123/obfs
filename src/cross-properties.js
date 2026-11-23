@@ -1535,6 +1535,33 @@ function safeClosedCallerRecordRead(modules,module,member,ancestors) {
         /** @type {Set<string>} */
         const callbackHolders=new Set();
         /**
+         * An object/array spread is normally an unproved dynamic capability
+         * edge: accessors, iterators and proxies can execute arbitrary code.
+         * Only a strictly literal, inert primitive tree may be excluded from
+         * that uncertainty. This narrow proof retains useful private own-key
+         * renaming without trusting opaque spread values.
+         *
+         * @param {AstNode|null|undefined} value
+         * @param {number} depth
+         * @returns {boolean}
+         */
+        function inertSpreadLiteral(value,depth) {
+          if(!value||depth>16)return false;
+          if(value.type==='Literal')
+            return value.value===null ||
+              ['number','string','boolean','bigint'].includes(typeof value.value);
+          if(value.type==='ArrayExpression')
+            return value.elements.every((/** @type {AstNode|null} */ element)=>
+              element!==null && element.type!=='SpreadElement' &&
+              inertSpreadLiteral(element,depth+1));
+          if(value.type==='ObjectExpression')
+            return value.properties.every((/** @type {AstNode} */ property)=>
+              property.type==='Property' && property.kind==='init' &&
+              !property.method && !property.computed &&
+              inertSpreadLiteral(property.value,depth+1));
+          return false;
+        }
+        /**
          * @param {AstNode|null|undefined} value
          * @param {number} depth
          * @returns {boolean}
@@ -1559,14 +1586,17 @@ function safeClosedCallerRecordRead(modules,module,member,ancestors) {
             return holdsFactoryValue(value.object,depth+1);
           }
           if(value.type==='SpreadElement')
-            return holdsFactoryValue(value.argument,depth+1);
+            return !inertSpreadLiteral(value.argument,0);
           if(value.type==='ArrayExpression')
             return value.elements.some((/** @type {AstNode|null} */ item)=>
               holdsFactoryValue(item,depth+1));
           if(value.type==='ObjectExpression')
             return value.properties.some((/** @type {AstNode} */ property)=>
               property.type==='Property'?
-                holdsFactoryValue(property.value,depth+1):true);
+                property.kind!=='init' || property.computed || property.method ||
+                holdsFactoryValue(property.value,depth+1):
+              property.type==='SpreadElement'?
+                holdsFactoryValue(property,depth+1):true);
           return false;
         }
         let aliasChanged;
