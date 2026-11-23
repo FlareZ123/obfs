@@ -72,7 +72,13 @@ function invertHybrid(oracle,target,seed){
       });
       return accept(candidate.value,label);
     }catch(error) {
-      if(!(error instanceof Error))throw error;
+      // A CEGAR search that cannot certify a functional is a normal
+      // model failure. Callback/transport failures and implementation
+      // errors must remain visible to the caller.
+      if(!(error instanceof Error)||
+        !/^(?:no output functional at level \\d+|no validated output functional at level \\d+|CEGAR refinement limit at level \\d+|sandwich inversion failed final equality)$/.test(error.message)) {
+        throw error;
+      }
       failed.push({method:label,reason:error.message});
     }
   }

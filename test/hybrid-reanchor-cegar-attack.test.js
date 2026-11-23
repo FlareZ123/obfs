@@ -35,3 +35,13 @@ test('hybrid attack refuses truncated target and oracle values at its outer boun
   assert.equal(valid.method,'reanchor');
   assert.ok(valid.queries<=65);
 });
+
+test('hybrid propagates an oracle transport fault during CEGAR fallback',()=>{
+  let calls=0;
+  assert.throws(()=>invertHybrid(()=> {
+    calls++;
+    if(calls>=140)throw new Error('oracle transport failure');
+    return 0;
+  },0x12345678,0),{name:'Error',message:'oracle transport failure'});
+  assert.ok(calls>=140,'Transport fault must occur after the rank-deficient reanchor trial');
+});
