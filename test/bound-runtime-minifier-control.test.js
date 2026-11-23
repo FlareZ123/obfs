@@ -44,7 +44,7 @@ function instrument(moduleUrl){
   );
 }
 
-test('same pre-import bind interception recovers private target from minified and obfuscated ESM',async()=>{
+test('same pre-import bind interception recovers mangled controls and makes the compiler refuse ESM target rewriting',async()=>{
   const source='const owner={secretField:7,otherField:11};'+
     'const internal=(privateFirst,privateSecond)=>{'+
     'return ((privateFirst+owner.secretField)^owner.otherField)+privateSecond;};'+
@@ -62,10 +62,11 @@ test('same pre-import bind interception recovers private target from minified an
     mode:'coo',seed:'matched-bound-runtime-obfs',closedWorld:true,
     identifiers:true,properties:true,strings:false
   });
-  assert.equal(published.files[0].metrics.properties,2,
-    'protected comparison must rewrite both own keys');
+  assert.equal(published.files[0].metrics.properties,0,
+    'the compiler must refuse because the pre-import host can capture the bound target');
   const protectedCode=/** @type {string} */ (published.files[0].code);
-  assert.doesNotMatch(protectedCode,/secretField|otherField/u);
+  assert.match(protectedCode,/secretField/u);
+  assert.match(protectedCode,/otherField/u);
   const root=await fs.mkdtemp(path.join(os.tmpdir(),'obfs-bind-minifier-control-'));
   try{
     /** @type {string[]} */
@@ -89,8 +90,9 @@ test('same pre-import bind interception recovers private target from minified an
       'plain minification retains field spelling in recovered function source');
     assert.doesNotMatch(mangledControl.privateBodies[0],/secretField|otherField/u,
       'esbuild property mangling also hides the original keys from the captured body');
-    assert.match(obfuscated.privateBodies[0],/\._p[0-9a-f]{10}/u,
-      'obfuscated build also exposes the actual rewritten function body');
+    assert.match(obfuscated.privateBodies[0],/owner\.secretField/u,
+      'compiler refusal leaves the captured private target source unchanged');
+    assert.match(obfuscated.privateBodies[0],/owner\.otherField/u);
     console.log('BOUND_RUNTIME_MINIFIED_CONTROL '+JSON.stringify({
       originalBytes:Buffer.byteLength(source),minifiedBytes:Buffer.byteLength(minified),
       mangledBytes:Buffer.byteLength(mangled),
