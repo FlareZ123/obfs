@@ -252,6 +252,19 @@ function silentRankSixPermutationSource() {
   };
 }
 
+/** @returns {(input:number)=>number} */
+function rankSixSignatureOverflowSource() {
+  return input => {
+    const x = input & 0x3f;
+    return (
+      x ^
+      (((x & 15) === 15) ? 1 : 0) ^
+      (((x & 30) === 30) ? 2 : 0) ^
+      (((x & 45) === 45) ? 4 : 0)
+    ) >>> 0;
+  };
+}
+
 /** @returns {object} */
 function main() {
   const directions = [1,2,4,8];
@@ -325,6 +338,30 @@ function main() {
     assert.equal(evaluate(validated,input),silentSource(input));
   }
 
+  const overflowSource = rankSixSignatureOverflowSource();
+  /** @type {{code?:string,message?:string}|null} */
+  let overflowError = null;
+  try {
+    clone(overflowSource,6,fixedDirections(directions),1e-10);
+  } catch (error) {
+    overflowError = /** @type {{code?:string,message?:string}} */ (error);
+  }
+  assert.equal(overflowError?.code,'ERR_ASSERTION');
+  assert.ok(String(overflowError?.message).includes('fourth-derivative signature span exceeds five'));
+  const overflowValidated = cloneTopQuarticValidated(
+    overflowSource,
+    6,
+    fixedDirections(directions),
+    seeded(0x44a202620)
+  );
+  assert.equal(overflowValidated.fallbackUsed,true);
+  assert.equal(overflowValidated.fallbackReason,'signature-span-overflow');
+  assert.equal(overflowValidated.verificationSamples,0);
+  assert.equal(overflowValidated.exactByInterpolation,true);
+  for (let input = 0; input < 64; input++) {
+    assert.equal(evaluate(overflowValidated,input),overflowSource(input));
+  }
+
   const n32FastCap = masksThroughWeight(32,3).length + 15 * 63 + 14 * 32;
   const n32FallbackCap = n32FastCap + 357 + masksOfWeight(32,4).length;
   assert.equal(n32FastCap,6882);
@@ -339,6 +376,9 @@ function main() {
       fallbackReason:validated.fallbackReason,verificationMismatchAt:validated.verificationMismatchAt,
       verificationSamples:validated.verificationSamples,queries:validated.queries,
       exactAll256:true,sourceAndRawCandidateArePermutations:true},
+    signatureOverflowFallback:{fallbackReason:overflowValidated.fallbackReason,
+      verificationSamples:overflowValidated.verificationSamples,queries:overflowValidated.queries,
+      exactAll64:true},
     n32QueryCaps:{fast:n32FastCap,verifiedFast:n32FastCap+357,fallback:n32FallbackCap}
   };
   console.log('RANKFIVE_TOP_QUARTIC_REED_MULLER_VALIDATED_CLONE ' + JSON.stringify(result));
