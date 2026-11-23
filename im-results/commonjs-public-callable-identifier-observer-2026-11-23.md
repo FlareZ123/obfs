@@ -42,3 +42,20 @@ The expanded test at exact SHA `a29d26cb4a5dfa70629a3c46a3a599c090e64bb2` was ex
 Thus the same boundary affects two module systems and all three deployment modes under the selected default identifier transform, independent of property renaming. The ESM case complements existing exported-callable object-key tests, which generally set `identifiers:false`. This does **not** prove other exported patterns are handled or unhandled; source-visible alias/factory/namespace forms still require their own review. The earlier 16-case single-mode pin remains a correct subset, superseded for cross-mode scope by the 48+6 latest pin.
 
 The compiler source in this test is a branch off main, and no compiler fix has been merged. Report all 2 × 2 expected-red test blocks rather than calling the workflow green.
+
+## Real Chromium external-import reproduction
+
+An independent browser-specific test `test/agent38-chromium-public-identifier-source.test.js` at exact SHA `532d594d925bbb2116acd4010c00000942f2d9da` creates a real HTTP origin, serves original and three obfuscator outputs, then separately serves an *unknown* ESM observer page from outside the build graph. The page calls its own unmodified native `Function.prototype.toString` against `published(value)`, evaluates `published(7)`, and reads the exported primitive snapshot. Browser evaluation is performed with a real headless Chrome binary and actual network-served modules.
+
+[Focused run 45127253900](https://github.com/FlareZ123/obfs/actions/runs/45127253900) gives the following **Ubuntu Chromium red witness**:
+
+| Variant | Numeric/snapshot parity | Exact native Function#toString |
+| --- | --- | --- |
+| original | yes | yes |
+| COO `identifiers:true` | yes | **no**, parameter `value` becomes `_v2e179a129aae` |
+| SNO `identifiers:true` | yes | **no**, parameter becomes `_v641e682f65d3` |
+| SCO `identifiers:true` | yes | **no**, parameter becomes `_vb091260fd480` |
+
+The browser test intentionally asserts both value and native callable-source parity and therefore fails on Ubuntu. The Windows focused job **succeeded with the browser test skipped** by explicit platform gate; no Windows browser claim follows. Both strict project/external JSDoc steps passed in that focused workflow. The browser observer was introduced after compiling the single original source module, so this is the unspecified **external consumer** boundary. Declaring the browser observer within the compile graph could trigger a different conservative refusal and would not falsify this observation.
+
+This establishes the CJS/Node finding's relevance to a browser-hosted ESM deployment under all three mode option values in this exact instance. It does not establish source-exposure coverage for every program or any attacker-cost advantage.
