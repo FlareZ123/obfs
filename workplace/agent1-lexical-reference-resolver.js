@@ -250,6 +250,10 @@ function resolveLexicalReferences(root,sourceType) {
     if(parent.type==='ImportSpecifier' || parent.type==='ImportDefaultSpecifier' || parent.type==='ImportNamespaceSpecifier')return false;
     if(parent.type==='ExportSpecifier'&&(key==='exported'||
        ancestors.some(a=>a.type==='ExportNamedDeclaration'&&a.source)))return false;
+    // `export * as named from "module"` declares an external export label,
+    // not a local reference or a new module binding. Its explicit Identifier
+    // must never be mistaken for an ambient host-root read.
+    if(parent.type==='ExportAllDeclaration'&&key==='exported')return false;
     if(parent.type==='PrivateIdentifier')return false;
     return true;
   }
