@@ -2452,6 +2452,9 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
   const stackErrorConstructors=new Set(['Error','EvalError','RangeError',
     'ReferenceError','SyntaxError','TypeError','URIError','AggregateError']);
   const stackErrorAliases=new Set();
+  // Unknown host-owned globals may expose Error.stack in a getter or callee,
+  // including when the ambient namespace has a simple local alias.
+  const hostGlobalAliases=new Set(['globalThis','window','self','global']);
   const stackConsoleAliases=new Set(['console']);
   const stackConsoleMethodNames=new Set(['trace','log','info','warn','error','debug','dir',
     // Node's additional console formatters inspect functions or stringify
@@ -2553,6 +2556,11 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
         return;
       }
       if(id?.type!=='Identifier')return;
+      if(value.type==='Identifier' && hostGlobalAliases.has(value.name) &&
+         !hostGlobalAliases.has(id.name)) {
+        hostGlobalAliases.add(id.name);
+        changedStackAliases=true;
+      }
       if(isConsoleReceiver(value)&&!stackConsoleAliases.has(id.name)) {
         stackConsoleAliases.add(id.name);
         changedStackAliases=true;
@@ -2921,7 +2929,7 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
       // host provenance can prove an inert data property, fail closed for
       // all direct reads (including accessor-backed and callable values).
       if(node.object.type==='Identifier' &&
-         ['globalThis','window','self','global'].includes(node.object.name))
+         hostGlobalAliases.has(node.object.name))
         observed=true;
       // Error stack strings expose generated source line/column coordinates.
       // Even harmless identifier-length edits change those coordinates, so
