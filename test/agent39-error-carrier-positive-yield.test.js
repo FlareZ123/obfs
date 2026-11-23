@@ -45,6 +45,7 @@ for(const scenario of safeScenarios){
   test('safe Error-carrier precision retains private renaming: '+scenario.name,async()=>{
     assert.equal(observesFunctionSource(parse(scenario.consumer,'module')),false,
       scenario.name+' cannot be classified as a native Error stack observer');
+    /** @type {import('../src/core').SourceFile[]} */
     const originals=[
       {path:'producer.mjs',sourceType:'module',code:producer},
       {path:'consumer.mjs',sourceType:'module',code:scenario.consumer}
