@@ -100,7 +100,7 @@ function resolveLexicalReferences(root,sourceType) {
         // cannot resolve body-only vars, even when those vars are hoisted.
         const functionBody=parent && key==='body' &&
           ['FunctionDeclaration','FunctionExpression','ArrowFunctionExpression'].includes(parent.type);
-        const nonSimple=functionBody && parent.params.some(param=>param.type!=='Identifier');
+        const nonSimple=functionBody && parent.params.some((/** @type {AstNode} */ param)=>param.type!=='Identifier');
         scope=child(incoming,nonSimple?'function-body':'block');
       }
       else if(node.type==='StaticBlock')scope=child(incoming,'static-block');
