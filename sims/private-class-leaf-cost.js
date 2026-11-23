@@ -63,8 +63,8 @@ function run(folder,rounds){
 /**
  * @typedef {{
  *   rounds:number,samples:number,nativeWallMs:number,emittedWallMs:number,
- *   wallRatio:number,nativeCpuUs:number,emittedCpuUs:number,cpuRatio:number,
- *   withinHotBudget:boolean,withinWholeBudget:boolean,
+ *   wallRatio:number,nativeCpuUs:number,emittedCpuUs:number,cpuRatio:number|null,
+ *   withinHotBudget:boolean|null,withinWholeBudget:boolean,
  *   sum:number,attackerCloneEqual:boolean
  * }} CostRow
  */
@@ -94,7 +94,7 @@ async function main(){
       atomicWrite(path.join(clone,'entry.cjs'),attacked.files[0].code),
       ...folders.map(folder=>atomicWrite(path.join(folder,'runner.cjs'),runner))
     ]);
-    for(const rounds of [1,100000,5000000]){
+    for(const rounds of [1,100000,200000000]){
       const baseline=run(native,rounds);
       // Warm both separate processes before collecting alternating pairs.
       run(native,rounds);
@@ -116,11 +116,15 @@ async function main(){
       const nativeCpuUs=median(nativeCpu);
       const emittedCpuUs=median(emittedCpu);
       const wallRatio=emittedWallMs/nativeWallMs;
-      const cpuRatio=nativeCpuUs>0?emittedCpuUs/nativeCpuUs:Infinity;
+      // Windows reports process CPU in coarse ticks; sub-32ms pairs cannot
+      // establish a defensible hot-work ratio.
+      const cpuRatio=nativeCpuUs>=32000&&emittedCpuUs>=32000 ?
+        emittedCpuUs/nativeCpuUs : null;
       assert.ok(Number.isFinite(wallRatio)&&wallRatio>0);
       rows.push({rounds,samples:7,nativeWallMs,emittedWallMs,
         wallRatio,nativeCpuUs,emittedCpuUs,cpuRatio,
-        withinHotBudget:cpuRatio<=2.5,withinWholeBudget:wallRatio<=2.5,
+        withinHotBudget:cpuRatio===null?null:cpuRatio<=2.5,
+        withinWholeBudget:wallRatio<=2.5,
         sum:baseline.sum,attackerCloneEqual:true});
     }
   } finally {
@@ -131,8 +135,8 @@ async function main(){
     scope:'Paired seven-sample fresh Node CJS process measurements; local owner plus one class leaf. No cross-file host instrumentation.'
   })+'\n');
   assert.ok(rows.every(row=>row.withinWholeBudget));
-  assert.ok(rows.filter(row=>row.rounds>=100000).every(row=>row.withinHotBudget),
-    'Measured CPU sample exceeded strict 2.5x for sustained workloads');
+  assert.ok(rows.filter(row=>row.rounds===200000000).every(row=>row.withinHotBudget===true),
+    'Sustained CPU was unmeasurable or exceeded strict 2.5x');
   return {rows,properties:transformed.metrics.properties};
 }
 
