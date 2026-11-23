@@ -10,7 +10,9 @@
     "sims/strict-tail-power.js",
     "test/strict-tail-power.test.js",
     "sims/cluster-strict-tail.js",
-    "test/cluster-strict-tail.test.js"
+    "test/cluster-strict-tail.test.js",
+    "sims/cluster-family-strict-tail.js",
+    "test/cluster-family-strict-tail.test.js"
   ],
   "exclude": [
     "node_modules"
