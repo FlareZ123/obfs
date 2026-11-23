@@ -61,3 +61,10 @@ Expected simulation output: `{"exhaustiveWidthTwoCases":2560,"randomCases":1500,
 The existing exact cubic implementation has not been changed; a source-pinned red/green derivative-mask equivalence test and workload-specific timing should precede any integration. The previous exact cubic report `im-results/exact-cubic-compatible-cegar-2026-11-23.md` correctly recorded the older 5,984 contraction count for its unchanged code. It should not be retrospectively described as already optimized.
 
 This result establishes no source confidentiality, unauthorized-execution resistance or universal 2.5x runtime guarantee. The primary release decision remains **RELEASE-BLOCKED**.
+
+
+## Source-pinned CI receipt (23 November)
+
+Focused [run 45255334235](https://github.com/FlareZ123/obfs/actions/runs/45255334235), main source `dcf4ad4a8121a59fbf2c1248dd24c536e1199aa4`: Ubuntu and Windows focused jobs **passed**, full `node22` job **skipped**. This validates the 2,560-plus-1,500 finite verifier on that exact source, not a full-mainline regression.
+
+A separate independent coefficient-level [run 45255744277](https://github.com/FlareZ123/obfs/actions/runs/45255744277), source `73aee0b8a7339a22a84144b769ac44863a04c1bc`, passed both Ubuntu and Windows focused jobs for `test/exact-cubic-direction-basis-coefficients.test.js`. It checks on 3 dense cubic ANF models, over 15 pairs of non-coordinate directions each, the exact identity `L_i(u+v)+L_i(u)+L_i(v)=sum_{j!=i}u_j Q_ij(v)`, as well as the direction-linearity of `Q_ij`. It is not a full-mainline gate.
