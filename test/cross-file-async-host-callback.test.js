@@ -439,3 +439,75 @@ test('nested holder of a primitive callback retains its private rewrite',async()
   assert.equal(await execute(generated.files),native);
   assert.equal(generated.crossFile.properties,1);
 });
+
+
+for(const [label,source,extra] of /** @type {[string,string,ModuleFile[]][]} */ ([
+  ['local wrapper returns callback object',[
+    'function getFactory(){return globalThis.RUNTIME_FACTORY;}',
+    'function makeHolder(){return {callback:getFactory};}',
+    'const holder=makeHolder();',
+    'const ctor=await Promise.resolve().then(holder.callback);'
+  ].join('\n'),[]],
+  ['local wrapper returns callback array',[
+    'function getFactory(){return globalThis.RUNTIME_FACTORY;}',
+    'function makeHolder(){return [getFactory];}',
+    'const holder=makeHolder();',
+    'const ctor=await Promise.resolve().then(holder[0]);'
+  ].join('\n'),[]],
+  ['imported wrapper returns callback object',[
+    "import {makeHolder} from './host-wrapper.mjs';",
+    'const holder=makeHolder();',
+    'const ctor=await Promise.resolve().then(holder.callback);'
+  ].join('\n'),[
+    {path:'host-wrapper.mjs',sourceType:'module',
+      code:[
+        'function getFactory(){return globalThis.RUNTIME_FACTORY;}',
+        'export function makeHolder(){return {callback:getFactory};}'
+      ].join('\n')}
+  ]],
+  ['imported wrapper returns callback array',[
+    "import {makeHolder} from './host-wrapper.mjs';",
+    'const holder=makeHolder();',
+    'const ctor=await Promise.resolve().then(holder[0]);'
+  ].join('\n'),[
+    {path:'host-wrapper.mjs',sourceType:'module',
+      code:[
+        'function getFactory(){return globalThis.RUNTIME_FACTORY;}',
+        'export function makeHolder(){return [getFactory];}'
+      ].join('\n')}
+  ]]
+])){
+  test('returned host callback via '+label+' preserves native ESM owner',async()=>{
+    const files=[...graph([
+      source,
+      'const remote=await ctor("return import(\'./state.mjs\')")();',
+      "const result=[inspectRecord('auditCount').value,Object.keys(remote.state),remote.state.secretField];"
+    ].join('\n')),...extra];
+    const native=await execute(files,true);
+    assert.equal(native,'[41,[3,["secretField"],41]]\n');
+    const generated=obfuscateFiles(files,{
+      mode:'coo',closedWorld:true,seed:'interprocedural-holder/'+label,
+      identifiers:false,strings:false,properties:true
+    });
+    assert.equal(await execute(generated.files,true),native,label);
+    assert.equal(generated.crossFile.properties,0,label);
+  });
+}
+
+test('numeric callback returned inside wrapper still permits one private rewrite',async()=>{
+  const files=graph([
+    'function unusedFactory(){return globalThis.RUNTIME_FACTORY;}',
+    'function makeHolder(){return {callback:()=>7};}',
+    'const holder=makeHolder();',
+    'const value=await Promise.resolve().then(holder.callback);',
+    "const result=[inspectRecord('externalFormat').value,value];"
+  ].join('\n'));
+  const native=await execute(files);
+  const generated=obfuscateFiles(files,{
+    mode:'coo',closedWorld:true,seed:'interprocedural-primitive-holder',
+    identifiers:false,strings:false,properties:true
+  });
+  assert.equal(await execute(generated.files),native);
+  assert.equal(generated.crossFile.properties,1,
+    'Unrelated primitive-returned callbacks are not host capabilities');
+});
