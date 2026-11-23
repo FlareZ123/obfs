@@ -1681,7 +1681,8 @@ function safeClosedCallerRecordRead(modules,module,member,ancestors) {
               }
             }
             const binding=node.type==='VariableDeclarator'?node.id:
-              node.type==='AssignmentExpression' && node.operator==='='?node.left:null;
+              node.type==='AssignmentExpression' &&
+              ['=','&&=','||=','??='].includes(node.operator)?node.left:null;
             const value=node.type==='VariableDeclarator'?node.init:
               node.type==='AssignmentExpression'?node.right:null;
             if(!binding||!value)return;
