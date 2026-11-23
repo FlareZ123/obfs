@@ -1621,6 +1621,12 @@ function safeClosedCallerRecordRead(modules,module,member,ancestors) {
         let invoked=false;
         walk(caller.ast,node=>{
           if(node.type!=='CallExpression'&&node.type!=='NewExpression')return;
+          // A named host-returning factory passed to an opaque callback
+          // consumer may have its return value surfaced asynchronously.
+          // Tracking direct invocation results alone misses Promise.then.
+          if(node.arguments.some((/** @type {AstNode} */ argument)=>
+            argument.type==='Identifier' &&
+            callableNames.has(argument.name)))invoked=true;
           if(node.callee.type==='Identifier' &&
              returnedNames.has(node.callee.name) ||
              node.callee.type==='MemberExpression' &&
@@ -1768,8 +1774,21 @@ function safeClosedCallerRecordRead(modules,module,member,ancestors) {
        * @returns {boolean}
        */
       function passesHostCallable(argument) {
-        return readsHostCallable(argument) ||
-          argument.type==='Identifier' && hostCallAliases.has(argument.name);
+        if(readsHostCallable(argument) ||
+           argument.type==='Identifier' && hostCallAliases.has(argument.name))return true;
+        // A function passed to an opaque higher-order caller can return an
+        // ambient Function capability without exposing that value at the
+        // syntactic argument position. Promise.then callbacks are a concrete
+        // dynamic-import channel into an otherwise closed ESM graph.
+        if(argument.type!=='ArrowFunctionExpression' &&
+           argument.type!=='FunctionExpression')return false;
+        let exposed=false;
+        walk(argument.body,child=>{
+          if(readsHostCallable(child) ||
+             child.type==='Identifier' && hostCallAliases.has(child.name))
+            exposed=true;
+        });
+        return exposed;
       }
       // A host callable used as an argument may be invoked or retained by
       // any otherwise unproved call/constructor. This includes Reflect.apply,
