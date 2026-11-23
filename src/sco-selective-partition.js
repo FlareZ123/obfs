@@ -447,10 +447,14 @@ function usesUnprovedRelocatedUrlStatic(body){
  * URLSearchParams and Headers have independent Node/browser implementations.
  *
  * @param {import('./ast').AstNode} body
+ * @param {Set<string>} [knownFormals] Formal bindings when only a function body is available.
  * @returns {boolean}
  */
-function usesUnprovedRelocatedWebIdlConstructors(body){
+function usesUnprovedRelocatedWebIdlConstructors(body,knownFormals=new Set()){
   const names=new Set(['URLSearchParams','Headers']);
+  const bindings=collectBindings(body);
+  const shadowed=new Set([...names].filter(name=>
+    knownFormals.has(name)||bindings.has(name)));
   /** @param {import('./ast').AstNode|null|undefined} value @returns {boolean} */
   function asciiText(value){
     return Boolean(value&&value.type==='Literal'&&
@@ -581,6 +585,9 @@ function usesUnprovedRelocatedWebIdlConstructors(body){
       if(!directCall||!validDirectMethod(node,parent))unproved=true;
     }
     if(node.type!=='Identifier'||!names.has(node.name)||isStaticKey(parent,key))return;
+    // A parameter, import, function or lexical binding with the same spelling
+    // is not the host constructor and cannot inherit this Web IDL proof.
+    if(shadowed.has(node.name))unproved=true;
     if(parent?.type==='NewExpression'&&key==='callee'&&
        validConstruction(parent))return;
     if(parent?.type==='VariableDeclarator'&&key==='id'||parent?.type==='FunctionDeclaration'&&
@@ -2281,7 +2288,7 @@ function partitionScoSelectedAsyncExports(file,options) {
     if(usesUnprovedRelocatedUrlStatic(body)){
       throw new TypeError('Private SCO export or helper uses unproved cross-realm object URL API');
     }
-    if(usesUnprovedRelocatedWebIdlConstructors(body)){
+    if(usesUnprovedRelocatedWebIdlConstructors(body,privateFormals.get(body)??new Set())){
       throw new TypeError('Private SCO export or helper uses unproved cross-realm WebIDL constructor or method');
     }
     if(usesUnprovedRelocatedTextDecoder(body)){
