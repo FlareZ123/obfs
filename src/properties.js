@@ -942,54 +942,7 @@ function proveLocalObject(ast, rootName, bindings, importedIdentityFunctions=new
     // functions survive the escape analysis above and remain eligible.
     if(ancestors.some(ancestor=>
       ['FunctionDeclaration','FunctionExpression','ArrowFunctionExpression'].includes(ancestor.type)&&
-      !privateFunctionNodes.has(ancestor))) {
-      // The public wrapper can be called or inspected by an external host.
-      // Permit just an unchanged owner identifier passed to a known private,
-      // direct-call-only reader. No renamed member spelling occurs in the
-      // public wrapper's own source, and the receiving formal must already
-      // be the unique tracked owner alias. The private callable's escaping
-      // references and all its call sites were verified above.
-      const index=parent?.type==='CallExpression' ?
-        parent.arguments.indexOf(node):-1;
-      const reader=parent?.type==='CallExpression' && !parent.optional &&
-        parent.callee.type==='Identifier' ?
-        functions.get(parent.callee.name):undefined;
-      // An identity helper can forward the owner into public source:
-      // identity(owner).secretField. Accept only a syntactically primitive
-      // own-field consumer with no opaque calls or returned owner alias.
-      // Its shape is either a direct field return or a two-statement const
-      // field read followed by returning that same local binding.
-      const fn=reader?.node;
-      /** @type {AstNode|null|undefined} */
-      let returned=null;
-      if(fn && !fn.async && !fn.generator) {
-        if(fn.type==='ArrowFunctionExpression' &&
-           fn.body.type==='MemberExpression')returned=fn.body;
-        else if(fn.body.type==='BlockStatement') {
-          const stmts=fn.body.body;
-          if(stmts.length===1 && stmts[0].type==='ReturnStatement')
-            returned=stmts[0].argument;
-          if(stmts.length===2 && stmts[0].type==='VariableDeclaration' &&
-             stmts[0].kind==='const' && stmts[0].declarations.length===1 &&
-             stmts[0].declarations[0].id.type==='Identifier' &&
-             stmts[0].declarations[0].init?.type==='MemberExpression' &&
-             stmts[1].type==='ReturnStatement' &&
-             stmts[1].argument?.type==='Identifier' &&
-             stmts[1].argument.name===stmts[0].declarations[0].id.name)
-            returned=stmts[0].declarations[0].init;
-        }
-      }
-      if(index!==0 || !reader || reader.external ||
-         !privateFunctionNodes.has(reader.node) ||
-         reader.params.length!==1 ||
-         reader.params[0].type!=='Identifier' ||
-         !aliases.has(reader.params[0].name) ||
-         returned?.type!=='MemberExpression' || returned.optional ||
-         returned.object.type!=='Identifier' ||
-         returned.object.name!==reader.params[0].name ||
-         (returned.computed ? staticString(returned.property) :
-           staticName(returned.property))===null)return null;
-    }
+      !privateFunctionNodes.has(ancestor)))return null;
     const scope=scopes.get(node.name);
     if (!scope || !ancestors.includes(scope)) return null;
     if (!parent) return null;
