@@ -19,6 +19,9 @@ All three preserve the numeric return **43** while changing the externally obser
 
 ## 2. Exported ESM reader may retain callable source outside declared closed graph
 
+**Scope caveat—closedWorld opt-in matters.** The reproducer explicitly compiles with `closedWorld:true`, but the observing `external-host.mjs` is **not** in its declared input file set. The existing compiler only enables the cross-file property pass under this opt-in, which permits property-shape changes when every relevant consumer is declared. Thus the red test proves *an outside-declared-graph source change*, not necessarily a breach of the user-authorized closed-world behavior contract. To claim a correctness violation, the integrator must treat that undeclared importer as part of the promised public API (contradicting the strict closed-world premise); otherwise the original transform may be valid and stronger. The per-field source-preserving branch is a **defense-in-depth candidate with a measurable lost rename**, not a justified default until this tradeoff and input contract are decided. Do not merge solely on the out-of-contract test.
+
+
 ESM source files included `state.mjs` with `export const state={secretValue:29,otherValue:12}` and `export const peek=value=>value.secretValue`, and `entry.mjs` imported `peek` to compute `output=41`. An **undeclared** but legitimate external named importer was able to obtain exported `peek` and call `Function.prototype.toString`.
 
 - **Red source SHA:** `052ca879f3cc8f68a015cbbd968d13983f6244c7`, [focused Linux/Windows run 45111287708](https://github.com/FlareZ123/obfs/actions/runs/45111287708) failed. Both returned numeric `output=41`, while source changed from `value=>value.secretValue` to `value=>value._pe1b39e3c617f`.
