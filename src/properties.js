@@ -169,6 +169,9 @@ const constantDeclaratorsCache=new WeakMap();
  */
 const proofInventoryCache=new WeakMap();
 
+/** @type {WeakMap<AstNode,Set<AstNode>>} */
+const privateCallableCache=new WeakMap();
+
 /**
  * @param {AstNode} ast
  * @returns {{
@@ -670,54 +673,61 @@ function proveLocalObject(ast, rootName, bindings, importedIdentityFunctions=new
   // even when its body does not return an identity or a simple parameter read.
   // Conversely, a value stored, returned, exported, or passed elsewhere can
   // expose its original body through Function#toString.
-  const privateFunctionNodes=new Set();
-  /** @type {{name:string,node:AstNode,decl:AstNode}[]} */
-  const callableBindings=[];
-  for(const node of functionDeclarations) {
-    if(node.id?.type==='Identifier'&&bindings.get(node.id.name)===1)
-      callableBindings.push({name:node.id.name,node,decl:node.id});
-  }
-  for(const declarator of callableDeclarators) {
-    const declaration=parents.get(declarator);
-    const value=declarator.init;
-    if(declaration?.type==='VariableDeclaration'&&declaration.kind==='const'&&
-       declarator.id.type==='Identifier'&&bindings.get(declarator.id.name)===1&&
-       (value?.type==='FunctionExpression'||value?.type==='ArrowFunctionExpression'))
-      callableBindings.push({name:declarator.id.name,node:value,decl:declarator.id});
-  }
-  for(const binding of callableBindings) {
-    const scope=scopes.get(binding.name);
-    if(!scope)continue;
-    // A named FunctionExpression has an extra lexical self-binding that the
-    // outer const's direct-call-only use count does not cover. Referencing
-    // that self-name, even through a nested closure, can leak the function
-    // object to an exported host and reveal its exact native source.
-    // Defer finer recursion-only proofs: every non-token self-use is unsafe.
-    if(binding.node.type==='FunctionExpression' &&
-       binding.node.id?.type==='Identifier' &&
-       (identifierUses.get(binding.node.id.name)??[]).some(use=>
-         use.node!==binding.node.id &&
-         use.ancestors.includes(binding.node) &&
-         !(use.parent?.type==='Property' && use.key==='key' && !use.parent.computed) &&
-         !(use.parent?.type==='MemberExpression' && use.key==='property' &&
-           !use.parent.computed)))continue;
-    let privateValue=true;
-    for(const use of identifierUses.get(binding.name)??[]) {
-      if(use.node===binding.decl) {
-        if(use.ancestors.some(ancestor=>/^Export/.test(ancestor.type)))
-          privateValue=false;
-        if(!privateValue)break;
-        continue;
-      }
-      if(!use.ancestors.includes(scope)||
-         use.parent?.type!=='CallExpression'||
-         use.parent.callee!==use.node||
-         use.parent.optional) {
-        privateValue=false;
-        break;
-      }
+  // This proof depends only on the immutable AST and unique lexical scope
+  // inventory. Reuse it across independent owner candidates in one module.
+  let privateFunctionNodes=privateCallableCache.get(ast);
+  if(!privateFunctionNodes) {
+    privateFunctionNodes=new Set();
+    /** @type {{name:string,node:AstNode,decl:AstNode}[]} */
+    const callableBindings=[];
+    for(const node of functionDeclarations) {
+      if(node.id?.type==='Identifier'&&bindings.get(node.id.name)===1)
+        callableBindings.push({name:node.id.name,node,decl:node.id});
     }
-    if(privateValue)privateFunctionNodes.add(binding.node);
+    for(const declarator of callableDeclarators) {
+      const declaration=parents.get(declarator);
+      const value=declarator.init;
+      if(declaration?.type==='VariableDeclaration'&&declaration.kind==='const'&&
+         declarator.id.type==='Identifier'&&bindings.get(declarator.id.name)===1&&
+         (value?.type==='FunctionExpression'||value?.type==='ArrowFunctionExpression'))
+        callableBindings.push({name:declarator.id.name,node:value,decl:declarator.id});
+    }
+    for(const binding of callableBindings) {
+      const scope=scopes.get(binding.name);
+      if(!scope)continue;
+      // A named FunctionExpression has an extra lexical self-binding that the
+      // outer const's direct-call-only use count does not cover. Referencing
+      // that self-name, even through a nested closure, can leak the function
+      // object to an exported host and reveal its exact native source.
+      // Defer finer recursion-only proofs: every non-token self-use is unsafe.
+      if(binding.node.type==='FunctionExpression' &&
+         binding.node.id?.type==='Identifier' &&
+         (identifierUses.get(binding.node.id.name)??[]).some(use=>
+           use.node!==binding.node.id &&
+           use.ancestors.includes(binding.node) &&
+           !(use.parent?.type==='Property' && use.key==='key' && !use.parent.computed) &&
+           !(use.parent?.type==='MemberExpression' && use.key==='property' &&
+             !use.parent.computed)))continue;
+      let privateValue=true;
+      for(const use of identifierUses.get(binding.name)??[]) {
+        if(use.node===binding.decl) {
+          if(use.ancestors.some(ancestor=>/^Export/.test(ancestor.type)))
+            privateValue=false;
+          if(!privateValue)break;
+          continue;
+        }
+        if(!use.ancestors.includes(scope)||
+           use.parent?.type!=='CallExpression'||
+           use.parent.callee!==use.node||
+           use.parent.optional) {
+          privateValue=false;
+          break;
+        }
+      }
+      if(privateValue)privateFunctionNodes.add(binding.node);
+    }
+  
+    privateCallableCache.set(ast,privateFunctionNodes);
   }
 
   const aliases = new Set([rootName]);
