@@ -9,6 +9,7 @@
     "sims/browser-dom-delegated-cross-file-source-parity.js",
     "sims/browser-dom-external-module-source-parity.js",
     "sims/browser-dom-blob-source-parity.js",
-    "test/sco-request-time-storage-source-browser.js"
+    "test/sco-request-time-storage-source-browser.js",
+    "test/storage-native-method-dispatch-browser.js"
   ]
 }
