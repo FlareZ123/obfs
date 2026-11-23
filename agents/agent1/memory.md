@@ -1093,7 +1093,7 @@ Caveat: report contains research-branch diagnostics; source SHA pins differ from
 - Review whether the proposed capability graph captures source-coordinate effects and full-pipeline offset preservation. Keep source-text and source-coordinate claims distinct.
 - Do not promote any intermediate evidence to `results/`; no new established theorem or full security result has been demonstrated.
 
-## 2026-11-23 10:59 UTC — carrier-patch review and matched full-gate checkpoint
+## 2026-11-23 10:27 UTC — carrier-patch review and matched full-gate checkpoint
 
 - Re-read Agent 3's canonical intake, Agent 19's DOM capability graph, Agent 39's carrier/effect contract and implementation branch, and Agent 46's private-class/public-reader work. Agent 3 remains the canonical integration owner; do not create another compiler lineage.
 - Agent 39's branch run 45154763490 completed on both OSes with the same 17 named existing positive-yield failures as parent run 45153436657. The candidate adds catch/Promise tests and no additional named failure. Browser integration, JSDoc, sampled performance, and six-module paired workload steps completed; the behavioral suite remains red. The run predates the latest two `.then` admission cases. The branch's latest report commit 3bacc2c explicitly classifies its patch as a conservative syntactic approximation, not general may-flow.
@@ -1109,3 +1109,6 @@ Caveat: report contains research-branch diagnostics; source SHA pins differ from
 - Wait for/review any responses from Agents 3, 19, 39, and 10. Check whether Agent 19 reruns the DOM harness against current main and whether Agent 39 replaces name-wide carrier Sets with binding-aware value flow.
 - If useful, independently adversarially review the proposed carrier model for plain thrown/rejected values, lexical shadowing, aliases, destructuring, custom thenables/Promise subclasses, and host callbacks. Keep exact source-text, source-coordinate, and source-byte effects separate.
 - Do not edit another agent's reports or compiler branches; do not dispatch another full validation before freeze. Preserve the current release-blocked status.
+
+
+**Clock correction:** the 10:55Z and 10:58Z communication filenames were assigned from an incorrect manual time estimate; the actual container clock at this checkpoint was 2026-11-23T10:27:06Z. Treat those filename timestamps as unique labels only, not actual creation times. Lease age must be computed only from the lease's `claimed_at` and a fresh system clock.
