@@ -17,12 +17,11 @@ const {buildSample}=require('../examples/symbol-keys/build-sample.cjs');
 function run(code) {
   const scope={module:{exports:null}};
   vm.runInNewContext(code,scope,{timeout:2000});
-  const calc=/** @type {(x:number)=>number} */ (scope.module.exports);
-  return [calc(2),calc(4),calc(-3)];
+  return Array.from(/** @type {unknown[]} */ (scope.module.exports));
 }
 
 test('local Symbol keys preserve mutation and are generated only once',()=>{
-  const source="'use strict';\nconst bag={pulse:7,mask:3};\nfunction calc(x){bag.pulse+=x;return (bag.pulse^bag.mask)|0;}\nmodule.exports=calc;\n";
+  const source="'use strict';\nconst bag={pulse:7,mask:3};\nfunction calc(x){bag.pulse+=x;return (bag.pulse^bag.mask)|0;}\nmodule.exports=[calc(2),calc(4),calc(-3)];\n";
   const result=symbolizeLocalProperties(source,parse(source,'commonjs'),{seed:'symbol-example-v1'});
   assert.equal(result.objects,1);
   assert.equal(result.properties,2);
@@ -32,6 +31,18 @@ test('local Symbol keys preserve mutation and are generated only once',()=>{
   const again=symbolizeLocalProperties(result.code,parse(result.code,'commonjs'),{seed:'symbol-example-v1'});
   assert.equal(again.code,result.code);
   assert.equal(again.properties,0);
+});
+
+test('exported callable keeps source spelling rather than receiving Symbol keys',()=>{
+  const source="'use strict';\nconst bag={pulse:7,mask:3};\n"+
+    "function calc(x){bag.pulse+=x;return (bag.pulse^bag.mask)|0;}\nmodule.exports=calc;\n";
+  const result=symbolizeLocalProperties(source,parse(source,'commonjs'),{seed:'symbol-public-callable'});
+  assert.equal(result.objects,0);
+  assert.equal(result.properties,0);
+  assert.equal(result.code,source);
+  const scope={module:{exports:/** @type {unknown} */ (null)}};
+  vm.runInNewContext(result.code,scope,{timeout:2000});
+  assert.match(Function.prototype.toString.call(scope.module.exports),/bag\.pulse/u);
 });
 
 test('closed aliases, optional read and statically keyed destructuring retain their values',()=>{
@@ -89,9 +100,9 @@ test('COO and SNO opt-in generate executable, separate Symbol keys; default stay
 test('real ESM two-file caller observes native values after local Symbol transformation',async()=>{
   const original=[
     {path:'state.mjs',sourceType:/** @type {'module'} */ ('module'),
-      code:'const privateState={pulse:5,mask:3};export function touch(x){privateState.pulse+=x;return privateState.pulse^privateState.mask;}\n'},
+      code:'const privateState={pulse:5,mask:3};function touch(x){privateState.pulse+=x;return privateState.pulse^privateState.mask;}export const results=[touch(2),touch(4)];\n'},
     {path:'entry.mjs',sourceType:/** @type {'module'} */ ('module'),
-      code:'import {touch} from "./state.mjs";console.log(touch(2),touch(4));\n'}
+      code:'import {results} from "./state.mjs";console.log(...results);\n'}
   ];
   const transformed=obfuscateFiles(original,{mode:'coo',seed:'symbol-esm',strings:false,
     identifiers:false,experimentalSymbolKeys:true});
@@ -109,6 +120,17 @@ test('real ESM two-file caller observes native values after local Symbol transfo
   } finally {await fs.rm(root,{force:true,recursive:true});}
 });
 
+
+test('exported ESM callable source vetoes local Symbol-key transformation',()=>{
+  const source='const privateState={pulse:5,mask:3};'+
+    'export function touch(x){privateState.pulse+=x;return privateState.pulse^privateState.mask;}';
+  const compiled=obfuscateFiles([{path:'state.mjs',sourceType:'module',code:source}],{
+    mode:'coo',seed:'symbol-esm-exported-source',strings:false,
+    identifiers:false,experimentalSymbolKeys:true
+  });
+  assert.equal(compiled.files[0].metrics.symbolKeys,0);
+  assert.match(String(compiled.files[0].code),/privateState\.pulse/u);
+});
 
 test('private property read inside an observable failed callee remains unrenamed',()=>{
   // The failed .join call prints the complete callee, including the nested
