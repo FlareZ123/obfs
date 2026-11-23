@@ -37,8 +37,8 @@ function run(factoryCode,appCode,esm=false) {
     write('factory.'+suffix,factoryCode);
     write('app.'+suffix,appCode);
     write('runner.'+suffix,esm?
-      "import {result} from './app.mjs';process.stdout.write(JSON.stringify(result));\\n":
-      "process.stdout.write(JSON.stringify(require('./app.cjs')));\\n");
+      "import {result} from './app.mjs';process.stdout.write(JSON.stringify(result));\n":
+      "process.stdout.write(JSON.stringify(require('./app.cjs')));\n");
     return execFileSync(process.execPath,[path.join(dir,'runner.'+suffix)],
       {encoding:'utf8',timeout:10000});
   }finally{
@@ -61,12 +61,12 @@ for(const mode of /** @type {const} */ (['coo','sno','sco'])) {
   });
 }
 
-const esmFactory="export function make(){return new TextEncoder();}\\n";
+const esmFactory="export function make(){return new TextEncoder();}\n";
 const esmApp=
-  "import {make} from './factory.mjs';\\n"+
-  "const encoder=make();\\n"+
-  "function observed(){return 'esm-cross-file-encoder-source-literal';}\\n"+
-  "export const result=Array.from(encoder.encode(observed));\\n";
+  "import {make} from './factory.mjs';\n"+
+  "const encoder=make();\n"+
+  "function observed(){return 'esm-cross-file-encoder-source-literal';}\n"+
+  "export const result=Array.from(encoder.encode(observed));\n";
 
 for(const mode of /** @type {const} */ (['coo','sno','sco'])) {
   test('ESM imported native TextEncoder factory source coercion '+mode,()=>{
