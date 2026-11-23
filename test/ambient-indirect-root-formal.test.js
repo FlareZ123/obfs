@@ -230,7 +230,7 @@ test('for-of assignment ObjectPattern extracts live ambient Reflect',async()=>{
   assert.equal(compiled.crossFile.properties,0);
 });
 
-for(const [name,head,extra] of [
+for(const [name,head,extra] of /** @type {ReadonlyArray<[string,string,ModuleFile[]]>} */ ([
   ['direct named ESM import',
     'import {key} from "./key.mjs";',
     [{path:'key.mjs',sourceType:'module',code:'export const key="Reflect";'}]],
@@ -239,7 +239,7 @@ for(const [name,head,extra] of [
     [{path:'key.mjs',sourceType:'module',code:'export const key="Reflect";'},
      {path:'relay.mjs',sourceType:'module',
        code:'export {key as renamedKey} from "./key.mjs";'}]]
-]){
+])){
   test('imported computed native field via '+name+' preserves opaque owner names',async()=>{
     const original=sourceGraph([
       head,
