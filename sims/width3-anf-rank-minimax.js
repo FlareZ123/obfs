@@ -191,7 +191,7 @@ function checkClass(source,bound) {
     }
   }
   assert.equal(exactTargets,source.length);
-  assert.equal(queryHistogram[bound]>0,'The optimal worst-case is attained');
+  assert.ok(queryHistogram[bound]>0,'The optimal worst-case is attained');
   return {uniqueSources:source.length,lowerBound:bound-1,upperBound:bound,
     exactTargets,queryHistogram,states:strategy.states()};
 }
