@@ -941,7 +941,8 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
    * @returns {boolean}
    */
   function mayReturnEncoder(fn) {
-    if(fn.async||fn.generator)return false;
+    // Await can unwrap a Promise carrying the native encoder.
+    if(fn.generator)return false;
     let returns=encoderReturnSites.get(fn);
     if(!returns) {
       /** @type {AstNode[]} */
