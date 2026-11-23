@@ -97,14 +97,45 @@ test('bound and owned Blob constructors must preserve COO/SNO source spelling',(
 test('bound Blob constructor with primitive input retains private property rename',()=>{
   const original='const owner={hiddenCount:41,secretDelta:2};'+
     'const make=Blob.bind(null);new make([],{type:"text/plain"});'+
-    'module.exports=()=>owner.hiddenCount+owner.secretDelta;';
+    'module.exports=owner.hiddenCount+owner.secretDelta;';
   assert.equal(observesFunctionSource(parse(original,'commonjs')),false);
+  /** @param {string} code @returns {number} */
+  const numericValue=code=>{
+    const module={exports:/** @type {unknown} */ (null)};
+    new Function('module',code)(module);
+    return /** @type {number} */ (module.exports);
+  };
   for(const mode of /** @type {('coo'|'sno')[]} */(['coo','sno'])) {
     const compiled=obfuscateFiles([{
       path:'owned-blob-positive.cjs',sourceType:'commonjs',code:original
     }],{mode,seed:'owned-blob-primitive',closedWorld:true,
       properties:true,identifiers:false,strings:false});
     assert.equal(compiled.files[0].metrics.properties,2,mode);
-    assert.equal(execute(String(compiled.files[0].code)),execute(original));
+    assert.equal(numericValue(String(compiled.files[0].code)),numericValue(original));
   }
 });
+
+test('bound Blob constructor retains exported callable source without rewriting its private fields',()=>{
+  const original='const owner={hiddenCount:41,secretDelta:2};'+
+    'const make=Blob.bind(null);new make([],{type:"text/plain"});'+
+    'module.exports=()=>owner.hiddenCount+owner.secretDelta;';
+  assert.equal(observesFunctionSource(parse(original,'commonjs')),false,
+    'whole-source observer scanner alone does not prove callable privacy');
+  const originalSource=executeFunctionSource(original);
+  for(const mode of /** @type {('coo'|'sno')[]} */(['coo','sno'])) {
+    const compiled=obfuscateFiles([{
+      path:'owned-blob-exported.cjs',sourceType:'commonjs',code:original
+    }],{mode,seed:'owned-blob-exported',closedWorld:true,
+      properties:true,identifiers:false,strings:false});
+    assert.equal(compiled.files[0].metrics.properties,0,mode);
+    assert.equal(execute(String(compiled.files[0].code)),execute(original),mode);
+    assert.equal(executeFunctionSource(String(compiled.files[0].code)),originalSource,mode);
+  }
+});
+
+/** @param {string} code @returns {string} */
+function executeFunctionSource(code) {
+  const module={exports:/** @type {unknown} */ (null)};
+  new Function('module',code)(module);
+  return Function.prototype.toString.call(module.exports);
+}
