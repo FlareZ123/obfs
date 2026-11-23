@@ -172,7 +172,7 @@ test('reviewed private server-only dependency retains Node Buffer as a deliberat
       privateModuleImports:['./private/leaf.mjs'],
       privateModuleSources:[{
         path:'private/leaf.mjs',
-        code:'export function readValue(){return Buffer.byteLength("ab");}'
+        code:'export function readValue(){return Buffer.byteLength("ab")+process.versions.node.length;}'
       }]
     });
   assert.deepEqual(result.privateNames,['protectedOp']);
@@ -262,4 +262,17 @@ test('real Chromium and Node native execution disagree on those ambient roots',{
   }finally{
     if(browser)await browser.close();
   }
+});
+
+
+test('selected SCO process local primitive is lexically owned',async()=>{
+  const source='export async function protectedOp(){'+
+    'const process=41;return process+1;}'+
+    'export function publicOp(){return 0;}';
+  const native=await import('data:text/javascript,'+encodeURIComponent(source));
+  assert.equal(await native.protectedOp(),42);
+  const partition=partitionScoSelectedAsyncExports(
+    {path:'mixed.mjs',sourceType:'module',code:source},
+    {seed:'agent35-process-local-positive',privateNames:['protectedOp']});
+  assert.deepEqual(partition.privateNames,['protectedOp']);
 });
