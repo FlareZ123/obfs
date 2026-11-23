@@ -40,7 +40,8 @@ function compile(source,mode) {
 for(const mode of /** @type {const} */ (['coo','sno','sco'])) {
   test(mode+' privately constructed class method has nonzero owned-field rewrite',()=>{
     const original=[
-      'const owner={secretA:7,secretB:11};',
+      '\'use strict\';',
+      'const owner={secretA:7,secretB:11};'
       'class Reader{read(){return owner.secretA;}}',
       'const reader=new Reader();',
       'module.exports=reader.read()+owner.secretB;'
@@ -52,7 +53,7 @@ for(const mode of /** @type {const} */ (['coo','sno','sco'])) {
     assert.equal(execute(String(transformed.code)),execute(original));
   });
   test(mode+' two immutable local instances share a private method safely',()=>{
-    const original='const owner={secretA:17};'+
+    const original='\'use strict\';const owner={secretA:17};'+
       'class Reader{read(){return owner.secretA;}}'+
       'const first=new Reader(),second=new Reader();'+
       'module.exports=first.read()+second.read();';
@@ -66,7 +67,7 @@ for(const mode of /** @type {const} */ (['coo','sno','sco'])) {
 
 for(const mode of /** @type {const} */ (['coo','sno','sco'])) {
   test(mode+' real Node CommonJS require preserves a private class result',async()=>{
-    const original='const owner={secretA:7,secretB:11};'+
+    const original='\'use strict\';const owner={secretA:7,secretB:11};'+
       'class Reader{read(){return owner.secretA;}}'+
       'const reader=new Reader();module.exports=reader.read()+owner.secretB;';
     const emitted=compile(original,mode);
