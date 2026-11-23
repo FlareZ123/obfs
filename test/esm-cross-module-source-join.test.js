@@ -25,6 +25,7 @@ async function importGraph(directory){
 }
 
 for(const [label,observer] of [
+  ['no-source-observer','"constant"'],
   ['direct-String','String(compute)'],
   ['interprocedural-array-join','sourceView(compute)']
 ]){
@@ -54,6 +55,8 @@ for(const [label,observer] of [
       nativeSourceChars:native.spelling.length,
       compiledSourceChars:compiled.spelling.length
     }));
+    if(label==='no-source-observer')assert.ok(built.files.some(file=>
+      file.metrics.properties>0),'Positive rename is necessary to validate the observer guard');
     assert.equal(native.result,32);
     assert.equal(compiled.result,native.result);
     assert.equal(compiled.spelling,native.spelling,
