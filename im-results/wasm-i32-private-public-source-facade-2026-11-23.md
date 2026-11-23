@@ -68,3 +68,19 @@ The separate opt-in `test/agent38-chromium-private-wasm-facade.test.js` on resea
 This is the positive counterpart to the source-breaking unknown-import Chromium test `test/agent38-chromium-public-identifier-source.test.js`: both use unmodified browser Function#toString and independent externally served importing pages. The protected helper's public Wasm bytes remain recoverable, and no browser runtime budget was measured.
 
 The browser test remains on its research branch: it is a real-Chromium fixture requiring an installed executable, unsuitable for unconditional `node --test` runs on developer machines without Chrome. The Node-only private facade positive regression has been committed to main separately.
+
+## Zero-oracle source-only reconstruction of the private Wasm helper
+
+The independently implemented reconstruction test `test/agent38-private-wasm-source-only-clone.test.js` at exact research SHA `7190dc48adf9d750ad2a818c63c55b85c5cd23dd` passed both Node 22 Ubuntu and Windows [focused run 45129176173](https://github.com/FlareZ123/obfs/actions/runs/45129176173), **1/1 case plus strict JSDoc per OS, overall GREEN**.
+
+The adversary receives only the distributed JavaScript output from the three-mode compiler, without the private original source or obfuscator seed. An Acorn public-source parse finds the unmodified exported `published` facade, its direct `secretI32` callee and declared parameter. The independent public binary extractor in `sims/wasm-i32-static-recover.js` identifies embedded WebAssembly bytes and reconstructs a native JavaScript expression. The attacker then assembles a new CJS or ESM native implementation of the recovered private helper with the same public facade, **containing no WebAssembly**. Original, protected and reconstructed functions return exactly equal `Object.is` outputs for 2,060 signed, nonfinite, fractional, and deterministic integer inputs per mode and module form.
+
+| Mode | Distributed CJS bytes | Distributed ESM bytes | Offline original/protected/native-clone matches |
+| --- | ---: | ---: | ---: |
+| COO | 522 | 638 | 2,060 CJS + 2,060 ESM |
+| SNO | 522 | 575 | 2,060 CJS + 2,060 ESM |
+| SCO | 526 | 630 | 2,060 CJS + 2,060 ESM |
+
+The facade's native `Function#toString` also matches exactly between original and attacker clone in all six cases. The adversary uses **zero online oracle requests** and only the published JS + Wasm bytes. The decoder was already known to recover the project's restricted direct Wasm kernels; this reproduces the vulnerability when the numerical kernel is hidden behind a source-exact, unvirtualized public facade.
+
+**Security disposition: static deobfuscation resistance is contradicted for this concrete protected-work pattern.** A 1.04–1.10× sampled hot-path overhead and correct callable-source behavior cannot be promoted into a claim of hard-to-recover private arithmetic. The test does not claim a universal attack on arbitrary JavaScript or all WebAssembly bytecodes.
