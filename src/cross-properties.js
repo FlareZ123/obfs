@@ -1670,7 +1670,8 @@ function safeClosedCallerRecordRead(modules,module,member,ancestors) {
             // Ordinary property/index writes may install a host-returning
             // factory into a previously inert holder, including nested
             // carrier.holder.callback and carrier.inner[0] paths.
-            if(node.type==='AssignmentExpression' && node.operator==='=' &&
+            if(node.type==='AssignmentExpression' &&
+               ['=','&&=','||=','??='].includes(node.operator) &&
                node.left.type==='MemberExpression') {
               const holderName=rootHolderName(node.left.object);
               if(holderName && holdsFactoryValue(node.right,0) &&
