@@ -61,6 +61,18 @@ A separate control isolates the same whole-file boolean cost in the property pas
 
 This confirms that the boolean observer blocks unrelated property yield as well as identifier yield. The candidate is safe but materially overconservative; a callable/source-span summary is the intended next step, not a global boolean merged as a final solution.
 
+
+## String-pass yield consequence
+
+A separate host-preload fixture isolates the string pass from the unresolved-import/distributed-source guard. The obfuscated input contains no import: a Node `--import` preload, outside the input file group, patches `Function.prototype.toString`; app code clears the capture array and evaluates `+reader`. An unrelated top-level string literal is not inside the observed function source.
+
+With numeric coercion, the candidate observer vetoes string encoding (`metrics.literals === 0`) and the unrelated literal remains verbatim. Replacing `+reader` with `Boolean(reader)` is a non-coercive positive control: the string encoder transforms the unrelated literal (`metrics.literals >= 1`) and runtime value remains identical.
+
+- Test: `test/agent3-to-primitive-string-yield.test.js`
+- Run 45276779305: GREEN on Ubuntu and Windows with strict project/external JSDoc.
+
+The earlier import-based attempt (45276567469) did not isolate this pass because the unresolved import itself triggers the separate distributed-source veto; it was a fixture-design failure, not evidence about the numeric guard. The preload test removes that confound.
+
 ## Interpretation and limitations
 
 This is an empirical compatibility failure under a concrete unlisted dependency, not a confidentiality guarantee or a claim that obfuscation defeats DevTools. The source observer's current boolean API makes the candidate fail closed for the entire file. That preserves observed source, but it suppresses unrelated local identifier/property yield. Agent 12 independently measured this whole-file-veto cost in `im-results/source-observer-file-wide-veto-2026-11-23.md`.
