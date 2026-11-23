@@ -56,13 +56,16 @@ for(const mode of ['coo','sco']) {
 
 test('cross-module primitive-only logging does not suppress all transforms',()=>{
   const producer="const owner={longPrivateField:73};"+
-    "export function calculate(){return owner.longPrivateField;}";
+    "function privateRead(){return owner.longPrivateField;}"+
+    "export function calculate(){return privateRead();}";
   const consumer="import {calculate} from './producer.mjs';"+
     "console.log(42);export const value=calculate();";
   const output=obfuscateFiles([
     {path:'producer.mjs',sourceType:'module',code:producer},
     {path:'consumer.mjs',sourceType:'module',code:consumer}
   ],{mode:'coo',seed:'agent50-crossfile-primitive-positive',closedWorld:true});
+  assert.equal(output.files.reduce((total,file)=>total+file.metrics.properties,0),1,
+    'Primitive-only logger must keep a genuine private field rename');
   assert.ok(output.files.some(file=>file.code!==[producer,consumer][
     file.path==='producer.mjs'?0:1
   ]),JSON.stringify(output));
@@ -78,7 +81,8 @@ test('real multi-file ESM native and emitted console traces stay equivalent',asy
     {
       name:'primitive',
       producer:"const owner={longPrivateField:73};"+
-        "export function compute(){return owner.longPrivateField;}",
+        "function privateRead(){return owner.longPrivateField;}"+
+        "export function compute(){return privateRead();}",
       consumer:"import {compute} from './producer.mjs';"+
         "console.log(42,compute());"
     },
@@ -117,9 +121,12 @@ test('real multi-file ESM native and emitted console traces stay equivalent',asy
       const emitted=await build(scenario.name+'-emitted',output.files);
       assert.equal(emitted,native,scenario.name);
       assert.match(native,/73/);
-      if(scenario.name==='primitive')
+      if(scenario.name==='primitive') {
+        assert.equal(output.files.reduce((total,file)=>total+file.metrics.properties,0),1,
+          'Primitive-only graph must retain one actually renamed private key');
         assert.ok(output.files.some((file,index)=>file.code!==files[index].code),
           'positive primitive-only graph must actually transform');
+      }
       else
         assert.deepEqual(output.files.map(file=>file.code),files.map(file=>file.code));
     }
