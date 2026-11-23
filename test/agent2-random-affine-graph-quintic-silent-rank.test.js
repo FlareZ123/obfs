@@ -1,0 +1,103 @@
+'use strict';
+
+const assert=require('node:assert/strict');
+const {test}=require('node:test');
+const {invertByRandomAffineGraph,binomialSum}=
+  require('../sims/random-affine-graph-flag-inversion');
+
+/**
+ * Identity extension to 32 bits of the two-monomial degree-five permutation:
+ * x XOR 128*[x_0..x_4=1] XOR 256*[x_2..x_6=1].
+ * Output bits 7 and 8 depend only on lower input bits, so this is triangular.
+ * @param {number} input
+ * @returns {number}
+ */
+function silentRankQuinticPermutation(input){
+  const x=input>>>0;
+  return (x^((x&31)===31?128:0)^((x&124)===124?256:0))>>>0;
+}
+
+/**
+ * The rank-six standard-basis candidate that retains only the first
+ * top-degree monomial. It is itself a permutation, but wrong whenever the
+ * second monomial is active.
+ * @param {number} input
+ * @returns {number}
+ */
+function rankSixFastCandidate(input){
+  const x=input>>>0;
+  return (x^((x&31)===31?128:0))>>>0;
+}
+
+test('corrected affine-graph inversion recovers the 32-bit silent-rank quintic permutation',()=>{
+  // Exhaust the 9-bit core: source and rank-six candidate are both
+  // permutations, and the candidate's exact mismatch set has size 16.
+  const sourceOutputs=new Set();
+  const candidateOutputs=new Set();
+  let mismatchCount=0;
+  for(let input=0;input<512;input++){
+    const source=silentRankQuinticPermutation(input);
+    const candidate=rankSixFastCandidate(input);
+    sourceOutputs.add(source);
+    candidateOutputs.add(candidate);
+    if(source!==candidate)mismatchCount++;
+  }
+  assert.equal(sourceOutputs.size,512);
+  assert.equal(candidateOutputs.size,512);
+  assert.equal(mismatchCount,16);
+
+  // Every target below activates the omitted second quintic monomial.
+  // Four targets have bit 31 clear and four set; both A-only and A+B
+  // combinations occur. The high bits otherwise pass through unchanged.
+  const secrets=[
+    0x0000007c,0x0000007d,0x0000007e,0x0000007f,
+    0x8000007c,0x8000007d,0x8000007e,0x8000007f
+  ];
+  /** @type {Array<{secret:string,target:string,queries:number}>} */
+  const receipts=[];
+  let totalGraphQueries=0;
+  for(let index=0;index<secrets.length;index++){
+    const secret=secrets[index]>>>0;
+    assert.equal(secret&124,124,'the omitted B monomial must be active');
+    const target=silentRankQuinticPermutation(secret);
+    assert.notEqual(rankSixFastCandidate(secret),target,
+      'the raw rank-six candidate must miss this held-out source target');
+    /** @param {bigint} input @returns {bigint} */
+    const oracle=input=>BigInt(silentRankQuinticPermutation(Number(input)));
+    const result=invertByRandomAffineGraph(oracle,BigInt(target),32,5,{
+      seed:0xa500+index,
+      delta:1e-8
+    });
+    assert.equal(result.success,true,JSON.stringify({
+      index,reason:result.reason,failedDimension:result.failedDimension
+    }));
+    assert.equal(result.input,BigInt(secret));
+    assert.equal(result.verified,true);
+    assert.equal(oracle(result.input),BigInt(target),
+      'independent exact source-forward verification');
+    assert.equal(result.stages.length,32);
+    assert.ok(result.stages.every(stage=>stage.reason==='affine-relation'));
+    totalGraphQueries+=result.queries;
+    receipts.push({
+      secret:'0x'+secret.toString(16).padStart(8,'0'),
+      target:'0x'+target.toString(16).padStart(8,'0'),
+      queries:result.queries
+    });
+  }
+
+  // One target-independent complete degree-five ANF clone costs Q(32,5).
+  // The graph method is target-specific; this eight-target batch is cheaper
+  // in original-source queries for this selected source and target set.
+  const exactCloneQueries=binomialSum(32,5);
+  assert.equal(exactCloneQueries,242825);
+  assert.ok(totalGraphQueries<exactCloneQueries);
+  process.stdout.write('OBFS_GRAPH_QUINTIC_SILENT_RANK '+JSON.stringify({
+    width:32,degree:5,
+    jointTopDerivativeRadicalCodimension:7,
+    affineFlag:true,
+    targets:receipts.length,
+    receipts,totalGraphQueries,exactCloneQueries,
+    rawCandidateMismatchesIn9BitCore:16,
+    allTargetsRecovered:true
+  })+'\\n');
+});
