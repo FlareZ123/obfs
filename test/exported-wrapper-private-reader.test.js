@@ -83,6 +83,22 @@ const refused=[
     code:'const privateRecord={secretAlpha:23};function readAlpha(ownerAlpha){hostCallback();return ownerAlpha.secretAlpha;}export function calculate(k){return k*readAlpha(privateRecord);}'
   },
   {
+    name:'arrow reader is outside the admitted FunctionDeclaration grammar',
+    code:'const privateRecord={secretAlpha:23};const readAlpha=(ownerAlpha)=>ownerAlpha.secretAlpha;export function calculate(k){return k*readAlpha(privateRecord);}'
+  },
+  {
+    name:'const-binding reader is outside the admitted one-return grammar',
+    code:'const privateRecord={secretAlpha:23};function readAlpha(ownerAlpha){const captured=ownerAlpha.secretAlpha;return captured;}export function calculate(k){return k*readAlpha(privateRecord);}'
+  },
+  {
+    name:'multi-parameter reader is outside the admitted one-parameter grammar',
+    code:'const privateRecord={secretAlpha:23};function readAlpha(ownerAlpha,unused){return ownerAlpha.secretAlpha;}export function calculate(k){return k*readAlpha(privateRecord);}'
+  },
+  {
+    name:'computed reader is outside the admitted static-member grammar',
+    code:'const privateRecord={secretAlpha:23};function readAlpha(ownerAlpha){return ownerAlpha["secretAlpha"];}export function calculate(k){return k*readAlpha(privateRecord);}'
+  },
+  {
     name:'identity forwarder is not a private value reader',
     code:'const privateRecord={secretAlpha:23};function forward(ownerAlpha){return ownerAlpha;}export function calculate(k){return k*forward(privateRecord).secretAlpha;}'
   }
