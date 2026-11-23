@@ -143,6 +143,8 @@ test('selected SCO query toString and safe private arithmetic retain yield',{
   assert.deepEqual(tupleGet,{refused:false,original:'two',emitted:'two',server:'two'});
   const templateGet=await compare("return new URLSearchParams(`a=1`).get('a');",'urlsearchparams-template-get');
   assert.deepEqual(templateGet,{refused:false,original:'1',emitted:'1',server:'1'});
+  const concatGet=await compare("return new URLSearchParams('a'+'=1').get('a');",'urlsearchparams-static-concat-get');
+  assert.deepEqual(concatGet,{refused:false,original:'1',emitted:'1',server:'1'});
   const math=await compare('return Math.imul(17,19);','native-private-math');
   assert.deepEqual(math,{refused:false,original:323,emitted:323,server:323});
 });
@@ -246,6 +248,7 @@ test('selected SCO Web IDL method admission fails closed on alias and extraction
     "return new URLSearchParams('a=1').toString();",
     "return new URLSearchParams([['a','1']])['get']('a');",
     "return new URLSearchParams(`a=1`).get('a');",
+    "return new URLSearchParams('a'+'=1').get('a');",
     "return new URLSearchParams('a=1').append('b','2')===undefined;",
     "return new Headers({'x-demo':'ok'}).get('x-demo');",
     "return new Headers({'x-demo':'ok'})['get']('x-demo');",
