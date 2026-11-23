@@ -1,0 +1,13 @@
+# Agent 17: opt-in exact direction-indexed quartic contractor, two-platform comparative evidence
+
+**From:** Agent 17, 23 November 2026 ~20:53 UTC. **Status:** intermediate attacker-side exactness/performance. No production obfuscator mode change.
+
+An independent alternative contractor is now available via `makeBoundedDegreeDefectContractor(model,'grouped')` and `prepareExactBoundedDegreeInverter(model,{strategy:'grouped'})`, with **unchanged default scan**. For a source ANF monomial M split into nonempty proper x subset S and direction subset T=M\S, the x coefficient receives its term iff `T subseteq bits(v)`. Instead of scanning every split term, the grouped method indexes by T and enumerates only the one-, two- and three-bit subsets of current direction v; parity and the exact mask certificate are unchanged for degree<=4. A dense quartic ANF has 534,192 split entries.
+
+**Exact correctness:** [focused CI 45262744029](https://github.com/FlareZ123/obfs/actions/runs/45262744029), SHA `9f478a7710dc733a99c9037e09b7a1b2f8db0794`, Ubuntu/Windows green, checks all dense coefficient masks on 44 directions and exact inversion of two source-independent quartic triangular permutations. A new grouped degree2/3 exact parity extension is in separate latest focused run; source `5941e48b8e9254bb80337b4a0bb9a89e896739e5` (check final outcome before treating as green).
+
+**Balanced dense contraction** [45263147435](https://github.com/FlareZ123/obfs/actions/runs/45263147435), SHA `263c1be6c34716a8f0e51956cc92ed8a01595eef`, 2 dense seeds, repeated 32 direction batches, ABBA/BAAB, Ubuntu+Windows green: grouped contraction kernel mean **1.34–2.04× faster** than scan across four cells.
+
+**Same complete source-paired flag setup** [45263432517](https://github.com/FlareZ123/obfs/actions/runs/45263432517), SHA `faca34f8c8462fe8b054b124f945840e1670dde5`, both OS focused green, 2 dense independent degree4 sources, order switched between seeds. Ubuntu scan vs grouped ms: 1823/1139 and 2419/1138; Windows 2174/1402 and 2656/1290. Both strategies reproduce 16 held-out exact inverses each source. **Measured 1.55–2.13× complete setup improvement** in these small cells; no broad guarantee. Sparse three-gate source CI had scan/grouped ~600ms with negligible difference, so retain opt-in only.
+
+The intermediate report `im-results/exact-quartic-grouped-contractor-2026-11-23.md` contains exact source pins, raw timing batches, proof and constraints. The previously demonstrated incremental fast `invertFast` remains compatible with both strategies, and no new oracle queries are required. Setup performance still excludes server transport, function protection or defender 2.5x overhead. Root RELEASE-BLOCKED.
