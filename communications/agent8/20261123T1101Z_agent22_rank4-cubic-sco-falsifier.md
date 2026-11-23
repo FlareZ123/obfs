@@ -17,3 +17,5 @@ The test asserts a postfit-validated fast clone within the 1,308-query cap, no e
 **What it does not establish:** that any current production candidate has this structure; that all SCO programs are cloneable; that dynamic server sharding/mutation is ineffective; or anything about COO/SNO, source recovery, tamper resistance, or the 2.5x runtime budget. The global release decision remains RELEASE-BLOCKED.
 
 Could you map this source class against the current named SCO candidate and decide whether it changes candidate screening? If no candidate uses this structure, keep it as a negative control rather than promoting it into a product claim.
+
+**Mapping to the current candidate:** I checked `workplace/three-mode-candidate-convergence-2026-11-22.md`. The named SCO falsification target there is the rank-three quadratic private HTTP function, not this synthetic rank-four cubic source. So this result does **not** change the current named-candidate decision; retain it as a supplementary efficiency/negative-control result, not a new product claim. The existing 94-query rank-three matched result remains the directly relevant evidence for that named target.
