@@ -13,7 +13,7 @@ const {assertNoPrivateImportMemberState}=require('./sco-private-import-identity'
 
 /** @typedef {import('./sco-partition').ScoModulePartition} ScoModulePartition */
 /** @typedef {{path:string,code:string}} ScoPrivateModuleSource */
-/** @typedef {{privateNames:string[],publicHelperNames?:string[],seed?:string,endpoint?:string,batch?:boolean,maxBatchCalls?:number,allowServerEnvConstants?:boolean,allowServerImports?:boolean,privateModuleImports?:string[],additionalPrivateModulePaths?:string[],privateModuleSources?:ScoPrivateModuleSource[]}} ScoSelectiveOptions */
+/** @typedef {{privateNames:string[],publicHelperNames?:string[],seed?:string,endpoint?:string,batch?:boolean,maxBatchCalls?:number,allowServerEnvConstants?:boolean,allowServerNodeGlobals?:boolean,allowServerImports?:boolean,privateModuleImports?:string[],additionalPrivateModulePaths?:string[],privateModuleSources?:ScoPrivateModuleSource[]}} ScoSelectiveOptions */
 /** @typedef {{path:string,sha256:string}} ScoPrivateSourceDigest */
 /** @typedef {ScoModulePartition & {publicNames:string[],privateNames:string[],publicHelperNames:string[],privateSourceDigests?:ScoPrivateSourceDigest[]}} ScoSelectivePartition */
 /** @type {WeakMap<ScoSelectivePartition,string>} */
@@ -361,6 +361,11 @@ function firstUnprovedUnqualifiedReference(root,moduleBindings,rootFormals,allow
   let missing=null;
   walk(root,(node,parent,key,ancestors)=>{
     if(missing!==null||node.type!=='Identifier'||isStaticKey(parent,key))return;
+    // An ESM reexport's ExportSpecifier.local is the source module's
+    // exported name, not a local identifier read. A local export without
+    // `from` must still resolve against the current module's bindings.
+    if(parent?.type==='ExportSpecifier'&&key==='local'&&
+       ancestors.some(ancestor=>ancestor.type==='ExportNamedDeclaration'&&ancestor.source))return;
     if(parent&&(
       ['LabeledStatement','BreakStatement','ContinueStatement'].includes(parent.type)&&
         key==='label'||
@@ -1901,7 +1906,10 @@ function collectPrivateStaticImportClosure(directPaths,sources) {
  * ambient-global access. Imports, reexports, public data exports,
  * effects in module initializers and public reads of private state are refused.
  * With explicit allowServerImports, named imports from Node builtin modules
- * may remain server-only. Exact opt-in privateModuleImports permits canonical
+ * may remain server-only. The opt-in allowServerNodeGlobals is reserved for
+ * source known to originate in Node rather than a browser: free Buffer and
+ * process then retain Node-native meaning under relocation. Browser-origin
+ * selected functions must not use this opt-in. Exact opt-in privateModuleImports permits canonical
  * relative .mjs child paths, provided no public function uses their bindings.
  *
  * This deliberate limited contract keeps private bodies off the client while
@@ -1933,6 +1941,7 @@ function partitionScoSelectedAsyncExports(file,options) {
       additionalPrivateModulePaths:snapshotOptionArray(options.additionalPrivateModulePaths),
       privateModuleSources:sourceInputs,
       allowServerEnvConstants:options.allowServerEnvConstants,
+      allowServerNodeGlobals:options.allowServerNodeGlobals,
       allowServerImports:options.allowServerImports,
       seed:options.seed,endpoint:options.endpoint,
       batch:options.batch,maxBatchCalls:options.maxBatchCalls
@@ -1951,6 +1960,8 @@ function partitionScoSelectedAsyncExports(file,options) {
       typeof options.allowServerEnvConstants!=='boolean'||
       options.allowServerImports!==undefined &&
       typeof options.allowServerImports!=='boolean'||
+      options.allowServerNodeGlobals!==undefined &&
+      typeof options.allowServerNodeGlobals!=='boolean'||
       options.privateModuleImports!==undefined &&
       (!Array.isArray(options.privateModuleImports)||
        options.privateModuleImports.some(value=>typeof value!=='string')||
@@ -2542,7 +2553,7 @@ function partitionScoSelectedAsyncExports(file,options) {
     const missingSelected=firstUnprovedUnqualifiedReference(
       privateFunctionByBody.get(body)??body,
       new Set([...serverConstants,...privateHelperNames,...selected]),
-      privateFormals.get(body)??new Set());
+      privateFormals.get(body)??new Set(),options.allowServerNodeGlobals===true);
     if(missingSelected!==null){
       throw new TypeError('Private SCO export or helper uses unproved unqualified free reference: '+
         missingSelected);
