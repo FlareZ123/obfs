@@ -1,7 +1,7 @@
 # Matched authenticated SCO and esbuild-private-API clone of a rank-four cubic permutation
 
 **Status:** intermediate, reproducible negative result for one bounded source family.  
-**Run:** manual-low-rank-target-inversion #147, GitHub Actions run `45160518629`, commit `c410be36e679106a7ea886a19276690d21c67eba`. Both `windows-latest` and `ubuntu-latest` jobs completed successfully, including the new live-clone step and project JSDoc typecheck.
+**Run:** manual-low-rank-target-inversion #149, GitHub Actions run `45162509026`, tested head `b9cfb98e59859b207b5e39770807550e0d32f134`. Both `windows-latest` and `ubuntu-latest` jobs completed successfully, including the new live-clone step and project JSDoc typecheck.
 
 ## Question
 
@@ -40,7 +40,7 @@ Two arms run the same source and JSON RPC contract:
 
 Both arms use the same realized witness and verification tapes. The caller receives only the method route, one legitimate credential, and the input/output protocol. No source text or private helper names are supplied to the cloning routine. An unauthenticated RPC attempt is made against each arm.
 
-After learning, each HTTP server is closed. The serialized model is then evaluated on 1,028 deterministic held-out inputs not present in the query cache and compared against the private evaluator in the test harness. Those direct held-out comparisons are not additional RPCs.
+After learning, each HTTP server is closed. The serialized model is then evaluated on the same 1,028 distinct deterministic held-out inputs in both arms, none present in the query cache, and compared against the private evaluator in the test harness. The script hashes each sorted held-out set and asserts the hashes are identical across arms. Those direct held-out comparisons are not additional RPCs.
 
 ## Results established by the passing run
 
@@ -51,7 +51,7 @@ The script asserts all of the following in both operating-system jobs:
 - the total number of distinct oracle queries is at most **1,308**;
 - SCO and minified-control query counts are equal;
 - the ordered input/output transcript hashes are equal;
-- all **1,028 / 1,028** held-out outputs match in each arm after its server has closed;
+- all **1,028 / 1,028** distinct held-out outputs match in each arm after its server has closed, using the same held-out set;
 - private server executions equal the number of actual oracle queries;
 - unauthorized requests receive HTTP 403;
 - private mask and helper names do not appear in the published SCO facade;
@@ -87,6 +87,6 @@ This is a **targeted efficiency improvement**, not a broader function-class resu
 - Cubic functional model: `sims/rankfour-projected-cubic-rescue.js`
 - Strict JSDoc project: `jsconfig.affine-low-rank-peer.json`
 - Manual workflow: `.github/workflows/manual-low-rank-target-inversion.yml`
-- Run: `45160518629`
+- Run: `45162509026` (workflow run #149; both OS jobs and strict JSDoc succeeded)
 
 The run is a focused reproducibility receipt for this intermediate attack result, not a production security certification.
