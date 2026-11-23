@@ -58,6 +58,46 @@ for(const mode of /** @type {const} */ (['coo','sno','sco'])){
   });
 }
 
+test('nested direct-call-only function retains class-leaf property transformation',()=>{
+  const source=[
+    "'use strict';",
+    'function run(){',
+    ' const owner={secretAlpha:23,secretBeta:7};',
+    ' class Reader{read(){return owner.secretAlpha;}}',
+    ' const reader=new Reader();',
+    ' return reader.read()+owner.secretBeta;',
+    '}',
+    'module.exports=run();'
+  ].join('\\n');
+  for(const mode of /** @type {const} */ (['coo','sno','sco'])){
+    const result=compile(source,mode);
+    assert.equal(result.metrics.properties,2,mode+': nested lexical class is private');
+    assert.equal(execute(/** @type {string} */ (result.code)),execute(source));
+  }
+});
+
+test('externally returned wrapper function retains exact class method source',()=>{
+  const source=[
+    "'use strict';",
+    'function exposed(){',
+    ' const owner={secretAlpha:23,secretBeta:7};',
+    ' class Reader{read(){return owner.secretAlpha;}}',
+    ' const reader=new Reader();',
+    ' return reader.read()+owner.secretBeta;',
+    '}',
+    'module.exports=exposed;'
+  ].join('\\n');
+  for(const mode of /** @type {const} */ (['coo','sno','sco'])){
+    const result=compile(source,mode);
+    assert.equal(result.metrics.properties,0,mode+': externally readable callable source');
+    const before={module:{exports:null}};
+    const after={module:{exports:null}};
+    vm.runInNewContext(source,before,{timeout:2000});
+    vm.runInNewContext(/** @type {string} */ (result.code),after,{timeout:2000});
+    assert.equal(String(after.module.exports),String(before.module.exports));
+  }
+});
+
 const negatives=[
   ['class method escapes via bound method',
     'const escaped=reader.read;module.exports=escaped.call(reader);'],
