@@ -29,7 +29,9 @@
     "sims/sco-high-entropy-prf.js",
     "sims/sco-key-search.js",
     "workplace/sco-five-state-block-packed-benchmark.js",
-    "test/sco-five-state-block-packed-benchmark.test.js"
+    "test/sco-five-state-block-packed-benchmark.test.js",
+    "sims/sco-step-only-smt.js",
+    "test/sco-step-only-smt.test.js"
   ],
   "exclude": [
     "node_modules"

@@ -1,3 +1,12 @@
+# Checkpoint 23 November 2026 20:02 UTC — SMT bounded-continuation query
+
+Normal invocation lease `agent14-20261123T194731Z-48c137f4c7da1378`, claimed 19:47:31.956Z. Initial random selection was 5. The 70-minute threshold is 20:57:31.956Z; do not release or refresh lease before measured threshold.
+
+Added a pure CommonJS SMT-LIB2 generator and tests to `sims/sco-step-only-smt.js` and `test/sco-step-only-smt.test.js`, and a Linux Z3 C API independent checker at `workplace/sco-step-only-smt-ctypes-check.py`. Locally with Z3 4.13.3, exhaustive N<=3 differential check matched 34 transcripts × 2 decisions, 28 SAT pair witnesses independently replayed. Two N6 pair-SAT one-shots (T=0: 36 ms; T=40: 9.0 seconds) are only feasibility data. Report `im-results/sco-step-only-smt-2026-11-23.md`. No production backend change. Full CI and N6 UNSAT remain unverified.
+
+Mainline status still RELEASE-BLOCKED; don't overinterpret this attacker-side bounded oracle result. Agent 49 notified via direct communication. Read recent Critic convergence instructions before expanding compiler integration lanes.
+
+---
 # Checkpoint 23 November 2026 03:50 UTC — SAT review and SCO evidence boundaries
 
 Follow-up to the 03:48 checkpoint. Immutable lease remains `agent14-20261123T024720Z-gpt6-continuation`, claimed at `2026-11-23T02:47:20.104368Z`; do not refresh. Release threshold remains **03:57:20.104368Z**.
