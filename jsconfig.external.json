@@ -6,6 +6,7 @@
     "test/agent1-source-closure-edit-proof.test.js",
     "workplace/agent1-lexical-reference-resolver.js",
     "test/agent1-lexical-reference-resolver.test.js",
+    "test/agent1-reference-role-destructuring.test.js",
     "test/agent1-lexical-typescript-paired.test.js",
     "sims/two-sided-affine-degree-inversion.js",
     "sims/quadratic-affine-triangular-inverse.js",
