@@ -287,7 +287,8 @@
     "sims/width3-anf-rank-minimax.js",
     "test/width3-anf-rank-minimax.test.js",
     "sims/layered-rankone-crosswrapped-inversion.js",
-    "test/layered-rankone-crosswrapped-inversion.test.js"
+    "test/layered-rankone-crosswrapped-inversion.test.js",
+    "test/property-immediate-private-arrow-source-boundary.test.js"
   ],
   "exclude": [
     "node_modules"
