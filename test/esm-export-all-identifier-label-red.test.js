@@ -60,3 +60,39 @@ test('export-star namespace label must survive unrelated local const identifier 
     await fs.rm(root,{recursive:true,force:true});
   }
 });
+
+test('import-attribute key must survive unrelated local const identifier rename',{
+  timeout:30000
+},async()=>{
+  const input=[
+    {path:'owner.mjs',sourceType:'module',code:[
+      'import data from "./data.json" with {type:"json"};',
+      'const type=1;',
+      'export const view=[data.value,type];'
+    ].join('\n')},
+    {path:'entry.mjs',sourceType:'module',code:[
+      'import {view} from "./owner.mjs";',
+      'export const proof=view;'
+    ].join('\n')}
+  ];
+  const json={path:'data.json',code:'{"value":42}'};
+  const root=await fs.mkdtemp(path.join(os.tmpdir(),'obfs-import-attribute-rename-'));
+  try{
+    const nativePath=path.join(root,'native'),compiledPath=path.join(root,'compiled');
+    await writeGraph(nativePath,[...input,json]);
+    const native=await evaluateGraph(nativePath);
+    assert.deepEqual(native,[42,1]);
+    const transformed=obfuscateFiles(input,{
+      mode:'coo',seed:'import-attribute-label-source-identity',
+      strings:false,properties:false
+    });
+    const owner=transformed.files.find(file=>file.path==='owner.mjs');
+    assert.ok(owner);
+    assert.ok(owner.metrics.bindings>0,'positive local-name rename control');
+    await writeGraph(compiledPath,[...transformed.files,json]);
+    assert.deepEqual(await evaluateGraph(compiledPath),native,
+      'module attribute type label must remain literal even when local name is mangled');
+  }finally{
+    await fs.rm(root,{recursive:true,force:true});
+  }
+});
