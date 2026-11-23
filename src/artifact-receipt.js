@@ -100,7 +100,7 @@ async function enumerateArtifactFiles(root) {
         'Artifact path must not contain symlinks: '+name);
       if(entry.isDirectory()){
         const before=files.length;
-        await visit(path.join(directory,entry.name),name);
+        await visit(path.join(directory,filename),name);
         // A directory with no file descendants is invisible in a file-only
         // receipt, but its existence can affect filesystem-sensitive code.
         assert.ok(files.length>before,
