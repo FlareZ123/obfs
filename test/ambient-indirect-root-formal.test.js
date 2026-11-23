@@ -229,3 +229,31 @@ test('for-of assignment ObjectPattern extracts live ambient Reflect',async()=>{
   assert.equal(await execute(compiled.files),native);
   assert.equal(compiled.crossFile.properties,0);
 });
+
+for(const [name,head,extra] of [
+  ['direct named ESM import',
+    'import {key} from "./key.mjs";',
+    [{path:'key.mjs',sourceType:'module',code:'export const key="Reflect";'}]],
+  ['reexported named ESM import',
+    'import {renamedKey as key} from "./relay.mjs";',
+    [{path:'key.mjs',sourceType:'module',code:'export const key="Reflect";'},
+     {path:'relay.mjs',sourceType:'module',
+       code:'export {key as renamedKey} from "./key.mjs";'}]]
+]){
+  test('imported computed native field via '+name+' preserves opaque owner names',async()=>{
+    const original=sourceGraph([
+      head,
+      'function replace({[key]:cap}){cap.ownKeys=globalThis.HOST_REFLECT;}',
+      'replace((0,globalThis));'
+    ].join('\n'));
+    original.push(...extra);
+    const native=await execute(original);
+    assert.equal(native,'[41,1,["secretField"]]');
+    const compiled=obfuscateFiles(original,{
+      mode:'coo',closedWorld:true,seed:'ambient-native-import-'+name,
+      identifiers:false,strings:false,properties:true
+    });
+    assert.equal(await execute(compiled.files),native);
+    assert.equal(compiled.crossFile.properties,0);
+  });
+}
