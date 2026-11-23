@@ -369,7 +369,7 @@ test('Selected SCO requires proven local reads for freshly constructed URL value
         code:'export async function protectedOp(){'+body+'}'+
           'export function visible(){return 7;}'},
       {seed:'sco-url-instance-escape-negative-20261122',privateNames:['protectedOp']}
-    ),/Private SCO export or helper uses unproved cross-realm object URL API/u,body);
+    ),/Private SCO export or helper uses unproved cross-realm object URL API|Private SCO export uses unproved host-global state: URL/u,body);
   }
   const pure=[
     'return new URL("https://example.org/a").pathname;',
