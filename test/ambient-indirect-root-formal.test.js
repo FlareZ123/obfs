@@ -174,3 +174,22 @@ test('a second arguments-vector receiver invalidates closed single-formal proof'
   assert.equal(await execute(compiled.files),native);
   assert.equal(compiled.crossFile.properties,0);
 });
+
+for(const [name,mutation] of [
+  ['rest-array destructuring',
+    'function replace(...[{Reflect:cap}]){cap.ownKeys=globalThis.HOST_REFLECT;}replace((0,globalThis));'],
+  ['function-body destructuring of an indirect root',
+    'function replace(root){const {Reflect:cap}=root;cap.ownKeys=globalThis.HOST_REFLECT;}replace((0,globalThis));']
+]){
+  test('indirect native extraction through '+name+' preserves ESM names',async()=>{
+    const original=sourceGraph(mutation);
+    const native=await execute(original);
+    assert.equal(native,'[41,1,["secretField"]]');
+    const compiled=obfuscateFiles(original,{
+      mode:'coo',closedWorld:true,seed:'ambient-native-extraction-'+name,
+      identifiers:false,strings:false,properties:true
+    });
+    assert.equal(await execute(compiled.files),native);
+    assert.equal(compiled.crossFile.properties,0);
+  });
+}
