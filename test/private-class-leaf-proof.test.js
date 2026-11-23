@@ -58,32 +58,6 @@ for(const mode of /** @type {const} */ (['coo','sno','sco'])){
   });
 }
 
-test('cross-script classic lexical class source stays visible to declared observers',()=>{
-  const scripts=[
-    [
-      'const owner={secretAlpha:23,secretBeta:7};',
-      'class Reader{read(){return owner.secretAlpha;}}',
-      'const reader=new Reader();',
-      'globalThis.value=reader.read()+owner.secretBeta;'
-    ].join('\n'),
-    'globalThis.methodSource=Reader.prototype.read.toString();'
-  ];
-  /** @param {string[]} code */
-  function runScripts(code){
-    const context=vm.createContext({});
-    for(const script of code)vm.runInContext(script,context,{timeout:2000});
-    return JSON.stringify([context.value,context.methodSource]);
-  }
-  const native=runScripts(scripts);
-  const compiled=obfuscateFiles(scripts.map((code,index)=>({
-    path:'classic'+index+'.js',sourceType:'script',code
-  })),{mode:'coo',seed:'private-class-classic-source-v1',
-    closedWorld:true,properties:true,strings:false,identifiers:false});
-  assert.equal(compiled.files.reduce((count,file)=>count+file.metrics.properties,0),0,
-    'Global lexical class declarations are observable from another supplied classic script');
-  assert.equal(runScripts(compiled.files.map(file=>/** @type {string} */(file.code))),native);
-});
-
 test('nested direct-call-only function retains class-leaf property transformation',()=>{
   const source=[
     "'use strict';",
@@ -285,5 +259,67 @@ test('private class leaf in native multi-file ESM preserves values and key-label
     })));
     assert.ok(clone.properties>=2);
     assert.equal(await runEsm(clone.files),native);
+  }
+});
+
+
+test('cross-file ESM class source observers refuse private rewrites while private graph retains two',async()=>{
+  const base=[
+    'const owner={secretAlpha:23,secretBeta:7};',
+    'class Reader{read(){return owner.secretAlpha;}}',
+    'const reader=new Reader();',
+    'const snapshot=reader.read()+owner.secretBeta;',
+    'export const value=snapshot;'
+  ];
+  const cases=[
+    {
+      label:'private primitive export',
+      extra:'',
+      entry:'import {value} from "./state.mjs";process.stdout.write(JSON.stringify(value));',
+      rewritten:2
+    },
+    {
+      label:'direct exported method source',
+      extra:'export const method=Reader.prototype.read;',
+      entry:'import {value,method} from "./state.mjs";process.stdout.write(JSON.stringify([value,method.toString()]));',
+      rewritten:0
+    },
+    {
+      label:'exported method-returning closure',
+      extra:'export function obtainMethod(){return Reader.prototype.read;}',
+      entry:'import {value,obtainMethod} from "./state.mjs";process.stdout.write(JSON.stringify([value,String(obtainMethod())]));',
+      rewritten:0
+    }
+  ];
+  for(let index=0;index<cases.length;index++){
+    const scenario=cases[index];
+    /** @type {import('../src/core').SourceFile[]} */
+    const files=[
+      {path:'state.mjs',sourceType:'module',
+        code:[...base,scenario.extra].filter(Boolean).join('\n')},
+      {path:'entry.mjs',sourceType:'module',code:scenario.entry}
+    ];
+    const expected=await runEsm(files.map(file=>({
+      path:file.path,code:/** @type {string} */(file.code)
+    })));
+    assert.ok(expected.length>0,scenario.label+': native response');
+    for(const mode of /** @type {const} */ (['coo','sno','sco'])){
+      const compiled=obfuscateFiles(files,{mode,closedWorld:true,
+        seed:'class-leaf-crossfile-source/'+index+'/'+mode,
+        properties:true,identifiers:false,strings:false});
+      const state=compiled.files.find(file=>file.path==='state.mjs');
+      assert.ok(state&&state.metrics.properties===scenario.rewritten,
+        scenario.label+'/'+mode+': correct transformation count');
+      assert.equal(await runEsm(compiled.files.map(file=>({
+        path:file.path,code:/** @type {string} */(file.code)
+      }))),expected,scenario.label+'/'+mode+': native source/value parity');
+      const recovered=neutralizeHashedNames(compiled.files.map(file=>({
+        path:file.path,sourceType:'module',code:/** @type {string} */(file.code)
+      })));
+      assert.equal(recovered.properties,scenario.rewritten,
+        scenario.label+'/'+mode+': visible source-only key reconstruction count');
+      assert.equal(await runEsm(recovered.files),expected,
+        scenario.label+'/'+mode+': public source-only clone parity');
+    }
   }
 });
