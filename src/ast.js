@@ -2922,6 +2922,23 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
       // whether their values represent a runtime Error.
       if (['stack','captureStackTrace','prepareStackTrace','stackTraceLimit',
            'lineno','colno'].includes(name??'')) observed=true;
+      // The special sloppy arguments.callee alias reaches the currently
+      // executing function even without any same-spelled lexical identifier.
+      // Thus a direct-call-only private helper may export its exact source
+      // through arguments.callee, including a subsequent host-side toString.
+      if(name==='callee' && node.object.type==='Identifier' &&
+         node.object.name==='arguments' &&
+         !(parent?.type==='AssignmentExpression' && key==='left' &&
+           parent.operator==='=')) observed=true;
+      // In non-strict runtimes Function#caller can reveal the current
+      // running helper function to a nested callee. A function used only as
+      // a direct call is therefore NOT automatically source-private when
+      // the callee itself reads its .caller accessor. An external consumer
+      // may later inspect the captured helper's original Function#toString.
+      // Do not confuse a plain data object's .caller field with a callable.
+      if(name==='caller' && isFunctionValue(node.object) &&
+         !(parent?.type==='AssignmentExpression' && key==='left' &&
+           parent.operator==='=')) observed=true;
       // A function's unknown computed key might evaluate to toString.
       if(node.computed && name===null && isFunctionValue(node.object)) observed=true;
       // A plain assignment overwrites the property without reading or

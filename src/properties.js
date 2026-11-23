@@ -688,6 +688,19 @@ function proveLocalObject(ast, rootName, bindings, importedIdentityFunctions=new
   for(const binding of callableBindings) {
     const scope=scopes.get(binding.name);
     if(!scope)continue;
+    // A named FunctionExpression has an extra lexical self-binding that the
+    // outer const's direct-call-only use count does not cover. Referencing
+    // that self-name, even through a nested closure, can leak the function
+    // object to an exported host and reveal its exact native source.
+    // Defer finer recursion-only proofs: every non-token self-use is unsafe.
+    if(binding.node.type==='FunctionExpression' &&
+       binding.node.id?.type==='Identifier' &&
+       (identifierUses.get(binding.node.id.name)??[]).some(use=>
+         use.node!==binding.node.id &&
+         use.ancestors.includes(binding.node) &&
+         !(use.parent?.type==='Property' && use.key==='key' && !use.parent.computed) &&
+         !(use.parent?.type==='MemberExpression' && use.key==='property' &&
+           !use.parent.computed)))continue;
     let privateValue=true;
     for(const use of identifierUses.get(binding.name)??[]) {
       if(use.node===binding.decl) {
