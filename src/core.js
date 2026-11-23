@@ -153,8 +153,8 @@ function staticallyRequiredCommonJsTargets(files) {
 }
 
 /**
- * Find supplied ESM modules reached by static relative imports or reexports.
- * Exact module specifiers are used because ESM path resolution does not imply
+ * Find supplied ESM modules reached by static relative imports, reexports,
+ * or literal dynamic imports. Exact specifiers are used because ESM resolution does not imply
  * CommonJS-style extension probing.
  * @param {(SourceFile & {sourceType:SourceType})[]} files
  * @returns {Set<string>}
@@ -178,6 +178,19 @@ function staticallyImportedEsmTargets(files) {
         path.posix.join(path.posix.dirname(file.path),specifier));
       if(known.has(target))imported.add(target);
     }
+    // A literal dynamic import can supply an exported descriptor-entry
+    // factory before another module initializes its eager string decoder.
+    // Include supplied exact paths in the same conservative export scan.
+    walk(ast,node=>{
+      if(node.type!=='ImportExpression')return;
+      const specifier=staticString(node.source);
+      if(specifier===null||
+         (!specifier.startsWith('./')&&!specifier.startsWith('../'))||
+         /[?#%\\\\]/u.test(specifier))return;
+      const target=path.posix.normalize(
+        path.posix.join(path.posix.dirname(file.path),specifier));
+      if(known.has(target))imported.add(target);
+    });
   }
   return imported;
 }
