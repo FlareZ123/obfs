@@ -72,7 +72,7 @@ async function run(code){
     await fs.writeFile(path.join(packageDir,'index.mjs'),patcher);
     await atomicWrite(path.join(root,'app.mjs'),code);
     const entryUrl=pathToFileURL(path.join(root,'app.mjs')).href;
-    const command='import('+JSON.stringify(entryUrl)+').then(m=>console.log(JSON.stringify({capturedSource:m.capturedSource,result:m.result}))).catch(e=>{console.error(e);process.exitCode=1});';
+    const command='import('+JSON.stringify(entryUrl)+').then(m=>console.log(JSON.stringify({capturedSource:m.capturedSource,result:m.result,unrelatedResult:m.unrelatedResult}))).catch(e=>{console.error(e);process.exitCode=1});';
     const child=spawnSync(process.execPath,['--input-type=module','-e',command],{
       cwd:root,encoding:'utf8'
     });
@@ -89,10 +89,12 @@ test('numeric and abstract coercions preserve source observed by an unlisted ext
       const source=[
         "import {install} from 'patcher';",
         "function reader(secretValue){return secretValue+1;}",
+        "const unrelatedPrivate=17;",
         setup,
         "install();",
         `export const result=${expression};`,
-        "export const capturedSource=globalThis.__functionSources[0]??'';"
+        "export const capturedSource=globalThis.__functionSources[0]??'';",
+        "export const unrelatedResult=unrelatedPrivate;"
       ].join('\n');
       const output=obfuscateFiles([{path:'app.mjs',code:source}],{
         mode:'coo',seed:'to-primitive-source-observer',properties:false,
@@ -100,6 +102,8 @@ test('numeric and abstract coercions preserve source observed by an unlisted ext
       });
       const native=await run(source);
       const transformed=await run(output.files[0].code);
+      assert.equal(native.unrelatedResult,17);
+      assert.equal(transformed.unrelatedResult,17);
       if(observes){
         assert.ok(native.capturedSource.includes('secretValue'),
           'native coercion must call patched Function#toString');
@@ -111,6 +115,8 @@ test('numeric and abstract coercions preserve source observed by an unlisted ext
           'the positive control must not invoke Function#toString');
         assert.ok(output.files[0].metrics.bindings>0,
           'non-coercive positive controls must retain genuine identifier yield');
+        assert.ok(!output.files[0].code.includes('unrelatedPrivate'),
+          'unrelated private bindings must remain renameable when no source observer exists');
         assert.notEqual(output.files[0].code,source);
       }
       assert.equal(transformed.capturedSource,native.capturedSource,
