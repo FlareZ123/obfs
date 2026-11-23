@@ -194,9 +194,10 @@ function isStaticKey(parent,key){
  * @param {import('./ast').AstNode} root
  * @param {ReadonlySet<string>} moduleBindings Declared server-only module bindings
  * @param {ReadonlySet<string>} rootFormals Parameters of the selected export
+ * @param {boolean} [allowServerBuffer] True only for declared server-owned dependencies
  * @returns {string|null}
  */
-function firstUnprovedUnqualifiedReference(root,moduleBindings,rootFormals){
+function firstUnprovedUnqualifiedReference(root,moduleBindings,rootFormals,allowServerBuffer=false){
   const recognizedGlobals=new Set([
     ...standardRealmGlobals,...browserOnlyRoots,
     'globalThis','global','process','Buffer','console','performance','crypto',
@@ -208,6 +209,9 @@ function firstUnprovedUnqualifiedReference(root,moduleBindings,rootFormals){
     'addEventListener','removeEventListener','dispatchEvent','alert',
     'confirm','prompt'
   ]);
+  // Node's free Buffer global is absent in ordinary Chromium. Only audited
+  // server-owned dependency modules may rely on it without lexical ownership.
+  if(!allowServerBuffer)recognizedGlobals.delete('Buffer');
   /**
    * Accumulate each actual binding name exactly once per lexical scope.
    * Pattern defaults and computed keys are expressions, not bound names.
@@ -1701,7 +1705,7 @@ function collectPrivateStaticImportClosure(directPaths,sources) {
       throw new TypeError('SCO private static dependency has unproved free typeof reference: '+
         filename+':'+freeTypeof);
     }
-    const missingStatic=firstUnprovedUnqualifiedReference(ast,new Set(),new Set());
+    const missingStatic=firstUnprovedUnqualifiedReference(ast,new Set(),new Set(),true);
     if(missingStatic!==null){
       throw new TypeError('SCO private static dependency has unproved unqualified free reference: '+
         filename+':'+missingStatic);
