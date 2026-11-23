@@ -25,15 +25,13 @@ const patcher=[
 async function run(code){
   const root=await fs.mkdtemp(path.join(os.tmpdir(),'obfs-to-primitive-string-'));
   try{
-    const packageDir=path.join(root,'node_modules','patcher');
-    await fs.mkdir(packageDir,{recursive:true});
-    await fs.writeFile(path.join(packageDir,'package.json'),
-      JSON.stringify({type:'module',exports:'./index.mjs'}));
-    await fs.writeFile(path.join(packageDir,'index.mjs'),patcher);
+    const patcherPath=path.join(root,'patcher.mjs');
+    await fs.writeFile(patcherPath,patcher);
     await atomicWrite(path.join(root,'app.mjs'),code);
     const entryUrl=pathToFileURL(path.join(root,'app.mjs')).href;
+    const patcherUrl=pathToFileURL(patcherPath).href;
     const command='import('+JSON.stringify(entryUrl)+').then(m=>console.log(JSON.stringify({capturedSource:m.capturedSource,result:m.result}))).catch(e=>{console.error(e);process.exitCode=1});';
-    const child=spawnSync(process.execPath,['--input-type=module','-e',command],{
+    const child=spawnSync(process.execPath,['--import',patcherUrl,'--input-type=module','-e',command],{
       cwd:root,encoding:'utf8'
     });
     assert.equal(child.status,0,child.stderr);
@@ -46,10 +44,9 @@ async function run(code){
 test('numeric source observer currently vetoes unrelated string-literal yield',async()=>{
   const literal='independent-string-value-that-is-not-inside-reader';
   const observed=[
-    "import {install} from 'patcher';",
     "function reader(){return 1;}",
     `const unrelatedString=${JSON.stringify(literal)};`,
-    "install();",
+    "globalThis.__functionSources.length=0;",
     "export const coercionIsNaN=Number.isNaN(+reader);",
     "export const capturedSource=globalThis.__functionSources[0]??'';",
     "export const result=unrelatedString;"
