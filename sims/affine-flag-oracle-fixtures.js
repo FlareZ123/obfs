@@ -217,7 +217,32 @@ function makeUnstructuredOracle(bits,seed) {
   return input=>values[input];
 }
 
+/**
+ * Synthetic four-rounds-of-confusion negative control: a six-round 32-bit
+ * Feistel permutation with independent seeded 16-bit round functions.
+ * Regardless of their statistical properties the construction is bijective.
+ * This is a fixed source-private test fixture, not a cryptographic cipher.
+ * @param {number} seed
+ * @returns {(input:number)=>number}
+ */
+function makeFeistelOracle(seed) {
+  const next=sourceRandom(seed);
+  const keys=Array.from({length:6},()=>next());
+  /** @param {number} input @returns {number} */
+  return input=>{
+    let left=(input>>>16)&0xffff;
+    let right=input&0xffff;
+    for(const key of keys) {
+      const nextRight=(left^(mix32((right^key)>>>0)&0xffff))&0xffff;
+      left=right;
+      right=nextRight;
+    }
+    return ((left<<16)|right)>>>0;
+  };
+}
+
 module.exports={
   makeDenseOracle,makeSparseWitness,makeRareAffineOracle,makeUnstructuredOracle,
+  makeFeistelOracle,
   sourceRandom,bitParity
 };
