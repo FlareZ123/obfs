@@ -167,6 +167,15 @@ test('selected SCO Web IDL method admission fails closed on alias and extraction
     "const g=globalThis;return new g.Headers().get('bad name');",
     "const {Headers:H}=globalThis;return new H().get('bad name');"
   ])assert.throws(()=>compile(body),/unproved cross-realm WebIDL constructor/,body);
+  for(const name of ['Headers','URLSearchParams']){
+    const shadowed='export async function privateOp('+name+'){' +
+      'return new '+name+'().get("x");}' +
+      'export function visible(){return 7;}';
+    assert.throws(()=>partitionScoSelectedAsyncExports({
+      path:'method-shadow.mjs',sourceType:'module',code:shadowed
+    },{seed:'webidl-method-shadow-v1',privateNames:['privateOp']}),
+    /unproved cross-realm WebIDL constructor/,name);
+  }
   for(const body of [
     "return new URLSearchParams('a=1').get('a');",
     "return new URLSearchParams('a=1').toString();",
