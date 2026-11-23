@@ -6,7 +6,7 @@
 
 Consider the earlier reanchoring model `F(x)=a XOR Lout(P(Lin(x) XOR b))`, where `P` is a compatible triangular permutation and `Lin,Lout` are invertible linear maps over GF(2). Let the observed finite-difference matrix `M_r` at anchor `r` be invertible, and suppose its hidden normalized map `B=Lout^-1 M_r Lin^-1` is lower-unitriangular. This premise is source-dependent; a chosen-input attacker does not know how to certify it.
 
-For **n>=2**, the published fixed-point inversion routine succeeds for any target in **at most 2n distinct oracle queries**, sharpening the previous `2n+1` bound to **64** at n=32. A failed or hidden-incompatible basis has no such guarantee. Up to `k` attempted bases cost at most `2nk` under this admissible per-trial bound.
+For **n>=2**, the published fixed-point inversion routine succeeds for any target in **at most 2n distinct oracle queries**, sharpening the previous `2n+1` bound to **64** at n=32. A failed or hidden-incompatible basis has no such guarantee. A policy that tries up to `k` unverified bases retains its more conservative aggregate cap of `k(2n+1)` oracle calls, since failed incompatible trials may exhaust all candidate checks. The new `2n` bound applies to a trial satisfying the hidden compatible-basis premise.
 
 ## Proof of the extra initially correct bit
 
