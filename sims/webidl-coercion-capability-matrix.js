@@ -154,7 +154,7 @@ async function main() {
   });
   await new Promise((resolve,reject)=>{
     server.once('error',reject);
-    server.listen(0,'127.0.0.1',resolve);
+    server.listen(0,'127.0.0.1',()=>resolve(undefined));
   });
   try {
     const address=server.address();
@@ -186,7 +186,6 @@ async function main() {
       assert.equal(row.nativePositive.number,31,row.id);
       assert.equal(row.emittedPositive.number,31,row.id);
       summary.push({
-        id:row.id,
         nativeSourceObserved:row.native.observed.includes('secretField'),
         behaviorParity:JSON.stringify(row.native)===JSON.stringify(row.emitted),
         positiveParity:JSON.stringify(row.nativePositive)===
