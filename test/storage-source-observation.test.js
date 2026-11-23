@@ -123,7 +123,7 @@ const propertySource=[
 test('property pass keeps the Storage-observed owner stable while renaming an independent owner',()=>{
   const result=obfuscateFiles([{path:'entry.mjs',sourceType:'module',code:propertySource}],{
     mode:'coo',seed:'storage-property-owner-control',
-    properties:true,identifiers:false,strings:false
+    closedWorld:true,properties:true,identifiers:false,strings:false
   });
   const output=String(result.files[0].code);
   assert.ok(output.includes('secretField'),
