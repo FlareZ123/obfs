@@ -65,7 +65,7 @@ test('cross-script classic lexical class source stays visible to declared observ
       'class Reader{read(){return owner.secretAlpha;}}',
       'const reader=new Reader();',
       'globalThis.value=reader.read()+owner.secretBeta;'
-    ].join('\\n'),
+    ].join('\n'),
     'globalThis.methodSource=Reader.prototype.read.toString();'
   ];
   /** @param {string[]} code */
