@@ -45,7 +45,7 @@ n-2=d+2.
 ]
 This exceeds the learners' respective (d+1) codimension promises by exactly one.
 
-Now force the (d) anchors to (e_0,\ldots,e_{d-1}). A signature component contracts (T_d) against a probe direction and (d-1) anchors. The B form requires both (e_d) and (e_{d+1}), but a signature has only one probe direction outside the anchor set. Consequently B contributes to none of the signatures. The A form gives the (d) independent anchor signatures, and all other standard-basis signatures are zero. The observed signature rank is exactly (d); the single-pivot learner accepts (P_d) and omits B.
+Now force the (d) anchors to (e_0,\\ldots,e_{d-1}). A signature component contracts (T_d) against a probe direction and (d-1) anchors. The learner evaluates standard-basis probe directions (e_i). For (i\\in A), neither (e_d) nor (e_{d+1}) is present among the arguments; for (i=d) or (i=d+1), only one of the two is present; and for (i=d+2,d+3), neither is present. Since the B form requires both (e_d) and (e_{d+1}), it contributes to none of the standard-basis signatures the learner actually evaluates. The A form gives the (d) independent anchor signatures, and all other standard-basis signatures are zero. The observed signature rank is exactly (d); the single-pivot learner accepts (P_d) and omits B. A probe that were itself a linear combination containing both (e_d) and (e_{d+1}) could expose B; the blind spot is specific to the learner's standard-basis probe set.
 
 The difference is
 [
