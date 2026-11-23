@@ -16,14 +16,22 @@ const source='globalThis.sriMountAlias="same JavaScript bytes under an unknown d
  * @param {'html'|'xhtml'} type
  * @param {string} algorithm
  * @param {string} pinnedSource
+ * @param {'script'|'modulepreload'|'preload'} [kind]
+ * @param {string} [url]
  * @returns {{path:string,sourceType:'script'|'asset',code:string|Buffer}[]}
  */
-function graph(type,algorithm,pinnedSource){
+function graph(type,algorithm,pinnedSource,kind='script',url='/app/v3/renamed-public-entry.js'){
   const digest=createHash(algorithm).update(pinnedSource).digest('base64');
-  const url='/app/v3/renamed-public-entry.js';
-  const tag=type==='html'?
-    '<script src="'+url+'" integrity="'+algorithm+'-'+digest+'"></script>':
-    '<h:script src="'+url+'" integrity="'+algorithm+'-'+digest+'"></h:script>';
+  const metadata=algorithm+'-'+digest;
+  const tag=kind==='script'?
+    type==='html'?
+      '<script src="'+url+'" integrity="'+metadata+'"></script>':
+      '<h:script src="'+url+'" integrity="'+metadata+'"></h:script>':
+    type==='html'?
+      '<link rel="'+kind+'" '+(kind==='preload'?'as="script" ':'')+
+        'href="'+url+'" integrity="'+metadata+'">':
+      '<h:link rel="'+kind+'" '+(kind==='preload'?'as="script" ':'')+
+        'href="'+url+'" integrity="'+metadata+'"/>';
   const markup=type==='html'?
     '<!doctype html><html><head>'+tag+'</head></html>':
     '<?xml version="1.0" encoding="UTF-8"?>'+
@@ -58,6 +66,32 @@ test('SRI content digest pins declared JavaScript across unknown URL mounts',()=
         assert.equal(compile(files,mode),source,
           type+' '+algorithm+' '+mode+': SRI commits the original published response bytes');
       }
+    }
+  }
+});
+
+test('SRI alias protects script preload and modulepreload under absolute mounts',()=>{
+  for(const type of /** @type {const} */(['html','xhtml'])){
+    for(const kind of /** @type {const} */(['modulepreload','preload'])){
+      for(const url of ['/app/renamed.js','https://publisher.example/app/renamed.js']){
+        const files=graph(type,'sha512',source,kind,url);
+        assert.equal(hasPinnedLocalJavaScriptIntegrity(files),true,
+          type+' '+kind+' '+url);
+        for(const mode of /** @type {Mode[]} */(['coo','sco','sno'])){
+          assert.equal(compile(files,mode),source,type+' '+kind+' '+mode);
+        }
+      }
+    }
+  }
+});
+
+test('known unrelated relative URL remains transformable even if digest happens to match',()=>{
+  for(const type of /** @type {const} */(['html','xhtml'])){
+    for(const mode of /** @type {Mode[]} */(['coo','sco','sno'])){
+      const files=graph(type,'sha256',source,'script','./other.js');
+      assert.equal(hasPinnedLocalJavaScriptIntegrity(files),false);
+      assert.notEqual(compile(files,mode),source,
+        type+' '+mode+': known unrelated path must retain positive yield');
     }
   }
 });
