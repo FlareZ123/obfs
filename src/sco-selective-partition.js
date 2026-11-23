@@ -482,8 +482,62 @@ function usesUnprovedRelocatedWebIdlConstructors(body){
         asciiText(property.value);
     });
   }
+  /**
+   * Host Web IDL methods coerce their arguments and report failures using
+   * host-specific TypeError messages. Retain only immediately consumed
+   * methods on a newly constructed instance, with bounded literal inputs.
+   * Instance aliases, extracted methods, reflection and dynamic calls have
+   * no sound provenance or coercion proof here and remain client-local.
+   * @param {import('./ast').AstNode} member
+   * @param {import('./ast').AstNode} call
+   * @returns {boolean}
+   */
+  function validDirectMethod(member,call){
+    if(member.type!=='MemberExpression'||member.optional||
+       call.type!=='CallExpression'||call.optional)return false;
+    const receiver=member.object;
+    if(receiver.type!=='NewExpression'||!validConstruction(receiver)||
+       receiver.callee.type!=='Identifier')return false;
+    const method=member.computed?staticString(member.property):
+      member.property.type==='Identifier'?member.property.name:null;
+    const args=call.arguments;
+    if(receiver.callee.name==='URLSearchParams'){
+      if(method==='toString'||method==='sort')return args.length===0;
+      if(['get','getAll','has','delete'].includes(method??'')){
+        return args.length===1&&asciiText(args[0]);
+      }
+      if(method==='append'||method==='set'){
+        return args.length===2&&asciiText(args[0])&&asciiText(args[1]);
+      }
+      return false;
+    }
+    if(receiver.callee.name!=='Headers')return false;
+    /** @param {import('./ast').AstNode|undefined} value @returns {boolean} */
+    const headerName=value=>Boolean(value&&value.type==='Literal'&&
+      typeof value.value==='string'&&/^[a-z0-9-]{1,32}$/u.test(value.value));
+    if(['get','has','delete'].includes(method??'')){
+      return args.length===1&&headerName(args[0]);
+    }
+    if(method==='append'||method==='set'){
+      return args.length===2&&headerName(args[0])&&asciiText(args[1]);
+    }
+    return false;
+  }
   let unproved=false;
   walk(body,(node,parent,key)=>{
+    if(node.type==='NewExpression'&&node.callee.type==='Identifier'&&
+       names.has(node.callee.name)){
+      // A standalone instance may escape its native realm, even when its
+      // constructor arguments are safe. Require a direct method consumer.
+      if(!validConstruction(node)||parent?.type!=='MemberExpression'||
+         key!=='object')unproved=true;
+    }
+    if(node.type==='MemberExpression'&&node.object.type==='NewExpression'&&
+       node.object.callee.type==='Identifier'&&
+       names.has(node.object.callee.name)){
+      const directCall=parent?.type==='CallExpression'&&key==='callee';
+      if(!directCall||!validDirectMethod(node,parent))unproved=true;
+    }
     if(node.type!=='Identifier'||!names.has(node.name)||isStaticKey(parent,key))return;
     if(parent?.type==='NewExpression'&&key==='callee'&&
        validConstruction(parent))return;
