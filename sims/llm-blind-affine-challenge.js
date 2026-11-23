@@ -247,8 +247,8 @@ async function createBlindAffineMatchedChallenge(mode='coo'){
           control:questions.control.sourceSha256
         },
         candidateMetrics:{
-          polyvariantFunctions:encoded.files[0].metrics.polyvariantFunctions,
-          polyvariantPaths:encoded.files[0].metrics.polyvariantPaths
+          polyvariantFunctions:/** @type {number} */(encoded.files[0].metrics.polyvariantFunctions),
+          polyvariantPaths:/** @type {number} */(encoded.files[0].metrics.polyvariantPaths)
         },
         minifier:{name:'esbuild',version:esbuildVersion,options:{...minifierOptions}}
       };
