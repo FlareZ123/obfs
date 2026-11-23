@@ -78,7 +78,7 @@ A candidate that survives T0 but fails T1/T2 is not LLM-resistant under the stro
 
 ## Tasks and scoring
 
-The primary endpoint is **functional reconstruction**, not prose quality. In addition, run the same downstream task against three inputs: original (Plain), emitted candidate (Obfuscated), and an independently produced restored version (Deobfuscated). Do not assume the restoration stage is beneficial. Report:
+The primary endpoint is **functional reconstruction**, not prose quality. Run the same downstream task against four inputs: original (Plain), same-source esbuild/Terser minified control, emitted candidate (Obfuscated), and an independently produced restored version of the candidate (Deobfuscated). The minified control is a baseline arm, not a restoration stage. Do not assume restoration is beneficial. Report pass rates for all four and:
 - **Direct obfuscated pass rate:** the attacker's functional success without any restoration step.
 - **Rescue count/rate:** count cases where Plain passes, Obfuscated fails, and Deobfuscated passes; report both the conditional rate among Obfuscated failures and the count divided by the common Plain-pass denominator.
 - **Degradation count/rate:** count cases where Plain passes, Obfuscated passes, and Deobfuscated fails; report both the conditional rate among Obfuscated successes and the count divided by the same Plain-pass denominator.
