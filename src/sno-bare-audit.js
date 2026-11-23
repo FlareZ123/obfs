@@ -315,7 +315,7 @@ function directBareImports(files) {
  * @returns {void}
  */
 function assertDefaultEsmResolverContext() {
-  const unsupported=/^(?:--conditions(?:=|$)|--preserve-symlinks(?:-main)?(?:=|$)|--(?:loader|experimental-loader|import|require)(?:=|$)|-r)$/u;
+  const unsupported=/^(?:--conditions(?:=.*)?|--preserve-symlinks(?:-main)?|--(?:loader|experimental-loader|import|require)(?:=.*)?|-r)$/u;
   const nodeOptions=(process.env.NODE_OPTIONS||'').match(/(?:--[^\s]+|-r)/gu)||[];
   if([...process.execArgv,...nodeOptions].some(flag=>unsupported.test(flag))) {
     throw new Error(
