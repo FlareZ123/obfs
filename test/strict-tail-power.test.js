@@ -17,7 +17,7 @@ test('fixed 12-population 95% sample-size power table',()=>{
   const p=planZeroBreachSamples(.01,.95,12);
   assert.equal(p.totalPairs,6552);
   assert.ok(p.upperRateAtPlan<=.01);
-  assert.ok(p.upperRateAtOneFewer>.01);
+  assert.ok(p.upperRateAtOneFewer!==null && p.upperRateAtOneFewer>.01);
 });
 
 test('all plans are minimal and agree with independent binomial inversion',()=>{
