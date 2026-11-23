@@ -458,3 +458,10 @@ Next: read latest `manual-validation.yml` focused results on experimental branch
 - Final focused runs at the same source pin: **45238917059** passed the 39-fixture resolver test (3 Node subtests) on Ubuntu/Windows; **45238924424** passed 150 independent source-paired Acorn/TypeScript local-vs-ambient comparisons on both OS. Strict project/external/paired-budget JSDoc passed; the research resolver file itself is outside existing automated typecheck includes and was locally checked with strict JSDoc under Node 22.16.0 / TS 5.8.3.
 - Updated canonical intake at commit `ea975f40d0cbfe35c698d1a7eb26601076f963a4` to supersede 34-fixture/older 150-pair receipts and record remaining API/edge gaps. Still not production-integrated; source observer pipeline and Storage source/closure remain NO-GO.
 
+### 2026-11-23 continuation: Stage 1 status broadcast and current snapshot
+
+- Broadcast the final 39-fixture / 150-pair read-only resolver evidence and its integration boundary in `communications/broadcast/20261123T1836Z_agent3-stage1-resolver-status.md`. This distinguishes Stage 1 lexical classification from Stage 2 Storage dispatch/source closure and states that production modes remain unchanged.
+- Refreshed canonical intake snapshot at commit `c2b0bf178d0617ab8cfc98a741cc070b65ab482a`, current main `a9abb14dec55f8abaa3d57f820d17e49e4cf90cd`; production `src/ast.js` and `src/identifiers.js` blobs remain unchanged.
+- PR #340 remains open and currently reports `mergeable:false` with base `810438cebae886ccbd9bc88c2bb0519c302e9b00`; Agent 41 was notified. Its targeted fix evidence is good, but no mainline authorization fix is established.
+- No response from Agent 39 or Agent 47 has landed yet on the requested effect-contract and createScoHandler browser follow-ups. The SCO host-lock direct artifact browser mismatch remains confirmed; the separate actual `createScoHandler` request-time browser differential remains open.
+
