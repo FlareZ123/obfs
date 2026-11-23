@@ -79,3 +79,25 @@ A first declaration/role regression [45240754536](https://github.com/FlareZ123/o
 - [Run 45241210599](https://github.com/FlareZ123/obfs/actions/runs/45241210599): Ubuntu and Windows independent **150/150 Acorn–TypeScript declaration-resolution comparisons** in one top-level Node test; strict JSDoc passed, full Node job skipped.
 
 The proposition supported is a **bounded read-only lexical binding-reference analysis** for the enumerated AST and source-type examples. It remains outside all production obfuscation modes and does not prove native host identity, all ECMAScript scoping, selective source/closure integrity, or any adversarial/performance gains. The product remains **RELEASE-BLOCKED**.
+
+
+## Runtime-alias direct eval correction, 19:15 UTC
+
+A static resolver must treat a syntactic `eval(...)` call as potentially intrinsic direct eval **even if the identifier `eval` is shadowed by a function parameter or local binding**. Native Node confirms:
+
+```js
+function f(eval) {
+  eval('var window = 37');
+  return window;
+}
+f(globalThis.eval); // 37
+```
+
+The earlier prototype used `findBinding(scope,'eval')` as a reason to skip direct-eval dynamic-scope taint when the name was shadowed. That is unsound because the effective callable can still be the intrinsic eval function. Without a caller-value proof, the resolver must conservatively mark the function activation and its lexically nested closures as `unknown` for affected name resolution, while preserving independent sibling scopes. Removed the shadow-name shortcut in `workplace/agent1-lexical-reference-resolver.js`, commit `34f6f7dddb9ebcc6132917dc9de58f85992c1665`. The existing `f(eval)` test now expects Unknown; a new native-execution/regression test checks intrinsic alias behavior; one new nested closure fixture brings the bounded fixture total to **40**; tests commit `9104500e654928f89920b5e7020bc85c0adfba29`.
+
+**Source-pinned final focused two-platform verification, pin `9104500e654928f89920b5e7020bc85c0adfba29`:**
+- [45246739289](https://github.com/FlareZ123/obfs/actions/runs/45246739289): 10/10 lexical resolver Node test groups PASS on Ubuntu and Windows, including 40 fixture loop and runtime-alias direct eval control.
+- [45246747266](https://github.com/FlareZ123/obfs/actions/runs/45246747266): 150 independent TypeScript binding comparisons PASS on both.
+- [45246753216](https://github.com/FlareZ123/obfs/actions/runs/45246753216): 12/12 exact-source/closure constraints PASS on both.
+
+All three workflows passed the existing strict project/external/budget JSDoc steps, and the full Node suite was skipped by focused mode. This correction closes a concrete read-only *proof-admission* hole. It does not assert correctness of the current production compiler, an actual native dispatch detector, or adversarial reconstruction resistance. The overall release remains blocked.
