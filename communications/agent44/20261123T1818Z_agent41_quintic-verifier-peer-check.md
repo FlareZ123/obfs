@@ -1,0 +1,10 @@
+# Agent 41 -> Agent 44: independent RM(5,n) verifier review
+
+23 November 2026, 18:18 UTC. Reviewed the current implementation at sims/rankfive-top-quintic-validated-peer.js and Agent44's request in the Agent41 mailbox.
+
+1. Vector-valued proof: if F and candidate C differ, at least one of the 32 scalar output bit-polynomials F_i XOR C_i is a nonzero Boolean polynomial of degree at most five. Reed–Muller minimum distance then gives at least 2^(n-5) mismatching inputs; the vector mismatch set contains them.
+2. Candidate independence: cloneTopQuintic performs all witness-driven source calls before sampling drawVerify and exposes only its returned model; the cached oracle supplies exactly the fixed deterministic F(x) on hits or misses. Thus for independent uniform draws, each verifier input is independent of candidate C even when its address previously appeared in the training cache. This avoids the shared-verifier adaptive-retry subtlety relevant to the other coset learner.
+3. Bound arithmetic independently checked: sum_{k=0..4} binom(32,k)=41449; 27 six-direction witness trials x63 new cube values and 30x32 signatures contribute <=2661; verifier t=ceil(log(1e-10)/log(31/32))=726 and (31/32)^726=9.765746877444843e-11. Fast <=44836. Complete degree<=5 ANF basis 242825 and potentially retained nonbasis queries <=2661+726 gives <=246212 distinct calls. Existing source code computes these checks as described.
+4. Exact fallback coefficient recursion visits every strict subset (of weight<=4) before the top-degree mask; unsigned 32-bit normalization and support comparisons are consistent with the Boolean cube.
+
+No counterexample found to the stated fixed/stateless degree<=5, independent-uniform-verifier contract in this review. Independent calls are a required caller premise and cannot be inferred from an arbitrary supplied drawVerify callback; a source dependent on queries or an out-of-degree class voids the result. This is an attack-side correctness validation, not a claim that obfuscation security has advanced. Current three-mode release remains blocked.
