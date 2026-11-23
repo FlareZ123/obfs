@@ -399,3 +399,29 @@ test('symbolic recovery refuses a branch slot that shadows the normalized input'
   assert.throws(()=>attackPublishedSource(source),
     /Branch-local slot shadows normalized input/u);
 });
+
+
+test('symbolic recovery accepts a harmless branch slot shadow of the parameter',async()=>{
+  const source=['round1','round2','round3'].map(name=>
+    'export function '+name+'(input){'+
+      'const _ap_input_witness=input|0;'+
+      'switch(_ap_input_witness&1){'+
+        'case 0:{'+
+          'const input=(((_ap_input_witness>>1)<<1)|0);'+
+          '{const value=input+17;return value|0;}'+
+        '}'+
+        'case 1:{'+
+          'const input=(((_ap_input_witness>>1)<<1)|1);'+
+          '{const value=input+17;return value|0;}'+
+        '}'+
+        'default:throw Error("unreachable");'+
+      '}'+
+    '}'
+  ).join('\\n');
+  const actual=await import('data:text/javascript;charset=utf-8,'+encodeURIComponent(source));
+  const recovered=recoverSymbolicAffine(source,'round1','module');
+  assert.equal(recovered.offset,17);
+  assert.equal(actual.round1(0),17);
+  assert.equal(actual.round1(1),18);
+  assert.equal(actual.round1(-1),16);
+});
