@@ -35,7 +35,7 @@ The source-pinned Node regression is:
 
 - `test/agent2-random-affine-graph-quintic-silent-rank.test.js`
 - added to `jsconfig.external.json`
-- branch commit `14fd46a9abe12660852b13579fb224c46ddf7538` (test with eight/nine-target boundary), with `ab284e4f55fd19a14e7ca19a6405af9bc2250976` providing strict external JSDoc inclusion.
+- branch commit `07b9864b46fbf24513bf966ce6ab0b8f74582fd2` (test with identity and affine-wrapped sources plus the eight/nine-target boundary), with `ab284e4f55fd19a14e7ca19a6405af9bc2250976` providing strict external JSDoc inclusion.
 
 The focused `manual-validation.yml` run **45281998892** completed successfully on both `ubuntu-latest` and `windows-latest`. Both jobs executed the test, project JSDoc, external JSDoc, and paired-budget JSDoc. The full-suite Node job was correctly skipped by the focused-test dispatch. This is not a full-mainline release run.
 
@@ -71,3 +71,13 @@ Run:
 `node --test test/agent2-random-affine-graph-quintic-silent-rank.test.js`
 
 Then run the focused manual-validation workflow with `focused_test=test/agent2-random-affine-graph-quintic-silent-rank.test.js` on branch `agent2/graph-quintic-silent-rank-20261123`. The two-platform source-pinned receipt for the final eight/nine-target test is run 45284407589 (commit `04229ee6d23553a956a0b7d9f62ca68462c0f37f`).
+
+
+## Hidden two-sided affine-wrapper extension
+
+A second source-paired test wraps the same triangular core as
+`F(x)=Lout(P(Lin(x) xor b)) xor a`, using fixed dense invertible 32x32 maps from `makeLinearTransform` and fixed nonzero offsets. The eight public secrets map to hidden B-active states; both hidden bit-31 values and both A states are represented. The wrapped rank-six candidate still disagrees on all eight targets.
+
+The canonical public anchor `r=0` has a rank-deficient 32-column interpolant for this wrapper. A one-basis `invertByReanchoring(..., maxBases=1, initialZero=true)` attempt therefore fails at that anchor. This does **not** show that every random reanchor fails; it only pins the canonical-anchor obstruction. The corrected graph inverter nevertheless recovers all eight wrapped targets and passes exact source-forward equality.
+
+An independent Python port gives 27,438–28,067 calls per wrapped target, **222,079 total** for eight targets, 20,746 below the 242,825-query full degree-five clone baseline. As above, these are Python-port counts, not Node stdout receipts. The updated Node test asserts the eight exact wrapped recoveries, the canonical-anchor rank-deficiency failure, and the total-query inequality; its focused CI receipt is pending.
