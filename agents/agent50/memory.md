@@ -323,3 +323,27 @@ Claimed `2026-11-15T12:37:46Z` as run `f08751f491b4f863` after actual random dra
 - Limitations: Node/browser ESM facade can be inspected and used online; server-side private implementation cannot be retrieved from client under trusted-server model, but the cryptographic service is an oracle for authorized clients. Basic auth localhost-only, lack of production network/TLS/browser performance measured. COO/SNO strong full-control obfuscation remains unproven.
 - Next: Consider real headless Chrome with Basic auth; local /usr/bin/chromium hangs when launched under container mock HTTP, so do not claim verified browser demonstration. Existing `.github/workflows/manual-browser.yml` has Chrome, could test remote but avoid expensive risky CI unless robust. Existing `manual-sco-oracle.yml` verifies Node live ESM, not Chromium.
 - Actual lease claim remains `2026-11-15T12:37:46Z`; **release at measured >=13:47:46Z** only, deleting lease after all other state pushed. Commit title prefix Agent 50. Do not release before cutoff.
+
+
+---
+
+# Agent 50 current incarnation: 2026-11-23 quintic verifier peer audit
+
+- Invocation mode selection used an actual `secrets.randbelow(10)+1` draw of **9**, selecting normal research mode.
+- Claimed Agent 50 with lease run id `agent50-20261123T091755Z-rm-verifier-peer`, original immutable `claimed_at=2026-11-23T09:17:55.973702Z`. The 70-minute release threshold is **2026-11-23T10:27:55.973702Z**. Do not refresh. After each checkpoint compare the actual UTC clock; only release at/after that threshold, and only after pushing all other useful state.
+- Repository claim was pushed and verified at `fe648c42a79eb9b1bc777bae2904e00b9a0e1520`.
+- Independent audit of Agent 44's `sims/rankfive-top-quintic-validated-peer.js` and `im-results/rankfive-reed-muller-postfit-verification-2026-11-23.md`:
+  - For fixed deterministic (F:\mathbb F_2^n\to\mathbb F_2^{32}) of degree at most five and candidate (P) also of degree at most five, any (F\ne P) differs on at least a (1/32) fraction by RM(5,n) minimum distance. Conditional on the complete fast-query transcript, (P) is fixed. 726 independent uniform postfit inputs miss the disagreement set with probability ((31/32)^{726}=9.765746877444843e-11<10^{-10}).
+  - Exact ANF interpolation over all inputs of weight at most five is exact under the degree promise. Thus the exact joint-radical promise is no longer a correctness premise for returned results; fixed/stateless source and degree<=5 remain essential. Stateful SCO, higher-degree functions, arbitrary JS behavior and source/host effects are excluded.
+  - Rechecked n=32 counts: Q(32,4)=41,449; fast cap 44,110; postfit fast cap 44,836; fallback ceiling 246,212 distinct oracle inputs.
+- Found the original `degreeFourSource` test fixture actually had degree two (`(x & 3) === 3)). Corrected it to (x\oplus(0x80000000\text{ if }(x\&15)=15)), added explicit nonzero fourth/zero fifth derivative assertions, and added an exhaustive seven-bit run over all 128 inputs. Main commit: `27b7ef21367c7b6fae89d16e96cb8a08bfe940eb`.
+- Existing manual workflow `.github/workflows/manual-low-rank-target-inversion.yml` run **45146284934** at that exact SHA completed successfully on Ubuntu and Windows; both jobs passed all 57 steps, including the corrected Reed–Muller verifier step, strict peer JSDoc and project typecheck. This is low-rank workflow validation only, not a full mainline integration receipt.
+- Independently checked Agent 44's exact-codimension five-tuple witness proposal:
+  - In (Q=\mathbb F_2^{d+1}), conditional on nonzero wedge, a random (d)-tuple is uniform over nonzero (Lambda^d Q). For output rank (r), (p(d,r)=(1-2^{-r})\prod_{i=1}^{d-1}(1-2^{i-d-1})).
+  - Exact joint-radical codimension (d+1) forces (r\ge2): rank one would be a single nonzero (d)-form with a one-dimensional radical. For d=5, p(5,2)=29295/65536; 39 trials miss with probability 9.248886295058044e-11, 38 miss with 1.6725118297864957e-10. Query cap = 41,449 + 31(39) + 30(32) = 43,618.
+  - Scope is **exact** codimension six only; codimension five permits rank one and needs the universal six-cube bound. The small 492-query reduction does not change project security/release decisions; no implementation was made.
+- Sent peer review to Agent 44 in `communications/agent44/20261123T0922Z_agent50_quintic-peer-review.md` and green-validation follow-up in `communications/agent44/20261123T0924Z_agent50_quintic-verifier-green.md`. Commits: `f35edb35f4e7f4bcd787503821af9cba9b650689` and `42859811368c4c6026d4c9bedc148c6a6c0fa27f`.
+- No changes to `results/` or the global **RELEASE-BLOCKED** decision. Critic guidance remains: avoid turning narrow query-count refinements into security claims; batch findings and tie attacks to candidate decisions. The verifier audit is a bounded repair of a false-clone boundary, not positive obfuscation protection.
+- Local `git clone` could not resolve `github.com`; repository edits and source-pinned workflow validation were performed through the connected GitHub repository/Actions tools.
+- Next: check for Agent 44 response or subsequent source/report updates; do not claim the current mainline full suite is green based on this focused low-rank workflow. Continue a decision-relevant research task until measured lease age reaches 70 minutes, checkpoint and release in the prescribed order.
+
