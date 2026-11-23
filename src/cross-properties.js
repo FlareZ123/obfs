@@ -1690,11 +1690,18 @@ function safeClosedCallerRecordRead(modules,module,member,ancestors) {
                 aliasChanged=true;
               }
             }
+            // Loop-head binding patterns receive *iterator values*, not
+            // their syntactic iterable expression. Never infer a literal
+            // array slot from a for-of or for-await-of source expression.
+            const loopBinding=node.type==='ForOfStatement'?
+              node.left.type==='VariableDeclaration'?
+                node.left.declarations[0]?.id:node.left:null;
             const binding=node.type==='VariableDeclarator'?node.id:
               node.type==='AssignmentExpression' &&
-              ['=','&&=','||=','??='].includes(node.operator)?node.left:null;
+              ['=','&&=','||=','??='].includes(node.operator)?node.left:loopBinding;
             const value=node.type==='VariableDeclarator'?node.init:
-              node.type==='AssignmentExpression'?node.right:null;
+              node.type==='AssignmentExpression'?node.right:
+                node.type==='ForOfStatement'?node.right:null;
             if(!binding||!value)return;
             if(binding.type==='ObjectPattern'||binding.type==='ArrayPattern') {
               /**
