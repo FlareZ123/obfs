@@ -383,6 +383,31 @@ function usesUnprovedRelocatedTextDecoder(body){
     return true;
   }
   /**
+   * A plain identifier may hold a string, record or detached value. The
+   * runtime-specific type error message is then observable even without a
+   * local catch. Until interprocedural argument-type proofs exist, admit
+   * only explicit byte views with literal byte elements, or omitted input.
+   * @param {import('./ast').AstNode|undefined} input
+   * @returns {boolean}
+   */
+  function provedByteInput(input){
+    if(input===undefined)return true;
+    const elementBytes=/** @param {import('./ast').AstNode} element @returns {boolean} */
+      element=>element.type==='Literal'&&typeof element.value==='number'&&
+        Number.isInteger(element.value)&&element.value>=0&&element.value<=255;
+    if(input.type==='CallExpression'&&
+       input.callee.type==='MemberExpression'&&!input.callee.computed&&
+       input.callee.object.type==='Identifier'&&
+       input.callee.object.name==='Uint8Array'&&
+       input.callee.property.type==='Identifier'&&
+       input.callee.property.name==='of')return input.arguments.every(elementBytes);
+    return input.type==='NewExpression'&&input.callee.type==='Identifier'&&
+      input.callee.name==='Uint8Array'&&input.arguments.length===1&&
+      input.arguments[0].type==='ArrayExpression'&&
+      input.arguments[0].elements.every(element=>
+        element!==null&&element.type!=='SpreadElement'&&elementBytes(element));
+  }
+  /**
    * Prove that all input bytes are ASCII. UTF-8 ASCII cannot cause a native
    * fatal decoding error for a newly constructed decoder without streaming
    * state. Other byte grammars remain conservatively unproved.
@@ -446,10 +471,11 @@ function usesUnprovedRelocatedTextDecoder(body){
       const user=ancestors[ancestors.length-2];
       if(member==='decode'&&
          user?.type==='CallExpression'&&user.callee===parent){
-        // A direct primitive or record argument is not an ArrayBuffer/View.
-        // Node and browser throw TypeError with different native messages.
+        // Native TypeError messages differ whenever the actual input is not
+        // an ArrayBuffer/View. A mere identifier has no reliable runtime
+        // type proof. Require a directly constructed, literal byte view.
         const input=user.arguments[0];
-        if(input&&['Literal','ObjectExpression','ArrayExpression'].includes(input.type)){
+        if(!provedByteInput(input)){
           unproved=true;
           return;
         }
