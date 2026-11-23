@@ -41,6 +41,7 @@ const fixtures={
     'export function sample(){',
     '  Object.defineProperty(Storage.prototype,"setItem",{configurable:true,writable:true,value:function(_key,value){captured.set(this,value);}});',
     '  localStorage.setItem("storage-dispatch-prototype",inspect);',
+    '  Object.defineProperty(Storage.prototype,"setItem",descriptor);',
     '  return captured.get(localStorage)()+independent();',
     '}'
   ].join('\\n'),
