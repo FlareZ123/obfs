@@ -336,6 +336,7 @@ test('source-observer islands rename only non-source-visible local bindings',asy
 
       // Probe the transformed leaf from a consumer outside the declared
       // obfuscation graph. Its exported callable source must remain exact.
+      /** @type {SourceFile} */
       const probe={
         path:'entry.mjs',sourceType:'module',
         code:'import {watched} from "./watched.mjs";'+
