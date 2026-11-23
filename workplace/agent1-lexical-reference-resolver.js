@@ -94,6 +94,25 @@ function resolveLexicalReferences(root,sourceType) {
       default: throw new TypeError('Unsupported binding pattern: '+node.type);
     }
   }
+  /** @param {AstNode|null} pattern @param {string} name @returns {boolean} */
+  function patternContainsName(pattern,name) {
+    if(!pattern)return false;
+    switch(pattern.type){
+      case 'Identifier':return pattern.name===name;
+      case 'AssignmentPattern':return patternContainsName(pattern.left,name);
+      case 'RestElement':return patternContainsName(pattern.argument,name);
+      case 'ArrayPattern':
+        for(const element of pattern.elements)
+          if(patternContainsName(element,name))return true;
+        return false;
+      case 'ObjectPattern':
+        for(const property of pattern.properties)
+          if(patternContainsName(property.type==='RestElement'?
+            property.argument:property.value,name))return true;
+        return false;
+      default:return false;
+    }
+  }
   /** @param {AstNode} node @param {(child:AstNode,key:string)=>void} fn */
   function children(node,fn) {
     for(const [key,value] of Object.entries(node)) {
@@ -152,6 +171,26 @@ function resolveLexicalReferences(root,sourceType) {
     scopes.set(node,scope);
     if(node.type==='VariableDeclaration'){
       for(const dec of node.declarations){
+        // Annex B catch parameter / var name interactions are not independent
+        // bindings for source-renaming purposes. In a simple catch parameter,
+        // a same-spelled var initializer writes the catch binding rather than
+        // the hoisted var binding. Do not issue independently usable IDs.
+        if(node.kind==='var'){
+          const owner=varScope(scope);
+          /** @type {Scope|null} */
+          let enclosing=scope;
+          for(;enclosing;enclosing=enclosing.parent){
+            if(enclosing.kind==='catch' && varScope(enclosing)===owner){
+              for(const [name,binding] of enclosing.bindings){
+                if(binding.kind==='catch' && patternContainsName(dec.id,name)){
+                  enclosing.uncertain.add(name);
+                  owner.uncertain.add(name);
+                }
+              }
+            }
+            if(enclosing===owner)break;
+          }
+        }
         declarePattern(dec.id,node.kind==='var'?varScope(scope):scope,node.kind);
       }
     }
