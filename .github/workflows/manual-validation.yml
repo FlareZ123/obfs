@@ -145,3 +145,5 @@ jobs:
         run: npm run typecheck
       - name: Strict external JSDoc for focused runner
         run: npm run typecheck:external
+      - name: Strict JSDoc for paired and complete-suite runtime budget evaluators
+        run: node node_modules/typescript/bin/tsc -p jsconfig.paired-budget.json
