@@ -10,6 +10,17 @@ const {proveDirectReaderPrimitives}=require('./direct-reader-primitives');
 /** @typedef {import('./ast').AstNode} AstNode */
 
 /**
+ * Cache immutable cross-file parser outputs for one transform invocation.
+ * @typedef {{ast:AstNode,bindings:Map<string,number>}} ParsedModule
+ */
+/** @typedef {(file:SourceFile)=>ParsedModule} ParseModuleFn */
+/** @type {ParseModuleFn} */
+function parseModule(file){
+  const ast=parse(/** @type {string} */(file.code),'module');
+  return {ast,bindings:collectBindings(ast)};
+}
+
+/**
  * Resolve a local ESM specifier only when it names an input file exactly.
  * @param {string} from
  * @param {string} specifier
@@ -29,14 +40,13 @@ function resolveImport(from,specifier) {
  * @param {SourceFile[]} files
  * @returns {Map<string,Map<string,string>>}
  */
-function collectVerifiedImportedStrings(files) {
+function collectVerifiedImportedStrings(files,parseFile=parseModule) {
   /** @type {Map<string,{ast:AstNode,bindings:Map<string,number>}>} */
   const modules=new Map();
   for(const file of files) {
     const type=file.sourceType??(file.path.endsWith('.mjs')?'module':'script');
     if(type==='module'&&typeof file.code==='string') {
-      const ast=parse(file.code,'module');
-      modules.set(file.path,{ast,bindings:collectBindings(ast)});
+      modules.set(file.path,parseFile(file));
     }
   }
   /** @type {Map<string,Map<string,string>>} */
@@ -147,13 +157,12 @@ function collectVerifiedImportedStrings(files) {
  * @param {SourceFile[]} files
  * @returns {Map<string,Set<string>>}
  */
-function collectVerifiedImportedPrimitives(files) {
+function collectVerifiedImportedPrimitives(files,parseFile=parseModule) {
   /** @type {Map<string,{ast:AstNode,bindings:Map<string,number>}>} */
   const modules=new Map();
   for(const file of files) {
     if(file.sourceType!=='module'||typeof file.code!=='string')continue;
-    const ast=parse(file.code,'module');
-    modules.set(file.path,{ast,bindings:collectBindings(ast)});
+    modules.set(file.path,parseFile(file));
   }
   // Only the caller's closed-world ESM path reaches this proof. A mixed
   // group cannot establish complete provenance for an imported value.
@@ -237,13 +246,12 @@ function collectVerifiedImportedPrimitives(files) {
  * @param {SourceFile[]} files
  * @returns {Map<string,Set<string>>}
  */
-function collectImportedFunctionArrays(files) {
+function collectImportedFunctionArrays(files,parseFile=parseModule) {
   /** @type {Map<string,{ast:AstNode,bindings:Map<string,number>}>} */
   const modules=new Map();
   for(const file of files) {
     if(file.sourceType==='module'&&typeof file.code==='string') {
-      const ast=parse(file.code,'module');
-      modules.set(file.path,{ast,bindings:collectBindings(ast)});
+      modules.set(file.path,parseFile(file));
     }
   }
   /** @type {Map<string,Set<string>>} */
@@ -526,13 +534,12 @@ function collectImportedFunctionArrays(files) {
  * @param {SourceFile[]} files
  * @returns {Map<string,Set<string>>}
  */
-function collectVerifiedImportedCloneAliases(files) {
+function collectVerifiedImportedCloneAliases(files,parseFile=parseModule) {
   /** @type {Map<string,{ast:AstNode,bindings:Map<string,number>}>} */
   const modules=new Map();
   for(const file of files) {
     if(file.sourceType==='module'&&typeof file.code==='string') {
-      const ast=parse(file.code,'module');
-      modules.set(file.path,{ast,bindings:collectBindings(ast)});
+      modules.set(file.path,parseFile(file));
     }
   }
   /** @type {Map<string,Set<string>>} */
@@ -626,13 +633,12 @@ function collectVerifiedImportedCloneAliases(files) {
  * @param {SourceFile[]} files
  * @returns {Map<string,Set<string>>}
  */
-function collectVerifiedImportedUrlStaticAliases(files) {
+function collectVerifiedImportedUrlStaticAliases(files,parseFile=parseModule) {
   /** @type {Map<string,{ast:AstNode,bindings:Map<string,number>}>} */
   const modules=new Map();
   for(const file of files) {
     if(file.sourceType==='module'&&typeof file.code==='string') {
-      const ast=parse(file.code,'module');
-      modules.set(file.path,{ast,bindings:collectBindings(ast)});
+      modules.set(file.path,parseFile(file));
     }
   }
   /** @type {Map<string,Set<string>>} */
@@ -2017,19 +2023,28 @@ function renameCrossFileProperties(files,seed) {
   })) {
     return {files,objects:0,properties:0};
   }
+  /** @type {WeakMap<SourceFile,{code:string|Buffer,value:ParsedModule}>} */
+  const parserCache=new WeakMap();
+  /** @type {ParseModuleFn} */
+  function parseFile(file){
+    const hit=parserCache.get(file);
+    if(hit&&hit.code===file.code)return hit.value;
+    const value=parseModule(file);
+    parserCache.set(file,{code:file.code,value});
+    return value;
+  }
   /** @type {Map<string,{file:SourceFile,ast:AstNode,bindings:Map<string,number>}>} */
   const modules=new Map();
   for(const file of files) {
     if ((file.sourceType ?? (file.path.endsWith('.mjs') ? 'module' : 'script'))==='module' && typeof file.code==='string') {
-      const ast=parse(file.code,'module');
-      modules.set(file.path,{file,ast,bindings:collectBindings(ast)});
+      modules.set(file.path,{file,...parseFile(file)});
     }
   }
   const knownFiles=new Set(files.map(file=>file.path));
-  const verifiedStrings=collectVerifiedImportedStrings(files);
-  const verifiedClones=collectVerifiedImportedCloneAliases(files);
-  const verifiedUrlStatics=collectVerifiedImportedUrlStaticAliases(files);
-  const verifiedPrimitives=collectVerifiedImportedPrimitives(files);
+  const verifiedStrings=collectVerifiedImportedStrings(files,parseFile);
+  const verifiedClones=collectVerifiedImportedCloneAliases(files,parseFile);
+  const verifiedUrlStatics=collectVerifiedImportedUrlStaticAliases(files,parseFile);
+  const verifiedPrimitives=collectVerifiedImportedPrimitives(files,parseFile);
   const acyclicImports=hasAcyclicStaticImports(modules);
   const allowDirectReflection=stableDirectOwnerReflection(modules);
   // The filename-oriented resolver only proves canonical relative imports.
