@@ -54,8 +54,13 @@ async function main() {
   // This avoids needing to rerun a full two-platform suite to locate failures.
   if(failures.length) {
     const index=failures.map(block=>{
-      const location=block.find(line=>/^\s*location: /u.test(line));
-      return {case:block[0].trim(),location:location?.trim()??null};
+      /** @param {string} key @returns {string|null} */
+      function field(key) {
+        const line=block.find(item=>item.trimStart().startsWith(key+': '));
+        return line?line.trim().slice(key.length+2):null;
+      }
+      return {case:block[0].trim(),location:field('location'),
+        error:field('error'),actual:field('actual'),expected:field('expected')};
     });
     process.stdout.write('FAILED_TEST_INDEX '+JSON.stringify(index)+'\n');
   }
