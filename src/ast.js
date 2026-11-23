@@ -1756,6 +1756,24 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
     return true;
   }
   let observed=false;
+  // Numeric coercion also invokes Function#toString for function values.
+  // Although the native result is often NaN, a patched method installed by
+  // an unlisted dependency can capture the exact source during ToPrimitive.
+  // Keep these operators separate from string-producing coercers: Boolean and
+  // typeof do not invoke ToPrimitive and remain eligible positive controls.
+  const numericUnaryCoercions=new Set(['+','-','~']);
+  const numericBinaryCoercions=new Set(['-','*','/','%','**','<<','>>','>>>','&','|','^']);
+  const numericAssignmentCoercions=new Set(['+=','-=','*=','/=','%=','**=',
+    '<<=','>>=','>>>=','&=','|=','^=']);
+  const numericCoercionFunctions=new Set([
+    'Number','isNaN','isFinite','parseInt','parseFloat'
+  ]);
+  const mathNumericMethods=new Set([
+    'abs','acos','acosh','asin','asinh','atan','atanh','atan2','cbrt',
+    'ceil','clz32','cos','cosh','exp','expm1','floor','fround','hypot',
+    'imul','log','log10','log1p','log2','max','min','pow','round','sign',
+    'sin','sinh','sqrt','tan','tanh','trunc'
+  ]);
   // ToPropertyKey applies ToPrimitive with a string hint. Functions with
   // ordinary prototype methods stringify to their source text. Restrict the
   // guard to syntactically tracked functions so string/number computed keys
@@ -2904,6 +2922,32 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
           isStringValue(node.right) || isFunctionValue(node.left) ||
           isFunctionValue(node.right) || containsFunction(node.left) ||
           containsFunction(node.right)) && !isDefinitelyPrimitive(node)) observed=true;
+    }
+    // All numeric operators invoke ToPrimitive/ToNumeric. A function's default
+    // primitive is its source string; the resulting number may discard that
+    // text, but a patched Function#toString can observe it as a side effect.
+    if(node.type==='UnaryExpression' && numericUnaryCoercions.has(node.operator) &&
+       (isFunctionValue(node.argument)||containsFunction(node.argument))) observed=true;
+    if(node.type==='BinaryExpression' && numericBinaryCoercions.has(node.operator) &&
+       (isFunctionValue(node.left)||isFunctionValue(node.right)||
+        containsFunction(node.left)||containsFunction(node.right))) observed=true;
+    if(node.type==='UpdateExpression' && ['++','--'].includes(node.operator) &&
+       (isFunctionValue(node.argument)||containsFunction(node.argument))) observed=true;
+    if(node.type==='AssignmentExpression' &&
+       numericAssignmentCoercions.has(node.operator) &&
+       (isFunctionValue(node.left)||containsFunction(node.left))) observed=true;
+    // Known numeric/string coercer calls also perform ToPrimitive on their
+    // arguments. Do not classify Boolean or typeof as coercers.
+    if(node.type==='CallExpression') {
+      const callee=node.callee;
+      const directName=callee.type==='Identifier'?callee.name:null;
+      const mathName=callee.type==='MemberExpression' &&
+        callee.object.type==='Identifier' && callee.object.name==='Math'?
+          memberName(callee):null;
+      if((numericCoercionFunctions.has(directName??'')||
+          mathNumericMethods.has(mathName??'')) &&
+         node.arguments.some((/** @type {AstNode} */ value)=>
+           isFunctionValue(value)||containsFunction(value))) observed=true;
     }
     // Stack observation can also be expressed without a .stack member access.
     // A destructuring pattern reads the error's captured source location.
