@@ -91,3 +91,15 @@ test('Chromium preserves exported callable source for transformed source-observe
     await new Promise(resolve=>server.close(resolve));
   }
 });
+
+
+test('canonical browser integration harness passes with source-observer island fixture',{
+  skip:process.platform==='win32'?'Real Chromium is exercised on the Ubuntu runner':false
+},async()=>{
+  const chromium=process.env.CHROMIUM_BIN??'google-chrome';
+  const {stdout}=await promisify(execFile)(process.execPath,['test/browser-integration.js'],{
+    env:{...process.env,CHROMIUM_BIN:chromium},
+    timeout:120000,maxBuffer:8*1024*1024,encoding:'utf8'
+  });
+  assert.ok(typeof stdout==='string');
+});
