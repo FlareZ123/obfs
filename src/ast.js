@@ -2497,6 +2497,9 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
   function containsStackError(node,depth=0) {
     if(!node||depth>32)return false;
     if(node.type==='Identifier')return stackErrorAliases.has(node.name);
+    // The final operand determines the value of a sequence expression.
+    if(node.type==='SequenceExpression' && node.expressions.length)
+      return containsStackError(node.expressions[node.expressions.length-1],depth+1);
     if((node.type==='NewExpression'||node.type==='CallExpression') &&
        node.callee.type==='Identifier' &&
        stackErrorConstructors.has(node.callee.name))return true;
@@ -2904,6 +2907,17 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
           isStringValue(node.right) || isFunctionValue(node.left) ||
           isFunctionValue(node.right) || containsFunction(node.left) ||
           containsFunction(node.right)) && !isDefinitelyPrimitive(node)) observed=true;
+    }
+    // A computed destructuring key can likewise select Error.stack without a
+    // MemberExpression. Only guard known Error values: unrelated dynamically
+    // keyed plain records retain their ordinary transformation opportunities.
+    if(node.type==='VariableDeclarator'||node.type==='AssignmentExpression') {
+      const pattern=node.type==='VariableDeclarator'?node.id:node.left;
+      const value=node.type==='VariableDeclarator'?node.init:node.right;
+      if(pattern.type==='ObjectPattern' && containsStackError(value) &&
+         pattern.properties.some((/** @type {AstNode} */ property)=>
+           property.type==='Property' && property.computed &&
+           sourceStringKey(property.key)===null))observed=true;
     }
     // Stack observation can also be expressed without a .stack member access.
     // A destructuring pattern reads the error's captured source location.
