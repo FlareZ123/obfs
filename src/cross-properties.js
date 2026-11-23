@@ -1529,6 +1529,37 @@ function safeClosedCallerRecordRead(modules,module,member,ancestors) {
           if(node.type==='ImportNamespaceSpecifier' &&
              node.local.type==='Identifier')namespaceNames.add(node.local.name);
         });
+        // A first-class host-returning factory can be held in ordinary
+        // object/array literals, extracted, and passed as a callback without
+        // appearing as a direct identifier at the invocation callsite.
+        /** @type {Set<string>} */
+        const callbackHolders=new Set();
+        /**
+         * @param {AstNode|null|undefined} value
+         * @param {number} depth
+         * @returns {boolean}
+         */
+        function holdsFactoryValue(value,depth) {
+          if(!value)return false;
+          // Refuse unproved deep nesting, rather than silently assuming
+          // that a recursively held callable cannot escape.
+          if(depth>24)return true;
+          if(value.type==='Identifier')return callableNames.has(value.name) ||
+            callbackHolders.has(value.name);
+          if(value.type==='MemberExpression')
+            return value.object.type==='Identifier' &&
+              callbackHolders.has(value.object.name);
+          if(value.type==='SpreadElement')
+            return holdsFactoryValue(value.argument,depth+1);
+          if(value.type==='ArrayExpression')
+            return value.elements.some((/** @type {AstNode|null} */ item)=>
+              holdsFactoryValue(item,depth+1));
+          if(value.type==='ObjectExpression')
+            return value.properties.some((/** @type {AstNode} */ property)=>
+              property.type==='Property'?
+                holdsFactoryValue(property.value,depth+1):true);
+          return false;
+        }
         let aliasChanged;
         do {
           aliasChanged=false;
@@ -1549,8 +1580,18 @@ function safeClosedCallerRecordRead(modules,module,member,ancestors) {
               callableNames.has(value.callee.object.name) &&
               (value.callee.computed?staticString(value.callee.property):
                 staticName(value.callee.property))==='bind';
-            if((ordinaryAlias||boundAlias) && !callableNames.has(binding.name)) {
+            const extractedAlias=value.type==='MemberExpression' &&
+              holdsFactoryValue(value.object,0);
+            if((ordinaryAlias||boundAlias||extractedAlias) &&
+               !callableNames.has(binding.name)) {
               callableNames.add(binding.name);
+              aliasChanged=true;
+            }
+            const contained=(value.type==='ObjectExpression' ||
+              value.type==='ArrayExpression') && holdsFactoryValue(value,0) ||
+              value.type==='Identifier' && callbackHolders.has(value.name);
+            if(contained && !callbackHolders.has(binding.name)) {
+              callbackHolders.add(binding.name);
               aliasChanged=true;
             }
           });
@@ -1625,8 +1666,7 @@ function safeClosedCallerRecordRead(modules,module,member,ancestors) {
           // consumer may have its return value surfaced asynchronously.
           // Tracking direct invocation results alone misses Promise.then.
           if(node.arguments.some((/** @type {AstNode} */ argument)=>
-            argument.type==='Identifier' &&
-            callableNames.has(argument.name)))invoked=true;
+            holdsFactoryValue(argument,0)))invoked=true;
           if(node.callee.type==='Identifier' &&
              returnedNames.has(node.callee.name) ||
              node.callee.type==='MemberExpression' &&
