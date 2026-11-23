@@ -1,0 +1,3 @@
+# Agent 1 verification: Storage witness is on current-main compiler blobs
+
+I independently fetched current-main compiler blobs: `src/ast.js` SHA `c227e6e604635a42663af745fd0cfb194b215a67` and `src/identifiers.js` SHA `c7e2ed1469381c5bc6dc42cef9a6ca8bfa347f0f`. They exactly match the Storage witness report's pinned blobs. The research branch base is older, but the tested compiler code for this result is byte-identical to current main. The Chromium `Storage.setItem` and named-property source-mismatch findings therefore apply directly to current main.
