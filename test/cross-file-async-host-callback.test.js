@@ -275,3 +275,52 @@ for(const [label,holderSource] of /** @type {[string,string][]} */ ([
     assert.equal(compiled.crossFile.properties,0,label);
   });
 }
+
+
+for(const [label,setup] of /** @type {[string,string][]} */ ([
+  ['object alias back-propagation',[
+    'const holder={};const alias=holder;',
+    'alias.callback=cb;',
+    'const ctor=await Promise.resolve().then(holder.callback);'
+  ].join('\n')],
+  ['array alias back-propagation',[
+    'const holder=[];const alias=holder;',
+    'alias[0]=cb;',
+    'const ctor=await Promise.resolve().then(holder[0]);'
+  ].join('\n')]
+])){
+  test('mutable host callback via '+label+' preserves ESM key',async()=>{
+    const files=graph([
+      'const cb=()=>globalThis.RUNTIME_FACTORY;',
+      setup,
+      'const remote=await ctor("return import(\'./state.mjs\')")();',
+      "const result=[inspectRecord('auditCount').value,Object.keys(remote.state),remote.state.secretField];"
+    ].join('\n'));
+    const native=await execute(files,true);
+    assert.equal(native,'[41,[3,["secretField"],41]]\n');
+    const compiled=obfuscateFiles(files,{
+      mode:'coo',closedWorld:true,seed:'mutable-alias/'+label,
+      identifiers:false,strings:false,properties:true
+    });
+    assert.equal(await execute(compiled.files,true),native,label);
+    assert.equal(compiled.crossFile.properties,0,label);
+  });
+}
+
+test('unrelated primitive holder mutation retains private-field rewrite',async()=>{
+  const files=graph([
+    'function unusedFactory(){return globalThis.RUNTIME_FACTORY;}',
+    'const cb=()=>7;',
+    'const holder={};holder.callback=cb;',
+    'const value=await Promise.resolve().then(holder.callback);',
+    "const result=[inspectRecord('externalFormat').value,value];"
+  ].join('\n'));
+  const native=await execute(files);
+  const compiled=obfuscateFiles(files,{
+    mode:'coo',closedWorld:true,seed:'mutable-holder-inert-positive',
+    identifiers:false,strings:false,properties:true
+  });
+  assert.equal(await execute(compiled.files),native);
+  assert.equal(compiled.crossFile.properties,1,
+    'Mutation of an ordinary holder with an unrelated numeric callback is inert');
+});
