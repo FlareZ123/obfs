@@ -354,9 +354,115 @@ function runTinyBoundedDegreeCloner() {
   return {sourceFunctions,allPredictions,heldoutPredictions,byLayers};
 }
 
+/**
+ * Generate all n=32 input masks of Hamming weight<=degree in ascending
+ * weight order. Here degree is restricted to 2 or 3 to keep the selected
+ * chosen-query attack bounded to 529 or 5,489 oracle calls.
+ * @param {2|3} degree
+ * @returns {number[]}
+ */
+function degreeMasks32(degree) {
+  const masks=[0];
+  for(let i=0;i<32;i++)masks.push((2**i)>>>0);
+  for(let i=0;i<32;i++)for(let j=i+1;j<32;j++)
+    masks.push(((2**i)|(2**j))>>>0);
+  if(degree===3)
+    for(let i=0;i<32;i++)for(let j=i+1;j<32;j++)
+      for(let k=j+1;k<32;k++)
+        masks.push(((2**i)|(2**j)|(2**k))>>>0);
+  assert.equal(masks.length,degree===2?529:5489);
+  return masks;
+}
+
+/**
+ * Source-independent chosen-forward polynomial interpolation, deriving the
+ * entire vector-output ANF of a promised degree<=3 bit permutation. Each
+ * coordinate's coefficient for monomial M is the XOR of F(S) over S⊆M.
+ * Query only Hamming-weight≤degree masks; reconstruct any input by XORing
+ * every coefficient whose input monomial is present.
+ *
+ * @param {(input:number)=>number} oracle
+ * @param {2|3} degree
+ * @returns {{predict:(input:number)=>number,oracleCalls:number,
+ *   nonzeroCoefficients:number}}
+ */
+function boundedDegreeClone32(oracle,degree) {
+  const masks=degreeMasks32(degree);
+  /** @type {Map<number,number>} */
+  const coefficients=new Map();
+  for(const mask of masks){
+    let value=oracle(mask)>>>0;
+    let proper=((mask-1)&mask)>>>0;
+    while(proper!==mask){
+      value^=coefficients.get(proper)??0;
+      proper=((proper-1)&mask)>>>0;
+    }
+    coefficients.set(mask,value>>>0);
+  }
+  const nonzero=[...coefficients].filter(([,value])=>value!==0);
+  /** @param {number} input @returns {number} */
+  function predict(input) {
+    const x=input>>>0;
+    let output=0;
+    for(const [mask,value] of nonzero)
+      if(((x&mask)>>>0)===mask)output^=value;
+    return output>>>0;
+  }
+  return {predict,oracleCalls:masks.length,nonzeroCoefficients:nonzero.length};
+}
+
+/**
+ * Cross-wrapper full 32-bit functional-clone evidence for one or two
+ * genuine quadratic rank-one shears. Standard multiplicative-complexity
+ * bound ensures algebraic degree<=layers+1, hence the ANF formula is exact
+ * for every possible input (the harness additionally tests heldout seeds).
+ *
+ * @returns {{sources:number,oracleCalls:number,heldoutPredictions:number,
+ *   exactPredictions:number,byLayers:{layers:number,sourceFunctions:number,
+ *     chosenCallsPerSource:number,heldoutPredictions:number}[]}}
+ */
+function runLayeredFullWidthClone() {
+  const byLayers=[];
+  let sources=0,oracleCalls=0,heldoutPredictions=0,exactPredictions=0;
+  for(let layers=1;layers<=2;layers++) {
+    const degree=/** @type {2|3} */ (layers+1);
+    let chosenCallsPerSource=0,localSources=0,localHeldout=0;
+    for(let trial=0;trial<10;trial++){
+      const seed=(0x6a09e667^Math.imul(layers,0x9e3779b1)^
+        Math.imul(trial+1,0x7f4a7c15))>>>0;
+      const oracle=makeLayeredOracle(seed,layers);
+      const attack=boundedDegreeClone32(oracle,degree);
+      assert.equal(attack.oracleCalls,layers===1?529:5489);
+      chosenCallsPerSource=attack.oracleCalls;
+      oracleCalls+=attack.oracleCalls;
+      const next=seeded((seed^0x9b05688c)>>>0);
+      for(let trialIndex=0;trialIndex<96;trialIndex++){
+        let input=next();
+        // These withheld input words are not the queried low-weight
+        // polynomial coefficient positions.
+        while(input===0||parity32(input&0xffffffff)===-1 ||
+          (()=>{let w=0;for(let b=0;b<32;b++)w+=(input>>>b)&1;return w<=degree;})()){
+          input=next();
+        }
+        assert.equal(attack.predict(input),oracle(input));
+        heldoutPredictions++;localHeldout++;exactPredictions++;
+      }
+      sources++;localSources++;
+    }
+    byLayers.push({layers,sourceFunctions:localSources,
+      chosenCallsPerSource,heldoutPredictions:localHeldout});
+  }
+  assert.equal(sources,20);
+  assert.equal(oracleCalls,60180);
+  assert.equal(heldoutPredictions,1920);
+  assert.equal(exactPredictions,heldoutPredictions);
+  return {sources,oracleCalls,heldoutPredictions,exactPredictions,byLayers};
+}
+
 if(require.main===module){
   process.stdout.write('LAYERED_LOWRANK_COMPOSITION '+
     JSON.stringify(runLayeredLowRankComposition())+'\n');
 }
 module.exports={makeLayeredOracle,runLayeredLowRankComposition,
-  runTinyLayeredAnfAudit,runTinyBoundedDegreeCloner};
+  runTinyLayeredAnfAudit,runTinyBoundedDegreeCloner,
+  runLayeredFullWidthClone};
