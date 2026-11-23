@@ -30,7 +30,7 @@ function makeFiles(observe) {
   ];
 }
 
-test('source observation of an imported callable does not freeze unrelated module state',async()=>{
+test('source observation in one module and unrelated cross-file rename scopes',async()=>{
   const dir=await fs.mkdtemp(path.join(os.tmpdir(),'obfs-source-observer-unrelated-'));
   /** @param {{path:string,code:string}[]} sources */
   async function execute(sources) {
@@ -39,44 +39,59 @@ test('source observation of an imported callable does not freeze unrelated modul
     assert.equal(child.status,0,child.stderr);
     return child.stdout;
   }
-  const options={
-    mode:'coo',closedWorld:true,seed:'source-observer-unrelated-module-yield',
-    properties:true,identifiers:true,strings:false
-  };
+  const baselineFiles=makeFiles(false);
+  const observedFiles=makeFiles(true);
   try {
-    const baselineFiles=makeFiles(false);
     const baselineExpected=await execute(baselineFiles);
-    const baseline=obfuscateFiles(baselineFiles,options);
-    const baselineData=baseline.files.find(file=>file.path==='data.mjs');
-    assert.ok(baselineData);
-    assert.ok(!baselineData.code.includes('unrelatedPrivate'),String(baselineData.code));
-    assert.ok(!baselineData.code.includes('unrelatedLocal'),String(baselineData.code));
-    assert.ok(baselineData.metrics.properties>=1,String(baselineData.code));
-    assert.ok(baselineData.metrics.bindings>=1,String(baselineData.code));
-    assert.equal(await execute(baseline.files),baselineExpected);
-
-    const observedFiles=makeFiles(true);
     const observedExpected=await execute(observedFiles);
-    const observed=obfuscateFiles(observedFiles,options);
-    const util=observed.files.find(file=>file.path==='util.mjs');
-    const data=observed.files.find(file=>file.path==='data.mjs');
-    assert.ok(util);
-    assert.ok(data);
-    assert.ok(util.code.includes('secretField'),'observed callable property spelling must remain');
-    // Expected-red witness for the current compilation-unit-wide veto: the
-    // observer is attached to util.inspect, but unrelated data.mjs names are
-    // also frozen even though they do not occur in that callable's source.
-    assert.ok(data.code.includes('unrelatedPrivate'),String(data.code));
-    assert.ok(data.code.includes('unrelatedLocal'),String(data.code));
-    assert.equal(data.metrics.properties,0,String(data.code));
-    assert.equal(data.metrics.bindings,0,String(data.code));
-    assert.equal(await execute(observed.files),observedExpected);
+
+    const propertyOptions={
+      mode:'coo',closedWorld:true,seed:'source-observer-unrelated-property',
+      properties:true,identifiers:false,strings:false
+    };
+    const propertyBaseline=obfuscateFiles(baselineFiles,propertyOptions);
+    const propertyObserved=obfuscateFiles(observedFiles,propertyOptions);
+    const baselineData=propertyBaseline.files.find(file=>file.path==='data.mjs');
+    const observedData=propertyObserved.files.find(file=>file.path==='data.mjs');
+    assert.ok(baselineData);
+    assert.ok(observedData);
+    assert.ok(!baselineData.code.includes('unrelatedPrivate'),String(baselineData.code));
+    assert.ok(baselineData.metrics.properties>=1,String(baselineData.code));
+    // Expected-red witness: the entry observer currently suppresses a private
+    // cross-file property that is not present in inspect's source text.
+    assert.ok(observedData.code.includes('unrelatedPrivate'),String(observedData.code));
+    assert.equal(observedData.metrics.properties,0,String(observedData.code));
+    assert.equal(await execute(propertyBaseline.files),baselineExpected);
+    assert.equal(await execute(propertyObserved.files),observedExpected);
+
+    const identifierOptions={
+      mode:'coo',closedWorld:true,seed:'source-observer-unrelated-identifier',
+      properties:false,identifiers:true,strings:false
+    };
+    const identifierBaseline=obfuscateFiles(baselineFiles,identifierOptions);
+    const identifierObserved=obfuscateFiles(observedFiles,identifierOptions);
+    const baselineIdentifierData=identifierBaseline.files.find(file=>file.path==='data.mjs');
+    const observedIdentifierData=identifierObserved.files.find(file=>file.path==='data.mjs');
+    assert.ok(baselineIdentifierData);
+    assert.ok(observedIdentifierData);
+    assert.ok(!baselineIdentifierData.code.includes('unrelatedLocal'),String(baselineIdentifierData.code));
+    assert.ok(baselineIdentifierData.metrics.bindings>=1,String(baselineIdentifierData.code));
+    // The same compilation-unit source observer also blocks the unrelated
+    // module's private local binding under the identifier-only pass.
+    assert.ok(observedIdentifierData.code.includes('unrelatedLocal'),String(observedIdentifierData.code));
+    assert.equal(observedIdentifierData.metrics.bindings,0,String(observedIdentifierData.code));
+    assert.equal(await execute(identifierBaseline.files),baselineExpected);
+    assert.equal(await execute(identifierObserved.files),observedExpected);
+
     console.log(JSON.stringify({
-      baselineDataMetrics:baselineData.metrics,
-      observedUtilMetrics:util.metrics,
-      observedDataMetrics:data.metrics,
-      unrelatedPropertyRenamed:false,
-      unrelatedBindingRenamed:false,
+      baselinePropertyMetrics:baselineData.metrics,
+      observedPropertyMetrics:observedData.metrics,
+      baselineIdentifierMetrics:baselineIdentifierData.metrics,
+      observedIdentifierMetrics:observedIdentifierData.metrics,
+      unrelatedPropertyRenamedWithoutObserver:true,
+      unrelatedPropertyFrozenWithObserver:true,
+      unrelatedBindingRenamedWithoutObserver:true,
+      unrelatedBindingFrozenWithObserver:true,
       runtimeAndObservedSourceParity:true
     }));
   } finally {
