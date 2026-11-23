@@ -2,7 +2,8 @@
 
 const {test}=require('node:test');
 const assert=require('node:assert/strict');
-const {learnBoundedDegreeOracle}=require('../sims/bounded-degree-oracle-functional-clone');
+const {learnBoundedDegreeOracle,evaluateBoundedDegreeModel}=
+  require('../sims/bounded-degree-oracle-functional-clone');
 const {prepareExactBoundedDegreeInverter,makeBoundedDegreeDefectContractor}=
   require('../sims/exact-quartic-compatible-cegar');
 
@@ -156,4 +157,46 @@ test('sparse degree-four coefficient tables still admit lower-weight derivative 
   contractor.contract(0x80000001,value=>combined.push(value));
   assert.deepEqual(combined,[0x80000000,0x80000000,0x80000000],
     'a two-bit direction must expose three distinct x coefficients');
+});
+
+
+test('sparse quartic ANF contractor matches raw second differences on random 32-bit points',()=>{
+  let nonzero=0;
+  let comparisons=0;
+  for(const seed of [0x7a3b1234,0x6cd33f18,0x123ee1b9]){
+    const next=random32(seed);
+    /** @type {Array<[number,number]>} */
+    const coefficients=[
+      [0,next()],[1,next()],[0x80000000,next()],
+      [0x80000007,0x80000000],[0xf,next()]
+    ];
+    for(let k=0;k<64;k++){
+      const weight=1+(next()%4);
+      let mask=0;
+      while(bitCount(mask)<weight)mask=(mask|(1<<(next()%32)))>>>0;
+      coefficients.push([mask,next()]);
+    }
+    const model={bits:32,degree:4,coefficients,queryCount:0};
+    const contractor=makeBoundedDegreeDefectContractor(model);
+    const evaluate=(/** @type {number} */ input)=>
+      evaluateBoundedDegreeModel(model,input>>>0)>>>0;
+    const vectors=[
+      [0,0],[0xffffffff,0x80000000],[0x80000000,0x7],
+      [0x12345678,0x87654321],[31,0x80000000]
+    ];
+    for(let i=0;i<64;i++)vectors.push([next(),next()]);
+    for(const [x,v] of vectors){
+      const expected=(evaluate(x^v)^evaluate(x)^evaluate(v)^evaluate(0))>>>0;
+      let predicted=0;
+      contractor.contract(v,(value,monomialMask)=>{
+        if(((x&monomialMask)>>>0)===monomialMask)
+          predicted=(predicted^value)>>>0;
+      });
+      assert.equal(predicted,expected,'ANF contractor disagreed with direct second difference');
+      if(predicted!==0)nonzero++;
+      comparisons++;
+    }
+  }
+  assert.equal(comparisons,3*69);
+  assert.ok(nonzero>0,'probe genuinely nonlinear source coefficients');
 });
