@@ -53,6 +53,7 @@ const PROJECTION_MASKS = [0x00015555, 0x0002aaaa, 0x0000f0f0, 0x00033333];
  * @property {string} minifiedSha256
  * @property {number} queries
  * @property {number} heldouts
+ * @property {string} heldoutInputsSha256
  * @property {number} matched
  * @property {number} privateExecutions
  * @property {number} deniedStatus
