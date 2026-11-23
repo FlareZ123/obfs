@@ -58,6 +58,32 @@ for(const mode of /** @type {const} */ (['coo','sno','sco'])){
   });
 }
 
+test('cross-script classic lexical class source stays visible to declared observers',()=>{
+  const scripts=[
+    [
+      'const owner={secretAlpha:23,secretBeta:7};',
+      'class Reader{read(){return owner.secretAlpha;}}',
+      'const reader=new Reader();',
+      'globalThis.value=reader.read()+owner.secretBeta;'
+    ].join('\\n'),
+    'globalThis.methodSource=Reader.prototype.read.toString();'
+  ];
+  /** @param {string[]} code */
+  function runScripts(code){
+    const context=vm.createContext({});
+    for(const script of code)vm.runInContext(script,context,{timeout:2000});
+    return JSON.stringify([context.value,context.methodSource]);
+  }
+  const native=runScripts(scripts);
+  const compiled=obfuscateFiles(scripts.map((code,index)=>({
+    path:'classic'+index+'.js',sourceType:'script',code
+  })),{mode:'coo',seed:'private-class-classic-source-v1',
+    closedWorld:true,properties:true,strings:false,identifiers:false});
+  assert.equal(compiled.files.reduce((count,file)=>count+file.metrics.properties,0),0,
+    'Global lexical class declarations are observable from another supplied classic script');
+  assert.equal(runScripts(compiled.files.map(file=>/** @type {string} */(file.code))),native);
+});
+
 test('nested direct-call-only function retains class-leaf property transformation',()=>{
   const source=[
     "'use strict';",
