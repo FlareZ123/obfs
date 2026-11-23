@@ -28,6 +28,21 @@ Seven ratios per arm (against that repetition's original/native process CPU), as
 
 The Windows candidate's **2.51613×** pair is a real **observed strict sample-budget veto** under the project's no-waiver rule, even though the seven-pair median is below 2.5 and all paired application outputs agree. No confidence statistic, median, warm-start amortization or cross-OS averaging may erase it. The observation itself does not identify compiler overhead as the sole cause: Windows process CPU timers are visibly coarser and the byte-identical placebo reached 1.51613× while ordinary minification reached 2.00000× without source-generation cost. At a shorter 1.2-million-event first attempt, Windows returned **0 CPU microseconds** for a ~11.3ms run and the test failed rather than fabricating a ratio; that discarded pilot is [CI 45119671125](https://github.com/FlareZ123/obfs/actions/runs/45119671125). The retained longer-loop data are still affected by Windows timer quantization and scheduling.
 
+## Independent CI-host replication and timer sensitivity
+
+To test whether the lone Windows strict breach is stable, the **exact same frozen source bytes and test inputs** were rerun on independently allocated Ubuntu/Windows GitHub-hosted runners. All three SHA-256 values, event counts, warm-up, source layout and deterministic generated circuit matched the first run exactly. The second focused two-platform [CI 45120292086](https://github.com/FlareZ123/obfs/actions/runs/45120292086) **passed** at source `75cd0b309be45dcbf23937c9d253408c89e8131a`; between run pins only repository documentation/communication changed.
+
+| Second run: OS and arm | Seven fresh-process paired ratios | Median | Max | Strict breaches |
+| --- | --- | ---: | ---: | ---: |
+| Ubuntu placebo | 1.00473, 1.08325, 0.99171, 1.02002, 0.99170, 0.98392, 0.98575 | 0.99171× | 1.08325× | 0/7 |
+| Ubuntu layered | 1.48942, 1.50140, 1.51924, 1.53513, 1.50535, 1.50664, 1.52429 | **1.50664×** | 1.53513× | 0/7 |
+| Ubuntu esbuild | 0.97392, 0.99574, 1.02854, 1.00612, 0.98165, 0.98754, 0.99043 | 0.99043× | 1.02854× | 0/7 |
+| Windows placebo | 0.78481, 0.81818, 0.50000, 1.65957, 1.00000, 1.00000, 1.25806 | 1.00000× | 1.65957× | 0/7 |
+| Windows layered | 0.98734, 1.01299, 0.65957, 2.00000, 1.65957, 1.31915, 1.50000 | **1.31915×** | 2.00000× | 0/7 |
+| Windows esbuild | 0.98734, 0.81818, 0.48936, 1.34043, 1.00000, 1.63830, 0.75806 | 0.98734× | 1.63830× | 0/7 |
+
+Across both complete seven-rep runs: **Ubuntu candidate 0/14 strict observed breaches; Windows candidate 1/14**. This replication strengthens a **workload-specific Ubuntu ~1.5× median slowdown** but shows **unstable Windows CPU ratios** (candidate median 1.49206× then 1.31915×; placebo spread 0.50×–1.66× despite identical bytes), consistent with coarse CPU scheduling/measurement. The first 2.51613× Windows strict ratio is **not reproduced in the second run**, so the evidence supports *a recorded sample-budget violation and significant measurement noise*, not a stable claim that layered work intrinsically requires >2.5× CPU. Do not silently discard the red sample: it remains part of the complete source-pinned record. No iid or universal bound is justified from 14 process samples on shared CI hosts.
+
 ## Security-performance interpretation
 
 For this frozen primitive and stateful graph, layered MBA has approximately **1.5× descriptive median hot CPU cost** on both operating systems, versus about 1.0× for the equal-source ordinary minifier. The same original layered functions are **offline functionally cloned in 8 authorized-looking calls** after publishing their math module; the identical eight-call attack clones the ordinary minifier, as shown by [the matched three-module adversary](bitwise-bit-slice-four-query-clone-2026-11-23.md). Thus the additional sampled compute cost has **no measured increment in black-box functional-cloning query complexity** for this specific bit-slice-local source family.
