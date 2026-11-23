@@ -71,7 +71,7 @@ for(const mode of /** @type {const} */ (['coo','sno'])){
         [file.path,String(file.code)]));
       const originalValue=evaluate(native);
       const compiledValue=evaluate(emitted);
-      const count=result.files.reduce((sum,file)=>sum+file.metrics.strings,0);
+      const count=result.files.reduce((sum,file)=>sum+file.metrics.literals,0);
       assert.equal(compiledValue,originalValue,
         'String decoder changed output after intrinsic mutation; encoded literals='+count+
         '; emitted target='+emitted['target.cjs']);
