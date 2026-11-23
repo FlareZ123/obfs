@@ -66,6 +66,7 @@ test('SCO serves original imported module bytes when import-map integrity pins i
     const address=server.address();
     assert.ok(address&&typeof address==='object');
     for(let attempt=0;attempt<2;attempt++){
+      /** @type {globalThis.Response} */
       const response=await fetch('http://127.0.0.1:'+address.port+'/custom/lib.mjs');
       assert.equal(response.status,200);
       assert.equal(await response.text(),original);
