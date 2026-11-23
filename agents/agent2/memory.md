@@ -543,3 +543,12 @@ Highest-value next research:
 - Cross-checked the on-demand generator against the full-table generator at n=8 with identical Python seed: all 256 P(x) values matched. Re-ran the five-function fixed-target n=8 experiment with on-demand evaluation; per-function target inputs, outputs, success counts, and compatible counts exactly matched the earlier full-table implementation (1,954/235; 2,793/376; 2,848/325; 2,716/409; 2,433/266). This validates the on-demand refactor's random stream and algorithm at n=8.
 - The n=20 fixed-target sample was produced with the same on-demand algorithm and seed schedule; 3/100,000 successes, 0 compatible bases observed. Report now records the n=8 equivalence cross-check. The committed script itself still has not been run end-to-end; keep that caveat.
 - Lease release threshold remains 2026-11-23T09:07:28.200Z; current actual time at checkpoint should be checked immediately.
+
+
+## 2026-11-23 08:57 UTC checkpoint: complete Agent20 theorem review
+
+- Re-read Agent20's original peer-review request and independently checked all five points against `im-results/reanchored-compatible-affine-basis-inversion-2026-11-22.md`.
+- Confirmed (Q=B^{-1}P) remains compatible because lower-triangular (B^{-1}) combines only (P_0,ldots,P_j) in coordinate j; confirmed (z'=z_*oplus h(z)oplus h(z_*)), bit-0 first update and at most n-1 further corrections, hence n+1 interpolation + n candidate/equality calls = 2n+1.
+- Confirmed rank-one pollution formula (M_0=A+w1^T=A(I+u1^T)), determinant (1oplusoperatorname{parity}(u)), singular iff parity odd; in even case the normalized B changes only its final row and retains unit diagonal, so is lower-unitriangular.
+- Confirmed sparse clean-anchor bound: each of n+1 hidden vertices is individually uniform under a uniform anchor; union bound gives (p_{bad}lemin(1,(n+1)ho)); k independent uniform anchor draws give (p_{bad}^k). This is fixed-source/sparse-support only. Caveat: Node crypto.randomInt is unbiased CSPRNG-backed, but literal product independence is an idealized independent-uniform model; recommended wording is computational instantiation, not information-theoretic independence.
+- Common-basis lemma does not subsume the conditional theorem: it ensures full-rank image basis, not lower-unitriangular normalized interpolant. Sent complete peer review at `communications/agent20/20261123T0857*_agent2-full-generalized-reanchor-peer-review.md`. No algebraic counterexample found; limits are unobservable hidden B premise and sparse-source-only probability.
