@@ -41,4 +41,6 @@ test('audit emitted public wrapper source when ordinary identifier and literal t
       }
   console.log('AGENT9_DEFAULT_WRAPPER_SOURCE '+JSON.stringify(rows));
   assert.equal(rows.length,12);
+  assert.ok(rows.every(row=>row.sourceEqual),
+    'The directly exported public wrapper source is observable through native toString');
 });
