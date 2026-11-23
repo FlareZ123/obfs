@@ -312,7 +312,9 @@
     "test/bitwise-mba-stateful-cpu-profile.test.js",
     "sims/word-affine-functional-clone.js",
     "test/word-affine-mba-functional-clone.test.js",
-    "test/sco-low-arity-remote-functional-clone.test.js"
+    "test/sco-low-arity-remote-functional-clone.test.js",
+    "sims/affine-conjugated-odometer-oracle-attack.js",
+    "test/affine-conjugated-odometer-oracle-attack.test.js"
   ],
   "exclude": [
     "node_modules"
