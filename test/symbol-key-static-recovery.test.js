@@ -12,8 +12,9 @@ const {recoverSymbolKeys}=require('../sims/symbol-key-static-recover');
 function sample(code) {
   const context={module:{exports:null}};
   vm.runInNewContext(code,context,{timeout:1000});
-  const calc=/** @type {(n:number)=>number} */ (context.module.exports);
-  return [calc(2),calc(4),calc(-3),calc(100)];
+  // The distributed example now publishes a finished result vector. Keep
+  // attacker comparisons on the same observable API as its publisher.
+  return Array.from(/** @type {number[]} */(context.module.exports));
 }
 
 test('seedless public-output attacker removes every Symbol key in generated example',async()=>{
@@ -26,7 +27,7 @@ test('seedless public-output attacker removes every Symbol key in generated exam
 });
 
 test('attacker also recovers private property accesses after ordinary identifier pass',()=>{
-  const source='const bag={privateFlag:7,gate:2};function f(x){bag.privateFlag+=x;return bag.privateFlag^bag.gate;}module.exports=f;';
+  const source='const bag={privateFlag:7,gate:2};function f(x){bag.privateFlag+=x;return bag.privateFlag^bag.gate;}module.exports=[f(2),f(4),f(-3)];';
   const output=obfuscateFiles([{path:'entry.cjs',code:source,sourceType:'commonjs'}],{
     mode:'sno',seed:'seed-unknown-to-attacker',strings:true,experimentalSymbolKeys:true
   });
@@ -57,8 +58,8 @@ test('instrumented native Symbol calls disclose all generated private keys',asyn
   assert.notEqual(captured[0],captured[1]);
   assert.equal(typeof captured[0],'symbol');
   assert.equal(Symbol.keyFor(captured[0]),undefined);
-  const calc=/** @type {(n:number)=>number} */ (context.module.exports);
-  assert.deepEqual([calc(2),calc(4),calc(-3)],[10,14,9]);
+  assert.deepEqual(Array.from(/** @type {number[]} */(context.module.exports)),
+    [10,14,9]);
 });
 
 test('host can silently collide generated keys without editing protected source',async()=>{
@@ -67,9 +68,8 @@ test('host can silently collide generated keys without editing protected source'
   const shared=Symbol('attacker-controlled-collision');
   const context={Symbol:()=>shared,module:{exports:null}};
   vm.runInNewContext(emitted,context,{timeout:1000});
-  const altered=/** @type {(n:number)=>number} */ (context.module.exports);
   const baseline=sample(original);
-  const tampered=[altered(2),altered(4),altered(-3),altered(100)];
+  const tampered=Array.from(/** @type {number[]} */(context.module.exports));
   assert.notDeepEqual(tampered,baseline);
   assert.equal(Object.isFrozen(context),false);
 });
