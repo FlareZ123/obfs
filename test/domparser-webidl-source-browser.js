@@ -30,6 +30,40 @@ const fixtures=[
     publicSource:true
   },
   {
+    name:'domparser-detached-call',
+    code:"function observed(){return 'source-observed-literal';}"+
+      "const parse=DOMParser.prototype.parseFromString;"+
+      "const doc=parse.call(new DOMParser(),observed,'text/html');"+
+      "globalThis.__obfsResult={coerced:doc.body.textContent,value:observed()};",
+    publicSource:true
+  },
+  {
+    name:'domparser-reflect-apply',
+    code:"function observed(){return 'source-observed-literal';}"+
+      "const parse=DOMParser.prototype.parseFromString;"+
+      "const doc=Reflect.apply(parse,new DOMParser(),[observed,'text/html']);"+
+      "globalThis.__obfsResult={coerced:doc.body.textContent,value:observed()};",
+    publicSource:true
+  },
+  {
+    name:'element-bound-setattribute',
+    code:"function observed(){return 'source-observed-literal';}"+
+      "const element=document.createElement('span');"+
+      "const set=Element.prototype.setAttribute.bind(element,'data-source');"+
+      "set(observed);"+
+      "globalThis.__obfsResult={coerced:element.getAttribute('data-source'),value:observed()};",
+    publicSource:true
+  },
+  {
+    name:'element-reflect-apply',
+    code:"function observed(){return 'source-observed-literal';}"+
+      "const element=document.createElement('span');"+
+      "const setter=Element.prototype.setAttribute;"+
+      "Reflect.apply(setter,element,['data-source',observed]);"+
+      "globalThis.__obfsResult={coerced:element.getAttribute('data-source'),value:observed()};",
+    publicSource:true
+  },
+  {
     name:'nonescaping-control',
     code:"function observed(){return 'source-observed-literal';}"+
       "globalThis.__obfsResult={coerced:'inert',value:observed()};",
@@ -158,9 +192,9 @@ async function main() {
     sourceMismatches,minifiedSourceMismatches,
     publicStringRewrites,privateRewriteControls
   };
-  assert.equal(summary.cases,9);
-  assert.equal(summary.valueMatches,9);
-  assert.equal(summary.minifiedValueMatches,9);
+  assert.equal(summary.cases,21);
+  assert.equal(summary.valueMatches,21);
+  assert.equal(summary.minifiedValueMatches,21);
   console.log('WEBIDL_FUNCTION_SOURCE_SUMMARY '+JSON.stringify(summary));
   return summary;
 }
