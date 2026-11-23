@@ -123,6 +123,38 @@ test('adjacent owner primitive remains primitive with hostile inherited getter',
   }
 });
 
+
+for(const [kind,literal,rendered] of /** @type {Array<[string,string,string]>} */ ([
+  ['number','37','37'],
+  ['boolean','true','true'],
+  ['null','null','null'],
+  ['string','"owned"','owned'],
+  ['bigint','37n','37']
+])) {
+  for(const key of ['secretValue','_privateValue','toString']) {
+    test('adjacent field primitive matrix '+kind+' '+key+' preserves source semantics',async()=>{
+      /** @type {Source[]} */
+      const sources=[
+        {path:'state.mjs',sourceType:'module',
+          code:'export const state={'+key+':'+literal+',otherKey:5};'+
+            'export const observed=state.'+key+';'},
+        {path:'index.mjs',sourceType:'module',
+          code:'import {observed} from "./state.mjs";'+
+            'export const result=String(observed);'}
+      ];
+      assert.equal(collectVerifiedImportedPrimitives(sources)
+        .get('index.mjs')?.has('observed'),true);
+      const obfuscated=obfuscateFiles(sources,{mode:'coo',seed:'adjacent-matrix-'+kind+key,
+        closedWorld:true,strings:false,identifiers:false,properties:true});
+      const emitted=obfuscated.files.map(file=>({
+        path:file.path,sourceType:/** @type {'module'} */('module'),code:String(file.code)
+      }));
+      assert.equal(await runNative(sources),rendered);
+      assert.equal(await runNative(emitted),rendered);
+    });
+  }
+}
+
 for(const [label,producer] of /** @type {Array<[string,string]>} */ ([
   ['intervening object mutation',
     'export const state={secretValue:3,otherKey:5};'+
