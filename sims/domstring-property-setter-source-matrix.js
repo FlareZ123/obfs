@@ -67,7 +67,10 @@ const dispatchCases=[
     positiveAssignment:'setId.call(target,"literal");'},
   {name:'Reflect.apply native descriptor setter',setup:'const target=document.createElement("div");const setId=Object.getOwnPropertyDescriptor(Element.prototype,"id").set;',
     assignment:'Reflect.apply(setId,target,[inspect]);',read:'target.id',
-    positiveAssignment:'Reflect.apply(setId,target,["literal"]);'}
+    positiveAssignment:'Reflect.apply(setId,target,["literal"]);'},
+  {name:'Proxy forwarding to native setter',setup:'const target=document.createElement("div");const proxy=new Proxy(target,{set(object,key,value){return Reflect.set(object,key,value,object);}});',
+    assignment:'proxy.id=inspect;',read:'target.id',
+    positiveAssignment:'proxy.id="literal";'}
 ];
 
 /**
@@ -224,6 +227,19 @@ async function main() {
   bodies.set('/custom-accessor-native.mjs',customAccessorSource);
   bodies.set('/custom-accessor-compiled.mjs',customAccessorOutput.code);
 
+  const proxyStorageSource=[
+    'const observedOwner={secretField:57};',
+    'function inspect(){return observedOwner.secretField;}',
+    'const independent={independentSecret:73};',
+    'const target=document.createElement("div");',
+    'const proxy=new Proxy(target,{set(object,key,value){object._stored=value;return true;}});',
+    'proxy.id=inspect;',
+    'export const observed={value:target._stored(),independent:independent.independentSecret};'
+  ].join('\n');
+  const proxyStorageOutput=compile(proxyStorageSource,'domstring-proxy-storage-positive');
+  bodies.set('/proxy-storage-native.mjs',proxyStorageSource);
+  bodies.set('/proxy-storage-compiled.mjs',proxyStorageOutput.code);
+
   const negativeLogic=[
     'const observedOwner={secretField:57};',
     'export function inspect(){return observedOwner.secretField;}',
@@ -327,6 +343,10 @@ async function main() {
     '  import("/custom-accessor-native.mjs"),import("/custom-accessor-compiled.mjs")]);',
     ' const customAccessorControl={native:an.observed,emitted:ae.observed,',
     '  parity:JSON.stringify(an.observed)===JSON.stringify(ae.observed)};',
+    ' const [pn,pe]=await Promise.all([',
+    '  import("/proxy-storage-native.mjs"),import("/proxy-storage-compiled.mjs")]);',
+    ' const proxyStorageControl={native:pn.observed,emitted:pe.observed,',
+    '  parity:JSON.stringify(pn.observed)===JSON.stringify(pe.observed)};',
     ' const [cn,ce,pn,pe]=await Promise.all([',
     '  import("/native-negative/observer.mjs"),import("/compiled-negative/observer.mjs"),',
     '  import("/native-positive/observer.mjs"),import("/compiled-positive/observer.mjs")]);',
@@ -340,7 +360,7 @@ async function main() {
     '    JSON.stringify(pn.observed)===JSON.stringify(pe.observed),',
     '  negativeProperties:'+crossNegativeProperties+',',
     '  positiveProperties:'+crossPositiveProperties+'};',
-    ' document.getElementById("result").textContent=JSON.stringify({rows,dispatchRows,userland,dataPropertyControl,customAccessorControl,crossFile});',
+    ' document.getElementById("result").textContent=JSON.stringify({rows,dispatchRows,userland,dataPropertyControl,customAccessorControl,proxyStorageControl,crossFile});',
     '}catch(error){document.getElementById("result").textContent=',
     ' "BROWSER_ERROR "+String(error.stack||error);}',
     '</script>'
@@ -402,13 +422,21 @@ async function main() {
       customAccessorControl.native.value===57&&customAccessorControl.emitted.value===57&&
       customAccessorControl.native.independent===73&&customAccessorControl.emitted.independent===73&&
       customAccessorOutput.properties>=1;
+    const proxyStorageControl=browser.proxyStorageControl;
+    const proxyStoragePositive=proxyStorageControl.parity&&
+      proxyStorageControl.native.value===57&&proxyStorageControl.emitted.value===57&&
+      proxyStorageControl.native.independent===73&&proxyStorageControl.emitted.independent===73&&
+      proxyStorageOutput.properties>=1;
+    const dispatchExpectedRed=dispatchRows.length===dispatchCases.length&&
+      dispatchRows.every((/** @type {any} */ row)=>row.sourceMismatch&&row.numericParity&&
+        row.independentParity&&row.positiveParity);
     const summary={
-      expectedRedReproduced:allExpectedRed&&userlandPositive&&crossFileExpectedRed&&dataPropertyPositive&&customAccessorPositive,
+      expectedRedReproduced:allExpectedRed&&userlandPositive&&crossFileExpectedRed&&dataPropertyPositive&&customAccessorPositive&&proxyStoragePositive&&dispatchExpectedRed,
       sinkCount:rows.length,
       sourceMismatchCount:rows.filter((/** @type {any} */ row)=>row.sourceMismatch).length,
       sourceMismatchNames:rows.filter((/** @type {any} */ row)=>row.sourceMismatch).map(
         (/** @type {any} */ row)=>row.name),
-      crossFileExpectedRed,crossFile,dispatchSummary,dataPropertyControl,customAccessorControl,
+      crossFileExpectedRed,crossFile,dispatchSummary,dataPropertyControl,customAccessorControl,proxyStorageControl,
       rows,userland,
       userlandProperties:userlandOutput.properties
     };
