@@ -43,8 +43,7 @@ const safeScenarios=[
 
 for(const scenario of safeScenarios){
   test('safe Error-carrier precision retains private renaming: '+scenario.name,async()=>{
-    assert.equal(observesFunctionSource(parse(scenario.consumer,'module')),false,
-      scenario.name+' cannot be classified as a native Error stack observer');
+    const observes=observesFunctionSource(parse(scenario.consumer,'module'));
     /** @type {import('../src/core').SourceFile[]} */
     const originals=[
       {path:'producer.mjs',sourceType:'module',code:producer},
@@ -53,7 +52,13 @@ for(const scenario of safeScenarios){
     const emitted=obfuscateFiles(originals,{
       mode:'coo',closedWorld:true,seed:'agent39-carrier-positive-'+scenario.name
     });
-    assert.equal(emitted.files.reduce((sum,file)=>sum+file.metrics.properties,0),1,
+    const propertyRewrites=emitted.files.reduce((sum,file)=>sum+file.metrics.properties,0);
+    console.log('CARRIER_PRECISION_EVIDENCE '+JSON.stringify({
+      scenario:scenario.name,observes,propertyRewrites
+    }));
+    assert.equal(observes,false,
+      scenario.name+' cannot be classified as a native Error stack observer');
+    assert.equal(propertyRewrites,1,
       scenario.name+' must retain one genuinely renamed private own field');
     const directory=await mkdtemp(path.join(tmpdir(),'obfs-carrier-positive-'));
     try{
