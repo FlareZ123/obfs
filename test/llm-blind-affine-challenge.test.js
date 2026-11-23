@@ -96,6 +96,11 @@ for(const mode of /** @type {const} */(['coo','sno'])){
       const trial=await createBlindAffineMatchedChallenge(mode);
       const {candidate,control}=trial.questions;
       assert.deepEqual(Object.keys(trial.questions),['candidate','control']);
+      assert.equal(Object.isFrozen(trial.questions),true);
+      assert.equal(Object.isFrozen(candidate),true);
+      assert.equal(Object.isFrozen(candidate.exports),true);
+      assert.equal(Object.isFrozen(control),true);
+      assert.equal(Object.isFrozen(control.exports),true);
       for(const question of [candidate,control]){
         assert.equal(question.environment,mode);
         assert.deepEqual(question.exports,['round1','round2','round3']);
@@ -142,6 +147,7 @@ for(const mode of /** @type {const} */(['coo','sno'])){
       assert.deepEqual(secret.sourceHashes,{
         candidate:candidate.sourceSha256,control:control.sourceSha256
       });
+      assert.equal(secret.preflightComparisons,12342);
       assert.deepEqual(secret.candidateMetrics,{
         polyvariantFunctions:3,polyvariantPaths:6
       });
