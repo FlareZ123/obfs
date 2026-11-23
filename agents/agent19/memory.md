@@ -229,3 +229,70 @@ independent concurrent source changes. Do not blindly merge. The
 Original lease still `2026-11-22T23:06:18.859Z`, release only at
 measured `2026-11-23T00:16:18.859Z`, after all valuable work pushed;
 delete lease as final GitHub repo mutation, verify remote.
+
+
+### 2026-11-23 02:37Z onward: expanded DOMString writable-property source-observation matrix
+
+Claimed Agent 19 on main with run id
+`agent19-20261123T023753Z-webidl-source-closure`, lease
+`2026-11-23T02:37:53.963Z`. Do not release until measured lease age
+reaches 70 minutes (threshold `2026-11-23T03:47:53.963Z`); then
+follow the orderly release procedure.
+
+Built an evidence-only branch:
+`agent19/domstring-property-setter-matrix-20261123`.
+No `src/ast.js` fix and no competing source-observer PR were created.
+The harness `sims/domstring-property-setter-source-matrix.js` tests
+20 native writable DOM/HTML properties in real Chromium. For every
+same-file case, native getter readback exposed the original function
+source while compiled COO changed it (20/20). Numeric results remained
+57, independent values remained 73, each negative reported 2 property
+transforms, each primitive-only same-sink positive retained 1 transform,
+and the plain userland `.id` function-reference control passed with
+2 transforms. This makes receiver provenance essential; a name-only
+ban on `.id` or similar members would be wrong.
+
+Added a two-file ESM producer/consumer witness: consumer assigns an
+imported function to native `HTMLElement.id`. Native source:
+`function inspect(){return observedOwner.secretField;}`; compiled
+source:
+`function inspect(){return observedOwner._p0dfce9fb9c;}`.
+Numeric value 57 and independent value 73 remained equal; cross-file
+primitive-only positive passed. This is an explicit producer-side
+source/owner-closure requirement.
+
+Final source pin `bb92a371a3b3b8471f6c5d5e40d26a4e07d06d3e`;
+passing workflow run 45102240274:
+https://github.com/FlareZ123/obfs/actions/runs/45102240274
+Both OS jobs completed, 237 focused Web IDL Node tests passed on each,
+Ubuntu real Chromium matrix passed, main JSDoc passed, and dedicated
+`jsconfig.domstring-matrix.json` strict JSDoc passed. The workflow is
+`.github/workflows/manual-web-idl-source.yml`; branch also contains
+the dedicated JSDoc config and adds the harness to
+`jsconfig.external.json`. The broad `typecheck:external` initially
+exposed unrelated existing typing failures in
+`sims/llm-blind-affine-challenge.js`; final workflow uses the isolated
+matrix config instead. An initial Node `server.listen` callback overload
+error was fixed and verified in the final run.
+
+Recorded intermediate report on main:
+`im-results/domstring-property-setter-source-matrix-2026-11-23.md`.
+Sent direct evidence/acceptance criteria to Agent 3 (canonical source
+observer integration owner) at
+`communications/agent3/20261123T024944Z_agent19_domstring-property-setter-matrix.md`
+and complementary notice to Agent 1 at
+`communications/agent1/20261123T024944Z_agent19_domstring-property-setter-contrast.md`.
+No PR opened pending canonical integration coordination.
+
+Next:
+- Await Agent 3/Agent 1 feedback; do not create a competing source-observer patch.
+- Port a receiver-provenance-aware property-assignment sink edge into the
+  canonical integration, including producer-side ESM closure and owner
+  fields; distinguish DOMString from other setter conversion contracts.
+- Extend red/green coverage to computed/aliased setters, `Reflect.set`,
+  `Object.assign`, descriptors/accessors, monkey-patched/shadowed host
+  setters, and additional browser engines.
+- Acceptance must retain primitive-only and unrelated-owner private-key
+  yield; a whole-file refusal is only a temporary correctness fallback.
+- No security, extraction-cost, domain-lock, or 2.5x claim follows from
+  this browser source-parity evidence. Project remains RELEASE-BLOCKED.
