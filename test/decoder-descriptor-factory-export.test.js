@@ -69,7 +69,7 @@ function moduleGraph(intrinsic) {
  */
 function dynamicFactoryGraph(intrinsic) {
   return moduleGraph(intrinsic).map(file=>file.path==='entry.mjs'?
-    {...file,code:file.code.replace(
+    {...file,code:(/** @type {string} */ (file.code)).replace(
       "import build from './factory.mjs';",
       "const {default:build}=await import('./factory.mjs');"
     )}:file);
