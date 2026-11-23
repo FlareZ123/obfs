@@ -269,6 +269,12 @@ function resolveLexicalReferences(root,sourceType) {
         parent.type==='TaggedTemplateExpression'&&key==='tag')return 'call';
     if (parent.type==='NewExpression'&&key==='callee')return 'construct';
     if (parent.type==='UpdateExpression'&&key==='argument')return 'read-write';
+    // A direct `delete name` attempts to remove a binding from its
+    // environment record. In sloppy scripts an unbound host-root name may
+    // designate a configurable global property; it is not a passive read.
+    // `delete obj[name]` still reads the computed key as usual.
+    if(parent.type==='UnaryExpression'&&parent.operator==='delete'&&
+       key==='argument')return 'write';
     if (parent.type==='AssignmentExpression'&&key==='left')
       return parent.operator==='='?'write':'read-write';
     if (parent.type==='AssignmentPattern'&&key==='left')return 'write';
