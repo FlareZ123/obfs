@@ -1,7 +1,7 @@
 'use strict';
 
 const {createHash} = require('node:crypto');
-const {parse, walk, applyEdits, observesFunctionSource, staticString, sourceSpelledErrorOperand} = require('./ast');
+const {parse, originalSourceType, walk, applyEdits, observesFunctionSource, staticString, sourceSpelledErrorOperand} = require('./ast');
 
 /** @typedef {import('./ast').AstNode} AstNode */
 
@@ -1212,6 +1212,10 @@ function collectPrivateDirectCallables(ast,bindings=collectBindings(ast)) {
   /** @type {Set<AstNode>} */
   const directCallables=new Set();
   if(inventory.dynamicScope)return new Set();
+  // Top-level classic-script function and lexical bindings are visible to
+  // subsequent scripts in the same Realm. Purely local CallExpression uses
+  // therefore cannot prove those sources private.
+  const classicScript=originalSourceType(ast)==='script';
   // Legacy Function#caller lets a called sloppy function expose the source
   // of its own caller. Even a lexically direct-call-only caller may therefore
   // escape through a callee with no explicit reference to the caller binding.
@@ -1280,6 +1284,7 @@ function collectPrivateDirectCallables(ast,bindings=collectBindings(ast)) {
   }
   for(const fn of inventory.functionDeclarations) {
     if(fn.type!=='FunctionDeclaration'||fn.id?.type!=='Identifier'||
+       classicScript&&inventory.parents.get(fn)?.type==='Program'||
        !directCallOnly(fn.id.name,fn.id)||hasSelfSourceObserver(fn)||
        /^Export/.test(inventory.parents.get(fn)?.type??''))continue;
     directCallables.add(fn);
@@ -1287,6 +1292,7 @@ function collectPrivateDirectCallables(ast,bindings=collectBindings(ast)) {
   for(const decl of inventory.callableDeclarators) {
     const container=inventory.parents.get(decl);
     if(container?.type!=='VariableDeclaration'||container.kind!=='const'||
+       classicScript&&inventory.parents.get(container)?.type==='Program'||
        decl.id.type!=='Identifier'||!decl.init||
        !['ArrowFunctionExpression','FunctionExpression'].includes(decl.init.type)||
        !directCallOnly(decl.id.name,decl.id)||hasSelfSourceObserver(decl.init)||
