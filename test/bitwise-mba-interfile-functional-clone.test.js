@@ -10,7 +10,7 @@ const {cloneBitwiseBitSlice}=require('../sims/bitwise-bit-slice-clone');
 
 const mathSource=[
   'function roundA(x,y){return (((x^y)&0x55aa00ff)^(x&~y))|0;}',
-  'function roundB(x,y){return (((x^y)|(x&y))^((~x)&y))|0;}',
+  'function roundB(x,y){return (((x^y)|(x&y))^((~x)&0x13579bdf))|0;}',
   'module.exports={roundA,roundB};'
 ].join('\n');
 const engineSource=[
@@ -20,7 +20,7 @@ const engineSource=[
   ' return {step(a,b,emit){',
   '  const first=math.roundA(state^a,b);',
   '  const second=math.roundB(first,a^b);',
-  '  state=(second^first)|0;',
+  '  state=(second^((first<<7)|(first>>>25))^Math.imul(a,33)^b)|0;',
   '  if(emit)emit(state,first,second);',
   '  return state;',
   ' }, current(){return state;}};',
