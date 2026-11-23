@@ -59,3 +59,11 @@ An extension to the same test file, exact branch commit `2e915340a0f75b5904945ba
 ## External runtime documentation
 
 The official [V8 Stack Trace API](https://v8.dev/docs/stack-trace-api) describes custom `Error.prepareStackTrace` callbacks receiving structured `CallSite` frames, including `getFunction()`. It explicitly says that a strict-mode function frame, and frames below it, expose neither `getFunction()` nor `getThis()` (both return `undefined`). This independently documents the runtime feature used by the two-platform tests, and limits the modeled observer capability. It does not prove compiler soundness, effect propagation, or a browser security boundary.
+
+## Real SNO launcher source parity
+
+The subsequent research-branch commit `8f17fbecbb0392491e9f104d65bc6fdd7981919a` extends the same executable suite to the actual `createSnoLauncher` entry mechanism: it writes a freshly compiled `case.cjs`, packages its SHA-256 manifest in `sno-entry.cjs`, then executes the actual Node CommonJS `require` path. The original file runs through its own native CommonJS loader, and the same external sloppy callback is installed as a host global for each run. All temporary files and host-global descriptors are cleaned up.
+
+[Two-platform focused run 45127771222](https://github.com/FlareZ123/obfs/actions/runs/45127771222) verified **10 tests per OS: 6 passing independent/strict controls and 4 intentionally failing exact-source assertions**. The fourth failure is specifically the real SNO launcher: the initial SHA-256 manifest check succeeds, native and emitted CommonJS module exports both equal 31, the native callback sees `owner.privateSecret`, and the actual compiled launcher callback sees `owner._p086136c0d7`. This addresses the previous limitation that mode-label tests only exercised `obfuscateFiles` directly for SNO.
+
+This is a reproducible **behavior-preservation defect in external function-source visibility**, not an SNO manifest-integrity failure or tamper bypass. The source under observation is a local **non-strict** CommonJS helper. It remains outside any claim about strict ESM, browser module evaluation, hostile Node interception, or the primary adversarial security and performance objectives.
