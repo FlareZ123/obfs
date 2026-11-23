@@ -4,6 +4,7 @@ const assert=require('node:assert/strict');
 const {test}=require('node:test');
 const vm=require('node:vm');
 const {obfuscateFiles}=require('../src/core');
+const {recoverSymbolKeys}=require('../sims/symbol-key-static-recover');
 
 /** @type {Array<'coo'|'sno'|'sco'>} */
 const MODES=['coo','sno','sco'];
@@ -50,6 +51,9 @@ for(const mode of MODES){
     assert.equal(run(/** @type {string} */(output.code)),run(original));
     assert.doesNotMatch(/** @type {string} */(output.code),/\bsecretAlpha\b|\bsecretBeta\b/u);
     assert.equal((/** @type {string} */(output.code).match(/=Symbol\(\)/gu)??[]).length,2);
+    const recovered=recoverSymbolKeys(/** @type {string} */(output.code),'commonjs');
+    assert.equal(recovered.keys,2,'Public source-only attacker recovers both Symbol fields');
+    assert.equal(run(recovered.code),run(original),'Recovered standalone clone has full behavior');
   });
 }
 
