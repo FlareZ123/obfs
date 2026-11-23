@@ -477,10 +477,11 @@ function proveLocalObject(ast, rootName, bindings, importedIdentityFunctions=new
   if(observesFunctionSource(ast,importedSourceKeys,new Set(),new Set(),importedPrimitives)) return null;
   /** @type {Map<string,{node:AstNode,params:AstNode[],forwardIndex:number,returnsRoot?:boolean,external?:boolean,consumerIndex?:number}>} */
   const functions = new Map();
+  const inventory=collectProofInventory(ast);
   const {calls,declarationSet,identifiers,identifierUses,parents,dynamicScope,
     functionDeclarations,callableDeclarators,directInvokedArrows,
     directAliasDeclarations,complexAliasDeclarations,
-    tupleDeclarations,recordDeclarations}=collectProofInventory(ast);
+    tupleDeclarations,recordDeclarations}=inventory;
   for(const node of functionDeclarations){
     if (node.type === 'FunctionDeclaration' && node.id?.type === 'Identifier' &&
         bindings.get(node.id.name) === 1) {
@@ -780,7 +781,7 @@ function proveLocalObject(ast, rootName, bindings, importedIdentityFunctions=new
   // Conversely, a value stored, returned, exported, or passed elsewhere can
   // expose its original body through Function#toString.
   const privateFunctionNodes=new Set([...directInvokedArrows,
-    ...locallyPrivateClassMethods(ast,bindings,scopes,collectProofInventory(ast))]);
+    ...locallyPrivateClassMethods(ast,bindings,scopes,inventory)]);
   /** @type {{name:string,node:AstNode,decl:AstNode}[]} */
   const callableBindings=[];
   for(const node of functionDeclarations) {
