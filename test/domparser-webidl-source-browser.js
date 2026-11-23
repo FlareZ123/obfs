@@ -5,6 +5,7 @@ const http=require('node:http');
 const {execFile}=require('node:child_process');
 const {promisify}=require('node:util');
 const {obfuscateFiles}=require('../src/core');
+const {transformSync}=require('esbuild');
 
 const execFileAsync=promisify(execFile);
 
@@ -68,12 +69,12 @@ async function readBrowser(url) {
  * nonescaping private string. This is a diagnostic and deliberately does not
  * assert the candidate's suspected source mismatch before it is reproduced.
  *
- * @returns {Promise<{cases:number,valueMatches:number,sourceMismatches:number,publicStringRewrites:number,privateRewriteControls:number}>}
+ * @returns {Promise<{cases:number,valueMatches:number,minifiedValueMatches:number,sourceMismatches:number,minifiedSourceMismatches:number,publicStringRewrites:number,privateRewriteControls:number}>}
  */
 async function main() {
   /** @type {Map<string,string>} */
   const resources=new Map();
-  /** @type {{mode:string,name:string,publicSource:boolean,original:string,emitted:string,literals:number}[]} */
+  /** @type {{mode:string,name:string,publicSource:boolean,original:string,emitted:string,minified:string,literals:number}[]} */
   const pairs=[];
   for(const mode of /** @type {const} */ (['coo','sno','sco'])) {
     for(const fixture of fixtures) {
@@ -86,13 +87,18 @@ async function main() {
       const prefix='/'+mode+'/'+fixture.name;
       const original=prefix+'/original/index.html';
       const compiled=prefix+'/emitted/index.html';
+      const minified=prefix+'/minified/index.html';
       resources.set(prefix+'/original/entry.mjs',fixture.code);
       resources.set(prefix+'/emitted/entry.mjs',String(emitted.files[0].code));
+      resources.set(prefix+'/minified/entry.mjs',transformSync(fixture.code,{
+        format:'esm',target:'es2022',minify:true
+      }).code);
       resources.set(original,page());
       resources.set(compiled,page());
+      resources.set(minified,page());
       pairs.push({
         mode,name:fixture.name,publicSource:fixture.publicSource,
-        original,emitted:compiled,literals:emitted.files[0].metrics.literals
+        original,emitted:compiled,minified,literals:emitted.files[0].metrics.literals
       });
     }
   }
@@ -111,6 +117,8 @@ async function main() {
     server.listen(0,'127.0.0.1',()=>resolve(undefined));
   });
   let valueMatches=0;
+  let minifiedValueMatches=0;
+  let minifiedSourceMismatches=0;
   let sourceMismatches=0;
   let publicStringRewrites=0;
   let privateRewriteControls=0;
@@ -121,29 +129,38 @@ async function main() {
     for(const pair of pairs) {
       const original=await readBrowser(origin+pair.original);
       const compiled=await readBrowser(origin+pair.emitted);
+      const minified=await readBrowser(origin+pair.minified);
       const valueEqual=original.value===compiled.value;
       const sourceEqual=original.coerced===compiled.coerced;
       valueMatches+=Number(valueEqual);
+      const minifiedValueEqual=original.value===minified.value;
+      minifiedValueMatches+=Number(minifiedValueEqual);
+      if(pair.publicSource)minifiedSourceMismatches+=Number(original.coerced!==minified.coerced);
       if(pair.publicSource) {
         sourceMismatches+=Number(!sourceEqual);
         publicStringRewrites+=Number(pair.literals>0);
       }else if(pair.literals>0&&valueEqual&&sourceEqual)privateRewriteControls++;
       console.log('WEBIDL_FUNCTION_SOURCE '+JSON.stringify({
         mode:pair.mode,case:pair.name,literals:pair.literals,
-        valueEqual,sourceEqual,originalSource:original.coerced,
+        valueEqual,sourceEqual,minifiedValueEqual,
+        minifiedSourceEqual:original.coerced===minified.coerced,
+        originalSource:original.coerced,
         compiledSource:compiled.coerced
       }));
-      assert.ok(valueEqual,'Ordinary runtime behavior changed: '+pair.mode+'/'+pair.name);
+      assert.ok(valueEqual,'Obfuscated ordinary behavior changed: '+pair.mode+'/'+pair.name);
+      assert.ok(minifiedValueEqual,'Minified ordinary behavior changed: '+pair.mode+'/'+pair.name);
     }
   }finally{
     await new Promise(resolve=>server.close(resolve));
   }
   const summary={
-    cases:pairs.length,valueMatches,sourceMismatches,
+    cases:pairs.length,valueMatches,minifiedValueMatches,
+    sourceMismatches,minifiedSourceMismatches,
     publicStringRewrites,privateRewriteControls
   };
   assert.equal(summary.cases,9);
   assert.equal(summary.valueMatches,9);
+  assert.equal(summary.minifiedValueMatches,9);
   console.log('WEBIDL_FUNCTION_SOURCE_SUMMARY '+JSON.stringify(summary));
   return summary;
 }
