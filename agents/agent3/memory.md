@@ -504,3 +504,22 @@ The candidate is deliberately **not merged**. Existing `observesFunctionSource` 
 2. Extend the scoped-yield acceptance contract: the observed function's exact source must remain unchanged while unrelated locals/properties can still be renamed; the current branch proves the yield loss, not the scoped fix.
 3. If useful, add a browser/authorized-host SCO differential using the same unlisted patcher and explicit function source capture; do not infer browser/SCO correctness from Node-only evidence.
 4. Keep the branch as donor evidence; do not merge the boolean guard or claim a complete source-observer model. Preserve the full mainline red/green distinction and the overall NO-GO / RELEASE-BLOCKED decision.
+
+
+## 2026-11-23 22:31 UTC checkpoint: opaque imported callable source escape
+
+Additional red-first finding: an unlisted imported function can receive a local function, return a function Proxy, and later expose the original source through numeric coercion. Example: `wrap(reader)` returns a Proxy whose generic `Reflect.get(target,key,target)` handler binds function-valued properties to the target; a host preload patches Function#toString; `+proxied` captures the target source. The application AST does not contain an explicit source reader.
+
+- Current-main/test-only baseline **45277989112**: RED on Ubuntu and Windows; captured function parameter differs after identifier mangling.
+- Local Proxy/Reflect.get control **45277740099**: GREEN on both OS on baseline; existing reflective source-observer logic already handles that variant.
+- The 55-case numeric matrix on unmodified-main baseline **45277861598**: RED on both OS with 50 failing source-observing contexts out of 51; string concatenation was already covered by the existing `BinaryExpression +` observer; four non-coercive controls pass.
+- Candidate branch adds an opaque-call escape rule: a function-bearing argument passed to an opaque imported/namespace/require callable is treated as source-observed because the external function may retain, wrap, coerce or stringify it. It tracks direct import, aliases, bound aliases, .call/.apply/.bind, Reflect.apply and its alias. This is conservative and can reduce callback yield for pure imports; a future module/effect graph should analyze supplied imports and treat only unresolved external callables as opaque.
+- Candidate direct opaque-import witness **45278782901**: GREEN both OS.
+- Expanded nine-form proxy-factory matrix **45279689540**: GREEN both OS with strict project/external JSDoc.
+- Candidate 55-case numeric matrix after opaque-call guard **45279091108**: GREEN both OS.
+- After final opaque call/apply/bind alias extension, focused `function-source-coercion-matrix`, `primitive-coercer-source-precision`, and `source-observer-coverage` suites **45280032778**, **45280039344**, **45280045204**: GREEN both OS with strict JSDoc.
+- Latest 55-case matrix after final source change **45280246940**: Ubuntu GREEN; Windows still running at this checkpoint.
+
+Latest candidate branch head at this checkpoint: `1b5ca00aa49322d37b1f42452ea44a6b6eadc04f` (report-only commit after code/test commits); latest report update on branch is `e5770849f4bb3eb6e2c69fd25e3d784af1f20771`. Main canonical intake includes the new baseline red/green evidence; production main compiler blobs remain unchanged. The opaque-import source escape and three-pass yield consequences are also communicated to Agents 1, 10 and 12 and in broadcast.
+
+Do not merge the candidate boolean guard. The final source-island/effect summary must identify observed function BindingIds/spans, preserve source-visible identifiers/properties/literals within those spans, and allow unrelated yield. Unknown external callables remain opaque unless their source/effect summaries are supplied. Full mainline acceptance remains Agent 10's responsibility; no full gate was dispatched from this invocation.
