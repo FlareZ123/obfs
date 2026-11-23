@@ -33,7 +33,44 @@ test('real Chromium ESM matches source and public-bytecode clone for coerced add
     '    throw Error("native/Wasm/clone mismatch "+i);',
     '  checked++;',
     ' }',
-    ' document.getElementById("answer").textContent="pass:"+checked;',
+    'const rows=Array.from({length:2048},(_,i)=>[',
+    ' Math.imul(i^0x4c957f2d,1664525)|0,',
+    ' Math.imul(i+0x7f4a7c15,1013904223)|0',
+    ']);',
+    'function makeWork(fn){return function work(rounds){',
+    ' let checksum=0;',
+    ' for(let i=0;i<rounds;i++){',
+    '  const r=rows[i&2047];checksum^=fn(r[0],r[1]);',
+    ' }',
+    ' return checksum|0;',
+    '};}',
+    'const work={native:makeWork(native),wasm:makeWork(wasm),',
+    ' reconstructed:makeWork(reconstructed)};',
+    'const names=["native","wasm","reconstructed"];',
+    'const expected=work.native(120000);',
+    'for(let warm=0;warm<6;warm++)for(const name of names){',
+    ' if(work[name](120000)!==expected)throw Error("warm checksum mismatch "+name);',
+    '}',
+    'const measures={native:[],wasm:[],reconstructed:[]};',
+    'const orders=[["native","wasm","reconstructed"],',
+    ' ["reconstructed","wasm","native"],',
+    ' ["wasm","native","reconstructed"]];',
+    'for(let trial=0;trial<13;trial++){',
+    ' for(const name of orders[trial%3]){',
+    '  const start=performance.now();',
+    '  const result=work[name](180000);',
+    '  const time=performance.now()-start;',
+    '  if(result!==work.native(180000)||!Number.isFinite(time)||time<=0)',
+    '    throw Error("browser timing invalid "+name);',
+    '  measures[name].push(time);',
+    ' }',
+    '}',
+    'const median=a=>[...a].sort((x,y)=>x-y)[Math.floor(a.length/2)];',
+    'const browserRatio=median(measures.wasm)/median(measures.native);',
+    'document.getElementById("answer").textContent="pass:"+JSON.stringify({',
+    ' checked,measurements:measures,browserRatio,',
+    ' note:"paired selected hot function, not a universal budget" ',
+    '});',
     '}catch(error){',
     ' document.getElementById("answer").textContent="fail:"+String(error);',
     '}'
@@ -83,10 +120,22 @@ test('real Chromium ESM matches source and public-bytecode clone for coerced add
       return text.startsWith('pass:')||text.startsWith('fail:');
     },{timeout:40000,polling:50});
     const observed=await tab.$eval('#answer',element=>element.textContent??'');
-    assert.equal(observed,'pass:2000',observed);
+    assert.ok(observed.startsWith('pass:'),observed);
+    const details=/** @type {{
+      checked:number,browserRatio:number,
+      measurements:{native:number[],wasm:number[],reconstructed:number[]},
+      note:string
+    }} */(JSON.parse(observed.slice(5)));
+    assert.equal(details.checked,2000);
+    assert.ok(Number.isFinite(details.browserRatio)&&details.browserRatio>0);
+    for(const samples of Object.values(details.measurements)){
+      assert.equal(samples.length,13);
+      assert.ok(samples.every(value=>Number.isFinite(value)&&value>0));
+    }
     console.log(JSON.stringify({browser:version,mode:'ESM',nativeWasmClone:3,
       identicalInputs:2000,wasmBytes:emitted.wasmBytes,
-      note:'real Chromium parity; no security or universal budget claim'}));
+      hotRatio:details.browserRatio,measurements:details.measurements,
+      scope:'selected Chromium warm function, not universal 2.5x or security'}));
   }finally{
     try{if(browser)await browser.close();}
     finally{
