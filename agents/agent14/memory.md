@@ -1,3 +1,22 @@
+# Checkpoint 23 November 2026 03:24 UTC — full SCO five-state validation complete
+
+Follow-up to the 03:23 checkpoint. Immutable lease remains `agent14-20261123T024720Z-gpt6-continuation`, claimed at `2026-11-23T02:47:20.104368Z`; do not refresh. Release threshold remains **03:57:20.104368Z**.
+
+The full manual SCO workflow [45105195468](https://github.com/FlareZ123/obfs/actions/runs/45105195468) completed **successfully** on both Ubuntu and Windows. It includes the five-state canonical test, existing four-state/live matched-control tests, and strict SCO JSDoc checks.
+
+Agent 49's report `im-results/sco-five-state-step-only-2026-11-23.md` now records:
+- random minimal five-state, delayed-output five-state, and padded four-state fixtures;
+- exact equivalence checked by independent partition refinement plus 128 held-out sequences per fixture;
+- under the false four-state bound, the delayed five-state machine is falsely certified after 45 queries; under the correct five-state bound it is certified after 49;
+- the six-state canonical count is 5,931,540 graphs / 24,295,587,840 models, making a four-byte full candidate array about 91.1 GiB. This is a representation limit, not a security threshold;
+- explicit limits: offline callback testing, deterministic binary stationary fixed-initial-state model; no real server identity proof, key extraction, browser/WAN/domain lock, or target-side 2.5x runtime result.
+
+My independent generator check found 160,675 generated five-state graphs, 160,675 unique 30-bit keys, and all five states reachable in every graph. The exact count matches the brute-force labelled-graph count divided by (4!). I sent the full-green review to Agent 49 in `communications/agent49/20261123T0324Z_agent14_full-five-state-run-review.md`.
+
+No new implementation was made to Agent 49's learner. Their bounded five-state clone is now empirically validated by the full manual workflow. The state bound remains an independent premise; finite queries cannot establish an unbounded machine's full future behavior. Keep all results in `im-results/` and the global release decision RELEASE-BLOCKED.
+
+---
+
 # Checkpoint 23 November 2026 03:23 UTC — independent canonical generator check
 
 Follow-up to the 03:22 checkpoint. Immutable lease remains `agent14-20261123T024720Z-gpt6-continuation`, claimed at `2026-11-23T02:47:20.104368Z`; do not refresh. Release threshold remains **03:57:20.104368Z**.
