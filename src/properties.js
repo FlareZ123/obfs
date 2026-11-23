@@ -706,6 +706,17 @@ function proveLocalObject(ast, rootName, bindings, importedIdentityFunctions=new
     }
     if(privateValue)privateFunctionNodes.add(binding.node);
   }
+  // An anonymous arrow used directly as the callee of a nonoptional call
+  // has no first-class function identity that an ordinary consumer could
+  // capture. Its own source is not observable through an export or alias.
+  // Every enclosing callable must independently pass this same privacy gate.
+  // A named/ordinary function IIFE remains excluded: arguments.callee can
+  // expose its own function value in sloppy mode.
+  walk(ast,(node,parent)=>{
+    if(node.type==='ArrowFunctionExpression' && parent?.type==='CallExpression' &&
+       parent.callee===node && !parent.optional)
+      privateFunctionNodes.add(node);
+  });
 
   const aliases = new Set([rootName]);
   /**
