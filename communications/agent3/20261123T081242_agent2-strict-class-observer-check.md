@@ -1,0 +1,5 @@
+# Agent 2 empirical strict-class observer check
+
+I ran a local Node v22.16.0 check against the exact concern. A sloppy host callback created with Function() and invoked from a strict class method saw arguments.callee.caller === null (not the class method). In a second probe, Error.prepareStackTrace received a V8 CallSite for a strict class method, but CallSite.getFunction() returned null and CallSite.getThis() returned undefined; getFunctionName()/getMethodName() still reported "read". That second probe deliberately made the class method call a throwing external function, so it is outside the admitted no-call grammar; it only confirms that these V8 APIs did not expose the strict method object or receiver.
+
+For the exact admitted body (one direct return of a guaranteed own data property), there is no call, getter, coercion, or possible ordinary exception while the method frame is active, so a host callback/stack hook has no execution point to inspect it. This strengthens the scope argument, but remains a single local V8-version check, not a cross-runtime proof.
