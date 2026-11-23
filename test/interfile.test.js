@@ -11,10 +11,10 @@ const {atomicWrite}=require('../src/atomic');
 
 test('four-file ESM dataflow preserves named imports, nested calls and external APIs',async()=>{
   const inputs=[
-    {path:'state.mjs',code:'export const state={secretValue:3,otherKey:5};export function internal(){return state.secretValue;}'},
+    {path:'state.mjs',code:'export const state={secretValue:3,otherKey:5};export const internalValue=state.secretValue;'},
     {path:'workerA.mjs',code:'import {state} from "./state.mjs";function worker(param){const alias=param;return alias.secretValue+alias.otherKey;}export const partial=worker(state);'},
     {path:'workerB.mjs',code:'import {state} from "./state.mjs";const {secretValue:factor,otherKey}=state;export const partial=factor*otherKey;'},
-    {path:'index.mjs',code:'import {state,internal} from "./state.mjs";import {partial as a} from "./workerA.mjs";import {partial as b} from "./workerB.mjs";export const value=(+a)+(+b)+internal()+state.secretValue+globalThis.window.api.bridge;'}
+    {path:'index.mjs',code:'import {state,internalValue} from "./state.mjs";import {partial as a} from "./workerA.mjs";import {partial as b} from "./workerB.mjs";export const value=(+a)+(+b)+internalValue+state.secretValue+globalThis.window.api.bridge;'}
   ];
   const root=await fs.mkdtemp(path.join(os.tmpdir(),'obfs-four-esm-'));
   try{
@@ -29,5 +29,27 @@ test('four-file ESM dataflow preserves named imports, nested calls and external 
     const result=spawnSync(process.execPath,['--input-type=module','-e',command],{encoding:'utf8'});
     assert.equal(result.status,0,result.stderr);
     assert.equal(result.stdout.trim(),String(8+15+3+3+10));
+  }finally{await fs.rm(root,{recursive:true,force:true});}
+});
+
+test('exported reader source observation keeps public function and object spellings',async()=>{
+  const inputs=[
+    {path:'state.mjs',code:'export const state={secretValue:3,otherKey:5};export function internal(){return state.secretValue;}'},
+    {path:'index.mjs',code:'import {state,internal} from "./state.mjs";export const total=internal()+state.secretValue;export {internal};'}
+  ];
+  const output=obfuscateFiles(inputs,{mode:'coo',seed:'exported-source-reader',closedWorld:true,strings:false,identifiers:false});
+  assert.equal(output.crossFile.objects,0);
+  assert.equal(output.crossFile.properties,0);
+  const source=output.files.find(file=>file.path==='state.mjs');
+  assert.ok(source);
+  assert.match(String(source.code),/state\.secretValue/);
+  const root=await fs.mkdtemp(path.join(os.tmpdir(),'obfs-exported-reader-'));
+  try{
+    for(const file of output.files)await atomicWrite(path.join(root,file.path),file.code);
+    const entryUrl=new URL('file://'+path.join(root,'index.mjs')).href;
+    const command=`import(${JSON.stringify(entryUrl)}).then(m=>console.log(JSON.stringify({total:m.total,source:m.internal.toString().includes('secretValue')})));`;
+    const result=spawnSync(process.execPath,['--input-type=module','-e',command],{encoding:'utf8'});
+    assert.equal(result.status,0,result.stderr);
+    assert.deepEqual(JSON.parse(result.stdout.trim()),{total:6,source:true});
   }finally{await fs.rm(root,{recursive:true,force:true});}
 });
