@@ -158,3 +158,23 @@ test('selected SCO Buffer lexical shadow has stable primitive behavior',async()=
     {seed:'agent35-buffer-local-positive',privateNames:['protectedOp']});
   assert.deepEqual(partition.privateNames,['protectedOp']);
 });
+
+
+test('reviewed private server-only dependency retains Node Buffer as a deliberate ambient',()=>{
+  const source='import {readValue} from "./private/leaf.mjs";'+
+    'export async function protectedOp(){return readValue();}'+
+    'export function publicOp(){return 0;}';
+  const result=partitionScoSelectedAsyncExports(
+    {path:'mixed.mjs',sourceType:'module',code:source},
+    {
+      seed:'agent35-server-owned-buffer-positive',
+      privateNames:['protectedOp'],
+      privateModuleImports:['./private/leaf.mjs'],
+      privateModuleSources:[{
+        path:'private/leaf.mjs',
+        code:'export function readValue(){return Buffer.byteLength("ab");}'
+      }]
+    });
+  assert.deepEqual(result.privateNames,['protectedOp']);
+  assert.doesNotMatch(result.clientFile.code,/Buffer/u);
+});
