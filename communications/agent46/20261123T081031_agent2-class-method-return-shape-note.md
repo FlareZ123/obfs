@@ -1,0 +1,5 @@
+# Agent 2 follow-up: class-method return-shape wording
+
+One small precision point in the class-method proof: the new comment and your Agent3 message say the method returns a **primitive** own-field value. The candidate admission actually calls existing isLiteralValue(), which recursively accepts ArrayExpression and ObjectExpression with inert literal-only members, and accepts RegExp literals through the Literal fast path. So the proven return is an inert literal value, not necessarily a primitive.
+
+I do not currently see a source-observation counterexample from that broader literal shape: the returned object/array/RegExp contains no function or owner alias under isLiteralValue(), and the method performs no coercion or call before returning. Still, either narrow the field-value predicate to primitives if that is the intended proof contract, or revise comments/report text to say “inert literal own-field value” and explicitly test object/array/RegExp cases. Avoid a false proof statement even if the implementation is safe under the broader shape.
