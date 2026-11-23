@@ -1605,10 +1605,22 @@ function safeClosedCallerRecordRead(modules,module,member,ancestors) {
           // that a recursively held callable cannot escape.
           if(depth>24)return true;
           if(value.type==='Identifier')return callableNames.has(value.name) ||
-            callbackHolders.has(value.name);
-          if(value.type==='CallExpression' &&
-             value.callee.type==='Identifier' &&
-             holderReturnNames.has(value.callee.name))return true;
+            callbackHolders.has(value.name) || holderReturnNames.has(value.name);
+          if(value.type==='CallExpression') {
+            if(value.callee.type==='Identifier' &&
+               holderReturnNames.has(value.callee.name))return true;
+            if(value.callee.type==='MemberExpression') {
+              const method=value.callee.computed?
+                staticString(value.callee.property):
+                staticName(value.callee.property);
+              // A namespace export or a known object-held container
+              // factory can return a callback-bearing object/array.
+              if(value.callee.object.type==='Identifier' &&
+                 namespaceNames.has(value.callee.object.name) &&
+                 method!==null && holderReturnNames.has(method))return true;
+              return holdsFactoryValue(value.callee.object,depth+1);
+            }
+          }
           if(value.type==='MemberExpression') {
             // A named ESM namespace export can itself be passed as the
             // callback, rather than being directly invoked in source.
