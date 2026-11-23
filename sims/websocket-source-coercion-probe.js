@@ -99,7 +99,7 @@ async function main(){
     path:'websocket-client.js',sourceType:'script',code:source
   }],{
     mode:'coo',seed:'agent41-websocket-source-20261123',
-    identifiers:true,strings:false,properties:false
+    identifiers:true,strings:true,properties:false
   });
   const code=compiled.files[0].code;
   const transformed=await captureSourceFrame(code);
