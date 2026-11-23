@@ -30,7 +30,10 @@ function median(data){
 function measure(worker,rounds){
   const cpu0=process.cpuUsage();
   const nanos=process.hrtime.bigint();
-  const result=worker(rounds);
+  let result=0;
+  // Repeating same semantic workload prevents a submillisecond sample from
+  // falling below coarse CPU timer resolution on some Windows runners.
+  for(let repeat=0;repeat<24;repeat++)result=(result+worker(rounds))|0;
   const wallMs=Number(process.hrtime.bigint()-nanos)/1e6;
   const elapsed=process.cpuUsage(cpu0);
   return {result,wallMs,cpuMs:(elapsed.user+elapsed.system)/1000};
@@ -55,6 +58,7 @@ test('private class native versus emitted post-start work and cold session paire
   /** @type {number[]} */const cpuRatios=[];
   /** @type {number[]} */const wallRatios=[];
   /** @type {number[]} */const coldRatios=[];
+  let unresolvedHotCpu=0,unresolvedColdCpu=0;
   for(let pair=0;pair<9;pair++){
     /** @type {Array<['native'|'emitted',(rounds:number)=>number]>} */
     const two=pair%2===0?[['native',native],['emitted',protectedWork]]:
@@ -63,23 +67,28 @@ test('private class native versus emitted post-start work and cold session paire
     const sample={};
     for(const [label,worker] of two)sample[label]=measure(worker,3000000);
     assert.equal(sample.native.result,sample.emitted.result);
-    assert.ok(sample.native.cpuMs>0&&sample.native.wallMs>0);
-    cpuRatios.push(sample.emitted.cpuMs/sample.native.cpuMs);
+    assert.ok(sample.native.wallMs>0);
+    if(sample.native.cpuMs>0&&sample.emitted.cpuMs>0)
+      cpuRatios.push(sample.emitted.cpuMs/sample.native.cpuMs);
+    else unresolvedHotCpu++;
     wallRatios.push(sample.emitted.wallMs/sample.native.wallMs);
 
     const coldNative=measureCold(source,1);
     const coldEmitted=measureCold(emitted,1);
     assert.equal(coldNative.result,coldEmitted.result);
-    assert.ok(coldNative.cpuMs>0);
-    coldRatios.push(coldEmitted.cpuMs/coldNative.cpuMs);
+    if(coldNative.cpuMs>0&&coldEmitted.cpuMs>0)
+      coldRatios.push(coldEmitted.cpuMs/coldNative.cpuMs);
+    else unresolvedColdCpu++;
   }
   console.log('AGENT9_PRIVATE_CLASS_COST '+JSON.stringify({
     node:process.version,platform:process.platform,pairs:9,
     runtimeRounds:3000000,privateFieldsRenamed:result.files[0].metrics.properties,
-    hotCpuMedian:median(cpuRatios),hotCpuMax:Math.max(...cpuRatios),
+    hotCpuMedian:cpuRatios.length?median(cpuRatios):null,
+    hotCpuMax:cpuRatios.length?Math.max(...cpuRatios):null,unresolvedHotCpu,
     hotCpuStrictBreaches:cpuRatios.filter(r=>r>2.5).length,
     hotWallMedian:median(wallRatios),
-    coldCpuMedian:median(coldRatios),coldCpuMax:Math.max(...coldRatios),
+    coldCpuMedian:coldRatios.length?median(coldRatios):null,
+    coldCpuMax:coldRatios.length?Math.max(...coldRatios):null,unresolvedColdCpu,
     coldCpuStrictBreaches:coldRatios.filter(r=>r>2.5).length,
     cpuRatios,wallRatios,coldRatios
   }));
@@ -89,8 +98,11 @@ test('private class native versus emitted post-start work and cold session paire
 function measureCold(code,rounds) {
   const cpu0=process.cpuUsage();
   const nanos=process.hrtime.bigint();
-  const worker=load(code);
-  const result=worker(rounds);
+  let result=0;
+  for(let repeat=0;repeat<96;repeat++){
+    const worker=load(code);
+    result=(result+worker(rounds))|0;
+  }
   const wallMs=Number(process.hrtime.bigint()-nanos)/1e6;
   const elapsed=process.cpuUsage(cpu0);
   return {result,wallMs,cpuMs:(elapsed.user+elapsed.system)/1000};
