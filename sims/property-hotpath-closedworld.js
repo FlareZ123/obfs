@@ -25,10 +25,11 @@ function median(values) {
 }
 
 /**
- * Build a private-owner ESM workload. Only 'wrapped' is a valid positive
- * rename benchmark: the other styles place field spellings in exported
- * functions, where Function#toString makes those spellings observable.
- * Both renames are observable through public hot() computations.
+ * Build a private-owner ESM workload with three independent positive
+ * dataflow grammars: direct member reads, a private two-reader relay, and
+ * forwarded identity. Their private field reads are exclusively inside
+ * nonexported direct-call-only functions. The public hot() wrapper retains
+ * exactly the same externally observable Function#toString source.
  * @param {Style} style
  * @param {ValueKind} [valueKind]
  * @returns {SourceFile[]}
@@ -37,31 +38,29 @@ function generate(style,valueKind='literal') {
   const state=[
     valueKind==='pure-expression'?
       'export const state={hotScore:(21-14),hotWeight:(5<<2)-7};':
-      'export const state={hotScore:7,hotWeight:13};',
-    style==='readers'?'export function score(x){return x.hotScore;}'+
-      'export function weight(x){return x.hotWeight;}':''
+      'export const state={hotScore:7,hotWeight:13};'
   ].join('');
-  const imports=style==='readers'?
-    'import {state,score,weight} from "./state.mjs";':
-    'import {state} from "./state.mjs";';
+  const imports='import {state} from "./state.mjs";';
   const alias=style==='identity'?
-    'import {identity} from "./identity.mjs";const stable=identity(state);':'';
+    'import {identity} from "./identity.mjs";const stable=identity(state);':
+    style==='readers'?
+      'function score(x){return x.hotScore;}function weight(x){return x.hotWeight;}':'';
   const score=style==='readers'?'score(state)':
     (style==='identity'?'stable.hotScore':'state.hotScore');
   const weight=style==='readers'?'weight(state)':
     (style==='identity'?'stable.hotWeight':'state.hotWeight');
   const worker=[
     imports,alias,
-    style==='wrapped' ? 'function privateHot(initial,iterations){' :
-      'export function hot(initial,iterations){',
+    style==='direct' ? 'export function hot(initial,iterations){' :
+      'function privateHot(initial,iterations){',
     'let value=initial|0;',
     'for(let i=0;i<iterations;i++){',
     'value=((value+',score,')^',weight,')|0;',
     '}',
     'return value;',
     '}',
-    style==='wrapped' ?
-      'export function hot(initial,iterations){return privateHot(initial,iterations);}' : ''
+    style==='direct' ? '' :
+      'export function hot(initial,iterations){return privateHot(initial,iterations);}'
   ].join('');
   /** @type {SourceFile[]} */
   const files=[
@@ -136,9 +135,9 @@ async function measure(style,iterations,trials,valueKind='literal') {
     assert.ok(loadedFunctions.native&&loadedFunctions.protected);
     const originalHot=loadedFunctions.native;
     const obfuscatedHot=loadedFunctions.protected;
-    if(style==='wrapped'){
+    if(style!=='direct'){
       assert.equal(obfuscatedHot.toString(),originalHot.toString(),
-        'wrapped benchmark must preserve the publicly exposed Function#toString');
+        style+' benchmark must preserve public native Function#toString');
     }
     const coldNativeMs=median(coldNativeSamples);
     const coldObfuscatedMs=median(coldObfuscatedSamples);
@@ -204,7 +203,7 @@ async function runHotpath(iterations=7_000_000,trials=9,valueKind='literal') {
     throw new RangeError('trials out of 3..25');
   /** @type {Measurement[]} */
   const measurements=[];
-  for(const style of /** @type {Style[]} */ (['wrapped'])) {
+  for(const style of /** @type {Style[]} */ (['wrapped','readers','identity'])) {
     measurements.push(await measure(style,iterations,trials,valueKind));
   }
   return {iterations,trials,valueKind,measurements};
