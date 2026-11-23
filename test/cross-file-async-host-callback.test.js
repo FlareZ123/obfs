@@ -944,3 +944,55 @@ for(const [name,loop] of /** @type {[string,string][]} */([
     assert.equal(compiled.crossFile.properties,0,name);
   });
 }
+
+
+/** CatchClause binding patterns receive dynamically thrown values. */
+for(const [name,catchClause] of /** @type {[string,string][]} */([
+  ['object pattern',[
+    'try{throw {callback:getFactory};}',
+    'catch({callback}){ctor=await Promise.resolve().then(callback);}'
+  ].join('\n')],
+  ['array pattern',[
+    'try{throw [getFactory];}',
+    'catch([callback]){ctor=await Promise.resolve().then(callback);}'
+  ].join('\n')],
+  ['nested object pattern',[
+    'try{throw {inner:{callback:getFactory}};}',
+    'catch({inner:{callback}}){ctor=await Promise.resolve().then(callback);}'
+  ].join('\n')]
+])) {
+  test('catch-clause '+name+' host callback preserves ESM owner keys',async()=>{
+    const files=graph([
+      'function getFactory(){return globalThis.RUNTIME_FACTORY;}',
+      'let ctor;',
+      catchClause,
+      'const remote=await ctor("return import(\'./state.mjs\')")();',
+      "const result=[inspectRecord('auditCount').value,Object.keys(remote.state),remote.state.secretField];"
+    ].join('\n'));
+    const native=await execute(files,true);
+    assert.equal(native,'[41,[3,["secretField"],41]]\n');
+    const compiled=obfuscateFiles(files,{
+      mode:'coo',closedWorld:true,seed:'host-catch-pattern/'+name,
+      identifiers:false,strings:false,properties:true
+    });
+    assert.equal(await execute(compiled.files,true),native,name);
+    assert.equal(compiled.crossFile.properties,0,name);
+  });
+}
+
+test('numeric catch-clause own-data callback retains safe unrelated private rewrite',async()=>{
+  const files=graph([
+    'function getFactory(){return globalThis.RUNTIME_FACTORY;}',
+    'let value;',
+    'try{throw {callback:()=>7};}',
+    'catch({callback}){value=await Promise.resolve().then(callback);}',
+    "const result=[inspectRecord('externalFormat').value,value];"
+  ].join('\n'));
+  const native=await execute(files);
+  const compiled=obfuscateFiles(files,{
+    mode:'coo',closedWorld:true,seed:'host-catch-numeric-private',
+    identifiers:false,strings:false,properties:true
+  });
+  assert.equal(await execute(compiled.files),native);
+  assert.equal(compiled.crossFile.properties,1);
+});
