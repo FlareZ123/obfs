@@ -36,7 +36,7 @@ A positive control inside the global-function test uses a nested IIFE with a pri
 - With the original-mode WeakMap and private-proof exclusion: **green** [run 45094305740](https://github.com/FlareZ123/obfs/actions/runs/45094305740) on Windows and Ubuntu. This pin also contains the nested IIFE positive-yield regression.
 - Later-script top-level lexical callable lookup and source parity: **green** [run 45094309804](https://github.com/FlareZ123/obfs/actions/runs/45094309804) on Windows and Ubuntu.
 - Both green runs use exact SHA **4bf1d2e3b7e5536e611d6b4a0e30d3d68be03306** and include strict project and strict external JSDoc checks.
-- The same SHA is under full Node, adversarial, browser and performance workflow [run 45094335214](https://github.com/FlareZ123/obfs/actions/runs/45094335214). Its final verdict and impact relative to the original draft baseline must be assessed separately; the previous Promise-only correction already failed that full matrix.
+- The same SHA is under full Node, adversarial, browser and performance workflow [run 45094335214](https://github.com/FlareZ123/obfs/actions/runs/45094335214). The completed two-OS full run **failed**, including Node behavioral tests and performance, and Ubuntu Chromium. Ubuntu logged **72 failures of 5,259 Node tests**, with 5,186 passing. This is the *same 72 failing tests* in the preceding Promise-only review build (5,253 total; 72 failed) despite six added passing regression cases. The canonical PR head before these changes was already red at **52/5,250** failed tests. The 20-test positive-yield loss from removing unsafe Promise callback assumptions remains unresolved. These red full-matrix results are an explicit merge and release veto.
 
 ## Scope and consequence
 
