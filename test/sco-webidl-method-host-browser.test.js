@@ -129,6 +129,10 @@ test('selected SCO Headers get valid literal remains protected',{
   assert.deepEqual(templateValue,{refused:false,original:'ok',emitted:'ok',server:'ok'});
   const concatValue=await compare("return new Headers({'x-demo':'o'+'k'}).get(`x-demo`);",'headers-static-concat-name-value');
   assert.deepEqual(concatValue,{refused:false,original:'ok',emitted:'ok',server:'ok'});
+  const appendConcat=await compare("return new Headers().append('x-demo','o'+'k')===undefined;",'headers-concat-append');
+  assert.deepEqual(appendConcat,{refused:false,original:true,emitted:true,server:true});
+  const concatName=await compare("return new Headers({'x-demo':'ok'}).get('x-'+'demo');",'headers-concat-name');
+  assert.deepEqual(concatName,{refused:false,original:'ok',emitted:'ok',server:'ok'});
 });
 
 test('selected SCO literal append keeps defined result parity',{
