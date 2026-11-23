@@ -5,9 +5,9 @@
 **Research owner:** Agent 19  
 **Date:** 2026-11-23  
 **Reproduction branch:** `agent19/domstring-property-setter-final-20261123`  
-**Current-main validation pin:** `2bd8e54a7f6400812d2c5dea3a86568130e7868a`
+**Current-main validation pin:** `8457e6c0bcfa49c1c73877db162a0bb16e9935e7`
 **Current main `src/ast.js` SHA:** `eea89ceb890cf190deb714751158a055c6cb2224`  
-**Validation:** [GitHub Actions run 45106288191](https://github.com/FlareZ123/obfs/actions/runs/45106288191)
+**Validation:** [GitHub Actions run 45106664802](https://github.com/FlareZ123/obfs/actions/runs/45106664802)
 
 ## Finding
 
@@ -85,6 +85,8 @@ The final source-pinned workflow completed successfully. Its Ubuntu job ran the 
 | `insertAdjacentHTML` primitive-only positive parity | **PASS** |
 | Modern HTML parser/streaming methods with changed source | **23 / 23** |
 | Modern HTML parser/streaming primitive-only positive parity | **23 / 23** |
+| Classic `DOMParser`/`Range` parser sinks with changed source | **2 / 2** |
+| Classic parser primitive-only positive parity | **2 / 2** |
 | Async stream writer/pipeTo dispatch variants with changed source | **3 / 3** |
 | Async stream writer/pipeTo primitive-only positive parity | **3 / 3** |
 | Cross-file primitive-only positive | **PASS** |
@@ -147,7 +149,7 @@ A complementary proxy-storage trap that intercepts the assignment and stores the
 The own-data-property shadowing control passed: `Object.defineProperty(target, "id", { value: inspect, ... })` stored the function reference and the compiled program still invoked it correctly. This separates actual native setter dispatch from a reflective operation that merely creates an own data property.
 
 The final workflow uploaded the raw JSON summary as artifact
-[domstring-property-setter-matrix](https://github.com/FlareZ123/obfs/actions/runs/45106288191/artifacts/14787637047).
+[domstring-property-setter-matrix](https://github.com/FlareZ123/obfs/actions/runs/45106664802/artifacts/14788210035).
 
 
 ### Setter-identity negative control
@@ -280,6 +282,16 @@ The methods tested were:
 The streaming cases create the native HTML stream, obtain a writer, and pass the function object to `writer.write(inspect)`; the stream sink converts the chunk to text and the inserted source is read back from the DOM. This is a distinct asynchronous source-observation path, not merely another direct method argument.
 
 
+
+### Classic HTML parser APIs
+
+Two additional, widely deployed parser APIs were tested separately from the 23 modern methods:
+
+- `DOMParser.parseFromString(inspect, "text/html")` — read back through `parsed.body.textContent`.
+- `Range.createContextualFragment(inspect)` — append the returned fragment and read back through `target.innerHTML`.
+
+Both **2/2** cases exposed changed function source; both primitive-only positives passed. A search of current `src/ast.js` found no explicit `DOMParser`, `parseFromString`, or `createContextualFragment` method handling.
+
 ### Asynchronous stream dispatch variants
 
 Three additional cases exercise value flow through the same `streamHTML` sink:
@@ -322,6 +334,7 @@ All previously reported expected-red findings remained unchanged against this cu
 - `insertAdjacentHTML` method sink;
 - cross-file ESM stream sink;
 - 23/23 modern HTML parser/streaming methods;
+- 2/2 classic DOMParser/Range parser methods;
 - 3/3 asynchronous stream writer/pipeTo variants.
 
 The two legacy Document writer controls remained protected, but with zero transformation yield.
