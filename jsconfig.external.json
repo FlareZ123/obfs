@@ -1,6 +1,7 @@
 {
   "extends": "./jsconfig.json",
   "include": [
+    "test/agent23-switch-discriminant-scope.test.js",
     "test/agent1-reference-role-native-effects.test.js",
     "test/agent1-class-source-closure-veto.test.js",
     "test/lexical-runtime-owner-grid.test.js",
