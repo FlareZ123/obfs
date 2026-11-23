@@ -113,7 +113,10 @@ test('selective SCO distinguishes private binding references from ordinary prope
 
 test('selective SCO preserves locally run source and exact generated public module',async()=>{
   const original=(await fs.readFile(path.join(ROOT,'before','mixed.mjs'),'utf8')).replace(/\r\n/gu,'\n');
-  const actual=partition(original);
+  // This fixture is intentionally authored for Node (Buffer + node:crypto).
+  const actual=partitionScoSelectedAsyncExports(
+    {path:'mixed.mjs',code:original,sourceType:'module'},
+    {seed:SEED,privateNames:['protectedDigest'],allowServerNodeGlobals:true});
   const expected=(await fs.readFile(path.join(ROOT,'after','mixed.mjs'),'utf8')).replace(/\r\n/gu,'\n');
   assert.equal(actual.clientFile.code,expected,'Checked-in generated facade differs');
   assert.deepEqual(actual.publicNames,['normalize','fastScore','report','combined']);
@@ -132,7 +135,10 @@ test('selective SCO real HTTP preserves cross-module imports and external APIs',
   timeout:60000
 },async()=>{
   const source=await fs.readFile(path.join(ROOT,'before','mixed.mjs'),'utf8');
-  const partitioned=partition(source);
+  // The sample is an explicit Node-native private function source.
+  const partitioned=partitionScoSelectedAsyncExports(
+    {path:'mixed.mjs',code:source,sourceType:'module'},
+    {seed:SEED,privateNames:['protectedDigest'],allowServerNodeGlobals:true});
   const dir=await fs.mkdtemp(path.join(os.tmpdir(),'obfs-selective-sco-'));
   const originalFetch=globalThis.fetch;
   const oldBridge=globalThis.externalBridge;
@@ -374,4 +380,29 @@ test('selective SCO server environment opt-in refuses public process reads and d
     seed:'env-bracket',privateNames:['protectedDigest'],allowServerEnvConstants:true
   });
   assert.doesNotMatch(accepted.clientFile.code,/OBFS_KEY/u);
+});
+
+
+test('selected source origin explicitly controls Node-global relocation',()=>{
+  const source='export async function protectedDigest(){return Buffer.byteLength("ab");}'+
+    'export function local(){return 7;}';
+  const input={path:'mixed.mjs',code:source,sourceType:'module'};
+  const options={seed:'sco-node-native-opt-in',privateNames:['protectedDigest']};
+  assert.throws(()=>partitionScoSelectedAsyncExports(input,options),
+    /unproved unqualified free reference: Buffer/u);
+  assert.throws(()=>partitionScoSelectedAsyncExports(input,{
+    ...options,allowServerNodeGlobals:'true'
+  }),/distinct privateNames/u);
+  const nodeSource=partitionScoSelectedAsyncExports(input,{
+    ...options,allowServerNodeGlobals:true
+  });
+  assert.deepEqual(nodeSource.privateNames,['protectedDigest']);
+  assert.doesNotMatch(nodeSource.clientFile.code,/Buffer/u);
+  const browserLocal=partitionScoSelectedAsyncExports({
+    ...input,
+    code:'export async function protectedDigest(){'+
+      'const Buffer=41;return Buffer+1;}'+
+      'export function local(){return 7;}'
+  },options);
+  assert.deepEqual(browserLocal.privateNames,['protectedDigest']);
 });
