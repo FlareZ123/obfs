@@ -196,7 +196,8 @@ function sample(objects){
     assert.equal(generated.crossFile.properties,objects==='esm'?2:objects==='esmkey'?1:
       objects==='esmgraph32'?32:8,
       'ESM cross-graph proof did not rename expected own properties');
-    const output=generated.files.map(file=>({path:file.path,code:file.code}));
+    const output=generated.files.map(file=>({path:file.path,
+      code:/** @type {string} */(file.code)}));
     const checksum=compareEsmExecution(native,output);
     console.log('CROSS_PARSE_SAMPLE '+JSON.stringify({
       objects,platform:process.platform,node:process.version,
@@ -208,7 +209,7 @@ function sample(objects){
     return;
   }
   const input=objects==='mixed'?mixedSource():
-    objects==='sparse'?sparseSource():original(objects);
+    objects==='sparse'?sparseSource():original(/** @type {number} */(objects));
   const cpuStart=process.cpuUsage();
   const wallStart=performance.now();
   const emitted=obfuscateFiles([{path:'onefile.cjs',code:input,sourceType:'commonjs'}],{
