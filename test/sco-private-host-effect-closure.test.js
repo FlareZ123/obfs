@@ -865,7 +865,7 @@ test('Selected SCO refuses cross-realm global roots passed through private helpe
     'function readExternal(root){return root.externalBridge?.value??"missing";}',
     'export async function protectedOp(){return readExternal(globalThis);}',
     'export function visible(){return 7;}'
-  ].join('\\n');
+  ].join('\n');
   const runtime=source.replaceAll('export ','');
   const browserContext=vm.createContext({externalBridge:{value:'browser-only'}});
   const serverContext=vm.createContext({});
@@ -889,7 +889,7 @@ test('Selected SCO refuses globalThis hidden by array destructuring',()=>{
     'return root.externalBridge?.value??"missing";',
     '}',
     'export function visible(){return 7;}'
-  ].join('\\n');
+  ].join('\n');
   assert.throws(()=>partitionScoSelectedAsyncExports(
     {path:'mixed.mjs',code:source,sourceType:'module'},
     {seed:'sco-global-root-array-20261123',privateNames:['protectedOp']}
@@ -902,7 +902,7 @@ test('Selected SCO refuses globalThis hidden in a private default parameter',()=
     'return root.externalBridge?.value??"missing";',
     '}',
     'export function visible(){return 7;}'
-  ].join('\\n');
+  ].join('\n');
   assert.throws(()=>partitionScoSelectedAsyncExports(
     {path:'mixed.mjs',code:source,sourceType:'module'},
     {seed:'sco-global-root-default-20261123',privateNames:['protectedOp']}
