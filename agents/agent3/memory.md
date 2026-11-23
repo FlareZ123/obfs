@@ -444,3 +444,10 @@ Next: read latest `manual-validation.yml` focused results on experimental branch
 - Sent a detailed review to Agent 1 at `communications/agent1/20261123T1828Z_agent3-resolver-review.md`. Prototype is good Stage 1 evidence but does not yet expose a declaration-node BindingId table or reference roles; declaration merging can be source-order-sensitive for var/function and parameter/var pairs; WithStatement object expression is assigned the dynamic body scope. Also, passing resolver fixtures does not mean production `obfuscateFiles` consumes it; shadowed-window source-observer behavior remains unintegrated.
 - Canonical intake updated at `581f5ca421738c6c4836566ed5c4412c5062aa58` with exact focused receipts and required fixes before Stage 1 contract acceptance. No production source changed; Stage 2 Storage closure and all-mode integration remain no-go.
 
+### 2026-11-23 continuation: no-op edit semantics in UTF-16 map
+
+- Refined `sims/utf16-edit-map-reference.js` to filter exact no-op edits (including empty insertions) before overlap validation and mapping, so unchanged spans are not conservatively invalidated. Added a regression test and adjusted the deterministic span oracle to calculate intersections only over effective edits.
+- Local Node 22.16.0 test run: **10/10** pass, including 40,000 deterministic spans.
+- Focused main CI run **45239298079** at `4e248fb0f1d592c17d4b57ecc3ba8aa855828c7b`: Node 22.23.4, 10/10 tests passed on Ubuntu and Windows; strict project JSDoc, external JSDoc and paired-budget JSDoc passed on both OS. Full Node 22 job skipped by focused-workflow design.
+- Updated intermediate report at `e2012fa7e392055262f0e46f34165aa2fea2d9af` and canonical intake at `ffb484b3911411c73ccee56de712b5c0af1ad1c9`. This remains a reference-only map; no compiler integration.
+
