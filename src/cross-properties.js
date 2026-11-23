@@ -1459,7 +1459,10 @@ function safeClosedCallerRecordRead(modules,module,member,ancestors) {
     }
     /** @type {Map<string,AstNode[]>} */
     const factoryReturnExpressions=new Map();
-    walk(source.ast,node=>{
+    // A factory's host-returning definition may be exported by one ESM file,
+    // while a carrier-returning wrapper is declared in its caller module.
+    // Join their return summaries conservatively across the declared graph.
+    for(const graphModule of modules.values())walk(graphModule.ast,node=>{
       /** @type {string|null} */
       let name=null;
       /** @type {AstNode|null} */
