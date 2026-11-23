@@ -325,3 +325,79 @@ npm run typecheck:external
 The theorem proves a fundamental **candidate-certification** blind spot for finite forward-only sampling. It gives a rigorous explanation for how a sampler can accept a globally false derivative condition when the only counterexample lives on an unobserved rare prefix. That remains true when sampled outputs agree exactly with an affine source at every queried point.
 
 Crucially an oracle-only attacker may avoid the problematic scalar by finding another globally valid mask. The previously proved **global greedy extension theorem** guarantees some valid choice on every nonzero input subspace, and the existing four-basis reanchoring attack recovers many sparse-gate targets with few queries. The candidate-certification lower bound does **not** prove a high query cost for full preimage inversion, functional cloning, obfuscated source recovery, or arbitrary algorithm reconstruction. Nor does it imply a measured security improvement for a particular obfuscator versus an equal-trust minified service. The project remains **RELEASE-BLOCKED**.
+
+
+## First-mask selection lower bound under a hidden affine coordinate system
+
+**Author:** Agent 2, 23 November 2026. **Classification:** intermediate information-theoretic theorem for selecting **one globally valid first-step output scalar mask** from a forward-only oracle. This strengthens the preceding proposed-mask certification result in a carefully defined randomized affine-conjugated source family. The theorem does **not** establish a general inversion or cloning lower bound and has no stand-alone 2.5x compute or obfuscator security consequence.
+
+### Exact model
+
+Fix n>=3 and 2<=j<n. Let A be chosen uniformly from the full invertible binary matrix group GL(n,2). Independently choose c uniformly from GF(2)^j. Construct
+
+    P_c(z) = z XOR e_j * 1[z_<j = c],
+
+    F_A,c(x) = A^-1 P_c(Ax)
+             = x XOR u * 1[(Ax)_<j = c],
+
+where u=A^-1 e_j is a hidden nonzero output displacement. This is a valid two-sided invertible affine wrapper of an arbitrary strictly-lower-bit compatible triangular permutation, with outer matrix B=A^-1. In the absence of the gate the public oracle is exactly the identity F0(x)=x, irrespective of the secret A. Every F_A,c is a bijection, because its middle source map P_c is an involution.
+
+The black-box attacker is given n and j and may adaptively request q values F_A,c(x), returning **one nonzero** proposed output scalar mask w to serve as a globally valid first-level derivative mask on the **full** input subspace U0=GF(2)^n. No secret A, c, input/output matrices or alternative private source read are available to it. The correctness event is that <w,F_A,c(x)> has globally constant directional derivatives with a nonzero linear form on U0. Since F_A,c is a permutation, any affine nonconstant scalar is a legitimate first-level flag mask.
+
+### Exact characterization of valid first masks
+
+For any fixed nonzero w, write
+
+    <w,F_A,c(x)> = <w,x> XOR <w,u>*1[(Ax)_<j=c].
+
+If <w,u>=0, the scalar is exactly the nonconstant linear form <w,x>, so it is globally valid. If <w,u>=1, the scalar contains the rare prefix indicator, which has a nonconstant derivative and is not affine when j>=2. To see this without an algebraic-degree assumption, choose x with (Ax)_<j=c and let h0=A^-1e0, h1=A^-1e1. The mixed second difference in directions h0,h1 is the XOR of the scalar at x, x XOR h0, x XOR h1, x XOR h0 XOR h1. The four rare-indicator values are 1,0,0,0, so the second difference is 1. Every affine Boolean function has zero mixed second differences. Therefore:
+
+    w is globally valid on U0  iff  <w,u>=0.
+
+Uniform A from GL(n,2) makes u=A^-1e_j uniform over all 2^n-1 nonzero n-bit vectors. For any fixed nonzero w, its orthogonal hyperplane contains exactly 2^(n-1)-1 nonzero vectors. Hence the exact probability that a fixed w works under an independently sampled hidden A is
+
+    p_n = (2^(n-1)-1)/(2^n-1),
+
+which is slightly below one half. This is a source distribution claim; it does not say a particular nonrandom matrix's first mask is unpredictable.
+
+### Chosen-query lower bound for selecting one valid mask
+
+Consider **any** randomized, adaptive algorithm that makes at most q chosen forward-oracle queries and outputs one nonzero scalar mask. Couple its interaction with F_A,c to an interaction with the public identity oracle F0 using the same random coins. Under identity, all queried inputs and the eventual output w0 depend only on the algorithm's coins, independently of A and c.
+
+Conditional on fixed A and those coins, the q identity-transcript inputs touch at most q values of the j-bit lower source prefix (Ax)_<j. As c was selected independently and uniformly, the probability that **any** query hits the rare gate is at most min(1,q/2^j). Until the first hit, actual and identity transcripts agree exactly, so the adaptive algorithm makes the same next query. On the no-hit event its proposed output mask equals w0.
+
+Let S be the event that the mask selected under F_A,c is truly globally valid. Then, under the coupling,
+
+    S is contained in {<w0,u>=0} UNION {at least one rare gate query hit}.
+
+Since w0 is independent of the uniformly random u, a union bound gives the **distributional success ceiling**
+
+    Pr[S] <= p_n + min(1,q/2^j).
+
+Therefore an algorithm requiring success probability at least 1-epsilon on this family must satisfy
+
+    q >= (1-epsilon-p_n)*2^j,
+
+whenever the right side is positive. This bound is conditional only on the stated source distribution, forward-only oracle interface and the requirement to output **one guaranteed valid first scalar mask**.
+
+At n=32, j=27, p_n=2147483647/4294967295. To select a globally valid first mask with success at least 95% under this distribution, **at least 60,397,978** chosen queries are required by the displayed inequality (ceiling of the real-valued bound). A 9,236-query procedure, for example, has a success ceiling of roughly **50.006881%** for this carefully constructed source distribution, regardless of its adaptive mask-selection strategy. These are mathematical consequences of independent *uniform GL(n,2) and uniform c*, and are **not** claimed empirical success probabilities for the previously deterministic-mixer attack.
+
+This result should be read narrowly: an algorithm may invert a target **without selecting a globally valid first mask**, use several candidate masks with final target checks, exploit output structure beyond a single selected scalar, or use public source bytes. The bound does not apply to those different attack objectives. The earlier exact global-greedy existence theorem remains true for all these sources: at least one valid first mask always exists, and every truly valid choice can be extended. The new bound concerns **learning which single mask is safe** from limited chosen queries.
+
+### Independent finite population census
+
+To validate the hidden-linear-coordinate counting independently of the proof, the self-contained checker sims/conjugated-rare-first-mask-selection.js enumerates all 65,536 four-by-four binary matrices, filters the **20,160** invertible matrices in GL(4,2), then combines every matrix with **all four** rare prefixes at j=2, yielding **80,640** exact hidden-source pairs. It computes the source permutation as F_A,c(x)=x XOR u*1[(Ax)_<2=c] using full 16-point linear images and the exact inverse image u=A^-1 e2. This test never calls the sampled-flag or reanchor attacker modules.
+
+For each instance the checker tests the complete sixteen-output map is a bijection and verifies that a mixed second difference along A^-1e0 and A^-1e1 equals u, proving nonlinear perturbation for every source. All fifteen fixed nonzero first masks are counted separately; each should work for precisely seven of the fifteen possible u directions, giving **7/15** success probability under uniform invertible A. This also tests that a simple *one-query adaptive strategy* improves the single-mask success rate while staying below the theorem bound: ask F(0), infer u if the rare gate is triggered, select any nonzero w orthogonal to u after a trigger, otherwise return fixed mask w=1.
+
+The predicted exact one-query results are: the gate triggers on **20,160 of 80,640** source pairs, the strategy selects a valid first mask on **48,384 of 80,640** pairs (**3/5**) and fails on the remaining **32,256**. The baseline any fixed nonzero mask works on **37,632 of 80,640** sources (**7/15**). The general upper bound for q=1 is 7/15 + 1/4 = 43/60, strictly above the observed 3/5.
+
+**Executable source pin:** 08d0e3ba30cc68abf7e50713778a75cd7e67bd9d, [Ubuntu/Windows focused validation 45091582671](https://github.com/FlareZ123/obfs/actions/runs/45091582671), with both strict project and external JSDoc checks. The test asserts all exact population counts and prints CONJUGATED_RARE_FLAG_CENSUS; this report-only commit adds no executable changes.
+
+~~~powershell
+node --test test/conjugated-rare-first-mask-selection.test.js
+npm run typecheck
+npm run typecheck:external
+~~~
+
+The proven query lower bound applies to the *single valid first-mask selection problem* with uniformly hidden affine coordinates and rare source prefix. It does not imply that obfuscating a real JavaScript application with these maps provides measurable attacker-cost advantage over ordinary minification, that the maps prevent runtime reconstruction, or that their own evaluation meets the required 2.5x compute budget. In the absence of such equal-trust and source-pinned protection evidence, the primary strong-obfuscation release remains **RELEASE-BLOCKED**.
