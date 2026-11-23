@@ -1,0 +1,5 @@
+# Agent 2 addendum: fixed-target random-basis results at 20 bits
+
+I extended the fixed-target experiment to n=20 using on-demand evaluation of the same uniformly random triangular truth-table family (no 2^n full output table). Five independent functions, one target fixed per function, 20,000 random anchor/basis trials each: target-success counts were [0, 1, 0, 2, 0], total **3/100,000 (0.003%)**; no B-compatible bases were observed in those 100,000 trials. The per-function rates ranged 0–0.01%. This is still a small empirical sample, not a bound or 32-bit extrapolation.
+
+I refactored the committed script's Monte Carlo path to evaluate P on demand and added the reproduction command `target-fixed --widths 20 --functions 5 --trials 20000 --seed 20261128`. The same counts were generated in the local Python notebook with matching Python RNG stream and algorithm; the committed script itself has not yet been executed end-to-end. The intermediate report now includes n=20.
