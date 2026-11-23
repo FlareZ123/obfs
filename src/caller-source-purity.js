@@ -248,6 +248,34 @@ function strictCallable(fn,ast,parents) {
 }
 
 /**
+ * Extract only primitive-valued, proven-own member reads. A successful
+ * object ownership proof alone is insufficient: a nested object or array
+ * value can reenter user code when coerced. Cross-owner callers may union
+ * these independent facts to avoid overdeclining mixed private objects.
+ *
+ * @param {AstNode[]} properties
+ * @param {OwnerProof} proof
+ * @returns {Set<AstNode>}
+ */
+function inertPrimitiveMemberReads(properties,proof) {
+  /** @type {Map<string,AstNode>} */
+  const ownValues=new Map();
+  for(const property of properties){
+    const key=staticallyKnownKey(property.key,property.computed);
+    if(key!==null)ownValues.set(key,property.value);
+  }
+  /** @type {Set<AstNode>} */
+  const primitiveOwnReads=new Set();
+  for(const member of proof.members){
+    const name=proof.memberNames.get(member);
+    const value=name===undefined?undefined:ownValues.get(name);
+    if(value&&purePrimitive(value,new Set(),new Set()))
+      primitiveOwnReads.add(member);
+  }
+  return primitiveOwnReads;
+}
+
+/**
  * Whether renaming this specific proven owner's own keys could change
  * observed sloppy-caller source, through code that executes synchronously
  * inside an affected function. This is a *conservative, bounded* source
@@ -257,9 +285,10 @@ function strictCallable(fn,ast,parents) {
  * @param {AstNode} literal
  * @param {AstNode[]} properties
  * @param {OwnerProof} proof
+ * @param {Set<AstNode>} [sharedPrimitiveReads]
  * @returns {boolean}
  */
-function exposesSloppyCallerSource(ast,literal,properties,proof) {
+function exposesSloppyCallerSource(ast,literal,properties,proof,sharedPrimitiveReads) {
   if(ast.sourceType==='module')return false;
   // Root-independent call and ancestry inventories are immutable for one
   // parsed AST. Reuse them across private owner candidates instead of
@@ -282,23 +311,8 @@ function exposesSloppyCallerSource(ast,literal,properties,proof) {
     inventoryCache.set(ast,inventory);
   }
   const {parents,calls}=inventory;
-  /** @type {Map<string,AstNode>} */
-  const ownValues=new Map();
-  for(const property of properties){
-    const key=property.computed?staticString(property.key):
-      property.key.type==='Identifier'?property.key.name:
-      property.key.type==='Literal'&&typeof property.key.value==='string'?
-        property.key.value:null;
-    if(key!==null)ownValues.set(key,property.value);
-  }
-  /** @type {Set<AstNode>} */
-  const primitiveOwnReads=new Set();
-  for(const member of proof.members){
-    const name=proof.memberNames.get(member);
-    const value=name===undefined?undefined:ownValues.get(name);
-    if(value&&purePrimitive(value,new Set(),new Set()))
-      primitiveOwnReads.add(member);
-  }
+  const primitiveOwnReads=sharedPrimitiveReads??
+    inertPrimitiveMemberReads(properties,proof);
   /** @type {Set<AstNode>} */
   const affected=new Set([
     literal,...proof.members,...proof.patterns,
@@ -322,4 +336,4 @@ function exposesSloppyCallerSource(ast,literal,properties,proof) {
   return false;
 }
 
-module.exports={exposesSloppyCallerSource};
+module.exports={exposesSloppyCallerSource,inertPrimitiveMemberReads};
