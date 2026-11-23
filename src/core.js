@@ -2678,7 +2678,19 @@ function obfuscateFiles(files, options = {}) {
     const sourceAst=parse(file.code,'commonjs');
     const strictTopLevel=sourceAst.body.some((/** @type {import('./ast').AstNode} */ statement)=>
       statement.type==='ExpressionStatement'&&statement.directive==='use strict');
-    return !strictTopLevel&&
+    if(strictTopLevel)return false;
+    // An ambient object can supply a callback or getter at runtime without
+    // appearing as a require/import in the source graph. Such a callback may
+    // inspect its active non-strict CJS caller's exact text via .caller.
+    // This includes source edits in nested functions and the implicit module
+    // wrapper; a per-owner property guard cannot protect string/ID passes.
+    let opaqueAmbient=false;
+    walk(sourceAst,node=>{
+      if(node.type==='MemberExpression'&&node.object.type==='Identifier'&&
+         ['globalThis','global','window','self'].includes(node.object.name))
+        opaqueAmbient=true;
+    });
+    return opaqueAmbient||
       hasUnprovedCommonJsRequire(sourceAst,file.path,knownInputJavaScript);
   });
   // A function declared in one ESM/classic-script file may have its source
