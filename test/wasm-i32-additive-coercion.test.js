@@ -258,3 +258,19 @@ test('explicit COO/SNO pipeline selections and ESM public import preserve coerce
     assert.ok(Object.is(rewrittenModule.f(a,b),originalModule.f(a,b)),'esm/'+i);
   }
 });
+
+test('typed signed-input overflow demonstrates why non-coerced sums must refuse',()=>{
+  const originalReturn=load('function f(a,b){return a+b;}module.exports=f;');
+  assert.equal(originalReturn(2147483647,1),2147483648);
+  assert.equal((2147483647+1)|0,-2147483648);
+  const testSource='function f(a,b){return (a+(b>>>0))?1:2;}module.exports=f;';
+  const originalTest=load(testSource);
+  assert.equal(originalTest(1,-1),1,'2**32 is truthy in JS Number semantics');
+  assert.equal(((1+(-1>>>0))|0)?1:2,2,
+    'Wasm modular i32.add would be zero and take the other branch');
+  const decline=lowerWasmI32Functions(testSource,'commonjs',{
+    seed:'noncoerced-conditional-boundary',names:['f']
+  });
+  assert.equal(decline.functions,0);
+  assert.equal(decline.code,testSource);
+});
