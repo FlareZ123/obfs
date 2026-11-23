@@ -417,3 +417,34 @@ npm run typecheck:external
 
 The proven query lower bound applies to the *single valid first-mask selection problem* with uniformly hidden affine coordinates and rare source prefix. It does not imply that obfuscating a real JavaScript application with these maps provides measurable attacker-cost advantage over ordinary minification, that the maps prevent runtime reconstruction, or that their own evaluation meets the required 2.5x compute budget. In the absence of such equal-trust and source-pinned protection evidence, the primary strong-obfuscation release remains **RELEASE-BLOCKED**.
 \n## Exact one-query inversion of the conjugated rare-gate family (23 November correction)\n\n**Scope:** Only the displayed special family `F_A,c = A^-1 ◦ P_c ◦ A`, where `P_c(z)=z XOR e_j·1[z_<j=c]` and `j` is outside the prefix. This is a source-level algebraic observation, not a new runtime, generic affine-wrapped result, or security advantage.\n\n**Proof.** `P_c` toggles source coordinate `j` but never changes any source coordinate below `j`. Its gate predicate `z_<j=c` is therefore unchanged by the first application. A second application toggles exactly the same bit and restores the original `z`: `P_c²=I`. Conjugation preserves order, giving\n\n```text\nF_A,c(F_A,c(x)) = A^-1 P_c(A A^-1 P_c(Ax))\n                   = A^-1 P_c²(Ax) = x.\n```\n\nThus `F_A,c^-1 = F_A,c`. Given **any** target output `y`, issue **one** chosen forward-oracle query at `y` and return the response `s=F_A,c(y)`. Then `F_A,c(s)=y` exactly. No secret basis, lower prefix, derivative flag, interpolation frame, or nonlinear truth table need be learned. There is no candidate search or failure probability. The one-call worst-case bound is optimal for an unknown source from this family because two allowed prefixes can place the same target `y` in a nonfixed pair or leave it fixed, yielding different preimages without any observation.\n\n**Independent finite execution.** The preexisting exact GL(4,2) census `sims/conjugated-rare-first-mask-selection.js` and `test/conjugated-rare-first-mask-selection.test.js` now assert `F(F(y))=y` for every one of 16 targets under each of **80,640** hidden `(A,c)` sources: **1,290,240** exact target inversions, with all **80,640** source instances nonidentity (each gate changes four of sixteen targets). A second standalone Node enumeration, written without reading the prior source and run locally on 23 November, returned the same exact counts. The repository test is deterministic and passed the focused [Ubuntu/Windows Node 22 + strict project/external JSDoc validation 45107210877](https://github.com/FlareZ123/obfs/actions/runs/45107210877) at exact source `da19a25a9e5851329de72e13e5e6a758965423f3` (both platform jobs successful).\n\n**Relationship to previous findings.** The separately reviewed `n+3` rank-one theorem in `results/rank-one-nonlinear-perturbation-inversion.md` is unchanged and applies to broader two-sided affine wrappers whose output matrix need not be the inverse input matrix. Its `35`-query width-32 upper bound is not tight on the specific first-mask lower-bound family. The lower bound of **60,397,978** calls still correctly describes choosing **one globally certified first derivative scalar mask** at width 32 under the stated distribution and 95% success criterion; it is **not** a target-preimage inversion bound. In this same exact source family target inversion needs only one call. Neither result establishes obfuscator secrecy, anti-tamper strength, or a 2.5x runtime guarantee.\n
+
+## Forward-query lower bound for certifying an external ANF-degree promise
+
+This is a distinct decision problem from selecting one valid affine output mask. It formalizes why a chosen-query attacker cannot generally validate the low-degree premise used by a bounded-degree polynomial clone.
+
+Let the baseline be the identity permutation P0(z)=z. Fix a coordinate j>D and a prefix c in GF(2)^j. Define
+
+    delta_c(z_<j) = 1 exactly when z_<j = c
+    P_c(z) = z XOR e_j * delta_c(z_<j).
+
+The gate has ANF degree exactly j: it is the product of j literals, one for each fixed prefix bit. P_c is nevertheless a triangular permutation. It changes only bit j, and the gate depends only on lower bits that the map leaves unchanged, so P_c is an involution. It agrees with the identity on every input whose lower-j-bit prefix is not c.
+
+### Deterministic adaptive certification
+
+Run any deterministic q-query degree-promise tester against P0. Its adaptive transcript fixes at most q distinct queried prefixes of length j. If q<2^j, choose c outside that set. Every query in the P0 transcript then receives exactly the same response from P_c. By induction, the algorithm makes the same subsequent queries and reaches the same decision on P0 and P_c, despite P0 having degree 1<=D and P_c having degree j>D.
+
+Therefore, any zero-error forward-only procedure that must distinguish the degree-at-most-D promise from all such triangular violations requires at least 2^j queries for this fixed-j family. Choosing j=n-1 gives a worst-case lower bound of 2^(n-1) queries whenever D<n-1. At n=32 and D=2, this is 2,147,483,648 queries.
+
+### Randomized average-case form
+
+Choose c uniformly from GF(2)^j, independently of the tester's random tape. Couple the tester's execution on P0 and P_c using the same tape. On the P0 path, at most q prefixes are queried, so the probability of hitting c is at most q/2^j. If the tester accepts P0 with probability at least 1-delta, then its average probability of rejecting P_c over uniform c is at most delta+q/2^j. Consequently, achieving average rejection probability at least 1-epsilon requires
+
+    q >= (1-delta-epsilon) * 2^j
+
+whenever the right-hand side is positive. This is a transcript indistinguishability bound, not an empirical estimate.
+
+### Scope warning
+
+This lower bound is only about **certifying the global degree promise** from a forward oracle. It is not a target-inversion lower bound and does not imply defender advantage. In fact, each P_c above is an involution, so P_c^-1=P_c and one query at target y returns its preimage. The same remains true for affine conjugates A^-1 P_c A. Thus a source can be exponentially hard to distinguish from a low-degree baseline by this certification task while remaining trivial to invert under a different task.
+
+This result sharpens the epistemic boundary of the bounded-degree ANF attack: its 529-query width-32 degree-two model and its higher-degree analogues are exact **conditional on a genuine externally supplied degree bound**. A small number of successful interpolation checks cannot certify the absence of a rare high-degree triangular gate. The result is related to, but not identical with, the preceding rare-prefix single-mask-selection lower bound; neither should be misrepresented as an inversion lower bound or as a strong-obfuscation result.
