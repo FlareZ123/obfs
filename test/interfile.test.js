@@ -54,6 +54,7 @@ test('exported reader source observation keeps public function and object spelli
   }finally{await fs.rm(root,{recursive:true,force:true});}
 });
 
+
 test('diagnostic matrix identifies first cross-file positive-proof boundary',()=>{
   const state={path:'state.mjs',code:'export const state={secretValue:3,otherKey:5};'};
   const primitive={path:'state.mjs',code:'export const state={secretValue:3,otherKey:5};export const internalValue=state.secretValue;'};
@@ -62,8 +63,13 @@ test('diagnostic matrix identifies first cross-file positive-proof boundary',()=
   const global={path:'index.mjs',code:'import {state} from "./state.mjs";export const value=state.secretValue+globalThis.window.api.bridge;'};
   const a={path:'workerA.mjs',code:'import {state} from "./state.mjs";function worker(param){const alias=param;return alias.secretValue+alias.otherKey;}export const partial=worker(state);'};
   const b={path:'workerB.mjs',code:'import {state} from "./state.mjs";const {secretValue:factor,otherKey}=state;export const partial=factor*otherKey;'};
-  const all={path:'index.mjs',code:'import {state} from "./state.mjs";import {partial as a} from "./workerA.mjs";import {partial as b} from "./workerB.mjs";export const value=a+b+state.secretValue;'};
-  const primAll={path:'index.mjs',code:'import {state,internalValue} from "./state.mjs";import {partial as a} from "./workerA.mjs";import {partial as b} from "./workerB.mjs";export const value=a+b+internalValue+state.secretValue;'};
+  const indexCode=(expr,add='')=>({path:'index.mjs',code:'import {state} from "./state.mjs";import {partial as a} from "./workerA.mjs";import {partial as b} from "./workerB.mjs";'+add+'export const value='+expr+';'});
+  const all=indexCode('a+b+state.secretValue');
+  const unary=indexCode('(+a)+(+b)+state.secretValue');
+  const unused=indexCode('state.secretValue');
+  const reexport=indexCode('state.secretValue','export const aResult=a;export const bResult=b;');
+  const globalReexport=indexCode('state.secretValue+globalThis.window.api.bridge','export const aResult=a;export const bResult=b;');
+  const primAll=indexCode('(+a)+(+b)+internalValue+state.secretValue').code.replace('import {state}','import {state,internalValue}');
   const variants=[
     ['state-only',[state]],
     ['state-index',[state,index]],
@@ -71,9 +77,13 @@ test('diagnostic matrix identifies first cross-file positive-proof boundary',()=
     ['state-workerA',[state,a]],
     ['state-workerB',[state,b]],
     ['state-A-B',[state,a,b]],
-    ['state-A-B-index',[state,a,b,all]],
+    ['full-binary-plus',[state,a,b,all]],
+    ['full-unary-plus',[state,a,b,unary]],
+    ['full-unused',[state,a,b,unused]],
+    ['full-reexport',[state,a,b,reexport]],
+    ['full-global-reexport',[state,a,b,globalReexport]],
     ['primitive-index',[primitive,index]],
-    ['primitive-A-B-index',[primitive,a,b,primAll]],
+    ['primitive-all',[primitive,a,b,{path:'index.mjs',code:primAll}]],
     ['visible-index',[visible,index]]
   ];
   const observations=variants.map(([name,files])=>{
@@ -81,5 +91,5 @@ test('diagnostic matrix identifies first cross-file positive-proof boundary',()=
     return {name,objects:output.crossFile.objects,properties:output.crossFile.properties};
   });
   console.log('INTERFILE_MATRIX '+JSON.stringify(observations));
-  assert.equal(observations.length,10);
+  assert.equal(observations.length,14);
 });
