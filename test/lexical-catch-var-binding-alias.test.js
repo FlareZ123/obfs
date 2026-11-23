@@ -45,6 +45,26 @@ const aliasCases=[
     name:'var initializer in nested block still assigns caught value',
     source:`function demonstration(){try{throw "inner";}catch(window){{var window="changed";}return window;}}`,
     independent:`function demonstration(){try{throw "inner";}catch(_caught){{var _hoisted="changed";}return _caught;}}`
+  },
+  {
+    name:'destructured object var initializer also updates catch binding',
+    source:`function demonstration(){try{throw "inner";}catch(window){var {window}={window:"changed"};return window;}}`,
+    independent:`function demonstration(){try{throw "inner";}catch(_caught){var {window:_hoisted}={window:"changed"};return _caught;}}`
+  },
+  {
+    name:'destructured array var initializer also updates catch binding',
+    source:`function demonstration(){try{throw "inner";}catch(window){var [window]=["changed"];return window;}}`,
+    independent:`function demonstration(){try{throw "inner";}catch(_caught){var [_hoisted]=["changed"];return _caught;}}`
+  },
+  {
+    name:'for-of var loop target updates catch binding',
+    source:`function demonstration(){try{throw "inner";}catch(window){for(var window of ["changed"]){}return window;}}`,
+    independent:`function demonstration(){try{throw "inner";}catch(_caught){for(var _hoisted of ["changed"]){}return _caught;}}`
+  },
+  {
+    name:'for-of destructured var target updates catch binding',
+    source:`function demonstration(){try{throw "inner";}catch(window){for(var {window} of [{window:"changed"}]){}return window;}}`,
+    independent:`function demonstration(){try{throw "inner";}catch(_caught){for(var {window:_hoisted} of [{window:"changed"}]){}return _caught;}}`
   }
 ];
 
@@ -82,6 +102,16 @@ test('distinct catch and var names do not require conflating separate bindings',
   assert.notEqual(other.bindingId,null);
   assert.notEqual(caught.bindingId,other.bindingId);
   assert.equal(execute(source),'innerchanged');
+});
+
+test('nested function var is separate from enclosing catch binding',()=>{
+  const source=`function demonstration(){try{throw "inner";}catch(window){function nested(){var window="nested";return window;}return nested()+window;}}`;
+  const result=resolve(source,'commonjs');
+  const declarations=result.declarations.filter(x=>x.name==='window');
+  assert.equal(declarations.length,2);
+  assert.ok(declarations.every(x=>x.bindingId!==null));
+  assert.notEqual(declarations[0].bindingId,declarations[1].bindingId);
+  assert.equal(execute(source),'nestedinner');
 });
 
 test('same-spelled catch names in sibling functions remain independent',()=>{
