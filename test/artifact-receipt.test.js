@@ -128,3 +128,50 @@ test('refuse incomplete or duplicated candidate/control arms',async t=>{
     input.arms[0],input.arms[1],input.arms[1]]}),
     /candidate, ordinary minified control, and native/);
 });
+
+
+test('receipt path admission rejects Windows alias and malformed Unicode spellings',async t=>{
+  const input=await fixture(t);
+  const candidate=input.arms.find(arm=>arm.arm==='candidate');
+  assert.ok(candidate);
+  for(const illegal of [
+    'NUL.mjs','CON.txt','assets/COM¹.log','assets/trailing.',
+    'assets/trailing ','assets/payload:zone','assets/SHORT~1.MJS',
+    'assets/invalid\uD800.mjs'
+  ]){
+    await assert.rejects(collectArtifactReceipt({...input,arms:input.arms.map(arm=>
+      arm.arm==='candidate'?{...candidate,files:[illegal]}:arm)}),
+    /Artifact path must be portable/,JSON.stringify(illegal));
+  }
+});
+
+test('receipt refuses Unicode and directory alias collisions in declared graphs',async t=>{
+  const input=await fixture(t);
+  const candidate=input.arms.find(arm=>arm.arm==='candidate');
+  assert.ok(candidate);
+  for(const paths of [
+    ['entry.mjs','ENTRY.mjs'],
+    ['café.mjs','cafe\u0301.mjs'],
+    ['σ.mjs','ς.mjs'],
+    ['assets/payload.wasm','ASSETS/another.wasm'],
+    ['assets','assets/payload.wasm']
+  ]){
+    await assert.rejects(collectArtifactReceipt({...input,arms:input.arms.map(arm=>
+      arm.arm==='candidate'?{...candidate,files:paths}:arm)}),
+    /Ambiguous artifact path|File conflicts with directory/,
+    JSON.stringify(paths));
+  }
+});
+
+test('receipt refuses undeclared filesystem Unicode aliases before hashing',
+  {skip:process.platform==='win32'},async t=>{
+    const input=await fixture(t);
+    const candidate=input.arms.find(arm=>arm.arm==='candidate');
+    assert.ok(candidate);
+    const extra=path.join(candidate.root,'cafe\u0301.mjs');
+    const primary=path.join(candidate.root,'café.mjs');
+    await fs.writeFile(extra,'export default 1;');
+    await fs.writeFile(primary,'export default 2;');
+    await assert.rejects(collectArtifactReceipt(input),
+      /Ambiguous artifact path|Artifact group must enumerate every regular delivered file/);
+  });

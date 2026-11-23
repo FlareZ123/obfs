@@ -5,6 +5,7 @@ const fs=require('node:fs/promises');
 const os=require('node:os');
 const path=require('node:path');
 const {createHash}=require('node:crypto');
+const {safePath,createPathInventory,registerFilePath}=require('./portable-paths');
 
 /** @typedef {'native'|'minified'|'candidate'} ArtifactArm */
 /** @typedef {{arm:ArtifactArm,root:string,files:string[]}} ArmInput */
@@ -36,6 +37,14 @@ function pathParts(value) {
   const parts=value.split('/');
   assert.ok(parts.every(part=>part && part!=='.' && part!=='..'),
     'Artifact path must not contain traversal or empty segments: '+value);
+  // Experiment receipts must obey the compiler's portable path policy too.
+  // Otherwise a frozen graph may gain filesystem aliases when moved to
+  // Windows or a Unicode-normalizing filesystem.
+  try {safePath(value);}
+  catch(error){
+    throw new TypeError('Artifact path must be portable and relative: '+value,
+      {cause:error});
+  }
   return parts;
 }
 
@@ -71,6 +80,7 @@ async function hashFile(root,relative) {
 async function enumerateArtifactFiles(root) {
   /** @type {string[]} */
   const files=[];
+  const inventory=createPathInventory();
   /** @param {string} directory @param {string} relative @returns {Promise<void>} */
   async function visit(directory,relative) {
     for(const entry of await fs.readdir(directory,{withFileTypes:true})) {
@@ -81,6 +91,7 @@ async function enumerateArtifactFiles(root) {
       if(entry.isDirectory())await visit(path.join(directory,entry.name),name);
       else {
         assert.ok(entry.isFile(),'Artifact must be a regular file: '+name);
+        registerFilePath(inventory,name,'Ambiguous artifact path: ');
         files.push(name);
       }
     }
@@ -114,10 +125,12 @@ async function hashArms(arms) {
     assert.ok(arm.files.length>0,'No empty artifact group: '+arm.arm);
     const unique=[...new Set(arm.files)];
     assert.equal(unique.length,arm.files.length,'Duplicate artifact path: '+arm.arm);
-    assert.equal(new Set(unique.map(file=>file.toLowerCase())).size,unique.length,
-      'Case-insensitive artifact path collision: '+arm.arm);
     const declared=unique.sort();
-    for(const file of declared)pathParts(file);
+    const inventory=createPathInventory();
+    for(const file of declared){
+      pathParts(file);
+      registerFilePath(inventory,file,'Ambiguous artifact path: ');
+    }
     assert.deepEqual(await enumerateArtifactFiles(arm.root),declared,
       'Artifact group must enumerate every regular delivered file: '+arm.arm);
     const entries=await Promise.all(declared.map(file=>hashFile(arm.root,file)));
