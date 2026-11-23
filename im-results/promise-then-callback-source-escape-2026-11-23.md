@@ -95,3 +95,31 @@ The blunt legacy-caller veto was refined with a target-language condition: ESM a
 In the isolated patch, collectPrivateDirectCallables retains the conservative caller-reflection refusal for sloppy scripts while allowing otherwise-proved private direct-call-only functions in a strict module to transform. The [strict positive-yield fixture](https://github.com/FlareZ123/obfs/blob/agent44/callsite-source-20261123/test/strict-caller-private-source-yield.test.js) deliberately reads spy.caller, catches its TypeError, and evaluates a direct-called strict helper containing a long private literal. The exact original and emitted behavior is [51, "TypeError"]; the emitted code still changes **two literal references and one binding**. Both Windows and Ubuntu source-pinned [run 45093738734](https://github.com/FlareZ123/obfs/actions/runs/45093738734) passed focused execution and strict JSDoc at SHA f90a89cc28438ce200055a016c429716edd70d1f. The original sloppy caller-escape regression also remained green on both OS in [run 45093743470](https://github.com/FlareZ123/obfs/actions/runs/45093743470), same exact source SHA.
 
 This establishes a **narrow, proven positive exception** for strict module-wide semantics for the legacy-caller attack channel; it does not certify every other runtime source-reflection mechanism, and the earlier full-suite run still fails. There is no evidence that this change by itself improves reconstruction resistance or runtime performance.
+
+
+## Refactoring the 20 positive-yield fixtures into sound private-consumer tests
+
+The early Promise safety guard caused 20 **new** failed positive-yield assertions in two existing suites. These tests were originally written to prove that purely primitive Web API operations leave an unrelated private object property eligible for renaming. Their test harnesses constructed Promise.resolve(expression).then(callback) where the callback itself referenced the private state property. A same-realm program can replace Promise.prototype.then, publish that callback, and inspect its exact source. The failures therefore reflected an unsafe callback-provenance assumption in the *fixtures*, even when each primitive Web API expression was inert.
+
+An isolated source-pinned test refactor retains the underlying observable Web API primitive expression and the asynchronous resolved result, while using a direct-only async IIFE as its local consumer:
+
+~~~js
+// Previous fixture shape, callable source may be intercepted:
+module.exports=Promise.resolve(expression)
+  .then(observed=>({observed,value:state.secretField}));
+
+// New fixture shape, returned result remains a Promise:
+module.exports=(async()=>({
+  observed:await expression,
+  value:state.secretField
+}))();
+~~~
+
+The second fixture uses the analogous result property. In the new shape, the user-authored async function is invoked directly and does not pass itself as a callback to the mutable Promise.then method; the compiler's existing IIFE private proof can permit the unrelated secretField transformation while preserving semantic outputs. Native source-observer fixtures, where function source is actually coerced by native constructors, were **left unchanged**. This adjustment repairs an invalid positive-yield control; it is not a new obfuscation technique, bypass, or assurance about all async executions.
+
+Exact source SHA **275cf8480c14fd115dd89cbccf4c98966726683b**:
+- [Focused Windows/Ubuntu 45095090249](https://github.com/FlareZ123/obfs/actions/runs/45095090249): all Fetch/File constructor tests passed, including primitive-key positive renames and native-function-source preservation.
+- [Focused Windows/Ubuntu 45095094303](https://github.com/FlareZ123/obfs/actions/runs/45095094303): all Web IDL record tests passed, including primitive-key positive renames and real source-coercion cases.
+- Both passed strict project and external JSDoc. A full candidate matrix [45095136901](https://github.com/FlareZ123/obfs/actions/runs/45095136901) was dispatched at the same source SHA, and its verdict and comparative failure count require separate review.
+
+The fix is isolated to the Agent 44 review descendant branch; it modifies two **test fixtures only** and cannot by itself make the original canonical PR pass pre-existing behavioral or performance gates. It directly addresses the prior 20-test transformation-yield tradeoff with a semantically defensible test source class rather than weakening source-preservation guards.
