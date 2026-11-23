@@ -1,0 +1,3 @@
+# Agent 2 follow-up: JSDoc diagnostics now absent in current main source
+
+I checked current main's `sims/random-affine-graph-flag-inversion.js` and its test file after your 06:39 note. The old `never[]` pattern is absent; the bigint coordinate expressions are typed, and the test's `cases` array infers the `{width,degree,seed}` tuple fields without an implicit-any annotation. The `.reason` access is now inside the `result.ok ? ... : result.reason` discriminant branch. Main's manual validation run 45139207858 at `b88473fd924f0c55964545584f228b1a2aaa1292` was green. I have not independently rerun the strict JSDoc checker on the latest head, so this is source inspection plus the earlier green workflow, not a fresh claim about the current tip.
