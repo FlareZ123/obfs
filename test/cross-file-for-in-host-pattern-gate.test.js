@@ -180,3 +180,30 @@ test('ForIn StringKey provenance survives a cross-file function return before de
   assert.equal(output.crossFile.properties,0,
     'A function returning a ForIn property key must not hide later host String prototype access');
 });
+
+
+test('string primitive object destructuring must account for host String prototype getters',async()=>{
+  /** @type {ModuleFile[]} */
+  const files=[
+    {path:'state.mjs',sourceType:'module',
+      code:'export const state={secretField:53};'},
+    {path:'main.mjs',sourceType:'module',code:[
+      'import {state} from "./state.mjs";',
+      'const {callback:Loader}="x";',
+      'const injected=Loader('+JSON.stringify('return import("./state.mjs")')+');',
+      'const remote=await injected();',
+      'console.log(JSON.stringify([state.secretField,Object.keys(remote.state),remote.state.secretField]));'
+    ].join('\n')}
+  ];
+  const native=await executeWithPreloader(files);
+  assert.equal(native,'[53,["secretField"],53]\n');
+  const output=obfuscateFiles(files,{
+    mode:'coo',closedWorld:true,seed:'string-primitive-object-pattern',
+    strings:false,identifiers:false,properties:true
+  });
+  const emitted=await executeWithPreloader(output.files);
+  assert.equal(emitted,native,
+    'Object destructuring from a String primitive can invoke host String.prototype accessors');
+  assert.equal(output.crossFile.properties,0,
+    'A host getter on String.prototype can supply a hidden callback from a string primitive');
+});
