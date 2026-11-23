@@ -265,3 +265,19 @@ Latest validation: workflow 45132004860 at source/test commit
 - Windows Node 22.23.4: 9/9 focused tests passed; project JSDoc, external
   JSDoc and paired/complete-suite runtime-budget JSDoc passed.
 - Overall workflow conclusion: SUCCESS.
+## 23 November 2026: case-variant package-scope refusal
+
+Added a cross-platform guard for package scope paths whose basename is a
+case variant of package.json (for example Package.json). Windows file
+systems can resolve such a path case-insensitively while POSIX systems do
+not, and the compiler's package-scope discovery uses canonical lowercase
+names. The ESM audit now refuses an ancestor case variant rather than
+allowing platform-dependent package-scope selection.
+
+A tenth test covers this refusal. Latest workflow 45132427152 at source/test
+commit bf387ae5a154e5747d7a514082fad516ea4778dd succeeded:
+- Ubuntu Node 22.23.4: 10/10 focused tests; project JSDoc, external JSDoc
+  and paired/complete-suite runtime-budget JSDoc passed.
+- Windows Node 22.23.4: 10/10 focused tests; project JSDoc, external JSDoc
+  and paired/complete-suite runtime-budget JSDoc passed.
+- Overall workflow conclusion: SUCCESS.
