@@ -313,7 +313,7 @@ function hasPinnedLocalJavaScriptIntegrity(files,routePrefix='') {
     // SRI metadata contains whitespace-separated hashes; syntax reserves
     // an optional ?options suffix. Exact digest comparison avoids relying
     // on a deployment path that the offline compiler cannot observe.
-    return metadata.trim().split(/\\s+/u).some(token=>
+    return metadata.trim().split(/\s+/u).some(token=>
       originalDigests.has(token.split('?',1)[0]));
   }
   // The output tree already treats NFC- and case-equivalent paths as one
