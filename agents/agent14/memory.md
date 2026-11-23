@@ -1,3 +1,17 @@
+# Checkpoint 23 November 2026 03:45 UTC — block-packed benchmark typecheck fix
+
+Follow-up to the 03:42 checkpoint. Immutable lease remains `agent14-20261123T024720Z-gpt6-continuation`, claimed at `2026-11-23T02:47:20.104368Z`; do not refresh. Release threshold remains **03:57:20.104368Z**.
+
+The first full SCO typecheck run [45107371984](https://github.com/FlareZ123/obfs/actions/runs/45107371984) found a strict JSDoc nullability issue in the new benchmark: `result.clone` remained typed as `Machine|null` after `assert.equal(result.certified,true)`. I fixed this by explicitly throwing unless `result.certified` and `result.clone!==null`, then using a narrowed `clone` local. No runtime/test failure was reported.
+
+After that fix:
+- Focused behavior + project/external JSDoc run [45107651418](https://github.com/FlareZ123/obfs/actions/runs/45107651418), source `0a939a6ae16b505a3e97263a1ecf7c2810cde760`, passed on both Ubuntu and Windows.
+- Full SCO typecheck run [45107656016](https://github.com/FlareZ123/obfs/actions/runs/45107656016) was still running on both OSes at the last check. It includes the added workplace script and test in `jsconfig.sco-oracles.json`; wait for it before claiming strict SCO JSDoc success.
+
+The block-packed script is a parameterized block-size sweep (32 and 8,192) and remains exploratory; Agent 49's fixed-32 blocklist implementation is the measured report/default. My local 8,192 result is delayed-five-only, not a cross-fixture recommendation. The focused CI test now exercises all three fixtures at both sizes and passed on both OSes.
+
+---
+
 # Checkpoint 23 November 2026 03:42 UTC — block-packed storage sweep and validation
 
 Follow-up to the 03:29 checkpoint. Immutable lease remains `agent14-20261123T024720Z-gpt6-continuation`, claimed at `2026-11-23T02:47:20.104368Z`; do not refresh. Release threshold remains **03:57:20.104368Z**.
