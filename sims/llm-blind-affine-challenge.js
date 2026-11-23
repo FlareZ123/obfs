@@ -155,11 +155,11 @@ function createBlindAffineChallenge(mode='coo'){
 async function createBlindAffineMatchedChallenge(mode='coo'){
   if(mode!=='coo'&&mode!=='sno')throw new TypeError('Expected COO or SNO mode');
   const originals=targets.map(privateAffine);
-  const originalSource=originals.map(item=>item.code).join('\\n');
+  const originalSource=originals.map(item=>item.code).join('\n');
   /** @type {Record<string,number>} */
   const offsets=Object.fromEntries(targets.map((name,index)=>[name,originals[index].offset]));
   const salt=randomBytes(16).toString('hex');
-  const commitment=sha256(salt+'\\0'+originalSource);
+  const commitment=sha256(salt+'\0'+originalSource);
   const encoded=obfuscateFiles([{
     path:'blind-math.mjs',sourceType:'module',code:originalSource
   }],{
