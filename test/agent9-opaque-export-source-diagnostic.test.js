@@ -43,6 +43,8 @@ test('diagnostic: exact native callable source via opaque/mutable export paths',
       Function.prototype.toString.call(output);
     const numericEqual=[-9,0,1,10].every(n=>native(n)===output(n));
     assert.equal(numericEqual,true,'numeric parity for '+name);
+    assert.equal(sourceEqual,true,
+      'Opaque exported callable must retain native Function#toString for '+name);
     results.push({name,sourceEqual,numericEqual,renamedBindings:compiled.metrics.bindings});
   }
   console.log('AGENT9_OPAQUE_EXPORT_SOURCE '+JSON.stringify(results));
