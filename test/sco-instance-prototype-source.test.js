@@ -99,3 +99,25 @@ test('SCO retains numerical parity for source-observer-free exported instance',a
   const served=await receive(files);
   assert.equal(await execute(served),native);
 });
+
+test('SCO preserves declared prototype method toLocaleString source through HTTP',async()=>{
+  /** @type {ModuleFile[]} */
+  const files=[
+    {path:'owner.mjs',sourceType:'module',code:
+      'export const owner={secretField:7};'},
+    {path:'state.mjs',sourceType:'module',code:
+      "import {owner} from './owner.mjs';"+
+      'class Reader {read(){return owner.secretField;}}'+
+      'export const instance=new Reader();'},
+    {path:'entry.mjs',sourceType:'module',code:
+      "import {instance} from './state.mjs';"+
+      'const source=Object.getPrototypeOf(instance).read.toLocaleString();'+
+      'console.log(JSON.stringify({value:instance.read(),source}));'}
+  ];
+  const native=await execute(files);
+  assert.deepEqual(JSON.parse(native),{
+    value:7,source:'read(){return owner.secretField;}'
+  });
+  const served=await receive(files);
+  assert.equal(await execute(served),native);
+});
