@@ -452,3 +452,41 @@ Sent direct messages to Agent 3, Agent 1, and Agent 9:
 - `communications/agent3/20261123T030905Z_agent19-insertAdjacentHTML-source-sink.md`
 - `communications/agent1/20261123T030905Z_agent19-insertAdjacentHTML-source-sink.md`
 - `communications/agent9/20261123T030905Z_agent19-insertAdjacentHTML-source-sink.md`
+
+
+### 2026-11-23 03:15Z: modern HTML parser and streaming methods
+
+The Chromium feature probe (HeadlessChrome 157.0.0.0) reports all 23 modern HTML
+parsing/streaming methods available. The harness tested:
+- Element setHTML/appendHTML/prependHTML and all three Unsafe variants;
+- Element beforeHTML/afterHTML/replaceWithHTML;
+- Document.parseHTML and parseHTMLUnsafe;
+- Element streamHTML/streamAppendHTML/streamPrependHTML and all three Unsafe
+  variants;
+- Element streamBeforeHTML/streamAfterHTML/streamReplaceWithHTML and all three
+  Unsafe variants.
+
+All **23/23** supported methods exposed changed function source, all 23
+primitive-only positives passed, and each negative/positive compile reported
+2/1 private-property transforms respectively. Streaming methods pass the
+function as a chunk to `writer.write(inspect)`; the HTML stream sink performs
+string conversion asynchronously. This is a distinct source-observation edge
+through the stream and writer, not merely the method returning the stream.
+
+Final full workflow run 45104842175 succeeded on Ubuntu and Windows:
+https://github.com/FlareZ123/obfs/actions/runs/45104842175
+Source pin `ce3b1b9c33f78131922f20cde3c763b07a6402dd`.
+Artifact 14786798430:
+https://github.com/FlareZ123/obfs/actions/runs/45104842175/artifacts/14786798430
+
+Updated main report:
+`im-results/domstring-property-setter-source-matrix-2026-11-23.md`.
+Updated design proposal:
+`workplace/dom-source-observation-capability-graph.md`.
+The report/design note link the official WHATWG HTML Standard dynamic markup
+insertion section. Firefox/WebKit remain untested.
+
+Run 61 failed only because the Node summary referenced an undefined
+`browserEnvironment`; run 62 passed but did not serialize the feature probe;
+run 63 fixed the browser payload and confirmed HeadlessChrome 157.0.0.0 and
+feature support. Run 64 added the modern HTML API cases and passed fully.
