@@ -116,6 +116,56 @@ async function main() {
   bodies.set('/userland-native.mjs',userlandSource);
   bodies.set('/userland-compiled.mjs',userlandOutput.code);
 
+  const negativeLogic=[
+    'const observedOwner={secretField:57};',
+    'export function inspect(){return observedOwner.secretField;}',
+    'const independent={independentSecret:73};',
+    'export const independentValue=independent.independentSecret;'
+  ].join('\n');
+  const negativeObserver=[
+    'import {inspect,independentValue} from "./logic.mjs";',
+    'const target=document.createElement("div");',
+    'target.id=inspect;',
+    'export const observed={source:target.id,value:inspect(),independent:independentValue};'
+  ].join('\n');
+  const positiveLogic=[
+    'const independent={independentSecret:73};',
+    'export const independentValue=independent.independentSecret;'
+  ].join('\n');
+  const positiveObserver=[
+    'import {independentValue} from "./logic.mjs";',
+    'const target=document.createElement("div");',
+    'target.id="literal";',
+    'export const observed={source:target.id,independent:independentValue};'
+  ].join('\n');
+  const graphResult=obfuscateFiles([
+    {path:'negative-logic.mjs',sourceType:'module',code:negativeLogic},
+    {path:'negative-observer.mjs',sourceType:'module',code:negativeObserver},
+    {path:'positive-logic.mjs',sourceType:'module',code:positiveLogic},
+    {path:'positive-observer.mjs',sourceType:'module',code:positiveObserver}
+  ],{
+    mode:'coo',seed:'domstring-property-crossfile',closedWorld:true,
+    properties:true,identifiers:true,strings:false
+  });
+  const negativeLogicOutput=graphResult.files.find(file=>file.path==='negative-logic.mjs');
+  const negativeObserverOutput=graphResult.files.find(file=>file.path==='negative-observer.mjs');
+  const positiveLogicOutput=graphResult.files.find(file=>file.path==='positive-logic.mjs');
+  const positiveObserverOutput=graphResult.files.find(file=>file.path==='positive-observer.mjs');
+  assert.ok(negativeLogicOutput&&negativeObserverOutput&&
+    positiveLogicOutput&&positiveObserverOutput,'Cross-file compiler outputs are incomplete');
+  const crossNegativeProperties=negativeLogicOutput.metrics.properties+
+    negativeObserverOutput.metrics.properties;
+  const crossPositiveProperties=positiveLogicOutput.metrics.properties+
+    positiveObserverOutput.metrics.properties;
+  bodies.set('/native-negative/logic.mjs',negativeLogic);
+  bodies.set('/native-negative/observer.mjs',negativeObserver);
+  bodies.set('/compiled-negative/logic.mjs',/** @type {string} */(negativeLogicOutput.code));
+  bodies.set('/compiled-negative/observer.mjs',/** @type {string} */(negativeObserverOutput.code));
+  bodies.set('/native-positive/logic.mjs',positiveLogic);
+  bodies.set('/native-positive/observer.mjs',positiveObserver);
+  bodies.set('/compiled-positive/logic.mjs',/** @type {string} */(positiveLogicOutput.code));
+  bodies.set('/compiled-positive/observer.mjs',/** @type {string} */(positiveObserverOutput.code));
+
   const page=[
     '<!doctype html><meta charset="utf-8"><pre id="result">pending</pre>',
     '<script type="module">',
@@ -144,7 +194,20 @@ async function main() {
     '  import("/userland-native.mjs"),import("/userland-compiled.mjs")]);',
     ' const userland={native:un.observed,emitted:ue.observed,',
     '  parity:JSON.stringify(un.observed)===JSON.stringify(ue.observed)};',
-    ' document.getElementById("result").textContent=JSON.stringify({rows,userland});',
+    ' const [cn,ce,pn,pe]=await Promise.all([',
+    '  import("/native-negative/observer.mjs"),import("/compiled-negative/observer.mjs"),',
+    '  import("/native-positive/observer.mjs"),import("/compiled-positive/observer.mjs")]);',
+    ' const crossFile={native:cn.observed,emitted:ce.observed,',
+    '  nativeSourceValid:cn.observed.source.includes("observedOwner.secretField"),',
+    '  sourceMismatch:cn.observed.source!==ce.observed.source,',
+    '  numericParity:cn.observed.value===ce.observed.value&&cn.observed.value===57,',
+    '  independentParity:cn.observed.independent===ce.observed.independent&&',
+    '    cn.observed.independent===73,',
+    '  positiveParity:pn.observed.source==="literal"&&',
+    '    JSON.stringify(pn.observed)===JSON.stringify(pe.observed),',
+    '  negativeProperties:'+crossNegativeProperties+',',
+    '  positiveProperties:'+crossPositiveProperties+'};',
+    ' document.getElementById("result").textContent=JSON.stringify({rows,userland,crossFile});',
     '}catch(error){document.getElementById("result").textContent=',
     ' "BROWSER_ERROR "+String(error.stack||error);}',
     '</script>'
@@ -186,12 +249,17 @@ async function main() {
     const userlandPositive=userland.parity&&userland.native.value===57&&
       userland.emitted.value===57&&userland.native.independent===73&&
       userland.emitted.independent===73&&userlandOutput.properties>=1;
+    const crossFile=browser.crossFile;
+    const crossFileExpectedRed=crossFile.nativeSourceValid&&crossFile.sourceMismatch&&
+      crossFile.numericParity&&crossFile.independentParity&&crossFile.positiveParity&&
+      crossFile.negativeProperties>=1&&crossFile.positiveProperties>=1;
     const summary={
-      expectedRedReproduced:allExpectedRed&&userlandPositive,
+      expectedRedReproduced:allExpectedRed&&userlandPositive&&crossFileExpectedRed,
       sinkCount:rows.length,
       sourceMismatchCount:rows.filter((/** @type {any} */ row)=>row.sourceMismatch).length,
       sourceMismatchNames:rows.filter((/** @type {any} */ row)=>row.sourceMismatch).map(
         (/** @type {any} */ row)=>row.name),
+      crossFileExpectedRed,crossFile,
       rows,userland,
       userlandProperties:userlandOutput.properties
     };
