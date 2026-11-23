@@ -731,7 +731,7 @@ function proveLocalObject(ast, rootName, bindings, importedIdentityFunctions=new
          receiver.property.name!==method.key.name)return true;
       const invoked=parents.get(receiver);
       return invoked?.type!=='CallExpression'||invoked.callee!==receiver||
-        invoked.optional;
+        invoked.optional||invoked.arguments.length!==0;
     }))continue;
     privateFunctionNodes.add(method.value);
   }
