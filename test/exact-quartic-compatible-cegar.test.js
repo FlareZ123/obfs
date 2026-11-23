@@ -301,3 +301,17 @@ test('exact inversion entrypoints reject non-uint32 targets before coercion',()=
     assert.equal(inverter.invertFast(valid),valid);
   }
 });
+
+
+test('explicit malformed or overdegree coefficient terms are rejected before analysis',()=>{
+  const model={bits:32,degree:4,
+    coefficients:[[0x80000007,0x80000000]],queryCount:0};
+  assert.ok(makeBoundedDegreeDefectContractor(model));
+  for(const coefficients of [
+    [[-1,1]],[[0,NaN]],[[2**32,1]],[[7,-1]],[[7,1.5]],
+    [[0x8000001f,1]]
+  ]){
+    assert.throws(()=>makeBoundedDegreeDefectContractor({...model,coefficients}),
+      /unsigned 32-bit|outside promised degree/);
+  }
+});
