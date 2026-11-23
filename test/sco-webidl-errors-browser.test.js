@@ -98,20 +98,23 @@ async function compare(body,label){
 test('selected SCO invalid URLSearchParams pair preserves host error text',{
   skip:!enabled,timeout:60000
 },async()=>{
-  await compare("try{new URLSearchParams([['a']]);return 'ok';}catch(e){return e.name+':'+e.message;}",'urlsearchparams-invalid');
+  const result=await compare("try{new URLSearchParams([['a']]);return 'ok';}catch(e){return e.name+':'+e.message;}",'urlsearchparams-invalid');
+  assert.equal(result.refused,true);
 });
 
 test('selected SCO invalid Headers name preserves host error text',{
   skip:!enabled,timeout:60000
 },async()=>{
-  await compare("try{new Headers({'bad name':'x'});return 'ok';}catch(e){return e.name+':'+e.message;}",'headers-invalid');
+  const result=await compare("try{new Headers({'bad name':'x'});return 'ok';}catch(e){return e.name+':'+e.message;}",'headers-invalid');
+  assert.equal(result.refused,true);
 });
 
 test('selected SCO valid URLSearchParams string remains a protected-work positive',{
   skip:!enabled,timeout:60000
 },async()=>{
   const result=await compare("return new URLSearchParams([['a','1'],['b','two']]).toString();",'urlsearchparams-valid');
-  if(!result.refused)assert.equal(result.original,'a=1&b=two');
+  assert.equal(result.refused,false);
+  assert.equal(result.original,'a=1&b=two');
 });
 
 test('selected SCO WebIDL probe retains arithmetic private-work control',{
@@ -119,4 +122,36 @@ test('selected SCO WebIDL probe retains arithmetic private-work control',{
 },async()=>{
   const result=await compare('return Math.imul(17,19);','safe-math');
   assert.deepEqual(result,{refused:false,original:323,emitted:323,server:323});
+});
+
+test('selected SCO valid bounded Headers constructor preserves native browser result',{
+  skip:!enabled,timeout:60000
+},async()=>{
+  const result=await compare("return new Headers({'x-demo':'ok'}).get('x-demo');",'headers-valid');
+  assert.equal(result.refused,false);
+  assert.deepEqual(result,{refused:false,original:'ok',emitted:'ok',server:'ok'});
+});
+
+test('SCO WebIDL constructor admission denies unproved values and keeps literal positives',{
+  skip:process.env.OBFS_FOCUSED_TEST!=='test/sco-webidl-errors-browser.test.js'
+},()=>{
+  /** @param {string} body */
+  const partition=body=>partitionScoSelectedAsyncExports({
+    path:'webidl-admission.mjs',sourceType:'module',
+    code:'export async function privateOp(candidate){'+body+'}'+
+      'export function visible(){return 7;}'
+  },{seed:'sco-webidl-admission-20261123',privateNames:['privateOp']});
+  for(const body of [
+    "new URLSearchParams([['a']]);return 'bad';",
+    "new Headers({'bad name':'x'});return 'bad';",
+    "return new URLSearchParams(candidate).toString();",
+    "const Ctor=URLSearchParams;return new Ctor(candidate).toString();",
+    "return new Headers(candidate).get('x-demo');"
+  ])assert.throws(()=>partition(body),/unproved cross-realm WebIDL constructor/,body);
+  for(const body of [
+    "return new URLSearchParams([['a','1'],['b','two']]).toString();",
+    "return new URLSearchParams('a=1&b=two').toString();",
+    "return new Headers({'x-demo':'ok'}).get('x-demo');",
+    "return Math.imul(17,19);"
+  ])assert.deepEqual(partition(body).privateNames,['privateOp'],body);
 });
