@@ -91,12 +91,41 @@ test('corrected affine-graph inversion recovers the 32-bit silent-rank quintic p
   const exactCloneQueries=binomialSum(32,5);
   assert.equal(exactCloneQueries,242825);
   assert.ok(totalGraphQueries<exactCloneQueries);
+
+  // A ninth distinct B-active target crosses the one-time full-clone cost
+  // for this fixed source/seed schedule; this pins the observed break-even.
+  const ninthSecret=0x0000017c;
+  const ninthTarget=silentRankQuinticPermutation(ninthSecret);
+  assert.notEqual(rankSixFastCandidate(ninthSecret),ninthTarget);
+  /** @param {bigint} input @returns {bigint} */
+  const ninthOracle=input=>BigInt(silentRankQuinticPermutation(Number(input)));
+  const ninthResult=invertByRandomAffineGraph(ninthOracle,BigInt(ninthTarget),32,5,{
+    seed:0xa508,
+    delta:1e-8
+  });
+  assert.equal(ninthResult.success,true,JSON.stringify({
+    reason:ninthResult.reason,failedDimension:ninthResult.failedDimension
+  }));
+  assert.equal(ninthResult.input,BigInt(ninthSecret));
+  assert.equal(ninthResult.verified,true);
+  assert.equal(ninthOracle(ninthResult.input),BigInt(ninthTarget));
+  assert.equal(ninthResult.stages.length,32);
+  assert.ok(ninthResult.stages.every(stage=>stage.reason==='affine-relation'));
+  const nineTargetTotal=totalGraphQueries+ninthResult.queries;
+  assert.ok(nineTargetTotal>exactCloneQueries);
+
   process.stdout.write('OBFS_GRAPH_QUINTIC_SILENT_RANK '+JSON.stringify({
     width:32,degree:5,
     jointTopDerivativeRadicalCodimension:7,
     affineFlag:true,
     targets:receipts.length,
     receipts,totalGraphQueries,exactCloneQueries,
+    ninthReceipt:{
+      secret:'0x'+ninthSecret.toString(16).padStart(8,'0'),
+      target:'0x'+ninthTarget.toString(16).padStart(8,'0'),
+      queries:ninthResult.queries
+    },
+    nineTargetTotal,
     rawCandidateMismatchesIn9BitCore:16,
     allTargetsRecovered:true
   })+'\\n');
