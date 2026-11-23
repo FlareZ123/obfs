@@ -75,6 +75,8 @@ jobs:
         run: node sims/rankfour-projected-cubic-rescue.js
       - name: Silent rank-five permutation counterexample to projected cubic signature
         run: node sims/rankfour-projected-cubic-silent-rank-control.js
+      - name: Reed-Muller-validated projected cubic clone
+        run: node sims/rankfour-projected-cubic-validated-peer.js
       - name: Exhaustive vector cubic signature and radical independent peer
         run: node sims/rankfour-vector-signature-exhaustive.js
       - name: Exhaustive rank-five four-wedge output-rank witness frequencies
