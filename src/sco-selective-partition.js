@@ -469,7 +469,8 @@ function usesUnprovedRelocatedWebIdlConstructors(body,knownFormals=new Set()){
     if(expression.arguments.length!==1)return false;
     const argument=expression.arguments[0];
     if(name==='URLSearchParams'){
-      if(asciiText(argument))return true;
+      const staticText=staticString(argument);
+      if(staticText!==null&&/^[\x20-\x7e]*$/u.test(staticText))return true;
       return argument.type==='ArrayExpression'&&
         argument.elements.every((/** @type {import('./ast').AstNode|null} */ pair)=>
           pair?.type==='ArrayExpression'&&pair.elements.length===2&&
