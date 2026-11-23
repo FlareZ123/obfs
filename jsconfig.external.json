@@ -259,7 +259,11 @@
     "test/factory-destructuring-browser.js",
     "sims/factory-destructuring-paired-session.js",
     "test/low-output-residual-cycle-independent.test.js",
-    "test/llm-expression-vm-minifier-control.test.js"
+    "test/llm-expression-vm-minifier-control.test.js",
+    "test/cssom-custom-property-source.test.js",
+    "test/cssom-custom-property-source-browser.js",
+    "test/cssom-source-esbuild-baseline.test.js",
+    "sims/webidl-coercion-capability-matrix.js"
   ],
   "exclude": [
     "node_modules"
