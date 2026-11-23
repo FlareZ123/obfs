@@ -110,3 +110,25 @@ test('primitive Storage and Window.name values retain unrelated identifier yield
   assert.ok(result.files[0].metrics.bindings>=1);
   assert.ok(!output.includes('primitiveLocal'));
 });
+
+const propertySource=[
+  'function inspect(){const observedOwner={secretField:29};return observedOwner.secretField;}',
+  'function independent(){const privateOwner={privateField:7};return privateOwner.privateField;}',
+  'export function sample(){',
+  '  localStorage.setItem("property-source-observer",inspect);',
+  '  return {observed:inspect(),independent:independent()};',
+  '}'
+].join('\\n');
+
+test('property pass keeps the Storage-observed owner stable while renaming an independent owner',()=>{
+  const result=obfuscateFiles([{path:'entry.mjs',sourceType:'module',code:propertySource}],{
+    mode:'coo',seed:'storage-property-owner-control',
+    properties:true,identifiers:false,strings:false
+  });
+  const output=String(result.files[0].code);
+  assert.ok(output.includes('secretField'),
+    'the source-observed function owner must retain its property spelling');
+  assert.ok(!output.includes('privateField'),
+    'the independent private owner must retain property-renaming yield');
+  assert.ok(result.files[0].metrics.properties>=1);
+});
