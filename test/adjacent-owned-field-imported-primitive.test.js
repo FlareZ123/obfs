@@ -31,13 +31,13 @@ function fourFileGraph(producer) {
   ];
 }
 
-/** @param {Source[]} files @returns {Promise<number>} */
+/** @param {Source[]} files @returns {Promise<number|string>} */
 async function runNative(files) {
   const root=await fs.mkdtemp(path.join(os.tmpdir(),'obfs-adjacent-primitive-'));
   try {
     for(const file of files)await atomicWrite(path.join(root,file.path),file.code);
     const module=await import(pathToFileURL(path.join(root,'index.mjs')).href);
-    return /** @type {number} */(module.result);
+    return /** @type {number|string} */(module.result);
   }finally{
     await fs.rm(root,{recursive:true,force:true});
   }
@@ -59,6 +59,65 @@ test('adjacent literal owner field is a proven imported primitive with four-file
   }));
   assert.equal(await runNative(sources),29);
   assert.equal(await runNative(emitted),29);
+});
+
+
+for(const mode of /** @type {Array<'sco'|'sno'>} */ (['sco','sno'])) {
+  test('adjacent own literal primitive works in '+mode+' core output with emitted ESM parity',async()=>{
+    const sources=fourFileGraph(
+      'export const state={secretValue:3,otherKey:5};'+
+      'export const internalValue=state.secretValue;');
+    const obfuscated=obfuscateFiles(sources,{mode,seed:'adjacent-own-'+mode,
+      closedWorld:true,strings:false,identifiers:false,properties:true});
+    assert.equal(obfuscated.crossFile.objects,1);
+    assert.equal(obfuscated.crossFile.properties,2);
+    const emitted=obfuscated.files.map(file=>({
+      path:file.path,sourceType:/** @type {'module'} */('module'),code:String(file.code)
+    }));
+    assert.equal(await runNative(emitted),29);
+  });
+}
+
+test('intervening mutation to callable keeps source-sensitive ESM stringification',async()=>{
+  /** @type {Source[]} */
+  const sources=[
+    {path:'state.mjs',sourceType:'module',
+      code:'export const state={secretValue:3,otherKey:5};'+
+        'state.secretValue=function observed(){return 37;};'+
+        'export const internalValue=state.secretValue;'},
+    {path:'index.mjs',sourceType:'module',
+      code:'import {internalValue} from "./state.mjs";'+
+        'export const result=String(internalValue);'}
+  ];
+  assert.equal(collectVerifiedImportedPrimitives(sources).get('index.mjs')?.has('internalValue'),false);
+  const obfuscated=obfuscateFiles(sources,{mode:'coo',
+    seed:'adjacent-mutated-callable',closedWorld:true,
+    strings:false,identifiers:false,properties:true});
+  assert.equal(obfuscated.crossFile.objects,0);
+  assert.equal(obfuscated.crossFile.properties,0);
+  const emitted=obfuscated.files.map(file=>({
+    path:file.path,sourceType:/** @type {'module'} */('module'),code:String(file.code)
+  }));
+  const observed=await runNative(sources);
+  assert.match(String(observed),/function observed/);
+  assert.equal(await runNative(emitted),observed);
+});
+
+test('adjacent owner primitive remains primitive with hostile inherited getter',async()=>{
+  const sources=fourFileGraph(
+    'Object.defineProperty(Object.prototype,"secretValue",{get(){return ()=>41;},configurable:true});'+
+    'export const state={secretValue:3,otherKey:5};'+
+    'export const internalValue=state.secretValue;');
+  assert.equal(collectVerifiedImportedPrimitives(sources).get('index.mjs')?.has('internalValue'),true);
+  // Each test's ESM module is cached under a fresh absolute path; the getter
+  // affects only prototype lookup and never shadows the owner's own field.
+  const emitted=obfuscateFiles(sources,{mode:'coo',seed:'own-inherited-getter',
+    closedWorld:true,strings:false,identifiers:false,properties:true}).files.map(file=>({
+      path:file.path,sourceType:/** @type {'module'} */('module'),code:String(file.code)
+    }));
+  assert.equal(await runNative(sources),29);
+  assert.equal(await runNative(emitted),29);
+  delete Object.prototype.secretValue;
 });
 
 for(const [label,producer] of /** @type {Array<[string,string]>} */ ([
