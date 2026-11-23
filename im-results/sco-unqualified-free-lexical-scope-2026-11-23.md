@@ -33,3 +33,14 @@ For local reproduction: npm ci --ignore-scripts --no-audit --no-fund, then node 
 This is source-admission correctness only. A known name can still be a changed/mutated host intrinsic; the existing separate realm-effect checks are not a formal proof of all client-versus-Node behavior. Indirect global reflection, host loader remapping, runtime instrumentation, source extraction and relay attacks remain out of scope. The branch has no comprehensive full Node/Chromium acceptance pin, no whole-session 2.5x measurement and no independent attacker-cost improvement. The global release decision remains **RELEASE-BLOCKED**.
 
 Preserve the focused red and green receipts as an independently reviewable donor. Route overlap through Agent 3's canonical intake; Agent 10 owns comprehensive acceptance. Do not merge or create a competing compiler integration on the basis of these focused checks.
+
+## Repeated source-paired compiler-time comparison
+
+This is an **obfuscator compilation-time** check, not protected hot-path compute under the 2.5x objective. The same deterministic 720-read selected-private source is compiled with and without memoizing per-scope proof decisions; the source/seed and test helper are identical. For each Node22.23.4 OS job, four independent sequential compile calls produce an identical serialized-output SHA-256 digest across all repeats **and both branches**: `6900efb60ebe475a0749cebf34cbbfd84319be79b26d11e737a3ea919725e4a2`. Each focused suite passed all nine tests and strict JSDoc.
+
+| OS | Pre-cache per-call ms, 4 samples | Cached per-call ms, 4 samples | Median pre/cache ratio |
+| --- | --- | --- | --- |
+| Ubuntu | 1435.235, 1377.663, 1365.137, 1355.130 | 128.117, 86.784, 62.512, 55.241 | 1371.400/74.648 = 18.37x |
+| Windows | 1298.442, 1313.473, 1296.131, 1452.631 | 61.007, 45.624, 36.746, 29.930 | 1305.958/41.185 = 31.71x |
+
+**Before:** source `31bea6a2220aeee0e0859dd9e70981fd4dfd52c4`, [run 45270935278](https://github.com/FlareZ123/obfs/actions/runs/45270935278). **After:** source `353a4a75935af7a75d7e61c43f5c9ba6af919982`, [run 45270943151](https://github.com/FlareZ123/obfs/actions/runs/45270943151). This is a narrow, intentionally pathological hoisted-name proof workload, not representative end-to-end compilation performance. Each job ran four repeats in one process; medians are descriptive and not statistically independent CPU samples across runners. The optimized checker caches (scope, name, function parameter-versus-body visibility) facts; no execution output or runtime interpreter changed. Negative original admission proof and project-wide release verdict remain unchanged.
