@@ -194,7 +194,7 @@ function usesUnprovedCrossRealmHostApi(body,explicitServerBindings=new Set()){
     // Node's legacy buffer.atob/btoa errors have different native messages
     // from browser Window atob/btoa, even for identical malformed input.
     'atob','btoa',
-    'console','fetch','Request','Worker','WebSocket','XMLHttpRequest','EventSource',
+    'console','fetch','Request','Response','Worker','WebSocket','XMLHttpRequest','EventSource',
     'BroadcastChannel','MessageChannel',
     'setTimeout','clearTimeout','setInterval','clearInterval',
     'setImmediate','clearImmediate','queueMicrotask',
