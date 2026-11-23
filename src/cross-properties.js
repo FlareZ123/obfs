@@ -1603,19 +1603,33 @@ function safeClosedCallerRecordRead(modules,module,member,ancestors) {
                 !inertSpreadLiteral(property.argument,0):true);
           return false;
         }
+        /**
+         * A nested mutable member has the same root binding as its holder.
+         * When a callback may be installed at any depth, conservatively
+         * mark the owning root as a possible carrier.
+         * @param {AstNode|null|undefined} expression
+         * @returns {string|null}
+         */
+        function rootHolderName(expression) {
+          let part=expression;
+          while(part?.type==='MemberExpression')part=part.object;
+          return part?.type==='Identifier'?part.name:null;
+        }
         let aliasChanged;
         do {
           aliasChanged=false;
           walk(caller.ast,node=>{
             // Ordinary property/index writes may install a host-returning
-            // factory into a previously inert {} or [] holder.
+            // factory into a previously inert holder, including nested
+            // carrier.holder.callback and carrier.inner[0] paths.
             if(node.type==='AssignmentExpression' && node.operator==='=' &&
-               node.left.type==='MemberExpression' &&
-               node.left.object.type==='Identifier' &&
-               holdsFactoryValue(node.right,0) &&
-               !callbackHolders.has(node.left.object.name)) {
-              callbackHolders.add(node.left.object.name);
-              aliasChanged=true;
+               node.left.type==='MemberExpression') {
+              const holderName=rootHolderName(node.left.object);
+              if(holderName && holdsFactoryValue(node.right,0) &&
+                 !callbackHolders.has(holderName)) {
+                callbackHolders.add(holderName);
+                aliasChanged=true;
+              }
             }
             const binding=node.type==='VariableDeclarator'?node.id:
               node.type==='AssignmentExpression' && node.operator==='='?node.left:null;
@@ -1642,10 +1656,11 @@ function safeClosedCallerRecordRead(modules,module,member,ancestors) {
             // object identity. A write through the alias can affect reads
             // through the original binding, so join host-carrier taint in
             // both directions rather than only source-to-target.
-            if(value.type==='Identifier' &&
-               callbackHolders.has(binding.name) &&
-               !callbackHolders.has(value.name)) {
-              callbackHolders.add(value.name);
+            const aliasRoot=value.type==='Identifier' ||
+              value.type==='MemberExpression'?rootHolderName(value):null;
+            if(aliasRoot && callbackHolders.has(binding.name) &&
+               !callbackHolders.has(aliasRoot)) {
+              callbackHolders.add(aliasRoot);
               aliasChanged=true;
             }
             const ordinaryAlias=value.type==='Identifier' &&
