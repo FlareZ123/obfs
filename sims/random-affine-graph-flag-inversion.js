@@ -210,7 +210,7 @@ function firstSetBit(value,width) {
  * @param {(width:number)=>bigint} randomCoordinates
  * @param {number} stageDelta
  * @param {number} maxQueriesPerStage
- * @returns {object}
+ * @returns {{ok:true,a:bigint,w:bigint,c:bigint,pivot:number,rhs:bigint,queries:number,rank:number,dimension:number,stagnant:number,stagnationLimit:number,nullity:number}|{ok:false,reason:string,queries:number,rank:number,dimension:number,stagnant:number,stagnationLimit:number,nullity?:number}}
  */
 function findRelation(oracle,target,base,basis,width,degree,randomCoordinates,stageDelta,maxQueriesPerStage) {
   const dimension=basis.length;
