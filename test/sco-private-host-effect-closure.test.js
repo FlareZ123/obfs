@@ -843,7 +843,10 @@ test('SCO refuses legacy TextDecoder results with unproved host mapping tables',
     "const decoder=new TextDecoder('utf-8',{fatal:true});return decoder.decode(Uint8Array.of(0x80));",
     "const decoder=new TextDecoder('utf-8',{fatal:true});const alias=decoder;return alias.decode(Uint8Array.of(0x80));",
     "return new TextDecoder('utf-8',{fatal:true}).decode(bytes);",
-    "return new TextDecoder('utf-8',{fatal:true}).decode(Uint8Array.of(65),{stream:true});"
+    "return new TextDecoder('utf-8',{fatal:true}).decode(Uint8Array.of(65),{stream:true});",
+    "const input='bad';return new TextDecoder('utf-8').decode(input);",
+    "const input=[];const decoder=new TextDecoder('utf-8');return decoder.decode(input);",
+    "const data='bad';const decoder=new TextDecoder('UTF8');const alias=decoder;return alias.decode(data);"
   ];
   for(const body of unsafe){
     const code='export async function protectedOp(){'+body+'}'+
