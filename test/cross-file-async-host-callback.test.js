@@ -656,3 +656,50 @@ test('numeric logical local callback alias keeps unrelated private-property rewr
   assert.equal(await execute(compiled.files),native);
   assert.equal(compiled.crossFile.properties,1);
 });
+
+
+/**
+ * Callback expressions can themselves select or sequence a host-returning
+ * function. A bounded provenance analysis must preserve that possible
+ * function even without a direct identifier initializer.
+ */
+for(const [name,expression] of /** @type {[string,string][]} */([
+  ['true conditional','true ? getFactory : (()=>7)'],
+  ['false conditional','false ? (()=>7) : getFactory'],
+  ['logical OR','getFactory || (()=>7)'],
+  ['nullish logical','null ?? getFactory'],
+  ['sequence','(0,getFactory)']
+])) {
+  test('expression-carried host callback '+name+' preserves original ESM key',async()=>{
+    const files=graph([
+      'function getFactory(){return globalThis.RUNTIME_FACTORY;}',
+      'const callback='+expression+';',
+      'const ctor=await Promise.resolve().then(callback);',
+      'const remote=await ctor("return import(\'./state.mjs\')")();',
+      "const result=[inspectRecord('auditCount').value,Object.keys(remote.state),remote.state.secretField];"
+    ].join('\n'));
+    const native=await execute(files,true);
+    assert.equal(native,'[41,[3,["secretField"],41]]\n');
+    const compiled=obfuscateFiles(files,{
+      mode:'coo',closedWorld:true,seed:'host-expr-callback/'+name,
+      identifiers:false,strings:false,properties:true
+    });
+    assert.equal(await execute(compiled.files,true),native,name);
+    assert.equal(compiled.crossFile.properties,0,name);
+  });
+}
+
+test('primitive conditional callback preserves positive own-key rewrite',async()=>{
+  const files=graph([
+    'const callback=true ? (()=>7) : (()=>9);',
+    'const value=await Promise.resolve().then(callback);',
+    "const result=[inspectRecord('externalFormat').value,value];"
+  ].join('\n'));
+  const native=await execute(files);
+  const compiled=obfuscateFiles(files,{
+    mode:'coo',closedWorld:true,seed:'host-expr-callback-primitive',
+    identifiers:false,strings:false,properties:true
+  });
+  assert.equal(await execute(compiled.files),native);
+  assert.equal(compiled.crossFile.properties,1);
+});
