@@ -67,3 +67,24 @@ test('exported cross-file callable stays source-stable while unrelated consumer 
   assert.ok(!consumer.includes('independentLocal'),
     'the unrelated unexported consumer helper retains identifier yield');
 });
+
+const shadowedHostNames=[
+  'const localStorage={setItem(_key,_value){}};',
+  'const window={name:""};',
+  'function inspect(){const shadowLocal=43;return shadowLocal;}',
+  'function inspectWindow(){const shadowWindow=47;return shadowWindow;}',
+  'localStorage.setItem("key",inspect);',
+  'window.name=inspectWindow;',
+  'export function sample(){return inspect()+inspectWindow();}'
+].join('\\n');
+
+test('shadowed localStorage and window bindings are not browser source-observer sinks',()=>{
+  assert.equal(observesFunctionSource(parse(shadowedHostNames,'module')),false);
+  const result=obfuscateFiles([{path:'entry.mjs',sourceType:'module',code:shadowedHostNames}],{
+    mode:'coo',seed:'storage-window-shadowed-positive-control',
+    properties:false,identifiers:true,strings:false
+  });
+  const output=String(result.files[0].code);
+  assert.ok(!output.includes('shadowLocal'));
+  assert.ok(!output.includes('shadowWindow'));
+});
