@@ -112,8 +112,9 @@ test('primitive Storage and Window.name values retain unrelated identifier yield
 });
 
 const propertySource=[
+  'const privateOwner={privateField:7};',
   'function inspect(){const observedOwner={secretField:29};return observedOwner.secretField;}',
-  'function independent(){const privateOwner={privateField:7};return privateOwner.privateField;}',
+  'function independent(){return privateOwner.privateField;}',
   'export function sample(){',
   '  localStorage.setItem("property-source-observer",inspect);',
   '  return {observed:inspect(),independent:independent()};',
