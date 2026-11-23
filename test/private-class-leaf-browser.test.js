@@ -59,7 +59,7 @@ async function run(origin,name,variant){
     '--no-first-run','--virtual-time-budget=10000','--dump-dom',
     origin+'/'+name+'/'+variant+'/index.html'
   ],{timeout:45000,maxBuffer:4*1024*1024,encoding:'utf8',windowsHide:true});
-  const matched=stdout.match(/<pre id="result">([A-Za-z0-9+/=]+)<\\/pre>/u)?.[1];
+  const matched=stdout.match(/<pre id="result">([A-Za-z0-9+/=]+)<\/pre>/u)?.[1];
   assert.ok(matched,name+'/'+variant+': browser did not return encoded result: '+stdout.slice(0,1200));
   return JSON.parse(Buffer.from(matched,'base64').toString('utf8'));
 }
