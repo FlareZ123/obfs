@@ -85,6 +85,8 @@ jobs:
         run: node --test test/sco-step-only-two-state-live.test.js
       - name: Confirm posterior-weighted two-state online learner on all model tables
         run: node --test test/sco-step-only-two-state-online.test.js
+      - name: Verify exact cross-prior Pareto frontier for nine- and ten-query policies
+        run: node --test test/sco-step-only-two-state-pareto.test.js
       - name: Verify constructive eight-query adversarial lower bound and nine-query optimal strategy
         run: node --test test/sco-step-only-two-state-game-certificate.test.js
       - name: Falsify attacker-prior generalization with exact two-state prior sensitivity

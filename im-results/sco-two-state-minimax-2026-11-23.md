@@ -126,3 +126,28 @@ Two more deterministic regression cases in test/sco-step-only-two-state-online.t
 2. A service returning zero on its first 20 public calls and one afterward appears to the finite stationary learner as an all-zero model. It receives a symbolic continuation certificate after seven probes, while a later authorized call differs from the clone. This service is explicitly **nonstationary** even though it has at most two instantaneous states; the fixed deterministic Mealy premise is false. SCO server-side rotation and multi-session mutations need independent threat modeling.
 
 Both local illustrative cases were directly reproduced before being added to the SCO workflow. They cannot invalidate the proven conditional two-state results, and they prevent using those results as universal lifetime-service or reset claims.
+
+
+## Exact cross-prior Pareto frontiers
+
+The preceding sensitivity results raise a stronger question: could a single alternative tie-breaking strategy match both priors' respective optima? A full multiobjective Bellman computation over the **4,429** uncompressed labelled-model beliefs answers for *all adaptive deterministic policies under each depth cap*. Every nonterminal state contributes its current labelled-source mass and its reciprocal-class-multiplicity-scaled semantic mass. For both public input choices, the solver forms every possible combination of the output-branch cost frontiers, then removes dominated pairs. At most **five** nondominated pairs arise at any belief, with no local action generating more than 18 candidates.
+
+Under a **nine-query hard cap**, the **entire** nondominated initial-state frontier, as (uniform source total over 260 tables, uniform semantic total over 148 behaviors), is:
+
+- (1884, 1100)
+- (1911, 1099)
+- (1938, 1098)
+- (1965, 1097)
+- (1992, 1096)
+
+Here every reduction of one call in the uniform-behavior corpus beyond 1100 requires **27 additional total calls** on the uniformly labelled source corpus. This proves that the prior disagreement is intrinsic to the admitted adaptive policy space rather than an arbitrary tie-break in the existing optimized learner. In particular, no nine-capped strategy simultaneously achieves 1,884 labelled-source calls and 1,096 semantic calls.
+
+Under a **ten-query hard cap**, the full nondominated frontier is:
+
+- (1776, 1104)
+- (1799, 1099)
+- (1822, 1094)
+- (1845, 1089)
+- (1868, 1084)
+
+Increasing the cap from ten to **eleven** does **not** change this initial Pareto frontier. These values are exact and the semantic sums are represented as integer totals scaled by 29 until final reporting. Source and test: sims/sco-step-only-two-state-pareto.js and test/sco-step-only-two-state-pareto.test.js. Local Node 22.16.0 passed both focused tests; latest strict JSDoc Ubuntu/Windows source-pinned validation is pending.
