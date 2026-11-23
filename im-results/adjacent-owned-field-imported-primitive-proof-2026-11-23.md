@@ -30,10 +30,18 @@ The expanded `test/adjacent-owned-field-imported-primitive.test.js` additionally
 
 The negative classification matrix explicitly declines an intervening property mutation, intervening opaque call, literal getter, computed key, forward TDZ owner, missing own key, function-valued initializer, and dynamic owner factory. It is part of the executable test, not only this prose.
 
+## Broader targeted compatibility and real browser
+
+Two established source-observation regression suites remained green on both Windows and Ubuntu, exact source `c7efeeada013de7f143d27e0441f9fb635b53e52`: [focused imported primitive source proof 45260914783](https://github.com/FlareZ123/obfs/actions/runs/45260914783) and [focused direct reader primitive proof 45260921251](https://github.com/FlareZ123/obfs/actions/runs/45260921251). Both also passed strict JSDoc checks.
+
+An additional deterministic 15-case matrix (five primitive kinds: number, boolean, null, string, BigInt; three field names: `secretValue`, `_privateValue`, `toString`) validates primitive provenance and native-vs-emitted Node ESM results. All cases and strict JSDoc passed on Ubuntu/Windows at `1f6f626134a3df915f9c6f72fb67ab194c52b989`, [run 45261132228](https://github.com/FlareZ123/obfs/actions/runs/45261132228).
+
+A dedicated network-served four-module Chromium differential was added as `test/adjacent-owned-field-chromium.test.js` and included in the external strict-JSDoc gate. It serves separately scoped native/emitted ESM modules from an actual local HTTP server, imports both through Chromium's genuine module loader, and compares result **29** while retaining the **1 object/2 properties** proof requirement. [Run 45261570980](https://github.com/FlareZ123/obfs/actions/runs/45261570980) at `17d7e58bf5d62797f8b52cd5e1ae94d2dce5c2eb`: Ubuntu **1 real Chromium test passed, 0 skipped**, ~10.9 seconds; Windows **browser test skipped** because Chrome binary is unavailable there, while all focused steps and strict JSDoc passed on both OS. This is actual Chromium evidence on Linux only. The Chrome test is skipped automatically when the executable is absent.
+
 ## Compatibility scope and limitations
 
 - **No obfuscator VM, runtime wrapper or new network requirement** was added; the change only expands a compile-time primitive fact, so there is no additional emitted-runtime operation attributable to this proof. This does not establish 2.5x compliance of the whole obfuscator.
-- The validation covers all three **core output modes**, using real Node 22 ESM execution. It does not execute the SCO request-time handler, SNO packaged launcher, or Chromium. The existing mainline comprehensive Node/browser acceptance remains red or unproven for this exact patch SHA.
+- The validation covers all three **core output modes**, using real Node 22 ESM execution. It does not execute the SCO request-time handler or SNO packaged launcher. One Linux Chromium ESM differential passes separately as described above. The existing mainline comprehensive Node/browser acceptance remains red or unproven for this exact patch SHA.
 - The protection decision remains conservative if an exported callable's source could be observed: `export function internal(){return state.secretValue;}` is separately tested and declined in [draft PR #352](https://github.com/FlareZ123/obfs/pull/352), with no production source rewrites in that PR.
 - This proof does not generalize to alias chains, imported owner reads initialized in another module, unrelated top-level values, cycles with unknown effects, functions returning fields, or member reads separated by even one program statement.
 - The added provenance should be subjected to broader source-observer tests before any main integration, and results should retain the immutable SHA. **RELEASE-BLOCKED** remains the current objective verdict.
