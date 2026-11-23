@@ -272,7 +272,8 @@
     "sims/classic-private-profile.js",
     "test/classic-private-grid.test.js",
     "test/classic-private-properties.test.js",
-    "examples/classic-private/build-sample.cjs"
+    "examples/classic-private/build-sample.cjs",
+    "test/classic-private-cross-script-stringify.test.js"
   ],
   "exclude": [
     "node_modules"
