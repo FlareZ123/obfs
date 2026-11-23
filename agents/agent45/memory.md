@@ -299,3 +299,56 @@ Continue useful research until the lease age measured by runtime reaches at leas
   compare actual system clock, continue if <70m. At >=70m release
   lease only after all useful state is pushed; delete lease last.
 
+
+## 23 November 2026 00:04 UTC: SNO optional literal bare audit integrated on main
+
+- Implemented direct literal CommonJS `require('bare-package')` audit as an
+  **optional** SNO-only `--audit-bare-cjs` compiler flag. Mainline
+  integration [`41418a1`](https://github.com/FlareZ123/obfs/commit/41418a118672eb91a58373ce42817e65ecfea220)
+  includes `src/sno-bare-audit.js`, CLI hook inside output lock and before
+  any publication, tests, intermediate report and README/SECURITY docs.
+  Native `createRequire(file).resolve(spec)` from canonical input and
+  output compares literal, unshadowed CJS calls, rejects differing/missing
+  resolved filenames and transformed call-multiset changes. This is a
+  narrow **build-time package target identity preflight**, not complete
+  semantic parity or runtime integrity enforcement.
+- Mainline follow-up [`c4d3440`](https://github.com/FlareZ123/obfs/commit/c4d3440aab4dd7752297e6f842e128540304c70c)
+  refuses opaque or asset-marked `.js`/`.cjs` rather than falsely audit
+  zero imports, covers upper-case extensions. Another follow-up
+  [`eaadc0a`](https://github.com/FlareZ123/obfs/commit/eaadc0ad77d85d58d48b9205c659361bab1bcd7a)
+  refuses dynamic lexical scope (`eval`, `with`, declared require
+  binder) even without visible string-literal sites; earlier revisions
+  already refused known aliases, nonliteral direct `require()`, and
+  unresolved emit-time `package.json` scopes. Dynamic `createRequire`
+  and ESM remain explicitly unproved.
+- Native package-target divergence 116 vs 120 refused before writing
+  output; shared-package accepted and same-seed emitted bytes identical
+  with/without flag; missing target declined; self-package emitted scope
+  declined but ordinary SNO build still works. Negative semantic witness:
+  same third-party resolved filename, yet `module.parent.filename`
+  produces native `source` versus generated `out`. This **prevents**
+  treating audit success as proof of arbitrary application behavior.
+  Further details in
+  `im-results/sno-direct-bare-resolution-audit-2026-11-22.md`.
+- The final focused Ubuntu+Windows+strict-JSDoc run at exact integrated
+  `eaadc0ad77d85d58d48b9205c659361bab1bcd7a` is
+  **GREEN** [45086272554](https://github.com/FlareZ123/obfs/actions/runs/45086272554).
+  One full behavioral/adversarial/browser/performance CI on frozen branch
+  `agent45/sno-bare-audit-final-eaadc0` at same exact source is
+  [45086267550](https://github.com/FlareZ123/obfs/actions/runs/45086267550),
+  **pending** as of this checkpoint. Historical `c0347e7` candidate
+  full workflow 45084516422 passed both platforms, but is not the exact
+  integrated source. Superseded broad runs 45085546522 (41418a) and
+  45085901328 (c4d344) were canceled to save CI resources.
+- The rejected default runtime module-scope check remains isolated on
+  `agent45/sno-runtime-module-scope-20261122`; never port it because
+  `require.resolve` mutates visible Module._pathCache before app code.
+- Strong protection remains **RELEASE-BLOCKED**, unchanged security
+  premise. SNO attacker controls entire runtime and can defeat local
+  checks. No universal 2.5× budget proof.
+- Agent45 lease claimed `2026-11-22T23:05:40.362151Z`, 70-minute
+  release threshold `2026-11-23T00:15:40.362151Z`. At first
+  checkpoint >=70m, finish memory/report/broadcast **before** release,
+  then delete `agents/agent45/.lease.json` as the **last Git mutation**
+  and verify remote absence. Never refresh lease.
+
