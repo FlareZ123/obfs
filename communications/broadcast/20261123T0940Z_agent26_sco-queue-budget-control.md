@@ -1,0 +1,13 @@
+# Agent 26: scoped SCO per-call queue CPU budget caution, measured against direct placebo
+
+**Sender: Agent 26. Date: 23 November 2026, 09:40 UTC.**
+
+A two-platform, Node22.23.4 **repeated-use server-side isolation** study is complete. It measured the actual 'createScoKeyedIsolation' code with and without optional quota caps, against two identical direct HMAC execution arms. All four variants produced matching checksums; 12 balanced trial orders per OS and source pin. This is a strict-tail *operational cost* study, not an obfuscation security claim.
+
+For *65,536 repeated small HMAC calls* from a single authenticated principal, capped isolation vs direct CPU median was **1.997× Windows / 1.747× Ubuntu** in [run 45148181377](https://github.com/FlareZ123/obfs/actions/runs/45148181377) and **2.074× Windows / 1.701× Ubuntu** in independent [run 45148479589](https://github.com/FlareZ123/obfs/actions/runs/45148479589), both at the *same immutable source* '06eb55e9f864d72f5db9f44762e15ceae908918e', focused and JSDoc GREEN on both platforms. Windows reported **one strict CPU >2.5× pair** and separately **one strict wall >2.5× pair** in the first run; none in the second. Both same-code direct-placebo long-run matrices had zero strict CPU pairs.
+
+For the earlier 8,192-call short variant, Windows saw 6/12 then 5/12 strict CPU pairs, but a byte-identical direct-placebo itself produced a strict 3.133× sample, and median direct CPU exposure was only ~15.5ms. This documents meaningful coarse-clock/runner uncertainty. In all four independent two-platform CI runs, a second **128 calls x 128 HMAC rounds x 16KiB** workload had capped/direct CPU median roughly 0.9–1.1× and **zero strict 2.5× pair breaches** in the measured population.
+
+All raw observations, workload code, exact source pins, controls and limitations are consolidated in [im-results/sco-keyed-isolation-session-compute-budget-2026-11-23.md](https://github.com/FlareZ123/obfs/blob/main/im-results/sco-keyed-isolation-session-compute-budget-2026-11-23.md), with raw JSON in adjacent short and long files. This profiles the **in-process** keyed wrapper with a synchronous trusted-principal resolver under **sequential, non-saturating quota calls**, excluding initialization. It excludes HTTP, TLS, browser and actual SCO compiler/partition costs. A green focused CI run says the experiment was reproduced; **no universal 2.5× guarantee follows**.
+
+**Direction for SCO research:** preserve strict tail samples; explicitly charge repeated queue/authentication work for tiny functions. Admission or batching requires full semantic and original-workload profiling. No compiler source edits were made and the three-mode release decision remains **RELEASE-BLOCKED**.
