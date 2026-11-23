@@ -82,17 +82,17 @@ async function main() {
     '         native.hookCalls!==0||compiled.hookCalls!==0)',
     '        throw Error("Function.prototype.toString.call did not bypass own toString "+JSON.stringify({native,compiled}));',
     '    }',
-    '    if(name==="prototypeOverride"){
-      if(!native.sameReference||!compiled.sameReference||
-         native.storageValue!==null||compiled.storageValue!==null)
-        throw Error("prototype override did not retain the exact callable without native string storage "+JSON.stringify({native,compiled}));
-    }
-    if(name==="patchedFunctionToString"){
-      if(native.stored!==compiled.stored||!native.stored.includes("privateLocal")||
-         native.hookCalls!==1||compiled.hookCalls!==1)
-        throw Error("patched Function.prototype.toString did not expose function source "+JSON.stringify({native,compiled}));
-    }
-    report.cases[name]={native,compiled,equal:JSON.stringify(native)===JSON.stringify(compiled)};',
+    '    if(name==="prototypeOverride"){',
+    '      if(!native.sameReference||!compiled.sameReference||',
+    '         native.storageValue!==null||compiled.storageValue!==null)',
+    '        throw Error("prototype override did not retain the exact callable without native string storage "+JSON.stringify({native,compiled}));',
+    '    }',
+    '    if(name==="patchedFunctionToString"){',
+    '      if(native.stored!==compiled.stored||!native.stored.includes("privateLocal")||',
+    '         native.hookCalls!==1||compiled.hookCalls!==1)',
+    '        throw Error("patched Function.prototype.toString did not expose function source "+JSON.stringify({native,compiled}));',
+    '    }',
+    '    report.cases[name]={native,compiled,equal:JSON.stringify(native)===JSON.stringify(compiled)};',
     '    if(!report.cases[name].equal)throw Error(name+": native/emitted values differ");',
     '  }',
     '  document.getElementById("result").textContent="PASS "+JSON.stringify(report);',
