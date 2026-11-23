@@ -2,6 +2,7 @@
 
 **Status:** design proposal; not an implemented or validated source-observer fix.  
 **Evidence:** `im-results/domstring-property-setter-source-matrix-2026-11-23.md`  
+**Storage method evidence:** `im-results/agent19-sco-create-handler-storage-source-2026-11-23.md`  
 **Test donor:** branch `agent19/domstring-property-setter-final-20261123`
 
 ## Problem statement
@@ -13,6 +14,7 @@ The Chromium witness currently covers:
 - nine reflective/aliased setter dispatch cases;
 - a cross-file ESM producer/consumer assignment;
 - `Element.insertAdjacentHTML` argument index 1;
+- native `Storage.setItem` argument indices 0 and 1, captured-native `Reflect.apply` dispatch, and a same-named userland `setItem` positive control;
 - positive controls for primitives, ordinary-object properties, own data-property shadowing, own custom-accessor shadowing, Proxy storage, and Proxy brand-check behavior.
 
 The current mainline has a receiver-provenance-aware URL property-setter pattern in `src/ast.js::observesFunctionSource`, but no corresponding DOM setter family or `insertAdjacentHTML` rule. The complete evidence and limitations are in the report.
@@ -143,7 +145,7 @@ Track prior own-property writes, Object.defineProperty / Reflect.defineProperty,
 
 #### Conversion and function hooks
 
-Storage.setItem converts both its key argument (index 0) and value argument (index 1) to DOMString. Either position can therefore receive a function object. The new browser witness covers a direct function-valued second argument only; key-position coverage remains open.
+Storage.setItem converts both its key argument (index 0) and value argument (index 1) to DOMString. Either position can therefore receive a function object. The extended browser witness exercises both positions in one module: the function is first passed as argument 0 (key) and then as argument 1 (value). A captured Storage.prototype.setItem alias invoked through Reflect.apply also exposes source. A same-named userland setItem stores a function reference and retains a private-rewrite positive control. Own overrides, prototype patching, call/apply/bind variants, and cross-file dispatch remain open.
 
 For an object/function input, the relevant conversion path is ToPrimitive with string hint followed by ToString. Track the effective Symbol.toPrimitive, toString, and valueOf hooks, including own properties, prototype changes, accessors, and hook bodies that may call native Function.prototype.toString. Do not equate "custom hook returns a primitive" with "no source observation": a hook may read native function source as a side effect and then return a constant. If the hook body or effective dispatch is unresolved, preserve the source conservatively.
 
