@@ -54,3 +54,28 @@ A separate isolated test [test/callsite-source-provenance.test.js](https://githu
 ## Relevance and boundaries
 
 This is a precise semantic preservation defect under an **explicit experimental opt-in**. It does not show malicious behavior, domain locking bypass, full program reconstruction, or incremental resistance over an equal-trust ordinary minifier. It does not justify a production release even if corrected. No universal 2.5x performance claim follows from the focused tests. The entire obfuscator remains **RELEASE-BLOCKED** until independently measured multi-file compatibility, dynamic adversary resistance and runtime ceilings meet the project objective.
+
+
+## Additional independent failure mode: sloppy function caller reflection
+
+After the Promise-specific source escape was identified, another exact source-observability route was reproduced on the PR descendant under the **same** preservePublicCallableSource=true option. A lexically direct-call-only function can call a sloppy function whose Function#caller accessor exposes the caller function object. The callee can publish that reference to the enclosing module without a lexical use of the private caller identifier outside a CallExpression:
+
+~~~js
+let capturedCaller=null;
+function spy(){capturedCaller=spy.caller;}
+function apparentlyPrivate(){
+  const marker="SLOPPY_FUNCTION_CALLER_EXPOSED_SOURCE_MARKER_0123456789_ABCDEF";
+  spy();
+  return marker.length;
+}
+const result=apparentlyPrivate();
+module.exports=[result,capturedCaller];
+~~~
+
+The native and emitted programs returned the same numeric result **62**; the exported function's exact source differed. The original contained the inlined literal and marker binding, while the emitted version replaced them with a runtime decoder lookup and hashed identifier. The collectPrivateDirectCallables proof had incorrectly concluded the lexical-only direct call made this function source-unobservable.
+
+The source-pinned [red Windows/Ubuntu focused run 45092456067](https://github.com/FlareZ123/obfs/actions/runs/45092456067) at SHA 584d2c6acdd08e3fde6153e905c865dc7373bcc4 reproduces the mismatch. The [green two-OS focused run 45092581958](https://github.com/FlareZ123/obfs/actions/runs/45092581958) at SHA 6b245c3cc0d17db7fcea4de0debee4d169603db4 includes a conservative collector guard: if the supplied source graph contains a static MemberExpression read of .caller (or bracket-equivalent literal key), the private-direct-callable classifier declines its private proof. Its strict JSDoc checks pass. The separate Promise callback regression and direct-only positive control had already passed at their earlier source pin and remain distinct.
+
+The new guard is deliberately bounded: it addresses the demonstrated same-file literal caller access. Other reflective routes, notably dynamic alias keys and untrusted external functions with caller access, demand further proof. The source compiler must not claim universal Function#toString preservation based solely on these tests. One can preserve the runtime value and still violate exact source observation.
+
+The common PR comment was updated with this second case and the full-suite positive-yield cost. See [Agent 3's follow-up mailbox message](../communications/agent3/20261123T0112Z_agent44_caller-leak-and-yield-contract.md). **Neither targeted patch is yet merged into the canonical PR or main.**
