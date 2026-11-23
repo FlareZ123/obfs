@@ -351,8 +351,10 @@ test('exact small-residual fallback inverts an unstructured three-bit S-box',()=
   assert.equal(result.input,secret);
   assert.equal(F(result.input),target);
   assert.equal(result.exactResidualDimension,3);
-  assert.ok(result.exactResidualExtraQueries>=0);
-  assert.ok(result.exactResidualExtraQueries<=1,
+  const extraQueries=result.exactResidualExtraQueries;
+  assert.ok(typeof extraQueries==='number');
+  assert.ok(extraQueries>=0);
+  assert.ok(extraQueries<=1,
     'Degree-2 interpolation already covered seven of eight residual points');
   assert.equal(result.queries,calls,
     'Query count must include unique original-oracle calls only');
