@@ -92,3 +92,69 @@ test('selected SCO syntax distinguishes app-global from function-owned local',()
     {seed:'agent35-app-global-native-local',privateNames:['protectedOp']});
   assert.deepEqual(compiled.privateNames,['protectedOp']);
 });
+
+
+/**
+ * Node exposes Buffer as a global. A fresh browser context does not;
+ * relocating this selected browser export must therefore decline rather
+ * than replacing a native ReferenceError with Node's successful result.
+ */
+test('real Chromium and Node differ on a free Buffer selected export',{
+  skip:!browserEnabled,timeout:45000
+},async()=>{
+  const source='export async function protectedOp(){return Buffer.byteLength("ab");}'+
+    'export function publicOp(){return 0;}';
+  const nativeNode=await import('data:text/javascript,'+
+    encodeURIComponent(source));
+  assert.equal(await nativeNode.protectedOp(),2);
+  const puppeteer=require('puppeteer-core');
+  /** @type {import('puppeteer-core').Browser|undefined} */
+  let browser;
+  try{
+    browser=await puppeteer.launch({
+      channel:process.env.CHROMIUM_BIN?undefined:'chrome',
+      ...(process.env.CHROMIUM_BIN?{executablePath:process.env.CHROMIUM_BIN}:{}),
+      headless:true,
+      args:['--no-sandbox','--disable-dev-shm-usage','--disable-gpu']
+    });
+    const page=await browser.newPage();
+    await page.goto('about:blank');
+    const observed=await page.evaluate(async(code)=>{
+      const imported=await import('data:text/javascript,'+
+        encodeURIComponent(code));
+      try{
+        return {type:typeof Buffer,
+          outcome:'value:'+String(await imported.protectedOp())};
+      }catch(error){
+        const name=error&&typeof error==='object'&&'name' in error?
+          String(error.name):String(error);
+        return {type:typeof Buffer,outcome:'throw:'+name};
+      }
+    },source);
+    assert.deepEqual(observed,{
+      type:'undefined',outcome:'throw:ReferenceError'
+    });
+    console.log('SCO_BUFFER_NATIVE_MISMATCH '+JSON.stringify({
+      node:2,browser:observed.outcome,browserBufferType:observed.type
+    }));
+    assert.throws(()=>partitionScoSelectedAsyncExports(
+      {path:'mixed.mjs',code:source,sourceType:'module'},
+      {seed:'agent35-browser-buffer-free',privateNames:['protectedOp']}
+    ),/unproved/u);
+  }finally{
+    if(browser)await browser.close();
+  }
+});
+
+test('selected SCO Buffer lexical shadow has stable primitive behavior',async()=>{
+  const source='export async function protectedOp(){'+
+    'const Buffer=41;return Buffer+1;}'+
+    'export function publicOp(){return 0;}';
+  const native=await import('data:text/javascript,'+
+    encodeURIComponent(source));
+  assert.equal(await native.protectedOp(),42);
+  const partition=partitionScoSelectedAsyncExports(
+    {path:'mixed.mjs',code:source,sourceType:'module'},
+    {seed:'agent35-buffer-local-positive',privateNames:['protectedOp']});
+  assert.deepEqual(partition.privateNames,['protectedOp']);
+});
