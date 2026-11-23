@@ -6,6 +6,8 @@ const {execFile} = require('node:child_process');
 const {promisify} = require('node:util');
 const run = promisify(execFile);
 
+/** @typedef {{value:number,sourceMatch:boolean}|{value:number,column:number|null}} Observation */
+
 /**
  * Source visibility is an embedding property. Native inline ESM contributes
  * its own source text to document serialization. Native external ESM does not.
@@ -20,6 +22,19 @@ function program(reader, renamed) {
   return 'function calculate(){const owner={' + key + ':8};return owner.' + key + ';}' +
     'const observed=' + reader + ';' +
     'globalThis.result={value:calculate(),sourceMatch:observed.includes("internal"+"Secret")};';
+}
+
+/**
+ * Capture the native V8 stack column for a frame in this module's own source.
+ * @param {boolean} renamed
+ * @returns {string}
+ */
+function stackProgram(renamed) {
+  const key = renamed ? 'k' : 'internalSecret';
+  return 'function calculate(){const owner={' + key + ':8};return owner.' + key + ';}' +
+    'const frame=String(new Error().stack).split(String.fromCharCode(10))[1]||"";' +
+    'const match=frame.match(/:(\\d+):(\\d+)\\)?$/);' +
+    'globalThis.result={value:calculate(),column:match?Number(match[2]):null};';
 }
 
 /**
@@ -42,7 +57,7 @@ function page(mode, moduleSource) {
  * @param {string} browserExecutable
  * @param {'inline'|'external'} mode
  * @param {string} moduleSource
- * @returns {Promise<{value:number,sourceMatch:boolean}>}
+ * @returns {Promise<Observation>}
  */
 async function evaluate(browserExecutable, mode, moduleSource) {
   const server = http.createServer((request, response) => {
@@ -82,22 +97,35 @@ async function evaluate(browserExecutable, mode, moduleSource) {
 /** @returns {Promise<void>} */
 async function main() {
   const executable = process.env.CHROMIUM_BIN || 'google-chrome';
-  /** @type {Array<[string,string,boolean]>} */
+  /** @type {Array<[string,string,boolean,boolean]>} */
   const cases = [
-    ['outer-html','document.documentElement.outerHTML',true],
-    ['xml-serializer','new XMLSerializer().serializeToString(document)',true],
-    ['title','document.title',false]
+    ['outer-html','document.documentElement.outerHTML',true,false],
+    ['xml-serializer','new XMLSerializer().serializeToString(document)',true,false],
+    ['title','document.title',false,false],
+    ['source-fetch','await(await fetch(import.meta.url)).text()',true,true]
   ];
-  for (const [label, reader, inlineExpected] of cases) {
+  for (const [label, reader, inlineExpected, externalExpected] of cases) {
     for (const mode of /** @type {const} */ (['inline','external'])) {
       const original = await evaluate(executable,mode,program(reader,false));
       const renamed = await evaluate(executable,mode,program(reader,true));
-      const sourceMatch = mode === 'inline' && inlineExpected;
+      const sourceMatch = mode === 'inline' ? inlineExpected : externalExpected;
       assert.deepEqual(original,{value:8,sourceMatch});
       assert.deepEqual(renamed,{value:8,sourceMatch:false});
       console.log(JSON.stringify({label,mode,original,renamed,
         transformationPreservesResult:JSON.stringify(original)===JSON.stringify(renamed)}));
     }
+  }
+  for (const mode of /** @type {const} */ (['inline','external'])) {
+    const original=await evaluate(executable,mode,stackProgram(false));
+    const renamed=await evaluate(executable,mode,stackProgram(true));
+    assert.equal(original.value,8);
+    assert.equal(renamed.value,8);
+    assert.equal(typeof original.column,'number','Missing native stack column');
+    assert.equal(typeof renamed.column,'number','Missing renamed stack column');
+    assert.notEqual(original.column,renamed.column,
+      'Shortening a source property must shift its native stack column');
+    console.log(JSON.stringify({label:'stack-column',mode,original,renamed,
+      transformationPreservesResult:JSON.stringify(original)===JSON.stringify(renamed)}));
   }
 }
 
