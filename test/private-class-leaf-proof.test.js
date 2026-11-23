@@ -119,7 +119,7 @@ const classExpressionSource=[
   'const first=new Reader();',
   'const second=new Reader();',
   'module.exports=[first.read(),second.read(),owner.secretBeta];'
-].join('\\n');
+].join('\n');
 
 test('const-bound anonymous class expression is private for two independent instances',()=>{
   assert.equal(execute(classExpressionSource),'[23,23,7]');
