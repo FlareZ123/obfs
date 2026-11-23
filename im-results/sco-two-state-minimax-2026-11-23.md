@@ -116,3 +116,13 @@ A separate explicit-belief proof checker gives direct witnesses for the nine-que
 To test the lower bound without treating a dynamic adversary as a magical oracle, it enumerates **all 256 possible sequences of eight attacker input bits**. A fixed adversary response rule chooses a legal maximum-rank output after each input; every one of the 256 resulting input/output transcripts ends at a nonterminal belief, with **2 to 98** still-compatible labelled original source models. For each entire transcript the checker chooses one **single fixed original machine**, replays all eight steps from initial state zero, and validates every response and final private state. Therefore an adaptive learner cannot guarantee an exact continuation model after eight public steps under these assumptions.
 
 For the upper bound, a rank-decreasing attacker strategy explores every legal output branch and terminates within **nine** steps. The full tree contains 116 terminal output paths and reaches depth nine. The graph contains 4,085 nonterminal and 344 terminal beliefs. Source and test: sims/sco-step-only-two-state-game-certificate.js and test/sco-step-only-two-state-game-certificate.test.js. The local Node 22.16.0 constructive test passed. A source-pinned SCO cross-platform workflow still needs to cover this latest proof-checker version.
+
+
+## Additional model-scope controls: session restarts and server mutation
+
+Two more deterministic regression cases in test/sco-step-only-two-state-online.test.js pin distinct limits:
+
+1. A two-state source initialized at state 0, then moved to its future-distinct state 1 by the learner's legitimate public probes, yields a correct exact continuation clone after **six** bounded-nine calls. That clone is behaviorally inequivalent to a **newly initialized session at state 0**. Continuation equivalence does not establish source-table recovery, the source's original starting semantics, a reset operation, or an ability to transfer the clone to a newly initialized session.
+2. A service returning zero on its first 20 public calls and one afterward appears to the finite stationary learner as an all-zero model. It receives a symbolic continuation certificate after seven probes, while a later authorized call differs from the clone. This service is explicitly **nonstationary** even though it has at most two instantaneous states; the fixed deterministic Mealy premise is false. SCO server-side rotation and multi-session mutations need independent threat modeling.
+
+Both local illustrative cases were directly reproduced before being added to the SCO workflow. They cannot invalidate the proven conditional two-state results, and they prevent using those results as universal lifetime-service or reset claims.
