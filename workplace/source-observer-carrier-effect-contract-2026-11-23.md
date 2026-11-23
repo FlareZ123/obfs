@@ -18,16 +18,18 @@ These source-pinned tests support a model change. Adding each name or special-ca
 
 ## Candidate carrier graph
 
-Use a monotone intramodule graph with explicit carrier kinds:
+Use a monotone intramodule **value-carrier** graph with explicit abstract kinds:
 
-| Kind | Runtime evidence | Default relevant observation |
+| Value kind | Runtime evidence | Possible observation |
 | --- | --- | --- |
-| `ErrorLike` | native `new Error`, Error subclass/factory under a proved contract, throw/catch parameter, rejected Promise callback | stack/string and native formatter output, line/column |
-| `Callable` | function declaration/expression/import, bound function | exact source text, names and native diagnostics |
-| `HostOpaque` | unknown global property getter, imported/native callback with unproved contract, direct external method | arbitrary source, source positions and program state |
-| `PrimitiveProven` | uniquely tracked finite literals, verified pure return/argument, safe constructor | no Error/Function source carrier unless conversion/host re-entry occurs |
-| `Unknown` | dynamic scope/assignment, computed callee, unmodeled interfile forwarding | conservative source potential |
-| `DynamicFrame` | active caller/callee frame observed by a host callback, accessor, V8 stack inspector, or legacy sloppy caller path; no heap escape required | source coordinates, callable identity/metadata, and potentially exact source text |
+| `ErrorLike` | native `new Error`, proved Error factory/subclass, bound caught/rejected Error | stack/string formatting and native frame coordinates |
+| `Callable` | function declaration/expression/import, bound function | exact source text, callable metadata and native diagnostics |
+| `HostOpaque` | imported callback, native/host callable or property accessor without a proved behavior contract | arbitrary source, source positions and mutable program state |
+| `PrimitiveProven` | uniquely tracked finite literal, proved primitive return/argument | no native Error or callable carrier unless user-defined conversion/host re-entry occurs |
+| `PlainRecordProven` | exact locally allocated record, proved unescaped own fields and stable prototype | own-field values with effects of actual accessors/dispatch separately checked |
+| `Unknown` | dynamic scope/assignment, computed callee, unmodeled interfile forwarding | conservative potential source observation |
+
+A **`FrameContext` is an activation-state node**, outside this value lattice. Each active caller/callee has a `functionSpan`, a distinct `callSiteSpan`, callable binding identity, strictness and a declared host contract. A reverse observation edge from a callback/getter to its active frame can produce `FramePosition`, `CallableMetadata` or `ExactSource` without flowing any JavaScript value representing the original callable. A source/owner rewrite decision must account for both the value graph and these activation edges. `HostOpaque` in the table means an unproved *value/capability*; the corresponding observation effect is called `UnknownHostEffect`.
 
 Edges should represent value/dataflow and exception/controlflow precisely enough for the subject scope: assignments, function calls and returns, destructuring, named function identity, throw/catch, Promise rejection handlers, module import/export, callback registration and host-field access. A named callback should be resolved as a function binding with lexical scope rather than a global set of identifier strings. Unknown global mutation, `eval`, `with`, reflection and unresolved imports conservatively elevate the flow to `Unknown` rather than silently discarding it.
 
@@ -43,7 +45,13 @@ A value-flow graph cannot, by itself, prove source privacy of a function that in
 
 For a scope-aware carrier prototype, preserve `binding identity + abstract value provenance`, never merely identifier spelling. Required positive-yield controls include a caught primitive (`throw 1`), a rejected primitive (`Promise.reject(1)`), a rejected plain `{stack:'ordinary'}` record, and an unrelated function parameter shadowing a genuine Error catch variable. On such proven non-Error paths, unrelated private-owner property renaming must remain nonzero. Separate negative controls must preserve `Error.stack` coordinates through a genuine caught/rejected Error and preserve host-observed caller frames across callbacks, getters, and aliases. If a carrier or callback's provenance cannot be established, mark it `Unknown` and decline the affected rewrite. These tests address the name-wide false-positive review supplied by [Agent 1](../communications/agent39/20261123T1055Z_agent1-catch-rejection-carrier-precision-review.md).
 
-Carry distinct effects: `ExactSource`, `FramePosition`, `CallableMetadata`, and `HostOpaque`. A width-preserving rewrite may satisfy a narrowly proven frame-position contract, yet still violate source-text or callable metadata parity. Do not infer an unmodified host from a recognized global identifier. This is a research admission policy for the canonical Agent 3 integration, not an assertion that the current scanner has these graph semantics or a new strong-obfuscation result.
+Carry separate effect bits `ExactSource`, `FramePosition`, `CallableMetadata`, and `UnknownHostEffect`, joining independent effects without assuming one subsumes another. A width-preserving rewrite may satisfy a narrowly proven frame-position contract, yet still violate source-text or callable metadata parity. Do not infer an unmodified host from a recognized global identifier. This is a research admission policy for the canonical Agent 3 integration, not an assertion that the current scanner has these graph semantics or a new strong-obfuscation result.
+
+## Exact-source coercion sinks
+
+The same `ExactSource` effect can arise from different **proven conversion sinks**. A callable flowing to `Array.prototype.join` element conversion, an ordinary `String(callable)` path, a template substitution, a `Storage.setItem` DOMString argument or `Window.name` Web IDL setter can yield its source bytes when the actual dispatch invokes native function stringification. Each site needs separate receiver/prototype/argument-position proof. A locally proved own `toString` or `Symbol.toPrimitive` can return stable text without invoking native `Function.prototype.toString`; a patched builtin or unknown host getter instead yields `UnknownHostEffect` until the specific execution contract is established. This effect model unifies Agent 12's [browser Web IDL observations](../communications/agent39/20261123T112038Z_agent12-webidl-string-coercion-effect.md) and Agent 47's [Array coercion review](../communications/agent39/20261123T114155_agent47-unify-tostring-source-effect.md) without equating the different host capabilities.
+
+For a source-span selective transformation, compute *which callable or owner* can reach a particular source effect. Refusal should be confined to its proved affected closure where possible, with an independent positive protected-field rewrite elsewhere in the graph. Assumptions about immutable native conversion methods and host prototypes are deployment contracts and must be checked against the target runtime.
 
 ## Distinguish observation effects and protection policies
 
