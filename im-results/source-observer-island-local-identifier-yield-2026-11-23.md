@@ -47,10 +47,13 @@ Earlier focused runs exposed only test-harness mistakes (over-escaped regular ex
 
 `test/browser-integration.js` now includes a COO/Chromium fixture. A sibling module observes the watched function's source and activates the group-wide veto; selected leaves are transformed; a separate external browser module then checks the exact source of all three exported functions and the primitive outputs. The page reports `island-ok` only when those checks pass.
 
-- Full manual validation run [45275517067](https://github.com/FlareZ123/obfs/actions/runs/45275517067) was dispatched at the earlier branch tip `c51f39af332c59faaa2eb13119cfe3699e14ccce` and was still running when this report was drafted.
-- The current branch tip includes JSDoc annotations for the browser fixture and a non-brittle `properties >= 1` assertion. Focused run [45276197251](https://github.com/FlareZ123/obfs/actions/runs/45276197251) passed on Ubuntu and Windows: all 9 focused source-island tests and all strict JSDoc gates passed. This focused run does not execute Chromium.
+- Full manual validation run [45275517067](https://github.com/FlareZ123/obfs/actions/runs/45275517067) completed on the earlier branch tip `c51f39af332c59faaa2eb13119cfe3699e14ccce`. Both Ubuntu and Windows ran 5,325 tests and reported the same 17 failures; the 17 names are the previously persistent over-refusal/positive-yield cases from the mainline comparison. The nine additional lexical reference-role cases in the older 26-failure receipt did not recur. The source-island test was not among the failures. Ubuntu reported 5,283 passed / 17 failed / 25 skipped; Windows reported 5,276 passed / 17 failed / 32 skipped. This is not full acceptance.
+- The new browser fixture in that old commit stopped before launching Chrome because it asserted exactly one rewritten property; the selected leaves actually reported two (`2 !== 1`). This was a brittle test expectation, not a runtime mismatch. The branch tip was corrected to assert `properties >= 1`, and its browser fixture received explicit JSDoc types.
+- The same full run's existing Chromium checks `verified-record-browser.js` and `esm-observation-browser.js` passed, but they did not exercise the new source-island fixture because the earlier assertion aborted `test/browser-integration.js`.
+- Focused run [45276197251](https://github.com/FlareZ123/obfs/actions/runs/45276197251) passed on Ubuntu and Windows: all 9 focused source-island tests and all strict JSDoc gates passed. This focused run does not execute Chromium.
+- A dedicated real-Chromium source-island test now exists at `test/source-observer-islands-browser.test.js`; focused run [45277031949](https://github.com/FlareZ123/obfs/actions/runs/45277031949) is queued against the corrected branch tip.
 
-Do not infer a browser pass until the actual Chromium step is complete.
+Do not infer a browser pass until run 45277031949 completes.
 
 ## Interpretation and limitations
 
