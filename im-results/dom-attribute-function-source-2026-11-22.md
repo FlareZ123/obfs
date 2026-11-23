@@ -103,9 +103,12 @@ therefore modify a private function passed to native
   at `7097cb6fe426ce0d7da67594d2561a2cb0813202`
   passed the complete project suite. The only later source change was
   the test fixture comma fix noted above, so the implementation is
-  identical. A final same-SHA Node run was dispatched for
-  `4cd439f7318e9b8f1ff875b53d15659b57fb50fd`;
-  treat its status separately until confirmed.
+  identical. The final **full Ubuntu and Windows Node GREEN**
+  [run 45086112082](https://github.com/FlareZ123/obfs/actions/runs/45086112082)
+  at exact `4cd439f7318e9b8f1ff875b53d15659b57fb50fd`
+  matches the **full native Chromium GREEN**
+  [45085758590](https://github.com/FlareZ123/obfs/actions/runs/45085758590)
+  at the same source SHA. Both outcomes completed successfully.
 
 ## Compiler fix and limits
 
@@ -148,5 +151,6 @@ a separately motivated canonical improvement.
 The release decision in [results/README.md](../results/README.md)
 remains **RELEASE-BLOCKED**. The measured implementation passed
 native Chromium, all focused two-OS tests, and full two-OS Node integration.
-The final same-SHA check and integration onto the canonical current-main
-source observer remain separate prerequisites for promotion.
+The **same-SHA** full Node and native Chromium checks are complete.
+Integration onto the canonical current-main source observer, followed
+by a fresh merged-SHA gate, remains a separate prerequisite for promotion.
