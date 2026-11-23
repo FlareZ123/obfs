@@ -4,7 +4,7 @@ const assert=require('node:assert/strict');
 const {execFile}=require('node:child_process');
 const {promisify}=require('node:util');
 
-/** @typedef {{label:string,bytes:number[],recoverConstructor?:boolean,chunks?:number[][],ignoreBOM?:boolean}} DecoderCase */
+/** @typedef {{label:string,bytes:number[],recoverConstructor?:boolean,chunks?:number[][],ignoreBOM?:boolean,fatal?:boolean,readProperty?:'encoding'|'fatal'|'ignoreBOM'}} DecoderCase */
 /** @type {DecoderCase[]} */
 const samples=[
   {label:'windows-1252',bytes:[0x80]},
@@ -47,16 +47,28 @@ const streamingUtf8Cases=[
   {label:'utf-8',bytes:[],chunks:[[0xf4,0x8f],[0xbf,0xbf]]}
 ];
 samples.push(...streamingUtf8Cases);
+const scalarGetterCases=[
+  {label:'utf-8',bytes:[],readProperty:'encoding'},
+  {label:'UTF8',bytes:[],readProperty:'encoding'},
+  {label:'utf-8',bytes:[],readProperty:'fatal'},
+  {label:'utf-8',bytes:[],readProperty:'fatal',fatal:true},
+  {label:'utf-8',bytes:[],readProperty:'ignoreBOM'},
+  {label:'utf-8',bytes:[],readProperty:'ignoreBOM',ignoreBOM:true}
+];
+samples.push(...scalarGetterCases);
 
 /** @param {DecoderCase} sample @returns {number[]} */
 function decodeInNode(sample){
   const Decoder=sample.recoverConstructor?
     (new TextDecoder('utf-8')).constructor:TextDecoder;
-  const decoder=new Decoder(sample.label,sample.ignoreBOM?{ignoreBOM:true}:undefined);
-  const decoded=sample.chunks?
-    sample.chunks.map((chunk,index)=>decoder.decode(Uint8Array.from(chunk),
-      {stream:index+1<sample.chunks.length})).join(''):
-    decoder.decode(Uint8Array.from(sample.bytes));
+  const decoder=new Decoder(sample.label,{
+    ignoreBOM:sample.ignoreBOM===true,fatal:sample.fatal===true
+  });
+  const decoded=sample.readProperty?String(decoder[sample.readProperty]):
+    sample.chunks?
+      sample.chunks.map((chunk,index)=>decoder.decode(Uint8Array.from(chunk),
+        {stream:index+1<sample.chunks.length})).join(''):
+      decoder.decode(Uint8Array.from(sample.bytes));
   return Array.from(decoded,character=>character.codePointAt(0)??0);
 }
 
@@ -66,8 +78,10 @@ async function main(){
     'document.getElementById("answer").textContent=JSON.stringify('+ 
     'samples.map(sample=>{const Decoder=sample.recoverConstructor?'+
     '(new TextDecoder("utf-8")).constructor:TextDecoder;'+
-    'const decoder=new Decoder(sample.label,sample.ignoreBOM?{ignoreBOM:true}:undefined);'+
-    'const decoded=sample.chunks?sample.chunks.map((chunk,index)=>'+
+    'const decoder=new Decoder(sample.label,{ignoreBOM:sample.ignoreBOM===true,'+
+    'fatal:sample.fatal===true});'+
+    'const decoded=sample.readProperty?String(decoder[sample.readProperty]):'+
+    'sample.chunks?sample.chunks.map((chunk,index)=>'+
     'decoder.decode(Uint8Array.from(chunk),{stream:index+1<sample.chunks.length})).join(""):'+ 
     'decoder.decode(Uint8Array.from(sample.bytes));'+
     'return Array.from(decoded,character=>character.codePointAt(0));}));';
@@ -117,7 +131,7 @@ async function main(){
   console.log('Cross-host TextDecoder native comparison: '+JSON.stringify({
     nodeVersion:process.version,browserEngine:binary,
     compared:samples.length,streamingUtf8Cases:streamingUtf8Cases.length,
-    utf8Cases:samples.filter(sample=>
+    scalarGetterCases:scalarGetterCases.length,utf8Cases:samples.filter(sample=>
       ['utf-8','utf8','unicode-1-1-utf-8'].includes(sample.label.toLowerCase())).length,
     mismatch
   }));
