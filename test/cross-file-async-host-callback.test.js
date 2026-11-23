@@ -324,3 +324,26 @@ test('unrelated primitive holder mutation retains private-field rewrite',async()
   assert.equal(compiled.crossFile.properties,1,
     'Mutation of an ordinary holder with an unrelated numeric callback is inert');
 });
+
+
+test('array spread honors externally mutable @@iterator callback transfer',async()=>{
+  const files=graph([
+    'function getFactory(){return globalThis.RUNTIME_FACTORY;}',
+    'const originalIterator=Array.prototype[Symbol.iterator];',
+    'Array.prototype[Symbol.iterator]=function*(){yield getFactory;};',
+    'const holder=[...[7]];',
+    'Array.prototype[Symbol.iterator]=originalIterator;',
+    'const ctor=await Promise.resolve().then(holder[0]);',
+    'const remote=await ctor("return import(\'./state.mjs\')")();',
+    "const result=[inspectRecord('auditCount').value,Object.keys(remote.state),remote.state.secretField];"
+  ].join('\n'));
+  const native=await execute(files,true);
+  assert.equal(native,'[41,[3,["secretField"],41]]\n');
+  const generated=obfuscateFiles(files,{
+    mode:'coo',closedWorld:true,seed:'host-array-iterator-spread',
+    identifiers:false,strings:false,properties:true
+  });
+  assert.equal(await execute(generated.files,true),native);
+  assert.equal(generated.crossFile.properties,0,
+    'An array spread executes @@iterator even if its literal elements are inert');
+});
