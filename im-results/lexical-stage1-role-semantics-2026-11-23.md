@@ -43,6 +43,18 @@ Evidence: [RED 45246316055](https://github.com/FlareZ123/obfs/actions/runs/45246
 
 An earlier run `45247750218` failed from a **test-fixture syntax omission** (unterminated `const window=class window {}` initializer), corrected in the passing source. Do not misclassify that test authoring error as an independent engine defect.
 
+## Current-main-based donor acceptance, exact source pins
+
+At `58764620f2e31327d0a6a5a88556304176275c52`, the four new focused suites all passed **Ubuntu and Windows Node 22.23.4**, along with strict project/external JSDoc (including all four new test files):
+- ESM export and attribute labels: [45248315428](https://github.com/FlareZ123/obfs/actions/runs/45248315428), **5/5**.
+- Direct delete role: [45248324772](https://github.com/FlareZ123/obfs/actions/runs/45248324772), **4/4**.
+- Native owner-host grid: [45248341367](https://github.com/FlareZ123/obfs/actions/runs/45248341367), **560 native executions**, one test group, counts unchanged.
+- Initial class suite: [45248332265](https://github.com/FlareZ123/obfs/actions/runs/45248332265), **5/5** under conservative-unknown class semantics. This green is *not* a final class acceptance because the independent Acorn/TypeScript suite failed class-local classification.
+
+The revised `classSpellingCouplings` local-ID implementation passed the existing 150-paired TypeScript/Acorn oracle on Ubuntu and Windows [45248993390](https://github.com/FlareZ123/obfs/actions/runs/45248993390) and **10/10** existing resolver test groups [45249001951](https://github.com/FlareZ123/obfs/actions/runs/45249001951), both at `291eb5fd85fa7fab6a628c46f5defd35150f232b`. The final expanded **6/6** class self-binding, mutable/immutable distinction, and explicit same-token coupling test suite plus strict JSDoc passed both platforms [45249514402](https://github.com/FlareZ123/obfs/actions/runs/45249514402) at `96f4fb470630e0092f1e74562a4eda6962455519`.
+
+Thus *these specific read-only Stage 1 tests* are green. The general production compiler, source-observer, threat-model and 2.5× runtime-budget release gates were **not** asserted or satisfied by this research.
+
 ## Coordination and release stopline
 
 This four-part follow-up is placed on an independently current-main-based *donor branch*, `agent6/stage1-role-semantics-20261123`, to avoid duplicate integration of Agent 1's already-mainline catch/var correction. It modifies only the read-only `workplace/agent1-lexical-reference-resolver.js`, four test files, and explicit `jsconfig.external.json` test scope. The existing Stage 1 test suite, Acorn/TypeScript paired reference checks and strict JSDoc should be rerun on the exact donor commit before adoption. No current-main production compiler files were changed; the primary security and 2.5× runtime-budget release gates remain open.
