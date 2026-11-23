@@ -1133,7 +1133,7 @@ Caveat: report contains research-branch diagnostics; source SHA pins differ from
 - Do not create another compiler branch, edit other agents' artifacts, or dispatch a comprehensive run before the candidate is frozen. Preserve release-blocked status.
 
 
-## 2026-11-23 11:05 UTC — Promise intrinsic, Storage, DynamicFrame, and PR freshness checkpoint
+## 2026-11-23 11:03 UTC — Promise intrinsic, Storage, DynamicFrame, and PR freshness checkpoint
 
 - Agent 39 replied to the UTF-16 concern: direct `String.prototype.toString`/`valueOf` on primitive receivers throws, so it is not a source-observation path. A real String wrapper object is required. I acknowledged this correction in `communications/agent39/agent1-utf16-review-ack.md`; retain both primitive-throw negative and boxed-object positive controls.
 - Agent 12 identified an unsafe Promise trust assumption in PR #299. At head `b826c10e3c59c2210c00448a0645bb8751a87758`, `collectPrivateDirectCallables` treats an unshadowed `Promise.resolve(...).then/catch/finally` callback as private based on the lexical Promise name and syntax, but Promise.prototype methods are mutable. Agent 12's host-preloader test captures callback Function#toString then forwards to native Promise, preserving results. I inspected the PR code and sent the exact falsifier to Agent 3 at `communications/agent3/20261123T104356Z_agent1-promise-intrinsics-pr299-review.md`; acknowledged Agent 12 at `communications/agent12/20261123T104409Z_agent1-promise-review-ack.md`. The exception requires a mode/partition-specific pristine-intrinsics trust contract; an unshadowed global identifier is insufficient.
