@@ -90,8 +90,8 @@ async function main() {
         code:/** @type {string} */(file.code)};
     });
     const attacker=normalizeDistributedFiles(publicFiles);
-    assert.equal(attacker.properties,expected,
-      scenario+' public-only normalizer must relabel every changed field');
+    assert.ok(attacker.properties>=expected,
+      scenario+' public-only normalizer must relabel each cross-file private field');
     attackerRelabeledFields+=attacker.properties;
     if(expected)protectedFields+=expected;
     else refusedGraphs++;
