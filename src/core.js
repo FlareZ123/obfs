@@ -1716,6 +1716,25 @@ function mutatesDecoderIntrinsic(ast,rejectCommonJsExportEscape=false,rejectEsmE
       mutated=true;
       return;
     }
+    // Object.create installs accessor descriptors during construction. A
+    // getter may expose String.prototype to an otherwise untracked receiver,
+    // allowing a later write to corrupt the eager string decoder.
+    if(node.type==='CallExpression'&&node.callee.type==='MemberExpression'&&
+       isObjectIntrinsic(node.callee.object)&&memberName(node.callee)==='create'&&
+       node.arguments[1]?.type==='ObjectExpression'&&
+       node.arguments[1].properties.some(
+         (/** @type {import('./ast').AstNode} */ property)=>
+           property.type==='Property'&&property.value.type==='ObjectExpression'&&
+           property.value.properties.some(
+             (/** @type {import('./ast').AstNode} */ descriptor)=>
+               descriptor.type==='Property'&&
+               (descriptor.computed?staticString(descriptor.key):
+                 descriptor.key.type==='Identifier'?descriptor.key.name:
+                   staticString(descriptor.key))==='get'&&
+               proxyGetMayReturnDecoderIntrinsic(descriptor.value)))) {
+      mutated=true;
+      return;
+    }
     // A captured mutator may be called, bound, or passed into an opaque helper.
     // Its receiver/arguments cannot be proved by the direct-call checks below.
     if(node.type==='MemberExpression') {
