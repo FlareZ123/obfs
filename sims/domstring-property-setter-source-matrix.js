@@ -8,7 +8,7 @@ const {promisify}=require('node:util');
 const {obfuscateFiles}=require('../src');
 
 /**
- * @typedef {{name:string,setup:string,target:string,property:string}} SetterCase
+ * @typedef {{name:string,setup:string,target:string,property:string,read?:string}} SetterCase
  */
 
 /** @type {SetterCase[]} */
