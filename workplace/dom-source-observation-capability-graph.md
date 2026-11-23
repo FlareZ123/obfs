@@ -196,3 +196,19 @@ The stream methods are particularly important. The method returns a `WritableStr
 The authoritative interface definitions and algorithms are in the [WHATWG HTML Standard, dynamic markup insertion](https://html.spec.whatwg.org/multipage/dynamic-markup-insertion.html). The browser result is specific to HeadlessChrome 157.0.0.0; Firefox and WebKit remain untested. See the updated intermediate evidence report and raw artifact linked there.
 
 Add these methods to the acceptance suite. For streaming methods, require native/emitted parity for both the source-bearing function chunk and primitive chunk; also test writer aliases, `pipeTo`, chunk arrays, and async boundaries separately.
+
+
+### Stream dispatch variants
+
+The stream sink matrix was extended with three additional value-flow paths, all
+reproducing source mismatch with primitive-only positives passing:
+
+1. Extract and bind `writer.write`, then call the bound method.
+2. Invoke `writer.write.call(writer, inspect)`.
+3. Enqueue the function in a `ReadableStream` and use
+   `readable.pipeTo(target.streamHTML())`.
+
+This confirms that the source-observation graph must cross method extraction,
+bound-call semantics, asynchronous writer calls, and ReadableStream-to-
+WritableStream piping. The sink cannot be modeled only as a direct argument to
+`streamHTML()`; the function value reaches the HTML parser later as a chunk.
