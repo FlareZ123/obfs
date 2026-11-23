@@ -336,10 +336,12 @@ function usesUnprovedRelocatedTextDecoder(body){
  * different runtimes. A browser-created blob: URL cannot be replaced by a
  * Node blob:nodedata: URL without changing observable behavior.
  *
- * Allow direct `new URL(...)` constructor syntax, and conservatively decline
- * other first-class URL references in relocated private functions. This
- * includes static method extraction, constructor aliases and dynamic members;
- * it does not prove behavior for all possible indirect constructor recovery.
+ * Admit only direct `new URL(...)` constructor syntax with one bounded,
+ * statically valid ASCII HTTP(S) absolute literal, and decline unproved
+ * constructor arguments. Node and Chromium can throw different error messages
+ * for invalid URLs even though both implement the WHATWG URL Standard.
+ * Also decline first-class URL references, constructor aliases and dynamic
+ * members; indirect constructor recovery remains outside this bounded proof.
  * @param {import('./ast').AstNode} body
  * @returns {boolean}
  */
@@ -355,6 +357,21 @@ function usesUnprovedRelocatedUrlStatic(body){
   function newUrl(node){
     return node.type==='NewExpression'&&node.callee.type==='Identifier'&&
       node.callee.name==='URL';
+  }
+  /**
+   * Admit a deliberately narrow non-throwing URL-construction subset.
+   * ASCII HTTP(S) authority labels and unescaped path/query characters
+   * avoid runtime input coercion, base resolution, IDNA and invalid-URL
+   * exception text. Other legitimate URLs remain conservatively unproved.
+   * @param {import('./ast').AstNode} node
+   * @returns {boolean}
+   */
+  function provenFixedUrl(node){
+    if(!newUrl(node)||node.arguments.length!==1)return false;
+    const input=node.arguments[0];
+    return input.type==='Literal'&&typeof input.value==='string'&&
+      /^https?:\/\/(?:[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\.)+[a-z]{2,63}(?:\/[A-Za-z0-9/_~.?=&-]*)?$/u
+        .test(input.value);
   }
   // Propagate simple local aliases without inferring container or call flows.
   const urlInstances=new Set();
@@ -384,6 +401,7 @@ function usesUnprovedRelocatedUrlStatic(body){
   let observed=false;
   walk(body,(node,parent,key)=>{
     if(newUrl(node)){
+      if(!provenFixedUrl(node))observed=true;
       const directMember=parent?.type==='MemberExpression'&&key==='object';
       const localBinding=parent?.type==='VariableDeclarator'&&key==='init'&&
         parent.id.type==='Identifier';

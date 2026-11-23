@@ -99,7 +99,8 @@ async function compare(body,label){
 test('selected SCO invalid URL constructor retains native browser error message',{
   skip:!enabled,timeout:60000
 },async()=>{
-  await compare("try{return new URL(':').hostname;}catch(e){return e.name+':'+e.message;}",'invalid-url');
+  const result=await compare("try{return new URL(':').hostname;}catch(e){return e.name+':'+e.message;}",'invalid-url');
+  assert.equal(result.refused,true);
 });
 
 test('selected SCO valid ASCII URL hostname remains a positive relocated workload',{
@@ -117,4 +118,30 @@ test('selected SCO arithmetic remains correct in authenticated browser RPC',{
 },async()=>{
   const result=await compare('return Math.imul(13,23);','safe-math');
   assert.deepEqual(result,{refused:false,original:299,emitted:299,server:299});
+});
+
+/** @param {string} body @param {string} [publicBody] */
+function partition(body,publicBody='return 7;'){
+  return partitionScoSelectedAsyncExports({
+    path:'url-admission.mjs',sourceType:'module',
+    code:'export async function privateOp(candidate){'+body+'}'+
+      'export function visible(){'+publicBody+'}'
+  },{privateNames:['privateOp'],seed:'sco-url-admission-20261123'});
+}
+
+test('SCO URL constructor proof refuses possible native failures and keeps fixed valid work',()=>{
+  for(const body of [
+    "try{return new URL(':').hostname;}catch(e){return e.message;}",
+    "return new URL(candidate).hostname;",
+    "return new URL('/relative','https://example.org').pathname;"
+  ])assert.throws(()=>partition(body),/unproved cross-realm object URL API/,body);
+  for(const body of [
+    "return new URL('https://example.org/a?b=1').hostname;",
+    "const url=new URL('https://example.org');return url.pathname;",
+    "return Math.imul(13,23);"
+  ])assert.deepEqual(partition(body).privateNames,['privateOp'],body);
+  const exposed=partition('return 7;',
+    "try{return new URL(':').hostname;}catch(e){return e.message;}")
+    .clientFile.code;
+  assert.ok(exposed.includes("new URL(':').hostname"));
 });
