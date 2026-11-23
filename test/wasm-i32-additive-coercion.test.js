@@ -3,6 +3,7 @@
 const assert=require('node:assert/strict');
 const {test}=require('node:test');
 const vm=require('node:vm');
+const {performance}=require('node:perf_hooks');
 const {lowerWasmI32Functions}=require('../src/wasm-i32');
 const {recoverPublicWasmExpression}=require('../sims/wasm-i32-static-recover');
 
@@ -91,4 +92,63 @@ test('uncoerced sum and conditional test stay outside the additive grammar',()=>
     assert.equal(compiled.declined,1,expr);
     assert.equal(compiled.code,source,expr);
   }
+});
+
+/** @param {number[]} samples @returns {number} */
+function median(samples){return [...samples].sort((a,b)=>a-b)[Math.floor(samples.length/2)];}
+
+/**
+ * A warm same-source cross-realm pilot, *not* a universal 2.5x certificate.
+ * The original and compiled functions share the same generated inputs and
+ * work function, and invocation order is alternated.
+ */
+test('record bounded-addition native/Wasm hot ratio and cold initialization',()=>{
+  const source='function f(a,b){return ((a+b)|0)^(a>>>5);}module.exports=f;';
+  const generated=lowerWasmI32Functions(source,'commonjs',{
+    seed:'additive-hot-profile',names:['f']
+  });
+  assert.equal(generated.functions,1);
+  const n0=performance.now();
+  const native=load(source);
+  const nativeStartupMs=performance.now()-n0;
+  const w0=performance.now();
+  const compiled=load(generated.code);
+  const wasmStartupMs=performance.now()-w0;
+  const inputs=Array.from({length:1024},()=>[next(),next()]);
+  /** @param {(...args:number[])=>number} fn @param {number} calls @returns {number} */
+  function work(fn,calls){
+    let digest=0;
+    for(let i=0;i<calls;i++){
+      const pair=inputs[i&1023];
+      digest^=fn(pair[0],pair[1]);
+    }
+    return digest|0;
+  }
+  for(let i=0;i<3;i++)assert.equal(work(native,100000),work(compiled,100000));
+  /** @type {number[]} */
+  const nativeSamples=[];
+  /** @type {number[]} */
+  const compiledSamples=[];
+  for(let repeat=0;repeat<13;repeat++){
+    /** @type {[((...args:number[])=>number),number[]][]} */
+    const pair=repeat%2===0?[[native,nativeSamples],[compiled,compiledSamples]]:
+      [[compiled,compiledSamples],[native,nativeSamples]];
+    for(const [fn,samples] of pair){
+      const start=performance.now();
+      work(fn,180000);
+      samples.push(performance.now()-start);
+    }
+  }
+  const nativeMs=median(nativeSamples),wasmMs=median(compiledSamples);
+  const warmRatio=wasmMs/nativeMs;
+  assert.ok(Number.isFinite(warmRatio)&&warmRatio>0);
+  console.log(JSON.stringify({
+    benchmark:'bounded coerced signed addition',
+    callsPerSample:180000,repeats:13,
+    nativeMedianMs:nativeMs,wasmMedianMs:wasmMs,warmRatio,
+    nativeStartupMs,wasmStartupMs,
+    startupRatio:wasmStartupMs/nativeStartupMs,
+    wasmBytes:generated.wasmBytes,
+    scope:'single Node process / VM cross-realm pilot; NOT a universal 2.5x gate'
+  }));
 });
