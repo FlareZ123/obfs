@@ -10,10 +10,9 @@ const execFileAsync=promisify(execFile);
 const source=[
   'function inspect(){const privateLocal=29;return privateLocal;}',
   'function independent(){const independentLocal=7;return independentLocal;}',
-  'export function sample(prefix){',
-  '  const key=prefix+"-source";',
-  '  localStorage.setItem(key,inspect);',
-  '  return {key,value:inspect(),independent:independent()}',
+  'export function sample(){',
+  '  localStorage.setItem("storage-sco-source-observer",inspect);',
+  '  return {value:inspect(),independent:independent()}',
   '}'
 ].join('\n');
 
