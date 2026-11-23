@@ -2,7 +2,8 @@
 
 const assert=require('node:assert/strict');
 const http=require('node:http');
-const puppeteer=require('puppeteer-core');
+const {execFile}=require('node:child_process');
+const {promisify}=require('node:util');
 const {createScoHandler}=require('../src/sco');
 
 const storageKey='sco-request-time-storage-source';
@@ -72,11 +73,30 @@ async function main() {
   });
   /** @type {Map<string,string>} */
   const servedModules=new Map();
+  const pageHtml=[
+    '<!doctype html><html><body><pre id="out">pending</pre><script type="module">',
+    'try {',
+    '  const key='+JSON.stringify(storageKey)+';',
+    '  const native=await import("/native.mjs");',
+    '  const first=await import("/served-a.mjs");',
+    '  const second=await import("/served-b.mjs");',
+    '  function run(module){',
+    '    localStorage.clear();',
+    '    const result=module.sample();',
+    '    return {result,source:localStorage.getItem(key)};',
+    '  }',
+    '  const report={native:run(native),first:run(first),second:run(second)};',
+    '  document.getElementById("out").textContent="PASS "+JSON.stringify(report);',
+    '} catch(error) {',
+    '  document.getElementById("out").textContent="FAIL "+String(error.stack||error);',
+    '}',
+    '</script></body></html>'
+  ].join('\n');
   const server=http.createServer((request,response)=>{
     const pathname=new URL(request.url??'/', 'http://localhost').pathname;
     if(pathname==='/') {
       response.writeHead(200,{'content-type':'text/html; charset=utf-8'});
-      response.end('<!doctype html><html><body>request-time SCO witness</body></html>');
+      response.end(pageHtml);
       return;
     }
     if(pathname==='/native.mjs') {
@@ -98,8 +118,6 @@ async function main() {
     server.listen(0,'127.0.0.1',resolve);
   });
 
-  /** @type {import('puppeteer-core').Browser|null} */
-  let browser=null;
   try {
     const address=server.address();
     if(!address||typeof address==='string')throw Error('Expected local TCP server');
@@ -126,35 +144,17 @@ async function main() {
     servedModules.set('/served-a.mjs',first.body);
     servedModules.set('/served-b.mjs',second.body);
 
-    browser=await puppeteer.launch({
-      executablePath:process.env.CHROMIUM_BIN??'chromium',
-      headless:true,
-      args:['--no-sandbox','--disable-gpu','--disable-dev-shm-usage','--no-first-run']
-    });
-    const page=await browser.newPage();
-    await page.goto(origin+'/',{waitUntil:'load'});
-    /** @type {any} */
-    const report=await page.evaluate(async key=>{
-      const native=await import('/native.mjs');
-      const first=await import('/served-a.mjs');
-      const second=await import('/served-b.mjs');
-      /**
-       * @param {{sample:()=>{value:number,marker:string,independent:number}}} module
-       */
-      function run(module) {
-        localStorage.clear();
-        const result=module.sample();
-        return {
-          result,
-          source:localStorage.getItem(key)
-        };
-      }
-      return {
-        native:run(native),
-        first:run(first),
-        second:run(second)
-      };
-    },storageKey);
+    const browser=process.env.CHROMIUM_BIN??'chromium';
+    const {stdout,stderr}=await promisify(execFile)(browser,[
+      '--headless','--no-sandbox','--disable-gpu','--disable-dev-shm-usage',
+      '--no-first-run','--virtual-time-budget=6000','--dump-dom',
+      origin+'/'
+    ],{timeout:45000,maxBuffer:8*1024*1024,encoding:'utf8'});
+    assert.match(stdout,/<pre id="out">PASS /u,
+      'Chromium did not complete the request-time SCO witness: '+String(stderr)+'\n'+stdout.slice(0,2000));
+    const match=stdout.match(/<pre id="out">PASS ([\s\S]*?)<\/pre>/u);
+    assert.ok(match,'Expected browser Storage readback summary');
+    const report=JSON.parse(match[1]);
 
     assert.equal(report.native.result.value,29);
     assert.equal(report.native.result.marker,sourceMarker);
@@ -177,8 +177,8 @@ async function main() {
       'two request-time variants should expose distinct transformed source');
 
     process.stdout.write(JSON.stringify({
-      browser:await browser.version(),
-      hostLock:{allowed:200,denied:denied.status},
+      browser:process.env.CHROMIUM_BIN??'chromium',
+      hostLock:{allowed:first.status,denied:denied.status},
       requestVariants:{distinct:first.body!==second.body},
       sourceParity:{
         native:report.native.source,
@@ -193,7 +193,6 @@ async function main() {
       compilerSourceObservation:false
     },null,2)+'\n');
   } finally {
-    if(browser)await browser.close();
     await new Promise((resolve,reject)=>
       server.close(error=>error?reject(error):resolve(undefined)));
   }
