@@ -54,6 +54,9 @@ test('function Proxy forwarded primitive conversion preserves target source',asy
   }).files[0];
   const native=await run(source);
   const transformed=await run(output.code);
+  assert.equal(output.metrics.bindings,0,
+    'proxy-mediated ToPrimitive must fail closed until its source target is scoped');
+  assert.equal(output.code,source);
   assert.equal(native.result,true);
   assert.equal(transformed.result,true);
   assert.ok(native.capturedSource.includes('secretValue'));
