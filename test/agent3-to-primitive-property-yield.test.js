@@ -21,7 +21,7 @@ const patcher=[
   'export function install(){globalThis.__functionSources.length=0;}'
 ].join('\n');
 
-/** @param {string} code @returns {Promise<{capturedSource:string,result:number}>} */
+/** @param {string} code @returns {Promise<{capturedSource:string,result:number,observedValue:number}>} */
 async function run(code){
   const root=await fs.mkdtemp(path.join(os.tmpdir(),'obfs-to-primitive-property-'));
   try{
@@ -32,7 +32,7 @@ async function run(code){
     await fs.writeFile(path.join(packageDir,'index.mjs'),patcher);
     await atomicWrite(path.join(root,'app.mjs'),code);
     const entryUrl=pathToFileURL(path.join(root,'app.mjs')).href;
-    const command='import('+JSON.stringify(entryUrl)+').then(m=>console.log(JSON.stringify({capturedSource:m.capturedSource,result:m.result}))).catch(e=>{console.error(e);process.exitCode=1});';
+    const command='import('+JSON.stringify(entryUrl)+').then(m=>console.log(JSON.stringify({capturedSource:m.capturedSource,result:m.result,observedValue:m.observedValue}))).catch(e=>{console.error(e);process.exitCode=1});';
     const child=spawnSync(process.execPath,['--input-type=module','-e',command],{
       cwd:root,encoding:'utf8'
     });
@@ -46,11 +46,13 @@ async function run(code){
 test('numeric source observer currently vetoes unrelated private property yield',async()=>{
   const observed=[
     "import {install} from 'patcher';",
-    "function reader(){return 1;}",
+    "const observedOwner={observedKey:23};",
+    "function reader(){return observedOwner.observedKey;}",
     "const unrelatedOwner={unrelatedPrivate:17};",
     "install();",
     "export const numericIsNaN=Number.isNaN(+reader);",
     "export const capturedSource=globalThis.__functionSources[0]??'';",
+    "export const observedValue=observedOwner.observedKey;",
     "export const result=unrelatedOwner.unrelatedPrivate;"
   ].join('\n');
   const positive=observed.replace(
@@ -72,9 +74,12 @@ test('numeric source observer currently vetoes unrelated private property yield'
   const positiveAfter=await run(positiveOut.code);
   assert.equal(before.result,17);
   assert.equal(after.result,before.result);
+  assert.equal(after.observedValue,before.observedValue);
   assert.equal(after.capturedSource,before.capturedSource);
   assert.ok(before.capturedSource.includes('function reader'));
+  assert.ok(before.capturedSource.includes('observedKey'));
   assert.equal(positiveBefore.capturedSource,'');
   assert.equal(positiveAfter.capturedSource,'');
   assert.equal(positiveAfter.result,positiveBefore.result);
+  assert.equal(positiveAfter.observedValue,positiveBefore.observedValue);
 });
