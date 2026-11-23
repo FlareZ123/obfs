@@ -256,7 +256,10 @@ test('a five-state delayed-output machine falsifies an understated four-state bo
   assert.ok(result.clone);
   const actual={...hidden,state:privateState};
   assert.equal(equivalentFromStates(result.clone,actual),false);
-  assert.deepEqual(distinguish(result.clone,actual),[0]);
+  const witness=distinguish(result.clone,actual);
+  assert.ok(witness);
+  assert.equal(witness.length,5);
+  assert.ok(witness.every(symbol=>symbol===0));
 });
 
 test('query limits retain uncertainty and invalid output contracts fail explicitly',async()=>{
