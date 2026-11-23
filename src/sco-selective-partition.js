@@ -518,9 +518,11 @@ function usesUnprovedRelocatedWebIdlConstructors(body,knownFormals=new Set()){
       return false;
     }
     if(receiver.callee.name!=='Headers')return false;
-    /** @param {import('./ast').AstNode|undefined} value @returns {boolean} */
-    const headerName=value=>Boolean(value&&value.type==='Literal'&&
-      typeof value.value==='string'&&/^[a-z0-9-]{1,32}$/u.test(value.value));
+    /** @param {import('./ast').AstNode|undefined} expression @returns {boolean} */
+    const headerName=expression=>{
+      const value=staticString(expression);
+      return value!==null&&/^[a-z0-9-]{1,32}$/u.test(value);
+    };
     if(['get','has','delete'].includes(method??'')){
       return args.length===1&&headerName(args[0]);
     }
