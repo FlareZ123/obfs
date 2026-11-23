@@ -188,7 +188,7 @@ test/sno-esm-bare-resolution-audit.test.js contains:
 This remains a dependency-resolution compatibility diagnostic, not
 source secrecy, tamper resistance, or arbitrary application equivalence.
 It does not cover custom loaders, nondefault deployment conditions,
-runtime-generated import specifiers, #imports maps, future package
+runtime-generated import specifiers, #imports maps, changed or unsupported package
 scopes, or dependencies modified after compilation. The existing
 SNO filesystem/runtime owner attacks remain unaffected. The global
 release decision remains RELEASE-BLOCKED.
@@ -240,3 +240,28 @@ Latest focused validation: workflow 45131273198 at source/test commit
   JSDoc, and paired/complete-suite runtime-budget JSDoc passed.
 - Overall workflow conclusion: SUCCESS. This is still focused validation,
   not a full repository test-suite or SNO security-release pass.
+## 23 November 2026: emitted package-scope parity and .js ESM support
+
+The initial blanket refusal for any emitted package.json was unnecessarily
+restrictive for ordinary .js ESM applications whose package scope contains
+only stable metadata such as type: module. The audit now compares the
+nearest source/output package.json byte-for-byte for every audited module.
+It permits identical package metadata when no imports map or package
+self-reference (name plus exports) is present; it refuses added, removed or
+changed package scopes, invalid metadata, imports maps and self-reference.
+The existing SNO package-scope check still handles external ancestor scopes.
+
+A new end-to-end regression uses a CommonJS SNO entry requiring an ESM
+engine.js under an emitted type: module package.json. The ESM engine
+imports a package from a shared ancestor node_modules; native and generated
+results both equal 116 and the optional audit accepts the byte-identical
+package scope. The package-scope refusal test separately checks changed
+metadata, imports maps and output-only scopes.
+
+Latest validation: workflow 45132004860 at source/test commit
+29bf551030cd888400e863cd9d9486a0421f6554.
+- Ubuntu Node 22.23.4: 9/9 focused tests passed; project JSDoc, external
+  JSDoc and paired/complete-suite runtime-budget JSDoc passed.
+- Windows Node 22.23.4: 9/9 focused tests passed; project JSDoc, external
+  JSDoc and paired/complete-suite runtime-budget JSDoc passed.
+- Overall workflow conclusion: SUCCESS.
