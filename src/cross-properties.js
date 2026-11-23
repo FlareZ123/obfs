@@ -1696,17 +1696,39 @@ function safeClosedCallerRecordRead(modules,module,member,ancestors) {
             const value=node.type==='VariableDeclarator'?node.init:
               node.type==='AssignmentExpression'?node.right:null;
             if(!binding||!value)return;
-            if((binding.type==='ObjectPattern'||binding.type==='ArrayPattern') &&
-               value.type==='Identifier' && callbackHolders.has(value.name)) {
-              // Unknown holder keys may select any source-stored callback.
-              // Join all simple destructuring targets conservatively.
-              const targets=binding.type==='ObjectPattern'?
-                binding.properties.map((/** @type {AstNode} */ prop)=>
-                  prop.type==='Property'?prop.value:null):
-                binding.elements;
-              for(const target of targets) {
-                if(target?.type==='Identifier' && !callableNames.has(target.name)) {
-                  callableNames.add(target.name);
+            if(binding.type==='ObjectPattern'||binding.type==='ArrayPattern') {
+              // An inline literal, nested pattern or default can deliver a
+              // host callback without an intermediate named holder.
+              // Conservatively join every target if any source slot may
+              // contain the callback. Pattern traversal excludes RHS names.
+              /** @type {(AstNode|null)[]} */
+              const pending=[binding];
+              /** @type {string[]} */
+              const boundNames=[];
+              let hostDefault=false;
+              while(pending.length) {
+                const target=pending.pop();
+                if(!target)continue;
+                if(target.type==='Identifier') {
+                  boundNames.push(target.name);
+                }else if(target.type==='AssignmentPattern') {
+                  if(holdsFactoryValue(target.right,0))hostDefault=true;
+                  pending.push(target.left);
+                }else if(target.type==='RestElement') {
+                  pending.push(target.argument);
+                }else if(target.type==='ObjectPattern') {
+                  for(const property of target.properties)
+                    pending.push(property.type==='Property'?property.value:
+                      property.type==='RestElement'?property.argument:null);
+                }else if(target.type==='ArrayPattern') {
+                  pending.push(...target.elements);
+                }
+              }
+              const sourceMayHold=value.type==='Identifier'?
+                callbackHolders.has(value.name):holdsFactoryValue(value,0);
+              if(sourceMayHold||hostDefault)for(const name of boundNames) {
+                if(!callableNames.has(name)) {
+                  callableNames.add(name);
                   aliasChanged=true;
                 }
               }
