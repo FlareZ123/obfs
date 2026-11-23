@@ -2052,12 +2052,16 @@ function renameCrossFileProperties(files,seed) {
       if(!['FunctionDeclaration','FunctionExpression','ArrowFunctionExpression'].includes(node.type))return;
       for(const argument of node.params) {
         const formal=argument.type==='AssignmentPattern'?argument.left:argument;
-        if(formal.type!=='ObjectPattern')continue;
-        if(formal.properties.some((/** @type {AstNode} */ property)=>{
-          const name=property.type==='Property'?ownPropertyName(property):null;
-          return name==='Reflect'||name==='Object'||
-            name===null&&property.computed===true;
-        }))unprovedNativeFormal=true;
+        if(formal.type!=='ObjectPattern'&&formal.type!=='ArrayPattern')continue;
+        // Nested destructuring can extract the same native capability through
+        // a carrier object: ({holder:{Reflect:cap}}) must be treated like a
+        // direct ({Reflect:cap}) formal.
+        walk(formal,property=>{
+          if(property.type!=='Property')return;
+          const name=ownPropertyName(property);
+          if(name==='Reflect'||name==='Object'||
+             name===null&&property.computed===true)unprovedNativeFormal=true;
+        });
       }
     });
     if(unprovedNativeFormal)return {files,objects:0,properties:0};
