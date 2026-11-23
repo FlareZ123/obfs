@@ -124,6 +124,51 @@ test('adjacent owner primitive remains primitive with hostile inherited getter',
 });
 
 
+
+test('imported primitive proof cannot bypass an observed external owner-key shape',async()=>{
+  /** @type {Source[]} */
+  const sources=[
+    {path:'state.mjs',sourceType:'module',
+      code:'export const state={secretValue:3,otherKey:5};'+
+        'export const internalValue=state.secretValue;'},
+    {path:'index.mjs',sourceType:'module',
+      code:'import {state,internalValue} from "./state.mjs";'+
+        'export const result=Object.keys(state).join("|")+":"+String(internalValue);'}
+  ];
+  assert.equal(collectVerifiedImportedPrimitives(sources).get('index.mjs')?.has('internalValue'),true);
+  const obfuscated=obfuscateFiles(sources,{mode:'coo',seed:'adjacent-keys-refusal',
+    closedWorld:true,strings:false,identifiers:false,properties:true});
+  assert.equal(obfuscated.crossFile.objects,0);
+  assert.equal(obfuscated.crossFile.properties,0);
+  const emitted=obfuscated.files.map(file=>({
+    path:file.path,sourceType:/** @type {'module'} */('module'),code:String(file.code)
+  }));
+  const expected='secretValue|otherKey:3';
+  assert.equal(await runNative(sources),expected);
+  assert.equal(await runNative(emitted),expected);
+});
+
+test('later write to owner does not alter the earlier captured primitive snapshot',async()=>{
+  /** @type {Source[]} */
+  const sources=[
+    {path:'state.mjs',sourceType:'module',
+      code:'export const state={secretValue:3,otherKey:5};'+
+        'export const internalValue=state.secretValue;'+
+        'state.secretValue=99;'},
+    {path:'index.mjs',sourceType:'module',
+      code:'import {state,internalValue} from "./state.mjs";'+
+        'export const result=String(internalValue)+":"+String(state.secretValue);'}
+  ];
+  assert.equal(collectVerifiedImportedPrimitives(sources).get('index.mjs')?.has('internalValue'),true);
+  const obfuscated=obfuscateFiles(sources,{mode:'coo',seed:'adjacent-captured-mutation',
+    closedWorld:true,strings:false,identifiers:false,properties:true});
+  const emitted=obfuscated.files.map(file=>({
+    path:file.path,sourceType:/** @type {'module'} */('module'),code:String(file.code)
+  }));
+  assert.equal(await runNative(sources),'3:99');
+  assert.equal(await runNative(emitted),'3:99');
+});
+
 for(const [kind,literal,rendered] of /** @type {Array<[string,string,string]>} */ ([
   ['number','37','37'],
   ['boolean','true','true'],
