@@ -88,6 +88,12 @@ immediate source scope, in addition to its established locally owned function
 exemptions. No arbitrary object, reassigned binding, alias, external source,
 or browser host `Response` value is newly trusted.
 
+The current code-source also passed [two-platform selected-graph
+45279978395](https://github.com/FlareZ123/obfs/actions/runs/45279978395)
+and [audited private-static-graph fuzz
+45280150990](https://github.com/FlareZ123/obfs/actions/runs/45280150990),
+with strict project/external JSDoc on both operating systems.
+
 The initial combined selected/Response test was red solely on that positive
 control ([45279727422](https://github.com/FlareZ123/obfs/actions/runs/45279727422),
 9 passes/1 fail on Ubuntu), then a narrow local-literal repair passed focused
