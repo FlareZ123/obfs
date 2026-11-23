@@ -1658,6 +1658,23 @@ function mutatesDecoderIntrinsic(ast,rejectCommonJsExportEscape=false,rejectEsmE
    * @returns {boolean}
    */
   function isSensitiveEsmExport(node) {
+    // An imported getter descriptor or factory may poison a native string
+    // decoder in a sibling module before its top-level initializer runs.
+    // Preserve the local factory and descriptor provenance across ESM exports.
+    if(node.type==='ExportDefaultDeclaration'&&
+       exportsDecoderGetterMap(node.declaration))return true;
+    if(node.type==='ExportNamedDeclaration'&&!node.source) {
+      const exported=node.declaration;
+      if(exported?.type==='FunctionDeclaration'&&
+         isDecoderGetterMapFactory(exported))return true;
+      if(exported?.type==='VariableDeclaration'&&
+         exported.declarations.some((/** @type {import('./ast').AstNode} */ item)=>
+           item.init&&exportsDecoderGetterMap(item.init)))return true;
+      if((node.specifiers??[]).some(
+        (/** @type {import('./ast').AstNode} */ specifier)=>
+          specifier.local?.type==='Identifier'&&
+          exportsDecoderGetterMap(specifier.local)))return true;
+    }
     if(node.type==='ExportDefaultDeclaration') {
       const declaration=node.declaration;
       if(declaration.type==='FunctionDeclaration'&&declaration.id?.type==='Identifier') {
@@ -1710,8 +1727,128 @@ function mutatesDecoderIntrinsic(ast,rejectCommonJsExportEscape=false,rejectEsmE
   // a dynamic compiler as a value is sufficient to disable eager decoding.
   const dynamicCompilers=new Set(['eval','Function','AsyncFunction',
     'GeneratorFunction','AsyncGeneratorFunction']);
+  // An Object.create descriptor map may contain an aliased getter
+  // descriptor. Its getter can return String.prototype and a later write
+  // may change the eager string decoder before another module loads.
+  /** @type {Set<string>} */
+  const decoderGetterDescriptors=new Set();
+  /** @type {Set<string>} */
+  const decoderGetterMaps=new Set();
+  /** @type {Set<string>} */
+  const decoderGetterMapFactories=new Set();
+  /**
+   * @param {import('./ast').AstNode} value
+   * @returns {boolean}
+   */
+  function isDecoderGetterDescriptor(value) {
+    if(value.type==='Identifier')return decoderGetterDescriptors.has(value.name);
+    if(value.type!=='ObjectExpression')return false;
+    return value.properties.some((/** @type {import('./ast').AstNode} */ property)=>
+      property.type==='Property'&&
+      (property.computed?staticString(property.key):
+        property.key.type==='Identifier'?property.key.name:staticString(property.key))==='get'&&
+      proxyGetMayReturnDecoderIntrinsic(property.value));
+  }
+  /**
+   * @param {import('./ast').AstNode} value
+   * @returns {boolean}
+   */
+  function isDecoderGetterMap(value) {
+    if(value.type==='Identifier')return decoderGetterMaps.has(value.name);
+    if(value.type==='CallExpression'&&value.callee.type==='Identifier') {
+      return decoderGetterMapFactories.has(value.callee.name);
+    }
+    if(value.type!=='ObjectExpression')return false;
+    return value.properties.some((/** @type {import('./ast').AstNode} */ property)=>
+      property.type==='Property'&&
+      isDecoderGetterDescriptor(property.value));
+  }
+  /**
+   * Recognize a local synchronous factory whose direct return supplies an
+   * accessor descriptor map. This also handles function-valued CJS exports.
+   * @param {import('./ast').AstNode} value
+   * @returns {boolean}
+   */
+  function isDecoderGetterMapFactory(value) {
+    if(value.type==='Identifier')return decoderGetterMapFactories.has(value.name);
+    if(!['FunctionDeclaration','FunctionExpression','ArrowFunctionExpression']
+      .includes(value.type)||value.async||value.generator)return false;
+    if(value.body.type!=='BlockStatement')return isDecoderGetterMap(value.body);
+    return value.body.body.some((/** @type {import('./ast').AstNode} */ statement)=>
+      statement.type==='ReturnStatement'&&statement.argument&&
+      isDecoderGetterMap(statement.argument));
+  }
+  /**
+   * Exported first-class getters or factories can be invoked by a later
+   * required module. The factory's own AST has no direct native sink.
+   * @param {import('./ast').AstNode} value
+   * @returns {boolean}
+   */
+  function exportsDecoderGetterMap(value) {
+    if(isDecoderGetterDescriptor(value)||isDecoderGetterMap(value)||
+       isDecoderGetterMapFactory(value))return true;
+    return value.type==='ObjectExpression'&&
+      value.properties.some((/** @type {import('./ast').AstNode} */ property)=>
+        property.type==='Property'&&exportsDecoderGetterMap(property.value));
+  }
+  let decoderDescriptorChanged;
+  do {
+    decoderDescriptorChanged=false;
+    walk(ast,(node,_parent,_key,ancestors)=>{
+      // Preserve a descriptor map returned through a local function factory.
+      // Find the nearest return owner, avoiding nested function bodies.
+      if(node.type==='ReturnStatement'&&node.argument&&
+         isDecoderGetterMap(node.argument)) {
+        for(let i=ancestors.length-1;i>=0;i--) {
+          const owner=ancestors[i];
+          if(!['FunctionDeclaration','FunctionExpression',
+                'ArrowFunctionExpression'].includes(owner.type))continue;
+          if(owner.type==='FunctionDeclaration'&&
+             owner.id?.type==='Identifier'&&!owner.async&&!owner.generator&&
+             !decoderGetterMapFactories.has(owner.id.name)) {
+            decoderGetterMapFactories.add(owner.id.name);
+            decoderDescriptorChanged=true;
+          }
+          break;
+        }
+      }
+      const declaration=node.type==='VariableDeclarator'&&node.id.type==='Identifier';
+      const assignment=node.type==='AssignmentExpression'&&node.operator==='='&&
+        node.left.type==='Identifier';
+      if(!declaration&&!assignment)return;
+      const name=declaration?node.id.name:node.left.name;
+      const value=declaration?node.init:node.right;
+      if(!value)return;
+      if(isDecoderGetterDescriptor(value)&&!decoderGetterDescriptors.has(name)) {
+        decoderGetterDescriptors.add(name);
+        decoderDescriptorChanged=true;
+      }
+      if(isDecoderGetterMap(value)&&!decoderGetterMaps.has(name)) {
+        decoderGetterMaps.add(name);
+        decoderDescriptorChanged=true;
+      }
+      if(isDecoderGetterMapFactory(value)&&!decoderGetterMapFactories.has(name)) {
+        decoderGetterMapFactories.add(name);
+        decoderDescriptorChanged=true;
+      }
+    });
+  }while(decoderDescriptorChanged);
   let mutated=opaqueReflectiveSensitiveWrite;
   walk(ast,(node,parent)=>{
+    if(rejectCommonJsExportEscape&&node.type==='AssignmentExpression'&&
+       node.operator==='='&&isCommonJsExportTarget(node.left)&&
+       exportsDecoderGetterMap(node.right)) {
+      mutated=true;
+      return;
+    }
+    if(node.type==='CallExpression'&&node.callee.type==='MemberExpression'&&
+       isObjectIntrinsic(node.callee.object)&&
+       (memberName(node.callee)==='create'||
+        memberName(node.callee)==='defineProperties')&&
+       node.arguments[1]&&isDecoderGetterMap(node.arguments[1])) {
+      mutated=true;
+      return;
+    }
     if(createsSensitiveProxy(node)) {
       mutated=true;
       return;
