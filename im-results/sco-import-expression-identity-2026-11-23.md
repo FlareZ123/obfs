@@ -49,6 +49,19 @@ The [standalone green run 45135043521](https://github.com/FlareZ123/obfs/actions
 
 At the later immutable source `8df1da3c7015381ed5561e787592b93c7f71fa29`, the [two-platform standalone green run 45135405528](https://github.com/FlareZ123/obfs/actions/runs/45135405528) passed **6/6** tests per OS, covering both positive controls (a safe sequence alias directly invoked and a primitive-import arithmetic alias), and the source also contained the no-extra-scan optimization `07ed0b476f6dacd2bca94bb27608dd193c385f79` and duplicate-graph-unit-scan removal `143e0ac592d18efd91e87357c94ea17dad12f730`. Project/external/paired-budget JSDoc passed. A separate graph-focused run at this source was dispatched and must be independently verified to claim graph runtime integration coverage.
 
+## Bounded expression-identity argument
+
+Let `A` be the initially observed set of local names imported by a relative ESM specifier. A name added to `A` by a variable initializer or assignment is treated as a possible alias even if its real lexical scope differs. Define `C(e,A)` by the code's `carriesAlias` visitor. Within the *restricted expression grammar* below, `C` overapproximates expression values that can equal a function-object identity named in `A`:
+
+- An `Identifier` is tracked exactly by spelling membership in `A`.
+- A `SequenceExpression` evaluates to the value of its last operand, so only that operand's `C` result matters.
+- A conditional expression evaluates one of two alternatives; a logical `&&`, `||`, or `??` expression can evaluate to its left or right operand. Disjunction over the possible value-carrying branches is a conservative overapproximation.
+- An `AwaitExpression` or `AssignmentExpression` is conservatively treated as potentially carrying its argument/right-hand value; thenable assimilation and compound assignment can instead produce other values, yielding safe refusals for this check.
+
+By structural induction over that grammar, whenever a permitted expression can produce one of the tracked operand identities directly, `C(e,A)` returns true. The outer fixed-point walk adds named aliases until the finite identifier set stops changing. The second walk refuses supported first-class and reflective sinks consuming `C`-positive expressions. The policy therefore rules out the **tested direct and wrapper-propagated identity carriers** at those sinks.
+
+This is **not** a whole-program noninterference theorem. The source walker tracks names rather than binding-resolved lexical identifiers, so shadowing causes false refusals. An untracked `CallExpression` can return the imported function, a getter can hide an identity, and higher-order export returns or host-provided methods can carry values outside the grammar. This local argument does not establish equivalence for arbitrary JS graphs. It also does not show that a source-refused variant would execute safely if the caller ignored the compiler failure. Future admission work should either extend the provenance proof with audited return summaries and resolved bindings or keep uncertain carriers out of the eligible grammar.
+
 ## Implementation and limits
 
 The recursive `carriesAlias` check follows identity-preserving expression results to a fixed point over syntactically named aliases; sink checks reject first-class references whose transfer cannot be proved safe. The graph deliberately may reject harmless uses of primitive imports. A source refusal retains the original application semantics only if the compiler refuses to publish incompatible artifacts.
