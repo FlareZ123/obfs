@@ -123,7 +123,9 @@ test('core option lowers selected source-observer island records in COO, SCO and
       'console.log(JSON.stringify({watched:watched.toString(),'+
         'unrelated:unrelated.toString(),value:unrelated()}));'};
   const original=await executeEsm([watched,independent,observer,probe]);
-  for(const mode of ['coo','sco','sno']) {
+  /** @type {Array<'coo'|'sco'|'sno'>} */
+  const modes=['coo','sco','sno'];
+  for(const mode of modes) {
     const result=obfuscateFiles([watched,independent,observer],{
       mode,closedWorld:true,seed:'island-array-core-'+mode,
       strings:false,
