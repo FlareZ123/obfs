@@ -138,7 +138,9 @@ const refused=[
   {name:'getter can expose source',code:'const owner={secretA:7};class Reader{get read(){return owner.secretA;}}const instance=new Reader();module.exports=instance.read;'},
   {name:'callable owner can escape',code:'const owner={secretA:7};class Reader{read(){return owner;}}const instance=new Reader();module.exports=instance.read().secretA;'},
   {name:'optional invocation needs separate proof',code:'const owner={secretA:7};class Reader{read(){return owner.secretA;}}const instance=new Reader();module.exports=instance.read?.();'},
-  {name:'unbound intermediate method',code:'const owner={secretA:7};class Reader{read(){return owner.secretA;}}const instance=new Reader();const fn=instance.read;module.exports=fn();'}
+  {name:'unbound intermediate method',code:'const owner={secretA:7};class Reader{read(){return owner.secretA;}}const instance=new Reader();const fn=instance.read;module.exports=fn();'},
+  {name:'owner initializer follows the class and a potentially early call',code:'class Reader{read(){return owner.secretA;}}const instance=new Reader();module.exports=instance.read();const owner={secretA:7};'},
+  {name:'owner initializer follows class despite a later direct call',code:'class Reader{read(){return owner.secretA;}}const owner={secretA:7};const instance=new Reader();module.exports=instance.read();'}
 ];
 for(const item of refused)for(const mode of /** @type {const} */ (['coo','sno','sco'])){
   test(mode+' refuses private-class proof when '+item.name,()=>{
