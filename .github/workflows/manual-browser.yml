@@ -25,6 +25,10 @@ jobs:
         run: |
           command -v google-chrome
           google-chrome --version
+      - name: Compare native and overridden Storage method dispatch under Chromium
+        env:
+          CHROMIUM_BIN: google-chrome
+        run: node test/storage-dispatch-source-observation-browser.js
       - name: Compare asynchronous cross-file shared-reference graphs under Chromium CSP
         env:
           CHROMIUM_BIN: google-chrome
