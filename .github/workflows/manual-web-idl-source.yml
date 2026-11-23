@@ -21,6 +21,11 @@ jobs:
           node-version: '22'
       - name: Install declared dependencies
         run: npm install --no-package-lock --ignore-scripts
+      - name: Demonstrate native Storage.setItem function-source conversion in Chromium
+        if: matrix.os == 'ubuntu-latest'
+        env:
+          CHROMIUM_BIN: google-chrome
+        run: node test/storage-source-observation-browser.js
       - name: Native and emitted Web IDL source-observer differential
         run: node --test test/fetch-constructor-function-source.test.js test/web-idl-record-source-observation.test.js test/web-idl-source-counterfactual.test.js test/web-idl-interfile-source.test.js test/web-idl-string-collection-methods.test.js test/web-idl-accessor-source-observation.test.js test/blob-options-function-source-observer.test.js test/blob-constructor-alias-source-observer.test.js test/blob-options-interfile-source.test.js test/sco-blob-interfile-source.test.js test/bound-native-constructor-source-observer.test.js test/inline-bound-native-coercer-source.test.js test/indirect-native-bind-source-observer.test.js test/blob-wasm-source-admission.test.js test/url-static-function-source.test.js test/url-static-interfile-source.test.js test/storage-source-observation.test.js
       - name: Real Chromium native/emitted Web IDL differential
@@ -28,11 +33,6 @@ jobs:
         env:
           CHROMIUM_BIN: google-chrome
         run: node test/web-idl-source-browser.js
-      - name: Demonstrate native Storage.setItem function-source conversion in Chromium
-        if: matrix.os == 'ubuntu-latest'
-        env:
-          CHROMIUM_BIN: google-chrome
-        run: node test/storage-source-observation-browser.js
       - name: Real Chromium Blob options native/emitted differential
         if: matrix.os == 'ubuntu-latest'
         env:
