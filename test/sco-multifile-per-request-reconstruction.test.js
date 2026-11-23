@@ -18,7 +18,7 @@ const sourceFiles=[
       "const privateOffset = 3;",
       "const entryLabel = 'entry-private';",
       "export const finalValue = helperValue + privateOffset + entryLabel.length;"
-    ].join('\\n')
+    ].join('\n')
   },
   {
     path:'lib/helper.mjs',
@@ -31,7 +31,7 @@ const sourceFiles=[
       "  return privateProduct + helperLabel.length;",
       "}",
       "export const helperValue = calculate(5);"
-    ].join('\\n')
+    ].join('\n')
   }
 ];
 const graphPaths=sourceFiles.map(file=>file.path);
@@ -203,6 +203,6 @@ async function main() {
 }
 
 main().catch(error=>{
-  process.stderr.write(String(error?.stack??error)+'\\n');
+  process.stderr.write(String(error?.stack??error)+'\n');
   process.exitCode=1;
 });
