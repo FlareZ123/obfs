@@ -1,6 +1,7 @@
 'use strict';
 
 const fs=require('node:fs/promises');
+const {isUtf8}=require('node:buffer');
 const path=require('node:path');
 const {createRequire,isBuiltin}=require('node:module');
 const {parse,walk}=require('./ast');
@@ -364,24 +365,87 @@ function resolveEsmRequests(requests) {
  * @param {string} outputRoot
  * @returns {Promise<{entries:number,files:number}>}
  */
-async function assertSnoDirectBareImportParity(original,generated,inputRoot,outputRoot) {
-  const sources=directBareImports(original);
-  const targets=directBareImports(generated);
-  if(sources.size===0&&targets.size===0)return {entries:0,files:0};
-  assertDefaultEsmResolverContext();
-  const packaged=new Set(generated.filter(file=>
-    file.path==='package.json'||file.path.endsWith('/package.json')
-  ).map(file=>file.path));
-  for(const filename of sources.keys()) {
+
+/**
+ * Compare emitted package scopes with their source counterparts. A package
+ * scope containing imports or a self-reference is refused; a byte-identical
+ * type-only scope is safe for this bare-dependency comparison.
+ *
+ * @param {SourceFile[]} original
+ * @param {SourceFile[]} generated
+ * @param {Iterable<string>} filenames
+ * @returns {void}
+ */
+function assertEsmPackageScopeParity(original,generated,filenames) {
+  /** @type {Map<string,SourceFile>} */
+  const sourcePackages=new Map();
+  /** @type {Map<string,SourceFile>} */
+  const outputPackages=new Map();
+  for(const file of original) {
+    if(file.path==='package.json'||file.path.endsWith('/package.json')) {
+      sourcePackages.set(file.path,file);
+    }
+  }
+  for(const file of generated) {
+    if(file.path==='package.json'||file.path.endsWith('/package.json')) {
+      outputPackages.set(file.path,file);
+    }
+  }
+  for(const filename of filenames) {
     let directory=path.posix.dirname(filename);
     for(;;) {
-      if(packaged.has(path.posix.join(directory,'package.json'))) {
-        throw new Error('SNO ESM bare dependency audit cannot model future package scope: '+filename);
+      const packagePath=path.posix.join(directory,'package.json');
+      const sourcePackage=sourcePackages.get(packagePath);
+      const outputPackage=outputPackages.get(packagePath);
+      if(sourcePackage||outputPackage) {
+        if(!sourcePackage||!outputPackage) {
+          throw new Error('SNO ESM bare dependency audit cannot model changed package scope: '+packagePath);
+        }
+        const sourceBytes=packageJsonBytes(sourcePackage,'source');
+        const outputBytes=packageJsonBytes(outputPackage,'output');
+        if(!sourceBytes.equals(outputBytes)) {
+          throw new Error('SNO ESM bare dependency audit found changed package scope metadata: '+packagePath);
+        }
+        const jsonText=sourceBytes.toString('utf8');
+        const metadata=JSON.parse(jsonText.charCodeAt(0)===0xfeff?jsonText.slice(1):jsonText);
+        if(!metadata||typeof metadata!=='object'||Array.isArray(metadata)||
+            Object.hasOwn(metadata,'imports')||
+            Object.hasOwn(metadata,'exports')&&Object.hasOwn(metadata,'name')&&
+              typeof metadata.name==='string'&&metadata.name.length>0) {
+          throw new Error('SNO ESM bare dependency audit cannot model package imports/self-reference: '+packagePath);
+        }
+        if(Object.hasOwn(metadata,'type')&&typeof metadata.type!=='string') {
+          throw new TypeError('Invalid SNO ESM package scope type: '+packagePath);
+        }
+        break;
       }
       if(directory==='.')break;
       directory=path.posix.dirname(directory);
     }
   }
+}
+
+/**
+ * @param {SourceFile} file
+ * @param {'source'|'output'} context
+ * @returns {Buffer}
+ */
+function packageJsonBytes(file,context) {
+  /** @type {Buffer} */
+  let bytes;
+  if(Buffer.isBuffer(file.code))bytes=file.code;
+  else if(typeof file.code==='string')bytes=Buffer.from(file.code,'utf8');
+  else throw new TypeError('SNO ESM '+context+' package metadata is opaque: '+file.path);
+  if(!isUtf8(bytes))throw new TypeError('Invalid UTF-8 SNO ESM '+context+' package metadata: '+file.path);
+  return bytes;
+}
+
+async function assertSnoDirectBareImportParity(original,generated,inputRoot,outputRoot) {
+  const sources=directBareImports(original);
+  const targets=directBareImports(generated);
+  if(sources.size===0&&targets.size===0)return {entries:0,files:0};
+  assertDefaultEsmResolverContext();
+  assertEsmPackageScopeParity(original,generated,sources.keys());
   for(const [name,specifiers] of sources) {
     const transformed=targets.get(name);
     if(!transformed||JSON.stringify(transformed)!==JSON.stringify(specifiers)) {
