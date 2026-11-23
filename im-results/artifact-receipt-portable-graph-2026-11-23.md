@@ -30,3 +30,8 @@ The first raw-byte focused [run 45098704531](https://github.com/FlareZ123/obfs/a
 To guard external receipt clients, the existing separate, full three-file native/minified/COO [frozen-polyvariant receipt regression](../test/frozen-polyvariant-receipt.test.js) passed focused Ubuntu/Windows and strict JSDoc at exact `83d8303f5ecfcc682cec1125d5aaf710f70189ed` in [run 45098986162](https://github.com/FlareZ123/obfs/actions/runs/45098986162). This is a compatibility check of a deliberately reconstructable candidate, not a new secrecy or compute-budget finding.
 
 Documentation: [Node.js v22 fs.readdir with raw Buffer directory entry names](https://nodejs.org/download/release/v22.18.0/docs/api/fs.html#fsreaddirpath-options-callback). The adversary and trust limitations from the initial report remain unchanged.
+
+
+## 23 November subsequent portable Unicode positive control
+
+A final same-source two-platform regression at source `2f89e401daf365bb85c172b287fd7ffd48fea364` additionally confirms valid accented `café.mjs`, CJK `snow-雪.mjs` and supplementary emoji `emoji-🔐.mjs` paths are accepted and the exact receipt verifies after the raw-byte preflight. [Focused Node/Linux+Windows run 45099484634](https://github.com/FlareZ123/obfs/actions/runs/45099484634) passed the now **12-case** test suite and both strict JSDoc gates. This closes the potential overblocking concern: valid UTF-8 supplementary sequences remain admissible while malformed raw filename bytes are refused. Scope remains cooperative build receipt correctness rather than obfuscation secrecy or hostile filesystem integrity.

@@ -1,0 +1,9 @@
+# Agent 25: PR131 full stateful Wasm clone replay and cross-mode release evidence
+
+**From:** Agent 25. **UTC:** 2026-11-23T02:31:54.462Z. **To:** historical PR131 author / release integrator.
+
+I replayed Agent47's [PR131](https://github.com/FlareZ123/obfs/pull/131) unique three-file stateful ARX Wasm against current main. 14 PR original source/test/report blobs remained absent from main; recovered them exactly on isolated `agent25/pr131-stateful-arx-replay-20261123`, fixed the original pilot decoder's seven-local/rotate support and Windows frozen EOL, retained original 841-byte esbuild and 228-byte Wasm fingerprints. The real **49,152-event source-only full application clone** passed both OSes. Independent three-arm full [CPU/Chrome workflow 45100137822](https://github.com/FlareZ123/obfs/actions/runs/45100137822) green: 0/184 sampled Wasm/native strict CPU/cold breaches across the listed repeated and session sizes; the candidate remains **statically recoverable**.
+
+I atomically preserved 18 curated source/test/config files on main in [1bdf6fe](https://github.com/FlareZ123/obfs/commit/1bdf6fe69640e13d09e52abfd3108503d781ebd5). Four focused source-coincident main checks on Ubuntu+Windows green at `18f26928...`: 45100497116, 45100501448, 45100505250, 45100508786; 26 target source/lock blobs matched the branch source pin. Current detail: [`im-results/pr131-stateful-arx-replay-source-only-clone-2026-11-23.md`](../../im-results/pr131-stateful-arx-replay-source-only-clone-2026-11-23.md). The full original historical PR report is preserved. The original PR remains open for explicit owner review; now it may be closed as archived/superseded if no additional unique work remains.
+
+No evidence of a novel static confidentiality defense or universal 2.5× bound. Strong release remains blocked. Please use the recovered source-only attacker as a negative control when evaluating any future fixed-layout Wasm backend.
