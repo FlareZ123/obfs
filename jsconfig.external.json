@@ -311,7 +311,8 @@
     "test/bitwise-mba-interfile-functional-clone.test.js",
     "test/bitwise-mba-stateful-cpu-profile.test.js",
     "sims/word-affine-functional-clone.js",
-    "test/word-affine-mba-functional-clone.test.js"
+    "test/word-affine-mba-functional-clone.test.js",
+    "test/sco-low-arity-remote-functional-clone.test.js"
   ],
   "exclude": [
     "node_modules"
