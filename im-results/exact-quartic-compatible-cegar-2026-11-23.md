@@ -105,3 +105,21 @@ For each of two quartic affine-wrapped triangular seeds, the same 24 fixed targe
 The setup includes both the certificate and 32 derivative compilation calls, hence it is counted before either original or fast target timings. The original flag was timed first, fast second, symbolic third; JIT/CPU warming and noisy runners were **not** controlled by balanced order. The paired numbers are evidence of a promising target-reuse implementation, not a rigorous speed ratio or general performance bound. Approximate amortized break-even for the fast flag versus repeating target-specific symbolic inversion in these four cells is 17–19 targets, assuming the observed per-target rates scale linearly; a source-paired balanced A/B is required before selecting a globally superior strategy.
 
 Two additional negative controls survived the cross-platform gate: (1) a sparse quartic coefficient model with a bit-31 monomial verifies that missing zero-coefficient entries must still reserve their lower-degree defect slots, and (2) an explicit 4-bit nonlinear bijection with full-rank defect span, copied independently into eight nibbles, is an exactly cubic 32-bit permutation that the greedy flag **correctly rejects at level zero**. This shows both the *degree bound* and the *compatible-triangular structure* are essential, distinct promises.
+
+
+## Balanced-order repeated source-paired follow-up
+
+The earlier 24-target measurement always timed flag paths before symbolic. To address this ordering confound without changing the source family, `test/exact-quartic-paired-abba.test.js` independently generates the same two degree-four affine-triangular source seeds and trains the same public ANF model. It warms both inverse implementations, then uses **two ABBA cycles per seed** with 12 identical high-weight targets per batch; the second source reverses the method order (BAAB). It checks every candidate input exactly against the original known target while keeping original source calls frozen at 41,449. The 528+32 contraction setup is counted separately from target inversion.
+
+[Run 45260609441](https://github.com/FlareZ123/obfs/actions/runs/45260609441), source `edb8354cd6c191d03123c0540de5817901253e1c`, was **green on both Ubuntu and Windows focused jobs** with strict project/external JSDoc; the full Node 22 mainline job was not run. The raw batch timings below are milliseconds. `fast` is global-flag plus incremental exact derivative update; `symbolic` is the pre-existing independent target-specific ANF coefficient transport.
+
+| Runner | Seed | Setup (ms) | Fast 12-target blocks (ms) | Symbolic 12-target blocks (ms) | Per-target fast / symbolic (ms) | Implied amortized break-even |
+| --- | --- | ---: | --- | --- | --- | ---: |
+| Ubuntu | 1904288581 | 1965 | 23, 23, 22, 23 | 1211, 1213, 1218, 1213 | 1.89 / 101.15 | 20 targets |
+| Ubuntu | 1638494499 | 1861 | 22, 20, 21, 19 | 1172, 1167, 1183, 1157 | 1.71 / 97.49 | 20 targets |
+| Windows | 1904288581 | 2550 | 26, 28, 26, 27 | 1383, 1353, 1389, 1376 | 2.25 / 114.60 | 23 targets |
+| Windows | 1638494499 | 2237 | 24, 24, 25, 24 | 1306, 1302, 1290, 1309 | 2.04 / 108.50 | 22 targets |
+
+At the tested 32-bit quartic sources and 12-target repeated batches, post-setup target inversion was roughly **45–58× faster** for the incremental global flag than the established symbolic per-target method, while precomputation cost roughly 1.9–2.6 seconds. The break-even calculations assume these rates remain linear across target counts. This removes one timing-order confound but does **not** establish broad machine-independent distributions, cold-start tradeoffs, all-model performance, a 2.5x *defender* runtime guarantee, or adversarial access bypass. Repeated identical targets, JIT behavior, host-load variation and only two source seeds remain limits.
+
+This paired result makes the basis-only reusable flag a credible **research candidate for repeated authorized oracle inversions** of the declared low-degree triangular class. It remains an attacker-side, conditional negative screen and does not establish a defender obfuscator backend or change the RELEASE-BLOCKED product decision.
