@@ -55,6 +55,10 @@ test('compact runner preserves failure diagnostics and exit status',()=>{
   assert.match(result.stdout,/\bnot ok\b/u);
   assert.match(result.stdout,/1 !== 2/u);
   assert.match(result.stdout,/# fail 1/u);
+  const index=JSON.parse(/^FAILED_TEST_INDEX (.+)$/mu.exec(result.stdout)?.[1]??'[]');
+  assert.equal(index.length,1);
+  assert.equal(index[0].actual,'1');
+  assert.equal(index[0].expected,'2');
 });
 
 test('compact runner indexes every failure beyond its detailed log cap',()=>{
@@ -70,5 +74,7 @@ test('compact runner indexes every failure beyond its detailed log cap',()=>{
   assert.match(index[0].case,/synthetic case 0/u);
   assert.match(index[29].case,/synthetic case 29/u);
   assert.ok(index[29].location.includes('case.test.js:'),index[29].location);
+  assert.match(index[29].error,/failure 29/u);
+  assert.equal(index[29].expected,null);
   assert.match(result.stdout,/Omitted 5 additional failing test blocks/u);
 });
