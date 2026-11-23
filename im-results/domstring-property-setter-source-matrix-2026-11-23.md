@@ -370,3 +370,31 @@ See:
 
 These CSSOM results complement this DOMString property/HTML parser matrix;
 do not merge their counts or infer that this matrix covers all CSSOM sinks.
+
+
+## Recommended implementation order
+
+1. Add semantic Web IDL sink metadata for native writable-property setters,
+   `insertAdjacentHTML`, modern safe/unsafe HTML parser methods,
+   `DOMParser.parseFromString`, and `Range.createContextualFragment`.
+2. Track receiver provenance and property values through direct calls,
+   bracket dispatch, aliases, `Reflect.apply`, bound methods, and cross-file
+   ESM imports. Do not apply a method-name-only ban; Agent 1's same-named
+   userland `setProperty` positive demonstrates the false-positive risk.
+3. Model HTML stream creation as a source-bearing capability whose returned
+   `WritableStream` carries values through writer aliases, `write.call`, and
+   `ReadableStream.pipeTo` before DOM insertion.
+4. Replace the current all-or-nothing source-observer veto with a selective
+   source-observation plan that preserves the function's observable source and
+   only the owner/key spellings that source requires, while allowing proven
+   independent private-property transformations.
+5. Keep `Document.write/writeln` as a conservative baseline, but add a
+   positive-yield requirement: primitive-only and unrelated-owner controls
+   should still transform when safe.
+6. Convert this expected-red diagnostic into semantic regression tests after
+   the selective implementation lands; add Firefox/WebKit and a dedicated
+   HTTP-header-based Trusted Types harness before making cross-browser claims.
+
+No production patch is included in this contribution. The report establishes
+reproducible source-observation gaps and their yield controls, not a completed
+obfuscator or a security-release claim.
