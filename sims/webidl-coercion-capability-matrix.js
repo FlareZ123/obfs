@@ -50,7 +50,7 @@ function source(sink,primitive) {
     'function inspect(){const state={secretField:31};return state.secretField;}';
   return [
     owner,sink.setup,sink.write.replace('VALUE',primitive?'"literal"':'inspect'),
-    'export const result={observed:String('+sink.read+'),',
+    'export const result={observed:('+sink.read+'),',
     'number:'+(primitive?'privateValue':'inspect()')+'};'
   ].join('\n');
 }
@@ -200,6 +200,8 @@ async function main() {
     assert.equal(cssom?.nativeSourceObserved,true);
     assert.equal(cssom?.behaviorParity,false);
     assert.equal(cssom?.positiveParity,true);
+    assert.ok(Number(cssom?.negativeProperties)>0,
+      'The native source-observation witness must exercise a private rewrite');
     process.stdout.write('WEBIDL_COERCION_MATRIX '+JSON.stringify(summary)+'\n');
   }finally {
     await new Promise(resolve=>server.close(()=>resolve(undefined)));
