@@ -34,15 +34,15 @@ test('local Symbol keys preserve mutation and are generated only once',()=>{
 });
 
 test('exported callable keeps source spelling rather than receiving Symbol keys',()=>{
-  const source="'use strict';\\nconst bag={pulse:7,mask:3};\\n"+
-    "function calc(x){bag.pulse+=x;return (bag.pulse^bag.mask)|0;}\\nmodule.exports=calc;\\n";
+  const source="'use strict';\nconst bag={pulse:7,mask:3};\n"+
+    "function calc(x){bag.pulse+=x;return (bag.pulse^bag.mask)|0;}\nmodule.exports=calc;\n";
   const result=symbolizeLocalProperties(source,parse(source,'commonjs'),{seed:'symbol-public-callable'});
   assert.equal(result.objects,0);
   assert.equal(result.properties,0);
   assert.equal(result.code,source);
   const scope={module:{exports:/** @type {unknown} */ (null)}};
   vm.runInNewContext(result.code,scope,{timeout:2000});
-  assert.match(Function.prototype.toString.call(scope.module.exports),/bag\\.pulse/u);
+  assert.match(Function.prototype.toString.call(scope.module.exports),/bag\.pulse/u);
 });
 
 test('closed aliases, optional read and statically keyed destructuring retain their values',()=>{
@@ -129,7 +129,7 @@ test('exported ESM callable source vetoes local Symbol-key transformation',()=>{
     identifiers:false,experimentalSymbolKeys:true
   });
   assert.equal(compiled.files[0].metrics.symbolKeys,0);
-  assert.match(String(compiled.files[0].code),/privateState\\.pulse/u);
+  assert.match(String(compiled.files[0].code),/privateState\.pulse/u);
 });
 
 test('private property read inside an observable failed callee remains unrenamed',()=>{
