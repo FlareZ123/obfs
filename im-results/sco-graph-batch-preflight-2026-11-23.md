@@ -1,0 +1,32 @@
+# Explicit multi-module SCO batching with inner-policy preflight
+
+**23 November 2026, Agent 31. Classification:** experimental application-contract feature and intermediate correctness/cost evidence. This is not an established strong-obfuscation result or a release admission.
+
+## Boundary and implementation
+
+The preexisting SCO graph compiler ('src/sco-graph.js') creates a compiler-owned, private ESM graph manifest with explicitly approved public async exports and a composed HTTP handler. The lower-level 'partitionScoAsyncModule' already supported a per-module 'batch' client RPC facade and its server-resident 'createScoBatchMethod' helper. The graph API had not offered that batching opt-in or wired protected batch routes into the HTTP handler's per-item authorization preflight. The missing composition is significant for application operators who want fewer HTTP round trips without implicitly treating approval of a batch route as permission to execute every nested operation.
+
+On branch [agent31/sco-graph-batch-preflight-20261123](https://github.com/FlareZ123/obfs/tree/agent31/sco-graph-batch-preflight-20261123):
+
+- 'partitionScoAsyncGraph(files,{exposedPaths,batchPaths,maxBatchCalls})' now supports a list of **distinct, already-approved exposed paths** whose generated facades receive an additional async batch export. Private-only paths, duplicates, and malformed capacity are refused. An omitted 'batchPaths' preserves the former graph partition surface.
+- The compiler captures 'batchPaths' and 'maxBatchCalls' once, then copies the selected path slots by index, independent of caller iterator overrides. It includes generated batch RPC identifiers in cross-module method collision detection. The original client implementation source and private graph stay server-resident.
+- 'createScoGraphHandler' calculates all recognized batch method identities from its already-sealed generated manifest. It requires 'authorizeOperation' when batching is selected and passes those identities to the existing 'createScoHandler' protected 'batchPreflightRoutes'. Its caller cannot override that list, which could otherwise suppress mandatory inner checks.
+- The underlying HTTP handler checks each nested operation before executing any batch item. This includes a later denied item following an authorized earlier item. Original lower-level support executes permitted calls sequentially and returns generic per-item result wrappers. Source-observable exceptions, scheduling, and concurrent request interleavings may differ from separately awaited native calls, so use this only for deliberate JSON-compatible remote operation contracts.
+
+No new crypto scheme, dynamic extraction protection, SNO security claim, or generic client-only anti-relay claim is introduced. Public method identifiers remain observable and legitimate authorized calls remain relayable.
+
+## Actual source and validation
+
+The new [two-case multi-file graph integration](../test/sco-graph-explicit-batch.test.js) checks positive batch publication yield, source graph boundary, custom iterator exclusion, malformed selections, missing server operation policy, caller override refusal, real HTTP inner authorization denial **before a first authorized side effect**, successful ordered two-call execution, oversized rejection, and the unaffected ordinary non-batched graph export. Both Ubuntu and Windows focused jobs passed at exact branch commit '7622bc9c47ea3d6adfb163f4af931199ee9b177d' in [workflow 45183424679](https://github.com/FlareZ123/obfs/actions/runs/45183424679), including strict project/external/paired-budget JSDoc checks.
+
+Existing source-publication and graph-composition regressions also passed at the same branch commit: [private-path policy 45183632062](https://github.com/FlareZ123/obfs/actions/runs/45183632062) and [original graph behavior 45183664793](https://github.com/FlareZ123/obfs/actions/runs/45183664793), on both operating systems, with strict JSDoc.
+
+The [real original HMAC batch performance diagnostic](../test/sco-graph-batch-cpu.test.js) uses all three original private files from examples/sco-graph, eight 12,000-round private HMAC requests per batch, a genuine compiled client, an equal-secret/equal-policy ordinary esbuild-minified batch facade, and direct original native calls. It records six alternating-order source-paired CPU samples of the caller + server in one localhost Node process, with emitted raw arrays and strict >2.5x counts. Focused Ubuntu/Windows [workflow 45184002076](https://github.com/FlareZ123/obfs/actions/runs/45184002076) passed at source '568761934dfaa8f1e32ee2c636ade7b7da787a36', including all standard focused JSDoc checks. The run is **not** a universal CPU admission: it excludes browser CPU, WAN/TLS, process contention and cold client load. The raw timing arrays were recorded by the executable test; this report has not independently adjudicated their numeric ratios.
+
+## Admission limits and next decisions
+
+These are focused success receipts. The full-root Node/Chromium suite has not passed on this branch and the wider mainline has recently been RED, so none of the focused workflows promote general compatibility. Measure the same exact emitted graph artifact on a representative browser/account-deployment workload with real network latency and separately counted client/server CPU. Preserve every strict >2.5x sample, genuine native baseline, and an ordinary equal-trust minified server control. If batching fails to improve latency or violates budget on supported workloads, retain it strictly opt-in or retire it.
+
+The other principal unresolved safety question is whether an integration may accidentally pass permissive 'authorizeOperation' for a route to which broader application policy denies some nested calls; the current helper correctly invokes the supplied policy, but **cannot manufacture an application-specific authorization rule**. An intentional returning-true policy allows every method. The developer must supply a trustworthy policy and review the two-level authorization contract.
+
+The same-account relay result in [the independent graph equal-trust test](sco-graph-matched-relay-2026-11-23.md) applies even after batching: grouping legitimate requests does not create a new server trust anchor or make public client traffic secret. The primary three-mode objective remains **RELEASE-BLOCKED**.
