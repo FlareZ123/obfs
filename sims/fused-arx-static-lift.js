@@ -12,11 +12,12 @@
 
 /**
  * Decode a public WebAssembly binary into a standalone JavaScript executor.
- * The pilot has one (i32,i32,i32,i32,i32,i32)->() function, two i32 locals,
- * and linear-memory i32 output words at byte offsets 0 through 15.
+ * The original pilot uses six i32 inputs and two local registers. The
+ * frozen stateful batch adds a seventh input and seven local registers.
+ * Both publish four i32 outputs in linear memory at offsets 0 through 15.
  *
  * @param {Uint8Array} bytes
- * @returns {{run:(state:readonly number[],units:Uint16Array)=>number[],instructions:readonly Instruction[]}}
+ * @returns {{run:(state:readonly number[],units:Uint16Array,serialStart?:number)=>number[],instructions:readonly Instruction[]}}
  */
 function staticLiftFusedArx(bytes) {
   if(!(bytes instanceof Uint8Array) || bytes.length<8 ||
@@ -89,7 +90,7 @@ function staticLiftFusedArx(bytes) {
       }else if(op===0x2f||op===0x36){
         uleb(); // public alignment hint
         instruction.arg=uleb(); // memory offset
-      }else if(![0x4f,0x6a,0x6c,0x72,0x73,0x74,0x76].includes(op)){
+      }else if(![0x4f,0x6a,0x6c,0x72,0x73,0x74,0x76,0x77].includes(op)){
         throw new Error('Unsupported pilot opcode '+op.toString(16));
       }
       instructions.push(instruction);
@@ -98,24 +99,28 @@ function staticLiftFusedArx(bytes) {
     if(control.length||!functionEnd||cursor!==bodyEnd)
       throw new Error('Unbalanced WebAssembly function');
   }
-  if(localsCount!==2||instructions.length===0)
-    throw new Error('Expected a fixed pilot with two locals');
+  if(![2,7].includes(localsCount)||instructions.length===0)
+    throw new Error('Expected fixed pilot or seven-local stateful batch');
 
   let view=new DataView(new ArrayBuffer(65536));
   /**
    * Replay the published memory ABI with only JavaScript i32 operations.
    * @param {readonly number[]} state
    * @param {Uint16Array} units
+   * @param {number} [serialStart]
    * @returns {number[]}
    */
-  function run(state,units) {
+  function run(state,units,serialStart=0) {
     if(state.length!==4)throw new Error('Four seed words required');
     const required=16+units.length*2;
     if(required>view.byteLength)
       view=new DataView(new ArrayBuffer(Math.ceil(required/65536)*65536));
     for(let index=0;index<units.length;index++)
       view.setUint16(16+index*2,units[index],true);
-    const locals=[state[0]|0,state[1]|0,state[2]|0,state[3]|0,16,units.length,0,0];
+    const locals=localsCount===2
+      ?[state[0]|0,state[1]|0,state[2]|0,state[3]|0,16,units.length,0,0]
+      :[state[0]|0,state[1]|0,state[2]|0,state[3]|0,16,units.length,serialStart|0,
+        0,0,0,0,0,0,0];
     /** @type {number[]} */
     const stack=[];
     /** @type {{kind:number,start:number,end:number}[]} */
@@ -167,6 +172,7 @@ function staticLiftFusedArx(bytes) {
             case 0x73:value=a^b;break;
             case 0x74:value=a<<(b&31);break;
             case 0x76:value=a>>>(b&31);break;
+            case 0x77:value=(a<<(b&31))|(a>>>((32-(b&31))&31));break;
             default:throw new Error('Unhandled opcode');
           }
           stack.push(value);pc++;break;

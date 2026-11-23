@@ -33,3 +33,5 @@ package-lock.json text eol=lf
 # Frozen Agent38 stateful ARX native and generated candidate source bytes.
 examples/stateful-arx-app/native/*.mjs text eol=lf
 examples/stateful-arx-app/candidate/*.mjs text eol=lf
+examples/stateful-arx-app/minified/*.mjs text eol=lf
+examples/stateful-arx-app/wasm/*.mjs text eol=lf
