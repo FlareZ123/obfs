@@ -461,6 +461,7 @@ async function main() {
     assert.ok(match,'Chromium did not emit the result node: '+stderr);
     assert.ok(!match[1].startsWith('BROWSER_ERROR '),match[1]);
     const browser=JSON.parse(match[1]);
+    const browserEnvironment=browser.browserEnvironment;
     const rows=browser.rows;
     const allExpectedRed=rows.length===cases.length&&rows.every(
       (/** @type {any} */ row)=>row.nativeSourceValid&&row.sourceMismatch&&
