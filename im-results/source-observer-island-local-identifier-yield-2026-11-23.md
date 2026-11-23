@@ -48,7 +48,7 @@ Earlier focused runs exposed only test-harness mistakes (over-escaped regular ex
 `test/browser-integration.js` now includes a COO/Chromium fixture. A sibling module observes the watched function's source and activates the group-wide veto; selected leaves are transformed; a separate external browser module then checks the exact source of all three exported functions and the primitive outputs. The page reports `island-ok` only when those checks pass.
 
 - Full manual validation run [45275517067](https://github.com/FlareZ123/obfs/actions/runs/45275517067) was dispatched at the earlier branch tip `c51f39af332c59faaa2eb13119cfe3699e14ccce` and was still running when this report was drafted.
-- The current branch tip includes JSDoc annotations for the browser fixture and a non-brittle `properties >= 1` assertion. Focused run [45276197251](https://github.com/FlareZ123/obfs/actions/runs/45276197251) is validating that updated tip; its outcome is pending.
+- The current branch tip includes JSDoc annotations for the browser fixture and a non-brittle `properties >= 1` assertion. Focused run [45276197251](https://github.com/FlareZ123/obfs/actions/runs/45276197251) passed on Ubuntu and Windows: all 9 focused source-island tests and all strict JSDoc gates passed. This focused run does not execute Chromium.
 
 Do not infer a browser pass until the actual Chromium step is complete.
 
