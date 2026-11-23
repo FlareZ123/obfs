@@ -93,7 +93,8 @@ test('single-slot array supports direct owner references and safe aliases in one
     'const owner={secretCount:19};',
     'const holder=[owner];',
     'const alias=holder[0];',
-    'module.exports=function compute(n){return alias.secretCount*n+owner.secretCount;}'
+    'function privateCompute(n){return alias.secretCount*n+owner.secretCount;}',
+    'module.exports=function compute(n){return privateCompute(n);}'
   ].join('\n');
   for(const mode of ['coo','sno']){
     const result=compile(source,mode);
