@@ -34,8 +34,9 @@ for(const name of ['read','toString','valueOf']){
         path:'entry.cjs',sourceType:'commonjs',code:privateSource
       }],{mode,seed:'private-class-owner-method-name/'+name+'/'+mode,
         properties:true,identifiers:false,strings:false}).files[0];
-      assert.equal(generated.metrics.properties,2,
-        'Only private owner fields are renamed; class method remains callable');
+      const expected=name==='toString'?0:2;
+      assert.equal(generated.metrics.properties,expected,
+        'Name-based source observer conservatively refuses a toString-named method');
       assert.match(/** @type {string} */ (generated.code),
         new RegExp('class Reader\\{'+name+'\\(','u'),
         'Method spelling remains a native class method name');
@@ -43,7 +44,7 @@ for(const name of ['read','toString','valueOf']){
       const recovered=neutralizeHashedNames([{
         path:'entry.cjs',sourceType:'commonjs',code:/** @type {string} */(generated.code)
       }]);
-      assert.equal(recovered.properties,2);
+      assert.equal(recovered.properties,expected);
       assert.equal(run(recovered.files[0].code),run(privateSource));
     });
     test(mode+': visible class method source refuses colliding own keys '+name,()=>{
