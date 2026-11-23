@@ -24,11 +24,14 @@ const {makeIndependentMachine}=require('./sco-sync-independent-distribution');
  * @param {number} [seed]
  * @returns {Promise<{states:number,queries:number,remaining:number,certified:boolean,
  *   sourceDisclosed:boolean,unauthorizedStatus:number,publicResetExport:boolean,
- *   knownContinuationExact:boolean,networkSteps:number,distinctSourceFiles:boolean}>}
+ *   knownContinuationExact:boolean,networkSteps:number,distinctSourceFiles:boolean,
+ *   attackerModelCount:number,attackerScanWork:number,attackerEquivalenceChecks:number,
+ *   attackerProductPairs:number,attackerElapsedMs:number}>}
  */
 async function runLiveStepVersionSpace(states=2,seed=0x31415926){
-  if((states!==2&&states!==3)||!Number.isSafeInteger(seed)||seed<0||seed>0xffffffff){
-    throw new RangeError('Expected two/three states and unsigned seed');
+  if(!Number.isSafeInteger(states)||states<2||states>4||
+      !Number.isSafeInteger(seed)||seed<0||seed>0xffffffff){
+    throw new RangeError('Expected two, three or four states and unsigned seed');
   }
   const machine=makeIndependentMachine(seed,states);
   const canary='private-version-space-canary-'+seed;
@@ -94,7 +97,7 @@ async function runLiveStepVersionSpace(states=2,seed=0x31415926){
     const api=/** @type {{step:(symbol:number)=>Promise<number>,reset?:unknown}} */(
       await import(pathToFileURL(publicFile).href));
     assert.equal(api.reset,undefined,'Reset unexpectedly published');
-    const result=await learnBoundedStepOnly(api,states,64);
+    const result=await learnBoundedStepOnly(api,states,128);
     assert.equal(result.certified,true);
     assert.ok(result.clone);
     let privateCurrent=0;
@@ -115,7 +118,12 @@ async function runLiveStepVersionSpace(states=2,seed=0x31415926){
       states,queries:result.queries,remaining:result.remaining,certified:result.certified,
       sourceDisclosed,unauthorizedStatus:denied.status,publicResetExport:false,
       knownContinuationExact:true,networkSteps:result.queries+followup.length,
-      distinctSourceFiles:privateFile!==publicFile
+      distinctSourceFiles:privateFile!==publicFile,
+      attackerModelCount:result.modelCount||0,
+      attackerScanWork:result.scanWork||0,
+      attackerEquivalenceChecks:result.equivalenceChecks||0,
+      attackerProductPairs:result.productPairs||0,
+      attackerElapsedMs:result.elapsedMs||0
     };
   }finally{
     globalThis.fetch=nativeFetch;
