@@ -2459,6 +2459,27 @@ function partitionScoSelectedAsyncExports(file,options) {
         }
       });
     }
+    // A plain selected formal is a lexical owner, not the separated public
+    // export of the same spelling. Also admit only outermost immutable scalar
+    // literals: this narrow proof cannot accidentally move an exported
+    // callable/closure identity or shared mutable object to the Node realm.
+    const locallyOwnedPublicNames=new Set(
+      [...(privateFormals.get(body)??new Set())].filter(name=>publicBindings.has(name))
+    );
+    if(body.type==='BlockStatement'){
+      for(const statement of body.body){
+        if(statement.type!=='VariableDeclaration'||statement.kind!=='const')continue;
+        for(const declaration of statement.declarations){
+          if(declaration.id.type!=='Identifier'||!publicBindings.has(declaration.id.name)||
+             declaration.init?.type!=='Literal')continue;
+          const value=declaration.init.value;
+          if(value===null||typeof value==='string'||typeof value==='number'||
+             typeof value==='boolean'){
+            locallyOwnedPublicNames.add(declaration.id.name);
+          }
+        }
+      }
+    }
     walk(body,(node,parent,key)=>{
       if(node.type==='MemberExpression'&&node.object.type==='Identifier'&&
          globalAliases.has(node.object.name)){
@@ -2489,7 +2510,7 @@ function partitionScoSelectedAsyncExports(file,options) {
       if(browserOnlyRoots.has(node.name)&&!localBrowserNames.has(node.name)){
         throw new TypeError('Private SCO export uses browser-only ambient state: '+node.name);
       }
-      if(publicBindings.has(node.name)){
+      if(publicBindings.has(node.name)&&!locallyOwnedPublicNames.has(node.name)){
         throw new TypeError('Private SCO export references a separated public binding: '+node.name);
       }
       // The original private function is a distinct singleton on each client.
