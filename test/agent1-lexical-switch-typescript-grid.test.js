@@ -37,7 +37,7 @@ const templates=[
 const wrappers=[
   (body,index)=>'function holder_'+index+'(){'+body+'}',
   (body,index)=>'function holder_'+index+'(window){'+body+'}',
-  (body,index)=>'function holder_'+index+'(){{let window=3;'+body+'}}',
+  (body,index)=>'function holder_'+index+'(){let window=3;function nested_'+index+'(){'+body+'}nested_'+index+'();}',
   (body,index)=>'function holder_'+index+'(){(()=>{'+body+'})();}',
   (body,index)=>'function holder_'+index+'(){function inner_'+index+
     '(){'+body+'}inner_'+index+'();}'
