@@ -75,7 +75,7 @@ Keep a distinct sub-track for a CASCADE-style pipeline:
 
 Score component-localization precision/recall, validator acceptance, runtime executions, recovered literals/structure, and hidden-test clone success separately. This is a hybrid compiler attack, not direct LLM source reconstruction. CASCADE's published results are specific to Obfuscator.IO string arrays; they motivate testing the workflow against a stable prelude/dispatcher but do not establish that it succeeds against this project's VM. JSIMPLIFIER is a broader optional T1/T2 hybrid baseline after a small reproducibility check; its static/dynamic pipeline and LLM humanizer should be scored separately. Its public artifact uses direct `eval`/`new Function` in decoding plugins, so any run must be in a networkless, resource-limited container. The README says GPL-3.0 while `package.json` says MIT; resolve the license discrepancy before vendoring. Do not add a default CI workflow merely to run this external tool.
 
-A candidate that survives T0 but fails T1/T2 is not LLM-resistant under the stronger tier.
+A candidate that survives T0 but fails T1/T2 or T2-H is not LLM-resistant under the stronger tier.
 
 ## Corpus and controls
 
@@ -88,7 +88,7 @@ A candidate that survives T0 but fails T1/T2 is not LLM-resistant under the stro
 
 ## Tasks and scoring
 
-The primary endpoint is **functional reconstruction**, not prose quality. Run the same downstream task against four inputs: original (Plain), same-source esbuild/Terser minified control, emitted candidate (Obfuscated), and an independently produced restored version of the candidate (Deobfuscated). The minified control is a baseline arm, not a restoration stage. Do not assume restoration is beneficial. Report pass rates for all four and:
+The primary endpoint is **functional reconstruction**, not prose quality. Run the same downstream task against four inputs: original (Plain), same-source esbuild/Terser minified control, emitted candidate (Obfuscated), and an independently produced restored version of the candidate (Deobfuscated). The minified control is a baseline arm, not a restoration stage. Generate Deobfuscated with a preregistered, pinned restoration pipeline (same-model or external tool) and record that pipeline; run the same downstream task model on the restored output. If the same model performs both restoration and task solving, report it as an end-to-end pipeline. Do not assume restoration is beneficial. Report pass rates for all four and:
 - **Direct obfuscated pass rate:** the attacker's functional success without any restoration step.
 - **Rescue count/rate:** count cases where Plain passes, Obfuscated fails, and Deobfuscated passes; report both the conditional rate among Obfuscated failures and the count divided by the common Plain-pass denominator.
 - **Degradation count/rate:** count cases where Plain passes, Obfuscated passes, and Deobfuscated fails; report both the conditional rate among Obfuscated successes and the count divided by the same Plain-pass denominator.
