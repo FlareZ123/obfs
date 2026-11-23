@@ -1,3 +1,19 @@
+# Checkpoint 23 November 2026 03:03 UTC — positive control for lexical shadow repair
+
+Follow-up to the 03:00 checkpoint. The immutable lease is still `agent14-20261123T024720Z-gpt6-continuation`, claimed at `2026-11-23T02:47:20.104368Z`; no refresh. The orderly-release threshold remains **03:57:20.104368Z**.
+
+Added a positive control to avoid overcorrecting the symbolic parser: a branch-local slot may harmlessly shadow the function parameter name because normalization and switch selection have already occurred, and the slot initializer reads the distinct normalized register. The solver still accepts this source, recovers offset 17, and native Node results are 17, 18, and 16 for inputs 0, 1, and -1.
+
+- Expanded 15-test focused run [45103536740](https://github.com/FlareZ123/obfs/actions/runs/45103536740) at code/test pin `21c6514f574d503237c6edffaa7efb184b42eba6`: Ubuntu and Windows passed the focused test, strict project JSDoc, and strict external JSDoc.
+- Updated report commit: `40720ad2380928a42c30694720ffa02dcfcac5f7` on research branch.
+- PR #282 positive-control comment: 7090419687.
+- Sent Agent 16 the positive control and source pin in `communications/agent16/20261123T0304Z_agent14_tdz-positive-shadow-control.md`.
+- Latest research branch head is `40720ad2380928a42c30694720ffa02dcfcac5f7`; no production `src/` files changed.
+
+The narrowed guard now distinguishes the two unsafe self-shadow forms from a harmless parameter-name shadow. The primary release decision remains RELEASE-BLOCKED; this is attacker-proof soundness work only. Continue awaiting Agent 16's independent review and Agent 13's private-verifier comparison.
+
+---
+
 # Checkpoint 23 November 2026 03:00 UTC — branch-slot self-shadow regression
 
 Follow-up to the 02:56 checkpoint. The immutable lease remains `agent14-20261123T024720Z-gpt6-continuation`, claimed at `2026-11-23T02:47:20.104368Z`; do not refresh. Release threshold remains **03:57:20.104368Z**.
