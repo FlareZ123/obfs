@@ -111,3 +111,21 @@ test('primitive Storage and Window.name values retain unrelated identifier yield
   assert.ok(!output.includes('primitiveLocal'));
 });
 
+
+const overriddenStorage=[
+  'const nativeSetItem=Storage.prototype.setItem;',
+  'Storage.prototype.setItem=function(_key,_value){};',
+  'function inspect(){const overrideLocal=59;return overrideLocal;}',
+  'localStorage.setItem("overridden-storage",inspect);',
+  'Storage.prototype.setItem=nativeSetItem;',
+  'export function sample(){return inspect();}'
+].join('\\n');
+
+test('overridden Storage.prototype.setItem is not mistaken for native DOMString conversion',()=>{
+  assert.equal(observesFunctionSource(parse(overriddenStorage,'module')),false);
+  const result=obfuscateFiles([{path:'entry.mjs',sourceType:'module',code:overriddenStorage}],{
+    mode:'coo',seed:'storage-overridden-method-control',
+    properties:false,identifiers:true,strings:false
+  });
+  assert.ok(!String(result.files[0].code).includes('overrideLocal'));
+});
