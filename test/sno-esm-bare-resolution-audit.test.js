@@ -206,22 +206,58 @@ test('ESM audit refuses custom conditions, loaders and symlink-preservation mode
   });
 });
 
-test('ESM audit refuses future emitted package scopes',async()=>{
+test('ESM audit supports identical type-only package scopes for .js ESM modules',async()=>{
+  await fixture(async temp=>{
+    const root=path.join(temp,'project');
+    const source=path.join(root,'source');
+    const output=path.join(root,'output');
+    await atomicWrite(path.join(source,'package.json'),JSON.stringify({type:'module'}));
+    await atomicWrite(path.join(source,'engine.js'),
+      "import {value} from '"+packageName+"';export default value+13;");
+    await atomicWrite(path.join(source,'entry.cjs'),
+      "module.exports=require('./engine.js').default;");
+    await writePackage(root,103,401);
+    assert.equal(execute(path.join(source,'entry.cjs')),116);
+    await main('sno',['--root',source,'--entry','entry.cjs',
+      '--out',output,'--seed','sno-esm-js-type-module-scope','--audit-bare-esm']);
+    assert.equal(execute(path.join(output,'sno-entry.cjs')),116);
+  });
+});
+
+test('ESM audit refuses changed or unsupported emitted package scopes',async()=>{
   /** @type {import('../src/core').SourceFile[]} */
   const source=[{
     path:'engine.mjs',sourceType:'module',
     code:"import value from 'sno-esm-resolution-probe';export default value;"
+  },{
+    path:'package.json',sourceType:'asset',code:'{"type":"module"}'
   }];
   /** @type {import('../src/core').SourceFile[]} */
-  const generated=[...source,{
-    path:'package.json',sourceType:'asset',code:'{}'
+  const changed=[source[0],{
+    path:'package.json',sourceType:'asset',code:'{"type":"commonjs"}'
   }];
   await assert.rejects(
-    assertSnoDirectBareImportParity(source,generated,'/not-created/source','/not-created/output'),
-    /cannot model future package scope/u
+    assertSnoDirectBareImportParity(source,changed,'/not-created/source','/not-created/output'),
+    /found changed package scope metadata/u
+  );
+  /** @type {import('../src/core').SourceFile[]} */
+  const withImports=[source[0],{
+    path:'package.json',sourceType:'asset',
+    code:'{"type":"module","imports":{"#private":"./private.mjs"}}'
+  }];
+  await assert.rejects(
+    assertSnoDirectBareImportParity(withImports,withImports,'/not-created/source','/not-created/output'),
+    /cannot model package imports\/self-reference/u
+  );
+  /** @type {import('../src/core').SourceFile[]} */
+  const outputOnly=[source[0],{
+    path:'package.json',sourceType:'asset',code:'{"type":"module"}'
+  }];
+  await assert.rejects(
+    assertSnoDirectBareImportParity([source[0]],outputOnly,'/not-created/source','/not-created/output'),
+    /cannot model changed package scope/u
   );
 });
-
 test('ESM audit flag is restricted to SNO',async()=>{
   await fixture(async temp=>{
     const source=path.join(temp,'source');
