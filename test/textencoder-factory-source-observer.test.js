@@ -42,6 +42,18 @@ const cases={
     functionSource+"module.exports=Array.from(encoder.encode(observed));\n",
   destructureReturnedRecord:"function make(){return {encoder:new TextEncoder()};}\n"+
     "const {encoder}=make();\n"+
+    functionSource+"module.exports=Array.from(encoder.encode(observed));\n",
+  generatorYield:"function* make(){yield new TextEncoder();}\n"+
+    "const encoder=make().next().value;\n"+
+    functionSource+"module.exports=Array.from(encoder.encode(observed));\n",
+  generatorReturn:"function* make(){return new TextEncoder();}\n"+
+    "const encoder=make().next().value;\n"+
+    functionSource+"module.exports=Array.from(encoder.encode(observed));\n",
+  arrayAt:"const encoder=[new TextEncoder()].at(0);\n"+
+    functionSource+"module.exports=Array.from(encoder.encode(observed));\n",
+  forOf:"for(const encoder of [new TextEncoder()]){\n"+
+    functionSource+"module.exports=Array.from(encoder.encode(observed));}\n",
+  assignedArray:"let encoder;[encoder]=[new TextEncoder()];\n"+
     functionSource+"module.exports=Array.from(encoder.encode(observed));\n"
 };
 
