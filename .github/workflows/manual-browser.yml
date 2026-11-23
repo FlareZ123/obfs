@@ -127,6 +127,10 @@ jobs:
         env:
           CHROMIUM_BIN: google-chrome
         run: node test/instance-prototype-source-browser.js
+      - name: Compare inline and Blob-backed module source, fetch and stack observations in Chromium
+        env:
+          CHROMIUM_BIN: google-chrome
+        run: node sims/browser-dom-blob-source-parity.js
       - name: Strict-check external benchmark and browser harness JSDoc
         run: npm run typecheck:external
       - name: Compare held-out multi-file property graphs in Chrome
