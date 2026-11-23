@@ -51,7 +51,7 @@ up to ceiling terms. This is an expected query bound, not a deterministic worst-
 - Tests: test/random-affine-graph-flag-inversion.test.js
 - Both are included in jsconfig.external.json for strict JSDoc validation.
 - Final focused two-platform validation **45125176161** at exact head `59ad24d0309ee276dabd89f0f16f68d8c6a80f7e` passed on Ubuntu and Windows: both tests passed, strict project/external JSDoc passed, and the paired/complete-suite runtime-budget evaluator typecheck passed. The immediately preceding attempt `45125006964` passed both behavioral test jobs but failed strict external JSDoc on one un-narrowed union-property read; this was corrected before the green run. An earlier pre-annotation attempt also exposed `never[]` inference and implicit-any issues, which were corrected.
-- The test generator creates two-sided affine-wrapped triangular permutations P_i(z)=z_i XOR h_i(z_<i), with independent random invertible input and output linear maps. It uses sparse random ANFs of declared degree D.
+- The test generator creates two-sided affine-wrapped triangular permutations P_i(z)=z_i XOR h_i(z_<i), with independent random invertible input and output linear maps plus independent random input/output translation offsets. It uses sparse random ANFs of declared degree D.
 - The test sampler is a deterministic xorshift64* PRNG for reproducibility. The probability proof assumes ideal independent uniform samples; a real attacker should inject a cryptographically secure coordinate sampler.
 
 ## Empirical results
@@ -65,7 +65,7 @@ All 15 tested triangular oracles were inverted exactly, with the final candidate
 | 32 | 6 | 3 | 45,904–45,979 | 1,149,017 |
 | 64 | 4 | 2 | 27,213–27,346 | 679,121 |
 
-The graph method is target-specific. Full ANF cloning can be amortized over many targets, so the query comparison is not an unconditional cost comparison. For the tested 32-bit cases, the graph method used about 3.4x, 10.3x, and 25x fewer queries than full cloning at degrees 4, 5, and 6, respectively.
+The graph method is target-specific. Full ANF cloning can be amortized over many targets, so the query comparison is not an unconditional cost comparison. A separate affine-offset stress test then added independent input and output translations: 9 additional instances all inverted exactly (n32 D4, 3 seeds: 12,278–12,306 queries; n32 D5, 3 seeds: 23,497–23,590; n32 D6, 2 seeds: 45,930–45,944; n64 D4, 1 seed: 27,261). These offset cases are now the ones exercised by the repository test. For the tested 32-bit cases, the graph method used about 3.4x, 10.3x, and 25x fewer queries than full cloning at degrees 4, 5, and 6, respectively.
 
 A negative control used the 32-bit embedding of the three-bit permutation with input-order table [0,1,2,4,3,6,7,5]. The method recovered affine flags through the 29 trivial coordinates, then correctly refused at residual dimension 3, where the permutation has no nonconstant affine output parity. It stopped after 3,357 queries. This is expected scope behavior, not an implementation failure.
 
