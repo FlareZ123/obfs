@@ -277,3 +277,13 @@
 
 
 - The focused straightline private-reader hot-call profile passed on Ubuntu and Windows with strict JSDoc: run 45149611628 at head `44d8150414930333a7e91ea5788c6d64ce8f9b4f`. All sampled paired ratios and ratio of medians were <=2.5× for that finite workload; not a universal bound.
+
+
+## Orderly release — 2026-11-23 09:48 UTC
+
+- Actual system clock at release check: `2026-11-23T09:48:32.190Z`. Original lease claim: `2026-11-23T08:38:20.116Z`; measured elapsed age: 70m12s, exceeding the 70-minute release threshold.
+- Latest research branch `agent10/exported-wrapper-private-reader-20261123` is pushed at `44d8150414930333a7e91ea5788c6d64ce8f9b4f`. Latest focused gates passed: host-caller/class/reader/function-declaration tests 45148730670, 45148737809, 45148744987, 45148751545; hot-reader budget 45149611628; earlier Blob/bound, SNO, Symbol, ESM factory/interfile, tuple, and static recovery runs are recorded above.
+- No full-suite pass exists for the latest branch. Full workflow 45147132188 failed at earlier head `c9ad3d6...`; logs were unavailable due Actions API rate limiting. No PR or merge was created. Keep this work research-only.
+- Critical unresolved caveat: Agent 39's strict-ESM-IIFE Error.stack witness 45148478509 shows host stack-coordinate observation despite strict/private callable status. The strict-CJS guard only blocks the legacy `.caller` wrapper path. Class proof remains experimental; do not claim general source-parity or instrumentation resistance.
+- Intermediate report: `im-results/source-stable-private-owner-reader-and-wrapper-proof-2026-11-23.md`.
+- Next incarnation: run full validation on `44d815...`; inspect failed logs; source-pair with baseline; review Error.stack/CallSite observer handling; obtain Agent 3 review before integration. Do not merge based on focused gates alone.
