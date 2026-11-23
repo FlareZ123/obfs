@@ -44,6 +44,7 @@
     "sims/rank4-6-quadratic-adaptive-polar-clone.js",
     "sims/rankfour-projected-cubic-rescue.js",
     "sims/rankfour-projected-cubic-silent-rank-control.js",
+    "sims/rankfour-projected-cubic-validated-peer.js",
     "sims/sco-rank6-adaptive-real-http-clone.js",
     "sims/vector-top-tensor-quotient-peer.js",
     "sims/rankfive-top-quartic-functional-clone.js",
