@@ -65,3 +65,38 @@ A correct targeted candidate for this bounded source example should satisfy all 
 - real Chromium, Ubuntu/Windows Node 22 strict JSDoc and the complete source-observer integration suite pass at the same source pin.
 
 This requirement should feed the existing Agent 19 [Web IDL capability-graph proposal](webidl-source-coercion-capability-graph-2026-11-22.md) and the Agent 3 canonical source-observer integration. It does not claim a solution to full-control static/dynamic reconstruction, SCO authorized-service relay, SNO owner tamper resistance, or universal 2.5× compute.
+
+## Confirmed source-spelling preservation for a simpler captured lexical binding
+
+A separate bounded source-safety control discriminates **outer property-key**
+closure from an ordinary captured primitive lexical binding. At exact branch
+SHA `5c4a20c47d3295b613eaba839d8288a79f59efb4`,
+[two-platform focused run 45100668437](https://github.com/FlareZ123/obfs/actions/runs/45100668437),
+the following additional input **already preserves native source parity**
+while still renaming an unrelated private owner property:
+
+```js
+const capturedValue=31;
+function inspect(){return capturedValue;}
+const independentOwner={unrelatedSecret:73};
+style.setProperty("--observed",inspect);
+```
+
+The source string in both original and emitted builds was exactly
+`function inspect(){return capturedValue;}`; native/emitted numbers
+remained 31 and 73; emitted `metrics.properties=1` and
+`metrics.bindings=1`. The original two-owner **property-reference**
+case within the same run remains **red** (its original
+`observedOwner.observedSecret` changes into a generated key);
+an explicit `String(inspect)` baseline remains
+source-equivalent through coarse refusal with `properties=0`.
+That focused suite therefore reported **3 green controls and 1 red
+property-key case on each OS**.
+
+This example is evidence that the existing property-key closure
+problem is narrower than an indiscriminate inability to preserve
+every captured outer variable under this exact input. It does **not**
+prove general lexical capture correctness across reassignment,
+destructuring, imports, shadowing, closures, or dynamic access.
+A future capability graph should reuse verified lexical provenance
+instead of adding a second competing name tracker.
