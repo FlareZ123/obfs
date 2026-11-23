@@ -25,12 +25,21 @@ const {
  *   failed:Array<{method:string,reason:string}>}}
  */
 function invertHybrid(oracle,target,seed){
+  if(!Number.isInteger(target)||target<0||target>0xffffffff) {
+    throw new RangeError('Hybrid target must be an unsigned 32-bit integer');
+  }
   /** @type {Map<number,number>} */
   const cached=new Map();
   /** @param {number} input @returns {number} */
   const query=input=>{
     const key=input>>>0;
-    if(!cached.has(key))cached.set(key,oracle(key)>>>0);
+    if(!cached.has(key)) {
+      const output=oracle(key);
+      if(!Number.isInteger(output)||output<0||output>0xffffffff) {
+        throw new RangeError('Hybrid oracle result must be an unsigned 32-bit integer');
+      }
+      cached.set(key,output);
+    }
     return /** @type {number} */(cached.get(key));
   };
   /** @type {Array<{method:string,reason:string}>} */
@@ -39,10 +48,13 @@ function invertHybrid(oracle,target,seed){
    * @returns {{value:number,queries:number,method:'reanchor'|'cegar8'|'cegar128',failed:Array<{method:string,reason:string}>}}
    */
   function accept(candidate,method) {
-    if(query(candidate)!==(target>>>0)){
+    if(!Number.isInteger(candidate)||candidate<0||candidate>0xffffffff) {
+      throw new RangeError('Hybrid candidate must be an unsigned 32-bit integer');
+    }
+    if(query(candidate)!==target){
       throw new Error('Hybrid sub-inverter returned a non-preimage');
     }
-    return {value:candidate>>>0,queries:cached.size,method,failed};
+    return {value:candidate,queries:cached.size,method,failed};
   }
   try {
     const candidate=invertByReanchoring(query,target,u32(seed^0x6a09e667),4);
