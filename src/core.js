@@ -1997,27 +1997,43 @@ function mutatesDecoderIntrinsic(ast,rejectCommonJsExportEscape=false,rejectEsmE
    * Count statically bound leading arguments on a first-class Object.create
    * callable. Object.create's descriptor map is parameter 1, so binding its
    * prototype parameter shifts the descriptor position to call argument 0.
+   *
+   * Bound counts take the maximum over alternative aliases. Memoize only
+   * context-independent acyclic subgraphs. A backedge makes the active
+   * recursion chain context-dependent, preserving the old cycle cutoff.
+   * Every independent call starts a fresh cache, since holder-field counts
+   * can change during the alias-discovery fixed point.
    * @param {import('./ast').AstNode} value
-   * @param {Set<string>} [visited]
+   * @param {Set<string>} [active]
+   * @param {Map<string,number>} [memo]
+   * @param {Set<string>} [cycleAffected]
    * @returns {number}
    */
-  function objectCreateBoundArgumentCount(value,visited=new Set()) {
+  function objectCreateBoundArgumentCount(
+    value,active=new Set(),memo=new Map(),cycleAffected=new Set()) {
     if(value.type==='SequenceExpression'&&value.expressions.length) {
       return objectCreateBoundArgumentCount(
-        value.expressions[value.expressions.length-1],visited);
+        value.expressions[value.expressions.length-1],active,memo,cycleAffected);
     }
     if(value.type==='Identifier') {
-      if(visited.has(value.name))return 0;
-      visited.add(value.name);
+      if(active.has(value.name)) {
+        for(const ancestor of active)cycleAffected.add(ancestor);
+        return 0;
+      }
+      if(memo.has(value.name))return memo.get(value.name)??0;
+      active.add(value.name);
       const counts=(descriptorBindings.get(value.name)??[]).map(
-        source=>objectCreateBoundArgumentCount(source,visited));
-      visited.delete(value.name);
-      return counts.length?Math.max(...counts):0;
+        source=>objectCreateBoundArgumentCount(source,active,memo,cycleAffected));
+      active.delete(value.name);
+      const count=counts.length?Math.max(...counts):0;
+      if(!cycleAffected.has(value.name))memo.set(value.name,count);
+      return count;
     }
     if(value.type==='CallExpression'&&value.callee.type==='MemberExpression'&&
        memberName(value.callee)==='bind'&&
        isObjectCreateCallable(value.callee.object)) {
-      return objectCreateBoundArgumentCount(value.callee.object,visited)+
+      return objectCreateBoundArgumentCount(
+        value.callee.object,active,memo,cycleAffected)+
         Math.max(0,value.arguments.length-1);
     }
     if(value.type==='MemberExpression'&&value.object.type==='Identifier') {
