@@ -9,7 +9,7 @@ const {
   learnBoundedDegreeOracle,evaluateBoundedDegreeModel
 }=require('../sims/bounded-degree-oracle-functional-clone');
 const {
-  makeCubicDefectContractor,prepareExactCubicInverter
+  makeCubicDefectContractor,prepareExactCubicInverter,prepareExactCubicTransportInverter
 }=require('../sims/exact-cubic-compatible-cegar');
 const {invertBoundedDegreeModelSymbolically}=
   require('../sims/bounded-degree-symbolic-affine-inverse');
@@ -116,6 +116,10 @@ test('exact cubic ANF certificate and greedy flag invert affine-wrapped full tri
       assert.equal(clone(x),oracle(x),'full cubic ANF clone mismatch');
     }
     const inverter=prepareExactCubicInverter(model);
+    const transported=prepareExactCubicTransportInverter(model);
+    assert.equal(transported.outputMasks.length,WIDTH);
+    assert.equal(transported.inputToggles.length,WIDTH);
+    assert.equal(transported.offlineCoefficientVectors,453376);
     assert.equal(inverter.outputMasks.length,WIDTH);
     assert.equal(inverter.inputToggles.length,WIDTH);
     assert.equal(inverter.offlineContractions,5984);
@@ -125,6 +129,8 @@ test('exact cubic ANF certificate and greedy flag invert affine-wrapped full tri
       const target=oracle(secret);
       assert.equal(clone(secret),target);
       assert.equal(inverter.invert(target),secret);
+      assert.equal(transported.invert(target),secret,
+        'incremental mixed-tensor transport diverged from independent cubic source');
     }
   }
 });
@@ -168,6 +174,9 @@ test('genuine cubic nontriangular permutation refuses a globally incompatible fl
     assert.equal(evaluateBoundedDegreeModel(model,input),oracle(input),
       'nontriangular control is genuinely degree three');
   }
+  assert.throws(()=>prepareExactCubicTransportInverter(model),
+    /no nonzero mask at level/,
+    'tensor-transport version must independently refuse nontriangular cubic source');
   assert.throws(()=>prepareExactCubicInverter(model),
     /no nonzero mask at level/,
     'global triangular flag must not be invented for an unrelated cubic permutation');
@@ -181,6 +190,9 @@ test('exact cubic certificate refuses incomplete, duplicate and out-of-degree mo
   const identity=value=>value>>>0;
   const model=learnBoundedDegreeOracle(identity,WIDTH,3);
   assert.equal(model.coefficients.length,5489);
+  assert.throws(()=>prepareExactCubicTransportInverter({
+    ...model,coefficients:model.coefficients.slice(1)
+  }),/incomplete/);
   assert.throws(()=>makeCubicDefectContractor({
     ...model,coefficients:model.coefficients.slice(1)
   }),/incomplete/);
