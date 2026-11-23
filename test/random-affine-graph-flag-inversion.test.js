@@ -25,6 +25,7 @@ test('random affine-graph inversion recovers targets in two-sided triangular per
 
 test('the graph method refuses a residual permutation with no nonconstant affine output component',()=>{
   const table=[0,1,2,4,3,6,7,5];
+  /** @type {(input:bigint)=>bigint} */
   const oracle=input=>(input&~7n)|BigInt(table[Number(input&7n)]);
   const secret=0x9a123457n;
   const target=oracle(secret);
