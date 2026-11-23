@@ -146,6 +146,14 @@ function renameLocalIdentifiers(source,ast,options) {
   const publicCallables=new Set();
   /** @type {Set<string>} */
   const exportedFunctionNames=new Set();
+  /** @type {string[]} */
+  const pendingExportedNames=[];
+  /** @param {string} name @returns {void} */
+  function markExportedName(name){
+    if(exportedFunctionNames.has(name))return;
+    exportedFunctionNames.add(name);
+    pendingExportedNames.push(name);
+  }
   /** @param {AstNode|null|undefined} expression @returns {void} */
   function markExportedValue(expression){
     if(!expression)return;
@@ -154,7 +162,7 @@ function renameLocalIdentifiers(source,ast,options) {
       return;
     }
     if(expression.type==='Identifier'){
-      exportedFunctionNames.add(expression.name);
+      markExportedName(expression.name);
       return;
     }
     if(expression.type==='ObjectExpression'){
@@ -188,19 +196,38 @@ function renameLocalIdentifiers(source,ast,options) {
       }
       for(const spec of node.specifiers??[]){
         if(spec.type==='ExportSpecifier'&&spec.local.type==='Identifier')
-          exportedFunctionNames.add(spec.local.name);
+          markExportedName(spec.local.name);
       }
     }
     if(node.type==='ExportDefaultDeclaration')markExportedValue(node.declaration);
     if(node.type==='AssignmentExpression'&&node.operator==='='&&
        isCommonJsExportTarget(node.left))markExportedValue(node.right);
   });
-  if(exportedFunctionNames.size)walk(ast,node=>{
-    if(node.type==='FunctionDeclaration'&&node.id?.type==='Identifier'&&
-       exportedFunctionNames.has(node.id.name))publicCallables.add(node);
-    if(node.type==='VariableDeclarator'&&node.id.type==='Identifier'&&
-       exportedFunctionNames.has(node.id.name))markExportedValue(node.init);
-  });
+  // An exported function can flow through several immutable top-level
+  // aliases, including objects that hold the callable as a data-property
+  // value. Resolve the finite exact name graph as a work queue, not a
+  // source-order-sensitive single AST walk.
+  if(pendingExportedNames.length) {
+    /** @type {Map<string,AstNode>} */
+    const topLevelValues=new Map();
+    for(const statement of ast.body) {
+      const declaration=statement.type==='ExportNamedDeclaration'?
+        statement.declaration:statement;
+      if(declaration?.type==='FunctionDeclaration'&&
+         declaration.id?.type==='Identifier') {
+        topLevelValues.set(declaration.id.name,declaration);
+      }else if(declaration?.type==='VariableDeclaration'){
+        for(const item of declaration.declarations) {
+          if(item.id.type==='Identifier'&&item.init)
+            topLevelValues.set(item.id.name,item.init);
+        }
+      }
+    }
+    for(let at=0;at<pendingExportedNames.length;at++){
+      const value=topLevelValues.get(pendingExportedNames[at]);
+      if(value)markExportedValue(value);
+    }
+  }
   /** @param {AstNode} identifier @returns {boolean} */
   function isPublicSourceIdentifier(identifier) {
     for(const callable of publicCallables){
