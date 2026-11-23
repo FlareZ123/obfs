@@ -2,7 +2,8 @@
 
 const {test}=require('node:test');
 const assert=require('node:assert/strict');
-const {partitionScoSelectedAsyncExports}=require('../src');
+const http=require('node:http');
+const {partitionScoSelectedAsyncExports,bindScoModuleExports,createScoHandler}=require('../src');
 
 const focused=process.env.OBFS_FOCUSED_TEST===
   'test/sco-app-global-native-browser.test.js';
@@ -415,5 +416,95 @@ test('56-wrapper original-host ESM differential is covered by SCO admission',{
     assert.deepEqual(admitted,[]);
   }finally{
     if(browser)await browser.close();
+  }
+});
+
+
+/**
+ * Admit only lexically owned local globals in selected browser-origin source.
+ * Validate the generated facade against the original ESM in a real browser,
+ * while the migrated private methods execute through cookie-authorized Node.
+ */
+test('real authenticated SCO preserves local Node-spelled scalar shadows',{
+  skip:!browserEnabled,timeout:60000
+},async()=>{
+  const code='export async function bufferLocal(){'+
+    'const Buffer=41;return Buffer+1;}'+
+    'export async function processLocal(){'+
+    'const process=41;return process+1;}'+
+    'export async function responseLocal(){'+
+    'const Response=41;return Response+1;}'+
+    'export function visible(){return 7;}';
+  const names=['bufferLocal','processLocal','responseLocal'];
+  const compiled=partitionScoSelectedAsyncExports(
+    {path:'local-globals.mjs',code,sourceType:'module'},
+    {seed:'agent35-native-node-ambient-live-rpc',
+      privateNames:names});
+  assert.deepEqual(compiled.privateNames,names);
+  const native=await import('data:text/javascript,'+encodeURIComponent(code));
+  const handler=createScoHandler([compiled.clientFile],{
+    remoteMethods:bindScoModuleExports(compiled,native),
+    authorizeRead:req=>req.headers.cookie?.includes('session=allowed')===true,
+    authorizeRpc:req=>req.headers.cookie?.includes('session=allowed')===true,
+    authorizeOperation:req=>req.headers.cookie?.includes('session=allowed')===true
+  });
+  const server=http.createServer((req,res)=>{
+    if(req.url==='/'){
+      res.writeHead(200,{'content-type':'text/html'});
+      res.end('<!doctype html><title>Local SCO host shadow parity</title>');
+      return;
+    }
+    void handler(req,res);
+  });
+  /** @type {import('puppeteer-core').Browser|undefined} */
+  let browser;
+  try{
+    await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));
+    const addr=server.address();
+    assert.ok(addr&&typeof addr!=='string');
+    const origin='http://127.0.0.1:'+addr.port;
+    const denied=await fetch(origin+'/obfs/rpc',{
+      method:'POST',headers:{'content-type':'application/json'},
+      body:JSON.stringify({method:compiled.methodNames.bufferLocal,args:[]})
+    });
+    assert.equal(denied.status,403);
+    const puppeteer=require('puppeteer-core');
+    browser=await puppeteer.launch({
+      channel:process.env.CHROMIUM_BIN?undefined:'chrome',
+      ...(process.env.CHROMIUM_BIN?{executablePath:process.env.CHROMIUM_BIN}:{}),
+      headless:true,
+      args:['--no-sandbox','--disable-dev-shm-usage','--disable-gpu']
+    });
+    const page=await browser.newPage();
+    await page.setCookie({url:origin,name:'session',value:'allowed'});
+    await page.goto(origin+'/');
+    const observed=await page.evaluate(async(source)=>{
+      const original=await import('data:text/javascript,'+encodeURIComponent(source));
+      const emitted=await import('/obfs/local-globals.mjs');
+      return {
+        native:[
+          await original.bufferLocal(),
+          await original.processLocal(),
+          await original.responseLocal(),
+          original.visible()
+        ],
+        transformed:[
+          await emitted.bufferLocal(),
+          await emitted.processLocal(),
+          await emitted.responseLocal(),
+          emitted.visible()
+        ]
+      };
+    },code);
+    assert.deepEqual(observed.native,[42,42,42,7]);
+    assert.deepEqual(observed.transformed,observed.native);
+    console.log('SCO_NODE_AMBIENT_LIVE_RPC '+JSON.stringify({
+      original:observed.native,emitted:observed.transformed,
+      deniedStatus:denied.status
+    }));
+  }finally{
+    if(browser)await browser.close();
+    await new Promise((resolve,reject)=>
+      server.close(error=>error?reject(error):resolve(undefined)));
   }
 });
