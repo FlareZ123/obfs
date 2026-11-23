@@ -7,6 +7,9 @@ const os=require('node:os');
 const path=require('node:path');
 const {spawnSync}=require('node:child_process');
 const {obfuscateFiles}=require('../src');
+const {renameCommonJsCrossFileProperties}=require('../src/commonjs-cross-properties');
+const {parse,observesFunctionSource}=require('../src/ast');
+const {collectBindings,proveLocalObject}=require('../src/properties');
 const {atomicWrite}=require('../src/atomic');
 
 /** @typedef {{path:string,sourceType:'commonjs',code:string}} CommonJsFile */
