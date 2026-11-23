@@ -36,6 +36,7 @@ Added `sims/cluster-family-strict-tail.js`, an independent companion to `sims/cl
 
 It requires:
 - unique named workload populations;
+- a nonempty predeclared `protocolId` for every workload, identifying its source/build SHA, workload/input/seed schedule, execution phase and exposure (cold/warm, calls/events/iterations, CPU versus wall metric), matched-pair construction/order, and runtime/OS/runner environment class;
 - the same complete set of block IDs in every workload;
 - equal pair counts for a given workload across all blocks (different workloads may have different fixed counts);
 - positive finite native and candidate timings;
@@ -48,7 +49,7 @@ Added `test/cluster-family-strict-tail.test.js`, covering:
 - the 299/298 and 546 block thresholds;
 - strict-greater-than semantics and a single breach in one workload;
 - different but fixed per-workload exposures;
-- missing workloads, missing/mismatched block IDs, unequal per-workload block sizes, invalid timings and invalid options.
+- missing workloads, missing/mismatched block IDs, unequal per-workload block sizes, invalid timings invalid protocol IDs, and invalid options. The returned result preserves each workload's `protocolId`.
 
 The test is included in the repository's compact all-tests runner. The new evaluator and test are included in `jsconfig.paired-budget.json`; `.github/workflows/manual-validation.yml` now runs that strict JSDoc project in both its full and focused two-platform paths.
 
@@ -62,7 +63,7 @@ No real process-block measurements were produced here. The implementation valida
 
 ## Operational caveats
 
-A full-suite block must run the same workload set and the same per-workload pair exposure as future blocks. The method is only useful if the block unit is credibly independent and representative. Distinct IDs or process IDs do not prove independence: shared host state, scheduler, machine, warmup, cache, thermal conditions, or order effects may correlate nominally distinct blocks. Randomized/alternated native-versus-candidate order and fresh independently launched environments remain empirical design questions.
+A full-suite block must run the same workload set and the same per-workload pair exposure as future blocks. The method is only useful if the block unit is credibly independent and representative. Protocol IDs and distinct block/process IDs are declarations, not proof. Archive an immutable suite manifest mapping workload protocol IDs and block IDs to actual source/build SHAs, input/seed schedules, execution phases/exposures, matched-pair order, and runtime/environment records. Equal pair counts alone are not sufficient evidence of identical exposure. Distinct IDs or process IDs do not prove independence: shared host state, scheduler, machine, warmup, cache, thermal conditions, or order effects may correlate nominally distinct blocks. Independence is required for the entire vector of all workloads in each block, not only for each workload considered separately. Randomized/alternated native-versus-candidate order and fresh independently launched environments remain empirical design questions.
 
 The bound concerns the probability that a future complete qualification block contains any sampled strict breach. It is not a worst-case runtime guarantee, does not establish a hard 2.5× bound for every possible input, and does not replace deterministic analysis of the transformation's asymptotic or per-operation overhead.
 
