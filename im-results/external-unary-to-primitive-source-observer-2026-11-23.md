@@ -3,7 +3,7 @@
 **Status:** intermediate empirical finding and unmerged conservative candidate; not an established result.  
 **Date:** 23 November 2026  
 **Branch:** `agent3/external-unary-coercion-observer-20261123`  
-**Candidate source commit:** `aef4124192df77f39466edb7e5290b46a38a1cfb` (branch head at the time of the expanded matrix run; later branch commits add test/report files only)
+**Candidate source commits:** `aef4124192df77f39466edb7e5290b46a38a1cfb` (numeric coercion), `11be85a9f76d86c4db3925be41509f8d0e2519da` (opaque external-call escape), and `f3fd07a828cc6c996b5fd930f8b7a8bd00a7bd3a` (opaque .call/.apply/.bind aliases). Current branch head: `1b5ca00aa49322d37b1f42452ea44a6b6eadc04f`.
 
 ## Question
 
