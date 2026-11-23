@@ -73,8 +73,10 @@ const primitiveCases=[
 
 for(const [name,expression] of primitiveCases) {
   test('recorded Web API primitive inputs leave unrelated keys eligible: '+name,async()=>{
-    const original='const state={secretField:37};'+
-      'module.exports=Promise.resolve('+expression+').then(result=>({result,value:state.secretField}));';
+    // The Promise callback is externally observable, so its source stays
+    // stable. Only the directly invoked local helper owns the private field.
+    const original='function privateRead(){const state={secretField:37};return state.secretField;}'+
+      'module.exports=Promise.resolve('+expression+').then(result=>({result,value:privateRead()}));';
     assert.equal(observesFunctionSource(parse(original,'commonjs')),false,name);
     const native=await run(original);
     const result=obfuscateFiles([{path:'entry.cjs',sourceType:'commonjs',code:original}],{
