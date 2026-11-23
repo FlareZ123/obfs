@@ -43,7 +43,7 @@ async function execute(files,injectHost=false,arrayIteratorHook=false){
         '      [Symbol.iterator](){return this;}',
         '    };',
         '  }',
-        '  if(this.length===1 && this[0]===7){'
+        '  if(this.length===1 && this[0]===7){',
         '    let iteration=0;',
         '    return {',
         '      next(){return iteration++===0?',
