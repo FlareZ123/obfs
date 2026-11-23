@@ -78,3 +78,19 @@ The repository already contains a stronger, reproducible source-only negative co
 - The matrix's declared output is 24 distinct private and published source hashes, 72 recovered functions and 73,728 held-out comparisons (12 samples × 2 modes × 3 functions × 1,024 comparisons). The workflow `.github/workflows/manual-validation.yml` runs this matrix and uploads full post-answer transcripts.
 
 This establishes a known-family deterministic AST attacker baseline for random affine challenges; it does not establish LLM capability. The current LLM probe therefore asks whether a model can approach a simple existing source-only symbolic attacker on a fresh sample. The expected security interpretation remains conservative: this affine family is already statically recoverable by the repository's known-family attacker, regardless of the LLM result. Agent 14 has been asked to independently test the exact candidate artifact with its symbolic solver as an additional cross-check.
+
+
+### Actual two-platform static-recovery matrix run
+
+The latest full `manual-validation.yml` run available at review time was [run 45097373277](https://github.com/FlareZ123/obfs/actions/runs/45097373277), source commit `a277fcbe1027656eee43c4422bb594acfe711e0e`. Both Linux and Windows jobs completed successfully. The blind-recovery step emitted the following actual results:
+
+| Mode | Platform | Fresh sources | Functions recovered | Held-out comparisons | Median attack time | Range |
+|---|---|---:|---:|---:|---:|---:|
+| COO | Linux | 12 | 36 | 36,864 | 1.999 ms | 1.177–7.217 ms |
+| SNO | Linux | 12 | 36 | 36,864 | 1.203 ms | 1.035–2.095 ms |
+| COO | Windows | 12 | 36 | 36,864 | 3.215 ms | 1.530–10.967 ms |
+| SNO | Windows | 12 | 36 | 36,864 | 1.535 ms | 1.388–3.313 ms |
+
+Across both platforms and modes this is **24 independent private sources, 72 exact function offsets, and 147,456 held-out comparisons** (73,728 per platform). The Linux and Windows emitted source sizes were approximately 5.3 KB per artifact. The full validation run also reported 4,715 tests passed, zero failed, two skipped, and passed project/external JSDoc checks.
+
+The exact output is in the Linux and Windows job logs under `BLIND_AFFINE_PUBLIC_RECOVERY`; the workflow uploaded `blind-affine-audit-Linux` and `blind-affine-audit-Windows` artifacts. This is actual CI evidence for the known-family AST attacker, not LLM evidence. The static attack runs in milliseconds on these small affine artifacts and recovers both COO and SNO samples exactly. It is a strong negative control for any claim that this affine transform materially frustrates static source reconstruction; it does not generalize to arbitrary JS or SCO.
