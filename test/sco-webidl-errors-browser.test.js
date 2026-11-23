@@ -133,6 +133,19 @@ test('selected SCO valid bounded Headers constructor preserves native browser re
   assert.deepEqual(result,{refused:false,original:'ok',emitted:'ok',server:'ok'});
 });
 
+
+test('selected SCO Response.redirect with browser-relative URL preserves original browser result',{
+  skip:!enabled,timeout:60000
+},async()=>{
+  const result=await compare(
+    "try{return Response.redirect('/next',302).headers.get('location');}"+
+      "catch(e){return e.name+':'+e.message;}",
+    'response-relative-redirect'
+  );
+  assert.equal(result.refused,true);
+});
+
+
 test('SCO WebIDL constructor admission denies unproved values and keeps literal positives',{
   skip:process.env.OBFS_FOCUSED_TEST!=='test/sco-webidl-errors-browser.test.js'
 },()=>{
