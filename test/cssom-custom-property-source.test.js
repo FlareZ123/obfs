@@ -84,3 +84,20 @@ test('CSSOM primitive custom property leaves an unrelated private key eligible',
   assert.ok(emitted.metrics.properties>0,
     'Primitive source must retain independently eligible private-field renaming');
 });
+
+test('unrelated local setProperty method preserves private renaming opportunity',()=>{
+  const source='function inspect(){const state={secretField:47};return state.secretField;}'+
+    'const owner={setProperty(_key,callback){return callback();}};'+
+    'module.exports={text:"literal",number:owner.setProperty("--observed",inspect)};';
+  const native=execute(source);
+  assert.equal(JSON.stringify(native),JSON.stringify({text:'literal',number:47}));
+  assert.equal(observesFunctionSource(parse(source,'commonjs')),false);
+  const emitted=obfuscateFiles([{
+    path:'case.cjs',sourceType:'commonjs',code:source
+  }],{mode:'sno',seed:'cssom-non-native-name-collision-positive',
+    properties:true,identifiers:true,strings:false}).files[0];
+  assert.equal(JSON.stringify(execute(/** @type {string} */(emitted.code))),
+    JSON.stringify(native));
+  assert.ok(emitted.metrics.properties>0,
+    'Userland setProperty should not globally disqualify private-field renaming');
+});
