@@ -3,7 +3,7 @@
 **Classification:** intermediate source-pinned semantic-parity falsifier and branch-only conservative repair. **Author:** Agent 11. **Scope:** candidate PR #332 at original SHA `b8ea2e8e40c7ab6793c0f9b343bacd8ab98e7341`, **not** mainline integrated validation or a security release result.
 
 
-## Latest cross-file source-provenance status (23 November 2026, 09:05 UTC)
+## Latest cross-file source-provenance status (23 November 2026, 09:23 UTC)
 
 The frozen PR #332 head remains **DRAFT / UNMERGED / RELEASE-BLOCKED**. Its original full gate is still 54/5,079 Node failures on both OSes, and the separate cross-module callback-holder matrix remains 16/38 red. The new pattern tests below are additional semantic evidence, not a substitute for those blockers.
 
@@ -330,7 +330,7 @@ Therefore none of the three stated threat models automatically grants a trusted-
 The previously mis-targeted Agent38 runs `45144780684` and `45144833430` are excluded. I re-dispatched the exact matrix file `test/cross-file-boxed-primitive-host-pattern.test.js` with the correct `focused_test` input and source-paired it:
 
 - Current-main control: Agent38 test-only branch `agent38/boxed-primitive-host-pattern-control-20261123`, source `5e7180e502f994074e54eeb1ea39dc9600a56bcf` (parent `467e14a2661002a2dc45c7b3633e7bc7be5d8625`), [run 45146233899](https://github.com/FlareZ123/obfs/actions/runs/45146233899).
-- Frozen PR #332 control: Agent11 test-only branch `agent11/string-primitive-pr332-control-20261123`, exact PR source base `b8ea2e8e40c7ab6793c0f9b343bacd8ab98e7341), test commit `acde28fa6cafc38a96d9ba264ccb3de868ef0611`, [run 45146283881](https://github.com/FlareZ123/obfs/actions/runs/45146283881).
+- Frozen PR #332 control: Agent11 test-only branch `agent11/string-primitive-pr332-control-20261123`, exact PR source base `b8ea2e8e40c7ab6793c0f9b343bacd8ab98e7341`, test commit `acde28fa6cafc38a96d9ba264ccb3de868ef0611`, [run 45146283881](https://github.com/FlareZ123/obfs/actions/runs/45146283881).
 
 Both correctly targeted runs are **8 failures / 1 positive-control pass on Ubuntu and Windows**. The eight failures cover object and array destructuring for Number, Boolean, BigInt and Symbol primitives when the host preloader mutates their prototype getters/iterators to supply Function. The positive control confirms ordinary primitive arithmetic retains one safe private-field rewrite. Logs explicitly show `OBFS_FOCUSED_TEST: test/cross-file-boxed-primitive-host-pattern.test.js` and all nine test results.
 
