@@ -942,12 +942,15 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
     if(fn.async||fn.generator)return false;
     let returns=encoderReturnSites.get(fn);
     if(!returns) {
-      returns=[];
-      if(fn.body.type!=='BlockStatement')returns.push(fn.body);
+      /** @type {AstNode[]} */
+      const discoveredReturns=[];
+      if(fn.body.type!=='BlockStatement')discoveredReturns.push(fn.body);
       else walk(fn.body,inner=>{
-        if(inner.type==='ReturnStatement'&&inner.argument)returns.push(inner.argument);
+        if(inner.type==='ReturnStatement'&&inner.argument)
+          discoveredReturns.push(inner.argument);
       });
-      encoderReturnSites.set(fn,returns);
+      encoderReturnSites.set(fn,discoveredReturns);
+      returns=discoveredReturns;
     }
     return returns.some(expr=>mayCarryEncoder(expr));
   }
