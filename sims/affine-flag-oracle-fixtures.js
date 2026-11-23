@@ -138,6 +138,65 @@ function makeSparseWitness() {
 }
 
 /**
+ * Invert a binary matrix (row representation) with exact GF(2) elimination.
+ * This is a fixture-side reference operation only. The attack never uses it.
+ * @param {number[]} input
+ * @returns {number[]}
+ */
+function invertRows(input) {
+  const bits=input.length;
+  const left=input.slice();
+  const right=Array.from({length:bits},(_,i)=>(1<<i)>>>0);
+  for(let col=0;col<bits;col++) {
+    let pivot=col;
+    while(pivot<bits && !((left[pivot]>>>col)&1))pivot++;
+    if(pivot===bits)throw new Error('Source matrix must be invertible');
+    if(pivot!==col) {
+      const l=left[col],r=right[col];
+      left[col]=left[pivot];right[col]=right[pivot];
+      left[pivot]=l;right[pivot]=r;
+    }
+    for(let row=0;row<bits;row++) {
+      if(row===col || !((left[row]>>>col)&1))continue;
+      left[row]=(left[row]^left[col])>>>0;
+      right[row]=(right[row]^right[col])>>>0;
+    }
+  }
+  return right;
+}
+
+/**
+ * A second sparse failure source, at the same 32-bit width as the positive
+ * tests. The protected triangular middle map toggles bit 27 only when its
+ * lower 27 input bits match one private prefix (support density 2^-27).
+ * The published target is selected from that support. Hidden full-rank
+ * affine wrappers and their inverses remain fixture-side private state.
+ * @param {number} seed
+ * @returns {{bits:number,secret:number,evaluate:(input:number)=>number,
+ *   audit:{gateBit:number,prefix:number}}}
+ */
+function makeRareAffineOracle(seed) {
+  const bits=32,gateBit=27;
+  const next=sourceRandom(seed);
+  const inputRows=invertibleRows(bits,next);
+  const outputRows=invertibleRows(bits,next);
+  const inverseInputRows=invertRows(inputRows);
+  const inputOffset=next(),outputOffset=next();
+  const lowMask=widthMask(gateBit);
+  const prefix=next()&lowMask;
+  const hiddenState=(prefix|(next()&(~lowMask)))>>>0;
+  const secret=multiplyRows(inverseInputRows,(hiddenState^inputOffset)>>>0);
+
+  /** @param {number} input @returns {number} */
+  function evaluate(input) {
+    let z=(multiplyRows(inputRows,input)^inputOffset)>>>0;
+    if((z&lowMask)===prefix)z=(z^(1<<gateBit))>>>0;
+    return (multiplyRows(outputRows,z)^outputOffset)>>>0;
+  }
+  return {bits,secret,evaluate,audit:{gateBit,prefix}};
+}
+
+/**
  * Deterministically shuffled arbitrary permutation, used only as a negative
  * control for discovering genuine affine-derivative structure.
  * @param {number} bits
@@ -159,6 +218,6 @@ function makeUnstructuredOracle(bits,seed) {
 }
 
 module.exports={
-  makeDenseOracle,makeSparseWitness,makeUnstructuredOracle,
+  makeDenseOracle,makeSparseWitness,makeRareAffineOracle,makeUnstructuredOracle,
   sourceRandom,bitParity
 };
