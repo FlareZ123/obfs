@@ -163,3 +163,26 @@ test('real multi-file stateful graph is cloned offline using 8 calls for two bit
   assert.equal(queryCalls,320);
   assert.equal(compared,20*3*4);
 });
+
+test('reflective function-source observation stays outside the numeric clone contract',()=>{
+  const generated=layerXorFunctions(mathSource,{
+    sourceType:'commonjs',names:['roundA','roundB'],seed:'source-observer-negative'
+  });
+  assert.equal(generated.rewrites,2);
+  const published=graph(generated.code);
+  /** @type {{roundA:(x:number,y:number)=>number,roundB:(x:number,y:number)=>number}} */
+  const exports=/** @type {any} */(loadFile(published,'math.cjs'));
+  const cloned=recoverModule(exports);
+  /** @type {typeof exports} */
+  const recovered=/** @type {any} */(loadFile(graph(cloned.code),'math.cjs'));
+  // Function#toString is itself an observable API. The offline clone, and
+  // indeed the experimental layerer, do not promise to preserve its bytes.
+  assert.notEqual(String(recovered.roundA),String(exports.roundA));
+  /** @type {typeof exports} */
+  const original=/** @type {any} */(loadFile(graph(mathSource),'math.cjs'));
+  assert.notEqual(String(exports.roundA),String(original.roundA));
+  // This does not undermine functional equality on the declared Int32 domain.
+  for(const x of [-2147483648,-1,0,1,2147483647])
+    for(const y of [-2147483648,-1,0,1,2147483647])
+      assert.equal(recovered.roundA(x,y),original.roundA(x,y));
+});
