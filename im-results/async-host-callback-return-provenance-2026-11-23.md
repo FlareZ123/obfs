@@ -84,6 +84,14 @@ On exact candidate source `f2d8c7db4677e3c83a0b59a78983f5daf390acb9`, [two-platf
 
 A separate **lexical precision negative control** on exploration `agent21/callback-lexical-scope-probe-20261123`, exact source `3ebd4852019c7944f8045e0510502a8c409cef50`, checked local same-spelling shadow and an unrelated same-name ESM export. Both retained one safe rewrite with matching native output; [45120976750](https://github.com/FlareZ123/obfs/actions/runs/45120976750) passed **28/28 on Ubuntu and Windows**. This does *not* prove lexical name resolution for all cases; the two selected collisions failed to falsify the current precision assumption.
 
+## Namespace, method and Promise fulfillment of returned containers
+
+A second additive interprocedural probe at `5e47ea897695c7007c41011251563ae6200ecbd4` exercised (i) `import * as wrappers` followed by `wrappers.makeHolder()`, (ii) an ordinary `registry.makeHolder()` holder method call, (iii) `const holder=await Promise.resolve().then(makeHolder)` when `makeHolder` returns `{callback:getFactory}`, and (iv) the analogous returned array. These four variants preserved the same native import/reflection oracle and **all four failed** before the patch, **31/35 pass** on both OS [45121675255](https://github.com/FlareZ123/obfs/actions/runs/45121675255).
+
+At `132c0446fd113456f37c6a80283a4a8da2c84c80`, `holdsFactoryValue` joins returned-carrier function identifiers and recognizes their source-visible namespace/holder method invocations, including a Promise reaction receiving the carrier-returning function as its callback. The change conservatively allows possible capability reachability where exact async return flow is not yet proven, while preserving the separate numeric callback positive control. [45121801653](https://github.com/FlareZ123/obfs/actions/runs/45121801653) passed **35/35 Ubuntu and Windows**, and existing [45121807053](https://github.com/FlareZ123/obfs/actions/runs/45121807053) passed **36/36 Ubuntu and Windows**; both strict JSDoc builds passed. Copied the patch into PR source `1f8895551cca221557c0ee5739afbe490b74b853` and tests `febd71d18a09a1090e307ee1e78d8d16deef1045`.
+
+The source-level detector remains an over-approximate heuristic, not a context-/field-/module-sensitive points-to analysis. A false-positive property rewrite refusal under unrelated same-spelling references is possible in principle; only two selected lexical shadowing positive controls were explicitly tested. More source edits should wait for review and an explicit worklist-based design rather than indefinitely layering ad hoc syntactic exceptions.
+
 ## Evidence boundaries and open work
 
 - The source graph and host preloader are real Node ESM files, not a purely static AST unit test. They establish the specific mismatches and corrected acceptance decisions on the immutable revisions listed.
