@@ -260,27 +260,20 @@ function hasEnclosingLexicalBinding(name,ancestors,root){
  * global environment. Known globals are admitted only so their narrower,
  * dedicated semantic guards can decide whether their particular use is safe.
  * @param {import('./ast').AstNode} root
- * @param {Map<string,number>} bindings
  * @param {Set<string>} moduleBindings
  * @param {Set<string>} rootFormals
  * @returns {string|null}
  */
-function firstUnprovedFreeIdentifierReference(root,bindings,moduleBindings,rootFormals){
+function firstUnprovedFreeIdentifierReference(root,moduleBindings,rootFormals){
   /** @type {string|null} */
   let unproved=null;
   walk(root,(node,parent,key,ancestors)=>{
     if(unproved!==null||node.type!=='Identifier'||isStaticKey(parent,key)||
        isBindingIdentifier(node,parent,key,ancestors))return;
     const name=node.name;
-    const bindingCount=bindings.get(name)??0;
-    if(bindingCount===0){
-      if(reviewedCrossRealmGlobals.has(name))return;
-      unproved=name;
-      return;
-    }
-    if(bindingCount!==1){unproved=name;return;}
-    if(moduleBindings.has(name)||rootFormals.has(name))return;
-    if(hasEnclosingLexicalBinding(name,ancestors,root))return;
+    if(moduleBindings.has(name)||rootFormals.has(name)||
+       hasEnclosingLexicalBinding(name,ancestors,root))return;
+    if(reviewedCrossRealmGlobals.has(name))return;
     unproved=name;
   });
   return unproved;
@@ -1640,7 +1633,7 @@ function collectPrivateStaticImportClosure(directPaths,sources) {
         filename+':'+freeTypeof);
     }
     const freeGlobal=firstUnprovedFreeIdentifierReference(
-      ast,localBindings,moduleBindings,new Set());
+      ast,moduleBindings,new Set());
     if(freeGlobal!==null){
       throw new TypeError('SCO private static dependency has unproved free host-global reference: '+
         filename+':'+freeGlobal);
@@ -2421,7 +2414,7 @@ function partitionScoSelectedAsyncExports(file,options) {
       throw new TypeError('Private SCO export or helper uses unproved free typeof reference: '+freeTypeof);
     }
     const freeGlobal=firstUnprovedFreeIdentifierReference(
-      body,allPrivateBindings,moduleBindings,privateFormals.get(body)??new Set());
+      body,moduleBindings,privateFormals.get(body)??new Set());
     if(freeGlobal!==null){
       throw new TypeError('Private SCO export or helper uses unproved free host-global reference: '+freeGlobal);
     }
