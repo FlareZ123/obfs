@@ -254,6 +254,9 @@ function resolveLexicalReferences(root,sourceType) {
     // not a local reference or a new module binding. Its explicit Identifier
     // must never be mistaken for an ambient host-root read.
     if(parent.type==='ExportAllDeclaration'&&key==='exported')return false;
+    // Import/export attributes use grammar keywords (e.g. `with {type:'json'}`).
+    // A bare attribute key is a label, never a lexical variable reference.
+    if(parent.type==='ImportAttribute'&&key==='key')return false;
     if(parent.type==='PrivateIdentifier')return false;
     return true;
   }
