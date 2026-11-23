@@ -105,6 +105,7 @@ test('import-map data and script URLs are refused as embedded executable source'
   const denied=[
     {imports:{secret:'data:text/javascript,globalThis.secret=12'}},
     {imports:{secret:'javascript:globalThis.secret=12'}},
+    {imports:{'function leaked(){return 12;}':'./lib.mjs'}},
     {imports:{secret:'./lib.mjs'},scopes:{'./pages/':{
       secret:'data:text/javascript,globalThis.secret=12'}}},
     {imports:{secret:'./lib.mjs'},integrity:{
