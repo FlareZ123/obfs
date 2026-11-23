@@ -14,6 +14,7 @@
  *   conclusion: string | null,
  *   status: string,
  *   run_id: number,
+ *   run_attempt: number,
  *   head_sha: string,
  *   steps?: WorkflowStep[]
  * }} WorkflowJob
@@ -22,7 +23,11 @@
  *   head_branch?: string,
  *   status: string,
  *   conclusion: string | null,
- *   id?: number
+ *   id?: number,
+ *   event: string,
+ *   path: string,
+ *   workflow_id: number,
+ *   run_attempt: number
  * }} WorkflowRun
  * @typedef {'full-green' | 'full-red' | 'focused-green' |
  *   'focused-red' | 'incomplete' | 'sha-mismatch'} Classification
@@ -93,8 +98,18 @@ function classifyValidationRun(run, jobs, expectedSha) {
     return receipt('sha-mismatch');
   }
   if (run.status !== 'completed' ||
-      !Number.isSafeInteger(run.id) || (run.id ?? 0) < 1) {
-    reasons.push('Workflow run is not completed or has no valid run ID');
+      !Number.isSafeInteger(run.id) || (run.id ?? 0) < 1 ||
+      !Number.isSafeInteger(run.run_attempt) || run.run_attempt < 1) {
+    reasons.push('Workflow run is not completed or has no valid run/attempt ID');
+    return receipt('incomplete');
+  }
+  // The classifier is dedicated to this repository's manual full/focused
+  // validation workflow. Similar job names from another workflow are not a
+  // valid source-pinned compiler acceptance record.
+  if (run.workflow_id !== 418860858 ||
+      run.path !== '.github/workflows/manual-validation.yml' ||
+      run.event !== 'workflow_dispatch') {
+    reasons.push('Unexpected repository validation workflow identity or event');
     return receipt('incomplete');
   }
   const byName = new Map(jobs.map((job) => [job.name, job]));
@@ -133,8 +148,8 @@ function classifyValidationRun(run, jobs, expectedSha) {
   // evidence error when reviewing concurrent, same-named manual matrices.
   for (const job of selectedJobs) {
     if (job.run_id !== run.id || job.head_sha !== run.head_sha ||
-        job.status !== 'completed') {
-      reasons.push(job.name + ': job run ID, head SHA or completion differs from workflow');
+        job.run_attempt !== run.run_attempt || job.status !== 'completed') {
+      reasons.push(job.name + ': job run ID, source SHA, attempt or completion differs from workflow');
     }
   }
   if (reasons.length) return receipt('incomplete');
