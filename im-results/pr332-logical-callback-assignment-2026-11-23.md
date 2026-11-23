@@ -343,3 +343,18 @@ To check whether later mainline changes had closed the earlier primitive-pattern
 Focused two-platform [run 45292181431](https://github.com/FlareZ123/obfs/actions/runs/45292181431), exact test-branch head `b47934251e86c8e6166db584cb5a784f99338b92`, is **8 failures / 1 pass on Ubuntu and Windows**. The eight failures are all semantic differentials: Number, Boolean, BigInt and Symbol each fail under both object and array destructuring. Native output is `[53,["secretField"],53]`; emitted output contains a seed-renamed owner key and a null lookup. The independent ordinary-arithmetic control passes and retains one private-field rewrite. The focused job confirms the exact test path in `OBFS_FOCUSED_TEST`; this is a targeted donor regression, not a full-main acceptance run.
 
 This fresh pin supersedes reliance on the earlier 45146233899 current-main test branch for present-main status. It confirms that the intervening `cross-properties.js` changes did not close the host-controlled boxed-primitive destructuring gap. It does not establish a complete BoxedPrimitive provenance model, and it does not change the source-observer integration NO-GO or RELEASE-BLOCKED decisions. No production code or PR was changed.
+
+### 23 November 2026 23:55 UTC: PrimitiveString / ForIn matrix revalidated against latest main
+
+The exact ten-case test `test/cross-file-for-in-string-iterator-host-control.test.js` was copied from Agent38's prior test-only commit onto the same fresh main-based donor branch `agent11/boxed-primitive-current-main-20261123`. The focused [two-platform run 45292800791](https://github.com/FlareZ123/obfs/actions/runs/45292800791), exact head `970a4f690c9c486f2b0b58812dfe39c870f7a606`, is **8 failures / 2 passes on Ubuntu and Windows**.
+
+Eight semantic failures cover:
+- ForIn declaration and assignment array-pattern bindings invoking the host-modified String iterator;
+- StringKey provenance through alias assignment, local identity-function return, and object-field storage;
+- an imported ESM identity-return edge;
+- a direct member read invoking a host-installed String getter; and
+- direct array destructuring from the primitive string literal.
+
+The two positive controls pass: reading the own `length` property from a ForIn StringKey and using a plain ForIn identifier without destructuring. In each red case, native output is `[53,["secretField"],53]`; emitted output contains a seed-renamed property and null lookup. The exact focused path is recorded in `OBFS_FOCUSED_TEST`.
+
+This current-main run and [boxed Number/Boolean/BigInt/Symbol run 45292181431](https://github.com/FlareZ123/obfs/actions/runs/45292181431) both use the same compiler-source pin from main `27572fc13ed8f04b3ec6f98d95f1a60b98454ec5`, with only test files added. Together they provide current-main evidence for primitive-string and other boxed-primitive host capability sources while preserving positive-yield controls. This remains a narrow Node ESM compatibility donor, not a complete source/effect analysis or full acceptance. No compiler source or PR changed; the NO-GO / RELEASE-BLOCKED decisions remain unchanged.
