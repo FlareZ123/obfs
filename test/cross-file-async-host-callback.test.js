@@ -439,3 +439,35 @@ test('nested holder of a primitive callback retains its private rewrite',async()
   assert.equal(await execute(generated.files),native);
   assert.equal(generated.crossFile.properties,1);
 });
+
+
+for(const [label,source,extra] of /** @type {[string,string,ModuleFile[]][]} */ ([
+  ['local lexical shadow of host factory',[
+    'function getFactory(){return globalThis.RUNTIME_FACTORY;}',
+    'function compute(){',
+    '  function getFactory(){return 7;}',
+    '  return getFactory();',
+    '}',
+    "const result=[inspectRecord('externalFormat').value,compute()];"
+  ].join('\n'),[]],
+  ['unrelated same-spelling ESM factory export',[
+    "import {getFactory} from './innocent.mjs';",
+    "const result=[inspectRecord('externalFormat').value,getFactory()];"
+  ].join('\n'),[
+    {path:'innocent.mjs',sourceType:'module',code:'export function getFactory(){return 7;}'},
+    {path:'unused-host.mjs',sourceType:'module',
+      code:'export function getFactory(){return globalThis.RUNTIME_FACTORY;}'}
+  ]]
+])){
+  test('lexically unrelated '+label+' must retain private owner rewrite',async()=>{
+    const files=[...graph(source),...extra];
+    const native=await execute(files);
+    assert.equal(native,'[41,["audit-v1",7]]\n',label);
+    const generated=obfuscateFiles(files,{
+      mode:'coo',closedWorld:true,seed:'callback-lexical-precision/'+label,
+      identifiers:false,strings:false,properties:true
+    });
+    assert.equal(await execute(generated.files),native,label);
+    assert.equal(generated.crossFile.properties,1,label);
+  });
+}
