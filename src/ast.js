@@ -2021,6 +2021,162 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
       args.slice(1).some(value=>
         value.type==='SpreadElement'||!isDefinitelyPrimitive(value)));
   }
+  // Native Element.setAttribute and setAttributeNS convert their name/value
+  // arguments to DOMString. When a function reaches that conversion, its
+  // Function#toString bytes can be read back through getAttribute.
+  const domDocumentRoots=new Set(['document']);
+  const domElementRoots=new Set();
+  // Local functions that may return a native Element carry that receiver
+  // capability across one ordinary call boundary.
+  const domElementFactories=new Set();
+  /** @param {AstNode|null|undefined} candidate @returns {boolean} */
+  function isDomDocument(candidate) {
+    return Boolean(candidate && (candidate.type==='Identifier' &&
+      domDocumentRoots.has(candidate.name) ||
+      candidate.type==='MemberExpression'&&isGlobal(candidate.object)&&
+      memberName(candidate)==='document'));
+  }
+  /** @param {AstNode|null|undefined} candidate @returns {boolean} */
+  function isDomElement(candidate) {
+    if(!candidate)return false;
+    if(candidate.type==='Identifier')return domElementRoots.has(candidate.name);
+    if(candidate.type==='CallExpression'&&candidate.callee.type==='Identifier'&&
+       domElementFactories.has(candidate.callee.name))return true;
+    if(candidate.type==='MemberExpression'&&isDomDocument(candidate.object))
+      return ['body','head','documentElement'].includes(memberName(candidate)??'');
+    if(candidate.type!=='CallExpression'||candidate.callee.type!=='MemberExpression'||
+       !isDomDocument(candidate.callee.object))return false;
+    const method=memberName(candidate.callee);
+    return ['createElement','createElementNS','getElementById','querySelector']
+      .includes(method??'')||candidate.callee.computed&&method===null;
+  }
+  let domChanged;
+  do {
+    domChanged=false;
+    walk(ast,node=>{
+      const factory=node.type==='FunctionDeclaration' ? node :
+        node.type==='VariableDeclarator' &&
+        ['FunctionExpression','ArrowFunctionExpression'].includes(node.init?.type??'') ?
+          node.init:null;
+      const factoryName=node.type==='FunctionDeclaration'?node.id?.name:
+        node.type==='VariableDeclarator'&&node.id.type==='Identifier'?node.id.name:null;
+      if(factory && factoryName && !domElementFactories.has(factoryName)) {
+        const body=factory.body;
+        const possible=body.type==='BlockStatement' ?
+          body.body.some((/** @type {AstNode} */ stmt)=>
+            stmt.type==='ReturnStatement'&&isDomElement(stmt.argument)) :
+          isDomElement(body);
+        if(possible) {
+          domElementFactories.add(factoryName);
+          domChanged=true;
+        }
+      }
+      const variable=node.type==='VariableDeclarator'&&node.id.type==='Identifier'?
+        node.id:node.type==='AssignmentExpression'&&node.operator==='='&&
+        node.left.type==='Identifier'?node.left:null;
+      const value=node.type==='VariableDeclarator'?node.init:
+        node.type==='AssignmentExpression'&&node.operator==='='?node.right:null;
+      if(!variable||!value)return;
+      if(isDomDocument(value)&&!domDocumentRoots.has(variable.name)) {
+        domDocumentRoots.add(variable.name);
+        domChanged=true;
+      }
+      if(isDomElement(value)&&!domElementRoots.has(variable.name)) {
+        domElementRoots.add(variable.name);
+        domChanged=true;
+      }
+    });
+  }while(domChanged);
+  /** @type {Map<string,number>} */
+  const domAttributeSetterAliases=new Map();
+  /**
+   * Maximum possible DOMString argument count of an identified native
+   * attribute setter. Monotone may-flow retains the greater count across
+   * assignments so a later setAttributeNS cannot evade the third value.
+   * @param {AstNode|null|undefined} candidate
+   * @returns {number}
+   */
+  function domSetterInputs(candidate) {
+    if(!candidate)return 0;
+    if(candidate.type==='Identifier')
+      return domAttributeSetterAliases.get(candidate.name)??0;
+    if(candidate.type==='SequenceExpression')
+      return domSetterInputs(candidate.expressions[candidate.expressions.length-1]);
+    if(candidate.type==='CallExpression'&&
+       candidate.callee.type==='MemberExpression'&&
+       memberName(candidate.callee)==='bind')
+      return domSetterInputs(candidate.callee.object);
+    if(candidate.type!=='MemberExpression'||!isDomElement(candidate.object))
+      return 0;
+    const method=memberName(candidate);
+    if(method==='setAttribute')return 2;
+    if(method==='setAttributeNS'||candidate.computed&&method===null)return 3;
+    return 0;
+  }
+  let domSetterChanged;
+  do {
+    domSetterChanged=false;
+    walk(ast,node=>{
+      const pattern=node.type==='VariableDeclarator'?node.id:
+        node.type==='AssignmentExpression'&&node.operator==='='?node.left:null;
+      const value=node.type==='VariableDeclarator'?node.init:
+        node.type==='AssignmentExpression'&&node.operator==='='?node.right:null;
+      if(pattern?.type==='ObjectPattern' && isDomElement(value)) {
+        for(const property of pattern.properties) {
+          if(property.type!=='Property'||property.value.type!=='Identifier')continue;
+          const key=property.computed?staticString(property.key):
+            property.key.type==='Identifier'?property.key.name:staticString(property.key);
+          const count=key==='setAttribute'?2:
+            key==='setAttributeNS'||property.computed&&key===null?3:0;
+          const alias=property.value.name;
+          if(count>(domAttributeSetterAliases.get(alias)??0)) {
+            domAttributeSetterAliases.set(alias,count);
+            domSetterChanged=true;
+          }
+        }
+      }
+      if(pattern?.type!=='Identifier'||!value)return;
+      const arity=domSetterInputs(value);
+      if(arity>(domAttributeSetterAliases.get(pattern.name)??0)) {
+        domAttributeSetterAliases.set(pattern.name,arity);
+        domSetterChanged=true;
+      }
+    });
+  }while(domSetterChanged);
+  /**
+   * @param {Array<AstNode|null|undefined>} argumentsList
+   * @param {number} count
+   * @returns {boolean}
+   */
+  function mayConvertAttributeSource(argumentsList,count) {
+    return argumentsList.slice(0,count).some(arg=>
+      !arg||arg.type==='SpreadElement'||!isDefinitelyPrimitive(arg));
+  }
+  /** @param {AstNode|null|undefined} node @returns {boolean} */
+  function domAttributeObservesSource(node) {
+    if(node?.type!=='CallExpression')return false;
+    const direct=domSetterInputs(node.callee);
+    if(direct && mayConvertAttributeSource(node.arguments,direct))return true;
+    if(node.callee.type==='MemberExpression') {
+      const wrapper=memberName(node.callee);
+      const count=domSetterInputs(node.callee.object);
+      if(count && ['call','bind'].includes(wrapper??'') &&
+         mayConvertAttributeSource(node.arguments.slice(1),count))return true;
+      if(count && wrapper==='apply') {
+        const supplied=node.arguments[1];
+        return supplied?.type==='ArrayExpression' ?
+          mayConvertAttributeSource(supplied.elements,count):Boolean(supplied);
+      }
+    }
+    if(isReflectApplyMethod(node.callee)) {
+      const count=domSetterInputs(node.arguments[0]);
+      if(!count)return false;
+      const supplied=node.arguments[2];
+      return supplied?.type==='ArrayExpression' ?
+        mayConvertAttributeSource(supplied.elements,count):Boolean(supplied);
+    }
+    return false;
+  }
   /**
    * Object.groupBy converts each callback result to a property key, and a
    * function-valued key is observable as exact Function#toString source.
@@ -3144,6 +3300,7 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
          boundCollatorCompares.has(node.arguments[0].name) &&
          node.arguments[2] &&
          mayCoerceSourceWithinWebRecord(node.arguments[2]))observed=true;
+      if(domAttributeObservesSource(node))observed=true;
       // URL.parse can expose the original Function#toString in its encoded URL.
       if(isUrlStaticMethod(callee) &&
           node.arguments.slice(0,2).some((/** @type {AstNode} */ value)=>
