@@ -417,7 +417,7 @@ test('symbolic recovery accepts a harmless branch slot shadow of the parameter',
         'default:throw Error("unreachable");'+
       '}'+
     '}'
-  ).join('\\n');
+  ).join('\n');
   const actual=await import('data:text/javascript;charset=utf-8,'+encodeURIComponent(source));
   const recovered=recoverSymbolicAffine(source,'round1','module');
   assert.equal(recovered.offset,17);
