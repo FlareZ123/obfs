@@ -365,7 +365,44 @@ function resolveEsmRequests(requests) {
  * @param {Iterable<string>} filenames
  * @returns {void}
  */
-function assertEsmPackageScopeParity(original,generated,filenames) {
+
+/**
+ * Refuse case-variant package.json names in external ancestor directories.
+ * Node may resolve these case-insensitively on Windows but not on POSIX.
+ *
+ * @param {string} root
+ * @param {'source'|'output'} context
+ * @returns {Promise<void>}
+ */
+async function assertNoCaseVariantPackageJsonAncestors(root,context) {
+  let directory=path.resolve(root);
+  for(;;) {
+    /** @type {string[]} */
+    let entries;
+    try {
+      entries=await fs.readdir(directory);
+    } catch(error) {
+      if(error&&typeof error==='object'&&'code' in error&&error.code==='ENOENT') {
+        const parent=path.dirname(directory);
+        if(parent===directory)break;
+        directory=parent;
+        continue;
+      }
+      throw error;
+    }
+    const variant=entries.find(name=>
+      name.toLowerCase()==='package.json'&&name!=='package.json');
+    if(variant) {
+      throw new Error('SNO ESM bare dependency audit cannot model case-variant package.json ancestor in '+
+        context+': '+path.join(directory,variant));
+    }
+    const parent=path.dirname(directory);
+    if(parent===directory)break;
+    directory=parent;
+  }
+}
+
+async function assertEsmPackageScopeParity(original,generated,filenames,inputRoot,outputRoot) {
   const auditedFiles=[...filenames];
   const packagePaths=[...original,...generated]
     .filter(file=>path.posix.basename(file.path).toLowerCase()==='package.json')
@@ -397,8 +434,10 @@ function assertEsmPackageScopeParity(original,generated,filenames) {
       outputPackages.set(file.path,file);
     }
   }
+  let needsExternalCheck=false;
   for(const filename of auditedFiles) {
     let directory=path.posix.dirname(filename);
+    let foundPackageScope=false;
     for(;;) {
       const packagePath=path.posix.join(directory,'package.json');
       const sourcePackage=sourcePackages.get(packagePath);
@@ -423,11 +462,19 @@ function assertEsmPackageScopeParity(original,generated,filenames) {
         if(Object.hasOwn(metadata,'type')&&typeof metadata.type!=='string') {
           throw new TypeError('Invalid SNO ESM package scope type: '+packagePath);
         }
+        foundPackageScope=true;
         break;
       }
       if(directory==='.')break;
       directory=path.posix.dirname(directory);
     }
+    if(!foundPackageScope)needsExternalCheck=true;
+  }
+  if(needsExternalCheck) {
+    await Promise.all([
+      assertNoCaseVariantPackageJsonAncestors(inputRoot,'source'),
+      assertNoCaseVariantPackageJsonAncestors(outputRoot,'output')
+    ]);
   }
 }
 
@@ -462,7 +509,7 @@ async function assertSnoDirectBareImportParity(original,generated,inputRoot,outp
   const targets=directBareImports(generated);
   if(sources.size===0&&targets.size===0)return {entries:0,files:0};
   assertDefaultEsmResolverContext();
-  assertEsmPackageScopeParity(original,generated,sources.keys());
+  await assertEsmPackageScopeParity(original,generated,sources.keys(),input,output);
   for(const [name,specifiers] of sources) {
     const transformed=targets.get(name);
     if(!transformed||JSON.stringify(transformed)!==JSON.stringify(specifiers)) {
