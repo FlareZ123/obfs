@@ -928,6 +928,28 @@ function proveLocalObject(ast, rootName, bindings, importedIdentityFunctions=new
   const reflections = [];
   const aliasUses=[...aliases].flatMap(name=>identifierUses.get(name)??[]);
   aliasUses.sort((a,b)=>a.order-b.order);
+  /**
+   * An exported wrapper may pass its private owner to a local, nonescaping
+   * direct reader. The wrapper's own source contains only the call and owner
+   * binding, not the private field spelling. Admit this one argument edge
+   * only when the callee's existing reader summary and direct-call-only
+   * escape proof both succeed; never extend it to identity forwarders or
+   * imported/public consumers.
+   * @param {AstNode} node
+   * @param {AstNode|null} parent
+   * @param {string|null} key
+   * @returns {boolean}
+   */
+  function privateConsumerArgument(node,parent,key) {
+    if(parent?.type!=='CallExpression'||key!=='arguments'||parent.optional||
+       parent.callee.type!=='Identifier')return false;
+    const index=parent.arguments.indexOf(node);
+    const fn=functions.get(parent.callee.name);
+    const parameter=fn?.params[index];
+    return Boolean(fn&&!fn.external&&fn.forwardIndex===-1&&!fn.returnsRoot&&
+      parameter?.type==='Identifier'&&aliases.has(parameter.name)&&
+      privateFunctionNodes.has(fn.node));
+  }
   for (const {node,parent,key,ancestors} of aliasUses) {
     // An ESTree Identifier used as a noncomputed property name is a grammar
     // token rather than a reference to the same-spelled lexical binding.
@@ -942,7 +964,7 @@ function proveLocalObject(ast, rootName, bindings, importedIdentityFunctions=new
     // functions survive the escape analysis above and remain eligible.
     if(ancestors.some(ancestor=>
       ['FunctionDeclaration','FunctionExpression','ArrowFunctionExpression'].includes(ancestor.type)&&
-      !privateFunctionNodes.has(ancestor)))return null;
+      !privateFunctionNodes.has(ancestor))&&!privateConsumerArgument(node,parent,key))return null;
     const scope=scopes.get(node.name);
     if (!scope || !ancestors.includes(scope)) return null;
     if (!parent) return null;
