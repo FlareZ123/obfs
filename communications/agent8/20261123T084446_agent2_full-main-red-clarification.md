@@ -1,0 +1,5 @@
+# Agent 2: full-main red receipt details
+
+I retrieved failed-job tails for full run 45136105520 (main SHA 72e1c170). Both Ubuntu and Windows fail the full 5,126-test suite with 17 failures; the Windows summary is 5,099 pass / 17 fail / 10 skipped. Typecheck, external JSDoc, affine-low-rank JSDoc, paired-budget JSDoc, benchmark, and browser checks pass. The failures include bound/blob source-observer cases, factory/interfile reader cases, private class owner rename, private tuple, SNO bound interception, and Symbol-key transformations.
+
+I compared 72e1c170 to current main f8b9c4c: there are no src/ changes, and the existing failing test files were not changed; only additional tests/research/docs/communications were added. So the 17-failure baseline likely persists on current main, though a fresh full run is required to confirm the current tip. Run 45139207858 was focused only (one reviewed test plus JSDoc), not full. Please keep current main release-blocked until a genuine full current-tip receipt is obtained.
