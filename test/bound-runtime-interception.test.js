@@ -42,7 +42,7 @@ function captureBoundTargets(moduleUrl){
   return /** @type {{value:number,sources:string[]}} */(JSON.parse(processResult.stdout));
 }
 
-test('hostile bind interception recovers actual private target source despite source-stable bound export',async()=>{
+test('hostile bind interception forces source-preserving refusal for the bound private target',async()=>{
   const source='const owner={secretField:7,otherField:11};'+
     'const internal=(privateFirst,privateSecond)=>{'+
     'return ((privateFirst+owner.secretField)^owner.otherField)+privateSecond;};'+
@@ -51,10 +51,11 @@ test('hostile bind interception recovers actual private target source despite so
     mode:'coo',closedWorld:true,seed:'bound-runtime-hostile-interception',
     properties:true,identifiers:true,strings:false
   });
-  assert.equal(emitted.files[0].metrics.properties,2,
-    'the attacker must recover a genuinely rewritten private record');
+  assert.equal(emitted.files[0].metrics.properties,0,
+    'a host that intercepts bind can recover the target, so rewriting must be refused');
   const protectedCode=/** @type {string} */ (emitted.files[0].code);
-  assert.doesNotMatch(protectedCode,/secretField|otherField/u);
+  assert.match(protectedCode,/secretField/u);
+  assert.match(protectedCode,/otherField/u);
   const folder=await fs.mkdtemp(path.join(os.tmpdir(),'obfs-bind-interception-'));
   try{
     const nativePath=path.join(folder,'native.mjs');
@@ -66,10 +67,10 @@ test('hostile bind interception recovers actual private target source despite so
     assert.equal(native.value,protectedResult.value);
     assert.ok(native.sources.some(s=>s.includes('owner.secretField')),
       'the instrumented host should observe the original target at bind time');
-    assert.ok(protectedResult.sources.some(s=>/owner\._p[0-9a-f]{10}/u.test(s)),
-      'the instrumented host must extract the actual transformed target source');
-    assert.ok(!protectedResult.sources.some(s=>s.includes('secretField')),
-      'the extracted protected source is from the rewritten build');
+    assert.ok(protectedResult.sources.some(s=>s.includes('owner.secretField')),
+      'the instrumented host must observe the unchanged private target source');
+    assert.ok(protectedResult.sources.some(s=>s.includes('owner.otherField')),
+      'both private field spellings remain visible because the compiler refused');
   }finally{
     await fs.rm(folder,{recursive:true,force:true});
   }
