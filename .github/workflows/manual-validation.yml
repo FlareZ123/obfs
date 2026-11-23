@@ -89,6 +89,9 @@ jobs:
       - name: Strict JSDoc for low-rank affine inversion tests
         if: ${{ !cancelled() && steps.install.outcome == 'success' }}
         run: node node_modules/typescript/bin/tsc -p jsconfig.affine-low-rank-oracle.json
+      - name: Strict JSDoc for paired and complete-suite runtime budget evaluators
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+        run: node node_modules/typescript/bin/tsc -p jsconfig.paired-budget.json
       - name: Performance sample
         if: ${{ !cancelled() && steps.install.outcome == 'success' }}
         run: npm run benchmark
