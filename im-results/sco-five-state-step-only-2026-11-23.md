@@ -27,7 +27,7 @@ Dynamic programming over the processed source states gives the number of rooted 
 | 3 | 216 | 64 | 13,824 |
 | 4 | 5,248 | 256 | 1,343,488 |
 | 5 | 160,675 | 1,024 | 164,531,200 |
-| **Total through 5** | **166,152 graph/state-count combinations** | — | **165,888,708** |
+| **Total through 5** | **166,152** | — | **165,888,708** |
 
 Every rooted reachable transition graph has exactly one such BFS labeling. Unreachable states do not affect behavior from the initial state and are represented by their smaller reachable submachine. All output masks are enumerated independently. Thus the candidate class is complete for future behavior of every deterministic binary Mealy machine with at most five reachable states, modulo rooted state isomorphism.
 
