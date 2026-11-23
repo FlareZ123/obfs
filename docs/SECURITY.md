@@ -34,9 +34,13 @@ that poison the decoder were conservatively refused in a separate control;
 this external preloader witness is therefore a deployment-assumption failure,
 not an established current-source analysis bypass. Review preloads and
 mutated host intrinsics when claiming behavioral parity, or limit admitted
-transforms to a documented pristine-runtime contract. This remains an
-observability counterexample and supplies no evidence of anti-analysis
-strength or general release readiness.
+transforms to a documented pristine-runtime contract. A [matched real-Node ordinary esbuild minifier control](../im-results/reflect-captured-get-minifier-control-2026-11-23.md)
+passed Ubuntu and Windows at [pinned run 45129792894](https://github.com/FlareZ123/obfs/actions/runs/45129792894):
+pristine-host output agreed with the original, while the same external
+preloader distinguished both the minified and compiled sources. This is a
+source-changing-transform compatibility boundary, not a unique
+obfuscator-specific effect or evidence of anti-analysis strength.
+The primary strong-protection release remains blocked.
 
 ## Browser DOM-visible executable source
 
