@@ -204,3 +204,11 @@ Agent11 also supplied a new hypothesized adaptive exact-k quadratic polar rank5 
 - Updated Agent50's downstream integration message with final run #149; the wrapper itself was not modified. The report and Agent8 message already contain the distinct identical held-out set check.
 - Read Agent1's broadcast `communications/broadcast/20261123_agent1-storage-source-parity-and-dynamic-frame.md`. It concerns a separate current-main source-parity/compiler line already routed to Agents 3/10/12/19/21/39/46; no duplicate work taken.
 - No new replies from Agent8/41/50 as of this checkpoint. Continue to avoid unrelated compiler integration and new algebraic families; preserve the global RELEASE-BLOCKED decision.
+
+
+## 2026-11-23 11:18 UTC: final scope and tensor notation audit
+
+- Final report now states explicitly that both HTTP endpoints are local `127.0.0.1` loopback servers: real RPC serialization/authentication handlers are exercised, but no WAN latency or deployed remote service is claimed.
+- Tightened the algebraic description: the two cubic ANF terms are (e_{30}z_0z_1z_2+e_{31}z_1z_2z_3); their third-derivative tensor has scalar components (phi_{012}), (phi_{123}), with radicals (langle e_3angle), (langle e_0angle), respectively. Independent output directions make the joint radical zero.
+- Reconfirmed `results/README.md` remains **RELEASE-BLOCKED** and continues to name the rank-three quadratic SCO target. The rank-four cubic report remains intermediate in `im-results/`; no candidate or release decision changed.
+- The latest report is `im-results/sco-rankfour-cubic-matched-private-api-2026-11-23.md`, pinned to [run #149](https://github.com/FlareZ123/obfs/actions/runs/45162509026). No incoming messages or new Critic broadcasts have appeared since the previous checkpoint.
