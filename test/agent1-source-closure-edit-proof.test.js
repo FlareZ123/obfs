@@ -197,3 +197,21 @@ test('negative control: changing an imported provider is outside lexical source 
   assert.equal(emitted.observed(),3);
   assert.equal(original.observed.toString(),emitted.observed.toString());
 });
+
+
+test('negative control: captured primitive initializer is outside lexical name proof',()=>{
+  const code='const secret=40;function observed(){return secret+2;}' +
+    'function sibling(){return 1;}';
+  const start=code.indexOf('40');
+  const output=applyObservedFunctionEdits(code,'commonjs','observed',[
+    {start,end:start+2,text:'41'}
+  ]);
+  const before=run(code);
+  const after=run(output.code);
+  assert.equal(output.plan.declined,null);
+  assert.equal(before.value,42);
+  assert.equal(after.value,43);
+  assert.equal(before.source,after.source);
+  assert.ok(output.plan.guarded.some(span=>
+    code.slice(span.start,span.end)==='secret'));
+});
