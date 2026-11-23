@@ -623,6 +623,8 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
   const webSocketNames=new Set(['WebSocket']);
   const webSocketConstructors=new Set(webSocketNames);
   const webSocketInstances=new Set();
+  const webSocketSendMethods=new Set();
+  const boundWebSocketSendMethods=new Set();
   // Native Request/Response headers and URL searchParams are collection
   // objects that expose the same coercion methods as directly created ones.
   const webRecordInstances=new Set();
@@ -920,6 +922,23 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
       (name==='searchParams'||node.computed&&name===null) &&
       isWebInstance(node.object,webScalarInstances,webScalars,webScalarNames);
   }
+  /**
+   * Keep provenance only for a native socket or its may-flow aliases;
+   * arbitrary application objects with a method called send remain safe.
+   * @param {AstNode|null|undefined} node
+   * @returns {boolean}
+   */
+  function isWebSocketSendMethod(node) {
+    if(!node)return false;
+    if(node.type==='Identifier')return webSocketSendMethods.has(node.name);
+    if(node.type!=='MemberExpression')return false;
+    return (memberName(node)==='send'||node.computed&&memberName(node)===null) &&
+      isWebInstance(node.object,webSocketInstances,webSocketConstructors,webSocketNames);
+  }
+  /** @param {AstNode|null|undefined} node @returns {boolean} */
+  function isBoundWebSocketSendMethod(node) {
+    return Boolean(node?.type==='Identifier'&&boundWebSocketSendMethods.has(node.name));
+  }
   /** @param {AstNode|null|undefined} node @returns {boolean} */
   function isIntlNamespace(node) {
     return Boolean(node && (node.type==='Identifier' &&
@@ -1150,6 +1169,16 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
         }
         if(isWebInstance(value,webSocketInstances,webSocketConstructors,webSocketNames)) {
           changed=add(webSocketInstances,name)||changed;
+        }
+        if(isWebSocketSendMethod(value)) {
+          changed=add(webSocketSendMethods,name)||changed;
+        }
+        if(value?.type==='CallExpression' &&
+           value.callee.type==='MemberExpression' &&
+           memberName(value.callee)==='bind' &&
+           isWebSocketSendMethod(value.callee.object) ||
+           isBoundWebSocketSendMethod(value)) {
+          changed=add(boundWebSocketSendMethods,name)||changed;
         }
         if(value?.type==='MemberExpression' &&
            nativeLocaleNames.has(memberName(value)??'') ||
@@ -3067,14 +3096,34 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
              callee.computed && method===null) &&
             node.arguments.some((/** @type {AstNode} */ value)=>
               !isDefinitelyPrimitive(value)))observed=true;
-        // On Node 22 and browsers, an actual WebSocket.send(function) sends
-        // function-source bytes; preserve them for proven socket receivers.
-        // Literal/known primitive data remains eligible for transformation.
-        if(isWebInstance(callee.object,webSocketInstances,webSocketConstructors,webSocketNames) &&
-           (method==='send'||callee.computed&&method===null) &&
-           node.arguments[0] && !isDefinitelyPrimitive(node.arguments[0])) {
-          observed=true;
+        // Native socket.send() stringifies functions; a detached .send
+        // keeps those semantics when invoked with a proper socket receiver.
+        if(isWebSocketSendMethod(callee) && node.arguments[0] &&
+           !isDefinitelyPrimitive(node.arguments[0]))observed=true;
+        if(isWebSocketSendMethod(callee.object)) {
+          if((method==='call'||method==='bind') &&
+             node.arguments.slice(1).some((/** @type {AstNode} */ value)=>
+               !isDefinitelyPrimitive(value)))observed=true;
+          if(method==='apply'){
+            const supplied=node.arguments[1];
+            if(supplied?.type==='ArrayExpression') {
+              if(supplied.elements[0] &&
+                 !isDefinitelyPrimitive(supplied.elements[0]))observed=true;
+            }else if(supplied)observed=true;
+          }
         }
+      }
+      if(node.type==='CallExpression' && isBoundWebSocketSendMethod(callee) &&
+         node.arguments.some((/** @type {AstNode} */ value)=>
+           !isDefinitelyPrimitive(value)))observed=true;
+      if(node.type==='CallExpression' && isReflectApplyMethod(callee) &&
+         (isWebSocketSendMethod(node.arguments[0]) ||
+          isBoundWebSocketSendMethod(node.arguments[0]))) {
+        const supplied=node.arguments[2];
+        if(supplied?.type==='ArrayExpression') {
+          if(supplied.elements[0] &&
+             !isDefinitelyPrimitive(supplied.elements[0]))observed=true;
+        }else if(supplied)observed=true;
       }
       // Bound, extracted and reflective native method invocations hide the
       // actual string-valued options behind an extra function-call layer.
