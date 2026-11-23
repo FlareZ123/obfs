@@ -830,7 +830,8 @@ test('SCO refuses legacy TextDecoder results with unproved host mapping tables',
     "const Decoder=Object.getPrototypeOf(new TextDecoder('utf-8')).constructor;return new Decoder('windows-1252').decode(Uint8Array.of(0x80));",
     "const decoder=new TextDecoder('utf-8');return decoder['constructor']('windows-1252');",
     "const wrapper={decoder:new TextDecoder('utf-8')};return new wrapper.decoder.constructor('windows-1252').decode(Uint8Array.of(0x80));",
-    "function unrelated(){const decoder=new TextDecoder('utf-8');return decoder.decode(Uint8Array.of(65));}return decoder.decode(Uint8Array.of(66));"
+    "function unrelated(){const decoder=new TextDecoder('utf-8');return decoder.decode(Uint8Array.of(65));}return decoder.decode(Uint8Array.of(66));",
+    "if(true){const decoder=new TextDecoder('utf-8');decoder.decode(Uint8Array.of(65));}return decoder.decode(Uint8Array.of(66));"
   ];
   for(const body of unsafe){
     const code='export async function protectedOp(){'+body+'}'+
@@ -852,7 +853,9 @@ test('SCO refuses legacy TextDecoder results with unproved host mapping tables',
     "return new TextDecoder('utf-8',{ignoreBOM:true}).decode(Uint8Array.of(65));",
     "const record={TextDecoder:41};return record.TextDecoder;",
     "const decoder=new TextDecoder('utf-8');return decoder.decode(Uint8Array.of(65,66));",
-    "const decoder=new TextDecoder('UTF8');const alias=decoder;return alias.decode(Uint8Array.of(65,66));"
+    "const decoder=new TextDecoder('UTF8');const alias=decoder;return alias.decode(Uint8Array.of(65,66));",
+    "function nested(){const decoder=new TextDecoder('utf-8');return decoder.decode(Uint8Array.of(65));}return nested();",
+    "{const decoder=new TextDecoder('utf-8');return decoder.decode(Uint8Array.of(65));}"
   ];
   for(const body of safe){
     const code='export async function protectedOp(){'+body+'}'+
