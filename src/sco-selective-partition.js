@@ -209,140 +209,146 @@ function firstUnprovedUnqualifiedReference(root,moduleBindings,rootFormals){
     'confirm','prompt'
   ]);
   /**
+   * Accumulate each actual binding name exactly once per lexical scope.
+   * Pattern defaults and computed keys are expressions, not bound names.
    * @param {import('./ast').AstNode|null|undefined} pattern
-   * @param {string} name
-   * @returns {boolean}
+   * @param {Set<string>} names
+   * @returns {void}
    */
-  function patternBinds(pattern,name){
-    if(!pattern)return false;
-    if(pattern.type==='Identifier')return pattern.name===name;
-    if(pattern.type==='RestElement')return patternBinds(pattern.argument,name);
-    if(pattern.type==='AssignmentPattern')return patternBinds(pattern.left,name);
-    if(pattern.type==='ArrayPattern')return pattern.elements.some(
-      (/** @type {import('./ast').AstNode|null} */ item)=>patternBinds(item,name));
-    if(pattern.type==='ObjectPattern')return pattern.properties.some(
-      (/** @type {import('./ast').AstNode} */ prop)=>
-        patternBinds(prop.type==='RestElement'?prop.argument:prop.value,name));
-    return false;
-  }
-  /**
-   * Test a declaration at its immediate statement scope. Export wrappers
-   * expose the same lexical declaration, whereas an exported *name* is not
-   * itself a reference to an undeclared client global.
-   * @param {import('./ast').AstNode} statement
-   * @param {string} name
-   * @returns {boolean}
-   */
-  function statementBinds(statement,name){
-    const decl=statement.type==='ExportNamedDeclaration'||
-      statement.type==='ExportDefaultDeclaration'?statement.declaration:statement;
-    if(!decl)return false;
-    if(decl.type==='VariableDeclaration')return decl.declarations.some(
-      (/** @type {import('./ast').AstNode} */ item)=>patternBinds(item.id,name));
-    if(['FunctionDeclaration','ClassDeclaration'].includes(decl.type)){
-      return decl.id?.type==='Identifier'&&decl.id.name===name;
+  function collectPatternNames(pattern,names){
+    if(!pattern)return;
+    if(pattern.type==='Identifier'){names.add(pattern.name);return;}
+    if(pattern.type==='RestElement'){collectPatternNames(pattern.argument,names);return;}
+    if(pattern.type==='AssignmentPattern'){collectPatternNames(pattern.left,names);return;}
+    if(pattern.type==='ArrayPattern'){
+      for(const item of pattern.elements)collectPatternNames(item,names);
+      return;
     }
-    if(decl.type==='ImportDeclaration')return decl.specifiers.some(
-      (/** @type {import('./ast').AstNode} */ item)=>
-        item.local?.type==='Identifier'&&item.local.name===name);
-    return false;
+    if(pattern.type==='ObjectPattern'){
+      for(const property of pattern.properties){
+        collectPatternNames(property.type==='RestElement'?property.argument:
+          property.value,names);
+      }
+    }
   }
+
   /**
-   * JavaScript var is function/program scoped even inside a conditional or
-   * loop. Traverse only the current execution scope, not nested functions.
-   * @param {import('./ast').AstNode} node
-   * @param {string} name
-   * @param {boolean} [top]
-   * @returns {boolean}
+   * Only statements directly owned by this lexical scope bind locally.
+   * Nested block/function declarations do not leak into sibling regions.
+   * @param {import('./ast').AstNode} statement
+   * @param {Set<string>} names
+   * @returns {void}
    */
-  function hasHoistedVar(node,name,top=true){
+  function collectStatementNames(statement,names){
+    const declaration=statement.type==='ExportNamedDeclaration'||
+      statement.type==='ExportDefaultDeclaration'?statement.declaration:statement;
+    if(!declaration)return;
+    if(declaration.type==='VariableDeclaration'){
+      for(const item of declaration.declarations)collectPatternNames(item.id,names);
+      return;
+    }
+    if(declaration.type==='FunctionDeclaration'||
+       declaration.type==='ClassDeclaration'){
+      collectPatternNames(declaration.id,names);
+      return;
+    }
+    if(declaration.type==='ImportDeclaration'){
+      for(const specifier of declaration.specifiers){
+        collectPatternNames(specifier.local,names);
+      }
+    }
+  }
+
+  /**
+   * Vars are function/program scoped even when a nested conditional never
+   * executes. Exclude inner functions/classes, whose vars have other owners.
+   * @param {import('./ast').AstNode} node
+   * @param {Set<string>} names
+   * @param {boolean} [top]
+   * @returns {void}
+   */
+  function collectHoistedVars(node,names,top=true){
     if(!top&&['FunctionDeclaration','FunctionExpression',
       'ArrowFunctionExpression','ClassDeclaration','ClassExpression']
-      .includes(node.type))return false;
-    if(node.type==='VariableDeclaration'&&node.kind==='var'&&
-       node.declarations.some(
-         (/** @type {import('./ast').AstNode} */ item)=>
-           patternBinds(item.id,name)))return true;
-    return Object.entries(node).some(([key,value])=>{
-      if(key==='parent'||key==='comments')return false;
-      if(Array.isArray(value))return value.some(item=>
-        item&&typeof item==='object'&&typeof item.type==='string'&&
-        hasHoistedVar(item,name,false));
-      return Boolean(value&&typeof value==='object'&&
-        typeof value.type==='string'&&hasHoistedVar(value,name,false));
-    });
+      .includes(node.type))return;
+    if(node.type==='VariableDeclaration'&&node.kind==='var'){
+      for(const item of node.declarations)collectPatternNames(item.id,names);
+    }
+    for(const [key,value] of Object.entries(node)){
+      if(key==='parent'||key==='comments')continue;
+      if(Array.isArray(value)){
+        for(const item of value){
+          if(item&&typeof item==='object'&&typeof item.type==='string'){
+            collectHoistedVars(item,names,false);
+          }
+        }
+      }else if(value&&typeof value==='object'&&
+                typeof value.type==='string'){
+        collectHoistedVars(value,names,false);
+      }
+    }
   }
+
+  /**
+   * Each enclosing scope's declaration inventory is computed once, even
+   * when it contains thousands of differently spelled identifier reads.
+   * Function-body var hoists are stored separately because their names do
+   * not bind earlier parameter-default expressions.
+   * @typedef {{direct:Set<string>,hoisted:Set<string>}} ScopedNames
+   */
+  /** @type {WeakMap<import('./ast').AstNode,ScopedNames>} */
+  const indexedScopes=new WeakMap();
   /**
    * @param {import('./ast').AstNode} scope
-   * @param {string} name
-   * @param {import('./ast').AstNode} read
-   * @returns {boolean}
+   * @returns {ScopedNames}
    */
-  function scopedBinding(scope,name,read){
+  function namesForScope(scope){
+    const prior=indexedScopes.get(scope);
+    if(prior)return prior;
+    /** @type {ScopedNames} */
+    const result={direct:new Set(),hoisted:new Set()};
+    indexedScopes.set(scope,result);
+    const {direct,hoisted}=result;
     if(['FunctionDeclaration','FunctionExpression','ArrowFunctionExpression']
         .includes(scope.type)){
-      if(name==='arguments'&&scope.type!=='ArrowFunctionExpression')return true;
-      return scope.id?.type==='Identifier'&&scope.id.name===name||
-        scope.params.some(
-          (/** @type {import('./ast').AstNode} */ p)=>patternBinds(p,name))||
-        // Parameter initializers execute in an outer parameter scope:
-        // body-local var declarations do not supply their free references.
-        (scope.body&&read.start>=scope.body.start&&hasHoistedVar(scope.body,name));
+      collectPatternNames(scope.id,direct);
+      for(const parameter of scope.params)collectPatternNames(parameter,direct);
+      if(scope.type!=='ArrowFunctionExpression')direct.add('arguments');
+      collectHoistedVars(scope.body,hoisted);
+    }else if(scope.type==='ClassDeclaration'||scope.type==='ClassExpression'){
+      collectPatternNames(scope.id,direct);
+    }else if(scope.type==='CatchClause'){
+      collectPatternNames(scope.param,direct);
+    }else if(['Program','BlockStatement','StaticBlock'].includes(scope.type)){
+      for(const statement of scope.body)collectStatementNames(statement,direct);
+      if(scope.type==='Program')collectHoistedVars(scope,hoisted);
+    }else if(scope.type==='ForStatement'&&scope.init?.type==='VariableDeclaration'){
+      for(const item of scope.init.declarations)collectPatternNames(item.id,direct);
+    }else if((scope.type==='ForOfStatement'||scope.type==='ForInStatement')&&
+             scope.left?.type==='VariableDeclaration'){
+      for(const item of scope.left.declarations)collectPatternNames(item.id,direct);
+    }else if(scope.type==='SwitchStatement'){
+      for(const group of scope.cases){
+        for(const statement of group.consequent)collectStatementNames(statement,direct);
+      }
     }
-    if(scope.type==='ClassDeclaration'||scope.type==='ClassExpression'){
-      return scope.id?.type==='Identifier'&&scope.id.name===name;
-    }
-    if(scope.type==='CatchClause')return patternBinds(scope.param,name);
-    if(['Program','BlockStatement','StaticBlock'].includes(scope.type)){
-      return scope.body.some(
-        (/** @type {import('./ast').AstNode} */ statement)=>
-          statementBinds(statement,name))||
-        scope.type==='Program'&&hasHoistedVar(scope,name);
-    }
-    if(scope.type==='ForStatement'){
-      return scope.init?.type==='VariableDeclaration'&&
-        scope.init.declarations.some(
-          (/** @type {import('./ast').AstNode} */ item)=>
-            patternBinds(item.id,name));
-    }
-    if(scope.type==='ForOfStatement'||scope.type==='ForInStatement'){
-      return scope.left?.type==='VariableDeclaration'&&
-        scope.left.declarations.some(
-          (/** @type {import('./ast').AstNode} */ item)=>
-            patternBinds(item.id,name));
-    }
-    if(scope.type==='SwitchStatement'){
-      return scope.cases.some(
-        (/** @type {import('./ast').AstNode} */ item)=>item.consequent.some(
-          (/** @type {import('./ast').AstNode} */ statement)=>
-            statementBinds(statement,name)));
-    }
-    return false;
+    return result;
   }
-  // Repeated references to the same name in a large function otherwise
-  // re-scan each ancestor's full declaration list and var-hoist subtree.
-  // A function parameter initializer sees a different var environment from
-  // its body, so those two visibility regions must never share a cache key.
-  /** @type {WeakMap<import('./ast').AstNode,Map<string,boolean>>} */
-  const resolvedByScope=new WeakMap();
   /**
    * @param {import('./ast').AstNode} scope
    * @param {string} name
    * @param {import('./ast').AstNode} read
    * @returns {boolean}
    */
-  function cachedScopedBinding(scope,name,read){
-    let cached=resolvedByScope.get(scope);
-    if(!cached){cached=new Map();resolvedByScope.set(scope,cached);}
-    const functionScope=['FunctionDeclaration','FunctionExpression',
-      'ArrowFunctionExpression'].includes(scope.type);
-    const inBody=Boolean(functionScope&&scope.body&&read.start>=scope.body.start);
-    const cacheKey=(inBody?'body:':'parameter:')+name;
-    const saved=cached.get(cacheKey);
-    if(saved!==undefined)return saved;
-    const resolved=scopedBinding(scope,name,read);
-    cached.set(cacheKey,resolved);
-    return resolved;
+  function indexedScopedBinding(scope,name,read){
+    const {direct,hoisted}=namesForScope(scope);
+    if(direct.has(name))return true;
+    if(!hoisted.has(name))return false;
+    if(['FunctionDeclaration','FunctionExpression','ArrowFunctionExpression']
+        .includes(scope.type)){
+      return Boolean(scope.body&&read.start>=scope.body.start);
+    }
+    return scope.type==='Program';
   }
   /** @type {string|null} */
   let missing=null;
@@ -366,7 +372,7 @@ function firstUnprovedUnqualifiedReference(root,moduleBindings,rootFormals){
     if(lazyTypeofLiteral)return;
     const name=node.name;
     if(moduleBindings.has(name)||rootFormals.has(name))return;
-    if(ancestors.some(scope=>cachedScopedBinding(scope,name,node)))return;
+    if(ancestors.some(scope=>indexedScopedBinding(scope,name,node)))return;
     if(recognizedGlobals.has(name))return;
     missing=name;
   });
