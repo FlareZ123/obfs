@@ -244,3 +244,34 @@ test('inert literal object spread keeps useful private record rewrite',async()=>
   assert.equal(compiled.crossFile.properties,1,
     'An inert inline literal spread does not carry the unused host-returning factory');
 });
+
+
+for(const [label,holderSource] of /** @type {[string,string][]} */ ([
+  ['object member assignment',[
+    'const holder={};',
+    'holder.callback=cb;',
+    'const ctor=await Promise.resolve().then(holder.callback);'
+  ].join('\n')],
+  ['array index assignment',[
+    'const holder=[];',
+    'holder[0]=cb;',
+    'const ctor=await Promise.resolve().then(holder[0]);'
+  ].join('\n')]
+])){
+  test('mutated '+label+' cannot hide returned host callback',async()=>{
+    const files=graph([
+      'const cb=()=>globalThis.RUNTIME_FACTORY;',
+      holderSource,
+      'const remote=await ctor("return import(\'./state.mjs\')")();',
+      "const result=[inspectRecord('auditCount').value,Object.keys(remote.state),remote.state.secretField];"
+    ].join('\n'));
+    const native=await execute(files,true);
+    assert.equal(native,'[41,[3,["secretField"],41]]\n');
+    const compiled=obfuscateFiles(files,{
+      mode:'coo',closedWorld:true,seed:'host-mutable-holder/'+label,
+      identifiers:false,strings:false,properties:true
+    });
+    assert.equal(await execute(compiled.files,true),native,label);
+    assert.equal(compiled.crossFile.properties,0,label);
+  });
+}
