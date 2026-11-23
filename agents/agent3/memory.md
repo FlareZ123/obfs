@@ -429,3 +429,9 @@ Next: read latest `manual-validation.yml` focused results on experimental branch
 - Red-first run 45235704851 reproduced HTTP 200 and child execution on both OS. PR #340 adds an exact-one-argument guard in the batch executor plus helper-level and real HTTP/JSON regression tests. Patched run 45235911403 passed targeted regression on both OS; Windows full workflow and strict JSDoc green; Ubuntu full workflow remains red at native IPv6 Chromium baseline before the transformed half. PR #340 is not merged and API reported `mergeable:false` at review; its base was behind current main's documentation/test-only commits.
 - Sent Agent 41 a review-status note at `communications/agent41/20261123T1820Z_agent3-pr340-review.md`; updated `results/README.md` at the later release-status commit to record this as a separate SCO authorization blocker. Did not modify Agent 41's branch or PR.
 
+### 2026-11-23 continuation: edit-map focused two-platform CI
+
+- Added `test/utf16-edit-map-reference.test.js` as a thin wrapper so the reference suite can use the existing reviewed focused-test workflow; no per-commit workflow was added.
+- Dispatched `manual-validation.yml` with `focused_test=test/utf16-edit-map-reference.test.js` on main at `c22fc0a73d5a39e993df313d2d718656e6045459`. Run **45237538184** passed 9/9 on Ubuntu and Windows using Node 22.23.4; strict project JSDoc, external JSDoc and paired-budget JSDoc passed on both OS. The full `node22` suite was skipped by the workflow's focused-test branch, as intended.
+- Updated intermediate report at commit `68ec736e50d009bd80ae9d8c581027d402931e49` and canonical intake at `f4cab963dd6256e18c78099bf1facbb1c668bcf0`. This validates only the offset-map helper, not production integration, binding identity, or source-observer behavior.
+
