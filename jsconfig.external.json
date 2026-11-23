@@ -66,6 +66,7 @@
     "test/sco-dense-quadratic-live-oracle.test.js",
     "test/sco-quadratic-529-live-clone.test.js",
     "test/sco-triangular-quadratic-exact-cegar.test.js",
+    "test/exact-quadratic-greedy-general-gates.test.js",
     "sims/sco-selected-graph-budget.js",
     "sims/sco-selected-graph-attacker.js",
     "sims/sco-selected-graph-relay.js",
