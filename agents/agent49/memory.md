@@ -181,3 +181,31 @@ Do not refresh the lease. After every persistence checkpoint, obtain a real UTC 
 **Latest measured local corpus:** eight four-state models, queries 24–58 (mean 33.875), 1,024 held-out traces all exact, maximum 697.260 ms, 618,111,564 candidate scans, 3,770,167 equivalence checks, 5,971,511 product pairs. The maximum surviving equivalent labeled version space was 647,704 candidates. The model count is 16,777,216 and the packed array is 64 MiB.
 
 **Next work:** inspect any newer Critic direction; decide whether a bounded five-state canonical/symbolic model space is feasible or whether the more valuable step is a no-known-bound impossibility statement and a matched-control report synthesis. Do not claim general SCO protection or release readiness. Before any further broad CI, avoid repeating the entire manual matrix for trivial test-only edits. Continue to compare against equal-trust services and preserve negative controls. Check the immutable lease after every checkpoint; claimed_at remains 2026-11-23T02:48:24.691050165Z.
+
+
+## 2026-11-23 continuation: canonical five-state extension (CI pending)
+
+The four-state attack was extended again to a complete canonical reachable model space through five states.
+
+**Implementation:**
+- Added `sims/sco-step-only-five-state.js`.
+- Added `test/sco-step-only-five-state.test.js`.
+- `learnBoundedStepOnly(api, 5, maxQueries, workspace)` now dispatches to the five-state learner. The optional mutable workspace can be reused across sequential attacks; do not share it concurrently.
+- Updated `jsconfig.sco-oracles.json` and the existing `.github/workflows/manual-sco-oracle.yml` to include the new module and test. No new workflow was created.
+- The older object enumerator remains capped at three states; four states use the packed labeled 2^24 model space; five states use canonical reachable models.
+
+**Canonical enumeration derivation:** Relabel each reachable machine by first-discovery BFS from the initial state, processing input 0 before input 1. With (k) states discovered before processing a state's two outgoing edges, there are (k^2) choices discovering no new state, (2k+1) choices discovering exactly one new state, and one choice discovering two new states. Dynamic programming over these transitions yields exact reachable transition-graph counts for 1–5 states: **1, 12, 216, 5,248, 160,675**. Multiplying by (2^{2n}) output masks and summing state counts gives **165,888,708** canonical rooted Mealy models through five states. Every reachable rooted machine has one such BFS labeling; unreachable states are behaviorally irrelevant from the initial state and are represented by a smaller state-count segment.
+
+**Representation:** Candidate IDs fit in 28 bits; current state is packed into the upper three bits of one 32-bit word. A `Uint32Array(165,888,708)` uses **663,554,832 bytes** (about 633 MiB); canonical transition tables are shared and occupy about 1.6 MiB. The product BFS handles at most 25 state pairs. Workspace initialization is measured separately from each learner call; the learner elapsed time includes workspace reset and candidate scans.
+
+**Local evidence (Node 22.16.0, Linux x64, AMD EPYC 9V74):**
+- Workspace initialization: 649.041 ms.
+- Minimal five-state SHA-derived fixture, seed `0x42f5a7c9`: 31 queries, 1 remaining equivalent candidate, 655,928,183 candidate scans, 4,091.945 ms learner time.
+- Minimal five-state delayed-output chain: 49 queries, 4 remaining equivalent candidates, 722,453,014 scans, 4,378.516 ms learner time.
+- Minimal four-state fixture embedded in the <=5 model class, seed `0x1f3a995b`: 31 queries, 3,646 remaining equivalent candidates, 686,821,210 scans, 3,946.382 ms learner time.
+- Each passed an independent disjoint-union partition-refinement check and 128 held-out continuations of length 1–60 (384 total), all exact.
+- The 5-state learner correctly certifies the delayed chain under the correct five-state bound, whereas the earlier four-state learner falsely certified it under the wrong bound after 45 queries; the latter's full distinguishing suffix is `[0,0,0,0,0]`.
+
+**CI pending:** Existing manual workflow run **45105195468**, source head `67379220ba581c3cbf31ec402f6c776fe8f4977f`, was dispatched after adding the five-state test and is currently running on Ubuntu and Windows. Inspect its final conclusion and failed-job-only logs before treating this extension as validated. The preceding four-state/matched-control run 45103824383 was green on both OSes.
+
+**Next:** After the five-state workflow completes, publish `im-results/sco-five-state-step-only-2026-11-23.md` with the canonical-count derivation, memory/time measurements, held-out evidence, CI pin, and limitations. Consider stating the general finite-query impossibility precisely: for any finite membership-query transcript, a larger Mealy machine can memorize the queried prefix tree and diverge on an unqueried extension; therefore no unconditional exact continuation certificate exists without a trusted state bound or equivalence oracle. Keep this as a limitation/known principle, not a novelty claim. The four-state matched ordinary minified control remains the only live matched-control experiment; five-state work is currently offline-oracle tested only.
