@@ -236,6 +236,9 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
   // Rejected Promise values can carry a captured Error.stack into an inline
   // handler without exposing the Error constructor at the member read.
   const rejectionParameterNames=new Set();
+  /** @type {Map<string,string>} */
+  const rejectionHandlerFormals=new Map();
+  const referencedRejectionHandlers=new Set();
   const arraysWithFunctions=new Set();
   // Native Array algorithms can implicitly stringify contained functions.
   // Track methods detached from Array.prototype through simple assignments;
@@ -303,6 +306,14 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
        node.id?.type==='Identifier')functions.add(node.id.name);
     if(node.type==='CatchClause'&&node.param?.type==='Identifier')
       catchParameterNames.add(node.param.name);
+    const namedHandler=node.type==='FunctionDeclaration'?node:
+      node.type==='VariableDeclarator'&&node.id.type==='Identifier'&&
+        node.init&&['ArrowFunctionExpression','FunctionExpression'].includes(node.init.type)?
+        node.init:null;
+    const namedHandlerName=node.type==='FunctionDeclaration'?node.id?.name:
+      node.type==='VariableDeclarator'&&node.id.type==='Identifier'?node.id.name:null;
+    if(namedHandlerName&&namedHandler?.params[0]?.type==='Identifier')
+      rejectionHandlerFormals.set(namedHandlerName,namedHandler.params[0].name);
     if(node.type==='CallExpression'&&node.callee.type==='MemberExpression') {
       const method=memberName(node.callee);
       const callback=method==='catch'?node.arguments[0]:
@@ -310,6 +321,8 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
       if(callback&&['ArrowFunctionExpression','FunctionExpression'].includes(callback.type)&&
          callback.params[0]?.type==='Identifier')
         rejectionParameterNames.add(callback.params[0].name);
+      if(callback?.type==='Identifier')
+        referencedRejectionHandlers.add(callback.name);
     }
     if((node.type==='ImportSpecifier'||node.type==='ImportDefaultSpecifier') &&
        node.local?.type==='Identifier')opaqueFunctions.add(node.local.name);
@@ -317,6 +330,12 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
       opaqueNamespaces.add(node.local.name);
     }
   });
+  // Function definitions can appear after their .catch(handler) call site;
+  // resolve the finite name may-flow after the pre-scan is complete.
+  for(const name of referencedRejectionHandlers){
+    const formal=rejectionHandlerFormals.get(name);
+    if(formal)rejectionParameterNames.add(formal);
+  }
   /** @param {AstNode|null|undefined} node @returns {boolean} */
   function isRequireCall(node) {
     return Boolean(node?.type==='CallExpression' &&
