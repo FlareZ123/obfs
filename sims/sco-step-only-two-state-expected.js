@@ -167,4 +167,83 @@ function analyzeTwoStateExpectedQueries(){
     baselineTotal:analyzeTwoStateMinimax().heuristicHistogram.reduce((sum,count,depth)=>sum+count*depth,0)};
 }
 
-module.exports={buildWeightedBeliefs,weightedBellmanLayers,evaluateWeightedPolicy,analyzeTwoStateExpectedQueries};
+/**
+ * Reusable, immutable-by-convention decision table for independent step-only
+ * attacks. Construct once and reuse for any number of unrelated model runs.
+ * Its full-model prior is uniform over 260 labelled initial source tables.
+ */
+function createTwoStateWeightedWorkspace(){
+  const types=buildBehaviorTypes();
+  const graph=buildWeightedBeliefs(types);
+  const solved=weightedBellmanLayers(graph);
+  if(!solved.allStatesFixed)throw new Error('Incomplete exact posterior decision table');
+  return {types,graph,layers:solved.layers,convergenceDepth:solved.convergenceDepth};
+}
+
+/**
+ * Use only an authorized public, continuously advancing step(bit) API to
+ * obtain a semantically exact continuation clone under the trusted <=2-state
+ * deterministic binary Mealy assumption. No reset or private table is used.
+ *
+ * 'boundedNine' minimizes prior-weighted average steps subject to a hard
+ * nine-query maximum. 'expected' globally minimizes prior-weighted average
+ * steps and has a worst-case limit of ten. Both policies are exact for the
+ * specified uniform prior over 260 labelled original models.
+ *
+ * @param {{step:(symbol:number)=>Promise<number>}} api
+ * @param {'boundedNine'|'expected'} [policy]
+ * @param {ReturnType<typeof createTwoStateWeightedWorkspace>} [workspace]
+ * @returns {Promise<{certified:boolean,queries:number,remaining:number,
+ *   inputs:number[],outputs:number[],clone:{next:number[][],output:number[][],
+ *   state:number},modelBound:2,modelCount:number,posteriorStates:number,
+ *   policy:'boundedNine'|'expected'}>}
+ */
+async function learnTwoStateWeightedStepOnly(api,policy='boundedNine',workspace){
+  if(policy!=='boundedNine'&&policy!=='expected'){
+    throw new RangeError('policy must be boundedNine or expected');
+  }
+  const prepared=workspace||createTwoStateWeightedWorkspace();
+  const {types,graph,layers,convergenceDepth}=prepared;
+  const horizon=policy==='boundedNine'?9:convergenceDepth-1;
+  let beliefKey=graph.initialKey;
+  /** @type {number[]} */
+  const inputs=[];
+  /** @type {number[]} */
+  const outputs=[];
+  for(let query=0;query<=horizon;query++){
+    const belief=graph.beliefs.get(beliefKey);
+    if(!belief)throw new Error('Missing reachable posterior belief');
+    if(belief.terminal){
+      const behavior=belief.weights.findIndex(count=>count!==0);
+      const representative=types.rooted[types.types.indexOf(behavior)];
+      if(!representative)throw new Error('Missing terminal behavioral model');
+      const clone={
+        next:representative.model.next.map(row=>row.slice()),
+        output:representative.model.output.map(row=>row.slice()),
+        state:representative.state
+      };
+      return {certified:true,queries:inputs.length,remaining:belief.mass,
+        inputs,outputs,clone,modelBound:2,modelCount:types.models.length,
+        posteriorStates:graph.keys.length,policy};
+    }
+    if(query===horizon)throw new Error('Exact posterior policy exceeded proven worst case');
+    const costs=layers[horizon-query-1];
+    if(!costs)throw new Error('Missing posterior policy cost layer');
+    const scores=belief.branches.map(children=>children.reduce((sum,id)=>
+      sum+(id===null?0:costs.get(id)??Infinity),0));
+    const symbol=scores[0]<=scores[1]?0:1;
+    const observed=await api.step(symbol);
+    if(observed!==0&&observed!==1)throw new RangeError('Expected binary output');
+    const next=belief.branches[symbol][observed];
+    if(next===null)throw new Error('Observed oracle violates declared two-state bound');
+    inputs.push(symbol);
+    outputs.push(observed);
+    beliefKey=next;
+  }
+  throw new Error('Unreachable learner termination');
+}
+
+module.exports={buildWeightedBeliefs,weightedBellmanLayers,evaluateWeightedPolicy,
+  analyzeTwoStateExpectedQueries,createTwoStateWeightedWorkspace,
+  learnTwoStateWeightedStepOnly};
+

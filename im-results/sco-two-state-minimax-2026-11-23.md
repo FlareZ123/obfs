@@ -52,3 +52,12 @@ With C(singleton behavioral type)=0, a finite-horizon recurrence converges to a 
 The nine-cap optimization saves **108 / 1,992 = 5.42168675%** of the existing heuristic's total calls without increasing its worst case. Allowing one extra worst-case call saves **216 / 1,992 = 10.84337349%**. These are exact counts for a small synthetic model family under a specified prior, not statistical estimates or a production service benchmark.
 
 Reproduction is in sims/sco-step-only-two-state-expected.js and the third test in test/sco-step-only-two-state-minimax.test.js. The implementation computes the weighted posterior graph, Bellman layers, and full 260-model replay. Local Node v22.16.0 passed all **three** focused tests with these exact metrics; cross-platform and full strict JSDoc results require a separately source-pinned workflow.
+
+
+## Full public-step learner, exhaustive online differential controls
+
+The posterior policy is now an executable **asynchronous public-only learner** in sims/sco-step-only-two-state-expected.js. Its API accepts only a legitimate step(bit) operation and an optional, reusable immutable-by-convention decision workspace. Each response updates the current posterior and state alignment. On a terminal posterior, the implementation constructs a representative stateful clone from the future-behavior type. Neither policy uses reset or private transition-table access.
+
+test/sco-step-only-two-state-online.test.js exercises each policy against all **260** original labelled 1- and 2-state oracle tables. A private test harness alone owns the current state and table. Every clone passes an independent product-BFS comparison against the true final private state, covering **all future input words**, with exact totals **1,884** (bounded-nine) and **1,776** (minimum expected) public steps. Invalid output and invalid-policy controls reject. This is a full finite-model verification for the declared binary two-state class, still far narrower than arbitrary protected JavaScript or a live SCO service.
+
+Local Node 22.16.0 executed six focused minimax/weighted/online tests, all passing. Fresh source-pinned Ubuntu/Windows workflow validation for the additional async learner must be considered separately from the earlier two-platform minimax-only success.
