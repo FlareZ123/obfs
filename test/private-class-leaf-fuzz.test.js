@@ -33,10 +33,11 @@ function positive(id){
   const bias='biasField'+id;
   const name='Reader'+id;
   const method='read'+id;
+  const methodName=(id&32)!==0?`["${method}"]`:`${method}`;
   const read=computed?`owner["${field}"]`:`owner.${field}`;
   const define=type==='declaration'?
-    `class ${name}{${method}(){return ${read};}}`:
-    `const ${name}=class{${method}(){return ${read};}};`;
+    `class ${name}{${methodName}(){return ${read};}}`:
+    `const ${name}=class{${methodName}(){return ${read};}};`;
   const instanceLines=Array.from({length:receivers},(_,index)=>
     `const receiver${index}=new ${name}();`);
   const sum=instanceLines.map((_,index)=>`receiver${index}.${method}()`)
@@ -104,9 +105,9 @@ function negative(id){
   return {label:labels[n],source:[n===15?'':"'use strict';",owner,cls,instance,extra,output].join('\n')};
 }
 
-test('seeded 32-case positive matrix keeps 96 mode outputs and private-key rewrites',()=>{
+test('seeded 64-case positive matrix keeps 192 mode outputs and private-key rewrites',()=>{
   let rewrites=0,attackerRecovered=0;
-  for(let id=0;id<32;id++){
+  for(let id=0;id<64;id++){
     const source=positive(id);
     const expected=run(source);
     assert.ok(expected!==undefined);
@@ -127,7 +128,7 @@ test('seeded 32-case positive matrix keeps 96 mode outputs and private-key rewri
     }
   }
   process.stdout.write('CLASS_LEAF_FUZZ_POSITIVE '+JSON.stringify({
-    scenarios:32,modeCases:96,rewrites,attackerRecovered
+    scenarios:64,modeCases:192,rewrites,attackerRecovered
   })+'\n');
 });
 
