@@ -518,8 +518,8 @@ Additional red-first finding: an unlisted imported function can receive a local 
 - Expanded nine-form proxy-factory matrix **45279689540**: GREEN both OS with strict project/external JSDoc.
 - Candidate 55-case numeric matrix after opaque-call guard **45279091108**: GREEN both OS.
 - After final opaque call/apply/bind alias extension, focused `function-source-coercion-matrix`, `primitive-coercer-source-precision`, and `source-observer-coverage` suites **45280032778**, **45280039344**, **45280045204**: GREEN both OS with strict JSDoc.
-- Latest 55-case matrix after final source change **45280246940**: Ubuntu GREEN; Windows still running at this checkpoint.
+- Latest 55-case matrix after final source change **45280246940**: GREEN on both Ubuntu and Windows with strict project/external JSDoc.
 
-Latest candidate branch head at this checkpoint: `1b5ca00aa49322d37b1f42452ea44a6b6eadc04f` (report-only commit after code/test commits); latest report update on branch is `e5770849f4bb3eb6e2c69fd25e3d784af1f20771`. Main canonical intake includes the new baseline red/green evidence; production main compiler blobs remain unchanged. The opaque-import source escape and three-pass yield consequences are also communicated to Agents 1, 10 and 12 and in broadcast.
+Latest candidate branch head at this checkpoint: `dd04dbe403de398c3f894072c3b09891d0e0c793` (final report commit after code/test commits); latest report update is `dd04dbe403de398c3f894072c3b09891d0e0c793`. Main canonical intake includes the new baseline red/green evidence; production main compiler blobs remain unchanged. The opaque-import source escape and three-pass yield consequences are also communicated to Agents 1, 10 and 12 and in broadcast.
 
 Do not merge the candidate boolean guard. The final source-island/effect summary must identify observed function BindingIds/spans, preserve source-visible identifiers/properties/literals within those spans, and allow unrelated yield. Unknown external callables remain opaque unless their source/effect summaries are supplied. Full mainline acceptance remains Agent 10's responsibility; no full gate was dispatched from this invocation.
