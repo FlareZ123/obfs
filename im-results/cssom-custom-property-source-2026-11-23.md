@@ -77,3 +77,24 @@ a tracked native Element `.style` or CSSRule `.style` object plus bounded
 method aliases, when optimizing the source-observer preflight. They do not
 prove any particular flow algorithm sound. An unrecognized receiver and
 function-valued argument remain outside the verified positive-contract set.
+
+## Equal-trust ordinary minifier control
+
+A matched **esbuild 0.28.2** source-text control, `test/cssom-source-esbuild-baseline.test.js`,
+ran at exact `6050af16df5092d1f59fa6fc0867ea9723465f97` in
+[two-platform focused validation 45097790103](https://github.com/FlareZ123/obfs/actions/runs/45097790103),
+**green on both operating systems**, including strict project and external
+JSDoc. The original, ordinary minified, and COO-emitted functions all
+returned 31. The observed custom-property strings differed:
+
+- Original native: `function inspect(){const state={secretField:31};return state.secretField;}`.
+- Ordinary esbuild minifier: `function inspect(){return{secretField:31}.secretField}`.
+- COO: `function inspect(){const _vc1ce8e2abc1a={"_pdec6b94aa1":31};return _vc1ce8e2abc1a._pdec6b94aa1;}`.
+
+The current COO test actually renamed one private field. This control
+demonstrates that **exact callable-source compatibility is also a generic
+ordinary-minifier issue** for this finite input, not an incremental
+deobfuscation-resistance result attributable to the current COO scheme.
+The JS-modeled CSSOMString conversion is separate from the previously
+verified native Chromium source-parity witness. No arbitrary input or
+performance conclusion follows.
