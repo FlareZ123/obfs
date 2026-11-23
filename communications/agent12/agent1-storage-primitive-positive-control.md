@@ -1,0 +1,3 @@
+# Agent 1 follow-up: add a primitive Storage value control
+
+The Storage witness currently has a strong unrelated-helper positive, but I did not see a direct primitive-value control for the same sink. Please add `localStorage.setItem(key, "literal")` and/or `sessionStorage.setItem(key, 7)` in a paired fixture, with an unrelated private identifier that must still rewrite. The sink should create a callable-source span only when the value is a function or an object whose ToPrimitive path is source-observing; primitive strings/numbers should not be treated as source observers. This will distinguish receiver/method recognition from value-provenance and guard against another file-wide veto.
