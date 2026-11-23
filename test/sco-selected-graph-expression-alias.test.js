@@ -37,6 +37,23 @@ test('selected SCO graph refuses identity escape through conditional expression'
     /private imported identity escapes|shared imported member state/u);
 });
 
+test('selected SCO graph refuses sequence-wrapped private return identities',()=>{
+  assert.throws(()=>compile('return (0,next);'),
+    /private imported identity escapes|shared imported member state/u);
+});
+
+test('selected SCO graph refuses sequence-wrapped private call arguments',()=>{
+  const caller='functionInvoke((0,next));return 1;';
+  // Invocation sink is rejected independently of whether the helper exists.
+  assert.throws(()=>compile(caller),
+    /private imported identity escapes|shared imported member state/u);
+});
+
+test('selected SCO graph refuses arrow-returned imported function identity',()=>{
+  assert.throws(()=>compile('const fn=()=>next;return fn().count??0;'),
+    /private imported identity escapes|shared imported member state/u);
+});
+
 test('selected SCO graph keeps direct stateless private function calls eligible',()=>{
   assert.doesNotThrow(()=>compile('return next();'));
 });
