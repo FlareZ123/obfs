@@ -2,10 +2,10 @@
 
 const assert = require('node:assert/strict');
 const {createHash, randomBytes} = require('node:crypto');
-const {
-  cloneTopQuintic,
-  evaluateClone
-} = require('./rankfive-top-quintic-functional-clone-peer');
+const {cloneTopQuintic} = require('./rankfive-top-quintic-functional-clone-peer');
+
+/** @typedef {{bits:number,lower:Array<[number,number]>,top:Array<[number,number]>,degree:4|5,queries:number,trials:number,quotientRank:number,trialCap:number}} FastModel */
+/** @typedef {{bits:number,lower:Array<[number,number]>,top:Array<[number,number]>,degree:4|5,queries:number,fastQueries:number,verificationQueries:number,verificationSamples:number,verificationCap:number,verificationDelta:number,verificationPassed:boolean,falseAcceptanceBound:number,fallbackUsed:boolean,fallbackReason:string|null,exactByInterpolation:boolean,trials?:number,quotientRank?:number,trialCap?:number,verificationMismatchAt?:number|null,fallbackQueries?:number}} ValidatedModel */
 
 /** @param {number} seed @returns {()=>number} */
 function seeded(seed) {
@@ -85,6 +85,20 @@ function exactDegreeFiveModel(ask, n) {
   return {bits:n,lower,top,degree:top.length > 0 ? 5 : 4};
 }
 
+/** @param {FastModel} model @param {number} input @returns {number} */
+function evaluateModel(model, input) {
+  const mask = model.bits === 32 ? 0xffffffff : (2 ** model.bits - 1);
+  const x = (input & mask) >>> 0;
+  let result = 0;
+  for (const [support,coefficient] of model.lower) {
+    if (((x & support) >>> 0) === support) result ^= coefficient;
+  }
+  for (const [support,coefficient] of model.top) {
+    if (((x & support) >>> 0) === support) result ^= coefficient;
+  }
+  return result >>> 0;
+}
+
 /**
  * Cache a deterministic unsigned 32-bit oracle. The caller's source must be
  * fixed and stateless for the algebraic and verification guarantees.
@@ -126,7 +140,7 @@ function cachedOracle(oracle, n) {
  * @param {()=>number} [drawWitness]
  * @param {()=>number} [drawVerify]
  * @param {number} [delta]
- * @returns {object}
+ * @returns {ValidatedModel}
  */
 function cloneTopQuinticValidated(
   oracle,
@@ -139,11 +153,13 @@ function cloneTopQuinticValidated(
   assert.ok(Number.isFinite(delta) && delta > 0 && delta < 1);
   const {ask,cache} = cachedOracle(oracle,n);
   const verificationCap = Math.ceil(Math.log(delta) / Math.log(31 / 32));
+  /** @type {FastModel|null} */
   let fastModel = null;
+  /** @type {string|null} */
   let fastFailure = null;
 
   try {
-    fastModel = cloneTopQuintic(ask,n,drawWitness,delta);
+    fastModel = /** @type {FastModel} */ (cloneTopQuintic(ask,n,drawWitness,delta));
   } catch (error) {
     const candidate = /** @type {{code?:string,message?:string}} */ (error);
     if (candidate.code === 'ERR_ASSERTION' &&
@@ -157,6 +173,7 @@ function cloneTopQuinticValidated(
   const fastQueries = cache.size;
   let verificationSamples = 0;
   let verificationQueries = 0;
+  /** @type {number|null} */
   let mismatchAt = null;
   if (fastModel !== null) {
     const beforeVerification = cache.size;
@@ -165,7 +182,7 @@ function cloneTopQuinticValidated(
       const input = (drawVerify() >>> 0) & inputMask;
       verificationSamples++;
       const observed = ask(input);
-      if (observed !== evaluateClone(fastModel,input)) {
+      if (observed !== evaluateModel(fastModel,input)) {
         mismatchAt = input >>> 0;
         break;
       }
@@ -292,7 +309,7 @@ function main() {
   assert.notEqual(silent.verificationMismatchAt,null);
   assert.ok(silent.verificationSamples <= 726);
   for (let input = 0; input < 128; input++) {
-    assert.equal(evaluateClone(silent,input),silentSource(input));
+    assert.equal(evaluateModel(silent,input),silentSource(input));
   }
 
   const overflowSource = rankSevenOverflowSource();
@@ -306,7 +323,7 @@ function main() {
   assert.equal(overflow.fallbackReason,'signature-span-overflow');
   assert.equal(overflow.exactByInterpolation,true);
   for (let input = 0; input < 128; input++) {
-    assert.equal(evaluateClone(overflow,input),overflowSource(input));
+    assert.equal(evaluateModel(overflow,input),overflowSource(input));
   }
 
   const summary = {
@@ -333,7 +350,7 @@ function main() {
       verificationSamples:silent.verificationSamples,
       verificationMismatchAt:silent.verificationMismatchAt,
       sourceAt124:silentSource(124),
-      cloneAt124:evaluateClone(silent,124),
+      cloneAt124:evaluateModel(silent,124),
       exactAll128:true,
       queries:silent.queries
     },
