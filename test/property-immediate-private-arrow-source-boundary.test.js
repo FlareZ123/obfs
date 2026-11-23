@@ -78,3 +78,20 @@ for(const mode of /** @type {const} */ (['coo','sno'])) {
       Function.prototype.toString.call(emittedFn));
   });
 }
+
+test('closed-world three-module inline-arrow value graph keeps two owned ESM fields',()=>{
+  const {makeFixture}=require('../sims/esm-observation-matrix');
+  const files=makeFixture(7,0).files;
+  const output=obfuscateFiles(files,{
+    mode:'coo',closedWorld:true,identifiers:false,strings:false,
+    seed:'private-inline-arrow-three-module-source-proof'
+  });
+  assert.equal(output.crossFile.properties,2,
+    'Direct private inline arrow is never exported as a callable value');
+  const observer=obfuscateFiles(makeFixture(7,4).files,{
+    mode:'coo',closedWorld:true,identifiers:false,strings:false,
+    seed:'private-inline-arrow-three-module-keys-negative'
+  });
+  assert.equal(observer.crossFile.properties,0,
+    'Object.keys still observes publicly spelled keys');
+});
