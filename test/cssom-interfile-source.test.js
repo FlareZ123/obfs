@@ -106,4 +106,26 @@ for(const mode of /** @type {const} */(['coo','sco','sno'])) {
   }
 }
 
+
+for(const mode of /** @type {const} */(['coo','sco','sno'])) {
+  test('cross-file explicitly String-coerced imported function source '+mode,async()=>{
+    const original=sources(false);
+    original[1].code=original[1].code.replace(
+      'style.setProperty("--observed",inspect);',
+      'style.setProperty("--observed",String(inspect));'
+    );
+    const transformed=generate(original,'cssom-interfile-explicit/'+mode,mode);
+    const native=await execute(original);
+    const actual=await execute(transformed.files);
+    process.stdout.write('CSSOM_INTERFILE_EXPLICIT '+JSON.stringify({
+      mode,properties:transformed.properties,
+      producerBytesChanged:transformed.files[0].code!==original[0].code,
+      observerBytesChanged:transformed.files[1].code!==original[1].code,
+      exactOutputParity:JSON.stringify(native)===JSON.stringify(actual),
+      nativeSource:native.text,emittedSource:actual.text
+    })+'\n');
+    assert.equal(JSON.stringify(actual),JSON.stringify(native));
+  });
+}
+
 module.exports={execute,sources,generate};
