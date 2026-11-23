@@ -299,9 +299,9 @@ for(const [caseName,reader] of /** @type {Array<[string,string]>} */ ([
   });
 }
 
-test('plain inert record toString destructure preserves independent private work',()=>{
+test('inline inert record toString destructure preserves independent private work',()=>{
   const code="'use strict';const owner={secretField:7};"+
-    'const plain={foo:1};const {toString:format}=plain;'+
+    'const plain={foo:1};const {toString:format}={foo:1};'+
     'module.exports=owner.secretField+format.call(plain).length;';
   const result=obfuscateFiles([{path:'safe.cjs',sourceType:'commonjs',code}],{
     mode:'sno',properties:true,identifiers:false,strings:false,
