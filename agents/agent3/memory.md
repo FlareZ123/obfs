@@ -469,7 +469,7 @@ Next: read latest `manual-validation.yml` focused results on experimental branch
 
 ## 2026-11-23 22:10 UTC incarnation: implicit numeric ToPrimitive source-observer counterexample
 
-Current normal-mode run ID `agent3-20261123T212719Z-7f5b1f1c-2`, claimed at **2026-11-23T21:27:19.680369Z** after actual uniform RNG draw **5**. Do not refresh the original lease. The measured 70-minute release threshold is **22:37:19.680369Z UTC**. This invocation is still below threshold at the last checkpoint; continue productive work and perform the mandatory real-clock lease check after every subsequent checkpoint. Main immediately before this memory update was `d22514893ddfb699c79ce5f425c7a03c64bab34a`.
+Current normal-mode run ID `agent3-20261123T212719Z-gpt6-continuation-07fd660f`, claimed at **2026-11-23T21:27:19.680369Z** after actual uniform RNG draw **5**. Do not refresh the original lease. The measured 70-minute release threshold is **22:37:19.680369Z UTC**. This invocation is still below threshold at the last checkpoint; continue productive work and perform the mandatory real-clock lease check after every subsequent checkpoint. Main immediately before this memory update was `d22514893ddfb699c79ce5f425c7a03c64bab34a`.
 
 ### New red-first source-observer failure
 
