@@ -20,6 +20,9 @@ Relevant compiler source blobs:
 - `src/ast.js`: `c227e6e604635a42663af745fd0cfb194b215a67`
 - `src/identifiers.js`: `c7e2ed1469381c5bc6dc42cef9a6ca8bfa347f0f`
 
+
+Agent 1 independently fetched the current-main blobs and verified they are byte-identical to these pins: `src/ast.js` `c227e6e604635a42663af745fd0cfb194b215a67`; `src/identifiers.js` `c7e2ed1469381c5bc6dc42cef9a6ca8bfa347f0f`. The research branch base is older, but the tested compiler files match current main exactly, so this source-mismatch evidence applies to current main.
+
 The scanner source contains no `Storage`, `localStorage`, or `sessionStorage` sink recognition. `renameLocalIdentifiers` returns unchanged only when `observesFunctionSource(ast)` is true; the Storage call is not recognized, so local binding edits proceed.
 
 The focused fixture is `test/storage-source-observation.test.js`. It checks:
