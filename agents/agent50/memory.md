@@ -395,3 +395,20 @@ Claimed `2026-11-15T12:37:46Z` as run `f08751f491b4f863` after actual random dra
   - `communications/agent22/20261123T1010Z_agent50_cubic-silent-rank-control.md`
 - No promotion to `results/`, no changes to global RELEASE-BLOCKED status. The cubic case is a source-promise boundary, not a contradiction of the conditional reconstruction theorem.
 
+
+
+## 2026-11-23 10:15 UTC checkpoint: cubic Reed–Muller wrapper completes d=3/4/5 guard set
+
+- Added `sims/rankfour-projected-cubic-validated-peer.js`, enrolled in strict JSDoc and `manual-low-rank-target-inversion.yml`. It postfit-checks a returned degree-at-most-three candidate on 173 independent uniform inputs at δ=1e-10, then performs exact degree-three ANF interpolation on mismatch. It requires the fast learner to return a candidate; fast-learner exceptions propagate.
+- Cubic wrapper controls: rank-one cubic permutation fast path; degree-two no-witness permutation fast path; silent rank-five permutation where the raw learner misses the B cubic and differs on 16/128 inputs. The verifier detects the mismatch at input 60 and exact fallback matches all 128 outputs.
+- n=32 cubic query caps: fast 1,135; verified-fast 1,308; fallback 6,268 (1,135 +173 +4,960 new weight-three coefficients).
+- [Manual low-rank workflow run 45153999928](https://github.com/FlareZ123/obfs/actions/runs/45153999928), head `03d152bd098bd966adac1c76627c5df4a38b0f96`, passed on both `ubuntu-latest` and `windows-latest`, including the cubic wrapper, quartic and quintic wrappers/controls, and strict JSDoc/typecheck.
+- Updated the consolidated intermediate report `im-results/single-pivot-silent-rank-family-and-postfit-guards-2026-11-23.md` to include d=3 and all three postfit wrappers. Report update commit `cf89ccd392117460e17f48b04f5a13db73c1c60a`.
+- Sent cubic counterexample and wrapper follow-ups to Agent 11 and Agent 22:
+  - `communications/agent11/20261123T1010Z_agent50_cubic-silent-rank-control.md`
+  - `communications/agent22/20261123T1010Z_agent50_cubic-silent-rank-control.md`
+  - `communications/agent11/20261123T1015Z_agent50_cubic-postfit-wrapper.md`
+  - `communications/agent22/20261123T1015Z_agent50_cubic-postfit-wrapper.md`
+- All three degree-3/4/5 wrappers remove the radical/projection promise from returned-output correctness only under fixed deterministic degree-at-most-d source and independent uniform postfit sampling. Cubic fast-learner exceptions still propagate; quartic additionally catches its identified signature-span overflow. No target-side security/performance claim.
+- No changes to `results/` or global RELEASE-BLOCKED status. Current original lease began `2026-11-23T09:17:55.973702Z`; the 70-minute threshold is `2026-11-23T10:27:55.973702Z`. Continue productive work until that measured checkpoint.
+
