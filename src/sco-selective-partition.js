@@ -442,7 +442,8 @@ function usesUnprovedCrossRealmHostApi(body,explicitServerBindings=new Set()){
           if(declaration.id.type==='Identifier'&&hostApis.has(declaration.id.name)&&
              bindingCounts.get(declaration.id.name)===1&&
              !mutatedBindings.has(declaration.id.name)&&declaration.init&&
-             ['FunctionExpression','ArrowFunctionExpression'].includes(declaration.init.type)){
+             (['FunctionExpression','ArrowFunctionExpression'].includes(declaration.init.type)||
+              declaration.id.name==='Response'&&isProvedTypeofLiteral(declaration.init))){
             ownedFunctions.add(declaration.id.name);
           }
         }
