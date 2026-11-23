@@ -45,15 +45,32 @@ async function execute(files) {
   try {
     for(const file of files)await atomicWrite(path.join(root,file.path),file.code);
     const entry=await import(pathToFileURL(path.join(root,'index.mjs')).href);
-    return /** @type {string} */ (entry.result);
+    return String(entry.result);
   }finally {
     await fs.rm(root,{recursive:true,force:true});
   }
 }
 
-test('adjacent primitive proof retains cross-file positive rewrite yield',async()=>{
-  const source=graph('secretValue','state.secretValue+work()+observed');
-  assert.equal(collectVerifiedImportedPrimitives(source).get('index.mjs')?.has('observed'),true);
+test('adjacent primitive proof retains four-file cross-owner positive yield',async()=>{
+  /** @type {Source[]} */
+  const source=[
+    {path:'state.mjs',sourceType:'module',code:
+      'export const state={secretValue:3,otherKey:5};'+
+      'export const internalValue=state.secretValue;'},
+    {path:'workerA.mjs',sourceType:'module',code:
+      'import {state} from "./state.mjs";'+
+      'function worker(param){const alias=param;return alias.secretValue+alias.otherKey;}'+
+      'export const partial=worker(state);'},
+    {path:'workerB.mjs',sourceType:'module',code:
+      'import {state} from "./state.mjs";'+
+      'const {secretValue:factor,otherKey}=state;export const partial=factor*otherKey;'},
+    {path:'index.mjs',sourceType:'module',code:
+      'import {state,internalValue} from "./state.mjs";'+
+      'import {partial as a} from "./workerA.mjs";'+
+      'import {partial as b} from "./workerB.mjs";'+
+      'export const result=(+a)+(+b)+internalValue+state.secretValue;'}
+  ];
+  assert.equal(collectVerifiedImportedPrimitives(source).get('index.mjs')?.has('internalValue'),true);
   const compiled=obfuscateFiles(source,{mode:'coo',closedWorld:true,
     properties:true,strings:false,identifiers:false,seed:'adjacent-coercion-positive'});
   assert.equal(compiled.crossFile.objects,1);
@@ -61,7 +78,7 @@ test('adjacent primitive proof retains cross-file positive rewrite yield',async(
   const emitted=compiled.files.map(file=>({
     path:file.path,sourceType:/** @type {'module'} */ ('module'),code:String(file.code)
   }));
-  assert.equal(await execute(source),'3|8|14');
+  assert.equal(await execute(source),'29');
   assert.equal(await execute(emitted),await execute(source));
 });
 
