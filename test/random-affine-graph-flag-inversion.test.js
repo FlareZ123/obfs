@@ -36,3 +36,22 @@ test('the graph method refuses a residual permutation with no nonconstant affine
   assert.equal(result.reason,'no-nonconstant-relation');
   assert.equal(result.failedDimension,3);
 });
+
+test('rank-stagnation confidence accounts for every incomplete rank episode',()=>{
+  const width=8,degree=2,delta=0.1;
+  const {oracle}=makeRandomTriangularOracle(width,degree,81);
+  const secret=39n;
+  const result=invertByRandomAffineGraph(oracle,oracle(secret),width,degree,
+    {seed:91,delta});
+  assert.equal(result.success,true);
+  assert.equal(result.input,secret);
+  for(const stage of result.stages){
+    const rankBound=width+stage.dimension;
+    const expected=Math.ceil((2**degree)*
+      (Math.log(width)+Math.log(rankBound)-Math.log(delta)));
+    assert.equal(stage.stagnationLimit,expected);
+    // Each unresolved rank has at most exp(-m/2^D) false-stop chance;
+    // across width stages and <=rankBound restarts, total <=delta.
+    assert.ok(width*rankBound*Math.exp(-expected/(2**degree))<=delta);
+  }
+});
