@@ -167,6 +167,8 @@ function plainPrivateHandler(privateMethod,onCall) {
  *   ordinaryPrivateExecutions:number,modelsEqual:boolean,
  *   matchedTargets:number,heldoutTargets:number,
  *   scoOfflineLocalEvaluations:number,ordinaryOfflineLocalEvaluations:number,
+ *   fastScoLocalEvaluations:number,fastOrdinaryLocalEvaluations:number,
+ *   fastScoLinearSystems:number,fastOrdinaryLinearSystems:number,
  *   stoppedBeforeInversion:boolean
  * }>}
  */
