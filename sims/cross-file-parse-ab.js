@@ -10,7 +10,7 @@ const {performance}=require('node:perf_hooks');
 
 const REPO=join(__dirname,'..');
 const PROPERTY_FILE=join(REPO,'src','cross-properties.js');
-const CONTROL_SHA='cdb66dbc44b9df53d95d82d3e8047ee35487aa07';
+const CONTROL_SHA='cdea290cf40897fcc5385d4fd3d8fbd93f053fd2';
 /** @type {string} */
 let control;
 /** @type {string} */
