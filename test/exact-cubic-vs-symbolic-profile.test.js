@@ -102,7 +102,10 @@ function runComparison(seed){
   for(let repeat=0;repeat<5;repeat++)preparatory.push(timed(()=>prepareExactCubicInverter(model)));
   const selected=prepareExactCubicInverter(model);
   assert.equal(selected.offlineContractions,5984);
-  const cubicTimes=[],symbolicTimes=[];
+  /** @type {number[]} */
+  const cubicTimes=[];
+  /** @type {number[]} */
+  const symbolicTimes=[];
   for(let repeat=0;repeat<5;repeat++){
     // Alternating order limits one-sided drift without promising independence.
     for(const label of (repeat%2===0?['symbolic','reuse']:['reuse','symbolic'])){
