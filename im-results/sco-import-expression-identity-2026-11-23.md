@@ -33,6 +33,12 @@ The after-fix reproducer creates three actual Node ESM source trees with identic
 
 Reproduce from the corresponding exact source pin with `node --test test/sco-selected-graph-expression-alias.test.js`. Use the `manual-validation.yml` focused-test input for Linux/Windows source-pinned CI.
 
+## Subsequent class-field admission probe
+
+A separately source-pinned [two-platform red gate 45133188661](https://github.com/FlareZ123/obfs/actions/runs/45133188661) at `42cd9a3198aee4560d05070847f4314a8fc67df5` returned **two missing-refusal failures per operating system** for imported function identity hidden inside instance and static class field initializers. The eight earlier tests still passed. The new class-field and class-heritage conservative source checks were committed in `178ebc8f7c1eb333b71f6e1f3ed10333f1e2e904`. A real native ESM three-tree class-field counter witness was added separately in `94942884498680da9687b7c3547b9df195d4cd94`. Both changes require a distinct pinned green gate before any passing claim.
+
+Follow-up `4c9a6c3fb35f1741dc472cd78d01384eaab923ba` extends receiver checks to expression-wrapped member accesses, and syntax-level `in` / `for in` / `for of` reflective reads. `test/sco-selected-graph-expression-alias.test.js` now contains source-refusal and safe plain-record controls for these cases. This extra coverage is currently a candidate until a completed focused two-platform run validates it.
+
 ## Implementation and limits
 
 The recursive `carriesAlias` check follows identity-preserving expression results to a fixed point over syntactically named aliases; sink checks reject first-class references whose transfer cannot be proved safe. The graph deliberately may reject harmless uses of primitive imports. A source refusal retains the original application semantics only if the compiler refuses to publish incompatible artifacts.
