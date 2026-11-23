@@ -7,7 +7,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 
 /** @typedef {{head_sha:string,head_branch?:string,status:string,conclusion:string|null,id:number}} SnapshotRun */
-/** @typedef {{name:string,conclusion:string|null,steps:{name:string,conclusion:string|null}[]}} SnapshotJob */
+/** @typedef {{name:string,conclusion:string|null,status:string,run_id:number,head_sha:string,steps:{name:string,conclusion:string|null}[]}} SnapshotJob */
 /** @typedef {{run:SnapshotRun,jobs:SnapshotJob[],url:string}} SnapshotRecord */
 /** @typedef {{records:{fullRed:SnapshotRecord,focusedGreen:SnapshotRecord}}} SnapshotFile */
 /** @type {SnapshotFile} */
@@ -45,11 +45,15 @@ const focusSha = 'd1efacb1578b5443456a18b87839c2f3a024b24a';
  * @param {string} name
  * @param {string} conclusion
  * @param {string[]} required
+ * @param {string} sourceSha
  */
-function makeJob(name, conclusion, required) {
+function makeJob(name, conclusion, required, sourceSha) {
   return {
     name,
     conclusion,
+    status: 'completed',
+    run_id: 99,
+    head_sha: sourceSha,
     steps: required.map((step) => ({ name: step, conclusion: 'success' }))
   };
 }
@@ -63,8 +67,8 @@ function makeRun(sha, conclusion, id) {
 function makeFullJobs(conclusion) {
   return [
     makeJob('node22 (ubuntu-latest)', conclusion,
-      fullSteps.concat(chromiumSteps)),
-    makeJob('node22 (windows-latest)', conclusion, fullSteps),
+      fullSteps.concat(chromiumSteps), fullSha),
+    makeJob('node22 (windows-latest)', conclusion, fullSteps, fullSha),
     { name: 'focused', conclusion: 'skipped', steps: [] }
   ];
 }
@@ -72,8 +76,8 @@ function makeFullJobs(conclusion) {
 /** @param {string} conclusion */
 function makeFocusedJobs(conclusion) {
   return [
-    makeJob('focused (ubuntu-latest)', conclusion, focusedSteps),
-    makeJob('focused (windows-latest)', conclusion, focusedSteps),
+    makeJob('focused (ubuntu-latest)', conclusion, focusedSteps, focusSha),
+    makeJob('focused (windows-latest)', conclusion, focusedSteps, focusSha),
     { name: 'node22', conclusion: 'skipped', steps: [] }
   ];
 }
@@ -146,7 +150,7 @@ test('completed workflow metadata cannot be assumed for running jobs', () => {
 
 test('duplicate job names do not pass accidental Map deduplication', () => {
   const jobs = makeFullJobs('success');
-  jobs.push(makeJob('node22 (ubuntu-latest)', 'success', fullSteps.concat(chromiumSteps)));
+  jobs.push(makeJob('node22 (ubuntu-latest)', 'success', fullSteps.concat(chromiumSteps), fullSha));
   assert.equal(classifyValidationRun(makeRun(fullSha, 'success', 99), jobs, fullSha)
     .classification, 'incomplete');
 });
@@ -156,4 +160,27 @@ test('a genuinely failed focused matrix remains focused-red', () => {
   jobs[1].steps[0].conclusion = 'failure';
   assert.equal(classifyValidationRun(makeRun(focusSha, 'failure', 99), jobs, focusSha)
     .classification, 'focused-red');
+});
+
+
+test('a green node job from a different run cannot be spliced into full acceptance', () => {
+  const jobs = makeFullJobs('success');
+  jobs[0].run_id = 45136105520;
+  const actual = classifyValidationRun(makeRun(fullSha, 'success', 99), jobs, fullSha);
+  assert.equal(actual.classification, 'incomplete');
+  assert.match(actual.reasons.join(';'), /job run ID/);
+});
+
+test('a stale SHA in one matrix job cannot certify the new head', () => {
+  const jobs = makeFullJobs('success');
+  jobs[1].head_sha = focusSha;
+  assert.equal(classifyValidationRun(makeRun(fullSha, 'success', 99), jobs, fullSha)
+    .classification, 'incomplete');
+});
+
+test('a not-completed job cannot certify a full run', () => {
+  const jobs = makeFullJobs('success');
+  jobs[1].status = 'in_progress';
+  assert.equal(classifyValidationRun(makeRun(fullSha, 'success', 99), jobs, fullSha)
+    .classification, 'incomplete');
 });
