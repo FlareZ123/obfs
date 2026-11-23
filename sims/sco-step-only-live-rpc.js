@@ -33,7 +33,7 @@ const {makeIndependentMachine}=require('./sco-sync-independent-distribution');
  *   knownContinuationExact:boolean,networkSteps:number,distinctSourceFiles:boolean,
  *   attackerModelCount:number,attackerScanWork:number,attackerEquivalenceChecks:number,
  *   attackerProductPairs:number,attackerElapsedMs:number,ordinaryControlRan:boolean,
- *   ordinaryControlQueries:number,ordinaryControlExact:boolean,
+ *   ordinaryControlQueries:number,ordinaryControlNetworkSteps:number,ordinaryControlExact:boolean,
  *   ordinaryUnauthorizedStatus:number,ordinaryMinifiedBytes:number,
  *   ordinarySourceBytes:number,attackerTranscriptMatched:boolean}>}
  */
@@ -247,6 +247,7 @@ async function runLiveStepVersionSpace(states=2,seed=0x31415926,matchedControl=f
       attackerProductPairs:result.productPairs||0,
       attackerElapsedMs:result.elapsedMs||0,
       ordinaryControlRan:matchedControl,ordinaryControlQueries:ordinaryQueries,
+      ordinaryControlNetworkSteps:matchedControl?ordinaryQueries+followup.length:0,
       ordinaryControlExact,ordinaryUnauthorizedStatus,
       ordinaryMinifiedBytes,ordinarySourceBytes,attackerTranscriptMatched
     };
