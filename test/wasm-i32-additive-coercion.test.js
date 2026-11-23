@@ -7,6 +7,7 @@ const {performance}=require('node:perf_hooks');
 const {lowerWasmI32Functions}=require('../src/wasm-i32');
 const {obfuscateFiles}=require('../src/core');
 const {recoverPublicWasmExpression}=require('../sims/wasm-i32-static-recover');
+const {pairedBudgetBound}=require('../sims/paired-budget-bound');
 
 /**
  * Strictly typed signed i32 Number inputs: no dynamic coercion, getters,
@@ -149,6 +150,7 @@ test('record bounded-addition native/Wasm hot ratio and cold initialization',()=
     nativeMedianMs:nativeMs,wasmMedianMs:wasmMs,warmRatio,
     nativeStartupMs,wasmStartupMs,
     startupRatio:wasmStartupMs/nativeStartupMs,
+    pairedBudget:pairedBudgetBound(nativeSamples,compiledSamples),
     wasmBytes:generated.wasmBytes,
     scope:'single Node process / VM cross-realm pilot; NOT a universal 2.5x gate'
   }));
