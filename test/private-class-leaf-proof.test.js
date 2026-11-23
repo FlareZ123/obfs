@@ -148,6 +148,10 @@ test('private class leaf in native multi-file ESM preserves values and key-label
   for(const mode of /** @type {const} */ (['coo','sno','sco'])){
     const compiled=obfuscateFiles(files,{mode,seed:'class-leaf-crossfile-'+mode,
       closedWorld:true,strings:false,identifiers:false});
+    console.error('ESM_DIAG',mode,compiled.files.map(file=>[file.path,file.metrics.properties]));
+    const one=obfuscateFiles([files[0]],{mode,seed:'single-esm-class-'+mode,
+      closedWorld:true,strings:false,identifiers:false});
+    console.error('ESM_ONE',mode,one.files[0].metrics.properties);
     const state=compiled.files.find(file=>file.path==='state.mjs');
     assert.ok(state && state.metrics.properties===2,
       mode+': private leaf own fields remain transformable');
