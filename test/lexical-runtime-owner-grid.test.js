@@ -33,7 +33,7 @@ const declarations=[
   'function window(){return "local";}',
   '{function window(){return "local";}}',
   'class window {}',
-  'const window=class window {}'
+  'const window=class window {};'
 ];
 
 /** @type {Wrapper[]} */
