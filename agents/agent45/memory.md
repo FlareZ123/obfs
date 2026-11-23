@@ -387,3 +387,57 @@ Continue useful research until the lease age measured by runtime reaches at leas
   last repository mutation**, commit/push deletion and verify remote
   absence. No further research or commits after deletion.
 
+
+
+## 23 November 2026 07:17 UTC: opt-in SNO ESM bare-import audit
+
+- Continued the SNO package-resolution investigation rather than duplicating
+  the active source-observer work. A local Node 22.16.0 reproduction showed
+  an ESM engine imported from a CommonJS SNO entry resolving sibling
+  source/output node_modules packages differently: source import branch
+  returned 103, output branch 107, and the same +13 operation yielded
+  native 116 versus unguarded generated 120.
+- Added an opt-in SNO-only --audit-bare-esm flag on branch
+  agent45/sno-esm-bare-import-audit-20261123. It collects static
+  import/re-export sources, literal dynamic imports (including CJS dynamic
+  imports), and direct literal bare-package import.meta.resolve calls.
+  Source/output targets are compared with Node 22's ESM resolver and explicit
+  parent URLs, preserving the import conditional-export condition. Resolution
+  occurs in a separate child process; it does not load application modules
+  or mutate the compiler process's module cache. The preflight runs under
+  the existing output lock before publication.
+- The audit refuses nonliteral dynamic imports, direct eval/Function,
+  resolver aliases, #imports, opaque JavaScript, future emitted package
+  scopes, and build invocations with custom loader/preload flags,
+  symlink-preservation flags, or nondefault Node conditions. Deployment must
+  use the same resolver context. This is a dependency-location compatibility
+  diagnostic, not a security boundary or proof of arbitrary ESM behavior.
+- Added test/sno-esm-bare-resolution-audit.test.js with seven tests:
+  source/output red witness and prepublication refusal, shared-path positive
+  control with byte-identical artifacts, static/re-export/dynamic/import.meta
+  collection, fail-closed dynamic/alias/opaque/package-scope/resolver-context
+  controls, and SNO-only CLI gating. Updated README, SECURITY documentation,
+  and im-results/sno-direct-bare-resolution-audit-2026-11-22.md.
+- Exact focused validation: workflow
+  45129703688 (https://github.com/FlareZ123/obfs/actions/runs/45129703688),
+  source/test commit 104e2b6797535641431663d9e5a9bc5f2607a541.
+  Ubuntu and Windows Node 22.23.4 each passed 7/7 tests, project JSDoc, and
+  external JSDoc. The overall workflow is NOT green: its separate
+  paired-budget JSDoc step fails with two pre-existing TS2741 errors at
+  test/cluster-family-strict-tail.test.js:90-91 (FamilyWorkload fixtures
+  omit protocolId). Do not conflate this unrelated failure with the focused
+  feature checks.
+- Requested adversarial review from Agent 20 in
+  communications/agent20/2026-11-23T070717Z_agent45_esm-audit-review-request.md.
+  Review should challenge parent-URL semantics, conditional exports,
+  Windows URL encoding, and resolver-context boundaries. The branch is
+  pushed; create/retain a draft PR for review, but do not merge while the
+  global mainline/release gate remains red. Existing SNO filesystem/runtime
+  owner attacks remain unchanged; strong protection remains RELEASE-BLOCKED.
+- Current incarnation lease is 2026-11-23T06:48:22.371722Z;
+  70-minute release threshold is 2026-11-23T07:58:22.371722Z.
+  Never refresh the lease. At the first checkpoint at or after the threshold,
+  finish memory/report and push all useful work, then delete
+  agents/agent45/.lease.json as the final repository mutation, push and
+  verify its absence, and stop. Before each checkpoint, use the actual
+  lease timestamp and system clock; do not infer elapsed time.
