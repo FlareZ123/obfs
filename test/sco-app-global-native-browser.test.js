@@ -276,3 +276,37 @@ test('selected SCO process local primitive is lexically owned',async()=>{
     {seed:'agent35-process-local-positive',privateNames:['protectedOp']});
   assert.deepEqual(partition.privateNames,['protectedOp']);
 });
+
+
+test('selected and transitive SCO decline browser-base-dependent Response.redirect',()=>{
+  const body='return Response.redirect("/next",302).headers.get("location");';
+  const direct='export async function protectedOp(){'+body+'}'+
+    'export function publicOp(){return 0;}';
+  const indirect='import {readValue} from "./private/leaf.mjs";'+
+    'export async function protectedOp(){return readValue();}'+
+    'export function publicOp(){return 0;}';
+  const opts={seed:'agent35-response-browser-base-decline',
+    privateNames:['protectedOp']};
+  assert.throws(()=>partitionScoSelectedAsyncExports(
+    {path:'mixed.mjs',code:direct,sourceType:'module'},opts
+  ),/unproved cross-realm host API/u);
+  assert.throws(()=>partitionScoSelectedAsyncExports(
+    {path:'mixed.mjs',code:indirect,sourceType:'module'},{
+      ...opts,privateModuleImports:['./private/leaf.mjs'],
+      privateModuleSources:[{path:'private/leaf.mjs',
+        code:'export function readValue(){'+body+'}'}]
+    }
+  ),/unproved cross-realm host API/u);
+});
+
+test('selected SCO retains inert local Response scalar ownership',async()=>{
+  const code='export async function protectedOp(){'+
+    'const Response=41;return Response+1;}'+
+    'export function publicOp(){return 0;}';
+  const native=await import('data:text/javascript,'+encodeURIComponent(code));
+  assert.equal(await native.protectedOp(),42);
+  const transformed=partitionScoSelectedAsyncExports(
+    {path:'mixed.mjs',sourceType:'module',code},
+    {seed:'agent35-response-local-scalar',privateNames:['protectedOp']});
+  assert.deepEqual(transformed.privateNames,['protectedOp']);
+});
