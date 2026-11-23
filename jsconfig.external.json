@@ -109,6 +109,7 @@
     "test/sco-selected-handler.test.js",
     "test/sco-selected-graph.test.js",
     "test/sco-real-browser.js",
+    "test/sco-request-time-storage-source-browser.js",
     "sims/xml-data-url-browser.js",
     "sims/xml-data-url-attack.js",
     "sims/css-nested-data-import-attack.js",
