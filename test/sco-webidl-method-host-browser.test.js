@@ -87,7 +87,7 @@ async function compare(body,label){
       label,refused:false,original,emitted,server:serverValue,
       node:process.version,chrome:await browser.version()
     }));
-    assert.equal(emitted,original,'Selected SCO changed native browser result: '+label);
+    assert.deepEqual(emitted,original,'Selected SCO changed native browser result: '+label);
     return {refused:false,original,emitted,server:serverValue};
   }finally{
     if(browser)await browser.close();
@@ -193,7 +193,10 @@ test('selected SCO Web IDL method admission fails closed on alias and extraction
     "return new globalThis.Headers().get('bad name');",
     "return new globalThis['URLSearchParams']().get(x);",
     "const g=globalThis;return new g.Headers().get('bad name');",
-    "const {Headers:H}=globalThis;return new H().get('bad name');"
+    "const {Headers:H}=globalThis;return new H().get('bad name');",
+    "const key='Headers';const H=globalThis[key];return new H().get('x-demo');",
+    "const key='URLSearchParams';const {[key]:H}=globalThis;return new H().get('a');",
+    "const root=globalThis;const key='Headers';const H=root[key];return new H().get('x-demo');"
   ])assert.throws(()=>compile(body),/unproved cross-realm WebIDL constructor/,body);
   for(const name of ['Headers','URLSearchParams']){
     const shadowed='export async function privateOp('+name+'){' +
@@ -246,7 +249,8 @@ test('private SCO ESM graph applies Web IDL method admission to imported leaves'
   for(const body of [
     "return new URLSearchParams().append(Symbol('x'),'1');",
     "return new Headers().append('bad name','x');",
-    "const h=new Headers();return h.get('x-demo');"
+    "const h=new Headers();return h.get('x-demo');",
+    "const key='Headers';const H=globalThis[key];return new H().get('x-demo');"
   ])assert.throws(()=>graph(body),/unproved cross-realm WebIDL constructor/,body);
   for(const name of ['Headers','URLSearchParams']){
     const body='const '+name+'=17;export function leaf(){return new '+name+'().get("x");}';
