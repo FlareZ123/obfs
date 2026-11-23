@@ -11,7 +11,9 @@ const assert=require('node:assert/strict');
  * control is exactly the same public identity map for all hidden A.
  *
  * This finite enumerator uses full 16-point truth maps to check each hidden
- * source separately from any adaptive attack on its output.
+ * source separately from any adaptive attack on its output. It also checks
+ * that every oracle is an involution: F(F(y))=y, so one forward query at
+ * a target y returns its exact preimage, without identifying a valid mask.
  */
 
 /** @param {number} x @returns {0|1} */
@@ -61,6 +63,7 @@ function conjugatedRareOracle(outputs,prefix,u) {
  *   nonlinearSecondDifferences:number,validMasksPerSource:number,
  *   fixedMaskValidSources:number,oneProbeHits:number,
  *   oneProbeSuccessfulSelections:number,oneProbeFailures:number,
+ *   oneQueryInverseChecks:number,nonIdentityOracles:number,
  *   masksUniform:boolean,firstMaskSuccessFraction:string,
  *   oneProbeSuccessFraction:string}}
  */
@@ -68,6 +71,7 @@ function runExactConjugatedCensus() {
   let matrices=0,sources=0,permutations=0,nonlinearSecondDifferences=0;
   let fixedMaskValidSources=0,oneProbeHits=0;
   let oneProbeSuccessfulSelections=0,oneProbeFailures=0;
+  let oneQueryInverseChecks=0,nonIdentityOracles=0;
   const perMask=new Uint32Array(16);
 
   for(let encoded=0;encoded<65536;encoded++) {
@@ -93,6 +97,17 @@ function runExactConjugatedCensus() {
       const oracle=conjugatedRareOracle(outputs,prefix,u);
       const image=new Set(Array.from({length:16},(_,x)=>oracle(x)));
       if(image.size===16)permutations++;
+      let nonFixedTargets=0;
+      for(let target=0;target<16;target++) {
+        const preimage=oracle(target); // one chosen query at the target
+        assert.equal(oracle(preimage),target,
+          'Conjugated rare source must invert itself at every target');
+        if(preimage!==target)nonFixedTargets++;
+        oneQueryInverseChecks++;
+      }
+      assert.equal(nonFixedTargets,4,
+        'Each width-four prefix selects exactly four nonfixed targets');
+      if(nonFixedTargets>0)nonIdentityOracles++;
       const second=oracle(0)^oracle(h0)^oracle(h1)^oracle(h0^h1);
       if(second===u)nonlinearSecondDifferences++;
 
@@ -130,6 +145,8 @@ function runExactConjugatedCensus() {
     'Four source prefixes per hidden invertible matrix');
   assert.equal(permutations,sources);
   assert.equal(nonlinearSecondDifferences,sources);
+  assert.equal(oneQueryInverseChecks,16*sources);
+  assert.equal(nonIdentityOracles,sources);
   assert.equal(fixedMaskValidSources,expectedFixed);
   assert.equal(oneProbeHits,sources/4);
   assert.equal(oneProbeSuccessfulSelections,(3*sources)/5);
@@ -140,6 +157,7 @@ function runExactConjugatedCensus() {
     matrices,sources,permutations,nonlinearSecondDifferences,
     validMasksPerSource:7,fixedMaskValidSources,
     oneProbeHits,oneProbeSuccessfulSelections,oneProbeFailures,
+    oneQueryInverseChecks,nonIdentityOracles,
     masksUniform,firstMaskSuccessFraction:'7/15',
     oneProbeSuccessFraction:'3/5'
   };
