@@ -21,7 +21,7 @@ function execute(code) {
     /** @param {unknown} name */
     getPropertyValue(name){return attrs.get(String(name))??'';}
   }})};
-  const module={exports:null};
+  const module={exports:/** @type {unknown} */(null)};
   vm.runInNewContext(code,{document,module},{timeout:3000});
   return /** @type {{source:string,number:number}} */(module.exports);
 }
