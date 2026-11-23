@@ -85,7 +85,7 @@ function exactDegreeFiveModel(ask, n) {
   return {bits:n,lower,top,degree:top.length > 0 ? 5 : 4};
 }
 
-/** @param {FastModel} model @param {number} input @returns {number} */
+/** @param {{bits:number,lower:Array<[number,number]>,top:Array<[number,number]>}} model @param {number} input @returns {number} */
 function evaluateModel(model, input) {
   const mask = model.bits === 32 ? 0xffffffff : (2 ** model.bits - 1);
   const x = (input & mask) >>> 0;
