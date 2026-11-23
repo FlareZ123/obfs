@@ -1327,3 +1327,49 @@ Caveat: report contains research-branch diagnostics; source SHA pins differ from
   attacker resistance, source secrecy, or universal <=2.5x. At each
   checkpoint read original lease and actual clock; release at measured 70m
   by committing remaining work then deleting lease as last operation.
+
+
+### 2026-11-23 20:14 UTC: native ReferenceRole, switch scope, ESM class evidence
+
+- Native read/write event oracle `test/agent1-reference-role-native-effects.test.js`,
+  16 fixtures in separate `node:vm` accessor contexts. Added source
+  `45fd4a55`, strict JSDoc inclusion `ce78c134`. Ubuntu+Windows 16/16
+  plus strict checks green [45254009587](https://github.com/FlareZ123/obfs/actions/runs/45254009587).
+  Report `im-results/agent1-reference-role-path-2026-11-23.md` extended
+  at `7f599849`.
+- Agent 23 found switch discriminant incorrectly resolving in CaseBlock:
+  ported four-case `test/agent23-switch-discriminant-scope.test.js`
+  (main red-first 2/4 on both OS
+  [45254517650](https://github.com/FlareZ123/obfs/actions/runs/45254517650)).
+  Small scope split in Stage1 walker
+  [50fb6c97](https://github.com/FlareZ123/obfs/commit/50fb6c9708d4f8980a9d23b1ec7bcf52cc558a96);
+  external JSDoc `5f46bef1`.
+  Green on both OS: switch 4/4 [45254738432](https://github.com/FlareZ123/obfs/actions/runs/45254738432);
+  original Stage1 10/10 [45254748047](https://github.com/FlareZ123/obfs/actions/runs/45254748047);
+  150 Acorn/TS [45254757075](https://github.com/FlareZ123/obfs/actions/runs/45254757075);
+  class binding 6/6 [45254766973](https://github.com/FlareZ123/obfs/actions/runs/45254766973);
+  native roles 16/16 [45254775641](https://github.com/FlareZ123/obfs/actions/runs/45254775641);
+  Stage2 12/12 [45254784792](https://github.com/FlareZ123/obfs/actions/runs/45254784792).
+  Source pins `054bd048` (first three) and `bcf1b031` (last three),
+  strict JSDoc green; full Node skipped.
+  Agent23 original report `im-results/switch-discriminant-lexical-scope-2026-11-23.md`
+  copied and annotated on main (`37ff5526`), Agent23/3 informed.
+- Agent 6's fifth real two-module ESM live class binding/control
+  `test/lexical-class-esm-live-binding.test.js` ported from closed #344:
+  main commits `c7ca2a35`, strict JSDoc `b48f4145`, Ubuntu/Windows 2/2
+  [45255002916](https://github.com/FlareZ123/obfs/actions/runs/45255002916);
+  class hidden-source report updated `ff1c65a9`.
+- Independent 60-case Acorn/TypeScript switch scope matrix,
+  `test/agent1-lexical-switch-typescript-grid.test.js`, 12 discriminant/
+  case-test/consequent templates × 5 wrapper environments. Initial generated
+  var/let collision fixed `2ee06d50`; strict TS7022/TS7024 on implicit
+  `expected` fixed with explicit narrow JSDoc union `9eea19ec`.
+  Two-OS 60/60 and all strict JSDoc green at
+  `9eea19ec4c09e7a2ceee539c9d2022d11200a74f`
+  [45256474026](https://github.com/FlareZ123/obfs/actions/runs/45256474026).
+  Report updated `db650d88`; Agent 2 notified of shared typecheck fix.
+- All changes above are read-only Stage1/2 research and fixtures,
+  production `src/` untouched. Security/cost remains RELEASE-BLOCKED;
+  Agent3 compiler intake remains NO-GO. Original lease is
+  `2026-11-23T19:28:16.942684Z`; retain until measured 70m
+  (**20:38:16.942684Z**), then release as final repository mutation.
