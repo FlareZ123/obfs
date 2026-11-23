@@ -1546,9 +1546,18 @@ function safeClosedCallerRecordRead(modules,module,member,ancestors) {
           if(depth>24)return true;
           if(value.type==='Identifier')return callableNames.has(value.name) ||
             callbackHolders.has(value.name);
-          if(value.type==='MemberExpression')
-            return value.object.type==='Identifier' &&
-              callbackHolders.has(value.object.name);
+          if(value.type==='MemberExpression') {
+            // A named ESM namespace export can itself be passed as the
+            // callback, rather than being directly invoked in source.
+            const selected=value.computed?staticString(value.property):
+              staticName(value.property);
+            if(value.object.type==='Identifier' &&
+               namespaceNames.has(value.object.name) && selected===factory)
+              return true;
+            // Nested holder.member.member forms retain the same potential
+            // host callback even when the outer member is not a name.
+            return holdsFactoryValue(value.object,depth+1);
+          }
           if(value.type==='SpreadElement')
             return holdsFactoryValue(value.argument,depth+1);
           if(value.type==='ArrayExpression')
@@ -1568,7 +1577,23 @@ function safeClosedCallerRecordRead(modules,module,member,ancestors) {
               node.type==='AssignmentExpression' && node.operator==='='?node.left:null;
             const value=node.type==='VariableDeclarator'?node.init:
               node.type==='AssignmentExpression'?node.right:null;
-            if(binding?.type!=='Identifier'||!value)return;
+            if(!binding||!value)return;
+            if((binding.type==='ObjectPattern'||binding.type==='ArrayPattern') &&
+               value.type==='Identifier' && callbackHolders.has(value.name)) {
+              // Unknown holder keys may select any source-stored callback.
+              // Join all simple destructuring targets conservatively.
+              const targets=binding.type==='ObjectPattern'?
+                binding.properties.map((/** @type {AstNode} */ prop)=>
+                  prop.type==='Property'?prop.value:null):
+                binding.elements;
+              for(const target of targets) {
+                if(target?.type==='Identifier' && !callableNames.has(target.name)) {
+                  callableNames.add(target.name);
+                  aliasChanged=true;
+                }
+              }
+            }
+            if(binding.type!=='Identifier')return;
             const ordinaryAlias=value.type==='Identifier' &&
               callableNames.has(value.name);
             // Calling a known host-bearing factory after .bind still
