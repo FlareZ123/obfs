@@ -133,3 +133,28 @@ test('grouped versus scan setup timing is reported separately from correctness',
   }
   console.log('EXACT_QUARTIC_GROUPED_SETUP '+JSON.stringify(results));
 });
+
+
+test('grouped contractor exactly matches scanned degree-two and degree-three polynomial defects',()=>{
+  let comparisons=0;
+  for(const degree of [2,3]){
+    const next=random32(0x8f713baa^degree);
+    /** @type {Array<[number,number]>} */
+    const coefficients=[];
+    for(let weight=0;weight<=degree;weight++)
+      for(const mask of masksOfWeight(32,weight))
+        coefficients.push([mask,next()]);
+    const model={bits:32,degree,coefficients,queryCount:0};
+    const scan=makeBoundedDegreeDefectContractor(model,'scan');
+    const grouped=makeBoundedDegreeDefectContractor(model,'grouped');
+    assert.equal(scan.splitTermCount,grouped.splitTermCount);
+    for(const direction of [0,1,0x80000000,0xffffffff,0x7f7f7f7f,0x01010101,
+      ...Array.from({length:32},()=>next())]){
+      assert.deepEqual([...contracted(grouped,direction)],
+        [...contracted(scan,direction)],
+        'grouped lower-degree exact coefficient mismatch');
+      comparisons++;
+    }
+  }
+  assert.equal(comparisons,76);
+});
