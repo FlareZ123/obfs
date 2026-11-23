@@ -366,10 +366,11 @@ function resolveEsmRequests(requests) {
  * @returns {void}
  */
 function assertEsmPackageScopeParity(original,generated,filenames) {
+  const auditedFiles=[...filenames];
   const packagePaths=[...original,...generated]
     .filter(file=>path.posix.basename(file.path).toLowerCase()==='package.json')
     .map(file=>file.path);
-  for(const filename of filenames) {
+  for(const filename of auditedFiles) {
     let directory=path.posix.dirname(filename);
     for(;;) {
       const expected=path.posix.join(directory,'package.json');
@@ -396,7 +397,7 @@ function assertEsmPackageScopeParity(original,generated,filenames) {
       outputPackages.set(file.path,file);
     }
   }
-  for(const filename of filenames) {
+  for(const filename of auditedFiles) {
     let directory=path.posix.dirname(filename);
     for(;;) {
       const packagePath=path.posix.join(directory,'package.json');
