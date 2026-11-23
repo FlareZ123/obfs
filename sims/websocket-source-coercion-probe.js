@@ -119,6 +119,34 @@ const detachedSource=[
   '});'
 ].join('\n');
 
+const boundSource=[
+  'const socket=new WebSocket(globalThis.__url);',
+  'const sender=socket.send.bind(socket);',
+  'function protocolSensitive(){return "value-723";}',
+  'socket.addEventListener("open",()=>{',
+  '  sender(protocolSensitive);',
+  '  socket.close();',
+  '});'
+].join('\n');
+
+const reflectSource=[
+  'const socket=new WebSocket(globalThis.__url);',
+  'function protocolSensitive(){return "value-723";}',
+  'socket.addEventListener("open",()=>{',
+  '  Reflect.apply(socket.send,socket,[protocolSensitive]);',
+  '  socket.close();',
+  '});'
+].join('\n');
+
+const applySource=[
+  'const socket=new WebSocket(globalThis.__url);',
+  'function protocolSensitive(){return "value-723";}',
+  'socket.addEventListener("open",()=>{',
+  '  socket.send.apply(socket,[protocolSensitive]);',
+  '  socket.close();',
+  '});'
+].join('\n');
+
 const primitiveSource=[
   'const socket=new WebSocket(globalThis.__url);',
   'socket.addEventListener("open",()=>{',
@@ -153,8 +181,11 @@ async function main(){
   const direct=await compare('direct',source);
   const alias=await compare('alias',aliasSource);
   const detached=await compare('detached',detachedSource);
+  const bound=await compare('bound',boundSource);
+  const reflect=await compare('reflect',reflectSource);
+  const apply=await compare('apply',applySource);
   const primitive=await compare('literal',primitiveSource);
-  const evidence=[direct,alias,detached,primitive].map(item=>({
+  const evidence=[direct,alias,detached,bound,reflect,apply,primitive].map(item=>({
     case:item.label,
     transformApplied:item.transformApplied,
     literals:item.literals,
@@ -174,6 +205,8 @@ async function main(){
     'Aliased WebSocket constructor/instance sent a different function source');
   assert.equal(detached.transformed,detached.native,
     'Detached WebSocket.send.call(source) sent a different function source');
+  for(const item of [bound,reflect,apply])assert.equal(item.transformed,item.native,
+    'Indirect WebSocket sender '+item.label+' changed Function source text');
   assert.equal(primitive.transformed,primitive.native,
     'Primitive WebSocket payload did not preserve its string contents');
   assert.ok(primitive.transformApplied && primitive.literals>0,
