@@ -428,10 +428,13 @@ async function runFixtures(blockSize=32){
       }
     },workspace);
     const hidden={...fixture.model,state:privateState};
-    assert.equal(result.certified,true,fixture.name);
-    assert.equal(equivalentFromStates(result.clone,hidden),true,fixture.name);
+    if(!result.certified||result.clone===null){
+      throw new Error(`Block-packed learner did not certify ${fixture.name}`);
+    }
+    const clone=result.clone;
+    assert.equal(equivalentFromStates(clone,hidden),true,fixture.name);
     for(const word of heldoutWords((0x7123abc1+Math.imul(index,10309))>>>0,128)){
-      assert.deepEqual(traceFrom(result.clone,word),traceFrom(hidden,word));
+      assert.deepEqual(traceFrom(clone,word),traceFrom(hidden,word));
     }
     records.push({
       name:fixture.name,queries:result.queries,remaining:result.remaining,
