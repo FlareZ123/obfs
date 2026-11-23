@@ -216,7 +216,8 @@ async function main(){
         'const tuple=[false,vault];const fromTuple=tuple[1];'+
         'const record={tag:"private",privateOwner:vault};'+
         'const fromRecord=record.privateOwner;'+
-        'export function calculate(n){return fromTuple.hiddenCount*n+fromRecord.secretDelta;}'},
+        'function privateCalculate(n){return fromTuple.hiddenCount*n+fromRecord.secretDelta;}'+
+        'export function calculate(n){return privateCalculate(n);}'},
     {path:'container-entry.mjs',sourceType:'module',
       code:'import {calculate} from "./container-state.mjs";'+
         'window.hostApi.accept(calculate(2));'}
