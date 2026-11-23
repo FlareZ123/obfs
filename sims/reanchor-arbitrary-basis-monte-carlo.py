@@ -95,6 +95,21 @@ def random_triangular_table(width, rng):
     return values, truth_tables
 
 
+def random_triangular_oracle(width, rng):
+    """Generate the same uniform triangular family, evaluated on demand."""
+    truth_tables = [rng.getrandbits(1 << j) for j in range(width)]
+
+    def evaluate(x):
+        y = x
+        for j, table in enumerate(truth_tables):
+            index = x & ((1 << j) - 1)
+            if (table >> index) & 1:
+                y ^= 1 << j
+        return y
+
+    return evaluate, truth_tables
+
+
 def random_ordered_basis(width, rng):
     """Uniform ordered basis: each new column is uniform outside prior span."""
     pivots = {}
@@ -118,18 +133,48 @@ def interpolant_matrix(values, anchor, basis, width):
     )
 
 
+def reanchor_oracle_trial(oracle, width, anchor, target_input, basis):
+    """One oracle-only 2n+1 upper-bound trial with no full truth-table allocation."""
+    anchor_value = oracle(anchor)
+    target_value = oracle(target_input)
+    differences = tuple(
+        oracle(anchor ^ d) ^ anchor_value for d in basis
+    )
+    if rank_columns(differences, width) != width:
+        return False, False
+    basis_inverse = inverse_columns(basis, width)
+    matrix = tuple(
+        apply_columns(differences, basis_inverse[j])
+        for j in range(width)
+    )
+    matrix_inverse = inverse_columns(matrix, width)
+    compatible = is_lower_unitriangular(matrix, width)
+    candidate = anchor ^ apply_columns(
+        matrix_inverse, anchor_value ^ target_value
+    )
+    for iteration in range(width):
+        observed = oracle(candidate)
+        if observed == target_value:
+            return True, compatible
+        if iteration == width - 1:
+            break
+        candidate ^= apply_columns(
+            matrix_inverse, observed ^ target_value
+        )
+    return False, compatible
+
+
 def compatibility_monte_carlo(width, functions, trials, seed):
     rng = random.Random(seed + width * 1000)
     rows = []
     for function_index in range(functions):
-        values, _ = random_triangular_table(width, rng)
+        oracle, _ = random_triangular_oracle(width, rng)
         anchor = rng.getrandbits(width)
-        base = values[anchor]
-        derivative = [values[anchor ^ u] ^ base for u in range(1 << width)]
+        base = oracle(anchor)
         common = compatible = 0
         for _ in range(trials):
             basis = random_ordered_basis(width, rng)
-            differences = tuple(derivative[d] for d in basis)
+            differences = tuple(oracle(anchor ^ d) ^ base for d in basis)
             if rank_columns(differences, width) != width:
                 continue
             common += 1
@@ -180,14 +225,14 @@ def target_success_monte_carlo(width, functions, trials, seed):
     rng = random.Random(seed + width * 5000)
     rows = []
     for function_index in range(functions):
-        values, _ = random_triangular_table(width, rng)
+        oracle, _ = random_triangular_oracle(width, rng)
         successes = compatible = 0
         for _ in range(trials):
             anchor = rng.getrandbits(width)
             target_input = rng.getrandbits(width)
             basis = random_ordered_basis(width, rng)
-            success, is_compatible = reanchor_trial(
-                values, width, anchor, target_input, basis
+            success, is_compatible = reanchor_oracle_trial(
+                oracle, width, anchor, target_input, basis
             )
             successes += int(success)
             compatible += int(is_compatible)
@@ -207,15 +252,15 @@ def fixed_target_success_monte_carlo(width, functions, trials, seed):
     rng = random.Random(seed + width * 7000)
     rows = []
     for function_index in range(functions):
-        values, _ = random_triangular_table(width, rng)
+        oracle, _ = random_triangular_oracle(width, rng)
         target_input = rng.getrandbits(width)
-        target_value = values[target_input]
+        target_value = oracle(target_input)
         successes = compatible = 0
         for _ in range(trials):
             anchor = rng.getrandbits(width)
             basis = random_ordered_basis(width, rng)
-            success, is_compatible = reanchor_trial(
-                values, width, anchor, target_input, basis
+            success, is_compatible = reanchor_oracle_trial(
+                oracle, width, anchor, target_input, basis
             )
             successes += int(success)
             compatible += int(is_compatible)
