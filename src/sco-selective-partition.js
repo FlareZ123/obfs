@@ -2260,6 +2260,11 @@ function partitionScoSelectedAsyncExports(file,options) {
   // a shadowed formal or nested declaration cannot inherit their provenance.
   const explicitServerHostNames=new Set([...serverConstants].filter(name=>
     allPrivateBindings.get(name)===1));
+  // The body-only Web IDL scan cannot see module-scope declarations. Any
+  // source-module binding with a constructor's spelling invalidates proof
+  // that a bare identifier resolves to the browser's native constructor.
+  const moduleWebIdlShadows=new Set(['Headers','URLSearchParams'].filter(name=>
+    allPrivateBindings.has(name)));
   for(const body of privateBodies){
     // The selected function and helpers execute in a different ESM module
     // on a trusted Node server. Module metadata and dynamic import therefore
@@ -2288,7 +2293,9 @@ function partitionScoSelectedAsyncExports(file,options) {
     if(usesUnprovedRelocatedUrlStatic(body)){
       throw new TypeError('Private SCO export or helper uses unproved cross-realm object URL API');
     }
-    if(usesUnprovedRelocatedWebIdlConstructors(body,privateFormals.get(body)??new Set())){
+    const webIdlShadows=new Set([...moduleWebIdlShadows,
+      ...(privateFormals.get(body)??new Set())]);
+    if(usesUnprovedRelocatedWebIdlConstructors(body,webIdlShadows)){
       throw new TypeError('Private SCO export or helper uses unproved cross-realm WebIDL constructor or method');
     }
     if(usesUnprovedRelocatedTextDecoder(body)){
