@@ -194,10 +194,10 @@ function isStaticKey(parent,key){
  * @param {import('./ast').AstNode} root
  * @param {ReadonlySet<string>} moduleBindings Declared server-only module bindings
  * @param {ReadonlySet<string>} rootFormals Parameters of the selected export
- * @param {boolean} [allowServerBuffer] True only for declared server-owned dependencies
+ * @param {boolean} [allowServerNodeGlobals] True only for declared server-owned dependencies
  * @returns {string|null}
  */
-function firstUnprovedUnqualifiedReference(root,moduleBindings,rootFormals,allowServerBuffer=false){
+function firstUnprovedUnqualifiedReference(root,moduleBindings,rootFormals,allowServerNodeGlobals=false){
   const recognizedGlobals=new Set([
     ...standardRealmGlobals,...browserOnlyRoots,
     'globalThis','global','process','Buffer','console','performance','crypto',
@@ -209,9 +209,12 @@ function firstUnprovedUnqualifiedReference(root,moduleBindings,rootFormals,allow
     'addEventListener','removeEventListener','dispatchEvent','alert',
     'confirm','prompt'
   ]);
-  // Node's free Buffer global is absent in ordinary Chromium. Only audited
-  // server-owned dependency modules may rely on it without lexical ownership.
-  if(!allowServerBuffer)recognizedGlobals.delete('Buffer');
+  // Node's free Buffer and process globals are absent in ordinary Chromium.
+  // Only declared server-owned dependencies may rely on them without a local owner.
+  if(!allowServerNodeGlobals){
+    recognizedGlobals.delete('Buffer');
+    recognizedGlobals.delete('process');
+  }
   /**
    * Accumulate each actual binding name exactly once per lexical scope.
    * Pattern defaults and computed keys are expressions, not bound names.
