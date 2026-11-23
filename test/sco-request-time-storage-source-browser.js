@@ -19,12 +19,21 @@ const source=[
   '  const independentLocal=7;',
   '  return independentLocal;',
   '}',
+  'let userlandSaved;',
+  'function userlandOnly(){',
+  '  const userlandPrivate=11;',
+  '  return userlandPrivate;',
+  '}',
+  'const userlandStore={setItem(key,value){userlandSaved=value;}};',
   'export function sample(){',
   '  const inspected=inspect();',
+  '  const capturedSetItem=Storage.prototype.setItem;',
+  '  Reflect.apply(capturedSetItem,localStorage,["captured-native",inspect]);',
   '  localStorage.setItem(inspect,"key-position-control");',
   '  localStorage.setItem("'+storageKey+'",inspect);',
-  '  const keySource=Array.from({length:localStorage.length},(_,index)=>localStorage.key(index)).find(candidate=>candidate!== "'+storageKey+'");',
-  '  return {value:inspected.value,marker:inspected.marker,independent:independent(),keySource,keyValue:localStorage.getItem(keySource)};',
+  '  userlandStore.setItem("reference",userlandOnly);',
+  '  const keySource=Array.from({length:localStorage.length},(_,index)=>localStorage.key(index)).find(candidate=>candidate!== "'+storageKey+'"&&candidate!=="captured-native");',
+  '  return {value:inspected.value,marker:inspected.marker,independent:independent(),keySource,keyValue:localStorage.getItem(keySource),userlandValue:userlandSaved()};',
   '}'
 ].join('\n');
 
@@ -142,6 +151,8 @@ async function main() {
       'request-time SCO compilation should rewrite the observed function local');
     assert.ok(!first.body.includes('independentLocal'),
       'request-time SCO compilation should retain unrelated private rewrite yield');
+    assert.ok(!first.body.includes('userlandPrivate'),
+      'a same-named userland setItem must not disable unrelated private rewriting');
     assert.ok(first.body.includes('\\u'),
       'request-time literal spelling variation should encode the source marker');
     assert.ok(!first.body.includes(sourceMarker),
@@ -167,12 +178,14 @@ async function main() {
     assert.equal(report.native.result.independent,7);
     assert.equal(report.native.result.keySource,report.native.source);
     assert.equal(report.native.result.keyValue,'key-position-control');
+    assert.equal(report.native.result.userlandValue,11);
     for(const label of ['first','second']) {
       assert.equal(report[label].result.value,29,label+' numeric result');
       assert.equal(report[label].result.marker,sourceMarker,label+' marker value');
       assert.equal(report[label].result.independent,7,label+' independent helper');
       assert.equal(report[label].result.keySource,report[label].source,label+' key-argument source');
       assert.equal(report[label].result.keyValue,'key-position-control',label+' key-position value');
+      assert.equal(report[label].result.userlandValue,11,label+' userland same-name method');
       assert.notEqual(report[label].source,report.native.source,
         label+' Storage readback must expose the changed function source');
       assert.ok(!report[label].source.includes('privateLocal'),
