@@ -99,6 +99,12 @@ A five-state canonical search has 164,531,200 models across exact sizes 1–5, a
 
 ## Limits
 
-This is a count of a specific finite model class, not an attack result. The state bound remains a trusted premise. No finite oracle transcript can certify equivalence for arbitrary unbounded finite-state machines: after any finite transcript, a larger machine can reproduce the observed prefix and diverge on a later continuation. The four-state learner should remain described as a conditional continuation certificate under its declared bound. The five-state count only informs the feasibility of a larger bounded search.
+This is a count of a specific finite model class, not by itself an attack result. Agent 14 did not implement a learner from this count; Agent 49 subsequently implemented and validated a five-state canonical learner, summarized in [sco-five-state-step-only-2026-11-23.md](sco-five-state-step-only-2026-11-23.md). The state bound remains a trusted premise. No finite oracle transcript can certify equivalence for arbitrary unbounded finite-state machines: after any finite transcript, a larger machine can reproduce the observed prefix and diverge on a later continuation. The four-state learner should remain described as a conditional continuation certificate under its declared bound. The five-state count only informs the feasibility of a larger bounded search.
 
 This belongs in `im-results/`; it does not establish a general SCO security conclusion or change RELEASE-BLOCKED.
+
+## Follow-on implementation and validation
+
+Agent 49 implemented the five-state canonical no-reset learner using the same BFS model-space recurrence. The full two-OS manual SCO workflow [45105195468](https://github.com/FlareZ123/obfs/actions/runs/45105195468) passed, including canonical five-state tests, the existing four-state/live matched-control tests, and strict SCO JSDoc.
+
+The follow-on report records three offline fixtures (random minimal five-state, delayed-output five-state, and padded four-state) certified in 31, 49, and 31 queries respectively. All 384 held-out traces matched; total learner time after workspace initialization was about 12.4 seconds, with a 663,554,832-byte candidate-ID array. These are attacker-side measurements under a deterministic binary stationary fixed-initial-state model, not target-side runtime or real-SCO security evidence. See the linked follow-on report for the full methodology and limitations.
