@@ -3,7 +3,7 @@
 const {test}=require('node:test');
 const {spawnSync}=require('node:child_process');
 const assert=require('node:assert/strict');
-const {buildStepOnlySmtQuery}=require('../sims/sco-step-only-smt');
+const {buildStepOnlySmtQuery,buildFixedReferenceStepOnlySmtQuery}=require('../sims/sco-step-only-smt');
 
 test('single-model query admits binary transcripts with a finite state bound',()=>{
   const query=buildStepOnlySmtQuery({maxStates:1,inputs:[0,1],outputs:[0,1]},'single');
@@ -56,4 +56,29 @@ test('Z3 corroborates satisfiable, inequivalent, and inconsistent bounds when in
       assert.equal(result.status,0,result.stderr);
       assert.equal(result.stdout.trim(),expected);
     }
+  });
+
+
+test('fixed reference removes symbolic A tables and rejects transcript-inconsistent models',()=>{
+  const request={maxStates:3,inputs:[0],outputs:[0]};
+  const reference={next:[[1,1],[0,0]],output:[[0,0],[1,1]],state:1};
+  const query=buildFixedReferenceStepOnlySmtQuery(request,reference);
+  assert.equal(query.horizon,6);
+  assert.match(query.smt2,/\(assert \(= A_p_0 1\)\)/);
+  assert.ok(!query.smt2.includes('declare-const A_d_0_0'));
+  assert.ok(query.smt2.includes('(declare-const B_d_0_0 Int)'));
+  assert.equal(query.modelNames.length,3*4+1+6);
+  assert.throws(()=>buildFixedReferenceStepOnlySmtQuery(request,{...reference,state:0}),RangeError);
+  assert.throws(()=>buildFixedReferenceStepOnlySmtQuery(request,{...reference,output:[[1,0],[1,1]]}),RangeError);
+  assert.throws(()=>buildFixedReferenceStepOnlySmtQuery(request,{...reference,next:[[4,1],[0,0]]}),RangeError);
+});
+
+test('Z3 checks fixed-reference indistinguishability when installed',
+  {skip:!hasZ3},()=>{
+    const query=buildFixedReferenceStepOnlySmtQuery(
+      {maxStates:1,inputs:[0,1],outputs:[0,1]},
+      {next:[[0,0]],output:[[0,1]],state:0});
+    const result=spawnSync('z3',['-in'],{input:query.smt2,encoding:'utf8',timeout:10000});
+    assert.equal(result.status,0,result.stderr);
+    assert.equal(result.stdout.trim(),'unsat');
   });

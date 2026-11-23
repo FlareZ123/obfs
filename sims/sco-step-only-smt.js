@@ -142,4 +142,117 @@ function buildStepOnlySmtQuery(request,kind='pair'){
   };
 }
 
-module.exports={buildStepOnlySmtQuery};
+
+/** @typedef {{next:number[][],output:number[][],state:number}} FixedReference */
+
+/**
+ * Check a supplied representative against the original continuous transcript,
+ * including its final active state. A different initial state is not allowed.
+ * @param {SmtTranscript} request
+ * @param {FixedReference} model
+ * @returns {number} Number of states in the reference model
+ */
+function validateReference(request,model){
+  const states=model?.next?.length;
+  if(!Number.isSafeInteger(states)||states<1||states>request.maxStates||
+     !Array.isArray(model.output)||model.output.length!==states){
+    throw new RangeError('reference must have 1..maxStates complete state rows');
+  }
+  for(let state=0;state<states;state++){
+    const d=model.next[state],o=model.output[state];
+    if(!Array.isArray(d)||d.length!==2||!Array.isArray(o)||o.length!==2){
+      throw new RangeError('reference rows must have two input entries');
+    }
+    for(const successor of d){
+      if(!Number.isSafeInteger(successor)||successor<0||successor>=states){
+        throw new RangeError('reference transition leaves declared state space');
+      }
+    }
+    for(const observed of o){
+      if(observed!==0&&observed!==1)throw new RangeError('reference outputs must be binary');
+    }
+  }
+  let current=0;
+  for(let t=0;t<request.inputs.length;t++){
+    const input=request.inputs[t];
+    if(model.output[current][input]!==request.outputs[t]){
+      throw new RangeError('reference does not reproduce transcript');
+    }
+    current=model.next[current][input];
+  }
+  if(model.state!==current){
+    throw new RangeError('reference current state differs from transcript replay');
+  }
+  return states;
+}
+
+/**
+ * Declare an immutable reference model, with its table encoded directly as
+ * constant expressions, removing all A model variables from the SMT search.
+ * @param {FixedReference} model
+ * @param {string[]} lines
+ */
+function defineFixedReference(model,lines){
+  const deltas=[];
+  const outputs=[];
+  for(let state=0;state<model.next.length;state++){
+    const d=model.next[state],o=model.output[state];
+    deltas.push(`(ite symbol ${d[1]} ${d[0]})`);
+    outputs.push(`(ite symbol ${o[1]===1?'true':'false'} ${o[0]===1?'true':'false'})`);
+  }
+  lines.push(`(define-fun A_delta ((state Int) (symbol Bool)) Int ${foldIte('state',deltas)})`);
+  lines.push(`(define-fun A_output ((state Int) (symbol Bool)) Bool ${foldIte('state',outputs)})`);
+}
+
+/**
+ * Fix one transcript-consistent reference A and search only for an alternative B.
+ * A counterexample exists iff two arbitrary transcript-consistent models are
+ * behaviorally inequivalent: if any pair differs, one member differs from A.
+ *
+ * An UNSAT result implies equivalence to A only under the independently trusted
+ * state bound and when the validated reference is genuinely transcript-consistent.
+ * The product horizon is |A|*maxStates, so small reference models also reduce
+ * the future-word search. Only `sat` justifies executing valuesCommand.
+ *
+ * @param {SmtTranscript} request
+ * @param {FixedReference} reference
+ * @returns {SmtQuery}
+ */
+function buildFixedReferenceStepOnlySmtQuery(request,reference){
+  validate(request);
+  const referenceStates=validateReference(request,reference);
+  const {maxStates,inputs,outputs}=request;
+  /** @type {string[]} */
+  const lines=['(set-logic QF_LIA)','(set-option :produce-models true)'];
+  /** @type {string[]} */
+  const names=[];
+  defineFixedReference(reference,lines);
+  declareMachine('B',maxStates,lines,names);
+  constrainTranscript('B',inputs,outputs,lines,names);
+  const horizon=referenceStates*maxStates;
+  /** @type {string[]} */
+  const futureInputNames=[];
+  /** @type {string[]} */
+  const differences=[];
+  for(let i=0;i<horizon;i++){
+    const x=`future_${i}`;
+    lines.push(declare(x,'Bool'));
+    futureInputNames.push(x);
+    differences.push(`(not (= (A_output A_p_${i} ${x}) (B_output B_p_${i} ${x})))`);
+  }
+  for(const prefix of ['A','B']){
+    for(let i=0;i<=horizon;i++)lines.push(declare(`${prefix}_p_${i}`,'Int'));
+    lines.push(`(assert (= ${prefix}_p_0 ${prefix==='A'?reference.state:`B_q_${inputs.length}`}))`);
+    for(let i=0;i<horizon;i++){
+      lines.push(`(assert (= ${prefix}_p_${i+1} (${prefix}_delta ${prefix}_p_${i} future_${i})))`);
+    }
+  }
+  lines.push(`(assert (or ${differences.join(' ')}))`);
+  lines.push('(check-sat)');
+  names.push(...futureInputNames);
+  return {smt2:lines.join('\n')+'\n',valuesCommand:`(get-value (${names.join(' ')}))\n`,
+    modelNames:names,futureInputNames,horizon};
+}
+
+module.exports={buildStepOnlySmtQuery,buildFixedReferenceStepOnlySmtQuery};
+

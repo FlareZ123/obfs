@@ -84,6 +84,47 @@ def get_query(n,inputs,outputs,kind):
     return json.loads(out)
 
 
+def first_reference(n,inputs,outputs):
+    for m in models(n):
+        observed,current=advance(m,inputs)
+        if observed==outputs:
+            delta,bits,size=m
+            return {'next':[[delta[2*s+x] for x in (0,1)] for s in range(size)],
+                    'output':[[bits[2*s+x] for x in (0,1)] for s in range(size)],
+                    'state':current}
+    return None
+
+
+def get_fixed_query(n,inputs,outputs,reference):
+    payload=json.dumps({'maxStates':n,'inputs':inputs,'outputs':outputs})
+    src=("const g=require('./sims/sco-step-only-smt'); "
+         "const r=g.buildFixedReferenceStepOnlySmtQuery(JSON.parse(process.argv[1]),JSON.parse(process.argv[2])); "
+         "process.stdout.write(JSON.stringify(r));")
+    out=subprocess.check_output(['node','-e',src,payload,json.dumps(reference)],cwd=str(REPO_ROOT))
+    return json.loads(out)
+
+
+def validate_fixed_witness(query,answer,inputs,outputs,n,reference):
+    parsed=dict((name,int(val) if val not in ('true','false') else (val=='true'))
+                for name,val in re.findall(r'\((B_[do]_[0-9]+_[01]|B_q_[0-9]+|future_[0-9]+) (true|false|[0-9]+)\)',answer))
+    assert len(parsed)==len(query['modelNames']),(len(parsed),len(query['modelNames']))
+    bnext=[[int(parsed[f'B_d_{s}_{x}']) for x in (0,1)] for s in range(n)]
+    bout=[[int(parsed[f'B_o_{s}_{x}']) for x in (0,1)] for s in range(n)]
+    q=0
+    for x,y in zip(inputs,outputs):
+        assert bout[q][x]==y
+        q=bnext[q][x]
+    assert q==parsed[f'B_q_{len(inputs)}']
+    qa,qb=reference['state'],q
+    divergent=False
+    for i in range(query['horizon']):
+        x=int(parsed[f'future_{i}'])
+        if reference['output'][qa][x]!=bout[qb][x]:divergent=True
+        qa=reference['next'][qa][x]
+        qb=bnext[qb][x]
+    assert divergent, 'fixed-reference SAT model did not predict a real future mismatch'
+
+
 def validate_witness(query,answer,inputs,outputs,n):
     # Z3's get-value returns ground values for all named Bool/Int declarations.
     parsed=dict((name,int(val) if val not in ('true','false') else (val=='true'))
@@ -124,6 +165,7 @@ def main():
                 outputs,_=advance(m,inputs)
                 cases.append((n,inputs,outputs))
     totals={'pair_sat':0,'pair_unsat':0,'single_sat':0,'single_unsat':0}
+    fixed_totals={'fixed_sat':0,'fixed_unsat':0}
     for index,(n,inputs,outputs) in enumerate(cases):
         consistent,inequivalent=expected(n,inputs,outputs)
         for kind in ('single','pair'):
@@ -137,6 +179,20 @@ def main():
                 extracted,t=z3(query['smt2']+query['valuesCommand'])
                 assert extracted.startswith('sat\n'),(index,extracted[:200])
                 validate_witness(query,extracted,inputs,outputs,n)
+        if consistent:
+            reference=first_reference(n,inputs,outputs)
+            assert reference is not None
+            fixed=get_fixed_query(n,inputs,outputs,reference)
+            result,_=z3(fixed['smt2'])
+            result=result.strip()
+            want='sat' if inequivalent else 'unsat'
+            assert result==want,(index,n,'fixed',want,result)
+            fixed_totals['fixed_'+result]+=1
+            if result=='sat':
+                answer,_=z3(fixed['smt2']+fixed['valuesCommand'])
+                assert answer.startswith('sat\n'),(index,answer[:200])
+                validate_fixed_witness(fixed,answer,inputs,outputs,n,reference)
     print(f'PASS {len(cases)} transcript cases x 2 queries; {totals}; all SAT pair witnesses independently simulated')
+    print(f'PASS {sum(fixed_totals.values())} consistent transcript cases x fixed-reference query; {fixed_totals}; all SAT fixed witnesses independently simulated')
 
 if __name__=='__main__': main()

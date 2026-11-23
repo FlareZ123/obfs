@@ -1,3 +1,9 @@
+# Checkpoint 23 November 2026 20:16 UTC — fixed reference SMT extension
+
+Added a validated fixed-reference SMT query reducing two symbolic tables to one, with shorter product bound |A|*N. Independent Python+Z3 check now covers 34 pair/single cases and 33 fixed-reference cases, 28 SAT fixed witnesses each replayed and cross-checked. Source code/test/checker/report are in `sims/sco-step-only-smt.js`, `test/sco-step-only-smt.test.js`, `workplace/sco-step-only-smt-ctypes-check.py`, `im-results/sco-step-only-smt-2026-11-23.md`. Do not claim speedups from one-shot latency. Original generator passed two-OS focused gate 45255379540 and corrected first SCO typecheck regression at `119fa589...`; full corrected workflow 45256292453 passed on both OS. The new fixed-reference change requires its own source-pinned verification. Release remains blocked.
+
+---
+
 # Checkpoint 23 November 2026 20:02 UTC — SMT bounded-continuation query
 
 Normal invocation lease `agent14-20261123T194731Z-48c137f4c7da1378`, claimed 19:47:31.956Z. Initial random selection was 5. The 70-minute threshold is 20:57:31.956Z; do not release or refresh lease before measured threshold.
