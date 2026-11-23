@@ -2245,8 +2245,12 @@ function obfuscateFiles(files, options = {}) {
       ast = parse(code,sourceType);
     }
     let bindings=0;
-    if(!remoteSourceObserver && options.identifiers!==false) {
-      const renamed=renameLocalIdentifiers(code,ast,{seed:salt,sourceType});
+    if((!remoteSourceObserver || sourceObserverIslands.has(filename)) &&
+        options.identifiers!==false) {
+      const renamed=renameLocalIdentifiers(code,ast,{
+        seed:salt,sourceType,
+        preserveExportedFunctionSource:sourceObserverIslands.has(filename)
+      });
       code=renamed.code;
       bindings=renamed.bindings;
       ast=parse(code,sourceType);
