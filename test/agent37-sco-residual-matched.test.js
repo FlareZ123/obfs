@@ -156,6 +156,9 @@ test('live SCO and equal-trust ordinary minified APIs admit the same residual of
       });
       assert.equal(denied.status,403);
     }
+    const deniedRead=await fetch(scoOrigin+'/obfs/residual.mjs');
+    assert.equal(deniedRead.status,403,
+      'An unauthenticated client must not fetch even the SCO public facade');
     const publicResponse=await fetch(scoOrigin+'/obfs/residual.mjs',{
       headers:{'x-demo-session':TOKEN}
     });
@@ -181,6 +184,8 @@ test('live SCO and equal-trust ordinary minified APIs admit the same residual of
       // Target is selected by the verifier, never included in the learning
       // transcript. No more HTTP requests occur after both servers close.
       const target=await original.protectedResidual(hidden);
+      assert.equal(await ordinary.protectedResidual(hidden),target,
+        'The equal-trust minified backend must match on held-out inputs');
       for(const model of [scoModel,ordinaryModel]){
         /** @param {number} input @returns {number} */
         const offline=input=>evaluateBoundedDegreeModel(model,input);
