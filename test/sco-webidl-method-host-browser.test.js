@@ -221,7 +221,15 @@ test('selected SCO Web IDL method admission fails closed on alias and extraction
     "const root=globalThis;const {...rest}=root;const H=rest.Headers;return new H().get('x-demo');",
     "const root=globalThis;let rest;({...rest}=root);const H=rest.Headers;return new H().get('x-demo');",
     "const input='a=1';return new URLSearchParams(input).get('a');",
-    "return new URLSearchParams(`a=${'1'}`).get('a');"
+    "return new URLSearchParams(`a=${'1'}`).get('a');",
+    "return new URLSearchParams('a=é').get('a');",
+    "return new URLSearchParams('a=1').get('é');",
+    "return new URLSearchParams([['a','é']]).get('a');",
+    "return new Headers().append('x-demo','café');",
+    "return new Headers({'x-demo':'café'}).get('x-demo');",
+    "return new Headers().get('X-Demo');",
+    "const x='1';return new URLSearchParams('a=1').get('a'+x);",
+    "const x='k';return new Headers().append('x-demo','o'+x);"
   ])assert.throws(()=>compile(body),/unproved cross-realm WebIDL constructor/,body);
   for(const body of [
     "const H=Reflect.get(globalThis,'Headers');return new H().get('x-demo');",
