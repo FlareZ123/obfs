@@ -17,9 +17,12 @@
     "sims/sco-sync-depth-sweep.js",
     "sims/sco-sync-independent-distribution.js",
     "sims/sco-sync-independent-ground-truth.js",
+    "sims/sco-step-only-four-state.js",
     "sims/sco-step-only-version-space.js",
+    "test/sco-step-only-version-space.test.js",
     "sims/sco-step-only-version-space-report.js",
     "sims/sco-step-only-live-rpc.js",
+    "test/sco-step-only-live-rpc.test.js",
     "test/sco-sync-diversified-browser.js",
     "sims/sco-high-entropy-prf.js",
     "sims/sco-key-search.js"
