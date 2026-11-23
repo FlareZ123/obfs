@@ -112,6 +112,52 @@ test('two independently private class instances preserve both owner-key rewrites
   }
 });
 
+const classExpressionSource=[
+  "'use strict';",
+  'const owner={secretAlpha:23,secretBeta:7};',
+  'const Reader=class{read(){return owner.secretAlpha;}};',
+  'const first=new Reader();',
+  'const second=new Reader();',
+  'module.exports=[first.read(),second.read(),owner.secretBeta];'
+].join('\\n');
+
+test('const-bound anonymous class expression is private for two independent instances',()=>{
+  assert.equal(execute(classExpressionSource),'[23,23,7]');
+  for(const mode of /** @type {const} */(['coo','sno','sco'])){
+    const result=compile(classExpressionSource,mode);
+    assert.equal(result.metrics.properties,2,mode+': anonymous class own keys');
+    assert.equal(execute(/** @type {string} */(result.code)),execute(classExpressionSource));
+  }
+});
+
+test('named or mutable class expressions conservatively retain owner key spellings',()=>{
+  for(const source of [
+    classExpressionSource.replace('const Reader=class{','const Reader=class Internal{'),
+    classExpressionSource.replace('const Reader=class{','let Reader=class{')
+  ]){
+    for(const mode of /** @type {const} */(['coo','sno','sco'])){
+      const result=compile(source,mode);
+      assert.equal(result.metrics.properties,0,mode+': unsupported class binding');
+      assert.equal(execute(/** @type {string} */(result.code)),execute(source));
+    }
+  }
+});
+
+test('exported class expression source is externally observable',()=>{
+  const source=classExpressionSource.replace(
+    'module.exports=[first.read(),second.read(),owner.secretBeta];',
+    'module.exports=Reader;');
+  for(const mode of /** @type {const} */(['coo','sno','sco'])){
+    const result=compile(source,mode);
+    assert.equal(result.metrics.properties,0,mode+': class escapes');
+    const before={module:{exports:null}};
+    const after={module:{exports:null}};
+    vm.runInNewContext(source,before,{timeout:2000});
+    vm.runInNewContext(/** @type {string} */(result.code),after,{timeout:2000});
+    assert.equal(String(after.module.exports),String(before.module.exports));
+  }
+});
+
 const negatives=[
   ['class method escapes via bound method',
     'const escaped=reader.read;module.exports=escaped.call(reader);'],
