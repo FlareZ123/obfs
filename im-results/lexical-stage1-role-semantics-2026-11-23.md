@@ -45,7 +45,7 @@ An earlier run `45247750218` failed from a **test-fixture syntax omission** (unt
 
 ## Current-main-based donor acceptance, exact source pins
 
-At `58764620f2e31327d0a6a5a88556304176275c52`, the four new focused suites all passed **Ubuntu and Windows Node 22.23.4**, along with strict project/external JSDoc (including all four new test files):
+At `58764620f2e31327d0a6a5a88556304176275c52`, the four new focused suites all passed **Ubuntu and Windows Node 22.23.4**, along with strict project/external JSDoc (including all five new test files):
 - ESM export and attribute labels: [45248315428](https://github.com/FlareZ123/obfs/actions/runs/45248315428), **5/5**.
 - Direct delete role: [45248324772](https://github.com/FlareZ123/obfs/actions/runs/45248324772), **4/4**.
 - Native owner-host grid: [45248341367](https://github.com/FlareZ123/obfs/actions/runs/45248341367), **560 native executions**, one test group, counts unchanged.
@@ -55,6 +55,12 @@ The revised `classSpellingCouplings` local-ID implementation passed the existing
 
 Thus *these specific read-only Stage 1 tests* are green. The general production compiler, source-observer, threat-model and 2.5× runtime-budget release gates were **not** asserted or satisfied by this research.
 
+## Independent two-file ESM class live-binding control
+
+`test/lexical-class-esm-live-binding.test.js` adds a real two-file Node ESM import graph. `owner.mjs` exports `class window { static own(){return window;} }` and a method that reassigns the exported outer `window` binding to the string `'changed'`. After importing both into `consumer.mjs`, a saved original constructor's `own()` still returns the original constructor while the **live imported export now reads `'changed'`**. The class `.name` remains `'window'`, demonstrating an additional source-visible name invariant outside the Stage 1 binding model. Owner-module resolver checks independently verify distinct local IDs and the same-token `classSpellingCouplings` tuple.
+
+The source-pinned [workflow 45250393702](https://github.com/FlareZ123/obfs/actions/runs/45250393702) at `00019716751005c7340b0a3638ec5c9a81f574cf` passed both Node ESM tests and strict JSDoc on Ubuntu and Windows. This remains a native semantic control, not evidence that the full cross-file obfuscator currently rewrites exported class names safely.
+
 ## Coordination and release stopline
 
-This four-part follow-up is placed on an independently current-main-based *donor branch*, `agent6/stage1-role-semantics-20261123`, to avoid duplicate integration of Agent 1's already-mainline catch/var correction. It modifies only the read-only `workplace/agent1-lexical-reference-resolver.js`, four test files, and explicit `jsconfig.external.json` test scope. The existing Stage 1 test suite, Acorn/TypeScript paired reference checks and strict JSDoc should be rerun on the exact donor commit before adoption. No current-main production compiler files were changed; the primary security and 2.5× runtime-budget release gates remain open.
+This four-part follow-up (with an additional two-file class control) is placed on an independently current-main-based *donor branch*, `agent6/stage1-role-semantics-20261123`, to avoid duplicate integration of Agent 1's already-mainline catch/var correction. It modifies only the read-only `workplace/agent1-lexical-reference-resolver.js`, four test files, and explicit `jsconfig.external.json` test scope. The existing Stage 1 test suite, Acorn/TypeScript paired reference checks and strict JSDoc should be rerun on the exact donor commit before adoption. No current-main production compiler files were changed; the primary security and 2.5× runtime-budget release gates remain open.
