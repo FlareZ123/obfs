@@ -63,7 +63,7 @@ function accepted(node,parameters,depth=0,coerced=false) {
     // All three operands are pure primitive-i32 expressions. Evaluating both
     // arms eagerly with Wasm select cannot trigger source-level side effects.
     // Test truthiness is observed before any enclosing bitwise ToInt32.
-    // For example, a+b may be 2**32 (truthy) even though i32.add is zero.
+    // For example, 1+(-1>>>0) is 2**32 (truthy), but i32.add is zero.
     return accepted(node.test,parameters,depth+1,false) &&
       accepted(node.consequent,parameters,depth+1,coerced) &&
       accepted(node.alternate,parameters,depth+1,coerced);
