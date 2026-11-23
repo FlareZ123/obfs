@@ -75,15 +75,100 @@ function traceFrom(model,word){
   return outputs;
 }
 
-test('canonical reachable transition enumeration has exact complete counts',()=>{
+/**
+ * Encode up to ten 3-bit transition targets into an exact 30-bit numeric key.
+ * @param {ArrayLike<number>} table
+ * @returns {number}
+ */
+function encodeTransitionTable(table){
+  let key=0;
+  for(let index=0;index<table.length;index++)key|=table[index]<<(3*index);
+  return key>>>0;
+}
+
+/**
+ * Canonicalize a labelled reachable transition graph by ordered-input BFS.
+ * Returns null when not all states are reachable.
+ * @param {number} states
+ * @param {Uint8Array} table
+ * @returns {Uint8Array|null}
+ */
+function canonicalizeReachableTransitionGraph(states,table){
+  const labels=new Int8Array(states);
+  labels.fill(-1);
+  labels[0]=0;
+  const order=new Uint8Array(states);
+  order[0]=0;
+  const canonical=new Uint8Array(states*2);
+  let discovered=1;
+  for(let source=0;source<discovered;source++){
+    const originalSource=order[source];
+    for(let symbol=0;symbol<2;symbol++){
+      const target=table[originalSource*2+symbol];
+      if(labels[target]===-1){
+        labels[target]=discovered;
+        order[discovered]=target;
+        discovered++;
+      }
+      canonical[source*2+symbol]=labels[target];
+    }
+  }
+  return discovered===states?canonical:null;
+}
+
+test('canonical reachable transition enumeration is unique, reachable and complete',()=>{
   assert.deepEqual([1,2,3,4,5].map(canonicalTransitionCount),
     [1,12,216,5248,160675]);
   assert.equal(FIVE_STATE_MODEL_COUNT,165888708);
-  const generated=generateCanonicalTransitions(5);
-  assert.equal(generated.count,160675);
-  assert.equal(generated.transitions.length,160675*10);
   assert.throws(()=>canonicalTransitionCount(6),RangeError);
   assert.throws(()=>generateCanonicalTransitions(6),RangeError);
+
+  const generatedFive=generateCanonicalTransitions(5);
+  assert.equal(generatedFive.count,160675);
+  assert.equal(generatedFive.transitions.length,160675*10);
+  const fiveKeys=new Set();
+  for(let graph=0;graph<generatedFive.count;graph++){
+    const table=generatedFive.transitions.subarray(graph*10,graph*10+10);
+    const key=encodeTransitionTable(table);
+    assert.equal(fiveKeys.has(key),false,'duplicate five-state canonical graph');
+    fiveKeys.add(key);
+    const seen=new Uint8Array(5);
+    seen[0]=1;
+    const queue=[0];
+    for(let head=0;head<queue.length;head++){
+      const state=queue[head];
+      for(let symbol=0;symbol<2;symbol++){
+        const target=table[state*2+symbol];
+        if(seen[target]===0){seen[target]=1;queue.push(target);}
+      }
+    }
+    assert.equal(queue.length,5,'generated five-state graph is not fully reachable');
+  }
+  assert.equal(fiveKeys.size,160675);
+
+  const generatedFour=generateCanonicalTransitions(4);
+  const fourKeys=new Set();
+  for(let graph=0;graph<generatedFour.count;graph++){
+    const key=encodeTransitionTable(
+      generatedFour.transitions.subarray(graph*8,graph*8+8));
+    assert.equal(fourKeys.has(key),false,'duplicate four-state canonical graph');
+    fourKeys.add(key);
+  }
+  const observedFourKeys=new Set();
+  const labelled=new Uint8Array(8);
+  let reachableLabelled=0;
+  for(let code=0;code<65536;code++){
+    for(let edge=0;edge<8;edge++)labelled[edge]=(code>>>(2*edge))&3;
+    const canonical=canonicalizeReachableTransitionGraph(4,labelled);
+    if(canonical){
+      reachableLabelled++;
+      observedFourKeys.add(encodeTransitionTable(canonical));
+    }
+  }
+  assert.equal(reachableLabelled,31488);
+  assert.equal(observedFourKeys.size,generatedFour.count);
+  for(const key of fourKeys)assert.equal(observedFourKeys.has(key),true,
+    'generated four-state canonical graph absent from exhaustive labelled enumeration');
 });
 
 test('canonical five-state learner certifies minimal five-state and padded four-state oracles',async()=>{
