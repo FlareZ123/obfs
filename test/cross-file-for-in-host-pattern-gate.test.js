@@ -63,3 +63,33 @@ test('for-in object binding pattern must account for inherited String prototype 
   assert.equal(output.crossFile.properties,0,
     'An inherited host getter can inject Function through a ForInStatement pattern');
 });
+
+
+test('for-in assignment-pattern binding must account for inherited String prototype getters',async()=>{
+  /** @type {ModuleFile[]} */
+  const files=[
+    {path:'state.mjs',sourceType:'module',
+      code:'export const state={secretField:53};'},
+    {path:'main.mjs',sourceType:'module',code:[
+      'import {state} from "./state.mjs";',
+      'let Loader;',
+      'let injected;',
+      'for({callback:Loader} in ["x"]){',
+      '  injected=Loader('+JSON.stringify('return import("./state.mjs")')+');',
+      '}',
+      'const remote=await injected();',
+      'console.log(JSON.stringify([state.secretField,Object.keys(remote.state),remote.state.secretField]));'
+    ].join('\\n')}
+  ];
+  const native=await executeWithPreloader(files);
+  assert.equal(native,'[53,["secretField"],53]\\n');
+  const output=obfuscateFiles(files,{
+    mode:'coo',closedWorld:true,seed:'for-in-host-prototype-callback-assignment',
+    strings:false,identifiers:false,properties:true
+  });
+  const emitted=await executeWithPreloader(output.files);
+  assert.equal(emitted,native,
+    'Generated ESM must preserve host-injected callbacks from an assignment-pattern ForInStatement');
+  assert.equal(output.crossFile.properties,0,
+    'An inherited host getter can inject Function through a ForInStatement assignment pattern');
+});
