@@ -69,12 +69,16 @@ function solveLinear(equations,width) {
  * An output parity annihilating those coefficients, and nonconstant on
  * the coset, cuts its dimension by one without excluding the target.
  *
- * Upper bound on distinct oracle queries:
+ * Default-mode upper bound on distinct oracle queries:
  *   sum(d=1..width) sum(j=0..min(degree,d)) choose(d,j)
  * = sum(j=0..degree) choose(width+1,j+1) - 1.
- * This is O(width^(degree+1)) for constant degree, exponential when
- * degree grows with width. It is not a polynomial-time arbitrary-JS
- * inversion method.
+ * Opting into an exact residual search adds at most
+ * 2^maxResidualDimension distinct queries (usually fewer after memoized
+ * low-order subset samples). Enumeration is capped at dimension 16 and
+ * respects the same total original-oracle query budget. This is
+ * O(width^(degree+1)) for constant degree and fixed fallback cap,
+ * exponential when degree grows with width. It is not a polynomial-time
+ * arbitrary-JS inversion method.
  *
  * @param {(input:number)=>number} oracle An n-bit forward permutation oracle
  * @param {number} target Output to invert
