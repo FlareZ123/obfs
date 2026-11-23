@@ -162,6 +162,20 @@ const htmlApiCases=[
     read:'parsed.body.textContent',
     positiveAssignment:'const parsed=Document.parseHTMLUnsafe("literal");'
   },
+  {
+    name:'DOMParser.parseFromString',supportKey:'domParserParseFromString',
+    setup:'const parser=new DOMParser();',
+    assignment:'const parsed=parser.parseFromString(inspect,"text/html");',
+    read:'parsed.body.textContent',
+    positiveAssignment:'const parsed=parser.parseFromString("literal","text/html");'
+  },
+  {
+    name:'Range.createContextualFragment',supportKey:'rangeCreateContextualFragment',
+    setup:'const target=document.createElement("div");const range=document.createRange();range.selectNodeContents(target);',
+    assignment:'const fragment=range.createContextualFragment(inspect);target.appendChild(fragment);',
+    read:'target.innerHTML',
+    positiveAssignment:'const fragment=range.createContextualFragment("literal");target.appendChild(fragment);'
+  },
   elementStreamMethodCase('Element.streamHTML','streamHTML','streamHTML'),
   {
     name:'Element.streamHTML via bound writer.write',supportKey:'streamHTML',
@@ -582,6 +596,8 @@ async function main() {
     ' replaceWithHTML:typeof nodeProbe.replaceWithHTML==="function",',
     ' documentParseHTML:typeof Document.parseHTML==="function",',
     ' documentParseHTMLUnsafe:typeof Document.parseHTMLUnsafe==="function",',
+    ' domParserParseFromString:typeof DOMParser.prototype.parseFromString==="function",',
+    ' rangeCreateContextualFragment:typeof document.createRange().createContextualFragment==="function",',
     ' streamHTML:typeof htmlProbe.streamHTML==="function",',
     ' streamAppendHTML:typeof htmlProbe.streamAppendHTML==="function",',
     ' streamPrependHTML:typeof htmlProbe.streamPrependHTML==="function",',
