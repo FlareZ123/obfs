@@ -7,7 +7,7 @@ const {createRequire,isBuiltin}=require('node:module');
 const {parse,walk}=require('./ast');
 const {collectBindings}=require('./properties');
 const {spawnSync}=require('node:child_process');
-const {pathToFileURL}=require('node:url');
+const {fileURLToPath,pathToFileURL}=require('node:url');
 
 /** @typedef {import('./core').SourceFile} SourceFile */
 
@@ -481,6 +481,32 @@ async function assertEsmPackageScopeParity(original,generated,filenames,inputRoo
   }
 }
 
+
+/**
+ * Refuse case-variant package.json files in the resolved dependency's
+ * nearest package scope. Stop at the first exact package.json, which
+ * shadows all parent scopes under Node's package-scope rules.
+ *
+ * @param {string} resolvedFile
+ * @returns {Promise<void>}
+ */
+async function assertNoCaseVariantResolvedPackageScope(resolvedFile) {
+  let directory=path.dirname(resolvedFile);
+  for(;;) {
+    const entries=await fs.readdir(directory);
+    const variant=entries.find(name=>
+      name.toLowerCase()==='package.json'&&name!=='package.json');
+    if(variant) {
+      throw new Error('SNO ESM bare dependency audit cannot model case-variant package.json dependency scope: '+
+        path.join(directory,variant));
+    }
+    if(entries.includes('package.json'))break;
+    const parent=path.dirname(directory);
+    if(parent===directory)break;
+    directory=parent;
+  }
+}
+
 /**
  * @param {SourceFile} file
  * @param {'source'|'output'} context
@@ -541,6 +567,13 @@ async function assertSnoDirectBareImportParity(original,generated,inputRoot,outp
     }
   }
   const resolved=resolveEsmRequests(requests);
+  for(const result of resolved) {
+    if(!result.ok)continue;
+    if(typeof result.url!=='string'||!result.url.startsWith('file:')) {
+      throw new Error('SNO ESM bare dependency audit cannot model non-file resolver target: '+String(result.url));
+    }
+    await assertNoCaseVariantResolvedPackageScope(fileURLToPath(result.url));
+  }
   for(const pair of pairs) {
     const before=resolved[pair.sourceIndex];
     const after=resolved[pair.outputIndex];
