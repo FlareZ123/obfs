@@ -11,6 +11,7 @@ const sameFile=[
   'export function sample(){',
   '  const key="obfs-storage-source-observer";',
   '  localStorage.setItem(key,inspect);',
+  '  localStorage.setItem(inspect,"key-marker");',
   '  sessionStorage.setItem(key,inspect);',
   '  localStorage[key+"-named"]=inspect;',
   '  return {local:localStorage.getItem(key),session:sessionStorage.getItem(key),',
