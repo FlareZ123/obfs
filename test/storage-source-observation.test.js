@@ -126,7 +126,7 @@ test('property pass keeps the Storage-observed owner stable while renaming an in
     'const privateOwner={privateField:7};',
     'function independent(){return privateOwner.privateField;}',
     'export function sample(){return independent();}'
-  ].join('\\n');
+  ].join('\n');
   const baseline=obfuscateFiles([{path:'entry.mjs',sourceType:'module',code:propertyBaseline}],{
     mode:'coo',seed:'storage-property-owner-baseline',
     closedWorld:true,properties:true,identifiers:false,strings:false
