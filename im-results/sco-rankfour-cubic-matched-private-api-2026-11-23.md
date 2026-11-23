@@ -1,7 +1,7 @@
 # Matched authenticated SCO and esbuild-private-API clone of a rank-four cubic permutation
 
 **Status:** intermediate, reproducible negative result for one bounded source family.  
-**Run:** manual-low-rank-target-inversion #149, GitHub Actions run `45162509026`, tested head `b9cfb98e59859b207b5e39770807550e0d32f134`. Both `windows-latest` and `ubuntu-latest` jobs completed successfully, including the new live-clone step and project JSDoc typecheck.
+**Run:** [manual-low-rank-target-inversion #149](https://github.com/FlareZ123/obfs/actions/runs/45162509026), tested head `b9cfb98e59859b207b5e39770807550e0d32f134`. Both `windows-latest` and `ubuntu-latest` jobs completed successfully, including the new live-clone step and project JSDoc typecheck.
 
 ## Question
 
@@ -87,6 +87,6 @@ This is a **targeted efficiency improvement**, not a broader function-class resu
 - Cubic functional model: `sims/rankfour-projected-cubic-rescue.js`
 - Strict JSDoc project: `jsconfig.affine-low-rank-peer.json`
 - Manual workflow: `.github/workflows/manual-low-rank-target-inversion.yml`
-- Run: `45162509026` (workflow run #149; both OS jobs and strict JSDoc succeeded)
+- Run: [#149](https://github.com/FlareZ123/obfs/actions/runs/45162509026) (both OS jobs and strict JSDoc succeeded)
 
 The run is a focused reproducibility receipt for this intermediate attack result, not a production security certification.
