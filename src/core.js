@@ -1667,6 +1667,8 @@ function mutatesDecoderIntrinsic(ast,rejectCommonJsExportEscape=false,rejectEsmE
   /** @type {Set<string>} */
   const decoderGetterDescriptors=new Set();
   /** @type {Set<string>} */
+  const decoderGetterDescriptorFactories=new Set();
+  /** @type {Set<string>} */
   const decoderGetterMaps=new Set();
   /** @type {Set<string>} */
   const decoderGetterMapFactories=new Set();
@@ -1676,12 +1678,32 @@ function mutatesDecoderIntrinsic(ast,rejectCommonJsExportEscape=false,rejectEsmE
    */
   function isDecoderGetterDescriptor(value) {
     if(value.type==='Identifier')return decoderGetterDescriptors.has(value.name);
+    if(value.type==='CallExpression'&&value.callee.type==='Identifier')
+      return decoderGetterDescriptorFactories.has(value.callee.name);
     if(value.type!=='ObjectExpression')return false;
     return value.properties.some((/** @type {import('./ast').AstNode} */ property)=>
       property.type==='Property'&&
       (property.computed?staticString(property.key):
         property.key.type==='Identifier'?property.key.name:staticString(property.key))==='get'&&
       proxyGetMayReturnDecoderIntrinsic(property.value));
+  }
+  /**
+   * A local synchronous factory can construct the descriptor entry later
+   * passed as Object.assign's source. Its returned getter may mutate an
+   * intrinsic before a sibling module's eager string decoder executes.
+   * @param {import('./ast').AstNode} value
+   * @returns {boolean}
+   */
+  function isDecoderGetterDescriptorFactory(value) {
+    if(value.type==='Identifier')
+      return decoderGetterDescriptorFactories.has(value.name);
+    if(!['FunctionDeclaration','FunctionExpression','ArrowFunctionExpression']
+      .includes(value.type)||value.async||value.generator)return false;
+    if(value.body.type!=='BlockStatement')
+      return isDecoderGetterDescriptor(value.body);
+    return value.body.body.some((/** @type {import('./ast').AstNode} */ statement)=>
+      statement.type==='ReturnStatement'&&statement.argument&&
+      isDecoderGetterDescriptor(statement.argument));
   }
   /**
    * @param {import('./ast').AstNode} value
@@ -1719,8 +1741,8 @@ function mutatesDecoderIntrinsic(ast,rejectCommonJsExportEscape=false,rejectEsmE
    * @returns {boolean}
    */
   function exportsDecoderGetterMap(value) {
-    if(isDecoderGetterDescriptor(value)||isDecoderGetterMap(value)||
-       isDecoderGetterMapFactory(value))return true;
+    if(isDecoderGetterDescriptor(value)||isDecoderGetterDescriptorFactory(value)||
+       isDecoderGetterMap(value)||isDecoderGetterMapFactory(value))return true;
     return value.type==='ObjectExpression'&&
       value.properties.some((/** @type {import('./ast').AstNode} */ property)=>
         property.type==='Property'&&exportsDecoderGetterMap(property.value));
@@ -1729,19 +1751,27 @@ function mutatesDecoderIntrinsic(ast,rejectCommonJsExportEscape=false,rejectEsmE
   do {
     decoderDescriptorChanged=false;
     walk(ast,(node,_parent,_key,ancestors)=>{
-      // Preserve a descriptor map returned through a local function factory.
-      // Find the nearest return owner, avoiding nested function bodies.
+      // Track synchronous local factories that return either descriptor
+      // entries or whole descriptor maps, including transitive returns.
       if(node.type==='ReturnStatement'&&node.argument&&
-         isDecoderGetterMap(node.argument)) {
+         (isDecoderGetterDescriptor(node.argument)||
+          isDecoderGetterMap(node.argument))) {
         for(let i=ancestors.length-1;i>=0;i--) {
           const owner=ancestors[i];
           if(!['FunctionDeclaration','FunctionExpression',
                 'ArrowFunctionExpression'].includes(owner.type))continue;
           if(owner.type==='FunctionDeclaration'&&
-             owner.id?.type==='Identifier'&&!owner.async&&!owner.generator&&
-             !decoderGetterMapFactories.has(owner.id.name)) {
-            decoderGetterMapFactories.add(owner.id.name);
-            decoderDescriptorChanged=true;
+             owner.id?.type==='Identifier'&&!owner.async&&!owner.generator) {
+            if(isDecoderGetterDescriptor(node.argument)&&
+               !decoderGetterDescriptorFactories.has(owner.id.name)) {
+              decoderGetterDescriptorFactories.add(owner.id.name);
+              decoderDescriptorChanged=true;
+            }
+            if(isDecoderGetterMap(node.argument)&&
+               !decoderGetterMapFactories.has(owner.id.name)) {
+              decoderGetterMapFactories.add(owner.id.name);
+              decoderDescriptorChanged=true;
+            }
           }
           break;
         }
@@ -1759,6 +1789,11 @@ function mutatesDecoderIntrinsic(ast,rejectCommonJsExportEscape=false,rejectEsmE
       }
       if(isDecoderGetterMap(value)&&!decoderGetterMaps.has(name)) {
         decoderGetterMaps.add(name);
+        decoderDescriptorChanged=true;
+      }
+      if(isDecoderGetterDescriptorFactory(value)&&
+         !decoderGetterDescriptorFactories.has(name)) {
+        decoderGetterDescriptorFactories.add(name);
         decoderDescriptorChanged=true;
       }
       if(isDecoderGetterMapFactory(value)&&!decoderGetterMapFactories.has(name)) {
@@ -1900,6 +1935,8 @@ function mutatesDecoderIntrinsic(ast,rejectCommonJsExportEscape=false,rejectEsmE
    * @returns {boolean}
    */
   function descriptorHasSensitiveGetter(expression,visited=new Set()) {
+    if(expression.type==='CallExpression'&&expression.callee.type==='Identifier')
+      return decoderGetterDescriptorFactories.has(expression.callee.name);
     if(expression.type==='Identifier'){
       if(visited.has(expression.name))return false;
       visited.add(expression.name);
