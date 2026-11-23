@@ -55,7 +55,7 @@ test('native and generated samples retain public module, globals and error seman
 test('independent seedless source-only normalizer reconstructs complete own-field dataflow',()=>{
   const attack=neutralizeHashedNames([{path:'after.cjs',sourceType:'commonjs',code:after}]);
   assert.equal(attack.properties,2);
-  assert.ok(attack.variables>=1);
+  assert.equal(attack.variables,0,'identifier rewriting is disabled in this property-only sample');
   const reconstructed=attack.files[0].code;
   assert.match(reconstructed,/reconstructedProperty_0/u);
   assert.doesNotMatch(reconstructed,/_p[a-f0-9]{10}/u);
