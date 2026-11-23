@@ -1,7 +1,7 @@
 'use strict';
 const {test}=require('node:test');
 const assert=require('node:assert/strict');
-const {runLayeredLowRankComposition}=
+const {runLayeredLowRankComposition,runTinyLayeredAnfAudit}=
   require('../sims/layered-rankone-crosswrapped-inversion');
 
 test('interleaved independently mixed nonlinear rank-one layers remain bounded-rank invertible',()=>{
@@ -18,4 +18,18 @@ test('interleaved independently mixed nonlinear rank-one layers remain bounded-r
     assert.ok(row.maximumResidualRank<=row.layers);
   }
   console.log('LAYERED_LOWRANK_COMPOSITION '+JSON.stringify(result));
+});
+
+test('complete eight-bit ANF audit: nonlinear degree rises while output rank stays bounded',()=>{
+  const result=runTinyLayeredAnfAudit();
+  assert.equal(result.samples,288);
+  assert.equal(result.byLayers.length,6);
+  for(const row of result.byLayers){
+    assert.equal(row.sources,48);
+    assert.ok(row.maximumRank<=row.layers);
+    assert.ok(row.maximumDegree>=2);
+  }
+  assert.ok(result.byLayers[5].maximumDegree>=6);
+  assert.ok(result.byLayers[5].maximumRank>=5);
+  console.log('LAYERED_TINY_ANF_DEGREE_RANK '+JSON.stringify(result));
 });
