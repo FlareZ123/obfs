@@ -3,7 +3,7 @@
 **Status:** intermediate empirical finding and unmerged conservative candidate; not an established result.  
 **Date:** 23 November 2026  
 **Branch:** `agent3/external-unary-coercion-observer-20261123`  
-**Current candidate source:** `aef4124192df77f39466edb7e5290b46a38a1cfb`
+**Candidate source commit:** `aef4124192df77f39466edb7e5290b46a38a1cfb` (branch head at the time of the expanded matrix run; later branch commits add test/report files only)
 
 ## Question
 
@@ -50,6 +50,16 @@ The expanded test `test/agent3-to-primitive-source-observer-matrix.test.js` cont
 - **Run 45274781741:** expanded 55-case matrix (including aliases, constructors, `.call/.apply/.bind`, and `Reflect.apply`) passed on Ubuntu and Windows, including strict project and external JSDoc.
 
 The candidate is on this branch only. No production change has been merged to `main`.
+
+
+## Property-pass yield consequence
+
+A separate control isolates the same whole-file boolean cost in the property pass. The observed function `reader` is independent of a private object `unrelatedOwner`; its numeric coercion is observed by the unlisted patcher, but the unrelated object's key is not part of the observed function source. With the candidate guard, `metrics.properties === 0` and `unrelatedPrivate` remains unchanged. Replacing numeric coercion with `Boolean(reader)` is a non-coercive positive control: the property pass renames `unrelatedPrivate` and preserves runtime result 17.
+
+- Test: `test/agent3-to-primitive-property-yield.test.js`
+- Run 45275533166: GREEN on Ubuntu and Windows with strict project/external JSDoc.
+
+This confirms that the boolean observer blocks unrelated property yield as well as identifier yield. The candidate is safe but materially overconservative; a callable/source-span summary is the intended next step, not a global boolean merged as a final solution.
 
 ## Interpretation and limitations
 
