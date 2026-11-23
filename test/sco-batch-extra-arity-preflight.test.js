@@ -49,7 +49,6 @@ test('SCO HTTP preflight cannot be bypassed by surplus batch RPC arguments',asyn
   const handler=createScoHandler([
     {path:'public.mjs',sourceType:'module',code:'export const marker=1;'}
   ],{
-    seed:'agent41-batch-arity-20261123',
     publicPaths:['public.mjs'],
     remoteMethods:{batch},
     batchPreflightRoutes:['batch'],
