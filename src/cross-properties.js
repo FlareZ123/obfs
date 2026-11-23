@@ -5,6 +5,7 @@ const {createHash} = require('node:crypto');
 const {walk,applyEdits,parse,observesFunctionSource,observesDistributedSource,staticString,collectDirectCarrierFactories} = require('./ast');
 const {collectBindings,proveLocalObject,staticName,patternPropertyEdits,inOperatorPropertyEdits,isLiteralValue,isPrimitiveConstantExpression,ownPropertyName,singleUseFactoryObject} = require('./properties');
 const {proveDirectReaderPrimitives}=require('./direct-reader-primitives');
+const {renameCommonJsCrossFileProperties}=require('./commonjs-cross-properties');
 
 /** @typedef {import('./core').SourceFile & {sourceType:import('./core').SourceType}} SourceFile */
 /** @typedef {import('./ast').AstNode} AstNode */
@@ -2010,17 +2011,23 @@ function isInertEarlierValue(value,ownerStart,primitives) {
  * @returns {{files:SourceFile[],objects:number,properties:number}}
  */
 function renameCrossFileProperties(files,seed) {
-  // Mixed executable formats can hide ESM consumers. The closed-world
-  // integrator additionally promises that these explicitly declared inert
-  // style/image/font assets are served with non-JavaScript MIME types and
-  // never interpreted as source; file extensions alone cannot prove that.
+  // Mixed executable formats can hide consumers. The closed-world integrator
+  // additionally promises that these explicitly declared inert style/image/
+  // font assets are served with non-JavaScript MIME types and never parsed.
   const inertAssetExtensions=new Set(['.css','.png','.jpg','.jpeg','.gif',
     '.webp','.ico','.woff','.woff2','.ttf','.otf']);
-  if (files.some(file => {
-    const type=file.sourceType ?? (file.path.endsWith('.mjs') ? 'module' : 'script');
-    return type!=='module' && !(type==='asset' &&
-      inertAssetExtensions.has(path.posix.extname(file.path).toLowerCase()));
-  })) {
+  const typeOf=file=>file.sourceType ?? (file.path.endsWith('.mjs') ? 'module' : 'script');
+  const executable=files.filter(file=>typeOf(file)!=='asset');
+  if(files.some(file=>typeOf(file)==='asset'&&
+      !inertAssetExtensions.has(path.posix.extname(file.path).toLowerCase()))) {
+    return {files,objects:0,properties:0};
+  }
+  // A complete all-CommonJS file group has a separate, deliberately narrow
+  // static-require proof. Mixed CJS/ESM/script groups remain untransformed.
+  if(executable.length>0&&executable.every(file=>typeOf(file)==='commonjs')) {
+    return renameCommonJsCrossFileProperties(files,seed);
+  }
+  if(!executable.length||executable.some(file=>typeOf(file)!=='module')) {
     return {files,objects:0,properties:0};
   }
   /** @type {WeakMap<SourceFile,{code:string|Buffer,value:ParsedModule}>} */
