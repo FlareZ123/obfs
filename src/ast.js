@@ -957,12 +957,79 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
     }
     return returns.some(expr=>mayCarryEncoder(expr));
   }
+  /** @type {Set<AstNode>} */
+  const provenLocalIdentityEncodeReceivers=new Set();
+  // Only a closed, unaliased, constant own record with a pure identity
+  // .encode method may exempt its sibling field from native TextEncoder
+  // provenance. Dynamic keys, spreads, mutation, and escapes revoke proof.
+  walk(ast,(node,parent)=>{
+    if(node.type!=='VariableDeclarator'||node.id.type!=='Identifier'||
+       parent?.type!=='VariableDeclaration'||parent.kind!=='const'||
+       node.init?.type!=='ObjectExpression'||!mayCarryEncoder(node.init))return;
+    const owner=node.id.name;
+    /** @type {Set<string>} */
+    const names=new Set();
+    /** @type {Set<string>} */
+    const identityFields=new Set();
+    for(const field of node.init.properties) {
+      if(field.type!=='Property'||field.kind!=='init'||field.method)return;
+      const fieldName=field.computed?staticString(field.key):
+        field.key.type==='Identifier'?field.key.name:staticString(field.key);
+      if(fieldName===null||names.has(fieldName))return;
+      names.add(fieldName);
+      if(field.value.type!=='ObjectExpression')continue;
+      /** @type {Set<string>} */
+      const childNames=new Set();
+      /** @type {AstNode|null} */
+      let method=null;
+      let valid=true;
+      for(const child of field.value.properties) {
+        if(child.type!=='Property'||child.kind!=='init'){valid=false;break;}
+        const childName=child.computed?staticString(child.key):
+          child.key.type==='Identifier'?child.key.name:staticString(child.key);
+        if(childName===null||childNames.has(childName)){valid=false;break;}
+        childNames.add(childName);
+        if(childName==='encode')method=child.value;
+      }
+      if(!valid||!method||
+         !['FunctionExpression','ArrowFunctionExpression'].includes(method.type)||
+         method.async||method.generator||method.params.length!==1||
+         method.params[0].type!=='Identifier'||
+         method.body.type!=='BlockStatement'||method.body.body.length!==1||
+         method.body.body[0].type!=='ReturnStatement'||
+         method.body.body[0].argument?.type!=='Identifier'||
+         method.body.body[0].argument.name!==method.params[0].name)continue;
+      identityFields.add(fieldName);
+    }
+    if(!identityFields.size)return;
+    let safe=true;
+    /** @type {AstNode[]} */
+    const proven=[];
+    walk(ast,(use,ancestor,key,ancestors)=>{
+      if(use.type==='WithStatement'||use.type==='CallExpression'&&
+         use.callee.type==='Identifier'&&use.callee.name==='eval')safe=false;
+      if(use.type!=='Identifier'||use.name!==owner||use===node.id)return;
+      if(ancestor?.type!=='MemberExpression'||key!=='object'||
+         !identityFields.has(memberName(ancestor)??'')) {
+        safe=false;
+        return;
+      }
+      const chain=ancestors[ancestors.length-2];
+      const call=ancestors[ancestors.length-3];
+      if(chain?.type==='MemberExpression'&&chain.object===ancestor&&
+         memberName(chain)==='encode'&&call?.type==='CallExpression'&&
+         call.callee===chain)proven.push(ancestor);
+      else safe=false;
+    });
+    if(safe)for(const receiver of proven)provenLocalIdentityEncodeReceivers.add(receiver);
+  });
   /** @param {AstNode|null|undefined} node @param {Set<string>} instances
    *  @param {Set<string>} constructors @param {Set<string>} names @returns {boolean} */
   function isWebInstance(node,instances,constructors,names) {
     return Boolean(node && (node.type==='Identifier'&&instances.has(node.name) ||
       node.type==='NewExpression'&&isWebConstructor(node.callee,constructors,names) ||
-      instances===encoderInstances && mayCarryEncoder(node)));
+      instances===encoderInstances && !provenLocalIdentityEncodeReceivers.has(node) &&
+        mayCarryEncoder(node)));
   }
   /**
    * Headers and URLSearchParams arise from constructor calls or via native
