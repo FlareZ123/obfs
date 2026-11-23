@@ -52,6 +52,19 @@ const directPublicRead=[
   'module.exports=published;'
 ].join('');
 
+const identityEscape=[
+  'const owner={secretField:41};',
+  'function identity(input){return input;}',
+  'module.exports=()=>identity(owner);'
+].join('');
+
+const forwardedPublicKey=[
+  'const owner={secretField:41};',
+  'function identity(input){return input;}',
+  'function published(n){return identity(owner).secretField+n;}',
+  'module.exports=published;'
+].join('');
+
 const indirectReader=[
   'const owner={secretField:41};',
   'function read(input){return input.secretField;}',
@@ -108,6 +121,18 @@ for(const mode of /** @type {const} */ (['coo','sno','sco'])) {
     const transformed=compile(directPublicRead,mode);
     assert.equal(transformed.metrics.properties,0);
     assert.equal(transformed.code,directPublicRead);
+  });
+
+  test(mode+' refuses returning a private owner through a public exported wrapper',()=>{
+    const transformed=compile(identityEscape,mode);
+    assert.equal(transformed.metrics.properties,0);
+    assert.equal(transformed.code,identityEscape);
+  });
+
+  test(mode+' refuses a forwarded owner field rewritten inside a public wrapper',()=>{
+    const transformed=compile(forwardedPublicKey,mode);
+    assert.equal(transformed.metrics.properties,0);
+    assert.equal(transformed.code,forwardedPublicKey);
   });
 
   test(mode+' refuses indirect Function.prototype.call reader invocation',()=>{
