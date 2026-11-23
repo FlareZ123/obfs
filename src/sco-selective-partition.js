@@ -329,6 +329,10 @@ function firstUnprovedUnqualifiedReference(root,moduleBindings,rootFormals){
       parent.type==='MetaProperty'||
       parent.type==='ImportSpecifier'&&key==='imported'||
       parent.type==='ExportSpecifier'&&key==='exported'))return;
+    // A re-export's local name is the imported name in its source module,
+    // not an unqualified read of a binding in the current module.
+    if(parent?.type==='ExportSpecifier'&&key==='local'&&
+       ancestors.some(scope=>scope.type==='ExportNamedDeclaration'&&scope.source))return;
     // A function literal used solely as a direct operand of typeof is
     // created, not executed. The existing typeof proof admits this precise
     // lazy case; do not falsely convert it into a free-host read.
@@ -1670,11 +1674,6 @@ function collectPrivateStaticImportClosure(directPaths,sources) {
       throw new TypeError('SCO private static dependency has unproved free typeof reference: '+
         filename+':'+freeTypeof);
     }
-    const missingStatic=firstUnprovedUnqualifiedReference(ast,new Set(),new Set());
-    if(missingStatic!==null){
-      throw new TypeError('SCO private static dependency has unproved unqualified free reference: '+
-        filename+':'+missingStatic);
-    }
     walk(ast,node=>{
       // Destructuring can carry process.getBuiltinModule or a global root
       // into an untracked binding. Refuse these opaque first-class escapes.
@@ -1818,6 +1817,13 @@ function collectPrivateStaticImportClosure(directPaths,sources) {
         throw new TypeError('SCO private static graph contains an unproved runtime loader: '+filename);
       }
     });
+    // Reject dynamic loaders through their specific diagnostic first.
+    // Then enforce unknown-free-reference refusal for remaining source.
+    const missingStatic=firstUnprovedUnqualifiedReference(ast,new Set(),new Set());
+    if(missingStatic!==null){
+      throw new TypeError('SCO private static dependency has unproved unqualified free reference: '+
+        filename+':'+missingStatic);
+    }
     for(const statement of ast.body) {
       const imported=statement.type==='ImportDeclaration' ||
         statement.type==='ExportAllDeclaration' ||
