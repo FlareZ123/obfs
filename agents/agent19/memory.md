@@ -592,3 +592,15 @@ https://github.com/FlareZ123/obfs/actions/runs/45106288191/artifacts/14787637047
 Updated report, README, and design note to reference this final branch/run.
 The test harness is on a manual `workflow_dispatch` branch only; it does not
 run per commit. No source-observer implementation patch or PR was opened.
+
+
+Final branch `agent19/domstring-property-setter-final-20261123` passed run
+45106288191. At 03:31Z its seven relevant compiler files were byte-identical
+to current main:
+- ast.js `eea89ceb890cf190deb714751158a055c6cb2224`
+- core.js `8d33996821650de540b87502baff00a9e7ea99c7`
+- properties.js `5748e5b27146fe8a0b2937b0ad6b4bc4382ebe6f`
+- identifiers.js `c7e2ed1469381c5bc6dc42cef9a6ca8bfa347f0f`
+- strings.js `df489cf25a8aaeb87d90e6dc1b7eb66476da8dd6`
+- cross-properties.js `adb626c7533ac08cc51823b10bdbd9b09d966149`
+- source-observer-islands.js `e037ca7440e6a3c2eb0ae19247cd418625ec97a8`
