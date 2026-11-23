@@ -24,6 +24,11 @@ jobs:
         with:
           node-version: '22'
       - run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Browser DOMParser and Element Web IDL source-coercion diagnostic
+        if: ${{ matrix.os == 'ubuntu-latest' }}
+        env:
+          CHROMIUM_BIN: google-chrome
+        run: node test/domparser-webidl-source-browser.js
       - name: Inspect inert-clone group versus local owner proofs
         run: node sims/inert-clone-source-triage.js
       - name: Direct declaration reader interprocedural proof and native ESM differential
