@@ -47,6 +47,7 @@
     "sims/vector-top-tensor-quotient-peer.js",
     "sims/rankfive-top-quartic-functional-clone.js",
     "sims/rankfive-top-quintic-functional-clone-peer.js",
+    "sims/rankfive-top-quintic-validated-peer.js",
     "sims/projected-affine-coset-profile-clone.js",
     "sims/sco-rankfive-arbitrary-table-real-http.js",
     "test/projected-affine-coset-profile-clone.test.js",
