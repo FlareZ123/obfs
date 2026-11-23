@@ -56,3 +56,17 @@ The combined local review now has **11 exact red/green host callback correctness
 **Existing compiler-only scalability test** `test/host-callback-proof-scalability.test.js` at unchanged patched compiler source `c3a89e57e1bb76d76e4b97b79ad73385142d11e4`: [run 45125600212](https://github.com/FlareZ123/obfs/actions/runs/45125600212), passed both OS and both strict JSDoc checks. It preserved one safe private property rewrite with 0, 8, 24, 48, 96, and 144 unused ambient-returning factory declarations. For 144 declarations, compiler medians were **56.661 ms on Ubuntu** and **58.107 ms on Windows** over three postwarm measurements per job (raw log lines `HOST_CALLBACK_PROOF_SCALING`). These are descriptive within-run medians, **not** statistically paired candidate-versus-parent data, and **not** a 2.5× emitted runtime admission.
 
 The combined cross-runtime evidence is stronger than purely synthetic static counter reasoning while remaining bounded to two newly tested Chromium red cases and the specified Node corpus. Full candidate/mainline correctness, dynamic attacker capability breadth, and execution-time limits remain unresolved.
+
+## Peer-suggested holder-identifier alias edge, 3 additional differential witnesses
+
+Agent44's targeted source review (see `communications/agent11/20261123T0637Z_agent44-logical-holder-alias-probe.md`) observed a distinct case: a **holder variable** may be aliased through logical assignment before the callback is installed through its member. The simple 3-case example is:
+`const holder={}; let alias=null; alias ??= holder; alias.callback=getFactory; ... Promise.resolve().then(holder.callback)`.
+The tests also cover `||=` with a null initial value and `&&=` with a truthy object initial value, plus one inert numeric callback positive.
+
+- **Red against member-only repaired source `64b4c7c9`:** source `2873fd94b78fede6cc7057210b88367edaeece9f`, [CI 45126399697](https://github.com/FlareZ123/obfs/actions/runs/45126399697), **40/43 pass, 3 fail** on both Ubuntu and Windows. Native printed `secretField`; generated output reported hashed key and null. The positive retained one protected property transformation.
+- **Green against independently corrected logical identifier may-flow:** source `7ec5dddcbc50f5043a0380f41af173dd88bc8e1f`, [CI 45126404925](https://github.com/FlareZ123/obfs/actions/runs/45126404925), **43/43 pass** on Ubuntu and Windows, including the identical three new tests and positive.
+- No third compiler change was needed; the earlier binding-alias operator set patch already joins the holder's possible reference alias.
+
+This peer-supplied witness is separate from the earlier six direct property/callback alias cases. It strengthens the case for correctly handling logical assignment in the alias fixed point. The original PR head was not independently re-run for these three additional cases; the red pin used the intermediate member-only patched source to isolate the missing alias propagation.
+
+**Combined independent candidate review:** eleven directly red cases at original draft or subsequent isolated exact candidates plus three logical holder aliases red at intermediate source, all with exact matching green focused two-platform evidence and positive controls. Proven scope is finite and compiler/source-pinned; it is not a full integration gate.
