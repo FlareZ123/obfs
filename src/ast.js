@@ -648,6 +648,8 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
   const encoderConstructors=new Set(encoderNames);
   const formConstructors=new Set(formNames);
   const encoderInstances=new Set();
+  // Local functions can return a native encoder through ordinary calls.
+  const encoderReturningFunctions=new Set();
   const formInstances=new Set();
   // ECMA-402 calls can stringify functions and expose native source bytes.
   const intlNamespaces=new Set(['Intl']);
@@ -889,11 +891,72 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
     const keys=urlStaticObjectKeys.get(node.object.name);
     return name!==null?keys?.has(name)??false:Boolean(node.computed&&keys?.size);
   }
+  /**
+   * Conservative may-flow for native TextEncoder receiver values. A local
+   * helper may return its encoder input, an encoder result, a record/array
+   * containing that result, or a conditional branch. A read from a carrier
+   * can therefore yield a native encoder even when the final receiver is
+   * syntactically just a variable. Unknown user calls remain out of scope.
+   * This is a source-observation refusal predicate, never a rewrite proof.
+   * @param {AstNode|null|undefined} node
+   * @param {number} [depth]
+   * @returns {boolean}
+   */
+  function mayCarryEncoder(node,depth=0) {
+    if(!node||depth>32)return false;
+    if(node.type==='Identifier')return encoderInstances.has(node.name);
+    if(node.type==='NewExpression')
+      return isWebConstructor(node.callee,encoderConstructors,encoderNames);
+    if(node.type==='CallExpression')return (
+      node.callee.type==='Identifier' && encoderReturningFunctions.has(node.callee.name) ||
+      node.arguments.some((/** @type {AstNode} */ argument)=>
+        mayCarryEncoder(argument.type==='SpreadElement'?argument.argument:argument,depth+1)));
+    if(node.type==='MemberExpression')return mayCarryEncoder(node.object,depth+1);
+    if(node.type==='ChainExpression'||node.type==='AwaitExpression')
+      return mayCarryEncoder(node.expression??node.argument,depth+1);
+    if(node.type==='ConditionalExpression')return (
+      mayCarryEncoder(node.consequent,depth+1)||mayCarryEncoder(node.alternate,depth+1));
+    if(node.type==='LogicalExpression')return (
+      mayCarryEncoder(node.left,depth+1)||mayCarryEncoder(node.right,depth+1));
+    if(node.type==='SequenceExpression')return node.expressions.some(
+      (/** @type {AstNode} */ item)=>mayCarryEncoder(item,depth+1));
+    if(node.type==='ArrayExpression')return node.elements.some(
+      (/** @type {AstNode|null} */ item)=>
+        item!==null&&mayCarryEncoder(
+          item.type==='SpreadElement'?item.argument:item,depth+1));
+    if(node.type==='ObjectExpression')return node.properties.some(
+      (/** @type {AstNode} */ property)=>
+        mayCarryEncoder(property.type==='SpreadElement'?property.argument:
+          property.value,depth+1));
+    return false;
+  }
+  /** @type {Map<AstNode,AstNode[]>} */
+  const encoderReturnSites=new Map();
+  /**
+   * Cache return expressions once per local callable: receiver may-flow is
+   * monotonic, so only the inexpensive expression checks repeat to closure.
+   * @param {AstNode} fn
+   * @returns {boolean}
+   */
+  function mayReturnEncoder(fn) {
+    if(fn.async||fn.generator)return false;
+    let returns=encoderReturnSites.get(fn);
+    if(!returns) {
+      returns=[];
+      if(fn.body.type!=='BlockStatement')returns.push(fn.body);
+      else walk(fn.body,inner=>{
+        if(inner.type==='ReturnStatement'&&inner.argument)returns.push(inner.argument);
+      });
+      encoderReturnSites.set(fn,returns);
+    }
+    return returns.some(expr=>mayCarryEncoder(expr));
+  }
   /** @param {AstNode|null|undefined} node @param {Set<string>} instances
    *  @param {Set<string>} constructors @param {Set<string>} names @returns {boolean} */
   function isWebInstance(node,instances,constructors,names) {
     return Boolean(node && (node.type==='Identifier'&&instances.has(node.name) ||
-      node.type==='NewExpression'&&isWebConstructor(node.callee,constructors,names)));
+      node.type==='NewExpression'&&isWebConstructor(node.callee,constructors,names) ||
+      instances===encoderInstances && mayCarryEncoder(node)));
   }
   /**
    * Headers and URLSearchParams arise from constructor calls or via native
@@ -1003,6 +1066,21 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
   do {
     changed=false;
     walk(ast,node=>{
+      if(node.type==='FunctionDeclaration'&&node.id?.type==='Identifier'&&
+         !encoderReturningFunctions.has(node.id.name)&&mayReturnEncoder(node)) {
+        changed=add(encoderReturningFunctions,node.id.name)||changed;
+      }
+      if(node.type==='VariableDeclarator'&&node.id.type==='Identifier'&&node.init&&
+         ['FunctionExpression','ArrowFunctionExpression'].includes(node.init.type)&&
+         !encoderReturningFunctions.has(node.id.name)&&mayReturnEncoder(node.init)) {
+        changed=add(encoderReturningFunctions,node.id.name)||changed;
+      }
+      if(node.type==='VariableDeclarator'&&node.id.type==='ArrayPattern'&&
+         mayCarryEncoder(node.init)) {
+        for(const item of node.id.elements) {
+          if(item?.type==='Identifier')changed=add(encoderInstances,item.name)||changed;
+        }
+      }
       if(node.type==='VariableDeclarator' && node.id.type==='Identifier' ||
          node.type==='AssignmentExpression' && node.operator==='=' &&
          node.left.type==='Identifier') {
