@@ -191,6 +191,9 @@ function isStaticKey(parent,key){
  */
 function usesUnprovedCrossRealmHostApi(body,explicitServerBindings=new Set()){
   const hostApis=new Set([
+    // Node's legacy buffer.atob/btoa errors have different native messages
+    // from browser Window atob/btoa, even for identical malformed input.
+    'atob','btoa',
     'console','fetch','Request','Worker','WebSocket','XMLHttpRequest','EventSource',
     'BroadcastChannel','MessageChannel',
     'setTimeout','clearTimeout','setInterval','clearInterval',
