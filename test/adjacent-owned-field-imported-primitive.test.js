@@ -119,7 +119,7 @@ test('adjacent owner primitive remains primitive with hostile inherited getter',
     assert.equal(await runNative(sources),29);
     assert.equal(await runNative(emitted),29);
   }finally{
-    delete Object.prototype.secretValue;
+    Reflect.deleteProperty(Object.prototype,'secretValue');
   }
 });
 
