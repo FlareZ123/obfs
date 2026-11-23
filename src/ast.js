@@ -1652,19 +1652,14 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
     return false;
   }
   /**
-   * A fresh plain literal whose own data fields are provably primitive cannot
-   * expose function source through Object.prototype's native string methods.
-   * Reject accessor methods, computed keys, spreads and __proto__ rewriting.
+   * Inline fresh literal records whose own data fields are proven primitive
+   * have only native Object.prototype source methods at construction time.
+   * Never extrapolate this proof across aliases, writes, or unknown escapes.
    * @param {AstNode|null|undefined} input
-   * @param {number} [depth]
    * @returns {boolean}
    */
-  function isInertPlainRecord(input,depth=0) {
-    if(!input||depth>16)return false;
-    if(input.type==='Identifier' && !dynamicScope &&
-       bindingCounts.get(input.name)===1)
-      return isInertPlainRecord(primitiveCandidates.get(input.name),depth+1);
-    if(input.type!=='ObjectExpression')return false;
+  function isInertPlainRecord(input) {
+    if(!input || input.type!=='ObjectExpression')return false;
     return input.properties.every(property=>{
       if(property.type!=='Property'||property.kind!=='init'||
          property.computed||property.method)return false;
