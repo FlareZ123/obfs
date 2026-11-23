@@ -53,3 +53,12 @@ Expand the withheld graph generator to realistic modules containing asynchronous
 ## Independent attacker replication
 
 A separate pinned [manual Linux/Windows run 43709096598](https://github.com/FlareZ123/obfs/actions/runs/43709096598) at SHA **311e355c5c179c6e45925de5cfa6b012c3d1a67b** passed after swapping the normalization oracle to independently implemented Acorn token processing. All 30 transformed and all 30 independently normalized graphs again matched the native originals, with the same 18/60 renamed private fields and 18 independently neutralized labels. Single-pass token normalization across the 30 graphs measured 5.883 ms on Ubuntu and 8.067 ms on Windows. Source bytes and function protection counts were unchanged. The original run's timing in the table refers to the earlier attack implementation; both timings are single executions, unsuitable for performance ranking. The new attacker has no dependency on internal obfuscator parser/edit routines, although it shares the publicly declared Acorn package.
+
+
+## Additional audit: unsuitable as a blind LLM-name-recovery challenge (2026-11-23T11:45:59.861Z)
+
+Inspection of `sims/heldout-object-flow-attack.js` shows that the original property names are deterministically generated as `privateMetric${seed}` and `weightedFactor${seed}`. The corresponding numeric values are `seed*13+17` and `seed*7+3`, so either value directly reveals the small numeric seed. The generator, seed range, and fixture kinds are public in this repository.
+
+Consequently, a reviewer with repository access can recover the exact original labels by reading the generator or inverting the numeric constants. This corpus remains useful for the stated source-only Acorn label-neutralization and fixed-observation parity experiment, but it is **not suitable for blind LLM property-name recovery**. Do not report model recovery on these fixtures as meaningful resistance evidence.
+
+A future private LLM challenge must use fresh cryptographic randomness that is not exposed to reviewers, remove deterministic seed leakage from identifiers, values, and paths, and retain original property-name/object-identity mappings only in the private verifier. Exact original spelling, semantically plausible role naming, and executable clone success must be scored as separate endpoints.
