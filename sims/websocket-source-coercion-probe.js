@@ -69,13 +69,18 @@ async function captureSourceFrame(source){
   });
   const address=server.address();
   if(!address||typeof address==='string')throw new Error('Missing listener address');
+  /** @type {NodeJS.Timeout|undefined} */
+  let timeout;
   try{
     vm.runInNewContext(source,{WebSocket,__url:'ws://127.0.0.1:'+address.port},{timeout:10000});
     return await Promise.race([
       observed,
-      new Promise((_,reject)=>setTimeout(()=>reject(Error('WebSocket source frame timeout')),10000))
+      new Promise((_,reject)=>{
+        timeout=setTimeout(()=>reject(Error('WebSocket source frame timeout')),10000);
+      })
     ]);
   }finally{
+    if(timeout)clearTimeout(timeout);
     peer?.destroy();
     await new Promise((resolve,reject)=>
       server.close(error=>error?reject(error):resolve()));
@@ -103,6 +108,16 @@ const aliasSource=[
   '  socket.close();',
   '});'
 ].join('\n');
+
+const detachedSource=[
+  'const socket=new WebSocket(globalThis.__url);',
+  'const sender=socket.send;',
+  'function protocolSensitive(){return "value-723";}',
+  'socket.addEventListener("open",()=>{',
+  '  sender.call(socket,protocolSensitive);',
+  '  socket.close();',
+  '});'
+].join('\\n');
 
 const primitiveSource=[
   'const socket=new WebSocket(globalThis.__url);',
@@ -137,8 +152,9 @@ async function compare(label,input){
 async function main(){
   const direct=await compare('direct',source);
   const alias=await compare('alias',aliasSource);
+  const detached=await compare('detached',detachedSource);
   const primitive=await compare('literal',primitiveSource);
-  const evidence=[direct,alias,primitive].map(item=>({
+  const evidence=[direct,alias,detached,primitive].map(item=>({
     case:item.label,
     transformApplied:item.transformApplied,
     literals:item.literals,
@@ -156,6 +172,8 @@ async function main(){
     'Direct native WebSocket.send(function) source-text output changed');
   assert.equal(alias.transformed,alias.native,
     'Aliased WebSocket constructor/instance sent a different function source');
+  assert.equal(detached.transformed,detached.native,
+    'Detached WebSocket.send.call(source) sent a different function source');
   assert.equal(primitive.transformed,primitive.native,
     'Primitive WebSocket payload did not preserve its string contents');
   assert.ok(primitive.transformApplied && primitive.literals>0,
