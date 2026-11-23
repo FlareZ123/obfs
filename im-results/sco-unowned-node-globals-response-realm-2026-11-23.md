@@ -101,6 +101,52 @@ selected/source tests and strict JSDoc at
 [45279928501](https://github.com/FlareZ123/obfs/actions/runs/45279928501)
 from compiler source `d195af1033b71797c06f63bca7dfbafa8335c196`.
 
+## Extended native/syntax sweep and authenticated positive execution
+
+The same source candidate was subjected to a deterministic **56-wrapper
+native ESM differential**: seven Node-specific ambient expressions composed
+through eight direct, array, local-value, closure, async-closure, getter,
+record and conditional forms. Chromium and independent Node produced
+different native results for **56/56** expression/shape pairs, and selected
+SCO conservatively refused all **56/56** transformations. This is a
+finite grammar test, with all input source strings in
+`test/sco-app-global-native-browser.test.js`, **not** a theorem for
+arbitrary syntax or dynamic aliasing.
+
+The source-pinned [two-OS CI
+45280947904](https://github.com/FlareZ123/obfs/actions/runs/45280947904)
+at `6fe9b84d59e501569717b0b21a5aaaffe3ca063f` passed the
+56-wrapper original-host check, all earlier focused tests, and strict
+project/external/budget JSDoc. Ubuntu executed actual Chromium; Windows
+executed compiler checks and intentionally skipped Chromium.
+
+A subsequent generated-client **real HTTP** positive control directly
+imported original browser ESM and selected SCO facade on the same Chromium
+page. Three independently locally owned scalar spellings
+`Buffer=41`, `process=41`, `Response=41` each computed `42` in
+both original and server-RPC-selected code, and public `visible()`
+returned `7`: native and emitted vectors were each
+`[42,42,42,7]`. The handler enforced cookie auth, and a request to
+`/obfs/rpc` without the authorization cookie returned **HTTP 403**.
+[Focused 45281286475](https://github.com/FlareZ123/obfs/actions/runs/45281286475)
+passed all 12 tests including this browser/HTTP scenario on Ubuntu, with
+Windows static checks and strict JSDoc. Exact source is
+`015e1f62281ccc2bdb3e54b80fc2fc082a3eceea`.
+These are preservation and authorization-boundary checks, not
+resistance to legitimate authorized online relaying.
+
+An additional pre-existing fixture expected the old broad host-global
+refusal diagnostic for `const globalThis=probe()`. The indexed
+free-reference proof now correctly refuses the unowned free `probe`
+earlier. Only that test's expected diagnostic alternative was extended
+to include `unproved unqualified free reference: probe`; the unsafe
+source remains refused and no runtime behavior is changed. The
+[original focused red 45280767319](https://github.com/FlareZ123/obfs/actions/runs/45280767319)
+reported 13 passing tests and this one mismatch on both OS;
+[corrected focused 45281045333](https://github.com/FlareZ123/obfs/actions/runs/45281045333)
+passed 14/14 with strict JSDoc on both OS at
+`98ac8fd840e82b64b3bb776f93c23f1bed7af930`.
+
 ## Reproduction and limits
 
 - [Combined focused test](../test/sco-app-global-native-browser.test.js)
