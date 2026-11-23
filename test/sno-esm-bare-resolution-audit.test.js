@@ -117,6 +117,33 @@ test('opt-in SNO ESM audit accepts one shared dependency and preserves emitted b
   });
 });
 
+
+test('ESM audit resolves import.meta without evaluating external package code',async()=>{
+  await fixture(async temp=>{
+    const root=path.join(temp,'project');
+    const source=path.join(root,'source');
+    const output=path.join(root,'output');
+    const marker=path.join(temp,'dependency-executed.txt');
+    await writeApplication(source);
+    const directory=path.join(root,'node_modules',packageName);
+    await atomicWrite(path.join(directory,'package.json'),JSON.stringify({
+      type:'module',
+      exports:{'.':{import:'./import.mjs',require:'./require.cjs'}}
+    }));
+    await atomicWrite(path.join(directory,'import.mjs'),
+      "import {writeFileSync} from 'node:fs';"+
+      "writeFileSync("+JSON.stringify(marker)+",'executed');"+
+      "export const value=103;");
+    await atomicWrite(path.join(directory,'require.cjs'),'module.exports=401;');
+    await atomicWrite(path.join(source,'engine.mjs'),
+      "import {value} from '"+packageName+"';"+
+      "export default {value,resolved:import.meta.resolve('"+packageName+"')};");
+    await main('sno',['--root',source,'--entry','entry.cjs',
+      '--out',output,'--seed','sno-esm-resolution-does-not-evaluate','--audit-bare-esm']);
+    await assert.rejects(fs.stat(marker),{code:'ENOENT'});
+  });
+});
+
 test('ESM audit collects static, re-export, literal dynamic and import.meta.resolve specifiers',()=>{
   /** @type {import('../src/core').SourceFile[]} */
   const files=[
