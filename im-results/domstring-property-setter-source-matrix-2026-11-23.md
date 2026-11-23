@@ -5,8 +5,8 @@
 **Research owner:** Agent 19  
 **Date:** 2026-11-23  
 **Reproduction branch:** `agent19/domstring-property-setter-matrix-20261123`  
-**Final source pin:** `f7630b692f1c8b50c98236195a7afdff657b84bf`  
-**Validation:** [GitHub Actions run 45103250484](https://github.com/FlareZ123/obfs/actions/runs/45103250484)
+**Final source pin:** `df25d46e7f9a92e88ef4e134f31a6a5d60a73bbc`  
+**Validation:** [GitHub Actions run 45103407766](https://github.com/FlareZ123/obfs/actions/runs/45103407766)
 
 ## Finding
 
@@ -29,7 +29,7 @@ The harness is `sims/domstring-property-setter-source-matrix.js` on the reproduc
 
 For each negative case, the module creates a function whose body reads `observedOwner.secretField`, assigns the function to a native property, reads the property back as a string, and also checks the function's numeric result and an independent private owner. A corresponding primitive-only positive assigns the literal string `"literal"` to the same property and checks that unrelated private-property renaming remains available.
 
-The suite also includes a plain JavaScript object control using a property named `id`. It stores and invokes a function without converting it to text. This guards against a name-only rule that would incorrectly classify every `.id` assignment as a DOM sink. A separate own-data-property control shadows the native `id` setter with `Object.defineProperty`; it stores the function reference and does not trigger DOMString conversion. The final two parser-setter cases use the HTML `TrustedHTML`/`DOMString` union under the runner's default environment with Trusted Types enforcement absent; they are reported separately from the 20 ordinary DOMString cases.
+The suite also includes a plain JavaScript object control using a property named `id`. It stores and invokes a function without converting it to text. This guards against a name-only rule that would incorrectly classify every `.id` assignment as a DOM sink. A separate own-data-property control shadows the native `id` setter with `Object.defineProperty`; it stores the function reference and does not trigger DOMString conversion. A custom own accessor setter on a DOM element also stores the function reference and invokes it successfully without stringification. The final two parser-setter cases use the HTML `TrustedHTML`/`DOMString` union under the runner's default environment with Trusted Types enforcement absent; they are reported separately from the 20 ordinary DOMString cases.
 
 ### Tested native property setters
 
@@ -77,6 +77,7 @@ The final source-pinned workflow completed successfully. Its Ubuntu job ran the 
 | Reflective/aliased setter dispatch variants with changed source | **8 / 8** |
 | Reflective/aliased primitive-only positive parity | **8 / 8** |
 | Own data-property shadowing control | **PASS** |
+| Own custom-accessor shadowing control | **PASS** |
 | Cross-file primitive-only positive | **PASS** |
 | Existing focused Web IDL Node suite | **237 / 237** |
 | Main project JSDoc and dedicated matrix JSDoc | **PASS** |
@@ -133,7 +134,14 @@ The final harness also tested eight ways of reaching the native setter. **All ei
 The own-data-property shadowing control passed: `Object.defineProperty(target, "id", { value: inspect, ... })` stored the function reference and the compiled program still invoked it correctly. This separates actual native setter dispatch from a reflective operation that merely creates an own data property.
 
 The final workflow uploaded the raw JSON summary as artifact
-[domstring-property-setter-matrix](https://github.com/FlareZ123/obfs/actions/runs/45103250484/artifacts/14785394734).
+[domstring-property-setter-matrix](https://github.com/FlareZ123/obfs/actions/runs/45103407766/artifacts/14786755831).
+
+
+### Setter-identity negative control
+
+A final control installs an **own custom accessor** on a real DOM element's `id` property with `Object.defineProperty`. Its setter stores the assigned function in an ordinary own field; a later call returns 57. Native and compiled outputs match, and unrelated private-property transforms remain available.
+
+This complements the own-data-property control: a proven DOM receiver and familiar property name are not sufficient. The analysis must establish that the assignment actually reaches the native Web IDL setter rather than an own data property or custom accessor that shadows it.
 
 ## Required analysis direction
 
