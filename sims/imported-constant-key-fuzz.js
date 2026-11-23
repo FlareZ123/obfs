@@ -31,6 +31,8 @@ async function execute(files,directory) {
 
 /** @param {string} key @param {number} value @param {boolean} positive @returns {ModuleFile[]} */
 function fixture(key,value,fieldKeyFirst) {
+  // This graph is acyclic: the importer executes only after state.mjs has
+  // completed, so either export declaration order leaves both bindings ready.
   const other='guardField',q=JSON.stringify(key);
   const state=fieldKeyFirst ?
     `export const fieldKey=${q};export const owner={${q}:${value},${other}:3};` :
