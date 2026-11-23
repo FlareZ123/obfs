@@ -230,3 +230,52 @@ test('non-observing private CJS reader still renames two own fields',async()=>{
     await fs.rm(root,{recursive:true,force:true});
   }
 });
+
+
+for(const [label,entry,foreign] of /** @type {[string,string,string][]} */ ([
+  ['direct helper',observedEntry,observer],
+  ['accessor getter',getterEntry,getterObserver],
+  ['implicit ToPrimitive',coercionEntry,coercionObserver]
+])){
+  test('opt-in Symbol backend external caller-source parity: '+label,async()=>{
+    const output=obfuscateFiles([sourceFile(entry)],{
+      mode:'sno',seed:'cjs-symbol-caller/'+label,
+      identifiers:false,strings:false,properties:true,
+      experimentalSymbolKeys:true
+    });
+    const root=await fs.mkdtemp(path.join(os.tmpdir(),'obfs-cjs-symbol-caller-'));
+    try{
+      const native=await run(path.join(root,'native'),entry,foreign);
+      const protectedRun=await run(path.join(root,'output'),String(output.files[0].code),foreign);
+      assert.equal(native.status,0,native.stderr);
+      assert.equal(protectedRun.status,0,protectedRun.stderr);
+      assert.deepEqual(protectedRun,native,
+        'Opt-in Symbol lowering must also preserve foreign non-strict caller-source contracts');
+    }finally{
+      await fs.rm(root,{recursive:true,force:true});
+    }
+  });
+}
+
+for(const [label,entry,foreign] of /** @type {[string,string,string|undefined][]} */ ([
+  ['strict foreign helper',strictEntry,strictObserver],
+  ['non-observing arithmetic',privateEntry,undefined]
+])){
+  test('opt-in Symbol backend private positive yield: '+label,async()=>{
+    const output=obfuscateFiles([sourceFile(entry)],{
+      mode:'sno',seed:'cjs-symbol-private/'+label,
+      identifiers:false,strings:false,properties:true,
+      experimentalSymbolKeys:true
+    });
+    assert.equal(output.files[0].metrics.properties,2,String(output.files[0].code));
+    const root=await fs.mkdtemp(path.join(os.tmpdir(),'obfs-cjs-symbol-private-'));
+    try{
+      const native=await run(path.join(root,'native'),entry,foreign);
+      const protectedRun=await run(path.join(root,'output'),String(output.files[0].code),foreign);
+      assert.equal(native.status,0,native.stderr);
+      assert.deepEqual(protectedRun,native);
+    }finally{
+      await fs.rm(root,{recursive:true,force:true});
+    }
+  });
+}
