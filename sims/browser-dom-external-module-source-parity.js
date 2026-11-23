@@ -106,7 +106,8 @@ async function main() {
     ['outer-html','document.documentElement.outerHTML',true,false],
     ['xml-serializer','new XMLSerializer().serializeToString(document)',true,false],
     ['title','document.title',false,false],
-    ['source-fetch','await(await fetch(import.meta.url)).text()',true,true]
+    ['source-fetch','await(await fetch(import.meta.url)).text()',true,true],
+    ['source-fetch-alias','await(async()=>{const read=fetch;const url=import.meta.url;const text=Response.prototype.text;const response=await read(url);return await text.call(response);})()',true,true]
   ];
   for (const [label, reader, inlineExpected, externalExpected] of cases) {
     for (const mode of /** @type {const} */ (['inline','external'])) {
