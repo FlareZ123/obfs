@@ -356,17 +356,6 @@ function resolveEsmRequests(requests) {
 
 
 /**
- * Compare emitted package scopes with their source counterparts. A package
- * scope containing imports or a self-reference is refused; a byte-identical
- * scope without those features is safe for this bare-dependency comparison.
- *
- * @param {SourceFile[]} original
- * @param {SourceFile[]} generated
- * @param {Iterable<string>} filenames
- * @returns {void}
- */
-
-/**
  * Refuse case-variant package.json names in external ancestor directories.
  * Node may resolve these case-insensitively on Windows but not on POSIX.
  *
@@ -402,6 +391,18 @@ async function assertNoCaseVariantPackageJsonAncestors(root,context) {
   }
 }
 
+/**
+ * Compare emitted package scopes with their source counterparts. A package
+ * scope containing imports or a self-reference is refused; a byte-identical
+ * scope without those features is safe for this bare-dependency comparison.
+ *
+ * @param {SourceFile[]} original
+ * @param {SourceFile[]} generated
+ * @param {Iterable<string>} filenames
+ * @param {string} inputRoot
+ * @param {string} outputRoot
+ * @returns {Promise<void>}
+ */
 async function assertEsmPackageScopeParity(original,generated,filenames,inputRoot,outputRoot) {
   const auditedFiles=[...filenames];
   const packagePaths=[...original,...generated]
