@@ -520,6 +520,7 @@ function usesUnprovedRelocatedWebIdlConstructors(body,knownFormals=new Set()){
     if(receiver.callee.name!=='Headers')return false;
     /** @param {import('./ast').AstNode|undefined} expression @returns {boolean} */
     const headerName=expression=>{
+      if(!expression)return false;
       const value=staticString(expression);
       return value!==null&&/^[a-z0-9-]{1,32}$/u.test(value);
     };
