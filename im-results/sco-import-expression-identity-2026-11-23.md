@@ -63,6 +63,25 @@ Both compiler entry points now exercise a 12-form expression-carrier matrix: com
 
 At exact source `12e40e50932990ca20fb99c3a76c18abe92110ce`, [two-platform graph run 45136458714](https://github.com/FlareZ123/obfs/actions/runs/45136458714) passed **17/17** tests per OS, and [two-platform standalone run 45136464884](https://github.com/FlareZ123/obfs/actions/runs/45136464884) passed **7/7** tests per OS. All included project/external/paired-budget JSDoc gates. The graph suite also executes two actual independent-client ESM realm witnesses and retains safe direct-call and local plain-record controls. The standalone suite retains safe imported primitive and direct-call aliases.
 
+## Unresolved standalone private-child function-state counterexample
+
+A separate native-ESM three-tree witness reveals a remaining transitive imported-function state admission gap. The root selected caller uses only a direct stateless-looking call, `return next()`; the private child source implements:
+
+```js
+export function next() {
+  next.count = (next.count ?? 0) + 1;
+  return next.count;
+}
+```
+
+The root imported-identity guard deliberately permits calling `next()` directly. The **standalone** `partitionScoSelectedAsyncExports` currently **accepts** this private child source, because its static-child audit does not apply the graph composer's function-identity mutation restriction to the private dependency's own exported function. The **composed graph** `partitionScoSelectedGraph` independently **refuses** exactly the same private child source with `Selected SCO private dependency escapes a shared function identity`.
+
+A genuine Node ESM test creates independent `client-a` and `client-b` source trees plus one `server` source tree. The native call results are `[1,1,1,2]`: independent clients each see first counter 1; repeated access to the shared server module increments that object's own field to 2. This makes the cross-realm semantic mismatch concrete.
+
+The [cross-platform focused probe 45139207858](https://github.com/FlareZ123/obfs/actions/runs/45139207858) at immutable source `b88473fd924f0c55964545584f228b1a2aaa1292` completed successfully on Ubuntu and Windows with **3/3 diagnostic tests per OS**, strict JSDoc, and logs confirming standalone admission, graph refusal and native `[1,1,1,2]`. The passing *probe* status confirms a documented unsafe admission; it is **not** a passing safety property for the standalone compiler.
+
+Reproduction: `node --test test/sco-private-child-own-function-state-probe.test.js`. A future correctness repair should make the standalone private-child source audit refuse per-client function-object singleton state or provide a separately proved isolation strategy, while retaining safe deterministic private child calls. Reuse the graph's restrictive child-admission logic where appropriate, but test existing standalone private-module fixtures to avoid silently altering the application's accepted contract. The new probe is a documented **unfixed** gap, so the main correctness and strong-protection release remain blocked independently of the earlier imported-alias root fix.
+
 ## Source-preservation comparison
 
 The standalone selective compiler at before-change `4c9a6c3fb35f1741dc472cd78d01384eaab923ba` contained **112,770** UTF-8 JavaScript source bytes. The optimized compiler file at green source `8df1da3c7015381ed5561e787592b93c7f71fa29` contained **113,086** bytes. Removing exactly (1) the new shared-guard `require` line and (2) the new conditional guard comment and call reproduces the original **112,770-byte file exactly**. This source-level comparison establishes that the existing standalone emitter implementation was left unchanged by this repair. It does not measure emitted artifact bytes for every source, compiler initialization cost, network overhead or the universal 2.5× runtime requirement.
