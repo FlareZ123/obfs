@@ -272,7 +272,7 @@ test('query limits retain uncertainty and invalid output contracts fail explicit
   assert.equal(short.certified,false);
   assert.equal(short.clone,null);
   await assert.rejects(()=>learnBoundedStepOnly({async step(){return 2;}},2,3),/binary output/);
-  await assert.rejects(()=>learnBoundedStepOnly({async step(){return 0;}},5,3),/maxStates/);
+  await assert.rejects(()=>learnBoundedStepOnly({async step(){return 0;}},6,3),/maxStates/);
 });
 
 test('an understated state bound can certify a false clone and must not be trusted',async()=>{
