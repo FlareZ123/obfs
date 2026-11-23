@@ -453,3 +453,17 @@ test('generated source reconstruction refuses an ESM export alias to a different
   assert.equal(actual.round3(0),17);
   assert.throws(()=>attackPublishedSource(source),/Unproved public export identity/u);
 });
+
+
+test('minified ESM recovery remains alias-aware after generated export-identity hardening',()=>{
+  const source=[
+    'function a(x){return (((x|0)+17)|0);}',
+    'function b(x){return (((x|0)+23)|0);}',
+    'function c(x){return (((x|0)-31)|0);}',
+    'function alternate(x){return (((x|0)-123)|0);}',
+    'export {alternate as round1,b as round2,c as round3};'
+  ].join('\n');
+  const result=attackPublishedSource(source);
+  assert.equal(result.kind,'esbuild-minified');
+  assert.deepEqual(result.offsets,{round1:-123,round2:23,round3:-31});
+});
