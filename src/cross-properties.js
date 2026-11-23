@@ -1606,6 +1606,16 @@ function safeClosedCallerRecordRead(modules,module,member,ancestors) {
           if(depth>24)return true;
           if(value.type==='Identifier')return callableNames.has(value.name) ||
             callbackHolders.has(value.name) || holderReturnNames.has(value.name);
+          // Branches and logical expressions can deliver either operand,
+          // while a comma sequence delivers its final expression value.
+          if(value.type==='ConditionalExpression')
+            return holdsFactoryValue(value.consequent,depth+1) ||
+              holdsFactoryValue(value.alternate,depth+1);
+          if(value.type==='LogicalExpression')
+            return holdsFactoryValue(value.left,depth+1) ||
+              holdsFactoryValue(value.right,depth+1);
+          if(value.type==='SequenceExpression')
+            return holdsFactoryValue(value.expressions[value.expressions.length-1],depth+1);
           if(value.type==='CallExpression') {
             if(value.callee.type==='Identifier' &&
                holderReturnNames.has(value.callee.name))return true;
@@ -1726,7 +1736,9 @@ function safeClosedCallerRecordRead(modules,module,member,ancestors) {
                 staticName(value.callee.property))==='bind';
             const extractedAlias=value.type==='MemberExpression' &&
               holdsFactoryValue(value.object,0);
-            if((ordinaryAlias||boundAlias||extractedAlias) &&
+            const expressionAlias=['ConditionalExpression','LogicalExpression',
+              'SequenceExpression'].includes(value.type) && holdsFactoryValue(value,0);
+            if((ordinaryAlias||boundAlias||extractedAlias||expressionAlias) &&
                !callableNames.has(binding.name)) {
               callableNames.add(binding.name);
               aliasChanged=true;
