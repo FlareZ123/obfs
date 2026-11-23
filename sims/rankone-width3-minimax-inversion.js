@@ -147,15 +147,72 @@ function minimax(model) {
 }
 
 /**
+ * Independent semantic-class membership audit over all 8! bijections.
+ * For a 3-bit permutation, extract its algebraic-normal-form coefficient
+ * vector for every monomial by the binary Moebius transform. The output
+ * coefficient-span rank for masks of degree >=2 is zero on affines, one on
+ * rank-one nonlinear perturbations, etc. Exhaustively verify the generated
+ * source class is exactly the rank<=1 subset of ALL permutations.
+ *
+ * @param {Uint32Array} family
+ * @returns {{permutations:number,byNonlinearRank:number[]}}
+ */
+function verifyAnfFamilyCompleteness(family) {
+  const generated=new Set(family);
+  const byNonlinearRank=Array(4).fill(0);
+  let permutations=0;
+  /** @type {number[]} */
+  const chosen=[];
+  /** @param {number} used */
+  function enumerate(used) {
+    if(chosen.length<8){
+      for(let v=0;v<8;v++){
+        if((used>>>v)&1)continue;
+        chosen.push(v);
+        enumerate(used|(1<<v));
+        chosen.pop();
+      }
+      return;
+    }
+    const coeff=chosen.slice();
+    for(let bit=0;bit<3;bit++)for(let monomial=0;monomial<8;monomial++){
+      if((monomial>>>bit)&1)coeff[monomial]^=coeff[monomial^(1<<bit)];
+    }
+    const pivots=Array(3).fill(0);
+    let rank=0;
+    for(const monomial of [3,5,6,7]){
+      let vector=coeff[monomial];
+      for(let bit=2;bit>=0 && vector!==0;bit--){
+        if(!((vector>>>bit)&1))continue;
+        if(pivots[bit])vector^=pivots[bit];
+        else{pivots[bit]=vector;rank++;break;}
+      }
+    }
+    byNonlinearRank[rank]++;
+    let packed=0;
+    for(let x=0;x<8;x++)packed|=chosen[x]<<(3*x);
+    assert.equal(generated.has(packed>>>0),rank<=1,
+      'Rank-one parametrization must equal an independent ANF classification');
+    permutations++;
+  }
+  enumerate(0);
+  assert.equal(permutations,40320);
+  assert.deepEqual(byNonlinearRank,[1344,9408,18816,10752]);
+  return {permutations,byNonlinearRank};
+}
+
+/**
  * @returns {{
  *   uniquePermutations:number,parameterizedForms:number,
  *   targetCases:number,exactInversions:number,minimaxWorstQueries:number,
+ *   allPermutationAudit:number,nonlinearRankHistogram:number[],
  *   fourQueriesSuffice:boolean,fiveQueriesSuffice:boolean,
  *   queryHistogram:number[],decisionStates:number
  * }}
  */
 function runWidthThreeRankOneMinimax() {
   const family=enumerateFamily();
+  const membership=verifyAnfFamilyCompleteness(family);
   const model=modelMasks(family);
   const strategy=minimax(model);
   const fourQueriesSuffice=strategy.canWin(model.full,0,4);
@@ -201,6 +258,8 @@ function runWidthThreeRankOneMinimax() {
   return {
     uniquePermutations:family.length,parameterizedForms:150528,
     targetCases:family.length*8,exactInversions,minimaxWorstQueries,
+    allPermutationAudit:membership.permutations,
+    nonlinearRankHistogram:membership.byNonlinearRank,
     fourQueriesSuffice,fiveQueriesSuffice,queryHistogram,
     decisionStates:strategy.states()
   };
