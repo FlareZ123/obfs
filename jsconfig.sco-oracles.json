@@ -27,7 +27,9 @@
     "test/sco-step-only-live-rpc.test.js",
     "test/sco-sync-diversified-browser.js",
     "sims/sco-high-entropy-prf.js",
-    "sims/sco-key-search.js"
+    "sims/sco-key-search.js",
+    "workplace/sco-five-state-block-packed-benchmark.js",
+    "test/sco-five-state-block-packed-benchmark.test.js"
   ],
   "exclude": [
     "node_modules"
