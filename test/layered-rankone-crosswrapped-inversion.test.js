@@ -57,10 +57,13 @@ test('unknown 32-bit one/two-layer quadratic shears are functionally cloned from
   assert.equal(result.oracleCalls,60180);
   assert.equal(result.heldoutPredictions,1920);
   assert.equal(result.exactPredictions,1920);
+  assert.equal(result.offlineInverseTargets,60);
+  assert.ok(result.offlineInternalMaxQueries<=49);
   assert.deepEqual(result.byLayers.map(row=>row.chosenCallsPerSource),[529,5489]);
   for(const row of result.byLayers){
     assert.equal(row.sourceFunctions,10);
     assert.equal(row.heldoutPredictions,960);
+    assert.equal(row.offlineInverseTargets,30);
   }
   console.log('LAYERED_FULLWIDTH_ANF_ORACLE_CLONE '+JSON.stringify(result));
 });
