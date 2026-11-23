@@ -102,9 +102,16 @@ function assertNoPrivateImportMemberState(filename,source){
     });
   }
   walk(ast,(node,parent,key)=>{
-    if(node.type==='MemberExpression'&&node.object?.type==='Identifier'&&
-       aliases.has(node.object.name)){
+    if(node.type==='MemberExpression'&&carriesAlias(node.object)){
       throw new TypeError('Selected SCO private dependency exposes shared imported member state: '+filename);
+    }
+    // Reflection can inspect a shared imported function's own-key shape
+    // without spelling an ordinary member access.
+    if(node.type==='BinaryExpression'&&node.operator==='in'&&
+       carriesAlias(node.right)||
+       (node.type==='ForInStatement'||node.type==='ForOfStatement')&&
+         carriesAlias(node.right)){
+      throw new TypeError('Selected SCO private imported identity reaches reflective iteration: '+filename);
     }
     // Expression wrapping can preserve the same imported identity without
     // introducing a named alias. Decline unproved first-class sinks before
