@@ -87,4 +87,4 @@ const fixtures={
     '}'
   ].join('\n')
 };
-
+module.exports={fixtures};
