@@ -54,9 +54,9 @@ test('class declaration inner self-assignment is immutable even though outer nam
     'window="outer";return [innerFailed,saved===window];}';
   assert.deepEqual(execute(source),[true,false]);
   const resolved=inspect(source,'commonjs');
-  const references=resolved.references.filter(item=>item.name==='window');
-  const innerWrite=references[0];
-  const outerWrite=references[references.length-1];
+  const writes=resolved.references.filter(item=>item.name==='window'&&item.role==='write');
+  assert.equal(writes.length,2);
+  const [innerWrite,outerWrite]=writes;
   assert.equal(innerWrite.role,'write');
   assert.equal(outerWrite.role,'write');
   assert.equal(outerWrite.resolution.kind,'local');
