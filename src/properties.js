@@ -695,6 +695,60 @@ function proveLocalObject(ast, rootName, bindings, importedIdentityFunctions=new
        (value?.type==='FunctionExpression'||value?.type==='ArrowFunctionExpression'))
       callableBindings.push({name:declarator.id.name,node:value,decl:declarator.id});
   }
+
+  // A direct-call-only binding is not enough to prove source privacy. An
+  // unknown synchronous call can invoke a host callback which inspects the
+  // active caller/stack. Propagate that ambient observer effect through local
+  // call edges. This deliberately treats constructors, tags and awaits as
+  // unknown effects; a future SourceObservationPlan can refine the host model.
+  const callableNames=new Set(callableBindings.map(binding=>binding.name));
+  const callEdges=new Map();
+  const ambientCallers=new Set();
+  for(const binding of callableBindings) {
+    const edges=new Set();
+    walk(binding.node,child=>{
+      if(child.type==='CallExpression') {
+        if(child.callee.type==='Identifier'&&callableNames.has(child.callee.name))
+          edges.add(child.callee.name);
+        else ambientCallers.add(binding.name);
+      } else if(child.type==='NewExpression'||
+                child.type==='TaggedTemplateExpression'||
+                child.type==='AwaitExpression') {
+        ambientCallers.add(binding.name);
+      }
+    });
+    callEdges.set(binding.name,edges);
+  }
+  let ambientChanged=true;
+  while(ambientChanged) {
+    ambientChanged=false;
+    for(const [name,edges] of callEdges) {
+      if(!ambientCallers.has(name)&&[...edges].some(target=>ambientCallers.has(target))) {
+        ambientCallers.add(name);
+        ambientChanged=true;
+      }
+    }
+  }
+  // Anonymous immediately-invoked arrows receive the same conservative
+  // treatment; calls to an unsafe local helper propagate the effect.
+  for(const node of [...privateFunctionNodes]) {
+    let unknownCall=false;
+    const edges=new Set();
+    walk(node,child=>{
+      if(child.type==='CallExpression') {
+        if(child.callee.type==='Identifier'&&callableNames.has(child.callee.name))
+          edges.add(child.callee.name);
+        else unknownCall=true;
+      } else if(child.type==='NewExpression'||
+                child.type==='TaggedTemplateExpression'||
+                child.type==='AwaitExpression') {
+        unknownCall=true;
+      }
+    });
+    if(unknownCall||[...edges].some(target=>ambientCallers.has(target)))
+      privateFunctionNodes.delete(node);
+  }
+
   for(const binding of callableBindings) {
     const scope=scopes.get(binding.name);
     if(!scope)continue;
@@ -727,7 +781,8 @@ function proveLocalObject(ast, rootName, bindings, importedIdentityFunctions=new
         break;
       }
     }
-    if(privateValue)privateFunctionNodes.add(binding.node);
+    if(privateValue&&!ambientCallers.has(binding.name))
+      privateFunctionNodes.add(binding.node);
   }
 
   const aliases = new Set([rootName]);
