@@ -177,6 +177,7 @@ const proofInventoryCache=new WeakMap();
  *   identifierUses:Map<string,{node:AstNode,parent:AstNode|null,key:string|null,ancestors:AstNode[],order:number}[]>,
  *   parents:WeakMap<AstNode,AstNode>, dynamicScope:boolean,
  *   functionDeclarations:AstNode[], callableDeclarators:AstNode[],
+ *   directInvokedArrows:AstNode[],
  *   directAliasDeclarations:Map<string,AstNode[]>, complexAliasDeclarations:AstNode[],
  *   tupleDeclarations:Map<string,AstNode[]>,
  *   recordDeclarations:Map<string,AstNode[]>
@@ -199,6 +200,8 @@ function collectProofInventory(ast) {
   const functionDeclarations=[];
   /** @type {AstNode[]} */
   const callableDeclarators=[];
+  /** @type {AstNode[]} */
+  const directInvokedArrows=[];
   let dynamicScope=false;
   walk(ast,(node,parent,key,ancestors)=>{
     if(parent)parents.set(node,parent);
@@ -216,6 +219,11 @@ function collectProofInventory(ast) {
       declarations.push(...node.declarations);
     if(node.type==='FunctionDeclaration'&&node.id?.type==='Identifier')
       functionDeclarations.push(node);
+    // A directly invoked arrow never exposes its own callable value;
+    // an enclosing exported callable remains separately source-observable.
+    if(node.type==='ArrowFunctionExpression'&&
+       parent?.type==='CallExpression'&&parent.callee===node&&
+       !parent.optional)directInvokedArrows.push(node);
     if(node.type==='VariableDeclarator'&&node.id.type==='Identifier'&&
        parent?.type==='VariableDeclaration'&&parent.kind==='const'&&node.init&&
        ['FunctionExpression','ArrowFunctionExpression'].includes(node.init.type))
@@ -261,7 +269,8 @@ function collectProofInventory(ast) {
     }
   }
   const inventory={calls,declarations,declarationSet:new Set(declarations),identifiers,identifierUses,parents,dynamicScope,
-    functionDeclarations,callableDeclarators,directAliasDeclarations,complexAliasDeclarations,tupleDeclarations,recordDeclarations};
+    functionDeclarations,callableDeclarators,directInvokedArrows,
+    directAliasDeclarations,complexAliasDeclarations,tupleDeclarations,recordDeclarations};
   proofInventoryCache.set(ast,inventory);
   return inventory;
 }
@@ -370,7 +379,8 @@ function proveLocalObject(ast, rootName, bindings, importedIdentityFunctions=new
   /** @type {Map<string,{node:AstNode,params:AstNode[],forwardIndex:number,returnsRoot?:boolean,external?:boolean,consumerIndex?:number}>} */
   const functions = new Map();
   const {calls,declarationSet,identifiers,identifierUses,parents,dynamicScope,
-    functionDeclarations,callableDeclarators,directAliasDeclarations,complexAliasDeclarations,
+    functionDeclarations,callableDeclarators,directInvokedArrows,
+    directAliasDeclarations,complexAliasDeclarations,
     tupleDeclarations,recordDeclarations}=collectProofInventory(ast);
   for(const node of functionDeclarations){
     if (node.type === 'FunctionDeclaration' && node.id?.type === 'Identifier' &&
@@ -670,7 +680,7 @@ function proveLocalObject(ast, rootName, bindings, importedIdentityFunctions=new
   // even when its body does not return an identity or a simple parameter read.
   // Conversely, a value stored, returned, exported, or passed elsewhere can
   // expose its original body through Function#toString.
-  const privateFunctionNodes=new Set();
+  const privateFunctionNodes=new Set(directInvokedArrows);
   /** @type {{name:string,node:AstNode,decl:AstNode}[]} */
   const callableBindings=[];
   for(const node of functionDeclarations) {
