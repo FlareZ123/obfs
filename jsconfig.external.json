@@ -302,7 +302,8 @@
     "test/strict-tail-power.test.js",
     "test/string-global-alias-decoder-observer.test.js",
     "sims/cluster-strict-tail.js",
-    "test/cluster-strict-tail.test.js"
+    "test/cluster-strict-tail.test.js",
+    "test/property-iterable-owner-reflection-fuzz.test.js"
   ],
   "exclude": [
     "node_modules"
