@@ -8,9 +8,9 @@ const http=require('node:http');
 const {obfuscateFiles}=require('../src');
 
 const execChrome=promisify(execFile);
-const original='const owner={privateField:7};'+
-  'class Reader{read(){return owner.privateField;}}'+
-  'const reader=new Reader();export const value=reader.read()+reader.read();';
+const original='const owner={privateField:7,otherField:11};'+
+  'class Reader{read(){return owner.privateField;}other(){return owner.otherField;}}'+
+  'const reader=new Reader();export const value=reader.read()+reader.other();';
 
 test('private class direct-call owner rewrite preserves real Chromium ESM result',async t=>{
   const browser=process.env.CHROMIUM_BIN??'google-chrome';
@@ -25,9 +25,9 @@ test('private class direct-call owner rewrite preserves real Chromium ESM result
     mode:'coo',seed:'agent9-private-class-browser',closedWorld:true,
     identifiers:false,strings:false,properties:true
   });
-  assert.equal(compiled.files[0].metrics.properties,1);
+  assert.equal(compiled.files[0].metrics.properties,2);
   const encoded=/** @type {string} */ (compiled.files[0].code);
-  assert.doesNotMatch(encoded,/privateField/u);
+  assert.doesNotMatch(encoded,/privateField|otherField/u);
   const html='<!doctype html><html><head><meta charset="utf-8"></head>'+
     '<body><script type="module" src="./runner.mjs"></script></body></html>';
   const runner='import {value} from "./entry.mjs";'+
@@ -73,7 +73,7 @@ test('private class direct-call owner rewrite preserves real Chromium ESM result
       const base64=stdout.match(new RegExp('<pre id="result">([A-Za-z0-9+/=]+)</pre>','u'))?.[1];
       assert.ok(base64,lane+' failed ESM/CSP browser parity: '+stdout.slice(0,1200));
       const observed=JSON.parse(Buffer.from(base64,'base64').toString('utf8'));
-      assert.equal(observed,14,lane+' native output');
+      assert.equal(observed,18,lane+' native output');
     }
   }finally{
     await new Promise((resolve,reject)=>
