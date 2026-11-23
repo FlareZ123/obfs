@@ -122,6 +122,14 @@ async function main() {
     cases += 2;
     console.log(JSON.stringify({name:'source-fetch',embedding:'blob',
       original:ownSource,renamed:editedSource}));
+    const aliasReader='await(async()=>{const read=fetch;const url=import.meta.url;const text=Response.prototype.text;const response=await read(url);return await text.call(response);})()';
+    const aliasOriginal=await observe(browser,'blob',program(aliasReader,false));
+    const aliasRenamed=await observe(browser,'blob',program(aliasReader,true));
+    assert.deepEqual(aliasOriginal,{value:8,sourceMatch:true},'Blob aliased self-fetch original');
+    assert.deepEqual(aliasRenamed,{value:8,sourceMatch:false},'Blob aliased self-fetch rename');
+    cases += 2;
+    console.log(JSON.stringify({name:'source-fetch-alias',embedding:'blob',
+      original:aliasOriginal,renamed:aliasRenamed}));
     const originalStack = await observe(browser,'blob',stackFrameProgram(false));
     const rewrittenStack = await observe(browser,'blob',stackFrameProgram(true));
     assert.equal(originalStack.value,8);
@@ -138,7 +146,7 @@ async function main() {
   } finally {
     await browser.close();
   }
-  assert.equal(cases,16);
+  assert.equal(cases,18);
   console.log('Chromium verified '+cases+' native source-embedding observations');
 }
 
