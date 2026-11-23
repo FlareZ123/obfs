@@ -11,7 +11,7 @@ const input='function hidden(){const privateLocal=17;return privateLocal+getExte
 /** @param {string} source @returns {()=>unknown} */
 function load(source) {
   const context={module:{exports:null},Error,
-    getExternal(){throw Error('external callback rejected');}};
+    getExternal:Function('throw new Error("external callback rejected")')};
   vm.runInNewContext(source,context,{timeout:2000});
   return /** @type {()=>unknown} */(context.module.exports);
 }
