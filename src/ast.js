@@ -1652,14 +1652,40 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
     return false;
   }
   /**
-   * Unproven destructuring receivers may be callable, including function
-   * values forwarded through opaque returns, promises and module imports.
-   * A source-method key read is safe only for proven primitive receivers.
+   * A fresh plain literal whose own data fields are provably primitive cannot
+   * expose function source through Object.prototype's native string methods.
+   * Reject accessor methods, computed keys, spreads and __proto__ rewriting.
+   * @param {AstNode|null|undefined} input
+   * @param {number} [depth]
+   * @returns {boolean}
+   */
+  function isInertPlainRecord(input,depth=0) {
+    if(!input||depth>16)return false;
+    if(input.type==='Identifier' && !dynamicScope &&
+       bindingCounts.get(input.name)===1)
+      return isInertPlainRecord(primitiveCandidates.get(input.name),depth+1);
+    if(input.type!=='ObjectExpression')return false;
+    return input.properties.every(property=>{
+      if(property.type!=='Property'||property.kind!=='init'||
+         property.computed||property.method)return false;
+      const name=property.key.type==='Identifier'?
+        property.key.name:staticString(property.key);
+      return name!==null &&
+        !['__proto__','toString','toLocaleString','toSource'].includes(name) &&
+        isDefinitelyPrimitive(property.value);
+    });
+  }
+  /**
+   * An unknown source-method receiver may be callable after arbitrary
+   * forwarding, including promises and opaque imported return values.
+   * Refuse source-affecting edits except for proven primitives and inert
+   * local literal records under the native-realm contract.
    * @param {AstNode|null|undefined} input
    * @returns {boolean}
    */
   function mayBeMemberMethod(input) {
-    return Boolean(input && !isDefinitelyPrimitive(input));
+    return Boolean(input && !isDefinitelyPrimitive(input) &&
+      !isInertPlainRecord(input));
   }
   /**
    * Recognize immutable, uniquely-bound constant string keys at a consumer.
