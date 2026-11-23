@@ -142,3 +142,33 @@ jobs:
         run: npm run typecheck
       - name: Strict external JSDoc for focused runner
         run: npm run typecheck:external
+
+
+  private_callable_cache_pair:
+    if: ${{ inputs.focused_test == 'test/property-private-callable-cache-scale.test.js' }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 10
+    steps:
+      - name: Checkout exact baseline
+        uses: actions/checkout@v4
+        with:
+          ref: dd4ae7be4098cf45173418dee151b3f7e5ad1291
+          path: baseline
+      - name: Checkout exact cached candidate
+        uses: actions/checkout@v4
+        with:
+          ref: c0d9def6aef2f562a2d2eb24d75becc20cc1bfcc
+          path: cached
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.23.4'
+      - name: Install baseline dependencies
+        run: npm ci --prefix baseline --ignore-scripts --no-audit --no-fund
+      - name: Install candidate dependencies
+        run: npm ci --prefix cached --ignore-scripts --no-audit --no-fund
+      - name: Paired source-pinned alternating compile benchmark
+        run: node cached/sims/property-private-cache-paired.js baseline cached
