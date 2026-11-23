@@ -6,7 +6,9 @@
     "test/paired-budget-bound.test.js",
     "sims/application-challenge-sco-post-hardening-bootstrap.js",
     "sims/application-challenge-sco-count-grid.js",
-    "sims/familywise-budget-bound.js"
+    "sims/familywise-budget-bound.js",
+    "sims/strict-tail-power.js",
+    "test/strict-tail-power.test.js"
   ],
   "exclude": [
     "node_modules"
