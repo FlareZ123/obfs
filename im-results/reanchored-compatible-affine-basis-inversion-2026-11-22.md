@@ -181,22 +181,24 @@ At $n=32$ this bound is approximately **3.9407873761e-159**. It proves existence
 
 ### Uniform random-basis Monte Carlo
 
-The reproducible script samples each triangular coordinate function $h_j$ uniformly from all truth tables on its $j$ lower input bits, then samples a uniform ordered basis, uniform anchor, and uniform target. Identity affine wrappers are used without loss for this distribution: a uniform public basis maps to a uniform hidden basis under any fixed $L_{in}$, and $L_{out}$ cancels from the update. Each sample is one $2n+1$-query-bounded attempt; the attack uses only oracle values, while compatibility is measured separately for analysis.
+The reproducible script samples each triangular coordinate function $h_j$ uniformly from all truth tables on its $j$ lower input bits. For the compatibility-only experiment, each sampled function is paired with one uniform anchor and 20,000 uniform ordered bases. For the inversion experiment, one uniform target input is sampled per triangular function and **held fixed** across all 20,000 trials for that function; each trial varies the anchor and ordered basis. Identity affine wrappers are used without loss for this distribution: a uniform public basis maps to a uniform hidden basis under any fixed $L_{in}$, and $L_{out}$ cancels from the update. Each trial is one $2n+1$-query-bounded attempt; the attack uses only oracle values, while compatibility is measured separately for analysis.
 
-| Width | Compatible bases observed / 100,000 | Target inversions observed / 100,000 |
+| Width | Compatible bases observed / 100,000 (compatibility-only run) | Fixed-target inversions observed / 100,000 |
 |---:|---:|---:|
 | 4 | 87,053 | — |
 | 5 | 49,342 | — |
 | 6 | 23,653 | — |
 | 7 | 8,250 | — |
-| 8 | 1,340 | 11,598 |
-| 9 | 308 | 7,302 |
-| 10 | 24 | 3,721 |
-| 11 | 1 | 1,569 |
-| 12 | 1 | 994 |
-| 16 | 0 observed | 84 |
+| 8 | 1,340 | 12,744 |
+| 9 | 308 | 6,894 |
+| 10 | 24 | 3,773 |
+| 11 | 1 | 1,807 |
+| 12 | 1 | 917 |
+| 16 | 0 observed | 76 |
 
-The compatibility-only and target-success columns use separate deterministic seed streams, as specified in the reproduction commands. In the target-success runs, compatible-basis counts were respectively 1,340, 273, 27, 0, 1, and 0 out of 100,000 for widths 8, 9, 10, 11, 12, and 16. The reported counts were generated in the local Python notebook using the same algorithms; the committed script is the reproducibility artifact and should be run end-to-end before treating its command outputs as independently reproduced. The target-specific update succeeds more often than the compatible-basis count alone predicts: some non-compatible interpolants still reach the selected target, which is accepted only after exact oracle equality. The 16-bit compatible-basis result is zero observed in 100,000 trials, not a zero-probability claim. These samples are empirical and do not justify extrapolation to 32 bits. The rapid decline shows that arbitrary uniform basis search is not yet a practical high-width attack; an adaptive basis/flag discovery method would be needed.
+The compatibility-only and fixed-target columns use separate deterministic seed streams, as specified below. In the fixed-target runs, compatible-basis counts were 1,611, 253, 31, 0, 0, and 0 out of 100,000 for widths 8, 9, 10, 11, 12, and 16. Thus some non-compatible interpolants still reach the selected fixed target; success is accepted only after exact oracle equality. Across the five sampled functions, per-function fixed-target success rates ranged from 9.77%–14.24% (n=8), 6.05%–7.645% (n=9), 3.17%–4.43% (n=10), 1.26%–2.31% (n=11), 0.635%–1.15% (n=12), and 0.03%–0.135% (n=16). The 16-bit compatibility-only result is zero observed in 100,000 trials, not a zero-probability claim. These are empirical samples, not a theorem or a justified 32-bit extrapolation. The rapid decline shows that arbitrary uniform basis search is not yet a practical high-width attack; an adaptive basis/flag discovery method would be needed.
+
+The reported counts were generated in the local Python notebook using the same algorithms; the committed script is the reproducibility artifact and should be run end-to-end before treating its command outputs as independently reproduced.
 
 Reproduction commands (five independent triangular functions and 20,000 trials per function and width):
 
@@ -207,8 +209,7 @@ python sims/reanchor-arbitrary-basis-monte-carlo.py lower-bound
 python sims/reanchor-arbitrary-basis-monte-carlo.py compat --widths 4 5 6 7 --functions 5 --trials 20000 --seed 20261125
 python sims/reanchor-arbitrary-basis-monte-carlo.py compat --widths 8 12 16 --functions 5 --trials 20000 --seed 20261124
 python sims/reanchor-arbitrary-basis-monte-carlo.py compat --widths 9 10 11 --functions 5 --trials 20000 --seed 20261126
-python sims/reanchor-arbitrary-basis-monte-carlo.py target --widths 8 12 16 --functions 5 --trials 20000 --seed 20261124
-python sims/reanchor-arbitrary-basis-monte-carlo.py target --widths 9 10 11 --functions 5 --trials 20000 --seed 20261126
+python sims/reanchor-arbitrary-basis-monte-carlo.py target-fixed --widths 8 9 10 11 12 16 --functions 5 --trials 20000 --seed 20261127
 ~~~~
 
 **Disposition:** arbitrary-basis reanchoring weakens the four-bit fixed-coordinate negative control, but does not establish an efficient 32-bit chosen-query attack. Preserve this as intermediate evidence; do not promote the random-search observations to a general theorem.
