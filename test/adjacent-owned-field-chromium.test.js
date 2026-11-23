@@ -87,7 +87,7 @@ test('adjacent own-data primitive four-file graph preserves real Chromium ESM re
         '--no-first-run','--virtual-time-budget=12000','--dump-dom',
         origin+'/'+lane+'/index.html'
       ],{timeout:45000,maxBuffer:4*1024*1024,encoding:'utf8'});
-      const text=stdout.match(/<pre id="result">([A-Za-z0-9+/=]+)<\\/pre>/u)?.[1];
+      const text=stdout.match(/<pre id="result">([A-Za-z0-9+/=]+)<\/pre>/u)?.[1];
       assert.ok(text,lane+' real-Chromium ESM failure: '+stdout.slice(0,1600));
       const value=JSON.parse(Buffer.from(text,'base64').toString('utf8'));
       assert.equal(value,29,lane+' Chromium ESM runtime parity');
