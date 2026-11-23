@@ -29,7 +29,7 @@ The scanner has no `Window.name` sink rule; its `browserReaders` set does not in
 ```js
 function inspectWindow(){const windowLocal=37;return windowLocal;}
 window.name=inspectWindow;
-const observed=window.name;
+return window.name;
 ```
 
 The source-observer predicate returns false for the module. Identifier mangling then changes the local binding inside the function.
