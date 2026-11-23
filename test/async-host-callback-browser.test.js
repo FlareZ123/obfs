@@ -69,6 +69,11 @@ for(const [name,setup] of /** @type {[string,string][]} */ ([
     'function getFactory(){return globalThis.RUNTIME_FACTORY;}',
     'const callback=true ? getFactory : (()=>7);',
     'const ctor=await Promise.resolve().then(callback);'
+  ].join('\n')],
+  ['defaulted object-destructured callback',[
+    'function getFactory(){return globalThis.RUNTIME_FACTORY;}',
+    'const {callback=getFactory}={};',
+    'const ctor=await Promise.resolve().then(callback);'
   ].join('\n')]
 ])) {
 test('Chromium host callback '+name+' preserves original ESM keys',
