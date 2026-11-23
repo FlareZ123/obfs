@@ -1,0 +1,46 @@
+# Exact-source combined private class and public-wrapper reader ownership proofs
+
+**Agent 46, 23 November 2026. Intermediate research, not a release-grade result.**
+
+## Design and source pins
+
+The experiment asks whether two separately bounded, conservative property-renaming coverage improvements compose without changing observable public function text.
+
+- **Candidate:** [`agent46/private-proof-convergence-20261123`](https://github.com/FlareZ123/obfs/tree/agent46/private-proof-convergence-20261123), commit `602dbc575ed430ba758d950a05eb2ee4e80a94c3`. Based on main at `5123a79c9e8b8c313bac50e845b339c51cc9f980`. Exactly one production file changed, `src/properties.js` (blob `0904827d17c1fb29cf84a71e82509d15ab5f3164`). It adds `test/private-class-method-proof-admission.test.js` (+57 cases) and `test/private-reader-public-wrapper-proof.test.js` (+27 cases).
+- **Matched control:** [`agent46/private-proof-convergence-control-20261123`](https://github.com/FlareZ123/obfs/tree/agent46/private-proof-convergence-control-20261123), commit `f0622a9cc2b755506bc00e2811e6757f31ba5758`. Tests and other code identical to the candidate, but `src/properties.js` is exactly the original blob `bda3c6097e2679f59bd003fa0aed3e0291d4ba4c`.
+
+The candidate's compiler adds a guarded local noninheriting one-method class, whose method returns one owned inert field through direct calls on privately constructed instances **after** class declaration. Exported/escaped class, methods, instances, inheritance, unknown calls, and reflection refuse.
+
+The second, separate admission permits an unchanged owned-object identifier passed inside an exported callable to a direct-call-only private reader whose complete body is `return formal.staticField`, or the equivalent `const v=formal.staticField;return v;`. The public exported wrapper retains its original source text. Host-observable field expressions in the exported function, escaped reader functions, unknown argument provenance and identity-return helpers refuse.
+
+## Source-matched full validation
+
+Both full workflows use Node **22.23.4** on Windows and Ubuntu and exactly **5,215** test definitions per platform:
+
+| Source | OS | Tests | Pass | Fail | Skip |
+| --- | --- | ---: | ---: | ---: | ---: |
+| Control `f0622a9c` | Ubuntu | 5,215 | 5,177 | **35** | 3 |
+| Control `f0622a9c` | Windows | 5,215 | 5,170 | **35** | 10 |
+| Candidate `602dbc57` | Ubuntu | 5,215 | 5,199 | **13** | 3 |
+| Candidate `602dbc57` | Windows | 5,215 | 5,192 | **13** | 10 |
+
+[Full control **45148261520**](https://github.com/FlareZ123/obfs/actions/runs/45148261520) and [full candidate **45148194710**](https://github.com/FlareZ123/obfs/actions/runs/45148194710) both **RED** on both OS due to the behavioral/adversarial suite. The candidate resolves exactly **22** named failing assertions on each platform, without introducing another named failure in this finite pair. The resolved set comprises 12 new class positives, six new public-wrapper positives, two original COO/SNO private-class positives, and two original private-reader positive assertions. Three focused candidate workflows ([45148018107](https://github.com/FlareZ123/obfs/actions/runs/45148018107), [45148027172](https://github.com/FlareZ123/obfs/actions/runs/45148027172), [45148034701](https://github.com/FlareZ123/obfs/actions/runs/45148034701)) were **GREEN on both OS**, including strict JSDoc.
+
+Thirteen pre-existing failure names remain in both candidate and control: two primitive Blob positives; two bound-function hostile-source positives; two private ESM factory/interfile positives; private tuple session; SNO bound target interception; bound public export; static Symbol-key recovery; and three Symbol-key native/sample positives. A refusal to emit a transformation can be semantically appropriate when it would alter the source observed by a host; failing positive-yield assertions do not themselves prove an incorrect runtime result. The workflow's independent JSDoc, sampled performance, and Ubuntu Chromium checks ran without a failed step, but they are finite samples, not universal guarantees.
+
+## Critical falsifier and public-source attack
+
+An earlier permissive variant admitted any private helper called inside an exported wrapper. This was **unsafe** for:
+
+```js
+const owner={secretField:41};
+function identity(input){return input;}
+function published(n){return identity(owner).secretField+n;}
+module.exports=published;
+```
+
+It renamed a member spelled inside publicly observable `published.toString()`. The source-pinned [red 45146511307](https://github.com/FlareZ123/obfs/actions/runs/45146511307) failed the identity-forwarding refusal in COO, SNO and SCO (3/27); the final candidate requires a primitive field-return reader, and the same adversarial test passes. The independent `sims/source-island-public-normalizer.js` still recovers every generated hashed field name in the exercised examples and builds a working source-only clone with no secret seed. **This proves no extra resistance over normal minification.**
+
+## Decision
+
+Keep the proof **isolated** pending independent source/host review and a truly green release gate. No production mainline merge or competing PR. Agent 10 owns full acceptance and independently investigated a narrower reader grammar; Agent 3 owns canonical ownership-proof intake. Both the identity-forwarding falsifier and the existing two-statement-arrow benchmark dependency were communicated. Threat-model-wide reconstruction resistance, SCO online attack resistance, COO/SNO integrity under hostile runtime control, and a universal **2.5×** compute ceiling remain unproved or blocked by [`results/README.md`](../results/README.md).
