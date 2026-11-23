@@ -47,7 +47,8 @@ function resolveLexicalReferences(root,sourceType) {
   }
   /** @param {Scope} scope @returns {Scope} */
   function varScope(scope) {
-    for(let s=scope;;s=s.parent) if (s.kind==='function'||s.kind==='program'||s.kind==='static-block'||!s.parent)return s;
+    for(let s=scope;;s=s.parent) if (s.kind==='function'||s.kind==='function-body'||s.kind==='program'||
+       s.kind==='static-block'||!s.parent)return s;
   }
   /** @param {AstNode|null} node @param {Scope} scope @param {string} kind */
   function declarePattern(node,scope,kind) {
@@ -93,7 +94,15 @@ function resolveLexicalReferences(root,sourceType) {
         if(node.type==='ClassDeclaration'&&node.id)declarePattern(node.id,incoming,'class');
         scope=child(incoming,'class');
         if(node.type==='ClassExpression'&&node.id)declarePattern(node.id,scope,'class-name');
-      }else if(node.type==='BlockStatement')scope=child(incoming,'block');
+      }else if(node.type==='BlockStatement'){
+        // A non-simple formal parameter list has a parameter environment
+        // separate from body var/function declarations. Default initializers
+        // cannot resolve body-only vars, even when those vars are hoisted.
+        const functionBody=parent && key==='body' &&
+          ['FunctionDeclaration','FunctionExpression','ArrowFunctionExpression'].includes(parent.type);
+        const nonSimple=functionBody && parent.params.some(param=>param.type!=='Identifier');
+        scope=child(incoming,nonSimple?'function-body':'block');
+      }
       else if(node.type==='StaticBlock')scope=child(incoming,'static-block');
       else if(node.type==='CatchClause'){
         scope=child(incoming,'catch');
