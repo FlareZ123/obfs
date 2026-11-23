@@ -42,3 +42,16 @@ The attack demonstrates a compact, efficiently observable equivalence class for 
 
 The existing live HTTP/source-only regression was rerun against current main at exact SHA `48b9b7ff0fcfc1a20589f35e932f7a4fd41934f9`: [focused validation 45129889219](https://github.com/FlareZ123/obfs/actions/runs/45129889219) **passed Ubuntu and Windows**. This reran `test/sco-spelling-mask-attack.test.js`: 24 independently fresh HTTP responses, 24/24 exact full-response byte predictions from served source only, 32 recovered selector bits per response, and project, external, and paired-budget strict JSDoc all passed. The workflow's full `node22` job was skipped. This revalidates the bounded HTTP mask attack on current main; it does **not** rerun the separate Chromium harness or full Node/Chromium acceptance suite, so the browser evidence above retains its historical source pin.
 
+## Two-file public-graph extension (23 November 2026)
+
+A separate focused test extends the per-request reconstruction result from one script to a small two-file classic-script graph:
+
+- `test/sco-multifile-per-request-reconstruction.test.js` starts the production `createScoHandler` and a matched ordinary HTTP server over `index.js` and `lib/helper.js`.
+- The attacker captures two fresh response rounds for both public files (two GETs are sufficient to obtain one complete graph). Both SCO file bodies differ across rounds; the ordinary HTTP control serves stable original bodies.
+- The captured bodies alone are passed to `sims/sco-multifile-response-normalizer.js` in a separate child process. It uses the public AST normalizer, receives no original source, server state, or per-request nonce, and emits canonical scripts that are byte-identical across both rounds.
+- The reconstructed two-script graph is executed in a fresh Node VM and produces the same `finalValue` (`65`) as the native graph and the ordinary-service control.
+
+Current-main focused validation [45131206729](https://github.com/FlareZ123/obfs/actions/runs/45131206729), exact SHA `51e26a09ad5a0e42516b293c352cb9c0dc96c3bb`, **passed Ubuntu and Windows**, including project, external, and paired-budget strict JSDoc. The full `node22` job was skipped.
+
+**Scope:** this is one small two-file classic-script graph with block-scoped local bindings and a shared `globalThis` value, not arbitrary JavaScript or a general multi-module reconstruction theorem. It does not exercise ESM imports/re-exports, dynamic imports, cross-file object-property aliasing, a real browser loader, or private server files. An earlier ESM-import/re-export fixture did not yield differing per-request bodies and was not used as evidence; the cause was not instrumented. The matched ordinary service is a simple same-route HTTP source server. This result adds a bounded multi-file example to the existing single-file response-reconstruction evidence, not a universal claim.
+
