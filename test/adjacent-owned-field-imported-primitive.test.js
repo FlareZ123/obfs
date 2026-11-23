@@ -143,7 +143,13 @@ test('public source-only normalizer still relabels all protected adjacent owner 
   const attacked=attack.files.map(file=>({
     path:file.path,sourceType:/** @type {'module'} */('module'),code:String(file.code)
   }));
-  assert.equal(await runNative(attacked),29,'Source-only relabeling preserves behavior');
+  const attackedResult=await runNative(attacked);
+  if(attackedResult!==29) {
+    console.log('PUBLIC_NORMALIZER_REPRO '+JSON.stringify({
+      original:sourceOnly,normalized:attacked,actual:attackedResult
+    }));
+  }
+  assert.equal(attackedResult,29,'Source-only relabeling preserves behavior');
 });
 
 test('imported primitive proof cannot bypass an observed external owner-key shape',async()=>{
