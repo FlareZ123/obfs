@@ -672,11 +672,30 @@ The audit declines direct require calls governed by a `package.json`
 that the compiler has not published yet, since Node cannot resolve a
 future package scope soundly before publication. Opaque or asset-marked
 `.js`/`.cjs` source files cannot be statically audited and are refused. It refuses known lexical `require` aliases and dynamic direct
-specifiers, while independently constructed require functions,
-reflective indirections and ESM
-imports, runtime loader hooks and dependencies modified after compile.
+specifiers. Independently constructed require functions, reflective
+indirections, ESM imports, runtime loader hooks and dependencies
+modified after compile remain outside this CJS-only audit; ESM imports
+are handled separately by the opt-in audit below.
 No runtime checks are emitted and this optional compiler check cannot
 prevent an attacker with SNO filesystem/runtime/memory access from
 modifying a library after publication. Build against the final
 deployment tree and independently pin external dependencies whenever
 source integrity matters.
+
+### Optional literal ESM bare-import resolution comparison
+
+The opt-in SNO `--audit-bare-esm` flag separately compares direct static
+import/re-export sources, literal dynamic `import()`, and direct literal
+bare-package `import.meta.resolve()` calls. It invokes Node's ESM resolver
+with each source/output parent URL, preserving conditional `import`
+package-export selection. The resolver runs in an isolated Node child
+process and does not execute application modules or mutate the compiler
+process's module cache. Missing or distinct URLs cause prepublication
+refusal; a shared dependency positive control preserves exact emitted
+bytes. Nonliteral dynamic imports, aliases, package `#imports`, opaque
+sources, direct `eval`/`Function` and future emitted package scopes are
+conservatively declined. The audit refuses build invocations using custom
+loader/preload flags, symlink-preservation flags or nondefault conditions.
+Deployment must use the same resolver context; programmatically registered
+runtime loader hooks and post-build dependency changes remain outside this
+comparison. It does not address SNO filesystem/runtime-owner attacks.
