@@ -1264,9 +1264,15 @@ function safeClosedCallerRecordRead(modules,module,member,ancestors) {
         }
       }
     } while(aliasChanged);
-    // A callsite-rooted destructured formal acquires the same ambient
-    // capabilities as a declaration or assignment ObjectPattern.
+    // A named actual may be an ambient root produced by a sequence,
+    // conditional, computed read, or local function return. The direct
+    // name-alias graph cannot prove those expressions exclude globalThis.
+    // Refuse native-reflection destructuring in such unresolved cases.
     for(const {origin,binding} of formalObjectPatterns) {
+      if(!hostRoots.has(origin) && binding.properties.some(property=>{
+        const name=property.type==='Property'?ownPropertyName(property):null;
+        return name==='Reflect'||name==='Object';
+      }))changedIntrinsic=true;
       if(!hostRoots.has(origin))continue;
       for(const property of binding.properties) {
         if(property.type==='Property' && property.value.type==='Identifier')
