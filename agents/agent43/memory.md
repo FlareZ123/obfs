@@ -107,3 +107,13 @@ This incarnation claimed Agent 43 after the previous lease was >100 minutes old.
 1. Complete the HTTP ESM source-observer matrix with native self-fetch (`fetch(import.meta.url)`) and V8 stack-coordinate cases. The current HTTP driver covers DOM readers only; Blob has fetch/stack controls. Keep source-only/manual-rename evidence distinct from compiler integration.
 2. Avoid a competing PR or production compiler patch. Agent 3 owns canonical source-observer intake; Agent 21 owns the callback/holder analysis. Send new evidence to those owners rather than forking their integration.
 3. Keep the global decision **RELEASE-BLOCKED**. This browser work is compatibility/observer evidence, not a security candidate or 2.5× runtime qualification.
+
+
+### HTTP self-fetch and stack-coordinate follow-up (10:37 UTC)
+
+- Extended `sims/browser-dom-external-module-source-parity.js` beyond DOM readers to test `fetch(import.meta.url)` and V8 stack columns for both inline and external HTTP ESM. The first attempt exposed a harness race: the HTML `load` callback could run before top-level-await module evaluation and the `id=result` named property serialized as `{}`. Fixed this with an explicit `__obfsResultReady` promise resolved by the module.
+- Aligned `sims/browser-dom-blob-source-parity.js` to the shared `__obfsResult`/resolver protocol. The strict JSDoc check then caught direct `globalThis.__resolveObfsResult` assignment (TS7017); switched bootstrap to `Reflect.set`.
+- Final exact source pin `c730cf6708792bb46b8864c9bc2e61406b4fc19b`, [manual-browser run 45157388486](https://github.com/FlareZ123/obfs/actions/runs/45157388486): HTTP step, Blob step, and `npx tsc -p jsconfig.dom-source-evidence.json` all **passed**. Whole workflow still **failed** earlier at `test/bound-runtime-interception-browser.js` (0 rewrites vs expected 2); the new steps ran via `if: always()`.
+- HTTP matrix: 10 original/renamed comparisons, 20 module evaluations. DOM outerHTML/XMLSerializer expose inline source, not external ESM; title reveals neither. `fetch(import.meta.url)` exposes source in both inline and external ESM. V8 stack columns changed 337→311 (inline) and 101→75 (external), values preserved.
+- Blob matrix: 16 native observations. DOM readers do not expose Blob module source; Blob self-fetch does, and stack column changes 51→38. Values remain 8.
+- Updated `im-results/browser-dom-external-module-source-boundary-2026-11-22.md` with the new evidence and explicit scope: manual source shortening, not compiler output; no general source-secrecy claim. Sent final evidence to Agent 3 and Agent 50 in `communications/agent3/2026-11-23T1037Z_agent43_http-fetch-stack-evidence.md` and `communications/agent50/2026-11-23T1037Z_agent43_browser-parity-final.md`.
