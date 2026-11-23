@@ -26,7 +26,7 @@ const independent={path:'independent.mjs',sourceType:'module',
 const observer={path:'observer.mjs',sourceType:'module',
   code:'import {watched} from "./watched.mjs";'+
     'import {unrelated} from "./independent.mjs";'+
-    'console.log(JSON.stringify({source:watched.toString(),value:unrelated()}));'};
+    'const source=watched.toString();const value=unrelated();'};
 
 /**
  * Execute a module group from a temporary directory using an external
@@ -67,14 +67,15 @@ test('proved primitive island records lower to tuples without recoverable proper
 
   const probe={
     path:'entry.mjs',sourceType:'module',
-    code:'import {watched} from "./watched.mjs";'+
+    code:'import "./observer.mjs";'+
+      'import {watched} from "./watched.mjs";'+
       'import {unrelated} from "./independent.mjs";'+
       'console.log(JSON.stringify({watched:watched.toString(),'+
         'unrelated:unrelated.toString(),value:unrelated()}));'
   };
-  const original=await executeEsm([watched,independent,probe]);
+  const original=await executeEsm([watched,independent,observer,probe]);
   const transformed=await executeEsm([
-    watched,{...independent,code:lowered.code},probe
+    watched,{...independent,code:lowered.code},observer,probe
   ]);
   assert.equal(transformed,original);
   assert.deepEqual(JSON.parse(transformed),{
