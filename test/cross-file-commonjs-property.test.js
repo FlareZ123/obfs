@@ -7,6 +7,7 @@ const os=require('node:os');
 const path=require('node:path');
 const {spawnSync}=require('node:child_process');
 const {obfuscateFiles}=require('../src');
+const {renameCommonJsCrossFileProperties}=require('../src/commonjs-cross-properties');
 const {atomicWrite}=require('../src/atomic');
 
 /** @typedef {{path:string,sourceType:'commonjs',code:string}} CommonJsFile */
@@ -60,7 +61,10 @@ function compile(files){
 test('closed CommonJS graph renames one private exported record across two require consumers',async()=>{
   const original=await execute(graph);
   assert.equal(original.status,0,original.stderr);
+  const direct=renameCommonJsCrossFileProperties(graph,'closed-cjs-property-graph-20261123');
+  console.log('direct CJS lane',direct.objects,direct.properties);
   const transformed=compile(graph);
+  console.log('public CJS lane',transformed.crossFile.objects,transformed.crossFile.properties);
   assert.equal(transformed.crossFile.objects,1,
     'The one literal module.exports record must be proven across the complete CJS graph');
   assert.equal(transformed.crossFile.properties,2,
