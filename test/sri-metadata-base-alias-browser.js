@@ -11,7 +11,7 @@ const runBrowser=promisify(execFile);
 const original='document.documentElement.dataset.sriMetadata="loaded";'+
   'globalThis.sriMetadataValue="the original bytes must remain byte identical under browser SRI";';
 
-/** @typedef {'uppercase'|'documentBase'} Scenario */
+/** @typedef {'uppercase'|'documentBase'|'unpadded'|'base64url'} Scenario */
 /** @typedef {'native'|'safe'|'unsafe'} Variant */
 
 /**
@@ -20,9 +20,14 @@ const original='document.documentElement.dataset.sriMetadata="loaded";'+
  * @returns {string}
  */
 function documentMarkup(scenario,variant){
-  const digest=createHash(scenario==='uppercase'?'sha256':'sha384')
-    .update(original).digest('base64');
-  const metadata=(scenario==='uppercase'?'SHA256-':'sha384-')+digest;
+  const algorithm=scenario==='documentBase'?'sha384':
+    scenario==='base64url'?'sha512':'sha256';
+  const digest=createHash(algorithm).update(original).digest('base64');
+  const normalizedDigest=scenario==='unpadded'?
+    digest.replace(/=+$/u,''):
+    scenario==='base64url'?digest.replace(/\+/gu,'-').replace(/\//gu,'_')
+      .replace(/=+$/u,''):digest;
+  const metadata=(scenario==='uppercase'?'SHA256-':algorithm+'-')+normalizedDigest;
   const prefix='/'+scenario+'/'+variant+'/app/v3/';
   const base=scenario==='documentBase'?'<base href="'+prefix+'">':'';
   const src=scenario==='documentBase'?
@@ -36,7 +41,7 @@ function documentMarkup(scenario,variant){
 async function main(){
   /** @type {Map<Scenario,{native:string,safe:string,unsafe:string}>} */
   const responses=new Map();
-  for(const scenario of /** @type {const} */(['uppercase','documentBase'])){
+  for(const scenario of /** @type {const} */(['uppercase','documentBase','unpadded','base64url'])){
     const protectedInput=[
       {path:'client.js',sourceType:/** @type {const} */('script'),code:original},
       {path:'index.html',sourceType:/** @type {const} */('asset'),
@@ -82,7 +87,7 @@ async function main(){
     if(!address||typeof address==='string')throw Error('Missing local server port');
     /** @type {Record<string,{native:boolean,safe:boolean,unsafe:boolean,safeBytes:number,originalBytes:number}>} */
     const outcomes={};
-    for(const scenario of /** @type {const} */(['uppercase','documentBase'])){
+    for(const scenario of /** @type {const} */(['uppercase','documentBase','unpadded','base64url'])){
       /** @type {{native:boolean,safe:boolean,unsafe:boolean,safeBytes:number,originalBytes:number}} */
       const outcome={native:false,safe:false,unsafe:false,
         safeBytes:Buffer.byteLength(/** @type {string} */(responses.get(scenario)?.safe)),
@@ -99,12 +104,13 @@ async function main(){
       outcomes[scenario]=outcome;
     }
     process.stdout.write('SRI_METADATA_BASE_BROWSER '+JSON.stringify(outcomes)+'\n');
-    for(const scenario of /** @type {const} */(['uppercase','documentBase'])){
+    for(const scenario of /** @type {const} */(['uppercase','documentBase','unpadded','base64url'])){
       const outcome=outcomes[scenario];
       // This Chrome version does not enforce an uppercase SHA256 label even
       // though the current SRI specification accepts it. Preserve bytes in
       // the compiler for conformant or future browsers; do not misreport
       // Chrome's observed uppercase metadata behavior as a byte rejection.
+      if(scenario==='unpadded'||scenario==='base64url')continue;
       const expected=scenario==='uppercase'?[true,true,true]:[true,true,false];
       assert.deepEqual([outcome.native,outcome.safe,outcome.unsafe],
         expected,scenario+': observed Chrome enforcement and byte parity');
