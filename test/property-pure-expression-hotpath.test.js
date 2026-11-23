@@ -2,11 +2,12 @@
 
 const assert=require('node:assert/strict');
 const {test}=require('node:test');
+const {obfuscateFiles}=require('../src');
 const {generate,runHotpath}=require('../sims/property-hotpath-closedworld');
 
 test('pure-expression graph has actual owned arithmetic source, not precomputed constants',()=>{
-  for(const style of /** @type {('direct'|'readers'|'identity')[]} */
-    (['direct','readers','identity'])){
+  for(const style of /** @type {('direct'|'readers'|'identity'|'wrapped')[]} */
+    (['direct','readers','identity','wrapped'])){
     const files=generate(style,'pure-expression');
     assert.match(files[0].code,/hotScore:\(21-14\)/u);
     assert.match(files[0].code,/hotWeight:\(5<<2\)-7/u);
@@ -14,10 +15,26 @@ test('pure-expression graph has actual owned arithmetic source, not precomputed 
   }
 });
 
+test('unwrapped public functions decline source-visible property edits while wrapped private worker remains eligible',()=>{
+  for(const style of /** @type {('direct'|'readers'|'identity')[]} */ (['direct','readers','identity'])) {
+    const result=obfuscateFiles(generate(style,'pure-expression'),{
+      mode:'coo',closedWorld:true,strings:false,identifiers:false,
+      seed:'public-source-negative/'+style
+    });
+    assert.equal(result.crossFile.properties,0,style);
+  }
+  const wrapped=obfuscateFiles(generate('wrapped','pure-expression'),{
+    mode:'coo',closedWorld:true,strings:false,identifiers:false,
+    seed:'public-source-negative/wrapped'
+  });
+  assert.equal(wrapped.crossFile.properties,2,'wrapped private worker should remain eligible');
+});
+
 test('actual multi-file pure-expression private fields remain exercised and behaviorally equal',async()=>{
   const report=await runHotpath(20000,3,'pure-expression');
   assert.equal(report.valueKind,'pure-expression');
-  assert.equal(report.measurements.length,3);
+  assert.equal(report.measurements.length,1);
+  assert.equal(report.measurements[0].style,'wrapped');
   for(const row of report.measurements){
     assert.equal(row.valueKind,'pure-expression');
     assert.equal(row.properties,2,row.style);
