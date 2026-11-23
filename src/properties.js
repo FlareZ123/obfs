@@ -665,6 +665,48 @@ function proveLocalObject(ast, rootName, bindings, importedIdentityFunctions=new
     if(!functions.has(source))functions.delete(alias);
   }
 
+  // Source privacy is broader than the identity/consumer summaries above:
+  // any uniquely bound function value used only as a direct call is private
+  // even when its body does not return an identity or a simple parameter read.
+  // Conversely, a value stored, returned, exported, or passed elsewhere can
+  // expose its original body through Function#toString.
+  const privateFunctionNodes=new Set();
+  /** @type {{name:string,node:AstNode,decl:AstNode}[]} */
+  const callableBindings=[];
+  for(const node of functionDeclarations) {
+    if(node.id?.type==='Identifier'&&bindings.get(node.id.name)===1)
+      callableBindings.push({name:node.id.name,node,decl:node.id});
+  }
+  for(const declarator of callableDeclarators) {
+    const declaration=parents.get(declarator);
+    const value=declarator.init;
+    if(declaration?.type==='VariableDeclaration'&&declaration.kind==='const'&&
+       declarator.id.type==='Identifier'&&bindings.get(declarator.id.name)===1&&
+       (value?.type==='FunctionExpression'||value?.type==='ArrowFunctionExpression'))
+      callableBindings.push({name:declarator.id.name,node:value,decl:declarator.id});
+  }
+  for(const binding of callableBindings) {
+    const scope=scopes.get(binding.name);
+    if(!scope)continue;
+    let privateValue=true;
+    for(const use of identifierUses.get(binding.name)??[]) {
+      if(use.node===binding.decl) {
+        if(use.ancestors.some(ancestor=>/^Export/.test(ancestor.type)))
+          privateValue=false;
+        if(!privateValue)break;
+        continue;
+      }
+      if(!use.ancestors.includes(scope)||
+         use.parent?.type!=='CallExpression'||
+         use.parent.callee!==use.node||
+         use.parent.optional) {
+        privateValue=false;
+        break;
+      }
+    }
+    if(privateValue)privateFunctionNodes.add(binding.node);
+  }
+
   const aliases = new Set([rootName]);
   /**
    * Return the only alias fact needed to resolve an expression. A null result
@@ -872,6 +914,12 @@ function proveLocalObject(ast, rootName, bindings, importedIdentityFunctions=new
         parent?.type==='MemberExpression' && key==='property' && !parent.computed ||
         (parent?.type==='MethodDefinition'||parent?.type==='PropertyDefinition') &&
           key==='key' && !parent.computed) continue;
+    // A property spelling inside an unproven callable body is part of that
+    // callable's externally observable source. Private direct-call-only
+    // functions survive the escape analysis above and remain eligible.
+    if(ancestors.some(ancestor=>
+      ['FunctionDeclaration','FunctionExpression','ArrowFunctionExpression'].includes(ancestor.type)&&
+      !privateFunctionNodes.has(ancestor)))return null;
     const scope=scopes.get(node.name);
     if (!scope || !ancestors.includes(scope)) return null;
     if (!parent) return null;
