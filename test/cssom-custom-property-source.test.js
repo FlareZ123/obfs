@@ -24,7 +24,7 @@ function execute(code) {
       }};
     }
   };
-  const module={exports:null};
+  const module={exports:/** @type {unknown} */(null)};
   vm.runInNewContext(code,{document,module},{timeout:3000});
   return /** @type {{text:string,number:number}} */(module.exports);
 }
