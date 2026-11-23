@@ -349,7 +349,7 @@ test('indexed free-name proof respects selected const arrow and named function-e
 
 test('private lexical owners may shadow same-spelled separated public exports',()=>{
   const positive=[
-    'export async function protectedOp(){const publicOp=()=>41;return publicOp();}',
+    'export async function protectedOp(){const publicOp=41;return publicOp;}',
     'export async function protectedOp(publicOp){return publicOp+1;}'
   ];
   for(const exported of positive){
@@ -361,6 +361,7 @@ test('private lexical owners may shadow same-spelled separated public exports',(
     assert.deepEqual(result.publicNames,['publicOp']);
   }
   const negative=[
+    'export async function protectedOp(){const publicOp=()=>41;return publicOp();}',
     'export async function protectedOp(){return publicOp();}',
     'export async function protectedOp(){function sibling(publicOp){return publicOp;}return publicOp();}'
   ];
