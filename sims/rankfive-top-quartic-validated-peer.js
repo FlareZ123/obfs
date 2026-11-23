@@ -4,8 +4,8 @@ const assert = require('node:assert/strict');
 const {createHash,randomBytes} = require('node:crypto');
 const {clone,evaluate} = require('./rankfive-top-quartic-functional-clone');
 
-/** @typedef {{bits:number,base:Map<number,number>,quartic:Array<[number,number]>,degree:3|4,queries:number,trials?:number,quotientRank?:number}} FastModel */
-/** @typedef {{bits:number,base:Map<number,number>,quartic:Array<[number,number]>,degree:3|4,queries:number,fastQueries:number,verificationQueries:number,verificationSamples:number,verificationCap:number,verificationDelta:number,verificationPassed:boolean,falseAcceptanceBound:number,fallbackUsed:boolean,fallbackReason:string|null,exactByInterpolation:boolean,trials?:number,quotientRank?:number,verificationMismatchAt?:number|null,fallbackQueries?:number}} ValidatedModel */
+/** @typedef {{bits:number,base:Map<number,number>,quartic:Array<[number,number]>,degree:3|4,queries:number,trials:number,quotientRank:number}} FastModel */
+/** @typedef {{bits:number,base:Map<number,number>,quartic:Array<[number,number]>,degree:3|4,queries:number,trials:number,quotientRank:number,fastQueries:number,verificationQueries:number,verificationSamples:number,verificationCap:number,verificationDelta:number,verificationPassed:boolean,falseAcceptanceBound:number,fallbackUsed:boolean,fallbackReason:string|null,exactByInterpolation:boolean,verificationMismatchAt?:number|null,fallbackQueries?:number}} ValidatedModel */
 
 /** @param {number} seed @returns {()=>number} */
 function seeded(seed) {
@@ -201,6 +201,8 @@ function cloneTopQuarticValidated(
   return {
     ...exact,
     queries:cache.size,
+    trials:fastModel?.trials ?? 0,
+    quotientRank:fastModel?.quotientRank ?? 0,
     fastQueries,
     verificationQueries,
     verificationSamples,
