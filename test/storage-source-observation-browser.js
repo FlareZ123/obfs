@@ -7,11 +7,14 @@ const {promisify}=require('node:util');
 const {obfuscateFiles}=require('../src');
 
 async function main() {
-  const source=[
-    'function inspect(){const privateLocal=29;return privateLocal;}',
-    'function independent(){const independentLocal=7;return independentLocal;}',
+  const logic=[
+    'export function inspect(){const privateLocal=31;return privateLocal;}',
+    'export function independent(){const independentLocal=7;return independentLocal;}'
+  ].join('\n');
+  const observer=[
+    'import {inspect,independent} from "./logic.mjs";',
     'export function sample(){',
-    '  const key="obfs-storage-source-observer";',
+    '  const key="obfs-storage-cross-file";',
     '  localStorage.setItem(key,inspect);',
     '  sessionStorage.setItem(key,inspect);',
     '  localStorage[key+"-named"]=inspect;',
@@ -20,34 +23,44 @@ async function main() {
     '    value:inspect(),independent:independent()};',
     '}'
   ].join('\n');
-  const result=obfuscateFiles([{
-    path:'entry.mjs',sourceType:'module',code:source
-  }],{
-    mode:'coo',seed:'storage-source-observation-browser',
-    properties:false,identifiers:true,strings:false
+  const result=obfuscateFiles([
+    {path:'logic.mjs',sourceType:'module',code:logic},
+    {path:'observer.mjs',sourceType:'module',code:observer}
+  ],{
+    mode:'coo',seed:'storage-source-observation-cross-file-browser',
+    closedWorld:true,properties:false,identifiers:true,strings:false
   });
-  const emitted=String(result.files[0].code);
-  assert.ok(result.files[0].metrics.bindings>=2);
-  assert.ok(!emitted.includes('privateLocal'));
-  assert.ok(!emitted.includes('independentLocal'));
+  const logicOut=String(result.files.find(file=>file.path==='logic.mjs').code);
+  const observerOut=String(result.files.find(file=>file.path==='observer.mjs').code);
+  const metrics=result.files.reduce((sum,file)=>({
+    literals:sum.literals+file.metrics.literals,
+    objects:sum.objects+file.metrics.objects,
+    properties:sum.properties+file.metrics.properties,
+    bindings:sum.bindings+file.metrics.bindings
+  }),{literals:0,objects:0,properties:0,bindings:0});
+  assert.ok(metrics.bindings>=2);
+  assert.ok(!logicOut.includes('privateLocal'));
+  assert.ok(!logicOut.includes('independentLocal'));
 
   const html=[
     '<!doctype html><html><head><meta charset="utf-8"></head><body>',
     '<pre id="result">pending</pre><script type="module">',
     'try {',
     '  const [native,compiled]=await Promise.all([',
-    '    import("/native.mjs"),import("/compiled.mjs")]);',
+    '    import("/native/observer.mjs"),import("/compiled/observer.mjs")]);',
     '  const [a,b]=await Promise.all([native.sample(),compiled.sample()]);',
     '  if(a.value!==b.value||a.independent!==b.independent)',
     '    throw Error("ordinary values differ "+JSON.stringify({a,b}));',
-    '  if(a.local!==a.session||a.local!==a.named||b.local!==b.session||b.local!==b.named)',
-    '    throw Error("local/session Storage disagree "+JSON.stringify({a,b}));',
+    '  if(a.local!==a.session||a.local!==a.named||',
+    '     b.local!==b.session||b.local!==b.named)',
+    '    throw Error("Storage readback paths disagree "+JSON.stringify({a,b}));',
     '  if(!a.local.includes("privateLocal")||b.local.includes("privateLocal"))',
-    '    throw Error("expected native/emitted callback-source mismatch "+JSON.stringify({a,b}));',
+    '    throw Error("expected cross-file source mismatch "+JSON.stringify({a,b}));',
     '  if(!b.local.includes("_v"))throw Error("emitted identifier rewrite absent");',
     '  document.getElementById("result").textContent="RED_CONFIRMED "+',
     '    JSON.stringify({nativeSource:a.local,emittedSource:b.local,',
-    '      nativeValue:a.value,emittedValue:b.value,independent:b.independent});',
+    '      nativeNamed:a.named,emittedNamed:b.named,nativeValue:a.value,',
+    '      emittedValue:b.value,independent:b.independent});',
     '} catch(error) {',
     '  document.getElementById("result").textContent="FAIL "+String(error.stack||error);',
     '}',
@@ -55,8 +68,10 @@ async function main() {
   ].join('\n');
   const bodies=new Map([
     ['/',html],
-    ['/native.mjs',source],
-    ['/compiled.mjs',emitted]
+    ['/native/logic.mjs',logic],
+    ['/native/observer.mjs',observer],
+    ['/compiled/logic.mjs',logicOut],
+    ['/compiled/observer.mjs',observerOut]
   ]);
   const server=http.createServer((request,response)=>{
     const body=bodies.get(request.url??'');
@@ -82,11 +97,12 @@ async function main() {
     });
     assert.match(stdout,/<pre id="result">RED_CONFIRMED /,String(stderr));
     const match=stdout.match(/<pre id="result">RED_CONFIRMED ([\s\S]*?)<\/pre>/);
-    assert.ok(match,'Expected rendered source-observer result');
+    assert.ok(match,'Expected rendered cross-file source-observer result');
     const report=JSON.parse(match[1].replace(/&quot;/g,'"').replace(/&amp;/g,'&'));
-    console.log(JSON.stringify({browser:'Chromium',metrics:result.files[0].metrics,
+    console.log(JSON.stringify({browser:'Chromium',metrics,
       sourceMismatch:report.nativeSource!==report.emittedSource,
       nativeSource:report.nativeSource,emittedSource:report.emittedSource,
+      nativeNamed:report.nativeNamed,emittedNamed:report.emittedNamed,
       valuesPreserved:report.nativeValue===report.emittedValue&&report.independent===7}));
   } finally {
     await new Promise(resolve=>server.close(()=>resolve(undefined)));
