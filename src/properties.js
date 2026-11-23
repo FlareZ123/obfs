@@ -392,7 +392,8 @@ function locallyPrivateClassMethods(ast,bindings,scopes,inventory){
       inventory.parents.get(parent)?.kind==='const';
     if((!declaration&&!expression)||cls.superClass||cls.body.body.length!==1||
        ancestors.some(a=>/^Export/.test(a.type)))return;
-    const classId=declaration?cls.id:parent.id;
+    const classId=declaration?cls.id:parent?.id;
+    if(classId?.type!=='Identifier')return;
     const className=classId.name;
     // Class declarations are absent from the existing binding-scope cache.
     // Recover the exact nearest lexical region from this walk's ancestry.
