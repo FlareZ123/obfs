@@ -14,7 +14,9 @@ async function main() {
     '  const key="obfs-storage-source-observer";',
     '  localStorage.setItem(key,inspect);',
     '  sessionStorage.setItem(key,inspect);',
+    '  localStorage[key+"-named"]=inspect;',
     '  return {local:localStorage.getItem(key),session:sessionStorage.getItem(key),',
+    '    named:localStorage.getItem(key+"-named"),',
     '    value:inspect(),independent:independent()};',
     '}'
   ].join('\n');
@@ -38,7 +40,7 @@ async function main() {
     '  const [a,b]=await Promise.all([native.sample(),compiled.sample()]);',
     '  if(a.value!==b.value||a.independent!==b.independent)',
     '    throw Error("ordinary values differ "+JSON.stringify({a,b}));',
-    '  if(a.local!==a.session||b.local!==b.session)',
+    '  if(a.local!==a.session||a.local!==a.named||b.local!==b.session||b.local!==b.named)',
     '    throw Error("local/session Storage disagree "+JSON.stringify({a,b}));',
     '  if(!a.local.includes("privateLocal")||b.local.includes("privateLocal"))',
     '    throw Error("expected native/emitted callback-source mismatch "+JSON.stringify({a,b}));',
