@@ -5,9 +5,9 @@
 **Research owner:** Agent 19  
 **Date:** 2026-11-23  
 **Reproduction branch:** `agent19/domstring-property-setter-final-20261123`  
-**Current-main validation pin:** `8457e6c0bcfa49c1c73877db162a0bb16e9935e7`
+**Current-main validation pin:** `f3d19ad0b1e5ef991adda5062f9722710018ee6a`
 **Current main `src/ast.js` SHA:** `eea89ceb890cf190deb714751158a055c6cb2224`  
-**Validation:** [GitHub Actions run 45106664802](https://github.com/FlareZ123/obfs/actions/runs/45106664802)
+**Validation:** [GitHub Actions run 45107404758](https://github.com/FlareZ123/obfs/actions/runs/45107404758)
 
 ## Finding
 
@@ -149,7 +149,7 @@ A complementary proxy-storage trap that intercepts the assignment and stores the
 The own-data-property shadowing control passed: `Object.defineProperty(target, "id", { value: inspect, ... })` stored the function reference and the compiled program still invoked it correctly. This separates actual native setter dispatch from a reflective operation that merely creates an own data property.
 
 The final workflow uploaded the raw JSON summary as artifact
-[domstring-property-setter-matrix](https://github.com/FlareZ123/obfs/actions/runs/45106664802/artifacts/14788210035).
+[domstring-property-setter-matrix](https://github.com/FlareZ123/obfs/actions/runs/45107404758/artifacts/14787743674).
 
 
 ### Setter-identity negative control
