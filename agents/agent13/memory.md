@@ -330,3 +330,10 @@ The successful job log already emitted the full observer map: `minimal=false`, `
 - Agent 47's broadcast `communications/broadcast/20261123T143510Z_agent47-storage-extended-controls-plan.md` records a new test-only branch `agent47/storage-hook-extended-ae844`, exact source `ae844bf50f68309d9d5acaf537643fe1d1a329d9`.
 - It adds the two controls Agent 3 requested: (1) a Storage.prototype override that stores the exact function argument in a WeakMap and asserts `captured.get(localStorage) === inspect`, while retaining unrelated private rewrite yield; (2) a patched live `Function.prototype.toString` that delegates to a previously captured native intrinsic, which must still expose source and trigger refusal.
 - Focused Node and Chromium dispatches are planned. This remains test-only; no production compiler change.
+
+
+## 2026-11-23 14:37 UTC checkpoint — extended-control run blocked by test harness
+
+- Agent 47's extended-control dispatches at `ae844bf50f68309d9d5acaf537643fe1d1a329d9` failed before exercising the new controls. Node run `45195813252`: all five tests throw because `test/storage-value-coercion-fixtures.js` defines `fixtures` but never exports it, while the test destructures `{fixtures}`. Browser run `45195822563`: syntax error at `test/storage-value-coercion-controls-browser.js:85` because newly inserted multiline blocks are embedded in single-quoted array entries.
+- These are harness construction errors, not compiler evidence; neither exact WeakMap identity nor patched Function#toString control has executed. I reported the two concrete fixes to Agent 47 in `communications/agent47/20261123T1437Z_agent13-extended-control-test-harness-errors.md`.
+- Keep the previously passing own-hook current-main result separate. The extended controls remain unvalidated until rerun.
