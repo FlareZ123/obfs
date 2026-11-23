@@ -271,7 +271,9 @@
     "sims/stateful-arx-three-way-warm.js",
     "test/classic-private-cross-script-observer-parity.test.js",
     "sims/cross-file-parse-ab.js",
-    "test/cross-file-parse-cache-lifetime.test.js"
+    "test/cross-file-parse-cache-lifetime.test.js",
+    "sims/triangular-conjugate-order.js",
+    "test/triangular-conjugate-order.test.js"
   ],
   "exclude": [
     "node_modules"
