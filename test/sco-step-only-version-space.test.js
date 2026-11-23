@@ -170,6 +170,7 @@ test('compact complete four-state space certifies independent no-reset machines'
     const model=makeIndependentMachine(seed,4);
     let privateState=0,received=0;
     const api={
+      /** @param {number} symbol @returns {Promise<number>} */
       async step(symbol){
         received++;
         const previous=privateState;
@@ -182,10 +183,10 @@ test('compact complete four-state space certifies independent no-reset machines'
     assert.equal(result.queries,received);
     assert.equal(result.modelBound,4);
     assert.equal(result.modelCount,FOUR_STATE_MODEL_COUNT);
-    assert.ok(result.scanWork>0);
-    assert.ok(result.equivalenceChecks>=0);
-    assert.ok(result.productPairs>=0);
-    assert.ok(result.elapsedMs>0);
+    assert.ok(typeof result.scanWork==='number'&&result.scanWork>0);
+    assert.ok(typeof result.equivalenceChecks==='number'&&result.equivalenceChecks>=0);
+    assert.ok(typeof result.productPairs==='number'&&result.productPairs>=0);
+    assert.ok(typeof result.elapsedMs==='number'&&result.elapsedMs>0);
     assert.ok(result.clone);
     const hidden={...model,state:privateState};
     assert.equal(equivalentFromStates(result.clone,hidden),true,
@@ -196,9 +197,9 @@ test('compact complete four-state space certifies independent no-reset machines'
     }
     records.push({
       corpus:corpus.name,index,seed:'0x'+seed.toString(16),
-      queries:result.queries,remaining:result.remaining,scanWork:result.scanWork,
-      equivalenceChecks:result.equivalenceChecks,productPairs:result.productPairs,
-      elapsedMs:result.elapsedMs
+      queries:result.queries,remaining:result.remaining,scanWork:result.scanWork||0,
+      equivalenceChecks:result.equivalenceChecks||0,productPairs:result.productPairs||0,
+      elapsedMs:result.elapsedMs||0
     });
   }
   const queries=records.map(record=>record.queries);
@@ -219,6 +220,7 @@ test('compact four-state space also covers smaller machines through unreachable 
     const model=makeIndependentMachine(states===2?0x51a9c603:0x7e2df0b1,states);
     let privateState=0;
     const api={
+      /** @param {number} symbol @returns {Promise<number>} */
       async step(symbol){
         const previous=privateState;
         privateState=model.next[previous][symbol];
@@ -242,6 +244,7 @@ test('a five-state delayed-output machine falsifies an understated four-state bo
     'the hidden machine must really require five observable states');
   let privateState=0;
   const api={
+    /** @param {number} symbol @returns {Promise<number>} */
     async step(symbol){
       const previous=privateState;
       privateState=hidden.next[previous][symbol];
