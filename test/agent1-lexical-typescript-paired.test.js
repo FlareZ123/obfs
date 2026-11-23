@@ -66,7 +66,7 @@ test('150 source-paired Acorn/TypeScript reference classifications',()=>{
   const ast=acorn.parse(source,{ecmaVersion:'latest',sourceType:'module'});
   const proof=resolveLexicalReferences(ast,'module');
   const filename=path.join(process.cwd(),'obfs-binder-reference-virtual.js').replaceAll('\\','/');
-  const canonical=name=>path.resolve(name).replaceAll('\\','/').toLowerCase();
+  const canonical=(/** @type {string} */ name)=>path.resolve(name).replaceAll('\\','/').toLowerCase();
   const target=canonical(filename);
   const options={
     allowJs:true,
@@ -110,7 +110,8 @@ test('150 source-paired Acorn/TypeScript reference classifications',()=>{
     assert.ok(acornRef,String(i)+' '+cases[i].label+': missing Acorn reference');
     assert.ok(tsRef,String(i)+' '+cases[i].label+': missing TypeScript reference');
     const declarations=checker.getSymbolAtLocation(tsRef)?.declarations??[];
-    const expected=declarations.some(decl=>decl.getSourceFile()===sf)?
+    /** @type {'local'|'free-host-candidate'} */
+    const expected=declarations.some((/** @type {import('typescript').Declaration} */ decl)=>decl.getSourceFile()===sf)?
       'local':'free-host-candidate';
     assert.equal(acornRef.resolution.kind,expected,
       String(i)+' '+cases[i].label+': '+cases[i].expr);
