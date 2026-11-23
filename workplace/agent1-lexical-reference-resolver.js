@@ -8,14 +8,16 @@
  * @typedef {{type:string,start:number,end:number,[key:string]:any}} AstNode
  * @typedef {'module'|'script'|'commonjs'} SourceType
  * @typedef {{kind:'local',name:string,bindingId:number}|{kind:'free-host-candidate',name:string}|{kind:'unknown',name:string,reason:string}} Resolution
- * @typedef {{node:AstNode,name:string,start:number,end:number,resolution:Resolution}} Reference
+ * @typedef {'read'|'write'|'read-write'|'call'|'construct'|'computed-key'|'export-local'|'unknown'} ReferenceRole
+ * @typedef {{node:AstNode,name:string,start:number,end:number,resolution:Resolution,role:ReferenceRole}} Reference
+ * @typedef {{node:AstNode,name:string,start:number,end:number,kind:string,bindingId:number|null}} Declaration
  * @typedef {{parent:Scope|null,kind:string,bindings:Map<string,Binding>,uncertain:Set<string>,directEval:boolean,dynamicWith:boolean}} Scope
  * @typedef {{id:number,name:string,kind:string}} Binding
  */
 
 const HOST_NAMES = new Set(['globalThis','window','self','global','Storage','localStorage','sessionStorage']);
 
-/** @param {AstNode} root @param {SourceType} sourceType @returns {{references:Reference[],at:(start:number)=>Reference|undefined}} */
+/** @param {AstNode} root @param {SourceType} sourceType @returns {{references:Reference[],declarations:Declaration[],at:(start:number)=>Reference|undefined}} */
 function resolveLexicalReferences(root,sourceType) {
   if (root.type !== 'Program') throw new TypeError('Expected Acorn Program');
   if (!['script','module','commonjs'].includes(sourceType)) throw new TypeError('Invalid source type');
@@ -27,6 +29,8 @@ function resolveLexicalReferences(root,sourceType) {
   const declarations = new WeakSet();
   /** @type {Reference[]} */
   const references = [];
+  /** @type {(Declaration & {scope:Scope})[]} */
+  const declarationRecords = [];
   /** @type {{node:AstNode,scope:Scope}[]} */
   const evalCalls = [];
   let bindingCounter=0;
@@ -35,15 +39,26 @@ function resolveLexicalReferences(root,sourceType) {
   function child(parent,kind) {
     return {parent,kind,bindings:new Map(),uncertain:new Set(),directEval:false,dynamicWith:kind==='with'};
   }
-  /** @param {Scope} scope @param {string} name @param {string} kind */
-  function declare(scope,name,kind) {
-    const existing=scope.bindings.get(name);
-    if (existing) {
-      if (kind==='var' && ['var','function'].includes(existing.kind)) return;
-      scope.uncertain.add(name);
-      return;
+  /** @param {Scope} scope @param {string} name @param {string} kind @param {AstNode} node */
+  function declare(scope,name,kind,node) {
+    let binding=scope.bindings.get(name);
+    if (binding) {
+      const sameVarFunction=['var','function'].includes(kind) &&
+        ['var','function'].includes(binding.kind);
+      const paramVar=scope.kind==='function' &&
+        (kind==='var' && binding.kind==='param' ||
+         kind==='param' && binding.kind==='var');
+      const duplicatedSloppyParam=sourceType!=='module' &&
+        kind==='param' && binding.kind==='param';
+      if (sameVarFunction) {
+        if (kind==='function') binding.kind='function';
+      } else if(!paramVar&&!duplicatedSloppyParam)scope.uncertain.add(name);
+    } else {
+      binding={id:++bindingCounter,name,kind};
+      scope.bindings.set(name,binding);
     }
-    scope.bindings.set(name,{id:++bindingCounter,name,kind});
+    declarationRecords.push({node,name,start:node.start,end:node.end,
+      kind,bindingId:binding.id,scope});
   }
   /** @param {Scope} scope @returns {Scope} */
   function varScope(scope) {
@@ -54,7 +69,7 @@ function resolveLexicalReferences(root,sourceType) {
   function declarePattern(node,scope,kind) {
     if (!node) return;
     switch(node.type) {
-      case 'Identifier': declarations.add(node);declare(scope,node.name,kind);break;
+      case 'Identifier': declarations.add(node);declare(scope,node.name,kind,node);break;
       case 'RestElement': declarePattern(node.argument,scope,kind);break;
       case 'AssignmentPattern': declarePattern(node.left,scope,kind);break;
       case 'ArrayPattern': for(const el of node.elements)declarePattern(el,scope,kind);break;
@@ -76,6 +91,14 @@ function resolveLexicalReferences(root,sourceType) {
   }
   /** @param {AstNode} node @param {Scope} incoming @param {AstNode|null} parent @param {string|null} key */
   function collect(node,incoming,parent,key) {
+    // A with-object expression is evaluated in the incoming lexical scope.
+    // Only its statement body has an injected object environment record.
+    if(node.type==='WithStatement') {
+      scopes.set(node,incoming);
+      collect(node.object,incoming,node,'object');
+      collect(node.body,child(incoming,'with'),node,'body');
+      return;
+    }
     let scope=incoming;
     if(node!==root) {
       if(node.type==='FunctionDeclaration'||node.type==='FunctionExpression'||node.type==='ArrowFunctionExpression') {
@@ -85,7 +108,7 @@ function resolveLexicalReferences(root,sourceType) {
           const outer = incoming;
           const isBlock=outer.kind==='block'||outer.kind==='switch'||outer.kind==='loop';
           if(isBlock&&sourceType!=='module') varScope(outer).uncertain.add(node.id.name); // Annex B
-          declare(outer,node.id.name,isBlock?'block-function':'function');
+          declare(outer,node.id.name,isBlock?'block-function':'function',node.id);
         }
         scope=child(incoming,'function');
         if(node.type==='FunctionExpression'&&node.id)declarePattern(node.id,scope,'function-name');
@@ -109,7 +132,7 @@ function resolveLexicalReferences(root,sourceType) {
         declarePattern(node.param,scope,'catch');
       }else if(['ForStatement','ForInStatement','ForOfStatement'].includes(node.type))scope=child(incoming,'loop');
       else if(node.type==='SwitchStatement')scope=child(incoming,'switch');
-      else if(node.type==='WithStatement')scope=child(incoming,'with');
+
     }
     scopes.set(node,scope);
     if(node.type==='VariableDeclaration'){
@@ -176,18 +199,50 @@ function resolveLexicalReferences(root,sourceType) {
     if(parent.type==='PrivateIdentifier')return false;
     return true;
   }
+  /** @param {AstNode} node @param {AstNode|null} parent @param {string|null} key @param {AstNode[]} ancestors @returns {ReferenceRole} */
+  function referenceRole(node,parent,key,ancestors) {
+    if (!parent) return 'unknown';
+    if (parent.type==='ExportSpecifier'&&key==='local'||
+        parent.type==='ExportDefaultDeclaration'&&key==='declaration')return 'export-local';
+    if (parent.type==='CallExpression'&&key==='callee'||
+        parent.type==='TaggedTemplateExpression'&&key==='tag')return 'call';
+    if (parent.type==='NewExpression'&&key==='callee')return 'construct';
+    if (parent.type==='UpdateExpression'&&key==='argument')return 'read-write';
+    if (parent.type==='AssignmentExpression'&&key==='left')
+      return parent.operator==='='?'write':'read-write';
+    if (parent.type==='AssignmentPattern'&&key==='left')return 'write';
+    if (parent.type==='MemberExpression'&&key==='property'&&parent.computed||
+        ['Property','MethodDefinition','PropertyDefinition'].includes(parent.type)&&
+          key==='key'&&parent.computed)return 'computed-key';
+    if (['ForInStatement','ForOfStatement'].includes(parent.type)&&key==='left')return 'write';
+    // Destructuring assignment references are nested below a pattern node.
+    for(let i=ancestors.length-1;i>=0;i--){
+      const a=ancestors[i];
+      if((a.type==='AssignmentExpression'||a.type==='ForInStatement'||
+          a.type==='ForOfStatement') && a.left &&
+          a.left.start<=node.start && node.end<=a.left.end &&
+          a.left.type!=='VariableDeclaration')
+        return a.type==='AssignmentExpression'&&a.operator!=='='?'read-write':'write';
+    }
+    return 'read';
+  }
   /** @param {AstNode} node @param {AstNode|null} parent @param {string|null} key @param {AstNode[]} ancestors */
   function visit(node,parent,key,ancestors) {
     if(node.type==='Identifier' && isReference(node,parent,key,ancestors)){
       const scope=scopes.get(node);
       if(!scope)throw new Error('Missing lexical scope');
-      references.push({node,name:node.name,start:node.start,end:node.end,resolution:resolve(scope,node.name)});
+      references.push({node,name:node.name,start:node.start,end:node.end,
+        resolution:resolve(scope,node.name),role:referenceRole(node,parent,key,ancestors)});
     }
     const next=[...ancestors,node];
     children(node,(c,k)=>visit(c,node,k,next));
   }
   visit(root,null,null,[]);
-  return {references,at:(start)=>references.find(r=>r.start===start)};
+  const declarationTable=declarationRecords.map(record=>({node:record.node,
+    name:record.name,start:record.start,end:record.end,kind:record.kind,
+    bindingId:record.scope.uncertain.has(record.name)?null:record.bindingId}));
+  return {references,declarations:declarationTable,
+    at:(start)=>references.find(r=>r.start===start)};
 }
 
 module.exports={resolveLexicalReferences};
