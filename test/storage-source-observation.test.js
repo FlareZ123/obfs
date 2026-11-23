@@ -7,6 +7,7 @@ const {parse,observesFunctionSource}=require('../src/ast');
 
 const sameFile=[
   'function inspect(){const privateLocal=29;return privateLocal;}',
+  'function inspectWindow(){const windowLocal=37;return windowLocal;}',
   'function independent(){const independentLocal=7;return independentLocal;}',
   'export function sample(){',
   '  localStorage.clear();sessionStorage.clear();',
@@ -15,9 +16,10 @@ const sameFile=[
   '  localStorage.setItem(inspect,"key-marker");',
   '  sessionStorage.setItem(key,inspect);',
   '  localStorage[key+"-named"]=inspect;',
+  '  window.name=inspectWindow;',
   '  return {local:localStorage.getItem(key),session:sessionStorage.getItem(key),',
-  '    named:localStorage.getItem(key+"-named"),',
-  '    value:inspect(),independent:independent()};',
+  '    named:localStorage.getItem(key+"-named"),windowName:window.name,',
+  '    value:inspect(),windowValue:inspectWindow(),independent:independent()};',
   '}'
 ].join('\n');
 
@@ -42,8 +44,9 @@ test('the unrecognized same-file Storage sink permits source-changing local iden
     properties:false,identifiers:true,strings:false
   });
   const output=String(result.files[0].code);
-  assert.ok(result.files[0].metrics.bindings>=2);
+  assert.ok(result.files[0].metrics.bindings>=3);
   assert.ok(!output.includes('privateLocal'));
+  assert.ok(!output.includes('windowLocal'));
   assert.ok(!output.includes('independentLocal'));
 });
 
