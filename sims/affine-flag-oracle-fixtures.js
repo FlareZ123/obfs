@@ -241,8 +241,49 @@ function makeFeistelOracle(seed) {
   };
 }
 
+/**
+ * A mixed-strength compatible source. A dense triangular permutation and
+ * its hidden two-sided affine wrappers remain intact, except that source
+ * bit 27 receives an additional very rare gate on its 27 strictly lower
+ * source bits. The chosen rare and ordinary control targets are preimages
+ * computed using the source-private inverse input matrix. Only the forward
+ * evaluate callback is given to the attack.
+ *
+ * @param {number} seed
+ * @returns {{bits:number,secret:number,control:number,
+ *   evaluate:(input:number)=>number,baselineEvaluate:(input:number)=>number,
+ *   audit:{gateBit:number,prefix:number}}}
+ */
+function makeMixedRareDenseOracle(seed) {
+  const bits=32,gateBit=27;
+  const dense=makeDenseOracle(bits,seed);
+  const {inputRows,outputRows,inputOffset}=dense.audit;
+  const inverseInputRows=invertRows(inputRows);
+  const next=sourceRandom((seed^0x42c15e91)>>>0);
+  const lowMask=widthMask(gateBit);
+  const prefix=next()&lowMask;
+  const upper=next()&(~lowMask);
+  const triggeredState=(upper|prefix)>>>0;
+  const controlState=(upper|(prefix^1))>>>0;
+  const secret=multiplyRows(inverseInputRows,(triggeredState^inputOffset)>>>0);
+  const control=multiplyRows(inverseInputRows,(controlState^inputOffset)>>>0);
+  const outputDifference=multiplyRows(outputRows,(1<<gateBit)>>>0);
+
+  /** @param {number} input @returns {number} */
+  function evaluate(input) {
+    const state=(multiplyRows(inputRows,input)^inputOffset)>>>0;
+    const changed=(state&lowMask)===prefix?outputDifference:0;
+    return (dense.evaluate(input)^changed)>>>0;
+  }
+  return {
+    bits,secret,control,evaluate,baselineEvaluate:dense.evaluate,
+    audit:{gateBit,prefix}
+  };
+}
+
 module.exports={
   makeDenseOracle,makeSparseWitness,makeRareAffineOracle,makeUnstructuredOracle,
   makeFeistelOracle,
+  makeMixedRareDenseOracle,
   sourceRandom,bitParity
 };
