@@ -127,3 +127,38 @@ test('unproved contracts and invalid caller/oracle types are rejected',()=>{
   assert.throws(()=>clone.evaluate(1.1),TypeError);
   assert.throws(()=>clone.evaluate(2147483648),TypeError);
 });
+
+test('full-width independent per-bit truth tables survive k=1..4 exact corner learning',{
+  timeout:60000
+},()=>{
+  let cases=0;
+  for(let arity=1;arity<=4;arity++){
+    for(let seed=0;seed<25;seed++){
+      const count=2**arity;
+      const masks=Array.from({length:count},(_,pattern)=>
+        scramble((seed+1)*17381+pattern*12977+arity*7117));
+      /** @param {...number} args @returns {number} */
+      const oracle=(...args)=>{
+        let output=0;
+        for(let position=0;position<32;position++){
+          let pattern=0;
+          for(let axis=0;axis<arity;axis++)
+            pattern|=((args[axis]>>>position)&1)<<axis;
+          output|=((masks[pattern]>>>position)&1)<<position;
+        }
+        return output|0;
+      };
+      const learned=cloneBitwiseBitSlice(oracle,arity);
+      assert.equal(learned.queries,count);
+      assert.deepEqual(learned.masks,masks);
+      for(let sample=0;sample<600;sample++){
+        const args=Array.from({length:arity},(_,axis)=>
+          scramble((seed+1)*897+sample*37+axis*1117+arity*191));
+        assert.equal(learned.evaluate(...args),oracle(...args),
+          'Mask truth-table mismatch arity='+arity+' seed='+seed+' sample='+sample);
+      }
+      cases++;
+    }
+  }
+  assert.equal(cases,100);
+});
