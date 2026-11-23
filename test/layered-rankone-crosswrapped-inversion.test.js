@@ -2,7 +2,8 @@
 const {test}=require('node:test');
 const assert=require('node:assert/strict');
 const {runLayeredLowRankComposition,runTinyLayeredAnfAudit,
-  runTinyBoundedDegreeCloner,runLayeredFullWidthClone}=
+  runTinyBoundedDegreeCloner,runLayeredFullWidthClone,
+  runHighDegreeCloneNegative}=
   require('../sims/layered-rankone-crosswrapped-inversion');
 
 test('interleaved independently mixed nonlinear rank-one layers remain bounded-rank invertible',()=>{
@@ -62,4 +63,13 @@ test('unknown 32-bit one/two-layer quadratic shears are functionally cloned from
     assert.equal(row.heldoutPredictions,960);
   }
   console.log('LAYERED_FULLWIDTH_ANF_ORACLE_CLONE '+JSON.stringify(result));
+});
+
+test('rank-one but degree-four rare gate defeats falsely promised degree-two/three clone',()=>{
+  const result=runHighDegreeCloneNegative();
+  assert.deepEqual(result.queryCounts,[529,5489]);
+  assert.equal(result.counterexample,15);
+  assert.equal(result.trueOutput,0x8000000f);
+  assert.deepEqual(result.incorrectPredictions,[15,15]);
+  console.log('HIGH_DEGREE_CLONE_NEGATIVE '+JSON.stringify(result));
 });
