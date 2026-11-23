@@ -48,7 +48,7 @@ for(const mode of /** @type {const} */ (['coo','sno','sco'])){
     assert.equal(execute(/** @type {string} */ (output.code)),execute(positive));
     assert.equal(output.metrics.objects,1);
     assert.equal(output.metrics.properties,2);
-    assert.doesNotMatch(/** @type {string} */ (output.code),/\\bsecretAlpha\\b|\\bsecretBeta\\b/u);
+    assert.doesNotMatch(/** @type {string} */ (output.code),/\bsecretAlpha\b|\bsecretBeta\b/u);
     const neutralized=neutralizeHashedNames([{
       path:'leaf.cjs',sourceType:'commonjs',code:/** @type {string} */ (output.code)
     }]);
@@ -153,7 +153,7 @@ test('private class leaf in native multi-file ESM preserves values and key-label
       mode+': private leaf own fields remain transformable');
     assert.equal(await runEsm(compiled.files),native);
     const clone=neutralizeHashedNames(compiled.files.map(file=>({
-      path:file.path,sourceType:file.sourceType,code:/** @type {string} */ (file.code)
+      path:file.path,sourceType:'module',code:/** @type {string} */ (file.code)
     })));
     assert.ok(clone.properties>=2);
     assert.equal(await runEsm(clone.files),native);
