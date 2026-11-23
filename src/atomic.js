@@ -17,9 +17,14 @@ const {performance} = require('node:perf_hooks');
  * @returns {Promise<T>}
  */
 async function withLock(lockPath,action,options={}) {
+  const timeoutMs=options.timeoutMs??5000;
+  // NaN makes a deadline comparison permanently false and can strand a
+  // publisher behind an occupied lock. Require a finite nonnegative budget.
+  if(!Number.isFinite(timeoutMs)||timeoutMs<0)
+    throw new TypeError('timeoutMs must be a finite nonnegative number');
   await fs.mkdir(path.dirname(lockPath),{recursive:true});
   // Use elapsed monotonic time: wall-clock adjustments must not extend lock contention.
-  const deadline=performance.now()+(options.timeoutMs??5000);
+  const deadline=performance.now()+timeoutMs;
   /** @type {import('node:fs/promises').FileHandle} */
   let lock;
   for(;;) {
