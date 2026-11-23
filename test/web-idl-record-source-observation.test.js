@@ -74,7 +74,7 @@ const primitiveCases=[
 for(const [name,expression] of primitiveCases) {
   test('recorded Web API primitive inputs leave unrelated keys eligible: '+name,async()=>{
     const original='const state={secretField:37};'+
-      'module.exports=Promise.resolve('+expression+').then(result=>({result,value:state.secretField}));';
+      'module.exports=(async()=>({result:await ('+expression+'),value:state.secretField}))();';
     assert.equal(observesFunctionSource(parse(original,'commonjs')),false,name);
     const native=await run(original);
     const result=obfuscateFiles([{path:'entry.cjs',sourceType:'commonjs',code:original}],{
