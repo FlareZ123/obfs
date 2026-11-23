@@ -33,9 +33,10 @@ function activeGates(gates) {
  * All orbit lengths of a compatible map are powers of two, hence its order
  * is their maximum. Enumerate every input and assert bijectivity.
  * @param {number[]} gates
+ * @param {number[]} targetOrbits accumulates full target orbit-length counts
  * @returns {number}
  */
-function permutationOrder(gates) {
+function permutationOrder(gates,targetOrbits) {
   const image=new Set();
   for(let input=0;input<16;input++)image.add(triangular(gates,input));
   assert.equal(image.size,16);
@@ -48,6 +49,7 @@ function permutationOrder(gates) {
       assert.ok(length<=16);
     } while(state!==input);
     assert.equal(length&(length-1),0);
+    targetOrbits[Math.log2(length)]++;
     maximum=Math.max(maximum,length);
   }
   return maximum;
@@ -55,13 +57,15 @@ function permutationOrder(gates) {
 
 /**
  * @returns {{
- *   maps:number,byActive:number[],byOrder:number[],tightWitnesses:number[],
- *   atMostSevenQueries:number,conjugatedTargetChecks:number
+ *   maps:number,byActive:number[],byOrder:number[],targetOrbits:number[],
+ *   tightWitnesses:number[],atMostSevenQueries:number,
+ *   conjugatedTargetChecks:number
  * }}
  */
 function runTriangularOrderCensus() {
   const byActive=Array(5).fill(0);
   const byOrder=Array(5).fill(0);
+  const targetOrbits=Array(5).fill(0);
   const tightWitnesses=Array(5).fill(0);
   const orders=[1,2,4,8,16];
   let maps=0,atMostSevenQueries=0,conjugatedTargetChecks=0;
@@ -74,7 +78,7 @@ function runTriangularOrderCensus() {
     for(let c=0;c<16;c++)for(let d=0;d<256;d++) {
       const gates=[a,b,c,d];
       const k=activeGates(gates);
-      const order=permutationOrder(gates);
+      const order=permutationOrder(gates,targetOrbits);
       assert.equal((1<<k)%order,0);
       const orderIndex=orders.indexOf(order);
       assert.ok(orderIndex>=0);
@@ -98,7 +102,9 @@ function runTriangularOrderCensus() {
   assert.deepEqual(byActive,[1,274,4908,16110,11475]);
   for(let k=0;k<=4;k++)assert.ok(tightWitnesses[k]>0);
   assert.equal(conjugatedTargetChecks,16*maps);
-  return {maps,byActive,byOrder,tightWitnesses,atMostSevenQueries,conjugatedTargetChecks};
+  assert.deepEqual(targetOrbits,[32768,131072,196608,131072,32768]);
+  return {maps,byActive,byOrder,targetOrbits,tightWitnesses,
+    atMostSevenQueries,conjugatedTargetChecks};
 }
 
 if(require.main===module) {
