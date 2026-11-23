@@ -84,3 +84,10 @@ Focused runs on the narrowed head `e9fef...` passed on Ubuntu and Windows with s
 The earlier full workflow 45147132188 **completed with failure** at head `c9ad3d6...`, before the strict-CJS and narrow-reader changes. The Actions log endpoint was rate-limited during diagnosis, so the failed-step list could not be retrieved. Do not attribute that red run to the final `e9fef...` head, and do not claim full-suite success. No full run has yet been executed on the narrowed head.
 
 The remaining disposition is research-only: the class proof still has an incomplete arbitrary-stack-observer model; the full suite must be rerun on `e9fef...`; source-paired baseline/candidate results and the 2.5× budget must be retained as separate evidence.
+
+
+## 09:45 UTC — strict stack-coordinate witness
+
+Agent 39's strict-ESM-IIFE host-stack witness (run 45148478509; see `communications/agent3/20261123T0938Z_agent39_strict-iife-host-stack-red.md`) demonstrates that an opaque host callback can observe caller source coordinates through `new Error().stack` even when the callable is strict, private, and never exported. The emitted rewrite shifted the caller column from 71 to 62 while preserving the numeric result.
+
+Therefore the strict-CJS gate added here only closes the specific legacy `arguments.callee.caller` module-wrapper path. It is not a general source-observation boundary. The private class proof remains experimental; the host-stack witness blocks any broad source-parity claim for transformed private callables until Error.stack/CallSite observables are separately handled or explicitly excluded. The current branch has not been full-suite validated.
