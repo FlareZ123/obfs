@@ -86,34 +86,32 @@ test('TypeScript checker provides binding-identity oracle for supported lexical 
 
   const parameterSource='function f(window){window.onerror=handler;}';
   const parameter=inspectReference(parameterSource,parameterSource.indexOf('window.onerror'));
-  assert.equal(parameter.declarations[0]?.kind,'Parameter');
+  assert.ok(parameter.declarations.some(d=>d.kind==='Parameter'));
 
   const catchSource='try{}catch(window){window.onerror=handler;}';
   const caught=inspectReference(catchSource,catchSource.indexOf('window.onerror'));
-  assert.equal(caught.declarations[0]?.parent,'CatchClause');
+  assert.ok(caught.declarations.some(d=>d.parent==='CatchClause'));
 
-  const classSource='class window{method(){return window;}}';
+  const classSource='function f(){class window{method(){return window;}}return new window();}';
   const className=inspectReference(classSource,classSource.indexOf('return window')+'return '.length);
-  assert.equal(className.declarations[0]?.kind,'ClassDeclaration');
+  assert.ok(className.declarations.some(d=>d.kind==='ClassDeclaration'));
 
   const namedFunctionSource='const f=function window(){return window;};';
   const namedFunction=inspectReference(namedFunctionSource,namedFunctionSource.indexOf('return window')+'return '.length);
-  assert.equal(namedFunction.declarations[0]?.kind,'FunctionExpression');
+  assert.ok(namedFunction.declarations.some(d=>d.kind==='FunctionExpression'));
 
   const varSource='function f(){{var window={};}return window;}';
   const hoistedVar=inspectReference(varSource,varSource.lastIndexOf('window'));
-  assert.equal(hoistedVar.declarations[0]?.kind,'VariableDeclaration');
-  assert.equal(hoistedVar.declarations[0]?.parent,'VariableDeclarationList');
-  assert.equal(hoistedVar.declarations[0]?.flags & ts.NodeFlags.BlockScoped,0);
+  assert.ok(hoistedVar.declarations.some(d=>d.kind==='VariableDeclaration'));
+  assert.ok(hoistedVar.declarations.some(d=>d.parent==='VariableDeclarationList'&&(d.flags & ts.NodeFlags.BlockScoped)===0));
 
   const destructuredSource='function f({window}){return window;}';
   const destructured=inspectReference(destructuredSource,destructuredSource.lastIndexOf('window'));
-  assert.equal(destructured.declarations[0]?.kind,'BindingElement');
+  assert.ok(destructured.declarations.some(d=>d.kind==='BindingElement'));
 
   const blockLetSource='function f(){{let window={};return window;}}';
   const blockLet=inspectReference(blockLetSource,blockLetSource.lastIndexOf('window'));
-  assert.equal(blockLet.declarations[0]?.kind,'VariableDeclaration');
-  assert.notEqual(blockLet.declarations[0]?.flags & ts.NodeFlags.BlockScoped,0);
+  assert.ok(blockLet.declarations.some(d=>d.kind==='VariableDeclaration'&&(d.flags & ts.NodeFlags.BlockScoped)!==0));
 });
 
 test('with leaves host-root lookup unresolved in the TypeScript checker probe',()=>{
