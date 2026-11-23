@@ -336,7 +336,7 @@ test('fresh BLIND-20261123-A artifact is recovered from distributed bytes only',
   const source=await fs.readFile(path.join(__dirname,'agent13-blind-affine-trial-a.mjs'),'utf8');
   const {createHash}=require('node:crypto');
   // Canonicalize Git's Windows checkout line endings to the published LF bytes.
-  assert.equal(createHash('sha256').update(source.replace(/\\r\\n/gu,'\\n')).digest('hex'),
+  assert.equal(createHash('sha256').update(source.replace(/\r\n/gu,'\n')).digest('hex'),
     '25317afcc40deeeb845472732d07c480ce55477ec6057ea18527873e8b1332ca');
   const offsets={};
   for(const name of ['round1','round2','round3']){
