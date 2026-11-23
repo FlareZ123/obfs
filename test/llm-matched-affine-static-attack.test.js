@@ -362,7 +362,7 @@ test('symbolic recovery refuses lexical shadowing hidden after a return',async()
         'default:throw Error("unreachable");'+
       '}'+
     '}'
-  ).join('\\n');
+  ).join('\n');
   const actual=await import('data:text/javascript;charset=utf-8,'+encodeURIComponent(source));
   assert.throws(()=>actual.round1(0),ReferenceError);
   assert.equal(actual.round1(1),18);
