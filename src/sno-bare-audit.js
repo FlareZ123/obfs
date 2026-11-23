@@ -299,15 +299,6 @@ function directBareImports(files) {
 }
 
 /**
- * Resolve ESM specifiers using Node's actual import conditions and an
- * explicit parent URL. The helper runs in a separate Node process so
- * resolution does not populate the compiler process's module caches.
- *
- * @param {ESMResolveRequest[]} requests
- * @returns {ESMResolveResult[]}
- */
-
-/**
  * Refuse resolver modes that the parent-URL comparison does not model.
  * NODE_OPTIONS is inherited by the helper process, but process.execArgv is
  * not; custom conditions are therefore explicitly rejected rather than
@@ -324,6 +315,14 @@ function assertDefaultEsmResolverContext() {
   }
 }
 
+/**
+ * Resolve ESM specifiers using Node's actual import conditions and an
+ * explicit parent URL. The helper runs in a separate Node process so
+ * resolution does not populate the compiler process's module caches.
+ *
+ * @param {ESMResolveRequest[]} requests
+ * @returns {ESMResolveResult[]}
+ */
 function resolveEsmRequests(requests) {
   const script=[
     "import {readFileSync} from 'node:fs';",
