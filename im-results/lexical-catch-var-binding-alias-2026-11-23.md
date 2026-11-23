@@ -25,7 +25,7 @@ The existing prototype gave distinct non-null declaration BindingIds to the catc
 - Test-only red source: `7ad4306e2147661dfcd9089b2ce6d84eda7b5376`, `test/lexical-catch-var-binding-alias.test.js`.
 - Independently executed **Ubuntu and Windows Node 22.23.4 red-first** [workflow 45243539813](https://github.com/FlareZ123/obfs/actions/runs/45243539813): native semantic counterexample and unrelated positive controls pass; binding-independence assertion fails on both platforms.
 - Draft branch: `agent6/catch-var-binding-alias-20261123`; patch conservatively marks affected catch and containing var-scope bindings uncertain rather than issuing distinct non-null IDs. It checks the same var environment and keeps nested function declarations independent. The subsequent expanded branch includes destructured patterns and for-of loop heads.
-- On 23 November at this report's initial writing, the final expanded focused two-platform run was **pending**; do not claim full gate acceptance until its exact result is checked.
+- The expanded patch at `6141f90ee3f7d0ad247899fc1dfd01b0f3585e4e` passed the [focused two-OS regression and strict JSDoc workflow 45244135765](https://github.com/FlareZ123/obfs/actions/runs/45244135765). This checks the new negative and independent-name controls, not the whole repo or the separate Acorn/TypeScript matrix; those require their own source-pinned receipts.
 
 ## Boundaries and next verification
 
