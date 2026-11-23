@@ -4,7 +4,7 @@ const assert=require('node:assert/strict');
 const {execFile}=require('node:child_process');
 const {promisify}=require('node:util');
 
-/** @typedef {{label:string,bytes:number[]}} DecoderCase */
+/** @typedef {{label:string,bytes:number[],recoverConstructor?:boolean}} DecoderCase */
 /** @type {DecoderCase[]} */
 const samples=[
   {label:'windows-1252',bytes:[0x80]},
@@ -26,12 +26,16 @@ for(const bytes of utf8Edges)samples.push({label:'utf-8',bytes});
 for(let byte=0;byte<256;byte++)samples.push({label:'utf-8',bytes:[byte]});
 samples.push(
   {label:'UTF8',bytes:[0xf0,0x9f,0x92,0xa9]},
-  {label:'unicode-1-1-utf-8',bytes:[0xe2,0x82,0xac]}
+  {label:'unicode-1-1-utf-8',bytes:[0xe2,0x82,0xac]},
+  {label:'windows-1252',bytes:[0x80],recoverConstructor:true},
+  {label:'gbk',bytes:[0xff],recoverConstructor:true}
 );
 
 /** @param {DecoderCase} sample @returns {number[]} */
 function decodeInNode(sample){
-  return Array.from(new TextDecoder(sample.label).decode(Uint8Array.from(sample.bytes)),
+  const Decoder=sample.recoverConstructor?
+    (new TextDecoder('utf-8')).constructor:TextDecoder;
+  return Array.from(new Decoder(sample.label).decode(Uint8Array.from(sample.bytes)),
     character=>character.codePointAt(0)??0);
 }
 
@@ -39,9 +43,10 @@ async function main(){
   const nativeNode=samples.map(decodeInNode);
   const script='const samples='+JSON.stringify(samples)+';'+
     'document.getElementById("answer").textContent=JSON.stringify('+ 
-    'samples.map(sample=>Array.from('+ 
-    'new TextDecoder(sample.label).decode(Uint8Array.from(sample.bytes)),'+
-    'character=>character.codePointAt(0))));';
+    'samples.map(sample=>{const Decoder=sample.recoverConstructor?'+
+    '(new TextDecoder("utf-8")).constructor:TextDecoder;'+
+    'return Array.from(new Decoder(sample.label).decode(Uint8Array.from(sample.bytes)),'+
+    'character=>character.codePointAt(0));}));';
   const html='<!doctype html><html><body><pre id="answer">loading</pre>'+
     '<script>'+script+'</script></body></html>';
   const binary=process.env.CHROMIUM_BIN??'google-chrome';
@@ -60,6 +65,13 @@ async function main(){
     'Chromium baseline UTF-8 must preserve ASCII bytes');
   assert.deepEqual(nativeNode[2],[65,66],
     'Node baseline UTF-8 must preserve ASCII bytes');
+  const recoveredLegacyIndex=samples.findIndex(sample=>
+    sample.label==='windows-1252'&&sample.recoverConstructor===true);
+  assert.notEqual(recoveredLegacyIndex,-1);
+  assert.deepEqual(nativeNode[recoveredLegacyIndex],nativeNode[0],
+    'A UTF-8 decoder instance exposes the same legacy native constructor');
+  assert.deepEqual(browser[recoveredLegacyIndex],browser[0],
+    'The browser instance constructor recovers the same legacy decoder');
   for(let index=0;index<samples.length;index++){
     const label=samples[index].label.toLowerCase();
     if(!['utf-8','utf8','unicode-1-1-utf-8'].includes(label))continue;
