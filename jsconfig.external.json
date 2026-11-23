@@ -1,6 +1,7 @@
 {
   "extends": "./jsconfig.json",
   "include": [
+    "test/agent1-lexical-switch-typescript-grid.test.js",
     "test/lexical-class-esm-live-binding.test.js",
     "test/agent23-switch-discriminant-scope.test.js",
     "test/agent1-reference-role-native-effects.test.js",
