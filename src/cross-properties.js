@@ -173,7 +173,16 @@ function collectVerifiedImportedPrimitives(files,parseFile=parseModule) {
   const exported=new Map();
   for(const [filename,module] of modules) {
     const ownPrimitives=new Set(derived.get(filename)||[]);
+    // A direct read immediately after creation of a unique immutable object
+    // binding yields a primitive when every literal field is an own data
+    // property. No program expression can run between these two top-level
+    // single-declarator const statements and replace the data field.
+    // Reset on every other statement, including any potential side effect.
+    /** @type {{name:string,fields:Set<string>}|null} */
+    let adjacentOwner=null;
     for(const statement of module.ast.body) {
+      const precedingOwner=adjacentOwner;
+      adjacentOwner=null;
       const declaration=statement.type==='VariableDeclaration'?statement:
         statement.type==='ExportNamedDeclaration'&&!statement.source?
           statement.declaration:null;
@@ -189,7 +198,34 @@ function collectVerifiedImportedPrimitives(files,parseFile=parseModule) {
             (init.value===null||
              ['string','number','boolean','bigint'].includes(typeof init.value))) ||
            isPrimitiveConstantExpression(init))ownPrimitives.add(entry.id.name);
+        if(declaration.declarations.length===1 && precedingOwner &&
+           init.type==='MemberExpression' && !init.optional && !init.computed &&
+           init.object.type==='Identifier' &&
+           init.object.name===precedingOwner.name &&
+           init.property.type==='Identifier' &&
+           precedingOwner.fields.has(init.property.name))ownPrimitives.add(entry.id.name);
       }
+      if(declaration.declarations.length!==1)continue;
+      const entry=declaration.declarations[0];
+      if(entry.id.type!=='Identifier'||module.bindings.get(entry.id.name)!==1||
+         entry.init?.type!=='ObjectExpression')continue;
+      const fields=new Set();
+      let safe=true;
+      for(const property of entry.init.properties) {
+        if(property.type!=='Property'||property.kind!=='init'||property.computed||
+           property.method||property.shorthand||property.key.type!=='Identifier'||
+           ['__proto__','constructor','prototype'].includes(property.key.name)||
+           fields.has(property.key.name)||
+           property.value.type!=='Literal'||property.value.regex!==undefined||
+           !(property.value.value===null ||
+             ['string','number','boolean','bigint'].includes(
+               typeof property.value.value))) {
+          safe=false;
+          break;
+        }
+        fields.add(property.key.name);
+      }
+      if(safe&&fields.size)adjacentOwner={name:entry.id.name,fields};
     }
     const names=new Set();
     for(const statement of module.ast.body) {
