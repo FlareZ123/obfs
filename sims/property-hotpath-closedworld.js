@@ -25,8 +25,9 @@ function median(values) {
 }
 
 /**
- * Build a private-owner ESM workload; 'wrapped' preserves the public hot() source.
- * Both renames are observable through public hot() computations.
+ * Build a private-owner ESM workload. Only 'wrapped' is a valid positive
+ * rename benchmark: the other styles place field spellings in exported
+ * functions, where Function#toString makes those spellings observable.
  * @param {Style} style
  * @param {ValueKind} [valueKind]
  * @returns {SourceFile[]}
@@ -202,7 +203,7 @@ async function runHotpath(iterations=7_000_000,trials=9,valueKind='literal') {
     throw new RangeError('trials out of 3..25');
   /** @type {Measurement[]} */
   const measurements=[];
-  for(const style of /** @type {Style[]} */ (['direct','readers','identity'])) {
+  for(const style of /** @type {Style[]} */ (['wrapped'])) {
     measurements.push(await measure(style,iterations,trials,valueKind));
   }
   return {iterations,trials,valueKind,measurements};
