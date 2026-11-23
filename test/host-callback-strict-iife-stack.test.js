@@ -209,3 +209,31 @@ test('host accessor can capture strict IIFE source column without being called',
     await rm(root,{recursive:true,force:true});
   }
 });
+
+test('immutable alias of global host still exposes strict IIFE caller column',async()=>{
+  const source='const host=globalThis;const owner={longPrivateFieldForHost:47};'+
+    'const result=(()=>host.HOST_STACK_SPY(owner.longPrivateFieldForHost))();'+
+    'export const observed=result;';
+  const candidate=compiled(source,'strict-host-aliased-stack-iife');
+  const root=await mkdtemp(path.join(tmpdir(),'obfs-arrow-host-aliased-'));
+  const previous=globalThis.HOST_STACK_SPY;
+  try{
+    globalThis.HOST_STACK_SPY=/** @type {(value:number)=>{value:number,line:number,column:number}} */(
+      value=>{
+        const row=new Error('host aliased callback').stack?.split('\n')[2]??'';
+        const match=/:(\d+):(\d+)\)?$/u.exec(row);
+        assert.ok(match,'Expected caller frame for aliased host callback');
+        return {value,line:Number(match[1]),column:Number(match[2])};
+      }
+    );
+    const original=(await load(root,'native-aliased',source)).observed;
+    const protectedEntry=(await load(root,'compiled-aliased',
+      /** @type {string} */(candidate.code))).observed;
+    assert.deepEqual(protectedEntry,original,
+      'An immutable global host alias can observe this compiler-changed frame');
+  }finally{
+    if(previous===undefined)delete globalThis.HOST_STACK_SPY;
+    else globalThis.HOST_STACK_SPY=previous;
+    await rm(root,{recursive:true,force:true});
+  }
+});
