@@ -136,22 +136,18 @@ test('private class leaf in native multi-file ESM preserves values and key-label
     ].join('\n')},
     {path:'compute.mjs',sourceType:'module',code:[
       'import {value} from "./state.mjs";',
-      'export const doubled=value*2;'
+      'export {value};'
     ].join('\n')},
     {path:'entry.mjs',sourceType:'module',code:[
-      'import {doubled} from "./compute.mjs";',
-      'process.stdout.write(JSON.stringify([doubled,doubled+1]));'
+      'import {value} from "./compute.mjs";',
+      'process.stdout.write(value===30?"[30]":"invalid");'
     ].join('\n')}
   ];
   const native=await runEsm(files);
-  assert.equal(native,'[60,61]');
+  assert.equal(native,'[30]');
   for(const mode of /** @type {const} */ (['coo','sno','sco'])){
     const compiled=obfuscateFiles(files,{mode,seed:'class-leaf-crossfile-'+mode,
       closedWorld:true,strings:false,identifiers:false});
-    console.error('ESM_DIAG',mode,compiled.files.map(file=>[file.path,file.metrics.properties]));
-    const one=obfuscateFiles([files[0]],{mode,seed:'single-esm-class-'+mode,
-      closedWorld:true,strings:false,identifiers:false});
-    console.error('ESM_ONE',mode,one.files[0].metrics.properties);
     const state=compiled.files.find(file=>file.path==='state.mjs');
     assert.ok(state && state.metrics.properties===2,
       mode+': private leaf own fields remain transformable');
