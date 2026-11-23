@@ -88,7 +88,7 @@ More generally, no finite membership-query transcript can certify exact equivale
 
 Applying the same canonical recurrence to exactly six reachable states gives 5,931,540 transition graphs and (2^{12}) output masks, or **24,295,587,840** six-state models. The total model class through six states is 24,461,476,548 models, requiring 35 bits just to identify a candidate. A packed five-byte ID array would require 122,307,382,740 bytes (about 113.9 GiB); a conventional eight-byte ID array would require 195,691,812,384 bytes (about 182.3 GiB), before any auxiliary structures. Even a hypothetical four-byte-per-candidate lower bound is 97,845,906,192 bytes (about 91.2 GiB), but four bytes cannot encode all 24.46 billion IDs.
 
-This is a practical limit of this exhaustive representation, not a security threshold. It does not show that six-state behavior is safe; symbolic constraints, SAT/SMT, structured active learning, or other representations may do better.
+This is a practical limit of this exhaustive representation, not a security threshold. It does not show that six-state behavior is safe. A concrete but unimplemented SAT/SMT direction is sketched in `workplace/sco-step-only-sat-bounded-equivalence.md`: ask whether two transcript-consistent N-state Mealy machines can differ within an N²-step product witness. This is a design proposal only; no solver is installed or benchmarked.
 
 ## CI and reproduction
 
