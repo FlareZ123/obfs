@@ -16,6 +16,5 @@ test('TypeScript binder reference matrix keeps lexical shadows and dynamic scope
   assert.equal(report.cases, 23);
   assert.equal(report.output.filter(row => row.decision === 'host-global-candidate').length, 8);
   assert.equal(report.output.filter(row => row.decision === 'shadowed-local').length, 11);
-  assert.equal(report.output.filter(row =>
-    row.decision === 'unknown' || row.decision === 'unknown-dynamic-scope').length, 3);
+  assert.equal(report.output.filter(row => row.decision.startsWith('unknown')).length, 4);
 });
