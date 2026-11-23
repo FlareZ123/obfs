@@ -44,7 +44,7 @@ const fixtures={
     '  try {',
     '    localStorage.setItem("storage-dispatch-prototype",inspect);',
     '    const stored=captured.get(localStorage);',
-    '    return {sameReference:stored===inspect,value:stored(),independent:independent()};'
+    '    return {sameReference:stored===inspect,value:stored(),independent:independent()};',
     '  } finally {',
     '    Object.defineProperty(Storage.prototype,"setItem",previous);',
     '  }',
@@ -60,7 +60,7 @@ const fixtures={
     '  Object.defineProperty(Storage.prototype,"setItem",{configurable:true,writable:true,value:function(_key,_value){}});',
     '  try {',
     '    nativeSetItem.call(localStorage,"storage-dispatch-captured-native",inspect);',
-    '    return {value:inspect(),independent:independent()};'
+    '    return {value:inspect(),independent:independent()};',
     '  } finally {',
     '    Object.defineProperty(Storage.prototype,"setItem",previous);',
     '  }',
@@ -112,27 +112,27 @@ async function main() {
     '    const compiled=compiledModule.sample();',
     '    const compiledSource=localStorage.getItem(nativeKey);',
     '    localStorage.removeItem(nativeKey);',
-    '    report[name]={native,compiled,nativeSource,compiledSource};'
+    '    report[name]={native,compiled,nativeSource,compiledSource};',
     '  }',
     '  const nativeMismatch=report.native.nativeSource!==report.native.compiledSource;',
-    '  const capturedNativeMismatch=report.capturedNative.nativeSource!==report.capturedNative.compiledSource;'
+    '  const capturedNativeMismatch=report.capturedNative.nativeSource!==report.capturedNative.compiledSource;',
     '  const own=report.own,prototype=report.prototype;',
     '  const ownOverride=own.native.sameReference&&own.compiled.sameReference&&',
     '    own.native.value===29&&own.compiled.value===29&&',
     '    own.native.value===own.compiled.value&&',
-    '    own.nativeSource===null&&own.compiledSource===null;'
+    '    own.nativeSource===null&&own.compiledSource===null;',
     '  const prototypeOverride=prototype.native.sameReference&&prototype.compiled.sameReference&&',
     '    prototype.native.value===29&&prototype.compiled.value===29&&',
     '    prototype.native.value===prototype.compiled.value&&',
-    '    prototype.nativeSource===null&&prototype.compiledSource===null;'
+    '    prototype.nativeSource===null&&prototype.compiledSource===null;',
     '  const valuesPreserved=report.native.native.value===29&&report.native.compiled.value===29&&',
-    '    report.capturedNative.native.value===29&&report.capturedNative.compiled.value===29&&'
+    '    report.capturedNative.native.value===29&&report.capturedNative.compiled.value===29&&',
     '    [report.native,report.own,report.prototype,report.capturedNative].every(pair=>',
     '      pair.native.independent===7&&pair.compiled.independent===7);',
     '  if(!report.native.nativeSource.includes("privateLocal")||report.native.compiledSource.includes("privateLocal"))',
     '    throw Error("native inherited dispatch did not expose transformed source "+JSON.stringify(report.native));',
     '  if(!report.capturedNative.nativeSource.includes("privateLocal")||report.capturedNative.compiledSource.includes("privateLocal"))',
-    '    throw Error("captured native alias did not expose transformed source "+JSON.stringify(report.capturedNative));'
+    '    throw Error("captured native alias did not expose transformed source "+JSON.stringify(report.capturedNative));',
     '  if(!nativeMismatch||!capturedNativeMismatch||!ownOverride||!prototypeOverride||!valuesPreserved)',
     '    throw Error("Storage dispatch identity controls failed "+JSON.stringify({nativeMismatch,capturedNativeMismatch,ownOverride,prototypeOverride,valuesPreserved}));',
     '  document.getElementById("result").textContent="PASS "+JSON.stringify({nativeMismatch,capturedNativeMismatch,ownOverride,prototypeOverride,valuesPreserved});',
