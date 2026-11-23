@@ -88,3 +88,25 @@ test('shadowed localStorage and window bindings are not browser source-observer 
   assert.ok(!output.includes('shadowLocal'));
   assert.ok(!output.includes('shadowWindow'));
 });
+
+const primitiveStorage=[
+  'function independent(){const primitiveLocal=53;return primitiveLocal;}',
+  'export function sample(){',
+  '  const key="primitive-storage-control";',
+  '  localStorage.setItem(key,"literal");',
+  '  sessionStorage.setItem(key,7);',
+  '  window.name="literal-window-name";',
+  '  return independent();',
+  '}'
+].join('\\n');
+
+test('primitive Storage and Window.name values retain unrelated identifier yield',()=>{
+  assert.equal(observesFunctionSource(parse(primitiveStorage,'module')),false);
+  const result=obfuscateFiles([{path:'entry.mjs',sourceType:'module',code:primitiveStorage}],{
+    mode:'coo',seed:'storage-window-primitive-positive-control',
+    properties:false,identifiers:true,strings:false
+  });
+  const output=String(result.files[0].code);
+  assert.ok(result.files[0].metrics.bindings>=1);
+  assert.ok(!output.includes('primitiveLocal'));
+});
