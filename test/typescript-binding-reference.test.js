@@ -10,6 +10,7 @@ test('TypeScript binder reference matrix keeps lexical shadows and dynamic scope
   });
   assert.equal(result.error, undefined, result.stderr);
   assert.equal(result.status, 0, result.stderr);
+  /** @type {{typescript:string,cases:number,output:{decision:string}[]}} */
   const report = JSON.parse(result.stdout);
   assert.match(report.typescript, /^5\./);
   assert.equal(report.cases, 20);
