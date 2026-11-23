@@ -300,7 +300,9 @@
     "test/property-immediate-private-arrow-source-boundary.test.js",
     "sims/strict-tail-power.js",
     "test/strict-tail-power.test.js",
-    "test/string-global-alias-decoder-observer.test.js"
+    "test/string-global-alias-decoder-observer.test.js",
+    "sims/cluster-strict-tail.js",
+    "test/cluster-strict-tail.test.js"
   ],
   "exclude": [
     "node_modules"
