@@ -638,6 +638,8 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
   /** @type {Map<string,Set<string>>} */
   const webRecordObjectKeys=new Map();
   /** @type {Map<string,Set<string>>} */
+  const webSocketInstanceObjectKeys=new Map();
+  /** @type {Map<string,Set<string>>} */
   const responseObjectKeys=new Map();
   /** @type {Map<string,Set<string>>} */
   const webStringObjectKeys=new Map();
@@ -923,6 +925,21 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
       isWebInstance(node.object,webScalarInstances,webScalars,webScalarNames);
   }
   /**
+   * Track native WebSocket instances stored in local object properties.
+   * Reusing the existing may-flow property inventory is conservative across
+   * assignments, shared object aliases and later destructuring.
+   * @param {AstNode|null|undefined} node
+   * @returns {boolean}
+   */
+  function isWebSocketInstance(node) {
+    if(isWebInstance(node,webSocketInstances,webSocketConstructors,webSocketNames))
+      return true;
+    if(node?.type!=='MemberExpression'||node.object.type!=='Identifier')return false;
+    const keys=webSocketInstanceObjectKeys.get(node.object.name);
+    const key=memberName(node);
+    return key!==null ? keys?.has(key)??false : Boolean(node.computed&&keys?.size);
+  }
+  /**
    * Keep provenance only for a native socket or its may-flow aliases;
    * arbitrary application objects with a method called send remain safe.
    * @param {AstNode|null|undefined} node
@@ -933,7 +950,7 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
     if(node.type==='Identifier')return webSocketSendMethods.has(node.name);
     if(node.type!=='MemberExpression')return false;
     return (memberName(node)==='send'||node.computed&&memberName(node)===null) &&
-      isWebInstance(node.object,webSocketInstances,webSocketConstructors,webSocketNames);
+      isWebSocketInstance(node.object);
   }
   /** @param {AstNode|null|undefined} node @returns {boolean} */
   function isBoundWebSocketSendMethod(node) {
@@ -1006,6 +1023,8 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
   function addWebObjectExpression(receiver,key,expression) {
     if(isWebConstructor(expression,webRecords,webRecordNames))
       addWebObjectKey(webRecordObjectKeys,receiver,key);
+    if(isWebSocketInstance(expression))
+      addWebObjectKey(webSocketInstanceObjectKeys,receiver,key);
     if(isWebConstructor(expression,responseConstructors,responseNames))
       addWebObjectKey(responseObjectKeys,receiver,key);
     if(isWebConstructor(expression,webStringConstructors,webStringNames))
@@ -1167,7 +1186,7 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
         if(isWebStringCollection(value)) {
           changed=add(webStringInstances,name)||changed;
         }
-        if(isWebInstance(value,webSocketInstances,webSocketConstructors,webSocketNames)) {
+        if(isWebSocketInstance(value)) {
           changed=add(webSocketInstances,name)||changed;
         }
         if(isWebSocketSendMethod(value)) {
@@ -1238,6 +1257,7 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
             addObjectFunctionKey(name,key);
           }
           for(const map of [webRecordObjectKeys,responseObjectKeys,webStringObjectKeys,
+            webSocketInstanceObjectKeys,
             blobObjectKeys,boundBlobObjectKeys,boundRegExpObjectKeys,
             boundStringObjectKeys,redirectObjectKeys,urlStaticObjectKeys,
             urlConstructorObjectKeys]) {
@@ -1332,6 +1352,8 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
           if(known?.has(key))changed=add(functions,property.value.name)||changed;
           if(webRecordObjectKeys.get(node.init.name)?.has(key))
             changed=add(webRecords,property.value.name)||changed;
+          if(webSocketInstanceObjectKeys.get(node.init.name)?.has(key))
+            changed=add(webSocketInstances,property.value.name)||changed;
           if(responseObjectKeys.get(node.init.name)?.has(key))
             changed=add(responseConstructors,property.value.name)||changed;
           if(webStringObjectKeys.get(node.init.name)?.has(key))
