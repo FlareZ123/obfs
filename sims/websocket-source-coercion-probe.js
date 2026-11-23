@@ -156,6 +156,36 @@ const recordSource=[
   '});'
 ].join('\n');
 
+const recordAliasSource=[
+  'const owner={socket:new WebSocket(globalThis.__url)};',
+  'const other=owner;',
+  'function protocolSensitive(){return "value-723";}',
+  'other.socket.addEventListener("open",()=>{',
+  '  other.socket.send(protocolSensitive);',
+  '  other.socket.close();',
+  '});'
+].join('\n');
+
+const destructuredSource=[
+  'const owner={socket:new WebSocket(globalThis.__url)};',
+  'const {socket:ws}=owner;',
+  'function protocolSensitive(){return "value-723";}',
+  'ws.addEventListener("open",()=>{',
+  '  ws.send(protocolSensitive);',
+  '  ws.close();',
+  '});'
+].join('\n');
+
+const mutatedRecordSource=[
+  'const owner={};',
+  'owner.socket=new WebSocket(globalThis.__url);',
+  'function protocolSensitive(){return "value-723";}',
+  'owner.socket.addEventListener("open",()=>{',
+  '  owner.socket.send(protocolSensitive);',
+  '  owner.socket.close();',
+  '});'
+].join('\n');
+
 const primitiveSource=[
   'const socket=new WebSocket(globalThis.__url);',
   'socket.addEventListener("open",()=>{',
@@ -194,8 +224,11 @@ async function main(){
   const reflect=await compare('reflect',reflectSource);
   const apply=await compare('apply',applySource);
   const record=await compare('record',recordSource);
+  const recordAlias=await compare('recordAlias',recordAliasSource);
+  const destructured=await compare('destructured',destructuredSource);
+  const mutatedRecord=await compare('mutatedRecord',mutatedRecordSource);
   const primitive=await compare('literal',primitiveSource);
-  const evidence=[direct,alias,detached,bound,reflect,apply,record,primitive].map(item=>({
+  const evidence=[direct,alias,detached,bound,reflect,apply,record,recordAlias,destructured,mutatedRecord,primitive].map(item=>({
     case:item.label,
     transformApplied:item.transformApplied,
     literals:item.literals,
@@ -219,6 +252,9 @@ async function main(){
     'Indirect WebSocket sender '+item.label+' changed Function source text');
   assert.equal(record.transformed,record.native,
     'A WebSocket stored in an object property leaked transformed function source');
+  for(const item of [recordAlias,destructured,mutatedRecord])
+    assert.equal(item.transformed,item.native,
+      'A WebSocket carried by '+item.label+' leaked mutated function source');
   assert.equal(primitive.transformed,primitive.native,
     'Primitive WebSocket payload did not preserve its string contents');
   assert.ok(primitive.transformApplied && primitive.literals>0,
