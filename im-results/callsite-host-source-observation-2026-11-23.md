@@ -55,3 +55,7 @@ The proposed model is a **hypothesis about a conservative admission criterion**,
 ## Paired strict-mode boundary (later source pin)
 
 An extension to the same test file, exact branch commit `2e915340a0f75b5904945ba62b833c88e32ba934`, added a strict-mode **caller** variant while keeping the host observer sloppy. [Two-platform focused run 45127203853](https://github.com/FlareZ123/obfs/actions/runs/45127203853) gave **3 source-parity failures and 6 passing controls per OS** (9 tests total per OS). Each additional strict caller still had one private property rewritten, both numeric outputs were 31, and both native/emitted `CallSite.getFunction()` observations were the literal `"undefined"`. This is consistent with the V8 strict-frame visibility boundary and limits the earlier finding to contexts where structured caller objects are available. It must not be extrapolated to strict ESM, debugger visibility, or universal absence of source extraction in strict contexts.
+
+## External runtime documentation
+
+The official [V8 Stack Trace API](https://v8.dev/docs/stack-trace-api) describes custom `Error.prepareStackTrace` callbacks receiving structured `CallSite` frames, including `getFunction()`. It explicitly says that a strict-mode function frame, and frames below it, expose neither `getFunction()` nor `getThis()` (both return `undefined`). This independently documents the runtime feature used by the two-platform tests, and limits the modeled observer capability. It does not prove compiler soundness, effect propagation, or a browser security boundary.
