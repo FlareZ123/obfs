@@ -20,10 +20,11 @@ const original=[
   'const owner={secretAlpha:17,secretBeta:3};',
   'class Reader{read(){return owner.secretAlpha;}}',
   'const reader=new Reader();',
+  'const another=new Reader();',
   'const rounds=Number(process.env.OBFS_ROUNDS);',
   'const start=process.cpuUsage();',
   'let sum=0;',
-  'for(let index=0;index<rounds;index++)sum+=(reader.read()^(index&15))+owner.secretBeta;',
+  'for(let index=0;index<rounds;index++)sum+=(reader.read()^(index&15))+(another.read()^(index&7))+owner.secretBeta;',
   'const duration=process.cpuUsage(start);',
   'module.exports={sum,cpuUs:duration.user+duration.system};'
 ].join('\n');
