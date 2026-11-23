@@ -48,7 +48,7 @@ function identifierGraph(observe) {
     {path:'data.mjs',sourceType:'module',code:[
       'function privateReader(){const unrelatedLocal=11;return unrelatedLocal;}',
       'export const unrelatedValue=privateReader();'
-    ].join('\\n')},
+    ].join('\n')},
     {path:'entry.mjs',sourceType:'module',code:[
       'import {inspect} from "./util.mjs";',
       'import {unrelatedValue} from "./data.mjs";',
