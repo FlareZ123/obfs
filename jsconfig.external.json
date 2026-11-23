@@ -358,7 +358,9 @@
     "sims/reanchor-depth-width3-exhaustive.js",
     "test/reanchor-depth-width3-exhaustive.test.js",
     "sims/reanchor-top-shear-bound.js",
-    "test/reanchor-top-shear-bound.test.js"
+    "test/reanchor-top-shear-bound.test.js",
+    "sims/reanchor-versus-lowrank-matched.js",
+    "test/reanchor-versus-lowrank-matched.test.js"
   ],
   "exclude": [
     "node_modules"
