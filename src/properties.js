@@ -176,7 +176,7 @@ const proofInventoryCache=new WeakMap();
  *   identifiers:{node:AstNode,parent:AstNode|null,key:string|null,ancestors:AstNode[],order:number}[],
  *   identifierUses:Map<string,{node:AstNode,parent:AstNode|null,key:string|null,ancestors:AstNode[],order:number}[]>,
  *   parents:WeakMap<AstNode,AstNode>, dynamicScope:boolean,
- *   functionDeclarations:AstNode[], callableDeclarators:AstNode[],
+ *   functionDeclarations:AstNode[], classDeclarations:AstNode[], callableDeclarators:AstNode[],
  *   directInvokedArrows:AstNode[],
  *   directAliasDeclarations:Map<string,AstNode[]>, complexAliasDeclarations:AstNode[],
  *   tupleDeclarations:Map<string,AstNode[]>,
@@ -199,6 +199,8 @@ function collectProofInventory(ast) {
   /** @type {AstNode[]} */
   const functionDeclarations=[];
   /** @type {AstNode[]} */
+  const classDeclarations=[];
+  /** @type {AstNode[]} */
   const callableDeclarators=[];
   /** @type {AstNode[]} */
   const directInvokedArrows=[];
@@ -219,6 +221,8 @@ function collectProofInventory(ast) {
       declarations.push(...node.declarations);
     if(node.type==='FunctionDeclaration'&&node.id?.type==='Identifier')
       functionDeclarations.push(node);
+    if(node.type==='ClassDeclaration'&&node.id?.type==='Identifier')
+      classDeclarations.push(node);
     // A directly invoked arrow never exposes its own callable value;
     // an enclosing exported callable remains separately source-observable.
     if(node.type==='ArrowFunctionExpression'&&
@@ -269,7 +273,7 @@ function collectProofInventory(ast) {
     }
   }
   const inventory={calls,declarations,declarationSet:new Set(declarations),identifiers,identifierUses,parents,dynamicScope,
-    functionDeclarations,callableDeclarators,directInvokedArrows,
+    functionDeclarations,classDeclarations,callableDeclarators,directInvokedArrows,
     directAliasDeclarations,complexAliasDeclarations,tupleDeclarations,recordDeclarations};
   proofInventoryCache.set(ast,inventory);
   return inventory;
@@ -379,7 +383,7 @@ function proveLocalObject(ast, rootName, bindings, importedIdentityFunctions=new
   /** @type {Map<string,{node:AstNode,params:AstNode[],forwardIndex:number,returnsRoot?:boolean,external?:boolean,consumerIndex?:number}>} */
   const functions = new Map();
   const {calls,declarationSet,identifiers,identifierUses,parents,dynamicScope,
-    functionDeclarations,callableDeclarators,directInvokedArrows,
+    functionDeclarations,classDeclarations,callableDeclarators,directInvokedArrows,
     directAliasDeclarations,complexAliasDeclarations,
     tupleDeclarations,recordDeclarations}=collectProofInventory(ast);
   for(const node of functionDeclarations){
@@ -728,6 +732,70 @@ function proveLocalObject(ast, rootName, bindings, importedIdentityFunctions=new
       }
     }
     if(privateValue)privateFunctionNodes.add(binding.node);
+  }
+
+
+  // A class method is ordinarily a public source observer: anyone holding a
+  // class or instance can retrieve its Function#toString. Admit only this
+  // deliberately narrow private shape:
+  //   class Reader { read(){ return owner.secret; } }
+  //   const instance=new Reader();  instance.read();
+  // Every reference to the class must construct a local immutable instance;
+  // every instance reference must invoke the exact method directly. The
+  // method's return is a primitive own-field value, never a reference that
+  // could disclose its source. Exported classes/instances, class inheritance,
+  // computed methods, additional methods, reflection and opaque calls remain
+  // refused by construction and by the existing owner-use proof.
+  for(const cls of classDeclarations) {
+    if(parents.get(cls)!==ast || cls.superClass || cls.id?.type!=='Identifier' ||
+       bindings.get(cls.id.name)!==1 || cls.body.body.length!==1)continue;
+    const method=cls.body.body[0];
+    if(method.type!=='MethodDefinition' || method.kind!=='method' ||
+       method.static || method.computed || method.key.type!=='Identifier' ||
+       method.value?.type!=='FunctionExpression' ||
+       method.value.async || method.value.generator || method.value.params.length!==0 ||
+       method.value.body.body.length!==1)continue;
+    const returned=method.value.body.body[0];
+    const member=returned.type==='ReturnStatement' ? returned.argument : null;
+    if(member?.type!=='MemberExpression' || member.optional ||
+       member.object.type!=='Identifier' || member.object.name!==rootName ||
+       (member.computed ? staticString(member.property) : staticName(member.property))===null)
+      continue;
+    const className=cls.id.name;
+    const methodName=method.key.name;
+    let constructed=0, safe=true;
+    for(const use of identifierUses.get(className)??[]) {
+      if(use.node===cls.id)continue;
+      const construction=use.parent;
+      const variable=construction?.type==='NewExpression' &&
+        construction.callee===use.node && construction.arguments.length===0 ?
+        parents.get(construction):null;
+      const declaration=variable?.type==='VariableDeclarator' ?
+        parents.get(variable):null;
+      if(variable?.type!=='VariableDeclarator' ||
+         variable.init!==construction || variable.id.type!=='Identifier' ||
+         variable.id.name===rootName || bindings.get(variable.id.name)!==1 ||
+         declaration?.type!=='VariableDeclaration' || declaration.kind!=='const' ||
+         parents.get(declaration)!==ast) {
+        safe=false;
+        break;
+      }
+      constructed++;
+      for(const instanceUse of identifierUses.get(variable.id.name)??[]) {
+        if(instanceUse.node===variable.id)continue;
+        const read=instanceUse.parent;
+        const call=read?.type==='MemberExpression' ? parents.get(read) : null;
+        if(read?.type!=='MemberExpression' || read.object!==instanceUse.node ||
+           read.computed || read.optional || staticName(read.property)!==methodName ||
+           call?.type!=='CallExpression' || call.callee!==read ||
+           call.optional || call.arguments.length!==0) {
+          safe=false;
+          break;
+        }
+      }
+      if(!safe)break;
+    }
+    if(safe && constructed>0)privateFunctionNodes.add(method.value);
   }
 
   const aliases = new Set([rootName]);
