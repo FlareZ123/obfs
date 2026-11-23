@@ -133,3 +133,32 @@ for(const shape of shapes){
     assert.equal(generated.crossFile.properties,1);
   });
 }
+
+
+test('unrelated same-name ESM factories must not suppress safe record renaming',async()=>{
+  const files=graph([
+    "import {makeHolder} from './innocent.mjs';",
+    "import './unused-host.mjs';",
+    'const holder=makeHolder();',
+    'const value=await Promise.resolve().then(holder.cb);',
+    "const result=[inspectRecord('externalFormat').value,value];",
+    'console.log(JSON.stringify([state.secretField,result]));'
+  ].join('\n'),[
+    {path:'innocent.mjs',sourceType:'module',
+      code:[
+        'function getFactory(){return 7;}',
+        'export function makeHolder(){return {cb:getFactory};}'
+      ].join('\n')},
+    {path:'unused-host.mjs',sourceType:'module',
+      code:'export function getFactory(){return globalThis.RUNTIME_FACTORY;}'}
+  ]);
+  const native=await run(files,true);
+  assert.equal(native,'[41,["audit-v1",7]]\n');
+  const generated=obfuscateFiles(files,{
+    mode:'coo',closedWorld:true,seed:'unrelated-crossmodule-spelling-positive',
+    identifiers:false,strings:false,properties:true
+  });
+  assert.equal(await run(generated.files,true),native);
+  assert.equal(generated.crossFile.properties,1,
+    'A same-name factory in another module is not reachable as a callback in this graph');
+});
