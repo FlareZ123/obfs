@@ -1652,20 +1652,14 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
     return false;
   }
   /**
-   * A prototype method may be exported through a class instance and later
-   * destructured through an immutable local alias. Syntactic function-carrier
-   * tracking alone cannot identify such a method's inherited source methods.
+   * Unproven destructuring receivers may be callable, including function
+   * values forwarded through opaque returns, promises and module imports.
+   * A source-method key read is safe only for proven primitive receivers.
    * @param {AstNode|null|undefined} input
-   * @param {number} [depth]
    * @returns {boolean}
    */
-  function mayBeMemberMethod(input,depth=0) {
-    if(!input||depth>16)return false;
-    if(input.type==='MemberExpression'||input.type==='CallExpression')
-      return !isDefinitelyPrimitive(input);
-    return input.type==='Identifier' && !dynamicScope &&
-      bindingCounts.get(input.name)===1 &&
-      mayBeMemberMethod(primitiveCandidates.get(input.name),depth+1);
+  function mayBeMemberMethod(input) {
+    return Boolean(input && !isDefinitelyPrimitive(input));
   }
   /**
    * Recognize immutable, uniquely-bound constant string keys at a consumer.
