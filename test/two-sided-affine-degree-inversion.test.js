@@ -4,6 +4,8 @@ const {test}=require('node:test');
 const assert=require('node:assert/strict');
 const {invertBoundedDegree,trainBoundedDegreeInverse,parity}=
   require('../sims/two-sided-affine-degree-inversion');
+const {makeDenseOracle,makeSparseWitness,makeUnstructuredOracle}=
+  require('../sims/affine-flag-oracle-fixtures');
 
 /** @param {number} seed @returns {()=>number} */
 function rng(seed) {
@@ -182,6 +184,36 @@ test('existing degree-D ANF interpolation supports offline inverse after 529 onl
       assert.equal(realCalls,529,'After training, the attacker gets no additional oracle data');
     }
   }
+});
+
+
+test('independent prior source families: dense compatibility, rare gate, noncompatible refusal',()=>{
+  // This fixture was written for the older sampled-flag attacker, not our
+  // ANF-certificate implementation. Width 7 allows a COMPLETE degree-7
+  // certificate for every affine-wrapped triangular function in the fixture.
+  for(let seed=1;seed<=6;seed++){
+    const source=makeDenseOracle(7,Math.imul(seed+7,0x9e3779b9));
+    for(let secret=0;secret<128;secret++) {
+      const result=invertBoundedDegree(source.evaluate,source.evaluate(secret),7,7);
+      assert.equal(result?.input,secret);
+    }
+  }
+  // Reuse the intentionally pathological high-degree sparse fixture that
+  // defeats the sampled-flag heuristic. With the TRUE degree promise,
+  // exhaustive high-order ANF coefficients restore the exact guarantee.
+  const rare=makeSparseWitness();
+  const correct=invertBoundedDegree(rare.evaluate,rare.evaluate(rare.secret),11,11);
+  assert.equal(correct?.input,rare.secret);
+  // All arbitrary width-8 permutations have degree <=8, but typically lack
+  // the affine flag forced by hidden triangular compatibility. Degree alone
+  // is not a replacement for the structural assumption.
+  let refused=0;
+  for(let seed=1;seed<=6;seed++) {
+    const random=makeUnstructuredOracle(8,Math.imul(seed,0x9e3779b9));
+    const result=invertBoundedDegree(random,random(1),8,8);
+    if(result===null)refused++;
+  }
+  assert.ok(refused>=5,'A random noncompatible source should lack an affine flag');
 });
 
 test('offline polynomial cloning also supports an independent degree-three wrapped source',()=>{
