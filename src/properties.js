@@ -954,15 +954,31 @@ function proveLocalObject(ast, rootName, bindings, importedIdentityFunctions=new
       const reader=parent?.type==='CallExpression' && !parent.optional &&
         parent.callee.type==='Identifier' ?
         functions.get(parent.callee.name):undefined;
-      // A merely private forwarding helper can return the owner into an
-      // exported wrapper, whose `identity(owner).secretField` then needs
-      // an externally observable source edit. Accept only a single-argument
-      // direct known-key reader: return formal.knownField.
-      const body=reader?.node.type==='FunctionDeclaration' &&
-        !reader.node.async && !reader.node.generator &&
-        reader.node.body.body.length===1 ?
-        reader.node.body.body[0]:null;
-      const returned=body?.type==='ReturnStatement' ? body.argument:null;
+      // An identity helper can forward the owner into public source:
+      // identity(owner).secretField. Accept only a syntactically primitive
+      // own-field consumer with no opaque calls or returned owner alias.
+      // Its shape is either a direct field return or a two-statement const
+      // field read followed by returning that same local binding.
+      const fn=reader?.node;
+      /** @type {AstNode|null|undefined} */
+      let returned=null;
+      if(fn && !fn.async && !fn.generator) {
+        if(fn.type==='ArrowFunctionExpression' &&
+           fn.body.type==='MemberExpression')returned=fn.body;
+        else if(fn.body.type==='BlockStatement') {
+          const stmts=fn.body.body;
+          if(stmts.length===1 && stmts[0].type==='ReturnStatement')
+            returned=stmts[0].argument;
+          if(stmts.length===2 && stmts[0].type==='VariableDeclaration' &&
+             stmts[0].kind==='const' && stmts[0].declarations.length===1 &&
+             stmts[0].declarations[0].id.type==='Identifier' &&
+             stmts[0].declarations[0].init?.type==='MemberExpression' &&
+             stmts[1].type==='ReturnStatement' &&
+             stmts[1].argument?.type==='Identifier' &&
+             stmts[1].argument.name===stmts[0].declarations[0].id.name)
+            returned=stmts[0].declarations[0].init;
+        }
+      }
       if(index!==0 || !reader || reader.external ||
          !privateFunctionNodes.has(reader.node) ||
          reader.params.length!==1 ||
