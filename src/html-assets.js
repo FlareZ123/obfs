@@ -282,8 +282,9 @@ function assertNoInlineHtmlSource(path,code) {
  *
  * The HTML asset paths and JavaScript inventory are the reviewed publication
  * group. An exact portable URL target path, a supplied SCO route prefix,
- * or the original-source SRI digest on a root-relative/absolute script URL
- * can conservatively pin the source bytes. Deployment origins and CDN mounts
+ * or the original-source SRI digest on a root-relative/absolute script URL,
+ * including a relative address resolved through an explicit absolute HTML base,
+ * can conservatively pin source bytes. Deployment origins and CDN mounts
  * cannot always be inferred at compile time, so an exact digest match may
  * veto a transform even when the URL points to an unrelated identical file.
  *
@@ -333,8 +334,9 @@ function hasPinnedLocalJavaScriptIntegrity(files,routePrefix='') {
   /**
    * A rooted or absolute web URL may use a deployment prefix not declared in
    * this offline source tree. Ordinary relative references retain the
-   * compiler's precise path proof so an unrelated ./other.js with an
-   * intentionally reused digest need not suppress positive rewrite yield.
+   * compiler's precise path proof when no explicit root/absolute HTML base
+   * is active. An unrelated ./other.js with intentionally reused metadata
+   * must not suppress positive rewrite yield in that ordinary relative case.
    * @param {string} address
    * @returns {boolean}
    */
