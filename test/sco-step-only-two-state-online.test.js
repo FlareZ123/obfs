@@ -61,3 +61,28 @@ test('weighted learner enforces output and policy contracts before false certifi
   await assert.rejects(()=>learnTwoStateWeightedStepOnly({async step(){return 2;}}),
     /binary output/);
 });
+
+
+test('understated two-state bound can certify a false clone of a three-state oracle',async()=>{
+  const hidden={
+    next:[[1,0],[2,0],[2,0]],
+    output:[[0,0],[0,0],[1,0]]
+  };
+  const workspace=createTwoStateWeightedWorkspace();
+  for(const policy of /** @type {const} */(['boundedNine','expected'])){
+    let privateState=0;
+    const publicApi={
+      /** @param {number} symbol @returns {Promise<number>} */
+      async step(symbol){
+        const previous=privateState;
+        privateState=hidden.next[previous][symbol];
+        return hidden.output[previous][symbol];
+      }
+    };
+    const found=await learnTwoStateWeightedStepOnly(publicApi,policy,workspace);
+    assert.equal(found.certified,true);
+    assert.equal(found.queries,policy==='boundedNine'?7:6);
+    assert.ok(distinguish(found.clone,{...hidden,state:privateState}),
+      'false state bound must not be promoted to a truthful continuation certificate');
+  }
+});
