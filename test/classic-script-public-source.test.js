@@ -76,3 +76,27 @@ test('classic script nested IIFE helper remains transformable when source cannot
   assert.ok(result.files[0].metrics.literals>0,
     'Actually private nested helper must still allow positive string transformation');
 });
+
+
+test('CommonJS top-level direct-call helper remains private despite Acorn script grammar',()=>{
+  const source=[
+    'function privateCommonJS(){',
+    ' const privateValue="COMMONJS_PRIVATE_TOPLEVEL_LITERAL_MARKER_0123456789_ABCDEF";',
+    ' return privateValue.length;',
+    '}',
+    'module.exports=privateCommonJS();'
+  ].join('\n');
+  /** @type {import('../src/core').SourceFile[]} */
+  const files=[{path:'entry.cjs',sourceType:'commonjs',code:source}];
+  const result=obfuscateFiles(files,{
+    mode:'sno',seed:'agent44-commonjs-distinct-from-script',
+    strings:true,identifiers:true,properties:true,preservePublicCallableSource:true
+  });
+  const inputContext=vm.createContext({module:{exports:null}});
+  const emittedContext=vm.createContext({module:{exports:null}});
+  vm.runInContext(source,inputContext,{timeout:1500});
+  vm.runInContext(String(result.files[0].code),emittedContext,{timeout:1500});
+  assert.equal(emittedContext.module.exports,inputContext.module.exports);
+  assert.ok(result.files[0].metrics.literals>0,
+    'CommonJS top-level direct-only function should remain transformable');
+});
