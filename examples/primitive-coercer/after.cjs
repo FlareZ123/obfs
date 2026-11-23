@@ -1,12 +1,16 @@
 'use strict';
 
 const caption='obfs';
-const privateState={"_p60807327ca":37,"_p385d8f2593":5};
+const privateState={"_p2f190c1cda":37,"_p5a36c03e72":5};
 
-function calculate(_v6d4f7d00d1c2) {
-  const _ve03c43331155=new RangeError(caption).message;
-  const _v212ab07689eb=String(caption);
-  return privateState._p60807327ca*_v6d4f7d00d1c2+privateState._p385d8f2593+_ve03c43331155.length+_v212ab07689eb.length;
+function privateCalculate(value) {
+  const message=new RangeError(caption).message;
+  const text=String(caption);
+  return privateState._p2f190c1cda*value+privateState._p5a36c03e72+message.length+text.length;
+}
+
+function calculate(value) {
+  return privateCalculate(value);
 }
 
 module.exports={calculate};
