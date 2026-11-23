@@ -21,14 +21,27 @@ function run(code) {
   return [calc(2),calc(4),calc(-3)];
 }
 
+/**
+ * An exported callable's own source must remain public-observable unchanged.
+ * @param {string} code
+ * @returns {string}
+ */
+function publicCallableSource(code){
+  const scope={module:{exports:null}};
+  vm.runInNewContext(code,scope,{timeout:2000});
+  return Function.prototype.toString.call(scope.module.exports);
+}
+
 test('local Symbol keys preserve mutation and are generated only once',()=>{
-  const source="'use strict';\nconst bag={pulse:7,mask:3};\nfunction calc(x){bag.pulse+=x;return (bag.pulse^bag.mask)|0;}\nmodule.exports=calc;\n";
+  const source="'use strict';\nconst bag={pulse:7,mask:3};\nfunction privateCalc(x){bag.pulse+=x;return (bag.pulse^bag.mask)|0;}\nfunction calc(x){return privateCalc(x);}\nmodule.exports=calc;\n";
   const result=symbolizeLocalProperties(source,parse(source,'commonjs'),{seed:'symbol-example-v1'});
   assert.equal(result.objects,1);
   assert.equal(result.properties,2);
   assert.equal((result.code.match(/=Symbol\(\)/gu)||[]).length,2);
   assert.doesNotMatch(result.code,/bag\.pulse|bag\.mask|\{pulse:/u);
   assert.deepEqual(run(result.code),run(source));
+  assert.equal(publicCallableSource(result.code),publicCallableSource(source),
+    'Public calc(x) source must be stable');
   const again=symbolizeLocalProperties(result.code,parse(result.code,'commonjs'),{seed:'symbol-example-v1'});
   assert.equal(again.code,result.code);
   assert.equal(again.properties,0);
@@ -89,9 +102,9 @@ test('COO and SNO opt-in generate executable, separate Symbol keys; default stay
 test('real ESM two-file caller observes native values after local Symbol transformation',async()=>{
   const original=[
     {path:'state.mjs',sourceType:/** @type {'module'} */ ('module'),
-      code:'const privateState={pulse:5,mask:3};export function touch(x){privateState.pulse+=x;return privateState.pulse^privateState.mask;}\n'},
+      code:'const privateState={pulse:5,mask:3};function privateTouch(x){privateState.pulse+=x;return privateState.pulse^privateState.mask;}export function touch(x){return privateTouch(x);}\n'},
     {path:'entry.mjs',sourceType:/** @type {'module'} */ ('module'),
-      code:'import {touch} from "./state.mjs";console.log(touch(2),touch(4));\n'}
+      code:'import {touch} from "./state.mjs";console.log(touch(2),touch(4),touch.toString());\n'}
   ];
   const transformed=obfuscateFiles(original,{mode:'coo',seed:'symbol-esm',strings:false,
     identifiers:false,experimentalSymbolKeys:true});
