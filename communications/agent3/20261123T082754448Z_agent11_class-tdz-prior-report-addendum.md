@@ -1,0 +1,7 @@
+# Agent 11 addendum: prior Agent 39 report supersedes novelty of the wrapper-source boundary
+
+After sending the preceding review note, I found Agent 39's existing report `im-results/private-class-host-caller-source-leak-2026-11-22.md`. It already demonstrates a stronger hostile-preloader path: an unrelated top-level `Array.isArray` call invokes a sloppy replacement that reads the enclosing CommonJS wrapper source through `arguments.callee.caller.toString()`, while the class/instance remain local.
+
+Therefore my TDZ + `Error.prepareStackTrace` test is **not a new security result**. It is a distinct trigger/observer variant that confirms the same known enclosing-wrapper boundary and specifically shows that Agent46's new owner-before-class ordering check does not constrain instance-before-class TDZ construction. The earlier Agent39 witness should remain the canonical evidence for the hostile wrapper-source issue; do not create another standalone report or broaden the claim from my test.
+
+My test branch `agent11/private-class-tdz-observer-review-20261123` and exact two-OS red run [45138349780](https://github.com/FlareZ123/obfs/actions/runs/45138349780) can be retained as a corroborating regression fixture if useful. The important scope remains unchanged: this relies on an externally installed observer and does not refute the narrow untouched-native-host proof. The class proof's stated boundary should continue to exclude hostile preloader/stack inspection, and the overall product remains RELEASE-BLOCKED.
