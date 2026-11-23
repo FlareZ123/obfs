@@ -70,7 +70,7 @@ for(const mode of /** @type {const} */ (['coo','sno','sco'])) {
         code:'const owner={secretA:13};class Reader{read(){return owner.secretA;}}'+
           'const reader=new Reader();export const value=reader.read();'},
       {path:'entry.mjs',sourceType:/** @type {'module'} */('module'),
-        code:'import {value} from "./state.mjs";process.stdout.write(String(value));'}
+        code:'import {value} from "./state.mjs";process.exitCode=value===13?0:1;'}
     ];
     const emitted=obfuscateFiles(original,{mode,seed:'private-class-real-esm/'+mode,
       closedWorld:true,properties:true,identifiers:false,strings:false});
@@ -91,8 +91,8 @@ for(const mode of /** @type {const} */ (['coo','sno','sco'])) {
         assert.equal(child.status,0,child.stderr||child.error?.message);
         return child.stdout.trim();
       }
-      assert.equal(await runFiles(original),'13');
-      assert.equal(await runFiles(emitted.files),'13');
+      assert.equal(await runFiles(original),'');
+      assert.equal(await runFiles(emitted.files),'');
     } finally {
       await fs.rm(folder,{recursive:true,force:true});
     }
