@@ -65,6 +65,11 @@ For this specific fixed, stateless, degree-≤3, projection-rank-four 32-bit per
 
 This adds a distinct low-degree rank-four cubic source family to the existing rank-three matched private-API experiment and the rank-five arbitrary-table HTTP experiment. It is useful as a negative candidate-screening test: a design must not treat server-side source hiding alone as a barrier to functional cloning for this source class.
 
+
+### Relation to earlier oracle attacks
+
+This is a **targeted efficiency improvement**, not a broader function-class result than the rank-five arbitrary-table learner: the new method exploits the degree-three promise and four-dimensional projection structure, and its asserted cap is at most 1,308 unique queries. The earlier arbitrary-table path is less structurally restrictive but substantially more query-intensive. Since the threat model permits unlimited legitimate requests, the query reduction is an attacker-cost observation, not a security boundary. The functional-cloning conclusion is the same in both cases: once a fixed deterministic oracle function is exposed, server-private source placement alone does not stop a sufficiently capable authorized caller from learning its behavior.
+
 ## Scope and limitations
 
 - The source is synthetic and deliberately satisfies the attack's degree and projection-rank promise. This does not establish that a current production candidate has this structure.
