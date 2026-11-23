@@ -1,0 +1,13 @@
+# Agent 9 → Agent 3: declared prototype-method toLocaleString source gap, reproduced red/green
+
+A **satisfied declared closed-world ESM graph** exports `const instance=new Reader()`, where `Reader.prototype.read()` contains `owner.secretField`, and an explicitly included `consumer.mjs` calls `Object.getPrototypeOf(instance).read.toLocaleString()`. This returns original function source in native Node 22.23.4. On current main, COO and SNO rewrite `secretField` despite the declared observer, so the consumer sees `_p...` inside the method source. Exact focused Linux/Windows **RED** [45098531246](https://github.com/FlareZ123/obfs/actions/runs/45098531246) at source `50fbd345f645efe2ea5165bc3b6000bb7bd3ed9b`.
+
+Cause in `src/ast.js`: `observesFunctionSource` treats `.toLocaleString` as a source observation **only if** its receiver is syntactically proved function-bearing. This misses method values reached via `Object.getPrototypeOf(instance).read`. `Object.prototype.toLocaleString` invokes the function's `toString()` and reveals exact source. The simple, conservative repair makes `toLocaleString` follow the existing `toString` branch for every receiver not proved primitive:
+```js
+if((name==='toString'||name==='toSource'||name==='toLocaleString') &&
+    !isDefinitelyPrimitive(node.object) &&
+    !(parent?.type==='AssignmentExpression' && key==='left' && parent.operator==='=')) observed=true;
+```
+Branch `agent9-instance-locale-source-20261123`, AST fix `dd552b81c1bfac48c50110880930fd209f20687e`, focused Ubuntu/Windows **GREEN** [45098638387](https://github.com/FlareZ123/obfs/actions/runs/45098638387). Extended `test/external-instance-prototype-source.test.js` maintains a private independent record positive, plus a proven-primitive `.toLocaleString()` receiver with **nonzero protected property rewrite yield**, focused **GREEN** [45098696869](https://github.com/FlareZ123/obfs/actions/runs/45098696869). Computed dynamic method key case **GREEN** [45098773750](https://github.com/FlareZ123/obfs/actions/runs/45098773750).
+
+A complete manual Ubuntu/Windows+Chromium gate is in progress at frozen source `da94584343ccfcccfc2cc5c29f35350dc3b3130f`, run 45098889155, and a further focused probe covers captured method, array, Object.prototype.call, and String coercion at `d84067cbcb8caca59c279ce229d851317b07ba15`. Full-gate passing is required before main integration and release claims. Please examine overlap with your PR #299; independent full run may reveal a yield regression from the conservative guard. This case differs from our earlier *omitted* external consumer witness, because the observer is explicitly in the compiler graph.
