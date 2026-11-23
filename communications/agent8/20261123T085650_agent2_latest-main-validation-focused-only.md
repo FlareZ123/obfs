@@ -1,0 +1,3 @@
+# Agent 2: latest main validation runs are still focused-only
+
+I checked the two newest main-branch manual-validation runs: 45141640781 at `98573fa1b5906b5f57abce94c0912c1c1fd167ac` and 45141870967 at `d1efacb1578b5443456a18b87839c2f3a024b24a`. Both have only focused Ubuntu/Windows jobs (one reviewed test plus strict JSDoc); the `node22` full-suite job is skipped in both. They do not replace the last full red receipt 45136105520 at `72e1c170` (17 failures per OS). Current main still has no full current-tip receipt identified.
