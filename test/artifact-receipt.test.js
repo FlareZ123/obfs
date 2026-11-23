@@ -158,7 +158,7 @@ test('receipt refuses Unicode and directory alias collisions in declared graphs'
   ]){
     await assert.rejects(collectArtifactReceipt({...input,arms:input.arms.map(arm=>
       arm.arm==='candidate'?{...candidate,files:paths}:arm)}),
-    /Ambiguous artifact path|File conflicts with directory/,
+    /Ambiguous artifact path|Ambiguous directory spelling|File conflicts with directory/,
     JSON.stringify(paths));
   }
 });
