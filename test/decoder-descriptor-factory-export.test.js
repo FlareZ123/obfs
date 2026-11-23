@@ -90,6 +90,20 @@ function identifierDynamicFactoryGraph(intrinsic) {
 }
 
 /**
+ * A CommonJS factory can likewise be reached through an identifier-valued
+ * require argument rather than a source-spelled literal.
+ * @param {'String'|'Number'} intrinsic
+ * @returns {SourceFile[]}
+ */
+function identifierRequiredFactoryGraph(intrinsic) {
+  return graph(intrinsic).map(file=>file.path==='entry.cjs'?
+    {...file,code:(/** @type {string} */ (file.code)).replace(
+      "const build=require('./factory.cjs');",
+      "const spec='./factory.cjs';const build=require(spec);"
+    )}:file);
+}
+
+/**
  * @param {string} directory
  * @param {SourceFile[]|ReturnType<typeof obfuscateFiles>['files']} files
  * @param {'entry.cjs'|'entry.mjs'} [entry]
@@ -211,6 +225,34 @@ for(const mode of /** @type {const} */(['coo','sno','sco'])){
         }
         assert.equal(target.metrics.literals,intrinsic==='String'?0:1,
           'identifier import must refuse sensitive factory and preserve benign yield');
+      });
+  }
+}
+
+
+for(const mode of /** @type {const} */(['coo','sno','sco'])){
+  for(const intrinsic of /** @type {const} */(['String','Number'])){
+    test('identifier-required CJS descriptor factory '+mode+' '+intrinsic,
+      async()=>{
+        const input=identifierRequiredFactoryGraph(intrinsic);
+        const compiled=obfuscateFiles(input,{
+          mode,properties:false,identifiers:false,strings:true,
+          seed:'agent5-identifier-require/'+mode+'/'+intrinsic
+        });
+        const target=compiled.files.find(file=>file.path==='target.cjs');
+        assert.ok(target);
+        const root=await fs.mkdtemp(path.join(os.tmpdir(),'obfs-identifier-require-'));
+        try{
+          const native=await execute(path.join(root,'native'),input);
+          const transformed=await execute(path.join(root,'transformed'),compiled.files);
+          assert.equal(native.status,0,native.stderr);
+          assert.deepEqual(transformed,native,
+            'identifier require must preserve late-dependency behavior');
+        }finally{
+          await fs.rm(root,{recursive:true,force:true});
+        }
+        assert.equal(target.metrics.literals,intrinsic==='String'?0:1,
+          'identifier require must refuse sensitive factory and preserve benign yield');
       });
   }
 }
