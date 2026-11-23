@@ -327,4 +327,50 @@ function renameCommonJsCrossFileProperties(files,seed) {
   };
 }
 
-module.exports={renameCommonJsCrossFileProperties};
+/**
+ * Identify const bindings whose direct static require resolves to a producer
+ * proven to export an inert object literal. This narrow fact lets the general
+ * source-observer pass avoid treating a known object namespace as a possibly
+ * function-valued CommonJS export; property-use safety is still established
+ * separately by proveLocalObject.
+ *
+ * @param {SourceFile[]} files
+ * @returns {Map<string,Set<string>>}
+ */
+function collectCommonJsKnownObjectBindings(files) {
+  /** @type {Map<string,ParsedCommonJs>} */
+  const modules=new Map();
+  for(const file of files) {
+    if(file.sourceType==='asset')continue;
+    if(file.sourceType!=='commonjs'||typeof file.code!=='string')return new Map();
+    try {
+      modules.set(file.path,parseCommonJs(file));
+    } catch {
+      return new Map();
+    }
+  }
+  if(modules.size<2)return new Map();
+  const requireSites=collectClosedRequireSites(modules);
+  if(!requireSites)return new Map();
+  /** @type {Map<string,Set<string>>} */
+  const result=new Map();
+  for(const [exporterName,exporter] of modules) {
+    if(!literalModuleExports(exporter))continue;
+    for(const site of requireSites.get(exporterName)??[]) {
+      const parent=site.module.parents.get(site.call);
+      if(parent?.type!=='VariableDeclarator'||parent.init!==site.call||
+         parent.id.type!=='Identifier')continue;
+      const declaration=site.module.parents.get(parent);
+      if(declaration?.type!=='VariableDeclaration'||declaration.kind!=='const'||
+         site.module.bindings.get(parent.id.name)!==1)continue;
+      const names=result.get(site.module.file.path)??new Set();
+      names.add(parent.id.name);
+      result.set(site.module.file.path,names);
+    }
+  }
+  return result;
+}
+
+module.exports={
+  renameCommonJsCrossFileProperties,collectCommonJsKnownObjectBindings
+};
