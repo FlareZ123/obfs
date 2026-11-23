@@ -69,3 +69,8 @@ Run:
 No server-private SCO end-to-end HTTP oracle was involved in these tests. The attacker-side clone uses the existing local oracle adapter, and the held-out verifier retains fixture privileges only after learning. A future matched ordinary/private SCO HTTP experiment would require separate code and authorization/credential parity review.
 
 The experiment rules out hiding this **promised low-degree family** by merely disguising its forward callable behind an authorized chosen-input oracle. It is not a compromise of SCO authorization, not original source recovery, not universal static deobfuscation, and not a positive security guarantee for COO/SCO/SNO. Mainline strong-protection release stays **RELEASE-BLOCKED**.
+
+
+## Source-pinned focused cross-platform validation
+
+[Manual-validation run 45256584371](https://github.com/FlareZ123/obfs/actions/runs/45256584371), immutable source `d087ae6a40da170716bc60fc5423a1833da0176b`, completed with **both Ubuntu and Windows focused jobs green**; the full Node 22 suite was explicitly skipped. The exact test ran the four 32-bit promised degree-two/three/four instances with the 64 target inversions, source-derived degree-five negative control, and the 528-contraction assertions. The focused workflow includes project/external strict JSDoc gates on its source snapshot. This remains bounded cross-platform verification and does not change the release decision.
