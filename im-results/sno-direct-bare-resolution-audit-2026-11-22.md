@@ -94,6 +94,31 @@ preflight, with a known counterexample to whole-program equivalence.
 The additional test is in
 [`test/sno-static-bare-resolution-audit.test.js`](../test/sno-static-bare-resolution-audit.test.js).
 
+## Accepted integration source and final verification
+
+The optional build-time audit is integrated into `main` through
+[commit `41418a1`](https://github.com/FlareZ123/obfs/commit/41418a118672eb91a58373ce42817e65ecfea220),
+with stricter opaque-JavaScript refusal in
+[`c4d3440`](https://github.com/FlareZ123/obfs/commit/c4d3440aab4dd7752297e6f842e128540304c70c),
+and conservative no-literal dynamic-scope refusal in
+[`eaadc0a`](https://github.com/FlareZ123/obfs/commit/eaadc0ad77d85d58d48b9205c659361bab1bcd7a).
+The frozen final source `eaadc0ad77d85d58d48b9205c659361bab1bcd7a`
+passed the **focused Ubuntu and Windows suite**, including strict
+project/external JSDoc typechecks, in
+[run 45086272554](https://github.com/FlareZ123/obfs/actions/runs/45086272554).
+The identical frozen source's full behavioral/adversarial,
+browser and performance workflow is
+[run 45086267550](https://github.com/FlareZ123/obfs/actions/runs/45086267550).
+Its Ubuntu full job passed; Windows was still running the broad
+behavioral suite when this section was written, so **a full two-platform
+verdict remains pending** until both jobs conclude.
+
+The smoke-tested option is `node bin/sno.js --root <input> --entry entry.cjs --out <output> --audit-bare-cjs`.
+This flag is restricted to the CLI and only to SNO, and its
+resolved-path check operates on the effective build locations.
+It does not bundle or pin external npm dependencies. Operators must
+separately verify the final deployment tree and its resolution flags.
+
 ## Scope and limits
 
 The finite static scanner examines **direct, literal CommonJS calls**.
