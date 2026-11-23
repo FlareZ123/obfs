@@ -59,3 +59,8 @@ The same full quartic source generator and public ANF learner already used by th
 | Windows | 1638494499 | grouped → scan | 2656 | 1290 |
 
 The grouped exact flag setup was faster in all four selected cells; the measured full-setup speedup ranged about **1.55–2.13×**. The test changes algorithm order across source seeds but does not repeat multiple balanced cycles for the same source because full setup redoes expensive certificate work. The scan path when timed second was *slower* in these two samples; JIT/GC/host effects are not fully controlled. These are reproducible same-run engineering observations, not a universal speed distribution. The original baseline remains default pending broader performance and memory comparisons. In particular, the sparse-source full setup showed negligible benefit, so no blanket optimization claim is justified.
+
+
+## Degree-two / degree-three grouped branch validation
+
+The grouped constructor's shorter subset enumeration (only single direction bits for degree two; singles and pairs for degree three) is separately exercised in `test/exact-quartic-grouped-contractor.test.js`. It compares every returned x-ANF coefficient against the original scan for 76 deterministic 32-bit direction probes across full degree-two and degree-three random source coefficient sets. This additional test passed Ubuntu and Windows focused jobs in [run 45263699210](https://github.com/FlareZ123/obfs/actions/runs/45263699210), source `5941e48b8e9254bb80337b4a0bb9a89e896739e5`; full Node22 remained skipped. This closes a lower-degree coverage omission in the earlier grouped-quartic source pin without expanding source-family or performance claims.
