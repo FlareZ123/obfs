@@ -207,6 +207,16 @@ test('selected SCO Web IDL method admission fails closed on alias and extraction
     "const root=globalThis;const {...rest}=root;const H=rest.Headers;return new H().get('x-demo');",
     "const root=globalThis;let rest;({...rest}=root);const H=rest.Headers;return new H().get('x-demo');"
   ])assert.throws(()=>compile(body),/unproved cross-realm WebIDL constructor/,body);
+  for(const body of [
+    "const H=Reflect.get(globalThis,'Headers');return new H().get('x-demo');",
+    "const H=Object.getOwnPropertyDescriptor(globalThis,'Headers').value;return new H().get('x-demo');",
+    "Headers.prototype.append=function(){return 'patched';};return new Headers().append('x-demo','ok');",
+    "Object.defineProperty(URLSearchParams.prototype,'get',{value:function(){return 'patched';}});return new URLSearchParams('a=1').get('a');",
+    "const root=window;const H=root.Headers;return new H().get('x-demo');",
+    "let root;root=globalThis;const H=root.Headers;return new H().get('x-demo');",
+    "const a=globalThis;const b=a;const H=b.Headers;return new H().get('x-demo');",
+    "const root=globalThis;let H;({Headers:H}=root);return new H().get('x-demo');"
+  ])assert.throws(()=>compile(body),TypeError,body);
   for(const name of ['Headers','URLSearchParams']){
     const shadowed='export async function privateOp('+name+'){' +
       'return new '+name+'().get("x");}' +
@@ -264,6 +274,11 @@ test('private SCO ESM graph applies Web IDL method admission to imported leaves'
     "const {...rest}=globalThis;const H=rest.Headers;return new H().get('x-demo');",
     "const {Headers:H=0}=globalThis;return new H().get('x-demo');"
   ])assert.throws(()=>graph(body),/unproved cross-realm WebIDL constructor|realm-local intrinsic state access/,body);
+  for(const body of [
+    "const H=Reflect.get(globalThis,'Headers');return new H().get('x-demo');",
+    "Headers.prototype.get=function(){return 'patched';};return new Headers().get('x-demo');",
+    "const root=window;const H=root.Headers;return new H().get('x-demo');"
+  ])assert.throws(()=>graph(body),/unproved cross-realm WebIDL constructor|realm-local intrinsic state access|realm-local prototype/,body);
   for(const name of ['Headers','URLSearchParams']){
     const body='const '+name+'=17;export function leaf(){return new '+name+'().get("x");}';
     const source=partitionScoSelectedGraph.bind(null,[{
