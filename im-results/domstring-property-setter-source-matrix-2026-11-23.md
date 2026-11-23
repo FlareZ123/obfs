@@ -5,8 +5,8 @@
 **Research owner:** Agent 19  
 **Date:** 2026-11-23  
 **Reproduction branch:** `agent19/domstring-property-setter-matrix-20261123`  
-**Final source pin:** `bb92a371a3b3b8471f6c5d5e40d26a4e07d06d3e`  
-**Validation:** [GitHub Actions run 45102240274](https://github.com/FlareZ123/obfs/actions/runs/45102240274)
+**Final source pin:** `00443884706166f82bfc3d406af580c0301ae4e0`  
+**Validation:** [GitHub Actions run 45102784628](https://github.com/FlareZ123/obfs/actions/runs/45102784628)
 
 ## Finding
 
@@ -29,7 +29,7 @@ The harness is `sims/domstring-property-setter-source-matrix.js` on the reproduc
 
 For each negative case, the module creates a function whose body reads `observedOwner.secretField`, assigns the function to a native property, reads the property back as a string, and also checks the function's numeric result and an independent private owner. A corresponding primitive-only positive assigns the literal string `"literal"` to the same property and checks that unrelated private-property renaming remains available.
 
-The suite also includes a plain JavaScript object control using a property named `id`. It stores and invokes a function without converting it to text. This guards against a name-only rule that would incorrectly classify every `.id` assignment as a DOM sink.
+The suite also includes a plain JavaScript object control using a property named `id`. It stores and invokes a function without converting it to text. This guards against a name-only rule that would incorrectly classify every `.id` assignment as a DOM sink. A separate own-data-property control shadows the native `id` setter with `Object.defineProperty`; it stores the function reference and does not trigger DOMString conversion.
 
 ### Tested native property setters
 
@@ -68,6 +68,9 @@ The final source-pinned workflow completed successfully. Its Ubuntu job ran the 
 | Same-file primitive positives retaining one private-property rename | **20 / 20** |
 | Plain-object `.id` function-reference control | **PASS** |
 | Cross-file native property-setter source mismatch | **1 / 1** |
+| Reflective/aliased setter dispatch variants with changed source | **8 / 8** |
+| Reflective/aliased primitive-only positive parity | **8 / 8** |
+| Own data-property shadowing control | **PASS** |
 | Cross-file primitive-only positive | **PASS** |
 | Existing focused Web IDL Node suite | **237 / 237** |
 | Main project JSDoc and dedicated matrix JSDoc | **PASS** |
@@ -93,6 +96,25 @@ function inspect(){return observedOwner._p0dfce9fb9c;}
 The numeric result remained `57`; the independent value remained `73`. The cross-file negative reported two property transformations. Its primitive-input counterpart passed and retained one private-property transformation.
 
 This shows that a property-setter sink must be able to propagate source-observation requirements from the consumer back to the imported callable and its producer-side owner fields.
+
+
+### Reflective and aliased dispatch variants
+
+The final harness also tested eight ways of reaching the native setter. **All eight** changed function source in emitted COO output, while each corresponding primitive-only positive passed:
+
+1. Computed literal key: `target["id"] = inspect`
+2. Computed constant key: `const key = "id"; target[key] = inspect`
+3. Aliased receiver: `alias.id = inspect`
+4. `Reflect.set(target, "id", inspect)`
+5. `Object.assign(target, { id: inspect })`
+6. Logical assignment: `target.id ||= inspect`
+7. Native descriptor setter: `setId.call(target, inspect)`
+8. `Reflect.apply(setId, target, [inspect])`
+
+The own-data-property shadowing control passed: `Object.defineProperty(target, "id", { value: inspect, ... })` stored the function reference and the compiled program still invoked it correctly. This separates actual native setter dispatch from a reflective operation that merely creates an own data property.
+
+The final workflow uploaded the raw JSON summary as artifact
+[domstring-property-setter-matrix](https://github.com/FlareZ123/obfs/actions/runs/45102784628/artifacts/14785458882).
 
 ## Required analysis direction
 
