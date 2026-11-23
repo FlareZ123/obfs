@@ -39,15 +39,19 @@ async function execute(files){
     const entry=spawnSync(process.execPath,[path.join(root,'entry.cjs')],{
       encoding:'utf8',timeout:15000
     });
-    const worker=spawnSync(process.execPath,[path.join(root,'worker.cjs')],{
-      encoding:'utf8',timeout:15000
-    });
     if(entry.error)throw entry.error;
-    if(worker.error)throw worker.error;
+    const results=[entry];
+    if(files.some(file=>file.path==='worker.cjs')){
+      const worker=spawnSync(process.execPath,[path.join(root,'worker.cjs')],{
+        encoding:'utf8',timeout:15000
+      });
+      if(worker.error)throw worker.error;
+      results.push(worker);
+    }
     return {
-      status:entry.status===0&&worker.status===0?0:entry.status??worker.status,
-      stdout:entry.stdout+worker.stdout,
-      stderr:entry.stderr+worker.stderr
+      status:results.every(result=>result.status===0)?0:results.find(result=>result.status!==0)?.status??null,
+      stdout:results.map(result=>result.stdout).join(''),
+      stderr:results.map(result=>result.stderr).join('')
     };
   }finally{
     await fs.rm(root,{recursive:true,force:true});
@@ -68,6 +72,8 @@ function compile(files){
 test('closed CommonJS graph renames one private exported record across two require consumers',async()=>{
   const original=await execute(graph);
   assert.equal(original.status,0,original.stderr);
+  for(const file of graph.filter(file=>file.path!=='api.cjs')){const ast=parse(file.code,'commonjs');const known=new Set(['api']);const proof=proveLocalObject(ast,'api',collectBindings(ast),new Map(),new Map(),new Map(),new Map(),new Set(),false,known);console.log('known-object local proof',file.path,Boolean(proof),proof?.members.length,proof?.patterns.length,'observer',observesFunctionSource(ast,new Map(),new Set(),new Set(),new Set(),new Set(),known));}
+  const direct=renameCommonJsCrossFileProperties(graph,'closed-cjs-property-graph-20261123');console.log('direct CJS lane',direct.objects,direct.properties);
   const transformed=compile(graph);
   assert.equal(transformed.crossFile.objects,1,
     'The one literal module.exports record must be proven across the complete CJS graph');
