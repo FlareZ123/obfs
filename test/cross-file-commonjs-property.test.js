@@ -7,9 +7,6 @@ const os=require('node:os');
 const path=require('node:path');
 const {spawnSync}=require('node:child_process');
 const {obfuscateFiles}=require('../src');
-const {renameCommonJsCrossFileProperties}=require('../src/commonjs-cross-properties');
-const {parse,observesFunctionSource}=require('../src/ast');
-const {collectBindings,proveLocalObject}=require('../src/properties');
 const {atomicWrite}=require('../src/atomic');
 
 /** @typedef {{path:string,sourceType:'commonjs',code:string}} CommonJsFile */
@@ -21,13 +18,13 @@ const graph=/** @type {CommonJsFile[]} */ ([
     "const api=require('./api.cjs');",
     'const alias=api;',
     'const total=alias.privateCount+alias.hiddenAddend;',
+    'console.log(total);',
     'module.exports=total;'
   ].join('\n')},
   {path:'entry.cjs',sourceType:'commonjs',code:[
     "const api=require('./api.cjs');",
-    "const fromWorker=require('./worker.cjs');",
     'const {privateCount}=api;',
-    'console.log(api.privateCount+api.hiddenAddend+privateCount+fromWorker);'
+    'console.log(api.privateCount+api.hiddenAddend+privateCount);'
   ].join('\n')}
 ]);
 
@@ -39,11 +36,19 @@ async function execute(files){
   const root=await fs.mkdtemp(path.join(os.tmpdir(),'obfs-cjs-cross-properties-'));
   try{
     for(const file of files)await atomicWrite(path.join(root,file.path),file.code);
-    const result=spawnSync(process.execPath,[path.join(root,'entry.cjs')],{
+    const entry=spawnSync(process.execPath,[path.join(root,'entry.cjs')],{
       encoding:'utf8',timeout:15000
     });
-    if(result.error)throw result.error;
-    return {status:result.status,stdout:result.stdout,stderr:result.stderr};
+    const worker=spawnSync(process.execPath,[path.join(root,'worker.cjs')],{
+      encoding:'utf8',timeout:15000
+    });
+    if(entry.error)throw entry.error;
+    if(worker.error)throw worker.error;
+    return {
+      status:entry.status===0&&worker.status===0?0:entry.status??worker.status,
+      stdout:entry.stdout+worker.stdout,
+      stderr:entry.stderr+worker.stderr
+    };
   }finally{
     await fs.rm(root,{recursive:true,force:true});
   }
@@ -63,12 +68,7 @@ function compile(files){
 test('closed CommonJS graph renames one private exported record across two require consumers',async()=>{
   const original=await execute(graph);
   assert.equal(original.status,0,original.stderr);
-  for(const file of graph.filter(file=>file.path!=='api.cjs')){const ast=parse(file.code,'commonjs');const proof=proveLocalObject(ast,'api',collectBindings(ast));console.log('direct local proof',file.path,Boolean(proof),proof?.members.length,proof?.patterns.length,'observer',observesFunctionSource(ast));}
-  const simple=parse('const api={secretField:17};console.log(api.secretField);','commonjs');console.log('simple CJS proof',Boolean(proveLocalObject(simple,'api',collectBindings(simple))),'observer',observesFunctionSource(simple));
-  const direct=renameCommonJsCrossFileProperties(graph,'closed-cjs-property-graph-20261123');
-  console.log('direct CJS lane',direct.objects,direct.properties);
   const transformed=compile(graph);
-  console.log('public CJS lane',transformed.crossFile.objects,transformed.crossFile.properties);
   assert.equal(transformed.crossFile.objects,1,
     'The one literal module.exports record must be proven across the complete CJS graph');
   assert.equal(transformed.crossFile.properties,2,
