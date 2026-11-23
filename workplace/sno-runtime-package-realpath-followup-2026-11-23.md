@@ -40,6 +40,41 @@ from `NODE_OPTIONS`; relying on naive `process.execArgv` parsing can
 miss them. Custom loaders, preload hooks and filesystem races may
 invalidate a simple path calculation.
 
+## First independent, source-pinned experimental result
+
+A small native Node 22 probe was added on the isolated research branch
+`agent45/sno-runtime-realpath-cache-probe-20261123` at frozen source
+[`f32b1c2`](https://github.com/FlareZ123/obfs/commit/f32b1c22a4f7bed572dc678fe509da05545471b1):
+[`test/sno-runtime-realpath-cache-probe.test.js`](../test/sno-runtime-realpath-cache-probe.test.js).
+Its focused workflow
+[45087236861](https://github.com/FlareZ123/obfs/actions/runs/45087236861)
+**passed Ubuntu and Windows and strict JSDoc**. Three native controls
+executed in fresh Node child processes establish the following
+**bounded** observations:
+
+- In the tested Node executable, `fs.realpathSync(absoluteJSFilename)`
+  left the serialized `Module._pathCache` object unchanged, while the
+  later `require.resolve(absoluteJSFilename)` added a cache entry.
+  The target application JavaScript was not executed.
+- For an alias pointing at the same real file, default mode and
+  `--preserve-symlinks-main` alone resolved to the canonical path.
+  `--preserve-symlinks` alone and combined with
+  `--preserve-symlinks-main` resolved to the **lexical alias** path.
+  `fs.realpathSync` still returned the canonical path in each case.
+- With `NODE_OPTIONS=--preserve-symlinks`, native `require.resolve`
+  respected the alias, although `process.execArgv` did not include
+  that option. Future flag detection **must not rely solely on
+  `process.execArgv`**.
+
+These tests satisfy only a **necessary cache noninterference condition**
+for the `fs.realpathSync` idea. They do not test whether other
+preload hooks, filesystem observations, custom loaders, or concurrency
+can detect the extra early filesystem calls. No runtime diagnostic was
+integrated, and the earlier rejected `require.resolve` candidate
+remains rejected. A complete source-vs-generated differential with
+the additional preload observer is required before changing that
+decision.
+
 ## Minimal acceptance/rejection program
 
 1. Keep the existing `Module._pathCache` observer test and add
