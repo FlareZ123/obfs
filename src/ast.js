@@ -230,6 +230,9 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
   // their source text. Track simple aliases and array-element ownership in
   // addition to direct String/RegExp coercers.
   const functions=new Set();
+  // Catch bindings can receive an Error from any throw path. Their computed
+  // reads may select .stack without a statically spelled property key.
+  const catchParameterNames=new Set();
   const arraysWithFunctions=new Set();
   // Native Array algorithms can implicitly stringify contained functions.
   // Track methods detached from Array.prototype through simple assignments;
@@ -295,6 +298,8 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
     }
     if((node.type==='FunctionDeclaration'||node.type==='ClassDeclaration') &&
        node.id?.type==='Identifier')functions.add(node.id.name);
+    if(node.type==='CatchClause'&&node.param?.type==='Identifier')
+      catchParameterNames.add(node.param.name);
     if((node.type==='ImportSpecifier'||node.type==='ImportDefaultSpecifier') &&
        node.local?.type==='Identifier')opaqueFunctions.add(node.local.name);
     if(node.type==='ImportNamespaceSpecifier'&&node.local?.type==='Identifier') {
@@ -2451,7 +2456,7 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
   // the caller's location without an explicit Error construction.
   const stackErrorConstructors=new Set(['Error','EvalError','RangeError',
     'ReferenceError','SyntaxError','TypeError','URIError','AggregateError']);
-  const stackErrorAliases=new Set();
+  const stackErrorAliases=new Set(catchParameterNames);
   const stackConsoleAliases=new Set(['console']);
   const stackConsoleMethodNames=new Set(['trace','log','info','warn','error','debug','dir',
     // Node's additional console formatters inspect functions or stringify
@@ -2917,7 +2922,13 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
           containsFunction(node.right)) && !isDefinitelyPrimitive(node)) observed=true;
     }
     // A computed destructuring key can likewise select Error.stack without a
-    // MemberExpression. Only guard known Error values: unrelated dynamically
+    // MemberExpression. A caught value may originate from any thrown Error,
+    // so its unknown computed destructuring keys need the same refusal.
+    if(node.type==='CatchClause' && node.param?.type==='ObjectPattern' &&
+       node.param.properties.some((/** @type {AstNode} */ property)=>
+         property.type==='Property' && property.computed &&
+         sourceStringKey(property.key)===null))observed=true;
+    // Only guard known Error values: unrelated dynamically
     // keyed plain records retain their ordinary transformation opportunities.
     if(node.type==='VariableDeclarator'||node.type==='AssignmentExpression') {
       const pattern=node.type==='VariableDeclarator'?node.id:node.left;
