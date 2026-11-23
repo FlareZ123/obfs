@@ -27,6 +27,12 @@ On the same separate research branch, `d8da32caea8a5c8810aa5cc46ffa982c0b2ea35d`
 
 Because PR332's original draft full gate was already 54 failures on each OS, and this new product matrix reveals additional real semantic gaps, the PR should remain **DRAFT and unmerged** regardless of its focused results. A bounded string-name analysis is not a sound substitute for the module-aware lexical/heap worklist design in `workplace/async-host-capability-worklist-design.md`.
 
+## Source-pinned prototype outcome
+
+The cross-module return-expression union prototype at exact SHA `d8da32caea8a5c8810aa5cc46ffa982c0b2ea35d` passed **38/38 on Ubuntu and Windows** in [45122896013](https://github.com/FlareZ123/obfs/actions/runs/45122896013), including both independent nonzero private-rewrite controls and strict project/external JSDoc. The existing cross-file safe-record suite passed **36/36 on both platforms** in [45122900782](https://github.com/FlareZ123/obfs/actions/runs/45122900782). The 144-unused-factory compiler profile, exact source and deterministic seed, was **44.996 ms median Ubuntu** and **54.138 ms median Windows** at [45122905586](https://github.com/FlareZ123/obfs/actions/runs/45122905586); prior different-run current PR head medians at 144 were **46.978 ms** and **52.311 ms**, respectively. These measurements do not prove nonregression with paired-run statistical confidence; they do show no obvious catastrophic slowdown in this selected tiny three-module sample.
+
+This is **a limited experiment**, not a sound cross-module property rename implementation. Collecting all modules' functions by unqualified spelling is an over-approximation: imports and lexical collisions can cross-contaminate factory summaries and cause excess refusal. Graph size and compiler-cost behavior on much larger real projects remain unmeasured. The patch stays on `agent21/callback-product-graph-matrix-20261123` and **is not copied to draft PR332 or merged into main**. A production replacement should use module-qualified lexical IDs and heap-field/Promise graph edges from a real points-to frontend, not promote this broad text-name union solely because 38 source graph tests pass.
+
 ## Outstanding validation
 
 1. Confirm the exact candidate d8... matrix counts and the existing 36-case safe positive controls, then record the independent source SHA; a green result is not full-JavaScript correctness.
