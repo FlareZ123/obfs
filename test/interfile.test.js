@@ -6,6 +6,7 @@ const fs=require('node:fs/promises');
 const path=require('node:path');
 const os=require('node:os');
 const {spawnSync}=require('node:child_process');
+const {pathToFileURL}=require('node:url');
 const {obfuscateFiles}=require('../src');
 const {atomicWrite}=require('../src/atomic');
 
@@ -23,11 +24,34 @@ test('four-file ESM dataflow preserves named imports, nested calls and external 
     assert.equal(output.crossFile.properties,2);
     const entry=output.files.find(f=>f.path==='index.mjs');
     assert.match(entry.code,/globalThis\.window\.api\.bridge/);
-    for(const file of output.files)await atomicWrite(path.join(root,file.path),file.code);
-    const entryUrl=new URL('file://'+path.join(root,'index.mjs')).href;
-    const command=`globalThis.window={api:{bridge:10}};import(${JSON.stringify(entryUrl)}).then(x=>console.log(x.value));`;
-    const result=spawnSync(process.execPath,['--input-type=module','-e',command],{encoding:'utf8'});
-    assert.equal(result.status,0,result.stderr);
-    assert.equal(result.stdout.trim(),String(8+15+3+3+10));
+    /**
+     * The caller's own source-text observer is outside the compiled module
+     * graph. This tests the exported public function's native source contract
+     * without wrongly classifying a private nested helper as an export.
+     * @param {typeof inputs | ReturnType<typeof obfuscateFiles>['files']} files
+     * @param {string} label
+     * @returns {Promise<{value:number,publicSource:string}>}
+     */
+    async function execute(files,label){
+      const dir=path.join(root,label);
+      for(const file of files)await atomicWrite(path.join(dir,file.path),file.code);
+      const entryUrl=pathToFileURL(path.join(dir,'index.mjs')).href;
+      const stateUrl=pathToFileURL(path.join(dir,'state.mjs')).href;
+      const command='globalThis.window={api:{bridge:10}};'+
+        'Promise.all([import('+JSON.stringify(entryUrl)+'),import('+
+        JSON.stringify(stateUrl)+')]).then(([entry,state])=>'+
+        'process.stdout.write(JSON.stringify({value:entry.value,'+
+        'publicSource:Function.prototype.toString.call(state.internal)})))'+
+        '.catch(error=>{console.error(error);process.exitCode=1;});';
+      const result=spawnSync(process.execPath,['--input-type=module','-e',command],{
+        encoding:'utf8',timeout:15000
+      });
+      assert.equal(result.status,0,result.stderr);
+      return /** @type {{value:number,publicSource:string}} */(JSON.parse(result.stdout));
+    }
+    const native=await execute(inputs,'native');
+    const emitted=await execute(output.files,'emitted');
+    assert.equal(native.value,8+15+3+3+10);
+    assert.deepEqual(emitted,native);
   }finally{await fs.rm(root,{recursive:true,force:true});}
 });
