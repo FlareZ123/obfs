@@ -10,6 +10,7 @@ const entrySource=[
 ].join('\n');
 const ast=parse(entrySource,'module');
 const withoutPrimitiveProof=observesFunctionSource(ast);
+// This set is a trusted test-supplied proof, not currently derived by createScoHandler.
 const withPrimitiveProof=observesFunctionSource(
   ast,new Map(),new Set(),new Set(),new Set(['helperValue']),new Set()
 );
