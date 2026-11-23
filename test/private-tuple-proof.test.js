@@ -36,7 +36,8 @@ function sourceAt(index) {
     'const tuple=['+parts.join(',')+'];',
     'const first=tuple['+index+'];',
     'const next=tuple['+index+'];',
-    'module.exports=function run(n){return first.hiddenCount*n+next.privateDelta+owner.hiddenCount;}'
+    'function privateRun(n){return first.hiddenCount*n+next.privateDelta+owner.hiddenCount;}',
+    'module.exports=function run(n){return privateRun(n);}'
   ].join('\n');
 }
 
@@ -135,7 +136,8 @@ test('two-file ESM application preserves indexed private tuple proof',{
       'const owner={hiddenCount:19,privateDelta:5};',
       'const tuple=[false,"metadata",owner,0];',
       'const alias=tuple[2];',
-      'export function measure(n){return alias.hiddenCount*n+owner.privateDelta;}'
+      'function privateMeasure(n){return alias.hiddenCount*n+owner.privateDelta;}',
+      'export function measure(n){return privateMeasure(n);}'
     ].join('\n')},
     {path:'entry.mjs',sourceType:'module',code:[
       'import {measure} from "./owner.mjs";',
