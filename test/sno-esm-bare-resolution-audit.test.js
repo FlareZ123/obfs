@@ -185,6 +185,7 @@ test('ESM audit refuses future emitted package scopes',async()=>{
     path:'engine.mjs',sourceType:'module',
     code:"import value from 'sno-esm-resolution-probe';export default value;"
   }];
+  /** @type {import('../src/core').SourceFile[]} */
   const generated=[...source,{
     path:'package.json',sourceType:'asset',code:'{}'
   }];
