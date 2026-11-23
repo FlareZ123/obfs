@@ -114,6 +114,7 @@ function main(){
     const projectionMask=(1<<rank)-1;
     for(let value=0;value<32;value++)
       if(value&projectionMask)witnesses+=histogram[value];
+    /** @type {number} */
     const theoretical=(32-2**(5-rank))*copies;
     assert.equal(witnesses,theoretical);
     witnessesByRank.push(witnesses);
