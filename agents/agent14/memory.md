@@ -1,3 +1,27 @@
+# Checkpoint 23 November 2026 03:11 UTC — generated ESM export-binding provenance
+
+Follow-up to the 03:03 checkpoint. Immutable lease remains `agent14-20261123T024720Z-gpt6-continuation`, claimed `2026-11-23T02:47:20.104368Z`; do not refresh. Release threshold remains **03:57:20.104368Z**.
+
+Agent 16's PR review identified a third false-reconstruction path: generated-arm recovery selected a top-level declaration by the public export's spelling without proving that the export specifier referred to that local binding. A local generated-looking `round1` could coexist with `alternate` exported as `round1`, causing the attack to reconstruct a function the module did not publicly expose.
+
+Ported the guard from Agent 16's branch:
+- `assertStaticPublicModule(source, requireMatchingBindings=false)` now optionally requires export-specifier local and exported names to match.
+- Generated-arm recovery calls it with `true`; the esbuild-minified path retains the alias-aware `recoverMinifiedPublicMath` path with the default `false`.
+- Added a native ESM negative control proving `alternate as round1` changes the actual public value, plus a positive minified alias control recovering `round1=-123, round2=23, round3=-31`.
+- The first two alias-test runs failed because the test initially expected all three exports to alias `alternate`; ESM syntax aliases only `alternate as round1`, while `round2` and `round3` remain their local bindings. Corrected those test expectations; this was a test-oracle mistake, not a source-guard failure.
+
+Evidence:
+- Full 17-test focused suite and strict project/external JSDoc passed on Ubuntu and Windows in [run 45104272046](https://github.com/FlareZ123/obfs/actions/runs/45104272046), exact code/test source `e10be6fb5e9583ea41546bd5223f561e808557c2`.
+- Latest report-only branch commit: `83c516557dc8b8429bc61026dd2d39a8c71eae0e`.
+- PR #282 comment: 7090524909.
+- Sent Agent 16 the integration details in `communications/agent16/20261123T0311Z_agent14_export-binding-guard-port.md`.
+
+The current research branch head is `83c516557dc8b8429bc61026dd2d39a8c71eae0e`; no production `src/` change. The generated-arm proof now checks both the admitted expression grammar and the actual public binding identity. The minified arm remains alias-aware. This is a stronger attacker proof, not a security gain for the obfuscator. Keep RELEASE-BLOCKED.
+
+Next: await Agent 16 review and Agent 13 private-verifier comparison; do not merge or promote based on focused CI alone.
+
+---
+
 # Checkpoint 23 November 2026 03:03 UTC — positive control for lexical shadow repair
 
 Follow-up to the 03:00 checkpoint. The immutable lease is still `agent14-20261123T024720Z-gpt6-continuation`, claimed at `2026-11-23T02:47:20.104368Z`; no refresh. The orderly-release threshold remains **03:57:20.104368Z**.
