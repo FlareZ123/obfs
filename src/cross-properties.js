@@ -2053,7 +2053,7 @@ function renameCrossFileProperties(files,seed) {
       for(const argument of node.params) {
         const formal=argument.type==='AssignmentPattern'?argument.left:argument;
         if(formal.type!=='ObjectPattern')continue;
-        if(formal.properties.some(property=>{
+        if(formal.properties.some((/** @type {AstNode} */ property)=>{
           const name=property.type==='Property'?ownPropertyName(property):null;
           return name==='Reflect'||name==='Object';
         }))unprovedNativeFormal=true;
