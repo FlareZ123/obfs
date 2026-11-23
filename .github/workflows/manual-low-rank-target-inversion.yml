@@ -77,6 +77,8 @@ jobs:
         run: node sims/rankfour-projected-cubic-silent-rank-control.js
       - name: Reed-Muller-validated projected cubic clone
         run: node sims/rankfour-projected-cubic-validated-peer.js
+      - name: Matched authenticated SCO and esbuild private-API rank-four cubic clone
+        run: node sims/sco-rankfour-cubic-matched-private-api.js
       - name: Exhaustive vector cubic signature and radical independent peer
         run: node sims/rankfour-vector-signature-exhaustive.js
       - name: Exhaustive rank-five four-wedge output-rank witness frequencies
