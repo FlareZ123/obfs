@@ -904,3 +904,43 @@ for(const [name,loop] of /** @type {[string,string][]} */([
     assert.equal(compiled.crossFile.properties,0,name);
   });
 }
+
+
+/**
+ * Test loop heads with a direct identifier binding, including the assignment
+ * form that lacks a VariableDeclaration node.
+ */
+for(const [name,loop] of /** @type {[string,string][]} */([
+  ['for-of declared identifier',[
+    'let ctor;',
+    'for(const callback of [getFactory])',
+    '  ctor=await Promise.resolve().then(callback);'
+  ].join('\n')],
+  ['for-await-of declared identifier',[
+    'let ctor;',
+    'for await(const callback of [getFactory])',
+    '  ctor=await Promise.resolve().then(callback);'
+  ].join('\n')],
+  ['for-of assignment identifier',[
+    'let ctor; let callback;',
+    'for(callback of [getFactory])',
+    '  ctor=await Promise.resolve().then(callback);'
+  ].join('\n')]
+])) {
+  test('loop-carried direct callback via '+name+' preserves remote object keys',async()=>{
+    const files=graph([
+      'function getFactory(){return globalThis.RUNTIME_FACTORY;}',
+      loop,
+      'const remote=await ctor("return import(\'./state.mjs\')")();',
+      "const result=[inspectRecord('auditCount').value,Object.keys(remote.state),remote.state.secretField];"
+    ].join('\n'));
+    const native=await execute(files,true);
+    assert.equal(native,'[41,[3,["secretField"],41]]\n');
+    const compiled=obfuscateFiles(files,{
+      mode:'coo',closedWorld:true,seed:'host-loop-direct/'+name,
+      identifiers:false,strings:false,properties:true
+    });
+    assert.equal(await execute(compiled.files,true),native,name);
+    assert.equal(compiled.crossFile.properties,0,name);
+  });
+}
