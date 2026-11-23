@@ -222,3 +222,38 @@ The source-pinned [four-bit exhaustive census 45089806133](https://github.com/Fl
 The basic concept of a Boolean scalar linear structure is standard in the Boolean-function literature. The contribution here is the explicit constructive **subspace-independent existence and arbitrary-greedy-extendability statement for this two-sided affine-compatible family**. Its relationship to existing equivalent formulations and its external novelty have not been independently reviewed. It is a structural observation relevant to falsifying claimed hardness of this candidate class, not a practical polynomial-query oracle attack and not a release claim.
 
 **Next unresolved problem:** Find a reliable public-oracle method to identify *globally valid* masks (or prove a query lower bound) under arbitrary compatible gates, including rare prefix gates intentionally absent from finite calibration samples. The source-separated portfolio attacks some dense and sparse controlled populations but has no universal completeness guarantee. The primary strong-protection release remains **RELEASE-BLOCKED**.
+
+
+## Mixed dense-plus-rare gate stress: falsified attack-failure hypothesis
+
+**Executable source:** 258128619e2a093b712ab26e7c61b5d3570b232e, [focused Ubuntu/Windows validation 45090722958](https://github.com/FlareZ123/obfs/actions/runs/45090722958) with strict project and external JSDoc. The preceding hypothesis-driven source pins [45090523208](https://github.com/FlareZ123/obfs/actions/runs/45090523208) and [45090595460](https://github.com/FlareZ123/obfs/actions/runs/45090595460) **failed their test assertion** because the predicted portfolio refusal boundary did not exist in this selected corpus. The failures were informative negative experimental outcomes, not compiler regressions. The revised source measures the observed result explicitly without changing the attacker.
+
+### The adverse hypothesis and controlled source
+
+A natural attempt to defeat both attack routes is to compose dense nonlinear triangular gates, which defeated the four-basis reanchor policy, with one additional extremely sparse gate on a high output bit, which defeated the standalone learner in a mostly affine source. The source-private fixture makeMixedRareDenseOracle in sims/affine-flag-oracle-fixtures.js implements precisely that:
+
+1. Start from one of eight previously tested 32-bit dense compatible triangular permutations with independently generated invertible affine input and output maps.
+2. XOR an additional source-coordinate bit-27 output gate when the **27 lower source input bits** equal a private 27-bit prefix. The resulting map is still a compatible triangular bijection, since bit 27 is changed only as a function of strictly lower bits.
+3. Independently select two exact source inputs: a **rare target** inside that gate support, and a **matched ordinary control** differing in the lowest source input bit, outside the support. Fixture assertions verify that the rare result differs from the unchanged dense baseline and that the ordinary result equals the baseline. These baseline and secret source details never enter the attacker callback.
+4. Try the existing fast reanchor plus sampled-flag portfolio, exactly as in the earlier mixed-population attack, using only selected forward oracle calls.
+
+The initial hypothesis predicted that a dense background would block quick reanchoring, while the additional rare bit would escape sampled flag training and cause target refusal. The test deliberately asserted at least six rare refusals. The full Ubuntu and Windows runs **rejected that hypothesis**, and the later diagnostic revealed why: the attacker succeeded via the differential-flag route on **every** rare and control target.
+
+### Exact observed outputs
+
+    AFFINE_FLAG_MIXED_ROBUSTNESS {
+      "sources":8,
+      "rareRefused":0,
+      "rareRecovered":8,
+      "controlRecovered":8,
+      "controlRefused":0,
+      "chosenQueries":149805,
+      "maxQueries":9431,
+      "gatePrefixBits":27
+    }
+
+Every one of the sixteen output records used the sampled-flag route after the fast reanchor route failed its four bases. All **16/16** exact secret preimages passed direct source-private equality tests. The combined count **149,805** is the sum of distinct source-specific oracle calls for rare and ordinary targets, each invocation using its own shared two-route cache; maximum per invocation was 9,431. The rarity is an exact support density of 2^-27 in source coordinates, not a claim about sampled Cryptographic PRF behavior.
+
+**Interpretation and limitation:** The general derivative theorem explains why a legitimate hidden flag remains globally correct regardless of arbitrary strictly lower-bit gates. Once the current input subspace has zero variation in the lower source bits of an output component, a gate depending only on those bits cancels in all directional derivatives. The selected dense baseline evidently provided enough differentiation for the sampled learner to find useful valid masks despite not necessarily seeing the rare prefix in calibration. This is a plausible structural explanation, not an independently verified claim that every learned mask in these eight instances was globally valid. The exact target checks show that the returned preimages are correct.
+
+The result does not establish that all mixed rare/dense arrangements will succeed, nor does it falsify the earlier **8/8** standalone learner failures on the separate sparse sources. It prevents a misleading claim of defense robustness based on simply superposing one rare high-bit gate on this particular dense source family. It supplies no full source reconstruction, no generic black-box inversion proof, no protected-artifact benchmark and no obfuscation-security advantage. The project remains **RELEASE-BLOCKED**.
