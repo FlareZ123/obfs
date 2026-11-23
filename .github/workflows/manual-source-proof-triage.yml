@@ -29,6 +29,8 @@ jobs:
         env:
           CHROMIUM_BIN: google-chrome
         run: node test/domparser-webidl-source-browser.js
+      - name: Strict external proof and adversarial JSDoc
+        run: npm run typecheck:external
       - name: Inspect inert-clone group versus local owner proofs
         run: node sims/inert-clone-source-triage.js
       - name: Direct declaration reader interprocedural proof and native ESM differential
@@ -51,5 +53,3 @@ jobs:
         run: node sims/source-island-session-profile.js
       - name: Strict JSDoc proof implementation
         run: npm run typecheck
-      - name: Strict external proof and adversarial JSDoc
-        run: npm run typecheck:external
