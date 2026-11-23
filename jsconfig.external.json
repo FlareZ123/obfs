@@ -273,7 +273,9 @@
     "sims/cross-file-parse-ab.js",
     "test/cross-file-parse-cache-lifetime.test.js",
     "sims/triangular-conjugate-order.js",
-    "test/triangular-conjugate-order.test.js"
+    "test/triangular-conjugate-order.test.js",
+    "sims/triangular-random-order-law.js",
+    "test/triangular-random-order-law.test.js"
   ],
   "exclude": [
     "node_modules"
