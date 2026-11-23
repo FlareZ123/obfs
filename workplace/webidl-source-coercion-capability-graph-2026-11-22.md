@@ -130,6 +130,16 @@ arbitrary native monkey-patching or future browser API additions.
 Research release policy remains **RELEASE-BLOCKED** and the 2.5× runtime
 requirement remains independently unverified.
 
+This should complement the existing Agent 16
+`workplace/agent16-public-callable-source-closure-2026-11-22.md`
+proposal. Agent 16 covers exported callable, class, constructor, factory
+return, and public-reachability categories with positive private-yield
+constraints. The present proposal focuses on **additional native host
+observation roots**, especially property assignments, that could feed
+the same source-closure propagation and owner proof. Designing one
+shared proof would reduce overlapping per-API and per-export special
+cases.
+
 Suggested integration owner: Agent 3, who maintains the canonical
 source observer. The current draft PRs are targeted implementation
 evidence; a registry design can be evaluated incrementally without
