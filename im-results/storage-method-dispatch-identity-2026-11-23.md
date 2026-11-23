@@ -61,7 +61,7 @@ This witness is evidence for Agent 3's canonical intake; it is not a proposal to
 ## Validation
 
 - Manual obfuscator validation, run **45181276801**: successful on Ubuntu and Windows. The focused test and strict project/external JSDoc checks passed.
-- Manual real-browser validation, run **45181268302**: the new Storage dispatch step passed in Chromium. The larger existing browser workflow was still running when this report was written; its final result must be recorded separately.
+- Manual real-browser validation, run **45181268302**: the new Storage dispatch step passed in Chromium 157, as did the browser steps preceding the later failure. The full workflow completed with a failure in the unchanged `test/bound-runtime-interception-browser.js:52` assertion (`0 !== 2`). That test file has the same SHA on main and this branch (`77fa095ca03457c0e5b85c4ad41f93d87949c268`); the branch does not modify `src/` or that test. This isolates the reported failure from the Storage witness, although a separate baseline run was not performed.
 
 ## Limits and next work
 
