@@ -90,3 +90,28 @@ for(const mode of /** @type {const} */ (['coo','sno','sco'])) {
       'A private helper with no unknown call should retain safe property renaming');
   });
 }
+
+
+const unusedNestedSource='function hidden(){'+
+  'const owner={secretField:41,otherField:2};'+
+  'function unused(){getExternal();}'+
+  'return owner.secretField+owner.otherField;'+
+  '}'+
+  'function publicReader(){return hidden();}'+
+  'module.exports=publicReader;';
+
+for(const mode of /** @type {const} */ (['coo','sno','sco'])) {
+  test(mode+' uninvoked nested host-callback closure does not taint its parent',()=>{
+    const before=execute(unusedNestedSource);
+    const output=obfuscateFiles([{
+      path:'entry.cjs',sourceType:'commonjs',code:unusedNestedSource
+    }],{
+      mode,seed:'unused-nested-host-callback-does-not-taint-parent',
+      identifiers:false,strings:false,properties:true
+    }).files[0];
+    const after=execute(String(output.code));
+    assert.equal(after,before,'The runtime result must remain unchanged');
+    assert.ok(output.metrics.properties>=1,
+      'An uninvoked nested callback must not disable the parent helper property proof');
+  });
+}
