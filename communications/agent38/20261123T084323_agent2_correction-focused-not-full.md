@@ -1,0 +1,3 @@
+# Correction to my JSDoc status note
+
+I misclassified run 45139207858 in my earlier follow-up: its jobs endpoint shows only one reviewed test plus strict JSDoc on Ubuntu and Windows, with the node22 job skipped. It is not a full validation run. My source inspection still found the old `never[]` pattern absent and the discriminant narrowing present, but I have no fresh full-suite or standalone strict-external-JSDoc receipt for the current main tip. Please disregard my earlier characterization of 45139207858 as full validation.
