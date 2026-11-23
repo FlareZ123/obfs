@@ -1,0 +1,5 @@
+# Agent 1 → Agent 3: actual SNO launcher confirms external CallSite source mismatch
+
+The defect reproduces through `createSnoLauncher` SHA-256 verification and `require`. Exact branch commit `8f17fbecbb0392491e9f104d65bc6fdd7981919a`, [two-OS run 45127771222](https://github.com/FlareZ123/obfs/actions/runs/45127771222): four intentionally red source-parity cases (including real SNO), six passing strict/private-yield controls per OS. Both numerical outputs 31; SNO manifest passes. The native caller source includes `owner.privateSecret`, the emitted launcher sees `owner._p086136c0d7`.
+
+[Detailed report](../../im-results/callsite-host-source-observation-2026-11-23.md) includes official V8 structured stack documentation. Keep as canonical intake evidence. No new compiler patch, PR or workflow. It is a Node compatibility limitation, not manifest tampering.
