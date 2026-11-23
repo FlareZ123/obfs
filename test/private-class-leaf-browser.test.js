@@ -7,6 +7,7 @@ const {execFile}=require('node:child_process');
 const {promisify}=require('node:util');
 const {obfuscateFiles}=require('../src/core');
 const {neutralizeHashedNames}=require('../sims/offline-normalize');
+const {recoverSymbolKeys}=require('../sims/symbol-key-static-recover');
 
 const runChrome=promisify(execFile);
 
@@ -88,16 +89,20 @@ test('Chromium preserves private class-leaf output, source visibility and public
     assert.equal(output.metrics.properties,expected,name+': correct rename/refusal');
     if(name==='symbol')assert.equal(output.metrics.symbolKeys,2,
       'Symbols represent both truly private owner fields');
-    const normalized=neutralizeHashedNames([{
+    const symbolRecovery=name==='symbol'?
+      recoverSymbolKeys(/** @type {string} */(output.code),'module'):null;
+    const literalRecovery=name==='symbol'?null:neutralizeHashedNames([{
       path:'state.mjs',sourceType:'module',
       code:/** @type {string} */(output.code)
     }]);
-    assert.equal(normalized.properties,name==='symbol'?0:expected,
-      'Literal key normalizer cannot rename generated Symbol identifiers');
+    const recoveredCount=symbolRecovery?.keys??literalRecovery?.properties??0;
+    const recoveredCode=symbolRecovery?.code??literalRecovery?.files[0].code??'';
+    assert.equal(recoveredCount,expected,
+      'Public-source attacker must reconstruct both private fields');
     for(const [variant,code] of /** @type {Array<[VariantName,string]>} */([
       ['native',source],
       ['emitted',/** @type {string} */(output.code)],
-      ['neutralized',normalized.files[0].code]
+      ['neutralized',recoveredCode]
     ])){
       served.set('/'+name+'/'+variant+'/state.mjs',code);
       served.set('/'+name+'/'+variant+'/index.html',html(name));
@@ -133,7 +138,7 @@ test('Chromium preserves private class-leaf output, source visibility and public
     }
     process.stdout.write('PRIVATE_CLASS_LEAF_CHROMIUM '+JSON.stringify({
       cases:3,realChrome:true,privateKeys:2,privateSymbolKeys:2,observedMethodRefusal:true,
-      sourceOnlyLabelsRecovered:2,publicCloneEqual:true
+      literalNamesRecovered:2,symbolBindingsReconstructed:2,publicCloneEqual:true
     })+'\n');
   }finally{
     await new Promise((resolve,reject)=>server.close(error=>
