@@ -444,9 +444,9 @@ test('generated source reconstruction refuses an ESM export alias to a different
         'default:throw Error("unreachable");'+
       '}'+
     '}';
-  const source=names.map(generated).join('\\n')+
-    '\\nfunction alternate(input){return -123;}'+
-    '\\nexport {alternate as round1,round2,round3};';
+  const source=names.map(generated).join('\n')+
+    '\nfunction alternate(input){return -123;}'+
+    '\nexport {alternate as round1,round2,round3};';
   const actual=await import('data:text/javascript;charset=utf-8,'+encodeURIComponent(source));
   assert.equal(actual.round1(0),-123);
   assert.equal(actual.round2(0),-123);
