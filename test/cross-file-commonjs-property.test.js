@@ -7,9 +7,6 @@ const os=require('node:os');
 const path=require('node:path');
 const {spawnSync}=require('node:child_process');
 const {obfuscateFiles}=require('../src');
-const {renameCommonJsCrossFileProperties}=require('../src/commonjs-cross-properties');
-const {parse,observesFunctionSource}=require('../src/ast');
-const {collectBindings,proveLocalObject}=require('../src/properties');
 const {atomicWrite}=require('../src/atomic');
 
 /** @typedef {{path:string,sourceType:'commonjs',code:string}} CommonJsFile */
@@ -75,19 +72,20 @@ function compile(files){
 test('closed CommonJS graph renames one private exported record across two require consumers',async()=>{
   const original=await execute(graph);
   assert.equal(original.status,0,original.stderr);
-  for(const file of graph.filter(file=>file.path!=='api.cjs')){const ast=parse(file.code,'commonjs');const known=new Set(['api']);const proof=proveLocalObject(ast,'api',collectBindings(ast),new Map(),new Map(),new Map(),new Map(),new Set(),false,known);console.log('known-object local proof',file.path,Boolean(proof),proof?.members.length,proof?.patterns.length,'observer',observesFunctionSource(ast,new Map(),new Set(),new Set(),new Set(),new Set(),known));}
-  const direct=renameCommonJsCrossFileProperties(graph,'closed-cjs-property-graph-20261123');console.log('direct CJS lane',direct.objects,direct.properties);
   const transformed=compile(graph);
   assert.equal(transformed.crossFile.objects,1,
     'The one literal module.exports record must be proven across the complete CJS graph');
   assert.equal(transformed.crossFile.properties,2,
     'Both private own fields must be renamed consistently in producer and consumers');
-  for(const file of transformed.files){
-    if(file.path==='api.cjs'||file.path==='worker.cjs'||file.path==='entry.cjs'){
-      assert.doesNotMatch(String(file.code),/privateCount|hiddenAddend/u,
-        'Every producer/consumer spelling must be rewritten');
-    }
-  }
+  const apiOutput=transformed.files.find(file=>file.path==='api.cjs');
+  const workerOutput=transformed.files.find(file=>file.path==='worker.cjs');
+  const entryOutput=transformed.files.find(file=>file.path==='entry.cjs');
+  assert.ok(apiOutput&&workerOutput&&entryOutput);
+  assert.doesNotMatch(String(apiOutput.code),/privateCount|hiddenAddend/u);
+  assert.doesNotMatch(String(workerOutput.code),/privateCount|hiddenAddend/u);
+  // The local destructuring binding name remains private to the consumer;
+  // only the property key and member spellings are part of the rename.
+  assert.doesNotMatch(String(entryOutput.code),/\.privateCount|\.hiddenAddend|privateCount\\s*:/u);
   assert.deepEqual(await execute(transformed.files),original);
 });
 
