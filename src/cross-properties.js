@@ -1697,41 +1697,91 @@ function safeClosedCallerRecordRead(modules,module,member,ancestors) {
               node.type==='AssignmentExpression'?node.right:null;
             if(!binding||!value)return;
             if(binding.type==='ObjectPattern'||binding.type==='ArrayPattern') {
-              // An inline literal, nested pattern or default can deliver a
-              // host callback without an intermediate named holder.
-              // Conservatively join every target if any source slot may
-              // contain the callback. Pattern traversal excludes RHS names.
-              /** @type {(AstNode|null)[]} */
-              const pending=[binding];
-              /** @type {string[]} */
-              const boundNames=[];
-              let hostDefault=false;
-              while(pending.length) {
-                const target=pending.pop();
-                if(!target)continue;
+              /**
+               * @param {AstNode|null|undefined} target
+               * @returns {void}
+               */
+              function taintPattern(target) {
+                if(!target)return;
                 if(target.type==='Identifier') {
-                  boundNames.push(target.name);
+                  if(!callableNames.has(target.name)) {
+                    callableNames.add(target.name);
+                    aliasChanged=true;
+                  }
                 }else if(target.type==='AssignmentPattern') {
-                  if(holdsFactoryValue(target.right,0))hostDefault=true;
-                  pending.push(target.left);
+                  taintPattern(target.left);
                 }else if(target.type==='RestElement') {
-                  pending.push(target.argument);
+                  taintPattern(target.argument);
+                }else if(target.type==='ArrayPattern') {
+                  for(const item of target.elements)taintPattern(item);
                 }else if(target.type==='ObjectPattern') {
                   for(const property of target.properties)
-                    pending.push(property.type==='Property'?property.value:
+                    taintPattern(property.type==='Property'?property.value:
                       property.type==='RestElement'?property.argument:null);
+                }
+              }
+              /**
+               * Propagate a known own-data literal field through its matching
+               * binding. Unknown sources and missing own keys can invoke host
+               * accessors, so refuse every candidate target in those cases.
+               * Array patterns also invoke externally mutable @@iterator.
+               * @param {AstNode|null|undefined} target
+               * @param {AstNode|null|undefined} candidate
+               * @param {number} depth
+               * @returns {void}
+               */
+              function tracePattern(target,candidate,depth) {
+                if(!target)return;
+                if(depth>24){taintPattern(target);return;}
+                if(target.type==='Identifier') {
+                  if(holdsFactoryValue(candidate,0))taintPattern(target);
+                }else if(target.type==='AssignmentPattern') {
+                  if(holdsFactoryValue(target.right,0))taintPattern(target.left);
+                  tracePattern(target.left,candidate,depth+1);
+                }else if(target.type==='RestElement') {
+                  if(holdsFactoryValue(candidate,0))taintPattern(target.argument);
                 }else if(target.type==='ArrayPattern') {
-                  pending.push(...target.elements);
+                  // Destructuring consults @@iterator even on a local array
+                  // literal, so a host can replace an apparently inert slot.
+                  if(returnedHostFactories.size || holdsFactoryValue(candidate,0))
+                    taintPattern(target);
+                  else for(const element of target.elements)
+                    tracePattern(element,null,depth+1);
+                }else if(target.type==='ObjectPattern') {
+                  const inertOwnLiteral=candidate?.type==='ObjectExpression' &&
+                    candidate.properties.every((/** @type {AstNode} */ own)=>
+                      own.type==='Property' && own.kind==='init' &&
+                      !own.method && !own.computed &&
+                      staticName(own.key)!==null && staticName(own.key)!=='__proto__');
+                  if(!inertOwnLiteral) {
+                    if(returnedHostFactories.size || holdsFactoryValue(candidate,0))
+                      taintPattern(target);
+                    return;
+                  }
+                  for(const property of target.properties) {
+                    if(property.type==='RestElement') {
+                      if(holdsFactoryValue(candidate,0))taintPattern(property.argument);
+                      continue;
+                    }
+                    if(property.type!=='Property') {
+                      taintPattern(target);
+                      continue;
+                    }
+                    const key=property.computed?null:staticName(property.key);
+                    if(key===null) {
+                      taintPattern(property.value);
+                      continue;
+                    }
+                    /** @type {AstNode|null} */
+                    let ownValue=null;
+                    for(const own of candidate.properties)
+                      if(staticName(own.key)===key)ownValue=own.value;
+                    if(ownValue)tracePattern(property.value,ownValue,depth+1);
+                    else taintPattern(property.value);
+                  }
                 }
               }
-              const sourceMayHold=value.type==='Identifier'?
-                callbackHolders.has(value.name):holdsFactoryValue(value,0);
-              if(sourceMayHold||hostDefault)for(const name of boundNames) {
-                if(!callableNames.has(name)) {
-                  callableNames.add(name);
-                  aliasChanged=true;
-                }
-              }
+              tracePattern(binding,value,0);
             }
             if(binding.type!=='Identifier')return;
             // An ordinary local alias of a mutable holder shares its
