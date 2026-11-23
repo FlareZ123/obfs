@@ -81,13 +81,21 @@ function solveLinear(equations,width) {
  * @param {number} width Integer in [1,32]
  * @param {number} degree Claimed maximum ANF degree in [1,width]
  * @param {number} [queryBudget] Maximum distinct oracle queries
- * @returns {{input:number,queries:number,dimensionCounts:number[]}|null}
+ * @param {{maxResidualDimension?:number}} [options] Optional exact coset
+ *   fallback if no affine output relation exists at dimension <=16.
+ * @returns {{input:number,queries:number,dimensionCounts:number[],
+ *   exactResidualDimension?:number,exactResidualExtraQueries?:number}|null}
  */
-function invertBoundedDegree(oracle,target,width,degree,queryBudget=300000) {
+function invertBoundedDegree(oracle,target,width,degree,queryBudget=300000,options={}) {
   if(typeof oracle!=='function'||!Number.isInteger(width)||width<1||
       width>32||!Number.isInteger(degree)||degree<1||degree>width||
       !Number.isSafeInteger(queryBudget)||queryBudget<1) {
     throw new RangeError('Expected forward oracle, width, degree and positive budget');
+  }
+  const maxResidualDimension=options.maxResidualDimension??0;
+  if(!Number.isInteger(maxResidualDimension)||
+     maxResidualDimension<0||maxResidualDimension>16) {
+    throw new RangeError('maxResidualDimension must be an integer from 0 through 16');
   }
   const mask=width===32?0xffffffff:(2**width-1)>>>0;
   if(!Number.isSafeInteger(target)||target<0||target>mask){
@@ -162,7 +170,27 @@ function invertBoundedDegree(oracle,target,width,degree,queryBudget=300000) {
       functional=solveLinear([...homogeneous,{mask:difference,rhs:1}],width);
       if(functional!==null)break;
     }
-    if(functional===null)return null;
+    if(functional===null) {
+      if(dimension>maxResidualDimension)return null;
+      // The affine flag stopped at this coset, but its small finite domain can
+      // be inverted exactly by enumeration. Every candidate is checked with
+      // the ORIGINAL forward oracle, and already sampled points are cached.
+      // This also works for a genuinely nontriangular residual permutation.
+      const priorQueries=cache.size;
+      for(let subset=0;subset<2**dimension;subset++) {
+        let candidate=base;
+        for(let bit=0;bit<dimension;bit++) {
+          if((subset>>>bit)&1)candidate=(candidate^basis[bit])>>>0;
+        }
+        if(F(candidate)===((target&mask)>>>0)) {
+          dimensionCounts.push(cache.size-before);
+          return {input:candidate,queries:cache.size,dimensionCounts,
+            exactResidualDimension:dimension,
+            exactResidualExtraQueries:cache.size-priorQueries};
+        }
+      }
+      return null;
+    }
 
     const coefficients=differences.map(delta=>parity(functional&delta));
     const pivotIndex=coefficients.findIndex(Boolean);
