@@ -370,3 +370,38 @@ test('exact-residual option refuses unbounded or invalid enumeration',()=>{
       {maxResidualDimension:bad}),/maxResidualDimension/);
   }
 });
+
+test('small-residual enumeration respects the exact original-oracle query cap',()=>{
+  // The three-bit S-box has no nonconstant affine output parity.
+  // A degree-two certificate queries all seven subsets of weight <=2.
+  // The missing eighth point requires exactly one additional actual F call.
+  const table=[0,1,2,4,3,6,7,5];
+  /** @param {number} input @returns {number} */
+  const F=input=>table[input];
+  const target=F(7);
+  let calls=0;
+  /** @param {number} input @returns {number} */
+  const observed=input=>{calls++;return F(input);};
+
+  assert.throws(()=>invertBoundedDegree(observed,target,3,2,7,
+    {maxResidualDimension:3}),/query budget/,
+  'An opted-in fallback may not bypass the original oracle quota');
+  assert.equal(calls,7);
+  calls=0;
+  const result=invertBoundedDegree(observed,target,3,2,8,
+    {maxResidualDimension:3});
+  assert.ok(result);
+  assert.equal(result.input,7);
+  assert.equal(result.queries,8);
+  assert.equal(calls,8);
+  assert.equal(result.exactResidualDimension,3);
+  assert.equal(result.exactResidualExtraQueries,1);
+});
+
+test('exact residual search refuses a target absent from a nonpermutation oracle',()=>{
+  /** @param {number} input @returns {number} */
+  const F=input=>input*0;
+  const result=invertBoundedDegree(F,1,3,2,8,
+    {maxResidualDimension:3});
+  assert.equal(result,null,'Enumeration requires source-forward target equality');
+});
