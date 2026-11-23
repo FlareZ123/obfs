@@ -2922,6 +2922,12 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
       // whether their values represent a runtime Error.
       if (['stack','captureStackTrace','prepareStackTrace','stackTraceLimit',
            'lineno','colno'].includes(name??'')) observed=true;
+      // A computed unknown key on a known Error may be "stack", even when
+      // the spelling is assembled at runtime (for example via Array#join).
+      // The field's captured line/column is source-sensitive regardless of
+      // whether the Error object or the key itself escapes the module.
+      if(node.computed && name===null && containsStackError(node.object))
+        observed=true;
       // The special sloppy arguments.callee alias reaches the currently
       // executing function even without any same-spelled lexical identifier.
       // Thus a direct-call-only private helper may export its exact source
