@@ -109,3 +109,39 @@ test('top-level async arrow cannot borrow ordinary function arguments ownership'
     {seed:'agent35-async-arrow-arguments',privateNames:['protectedOp']}
   ),/unproved unqualified free reference: arguments/u);
 });
+
+
+test('audited dependency checks evaluated parameter defaults before body-var bindings',()=>{
+  const entry='import {leaf} from "./private/leaf.mjs";'+
+    'export async function protectedOp(){return leaf();}'+
+    'export function publicOp(){return 0;}';
+  const leaves=[
+    'export function leaf(value=externalBridge){return value;}',
+    'export function leaf(value=externalBridge){var externalBridge=41;return value;}',
+    'export function leaf({[externalBridge]:value}={}){return value;}',
+    'export function leaf({value=externalBridge}={}){return value;}'
+  ];
+  for(const leaf of leaves){
+    assert.throws(()=>partitionScoSelectedAsyncExports(
+      {path:'mixed.mjs',sourceType:'module',code:entry},
+      {seed:'agent35-static-dependency-evaluated-formals',privateNames:['protectedOp'],
+        privateModuleImports:['./private/leaf.mjs'],
+        privateModuleSources:[{path:'private/leaf.mjs',code:leaf}]}
+    ),/unproved unqualified free reference/u,leaf);
+  }
+});
+
+test('audited dependencies keep own catch, loop and var bindings distinct',()=>{
+  const safe=[
+    'try{throw 41;}catch(externalBridge){return externalBridge;}',
+    'for(let externalBridge=41;externalBridge<42;externalBridge++){return externalBridge;}return 0;',
+    'var externalBridge=41;return externalBridge;',
+    'switch(1){case 1:{let externalBridge=41;return externalBridge;}default:return 0;}',
+    'function nested(){var externalBridge=41;return externalBridge;}return nested();'
+  ];
+  for(const body of safe){
+    const compiled=compile(body,true);
+    assert.deepEqual(compiled.privateNames,['protectedOp']);
+    assert.doesNotMatch(compiled.clientFile.code,/externalBridge/u);
+  }
+});
