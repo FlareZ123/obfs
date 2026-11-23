@@ -495,3 +495,23 @@ Continue useful research until the lease age measured by runtime reaches at leas
 - Update draft PR #334 with this latest eight-test evidence. The prior
   seven-test run remains valid but is superseded by the stronger non-execution
   control. This remains focused validation, not a full-suite/security release.
+
+
+### 23 November 2026 07:35 UTC: package-scope refinement
+
+- Replaced the blanket refusal of every emitted package.json with a
+  byte-for-byte source/output package-scope comparison for audited files.
+  Identical scopes without imports maps or name+exports self-reference are
+  accepted; added, removed or changed scopes, invalid metadata, imports maps
+  and self-reference scopes are refused. The existing SNO scope checker
+  continues to validate external ancestor scopes.
+- Added an end-to-end .js ESM control under an emitted type: module
+  package.json, entered through a CommonJS SNO launcher. Native and emitted
+  results both equal 116. The expanded suite now has nine tests.
+- Workflow 45132004860 at commit
+  29bf551030cd888400e863cd9d9486a0421f6554 succeeded on Ubuntu and Windows
+  Node 22.23.4: 9/9 tests, project JSDoc, external JSDoc and paired/complete
+  runtime-budget JSDoc all passed.
+- PR #334 and README/SECURITY/im-results were updated with the refined
+  package-scope contract. The PR remains draft; do not treat this focused
+  workflow as a full test-suite or SNO security-release result.
