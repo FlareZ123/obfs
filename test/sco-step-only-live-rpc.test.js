@@ -55,8 +55,36 @@ test('generated four-state SCO and matched ordinary esbuild-minified service yie
   assert.equal(result.networkSteps,result.queries+16);
 });
 
+test('generated five-state SCO and matched ordinary esbuild-minified service yield identical clones',async()=>{
+  const result=await runLiveStepVersionSpace(5,0x42f5a7c9,true);
+  assert.equal(result.states,5);
+  assert.equal(result.certified,true);
+  assert.equal(result.sourceDisclosed,false);
+  assert.equal(result.unauthorizedStatus,403);
+  assert.equal(result.publicResetExport,false);
+  assert.equal(result.knownContinuationExact,true);
+  assert.ok(result.queries>0&&result.queries<=128);
+  assert.equal(result.attackerModelCount,165888708);
+  assert.ok(result.attackerScanWork>0);
+  assert.ok(result.attackerEquivalenceChecks>=0);
+  assert.ok(result.attackerProductPairs>=0);
+  assert.ok(result.attackerElapsedMs>0&&result.attackerElapsedMs<15000);
+  assert.equal(result.attackerCandidateBytes,663554832);
+  assert.ok(result.attackerWorkspaceInitializationMs>0);
+  assert.equal(result.ordinaryControlRan,true);
+  assert.equal(result.ordinaryControlQueries,result.queries);
+  assert.equal(result.ordinaryControlExact,true);
+  assert.equal(result.ordinaryUnauthorizedStatus,403);
+  assert.ok(result.ordinarySourceBytes>0);
+  assert.ok(result.ordinaryMinifiedBytes>0);
+  assert.ok(result.ordinaryMinifiedBytes<result.ordinarySourceBytes);
+  assert.equal(result.attackerTranscriptMatched,true);
+  assert.equal(result.ordinaryControlNetworkSteps,result.ordinaryControlQueries+16);
+  assert.equal(result.networkSteps,result.queries+16);
+});
+
 test('invalid private SCO scenario parameters are refused without starting a service',async()=>{
-  await assert.rejects(()=>runLiveStepVersionSpace(5),RangeError);
+  await assert.rejects(()=>runLiveStepVersionSpace(6),RangeError);
   await assert.rejects(()=>runLiveStepVersionSpace(2,-1),RangeError);
   await assert.rejects(()=>runLiveStepVersionSpace(3,0x1234,true),RangeError);
 });
