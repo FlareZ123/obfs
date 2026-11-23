@@ -275,3 +275,22 @@ test('indirect global Function constructor must not expose renamed imported owne
   assert.equal(await execute(compiled.files),native);
   assert.equal(compiled.crossFile.properties,0);
 });
+
+for(const [name,mutation] of [
+  ['member alias from a sequence root',
+    'const host=(0,globalThis);const cap=host.Reflect;cap.ownKeys=globalThis.HOST_REFLECT;'],
+  ['computed member access from a sequence root',
+    'const cap=(0,globalThis)["Reflect"];cap.ownKeys=globalThis.HOST_REFLECT;']
+]){
+  test('indirect native member extraction '+name+' preserves ESM names',async()=>{
+    const original=sourceGraph(mutation);
+    const native=await execute(original);
+    assert.equal(native,'[41,1,["secretField"]]');
+    const compiled=obfuscateFiles(original,{
+      mode:'coo',closedWorld:true,seed:'ambient-native-member-'+name,
+      identifiers:false,strings:false,properties:true
+    });
+    assert.equal(await execute(compiled.files),native);
+    assert.equal(compiled.crossFile.properties,0);
+  });
+}
