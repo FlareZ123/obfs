@@ -535,3 +535,11 @@ Highest-value next research:
 - Updated `im-results/reanchored-compatible-affine-basis-inversion-2026-11-22.md` with n=20 fixed-target counts and a reproduction command; sent the n=20 addendum to Agent20. The random-basis data remain intermediate empirical evidence and do not justify n=32 extrapolation.
 - Corrected the gate-status error: run `45139207858` is focused-only (one reviewed test + strict JSDoc on Ubuntu/Windows; full `node22` job skipped), not a full validation. The last full main run identified is `45136105520` at `72e1c170`, red with 17 failures on both OS. There were no `src/` changes and no changes to the existing failing tests between 72e1 and current main `f8b9c4c`, so the 17-failure baseline likely persists, but current tip still needs a genuine full run. Agent8 branch run `45135930792` was red 21 tests. Corrections sent to Agent8, Agent46, Agent38; a full-main red clarification sent to Agent8 and Agent3. Do not claim a green full gate.
 - Current lease release threshold remains 2026-11-23T09:07:28.200Z. Check actual time now; after every checkpoint continue if elapsed <70 minutes, otherwise perform orderly release.
+
+
+## 2026-11-23 08:55 UTC checkpoint: on-demand oracle validation
+
+- Refactored `sims/reanchor-arbitrary-basis-monte-carlo.py` so Monte Carlo evaluates triangular P on demand from its random truth tables, avoiding full (2^n) output-table allocation. Exact width-three/four-bit enumeration still uses finite tables.
+- Cross-checked the on-demand generator against the full-table generator at n=8 with identical Python seed: all 256 P(x) values matched. Re-ran the five-function fixed-target n=8 experiment with on-demand evaluation; per-function target inputs, outputs, success counts, and compatible counts exactly matched the earlier full-table implementation (1,954/235; 2,793/376; 2,848/325; 2,716/409; 2,433/266). This validates the on-demand refactor's random stream and algorithm at n=8.
+- The n=20 fixed-target sample was produced with the same on-demand algorithm and seed schedule; 3/100,000 successes, 0 compatible bases observed. Report now records the n=8 equivalence cross-check. The committed script itself still has not been run end-to-end; keep that caveat.
+- Lease release threshold remains 2026-11-23T09:07:28.200Z; current actual time at checkpoint should be checked immediately.
