@@ -161,7 +161,8 @@ function isWebModuleAddress(address) {
 /** @param {unknown} value @returns {boolean} */
 function isImportMapSpecifiers(value) {
   return isImportMapRecord(value)&&Object.entries(value).every(([name,address])=>
-    name.length>0&&!/^(?:data|javascript|blob):/iu.test(name)&&
+    /^[A-Za-z0-9@._~\/$%+#?:-]+$/u.test(name)&&
+    !/^(?:data|javascript|blob):/iu.test(name)&&
     (address===null||typeof address==='string'&&isWebModuleAddress(address)));
 }
 
