@@ -120,15 +120,15 @@ async function captureClient(invoke,origin,token,input){
  * legitimate account token. The original protected function is never copied.
  * @param {string} origin
  * @param {string} method
- * @param {string} input
+ * @param {string[]} args
  * @param {string|undefined} token
  * @returns {Promise<Response>}
  */
-function postCaptured(origin,method,input,token){
+function postCaptured(origin,method,args,token){
   return fetch(origin+'/obfs/rpc',{
     method:'POST',
     headers:{'content-type':'application/json',...(token?{'x-demo-token':token}:{})},
-    body:JSON.stringify({method,args:[input]})
+    body:JSON.stringify({method,args})
   });
 }
 
@@ -187,17 +187,26 @@ test('real multi-module private SCO graph and equal-trust minified client allow 
     let replayed=0;
     for(let index=0;index<8;index++){
       const input=randomBytes(16).toString('hex');
-      const noToken=await postCaptured(sco.origin,scoObservation.wire.method,input,undefined);
+      const noToken=await postCaptured(sco.origin,scoObservation.wire.method,[input],undefined);
+      const noTokenOrdinary=await postCaptured(
+        ordinary.origin,normalObservation.wire.method,[input],undefined);
       assert.equal(noToken.status,403);
-      const scoResponse=await postCaptured(sco.origin,scoObservation.wire.method,input,token);
+      assert.equal(noTokenOrdinary.status,403);
+      const scoResponse=await postCaptured(sco.origin,scoObservation.wire.method,[input],token);
       const ordinaryResponse=await postCaptured(
-        ordinary.origin,normalObservation.wire.method,input,token);
+        ordinary.origin,normalObservation.wire.method,[input],token);
       assert.equal(scoResponse.status,200);
       assert.equal(ordinaryResponse.status,200);
       const a=await scoResponse.json();
       const b=await ordinaryResponse.json();
       assert.deepEqual(a,b);
       assert.match(a.value,/^[0-9a-f]{64}$/);
+      const scoAudit=await postCaptured(sco.origin,verifyMethod,[input,a.value],token);
+      const ordinaryAudit=await postCaptured(ordinary.origin,verifyMethod,[input,b.value],token);
+      assert.equal(scoAudit.status,200);
+      assert.equal(ordinaryAudit.status,200);
+      assert.deepEqual(await scoAudit.json(),{ok:true,value:true});
+      assert.deepEqual(await ordinaryAudit.json(),{ok:true,value:true});
       replayed++;
     }
     assert.equal(replayed,8);
@@ -205,7 +214,7 @@ test('real multi-module private SCO graph and equal-trust minified client allow 
       experiment:'sco-multimodule-equal-trust-online-relay',
       originalPrivateModules:3,distributedFacades:2,
       publicMinifier:'esbuild',successfulHeldOutRelays:replayed,
-      unauthorizedPostStatus:403,attackerExtractedKey:false,
+      unauthorizedPostStatus:403,privateKeyAbsentFromDistributedText:true,
       performanceClaim:'not-measured'
     }));
   }finally{
