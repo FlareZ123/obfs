@@ -59,6 +59,8 @@ const cases=[
   ['apply','', 'const proxied=wrap.apply(null,[reader]);'],
   ['bind with argument','', 'const proxied=wrap.bind(null,reader)();'],
   ['bound alias','const bound=wrap.bind(null);', 'const proxied=bound(reader);'],
+  ['bound call alias','const call=wrap.call.bind(wrap);', 'const proxied=call(null,reader);'],
+  ['bound apply alias','const apply=wrap.apply.bind(wrap);', 'const proxied=apply(null,[reader]);'],
   ['Reflect.apply','', 'const proxied=Reflect.apply(wrap,null,[reader]);'],
   ['Reflect.apply alias','const apply=Reflect.apply;', 'const proxied=apply(wrap,null,[reader]);']
 ];
