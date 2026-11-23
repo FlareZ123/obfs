@@ -9,10 +9,11 @@ const {fixtures}=require('./storage-value-coercion-fixtures');
 /** @type {Array<[keyof typeof fixtures,boolean,number]>} */
 const expectations=[
   ['ownToString',false,2],
-  // Current main conservatively treats the computed Symbol.toPrimitive write
-  // on a function as an unknown source-observing key and refuses the file.
+  // The computed Symbol.toPrimitive write remains an unknown source-observing key.
   ['ownSymbolToPrimitive',true,0],
-  ['directBypass',true,0]
+  ['directBypass',true,0],
+  ['prototypeOverride',false,2],
+  ['patchedFunctionToString',true,0]
 ];
 
 for(const [name,expectedObserved,minBindings] of expectations) {
