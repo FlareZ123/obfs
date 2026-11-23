@@ -65,7 +65,7 @@ The expanded test `test/agent3-to-primitive-source-observer-matrix.test.js` cont
 - **Run 45274361383:** same matrix plus unrelated-private-yield assertions passed on Ubuntu and Windows, including strict project and external JSDoc.
 - **Run 45274781741:** expanded 55-case matrix (including aliases, constructors, `.call/.apply/.bind`, and `Reflect.apply`) passed on Ubuntu and Windows, including strict project and external JSDoc.
 
-After adding the opaque-import escape rule, the 55-case numeric matrix passed both OS in run 45279091108. After the final opaque call/apply/bind alias extension, the existing `function-source-coercion-matrix`, `primitive-coercer-source-precision`, and `source-observer-coverage` suites passed both OS with strict JSDoc in runs 45280032778, 45280039344, and 45280045204. The nine-form external proxy-factory matrix passed both OS with strict JSDoc in 45279689540.
+After adding the opaque-import escape rule, the 55-case numeric matrix passed both OS in run 45279091108. The same 55-case matrix was rerun after the final opaque call/apply/bind alias extension and passed both OS with strict JSDoc in run 45280246940. After the final opaque call/apply/bind alias extension, the existing `function-source-coercion-matrix`, `primitive-coercer-source-precision`, and `source-observer-coverage` suites passed both OS with strict JSDoc in runs 45280032778, 45280039344, and 45280045204. The nine-form external proxy-factory matrix passed both OS with strict JSDoc in 45279689540.
 
 The candidate is on this branch only. No production change has been merged to `main`.
 
