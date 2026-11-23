@@ -13,6 +13,7 @@ const {invertBoundedDegree}=
   require('../sims/two-sided-affine-degree-inversion');
 
 const TOKEN='authorized-residual-sbox-study';
+const BASE_SBOX=[0,1,2,4,3,6,7,5];
 
 /**
  * Randomize the retained nonlinear S-box by independent input/output XOR
@@ -23,9 +24,8 @@ const TOKEN='authorized-residual-sbox-study';
 function makePrivateSource(){
   const offsets=randomBytes(2);
   const inputOffset=offsets[0]&7,outputOffset=offsets[1]&7;
-  const base=[0,1,2,4,3,6,7,5];
   const table=Array.from({length:8},(_,input)=>
-    base[input^inputOffset]^outputOffset);
+    BASE_SBOX[input^inputOffset]^outputOffset);
   const source=[
     'export async function protectedResidual(input){',
     'const OBFS_PRIVATE_SBOX='+JSON.stringify(table)+';',
@@ -128,6 +128,64 @@ async function learn(origin,method){
   return model;
 }
 
+
+/**
+ * Family-aware authorized learner: the public research grammar fixes the
+ * eight base entries; the server-private input/output XOR offsets are unknown.
+ * The transcript at inputs 0,1,2 distinguishes all 64 translated tables.
+ * @param {string} origin
+ * @param {string} method
+ * @returns {Promise<{inputOffset:number,outputOffset:number,queryCount:number}>}
+ */
+async function learnTranslatedFamily(origin,method){
+  /** @type {number[]} */
+  const values=[];
+  for(const input of [0,1,2]){
+    const response=await fetch(origin+'/obfs/rpc',{
+      method:'POST',headers:{
+        'content-type':'application/json','x-demo-session':TOKEN
+      },
+      body:JSON.stringify({method,args:[input]})
+    });
+    assert.equal(response.status,200);
+    /** @type {{ok?:unknown,value?:unknown}} */
+    const reply=await response.json();
+    assert.equal(reply.ok,true);
+    assert.ok(typeof reply.value==='number'&&
+      Number.isInteger(reply.value)&&reply.value>=0&&reply.value<8);
+    values.push(reply.value);
+  }
+  /** @type {Array<{inputOffset:number,outputOffset:number}>} */
+  const candidates=[];
+  for(let inputOffset=0;inputOffset<8;inputOffset++){
+    for(let outputOffset=0;outputOffset<8;outputOffset++){
+      if([0,1,2].every((input,index)=>
+        (BASE_SBOX[input^inputOffset]^outputOffset)===values[index])){
+        candidates.push({inputOffset,outputOffset});
+      }
+    }
+  }
+  assert.equal(candidates.length,1,
+    'Three source-family observations must identify a unique translation');
+  return {...candidates[0],queryCount:3};
+}
+
+/**
+ * Offline inversion after family-aware learning, with no private requests.
+ * @param {number} target
+ * @param {{inputOffset:number,outputOffset:number}} model
+ * @returns {number|null}
+ */
+function invertTranslatedFamily(target,model){
+  const low=target&7;
+  for(let input=0;input<8;input++){
+    if((BASE_SBOX[input^model.inputOffset]^model.outputOffset)===low){
+      return ((target&65528)|input)>>>0;
+    }
+  }
+  return null;
+}
+
 test('live SCO and equal-trust ordinary minified APIs admit the same residual offline inversion',async()=>{
   const {source,sourceSha256,inputOffset,outputOffset}=makePrivateSource();
   const original=await import('data:text/javascript,'+encodeURIComponent(source));
@@ -193,6 +251,13 @@ test('live SCO and equal-trust ordinary minified APIs admit the same residual of
     assert.equal(scoCalls,137);
     assert.equal(ordinaryCalls,137);
     assert.deepEqual(scoModel.coefficients,ordinaryModel.coefficients);
+    const scoFamily=await learnTranslatedFamily(scoOrigin,route[1]);
+    const ordinaryFamily=await learnTranslatedFamily(
+      plainOrigin,'protectedResidual');
+    assert.deepEqual(scoFamily,ordinaryFamily);
+    assert.deepEqual(scoFamily,{inputOffset,outputOffset,queryCount:3});
+    assert.equal(scoCalls,140);
+    assert.equal(ordinaryCalls,140);
 
     await close(scoServer);scoLive=false;
     await close(plainServer);plainLive=false;
@@ -204,6 +269,8 @@ test('live SCO and equal-trust ordinary minified APIs admit the same residual of
       const target=await original.protectedResidual(hidden);
       assert.equal(await ordinary.protectedResidual(hidden),target,
         'The equal-trust minified backend must match on held-out inputs');
+      assert.equal(invertTranslatedFamily(target,scoFamily),hidden);
+      assert.equal(invertTranslatedFamily(target,ordinaryFamily),hidden);
       for(const model of [scoModel,ordinaryModel]){
         /** @param {number} input @returns {number} */
         const offline=input=>evaluateBoundedDegreeModel(model,input);
@@ -214,12 +281,14 @@ test('live SCO and equal-trust ordinary minified APIs admit the same residual of
       }
     }
     assert.ok(withFallback>=2);
-    assert.equal(scoCalls,137);
-    assert.equal(ordinaryCalls,137);
+    assert.equal(scoCalls,140);
+    assert.equal(ordinaryCalls,140);
     process.stdout.write('OBFS_SCO_RESIDUAL_MATCHED '+JSON.stringify({
       sourceSha256,inputOffset,outputOffset,
-      authorizedRequestsPerService:137,heldoutTargets:hiddenInputs.length,
-      recoveredPerService:hiddenInputs.length,withFallback,
+      genericQueriesPerService:137,familyAwareQueriesPerService:3,
+      authorizedRequestsPerService:140,heldoutTargets:hiddenInputs.length,
+      recoveredPerService:hiddenInputs.length,familyRecoveredPerService:5,
+      withFallback,
       scoPrivateExecutions:scoCalls,ordinaryPrivateExecutions:ordinaryCalls,
       bothDeniedUnauthorized:true,bothStoppedBeforeInverse:true
     })+'\n');
