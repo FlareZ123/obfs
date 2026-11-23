@@ -47,3 +47,29 @@ test('named Promise rejection handler tracks Error.stack source across callback'
     await rm(root,{recursive:true,force:true});
   }
 });
+
+test('named Promise.then rejection handler is an Error-stack carrier',()=>{
+  const native='const owner={longPrivateFieldForSource:47};'+
+    'const value=owner.longPrivateFieldForSource;'+
+    "const key=['st','ack'].join('');"+
+    "function handler(caught){return {value,frame:caught[key].split('\\n')[1]}}"+
+    "export const observed=await Promise.reject(new Error('origin')).then(null,handler);";
+  const output=obfuscateFiles([{path:'entry.mjs',sourceType:'module',code:native}],{
+    mode:'coo',closedWorld:true,seed:'named-then-rejection-error-stack',
+    properties:true,identifiers:false,strings:false
+  }).files[0];
+  assert.equal(output.metrics.properties,0);
+});
+
+test('inline Promise.then rejection handler also protects Error.stack',()=>{
+  const native='const owner={longPrivateFieldForSource:47};'+
+    'const value=owner.longPrivateFieldForSource;'+
+    "const key=['st','ack'].join('');"+
+    "export const observed=await Promise.reject(new Error('origin')).then(null,"+
+    "caught=>({value,frame:caught[key].split('\\n')[1]}));";
+  const output=obfuscateFiles([{path:'entry.mjs',sourceType:'module',code:native}],{
+    mode:'coo',closedWorld:true,seed:'inline-then-rejection-error-stack',
+    properties:true,identifiers:false,strings:false
+  }).files[0];
+  assert.equal(output.metrics.properties,0);
+});
