@@ -12,6 +12,7 @@ const source=[
   '  const key="obfs-storage-source-observer";',
   '  localStorage.setItem(key,inspect);',
   '  sessionStorage.setItem(key,inspect);',
+  '  localStorage[key+"-named"]=inspect;',
   '  return {local:localStorage.getItem(key),session:sessionStorage.getItem(key),',
   '    value:inspect(),independent:independent()};',
   '}'
