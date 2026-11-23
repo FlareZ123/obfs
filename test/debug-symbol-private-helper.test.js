@@ -1,22 +1,22 @@
 'use strict';
 
 const {test}=require('node:test');
-const fs=require('node:fs/promises');
-const path=require('node:path');
 const {parse}=require('../src/ast');
 const {collectBindings,proveLocalObject}=require('../src/properties');
-const {symbolizeLocalProperties}=require('../src/symbol-properties');
 
-test('diagnose private Symbol helper proof',async()=>{
-  const source=await fs.readFile(path.join(__dirname,'../examples/symbol-keys/before.cjs'),'utf8');
-  const ast=parse(source,'commonjs');
-  const bindings=collectBindings(ast);
-  const proof=proveLocalObject(ast,'bag',bindings);
-  process.stdout.write('SYMBOL_PROOF '+JSON.stringify(proof?{
-    members:proof.members.map(m=>({start:m.start,end:m.end,computed:m.computed})),
-    patterns:proof.patterns.length,inChecks:proof.inChecks.length,
-    names:[...proof.memberNames.entries()].map(([m,n])=>[m.start,n])
-  }:null)+'\n');
-  const result=symbolizeLocalProperties(source,ast,{seed:'symbol-example-v1'});
-  process.stdout.write('SYMBOL_RESULT '+JSON.stringify({objects:result.objects,properties:result.properties,code:result.code})+'\n');
+const variants={
+  oneReader:'const bag={pulse:7,mask:3};function readPulse(){return bag.pulse;}module.exports=function calc(){return readPulse();};',
+  oneWriter:'const bag={pulse:7,mask:3};function writePulse(value){bag.pulse=value;}module.exports=function calc(x){writePulse(x);return 1;};',
+  oneScore:'const bag={pulse:7,mask:3};function privateScore(){return bag.pulse+bag.mask;}module.exports=function calc(){return privateScore();};',
+  readWrite:'const bag={pulse:7,mask:3};function readPulse(){return bag.pulse;}function writePulse(value){bag.pulse=value;}function readMask(){return bag.mask;}module.exports=function calc(x){const next=readPulse()+x;writePulse(next);return (readPulse()^readMask())|0;};'
+};
+
+test('diagnose private Symbol helper proof',()=>{
+  for(const [name,source] of Object.entries(variants)) {
+    const ast=parse(source,'commonjs');
+    const proof=proveLocalObject(ast,'bag',collectBindings(ast));
+    process.stdout.write('SYMBOL_VARIANT '+name+' '+JSON.stringify(proof?{
+      members:proof.members.length,patterns:proof.patterns.length,inChecks:proof.inChecks.length
+    }:null)+'\n');
+  }
 });
