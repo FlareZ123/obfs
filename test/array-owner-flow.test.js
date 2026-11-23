@@ -37,7 +37,8 @@ const positive=[
   'const first=holder[0];',
   'const second=holder[0];',
   'function read(v){return v.secretCount+v.privateDelta;}',
-  'module.exports=function score(input){return read(first)+second.secretCount*input+first.privateDelta;}'
+  'function privateScore(input){return read(first)+second.secretCount*input+first.privateDelta;}',
+  'module.exports=function score(input){return privateScore(input);}'
 ].join('\n');
 
 test('private one-slot array preserves owned-object property renaming in COO and SNO',()=>{
