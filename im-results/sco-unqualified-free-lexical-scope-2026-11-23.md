@@ -96,3 +96,9 @@ The following additional two-OS plus strict JSDoc workflows at **that same sourc
 - [Static dependency admission boundary 45275745030](https://github.com/FlareZ123/obfs/actions/runs/45275745030).
 
 All post-repair validations remain focused. The candidate still lacks a full current-main and Chromium compatibility receipt, attacker instrumentation evidence, and measured whole-session 2.5x hot-path ratio. This is an independently reproducible **correctness and compilation cost donor**, not a general strong-obfuscation acceptance.
+
+## Final syntactic boundary matrix
+
+A final **test-only** source `845e4c6a628eb8e7364348f71c325a22dc10ea83`, [run 45276519594](https://github.com/FlareZ123/obfs/actions/runs/45276519594), passed both Ubuntu/Windows focused workflows and typechecks. It expands the same-spelled public-export shadow controls to primitive **number/string/boolean/null** local `const` positives, while preserving negative refusals for **mutable `let` bindings**, object literals, callable locals, direct separated public references, and unrelated sibling bindings. The compiler source is unchanged from the native ESM parity and Chromium pins above.
+
+The bounded accepted set is intentionally narrower than all potentially safe lexical shadows. This extra refusal preserves correctness until a wider interprocedural identity, mutation and escape proof exists. No mainline strong-protection acceptance is implied.
