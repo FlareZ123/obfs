@@ -325,17 +325,20 @@ def exact_four_bit_witness():
                 is_lower_unitriangular(normalized, width)
             )
         standard_matrix = interpolant_matrix(values, anchor, standard, width)
-        standard_normalized = tuple(
-            apply_columns(standard_matrix, input_inverse[j])
-            for j in range(width)
-        )
+        standard_basis_compatible = False
+        if standard_matrix is not None:
+            standard_normalized = tuple(
+                apply_columns(standard_matrix, input_inverse[j])
+                for j in range(width)
+            )
+            standard_basis_compatible = is_lower_unitriangular(
+                standard_normalized, width
+            )
         per_anchor.append({
             "anchor": anchor,
             "common_ordered_bases": common,
             "compatible_ordered_bases": compatible,
-            "standard_basis_compatible": is_lower_unitriangular(
-                standard_normalized, width
-            ),
+            "standard_basis_compatible": standard_basis_compatible,
         })
     return {
         "width": width,
