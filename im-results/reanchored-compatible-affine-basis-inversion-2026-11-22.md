@@ -195,8 +195,9 @@ The reproducible script samples each triangular coordinate function $h_j$ unifor
 | 11 | 1 | 1,807 |
 | 12 | 1 | 917 |
 | 16 | 0 observed | 76 |
+| 20 | — | 3 |
 
-The compatibility-only and fixed-target columns use separate deterministic seed streams, as specified below. In the fixed-target runs, compatible-basis counts were 1,611, 253, 31, 0, 0, and 0 out of 100,000 for widths 8, 9, 10, 11, 12, and 16. Thus some non-compatible interpolants still reach the selected fixed target; success is accepted only after exact oracle equality. Across the five sampled functions, per-function fixed-target success rates ranged from 9.77%–14.24% (n=8), 6.05%–7.645% (n=9), 3.17%–4.43% (n=10), 1.26%–2.31% (n=11), 0.635%–1.15% (n=12), and 0.03%–0.135% (n=16). The 16-bit compatibility-only result is zero observed in 100,000 trials, not a zero-probability claim. These are empirical samples, not a theorem or a justified 32-bit extrapolation. The rapid decline shows that arbitrary uniform basis search is not yet a practical high-width attack; an adaptive basis/flag discovery method would be needed.
+The compatibility-only and fixed-target columns use separate deterministic seed streams, as specified below. In the fixed-target runs, compatible-basis counts were 1,611, 253, 31, 0, 0, and 0 out of 100,000 for widths 8, 9, 10, 11, 12, and 16; the n=20 fixed-target run also had 0 compatible bases observed. Thus some non-compatible interpolants still reach the selected fixed target; success is accepted only after exact oracle equality. Across the five sampled functions, per-function fixed-target success rates ranged from 9.77%–14.24% (n=8), 6.05%–7.645% (n=9), 3.17%–4.43% (n=10), 1.26%–2.31% (n=11), 0.635%–1.15% (n=12), and 0.03%–0.135% (n=16), and 0%–0.01% (n=20; 3 successes total). The 16-bit compatibility-only result is zero observed in 100,000 trials, not a zero-probability claim. These are empirical samples, not a theorem or a justified 32-bit extrapolation. The rapid decline shows that arbitrary uniform basis search is not yet a practical high-width attack; an adaptive basis/flag discovery method would be needed.
 
 The reported counts were generated in the local Python notebook using the same algorithms; the committed script is the reproducibility artifact and should be run end-to-end before treating its command outputs as independently reproduced.
 
@@ -210,6 +211,7 @@ python sims/reanchor-arbitrary-basis-monte-carlo.py compat --widths 4 5 6 7 --fu
 python sims/reanchor-arbitrary-basis-monte-carlo.py compat --widths 8 12 16 --functions 5 --trials 20000 --seed 20261124
 python sims/reanchor-arbitrary-basis-monte-carlo.py compat --widths 9 10 11 --functions 5 --trials 20000 --seed 20261126
 python sims/reanchor-arbitrary-basis-monte-carlo.py target-fixed --widths 8 9 10 11 12 16 --functions 5 --trials 20000 --seed 20261127
+python sims/reanchor-arbitrary-basis-monte-carlo.py target-fixed --widths 20 --functions 5 --trials 20000 --seed 20261128
 ~~~~
 
 **Disposition:** arbitrary-basis reanchoring weakens the four-bit fixed-coordinate negative control, but does not establish an efficient 32-bit chosen-query attack. Preserve this as intermediate evidence; do not promote the random-search observations to a general theorem.
