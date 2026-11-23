@@ -2055,7 +2055,8 @@ function renameCrossFileProperties(files,seed) {
         if(formal.type!=='ObjectPattern')continue;
         if(formal.properties.some((/** @type {AstNode} */ property)=>{
           const name=property.type==='Property'?ownPropertyName(property):null;
-          return name==='Reflect'||name==='Object';
+          return name==='Reflect'||name==='Object'||
+            name===null&&property.computed===true;
         }))unprovedNativeFormal=true;
       }
     });
