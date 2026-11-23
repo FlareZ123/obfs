@@ -387,6 +387,7 @@ async function assertNoCaseVariantPackageJsonAncestors(root,context) {
       throw new Error('SNO ESM bare dependency audit cannot model case-variant package.json ancestor in '+
         context+': '+path.join(directory,variant));
     }
+    if(entries.includes('package.json'))break;
     const parent=path.dirname(directory);
     if(parent===directory)break;
     directory=parent;
