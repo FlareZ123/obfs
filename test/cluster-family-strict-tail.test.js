@@ -94,6 +94,9 @@ test('missing workloads, unequal per-workload exposure, and invalid inputs refus
   const missing=family(2,2,1);
   missing[1].pairs.pop();
   assert.throws(()=>clusterFamilyStrictTail(missing),RangeError);
+  const mismatchedBlockSet=family(2,2,1);
+  mismatchedBlockSet[1].pairs[1].blockId='different-complete-block';
+  assert.throws(()=>clusterFamilyStrictTail(mismatchedBlockSet),RangeError);
   const unequal=family(2,2,1);
   unequal[0].pairs.push({native:10,candidate:10,blockId:'complete-block-0'});
   assert.throws(()=>clusterFamilyStrictTail(unequal),RangeError);
