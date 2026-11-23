@@ -4,6 +4,7 @@ const assert=require('node:assert/strict');
 const {test}=require('node:test');
 const {obfuscateFiles}=require('../src');
 const {parse,observesFunctionSource}=require('../src/ast');
+const {collectBindings,proveLocalObject}=require('../src/properties');
 
 const sameFile=[
   'function inspect(){const privateLocal=29;return privateLocal;}',
@@ -134,11 +135,15 @@ test('property pass keeps the Storage-observed owner stable while renaming an in
   });
   assert.ok(!String(baseline.files[0].code).includes('privateField'),
     'the same private owner must be renameable without a source-observer case');
+  const ast=parse(propertySource,'module');
+  const proof=proveLocalObject(ast,'privateOwner',collectBindings(ast));
+  console.log('PROPERTY_PROOF',JSON.stringify({sourceObserver:observesFunctionSource(ast),proof:!!proof,members:proof?.members.length??null}));
   const result=obfuscateFiles([{path:'entry.mjs',sourceType:'module',code:propertySource}],{
     mode:'coo',seed:'storage-property-owner-control',
     closedWorld:true,properties:true,identifiers:false,strings:false
   });
   const output=String(result.files[0].code);
+  console.log('PROPERTY_OUTPUT',JSON.stringify({metrics:result.files[0].metrics,output}));
   assert.ok(output.includes('secretField'),
     'the source-observed function owner must retain its property spelling');
   assert.ok(!output.includes('privateField'),
