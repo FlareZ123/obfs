@@ -263,8 +263,99 @@ function runTinyLayeredAnfAudit() {
   return {samples,byLayers};
 }
 
+/**
+ * Oracle-only exact ANF interpolation with a promised total degree bound.
+ * Query all and only Hamming-weight<=degree source positions, then derive
+ * each ANF coefficient by downward Boolean-Moebius inversion. No source,
+ * internal matrix, gate count proof, or hidden private state is read.
+ *
+ * @param {(input:number)=>number} oracle
+ * @param {number} degree
+ * @returns {{predict:(input:number)=>number,oracleCalls:number}}
+ */
+function tinyDegreeClone(oracle,degree) {
+  assert.ok(Number.isInteger(degree)&&degree>=0&&degree<=8);
+  const coefficients=Array(256).fill(0);
+  let oracleCalls=0;
+  for(let mask=0;mask<256;mask++) {
+    let cardinality=0;
+    for(let bit=0;bit<8;bit++)cardinality+=(mask>>>bit)&1;
+    if(cardinality>degree)continue;
+    let value=oracle(mask);
+    let subset=(mask-1)&mask;
+    while(subset!==mask){
+      value^=coefficients[subset];
+      subset=(subset-1)&mask;
+    }
+    coefficients[mask]=value;
+    oracleCalls++;
+  }
+  /** @param {number} input @returns {number} */
+  function predict(input) {
+    let result=0;
+    let subset=input;
+    while(true) {
+      result^=coefficients[subset];
+      if(subset===0)break;
+      subset=(subset-1)&input;
+    }
+    return result;
+  }
+  return {predict,oracleCalls};
+}
+
+/**
+ * Complete held-out clone check for affine-mixed compositions of independent
+ * quadratic rank-one shears, one Boolean AND per stage. All output
+ * coordinates have algebraic degree <= min(n,layers+1) by the standard
+ * multiplicative-complexity degree bound, independently verified by the
+ * full ANF audit. This is an executable attacker rather than a source-only
+ * prediction: it sees only the public function oracle and promised degree.
+ *
+ * @returns {{sourceFunctions:number,heldoutInputs:number,exactPredictions:number,
+ *   byLayers:{layers:number,queries:number,sourceFunctions:number,
+ *      heldoutInputs:number}[]}}
+ */
+function runTinyBoundedDegreeCloner() {
+  const byLayers=[];
+  let sourceFunctions=0,heldoutInputs=0,exactPredictions=0;
+  for(let layers=1;layers<=6;layers++){
+    const degree=Math.min(8,layers+1);
+    let queries=-1,localSources=0,localInputs=0;
+    for(let trial=0;trial<24;trial++){
+      const seed=(0x8a71c2be^Math.imul(layers,0x9e3779b1)^
+        Math.imul(trial+1,0x7f4a7c15))>>>0;
+      const oracle=tinyLayeredOracle(seed,layers);
+      const attack=tinyDegreeClone(oracle,degree);
+      queries=attack.oracleCalls;
+      for(let input=0;input<256;input++){
+        assert.equal(attack.predict(input),oracle(input));
+        if(input!==0&&input===255) {
+          // The all-ones input is not queried until degree reaches width.
+          assert.ok(degree===8||queries<256);
+        }
+        heldoutInputs++;localInputs++;exactPredictions++;
+      }
+      localSources++;sourceFunctions++;
+    }
+    const expected=Array.from({length:256},(_,mask)=>{
+      let weight=0;
+      for(let bit=0;bit<8;bit++)weight+=(mask>>>bit)&1;
+      return weight<=degree?1:0;
+    }).reduce((a,b)=>a+b,0);
+    assert.equal(queries,expected);
+    byLayers.push({layers,queries,sourceFunctions:localSources,
+      heldoutInputs:localInputs});
+  }
+  assert.equal(sourceFunctions,144);
+  assert.equal(heldoutInputs,144*256);
+  assert.equal(exactPredictions,heldoutInputs);
+  return {sourceFunctions,heldoutInputs,exactPredictions,byLayers};
+}
+
 if(require.main===module){
   process.stdout.write('LAYERED_LOWRANK_COMPOSITION '+
     JSON.stringify(runLayeredLowRankComposition())+'\n');
 }
-module.exports={makeLayeredOracle,runLayeredLowRankComposition,runTinyLayeredAnfAudit};
+module.exports={makeLayeredOracle,runLayeredLowRankComposition,
+  runTinyLayeredAnfAudit,runTinyBoundedDegreeCloner};
