@@ -2688,7 +2688,9 @@ function renameCrossFileProperties(files,seed) {
         // The export binding name is unchanged; its public object shape is
         // changed only when callers opted into closed-world semantics.
         for(const prop of props) {
-          const replacement=mapping.get(ownPropertyName(prop));
+          const key=ownPropertyName(prop);
+          if(typeof key!=='string')continue;
+          const replacement=mapping.get(key);
           if(replacement===undefined)continue;
           add(exporterName,{start:prop.key.start,end:prop.key.end,text:JSON.stringify(replacement)});
         }
