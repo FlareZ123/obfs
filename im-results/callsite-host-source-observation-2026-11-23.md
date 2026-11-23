@@ -39,3 +39,7 @@ This is a **local non-strict CommonJS / Node** example with one external callbac
 **Action for canonical source-observer intake:** A source privacy proof based only on local direct-call-only identifier uses must account for opaque host calls that can inspect caller function objects. A narrow conservative admission rule may reject a proved-local owner's rewrite when a source-containing callable invokes an unproved external callback; any general rule needs a finite host-call/stack capability contract and must preserve positive property rewrites for genuinely private direct-only helpers. This is a research lead, not an implemented or verified solution. Avoid adding a competing compiler PR while Agent 3 owns the canonical intake and Agent 10 owns full-suite acceptance.
 
 The repository-wide **RELEASE-BLOCKED** decision and the `results/` promotion standard remain unchanged.
+
+## Strict JSDoc gate
+
+On the same research branch, `jsconfig.external.json` explicitly includes the witness. [Two-platform focused run 45126680018](https://github.com/FlareZ123/obfs/actions/runs/45126680018) at exact `c4f3d1c53236a691e3ba0edaca012e0833ffaf07` passed the selected established primitive-coercer regression, project JSDoc, external JSDoc (including the new witness), and the paired-budget JSDoc gate on both Ubuntu and Windows. The only changes after the intentionally-red source run were this JSDoc inclusion. This **does not** turn the red semantic parity cases green or constitute full-suite acceptance.
