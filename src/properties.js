@@ -658,17 +658,17 @@ function proveLocalObject(ast, rootName, bindings, importedIdentityFunctions=new
     if (!(parent?.type === 'CallExpression' && key === 'callee')) unusableFunctions.add(node.name);
   }
   for (const name of unusableFunctions) functions.delete(name);
-  // Only callable bodies whose function values remain in this map have been
-  // proven local and direct-call-only. A public/unknown function exposes its
-  // original source through Function#toString even when the owner object itself
-  // never escapes; rewriting a member token inside that body is observable.
-  const privateFunctionNodes=new Set([...functions.values()].map(fn=>fn.node));
   // Invalid summaries propagate along source-ordered, acyclic const
   // aliases. Each source precedes its descendants in insertion order, so a
   // single linear pass handles every reachable descendant.
   for(const [alias,source] of immutableIdentityAliases) {
     if(!functions.has(source))functions.delete(alias);
   }
+  // Only callable bodies whose function values remain in this map have been
+  // proven local and direct-call-only. A public/unknown function exposes its
+  // original source through Function#toString even when the owner object itself
+  // never escapes; rewriting a member token inside that body is observable.
+  const privateFunctionNodes=new Set([...functions.values()].map(fn=>fn.node));
 
   const aliases = new Set([rootName]);
   /**
