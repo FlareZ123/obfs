@@ -158,7 +158,9 @@ function resolveLexicalReferences(root,sourceType) {
         // the hoisted var binding. Do not issue independently usable IDs.
         if(node.kind==='var' && dec.id.type==='Identifier'){
           const owner=varScope(scope);
-          for(let enclosing=scope;enclosing;enclosing=enclosing.parent){
+          /** @type {Scope|null} */
+          let enclosing=scope;
+          for(;enclosing;enclosing=enclosing.parent){
             if(enclosing.kind==='catch' &&
                enclosing.bindings.get(dec.id.name)?.kind==='catch' &&
                varScope(enclosing)===owner){
