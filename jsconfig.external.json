@@ -308,7 +308,8 @@
     "test/bitwise-bit-slice-clone.test.js",
     "test/bitwise-bit-slice-direct-mba.test.js",
     "test/bitwise-bit-slice-equal-trust-control.test.js",
-    "test/bitwise-mba-interfile-functional-clone.test.js"
+    "test/bitwise-mba-interfile-functional-clone.test.js",
+    "test/bitwise-mba-stateful-cpu-profile.test.js"
   ],
   "exclude": [
     "node_modules"
