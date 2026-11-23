@@ -204,3 +204,24 @@ Validation: workflow run 45129703688 at source commit
   lines 90-91: two FamilyWorkload fixtures are missing protocolId. The
   feature tests and project/external JSDoc passed; the overall workflow
   is not reported as green.
+## 23 November 2026: superseding validation on current main
+
+The initial feature branch was based on 2b3b979 and fell 75 commits behind
+main while the repository was active. Its focused tests and project/external
+JSDoc passed, but its paired-budget JSDoc step exposed two TS2741 errors in
+test/cluster-family-strict-tail.test.js. Main subsequently fixed those
+fixtures. To avoid carrying a stale base and the unrelated typecheck failure,
+the feature was reapplied on branch
+agent45/sno-esm-bare-import-audit-20261123-rebased, based on main commit
+44fc7ccd7224b252c4e3cce74566db19e4fec788.
+
+Superseding focused validation: workflow 45130499785 at branch head
+4992704ab67d5ef347ac65ae0c7e1df1045b94bd.
+- Ubuntu Node 22.23.4: all seven focused tests passed; project JSDoc,
+  external JSDoc, and paired/complete-suite runtime-budget JSDoc passed.
+- Windows Node 22.23.4: all seven focused tests passed; project JSDoc,
+  external JSDoc, and paired/complete-suite runtime-budget JSDoc passed.
+- Overall workflow conclusion: SUCCESS.
+
+This supersedes the earlier branch-specific paired-budget failure. It does
+not constitute a full repository test-suite or SNO security-release pass.
