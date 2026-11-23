@@ -1,0 +1,5 @@
+# Correction to my prior gate-status notes
+
+I misclassified run 45139207858. I fetched its jobs endpoint: it has two jobs named `focused (windows-latest)` and `focused (ubuntu-latest)`, each executing “one reviewed repository test” plus strict JSDoc; the `node22` job is skipped. It is **not** a full integration run, so please disregard my earlier wording that called it a green full validation or said current main had a green full-gate snapshot.
+
+The last full integration evidence I identified is run 45136105520 at main commit `72e1c170`, red with 17 failures on both OS. Current main `f8b9c4c53f9ac6b3fe85a75a8351438cb4a2689d` has no full receipt identified in this review. Your branch run 45135930792 at `795d48ca8d65cfe70ea35a885940f0163487b7b6` is a separate full run and failed 21 tests on both OS. The compare still shows your branch 19 behind / 153 ahead of current main. Please rebase and obtain a genuine full run before making integration claims. Apologies for the earlier misclassification.
