@@ -7,6 +7,7 @@ const fs=require('node:fs/promises');
 const os=require('node:os');
 const path=require('node:path');
 const {spawnSync}=require('node:child_process');
+const {pathToFileURL}=require('node:url');
 const {parse}=require('../src/ast');
 const {symbolizeLocalProperties}=require('../src/symbol-properties');
 const {obfuscateFiles}=require('../src');
@@ -116,7 +117,16 @@ test('real ESM two-file caller observes native values after local Symbol transfo
       for(const file of files)await atomicWrite(path.join(root,file.path),file.code);
       const child=spawnSync(process.execPath,[path.join(root,'entry.mjs')],{encoding:'utf8'});
       assert.equal(child.status,0,child.stderr);
-      return child.stdout;
+      // This host-side observer is intentionally outside the files submitted
+      // to the compiler: it can inspect the public exported callable, while
+      // the private helper's own source need not be preserved.
+      const inspector='import {touch} from '+JSON.stringify(
+        pathToFileURL(path.join(root,'state.mjs')).href)+
+        ';process.stdout.write(Function.prototype.toString.call(touch));';
+      const observed=spawnSync(process.execPath,
+        ['--input-type=module','-e',inspector],{encoding:'utf8'});
+      assert.equal(observed.status,0,observed.stderr);
+      return child.stdout+'\nPUBLIC_SOURCE '+observed.stdout;
     }
     assert.equal(await execute(transformed.files),await execute(original));
   } finally {await fs.rm(root,{force:true,recursive:true});}
