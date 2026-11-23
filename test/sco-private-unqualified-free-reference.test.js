@@ -4,7 +4,7 @@ const {test}=require('node:test');
 const assert=require('node:assert/strict');
 const {createHash}=require('node:crypto');
 const vm=require('node:vm');
-const {partitionScoSelectedAsyncExports}=require('../src');
+const {partitionScoSelectedAsyncExports,bindScoModuleExports}=require('../src');
 
 /**
  * Compile the same native private behavior either inside the selected export
@@ -371,5 +371,32 @@ test('private lexical owners may shadow same-spelled separated public exports',(
       code:exported+'export function publicOp(){return 41;}'
     },{seed:'agent35-public-shadow-negative',privateNames:['protectedOp']}),
     /references a separated public binding/u,exported);
+  }
+});
+
+
+test('public-shadow admission preserves native execution without public source on server',async()=>{
+  const scenarios=[
+    {privateText:'export async function protectedOp(){const publicOp=41;return publicOp;}',
+      args:[],expected:41},
+    {privateText:'export async function protectedOp(publicOp){return publicOp+1;}',
+      args:[41],expected:42}
+  ];
+  for(const [index,scenario] of scenarios.entries()){
+    const publicText='export function publicOp(){return 99;}';
+    const original=scenario.privateText+publicText;
+    const partition=partitionScoSelectedAsyncExports(
+      {path:'mixed.mjs',code:original,sourceType:'module'},
+      {seed:'agent35-public-shadow-real-execution-'+index,privateNames:['protectedOp']}
+    );
+    const native=await import('data:text/javascript,'+encodeURIComponent(original));
+    const serverOnly=await import('data:text/javascript,'+
+      encodeURIComponent(scenario.privateText));
+    assert.equal(await native.protectedOp(...scenario.args),scenario.expected);
+    assert.equal(await serverOnly.protectedOp(...scenario.args),scenario.expected);
+    const methods=bindScoModuleExports(partition,serverOnly);
+    const method=methods[partition.methodNames.protectedOp];
+    assert.equal(typeof method,'function');
+    assert.equal(await method(...scenario.args),scenario.expected);
   }
 });
