@@ -36,3 +36,9 @@ Choose secret `s=0xffffffff`, published target `P(s)=3`. The initial candidate i
 ## Limits
 
 This is a conditional chosen-oracle preimage result for a specified compatible basis. Full rank alone does not establish the premise, all-anchor singular examples exist, and random reanchoring against arbitrary dense permutations has no general success guarantee. A preimage attack does not reveal full source code or prove offline cloning, and it gives no guarantee of enforcing an authorized execution environment or a 2.5x defender compute ceiling. The result belongs in `im-results/` pending broader mathematical comparison and source-pinned CI evidence.
+
+## Independent exhaustive width-three check
+
+A second self-contained verifier, `sims/reanchor-depth-width3-exhaustive.js`, enumerates all 128 compatible three-bit permutations, all 168 invertible three-bit input linear maps and all eight hidden input offsets, fixing the public anchor at zero. It reconstructs the observed finite-difference map, checks the source-coordinate lower-unitriangular criterion directly, and tries **every eight target preimages** with an independently implemented finite-table fixed-point step. This is a finite census, not an oracle-hardness extrapolation.
+
+The intended exact checks cover 172,032 source-anchor combinations. In an independent Python reference enumeration, 159,744 were full-rank and compatible, 12,288 were singular, and no full-rank incompatible matrices occurred in this width-three family. All **1,277,952** admitted target inversions succeeded with no more than one correction and six distinct queries: 638,976 target cases used four queries, 491,520 used five, and 147,456 attained six. This width-three equivalence of rank and compatibility does not generalize by assumption to wider sources. The suite is `test/reanchor-depth-width3-exhaustive.test.js`; its Node/CI verification is recorded separately when available.
