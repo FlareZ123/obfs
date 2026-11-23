@@ -102,7 +102,8 @@ test('bounded-degree two-sided affine sandwich: every width-8 target and random 
       for(const input of inputs) {
         const target=F(input);
         const result=invertBoundedDegree(F,target,n,d);
-        assert.equal(result?.input,input,
+        assert.ok(result,'Expected an exact inverse for the declared degree bound');
+        assert.equal(result.input,input,
           'Target inversion at width '+n+', degree '+d+', trial '+trial);
         assert.ok(result.queries<=theoreticalMax(n,d));
         assert.equal(result.dimensionCounts.length,n);
@@ -156,8 +157,10 @@ test('sparse high-degree compatible transposition is a declared-degree counterex
 
 test('rejects unsupported oracle, width, degree and budget',()=>{
   const F=x=>x;
-  for(const args of [[F,0,0,1],[F,0,33,1],[F,0,8,0],[F,0,8,9],[F,0,8,2,0]]) {
-    assert.throws(()=>invertBoundedDegree(...args),/Expected forward oracle/);
-  }
+  assert.throws(()=>invertBoundedDegree(F,0,0,1),/Expected forward oracle/);
+  assert.throws(()=>invertBoundedDegree(F,0,33,1),/Expected forward oracle/);
+  assert.throws(()=>invertBoundedDegree(F,0,8,0),/Expected forward oracle/);
+  assert.throws(()=>invertBoundedDegree(F,0,8,9),/Expected forward oracle/);
+  assert.throws(()=>invertBoundedDegree(F,0,8,2,0),/Expected forward oracle/);
   assert.throws(()=>invertBoundedDegree(F,0,8,2,1),/query budget/);
 });
