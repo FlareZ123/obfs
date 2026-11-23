@@ -203,3 +203,36 @@ test('proven primitive toLocaleString keeps independent protected field rewrites
     await fs.rm(directory,{recursive:true,force:true});
   }
 });
+
+test('declared dynamic prototype method locale key preserves exact source',async t=>{
+  const directory=await fs.mkdtemp(path.join(os.tmpdir(),'obfs-dynamic-locale-'));
+  try{
+    const dynamicConsumer=consumer.replace(
+      'const source=Object.getPrototypeOf(instance).read.toString();',
+      'const selector=true?"toLocaleString":"valueOf";'+
+      'const source=Object.getPrototypeOf(instance).read[selector]();'
+    );
+    assert.notEqual(dynamicConsumer,consumer);
+    /** @type {Input[]} */
+    const declared=[...inputs,{
+      path:'consumer.mjs',sourceType:'module',code:dynamicConsumer
+    }];
+    const native=await observe(path.join(directory,'native'),declared);
+    assert.deepEqual(native,{
+      value:7,source:'read(){return owner.secretField;}',privateValue:13
+    });
+    for(const mode of /** @type {Array<'coo'|'sno'>} */ (['coo','sno'])) {
+      await t.test(mode,async()=>{
+        const built=obfuscateFiles(declared,{
+          mode,closedWorld:true,properties:true,identifiers:false,
+          strings:false,seed:'dynamic-prototype-locale/'+mode
+        });
+        const actual=await observe(path.join(directory,mode),built.files);
+        assert.deepEqual(actual,native,
+          mode+' must preserve a runtime-selected native source method');
+      });
+    }
+  }finally{
+    await fs.rm(directory,{recursive:true,force:true});
+  }
+});
