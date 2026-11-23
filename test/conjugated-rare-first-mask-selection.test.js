@@ -11,6 +11,10 @@ test('all hidden four-bit conjugated rare shears have the predicted global first
   assert.equal(result.sources,80640);
   assert.equal(result.permutations,80640,
     'Every hidden conjugated rare gate must remain an exact permutation');
+  assert.equal(result.oneQueryInverseChecks,1290240,
+    'One forward query at the target must recover every hidden-source preimage');
+  assert.equal(result.nonIdentityOracles,80640,
+    'Nontrivial one-query inversion must not be a vacuous identity-only case');
   assert.equal(result.nonlinearSecondDifferences,80640,
     'Every rare perturbation must have a nonzero global-affinity counterexample');
   assert.equal(result.validMasksPerSource,7);
