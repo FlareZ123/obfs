@@ -151,31 +151,37 @@ An independently implemented width-three enumerator extends the previous 79,872 
 
 ## Arbitrary input-basis reanchoring (Agent 2, 2026-11-23)
 
-The fixed-coordinate experiment above uses the public standard basis (e_i). A natural extension chooses an arbitrary public input basis (D=(d_i)), queries (F(r)) and (F(r\oplus d_i)), and defines the unique linear interpolant (M_{r,D}) by
-[
-M_{r,D}d_i=F(r\oplus d_i)\oplus F(r).
-]
-The generalized fixed-point theorem applies whenever
-[
-B_D=L_{out}^{-1}M_{r,D}L_{in}^{-1}
-]
-is lower-unitriangular. The same per-basis query ceiling remains (2n+1).
+The fixed-coordinate experiment above uses the public standard basis $e_i$. A natural extension chooses an arbitrary public input basis $D=(d_i)$, queries $F(r)$ and $F(r\oplus d_i)$, and defines the unique linear interpolant $M_{r,D}$ by
 
-**There is always at least one compatible basis in the stated source family, but it is hidden.** Taking (D_*=L_{in}^{-1}) gives (B_{D_*}) equal to the standard finite-difference matrix of the compatible triangular permutation (P), which is lower-unitriangular at every anchor. More generally, every (D=L_{in}^{-1}S) with (S) lower-unitriangular is compatible. Hence at least (2^{n(n-1)/2}) of the (|GL(n,2)|) ordered bases work. This yields the universal uniform-random-basis lower bound
-[
+$$
+M_{r,D}d_i=F(r\oplus d_i)\oplus F(r).
+$$
+
+The generalized fixed-point theorem applies whenever
+
+$$
+B_D=L_{out}^{-1}M_{r,D}L_{in}^{-1}
+$$
+
+is lower-unitriangular. The same per-basis query ceiling remains $2n+1$.
+
+**There is always at least one compatible basis in the stated source family, but it is hidden.** Taking $D_*=L_{in}^{-1}$ gives $B_{D_*}$ equal to the standard finite-difference matrix of the compatible triangular permutation $P$, which is lower-unitriangular at every anchor. More generally, every $D=L_{in}^{-1}S$ with $S$ lower-unitriangular is compatible. Hence at least $2^{n(n-1)/2}$ of the $|GL(n,2)|$ ordered bases work. This yields the universal uniform-random-basis lower bound
+
+$$
 \Pr[D\text{ compatible}]\ge
 \frac{2^{n(n-1)/2}}{\prod_{k=0}^{n-1}(2^n-2^k)}.
-]
-At (n=32) this bound is approximately **3.9407873761e-159**. It proves existence, not an efficient way to find the hidden basis; the bound is far too weak to support a practical random-search claim.
+$$
+
+At $n=32$ this bound is approximately **3.9407873761e-159**. It proves existence, not an efficient way to find the hidden basis; the bound is far too weak to support a practical random-search claim.
 
 ### Exact small-width checks
 
 - An independent exhaustive width-three census covered 168 invertible input linear maps, all 128 compatible triangular permutations, and all eight anchors: **172,032 source-anchor cases**. Every case had either 24/28 or 28/28 common bases, and in every case all common bases were also compatible. Distribution: 86,016 cases at (24 common, 24 compatible) and 86,016 at (28,28).
-- The four-bit witness in this report only tested the public standard basis. I enumerated all **20,160 ordered input bases** at each of its 16 anchors. Every anchor had **14,400** full-rank bases and **12,480** compatible normalized bases: (5/7) were common and (13/21) were compatible overall ((13/15) conditional on full rank). The standard public basis was incompatible at every anchor. Thus the witness falsifies the fixed-coordinate reanchor rule, not arbitrary-basis reanchoring.
+- The four-bit witness in this report only tested the public standard basis. I enumerated all **20,160 ordered input bases** at each of its 16 anchors. Every anchor had **14,400** full-rank bases and **12,480** compatible normalized bases: $5/7$ were common and $13/21$ were compatible overall ($13/15$ conditional on full rank). The standard public basis was incompatible at every anchor. Thus the witness falsifies the fixed-coordinate reanchor rule, not arbitrary-basis reanchoring.
 
 ### Uniform random-basis Monte Carlo
 
-The reproducible script samples each triangular coordinate function (h_j) uniformly from all truth tables on its (j) lower input bits, then samples a uniform ordered basis, uniform anchor, and uniform target. Identity affine wrappers are used without loss for this distribution: a uniform public basis maps to a uniform hidden basis under any fixed (L_{in}), and (L_{out}) cancels from the update. Each sample is one (2n+1)-query-bounded attempt; the attack uses only oracle values, while compatibility is measured separately for analysis.
+The reproducible script samples each triangular coordinate function $h_j$ uniformly from all truth tables on its $j$ lower input bits, then samples a uniform ordered basis, uniform anchor, and uniform target. Identity affine wrappers are used without loss for this distribution: a uniform public basis maps to a uniform hidden basis under any fixed $L_{in}$, and $L_{out}$ cancels from the update. Each sample is one $2n+1$-query-bounded attempt; the attack uses only oracle values, while compatibility is measured separately for analysis.
 
 | Width | Compatible bases observed / 100,000 | Target inversions observed / 100,000 |
 |---:|---:|---:|
@@ -194,7 +200,7 @@ The target-specific update succeeds more often than the compatible-basis count a
 
 Reproduction commands (five independent triangular functions and 20,000 trials per function and width):
 
-```bash
+~~~~bash
 python sims/reanchor-arbitrary-basis-monte-carlo.py exact3
 python sims/reanchor-arbitrary-basis-monte-carlo.py fourbit
 python sims/reanchor-arbitrary-basis-monte-carlo.py lower-bound
@@ -203,7 +209,7 @@ python sims/reanchor-arbitrary-basis-monte-carlo.py compat --widths 8 12 16 --fu
 python sims/reanchor-arbitrary-basis-monte-carlo.py compat --widths 9 10 11 --functions 5 --trials 20000 --seed 20261126
 python sims/reanchor-arbitrary-basis-monte-carlo.py target --widths 8 12 16 --functions 5 --trials 20000 --seed 20261124
 python sims/reanchor-arbitrary-basis-monte-carlo.py target --widths 9 10 11 --functions 5 --trials 20000 --seed 20261126
-```
+~~~~
 
 **Disposition:** arbitrary-basis reanchoring weakens the four-bit fixed-coordinate negative control, but does not establish an efficient 32-bit chosen-query attack. Preserve this as intermediate evidence; do not promote the random-search observations to a general theorem.
 
