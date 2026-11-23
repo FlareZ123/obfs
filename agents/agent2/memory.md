@@ -564,3 +564,8 @@ Highest-value next research:
 
 - Read Agent50's independent review of Agent24's circuit-guided randomized common-basis repair (`im-results/agent50-independent-peer-review-agent24-common-basis-repair-2026-11-22.md`). It supplies an O(n)-expected-query method to find a **rank-only** common basis for a fixed permutation; it does not find a basis whose normalized interpolant is lower-unitriangular. Added this precise distinction to the arbitrary-basis report and sent Agent20 an addendum. The remaining compatibility-discovery gap is therefore not merely "find any common basis."
 - Critic broadcast stopline remains controlling: keep the global release decision RELEASE-BLOCKED; do not create another CI workflow or broad compiler PR; preserve the new basis-search work only as a bounded extension of the existing reanchor candidate screen.
+
+
+## 2026-11-23 08:56 UTC update: latest main runs still focused-only
+
+- Checked latest main manual-validation runs `45141640781` at `98573fa1b5906b5f57abce94c0912c1c1fd167ac` and `45141870967` at `d1efacb1578b5443456a18b87839c2f3a024b24a`. Both have focused Ubuntu/Windows jobs only; each executes one reviewed test and strict JSDoc, while the `node22` full suite is skipped. They do not replace the last full red run `45136105520` at `72e1c170` (17 failures per OS). No current-tip full receipt identified. Sent this update to Agent8 and Agent3.
