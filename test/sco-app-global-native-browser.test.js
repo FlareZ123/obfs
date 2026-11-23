@@ -178,3 +178,88 @@ test('reviewed private server-only dependency retains Node Buffer as a deliberat
   assert.deepEqual(result.privateNames,['protectedOp']);
   assert.doesNotMatch(result.clientFile.code,/Buffer/u);
 });
+
+
+/** @type {{name:string,expression:string}[]} */
+const nodeAmbientCandidates=[
+  {name:'globalThis.Buffer',expression:'globalThis.Buffer.byteLength("ab")'},
+  {name:'process',expression:'process.versions.node'},
+  {name:'globalThis.process',expression:'globalThis.process.versions.node'},
+  {name:'global',expression:'global===globalThis'},
+  {name:'globalThis.global',expression:'globalThis.global===globalThis'},
+  {name:'setImmediate',expression:'Boolean(setImmediate)'},
+  {name:'clearImmediate',expression:'Boolean(clearImmediate)'}
+];
+
+/** @param {string} expression @returns {string} */
+function ambientSelectedSource(expression){
+  return 'export async function protectedOp(){return '+expression+';}'+
+    'export function publicOp(){return 0;}';
+}
+
+test('unowned Node ambient roots cannot be silently migrated to selected SCO',()=>{
+  /** @type {string[]} */
+  const admitted=[];
+  for(const item of nodeAmbientCandidates){
+    try{
+      partitionScoSelectedAsyncExports(
+        {path:'mixed.mjs',sourceType:'module',
+          code:ambientSelectedSource(item.expression)},
+        {seed:'agent35-cross-host-ambient-'+item.name,privateNames:['protectedOp']}
+      );
+      admitted.push(item.name);
+    }catch(error){
+      assert.match(String(error),/unproved|host|realm|ambient|global/u,item.name);
+    }
+  }
+  assert.deepEqual(admitted,[],'selected browser source admitted free Node ambient roots');
+});
+
+test('real Chromium and Node native execution disagree on those ambient roots',{
+  skip:!browserEnabled,timeout:45000
+},async()=>{
+  const puppeteer=require('puppeteer-core');
+  /** @type {import('puppeteer-core').Browser|undefined} */
+  let browser;
+  try{
+    browser=await puppeteer.launch({
+      channel:process.env.CHROMIUM_BIN?undefined:'chrome',
+      ...(process.env.CHROMIUM_BIN?{executablePath:process.env.CHROMIUM_BIN}:{}),
+      headless:true,args:['--no-sandbox','--disable-dev-shm-usage','--disable-gpu']
+    });
+    const page=await browser.newPage();
+    await page.goto('about:blank');
+    const sources=nodeAmbientCandidates.map(x=>ambientSelectedSource(x.expression));
+    const browserResults=await page.evaluate(async(items)=>{
+      /** @type {string[]} */
+      const values=[];
+      for(const code of items){
+        try{
+          const imported=await import('data:text/javascript,'+encodeURIComponent(code));
+          values.push('value:'+String(await imported.protectedOp()));
+        }catch(error){
+          const name=error&&typeof error==='object'&&'name' in error?
+            String(error.name):String(error);
+          values.push('throw:'+name);
+        }
+      }
+      return values;
+    },sources);
+    const nativeResults=[];
+    for(const code of sources){
+      const imported=await import('data:text/javascript,'+encodeURIComponent(code));
+      nativeResults.push('value:'+String(await imported.protectedOp()));
+    }
+    assert.equal(browserResults.length,nodeAmbientCandidates.length);
+    for(let i=0;i<nodeAmbientCandidates.length;i++){
+      assert.notEqual(browserResults[i],nativeResults[i],
+        nodeAmbientCandidates[i].name);
+    }
+    console.log('SCO_NODE_AMBIENT_BROWSER_NATIVE '+JSON.stringify({
+      names:nodeAmbientCandidates.map(x=>x.name),
+      browserResults,nativeResults
+    }));
+  }finally{
+    if(browser)await browser.close();
+  }
+});
