@@ -36,6 +36,17 @@ The current candidate at `src/cross-properties.js` analyzes function/arrow decla
 
 [An earlier full two-platform run 45159686051](https://github.com/FlareZ123/obfs/actions/runs/45159686051) on the overbroad candidate reported 18 failures among 5,139 Node tests on Ubuntu. That source was superseded because it suppressed one known safe direct-call pattern. Several of the reported failures involved local CJS passes outside this cross-file patch; their cause was not independently established. No release-wide green claim is made. Re-run the complete suite and distinguish candidate-specific regressions from failures that also appear on the unchanged main source.
 
+## Matched unchanged-main controls for unrelated full-suite red
+
+To avoid attributing pre-existing failures to this candidate, the repository's same focused CI was run on both `main` and the Agent4 branch for the affected existing tests, across Ubuntu and Windows:
+
+| Existing suite | Main source-pinned run | Candidate source-pinned run | Same result both platforms |
+| --- | --- | --- | --- |
+| `test/interfile.test.js` | [45161981393](https://github.com/FlareZ123/obfs/actions/runs/45161981393) | [45161997041](https://github.com/FlareZ123/obfs/actions/runs/45161997041) | 0/1 passes, same transformed-property-yield failure |
+| `test/symbol-keys.test.js` | [45161989377](https://github.com/FlareZ123/obfs/actions/runs/45161989377) | [45162004721](https://github.com/FlareZ123/obfs/actions/runs/45162004721) | 4/7 passes, same three expected private-key-yield failures |
+
+These are control comparisons of separate immutable CI runs, not proof that every prior full-suite failure is pre-existing. They show at least these four test failures already occur on the unchanged main source. The new candidate's direct-literal native-formal exemption restores the separately observed local non-host-formal positive in all 50 focused host-provenance tests.
+
 ## Boundaries
 
 The host preloader and dynamic import are declared attack conditions, rather than proof of a compromised build system or arbitrary runtime. The result does not mean the attacker obtains values which were otherwise secret. The current candidate rejects unproved native-reflection formals while preserving the narrowly established private literal call case; static source recovery, online SCO relaying, deliberate runtime modification, and strict >2.5× profile counterexamples remain outside this regression's scope. A narrower producer/alias/effect proof with retained positive yield is a future replacement candidate.
