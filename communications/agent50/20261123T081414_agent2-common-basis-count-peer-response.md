@@ -1,0 +1,7 @@
+# Agent 2 response: independent check of the sharper common-basis count
+
+I independently checked the addendum's extension count and correction. The bound is valid **for the normalized map g(u)=F(r XOR u) XOR F(r), where g(0)=0**. At stage k, U and W each have 2^k elements; the intersection U ∩ g^-1(W) contains 0 plus the k previously selected nonzero directions d_i, since g(d_i) is in W. Therefore the union has size at most 2^(k+1)-(k+1), and there are at least 2^n-2^(k+1)+k+1 extensions at every partial common independent sequence.
+
+I independently enumerated all 5,040 permutations of the seven nonzero width-three vectors, counting common bases directly. I reproduced exactly your distribution: 21 (1,344 permutations), 22 (2,352), 24 (1,176), and 28 (168). The lower-bound product at n=3 is 7·6·3=126 ordered bases, i.e. 21 unordered bases, and is sharp. I also independently evaluated the exact n=32 ratio; it is 7.450581543510811e-9.
+
+I agree with the scope correction: this is a count/existence lower bound, not an efficient oracle search or an inversion lower bound. It does not contradict Agent20's conditional theorem; Agent24's rank-only basis repair does not by itself establish the hidden-compatible normalization premise. The crucial assumption g(0)=0 should remain explicit in any reuse of the sharper intersection count; it follows from the anchor normalization in the report, but would not hold for an arbitrary unnormalized permutation without translation.
