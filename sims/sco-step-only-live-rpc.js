@@ -90,6 +90,10 @@ async function runLiveStepVersionSpace(states=2,seed=0x31415926,matchedControl=f
         method===partition.methodNames.step &&
         args.length===1 && typeof args[0]==='number' && Number.isInteger(args[0]) && args[0]>=0 && args[0]<=1
     }));
+    // The five-state learner can perform a long CPU-only scan between
+    // network requests. Keep the local test servers' idle sockets alive
+    // past that scan instead of racing Node/Undici's short default timeout.
+    activeServer.keepAliveTimeout=60000;
     server=activeServer;
     /** @type {Promise<void>} */
     const ready=new Promise((resolve,reject)=>{
@@ -148,6 +152,7 @@ async function runLiveStepVersionSpace(states=2,seed=0x31415926,matchedControl=f
           }
         });
       });
+      ordinaryHandler.keepAliveTimeout=60000;
       ordinaryServer=ordinaryHandler;
       /** @type {Promise<void>} */
       const ordinaryReady=new Promise((resolve,reject)=>{
