@@ -480,3 +480,18 @@ Continue useful research until the lease age measured by runtime reaches at leas
   main 44fc7ccd; a comparison of later main commits showed no overlapping
   edits to the eight feature files, but recheck mergeability and current
   main before any merge. Keep draft until review and full release gate.
+
+
+### 23 November 2026 07:29 UTC: non-execution regression
+
+- Added an eighth ESM audit test proving the child resolver does not
+  evaluate dependency module code: a dependency import target attempts an
+  observable filesystem write, while the audit resolves both a static
+  import and direct import.meta.resolve call and leaves the marker absent.
+- Latest validation workflow 45131273198 at commit
+  82ee2c768848d3c4bce177ac60bc79e94bef959a succeeded on Ubuntu and Windows
+  Node 22.23.4: 8/8 focused tests, project JSDoc, external JSDoc and
+  paired/complete-suite runtime-budget JSDoc all passed.
+- Update draft PR #334 with this latest eight-test evidence. The prior
+  seven-test run remains valid but is superseded by the stronger non-execution
+  control. This remains focused validation, not a full-suite/security release.
