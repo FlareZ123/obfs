@@ -680,7 +680,25 @@ function proveLocalObject(ast, rootName, bindings, importedIdentityFunctions=new
   // even when its body does not return an identity or a simple parameter read.
   // Conversely, a value stored, returned, exported, or passed elsewhere can
   // expose its original body through Function#toString.
-  const privateFunctionNodes=new Set(directInvokedArrows);
+  /**
+   * Experimental direct ambient-call hazard: a non-strict Node/V8 callback
+   * may inspect its synchronous caller with CallSite.getFunction(). A local
+   * direct-call-only use proof does not establish this runtime source privacy.
+   * This narrow test branch covers only free identifier call targets.
+   * @param {AstNode} functionNode
+   * @returns {boolean}
+   */
+  function hasUnprovedAmbientDirectCall(functionNode) {
+    let unknown=false;
+    walk(functionNode, candidate=>{
+      if(candidate.type==='CallExpression' &&
+         candidate.callee.type==='Identifier' &&
+         !bindings.has(candidate.callee.name))unknown=true;
+    });
+    return unknown;
+  }
+  const privateFunctionNodes=new Set(directInvokedArrows.filter(node=>
+    !hasUnprovedAmbientDirectCall(node)));
   /** @type {{name:string,node:AstNode,decl:AstNode}[]} */
   const callableBindings=[];
   for(const node of functionDeclarations) {
@@ -727,7 +745,8 @@ function proveLocalObject(ast, rootName, bindings, importedIdentityFunctions=new
         break;
       }
     }
-    if(privateValue)privateFunctionNodes.add(binding.node);
+    if(privateValue&&!hasUnprovedAmbientDirectCall(binding.node))
+      privateFunctionNodes.add(binding.node);
   }
 
   const aliases = new Set([rootName]);
