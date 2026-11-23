@@ -1676,7 +1676,7 @@ function safeClosedCallerRecordRead(modules,module,member,ancestors) {
         let aliasChanged;
         do {
           aliasChanged=false;
-          walk(caller.ast,node=>{
+          walk(caller.ast,(node,parent)=>{
             // Ordinary property/index writes may install a host-returning
             // factory into a previously inert holder, including nested
             // carrier.holder.callback and carrier.inner[0] paths.
@@ -1696,12 +1696,22 @@ function safeClosedCallerRecordRead(modules,module,member,ancestors) {
             const loopBinding=node.type==='ForOfStatement'?
               node.left.type==='VariableDeclaration'?
                 node.left.declarations[0]?.id:node.left:null;
+            // A catch pattern receives the thrown value. For a try block
+            // containing one direct throw, retain its value's literal
+            // field precision. Other possible exceptions remain opaque.
+            const catchBinding=node.type==='CatchClause'?node.param:null;
+            const soleThrow=node.type==='CatchClause' &&
+              parent?.type==='TryStatement' && parent.block.body.length===1 &&
+              parent.block.body[0].type==='ThrowStatement'?
+                parent.block.body[0].argument:null;
             const binding=node.type==='VariableDeclarator'?node.id:
               node.type==='AssignmentExpression' &&
-              ['=','&&=','||=','??='].includes(node.operator)?node.left:loopBinding;
+              ['=','&&=','||=','??='].includes(node.operator)?node.left:
+                loopBinding??catchBinding;
             const value=node.type==='VariableDeclarator'?node.init:
               node.type==='AssignmentExpression'?node.right:
-                node.type==='ForOfStatement'?node.right:null;
+                node.type==='ForOfStatement'?node.right:
+                  node.type==='CatchClause'?soleThrow??catchBinding:null;
             if(!binding||!value)return;
             if(binding.type==='ObjectPattern'||binding.type==='ArrayPattern') {
               /**
