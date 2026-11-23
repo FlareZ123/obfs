@@ -174,3 +174,29 @@ test('genuine cubic nontriangular permutation refuses a globally incompatible fl
   assert.equal(invertBoundedDegreeModelSymbolically(model,oracle(7)),null,
     'established symbolic solver should independently refuse the same source');
 });
+
+
+test('exact cubic certificate refuses incomplete, duplicate and out-of-degree model tables',()=>{
+  /** @param {number} value @returns {number} */
+  const identity=value=>value>>>0;
+  const model=learnBoundedDegreeOracle(identity,WIDTH,3);
+  assert.equal(model.coefficients.length,5489);
+  assert.throws(()=>makeCubicDefectContractor({
+    ...model,coefficients:model.coefficients.slice(1)
+  }),/incomplete/);
+  const duplicated=model.coefficients.map(([mask,value])=>
+    /** @type {[number,number]} */([mask,value]));
+  duplicated[1]=duplicated[0];
+  assert.throws(()=>makeCubicDefectContractor({...model,coefficients:duplicated}),
+    /duplicate/);
+  const highDegree=model.coefficients.map(([mask,value])=>
+    /** @type {[number,number]} */([mask,value]));
+  highDegree[1]=[15,0];
+  assert.throws(()=>makeCubicDefectContractor({...model,coefficients:highDegree}),
+    /above promised degree/);
+  const unsigned=model.coefficients.map(([mask,value])=>
+    /** @type {[number,number]} */([mask,value]));
+  unsigned[0]=[0,-1];
+  assert.throws(()=>makeCubicDefectContractor({...model,coefficients:unsigned}),
+    /unsigned/);
+});
