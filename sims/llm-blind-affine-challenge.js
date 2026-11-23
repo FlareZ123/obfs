@@ -284,4 +284,109 @@ async function createBlindAffineMatchedChallenge(mode='coo'){
   };
 }
 
-module.exports={createBlindAffineChallenge,createBlindAffineMatchedChallenge};
+
+/**
+ * @typedef {{id:string,question:PublicQuestion}} OpaqueBlindPacket
+ * @typedef {{accepted:true,complete:false,submitted:1}|{accepted:true,complete:true,submitted:2}} OpaqueBlindSubmission
+ * @typedef {{
+ *   salt:string,
+ *   originalSource:string,
+ *   offsets:Record<string,number>,
+ *   commitment:string,
+ *   sourceHashes:Record<BlindArm,string>,
+ *   preflightComparisons:number,
+ *   candidateMetrics:{polyvariantFunctions:number,polyvariantPaths:number},
+ *   minifier:{name:string,version:string,options:Record<string,unknown>},
+ *   armById:Record<string,BlindArm>,
+ *   answersById:Record<string,unknown>,
+ *   verdictsById:Record<string,BlindVerdict>,
+ *   deliveryOrder:string[]
+ * }} OpaqueBlindReveal
+ * @typedef {{
+ *   packets:ReadonlyArray<OpaqueBlindPacket>,
+ *   submit:(id:string,answer:unknown)=>OpaqueBlindSubmission,
+ *   reveal:()=>OpaqueBlindReveal
+ * }} OpaqueMatchedBlindChallenge
+ */
+
+/**
+ * Wrap the matched candidate/esbuild pair in an opaque, randomized delivery
+ * protocol. Public packets contain no candidate/control label; IDs and packet
+ * order are freshly randomized. The first submission receives no correctness
+ * feedback. Both answers are snapshotted as JSON and evaluated only after the
+ * second one arrives. The final reveal discloses the ID-to-arm mapping.
+ *
+ * This reduces accidental label/order leakage but is not reviewer isolation:
+ * deliver each packet privately to a distinct reviewer that cannot inspect
+ * this repository, the other packet, or the hidden source. IDs are opaque
+ * labels, not authentication credentials. The coordinator receives both
+ * packets in this object: forward only one packet to each isolated reviewer;
+ * never give a reviewer the wrapper or the full packet array.
+ *
+ * @param {Mode} [mode]
+ * @returns {Promise<OpaqueMatchedBlindChallenge>}
+ */
+async function createOpaqueBlindAffineMatchedChallenge(mode='coo'){
+  const challenge=await createBlindAffineMatchedChallenge(mode);
+  /** @type {Map<string,BlindArm>} */
+  const armById=new Map();
+  /** @type {Map<string,unknown>} */
+  const answersById=new Map();
+  /** @type {Map<string,BlindVerdict>} */
+  const verdictsById=new Map();
+  /** @type {OpaqueBlindPacket[]} */
+  const packets=[];
+  for(const arm of /** @type {const} */(['candidate','control'])){
+    let id='';
+    do{id=randomBytes(12).toString('hex');}while(armById.has(id));
+    armById.set(id,arm);
+    packets.push(Object.freeze({id,question:challenge.questions[arm]}));
+  }
+  if(randomInt(0,2)===1)packets.reverse();
+  const frozenPackets=Object.freeze(packets);
+  return {
+    packets:frozenPackets,
+    /**
+     * Accept one already-parsed JSON answer. Preserve the original response
+     * text separately in the experiment record.
+     * @param {string} id
+     * @param {unknown} answer
+     * @returns {OpaqueBlindSubmission}
+     */
+    submit(id,answer){
+      if(!armById.has(id))throw new TypeError('Unknown opaque arm ID');
+      if(answersById.has(id))
+        throw new Error('Opaque arm permits only one answer');
+      let snapshot=null;
+      try{
+        const serialized=JSON.stringify(answer);
+        if(typeof serialized==='string')snapshot=JSON.parse(serialized);
+      }catch{
+        snapshot=null;
+      }
+      answersById.set(id,snapshot);
+      if(answersById.size===1)
+        return {accepted:true,complete:false,submitted:1};
+      for(const [opaqueId,arm] of armById){
+        verdictsById.set(opaqueId,challenge.verify(
+          arm,answersById.get(opaqueId)));
+      }
+      return {accepted:true,complete:true,submitted:2};
+    },
+    /** @returns {OpaqueBlindReveal} */
+    reveal(){
+      if(answersById.size!==2||verdictsById.size!==2)
+        throw new Error('Both opaque answers are required before reveal');
+      const secret=challenge.reveal();
+      return {
+        ...secret,
+        armById:Object.fromEntries(armById),
+        answersById:Object.fromEntries(answersById),
+        verdictsById:Object.fromEntries(verdictsById),
+        deliveryOrder:frozenPackets.map(packet=>packet.id)
+      };
+    }
+  };
+}
+
+module.exports={createBlindAffineChallenge,createBlindAffineMatchedChallenge,createOpaqueBlindAffineMatchedChallenge};
