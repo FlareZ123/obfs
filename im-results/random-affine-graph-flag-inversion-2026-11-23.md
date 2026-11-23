@@ -28,29 +28,33 @@ A nonzero Boolean polynomial of degree at most D on d variables has support at l
 
 If H_sample is still a proper subspace of the full graph span, some linear functional vanishes on H_sample but not on the full graph. Its evaluation on g(u) is a nonzero degree-at-most-D polynomial. Therefore each fresh uniform sample increases rank with conditional probability at least 2^-D.
 
-At dimension d, stop after
+At dimension d, a rank increase resets the consecutive-miss counter. The same test can therefore encounter several distinct incomplete-rank episodes, each of which could terminate prematurely. The graph's true nonconstant affine relation implies its full rank is at most `r_d <= n+d`. Give each unresolved rank level a failure budget `delta/(n*r_d)`. The implementation uses the conservative stage upper bound `n+d` and stops after
 
-    m = ceil(2^D * ln(n/delta))
+    m_d = ceil(2^D * ln(n*(n+d)/delta))
 
-consecutive samples that do not increase rank. If the span is still incomplete, the probability of m consecutive misses is at most
+consecutive samples that do not increase rank. More precisely, it sums the logarithms to preserve very small positive delta parameters.
 
-    (1 - 2^-D)^m <= delta/n.
+For any fixed incomplete-rank episode, repeated independent uniform draws have a probability of `m_d` consecutive misses bounded by
 
-A union bound over at most n cosets gives probability at most delta that any stage stops before its graph span is complete. Once complete, the nullspace contains only true affine relations. The final forward verification ensures the algorithm never returns an incorrect preimage; a premature stop can instead cause a failed inversion.
+    (1 - 2^-D)^m_d <= exp(-m_d/2^D) <= delta/(n*(n+d)).
 
-Let r_d be the full graph-span rank at dimension d. Since a nonconstant affine relation exists, r_d <= n+d. Each rank increment takes at most 2^D samples in expectation, so under the stated sampling and degree assumptions,
+There can be at most `r_d` incomplete-rank episodes at a stage. A union bound across those adaptively reached episodes gives stage failure probability at most `delta/n`. A further union bound over at most `n` cosets gives overall premature-stop probability at most `delta`. Conditional probabilities suffice: each episode begins after the prior rank increment, and fresh independent uniform samples maintain the same lower bound.
 
-    E[queries] <= 2^D * ( sum_(d=1..n) (n+d) + n*ln(n/delta) ) + 1
-                = 2^D * ( (3*n^2+n)/2 + n*ln(n/delta) ) + 1,
+**Correction:** The initial source used `m_d = ceil(2^D ln(n/delta))`, counting only one possible incomplete-rank episode per stage. That argument does not account for resets after rank increases and therefore does not establish the advertised global `delta` guarantee. The corrected implementation adds the rank-episode factor. This is a proof/accounting correction; the original empirical successful inversions are still valid observations and a tighter graph-specific argument could potentially yield a shorter threshold.
 
-up to ceiling terms. This is an expected query bound, not a deterministic worst-case bound. The implementation also has an operational per-stage query cap; hitting it returns failure rather than an unverified answer.
+Let `r_d` be the full graph-span rank at dimension `d`, with `r_d <= n+d` under the affine-flag hypothesis. Each rank increment takes at most `2^D` samples in expectation. After the full rank is reached, the process spends at most `m_d` additional stagnant draws. Thus
+
+    E[queries] <= sum_(d=1..n) (2^D*r_d + m_d) + 1
+                <= 2^D * ((3*n^2+n)/2 + n*ln(2*n^2/delta)) + n + 1,
+
+where the last bound uses the ceilings conservatively. This is an expected query bound, not a deterministic worst-case bound. The implementation also has an operational per-stage query cap; hitting it returns failure rather than an unverified answer.
 
 ## Reproducible implementation
 
 - Attack and test generator: sims/random-affine-graph-flag-inversion.js
 - Tests: test/random-affine-graph-flag-inversion.test.js
 - Both are included in jsconfig.external.json for strict JSDoc validation.
-- Final focused two-platform validation **45125176161** at exact head `59ad24d0309ee276dabd89f0f16f68d8c6a80f7e` passed on Ubuntu and Windows: both tests passed, strict project/external JSDoc passed, and the paired/complete-suite runtime-budget evaluator typecheck passed. The immediately preceding attempt `45125006964` passed both behavioral test jobs but failed strict external JSDoc on one un-narrowed union-property read; this was corrected before the green run. An earlier pre-annotation attempt also exposed `never[]` inference and implicit-any issues, which were corrected.
+- Historical focused two-platform validation (before the confidence correction) **45125176161** at exact head `59ad24d0309ee276dabd89f0f16f68d8c6a80f7e` passed on Ubuntu and Windows: both tests passed, strict project/external JSDoc passed, and the paired/complete-suite runtime-budget evaluator typecheck passed. The immediately preceding attempt `45125006964` passed both behavioral test jobs but failed strict external JSDoc on one un-narrowed union-property read; this was corrected before the green run. An earlier pre-annotation attempt also exposed `never[]` inference and implicit-any issues, which were corrected.
 - The test generator creates two-sided affine-wrapped triangular permutations P_i(z)=z_i XOR h_i(z_<i), with independent random invertible input and output linear maps plus independent random input/output translation offsets. It uses sparse random ANFs of declared degree D.
 - The test sampler is a deterministic xorshift64* PRNG for reproducibility. The probability proof assumes ideal independent uniform samples; a real attacker should inject a cryptographically secure coordinate sampler.
 
