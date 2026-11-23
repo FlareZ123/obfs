@@ -52,5 +52,5 @@ jobs:
           if-no-files-found: ignore
       - name: Strict source-transform JSDoc typing
         run: npm run typecheck
-      - name: Strict external research JSDoc typing
-        run: npm run typecheck:external
+      - name: Strict JSDoc for DOMString property-setter matrix
+        run: node_modules/.bin/tsc -p jsconfig.domstring-matrix.json
