@@ -87,3 +87,43 @@ test('CommonJS scope is wrapper-local but bare host roots remain candidates',()=
   assert.deepEqual(refs.filter(r=>r.name==='window').map(r=>r.resolution.kind),['local']);
   assert.deepEqual(refs.filter(r=>r.name==='globalThis').map(r=>r.resolution.kind),['free-host-candidate']);
 });
+
+
+test('declaration identities: var/function merge is order-independent',()=>{
+  const sources=[
+    'export {}; function f(){ var window; function window(){}; return window; }',
+    'export {}; function f(){ function window(){}; var window; return window; }',
+    'export {}; function f(window){ var window; return window; }',
+    'export {}; function f(window){ function window(){} return window; }'
+  ];
+  for(const code of sources){
+    const ast=acorn.parse(code,{ecmaVersion:'latest',sourceType:'module'});
+    const resolved=resolveLexicalReferences(ast,'module');
+    const decl=resolved.declarations.filter(item=>item.name==='window');
+    const refs=resolved.references.filter(item=>item.name==='window');
+    assert.equal(decl.length,2,code);
+    assert.equal(refs.length,1,code);
+    assert.equal(decl[0].bindingId,decl[1].bindingId,code);
+    assert.equal(refs[0].resolution.kind,'local',code);
+    if(refs[0].resolution.kind==='local')assert.equal(refs[0].resolution.bindingId,decl[0].bindingId,code);
+  }
+});
+
+test('with receiver resolves outside the injected object scope',()=>{
+  const code='with ({ key: window }) { window.value; }';
+  const ast=acorn.parse(code,{ecmaVersion:'latest',sourceType:'script'});
+  const refs=resolveLexicalReferences(ast,'script').references.filter(r=>r.name==='window');
+  assert.deepEqual(refs.map(r=>r.resolution.kind),['free-host-candidate','unknown']);
+  assert.equal(refs[1].resolution.kind,'unknown');
+  if(refs[1].resolution.kind==='unknown')assert.equal(refs[1].resolution.reason,'with-object-environment');
+});
+
+test('role annotations preserve reads, writes and computed lookup sites',()=>{
+  const code='export {}; const window={}; window; window=1; window++; window(); new window(); const a=box[window]; const b={[window]:1}; ({window}=box); for(window of xs) {} export {window as external};';
+  const ast=acorn.parse(code,{ecmaVersion:'latest',sourceType:'module'});
+  const refs=resolveLexicalReferences(ast,'module').references.filter(r=>r.name==='window');
+  assert.deepEqual(refs.map(r=>r.role),[
+    'read','write','read-write','call','construct','computed-key',
+    'computed-key','write','write','export-local'
+  ]);
+});
