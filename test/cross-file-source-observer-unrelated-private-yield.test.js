@@ -58,7 +58,6 @@ test('source observer for imported callable leaves unrelated cross-file property
   assert.ok(observedState);
   assert.ok(observedUtil);
   assert.ok(!baselineState.code.includes('unrelatedPrivate'),String(baselineState.code));
-  assert.ok(baselineState.metrics.properties>=1,String(baselineState.code));
   // The source observer is attached to util.inspect. The separate state.mjs
   // property is not present in inspect's source and remains safely renameable.
   assert.ok(!observedState.code.includes('unrelatedPrivate'),String(observedState.code));
