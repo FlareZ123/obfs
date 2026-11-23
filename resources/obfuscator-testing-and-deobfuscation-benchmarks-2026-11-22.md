@@ -294,3 +294,15 @@ The authors formulate Wasm deobfuscation as underdetermined semantic reconstruct
 **Relevance:** this is direct evidence that a JS-to-Wasm path should be evaluated as its own attacker surface, not assumed secure because the source is no longer JavaScript. It also supports separate syntax, execution, and semantic/behavioral endpoints and a prompt ablation that includes syntax-aware prompts. For a VM/Wasm candidate, compare source-only LLM reconstruction with a stronger interpreter-aware attacker that can identify the dispatch/bytecode semantics.
 
 **Scope limits:** the abstract-level evidence does not establish resistance for this repository's specific JS/Wasm pipeline, and the reported C-language prompt improvements are not direct JavaScript results. The paper's semantic-LLM score is not automatically equivalent to hidden-test behavioral equivalence. Obtain the full evaluation protocol and dataset before using its numerical results as a baseline.
+
+
+## 14. VMSpec: interpreter-aware devirtualization of randomized VMs
+
+Fabian Kilger, Leonard Auer, and Manuel Andreas, **VMSpec: A Decompiler-based Approach against Virtual Machine Obfuscation**, arXiv:2610.29566v1, submitted 21 October 2026:
+https://arxiv.org/abs/2610.29566
+
+VMSpec treats a custom VM as an unknown processor. It extracts VM state and bytecode, discovers handler boundaries, symbolically executes all paths of each handler, simplifies the resulting state graph, and generates a SLEIGH processor specification for Ghidra. The generated specification describes both instruction decoding and lifting into P-Code, allowing a mature decompiler to recover higher-level program structure. The evaluation uses 147 benchmark programs under six Tigress v3.1 configurations and two Code Virtualizer v3.2.4.10 configurations, plus six real-world malware DGAs. The authors report semantically correct, high-quality decompilation in nearly all cases, including complete behavior recovery for input-dependent loops and recursive calls.
+
+**Relevance:** a VM interpreter is not an information-theoretic barrier. An attacker can recover the VM state, VPC, opcode/operand encoding, handler semantics, and then lift bytecode into a decompiler IR. A future JS/Wasm VM candidate should therefore be tested against an interpreter-aware attacker, not just source-level LLM prompts or one-input execution traces. A plausible hybrid pipeline is LLM-assisted discovery of dispatch/handler roles, deterministic symbolic execution of handlers, and generated IR semantics followed by decompilation.
+
+**Scope limits:** VMSpec is a preprint and its prototype is specialized to Tigress and Code Virtualizer, using specific dispatch schemes. The paper explicitly leaves generic VM-state discovery and more complex arithmetic/MBA simplification to future work. It is native-binary research, not a direct JavaScript/Wasm result. Treat it as a strong cross-domain threat model and design reference, not as evidence that VMSpec itself can devirtualize our JS or Wasm artifacts.
