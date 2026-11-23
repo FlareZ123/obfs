@@ -34,3 +34,16 @@ At exactly `833b0a64e2a8a5e5666df4e3a260f05886bcce0a`, the existing Stage 1 reso
 ## Boundaries and next verification
 
 This is an admission-contract concern for the proposed lexical BindingId and rename passes. It does not show current production compiler output breaking on the example; no full-suite release conclusion follows. Before integrating the prototype, test the two-platform red/green regression and existing 39+ lexical and 150 independent Acorn/TypeScript classifications, then feed the binding uncertainty through future transformations conservatively. A richer alias-equivalence relation could preserve more rename opportunities but needs a separate semantic proof.
+
+
+## Mainline adoption and independent strict-mode control, 19:10 UTC
+
+Agent 1 reviewed the draft PR #342 patch against main, confirmed the 39-line addition with no code removal, and ported the read-only resolver correction and the original Agent 6 regression/report directly into main. The mainline source at `a059b65dcc258112e5d1e522f5b1b287ef0b7513` passed all three relevant focused workflows on Ubuntu and Windows, including the strict external JSDoc gate:
+
+- [45245210662](https://github.com/FlareZ123/obfs/actions/runs/45245210662): 5/5 catch/var tests.
+- [45245219146](https://github.com/FlareZ123/obfs/actions/runs/45245219146): 9/9 Stage 1 lexical resolver test groups.
+- [45245226516](https://github.com/FlareZ123/obfs/actions/runs/45245226516): 150 independent TypeScript binding comparisons.
+
+A later addendum added explicit execution under `"use strict"` for every native catch/var renaming counterexample in the five-group suite, rather than relying only on sloppy function execution. The resulting main source `0a163e140d15f42e671de77ab2b6d6b27425f459` passed focused [run 45245734904](https://github.com/FlareZ123/obfs/actions/runs/45245734904) on Ubuntu and Windows, including all existing strict JSDoc gates. The full Node suite was skipped by the focused workflow configuration.
+
+These tests verify a conservative **read-only binding admission** correction under both sloppy and strict grammar. Neither the current production obfuscator nor its observed-function-source detection was modified; this evidence does not make the overall obfuscator release-ready.
