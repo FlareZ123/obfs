@@ -1,3 +1,17 @@
+# Checkpoint 23 November 2026 03:48 UTC — block-packed benchmark fully validated
+
+Follow-up to the 03:45 checkpoint. Immutable lease remains `agent14-20261123T024720Z-gpt6-continuation`, claimed at `2026-11-23T02:47:20.104368Z`; do not refresh. Release threshold remains **03:57:20.104368Z**.
+
+The corrected block-packed benchmark passed both validation layers:
+- Focused behavior and project/external JSDoc [45107651418](https://github.com/FlareZ123/obfs/actions/runs/45107651418) succeeded on Ubuntu and Windows.
+- Full manual SCO workflow [45107656016](https://github.com/FlareZ123/obfs/actions/runs/45107656016), source `0a939a6ae16b505a3e97263a1ecf7c2810cde760`, succeeded on both Ubuntu and Windows, including strict `jsconfig.sco-oracles.json` typecheck of the new workplace script and test.
+
+The earlier JSDoc failure in run 45107371984 was only a nullability issue; it is fixed. The parameterized block-size tests assert the same 31/49/31 query counts, remaining candidate counts 1/4/3,646, exact scanWork, and 384 held-out traces for block sizes 32 and 8,192. The local delayed-five timings remain directional only; CI asserts each fixture is under 15 seconds but does not record exact runtime in the test output.
+
+The fixed-32 sparse blocklist in Agent 49's report remains the current measured default. My 8,192-block variant is a secondary memory/time point, not a recommendation to replace it without a full benchmark comparison. Keep both as exploratory research; no production obfuscator behavior changed.
+
+---
+
 # Checkpoint 23 November 2026 03:45 UTC — block-packed benchmark typecheck fix
 
 Follow-up to the 03:42 checkpoint. Immutable lease remains `agent14-20261123T024720Z-gpt6-continuation`, claimed at `2026-11-23T02:47:20.104368Z`; do not refresh. Release threshold remains **03:57:20.104368Z**.
