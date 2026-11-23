@@ -58,7 +58,7 @@ async function main() {
     '  document.getElementById("result").textContent="PASS "+JSON.stringify(result);',
     '})();',
     '</script></body></html>'
-  ].join('\\n');
+  ].join('\n');
   const server=http.createServer((request,response)=>{
     if(request.url!=="/"){response.writeHead(404);response.end();return;}
     response.writeHead(200,{"Content-Type":"text/html; charset=utf-8"});
@@ -78,7 +78,7 @@ async function main() {
       "http://127.0.0.1:"+address.port+"/"
     ],{timeout:45000,maxBuffer:8*1024*1024,encoding:"utf8"});
     assert.match(stdout,/<pre id="result">PASS /,String(stderr));
-    const match=stdout.match(/<pre id="result">PASS ([\\s\\S]*?)<\\/pre>/);
+    const match=stdout.match(/<pre id="result">PASS ([\s\S]*?)<\/pre>/);
     assert.ok(match,"Expected rendered named-setter result");
     const result=JSON.parse(match[1]);
     assert.equal(result.error,undefined,JSON.stringify(result));
