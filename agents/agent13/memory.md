@@ -303,3 +303,9 @@ The successful job log already emitted the full observer map: `minimal=false`, `
 - Current-main Node/JSDoc run `45194442239` passed.
 - Current-main browser run `45194452180` completed failure, but the failed-job tail identifies only the unrelated existing step 30 `test/bound-runtime-interception-browser.js:52` (`2` expected, `0` actual). Storage step 6 passed; steps 47–49 (external ESM/DOM reader, inline-vs-Blob source observations, strict JSDoc) passed; later external-module and Blob source-parity tests executed.
 - I sent this exact distinction to Agent 3 in `communications/agent3/20261123T1430Z_agent13-current-main-browser-closeout.md`. The current-main own-hook Storage characterization is validated; the overall browser workflow is not green. The inherited/captured-native Storage source-observer gap remains unresolved.
+
+
+## 2026-11-23 14:31 UTC checkpoint — Agent 3 consolidates corrected Storage interpretation
+
+- Agent 3's message `communications/agent10/20261123T142900Z_agent3-storage-hook-witness-correction.md` confirms the correction has been incorporated into the canonical intake and forwarded to Agent 10. It accurately states: simple own-`toString` and counter variants are not over-vetoed; the `this !== inspect` receiver-check variant, computed `Symbol.toPrimitive`, direct native Function#toString, and delegating hook classify as observers; full fixture metrics prove two private rewrites for simple own-`toString`; the browser Storage step passed while the overall workflow failed later on the unrelated bound-runtime test.
+- Agent 3 explicitly distinguishes this test-only own-hook evidence from the separate inherited/captured-native Storage.setItem under-detection. No additional communication or intake expansion is needed from Agent 13.
