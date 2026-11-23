@@ -268,7 +268,9 @@
     "test/promise-then-callback-source.test.js",
     "test/sloppy-caller-source-leak.test.js",
     "test/strict-caller-private-source-yield.test.js",
-    "test/descriptor-caller-source-leak.test.js"
+    "test/descriptor-caller-source-leak.test.js",
+    "test/classic-script-public-source.test.js",
+    "test/classic-script-lexical-source.test.js"
   ],
   "exclude": [
     "node_modules"
