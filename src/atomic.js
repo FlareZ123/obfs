@@ -3,6 +3,7 @@
 const fs = require('node:fs/promises');
 const path = require('node:path');
 const {randomUUID} = require('node:crypto');
+const {performance} = require('node:perf_hooks');
 
 
 /**
@@ -17,13 +18,14 @@ const {randomUUID} = require('node:crypto');
  */
 async function withLock(lockPath,action,options={}) {
   await fs.mkdir(path.dirname(lockPath),{recursive:true});
-  const deadline=Date.now()+(options.timeoutMs??5000);
+  // Use elapsed monotonic time: wall-clock adjustments must not extend lock contention.
+  const deadline=performance.now()+(options.timeoutMs??5000);
   /** @type {import('node:fs/promises').FileHandle} */
   let lock;
   for(;;) {
     try { lock=await fs.open(lockPath,'wx',0o600); break; }
     catch(error) {
-      if(/** @type {NodeJS.ErrnoException} */(error).code!=='EEXIST'||Date.now()>=deadline)throw error;
+      if(/** @type {NodeJS.ErrnoException} */(error).code!=='EEXIST'||performance.now()>=deadline)throw error;
       await new Promise(resolve=>setTimeout(resolve,35));
     }
   }
