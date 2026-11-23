@@ -193,3 +193,24 @@ for(const [name,mutation] of [
     assert.equal(compiled.crossFile.properties,0);
   });
 }
+
+for(const [name,mutation] of [
+  ['assignment object-pattern receiver',
+    'function replace(root){let cap;({Reflect:cap}=root);cap.ownKeys=globalThis.HOST_REFLECT;}replace((0,globalThis));'],
+  ['for-of declaration native receiver',
+    'for(const {Reflect:cap} of [(0,globalThis)]){cap.ownKeys=globalThis.HOST_REFLECT;}'],
+  ['catch binding native receiver',
+    'try{throw (0,globalThis);}catch({Reflect:cap}){cap.ownKeys=globalThis.HOST_REFLECT;}']
+]){
+  test('ambient native extraction through '+name+' preserves ESM keys',async()=>{
+    const original=sourceGraph(mutation);
+    const expected=await execute(original);
+    assert.equal(expected,'[41,1,["secretField"]]');
+    const compiled=obfuscateFiles(original,{
+      mode:'coo',closedWorld:true,seed:'ambient-native-binding-'+name,
+      identifiers:false,strings:false,properties:true
+    });
+    assert.equal(await execute(compiled.files),expected);
+    assert.equal(compiled.crossFile.properties,0);
+  });
+}
