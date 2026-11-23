@@ -81,7 +81,8 @@ for(const [label,loop] of [
 
 for(const [label,setup] of [
   ['alias assignment','const alias=key;const [Loader]=alias;'],
-  ['local function return','const alias=identity(key);const [Loader]=alias;']
+  ['local function return','const alias=identity(key);const [Loader]=alias;'],
+  ['object field store','const holder={key};const {key:[Loader]}=holder;']
 ]) {
   test('ForIn StringKey provenance survives '+label,async()=>{
     const lines=[
