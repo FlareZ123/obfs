@@ -1275,31 +1275,15 @@ function collectPrivateDirectCallables(ast,bindings=collectBindings(ast)) {
        /^Export/.test(inventory.parents.get(container)?.type??''))continue;
     directCallables.add(decl.init);
   }
-  /**
-   * Promise's native continuation methods do not inspect callback source.
-   * Restrict this exception to an unshadowed Promise.resolve() chain; arbitrary
-   * user callbacks remain source-exposed unless their binding is direct-call-only.
-   * @param {AstNode} expression
-   * @returns {boolean}
-   */
-  function isKnownPromiseExpression(expression) {
-    if(expression.type!=='CallExpression'||expression.callee?.type!=='MemberExpression')return false;
-    const method=staticName(expression.callee.property);
-    if(method==='resolve'&&expression.callee.object?.type==='Identifier'&&
-       expression.callee.object.name==='Promise'&&(bindings.get('Promise')??0)===0)return true;
-    return ['then','catch','finally'].includes(method??'')&&
-      isKnownPromiseExpression(expression.callee.object);
-  }
+  // A Promise.resolve().then(...) callback is not intrinsically private:
+  // Promise.prototype.then/catch/finally and Promise.resolve are writable.
+  // A same-file override can capture the callback and expose its exact
+  // Function#toString source. Only an immediately invoked function here
+  // has a proven direct-call-only consumer.
   walk(ast,(node,parent,key)=>{
     if(['FunctionExpression','ArrowFunctionExpression'].includes(node.type)&&
        parent?.type==='CallExpression'&&key==='callee'&&parent.callee===node&&
        !parent.optional)directCallables.add(node);
-    if(['FunctionExpression','ArrowFunctionExpression'].includes(node.type)&&
-       parent?.type==='CallExpression'&&key==='arguments'&&
-       parent.arguments.includes(node)&&parent.callee?.type==='MemberExpression'&&
-       ['then','catch','finally'].includes(staticName(parent.callee.property)??'')&&
-       !parent.callee.optional&&isKnownPromiseExpression(parent.callee.object))
-      directCallables.add(node);
   });
   /** @type {Set<AstNode>} */
   const permitted=new Set();
