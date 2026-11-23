@@ -121,3 +121,21 @@ test('independent purely owned ESM key still transforms',async()=>{
     await fs.rm(directory,{recursive:true,force:true});
   }
 });
+
+test('computed immutable Reflect selector through indirect ambient root preserves ESM key names',async()=>{
+  const original=sourceGraph([
+    "const nativeSelector='Reflect';",
+    'function replace({[nativeSelector]:cap}){cap.ownKeys=globalThis.HOST_REFLECT;}',
+    'const indirectRoot=(0,globalThis);',
+    'replace(indirectRoot);'
+  ].join('\n'));
+  const native=await execute(original);
+  assert.equal(native,'[41,1,["secretField"]]');
+  const compiled=obfuscateFiles(original,{
+    mode:'coo',closedWorld:true,seed:'ambient-root-computed-native-selector',
+    identifiers:false,strings:false,properties:true
+  });
+  assert.equal(await execute(compiled.files),native,
+    'A selector alias may still extract Reflect from an ambient receiver');
+  assert.equal(compiled.crossFile.properties,0);
+});
