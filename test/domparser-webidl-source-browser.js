@@ -81,6 +81,13 @@ const fixtures=[
     publicSource:true,transform:'properties'
   },
   {
+    name:'nonescaping-owned-property-control',
+    code:"const owner={secretField:53};"+
+      "function observed(){return owner.secretField;}"+
+      "globalThis.__obfsResult={coerced:'inert',value:observed()};",
+    publicSource:false,transform:'properties'
+  },
+  {
     name:'nonescaping-control',
     code:"function observed(){return 'source-observed-literal';}"+
       "globalThis.__obfsResult={coerced:'inert',value:observed()};",
@@ -120,7 +127,7 @@ async function readBrowser(url) {
  * nonescaping private string. This is a diagnostic and deliberately does not
  * assert the candidate's suspected source mismatch before it is reproduced.
  *
- * @returns {Promise<{cases:number,valueMatches:number,minifiedValueMatches:number,sourceMismatches:number,minifiedSourceMismatches:number,publicStringRewrites:number,publicPropertyRewrites:number,privateRewriteControls:number}>}
+ * @returns {Promise<{cases:number,valueMatches:number,minifiedValueMatches:number,sourceMismatches:number,minifiedSourceMismatches:number,publicStringRewrites:number,publicPropertyRewrites:number,privateRewriteControls:number,privatePropertyRewriteControls:number}>}
  */
 async function main() {
   /** @type {Map<string,string>} */
@@ -178,6 +185,7 @@ async function main() {
   let publicStringRewrites=0;
   let publicPropertyRewrites=0;
   let privateRewriteControls=0;
+  let privatePropertyRewriteControls=0;
   try {
     const addr=server.address();
     if(!addr||typeof addr==='string')throw new Error('No bound loopback address');
@@ -196,7 +204,10 @@ async function main() {
         sourceMismatches+=Number(!sourceEqual);
         if(pair.transform==='properties')publicPropertyRewrites+=Number(pair.properties>0);
         else publicStringRewrites+=Number(pair.literals>0);
-      }else if(pair.literals>0&&valueEqual&&sourceEqual)privateRewriteControls++;
+      }else if(valueEqual&&sourceEqual) {
+        if(pair.transform==='properties'&&pair.properties>0)privatePropertyRewriteControls++;
+        if(pair.transform==='strings'&&pair.literals>0)privateRewriteControls++;
+      }
       console.log('WEBIDL_FUNCTION_SOURCE '+JSON.stringify({
         mode:pair.mode,case:pair.name,transform:pair.transform,
         literals:pair.literals,properties:pair.properties,
@@ -214,11 +225,12 @@ async function main() {
   const summary={
     cases:pairs.length,valueMatches,minifiedValueMatches,
     sourceMismatches,minifiedSourceMismatches,
-    publicStringRewrites,publicPropertyRewrites,privateRewriteControls
+    publicStringRewrites,publicPropertyRewrites,
+    privateRewriteControls,privatePropertyRewriteControls
   };
-  assert.equal(summary.cases,27);
-  assert.equal(summary.valueMatches,27);
-  assert.equal(summary.minifiedValueMatches,27);
+  assert.equal(summary.cases,30);
+  assert.equal(summary.valueMatches,30);
+  assert.equal(summary.minifiedValueMatches,30);
   console.log('WEBIDL_FUNCTION_SOURCE_SUMMARY '+JSON.stringify(summary));
   return summary;
 }
