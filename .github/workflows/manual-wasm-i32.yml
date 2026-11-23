@@ -32,6 +32,12 @@ jobs:
         run: node sims/fused-arx-session-crossover.js
       - name: Fused ARX independent fresh-process cold CPU differential
         run: node sims/fused-arx-fresh-process-cold.js
+      - name: Replayed PR131 real three-arm sustained CPU with matched minified baseline
+        run: node sims/stateful-arx-three-way-warm.js
+      - name: Replayed PR131 fresh-process three-arm CPU with strict pair budget
+        run: node sims/stateful-arx-three-way-cold.js
+      - name: Replayed PR131 immutable artifacts and 49k-event source-only clone
+        run: node --test test/stateful-arx-minifier-control.test.js test/stateful-arx-wasm-artifact.test.js test/stateful-arx-static-clone.test.js
       - name: Real Chromium batched ARX matched CPU and semantics probe
         if: ${{ matrix.os == 'ubuntu-latest' }}
         env:
