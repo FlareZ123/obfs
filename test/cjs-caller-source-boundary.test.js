@@ -35,7 +35,7 @@ const getterObserver=[
   '  return Function.prototype.toString.call(inspectGetterCaller.caller);',
   '}',
   "Object.defineProperty(exports,'text',{get:inspectGetterCaller});"
-].join('\\n');
+].join('\n');
 
 const getterEntry=[
   "const foreign=require('./observer.cjs');",
@@ -44,7 +44,7 @@ const getterEntry=[
   '  return [state.secretField+state.bonusField,foreign.text];',
   '}',
   'process.stdout.write(JSON.stringify(compute()));'
-].join('\\n');
+].join('\n');
 
 const strictObserver=[
   'function inspectCaller(){',
@@ -52,7 +52,7 @@ const strictObserver=[
   '  catch(error){return error.name;}',
   '}',
   'module.exports=inspectCaller;'
-].join('\\n');
+].join('\n');
 
 const strictEntry=[
   "'use strict';",
@@ -62,7 +62,7 @@ const strictEntry=[
   '  return [state.secretField+state.bonusField,inspectCaller()];',
   '}',
   'process.stdout.write(JSON.stringify(compute()));'
-].join('\\n');
+].join('\n');
 
 const privateEntry=[
   'function compute(){',
