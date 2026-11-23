@@ -121,7 +121,7 @@ shared-package control emits byte-identical launcher and source to the
 same-seed build without the audit, adding no application runtime work.
 Known lexical aliases and computed direct `require` arguments are
 conservatively refused; independently constructed resolver functions,
-reflective import paths and ESM imports remain outside the audit. It
+reflective import paths remain outside this CJS-only audit; ESM imports are handled separately by the opt-in --audit-bare-esm check below. It
 also declines direct calls under an emitted
 `package.json` because prepublication Node resolution cannot see that
 future package scope. Opaque or asset-marked JavaScript files are
@@ -130,6 +130,22 @@ refused instead of silently excluded. Even an identical resolved package can obs
 see the [bounded experiment and negative control](im-results/sno-direct-bare-resolution-audit-2026-11-22.md).
 This optional check is a deployment diagnostic, not proof of arbitrary
 dependency equivalence or hostile-owner integrity.
+
+**Optional SNO literal bare ESM-import audit:** `--audit-bare-esm` compares
+Node's ESM resolution target for static `import` and re-export specifiers,
+literal dynamic `import()`, and direct literal `import.meta.resolve()` calls.
+It uses Node's `import.meta.resolve(specifier, parentURL)` with the actual
+parent file URL, so conditional package exports are evaluated under the
+ESM `import` condition rather than CommonJS `require` conditions. Resolution
+runs in a separate Node child process and does not load application
+modules or mutate the compiler process's module cache. Missing or
+different targets cause a prepublication refusal. A shared package
+positive control emits byte-identical output with and without the audit.
+Nonliteral dynamic imports, resolver aliases, direct `eval`/`Function`,
+`#imports`, opaque JavaScript and future emitted package scopes are
+refused; custom loaders and nondefault deployment conditions remain
+outside the comparison. This is a build-time dependency-location
+diagnostic, not proof of arbitrary ESM behavior or hostile-owner integrity.
 
 ## Entrypoints
 
