@@ -133,6 +133,8 @@ test('selected SCO Headers get valid literal remains protected',{
   assert.deepEqual(appendConcat,{refused:false,original:true,emitted:true,server:true});
   const concatName=await compare("return new Headers({'x-demo':'ok'}).get('x-'+'demo');",'headers-concat-name');
   assert.deepEqual(concatName,{refused:false,original:'ok',emitted:'ok',server:'ok'});
+  const trim=await compare("return new Headers({'x-demo':'  ok  '}).get('x-demo');",'headers-trim-whitespace');
+  assert.deepEqual(trim,{refused:false,original:'ok',emitted:'ok',server:'ok'});
 });
 
 test('selected SCO literal append keeps defined result parity',{
@@ -159,6 +161,10 @@ test('selected SCO query toString and safe private arithmetic retain yield',{
   assert.deepEqual(concatArg,{refused:false,original:'1',emitted:'1',server:'1'});
   const duplicates=await compare("return new URLSearchParams([['a','1'],['a','2']]).getAll('a');",'urlsearchparams-duplicate-values');
   assert.deepEqual(duplicates,{refused:false,original:['1','2'],emitted:['1','2'],server:['1','2']});
+  const plus=await compare("return new URLSearchParams('q=a+b&x=%2B').get('q');",'urlsearchparams-plus-decoding');
+  assert.deepEqual(plus,{refused:false,original:'a b',emitted:'a b',server:'a b'});
+  const malformed=await compare("return new URLSearchParams('q=%FF').get('q');",'urlsearchparams-invalid-utf8');
+  assert.deepEqual(malformed,{refused:false,original:'\uFFFD',emitted:'\uFFFD',server:'\uFFFD'});
   const math=await compare('return Math.imul(17,19);','native-private-math');
   assert.deepEqual(math,{refused:false,original:323,emitted:323,server:323});
 });
