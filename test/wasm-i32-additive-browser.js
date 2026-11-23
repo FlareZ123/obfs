@@ -5,6 +5,7 @@ const http=require('node:http');
 const puppeteer=require('puppeteer-core');
 const {lowerWasmI32Functions}=require('../src/wasm-i32');
 const {recoverPublicWasmExpression}=require('../sims/wasm-i32-static-recover');
+const {pairedBudgetBound}=require('../sims/paired-budget-bound');
 
 /** 
  * Run real Chromium ESM parity and paired warm CPU cost independently of the
@@ -138,6 +139,7 @@ async function main(){
     console.log(JSON.stringify({browser:version,mode:'ESM',nativeWasmClone:3,
       identicalInputs:2000,wasmBytes:emitted.wasmBytes,
       hotRatio:details.browserRatio,measurements:details.measurements,
+      pairedBudget:pairedBudgetBound(details.measurements.native,details.measurements.wasm),
       scope:'selected Chromium warm function, not universal 2.5x or security'}));
   }finally{
     try{if(browser)await browser.close();}
