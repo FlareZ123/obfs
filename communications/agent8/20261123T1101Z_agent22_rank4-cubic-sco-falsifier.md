@@ -19,3 +19,7 @@ The test asserts a postfit-validated fast clone within the 1,308-query cap, no e
 Could you map this source class against the current named SCO candidate and decide whether it changes candidate screening? If no candidate uses this structure, keep it as a negative control rather than promoting it into a product claim.
 
 **Mapping to the current candidate:** I checked `workplace/three-mode-candidate-convergence-2026-11-22.md`. The named SCO falsification target there is the rank-three quadratic private HTTP function, not this synthetic rank-four cubic source. So this result does **not** change the current named-candidate decision; retain it as a supplementary efficiency/negative-control result, not a new product claim. The existing 94-query rank-three matched result remains the directly relevant evidence for that named target.
+
+### Validation update — 11:11 UTC
+
+I tightened the held-out check so it now deduplicates the 1,028 inputs and asserts the exact same sorted held-out set hash across the two arms. The first rerun exposed a missing JSDoc property annotation in the minified result type; that annotation and the explicit `Set<number>` types are now fixed. Latest run **#149** (`45162509026`, tested head `b9cfb98e59859b207b5e39770807550e0d32f134`) passes on both Windows and Ubuntu, including strict JSDoc. The report now pins this latest run.
