@@ -40,6 +40,10 @@ The cause also applies to module import-attribute grammar: `with {type:'json'}` 
   The patch does not change export names, adapt crossfile graph paths, disable renaming, or alter security checks.
 - **Expanded patched source** `60cb169cea4b8d18611357d3157be2c3a9a3f898`, [Ubuntu/Windows GREEN 45251854518](https://github.com/FlareZ123/obfs/actions/runs/45251854518), 2/2 native ESM cases and strict project/external JSDoc. Both cases preserve local identifier rename yield.
 
+## Three-mode native ESM integration gate
+
+A separate Node ESM graph at `test/esm-export-label-three-mode.test.js` evaluates the *same input and public import* under **SCO, COO and SNO** outputs, with `strings:false,properties:false` to isolate the identifier pass. It checks the original `[17,13]`, retained local-rename `metrics.bindings>0` for each mode, and exact imported namespace/export result parity after emitting all three module graphs to distinct directories. [Workflow 45252365035](https://github.com/FlareZ123/obfs/actions/runs/45252365035) at **`170dbecd94f1f50435c8326126d228ad1a5b38d8`** passed on **Ubuntu and Windows Node 22.23.4** including strict project/external JSDoc. This establishes a bounded all-three-mode *Node ESM output* result; no real SCO private remote RPC session or browser runtime was involved.
+
 ## Limits and release conclusion
 
 Only Node ESM under `mode:'coo'` was established by the paired red/green experiment so far; cross-mode and browser source-observer gates need their own source-pinned tests before extending that claim. It does **not** imply static or dynamic tamper resistance or a 2.5× budget pass. Source-scanning/export-name bugs in other transforms remain possible. The fixed exported namespace name is public, and the direct semantic correction should be evaluated separately from obfuscation strength.
