@@ -358,7 +358,7 @@ function resolveEsmRequests(requests) {
 /**
  * Compare emitted package scopes with their source counterparts. A package
  * scope containing imports or a self-reference is refused; a byte-identical
- * type-only scope is safe for this bare-dependency comparison.
+ * scope without those features is safe for this bare-dependency comparison.
  *
  * @param {SourceFile[]} original
  * @param {SourceFile[]} generated
