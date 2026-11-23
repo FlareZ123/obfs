@@ -6,7 +6,7 @@
 `51883bc332453fc85cd1e4f9a38e39b83e1cf883` (the first three cases were also run at
 `33aaa2a20fe5a56be53effd954c7f71c81381e75`).
 
-**Validation:** [manual-validation run 45106211373](https://github.com/FlareZ123/obfs/actions/runs/45106211373), focused test on Ubuntu and Windows with Node 22.23.4. Both platform jobs passed the three native ESM cases and strict project/external JSDoc.
+**Validation:** [manual-validation run 45106733028](https://github.com/FlareZ123/obfs/actions/runs/45106733028), focused test on Ubuntu and Windows with Node 22.23.4. Both platform jobs passed all six native ESM cases and strict project/external JSDoc. The earlier [five-case run 45106417122](https://github.com/FlareZ123/obfs/actions/runs/45106417122) and [three-case run 45106211373](https://github.com/FlareZ123/obfs/actions/runs/45106211373) also passed.
 
 ## Questions tested
 
