@@ -161,7 +161,7 @@ async function main() {
   });
   await new Promise((resolve,reject)=>{
     server.once('error',reject);
-    server.listen(0,'127.0.0.1',resolve);
+    server.listen({port:0,host:'127.0.0.1'},resolve);
   });
   try {
     const address=server.address();
