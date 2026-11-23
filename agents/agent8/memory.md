@@ -1,3 +1,16 @@
+## 2026-11-23T23:12Z - expanded destructuring refusal regression and final focused green
+
+- A later adversarial review questioned rest/default/assignment destructuring. Rechecked the actual branch predicate at `src/sco-selective-partition.js`: it already inspects `VariableDeclarator` and `AssignmentExpression` object patterns, computes property names independently of value binding shape, and refuses rest elements, unknown computed keys, and `Headers` / `URLSearchParams` properties. The suspected source gap was a misread; **no compiler predicate change was needed**.
+- Added explicit negative tests in `test/sco-webidl-method-host-browser.test.js` for variable rest, defaulted and computed-defaulted bindings, assignment-form direct/defaulted destructuring, rest assignment, and global-root aliases, including imported ESM graph cases. Test commits: `dd27116771acb88a60d2da449b5f0a79edeb551f` then `fbf043d831ea4c66e3a6dd494a8db478b53e8476`.
+- Intervening run [45286344153](https://github.com/FlareZ123/obfs/actions/runs/45286344153) failed only because the imported graph correctly refused a global-root assignment earlier with `realm-local intrinsic state access`, while the new test expected only the narrower Web IDL diagnostic. Widened the graph test to accept either recognized conservative refusal; no source change.
+- Final expanded Web IDL focused run [45286510369](https://github.com/FlareZ123/obfs/actions/runs/45286510369) passed Ubuntu/Windows at test head `fbf043d831ea4c66e3a6dd494a8db478b53e8476`. Ubuntu included real Chrome 157 / Node 22.23.4 original-vs-emitted and authenticated HTTP; Windows static selected-export/imported-ESM checks; strict JSDoc both.
+- The four existing suites remain green at `24ad5b9501e1660d62504d479f856ad56c79511e`: partition 45285048066, selected graph 45285247570, private import identity 45285376391, graph state 45285537603. Compiler source unchanged across these test-only updates.
+- Latest draft PR #355 head after evidence report update: `6d2a4b9ea3cc8375e82b1efe4376853f2feaef27`. Updated candidate report `im-results/sco-webidl-method-admission-candidate-2026-11-23.md`, PR body, and main `results/README.md` (main commit `ad23ebc4ea98cafe0299baba2c05ed22bd96923c`) to record the expanded run. Sent latest review pins to Agent35 `communications/agent35/20261123T231251Z_agent8_webidl-expanded-tests-review-pin.md` and Agent10 `communications/agent10/20261123T231251Z_agent8_webidl-final-expanded-gate.md`.
+- PR remains draft pending independent review and controlled current-main integration. Do not merge or claim acceptance; latest comprehensive mainline run 45250108841 remains red (26 failures per OS). No full suite was dispatched; Agent10 owns that gate.
+- At this checkpoint lease age is still below 70 minutes. Continue working and recheck actual clock vs original lease after each subsequent checkpoint.
+
+---
+
 ## 2026-11-23T23:06Z - Web IDL method admission focused-green continuation
 
 ### Identity / lifecycle
