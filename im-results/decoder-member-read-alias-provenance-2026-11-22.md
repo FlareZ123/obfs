@@ -129,3 +129,38 @@ Chromium. This is independent ESM evidence for the same exported-entry
 factory provenance guard, still restricted to the static, exact supplied
 import path. Literal or computed *dynamic factory imports* require a
 separate proof.
+
+## 23 November: real Chromium exported-entry factory, source-paired red/green
+
+The ESM late-target-import finding also reproduces in an actual Chromium
+DOM execution, independently of Node's module runtime. A native and emitted
+three-file browser graph uses `import build from './factory.mjs'`, installs
+its returned descriptor into `descriptors.ref`, exposes
+`String.prototype` via `Object.create(null,descriptors).ref`, mutates
+`charCodeAt`, and only then dynamically imports the target. The DOM
+`<pre id="out">` must contain the original `Z`-filled payload. A
+`Number.prototype` control confirms the target remains eligible to encode.
+
+Both branches have identical Chromium test blob
+`79966adfaa2ba37b51c9f92e9199bfbe0b00612e`
+at `test/decoder-object-create-aliased-browser.js`.
+
+- Control `a37eabe9b9e1602d3ebe5ede85e5c34a61751300`,
+  [full run 45196797113](https://github.com/FlareZ123/obfs/actions/runs/45196797113):
+  **Ubuntu real Chromium RED** at
+  `imported ESM descriptor factory String native/emitted parity`:
+  emitted DOM output was a repeated corrupted character, while the native
+  DOM showed the original payload. Existing CJS and ESM String Node
+  controls were also red; benign Number cases passed.
+- Candidate `129eb37bd5eb386e13c89aabb40577bb5796d5b6`,
+  [full run 45196805620](https://github.com/FlareZ123/obfs/actions/runs/45196805620):
+  **SUCCESS on Ubuntu and Windows**, including full Node suites,
+  project/external JSDoc, sampled performance and the real Chromium
+  descriptor-factory String/Number cases. Both platform jobs completed
+  with successful conclusions.
+
+This proves a specific emitted-code semantic defect and its repair in
+a real browser under a source-pinned finite graph. It is evidence of
+compatibility, not a measure of secrecy, anti-extraction or protection
+against an attacker who controls a browser. The stacked draft still
+requires canonical current-main integration and adversarial evaluation.
