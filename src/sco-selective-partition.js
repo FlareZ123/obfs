@@ -9,6 +9,7 @@ const {collectBindings}=require('./properties');
 const {partitionScoAsyncModule,bindScoModuleExports}=require('./sco-partition');
 const {createScoHandler}=require('./sco');
 const {snapshotSelectedOptions}=require('./sco-selected-options');
+const {assertNoPrivateImportMemberState}=require('./sco-private-import-identity');
 
 /** @typedef {import('./sco-partition').ScoModulePartition} ScoModulePartition */
 /** @typedef {{path:string,code:string}} ScoPrivateModuleSource */
@@ -1666,6 +1667,9 @@ function partitionScoSelectedAsyncExports(file,options) {
   const selected=new Set(options.privateNames);
   const requestedPublicHelpers=new Set(options.publicHelperNames??[]);
   const ast=parse(file.code,'module');
+  // Source owners must remain isolated across browser sessions when selected
+  // exports are moved to one trusted shared Node module instance.
+  assertNoPrivateImportMemberState(file.path,file.code);
   const privateModuleImports=new Set(options.privateModuleImports??[]);
   /** @type {string[]} */
   const privateModulePaths=[...(options.additionalPrivateModulePaths??[])];
