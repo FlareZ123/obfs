@@ -1,6 +1,7 @@
 {
   "extends": "./jsconfig.json",
   "include": [
+    "test/agent1-class-source-closure-veto.test.js",
     "test/lexical-runtime-owner-grid.test.js",
     "test/lexical-delete-binding-role.test.js",
     "test/lexical-export-namespace-label.test.js",
