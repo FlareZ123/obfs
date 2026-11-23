@@ -14,7 +14,7 @@ function observe(property, strict) {
   const directive = strict ? "'use strict'; " : '';
   const source = `function evaluate() { ${directive}const owner = { ${property}: 73 }; return hostSpy(owner.${property}); }\nevaluate();`;
   return runInNewContext(source, {
-    hostSpy: (value) => ({
+    hostSpy: (/** @type {number} */ value) => ({
       value,
       callsite: findEvaluateFrame(),
     }),
