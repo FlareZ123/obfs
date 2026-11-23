@@ -5,12 +5,13 @@ const {test}=require('node:test');
 const vm=require('node:vm');
 const {obfuscateFiles}=require('../src/core');
 
-const input='function hidden(){const privateLocal=17;throw new Error("boom");}'+
+const input='function hidden(){const privateLocal=17;return privateLocal+getExternal();}'+
   'function publicReader(){return hidden();}module.exports=publicReader;';
 
 /** @param {string} source @returns {()=>unknown} */
 function load(source) {
-  const context={module:{exports:null},Error};
+  const context={module:{exports:null},Error,
+    getExternal(){throw Error('external callback rejected');}};
   vm.runInNewContext(source,context,{timeout:2000});
   return /** @type {()=>unknown} */(context.module.exports);
 }
