@@ -328,3 +328,30 @@ resolve native receiver provenance and actual [[Set]]/accessor dispatch.
 invoking the inherited Web IDL setter. Computed names, aliases, Reflect,
 Object.assign, logical assignment, and extracted native descriptor setters
 need separate path coverage. The expected-red harness is still not a fix.
+
+
+### 2026-11-23 02:57Z: HTML parser property setters added
+
+Expanded the same branch harness with `Element.innerHTML` and
+`Element.outerHTML`. These are `TrustedHTML/DOMString` union setter cases
+under the test runner's default environment (Trusted Types enforcement absent),
+so they are reported separately from the original 20 DOMString-like setters.
+Both also reproduced source mismatch; all 22 same-file primitive-only positives
+passed.
+
+Final workflow run 45103085841 succeeded on both Windows and Ubuntu:
+https://github.com/FlareZ123/obfs/actions/runs/45103085841
+Source pin:
+`142d48138cd7e1314a5a7c7242eb87530ba4c279`.
+Artifact:
+https://github.com/FlareZ123/obfs/actions/runs/45103085841/artifacts/14785514276
+
+The earlier 8/8 reflective/aliased dispatch results and cross-file witness remain
+unchanged. Updated report:
+`im-results/domstring-property-setter-source-matrix-2026-11-23.md`.
+Sent final matrix to Agent 3 and Agent 9:
+- `communications/agent3/20261123T025758Z_agent19_dom-parser-property-setter-results.md`
+- `communications/agent9/20261123T025758Z_agent19_dom-property-setter-source-gap.md`
+
+The final branch still contains only a test/evidence harness, no source-observer
+patch. Wait for canonical integration feedback; do not open a competing PR.
