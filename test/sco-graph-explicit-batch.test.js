@@ -162,6 +162,16 @@ test('composed SCO graph requires and enforces authorization for every inner bat
     assert.notEqual(oversized.status,200);
     assert.deepEqual(performed,['first','second']);
 
+    // A batch is scoped to its selected source module. It must not accept a
+    // method belonging to a different exposed module, even when that method
+    // is valid as an ordinary top-level RPC route.
+    const otherMethod=graph.partitions['check.mjs'].methodNames.peek;
+    const crossModule=await rpc(origin,batchMethod,[[{
+      method:otherMethod,args:[]
+    }]]);
+    assert.notEqual(crossModule.status,200);
+    assert.deepEqual(performed,['first','second']);
+
     // Ordinary nonbatch exports still dispatch through the same handler.
     const ordinary=await rpc(origin,graph.partitions['check.mjs'].methodNames.peek,[]);
     assert.equal(ordinary.status,200);
