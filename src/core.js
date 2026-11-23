@@ -2664,6 +2664,23 @@ function obfuscateFiles(files, options = {}) {
   // transformation by retaining original text and symbol mappings.
   for (const file of prepared) assertNoSourceMapDisclosure(file);
   assertReviewedOpaqueAssets(prepared,options.reviewedOpaqueAssets);
+  // A non-strict Node CommonJS module body executes inside an implicit
+  // source-bearing loader function. An uncompiled dependency invoked at
+  // module top level can inspect that entire wrapper's original source via
+  // sloppy Function#caller, even though the wrapper has no Acorn function
+  // node. Refuse *all* source-changing passes whenever any input can load
+  // opaque CommonJS code. Ordinary Node builtins and supplied exact relative
+  // JavaScript files remain within the existing dependency proof.
+  const knownInputJavaScript=new Set(prepared.filter(file=>
+    file.sourceType!=='asset').map(file=>file.path));
+  const opaqueCommonJsWrapperObserver=prepared.some(file=>{
+    if(file.sourceType!=='commonjs'||typeof file.code!=='string')return false;
+    const sourceAst=parse(file.code,'commonjs');
+    const strictTopLevel=sourceAst.body.some((/** @type {import('./ast').AstNode} */ statement)=>
+      statement.type==='ExpressionStatement'&&statement.directive==='use strict');
+    return !strictTopLevel&&
+      hasUnprovedCommonJsRequire(sourceAst,file.path,knownInputJavaScript);
+  });
   // A function declared in one ESM/classic-script file may have its source
   // observed by another supplied file. File-local proofs cannot see that
   // consumer, so preserve all original source spellings across the file group.
@@ -2680,7 +2697,8 @@ function obfuscateFiles(files, options = {}) {
   // Declared HTML script/modulepreload SRI metadata also observes the exact
   // served JavaScript bytes. If the HTML asset is preserved, every emitted
   // integrity-pinned script must retain its source hash.
-  const remoteSourceObserver=hasPinnedLocalJavaScriptIntegrity(prepared) ||
+  const remoteSourceObserver=opaqueCommonJsWrapperObserver ||
+    hasPinnedLocalJavaScriptIntegrity(prepared) ||
     prepared.some(file=>
     file.sourceType!=='asset' && typeof file.code==='string' &&
     (observesDistributedSource(parse(file.code,file.sourceType),importedStringProof.get(file.path)) ||
