@@ -355,7 +355,9 @@ test('Selected SCO requires proven local reads for freshly constructed URL value
       'return ((v)=>v.constructor.createObjectURL(new Blob(["x"])))(u);',
     'const box={u:new URL("https://example.org/a")};'+
       'return box.u.constructor.createObjectURL(new Blob(["x"]));',
-    'return new URL("https://example.org/a");'
+    'return new URL("https://example.org/a");',
+    'function nested(){const u=new URL("https://example.org/a");return u.pathname;}return u.pathname;',
+    'if(true){const u=new URL("https://example.org/a");u.pathname;}return u.pathname;'
   ];
   for(const body of unsafe){
     assert.throws(()=>partitionScoSelectedAsyncExports(
