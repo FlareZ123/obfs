@@ -1005,9 +1005,30 @@ function proveLocalObject(ast, rootName, bindings, importedIdentityFunctions=new
     // A property spelling inside an unproven callable body is part of that
     // callable's externally observable source. Private direct-call-only
     // functions survive the escape analysis above and remain eligible.
-    if(ancestors.some(ancestor=>
+    //
+    // A public wrapper's *unchanged* expression `read(owner)` does not
+    // itself spell an own key. Admit this one boundary only if the owner is
+    // the sole actual parameter to a locally proven private direct-call-only
+    // reader, and the corresponding formal is a closed alias of this owner.
+    // The reader's own body still receives full member/use/source checks.
+    // This is not an exemption for member reads, arbitrary arguments,
+    // identity-forwarding calls, imported functions, or exported helpers.
+    const sourceVisibleAncestor=ancestors.some(ancestor=>
       ['FunctionDeclaration','FunctionExpression','ArrowFunctionExpression'].includes(ancestor.type)&&
-      !privateFunctionNodes.has(ancestor)))return null;
+      !privateFunctionNodes.has(ancestor));
+    if(sourceVisibleAncestor) {
+      const helper=parent?.type==='CallExpression'&&
+        parent.callee.type==='Identifier'?
+          functions.get(parent.callee.name):undefined;
+      const formal=helper?.params[0];
+      const safePrivateReaderActual=parent?.type==='CallExpression'&&
+        key==='arguments' && !parent.optional &&
+        parent.arguments.length===1 && parent.arguments[0]===node &&
+        helper?.forwardIndex===-1 && !helper.external &&
+        helper.params.length===1 && privateFunctionNodes.has(helper.node) &&
+        formal?.type==='Identifier' && aliases.has(formal.name);
+      if(!safePrivateReaderActual)return null;
+    }
     const scope=scopes.get(node.name);
     if (!scope || !ancestors.includes(scope)) return null;
     if (!parent) return null;
