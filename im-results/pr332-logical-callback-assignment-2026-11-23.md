@@ -239,3 +239,21 @@ The same test-only branch was extended with a three-module ESM case:
 At test commit `e4c6195f3807669c5dd7f9c88b989d5247315703`, focused [run 45141620747](https://github.com/FlareZ123/obfs/actions/runs/45141620747) failed on both Ubuntu and Windows. The five-case suite reported **four failures and one passing plain-identifier positive control**. The new cross-file-return case produced native `[53,["secretField"],53]` versus emitted `[53,["_pc3b043b29d7d"],null]`.
 
 This establishes that the required provenance is not merely a direct ForIn loop-head flag. A simple property-key string can leave its loop scope through a function return, cross an ESM export/import edge, and later be destructured. The proposed StringKey fact therefore needs to propagate through function return summaries and cross-file calls, as well as local aliases/assignments, before being converted to unknown host-value taint at object/array destructuring. The current candidate does not do this. This remains a test-only finding; no compiler source was changed.
+
+
+### Direct String primitive destructuring: the issue is broader than ForIn
+
+A sixth test removes ForIn entirely and performs direct object destructuring from a string literal:
+
+```js
+const {callback:Loader} = "x";
+const injected=Loader('return import("./state.mjs")');
+```
+
+The same host-owned preloader installs `String.prototype.callback` as a getter returning `Function`. The getter is invoked by ordinary object-binding initialization after boxing the string primitive; the hidden importer then observes the transformed state module.
+
+At test commit `f0080da37b08c5d2f36d0016e0103d1f27a84429`, focused [run 45143302218](https://github.com/FlareZ123/obfs/actions/runs/45143302218) failed on both Ubuntu and Windows. The six-case suite reported **five semantic failures and one passing plain-ForIn-identifier positive control**. The direct String-literal case produced native `[53,["secretField"],53]` versus emitted `[53,["_p92953797210d"],null]`.
+
+This establishes that the underlying problem is broader than ForIn. Object destructuring from a primitive string can consult host-mutated `String.prototype` / `Object.prototype` accessors even when the source is a literal. Array destructuring from a string can consult the host-mutated string iterator. The StringKey provenance needed for ForIn is one source of a more general **boxed-primitive destructuring** risk. The candidate's current pattern analysis does not conservatively account for the direct string-literal source either.
+
+**Revised analysis direction:** distinguish primitive-origin values from ordinary inert own-data object literals. At minimum, treat object/array destructuring from a primitive string as host-prototype-sensitive regardless of whether any factory is statically known in the module; propagate primitive-string provenance through ForIn keys, aliases, function returns and cross-file calls. A more general boxed-primitive rule may be needed for Number/Boolean/BigInt/Symbol prototypes and host-installed iterators. The plain ForIn identifier positive control remains necessary: a string key not destructured is not itself a callable and should not discard unrelated safe rewrite yield. This is still a test-only finding, not an implemented fix.
