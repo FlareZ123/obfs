@@ -1,6 +1,6 @@
 'use strict';
 
-const {evaluateBoundedDegreeModel}=
+const {evaluateBoundedDegreeModel,masksOfWeight}=
   require('./bounded-degree-oracle-functional-clone');
 
 const WIDTH=32;
@@ -116,13 +116,6 @@ function splitKernel(basis,labels){
  * @typedef {{xIndex:number,vMask:number,value:number}} SplitTerm
  */
 
-/** @param {number} x @returns {number} */
-function popcount32(x){
-  let u=x>>>0,n=0;
-  while(u){u=(u&(u-1))>>>0;n++;}
-  return n;
-}
-
 /**
  * Precompile the exact nonconstant x-ANF coefficients for the defect
  * Z(x,v)=F(x+v)^F(x)^F(v)^F(0), for all v and a degree <=4 model F.
@@ -138,9 +131,11 @@ function makeBoundedDegreeDefectContractor(model){
     throw new TypeError('expected 32-bit Boolean model with degree 2..4');
   /** @type {Map<number,number>} */
   const index=new Map();
-  for(const [mask] of model.coefficients){
-    const bits=popcount32(mask);
-    if(bits>0&&bits<model.degree&&!index.has(mask))index.set(mask,index.size);
+  // A sparse coefficient table can omit zero-coefficient monomials, but
+  // their x slots can still receive derivatives of higher-degree terms.
+  // Build every possible low-weight x slot independently of model entries.
+  for(let bits=1;bits<model.degree;bits++){
+    for(const mask of masksOfWeight(WIDTH,bits))index.set(mask,index.size);
   }
   /** @type {SplitTerm[]} */
   const terms=[];
