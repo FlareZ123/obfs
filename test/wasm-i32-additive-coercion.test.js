@@ -152,3 +152,73 @@ test('record bounded-addition native/Wasm hot ratio and cold initialization',()=
     scope:'single Node process / VM cross-realm pilot; NOT a universal 2.5x gate'
   }));
 });
+
+test('seeded additive/bitwise/conditional grammar fuzz preserves native and source-only clone',()=>{
+  let fuzzState=0x4c957f2d;
+  /** @returns {number} */
+  const pick=()=>{
+    fuzzState^=fuzzState<<13;
+    fuzzState^=fuzzState>>>17;
+    fuzzState^=fuzzState<<5;
+    return fuzzState>>>0;
+  };
+  /** @param {string[]} names @returns {string} */
+  function leaf(names){
+    if((pick()%3)!==0)return names[pick()%names.length];
+    return String(boundaries[pick()%boundaries.length]);
+  }
+  /**
+   * Generate additions only in expressions whose *own parent* eventually
+   * performs a bitwise ToInt32; never add an uncoerced conditional test.
+   * @param {number} depth
+   * @param {string[]} names
+   * @param {boolean} coerced
+   * @returns {string}
+   */
+  function tree(depth,names,coerced){
+    if(depth===0)return leaf(names);
+    const op=pick()%11;
+    if(op<3&&coerced)return '('+tree(depth-1,names,true)+
+      '+'+tree(depth-1,names,true)+')';
+    if(op===3)return '('+tree(depth-1,names,false)+'?'+
+      tree(depth-1,names,coerced)+':'+tree(depth-1,names,coerced)+')';
+    if(op===4)return '(~'+tree(depth-1,names,true)+')';
+    const bits=['&','|','^','<<','>>','>>>'];
+    return '('+tree(depth-1,names,true)+bits[pick()%bits.length]+
+      tree(depth-1,names,true)+')';
+  }
+  let pairs=0,decoded=0;
+  for(let sample=0;sample<45;sample++){
+    const names=['a','b','c','d'].slice(0,2+sample%3);
+    const expression='((a+b)|'+tree(3+sample%2,names,true)+')';
+    const source='function f('+names.join(',')+'){return '+
+      expression+';}module.exports=f;';
+    const native=load(source);
+    for(let seed=0;seed<2;seed++){
+      const generated=lowerWasmI32Functions(source,'commonjs',{
+        seed:'additive-fuzz-'+sample+'/'+seed,names:['f'],
+        conditionalStrategy:seed===0?'if':'select'
+      });
+      assert.equal(generated.functions,1,'rejected source: '+expression);
+      const compiled=load(generated.code);
+      const recovered=recoverPublicWasmExpression(generated.code,names);
+      const cloned=load('function f('+names.join(',')+'){return '+
+        recovered.expression+';}module.exports=f;');
+      decoded++;
+      for(let trial=0;trial<80;trial++){
+        const args=names.map((_,index)=>trial<boundaries.length?
+          boundaries[(trial+index)%boundaries.length]:(pick()|0));
+        const expected=native(...args);
+        assert.ok(Object.is(compiled(...args),expected),
+          'Wasm/native '+sample+'/'+seed+'/'+trial);
+        assert.ok(Object.is(cloned(...args),expected),
+          'Bytecode/native '+sample+'/'+seed+'/'+trial);
+        pairs++;
+      }
+    }
+  }
+  assert.equal(decoded,90);
+  assert.equal(pairs,7200);
+  console.log(JSON.stringify({seed:'0x4c957f2d',trees:45,variants:90,
+    comparisons:7200,attack:'public-bytecode symbolic recovery'}));
+});
