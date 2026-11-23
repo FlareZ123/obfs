@@ -2040,8 +2040,165 @@ function renameCrossFileProperties(files,seed) {
       modules.set(file.path,{file,...parseFile(file)});
     }
   }
-  const knownFiles=new Set(files.map(file=>file.path));
+  // String-selector metadata has already been verified across the static ESM
+  // graph. Use it during native-pattern admission to avoid refusing known
+  // private keys merely because their spellings arrive through imports.
   const verifiedStrings=collectVerifiedImportedStrings(files,parseFile);
+  // Only a uniquely named, nonexported local callable with exclusively
+  // direct, fully closed literal callsites can safely receive a native-named
+  // object-pattern formal without acquiring an ambient intrinsic.
+  /**
+   * @param {AstNode} node
+   * @param {number} depth
+   * @returns {boolean}
+   */
+  function inertFormalActualValue(node,depth) {
+    if(depth>16)return false;
+    if(node.type==='Literal')return node.value===null||
+      ['number','string','boolean','bigint'].includes(typeof node.value);
+    if(node.type==='ObjectExpression') {
+      const names=new Set();
+      return node.properties.every((/** @type {AstNode} */ property)=>{
+        if(property.type!=='Property'||property.kind!=='init'||
+           property.method||property.shorthand)return false;
+        const name=ownPropertyName(property);
+        if(name===null||name==='__proto__'||names.has(name))return false;
+        names.add(name);
+        return inertFormalActualValue(property.value,depth+1);
+      });
+    }
+    if(node.type==='ArrayExpression')return node.elements.every(
+      (/** @type {AstNode|null} */ element)=>element!==null&&
+        element.type!=='SpreadElement'&&inertFormalActualValue(element,depth+1));
+    return false;
+  }
+  /**
+   * @param {AstNode} property
+   * @param {ReadonlyMap<string,string>} knownNames
+   * @returns {string|null}
+   */
+  function provenFormalPropertyName(property,knownNames) {
+    const direct=ownPropertyName(property);
+    if(direct!==null)return direct;
+    if(property.computed&&property.key.type==='Identifier')
+      return knownNames.get(property.key.name)??null;
+    return null;
+  }
+  /**
+   * @param {AstNode} formal
+   * @param {AstNode|null|undefined} actual
+   * @param {ReadonlyMap<string,string>} knownNames
+   * @returns {boolean}
+   */
+  function closedNativeFormalActual(formal,actual,knownNames) {
+    if(formal.type!=='ObjectPattern'||actual?.type!=='ObjectExpression'||
+       !inertFormalActualValue(actual,0))return false;
+    const provided=new Set(actual.properties.map(
+      (/** @type {AstNode} */ property)=>ownPropertyName(property)));
+    return formal.properties.every((/** @type {AstNode} */ property)=>{
+      const name=property.type==='Property'?
+        provenFormalPropertyName(property,knownNames):null;
+      return name!==null&&provided.has(name)&&
+        property.type==='Property'&&property.value.type==='Identifier';
+    });
+  }
+  /**
+   * @param {{ast:AstNode,bindings:Map<string,number>}} module
+   * @param {AstNode} callable
+   * @param {AstNode|null|undefined} parent
+   * @param {AstNode[]} ancestors
+   * @param {number} argumentIndex
+   * @param {AstNode} formal
+   * @param {ReadonlyMap<string,string>} knownNames
+   * @returns {boolean}
+   */
+  function onlyClosedNativeCalls(module,callable,parent,ancestors,argumentIndex,formal,knownNames) {
+    const id=callable.type==='FunctionDeclaration'?callable.id:
+      parent?.type==='VariableDeclarator'&&parent.init===callable?parent.id:null;
+    if(id?.type!=='Identifier'||module.bindings.get(id.name)!==1||
+       callable.params.length!==1||argumentIndex!==0||
+       ancestors.some(a=>a.type==='ExportNamedDeclaration'||
+         a.type==='ExportDefaultDeclaration'))return false;
+    let calls=0;
+    let safe=true;
+    walk(module.ast,(node,refParent)=>{
+      if(!safe||node.type!=='Identifier'||node.name!==id.name||node===id)return;
+      if(refParent?.type!=='CallExpression'||refParent.callee!==node||
+         refParent.optional) {
+        safe=false;
+        return;
+      }
+      calls++;
+      if(refParent.arguments.length!==1||
+         !closedNativeFormalActual(formal,refParent.arguments[argumentIndex],knownNames))
+        safe=false;
+    });
+    return safe&&calls>0;
+  }
+  // A function formal can extract mutable native reflection state from an
+  // indirect named actual, including computed selectors and nested patterns.
+  // Only source-proven closed literal calls are exempt from graph-wide refusal.
+  for(const module of modules.values()) {
+    /** @type {Map<string,string>} */
+    const knownNames=new Map(verifiedStrings.get(module.file.path)||[]);
+    for(const statement of module.ast.body) {
+      const declaration=statement.type==='VariableDeclaration'?statement:
+        statement.type==='ExportNamedDeclaration'&&!statement.source?
+          statement.declaration:null;
+      if(declaration?.type!=='VariableDeclaration'||declaration.kind!=='const')continue;
+      for(const entry of declaration.declarations) {
+        if(entry.id.type!=='Identifier'||!entry.init||
+           module.bindings.get(entry.id.name)!==1)continue;
+        const name=staticString(entry.init);
+        if(name!==null)knownNames.set(entry.id.name,name);
+      }
+    }
+    /**
+     * @param {AstNode|null|undefined} pattern
+     * @returns {boolean}
+     */
+    function canExtractNative(pattern) {
+      if(!pattern)return false;
+      let nativeKey=false;
+      walk(pattern,property=>{
+        if(property.type!=='Property')return;
+        const name=provenFormalPropertyName(property,knownNames);
+        if(name==='Reflect'||name==='Object'||
+           name===null&&property.computed===true)nativeKey=true;
+      });
+      return nativeKey;
+    }
+    let unprovedNativeFormal=false;
+    walk(module.ast,(node,parent,key,ancestors)=>{
+      if(unprovedNativeFormal)return;
+      if(node.type==='VariableDeclarator' &&
+         (node.id.type==='ObjectPattern'||node.id.type==='ArrayPattern') &&
+         canExtractNative(node.id) &&
+         !closedNativeFormalActual(node.id,node.init,knownNames))
+        unprovedNativeFormal=true;
+      if(node.type==='AssignmentExpression' &&
+         (node.left.type==='ObjectPattern'||node.left.type==='ArrayPattern') &&
+         canExtractNative(node.left) &&
+         !closedNativeFormalActual(node.left,node.right,knownNames))
+        unprovedNativeFormal=true;
+      if(node.type==='CatchClause' && canExtractNative(node.param))
+        unprovedNativeFormal=true;
+      if((node.type==='ForOfStatement'||node.type==='ForInStatement') &&
+         (node.left.type==='ObjectPattern'||node.left.type==='ArrayPattern') &&
+         canExtractNative(node.left))unprovedNativeFormal=true;
+      if(!['FunctionDeclaration','FunctionExpression','ArrowFunctionExpression'].includes(node.type))return;
+      for(let i=0;i<node.params.length;i++) {
+        const arg=node.params[i];
+        const formal=arg.type==='AssignmentPattern'?arg.left:
+          arg.type==='RestElement'?arg.argument:arg;
+        if(!canExtractNative(formal))continue;
+        if(!onlyClosedNativeCalls(module,node,parent,ancestors,i,formal,knownNames))
+          unprovedNativeFormal=true;
+      }
+    });
+    if(unprovedNativeFormal)return {files,objects:0,properties:0};
+  }
+  const knownFiles=new Set(files.map(file=>file.path));
   const verifiedClones=collectVerifiedImportedCloneAliases(files,parseFile);
   const verifiedUrlStatics=collectVerifiedImportedUrlStaticAliases(files,parseFile);
   const verifiedPrimitives=collectVerifiedImportedPrimitives(files,parseFile);
