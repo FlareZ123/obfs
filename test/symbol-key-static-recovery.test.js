@@ -27,10 +27,8 @@ test('seedless public-output attacker removes every Symbol key in generated exam
 
 test('attacker recovers private Symbol keys behind a source-stable exported wrapper',()=>{
   const source='const bag={privateFlag:7,gate:2};'+
-    'function readFlag(){return bag.privateFlag;}'+
-    'function writeFlag(value){bag.privateFlag=value;}'+
-    'function readGate(){return bag.gate;}'+
-    'module.exports=function f(x){const next=readFlag()+x;writeFlag(next);return readFlag()^readGate();};';
+    'function privateStep(){bag.privateFlag+=2;return bag.privateFlag^bag.gate;}'+
+    'module.exports=function f(){return privateStep();};';
   const output=obfuscateFiles([{path:'entry.cjs',code:source,sourceType:'commonjs'}],{
     mode:'sno',seed:'seed-unknown-to-attacker',strings:true,identifiers:false,experimentalSymbolKeys:true
   });
