@@ -5,8 +5,8 @@
 **Research owner:** Agent 19  
 **Date:** 2026-11-23  
 **Reproduction branch:** `agent19/domstring-property-setter-matrix-20261123`  
-**Final source pin:** `df25d46e7f9a92e88ef4e134f31a6a5d60a73bbc`  
-**Validation:** [GitHub Actions run 45103407766](https://github.com/FlareZ123/obfs/actions/runs/45103407766)
+**Final source pin:** `7af69a09ac9b1d193e67e469129d4ce272ca6b00`  
+**Validation:** [GitHub Actions run 45103672785](https://github.com/FlareZ123/obfs/actions/runs/45103672785)
 
 ## Finding
 
@@ -74,10 +74,11 @@ The final source-pinned workflow completed successfully. Its Ubuntu job ran the 
 | Same-file primitive positives retaining one private-property rename | **26 / 26** |
 | Plain-object `.id` function-reference control | **PASS** |
 | Cross-file native property-setter source mismatch | **1 / 1** |
-| Reflective/aliased setter dispatch variants with changed source | **8 / 8** |
-| Reflective/aliased primitive-only positive parity | **8 / 8** |
+| Reflective/aliased setter dispatch variants with changed source | **9 / 9** |
+| Reflective/aliased primitive-only positive parity | **9 / 9** |
 | Own data-property shadowing control | **PASS** |
 | Own custom-accessor shadowing control | **PASS** |
+| Proxy storage-trap control | **PASS** |
 | Cross-file primitive-only positive | **PASS** |
 | Existing focused Web IDL Node suite | **237 / 237** |
 | Main project JSDoc and dedicated matrix JSDoc | **PASS** |
@@ -130,11 +131,14 @@ The final harness also tested eight ways of reaching the native setter. **All ei
 6. Logical assignment: `target.id ||= inspect`
 7. Native descriptor setter: `setId.call(target, inspect)`
 8. `Reflect.apply(setId, target, [inspect])`
+9. Proxy forwarding trap: `proxy.id = inspect`, where the trap forwards to the native setter with `Reflect.set(target, key, value, target)`.
+
+A complementary proxy-storage trap that intercepts the assignment and stores the function reference without calling the native setter also passed; native and compiled programs both invoked the stored function and returned 57. This distinguishes a proxy that forwards to a native setter from one that simply stores the assigned value.
 
 The own-data-property shadowing control passed: `Object.defineProperty(target, "id", { value: inspect, ... })` stored the function reference and the compiled program still invoked it correctly. This separates actual native setter dispatch from a reflective operation that merely creates an own data property.
 
 The final workflow uploaded the raw JSON summary as artifact
-[domstring-property-setter-matrix](https://github.com/FlareZ123/obfs/actions/runs/45103407766/artifacts/14786755831).
+[domstring-property-setter-matrix](https://github.com/FlareZ123/obfs/actions/runs/45103672785/artifacts/14786336857).
 
 
 ### Setter-identity negative control
@@ -186,6 +190,7 @@ These standards define the relevant native DOM/HTML interfaces and setter algori
 - [WHATWG HTML Standard — input element](https://html.spec.whatwg.org/multipage/input.html)
 - [WHATWG HTML Standard — form elements](https://html.spec.whatwg.org/multipage/form-elements.html)
 - [WHATWG HTML Standard — anchor element](https://html.spec.whatwg.org/multipage/text-level-semantics.html#the-a-element)
+- [WHATWG HTML Standard — dynamic markup insertion (`innerHTML`/`outerHTML` TrustedHTML-or-DOMString setters)](https://html.spec.whatwg.org/multipage/dynamic-markup-insertion.html)
 
 **Disposition:** keep this as intermediate evidence in `im-results/`. It is a concrete source-preservation defect and a test donor for the canonical source-observer integration, not a publishable solution or a reason to change the project-wide **RELEASE-BLOCKED** decision.
 
