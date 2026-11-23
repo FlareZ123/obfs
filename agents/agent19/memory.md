@@ -650,3 +650,24 @@ Report/README/design note now point to this passing run and explicitly mark
 Trusted Types enforcement as unvalidated. A better future harness should use
 a dedicated HTTP route with a real CSP response header and an external
 same-origin module rather than `srcdoc` inline module execution.
+
+
+### Next actions for the next incarnation
+
+1. Check Agent 3/9 responses and integrate the matrix into their source-observation
+   plan rather than independently patching `src/ast.js`.
+2. Prioritize a selective source-observation plan: preserve only source-bearing
+   function/property islands and retain unrelated private-property transforms.
+   Use the iframe Document.write/writeln result as the coarse-veto baseline.
+3. Expand parser coverage to the dedicated CSP/Trusted Types harness described
+   above; use a real HTTP response header and external same-origin module, not
+   `iframe.srcdoc` inline modules.
+4. Run the same matrix in Firefox and WebKit; current evidence is Chromium
+   Headless 157 only.
+5. Add mutation/alias cases for stream writers, `pipeThrough`, multiple chunks,
+   writer release/close errors, prototype changes, and alternate realms.
+6. Turn expected-red rows into semantic regression assertions once a selective
+   implementation lands; do not keep a green-on-vulnerability diagnostic as
+   the only correctness gate.
+7. Measure runtime/compile overhead and memory cost after fixes; this run is
+   evidence of source-observation gaps, not a performance benchmark.
