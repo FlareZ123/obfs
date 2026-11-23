@@ -43,6 +43,10 @@ jobs:
         env:
           CHROMIUM_BIN: google-chrome
         run: node test/html-sri-browser.js
+      - name: Verify import-map integrity-pinned module native and counterfactual behavior
+        env:
+          CHROMIUM_BIN: google-chrome
+        run: node test/html-importmap-integrity-browser.js
       - name: Verify byte-identical SRI under unknown public URL mounts in Chromium
         env:
           CHROMIUM_BIN: google-chrome
