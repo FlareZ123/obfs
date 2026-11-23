@@ -50,3 +50,17 @@ The earlier six-test receipt remains a valid, source-pinned historical result. F
 **Latest source pin:** `7257b78efbbd64f99047c4b5361084438ae4c834`, [focused GitHub Actions run 45243943915](https://github.com/FlareZ123/obfs/actions/runs/45243943915). Ubuntu **10/10 Node tests pass** and Windows focused job **pass**, strict project/external/budget JSDoc checks pass on both. Full main Node suite still skipped by focused-test mode. Previous [45243620856](https://github.com/FlareZ123/obfs/actions/runs/45243620856) also passed after the two prefix/boundary tests; [45243749812](https://github.com/FlareZ123/obfs/actions/runs/45243749812) passed after the real ESM module test.
 
 **Interpretation unchanged:** a necessary source/lexical-dependency edit constraint for an explicitly selected observed function in narrowly modelled settings. No automatic observer identification, no independent provider mutation, no complete cross-file proof, no source-visible method/accessor semantics, and no main compiler integration.
+
+
+## Explicit falsifiers for overclaiming source-local safety, source pin 19:02 UTC
+
+Two deliberately **negative** controls were added, proving that accepted edits under this lexical/source constraint may still be semantically invalid. They are regression **passes** because the tests assert the documented non-guarantee:
+
+1. **Property flow:** `const data={value:40};function observed(){return data.value+2;}`. The gate accepts changing `value` to `other` in the external object literal, because `data`'s lexical declaration and the function's exact source remain untouched. `observed.toString()` is still identical, while `observed()` changes from **42** to `NaN`. A complete obfuscator needs a proved property-alias/shape/reflective-use analysis; a captured lexical binding cannot certify properties reached through it.
+2. **Provider graph:** An ESM consumer imports `secret` from a `data:` provider, and `function observed(){return secret+2;}` has its exact source and imported binding name preserved. The gate accepts a change to the import module specifier pointing to a second provider with `secret=1` instead of `secret=40`, so runtime value changes **42 → 3** with byte-identical `observed.toString()`. A lexical reference has preserved its import binding identity only *within the consumer*; the provider export and dependency graph are unproved.
+
+Both are counterexamples to interpreting `applyObservedFunctionEdits` as a full JavaScript semantic-equivalence check. The function is explicitly scoped as a **necessary source/lexical constraint** only, so the candidate's documented contract is consistent with these counterexamples. The main compiler is unchanged.
+
+**Pinned validation:** source `2790b042ad1f33b92349bf4f13b8e9812ebc82d7`, [GitHub Actions manual focused run 45244412163](https://github.com/FlareZ123/obfs/actions/runs/45244412163). Ubuntu **12/12 Node tests PASS**, Windows focused job **PASS**, strict project/external/budget JSDoc steps **PASS**. Full Node 22 job skipped by focused input. Two independently verified counterexamples and ten prior positive/boundary tests constitute the new scoped suite.
+
+**Required next full-proof dependencies:** cross-file import/export graph and remote source authorization, interprocedural alias/property/reflective-use consistency, actual Web IDL method selection and coercion, callable metadata and stack-frame effects, persistent old-to-new source range correspondence across all enabled backends. None were established by this test.
