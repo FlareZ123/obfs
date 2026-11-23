@@ -61,6 +61,10 @@ test('host callback can record strict IIFE source callsite without touching its 
     'const result=(()=>globalThis.HOST_STACK_SPY(owner.longPrivateFieldForHost))();'+
     'export const observed=result;';
   const candidate=compiled(source,'strict-host-stack-iife');
+  assert.equal(candidate.metrics.properties,0,
+    'Until an externally source-stable host-call proof exists, refuse this owner rename');
+  assert.equal(candidate.code,source,
+    'The direct host-global stack observer must preserve published source bytes');
   const root=await mkdtemp(path.join(tmpdir(),'obfs-arrow-host-'));
   const previous=globalThis.HOST_STACK_SPY;
   try {
