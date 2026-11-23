@@ -44,17 +44,26 @@ for(const [name,hook] of hooks) {
       strings:false
     }).files[0];
     assert.ok(output);
+    const native=JSON.parse(execute(original));
+    const emitted=JSON.parse(execute(output.code));
     console.log(JSON.stringify({
       hook:name,
+      native,
+      emitted,
       sourceObserved,
       metrics:output.metrics,
       retainedSecretField:output.code.includes('secretField'),
       retainedPrivateLocal:output.code.includes('privateLocal')
     }));
 
+    assert.deepEqual(emitted,native);
+    assert.equal(native.header,'stable');
+    assert.equal(native.param,'stable');
+    assert.equal(native.value,29);
+    assert.ok(!native.header.includes('secretField'));
+    assert.ok(!native.param.includes('secretField'));
     assert.equal(sourceObserved,false,
       'ToString dispatch uses the proved own conversion hook, not Function.prototype.toString');
-    assert.deepEqual(JSON.parse(execute(output.code)),JSON.parse(execute(original)));
     assert.ok(output.metrics.properties>=1,'the private owner property should still rename');
     assert.ok(output.metrics.bindings>=1,'the private local binding should still rename');
     assert.ok(!output.code.includes('secretField'),String(output.code));
