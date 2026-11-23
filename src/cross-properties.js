@@ -2149,22 +2149,43 @@ function renameCrossFileProperties(files,seed) {
         if(name!==null)knownNames.set(entry.id.name,name);
       }
     }
+    /**
+     * @param {AstNode|null|undefined} pattern
+     * @returns {boolean}
+     */
+    function canExtractNative(pattern) {
+      if(!pattern)return false;
+      let nativeKey=false;
+      walk(pattern,property=>{
+        if(property.type!=='Property')return;
+        const name=provenFormalPropertyName(property,knownNames);
+        if(name==='Reflect'||name==='Object'||
+           name===null&&property.computed===true)nativeKey=true;
+      });
+      return nativeKey;
+    }
     let unprovedNativeFormal=false;
     walk(module.ast,(node,parent,key,ancestors)=>{
-      if(unprovedNativeFormal||
-         !['FunctionDeclaration','FunctionExpression','ArrowFunctionExpression'].includes(node.type))return;
+      if(unprovedNativeFormal)return;
+      if(node.type==='VariableDeclarator' &&
+         (node.id.type==='ObjectPattern'||node.id.type==='ArrayPattern') &&
+         canExtractNative(node.id) &&
+         !closedNativeFormalActual(node.id,node.init,knownNames))
+        unprovedNativeFormal=true;
+      if(node.type==='AssignmentExpression' &&
+         (node.left.type==='ObjectPattern'||node.left.type==='ArrayPattern') &&
+         canExtractNative(node.left) &&
+         !closedNativeFormalActual(node.left,node.right,knownNames))
+        unprovedNativeFormal=true;
+      if(node.type==='CatchClause' && canExtractNative(node.param))
+        unprovedNativeFormal=true;
+      if(!['FunctionDeclaration','FunctionExpression','ArrowFunctionExpression'].includes(node.type))return;
       for(let i=0;i<node.params.length;i++) {
         const arg=node.params[i];
-        const formal=arg.type==='AssignmentPattern'?arg.left:arg;
-        if(formal.type!=='ObjectPattern'&&formal.type!=='ArrayPattern')continue;
-        let nativeKey=false;
-        walk(formal,property=>{
-          if(property.type!=='Property')return;
-          const name=provenFormalPropertyName(property,knownNames);
-          if(name==='Reflect'||name==='Object'||
-             name===null&&property.computed===true)nativeKey=true;
-        });
-        if(nativeKey&&!onlyClosedNativeCalls(module,node,parent,ancestors,i,formal,knownNames))
+        const formal=arg.type==='AssignmentPattern'?arg.left:
+          arg.type==='RestElement'?arg.argument:arg;
+        if(!canExtractNative(formal))continue;
+        if(!onlyClosedNativeCalls(module,node,parent,ancestors,i,formal,knownNames))
           unprovedNativeFormal=true;
       }
     });
