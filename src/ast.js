@@ -1774,6 +1774,69 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
     'imul','log','log10','log1p','log2','max','min','pow','round','sign',
     'sin','sinh','sqrt','tan','tanh','trunc'
   ]);
+  const mathNamespaces=new Set(['Math']);
+  const dateNamespaces=new Set(['Date']);
+  const numberNamespaces=new Set(['Number']);
+  const dateNumericMethods=new Set(['parse','UTC']);
+  const numberNumericMethods=new Set(['parseInt','parseFloat']);
+  // Preserve aliases of native numeric coercers and their namespaces. This
+  // deliberately over-approximates shadowing: an unknown alias is safer to
+  // decline than to let its argument expose a transformed function source.
+  walk(ast,node=>{
+    if(node.type!=='VariableDeclarator')return;
+    const init=node.init;
+    if(node.id.type==='Identifier' && init?.type==='Identifier') {
+      if(mathNamespaces.has(init.name))mathNamespaces.add(node.id.name);
+      if(dateNamespaces.has(init.name))dateNamespaces.add(node.id.name);
+      if(numberNamespaces.has(init.name))numberNamespaces.add(node.id.name);
+      if(numericCoercionFunctions.has(init.name))
+        numericCoercionFunctions.add(node.id.name);
+    }
+    if(node.id.type==='Identifier' && init?.type==='MemberExpression') {
+      const namespace=init.object.type==='Identifier'?init.object.name:null;
+      const method=memberName(init);
+      if(mathNamespaces.has(namespace??'')&&mathNumericMethods.has(method??'')||
+         dateNamespaces.has(namespace??'')&&dateNumericMethods.has(method??'')||
+         numberNamespaces.has(namespace??'')&&numberNumericMethods.has(method??'')) {
+        numericCoercionFunctions.add(node.id.name);
+      }
+    }
+    if(node.id.type==='ObjectPattern' && init?.type==='Identifier') {
+      const namespace=init.name;
+      for(const property of node.id.properties) {
+        if(property.type!=='Property')continue;
+        const key=property.computed?staticString(property.key):
+          property.key.type==='Identifier'?property.key.name:staticString(property.key);
+        const target=property.value.type==='AssignmentPattern'?
+          property.value.left:property.value;
+        if(target.type!=='Identifier')continue;
+        if(mathNamespaces.has(namespace)&&mathNumericMethods.has(key??'')||
+           dateNamespaces.has(namespace)&&dateNumericMethods.has(key??'')||
+           numberNamespaces.has(namespace)&&numberNumericMethods.has(key??'')) {
+          numericCoercionFunctions.add(target.name);
+        }
+      }
+    }
+  });
+  /** @param {AstNode|null|undefined} node @returns {boolean} */
+  function isNumericCoercionCallee(node) {
+    if(!node)return false;
+    if(node.type==='Identifier')return numericCoercionFunctions.has(node.name);
+    if(node.type!=='MemberExpression')return false;
+    const namespace=node.object.type==='Identifier'?node.object.name:null;
+    const method=memberName(node);
+    return mathNamespaces.has(namespace??'')&&
+        (method===null||mathNumericMethods.has(method)) ||
+      dateNamespaces.has(namespace??'')&&
+        (method===null||dateNumericMethods.has(method)) ||
+      numberNamespaces.has(namespace??'')&&
+        (method===null||numberNumericMethods.has(method));
+  }
+  /** @param {AstNode|null|undefined} node @returns {boolean} */
+  function isNumericCoercionConstructor(node) {
+    return Boolean(node?.type==='Identifier' &&
+      (numberNamespaces.has(node.name)||dateNamespaces.has(node.name)));
+  }
   // ToPropertyKey applies ToPrimitive with a string hint. Functions with
   // ordinary prototype methods stringify to their source text. Restrict the
   // guard to syntactically tracked functions so string/number computed keys
@@ -2938,16 +3001,34 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
        (isFunctionValue(node.left)||containsFunction(node.left))) observed=true;
     // Known numeric/string coercer calls also perform ToPrimitive on their
     // arguments. Do not classify Boolean or typeof as coercers.
-    if(node.type==='CallExpression') {
-      const callee=node.callee;
-      const directName=callee.type==='Identifier'?callee.name:null;
-      const mathName=callee.type==='MemberExpression' &&
-        callee.object.type==='Identifier' && callee.object.name==='Math'?
-          memberName(callee):null;
-      if((numericCoercionFunctions.has(directName??'')||
-          mathNumericMethods.has(mathName??'')) &&
-         node.arguments.some((/** @type {AstNode} */ value)=>
-           isFunctionValue(value)||containsFunction(value))) observed=true;
+    if(node.type==='CallExpression' && isNumericCoercionCallee(node.callee) &&
+       node.arguments.some((/** @type {AstNode} */ value)=>
+         isFunctionValue(value)||containsFunction(value))) observed=true;
+    if(node.type==='NewExpression' && isNumericCoercionConstructor(node.callee) &&
+       node.arguments.some((/** @type {AstNode} */ value)=>
+         isFunctionValue(value)||containsFunction(value))) observed=true;
+    // Bound/extracted numeric coercers and Reflect.apply preserve the same
+    // implicit ToPrimitive source observation through hidden call layers.
+    if(node.type==='CallExpression' && node.callee.type==='MemberExpression' &&
+       ['call','apply','bind'].includes(memberName(node.callee)??'') &&
+       isNumericCoercionCallee(node.callee.object)) {
+      const invocation=memberName(node.callee);
+      if(invocation==='apply') {
+        const supplied=node.arguments[1];
+        if(supplied?.type==='ArrayExpression') {
+          if(supplied.elements.some((/** @type {AstNode|null} */ value)=>
+            Boolean(value&&(isFunctionValue(value)||containsFunction(value)))))observed=true;
+        } else if(supplied)observed=true;
+      } else if(node.arguments.slice(1).some((/** @type {AstNode} */ value)=>
+        isFunctionValue(value)||containsFunction(value)))observed=true;
+    }
+    if(node.type==='CallExpression' && isReflectApplyMethod(node.callee) &&
+       isNumericCoercionCallee(node.arguments[0])) {
+      const supplied=node.arguments[2];
+      if(supplied?.type==='ArrayExpression') {
+        if(supplied.elements.some((/** @type {AstNode|null} */ value)=>
+          Boolean(value&&(isFunctionValue(value)||containsFunction(value)))))observed=true;
+      } else if(supplied)observed=true;
     }
     // Stack observation can also be expressed without a .stack member access.
     // A destructuring pattern reads the error's captured source location.
