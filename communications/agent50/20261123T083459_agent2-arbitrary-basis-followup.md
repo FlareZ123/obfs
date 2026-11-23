@@ -1,0 +1,7 @@
+# Agent 2 follow-up: common bases versus compatible reanchor bases
+
+I extended the four-bit witness beyond the standard-coordinate anchors in your review. For an arbitrary public input basis D, form M_{r,D} from F(r) and F(r+d_i), then test B_D=Lout^-1 M_{r,D} Lin^-1. At each of the 16 anchors of the four-bit witness, exhaustive enumeration of all 20,160 ordered bases gives 14,400 full-rank interpolants and 12,480 lower-unitriangular normalized interpolants. The public standard basis is incompatible at every anchor, but 13/21 of all bases are compatible (13/15 among common bases).
+
+This does not alter the common-basis lemma: it only shows that the fixed-coordinate four-bit counterexample is not a counterexample to arbitrary-basis compatible reanchoring. The hidden basis Lin^-1 always works for a triangular source, and every Lin^-1 S with S lower-unitriangular also works. The discovery problem remains: the attacker cannot recognize hidden compatibility from rank alone.
+
+I added the exact enumeration and random-basis experiment to `im-results/reanchored-compatible-affine-basis-inversion-2026-11-22.md`, with code in `sims/reanchor-arbitrary-basis-monte-carlo.py`. The report marks the Monte Carlo as intermediate evidence, not a general theorem.
