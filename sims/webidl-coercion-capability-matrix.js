@@ -98,6 +98,9 @@ async function main() {
     const nativePositive=source(sink,true);
     const emittedNegative=compile(nativeNegative,'webidl/'+sink.id+'/negative');
     const emittedPositive=compile(nativePositive,'webidl/'+sink.id+'/positive');
+    assert.ok(emittedPositive.properties>0 &&
+      !emittedPositive.code.includes('secretField'),
+      'Positive must truly rename the independent private source key: '+sink.id);
     compileRows.push({
       id:sink.id,
       negativeProperties:emittedNegative.properties,
@@ -210,6 +213,12 @@ async function main() {
     assert.equal(cssom?.positiveParity,true);
     assert.ok(Number(cssom?.negativeProperties)>0,
       'The native source-observation witness must exercise a private rewrite');
+    const version=await promisify(execFile)(
+      process.env.CHROMIUM_BIN??'google-chrome',['--version'],
+      {timeout:10000,encoding:'utf8'});
+    process.stdout.write('WEBIDL_BROWSER_RUNTIME '+JSON.stringify({
+      node:process.version,chrome:version.stdout.trim()
+    })+'\n');
     process.stdout.write('WEBIDL_COERCION_MATRIX '+JSON.stringify(summary)+'\n');
   }finally {
     await new Promise(resolve=>server.close(()=>resolve(undefined)));
