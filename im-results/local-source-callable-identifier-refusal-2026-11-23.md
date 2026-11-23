@@ -75,3 +75,11 @@ At runtime the callback's `arguments.callee.caller` is the directly invoked `hid
 The host callback is sloppy by construction; ordinary CJS source does not include `'use strict'`. Strict-mode callable caller introspection may reject access. This does not rescue a **universal CJS/Node behavioral equivalence** guarantee. Direct-call-only AST references cannot establish non-observability when external host callbacks can inspect their caller.
 
 The prototype is an explicit **REJECT for default admission** until this channel, cross-file escapes and further host reflection are proven safe, even though it repairs the simpler 84-case public-source matrix. The underlying original compiler may share this source mismatch; a control run on the unpatched compiler is queued separately.
+
+## Reproduction against unmodified compiler, independently of prototype patch
+
+The identical `test/agent38-sloppy-caller-source-escape.test.js` was copied to research branch `agent38/private-yield-observer-matrix-20261123`, which has **no `src/identifiers.js` guard patch**, at exact SHA `9acc599c81a87610630afa10a1897643e23890b0`. Its [focused Ubuntu/Windows CI run 45131817576](https://github.com/FlareZ123/obfs/actions/runs/45131817576) is **RED on both operating systems** with the **same result**: original exported value is 17, and the external sloppy callback observes the private function's unchanged `privateLocal` name; COO, SNO and SCO transformed outputs return 17 but expose distinct `_v...` mangled local names via `arguments.callee.caller.toString()`. Each candidate has one actual binding rename.
+
+Therefore this is a **baseline default lexical backend interoperability bug**, not a regression created by the proposed source-span guard. The guard repairs ordinary published-export source observations but leaves the dynamic source-exposure defect unchanged. A one-file direct-call binding heuristic cannot establish true private-source non-observability under the stated unknown host callback model.
+
+The unmodified baseline and experimental patched source both have source-pinned two-platform falsifiers in the report. The owner should disposition the *existing* default behavioral mismatch separately from the *unmerged* incomplete repair.
