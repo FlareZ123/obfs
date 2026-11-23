@@ -114,24 +114,7 @@ test('static computed record keys lower to positional indices',()=>{
   assert.doesNotMatch(result.code,/privateB|otherB/);
 });
 
-test('core option lowers selected source-observer island records and preserves external ESM behavior',async()=>{
-  const options={
-    mode:'coo',closedWorld:true,seed:'island-array-core',
-    strings:false,
-    experimentalSourceObserverIslands:['independent.mjs'],
-    experimentalSourceObserverIslandRecordsToArrays:true
-  };
-  const result=obfuscateFiles([watched,independent,observer],options);
-  const emitted=result.files.find(file=>file.path==='independent.mjs');
-  assert.ok(emitted);
-  assert.equal(emitted.metrics.objects,1);
-  assert.equal(emitted.metrics.properties,2);
-  assert.match(String(emitted.code),/const recordB=\[\d+,\d+\];const valueB=recordB\[\d+\];/);
-  assert.doesNotMatch(String(emitted.code),/privateB|otherB/);
-  const attacker=normalizePublicIsland(String(emitted.code));
-  assert.equal(attacker.properties,0);
-  assert.equal(attacker.code,String(emitted.code));
-
+test('core option lowers selected source-observer island records in COO, SCO and SNO',async()=>{
   /** @type {SourceFile} */
   const probe={path:'entry.mjs',sourceType:'module',
     code:'import "./observer.mjs";'+
@@ -140,24 +123,42 @@ test('core option lowers selected source-observer island records and preserves e
       'console.log(JSON.stringify({watched:watched.toString(),'+
         'unrelated:unrelated.toString(),value:unrelated()}));'};
   const original=await executeEsm([watched,independent,observer,probe]);
-  const transformed=await executeEsm([...result.files,probe]);
-  assert.equal(transformed,original);
-  assert.deepEqual(JSON.parse(transformed),{
-    watched:'function watched(){return valueA;}',
-    unrelated:'function unrelated(){return valueB;}',
-    value:23
-  });
+  for(const mode of ['coo','sco','sno']) {
+    const result=obfuscateFiles([watched,independent,observer],{
+      mode,closedWorld:true,seed:'island-array-core-'+mode,
+      strings:false,
+      experimentalSourceObserverIslands:['independent.mjs'],
+      experimentalSourceObserverIslandRecordsToArrays:true
+    });
+    const emitted=result.files.find(file=>file.path==='independent.mjs');
+    assert.ok(emitted);
+    assert.equal(emitted.metrics.objects,1);
+    assert.equal(emitted.metrics.properties,2);
+    assert.match(String(emitted.code),/const recordB=\[\d+,\d+\];const valueB=recordB\[\d+\];/);
+    assert.doesNotMatch(String(emitted.code),/privateB|otherB/);
+    const attacker=normalizePublicIsland(String(emitted.code));
+    assert.equal(attacker.properties,0);
+    assert.equal(attacker.code,String(emitted.code));
+
+    const transformed=await executeEsm([...result.files,probe]);
+    assert.equal(transformed,original);
+    assert.deepEqual(JSON.parse(transformed),{
+      watched:'function watched(){return valueA;}',
+      unrelated:'function unrelated(){return valueB;}',
+      value:23
+    });
+  }
 });
 
-test('core tuple mode rejects a record whose length field cannot map to an array',()=>{
-  /** @type {SourceFile} */
-  const lengthLeaf={path:'independent.mjs',sourceType:'module',
-    code:'const record={length:2,privateB:23};'+
-      'const valueB=record.privateB;export function unrelated(){return valueB;}'};
-  assert.throws(()=>obfuscateFiles([watched,lengthLeaf,observer],{
-    mode:'coo',closedWorld:true,seed:'island-array-length',
-    strings:false,
+test('core tuple mode requires explicit proved islands and property transforms',()=>{
+  assert.throws(()=>obfuscateFiles([watched,independent,observer],{
+    mode:'coo',closedWorld:true,seed:'missing-island',strings:false,
+    experimentalSourceObserverIslandRecordsToArrays:true
+  }),/require at least one proved source observer island/);
+  assert.throws(()=>obfuscateFiles([watched,independent,observer],{
+    mode:'coo',closedWorld:true,seed:'properties-disabled',strings:false,
+    properties:false,
     experimentalSourceObserverIslands:['independent.mjs'],
     experimentalSourceObserverIslandRecordsToArrays:true
-  }),/special length property/);
+  }),/require properties to be enabled/);
 });
