@@ -62,7 +62,7 @@ for(const [name,setter] of cases) {
         bindings:emitted.metrics.bindings,
         equal:JSON.stringify(actual)===JSON.stringify(native)
       })+'\n');
-      assert.deepEqual(actual,native,mode+'/'+name+' '+emitted.code);
+      assert.equal(JSON.stringify(actual),JSON.stringify(native),mode+'/'+name+' '+emitted.code);
     }
     assert.equal(observesFunctionSource(parse(source,'commonjs')),true,name);
   });
@@ -78,7 +78,8 @@ test('CSSOM primitive custom property leaves an unrelated private key eligible',
     path:'case.cjs',sourceType:'commonjs',code:source
   }],{mode:'sno',seed:'cssom-primitive-positive',
     properties:true,identifiers:true,strings:false}).files[0];
-  assert.deepEqual(execute(/** @type {string} */(emitted.code)),execute(source));
+  assert.equal(JSON.stringify(execute(/** @type {string} */(emitted.code))),
+    JSON.stringify(execute(source)));
   assert.ok(emitted.metrics.properties>0,
     'Primitive source must retain independently eligible private-field renaming');
 });
