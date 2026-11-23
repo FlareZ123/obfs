@@ -12,6 +12,8 @@ const {partitionScoAsyncModule,bindScoModuleExports,createScoHandler}=require('.
 const {learnBoundedStepOnly,distinguish,createContinuationClone}=
   require('./sco-step-only-version-space');
 const {createFiveStateWorkspace}=require('./sco-step-only-five-state');
+const {createTwoStateWeightedWorkspace,learnTwoStateWeightedStepOnly}=
+  require('./sco-step-only-two-state-expected');
 const {makeIndependentMachine}=require('./sco-sync-independent-distribution');
 
 /**
@@ -29,6 +31,7 @@ const {makeIndependentMachine}=require('./sco-sync-independent-distribution');
  * @param {number} [states]
  * @param {number} [seed]
  * @param {boolean} [matchedControl]
+ * @param {'baseline'|'boundedNine'|'expected'} [twoStatePolicy] Optional weighted two-state public learner.
  * @returns {Promise<{states:number,queries:number,remaining:number,certified:boolean,
  *   sourceDisclosed:boolean,unauthorizedStatus:number,publicResetExport:boolean,
  *   knownContinuationExact:boolean,networkSteps:number,distinctSourceFiles:boolean,
@@ -37,13 +40,17 @@ const {makeIndependentMachine}=require('./sco-sync-independent-distribution');
  *   ordinaryControlQueries:number,ordinaryControlNetworkSteps:number,ordinaryControlExact:boolean,
  *   ordinaryUnauthorizedStatus:number,ordinaryMinifiedBytes:number,
  *   ordinarySourceBytes:number,attackerTranscriptMatched:boolean,
+ *   attackerPolicy:'baseline'|'boundedNine'|'expected',
  *   attackerCandidateBytes:number,attackerWorkspaceInitializationMs:number}>}
  */
-async function runLiveStepVersionSpace(states=2,seed=0x31415926,matchedControl=false){
+async function runLiveStepVersionSpace(states=2,seed=0x31415926,matchedControl=false,twoStatePolicy='baseline'){
   if(!Number.isSafeInteger(states)||states<2||states>5||
       !Number.isSafeInteger(seed)||seed<0||seed>0xffffffff||
-      typeof matchedControl!=='boolean' || (matchedControl&&states!==4&&states!==5)){
-    throw new RangeError('Expected two through five states, unsigned seed, and matched control only for four or five states');
+      typeof matchedControl!=='boolean' ||
+      (twoStatePolicy!=='baseline'&&twoStatePolicy!=='boundedNine'&&twoStatePolicy!=='expected') ||
+      (twoStatePolicy!=='baseline'&&states!==2) ||
+      (matchedControl&&states!==4&&states!==5&&!(states===2&&twoStatePolicy!=='baseline'))){
+    throw new RangeError('Expected valid state count, seed, and two-state-only weighted control');
   }
   const machine=makeIndependentMachine(seed,states);
   const canary='private-version-space-canary-'+seed;
@@ -191,7 +198,21 @@ async function runLiveStepVersionSpace(states=2,seed=0x31415926,matchedControl=f
     });
     /** @type {import('./sco-step-only-five-state').FiveStateWorkspace|undefined} */
     const fiveStateWorkspace=states===5?createFiveStateWorkspace():undefined;
-    const result=await learnBoundedStepOnly(api,states,128,fiveStateWorkspace);
+    const twoStateWorkspace=twoStatePolicy==='baseline'?undefined:createTwoStateWeightedWorkspace();
+    /**
+     * @param {{step:(symbol:number)=>Promise<number>}} publicApi
+     * @returns {Promise<Awaited<ReturnType<typeof learnBoundedStepOnly>> |
+     *   (Awaited<ReturnType<typeof learnTwoStateWeightedStepOnly>> & {
+     *     scanWork:number,equivalenceChecks:number,productPairs:number,
+     *     elapsedMs:number,candidateBytes:number,workspaceInitializationMs:number})>}
+     */
+    const learn=async publicApi=>{
+      if(twoStatePolicy==='baseline')return learnBoundedStepOnly(publicApi,states,128,fiveStateWorkspace);
+      const weighted=await learnTwoStateWeightedStepOnly(publicApi,twoStatePolicy,twoStateWorkspace);
+      return {...weighted,scanWork:0,equivalenceChecks:0,productPairs:0,
+        elapsedMs:0,candidateBytes:0,workspaceInitializationMs:0};
+    };
+    const result=await learn(api);
     assert.equal(result.certified,true);
     assert.ok(result.clone);
     let privateCurrent=0;
@@ -205,7 +226,7 @@ async function runLiveStepVersionSpace(states=2,seed=0x31415926,matchedControl=f
       globalThis.fetch=(input,options)=>nativeFetch(new URL(String(input),ordinaryOrigin),{
         ...options,headers:{...options?.headers,cookie:'session=approved'}
       });
-      const ordinaryResult=await learnBoundedStepOnly(ordinaryApi,states,128,fiveStateWorkspace);
+      const ordinaryResult=await learn(ordinaryApi);
       assert.equal(ordinaryResult.certified,true);
       assert.ok(ordinaryResult.clone);
       ordinaryQueries=ordinaryResult.queries;
@@ -255,7 +276,8 @@ async function runLiveStepVersionSpace(states=2,seed=0x31415926,matchedControl=f
       ordinaryControlRan:matchedControl,ordinaryControlQueries:ordinaryQueries,
       ordinaryControlNetworkSteps:matchedControl?ordinaryQueries+followup.length:0,
       ordinaryControlExact,ordinaryUnauthorizedStatus,
-      ordinaryMinifiedBytes,ordinarySourceBytes,attackerTranscriptMatched
+      ordinaryMinifiedBytes,ordinarySourceBytes,attackerTranscriptMatched,
+      attackerPolicy:twoStatePolicy
     };
   }finally{
     globalThis.fetch=nativeFetch;

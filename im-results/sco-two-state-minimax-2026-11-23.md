@@ -61,3 +61,14 @@ The posterior policy is now an executable **asynchronous public-only learner** i
 test/sco-step-only-two-state-online.test.js exercises each policy against all **260** original labelled 1- and 2-state oracle tables. A private test harness alone owns the current state and table. Every clone passes an independent product-BFS comparison against the true final private state, covering **all future input words**, with exact totals **1,884** (bounded-nine) and **1,776** (minimum expected) public steps. Invalid output and invalid-policy controls reject. This is a full finite-model verification for the declared binary two-state class, still far narrower than arbitrary protected JavaScript or a live SCO service.
 
 Local Node 22.16.0 executed six focused minimax/weighted/online tests, all passing. Fresh source-pinned Ubuntu/Windows workflow validation for the additional async learner must be considered separately from the earlier two-platform minimax-only success.
+
+
+## Authenticated real-SCO matched-service follow-up
+
+The existing real-HTTP fixture in sims/sco-step-only-live-rpc.js supports a strictly opt-in two-state weighted policy alongside its earlier four-/five-state paths. It uses the exact same SHA-generated hidden private machine in a compiler-generated SCO source-private facade and an ordinary esbuild-minified ESM facade, with matching cookie-based authorization policy, private state initialized to zero, and only a public step(bit) operation. Both services return HTTP 403 to unauthenticated requests; the public generated SCO source is checked for private-table canaries. The attacker gets the published client API and legitimate HTTP responses, and the evaluator checks the returned clone against the private state with a complete product-BFS.
+
+Four predeclared runs cover two independent fixed seeds and both policies:
+- Seed 0x51a9c603 (reachable two-state fixture): bounded-nine policy seven public steps, unconstrained expected-policy six steps.
+- Seed 0xa82b11f5 (reachable two-state fixture): bounded-nine policy nine public steps, unconstrained expected-policy ten steps.
+
+These are precomputed deterministic **query predictions**, not yet a claim of real-HTTP cross-platform success. The test requires bit-identical attacker input/output transcripts, equivalent clones, authorization refusals, and 16 matching future live follow-ups for generated SCO and ordinary minified services. The protected application still has no additional runtime compute bound measured here. An independent pinned GitHub Actions receipt is required before treating this as a validated network experiment.

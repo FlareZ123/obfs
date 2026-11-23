@@ -34,6 +34,7 @@
     "sims/sco-step-only-two-state-minimax.js",
     "sims/sco-step-only-two-state-expected.js",
     "test/sco-step-only-two-state-online.test.js",
+    "test/sco-step-only-two-state-live.test.js",
     "test/sco-step-only-two-state-minimax.test.js",
     "test/sco-step-only-smt.test.js"
   ],
