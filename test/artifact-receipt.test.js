@@ -211,3 +211,20 @@ test('receipt refuses raw malformed UTF-8 directory names before text replacemen
     assert.ok(receipt.arms.find(arm=>arm.arm==='candidate')?.files.some(
       file=>file.path===valid));
   });
+
+
+test('receipt accepts valid accented, CJK and emoji artifact names on both hosts',async t=>{
+  const input=await fixture(t);
+  const candidate=input.arms.find(arm=>arm.arm==='candidate');
+  assert.ok(candidate);
+  const names=['café.mjs','snow-雪.mjs','emoji-🔐.mjs'];
+  for(const name of names){
+    await fs.writeFile(path.join(candidate.root,name),'export default 3;');
+    candidate.files.push(name);
+  }
+  const receipt=await collectArtifactReceipt(input);
+  const actual=receipt.arms.find(arm=>arm.arm==='candidate');
+  assert.ok(actual);
+  for(const name of names)assert.ok(actual.files.some(file=>file.path===name),name);
+  await verifyArtifactReceipt(receipt,input.arms,input.lockfile);
+});
