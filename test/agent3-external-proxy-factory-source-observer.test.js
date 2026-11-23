@@ -76,7 +76,7 @@ test('unlisted proxy factory cannot expose a renamed function through numeric co
         "export const result=Number.isNaN(+proxied);",
         "export const capturedSource=globalThis.__functionSources[0]??'';",
         "export const unrelatedResult=unrelatedPrivate;"
-      ].filter(Boolean).join('\\n');
+      ].filter(Boolean).join('\n');
       const output=obfuscateFiles([{path:'app.mjs',code:source}],{
         mode:'coo',seed:'external-proxy-factory-source',properties:false,
         strings:false,identifiers:true
