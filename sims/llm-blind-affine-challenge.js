@@ -319,7 +319,9 @@ async function createBlindAffineMatchedChallenge(mode='coo'){
  * This reduces accidental label/order leakage but is not reviewer isolation:
  * deliver each packet privately to a distinct reviewer that cannot inspect
  * this repository, the other packet, or the hidden source. IDs are opaque
- * labels, not authentication credentials.
+ * labels, not authentication credentials. The coordinator receives both
+ * packets in this object: forward only one packet to each isolated reviewer;
+ * never give a reviewer the wrapper or the full packet array.
  *
  * @param {Mode} [mode]
  * @returns {Promise<OpaqueMatchedBlindChallenge>}
