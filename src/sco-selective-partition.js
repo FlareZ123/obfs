@@ -325,9 +325,9 @@ function usesUnprovedRelocatedTextDecoder(body){
   });
   // A freshly constructed UTF-8 decoder is still a host-native object.
   // Its .constructor, prototype, or first-class escape can recreate a
-  // legacy decoder that bypasses the literal-label check above. Admit only
-  // a directly invoked decode method, optionally through uniquely named
-  // immutable local aliases. All other instance uses need a stronger proof.
+  // legacy decoder that bypasses the literal-label check above. Admit
+  // direct decode calls and primitive scalar getter reads through proved
+  // immutable aliases. Other instance uses need a stronger proof.
   /** @param {import('./ast').AstNode|null|undefined} value @returns {boolean} */
   function isDirectInstance(value){
     return Boolean(value?.type==='NewExpression'&&decoderRoot(value.callee));
@@ -377,11 +377,20 @@ function usesUnprovedRelocatedTextDecoder(body){
     }
     if(parent?.type==='VariableDeclarator'&&
        provedInstanceDeclarations.has(parent)&&(key==='id'||key==='init'))return;
-    if(parent?.type==='MemberExpression'&&key==='object'&&
-       (parent.computed?staticString(parent.property):
-         parent.property.type==='Identifier'?parent.property.name:null)==='decode'){
-      const caller=ancestors[ancestors.length-2];
-      if(caller?.type==='CallExpression'&&caller.callee===parent)return;
+    if(parent?.type==='MemberExpression'&&key==='object'){
+      const member=parent.computed?staticString(parent.property):
+        parent.property.type==='Identifier'?parent.property.name:null;
+      const user=ancestors[ancestors.length-2];
+      if(member==='decode'&&
+         user?.type==='CallExpression'&&user.callee===parent)return;
+      // WHATWG-defined native decoder getters return immutable primitives.
+      // Restrict them to a direct return or simple initializer so a write
+      // target, destructuring assignment or first-class instance escape
+      // cannot be mistaken for an observational scalar read.
+      if(['encoding','fatal','ignoreBOM'].includes(member??'')&&
+         (user?.type==='ReturnStatement'&&user.argument===parent ||
+          user?.type==='VariableDeclarator'&&user.init===parent&&
+            user.id.type==='Identifier'))return;
     }
     unproved=true;
   });
