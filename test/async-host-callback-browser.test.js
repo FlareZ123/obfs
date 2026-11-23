@@ -87,9 +87,6 @@ test('Chromium host callback '+name+' preserves original ESM keys',
       mode:'coo',closedWorld:true,seed:'async-host-browser-parity',
       properties:true,identifiers:false,strings:false
     });
-    assert.equal(generated.crossFile.properties,0,
-      'A host-returning callback must prevent an observable owner-key rename');
-
     /** @type {Map<string,string>} */
     const resources=new Map();
     for(const [folder,source] of /** @type {[string,ModuleFile[]][]} */ ([
@@ -128,6 +125,8 @@ test('Chromium host callback '+name+' preserves original ESM keys',
       }
       assert.deepEqual(results[0],[41,3,['secretField'],41]);
       assert.deepEqual(results[1],results[0]);
+      assert.equal(generated.crossFile.properties,0,
+        'A host-returning callback must prevent an observable owner-key rename');
     }finally{
       await new Promise((resolve,reject)=>
         server.close(error=>error?reject(error):resolve()));
