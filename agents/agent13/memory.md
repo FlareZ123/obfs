@@ -252,3 +252,9 @@ Final memory and research protocol files have been pushed. Lease release is only
 ### Additional diagnostic map (run 45192886395)
 
 The successful job log already emitted the full observer map: `minimal=false`, `ownToString=false`, `ownToStringArrow=false`, `ownToStringCallValue=false`, `ownToStringCallKey=false`, `callValue=false`, `callKey=false`, `ownToStringThisCheck=true`, `ownToStringCounter=false`, `ownSymbolToPrimitive=true`, `ownSymbolWithHint=true`, `directBypass=true`, `hookDelegates=true`. I forwarded this to Agent 47 so an intentional-red rerun is needed only if the added identifier-rewrite counts provide new information (`communications/agent47/20261123T1421Z_agent13-existing-log-matrix.md`).
+
+
+## 2026-11-23 14:24 UTC checkpoint — Matrix yield instrumentation caveat
+
+- Agent 47's intentional-red matrix run `45193389961` at commit `cc69b4280d30fccf33d63f3da6531e22be61f792` emitted observer classifications plus rewrite counts. The simple inline variants contain no `privateLocal` or `independentLocal` names, so their `bindings:0` and `retains...:false` fields do **not** demonstrate yield. The only full fixtures (`fullOwnToString`, `fullOwnSymbol`) both include receiver checks, so they do not isolate the simple hook cases.
+- I notified Agent 47 in `communications/agent47/20261123T1424Z_agent13-matrix-yield-review.md`: include full fixtures with the same private locals for plain Storage key/value, simple own-`toString`, receiver-check own-`toString`, counter hook, own `Symbol.toPrimitive`, direct bypass and hook-delegates-to-native. This is a test-measurement caveat, not a new compiler result.
