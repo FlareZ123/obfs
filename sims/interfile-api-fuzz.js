@@ -143,7 +143,7 @@ async function execute(root,fixtures) {
 
 /**
  * @param {number} [seedCount]
- * @returns {Promise<{graphs:number,positive:number,negative:number,parityOnly:number,positiveProperties:number,nativeEqual:boolean}>}
+ * @returns {Promise<{graphs:number,positive:number,negative:number,parityOnly:number,positiveProperties:number,settledAsync:number,nativeEqual:boolean}>}
  */
 async function runApiFuzz(seedCount=20) {
   const root=await fs.mkdtemp(path.join(os.tmpdir(),'obfs-interfile-api-fuzz-'));
@@ -175,9 +175,25 @@ async function runApiFuzz(seedCount=20) {
       return {index:item.index,files:/** @type {SourceFile[]} */ (output.files)};
     });
     const reference=await execute(path.join(root,'original'),cases);
+    let settledAsync=0;
+    for(let index=0;index<cases.length;index++) {
+      const scenario=cases[index].scenario;
+      if(scenario==='async-owner-reflection') {
+        assert.equal(typeof reference[index],'string',
+          'Async owner reflection must resolve its exported Promise');
+        assert.ok(String(reference[index]).includes('privateField'),
+          'Async source-observation result must actually contain private keys');
+        settledAsync++;
+      }else if(scenario==='async-external-reader') {
+        assert.equal(typeof reference[index],'number',
+          'Async external reader must resolve a numeric computed result');
+        assert.ok(Number.isFinite(reference[index]));
+        settledAsync++;
+      }
+    }
     const changed=await execute(path.join(root,'obfuscated'),transformed);
     assert.deepEqual(changed,reference,'Native inter-file ESM output differs from obfuscated output');
-    return {graphs:cases.length,positive,negative,parityOnly,positiveProperties,nativeEqual:true};
+    return {graphs:cases.length,positive,negative,parityOnly,positiveProperties,settledAsync,nativeEqual:true};
   }finally{
     await fs.rm(root,{recursive:true,force:true});
   }
