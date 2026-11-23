@@ -109,6 +109,29 @@ All six compared cases have 4,960 nonzero cubic ANF coefficient masks (dense und
 
 In this finite workload, the reusable global flag reduces *additional* local compute for many target inversions, but it pays a material setup cost. The symbolic inverter is the appropriate pre-existing reference, not an arbitrary slower CEGAR with repeated server requests. These are single-run warmed wall-clock samples, not repeated-process CPU distributions or product runtime overhead; no universal performance advantage, security gain, or defender 2.5× compute compliance follows. Both attacks rely on the same strong low-degree and triangular source promises and produce the same legitimate chosen-query information advantage against an exposed service.
 
+## Live authenticated SCO versus equal-trust conventional HTTP
+
+The final two-platform [focused run 45254778057](https://github.com/FlareZ123/obfs/actions/runs/45254778057) passed at immutable main source \`bcf1b031f9b753deff6dc69164027b8f04b23d59\`, including the named live HTTP regression and strict project/external JSDoc on Ubuntu and Windows. The test is \`test/sco-triangular-cubic-exact-cegar.test.js\` and its executable implementation is \`sims/sco-triangular-cubic-exact-cegar.js\`.
+
+The source-private module is a degree-three upgrade of the existing serialized quadratic triangular fixture: it retains hidden affine input/output matrices and per-coordinate lower-prefix masks while introducing one triple product of independent linear forms per coordinate. The compiler creates a public facade through \`partitionScoAsyncModule\`; the privately imported original ESM export stays on the trusted server. The attacker receives only the actual served facade bytes to extract its hashed method route, its own legitimate credential, and the localhost endpoint.
+
+A matched ordinary Node HTTP service uses **the same private ESM function, selected route ID, authentication header, one-uint32-argument policy, JSON result envelope, and error statuses**. Both services return 403 to an unauthenticated RPC. The attacker makes exactly the same 5,489 authenticated low-weight queries to each, reconstructs identical ANF coefficients and verifies SHA-256-equivalent query transcripts. No unauthorized access or private-source-parameter recovery is asserted.
+
+The actual single-case outputs on both platforms were:
+
+| Property | SCO private RPC | Matched conventional private RPC |
+| --- | ---: | ---: |
+| Legitimate chosen requests | 5,489 | 5,489 |
+| Private executions counted by server | 5,489 | 5,489 |
+| Unauthenticated selected RPC response | 403 | 403 |
+| Fitting transcript digest | identical | identical |
+| Actual nonzero degree-three coefficient masks | 4,960 | 4,960 |
+| Server contact after fitted transcript | 0 | 0 |
+
+After **both** servers close, the independent offline quadratic/cubic coefficient evaluator predicted **256/256** held-out source outputs and the cubic exact flag found **16/16** selected preimages; no further server requests occurred. The distributed public facade did not contain the serialized private fixture marker names. The report does not assert that those labels prove source secrecy against stronger server attacks; in the stated SCO model the attacker cannot read the trusted server's files, and these checks only verify this constructed admission boundary.
+
+This is a **negative selection result for the low-degree source family** and demonstrates **zero observed incremental functional-oracle protection over an equally trusted conventional service** for this specific interface. It does not defeat authentication, generalize to arbitrary authenticated JavaScript, prove that 5,489 chosen calls are always permitted by every API, or establish any 2.5× compute property. It is not an independent proof of source-disclosure resistance.
+
 ## Reproduce
 
 From a checkout of the source with declared dependencies:
