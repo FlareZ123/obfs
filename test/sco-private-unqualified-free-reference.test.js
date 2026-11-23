@@ -3,6 +3,7 @@
 const {test}=require('node:test');
 const assert=require('node:assert/strict');
 const {createHash}=require('node:crypto');
+const vm=require('node:vm');
 const {partitionScoSelectedAsyncExports}=require('../src');
 
 /**
@@ -242,5 +243,75 @@ test('scope-index boundary: effective lexical owners preserve positive private y
     const compiled=compile(body,dependency);
     assert.deepEqual(compiled.privateNames,['protectedOp']);
     assert.doesNotMatch(compiled.clientFile.code,/return externalBridge/u);
+  }
+});
+
+
+/**
+ * Observe independent Node realm behavior without borrowing the compiler's
+ * lexical analysis. A sandbox property is available as an unqualified name;
+ * the second sandbox intentionally has no application-owned global.
+ * @param {string} body
+ * @param {Record<string,unknown>} sandbox
+ * @returns {Promise<string>}
+ */
+async function observeInHost(body,sandbox){
+  try{
+    const result=await vm.runInNewContext(
+      '(async function nativeOriginal(){'+body+'})()',sandbox,
+      {timeout:3000}
+    );
+    return 'ok:'+JSON.stringify(result);
+  }catch(error){
+    const name=error&&typeof error==='object'&&'name' in error?
+      String(error.name):String(error);
+    return 'throw:'+name;
+  }
+}
+
+test('independent Node-realm differential confirms unknown-global relocation mismatch',async()=>{
+  const sourceBodies=[
+    'return externalBridge;',
+    'return externalBridge+1;',
+    'return externalBridge?.value;',
+    'return externalBridge.value??0;',
+    'return (()=>externalBridge)();',
+    'function read(){return externalBridge;}return read();',
+    'return [externalBridge][0];',
+    'return ({data:externalBridge}).data;',
+    'const callback=()=>externalBridge;return callback();'
+  ];
+  for(const body of sourceBodies){
+    const present=await observeInHost(body,{externalBridge:73});
+    const absent=await observeInHost(body,{});
+    assert.notEqual(present,absent,body+' must actually differ between hosts');
+    for(const dependency of [false,true]){
+      assert.throws(()=>compile(body,dependency),
+        /unproved unqualified free reference/u,
+        body+' / dependency='+dependency);
+    }
+  }
+});
+
+test('independent Node-realm control confirms same-name local ownership survives relocation',async()=>{
+  const sourceBodies=[
+    'const externalBridge=41;return externalBridge;',
+    'let externalBridge=41;return externalBridge+1;',
+    'function read(externalBridge){return externalBridge;}return read(41);',
+    'try{throw 41;}catch(externalBridge){return externalBridge;}',
+    'for(let externalBridge=41;externalBridge<42;externalBridge++){return externalBridge;}',
+    'var externalBridge;return externalBridge===undefined?7:0;',
+    'const record={externalBridge:41};return record.externalBridge;',
+    'const {externalBridge}=({externalBridge:41});return externalBridge;',
+    'function read(){const externalBridge=41;return externalBridge;}return read();'
+  ];
+  for(const body of sourceBodies){
+    const present=await observeInHost(body,{externalBridge:73});
+    const absent=await observeInHost(body,{});
+    assert.equal(present,absent,body+' must behave identically for both hosts');
+    for(const dependency of [false,true]){
+      const compiled=compile(body,dependency);
+      assert.deepEqual(compiled.privateNames,['protectedOp']);
+    }
   }
 });
