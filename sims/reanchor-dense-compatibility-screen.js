@@ -20,7 +20,7 @@ const {
  * @param {number[]} inner
  * @param {number} offset
  * @param {number} anchor
- * @returns {{rank:number,compatible:boolean}}
+ * @returns {{fullRank:boolean,compatible:boolean}}
  */
 function classifyBasis(permutation,inner,offset,anchor) {
   const inverse=inverseOfColumns(inner);
@@ -36,7 +36,7 @@ function classifyBasis(permutation,inner,offset,anchor) {
     ((column>>>bit)&1)===1&&
     (column&u32((2**bit)-1))===0);
   if(compatible&&!fullRank)throw Error('Compatible matrix cannot be singular');
-  return {rank:fullRank?32:31,compatible};
+  return {fullRank,compatible};
 }
 
 /**
@@ -113,7 +113,7 @@ function runEvidence() {
         if(classification.compatible) {
           compatibleAnchors++;
           localCompatible=true;
-        }else if(classification.rank===32)incompatibleFullRankAnchors++;
+        }else if(classification.fullRank)incompatibleFullRankAnchors++;
         else singularAnchors++;
       }
       if(localCompatible&&success===null) {
@@ -136,7 +136,7 @@ function runEvidence() {
   const fixture=makeFixture(0x2026a114);
   const positive=classifyBasis(
     fixture.permutation,fixture.inner,fixture.innerOffset,0);
-  if(!positive.compatible||positive.rank!==32||
+  if(!positive.compatible||!positive.fullRank||
     !fixture.anchorsClean)throw Error('Independent clean-basis control failed');
   return {families:rows,sourceTotal:96,targetTotal:96,
     totalExact,totalFailures,positiveControlCompatible:true};
