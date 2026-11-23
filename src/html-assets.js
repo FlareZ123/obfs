@@ -150,8 +150,11 @@ function isImportMapRecord(value) {
  * @returns {boolean}
  */
 function isWebModuleAddress(address) {
+  // Raw executable syntax in URL path/query/fragment can publish
+  // untransformed JavaScript inside this otherwise admitted JSON asset.
   if(!/^(?:\.\.?\/|\/|https?:\/\/)/iu.test(address)||
-     /[\x00-\x20\x7f]/u.test(address))return false;
+     /[\x00-\x20\x7f]/u.test(address)||
+     /[()\[\]{};`\\<>]/u.test(address))return false;
   try {
     const url=new URL(address,'https://obfs.invalid/');
     return url.protocol==='http:'||url.protocol==='https:';

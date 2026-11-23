@@ -90,6 +90,7 @@ test('import map integrity commitment works under an unrecognized public mount',
 test('safe unpinned and unrelated-relative import maps retain real transform yield',()=>{
   const cases=[
     markup({imports:{lib:'./lib.mjs'}}),
+    markup({imports:{lib:'./lib.mjs?build=27#release-1'}}),
     markup({imports:{lib:'./lib.mjs'},integrity:{'./not-lib.mjs':digest}}),
     markup({imports:{lib:'./lib.mjs'},scopes:{'./pages/':{lib:'./lib.mjs'}}})
   ];
@@ -99,6 +100,21 @@ test('safe unpinned and unrelated-relative import maps retain real transform yie
     const result=compile(html,'coo');
     assert.notEqual(result.files[0].code,original);
     assert.ok(result.files[0].metrics.literals>0);
+  }
+});
+
+test('raw executable JavaScript syntax in import-map URL fragments remains refused',()=>{
+  const exposed='./lib.mjs#(()=>{globalThis.PRIVATE_SOURCE_DISCLOSURE=17})()';
+  const cases=[
+    {imports:{lib:exposed}},
+    {imports:{lib:'./lib.mjs'},scopes:{[exposed]:{lib:'./lib.mjs'}}},
+    {imports:{lib:'./lib.mjs'},integrity:{[exposed]:digest}}
+  ];
+  for(const map of cases){
+    const html=markup(map);
+    assert.equal(findInlineHtmlSource(html),'inline script source',
+      'URL fragment containing raw JavaScript must not be published as safe JSON');
+    assert.throws(()=>compile(html,'coo'),/HTML asset contains inline script source/u);
   }
 });
 
