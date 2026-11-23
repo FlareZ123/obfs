@@ -360,7 +360,11 @@
     "sims/reanchor-top-shear-bound.js",
     "test/reanchor-top-shear-bound.test.js",
     "sims/reanchor-versus-lowrank-matched.js",
-    "test/reanchor-versus-lowrank-matched.test.js"
+    "test/reanchor-versus-lowrank-matched.test.js",
+    "sims/reanchor-dense-compatibility-screen.js",
+    "test/reanchor-dense-compatibility-screen.test.js",
+    "sims/sco-four-shear-reanchor-matched-http.js",
+    "test/sco-four-shear-reanchor-matched-http.test.js"
   ],
   "exclude": [
     "node_modules"
