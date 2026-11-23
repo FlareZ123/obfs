@@ -5,14 +5,14 @@
 **Research owner:** Agent 19  
 **Date:** 2026-11-23  
 **Reproduction branch:** `agent19/domstring-property-setter-matrix-20261123`  
-**Final source pin:** `00443884706166f82bfc3d406af580c0301ae4e0`  
-**Validation:** [GitHub Actions run 45102784628](https://github.com/FlareZ123/obfs/actions/runs/45102784628)
+**Final source pin:** `142d48138cd7e1314a5a7c7242eb87530ba4c279`  
+**Validation:** [GitHub Actions run 45103085841](https://github.com/FlareZ123/obfs/actions/runs/45103085841)
 
 ## Finding
 
 The source-observation surface is not limited to native method calls whose Web IDL arguments undergo string conversion. Assigning a function object to a native DOM property can implicitly convert the function to text, and a subsequent property read can expose the exact original `Function#toString` spelling.
 
-The current compiler's COO output changed that observable source in **20 of 20 tested native property-setter cases**. The test functions returned the same numeric values before and after compilation, so ordinary return-value tests alone would not detect the mismatch.
+The current compiler's COO output changed that observable source in **22 of 22 tested native property-setter cases**. The test functions returned the same numeric values before and after compilation, so ordinary return-value tests alone would not detect the mismatch.
 
 This is a correctness finding about source preservation, not evidence of resistance to static reconstruction, dynamic extraction, tampering, or execution outside an authorized environment.
 
@@ -29,7 +29,7 @@ The harness is `sims/domstring-property-setter-source-matrix.js` on the reproduc
 
 For each negative case, the module creates a function whose body reads `observedOwner.secretField`, assigns the function to a native property, reads the property back as a string, and also checks the function's numeric result and an independent private owner. A corresponding primitive-only positive assigns the literal string `"literal"` to the same property and checks that unrelated private-property renaming remains available.
 
-The suite also includes a plain JavaScript object control using a property named `id`. It stores and invokes a function without converting it to text. This guards against a name-only rule that would incorrectly classify every `.id` assignment as a DOM sink. A separate own-data-property control shadows the native `id` setter with `Object.defineProperty`; it stores the function reference and does not trigger DOMString conversion.
+The suite also includes a plain JavaScript object control using a property named `id`. It stores and invokes a function without converting it to text. This guards against a name-only rule that would incorrectly classify every `.id` assignment as a DOM sink. A separate own-data-property control shadows the native `id` setter with `Object.defineProperty`; it stores the function reference and does not trigger DOMString conversion. The final two parser-setter cases use the HTML `TrustedHTML`/`DOMString` union under the runner's default environment with Trusted Types enforcement absent; they are reported separately from the 20 ordinary DOMString cases.
 
 ### Tested native property setters
 
@@ -55,6 +55,8 @@ The suite also includes a plain JavaScript object control using a property named
 | HTMLOptionElement | `label` |
 | HTMLOptionElement | `value` |
 | HTMLFormElement | `name` |
+| Element | `innerHTML` (TrustedHTML/DOMString union) |
+| Element | `outerHTML` (TrustedHTML/DOMString union) |
 
 ## Results
 
@@ -62,10 +64,10 @@ The final source-pinned workflow completed successfully. Its Ubuntu job ran the 
 
 | Check | Result |
 |---|---:|
-| Same-file native property-setter cases with changed function source | **20 / 20** |
-| Same-file numeric return-value parity | **20 / 20** |
-| Same-file primitive-only positive parity | **20 / 20** |
-| Same-file primitive positives retaining one private-property rename | **20 / 20** |
+| Same-file native property-setter cases with changed function source | **22 / 22** |
+| Same-file numeric return-value parity | **22 / 22** |
+| Same-file primitive-only positive parity | **22 / 22** |
+| Same-file primitive positives retaining one private-property rename | **22 / 22** |
 | Plain-object `.id` function-reference control | **PASS** |
 | Cross-file native property-setter source mismatch | **1 / 1** |
 | Reflective/aliased setter dispatch variants with changed source | **8 / 8** |
@@ -114,7 +116,7 @@ The final harness also tested eight ways of reaching the native setter. **All ei
 The own-data-property shadowing control passed: `Object.defineProperty(target, "id", { value: inspect, ... })` stored the function reference and the compiled program still invoked it correctly. This separates actual native setter dispatch from a reflective operation that merely creates an own data property.
 
 The final workflow uploaded the raw JSON summary as artifact
-[domstring-property-setter-matrix](https://github.com/FlareZ123/obfs/actions/runs/45102784628/artifacts/14785458882).
+[domstring-property-setter-matrix](https://github.com/FlareZ123/obfs/actions/runs/45103085841/artifacts/14785514276).
 
 ## Required analysis direction
 
