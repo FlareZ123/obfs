@@ -281,7 +281,9 @@
     "sims/rankone-width3-minimax-inversion.js",
     "test/rankone-width3-minimax-inversion.test.js",
     "sims/width3-anf-rank-minimax.js",
-    "test/width3-anf-rank-minimax.test.js"
+    "test/width3-anf-rank-minimax.test.js",
+    "sims/layered-rankone-crosswrapped-inversion.js",
+    "test/layered-rankone-crosswrapped-inversion.test.js"
   ],
   "exclude": [
     "node_modules"
