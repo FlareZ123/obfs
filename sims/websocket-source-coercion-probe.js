@@ -117,7 +117,7 @@ const detachedSource=[
   '  sender.call(socket,protocolSensitive);',
   '  socket.close();',
   '});'
-].join('\\n');
+].join('\n');
 
 const primitiveSource=[
   'const socket=new WebSocket(globalThis.__url);',
