@@ -13,11 +13,12 @@
  * @typedef {{node:AstNode,name:string,start:number,end:number,kind:string,bindingId:number|null}} Declaration
  * @typedef {{parent:Scope|null,kind:string,bindings:Map<string,Binding>,uncertain:Set<string>,directEval:boolean,dynamicWith:boolean,nonSimpleParams?:boolean}} Scope
  * @typedef {{id:number,name:string,kind:string}} Binding
+ * @typedef {{sourceStart:number,sourceEnd:number,outerBindingId:number,innerBindingId:number}} ClassSpellingCoupling
  */
 
 const HOST_NAMES = new Set(['globalThis','window','self','global','Storage','localStorage','sessionStorage']);
 
-/** @param {AstNode} root @param {SourceType} sourceType @returns {{references:Reference[],declarations:Declaration[],at:(start:number)=>Reference|undefined}} */
+/** @param {AstNode} root @param {SourceType} sourceType @returns {{references:Reference[],declarations:Declaration[],classSpellingCouplings:ClassSpellingCoupling[],at:(start:number)=>Reference|undefined}} */
 function resolveLexicalReferences(root,sourceType) {
   if (root.type !== 'Program') throw new TypeError('Expected Acorn Program');
   if (!['script','module','commonjs'].includes(sourceType)) throw new TypeError('Invalid source type');
@@ -31,6 +32,8 @@ function resolveLexicalReferences(root,sourceType) {
   const references = [];
   /** @type {(Declaration & {scope:Scope})[]} */
   const declarationRecords = [];
+  /** @type {ClassSpellingCoupling[]} */
+  const classSpellingCouplings = [];
   /** @type {{node:AstNode,scope:Scope}[]} */
   const evalCalls = [];
   let bindingCounter=0;
@@ -149,12 +152,22 @@ function resolveLexicalReferences(root,sourceType) {
       }else if(node.type==='ClassDeclaration'||node.type==='ClassExpression'){
         if(node.type==='ClassDeclaration'&&node.id)declarePattern(node.id,incoming,'class');
         scope=child(incoming,'class');
-        // A named class declaration has a mutable outer binding and a
-        // distinct immutable inner class-name binding used by its body.
-        // One syntax token names both bindings, so independent BindingId
-        // renaming is unproved until the spelling linkage is modeled.
-        if(node.type==='ClassDeclaration'&&node.id)
-          scope.uncertain.add(node.id.name);
+        // Named class declarations have *two* runtime name bindings but only
+        // *one* source identifier token. The outer binding is mutable; the
+        // inner immutable class-name is captured by extends/methods/statics.
+        // Expose a distinct inner identity and an explicit spelling coupling
+        // so a future name-rewrite gate cannot rename their source separately.
+        // The inner binding is not a second independently spelled declaration.
+        if(node.type==='ClassDeclaration'&&node.id){
+          const outer=incoming.bindings.get(node.id.name);
+          if(!outer)throw new Error('Missing outer class declaration binding');
+          const inner={id:++bindingCounter,name:node.id.name,kind:'class-name'};
+          scope.bindings.set(node.id.name,inner);
+          classSpellingCouplings.push({
+            sourceStart:node.id.start,sourceEnd:node.id.end,
+            outerBindingId:outer.id,innerBindingId:inner.id
+          });
+        }
         if(node.type==='ClassExpression'&&node.id)declarePattern(node.id,scope,'class-name');
       }else if(node.type==='BlockStatement'){
         // A non-simple formal parameter list has a parameter environment
@@ -300,7 +313,7 @@ function resolveLexicalReferences(root,sourceType) {
   const declarationTable=declarationRecords.map(record=>({node:record.node,
     name:record.name,start:record.start,end:record.end,kind:record.kind,
     bindingId:record.scope.uncertain.has(record.name)?null:record.bindingId}));
-  return {references,declarations:declarationTable,
+  return {references,declarations:declarationTable,classSpellingCouplings,
     at:(start)=>references.find(r=>r.start===start)};
 }
 
