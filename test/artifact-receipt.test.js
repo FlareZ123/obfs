@@ -18,7 +18,8 @@ async function fixture(t) {
   const root=await fs.mkdtemp(path.join(os.tmpdir(),'obfs-artifact-receipt-'));
   t.after(async()=>fs.rm(root,{recursive:true,force:true}));
   for(const arm of ['native','minified','candidate'])
-    await fs.mkdir(path.join(root,arm,'assets'),{recursive:true});
+    await fs.mkdir(path.join(root,arm),{recursive:true});
+  await fs.mkdir(path.join(root,'candidate','assets'),{recursive:true});
   await fs.writeFile(path.join(root,'native','entry.mjs'),'export const value=41;\n');
   await fs.writeFile(path.join(root,'minified','entry.mjs'),'export const value=41;');
   await fs.writeFile(path.join(root,'candidate','entry.mjs'),'export const value=41;');
