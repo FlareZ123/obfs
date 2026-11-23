@@ -5,14 +5,14 @@
 **Research owner:** Agent 19  
 **Date:** 2026-11-23  
 **Reproduction branch:** `agent19/domstring-property-setter-matrix-20261123`  
-**Final source pin:** `142d48138cd7e1314a5a7c7242eb87530ba4c279`  
-**Validation:** [GitHub Actions run 45103085841](https://github.com/FlareZ123/obfs/actions/runs/45103085841)
+**Final source pin:** `f7630b692f1c8b50c98236195a7afdff657b84bf`  
+**Validation:** [GitHub Actions run 45103250484](https://github.com/FlareZ123/obfs/actions/runs/45103250484)
 
 ## Finding
 
 The source-observation surface is not limited to native method calls whose Web IDL arguments undergo string conversion. Assigning a function object to a native DOM property can implicitly convert the function to text, and a subsequent property read can expose the exact original `Function#toString` spelling.
 
-The current compiler's COO output changed that observable source in **22 of 22 tested native property-setter cases**. The test functions returned the same numeric values before and after compilation, so ordinary return-value tests alone would not detect the mismatch.
+The current compiler's COO output changed that observable source in **26 of 26 tested native property-setter cases**. The test functions returned the same numeric values before and after compilation, so ordinary return-value tests alone would not detect the mismatch.
 
 This is a correctness finding about source preservation, not evidence of resistance to static reconstruction, dynamic extraction, tampering, or execution outside an authorized environment.
 
@@ -57,6 +57,10 @@ The suite also includes a plain JavaScript object control using a property named
 | HTMLFormElement | `name` |
 | Element | `innerHTML` (TrustedHTML/DOMString union) |
 | Element | `outerHTML` (TrustedHTML/DOMString union) |
+| Element.id via Document.getElementById | `id` |
+| Element.id via Document.querySelector | `id` |
+| HTMLElement.id via `document.body` | `id` |
+| Text.textContent via Document.createTextNode | `textContent` |
 
 ## Results
 
@@ -64,10 +68,10 @@ The final source-pinned workflow completed successfully. Its Ubuntu job ran the 
 
 | Check | Result |
 |---|---:|
-| Same-file native property-setter cases with changed function source | **22 / 22** |
-| Same-file numeric return-value parity | **22 / 22** |
-| Same-file primitive-only positive parity | **22 / 22** |
-| Same-file primitive positives retaining one private-property rename | **22 / 22** |
+| Same-file native property-setter cases with changed function source | **26 / 26** |
+| Same-file numeric return-value parity | **26 / 26** |
+| Same-file primitive-only positive parity | **26 / 26** |
+| Same-file primitive positives retaining one private-property rename | **26 / 26** |
 | Plain-object `.id` function-reference control | **PASS** |
 | Cross-file native property-setter source mismatch | **1 / 1** |
 | Reflective/aliased setter dispatch variants with changed source | **8 / 8** |
@@ -100,6 +104,19 @@ The numeric result remained `57`; the independent value remained `73`. The cross
 This shows that a property-setter sink must be able to propagate source-observation requirements from the consumer back to the imported callable and its producer-side owner fields.
 
 
+
+
+### Receiver-provenance variants
+
+Four additional cases established that the same setter behavior is reached through different DOM-object sources:
+
+- `Document.getElementById` returning an `Element`;
+- `Document.querySelector` returning an `Element`;
+- the global document's `body` element;
+- `Document.createTextNode` returning a `Text` node whose `textContent` setter is exercised.
+
+All **4/4** reproduced source mismatch and all four primitive-only controls passed. The final same-file matrix therefore contains 26 cases: the original 20 DOMString-like setters, two TrustedHTML/DOMString parser setters, and four alternate receiver-provenance paths (which intentionally revisit `id` and `textContent` through different sources).
+
 ### Reflective and aliased dispatch variants
 
 The final harness also tested eight ways of reaching the native setter. **All eight** changed function source in emitted COO output, while each corresponding primitive-only positive passed:
@@ -116,7 +133,7 @@ The final harness also tested eight ways of reaching the native setter. **All ei
 The own-data-property shadowing control passed: `Object.defineProperty(target, "id", { value: inspect, ... })` stored the function reference and the compiled program still invoked it correctly. This separates actual native setter dispatch from a reflective operation that merely creates an own data property.
 
 The final workflow uploaded the raw JSON summary as artifact
-[domstring-property-setter-matrix](https://github.com/FlareZ123/obfs/actions/runs/45103085841/artifacts/14785514276).
+[domstring-property-setter-matrix](https://github.com/FlareZ123/obfs/actions/runs/45103250484/artifacts/14785394734).
 
 ## Required analysis direction
 
