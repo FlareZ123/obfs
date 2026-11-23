@@ -3,6 +3,8 @@
   "include": [
     "sims/two-sided-affine-degree-inversion.js",
     "sims/quadratic-affine-triangular-inverse.js",
+    "sims/sco-two-sided-affine-browser-inverse.js",
+    "test/sco-two-sided-affine-browser-inverse.test.js",
     "sims/sco-two-sided-affine-inverse-comparison.js",
     "test/sco-two-sided-affine-inverse-comparison.test.js",
     "test/two-sided-affine-degree-inversion.test.js",
