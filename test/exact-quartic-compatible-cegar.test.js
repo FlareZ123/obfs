@@ -315,3 +315,40 @@ test('explicit malformed or overdegree coefficient terms are rejected before ana
       /unsigned 32-bit|outside promised degree/);
   }
 });
+
+
+test('source-paired dense quartic complete setup compares scan and grouped derivative strategies',()=>{
+  /** @type {Array<{seed:number,order:string[],scanSetupMs:number,groupedSetupMs:number,targets:number}>} */
+  const receipts=[];
+  for(const [index,seed] of [0x71812345,0x61a97123].entries()){
+    const oracle=makeOracle(seed,4);
+    const model=learnBoundedDegreeOracle(oracle,32,4);
+    /** @type {Array<'scan'|'grouped'>} */
+    const order=index===0?['scan','grouped']:['grouped','scan'];
+    /** @type {ReturnType<typeof prepareExactBoundedDegreeInverter>|null} */
+    let scan=null;
+    /** @type {ReturnType<typeof prepareExactBoundedDegreeInverter>|null} */
+    let grouped=null;
+    let scanSetupMs=0,groupedSetupMs=0;
+    for(const strategy of order){
+      const started=performance.now();
+      const prepared=prepareExactBoundedDegreeInverter(model,{strategy});
+      const elapsed=performance.now()-started;
+      if(strategy==='scan'){scan=prepared;scanSetupMs=elapsed;}
+      else{grouped=prepared;groupedSetupMs=elapsed;}
+    }
+    assert.ok(scan!==null&&grouped!==null);
+    if(scan===null||grouped===null)throw new Error('missing paired strategy');
+    assert.equal(scan.contractions,528);
+    assert.equal(grouped.contractions,528);
+    const next=random32(seed^0x731821cd);
+    for(let i=0;i<16;i++){
+      const input=next(),target=oracle(input);
+      assert.equal(scan.invertFast(target),input);
+      assert.equal(grouped.invertFast(target),input);
+    }
+    receipts.push({seed,order,scanSetupMs:Math.round(scanSetupMs),
+      groupedSetupMs:Math.round(groupedSetupMs),targets:16});
+  }
+  console.log('EXACT_QUARTIC_DENSE_FULL_SETUP '+JSON.stringify(receipts));
+});
