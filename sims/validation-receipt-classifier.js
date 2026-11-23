@@ -77,7 +77,8 @@ const FOCUSED_STEPS = [
 function classifyValidationRun(run, jobs, expectedSha) {
   /** @type {string[]} */
   const reasons = [];
-  const receipt = (/** @type {Classification} */ classification) => ({
+  /** @param {Classification} classification @returns {ValidationReceipt} */
+  const receipt = (classification) => ({
     classification,
     sourceSha: run.head_sha,
     runId: typeof run.id === 'number' ? run.id : null,
