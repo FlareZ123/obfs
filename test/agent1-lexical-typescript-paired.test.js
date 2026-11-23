@@ -53,7 +53,13 @@ test('150 source-paired Acorn/TypeScript reference classifications',()=>{
   for(let repeat=0;repeat<5;repeat++){
     for(const [label,pattern] of templates){
       const index=cases.length;
-      cases.push({label,expr:pattern.replaceAll('_N','_'+index)});
+      const raw=pattern.replaceAll('_N','_'+index);
+      const expr=repeat===0?raw:
+        repeat===1?'function outer_'+index+'(){'+raw+'}':
+        repeat===2?'(()=>{'+raw+'})();':
+        repeat===3?'{const holder_'+index+'=function(window){'+raw+'};}':
+        '{let window=0; '+raw+'}';
+      cases.push({label,expr});
     }
   }
   const source='export {};\n'+cases.map(item=>item.expr).join('\n');
