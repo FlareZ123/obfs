@@ -54,7 +54,8 @@ function applyEditsWithMap(source,edits) {
     if(edit.end<edit.start)throw new RangeError('edit.end must not precede edit.start');
     if(typeof edit.text!=='string')throw new TypeError('edit.text must be a string');
     return {start:edit.start,end:edit.end,text:edit.text,ordinal};
-  }).sort((a,b)=>a.start-b.start||a.end-b.end||a.ordinal-b.ordinal);
+  }).filter(edit=>edit.text!==source.slice(edit.start,edit.end))
+    .sort((a,b)=>a.start-b.start||a.end-b.end||a.ordinal-b.ordinal);
 
   /** @type {TextEdit|null} */
   let previous=null;
