@@ -67,7 +67,7 @@ test('isolated original ESM realms keep sequence-wrapped function-object counter
     'export async function secret(){',
     'const alias=(0,next);alias.count=(alias.count??0)+1;return alias.count;',
     '}'
-  ].join('\\n');
+  ].join('\n');
   const root=await fs.mkdtemp(path.join(os.tmpdir(),'obfs-graph-expression-state-'));
   try{
     for(const name of ['client-a','client-b','server']){
