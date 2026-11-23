@@ -41,6 +41,8 @@ The paired Node pilot warms both variants before 13 counterbalanced trials of 18
 | Ubuntu Node22 | 0.9631 ms | 1.3527 ms | **1.4045×** | 0.664 / 0.749 ms |
 | Windows Node22 | 1.3302 ms | 1.7949 ms | **1.3493×** | 0.885 / 0.980 ms |
 
+A separate real-browser **selected-function** pilot at exact `82bc91affa36c4ee0619c2d00f2385268839e21f`, [Ubuntu Chromium workflow 45259635462](https://github.com/FlareZ123/obfs/actions/runs/45259635462), used 13 three-way counterbalanced warm trials of 180,000 calls each after per-function warmups (native, Wasm, and public-bytecode reconstructed JavaScript). Chromium 157 measured native median **2.9 ms**, Wasm median **3.3 ms**, and reconstructed median approximately **2.9 ms**, i.e. **1.1379×** Wasm/native for the single selected addition function. It also reconfirmed 2,000 exact native/Wasm/reconstructed inputs. Windows explicitly skipped this Chromium-specific test. This remains **one host/browser/workload**, not whole-page 2.5× certification. The reconstructed clone's near-native cost is a negative protection control, not a security advantage.
+
 These two observed hot ratios are under the objective's 2.5× ceiling **for this one workload**. The ratio for unused, cold, tiny or highly optimized call sites can differ; browser compilation/CSP behavior and server initialization exemptions require separate policies. The startup samples are noisy sub-millisecond measurements and do not establish a cold-start guarantee. The compiler remains explicit opt-in and does not autonomously certify a deployment's workload.
 
 ## Security and integration disposition
