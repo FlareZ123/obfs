@@ -1,12 +1,14 @@
 'use strict';
 
 const {learnFourStateStepOnly}=require('./sco-step-only-four-state');
+const {learnFiveStateStepOnly}=require('./sco-step-only-five-state');
 
 /** @typedef {{next:number[][],output:number[][],state:number}} Candidate */
 /** @typedef {{step:(symbol:number)=>Promise<number>}} StepOnlyOracle */
 /** @typedef {{certified:boolean,queries:number,remaining:number,inputs:number[],outputs:number[],clone:Candidate|null}} LearningResult */
-/** @typedef {LearningResult & {modelBound?:4,modelCount?:number,scanWork?:number,
- *  equivalenceChecks?:number,productPairs?:number,elapsedMs?:number}} ExtendedLearningResult */
+/** @typedef {LearningResult & {modelBound?:4|5,modelCount?:number,scanWork?:number,
+ *  equivalenceChecks?:number,productPairs?:number,elapsedMs?:number,
+ *  workspaceInitializationMs?:number,candidateBytes?:number}} ExtendedLearningResult */
 
 /**
  * Exhaustively list binary Mealy machines with at most maxStates states.
@@ -110,8 +112,9 @@ function chooseSymbol(hypotheses){
  * is a fully specified deterministic binary Mealy machine of <=maxStates
  * states, with its own current state advanced after each observed response.
  *
- * For maxStates <=3 this uses explicit object models. For maxStates ===4 it
- * uses the compact complete 2^24-model representation. Larger bounds refuse.
+ * For maxStates <=3 this uses explicit object models. Four states use the
+ * packed 2^24-model representation; five states use a canonical reachable
+ * model space. Larger bounds refuse.
  *
  * A positive certification is a rigorous *conditional continuation* result:
  * every model within the declared size bound consistent with the entire
@@ -125,6 +128,7 @@ function chooseSymbol(hypotheses){
  */
 async function learnBoundedStepOnly(api,maxStates=2,maxQueries=64){
   if(maxStates===4)return learnFourStateStepOnly(api,maxQueries);
+  if(maxStates===5)return learnFiveStateStepOnly(api,maxQueries);
   return learnWithCandidates(api,enumerateMachines(maxStates),maxQueries);
 }
 
