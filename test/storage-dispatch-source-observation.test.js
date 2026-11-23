@@ -12,6 +12,15 @@ const common=[
 
 /** @type {Array<[string,string]>} */
 const cases=[
+  ['primitive Storage values',[
+    ...common,
+    'export function sample(){',
+    '  localStorage.setItem("storage-dispatch-primitive-string","plain");',
+    '  sessionStorage.setItem("storage-dispatch-primitive-number",7);',
+    '  return inspect()+independent();',
+    '}'
+  ].join('\n')],
+
   ['native inherited method',[
     ...common,
     'export function sample(){',
