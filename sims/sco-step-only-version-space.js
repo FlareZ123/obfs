@@ -3,6 +3,8 @@
 const {learnFourStateStepOnly}=require('./sco-step-only-four-state');
 const {learnFiveStateStepOnly}=require('./sco-step-only-five-state');
 
+/** @typedef {import('./sco-step-only-five-state').FiveStateWorkspace} FiveStateWorkspace */
+
 /** @typedef {{next:number[][],output:number[][],state:number}} Candidate */
 /** @typedef {{step:(symbol:number)=>Promise<number>}} StepOnlyOracle */
 /** @typedef {{certified:boolean,queries:number,remaining:number,inputs:number[],outputs:number[],clone:Candidate|null}} LearningResult */
@@ -13,8 +15,8 @@ const {learnFiveStateStepOnly}=require('./sco-step-only-five-state');
 /**
  * Exhaustively list binary Mealy machines with at most maxStates states.
  * Initial private state can be labeled zero without loss of generality.
- * This object-based helper is limited to three states; the four-state space
- * is represented compactly by learnFourStateStepOnly instead of 16M objects.
+ * This object-based helper is limited to three states; four- and five-state
+ * spaces use their packed/canonical implementations instead of JS objects.
  *
  * @param {number} maxStates
  * @returns {Candidate[]}
@@ -124,11 +126,12 @@ function chooseSymbol(hypotheses){
  * @param {StepOnlyOracle} api
  * @param {number} [maxStates]
  * @param {number} [maxQueries]
+ * @param {FiveStateWorkspace} [fiveStateWorkspace] Reuse a large five-state workspace across sequential attacks.
  * @returns {Promise<ExtendedLearningResult>}
  */
-async function learnBoundedStepOnly(api,maxStates=2,maxQueries=64){
+async function learnBoundedStepOnly(api,maxStates=2,maxQueries=64,fiveStateWorkspace){
   if(maxStates===4)return learnFourStateStepOnly(api,maxQueries);
-  if(maxStates===5)return learnFiveStateStepOnly(api,maxQueries);
+  if(maxStates===5)return learnFiveStateStepOnly(api,maxQueries,fiveStateWorkspace);
   return learnWithCandidates(api,enumerateMachines(maxStates),maxQueries);
 }
 
