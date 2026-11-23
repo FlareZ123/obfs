@@ -107,7 +107,8 @@ function renameLocalIdentifiers(source,ast,options) {
       const binding=node.type==='FunctionDeclaration' && node.id?.type==='Identifier'?
         node.id:parent?.type==='VariableDeclarator' && parent.init===node &&
         parent.id.type==='Identifier'?parent.id:null;
-      callableSpans.push({node,binding,published:Boolean(parent?.type.startsWith('Export')),
+      callableSpans.push({node,binding,published:ancestors.some(a=>a.type.startsWith('Export')) ||
+        Boolean(parent?.type.startsWith('Export')),
         immediateCall:parent?.type==='CallExpression'&&parent.callee===node&&!parent.optional});
     }
     const errorOperand=sourceSpelledErrorOperand(node);
