@@ -10,8 +10,8 @@ const {obfuscateFiles}=require('../src');
 const execChrome=promisify(execFile);
 const ownerSource=[
   'const privateRecord={secretAlpha:23,secretBeta:7};',
-  'function readAlpha(owner){return owner.secretAlpha;}',
-  'function readBeta(owner){return owner.secretBeta;}',
+  'function readAlpha(ownerAlpha){return ownerAlpha.secretAlpha;}',
+  'function readBeta(ownerBeta){return ownerBeta.secretBeta;}',
   'export function calculate(k){return k*readAlpha(privateRecord)+readBeta(privateRecord);}'
 ].join('\n');
 const apiSource=[
