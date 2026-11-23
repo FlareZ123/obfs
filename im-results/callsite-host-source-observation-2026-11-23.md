@@ -6,6 +6,28 @@
 **Reproducer:** `test/callsite-host-source-observation.test.js`.  
 **Source-pinned run:** [45126219349](https://github.com/FlareZ123/obfs/actions/runs/45126219349), Ubuntu and Windows Node 22.23.4.
 
+
+## Current synthesis and decision (read first)
+
+The regression disproves the **direct-call-only implies function source is unobservable** assumption **in non-strict Node CommonJS when a legitimate host callback is invoked**. A host may inspect the private caller via V8 structured `CallSite.getFunction()` or the deprecated sloppy `Function.caller`; no explicit function-reference escape is required. Unmodified SCO/COO/SNO core transforms the source-visible own field but retains numerical31. Its **real SNO launcher** also executes under a valid SHA-256 manifest while showing that source mismatch. This is a compatibility result, not a successful tamper or integrity bypass.
+
+The final source-paired regression corpus contains **30 cases with identical test file bytes on all three research branches**, Git blob `605d1593249de0d2af1e98be9416ceb564678aab`. It covers direct callbacks, aliases, transitive helpers, dynamic members, real SNO loading, strict-frame controls, a same-graph unrelated positive, esbuild, legacy caller, object getter, and ambient global getter. The latest confirmed baseline and second experimental Ubuntu results are:
+
+| Variant | Confirmed pass | Confirmed red | Critical disposition |
+| --- | ---: | ---: | --- |
+| Unmodified compiler [45131200809](https://github.com/FlareZ123/obfs/actions/runs/45131200809) | 7/30 | 23/30 | Rewrites observable caller fields |
+| Direct unbound-call donor (21-case [45129010969](https://github.com/FlareZ123/obfs/actions/runs/45129010969)) | 12/21 | 9/21 | Alias/member/transitive caller paths defeat it |
+| Transitive explicit-call donor [45131205755](https://github.com/FlareZ123/obfs/actions/runs/45131205755) | 24/30 | 6/30 | Implicit object/global accessor callbacks defeat it |
+
+All highlighted early improvements reproduced on Windows and Ubuntu at their referenced two-platform pins. Neither donor patch is accepted or integrated. The independent private owner still transforms in the same-graph positive, while the source-observed owner is refused in each donor's addressed cases. The transitive donor additionally passed the existing seven-case property-proof suite and a two-key hot-path profile, with Ubuntu hot ratio 1.0003x and whole ratio 1.0065x in that **one** measured workload.
+
+**Browser scope is narrower.** The tested [live Chromium classic-script open-host](https://github.com/FlareZ123/obfs/actions/runs/45129763718) and [three-script closed-world V8 graph](https://github.com/FlareZ123/obfs/actions/runs/45129934973) each preserve source but rewrite **zero** private properties. They supply safety controls and no browser-positive obfuscation evidence.
+
+**Next design obligation:** a conservative, owner-aware synchronous source-observer effect across local callgraph edges, aliases, unknown member calls, implicit property getters, proxies, and global lexical getters, with strict-mode runtime boundaries and a stated trusted-host observability contract. Source-visible own fields should remain unchanged while independently proved private fields remain transformable. This is not a complete effect system or a formal proof.
+
+**Release remains BLOCKED.** No production compiler change has been merged, no exact current-main full-suite acceptance has been established by this work, and no universal 2.5× CPU or hostile-runtime extraction bound follows from the measured examples. Detailed reproduction, initial harness defect, source pins, counterexamples, V8/MDN/esbuild documentation, and branch-specific observations follow below.
+
+
 ## Finding and trace
 
 A CommonJS source graph contains an ordinary own record and a *nonexported*, direct-call-only helper:
