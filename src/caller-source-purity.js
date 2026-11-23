@@ -52,10 +52,11 @@ function staticallyKnownKey(node,computed) {
  * @param {number} [depth]
  * @param {LocalRecordFields} [localRecords]
  * @param {Set<string>} [opaqueParameters]
+ * @param {Set<AstNode>} [trustedInChecks]
  * @returns {boolean}
  */
 function purePrimitive(expression,primitives,ownPrimitiveMembers,depth=0,
-  localRecords=new Map(),opaqueParameters=new Set()) {
+  localRecords=new Map(),opaqueParameters=new Set(),trustedInChecks=new Set()) {
   if(depth>64)return false;
   if(primitiveLiteral(expression))return true;
   if(expression.type==='Identifier')return primitives.has(expression.name);
@@ -69,7 +70,7 @@ function purePrimitive(expression,primitives,ownPrimitiveMembers,depth=0,
   }
   /** @param {AstNode} child @returns {boolean} */
   const pure=child=>purePrimitive(child,primitives,ownPrimitiveMembers,
-    depth+1,localRecords,opaqueParameters);
+    depth+1,localRecords,opaqueParameters,trustedInChecks);
   /** @param {AstNode} child @returns {boolean} */
   const noCallbackValue=child=>pure(child)||
     child.type==='Identifier'&&opaqueParameters.has(child.name);
@@ -79,6 +80,7 @@ function purePrimitive(expression,primitives,ownPrimitiveMembers,depth=0,
     return ['+','-','~'].includes(expression.operator)&&pure(expression.argument);
   }
   if(expression.type==='BinaryExpression'){
+    if(expression.operator==='in'&&trustedInChecks.has(expression))return true;
     if(['===','!=='].includes(expression.operator))
       return noCallbackValue(expression.left)&&noCallbackValue(expression.right);
     return arithmeticOperators.has(expression.operator)&&
@@ -132,15 +134,16 @@ function inertRecordFields(literal,primitives,ownPrimitiveMembers,records,opaque
  * @param {Set<AstNode>} ownPrimitiveMembers
  * @param {LocalRecordFields} records
  * @param {Set<string>} opaqueParameters
+ * @param {Set<AstNode>} trustedInChecks
  * @returns {boolean}
  */
-function pureReturn(expression,primitives,ownPrimitiveMembers,records,opaqueParameters) {
+function pureReturn(expression,primitives,ownPrimitiveMembers,records,opaqueParameters,trustedInChecks) {
   if(purePrimitive(expression,primitives,ownPrimitiveMembers,
-    0,records,opaqueParameters))return true;
+    0,records,opaqueParameters,trustedInChecks))return true;
   if(expression.type==='ArrayExpression')
     return expression.elements.every((/** @type {AstNode|null} */ item)=>
       item?.type!=='SpreadElement'&&item!==null&&
-      purePrimitive(item,primitives,ownPrimitiveMembers,0,records,opaqueParameters));
+      purePrimitive(item,primitives,ownPrimitiveMembers,0,records,opaqueParameters,trustedInChecks));
   return false;
 }
 
@@ -155,9 +158,10 @@ function pureReturn(expression,primitives,ownPrimitiveMembers,records,opaquePara
  * @param {Set<AstNode>} ownPrimitiveMembers
  * @param {WeakMap<AstNode,AstNode>} parents
  * @param {Map<string,AstNode[]>} calls
+ * @param {Set<AstNode>} trustedInChecks
  * @returns {boolean}
  */
-function pureCallable(fn,literal,ownPrimitiveMembers,parents,calls) {
+function pureCallable(fn,literal,ownPrimitiveMembers,parents,calls,trustedInChecks) {
   if(fn.async||fn.generator||fn.params.some((/** @type {AstNode} */ p)=>p.type!=='Identifier'))
     return false;
   /** @type {AstNode[]} */
@@ -185,7 +189,7 @@ function pureCallable(fn,literal,ownPrimitiveMembers,parents,calls) {
   /** @type {AstNode} */
   const body=fn.body;
   if(body.type!=='BlockStatement')
-    return pureReturn(body,primitives,ownPrimitiveMembers,records,opaqueParameters);
+    return pureReturn(body,primitives,ownPrimitiveMembers,records,opaqueParameters,trustedInChecks);
   for(let i=0;i<body.body.length;i++){
     const statement=body.body[i];
     if(statement.type==='ExpressionStatement'&&statement.directive)continue;
@@ -205,18 +209,18 @@ function pureCallable(fn,literal,ownPrimitiveMembers,parents,calls) {
       }
       if(declaration.init===literal)continue;
       if(!purePrimitive(declaration.init,primitives,ownPrimitiveMembers,
-        0,records,opaqueParameters))return false;
+        0,records,opaqueParameters,trustedInChecks))return false;
       primitives.add(declaration.id.name);
       continue;
     }
     if(statement.type==='ReturnStatement'){
       return i===body.body.length-1&&
         (!statement.argument||pureReturn(statement.argument,primitives,
-          ownPrimitiveMembers,records,opaqueParameters));
+          ownPrimitiveMembers,records,opaqueParameters,trustedInChecks));
     }
     if(statement.type==='ExpressionStatement'&&
        purePrimitive(statement.expression,primitives,ownPrimitiveMembers,
-         0,records,opaqueParameters))continue;
+         0,records,opaqueParameters,trustedInChecks))continue;
     return false;
   }
   return true;
@@ -276,6 +280,28 @@ function inertPrimitiveMemberReads(properties,proof) {
 }
 
 /**
+ * Only membership checks already certified by an existing closed-world
+ * private-owner analysis may be considered callback-free. In JavaScript
+ * \`'field' in obj\` can otherwise trigger a Proxy trap or coercion.
+ *
+ * @param {AstNode[]} properties
+ * @param {OwnerProof} proof
+ * @returns {Set<AstNode>}
+ */
+function inertOwnMembershipChecks(properties,proof) {
+  const names=new Set(properties.map(p=>staticallyKnownKey(p.key,p.computed)));
+  /** @type {Set<AstNode>} */
+  const accepted=new Set();
+  for(const check of proof.inChecks){
+    if(check.operator==='in' && check.left.type==='Literal' &&
+       typeof check.left.value==='string' &&
+       names.has(check.left.value))
+      accepted.add(check);
+  }
+  return accepted;
+}
+
+/**
  * Whether renaming this specific proven owner's own keys could change
  * observed sloppy-caller source, through code that executes synchronously
  * inside an affected function. This is a *conservative, bounded* source
@@ -286,9 +312,10 @@ function inertPrimitiveMemberReads(properties,proof) {
  * @param {AstNode[]} properties
  * @param {OwnerProof} proof
  * @param {Set<AstNode>} [sharedPrimitiveReads]
+ * @param {Set<AstNode>} [sharedInChecks]
  * @returns {boolean}
  */
-function exposesSloppyCallerSource(ast,literal,properties,proof,sharedPrimitiveReads) {
+function exposesSloppyCallerSource(ast,literal,properties,proof,sharedPrimitiveReads,sharedInChecks) {
   if(ast.sourceType==='module')return false;
   // Root-independent call and ancestry inventories are immutable for one
   // parsed AST. Reuse them across private owner candidates instead of
@@ -330,10 +357,11 @@ function exposesSloppyCallerSource(ast,literal,properties,proof,sharedPrimitiveR
   }
   for(const fn of functions){
     if(!strictCallable(fn,ast,parents)&&
-       !pureCallable(fn,literal,primitiveOwnReads,parents,calls))
+       !pureCallable(fn,literal,primitiveOwnReads,parents,calls,
+         sharedInChecks??inertOwnMembershipChecks(properties,proof)))
       return true;
   }
   return false;
 }
 
-module.exports={exposesSloppyCallerSource,inertPrimitiveMemberReads};
+module.exports={exposesSloppyCallerSource,inertPrimitiveMemberReads,inertOwnMembershipChecks};
