@@ -70,7 +70,7 @@ test('private class direct-call owner rewrite preserves real Chromium ESM result
         '--no-first-run','--disable-background-networking','--virtual-time-budget=12000',
         '--dump-dom',target
       ],{encoding:'utf8',maxBuffer:3*1024*1024,timeout:40000});
-      const base64=stdout.match(/<pre id="result">([A-Za-z0-9+/=]+)<\\/pre>/u)?.[1];
+      const base64=stdout.match(new RegExp('<pre id="result">([A-Za-z0-9+/=]+)</pre>','u'))?.[1];
       assert.ok(base64,lane+' failed ESM/CSP browser parity: '+stdout.slice(0,1200));
       const observed=JSON.parse(Buffer.from(base64,'base64').toString('utf8'));
       assert.equal(observed,14,lane+' native output');
