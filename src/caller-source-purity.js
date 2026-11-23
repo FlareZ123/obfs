@@ -23,72 +23,132 @@ function primitiveLiteral(expression) {
 }
 
 /**
- * A restricted, callback-free expression evaluator. Reject every member
- * read not in the already-proven primitive own-field set, and every call,
- * object conversion of unknown provenance, iteration, proxy, or await.
- * This is intentionally narrower than ordinary constant evaluation.
+ * Local const records containing only inert primitive data can be read
+ * without invoking a getter, proxy trap, setter or conversion callback.
+ * @typedef {Map<string,Set<string>>} LocalRecordFields
+ */
+
+/**
+ * @param {AstNode} node
+ * @param {boolean} computed
+ * @returns {string|null}
+ */
+function staticallyKnownKey(node,computed) {
+  if(computed)return staticString(node);
+  if(node.type==='Identifier')return node.name;
+  if(node.type==='Literal'&&(typeof node.value==='string'||typeof node.value==='number'))
+    return String(node.value);
+  return null;
+}
+
+/**
+ * A restricted callback-free *primitive-valued* expression evaluator.
+ * Ordinary parameters have opaque type: typeof, void, !, conditional tests
+ * and strict-identity comparisons are safe on them, but arithmetic is not.
  *
  * @param {AstNode} expression
  * @param {Set<string>} primitives
  * @param {Set<AstNode>} ownPrimitiveMembers
  * @param {number} [depth]
+ * @param {LocalRecordFields} [localRecords]
+ * @param {Set<string>} [opaqueParameters]
  * @returns {boolean}
  */
-function purePrimitive(expression,primitives,ownPrimitiveMembers,depth=0) {
+function purePrimitive(expression,primitives,ownPrimitiveMembers,depth=0,
+  localRecords=new Map(),opaqueParameters=new Set()) {
   if(depth>64)return false;
   if(primitiveLiteral(expression))return true;
   if(expression.type==='Identifier')return primitives.has(expression.name);
-  if(expression.type==='MemberExpression')
-    return !expression.optional&&ownPrimitiveMembers.has(expression);
-  if(expression.type==='UnaryExpression')
-    return ['+','-','!','~','void','typeof'].includes(expression.operator)&&
-      purePrimitive(expression.argument,primitives,ownPrimitiveMembers,depth+1);
-  if(expression.type==='BinaryExpression')
+  if(expression.type==='MemberExpression'){
+    if(expression.optional)return false;
+    if(ownPrimitiveMembers.has(expression))return true;
+    const receiver=expression.object;
+    const field=staticallyKnownKey(expression.property,expression.computed);
+    return receiver.type==='Identifier'&&field!==null&&
+      (localRecords.get(receiver.name)?.has(field)??false);
+  }
+  /** @param {AstNode} child @returns {boolean} */
+  const pure=child=>purePrimitive(child,primitives,ownPrimitiveMembers,
+    depth+1,localRecords,opaqueParameters);
+  /** @param {AstNode} child @returns {boolean} */
+  const noCallbackValue=child=>pure(child)||
+    child.type==='Identifier'&&opaqueParameters.has(child.name);
+  if(expression.type==='UnaryExpression'){
+    if(['!','void','typeof'].includes(expression.operator))
+      return noCallbackValue(expression.argument);
+    return ['+','-','~'].includes(expression.operator)&&pure(expression.argument);
+  }
+  if(expression.type==='BinaryExpression'){
+    if(['===','!=='].includes(expression.operator))
+      return noCallbackValue(expression.left)&&noCallbackValue(expression.right);
     return arithmeticOperators.has(expression.operator)&&
-      purePrimitive(expression.left,primitives,ownPrimitiveMembers,depth+1)&&
-      purePrimitive(expression.right,primitives,ownPrimitiveMembers,depth+1);
+      pure(expression.left)&&pure(expression.right);
+  }
   if(expression.type==='LogicalExpression')
     return ['&&','||','??'].includes(expression.operator)&&
-      purePrimitive(expression.left,primitives,ownPrimitiveMembers,depth+1)&&
-      purePrimitive(expression.right,primitives,ownPrimitiveMembers,depth+1);
+      pure(expression.left)&&pure(expression.right);
   if(expression.type==='ConditionalExpression')
-    return purePrimitive(expression.test,primitives,ownPrimitiveMembers,depth+1)&&
-      purePrimitive(expression.consequent,primitives,ownPrimitiveMembers,depth+1)&&
-      purePrimitive(expression.alternate,primitives,ownPrimitiveMembers,depth+1);
+    return noCallbackValue(expression.test)&&
+      pure(expression.consequent)&&pure(expression.alternate);
   if(expression.type==='SequenceExpression')
     return expression.expressions.length>0&&
-      expression.expressions.every((/** @type {AstNode} */ part)=>
-        purePrimitive(part,primitives,ownPrimitiveMembers,depth+1));
+      expression.expressions.every((/** @type {AstNode} */ part)=>pure(part));
   if(expression.type==='TemplateLiteral')
-    return expression.expressions.every((/** @type {AstNode} */ part)=>
-      purePrimitive(part,primitives,ownPrimitiveMembers,depth+1));
+    return expression.expressions.every((/** @type {AstNode} */ part)=>pure(part));
   return false;
 }
 
 /**
- * A returned inert data collection is safe after the caller has unwound,
- * provided all values are callback-free primitives. This never blesses the
- * collection as a primitive input to subsequent arithmetic.
+ * @param {AstNode} literal
+ * @param {Set<string>} primitives
+ * @param {Set<AstNode>} ownPrimitiveMembers
+ * @param {LocalRecordFields} records
+ * @param {Set<string>} opaqueParameters
+ * @returns {Set<string>|null}
+ */
+function inertRecordFields(literal,primitives,ownPrimitiveMembers,records,opaqueParameters) {
+  if(literal.type!=='ObjectExpression')return null;
+  /** @type {Set<string>} */
+  const fields=new Set();
+  for(const property of literal.properties){
+    if(property.type!=='Property'||property.kind!=='init'||property.method||
+       property.computed&&staticString(property.key)===null)return null;
+    const name=staticallyKnownKey(property.key,property.computed);
+    if(name===null||['__proto__','prototype','constructor'].includes(name)||
+       fields.has(name)||!purePrimitive(property.value,primitives,ownPrimitiveMembers,
+         0,records,opaqueParameters))return null;
+    fields.add(name);
+  }
+  return fields;
+}
+
+/**
+ * A returned inert data array is safe once the caller has unwound, provided
+ * all its elements are callback-free primitives. It is never admitted as a
+ * primitive input to subsequent arithmetic.
+ *
  * @param {AstNode} expression
  * @param {Set<string>} primitives
  * @param {Set<AstNode>} ownPrimitiveMembers
+ * @param {LocalRecordFields} records
+ * @param {Set<string>} opaqueParameters
  * @returns {boolean}
  */
-function pureReturn(expression,primitives,ownPrimitiveMembers) {
-  if(purePrimitive(expression,primitives,ownPrimitiveMembers))return true;
+function pureReturn(expression,primitives,ownPrimitiveMembers,records,opaqueParameters) {
+  if(purePrimitive(expression,primitives,ownPrimitiveMembers,
+    0,records,opaqueParameters))return true;
   if(expression.type==='ArrayExpression')
     return expression.elements.every((/** @type {AstNode|null} */ item)=>
       item?.type!=='SpreadElement'&&item!==null&&
-      purePrimitive(item,primitives,ownPrimitiveMembers));
+      purePrimitive(item,primitives,ownPrimitiveMembers,0,records,opaqueParameters));
   return false;
 }
 
 /**
  * A direct-call-only function may still expose its own original source to a
- * foreign sloppy callee via Function#caller. Prove non-reentrancy for a small
- * straight-line language over literals and already-proven primitive own data.
- * Parameter coercions are admitted only when *every* syntactic direct call
- * supplies a primitive-only argument expression.
+ * foreign sloppy callee through Function#caller. Prove non-reentrancy for a
+ * small straight-line language of primitive operations, fresh local const
+ * records, tracked primitive owner reads, and side-effect-free type tests.
  *
  * @param {AstNode} fn
  * @param {AstNode} literal
@@ -113,15 +173,19 @@ function pureCallable(fn,literal,ownPrimitiveMembers,parents,calls) {
   }
   /** @type {Set<string>} */
   const primitives=new Set();
+  /** @type {Set<string>} */
+  const opaqueParameters=new Set(fn.params.map((/** @type {AstNode} */ p)=>p.name));
+  /** @type {LocalRecordFields} */
+  const records=new Map();
   for(let i=0;i<fn.params.length;i++){
-    if(sites.length&&sites.every(call=>
-      call.arguments[i]&&purePrimitive(call.arguments[i],new Set(),new Set())))
+    if(sites.length&&sites.every(call=>call.arguments[i]&&
+      purePrimitive(call.arguments[i],new Set(),new Set())))
       primitives.add(fn.params[i].name);
   }
   /** @type {AstNode} */
   const body=fn.body;
   if(body.type!=='BlockStatement')
-    return pureReturn(body,primitives,ownPrimitiveMembers);
+    return pureReturn(body,primitives,ownPrimitiveMembers,records,opaqueParameters);
   for(let i=0;i<body.body.length;i++){
     const statement=body.body[i];
     if(statement.type==='ExpressionStatement'&&statement.directive)continue;
@@ -129,17 +193,30 @@ function pureCallable(fn,literal,ownPrimitiveMembers,parents,calls) {
        statement.declarations.length===1){
       const declaration=statement.declarations[0];
       if(declaration.id.type!=='Identifier'||!declaration.init)return false;
+      const fields=inertRecordFields(declaration.init,primitives,ownPrimitiveMembers,
+        records,opaqueParameters);
+      if(fields){
+        records.set(declaration.id.name,fields);
+        continue;
+      }
+      if(declaration.init.type==='Identifier'&&records.has(declaration.init.name)){
+        records.set(declaration.id.name,/** @type {Set<string>} */ (records.get(declaration.init.name)));
+        continue;
+      }
       if(declaration.init===literal)continue;
-      if(!purePrimitive(declaration.init,primitives,ownPrimitiveMembers))return false;
+      if(!purePrimitive(declaration.init,primitives,ownPrimitiveMembers,
+        0,records,opaqueParameters))return false;
       primitives.add(declaration.id.name);
       continue;
     }
     if(statement.type==='ReturnStatement'){
       return i===body.body.length-1&&
-        (!statement.argument||pureReturn(statement.argument,primitives,ownPrimitiveMembers));
+        (!statement.argument||pureReturn(statement.argument,primitives,
+          ownPrimitiveMembers,records,opaqueParameters));
     }
     if(statement.type==='ExpressionStatement'&&
-       purePrimitive(statement.expression,primitives,ownPrimitiveMembers))continue;
+       purePrimitive(statement.expression,primitives,ownPrimitiveMembers,
+         0,records,opaqueParameters))continue;
     return false;
   }
   return true;
