@@ -7,6 +7,8 @@ const {learnBoundedDegreeOracle,evaluateBoundedDegreeModel}=
 const {prepareExactBoundedDegreeInverter,makeBoundedDegreeDefectContractor}=
   require('../sims/exact-quartic-compatible-cegar');
 const {binaryRank}=require('../sims/derivative-basis-span');
+const {invertBoundedDegreeModelSymbolically}=
+  require('../sims/bounded-degree-symbolic-affine-inverse');
 
 /** @param {number} seed @returns {()=>number} */
 function random32(seed){
@@ -237,4 +239,39 @@ test('a degree-three bijection outside the compatible triangular family fails cl
   assert.throws(()=>prepareExactBoundedDegreeInverter(model),
     /exact derivative flag unavailable at level 0/,
     'global derivative flag must not be promised for arbitrary cubic permutations');
+});
+
+
+test('exact reusable quartic flags agree with established target-specific symbolic inverse',()=>{
+  /** @type {Array<{seed:number,targets:number,flagSetupMs:number,flagTargetsMs:number,symbolicTargetsMs:number}>} */
+  const receipts=[];
+  for(const seed of [0x71812345,0x61a97123]){
+    const oracle=makeOracle(seed,4);
+    const model=learnBoundedDegreeOracle(oracle,32,4);
+    const next=random32(seed^0xab5f1629);
+    /** @type {Array<[number,number]>} */
+    const pairs=[];
+    for(let i=0;i<24;i++){
+      let input=next();while(bitCount(input)<=4)input=next();
+      pairs.push([input,oracle(input)]);
+    }
+    const setupStart=performance.now();
+    const flags=prepareExactBoundedDegreeInverter(model);
+    const flagSetupMs=performance.now()-setupStart;
+    const flagStart=performance.now();
+    for(const [input,target] of pairs)
+      assert.equal(flags.invert(target),input);
+    const flagTargetsMs=performance.now()-flagStart;
+    const symbolicStart=performance.now();
+    for(const [input,target] of pairs){
+      const found=invertBoundedDegreeModelSymbolically(model,target);
+      assert.equal(found?.input,input);
+    }
+    const symbolicTargetsMs=performance.now()-symbolicStart;
+    receipts.push({seed,targets:pairs.length,
+      flagSetupMs:Math.round(flagSetupMs),
+      flagTargetsMs:Math.round(flagTargetsMs),
+      symbolicTargetsMs:Math.round(symbolicTargetsMs)});
+  }
+  console.log('EXACT_QUARTIC_BASIS_VS_SYMBOLIC '+JSON.stringify(receipts));
 });
