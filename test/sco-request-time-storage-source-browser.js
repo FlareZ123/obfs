@@ -21,8 +21,10 @@ const source=[
   '}',
   'export function sample(){',
   '  const inspected=inspect();',
+  '  localStorage.setItem(inspect,"key-position-control");',
   '  localStorage.setItem("'+storageKey+'",inspect);',
-  '  return {value:inspected.value,marker:inspected.marker,independent:independent()};',
+  '  const keySource=Array.from({length:localStorage.length},(_,index)=>localStorage.key(index)).find(candidate=>candidate!== "'+storageKey+'");',
+  '  return {value:inspected.value,marker:inspected.marker,independent:independent(),keySource,keyValue:localStorage.getItem(keySource)};',
   '}'
 ].join('\n');
 
@@ -163,10 +165,14 @@ async function main() {
     assert.equal(report.native.result.value,29);
     assert.equal(report.native.result.marker,sourceMarker);
     assert.equal(report.native.result.independent,7);
+    assert.equal(report.native.result.keySource,report.native.source);
+    assert.equal(report.native.result.keyValue,'key-position-control');
     for(const label of ['first','second']) {
       assert.equal(report[label].result.value,29,label+' numeric result');
       assert.equal(report[label].result.marker,sourceMarker,label+' marker value');
       assert.equal(report[label].result.independent,7,label+' independent helper');
+      assert.equal(report[label].result.keySource,report[label].source,label+' key-argument source');
+      assert.equal(report[label].result.keyValue,'key-position-control',label+' key-position value');
       assert.notEqual(report[label].source,report.native.source,
         label+' Storage readback must expose the changed function source');
       assert.ok(!report[label].source.includes('privateLocal'),
