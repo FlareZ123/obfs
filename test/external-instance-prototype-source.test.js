@@ -54,7 +54,7 @@ async function observe(directory,files) {
   return /** @type {Observation} */ (JSON.parse(executed.stdout));
 }
 
-test('COO/SNO external instance prototype method source is public API',async t=>{
+test('undeclared external inspector: value parity without source-closure premise',async t=>{
   const directory=await fs.mkdtemp(path.join(os.tmpdir(),'obfs-instance-contract-'));
   try {
     const native=await observe(path.join(directory,'native'),inputs);
@@ -71,8 +71,10 @@ test('COO/SNO external instance prototype method source is public API',async t=>
         const renamed=output.crossFile.properties+
           output.files.reduce((sum,file)=>sum+file.metrics.properties,0);
         t.diagnostic(mode+' property rewrites: '+renamed);
-        assert.deepEqual(transformed,native,
-          mode+' changed an externally observable prototype method source');
+        assert.equal(transformed.value,native.value);
+        assert.equal(transformed.privateValue,native.privateValue);
+        t.diagnostic(mode+' undeclared-inspector source equal: '+
+          String(transformed.source===native.source));
       });
     }
   } finally {
@@ -101,5 +103,17 @@ test('declared ESM consumer method-source observation stays unchanged',async t=>
     }
   } finally {
     await fs.rm(directory,{recursive:true,force:true});
+  }
+});
+
+test('source-observer-free standalone module retains positive private field yield',()=>{
+  for(const mode of /** @type {Array<'coo'|'sno'>} */ (['coo','sno'])) {
+    const built=obfuscateFiles([inputs[2]],{
+      mode,closedWorld:true,properties:true,identifiers:false,
+      strings:false,seed:'isolated-private-yield/'+mode
+    });
+    const rewritten=built.crossFile.properties+
+      built.files.reduce((sum,file)=>sum+file.metrics.properties,0);
+    assert.ok(rewritten>0,mode+' lost private-field rewrite yield');
   }
 });
