@@ -123,6 +123,10 @@ jobs:
         env:
           CHROMIUM_BIN: google-chrome
         run: node test/jsdeobsbench-public-browser.js
+      - name: Check public instance prototype method source parity in real Chromium
+        env:
+          CHROMIUM_BIN: google-chrome
+        run: node test/instance-prototype-source-browser.js
       - name: Strict-check external benchmark and browser harness JSDoc
         run: npm run typecheck:external
       - name: Compare held-out multi-file property graphs in Chrome
