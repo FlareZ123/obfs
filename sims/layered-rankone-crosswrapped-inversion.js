@@ -342,7 +342,7 @@ function runTinyBoundedDegreeCloner() {
       let weight=0;
       for(let bit=0;bit<8;bit++)weight+=(mask>>>bit)&1;
       return weight<=degree?1:0;
-    }).reduce((a,b)=>a+b,0);
+    }).filter(Boolean).length;
     assert.equal(queries,expected);
     assert.equal(heldoutOutputs,24*(256-queries));
     byLayers.push({layers,queries,sourceFunctions:localSources,
