@@ -40,6 +40,7 @@ function planZeroBreachSamples(maxBreachRate,confidence,workloadCount) {
   if(n>1&&(n-1)*logNoBreach<=logTail)n--;
   if(!Number.isSafeInteger(n)||!Number.isSafeInteger(n*workloadCount))
     throw new RangeError('Total required sample count exceeds safe integer precision');
+  /** @param {number} size @returns {number} */
   const bound=(size)=>-Math.expm1(logTail/size);
   return {
     pairsPerWorkload:n,totalPairs:n*workloadCount,
