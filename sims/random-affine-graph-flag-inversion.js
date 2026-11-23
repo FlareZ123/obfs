@@ -216,17 +216,17 @@ function firstSetBit(value,width) {
  * @param {number} width
  * @param {number} degree
  * @param {(width:number)=>bigint} randomCoordinates
- * @param {number} stageDelta
+ * @param {number} logConfidenceBudget
  * @param {number} maxQueriesPerStage
  * @returns {{ok:true,a:bigint,w:bigint,c:bigint,pivot:number,rhs:bigint,queries:number,rank:number,dimension:number,stagnant:number,stagnationLimit:number,nullity:number}|{ok:false,reason:string,queries:number,rank:number,dimension:number,stagnant:number,stagnationLimit:number,nullity?:number}}
  */
-function findRelation(oracle,target,base,basis,width,degree,randomCoordinates,stageDelta,maxQueriesPerStage) {
+function findRelation(oracle,target,base,basis,width,degree,randomCoordinates,logConfidenceBudget,maxQueriesPerStage) {
   const dimension=basis.length;
   const rowWidth=dimension+width+1;
   const inputMask=(1n<<BigInt(dimension))-1n;
   const outputMask=(1n<<BigInt(width))-1n;
   const pivots=Array(rowWidth).fill(0n);
-  const stagnationLimit=Math.ceil((2**degree)*Math.log(1/stageDelta));
+  const stagnationLimit=Math.ceil((2**degree)*logConfidenceBudget);
   let rank=0,stagnant=0,queries=0;
   while(stagnant<stagnationLimit){
     const coordinates=randomCoordinates(dimension);
@@ -284,11 +284,17 @@ function invertByRandomAffineGraph(oracle,target,width,degree,options={}) {
   const stages=[];
   while(basis.length){
     const dimension=basis.length;
-    const stageDelta=delta/width;
+    // A rank-growth streak can restart after each newly independent row.
+    // The affine-flag proof guarantees one true relation, so at most
+    // width+dimension independent graph rows occur on this coset. Spend
+    // delta/width/(width+dimension) per unresolved rank level, including
+    // all adaptive restarts, before claiming a stage-wise confidence bound.
+    // Use a log sum to avoid underflow for very small positive delta.
+    const rankBound=width+dimension;
     const rowWidth=dimension+width+1;
-    const logBudget=Math.log(1/stageDelta);
+    const logBudget=Math.log(width)+Math.log(rankBound)-Math.log(delta);
     const maxQueriesPerStage=options.maxQueriesPerStage??Math.ceil(8*(2**degree)*(rowWidth+logBudget));
-    const result=findRelation(oracle,target,base,basis,width,degree,randomCoordinates,stageDelta,maxQueriesPerStage);
+    const result=findRelation(oracle,target,base,basis,width,degree,randomCoordinates,logBudget,maxQueriesPerStage);
     queries+=result.queries;
     stages.push({
       dimension,
