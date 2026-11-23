@@ -37,6 +37,11 @@ const cases={
     "const [encoder]=make();\n"+
     functionSource+"module.exports=Array.from(encoder.encode(observed));\n",
   conditional:"const encoder=true?new TextEncoder():new TextEncoder();\n"+
+    functionSource+"module.exports=Array.from(encoder.encode(observed));\n",
+  destructureRecord:"const {encoder}={encoder:new TextEncoder()};\n"+
+    functionSource+"module.exports=Array.from(encoder.encode(observed));\n",
+  destructureReturnedRecord:"function make(){return {encoder:new TextEncoder()};}\n"+
+    "const {encoder}=make();\n"+
     functionSource+"module.exports=Array.from(encoder.encode(observed));\n"
 };
 
