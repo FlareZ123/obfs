@@ -357,7 +357,9 @@ test('Selected SCO requires proven local reads for freshly constructed URL value
       'return box.u.constructor.createObjectURL(new Blob(["x"]));',
     'return new URL("https://example.org/a");',
     'function nested(){const u=new URL("https://example.org/a");return u.pathname;}return u.pathname;',
-    'if(true){const u=new URL("https://example.org/a");u.pathname;}return u.pathname;'
+    'if(true){const u=new URL("https://example.org/a");u.pathname;}return u.pathname;',
+    '{const u=new URL("https://example.org/a");u.pathname;}return u.pathname;',
+    'const u=new URL("https://example.org/a");const v=u;return v.constructor;'
   ];
   for(const body of unsafe){
     assert.throws(()=>partitionScoSelectedAsyncExports(
@@ -370,7 +372,9 @@ test('Selected SCO requires proven local reads for freshly constructed URL value
   const pure=[
     'return new URL("https://example.org/a").pathname;',
     'const u=new URL("https://example.org/a");return u.pathname;',
-    'const u=new URL("https://example.org/a");const v=u;return v.hostname;'
+    'const u=new URL("https://example.org/a");const v=u;return v.hostname;',
+    'function nested(){const u=new URL("https://example.org/a");return u.pathname;}return nested();',
+    '{const u=new URL("https://example.org/a");const v=u;return v.pathname;}'
   ];
   for(const body of pure){
     const partition=partitionScoSelectedAsyncExports(
