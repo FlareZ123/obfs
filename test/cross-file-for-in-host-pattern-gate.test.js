@@ -93,3 +93,33 @@ test('for-in assignment-pattern binding must account for inherited String protot
   assert.equal(output.crossFile.properties,0,
     'An inherited host getter can inject Function through a ForInStatement assignment pattern');
 });
+
+
+test('for-in string key followed by object destructuring remains an unknown host source',async()=>{
+  /** @type {ModuleFile[]} */
+  const files=[
+    {path:'state.mjs',sourceType:'module',
+      code:'export const state={secretField:53};'},
+    {path:'main.mjs',sourceType:'module',code:[
+      'import {state} from "./state.mjs";',
+      'let injected;',
+      'for(const key in ["x"]){',
+      '  const {callback:Loader}=key;',
+      '  injected=Loader('+JSON.stringify('return import("./state.mjs")')+');',
+      '}',
+      'const remote=await injected();',
+      'console.log(JSON.stringify([state.secretField,Object.keys(remote.state),remote.state.secretField]));'
+    ].join('\\n')}
+  ];
+  const native=await executeWithPreloader(files);
+  assert.equal(native,'[53,["secretField"],53]\\n');
+  const output=obfuscateFiles(files,{
+    mode:'coo',closedWorld:true,seed:'for-in-string-key-followed-by-pattern',
+    strings:false,identifiers:false,properties:true
+  });
+  const emitted=await executeWithPreloader(output.files);
+  assert.equal(emitted,native,
+    'Generated ESM must preserve inherited String prototype getters after a simple ForIn binding');
+  assert.equal(output.crossFile.properties,0,
+    'A simple ForIn key remains a String wrapper source for later destructuring');
+});
