@@ -315,7 +315,7 @@ function resolveEsmRequests(requests) {
     "catch(error){return {ok:false,code:String(error.code||''),message:String(error.message||error)};}",
     "});",
     "process.stdout.write(JSON.stringify(results));"
-  ].join('\\n');
+  ].join('\n');
   const child=spawnSync(process.execPath,[
     '--experimental-import-meta-resolve','--input-type=module','-e',script
   ],{
