@@ -86,7 +86,7 @@ test('closed-world graph refuses untracked dynamic and noncanonical loaders',()=
     'import {getBuiltinModule as pick} from "node:process"; export function deriveProof(v){return pick("node:module");}'
   ]) {
     assert.throws(()=>emit([{...engine,code},leaf]),
-      /unproved runtime loader|canonical relative \.mjs imports|cannot audit dynamic Node loader|unproved Node process loader|cross-realm global state|unproved cross-realm host API/,
+      /unproved runtime loader|canonical relative \.mjs imports|cannot audit dynamic Node loader|unproved Node process loader|cross-realm global state|unproved cross-realm host API|unproved unqualified free reference: private\/engine\.mjs:require/,
       'Private source should be declined: '+code);
   }
 });
@@ -359,4 +359,20 @@ test('literal-owned browser-spelling source survives real authenticated SCO RPC'
       server.close(error=>error?reject(error):resolve()));
     await fs.rm(folder,{recursive:true,force:true});
   }
+});
+
+
+test('reexport identifier belongs to source module while unsupported local export remains unproved',()=>{
+  const reexport=emit([
+    {path:engine.path,code:'export {deriveProof} from "./deep/secret.mjs";'},
+    {path:leaf.path,code:'export function deriveProof(v){return v+41;}'}
+  ]);
+  assert.deepEqual(reexport.clientFile.privateModulePaths,[
+    'private/engine.mjs','private/deep/secret.mjs'
+  ]);
+  // An export with from is a source-module name, while an export without
+  // a source specifier is a local reference that requires a declaration.
+  assert.throws(()=>emit([
+    {path:engine.path,code:'export {deriveProof};'}
+  ]),/unproved|audit|export|undefined|binding/u);
 });
