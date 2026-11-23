@@ -180,8 +180,114 @@ function runCrosswrappedActiveTriangularAttack() {
     upperBoundViolations,sampledRankViolations,byK};
 }
 
+/**
+ * An all-32-active-coordinate triangular source with only t genuinely
+ * nonlinear coordinate gates. Every remaining gate has a nonzero affine
+ * control on lower input bits, including a constant-one bit-zero gate.
+ * The t nonlinear controls use independent squarefree monomials, so their
+ * degree-two ANF output coefficient span has rank exactly t.
+ *
+ * @param {number} seed
+ * @param {number} nonlinearCount
+ * @returns {{oracle:(input:number)=>number,activeCoordinates:number,
+ *   nonlinearCoordinates:number[]}}
+ */
+function affineHeavySource(seed,nonlinearCount) {
+  assert.ok(Number.isInteger(nonlinearCount)&&nonlinearCount>=1&&
+    nonlinearCount<=4);
+  const next=seeded((seed^0x821755d7)>>>0);
+  const inputMatrix=invertible(next()),outputMatrix=invertible(next());
+  const inOffset=next(),outOffset=next();
+  const nonlinearCoordinates=[6,12,19,27].slice(0,nonlinearCount);
+  const quadraticPairs=[[0,1],[0,2],[1,2],[0,3]];
+  /** @type {Map<number,number[]>} */
+  const nonlinearPairs=new Map(nonlinearCoordinates.map((index,ordinal)=>
+    [index,quadraticPairs[ordinal]]));
+  const linearMasks=Array.from({length:32},(_,bit)=>
+    bit===0?0:((next()&((2**bit-1)>>>0))|1)>>>0);
+  const offsets=Array.from({length:32},()=>next()&1);
+  // Neither wrapper depends on the inverse of the other.
+  assert.ok(Array.from({length:32},(_,bit)=>
+    applyLinear(outputMatrix,applyLinear(inputMatrix,(1<<bit)>>>0))).
+    some((value,bit)=>value!==((1<<bit)>>>0)));
+  /** @param {number} input @returns {number} */
+  function oracle(input) {
+    const z=(applyLinear(inputMatrix,input)^inOffset)>>>0;
+    let out=z;
+    for(let bit=0;bit<32;bit++){
+      const affine=bit===0?1:(parity32(z&linearMasks[bit])^offsets[bit]);
+      const pair=nonlinearPairs.get(bit);
+      const nonlinear=pair?
+        ((z>>>pair[0])&1)&((z>>>pair[1])&1):0;
+      if(affine^nonlinear)out=(out^(1<<bit))>>>0;
+    }
+    return (applyLinear(outputMatrix,out)^outOffset)>>>0;
+  }
+  return {oracle,activeCoordinates:32,nonlinearCoordinates};
+}
+
+/**
+ * Independently challenge a densely active triangular map by supplying
+ * the *nonlinear* output rank t to the unchanged deterministic inverter.
+ * The source has 32 nonidentity triangular gates, not just t active gates.
+ *
+ * @returns {{sources:number,targets:number,exactInversions:number,
+ *   maximumQueries:number,maxNullity:number,exactSampleRanks:number,
+ *   byNonlinear:{nonlinearCount:number,maxCalls:number,sources:number,
+ *      targets:number}[]}}
+ */
+function runAffineHeavyTriangularAttack() {
+  const byNonlinear=[];
+  let sources=0,targets=0,exactInversions=0;
+  let maximumQueries=0,maxNullity=0,exactSampleRanks=0;
+  for(let t=1;t<=4;t++){
+    let maxCalls=0,localSources=0,localTargets=0;
+    for(let iteration=0;iteration<12;iteration++){
+      const seed=(0x71f03b2c^Math.imul(t,0x6d2b79f5)^
+        Math.imul(iteration+1,0x4f1bbcdc))>>>0;
+      const built=affineHeavySource(seed,t);
+      assert.equal(built.activeCoordinates,32);
+      assert.equal(built.nonlinearCoordinates.length,t);
+      const {oracle}=built;
+      const next=seeded((seed^0xb7e9a039)>>>0);
+      const base=oracle(0);
+      const columns=Array.from({length:32},(_,bit)=>
+        (oracle((1<<bit)>>>0)^base)>>>0);
+      const residuals=Array.from({length:128},()=>{
+        const input=next();
+        return (oracle(input)^base^applyLinear(columns,input))>>>0;
+      });
+      assert.equal(rank(residuals),t,
+        'Independent quadratic monomial controls must yield full residual rank');
+      exactSampleRanks++;
+      for(let trial=0;trial<3;trial++){
+        const secret=next(),output=oracle(secret);
+        const inverted=invertLowRankDeterministic(oracle,output,{
+          bits:32,rankBound:t
+        });
+        assert.equal(inverted.preimage,secret);
+        assert.equal(oracle(inverted.preimage),output);
+        assert.ok(inverted.oracleCalls<=33+2**(2*t));
+        maxCalls=Math.max(maxCalls,inverted.oracleCalls);
+        maximumQueries=Math.max(maximumQueries,inverted.oracleCalls);
+        maxNullity=Math.max(maxNullity,inverted.nullity);
+        localTargets++;targets++;exactInversions++;
+      }
+      localSources++;sources++;
+    }
+    byNonlinear.push({nonlinearCount:t,maxCalls,
+      sources:localSources,targets:localTargets});
+  }
+  assert.equal(sources,48);
+  assert.equal(targets,144);
+  assert.equal(exactInversions,targets);
+  assert.equal(exactSampleRanks,sources);
+  return {sources,targets,exactInversions,maximumQueries,maxNullity,
+    exactSampleRanks,byNonlinear};
+}
+
 if(require.main===module){
   process.stdout.write('CROSSWRAPPED_TRIANGULAR_ACTIVE_INVERSION '+
     JSON.stringify(runCrosswrappedActiveTriangularAttack())+'\n');
 }
-module.exports={runCrosswrappedActiveTriangularAttack};
+module.exports={runCrosswrappedActiveTriangularAttack,runAffineHeavyTriangularAttack};
