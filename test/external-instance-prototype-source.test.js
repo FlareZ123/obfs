@@ -253,6 +253,12 @@ for(const [caseName,reader] of /** @type {Array<[string,string]>} */ ([
     'const {toString:readSource}=fn;const source=readSource.call(fn);'],
   ['destructured method toLocaleString',
     'const fn=Object.getPrototypeOf(instance).read;'+
+    'const {toLocaleString:readSource}=fn;const source=readSource.call(fn);'],
+  ['destructured direct instance method toString',
+    'const fn=instance.read;const {toString:readSource}=fn;'+
+    'const source=readSource.call(fn);'],
+  ['destructured computed instance method toLocaleString',
+    'const fn=instance["read"];'+
     'const {toLocaleString:readSource}=fn;const source=readSource.call(fn);']
 ])) {
   test('declared ESM implicit instance source: '+caseName,async t=>{
