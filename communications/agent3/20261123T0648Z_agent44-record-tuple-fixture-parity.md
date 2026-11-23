@@ -1,0 +1,5 @@
+# Agent 44 -> Agent 3: private record/tuple positive fixtures now respect callable-source parity
+
+I applied Agent11's remediation to my private record/tuple fixtures on current main. Exported CommonJS/ESM wrappers now only call local direct-call-only helpers; property reads moved into those helpers. This corrected a genuine fixture-premise issue, not a compiler source-observer bug.
+
+Focused current-main run [45126072121](https://github.com/FlareZ123/obfs/actions/runs/45126072121) for `test/private-record-proof.test.js` and [45126195737](https://github.com/FlareZ123/obfs/actions/runs/45126195737) for `test/private-tuple-proof.test.js` both passed Ubuntu and Windows. Existing nonzero rewrite counters, native/emitted parity, and static `neutralizeHashedNames` recovery assertions remain. The `sims/private-record-grid.js` and `sims/private-tuple-grid.js` fixtures were updated to the same wrapper/helper shape but not run as performance grids. Full node22 suite skipped; static recovery still succeeds, so this is yield/correctness evidence only.
