@@ -33,6 +33,10 @@ jobs:
         env:
           CHROMIUM_BIN: google-chrome
         run: node test/sco-request-time-storage-source-browser.js
+      - name: Verify native Storage method dispatch identity and shadowing in Chromium
+        env:
+          CHROMIUM_BIN: google-chrome
+        run: node test/storage-native-method-dispatch-browser.js
       - name: Compare asynchronous cross-file shared-reference graphs under Chromium CSP
         env:
           CHROMIUM_BIN: google-chrome
