@@ -81,3 +81,27 @@ The experiment rules out hiding this **promised low-degree family** by merely di
 This is **not the first known exact degree-four inversion algorithm in this repository**. The pre-existing `sims/bounded-degree-symbolic-affine-inverse.js` already supports degree-two, degree-three and degree-four compatible-triangular target inversion after the same low-weight ANF learning, by **target-specific symbolic restriction of the entire coefficient table**. The `Q(32,4)=41,449` query bound comes from the existing generic bounded-degree learner, not this work.
 
 The distinct candidate here precomputes a global, target-independent derivative flag using the basis-only span identity, then reuses that flag for multiple target values. Whether this improves total compute, peak memory or amortized break-even compared with the established symbolic inverter has **not yet been independently benchmarked**, and neither method provides positive obfuscation security. The proof and tests establish a second, independently structured exact inverter under the same source-family promise.
+
+
+## Incremental exact-inverse refinement and paired competitor receipt
+
+A subsequent refinement adds `invertFast(target)` alongside the original `invert(target)`. After the exact 528 contraction certificate, it precompiles **32 additional** fixed-direction defect polynomials, one for each selected input-toggle vector. When the greedy output mask indicates a toggle, it updates the maintained model output by the exact identity
+
+`F(x+u) = F(x) + Z(x,u) + F(u) + F(0)`.
+
+The precompiled `Z(x,u)` has at most 5,488 nonconstant x-ANF coefficients (cubic in x), so the fast method need not re-evaluate all 41,449 full-model coefficients for each of the 32 peel decisions. It still checks a final independent full-model evaluation. The returned counters distinguish **528 certificate contractions** from **32 optional incremental-derivative contractions**. The original inverse remains as a comparator.
+
+An independent same-public-model test now compares the globally precomputed flag and both inversion paths with the repository's **existing target-specific symbolic quartic inverse**, rather than implying the degree-four inversion family is new. Source-pinned [focused run 45259480781](https://github.com/FlareZ123/obfs/actions/runs/45259480781), SHA `e94b88cc6b69b0ef15e0c862eda769912ce64b57`, passed the Ubuntu and Windows focused jobs; the full Node 22 suite remained skipped.
+
+For each of two quartic affine-wrapped triangular seeds, the same 24 fixed target inputs were inverted exactly with all three paths, yielding these **single-run, unbalanced-order wall-clock observations** (milliseconds, no source-oracle requests after fitting):
+
+| CI platform | Source seed | Setup, both flag paths | Original flag / 24 targets | Incremental flag / 24 | Prior symbolic / 24 |
+| --- | --- | ---: | ---: | ---: | ---: |
+| Ubuntu | 1904288581 | 2115 | 825 | 53 | 3198 |
+| Ubuntu | 1638494499 | 2027 | 815 | 51 | 2685 |
+| Windows | 1904288581 | 2031 | 813 | 53 | 3000 |
+| Windows | 1638494499 | 1965 | 810 | 52 | 2606 |
+
+The setup includes both the certificate and 32 derivative compilation calls, hence it is counted before either original or fast target timings. The original flag was timed first, fast second, symbolic third; JIT/CPU warming and noisy runners were **not** controlled by balanced order. The paired numbers are evidence of a promising target-reuse implementation, not a rigorous speed ratio or general performance bound. Approximate amortized break-even for the fast flag versus repeating target-specific symbolic inversion in these four cells is 17–19 targets, assuming the observed per-target rates scale linearly; a source-paired balanced A/B is required before selecting a globally superior strategy.
+
+Two additional negative controls survived the cross-platform gate: (1) a sparse quartic coefficient model with a bit-31 monomial verifies that missing zero-coefficient entries must still reserve their lower-degree defect slots, and (2) an explicit 4-bit nonlinear bijection with full-rank defect span, copied independently into eight nibbles, is an exactly cubic 32-bit permutation that the greedy flag **correctly rejects at level zero**. This shows both the *degree bound* and the *compatible-triangular structure* are essential, distinct promises.
