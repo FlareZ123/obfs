@@ -100,3 +100,22 @@ The original expression `(((x^137)&(x>>>3))|(x<<7))` executes the primitive conv
 Every public facade retains **exact Function#toString** source even while the helper's results, exceptions, and observable coercion counts diverge. The transformed helper is a *typed-number domain* experiment, and its prior 2,060-input parity grid covered primitive Number values only. These 18 probes are **outside that explicitly stated narrow grammar**, so they invalidate promotion of the typed evidence into an **arbitrary JavaScript 1:1 semantics claim**. They do not contradict the numeric-input result. An automatic compiler admission proof must establish that no unknown caller can pass coercible objects, or must preserve the original multi-coercion behavior through a semantics-correct fallback. Such a fallback may also defeat the static obfuscation purpose; evaluate performance and attacker extraction independently.
 
 Because this test asserts the known out-of-contract differential as a negative control, the CI test itself is green. It is retained on the research branch, not automatically merged into the main supported workload.
+
+## Fresh-process paired runtime replication: observed COO Windows strict hot breach
+
+To reduce shared-JIT dependency in the earlier single-process 13-pair profile, `test/agent38-private-wasm-fresh-process-budget.test.js` at exact branch SHA `3e764fc453af87f8feb04b93668f4de276a9753f` starts **one new Node process per variant and pairing** through `sims/agent38-private-wasm-process-child.js` with JSON source on stdin. Each process loads its source into a new VM, evaluates the public facade, runs three warm-up passes, then times 300,000 synchronous calls. The parent alternates native-first and candidate-first pairs, verifies first output and checksum equality, and records all PIDs and raw durations. Every mode has 12 paired trials, **24 distinct process executions per mode**. Initial VM evaluation and first call are timed separately from hot work.
+
+[Source-pinned focused CI 45130098598](https://github.com/FlareZ123/obfs/actions/runs/45130098598) **passed 1/1 test and strict JSDoc on both Ubuntu and Windows**, but this is an observational profile, not a 2.5× acceptance assertion.
+
+| OS | Mode | Hot ratio of medians | Maximum paired hot ratio | Strict hot breaches | Init+first-call ratio of medians |
+| --- | --- | ---: | ---: | ---: | ---: |
+| Ubuntu | COO | 1.061× | 1.077× | 0/12 | 1.252× |
+| Ubuntu | SNO | 1.063× | 1.088× | 0/12 | 1.242× |
+| Ubuntu | SCO | 1.059× | 1.085× | 0/12 | 1.218× |
+| Windows | COO | 0.956× | **3.294×** | **1/12** | 1.226× |
+| Windows | SNO | 0.993× | 1.111× | 0/12 | 1.253× |
+| Windows | SCO | 1.023× | 1.103× | 0/12 | 1.230× |
+
+Every sampled init+first-call pair stayed within 2.5× in this fresh-process run. The **Windows COO strict hot violation** vetoes a blanket 2.5× compliance claim for this measured scenario, regardless of the low median or the 71 other passing hot pairs. A process-specific scheduler/JIT or transient host-interference effect is a possible explanation, not an established excuse to discard the sample; rerun with independent controlled blocks and retain raw traces before diagnosing. Fresh processes remove repeated in-process JIT state but do not prove iid samples because CI host scheduler, CPU frequency and thermal state may correlate processes. This is a sampled wall-clock proxy; SNO initialization deduction does not apply to **COO hot compute**.
+
+Both studies preserved primitive-number behavior, yet one real paired over-budget observation exists in the stronger process-boundary design. No universal budget or attacker-cost success follows.
