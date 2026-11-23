@@ -956,12 +956,67 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
     }
     return returns.some(expr=>mayCarryEncoder(expr));
   }
+  /** @type {Set<AstNode>} */
+  const provenLocalIdentityEncodeReceivers=new Set();
+  // A closed, unaliased own record can carry a real TextEncoder in one field
+  // while an unrelated field owns an identity-only encode method. Recognize
+  // that exact method receiver to avoid disabling otherwise safe rewrites.
+  walk(ast,node=>{
+    if(node.type!=='VariableDeclarator'||node.id.type!=='Identifier'||
+       node.init?.type!=='ObjectExpression')return;
+    const owner=node.id.name;
+    /** @type {Set<string>} */
+    const identityFields=new Set();
+    for(const field of node.init.properties) {
+      if(field.type!=='Property'||field.kind!=='init'||field.method||
+         field.value.type!=='ObjectExpression')continue;
+      const fieldName=field.computed?staticString(field.key):memberName({
+        computed:false,property:field.key,type:'MemberExpression',start:0,end:0
+      });
+      if(fieldName===null)continue;
+      const child=field.value.properties.find((/** @type {AstNode} */ property)=>
+        property.type==='Property'&&
+        (property.computed?staticString(property.key):
+          property.key.type==='Identifier'?property.key.name:
+          staticString(property.key))==='encode');
+      const fn=child?.type==='Property'?child.value:null;
+      if(!fn||!['FunctionExpression','ArrowFunctionExpression'].includes(fn.type)||
+         fn.async||fn.generator||fn.params.length!==1||
+         fn.params[0].type!=='Identifier'||fn.body.type!=='BlockStatement'||
+         fn.body.body.length!==1||fn.body.body[0].type!=='ReturnStatement'||
+         fn.body.body[0].argument?.type!=='Identifier'||
+         fn.body.body[0].argument.name!==fn.params[0].name)continue;
+      identityFields.add(fieldName);
+    }
+    if(!identityFields.size)return;
+    let safe=true;
+    /** @type {AstNode[]} */
+    const proven=[];
+    walk(ast,(use,parent,key,ancestors)=>{
+      if(use.type==='WithStatement'||use.type==='CallExpression'&&
+         use.callee.type==='Identifier'&&use.callee.name==='eval')safe=false;
+      if(use.type!=='Identifier'||use.name!==owner||use===node.id)return;
+      if(parent?.type!=='MemberExpression'||key!=='object'||
+         !identityFields.has(memberName(parent)??'')) {
+        safe=false;
+        return;
+      }
+      const chain=ancestors[ancestors.length-2];
+      const call=ancestors[ancestors.length-3];
+      if(chain?.type==='MemberExpression'&&chain.object===parent&&
+         memberName(chain)==='encode'&&call?.type==='CallExpression'&&
+         call.callee===chain)proven.push(parent);
+      else safe=false;
+    });
+    if(safe)for(const receiver of proven)provenLocalIdentityEncodeReceivers.add(receiver);
+  });
   /** @param {AstNode|null|undefined} node @param {Set<string>} instances
    *  @param {Set<string>} constructors @param {Set<string>} names @returns {boolean} */
   function isWebInstance(node,instances,constructors,names) {
     return Boolean(node && (node.type==='Identifier'&&instances.has(node.name) ||
       node.type==='NewExpression'&&isWebConstructor(node.callee,constructors,names) ||
-      instances===encoderInstances && mayCarryEncoder(node)));
+      instances===encoderInstances && !provenLocalIdentityEncodeReceivers.has(node) &&
+        mayCarryEncoder(node)));
   }
   /**
    * Headers and URLSearchParams arise from constructor calls or via native
