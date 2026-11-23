@@ -31,11 +31,12 @@ function compile(code,seed){
 
 test('dynamic Error stack read refuses source-column-changing private key rewrite',()=>{
   const native=source("['st','ack'].join('')");
+  const result=compile(native,'dynamic-error-stack-source-negative');
+  assert.equal(result.files[0].metrics.properties,0,
+    'A source-location read must not expose an edited column: '+result.files[0].code);
   assert.equal(observesFunctionSource(parse(native,'module')),true,
     'An aliased Error with unknown computed property can expose stack coordinates');
-  const result=compile(native,'dynamic-error-stack-source-negative');
   assert.equal(result.files[0].code,native);
-  assert.equal(result.files[0].metrics.properties,0);
 });
 
 test('known Error message read retains unrelated private-key transform yield',()=>{
