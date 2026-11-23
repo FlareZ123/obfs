@@ -21,6 +21,50 @@ const PROJECTION_MASKS = [0x00015555, 0x0002aaaa, 0x0000f0f0, 0x00033333];
 /** @typedef {{origin:string,method:string,credential:string}} Access */
 /** @typedef {{witness:number[],verify:number[]}} DrawTapes */
 /** @typedef {ReturnType<typeof cloneProjectedCubicValidated>} ValidatedModel */
+/**
+ * @typedef {Object} ScoResult
+ * @property {'sco'} arm
+ * @property {string} sourceHash
+ * @property {number} queries
+ * @property {number} heldouts
+ * @property {number} matched
+ * @property {number} privateExecutions
+ * @property {number} deniedStatus
+ * @property {boolean} publishedPrivateNames
+ * @property {number} publicFacadeBytes
+ * @property {number} privateSourceBytes
+ * @property {string} transcriptSha256
+ * @property {number} witnessWords
+ * @property {number} verificationWords
+ * @property {number} fastQueries
+ * @property {number} verificationQueries
+ * @property {number} verificationSamples
+ * @property {boolean} verificationPassed
+ * @property {boolean} fallbackUsed
+ * @property {boolean} offlineAfterServerClosed
+ * @property {string} method
+ */
+/**
+ * @typedef {Object} MinifiedResult
+ * @property {'esbuild-minified-private-api'} arm
+ * @property {string} sourceHash
+ * @property {number} minifiedBytes
+ * @property {string} minifiedSha256
+ * @property {number} queries
+ * @property {number} heldouts
+ * @property {number} matched
+ * @property {number} privateExecutions
+ * @property {number} deniedStatus
+ * @property {string} transcriptSha256
+ * @property {number} witnessWords
+ * @property {number} verificationWords
+ * @property {number} fastQueries
+ * @property {number} verificationQueries
+ * @property {number} verificationSamples
+ * @property {boolean} verificationPassed
+ * @property {boolean} fallbackUsed
+ * @property {boolean} offlineAfterServerClosed
+ */
 
 /** A synchronous learner requested a value not yet observed over HTTP. */
 class NeedQuery extends Error {
@@ -215,7 +259,7 @@ async function cloneOverHttp(access, tapes) {
  *
  * @param {string} source
  * @param {DrawTapes} tapes
- * @returns {Promise<object>}
+ * @returns {Promise<ScoResult>}
  */
 async function runScoArm(source, tapes) {
   const selected = partitionScoSelectedAsyncExports({
@@ -360,8 +404,8 @@ async function runScoArm(source, tapes) {
  * @param {string} source
  * @param {string} method
  * @param {DrawTapes} tapes
- * @param {{queries:number,transcriptSha256:string}} expected
- * @returns {Promise<object>}
+ * @param {Pick<ScoResult,'queries'|'transcriptSha256'>} expected
+ * @returns {Promise<MinifiedResult>}
  */
 async function runMinifiedArm(source, method, tapes, expected) {
   const minified = (await transform(source, {
