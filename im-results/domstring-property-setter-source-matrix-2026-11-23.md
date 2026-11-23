@@ -5,8 +5,8 @@
 **Research owner:** Agent 19  
 **Date:** 2026-11-23  
 **Reproduction branch:** `agent19/domstring-property-setter-matrix-20261123`  
-**Final source pin:** `5f3699a02bac20de2798bba8334e794110be26ec`  
-**Validation:** [GitHub Actions run 45104124757](https://github.com/FlareZ123/obfs/actions/runs/45104124757)
+**Final source pin:** `ce3b1b9c33f78131922f20cde3c763b07a6402dd`  
+**Validation:** [GitHub Actions run 45104842175](https://github.com/FlareZ123/obfs/actions/runs/45104842175)
 
 ## Finding
 
@@ -81,6 +81,8 @@ The final source-pinned workflow completed successfully. Its Ubuntu job ran the 
 | Proxy storage-trap control | **PASS** |
 | `Element.insertAdjacentHTML` method source mismatch | **1 / 1** |
 | `insertAdjacentHTML` primitive-only positive parity | **PASS** |
+| Modern HTML parser/streaming methods with changed source | **23 / 23** |
+| Modern HTML parser/streaming primitive-only positive parity | **23 / 23** |
 | Cross-file primitive-only positive | **PASS** |
 | Existing focused Web IDL Node suite | **237 / 237** |
 | Main project JSDoc and dedicated matrix JSDoc | **PASS** |
@@ -140,7 +142,7 @@ A complementary proxy-storage trap that intercepts the assignment and stores the
 The own-data-property shadowing control passed: `Object.defineProperty(target, "id", { value: inspect, ... })` stored the function reference and the compiled program still invoked it correctly. This separates actual native setter dispatch from a reflective operation that merely creates an own data property.
 
 The final workflow uploaded the raw JSON summary as artifact
-[domstring-property-setter-matrix](https://github.com/FlareZ123/obfs/actions/runs/45104124757/artifacts/14786259045).
+[domstring-property-setter-matrix](https://github.com/FlareZ123/obfs/actions/runs/45104842175/artifacts/14786798430).
 
 
 ### Setter-identity negative control
@@ -221,6 +223,49 @@ function inspect(){return observedOwner._pb3295925cc;}
 The function's numeric result remained 57 and the independent value remained 73. The literal-string positive passed; the negative reported two property transformations and the positive one. The source observer's current `src/ast.js` contains no `insertAdjacentHTML` sink rule.
 
 The HTML Standard declares `insertAdjacentHTML(DOMString position, (TrustedHTML or DOMString) string)`. This test exercises the second argument with Trusted Types enforcement absent, so the DOMString conversion path is active. The method is not part of the 26 property-setter count; it is an additional method-call sink that should be covered by the call-argument source-observation analysis.
+
+
+## Modern HTML parsing and streaming API matrix
+
+The Chromium feature probe found all 23 tested modern HTML parsing/streaming methods available. Every supported method changed the function source in emitted COO output, while all 23 primitive-only positives passed. Each negative reported two private-property transformations; each positive reported one.
+
+The methods tested were:
+
+1. `Element.setHTML`
+2. `Element.appendHTML`
+3. `Element.prependHTML`
+4. `Element.setHTMLUnsafe`
+5. `Element.appendHTMLUnsafe`
+6. `Element.prependHTMLUnsafe`
+7. `Element.beforeHTML`
+8. `Element.afterHTML`
+9. `Element.replaceWithHTML`
+10. `Document.parseHTML`
+11. `Document.parseHTMLUnsafe`
+12. `Element.streamHTML`
+13. `Element.streamAppendHTML`
+14. `Element.streamPrependHTML`
+15. `Element.streamHTMLUnsafe`
+16. `Element.streamAppendHTMLUnsafe`
+17. `Element.streamPrependHTMLUnsafe`
+18. `Element.streamBeforeHTML`
+19. `Element.streamAfterHTML`
+20. `Element.streamReplaceWithHTML`
+21. `Element.streamBeforeHTMLUnsafe`
+22. `Element.streamAfterHTMLUnsafe`
+23. `Element.streamReplaceWithHTMLUnsafe`
+
+The streaming cases create the native HTML stream, obtain a writer, and pass the function object to `writer.write(inspect)`; the stream sink converts the chunk to text and the inserted source is read back from the DOM. This is a distinct asynchronous source-observation path, not merely another direct method argument.
+
+### Browser environment
+
+The final browser runner reported:
+
+```text
+Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/157.0.0.0 Safari/537.36
+```
+
+All 23 HTML parsing/streaming API feature probes returned `true`. This result is specific to HeadlessChrome 157.0.0.0; Firefox and WebKit have not been tested. A search of the current `src/ast.js` found no method-name handling for this modern HTML insertion/streaming family.
 
 ## Current implementation seam
 
