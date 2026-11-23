@@ -150,7 +150,8 @@ function partitionScoAsyncGraph(files,options) {
   if(suppliedBatchPaths!==undefined&&!Array.isArray(suppliedBatchPaths)){
     throw new TypeError('SCO graph batchPaths must be an array of exposed modules');
   }
-  const batchPathCount=suppliedBatchPaths?.length??0;
+  const batchEntries=suppliedBatchPaths??[];
+  const batchPathCount=batchEntries.length;
   if(suppliedMaxBatchCalls!==undefined &&
       (batchPathCount===0||!Number.isSafeInteger(suppliedMaxBatchCalls)||
        suppliedMaxBatchCalls<1||suppliedMaxBatchCalls>1024)){
@@ -173,7 +174,7 @@ function partitionScoAsyncGraph(files,options) {
   /** @type {string[]} */
   const approvedBatchPaths=[];
   for(let index=0;index<batchPathCount;index++){
-    const name=suppliedBatchPaths[index];
+    const name=batchEntries[index];
     if(typeof name!=='string')throw new TypeError('SCO graph batchPaths must contain strings');
     approvedBatchPaths.push(name);
   }
