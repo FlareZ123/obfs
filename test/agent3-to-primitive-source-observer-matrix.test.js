@@ -11,26 +11,44 @@ const {obfuscateFiles}=require('../src');
 const {atomicWrite}=require('../src/atomic');
 
 const cases=[
-  ['unary plus','+reader',true],
-  ['unary minus','-reader',true],
-  ['bitwise not','~reader',true],
-  ['binary subtraction','reader-1',true],
-  ['binary multiplication','reader*1',true],
-  ['binary division','reader/1',true],
-  ['binary remainder','reader%1',true],
-  ['binary exponentiation','reader**1',true],
-  ['binary left shift','reader<<1',true],
-  ['binary signed right shift','reader>>1',true],
-  ['binary unsigned right shift','reader>>>1',true],
-  ['binary bitwise and','reader&1',true],
-  ['binary bitwise or','reader|1',true],
-  ['binary bitwise xor','reader^1',true],
-  ['Math.abs','Math.abs(reader)',true],
-  ['Number','Number(reader)',true],
-  ['global isNaN','isNaN(reader)',true],
-  ['parseInt','parseInt(reader,10)',true],
-  ['Boolean positive control','Boolean(reader)',false],
-  ['typeof positive control','typeof reader',false]
+  ['unary plus','','+reader',true],
+  ['unary minus','', '-reader',true],
+  ['bitwise not','', '~reader',true],
+  ['binary addition','', "reader+''",true],
+  ['binary subtraction','', 'reader-1',true],
+  ['binary multiplication','', 'reader*1',true],
+  ['binary division','', 'reader/1',true],
+  ['binary remainder','', 'reader%1',true],
+  ['binary exponentiation','', 'reader**1',true],
+  ['binary left shift','', 'reader<<1',true],
+  ['binary signed right shift','', 'reader>>1',true],
+  ['binary unsigned right shift','', 'reader>>>1',true],
+  ['binary bitwise and','', 'reader&1',true],
+  ['binary bitwise or','', 'reader|1',true],
+  ['binary bitwise xor','', 'reader^1',true],
+  ['increment update','', 'reader++',true],
+  ['decrement update','', 'reader--',true],
+  ['compound addition','', 'reader+=1',true],
+  ['compound subtraction','', 'reader-=1',true],
+  ['compound multiplication','', 'reader*=1',true],
+  ['Math.abs','', 'Math.abs(reader)',true],
+  ['Math.max','', 'Math.max(reader,1)',true],
+  ['Number','', 'Number(reader)',true],
+  ['new Number','', 'new Number(reader).valueOf()',true],
+  ['global isNaN','', 'isNaN(reader)',true],
+  ['global isFinite','', 'isFinite(reader)',true],
+  ['parseInt','', 'parseInt(reader,10)',true],
+  ['parseFloat','', 'parseFloat(reader)',true],
+  ['new Date','', 'new Date(reader).getTime()',true],
+  ['Date.parse','', 'Date.parse(reader)',true],
+  ['Number alias','const coerce=Number;', 'coerce(reader)',true],
+  ['Math method alias','const coerce=Math.abs;', 'coerce(reader)',true],
+  ['Math namespace alias','const M=Math;', 'M.abs(reader)',true],
+  ['Math destructured method','const {abs}=Math;', 'abs(reader)',true],
+  ['Boolean positive control','', 'Boolean(reader)',false],
+  ['typeof positive control','', 'typeof reader',false],
+  ['logical not positive control','', '!reader',false],
+  ['strict equality positive control','', 'reader===reader',false]
 ];
 
 const patcher=[
@@ -81,10 +99,19 @@ test('numeric and abstract coercions preserve source observed by an unlisted ext
       });
       const native=await run(source);
       const transformed=await run(output.files[0].code);
-      if(observes)assert.ok(native.capturedSource.includes('secretValue'),
-        'native coercion must call patched Function#toString');
-      else assert.equal(native.capturedSource,'',
-        'the positive control must not invoke Function#toString');
+      if(observes){
+        assert.ok(native.capturedSource.includes('secretValue'),
+          'native coercion must call patched Function#toString');
+        assert.equal(output.files[0].metrics.bindings,0,
+          'a source-observed file must fail closed before identifier edits');
+        assert.equal(output.files[0].code,source);
+      }else{
+        assert.equal(native.capturedSource,'',
+          'the positive control must not invoke Function#toString');
+        assert.ok(output.files[0].metrics.bindings>0,
+          'non-coercive positive controls must retain genuine identifier yield');
+        assert.notEqual(output.files[0].code,source);
+      }
       assert.equal(transformed.capturedSource,native.capturedSource,
         'the external observer must see unchanged source or the compiler must refuse edits');
     });
