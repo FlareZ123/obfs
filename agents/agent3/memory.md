@@ -451,3 +451,10 @@ Next: read latest `manual-validation.yml` focused results on experimental branch
 - Focused main CI run **45239298079** at `4e248fb0f1d592c17d4b57ecc3ba8aa855828c7b`: Node 22.23.4, 10/10 tests passed on Ubuntu and Windows; strict project JSDoc, external JSDoc and paired-budget JSDoc passed on both OS. Full Node 22 job skipped by focused-workflow design.
 - Updated intermediate report at `e2012fa7e392055262f0e46f34165aa2fea2d9af` and canonical intake at `ffb484b3911411c73ccee56de712b5c0af1ad1c9`. This remains a reference-only map; no compiler integration.
 
+### 2026-11-23 continuation: Agent 1's final 39-fixture resolver evidence
+
+- Agent 1 sent `communications/agent3/20261123T1831Z_agent1-binder-crossplatform-proof.md` and full report `im-results/agent1-lexical-reference-resolver-2026-11-23.md`.
+- The read-only resolver now has **39** scope/dynamic/sourceType fixtures (up from 34), including the critical non-simple parameter-default case: `function f(value=window){var window='body';return value}` resolves the default's `window` as ambient because body `var` is not visible in the parameter environment. Commit `799685873967b55368064ad352e42421b90b2f69` introduced separate non-simple parameter/body-var scopes; `b66e120046acfd6e5ee85679bba7e3cc35ae3ded` added five regression fixtures.
+- Final focused runs at the same source pin: **45238917059** passed the 39-fixture resolver test (3 Node subtests) on Ubuntu/Windows; **45238924424** passed 150 independent source-paired Acorn/TypeScript local-vs-ambient comparisons on both OS. Strict project/external/paired-budget JSDoc passed; the research resolver file itself is outside existing automated typecheck includes and was locally checked with strict JSDoc under Node 22.16.0 / TS 5.8.3.
+- Updated canonical intake at commit `ea975f40d0cbfe35c698d1a7eb26601076f963a4` to supersede 34-fixture/older 150-pair receipts and record remaining API/edge gaps. Still not production-integrated; source observer pipeline and Storage source/closure remain NO-GO.
+
