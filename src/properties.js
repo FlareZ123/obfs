@@ -954,10 +954,25 @@ function proveLocalObject(ast, rootName, bindings, importedIdentityFunctions=new
       const reader=parent?.type==='CallExpression' && !parent.optional &&
         parent.callee.type==='Identifier' ?
         functions.get(parent.callee.name):undefined;
-      if(index<0 || !reader || reader.external ||
+      // A merely private forwarding helper can return the owner into an
+      // exported wrapper, whose `identity(owner).secretField` then needs
+      // an externally observable source edit. Accept only a single-argument
+      // direct known-key reader: return formal.knownField.
+      const body=reader?.node.type==='FunctionDeclaration' &&
+        !reader.node.async && !reader.node.generator &&
+        reader.node.body.body.length===1 ?
+        reader.node.body.body[0]:null;
+      const returned=body?.type==='ReturnStatement' ? body.argument:null;
+      if(index!==0 || !reader || reader.external ||
          !privateFunctionNodes.has(reader.node) ||
-         reader.params[index]?.type!=='Identifier' ||
-         !aliases.has(reader.params[index].name))return null;
+         reader.params.length!==1 ||
+         reader.params[0].type!=='Identifier' ||
+         !aliases.has(reader.params[0].name) ||
+         returned?.type!=='MemberExpression' || returned.optional ||
+         returned.object.type!=='Identifier' ||
+         returned.object.name!==reader.params[0].name ||
+         (returned.computed ? staticString(returned.property) :
+           staticName(returned.property))===null)return null;
     }
     const scope=scopes.get(node.name);
     if (!scope || !ancestors.includes(scope)) return null;
