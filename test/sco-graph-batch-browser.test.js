@@ -41,7 +41,7 @@ async function render(url){
   return stdout;
 }
 
-test('actual Chromium loads a generated SCO batch facade under self-only CSP and denies a mixed batch',async()=>{
+test('real Chromium CSP batch parity, nested denial, and instrumented authorized relay',async()=>{
   const previous=process.env.OBFS_SCO_GRAPH_KEY;
   process.env.OBFS_SCO_GRAPH_KEY=randomBytes(32).toString('hex');
   /** @type {http.Server|undefined} */
@@ -61,9 +61,11 @@ test('actual Chromium loads a generated SCO batch facade under self-only CSP and
     const audit=await import(pathToFileURL(path.join(root,'audit.mjs')).href);
     const allowed1='0123456789abcdef0123456789abcdef';
     const allowed2='fedcba9876543210fedcba9876543210';
+    const allowed3='11223344556677889900aabbccddeeff';
     const blocked='00000000000000000000000000000000';
     const expected=(await api.derive(allowed1))+':'+
-      (await api.derive(allowed2))+':DENIED';
+      (await api.derive(allowed2))+':DENIED:'+
+      (await api.derive(allowed3));
     const deriveMethod=graph.partitions['api.mjs'].methodNames.derive;
     const handler=createScoGraphHandler(graph,{
       'api.mjs':api,'audit.mjs':audit
@@ -76,16 +78,27 @@ test('actual Chromium loads a generated SCO batch facade under self-only CSP and
 
     const script='import {batch} from "/obfs/api.mjs";'+
       'const target=document.getElementById("answer");'+
+      'const fetchOriginal=globalThis.fetch;let intercepted=null;'+
+      'globalThis.fetch=(url,opts)=>{intercepted=JSON.parse(opts.body);'+
+      'return fetchOriginal(url,opts);};'+
       'try{'+
       'const responses=await batch(['+
       '{name:"derive",args:['+JSON.stringify(allowed1)+']},'+
       '{name:"derive",args:['+JSON.stringify(allowed2)+']}]);'+
-      'if(responses.length!==2||responses.some(r=>r.ok!==true))throw Error("bad results");'+
+      'if(responses.length!==2||responses.some(r=>r.ok!==true)||!intercepted)throw Error("bad results");'+
+      'const captured=intercepted;'+
       'let denied="NOT_DENIED";'+
       'try{await batch([{name:"derive",args:['+JSON.stringify(allowed1)+']},'+
       '{name:"derive",args:['+JSON.stringify(blocked)+']}]);}'+
       'catch{denied="DENIED";}'+
-      'target.textContent=responses[0].value+":"+responses[1].value+":"+denied;'+
+      'const wire={method:captured.method,args:[['+
+      '{method:captured.args[0][0].method,args:['+JSON.stringify(allowed3)+']},'+
+      '{method:captured.args[0][1].method,args:['+JSON.stringify(allowed1)+']}]]};'+
+      'const relay=await fetchOriginal("/obfs/rpc",{method:"POST",'+
+      'headers:{"content-type":"application/json"},body:JSON.stringify(wire)});'+
+      'const replay=await relay.json();'+
+      'if(!relay.ok||replay.value[1].value!==responses[0].value)throw Error("relay mismatch");'+
+      'target.textContent=responses[0].value+":"+responses[1].value+":"+denied+":"+replay.value[0].value;'+
       '}catch(error){target.textContent="ERROR:"+String(error);}';
     const page='<!doctype html><html><head><meta charset="utf-8"></head>'+
       '<body><pre id="answer">initial</pre><script type="module" src="/app.mjs"></script></body></html>';
@@ -115,6 +128,7 @@ test('actual Chromium loads a generated SCO batch facade under self-only CSP and
       originalPrivateModules:3,generatedBatchExports:1,
       protectedHmacCalls:2,deniedMixedBatch:true,
       sourceOnlyCsp:true,fullHmacDigestsMatched:true,
+      instrumentedBrowserFetch:true,authorizedOfflineSourceRelayInputs:1,
       admittedBudget:'not-measured'
     }));
   }finally{
