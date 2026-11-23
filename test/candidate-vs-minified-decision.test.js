@@ -262,3 +262,64 @@ test('positive attacker-cost claim requires a string protocol and valid SHA-256 
     }
   }
 });
+
+
+test('equal precommitted oracle ceilings permit unequal consumed calls',()=>{
+  const input=example();
+  recordMatchedCompletedAttack(input);
+  // A single adaptive source+oracle protocol may solve a conventional
+  // minifier from public bytes without calling the service, yet spend its
+  // full *allowed* 100-query budget trying to recover the candidate.
+  input.conventionalControl.oracleCalls=0;
+  input.protectedCandidate.oracleCalls=100;
+  input.conventionalControl.oracleCallBudget=100;
+  input.protectedCandidate.oracleCallBudget=100;
+  const report=compareCandidateEvidence(input);
+  assert.equal(report.measurementReady,true);
+  assert.equal(report.attackAdvantage,'supported');
+  assert.equal(report.verdict,'supported');
+});
+
+test('unequal oracle use requires credible equal caps and no overdraw',()=>{
+  const missing=example();
+  recordMatchedCompletedAttack(missing);
+  missing.conventionalControl.oracleCalls=0;
+  missing.protectedCandidate.oracleCalls=100;
+  assert.equal(compareCandidateEvidence(missing).measurementReady,false);
+
+  const unequal=example();
+  recordMatchedCompletedAttack(unequal);
+  unequal.conventionalControl.oracleCalls=0;
+  unequal.protectedCandidate.oracleCalls=100;
+  unequal.conventionalControl.oracleCallBudget=100;
+  unequal.protectedCandidate.oracleCallBudget=101;
+  assert.equal(compareCandidateEvidence(unequal).measurementReady,false);
+
+  const overdraw=example();
+  recordMatchedCompletedAttack(overdraw);
+  overdraw.conventionalControl.oracleCalls=0;
+  overdraw.protectedCandidate.oracleCalls=101;
+  overdraw.conventionalControl.oracleCallBudget=100;
+  overdraw.protectedCandidate.oracleCallBudget=100;
+  assert.equal(compareCandidateEvidence(overdraw).measurementReady,false);
+
+  for(const invalid of [-1,0.2,NaN,Infinity,Number.MAX_SAFE_INTEGER+1]){
+    const bad=example();
+    recordMatchedCompletedAttack(bad);
+    bad.conventionalControl.oracleCalls=0;
+    bad.protectedCandidate.oracleCalls=100;
+    bad.conventionalControl.oracleCallBudget=invalid;
+    bad.protectedCandidate.oracleCallBudget=invalid;
+    assert.equal(compareCandidateEvidence(bad).measurementReady,false,String(invalid));
+  }
+});
+
+test('equal actual oracle use stays compatible without optional cap',()=>{
+  const input=example();
+  recordMatchedCompletedAttack(input);
+  assert.equal(compareCandidateEvidence(input).attackAdvantage,'supported');
+  input.conventionalControl.oracleCallBudget=0;
+  input.protectedCandidate.oracleCallBudget=1;
+  // Legacy equal-count comparisons do not change their verdict.
+  assert.equal(compareCandidateEvidence(input).attackAdvantage,'supported');
+});
