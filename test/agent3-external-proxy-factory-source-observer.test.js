@@ -70,6 +70,9 @@ test('unlisted proxy factory cannot expose a renamed function through numeric co
   }).files[0];
   const native=await run(source);
   const transformed=await run(output.code);
+  assert.equal(output.metrics.bindings,0,
+    'a function escaping to an opaque external callable must fail closed');
+  assert.equal(output.code,source);
   assert.equal(native.result,true);
   assert.equal(transformed.result,true);
   assert.equal(transformed.unrelatedResult,17);
