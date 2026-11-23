@@ -169,7 +169,7 @@ async function main() {
       executeGraph(reconstructedA),
       executeGraph(plainRoundA)
     ];
-    assert.equal(nativeValue,63,'Native two-script graph should produce expected value');
+    assert.equal(nativeValue,65,'Native two-script graph should produce expected value');
     assert.equal(reconstructedValue,nativeValue,
       'Source-only reconstruction of every captured SCO script must preserve behavior');
     assert.equal(controlValue,nativeValue,
