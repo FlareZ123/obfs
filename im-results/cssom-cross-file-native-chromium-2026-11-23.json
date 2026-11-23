@@ -1,0 +1,56 @@
+{
+  "status": "INTERMEDIATE_CONFIRMED_NATIVE_CHROMIUM_CROSS_FILE_ESM_SOURCE_MISMATCH",
+  "source_sha": "c908c4afa4a224f295eb2cf6c9806bf69a59cf91",
+  "workflow_url": "https://github.com/FlareZ123/obfs/actions/runs/45100434323",
+  "workflow_run": 45100434323,
+  "browser": "real Google Chrome headless localhost HTTP ES modules",
+  "runtime": "Node 22.23.4",
+  "source_file": "test/cssom-interfile-source-browser.js",
+  "scope": "Native and emitted closed-world two-file graphs, exported callable in producer, CSSOMString readback in importing consumer, independent literal positive.",
+  "observed": {
+    "nativeNegative": {
+      "text": "function inspect(){return externalOwner.observedSecret;}",
+      "value": 31,
+      "independent": 73
+    },
+    "emittedNegative": {
+      "text": "function inspect(){return externalOwner._pff6f317b03;}",
+      "value": 31,
+      "independent": 73
+    },
+    "nativePositive": {
+      "text": "literal",
+      "value": 31,
+      "independent": 73
+    },
+    "emittedPositive": {
+      "text": "literal",
+      "value": 31,
+      "independent": 73
+    }
+  },
+  "metadata": [
+    {
+      "id": "negative/native",
+      "root": "/negative/native/",
+      "properties": 2
+    },
+    {
+      "id": "negative/emitted",
+      "root": "/negative/emitted/",
+      "properties": 2
+    },
+    {
+      "id": "positive/native",
+      "root": "/positive/native/",
+      "properties": 1
+    },
+    {
+      "id": "positive/emitted",
+      "root": "/positive/emitted/",
+      "properties": 1
+    }
+  ],
+  "negativeParity": false,
+  "positiveParity": true
+}
