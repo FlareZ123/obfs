@@ -942,7 +942,23 @@ function proveLocalObject(ast, rootName, bindings, importedIdentityFunctions=new
     // functions survive the escape analysis above and remain eligible.
     if(ancestors.some(ancestor=>
       ['FunctionDeclaration','FunctionExpression','ArrowFunctionExpression'].includes(ancestor.type)&&
-      !privateFunctionNodes.has(ancestor)))return null;
+      !privateFunctionNodes.has(ancestor))) {
+      // The public wrapper can be called or inspected by an external host.
+      // Permit just an unchanged owner identifier passed to a known private,
+      // direct-call-only reader. No renamed member spelling occurs in the
+      // public wrapper's own source, and the receiving formal must already
+      // be the unique tracked owner alias. The private callable's escaping
+      // references and all its call sites were verified above.
+      const index=parent?.type==='CallExpression' ?
+        parent.arguments.indexOf(node):-1;
+      const reader=parent?.type==='CallExpression' && !parent.optional &&
+        parent.callee.type==='Identifier' ?
+        functions.get(parent.callee.name):undefined;
+      if(index<0 || !reader || reader.external ||
+         !privateFunctionNodes.has(reader.node) ||
+         reader.params[index]?.type!=='Identifier' ||
+         !aliases.has(reader.params[index].name))return null;
+    }
     const scope=scopes.get(node.name);
     if (!scope || !ancestors.includes(scope)) return null;
     if (!parent) return null;
