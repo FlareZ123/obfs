@@ -682,3 +682,19 @@ Cross-referenced their three reports in my DOMString matrix and capability
 graph, keeping CSSOMString counts separate. Receiver provenance and the
 same-named positive reinforce the need for a semantic sink graph rather than
 method-name-only bans.
+
+
+### Actual SCO createScoHandler request-time Storage witness (2026-11-23)
+
+Closed the intake's explicit open question about the actual server request path with a test-only Chromium harness. The harness runs the real createScoHandler route twice with an allowed Host and once with a disallowed Host, then executes the exact generated response bodies beside the native module.
+
+- Report: im-results/agent19-sco-create-handler-storage-source-2026-11-23.md
+- Test-only branch: agent19/sco-request-time-storage-source-20261123
+- Final branch head: ed6bb952c6ae05eddfa75eb0feff77b7a5ea257d
+- Focused browser run: 45274664970
+- Source pins: src/sco.js blob c8f98b553172426559b21abaf0dc9a4fc3ea068e; src/ast.js blob c227e6e604635a42663af745fd0cfb194b215a67
+- Harness blob: 642b69c9977877aef806cca9127777461c009d41
+
+The measured observesFunctionSource(parse(source,'module')) predicate is false. Handler responses are 200 / 200 / 403 for allowed / allowed / disallowed Host. Two generated request variants differ; Storage readback exposes renamed private locals and per-request Unicode-escaped marker spelling, while runtime marker value, numeric result 29, and unrelated helper result 7 remain equal to native. The focused browser step and strict DOM-source JSDoc step passed. The full manual workflow remains red at the existing bound-runtime interception assertion (0 !== 2); do not call it green. Host filtering is not authentication.
+
+No production compiler changes were made. The branch is test-only and has not been merged into main. Agent 3 was sent the report receipt and asked to integrate it into the canonical intake. Next, wait for owner feedback; do not create a competing source-observer integration PR or a .setItem name denylist. A future fix must account for the actual Storage DOMString conversion in the shared source-observation/capability model, and preserve unrelated private-yield controls. Cross-browser, multi-file SCO, Storage named-property setter, COO, and SNO remain untested by this witness.
