@@ -1685,6 +1685,32 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
       !isInertPlainRecord(input));
   }
   /**
+   * Find direct, nested or array-carried source method destructuring. The
+   * outer receiver check separately decides whether a callable is possible.
+   * @param {AstNode|null|undefined} pattern
+   * @param {number} [depth]
+   * @returns {boolean}
+   */
+  function patternReadsSourceMethod(pattern,depth=0) {
+    if(!pattern)return false;
+    if(depth>32)return true;
+    if(pattern.type==='AssignmentPattern')
+      return patternReadsSourceMethod(pattern.left,depth+1);
+    if(pattern.type==='ArrayPattern')
+      return pattern.elements.some((/** @type {AstNode|null} */ value)=>
+        patternReadsSourceMethod(value,depth+1));
+    if(pattern.type!=='ObjectPattern')return false;
+    return pattern.properties.some((/** @type {AstNode} */ property)=>{
+      if(property.type==='RestElement')return false;
+      if(property.type!=='Property')return true;
+      const name=property.computed?sourceStringKey(property.key):
+        property.key.type==='Identifier'?property.key.name:staticString(property.key);
+      return name===null ||
+        ['toString','toSource','toLocaleString'].includes(name) ||
+        patternReadsSourceMethod(property.value,depth+1);
+    });
+  }
+  /**
    * Recognize immutable, uniquely-bound constant string keys at a consumer.
    * Local variables used as computed member names are common around native
    * toString/Reflect.get observers. Ambiguous bindings remain unresolved.
@@ -2835,23 +2861,17 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
        node.type==='AssignmentExpression' && isIntlSourceCallback(node.right)) {
       observed=true;
     }
-    // Destructuring is a property read too: first-class native source
-    // methods can be obtained from a function or a method-valued member.
-    // Follow unique, immutable local aliases of member reads; a callable
-    // exported via a class instance may not be in the syntactic function set.
-    if(node.type==='VariableDeclarator' && node.id.type==='ObjectPattern' &&
+    // Destructuring may acquire native source methods at any nesting level,
+    // including via an array of functions or an object holding a callable.
+    // Unknown receivers must be treated as potentially function-bearing.
+    if(node.type==='VariableDeclarator' &&
+         ['ObjectPattern','ArrayPattern'].includes(node.id.type) &&
          (isFunctionValue(node.init)||mayBeMemberMethod(node.init)) ||
-       node.type==='AssignmentExpression' && node.left.type==='ObjectPattern' &&
+       node.type==='AssignmentExpression' &&
+         ['ObjectPattern','ArrayPattern'].includes(node.left.type) &&
          (isFunctionValue(node.right)||mayBeMemberMethod(node.right))) {
       const pattern=node.type==='VariableDeclarator'?node.id:node.left;
-      for(const property of pattern.properties) {
-        if(property.type!=='Property')continue;
-        const name=property.computed?sourceStringKey(property.key):
-          property.key.type==='Identifier'?property.key.name:staticString(property.key);
-        if(name===null || ['toString','toSource','toLocaleString'].includes(name)) {
-          observed=true;
-        }
-      }
+      if(patternReadsSourceMethod(pattern))observed=true;
     }
     if(node.computed && (node.type==='MemberExpression'||node.type==='Property'||
         node.type==='MethodDefinition'||node.type==='PropertyDefinition') &&
