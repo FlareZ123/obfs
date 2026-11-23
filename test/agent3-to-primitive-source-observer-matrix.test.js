@@ -84,11 +84,12 @@ async function run(code){
 }
 
 test('numeric and abstract coercions preserve source observed by an unlisted external patcher',async t=>{
-  for(const [label,expression,observes] of cases){
+  for(const [label,setup,expression,observes] of cases){
     await t.test(label,async()=>{
       const source=[
         "import {install} from 'patcher';",
         "function reader(secretValue){return secretValue+1;}",
+        setup,
         "install();",
         `export const result=${expression};`,
         "export const capturedSource=globalThis.__functionSources[0]??'';"
