@@ -121,3 +121,22 @@ test('source-boundary insertions fail closed',()=>{
     ]),/Edit touches observed source or lexical closure/);
   }
 });
+
+
+test('real ESM module retains observed callable source under independent edits',async()=>{
+  const code='export const secret=40;export function observed(){return secret+2;}' +
+    'export function sibling(){let renameMe=9;return renameMe;}';
+  const first=code.indexOf('renameMe');
+  const second=code.lastIndexOf('renameMe');
+  const result=applyObservedFunctionEdits(code,'module','observed',[
+    {start:first,end:first+8,text:'tmp'},
+    {start:second,end:second+8,text:'tmp'}
+  ]);
+  /** @param {string} text */
+  const spec=text=>'data:text/javascript;base64,'+Buffer.from(text).toString('base64');
+  const [original,emitted]=await Promise.all([import(spec(code)),import(spec(result.code))]);
+  assert.equal(original.observed(),42);
+  assert.equal(emitted.observed(),42);
+  assert.equal(emitted.sibling(),9);
+  assert.equal(emitted.observed.toString(),original.observed.toString());
+});
