@@ -57,7 +57,7 @@ function createOracle(n,next,degree) {
     }
     polynomials.push({linear,pairs,triples});
   }
-  return value=>{
+  return (/** @type {(value:number)=>number} */ (value=>{
     const x=(applyLinear(inner.columns,value)^inner.bias)>>>0;
     let y=x;
     for(let bit=0;bit<n;bit++) {
@@ -70,7 +70,7 @@ function createOracle(n,next,degree) {
       if(change)y^=1<<bit;
     }
     return (applyLinear(outer.columns,y)^outer.bias)>>>0;
-  };
+  }));
 }
 /** @param {number} n @param {number} d @returns {number} */
 function theoreticalMax(n,d) {
@@ -122,6 +122,7 @@ test('degree-width oracle inverse handles every compatible 3-bit truth table',()
       for(let variant=0;variant<10;variant++) {
         const next=rng((0x4ddbb27^Math.imul(code+1,0x9e3779b9)^variant)>>>0);
         const inner=randomAffine(3,next),outer=randomAffine(3,next);
+        /** @param {number} value @returns {number} */
         const F=value=>{
           const x=(applyLinear(inner.columns,value)^inner.bias)&7;
           const y=x ^ (low&1) ^
@@ -146,6 +147,7 @@ test('sparse high-degree compatible transposition is a declared-degree counterex
     const high=(1<<(n-1))>>>0;
     const low=(0x6badcafe&((2**(n-1)-1)>>>0))>>>0;
     const swapped=(low^high)>>>0;
+    /** @param {number} x @returns {number} */
     const F=x=>{
       const y=x===low?swapped:x===swapped?low:x;
       return (applyLinear(outer.columns,y)^outer.bias)>>>0;
