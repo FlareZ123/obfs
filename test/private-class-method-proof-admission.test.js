@@ -63,6 +63,33 @@ for(const mode of /** @type {const} */ (['coo','sno','sco'])) {
 }
 
 
+
+for(const mode of /** @type {const} */ (['coo','sno','sco'])) {
+  test(mode+' real Node CommonJS require preserves a private class result',async()=>{
+    const original='const owner={secretA:7,secretB:11};'+
+      'class Reader{read(){return owner.secretA;}}'+
+      'const reader=new Reader();module.exports=reader.read()+owner.secretB;';
+    const emitted=compile(original,mode);
+    assert.equal(emitted.metrics.properties,2,
+      'Both local record keys should be rewritten in the proved private method');
+    const root=await fs.mkdtemp(path.join(os.tmpdir(),'obfs-private-class-cjs-'));
+    try {
+      await atomicWrite(path.join(root,'original.cjs'),original);
+      await atomicWrite(path.join(root,'emitted.cjs'),emitted.code);
+      for(const name of ['original.cjs','emitted.cjs']) {
+        const modulePath=path.join(root,name);
+        const child=spawnSync(process.execPath,
+          ['-e','process.exitCode=require(process.argv[1])===18?0:1;',modulePath],
+          {encoding:'utf8',timeout:10000});
+        assert.equal(child.status,0,
+          name+': '+(child.stderr||child.error?.message||'unexpected exit'));
+      }
+    } finally {
+      await fs.rm(root,{recursive:true,force:true});
+    }
+  });
+}
+
 for(const mode of /** @type {const} */ (['coo','sno','sco'])) {
   test(mode+' private class in native two-file ESM retains numeric public interface',async()=>{
     const original=[
