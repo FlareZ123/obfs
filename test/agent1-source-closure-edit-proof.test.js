@@ -94,3 +94,30 @@ test('unproven ambient reference declines and source range respects UTF-16 offse
   assert.equal(result.code.includes(source),true);
   assert.equal(result.plan.source,'function observed(){return secret+2;}');
 });
+
+
+test('UTF-16 mapped closures remain stable after earlier independent edits',()=>{
+  const code='const emoji="😀"; function sibling(){let renameMe=3;return renameMe;} '+
+    'const secret=40; function observed(){return secret+2;}';
+  const first=code.indexOf('renameMe');
+  const second=code.lastIndexOf('renameMe');
+  const result=applyObservedFunctionEdits(code,'commonjs','observed',[
+    {start:first,end:first+8,text:'x'},
+    {start:second,end:second+8,text:'x'}
+  ]);
+  assert.ok(result.code.indexOf('function observed')<code.indexOf('function observed'));
+  assert.deepEqual(JSON.parse(JSON.stringify(run(result.code))),
+    JSON.parse(JSON.stringify(run(code))));
+});
+
+test('source-boundary insertions fail closed',()=>{
+  const code='const secret=40;function observed(){return secret+2;}' +
+    'function sibling(){return 3;}';
+  const start=code.indexOf('function observed');
+  const end=code.indexOf('function sibling');
+  for(const pos of [start,end]){
+    assert.throws(()=>applyObservedFunctionEdits(code,'commonjs','observed',[
+      {start:pos,end:pos,text:'/* inserted */'}
+    ]),/Edit touches observed source or lexical closure/);
+  }
+});
