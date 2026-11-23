@@ -266,6 +266,12 @@ for(const [caseName,reader] of /** @type {Array<[string,string]>} */ ([
     'const source=readSource.call(fn);'],
   ['arrow-forwarded instance method toLocaleString',
     'const identity=value=>value;const fn=identity(instance.read);'+
+    'const {toLocaleString:readSource}=fn;const source=readSource.call(fn);'],
+  ['await-forwarded instance method toString',
+    'const fn=await Promise.resolve(instance.read);'+
+    'const {toString:readSource}=fn;const source=readSource.call(fn);'],
+  ['conditional-selected method toLocaleString',
+    'const fn=true?instance.read:()=>99;'+
     'const {toLocaleString:readSource}=fn;const source=readSource.call(fn);']
 ])) {
   test('declared ESM implicit instance source: '+caseName,async t=>{
