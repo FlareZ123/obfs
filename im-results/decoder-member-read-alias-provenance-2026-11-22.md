@@ -164,3 +164,70 @@ a real browser under a source-pinned finite graph. It is evidence of
 compatibility, not a measure of secrecy, anti-extraction or protection
 against an attacker who controls a browser. The stacked draft still
 requires canonical current-main integration and adversarial evaluation.
+
+## 23 November: literal dynamic ESM factory import, source-paired real-browser fix
+
+The previous ESM factory proof imported the **factory** statically and
+loaded the **target** dynamically after mutation. A new independent
+counterexample dynamically imports *both* in sequence:
+`const {default:build}=await import('./factory.mjs')`, then installs
+its returned descriptor, mutates the decoder-sensitive `String.prototype`,
+and only then executes `await import('./target.mjs')`.
+`staticallyImportedEsmTargets` previously enumerated static
+`ImportDeclaration` and export statements only. It missed this
+literal `ImportExpression` dependency when deciding whether an exported
+descriptor-entry factory may reach a consumer. `Number.prototype`
+remains the benign control.
+
+- The same source-paired 12-case Node test blob
+  `45fe4a8b3caad5c134b10d56447fe41505701126` is present on control
+  `27002b1dd3373264f37e1987c56cb49d500dca7d`,
+  [run 45197394210](https://github.com/FlareZ123/obfs/actions/runs/45197394210).
+  On Ubuntu the three **new** dynamic-factory String cases failed real
+  native/emitted stdout parity; the Number cases passed.
+- The candidate fix `62e6b6e044393ea8402cf1fc6f49c706b9e15330`
+  adds a walk over literal `ImportExpression` source specifiers to
+  `staticallyImportedEsmTargets`, reusing the existing exact known-file
+  check. Test-inclusive source `30b97c19ca822872b404dc79cfed6504b190a8f6`,
+  [run 45198828637](https://github.com/FlareZ123/obfs/actions/runs/45198828637)
+  **SUCCESS on both Ubuntu and Windows**, including JSDoc, sampled
+  performance and real Ubuntu Chromium.
+- Identical *browser* test blob
+  `ed0ce6150777f0879f548cce271fdb544492d8c0` adds native/emitted
+  Chromium DOM parity for the literal dynamic factory with a later
+  dynamic target import.
+  Control `25197a78d25795c668eaaf46417ae16f5eb6a83c`,
+  [run 45199008085](https://github.com/FlareZ123/obfs/actions/runs/45199008085),
+  **RED** on Ubuntu real Chromium at
+  `dynamically imported ESM descriptor factory String native/emitted parity`.
+  Fixed candidate `c7b5537573bd8d4639534ecb0b9fb7d65cc54cf7`,
+  [run 45199017599](https://github.com/FlareZ123/obfs/actions/runs/45199017599),
+  **full Ubuntu and Windows SUCCESS**, including the dedicated real browser.
+  This is a separate witnessed bug from the static-factory import case.
+
+### Unresolved-specifier probe: existing conservative refusal
+
+A further test substituted
+`const spec='./factory.mjs'; await import(spec)` and
+`const spec='./factory.cjs'; require(spec)`.
+The **older scanner already declines eager string encoding** on those
+unresolved identifier paths, preserving native output for all three
+String-sensitive modes on the Ubuntu test-only
+[run 45199743606](https://github.com/FlareZ123/obfs/actions/runs/45199743606).
+The benign Number variants also retain native behavior but yielded **zero**
+encoded strings. A first test incorrectly demanded one encoding and
+therefore failed a *yield expectation* rather than runtime parity. The
+overly broad proposed import-closure fallback from candidate
+`94e309f7bf2825b205f95ca112bd651181b25075` was consequently
+**reverted** at `4019f1b768c71ce11f6fadcaa0b146e64fc20552`.
+The corrected test requires zero eager encoding only for the sensitive
+case and leaves benign yield unconstrained. Both branches now share
+test blob `30cc58fa26563b0b68339ad8e1b9692de4ef32f4`;
+complete source-pinned validation is tracked separately. The existing
+opaque-specifier refusal is conservative, with scope-limited evidence.
+No extra compiler protection is claimed from this probe.
+
+As with the preceding sections, these remain branch-specific correctness
+findings in stacked draft PR #291. Dynamic import path alias resolution,
+unknown external modules and current-main semantic/security release remain
+outside their proof.
