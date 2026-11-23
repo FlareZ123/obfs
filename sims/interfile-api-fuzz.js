@@ -75,10 +75,31 @@ function fixture(seed,kind) {
       'export const value=alias.'+field+'+alias.'+other+';';
     // A rename is optional here. Prove native ESM behavior for either outcome.
     expectedProperties=null;
+  }else if(kind===9) {
+    scenario='async-owner-reflection';
+    logic='export const value=Promise.resolve(state).then(owner=>'+
+      'Object.keys(owner).sort().join("|"));';
+    expectedProperties=0;
+  }else if(kind===10) {
+    scenario='async-external-reader';
+    logic='import "./api.mjs";export const value=Promise.resolve(state).then(owner=>'+
+      'globalThis.window.api.read(owner));';
+    expectedProperties=0;
+  }else if(kind===11) {
+    scenario='boxed-identity-reflection';
+    logic='function box(owner){return {held:owner};}'+
+      'const boxed=box(state);'+
+      'export const value=Reflect.ownKeys(boxed.held).sort().join("|");';
+    expectedProperties=0;
+  }else if(kind===12) {
+    scenario='array-shared-reference-reflection';
+    logic='const owners=[state];const [alias]=owners;'+
+      'export const value=Object.getOwnPropertyNames(alias).sort().join("|");';
+    expectedProperties=0;
   }else {
     throw new RangeError('Unknown graph shape');
   }
-  if(kind===1||kind===4)files.push({
+  if(kind===1||kind===4||kind===10)files.push({
     path:'api.mjs',sourceType:'module',
     code:'globalThis.window={api:{key:'+JSON.stringify(field)+
       ',read(object){return object['+JSON.stringify(field)+']+7;}}};'
@@ -87,7 +108,7 @@ function fixture(seed,kind) {
     code:'import {state} from "./state.mjs";'+logic});
   files.push({path:'entry.mjs',sourceType:'module',
     code:'import {value} from "./bridge.mjs";export {value};'});
-  return {index:seed*9+kind,scenario,files,expectedProperties};
+  return {index:kind<9?seed*9+kind:1000000+seed*4+kind-9,scenario,files,expectedProperties};
 }
 
 /**
@@ -108,7 +129,7 @@ async function execute(root,fixtures) {
     }
   }
   const body='const out=[];'+fixtures.map(f=>
-    'out.push((await import("./'+f.index+'/entry.mjs")).value);'
+    'out.push(await (await import("./'+f.index+'/entry.mjs")).value);'
   ).join('')+'console.log(JSON.stringify(out));';
   const runner=path.join(root,'runner.mjs');
   await atomicWrite(runner,body);
@@ -122,7 +143,7 @@ async function execute(root,fixtures) {
 
 /**
  * @param {number} [seedCount]
- * @returns {Promise<{graphs:number,positive:number,negative:number,parityOnly:number,positiveProperties:number,nativeEqual:boolean}>}
+ * @returns {Promise<{graphs:number,positive:number,negative:number,parityOnly:number,positiveProperties:number,settledAsync:number,nativeEqual:boolean}>}
  */
 async function runApiFuzz(seedCount=20) {
   const root=await fs.mkdtemp(path.join(os.tmpdir(),'obfs-interfile-api-fuzz-'));
@@ -130,7 +151,7 @@ async function runApiFuzz(seedCount=20) {
     /** @type {Fixture[]} */
     const cases=[];
     for(let seed=0;seed<seedCount;seed++) {
-      for(let kind=0;kind<9;kind++)cases.push(fixture(seed,kind));
+      for(let kind=0;kind<13;kind++)cases.push(fixture(seed,kind));
     }
     let positive=0,negative=0,parityOnly=0,positiveProperties=0;
     const transformed=cases.map(item=>{
@@ -154,9 +175,25 @@ async function runApiFuzz(seedCount=20) {
       return {index:item.index,files:/** @type {SourceFile[]} */ (output.files)};
     });
     const reference=await execute(path.join(root,'original'),cases);
+    let settledAsync=0;
+    for(let index=0;index<cases.length;index++) {
+      const scenario=cases[index].scenario;
+      if(scenario==='async-owner-reflection') {
+        assert.equal(typeof reference[index],'string',
+          'Async owner reflection must resolve its exported Promise');
+        assert.ok(String(reference[index]).includes('privateField'),
+          'Async source-observation result must actually contain private keys');
+        settledAsync++;
+      }else if(scenario==='async-external-reader') {
+        assert.equal(typeof reference[index],'number',
+          'Async external reader must resolve a numeric computed result');
+        assert.ok(Number.isFinite(reference[index]));
+        settledAsync++;
+      }
+    }
     const changed=await execute(path.join(root,'obfuscated'),transformed);
     assert.deepEqual(changed,reference,'Native inter-file ESM output differs from obfuscated output');
-    return {graphs:cases.length,positive,negative,parityOnly,positiveProperties,nativeEqual:true};
+    return {graphs:cases.length,positive,negative,parityOnly,positiveProperties,settledAsync,nativeEqual:true};
   }finally{
     await fs.rm(root,{recursive:true,force:true});
   }
