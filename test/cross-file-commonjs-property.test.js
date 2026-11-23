@@ -8,6 +8,8 @@ const path=require('node:path');
 const {spawnSync}=require('node:child_process');
 const {obfuscateFiles}=require('../src');
 const {renameCommonJsCrossFileProperties}=require('../src/commonjs-cross-properties');
+const {parse}=require('../src/ast');
+const {collectBindings,proveLocalObject}=require('../src/properties');
 const {atomicWrite}=require('../src/atomic');
 
 /** @typedef {{path:string,sourceType:'commonjs',code:string}} CommonJsFile */
@@ -61,6 +63,7 @@ function compile(files){
 test('closed CommonJS graph renames one private exported record across two require consumers',async()=>{
   const original=await execute(graph);
   assert.equal(original.status,0,original.stderr);
+  for(const file of graph.filter(file=>file.path!=='api.cjs')){const ast=parse(file.code,'commonjs');const proof=proveLocalObject(ast,'api',collectBindings(ast));console.log('direct local proof',file.path,Boolean(proof),proof?.members.length,proof?.patterns.length);}
   const direct=renameCommonJsCrossFileProperties(graph,'closed-cjs-property-graph-20261123');
   console.log('direct CJS lane',direct.objects,direct.properties);
   const transformed=compile(graph);
