@@ -57,19 +57,43 @@ function assertNoPrivateImportMemberState(filename,source){
   }
   if(!imports.size)return;
   const aliases=new Set(imports);
+  /**
+   * An expression can preserve the identity of an imported function even
+   * when its top-level AST node is not a bare identifier. Track such aliases
+   * conservatively rather than letting shared function-object state escape.
+   * @param {import('./ast').AstNode|null|undefined} expression
+   * @returns {boolean}
+   */
+  function carriesAlias(expression){
+    if(!expression)return false;
+    switch(expression.type){
+      case 'Identifier': return aliases.has(expression.name);
+      case 'SequenceExpression':
+        return expression.expressions.length>0&&
+          carriesAlias(expression.expressions[expression.expressions.length-1]);
+      case 'ConditionalExpression':
+        return carriesAlias(expression.consequent)||
+          carriesAlias(expression.alternate);
+      case 'LogicalExpression':
+        return carriesAlias(expression.left)||carriesAlias(expression.right);
+      case 'AwaitExpression':
+        return carriesAlias(expression.argument);
+      case 'AssignmentExpression':
+        return carriesAlias(expression.right);
+      default: return false;
+    }
+  }
   let changed=true;
   while(changed){
     changed=false;
     walk(ast,node=>{
-      if(node.type==='VariableDeclarator'&&node.init?.type==='Identifier'&&
-         aliases.has(node.init.name)){
+      if(node.type==='VariableDeclarator'&&carriesAlias(node.init)){
         if(node.id.type!=='Identifier'){
           throw new TypeError('Selected SCO private imported identity escapes through destructuring: '+filename);
         }
         if(!aliases.has(node.id.name)){aliases.add(node.id.name);changed=true;}
       }
-      if(node.type==='AssignmentExpression'&&node.right.type==='Identifier'&&
-         aliases.has(node.right.name)){
+      if(node.type==='AssignmentExpression'&&carriesAlias(node.right)){
         if(node.left.type!=='Identifier'){
           throw new TypeError('Selected SCO private imported identity escapes through assignment: '+filename);
         }
