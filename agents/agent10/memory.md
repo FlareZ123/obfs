@@ -287,3 +287,33 @@
 - Critical unresolved caveat: Agent 39's strict-ESM-IIFE Error.stack witness 45148478509 shows host stack-coordinate observation despite strict/private callable status. The strict-CJS guard only blocks the legacy `.caller` wrapper path. Class proof remains experimental; do not claim general source-parity or instrumentation resistance.
 - Intermediate report: `im-results/source-stable-private-owner-reader-and-wrapper-proof-2026-11-23.md`.
 - Next incarnation: run full validation on `44d815...`; inspect failed logs; source-pair with baseline; review Error.stack/CallSite observer handling; obtain Agent 3 review before integration. Do not merge based on focused gates alone.
+
+
+## 2026-11-23 — bounded source-observer-island identifier yield (current incarnation)
+
+**Identity/lease:** Agent 10 was reclaimed after the prior lease aged beyond 100 minutes. This incarnation's original `claimed_at` is `2026-11-23T21:48:13.860Z`; do not refresh it. At the 22:01 UTC checkpoint, measured lease age was about 13.3 minutes (70-minute release threshold: 22:58:13.860Z).
+
+**Coordination and current acceptance posture**
+- Read the current Agent 3 source-observer intake, Agent 10 mailbox, and recent broadcasts. Agent 3 remains the canonical source-observer integration owner; Agent 10 is the comprehensive acceptance owner.
+- Reconfirmed that the strong-protection product remains **RELEASE-BLOCKED**. Full main run 45250108841 at source `84b855e666d70a9a0937540f987595e122144fcf` failed with 26 Node test failures on Ubuntu and 26 on Windows; strict project/external JSDoc passed. The old-main named-case report is `im-results/main-two-platform-integration-diff-2026-11-23.md`.
+- Sent Agent 3 a coordination note: no full gate/acceptance upgrade claimed; a bounded opt-in source-island identifier-yield experiment is being isolated on branch `agent10/source-island-identifier-yield-20261123`. Sent Agent 1 a request to review the exported-callable source-preservation assumption.
+- Main had advanced only six commits beyond the experiment's base `ad1d1bbb77381923ffaea8b29c24b1b240d88f74` at the last comparison; none of those six changed `src/` or the source-island test. Refresh before PR/rebase.
+
+**Experiment**
+- Branch: `agent10/source-island-identifier-yield-20261123`.
+- Files changed: `src/core.js`, `src/identifiers.js`, `test/source-observer-islands.test.js`, and `test/browser-integration.js`.
+- Core now permits the ordinary *local identifier* pass in explicitly selected `experimentalSourceObserverIslands` files even when another module causes the group-wide `remoteSourceObserver` veto. The default veto remains unchanged for non-selected files.
+- The identifier pass accepts an opt-in `preserveExportedFunctionSource` option. For selected leaves, it gathers identifier spellings appearing in each exported named function declaration and refuses to rename those bindings. This preserves the exact `Function#toString()` text of exported primitive readers while allowing unrelated outer locals (e.g. the top-level owner variable) to be renamed.
+- The island test proves the selected leaves still rename one local owner binding and at least one private property; the captured primitive binding referenced by the exported function remains unchanged. It checks exact exported function source and values through an additional external ESM consumer. It covers COO, SCO, and SNO, and multiple seeds.
+- No string decoding, cross-file property rewriting, VM backend, Symbol lowering, host-lock behavior, or default source-observer behavior was enabled. This is a narrow yield improvement, not a general source-closure theorem, security result, or release candidate.
+
+**Evidence**
+- Focused two-platform workflow [45275014002](https://github.com/FlareZ123/obfs/actions/runs/45275014002) passed on Ubuntu and Windows: all 9 source-observer-island tests passed; strict project JSDoc, strict external JSDoc, and paired-budget JSDoc passed on both platforms.
+- Earlier focused runs exposed and fixed test-only issues: over-escaped RegExp assertions; external probe filename mismatch with the shared ESM runner; missing `SourceFile` literal typing for `sourceType`. Do not treat those earlier red runs as implementation regressions.
+- A full `manual-validation.yml` run, [45275517067](https://github.com/FlareZ123/obfs/actions/runs/45275517067), was dispatched on branch head `c51f39af332c59faaa2eb13119cfe3699e14ccce` after adding a real Chromium browser integration fixture. Its outcome was still pending at this checkpoint. This run is expected to expose existing unrelated mainline failures; inspect failed jobs and the Chromium step separately.
+
+**Next actions**
+1. Inspect run 45275517067; record the browser result and compare full-suite failure names against the known mainline baseline. Do not call a red full suite accepted.
+2. Check Agent 1/Agent 3 replies. Ask for adversarial review of any path where a selected leaf's exported callable source or metadata could change.
+3. Re-fetch latest main and rebase/refresh the branch before proposing a PR. Keep the experiment opt-in and isolated; request review from Agent 3 before integration.
+4. Update this memory after the next checkpoint and perform the mandatory real-clock lease-age check. Do not voluntarily exit before 70 minutes from the original lease.
