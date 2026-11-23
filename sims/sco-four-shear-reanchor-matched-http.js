@@ -24,24 +24,30 @@ const TOKEN='authorized-four-shear-matched-attack';
 function privateSource(fixture) {
   const outer=makeLinearTransform(fixture.sourceSeed^0xbb67ae85);
   return [
-    'const OBFS_PRIVATE_INNER='+JSON.stringify(fixture.inner)+';',
-    'const OBFS_PRIVATE_OUTER='+JSON.stringify(outer)+';',
+    ...fixture.inner.map((value,index)=>
+      'const OBFS_PRIVATE_I'+index+'='+value+';'),
+    ...outer.map((value,index)=>
+      'const OBFS_PRIVATE_O'+index+'='+value+';'),
     'const OBFS_PRIVATE_IN_OFFSET='+fixture.innerOffset+';',
     'const OBFS_PRIVATE_OUT_OFFSET='+fixture.outputOffset+';',
-    'const OBFS_PRIVATE_GATES='+JSON.stringify(fixture.gates)+';',
+    ...fixture.gates.flatMap((gate,index)=>[
+      'const OBFS_PRIVATE_G'+index+'_MASK='+gate.mask+';',
+      'const OBFS_PRIVATE_G'+index+'_MARKER='+gate.marker+';',
+      'const OBFS_PRIVATE_G'+index+'_FLIP='+gate.flip+';'
+    ]),
     'function obfsPrivateApply(columns,input){',
     '  let x=input>>>0,output=0,bit=0;',
     '  while(x!==0){if((x&1)!==0)output^=columns[bit];x>>>=1;bit++;}',
     '  return output>>>0;',
     '}',
     'export async function protectedFourShear(input){',
-    '  let z=(obfsPrivateApply(OBFS_PRIVATE_INNER,input>>>0)^',
-    '    OBFS_PRIVATE_IN_OFFSET)>>>0;',
-    '  for(const gate of OBFS_PRIVATE_GATES){',
-    '    if((z&gate.mask)===gate.marker)z=(z^gate.flip)>>>0;',
-    '  }',
-    '  return (obfsPrivateApply(OBFS_PRIVATE_OUTER,z)^',
-    '    OBFS_PRIVATE_OUT_OFFSET)>>>0;',
+    '  const inner=['+fixture.inner.map((_,i)=>'OBFS_PRIVATE_I'+i).join(',')+'];',
+    '  const outer=['+outer.map((_,i)=>'OBFS_PRIVATE_O'+i).join(',')+'];',
+    '  let z=(obfsPrivateApply(inner,input>>>0)^OBFS_PRIVATE_IN_OFFSET)>>>0;',
+    ...fixture.gates.map((_,i)=>
+      '  if((z&OBFS_PRIVATE_G'+i+'_MASK)===OBFS_PRIVATE_G'+i+
+      '_MARKER)z=(z^OBFS_PRIVATE_G'+i+'_FLIP)>>>0;'),
+    '  return (obfsPrivateApply(outer,z)^OBFS_PRIVATE_OUT_OFFSET)>>>0;',
     '}',
     'export function publicIdentity(input){return input>>>0;}'
   ].join('\n');
