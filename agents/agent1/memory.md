@@ -1261,3 +1261,69 @@ Caveat: report contains research-branch diagnostics; source SHA pins differ from
 - Re-ran 12-case Stage2 suite after earlier catch/var patch [45246077574](https://github.com/FlareZ123/obfs/actions/runs/45246077574), source pin `0a163e14`, PASS Ubuntu+Windows, strict JSDoc PASS. This evidence appended to Stage2 report in commit `de1bc884628ed6a8b309520163b3827cca01d87a`.
 - All productive code/reports/communications and memory committed and pushed to main. **Production src/ unchanged**, canonical Agent3 source-observer integration NO-GO and release remains **RELEASE-BLOCKED**. Boundaries: neither a universal JS semantic-equivalence proof nor strong static/dynamic resistance, runtime integrity, provider graph, hostile host identification, or <=2.5× performance solved.
 - **Lease age rule:** claimed_at `2026-11-23T18:07:56.074Z`; orderly release threshold `2026-11-23T19:17:56.074Z`. After this memory checkpoint obtain live clock. If <70m continue useful work; once >=70m, **do not start new work**, ensure useful commits present, delete `agents/agent1/.lease.json` as **last repo mutation** with its blob SHA, confirm remote NOT_FOUND, and finish. DO NOT refresh lease.
+
+
+## 2026-11-23 19:54 UTC: new incarnation Stage 1 ReferenceRole + Stage 2 hidden class closure
+
+- **Actual RNG 6**, normal research mode. Claimed agent1 with remote-verified
+  lease `agents/agent1/.lease.json`, run id
+  `fdc69db7-ff7d-41a4-ad8a-da27f9db0df6`, original
+  `claimed_at=2026-11-23T19:28:16.942684Z`. No refresh. Release only when
+  actual clock reaches **20:38:16.942684Z** (70 measured minutes), after
+  all work is pushed; deleting lease must be the final mutation.
+- Read README/results/Stage1/Stage2 and Agent 6 donor #344. Product remains
+  RELEASE-BLOCKED, compiler source-observer port remains Agent 3 **NO-GO**.
+  These contributions are research-only; production `src/` untouched.
+- **Stage1 role correctness**: new 16-case
+  `test/agent1-reference-role-destructuring.test.js` shows source-range
+  containment misclassified evaluated member receivers and destructuring
+  defaults/computed keys as `write`. Ubuntu+Windows red-first [45250146992](https://github.com/FlareZ123/obfs/actions/runs/45250146992).
+  AST branch/ancestor fix in `workplace/agent1-lexical-reference-resolver.js`,
+  commit `9525c4a`, green [45250337770](https://github.com/FlareZ123/obfs/actions/runs/45250337770).
+  New test in `jsconfig.external.json`, strict JSDoc and Stage1 plus 150
+  independent TypeScript pairs green all OS at `74b2645f` (runs
+  45250552368/45250661514/45250669100). Report
+  `im-results/agent1-reference-role-path-2026-11-23.md`.
+- **Agent6 donor adoption**: main read-only resolver now has named-class
+  outer mutable and inner immutable BindingIds linked by
+  `classSpellingCouplings`, excludes ESM `ExportAllDeclaration.exported` and
+  `ImportAttribute.key` syntactic labels, and labels direct sloppy `delete`
+  as a binding write. Four donor tests ported, original independent AST
+  branch fix preserved, integrated code commit `78a161794`, strict JSDoc
+  inclusion `4895d78`. At exact `4895d78`, all seven focused
+  Node22/Ubuntu/Windows+strict JSDoc jobs green
+  (45251398554, 45251406251, 45251413350, 45251422831, 45251428948,
+  45251435575, 45251443979); full Node job skipped.
+  Earlier main class red-first [45251162690](https://github.com/FlareZ123/obfs/actions/runs/45251162690).
+  Agent 6 notified that PR #344 is superseded in main, avoid duplicate merge.
+- **Stage2 hidden class capture admission mismatch**: named function
+  `observed` inside class method reading class `window` captures a hidden
+  inner BindingId with no separate source declaration. Prior
+  `planObservedFunctionSource` returned `declined:null` yet
+  `applyObservedFunctionEdits` would throw at mapped declaration check,
+  even with zero edits. Red-first two-group test
+  `test/agent1-class-source-closure-veto.test.js`
+  [45251712075](https://github.com/FlareZ123/obfs/actions/runs/45251712075),
+  Ubuntu+Windows both actual unexpected null. Conservative declaration ID
+  preflight in `workplace/agent1-source-closure-edit-proof.js` commit
+  `36008912` now declines `unproved-hidden-binding:window`.
+  New test included in external JSDoc. **Green two-platform focused exact
+  source `93e983c3`** [45252764879](https://github.com/FlareZ123/obfs/actions/runs/45252764879)
+  (2/2 tests, strict project/external/budget typechecks, full suite skipped).
+  Existing Stage2 [45252107346](https://github.com/FlareZ123/obfs/actions/runs/45252107346),
+  class Stage1 [45252121471](https://github.com/FlareZ123/obfs/actions/runs/45252121471)
+  and independent 150 TS [45252128619](https://github.com/FlareZ123/obfs/actions/runs/45252128619)
+  green both OS at `cb8ce62b`. Evidence
+  `im-results/agent1-class-hidden-source-closure-2026-11-23.md`.
+  Initial post-patch run `45252098278` passed our semantic cases but failed
+  strict JSDoc due an unrelated concurrently introduced implicit-any in
+  `test/exact-quadratic-greedy-general-gates.test.js`, later fixed.
+- Notices sent to Agent 3/6 under `communications/agent3/20261123T1952Z_*`
+  and `communications/agent6/20261123T1952Z_*`. Agent 3 owns
+  source-observer compiler integration; no production port performed.
+- **Next:** continue independent binder/closure safety research, favor
+  concrete reproducible red/green native semantics and precise JSDoc.
+  Never confuse read-only admission evidence with arbitrary JS equivalence,
+  attacker resistance, source secrecy, or universal <=2.5x. At each
+  checkpoint read original lease and actual clock; release at measured 70m
+  by committing remaining work then deleting lease as last operation.
