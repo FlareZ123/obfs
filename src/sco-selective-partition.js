@@ -323,6 +323,51 @@ function usesUnprovedRelocatedTextDecoder(body){
        parent.arguments.length<=2&&provedUtf8(parent.arguments[0]))return;
     unproved=true;
   });
+  // A freshly constructed UTF-8 decoder is still a host-native object.
+  // Its .constructor, prototype, or first-class escape can recreate a
+  // legacy decoder that bypasses the literal-label check above. Admit only
+  // a directly invoked decode method, optionally through uniquely named
+  // immutable local aliases. All other instance uses need a stronger proof.
+  /** @param {import('./ast').AstNode|null|undefined} value @returns {boolean} */
+  function isDirectInstance(value){
+    return Boolean(value?.type==='NewExpression'&&decoderRoot(value.callee));
+  }
+  const instanceBindings=collectBindings(body);
+  /** @type {Set<string>} */
+  const instanceAliases=new Set();
+  /** @type {Set<import('./ast').AstNode>} */
+  const provedInstanceDeclarations=new Set();
+  let aliasesChanged=true;
+  while(aliasesChanged){
+    aliasesChanged=false;
+    walk(body,(node,parent)=>{
+      if(node.type!=='VariableDeclarator'||parent?.type!=='VariableDeclaration'||
+         parent.kind!=='const'||node.id.type!=='Identifier'||
+         instanceBindings.get(node.id.name)!==1)return;
+      const source=node.init;
+      if(!isDirectInstance(source)&&
+         !(source?.type==='Identifier'&&instanceAliases.has(source.name)))return;
+      provedInstanceDeclarations.add(node);
+      if(!instanceAliases.has(node.id.name)){
+        instanceAliases.add(node.id.name);
+        aliasesChanged=true;
+      }
+    });
+  }
+  walk(body,(node,parent,key,ancestors)=>{
+    if(!isDirectInstance(node)&&
+       !(node.type==='Identifier'&&instanceAliases.has(node.name)))return;
+    if(node.type==='Identifier'&&isStaticKey(parent,key))return;
+    if(parent?.type==='VariableDeclarator'&&
+       provedInstanceDeclarations.has(parent)&&(key==='id'||key==='init'))return;
+    if(parent?.type==='MemberExpression'&&key==='object'&&
+       (parent.computed?staticString(parent.property):
+         parent.property.type==='Identifier'?parent.property.name:null)==='decode'){
+      const caller=ancestors[ancestors.length-2];
+      if(caller?.type==='CallExpression'&&caller.callee===parent)return;
+    }
+    unproved=true;
+  });
   return unproved;
 }
 
