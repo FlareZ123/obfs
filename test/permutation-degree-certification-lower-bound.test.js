@@ -4,7 +4,8 @@ const {test}=require('node:test');
 const assert=require('node:assert/strict');
 const {
   adaptivePermutationTranscript,exactVectorAnfDegree,swapIdentityOutputs,
-  hiddenSwapDegreeWitness
+  hiddenSwapDegreeWitness,compatibleHighestBitGate,compatibleDegreeWitness,
+  reconstructKnownCompatiblePermutation
 }=require('../sims/permutation-degree-certification-lower-bound');
 
 test('adaptive output-swap coupling is exact with two arbitrary unseen inputs',()=>{
@@ -58,6 +59,65 @@ test('permutation guarantee lets all-but-one outputs reconstruct missing result'
       }
       assert.equal(xorInputs^xorKnownOutputs,actual(unknown),
         'The permutation property uniquely fixes its last unknown output');
+    }
+  }
+});
+
+
+test('known-coordinate compatible degree certificate needs exactly one query per lower prefix',()=>{
+  let verified=0;
+  for(let bits=3;bits<=10;bits++) {
+    const high=2**(bits-1);
+    for(const count of [0,1,Math.floor(high/3),high-1]) {
+      const witness=compatibleDegreeWitness(bits,count);
+      assert.equal(witness.referenceDegree,1);
+      assert.equal(witness.alternateDegree,bits-1);
+      assert.equal(witness.alternateBijection,true);
+      assert.equal(witness.transcriptEqual,true);
+      assert.ok(witness.unseenPrefixes>=1);
+      assert.equal(witness.prefixes,high);
+      assert.ok(witness.chosenPrefix>=0&&witness.chosenPrefix<high);
+      verified++;
+    }
+  }
+  assert.equal(verified,32);
+  console.log('KNOWN_COMPATIBLE_DEGREE_CERTIFICATE '+JSON.stringify({
+    trials:verified,largestExhaustiveWidth:10,
+    requiredOracleQueriesAt32Bits:2**31
+  }));
+});
+
+test('one observation per lower prefix reconstructs every width-3 compatible permutation',()=>{
+  // P_0=x_0 XOR constant, P_1=x_1 XOR h_1(x_0), and
+  // P_2=x_2 XOR h_2(x_0,x_1). Count 2*4*16=128 permutations.
+  for(let low=0;low<2;low++)for(let mid=0;mid<4;mid++)for(let top=0;top<16;top++) {
+    /** @param {number} x @returns {number} */
+    function P(x) {
+      const first=x&1,second=(x>>>1)&1,third=(x>>>2)&1;
+      return (first^low)|
+        ((second^((mid>>>first)&1))<<1)|
+        ((third^((top>>>(x&3))&1))<<2);
+    }
+    let observed=0;
+    const reconstructed=reconstructKnownCompatiblePermutation(x=>{
+      observed++;
+      return P(x);
+    },3);
+    assert.equal(observed,4);
+    assert.equal(reconstructed.queries,4);
+    for(let x=0;x<8;x++)assert.equal(reconstructed.table[x],P(x));
+  }
+});
+
+test('one-per-prefix interpolation recovers randomized full-width high-bit gates',()=>{
+  for(let bits=3;bits<=10;bits++) {
+    const upper=2**(bits-1);
+    for(let sample=0;sample<Math.min(upper,16);sample++) {
+      const prefix=(Math.imul(sample+7,1315423911)&(upper-1))>>>0;
+      const P=compatibleHighestBitGate(bits,prefix);
+      const reconstructed=reconstructKnownCompatiblePermutation(P,bits);
+      for(let x=0;x<2**bits;x++)
+        assert.equal(reconstructed.table[x],P(x));
     }
   }
 });
