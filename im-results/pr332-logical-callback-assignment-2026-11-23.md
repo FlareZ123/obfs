@@ -11,6 +11,7 @@ The frozen PR #332 head remains **DRAFT / UNMERGED / RELEASE-BLOCKED**. Its orig
 - **Primitive String source:** direct `const {callback:Loader}="x"` fails even with no ForIn. Candidate run [45143302218](https://github.com/FlareZ123/obfs/actions/runs/45143302218) is 5 failures / 1 positive-control pass on both OS. The same isolated test fails on current-main control [45143663778](https://github.com/FlareZ123/obfs/actions/runs/45143663778) and frozen PR #332 control [45143671525](https://github.com/FlareZ123/obfs/actions/runs/45143671525), both OS.
 - **Number primitive source:** direct `const {callback:Loader}=0` under a host `Number.prototype.callback` getter also fails on the candidate [45144263720](https://github.com/FlareZ123/obfs/actions/runs/45144263720), current-main control [45144429687](https://github.com/FlareZ123/obfs/actions/runs/45144429687), and frozen PR #332 control [45144436278](https://github.com/FlareZ123/obfs/actions/runs/45144436278), all both OS. This confirms the boxed-primitive issue is not String-only.
 - **Independent iterator/member-read channels:** Agent38's expanded test-only matrix [45143823490](https://github.com/FlareZ123/obfs/actions/runs/45143823490) is 8 failures / 2 positive-control passes on both OS; the exact frozen PR #332 control [45144219853](https://github.com/FlareZ123/obfs/actions/runs/45144219853) has the same 8/10 split. It covers host-mutated `String.prototype[Symbol.iterator]`, direct `key.callback` reads, and cross-file StringKey flows.
+- **Primitive prototype method dispatch:** Agent38's valid focused [run 45145024353](https://github.com/FlareZ123/obfs/actions/runs/45145024353) reports 4 failures / 2 passes on both OS: host-mutated String/Number/Boolean/BigInt `.toString()` methods return Function; Symbol `.toString()` and primitive arithmetic are green controls. This is a separate host-controlled sink beyond direct member reads and destructuring.
 - **Direct member-read sink:** Agent38's independent test-only branch [45143534036](https://github.com/FlareZ123/obfs/actions/runs/45143534036) adds `const Loader=key.callback` on a ForIn StringKey receiver; it is 7 failures / 1 plain-key positive pass on both OS. PrimitiveString taint therefore needs to cover direct member reads as well as object/array destructuring.
 - **Required analysis direction (proposal, not implementation):** distinguish primitive-origin values from inert own-data records. A StringKey/PrimitiveString fact must propagate through ForIn bindings, aliases, assignments, function returns and cross-file calls. Convert it to unknown host-provided values when consumed by object/array destructuring, because boxing/Get may consult String.prototype/Object.prototype accessors and array binding may consult the string iterator. Do not mark a plain string key callable merely because it came from ForIn; retain the positive control. A broader boxed-primitive rule may be needed for Number/Boolean/BigInt/Symbol as well.
 
@@ -291,3 +292,18 @@ A separate test changes the host-owned preloader to define `Number.prototype.cal
 
 The native result is `[53,["secretField"],53]`; the generated result renames the exported key and the hidden importer reads `undefined`. This demonstrates the same host-prototype source through Number boxing, not only String boxing. The candidate, current main and frozen PR #332 all fail this isolated control. At minimum, the analysis must account for String and Number primitive destructuring; analogous Boolean/BigInt/Symbol wrapper prototypes and host-installed iterators remain untested.
 
+
+
+### Agent38 primitive prototype method-dispatch sink
+
+Agent38's test-only branch `agent38/primitive-prototype-method-host-control-20261123`, source `8be0f9cb025966e5c53e2f8d2bfefc1432e61222`, test `test/cross-file-primitive-prototype-method-host-callback.test.js`, focused [run 45145024353](https://github.com/FlareZ123/obfs/actions/runs/45145024353), is **4 failures + 2 passes on both Ubuntu and Windows**.
+
+The host preloader replaces `toString` on String, Number, Boolean, BigInt and Symbol prototypes with a function returning the native Function constructor. Four cases fail:
+- String.prototype.toString on a string primitive;
+- Number.prototype.toString on a number primitive;
+- Boolean.prototype.toString on a boolean primitive;
+- BigInt.prototype.toString on a BigInt primitive.
+
+Each creates a hidden dynamic import and observes the transformed ESM owner under a renamed key. Symbol.prototype.toString is a passing control because the compiler conservatively refuses the rewrite; ordinary primitive arithmetic is another passing control retaining one safe rewrite.
+
+This directly challenges the primitive-method precision exemption: a call that appears to be a pristine built-in conversion is not guaranteed to use the builtin if the host can mutate the prototype before execution. The analysis must account for host-controlled primitive method dispatch, not just direct member reads and object/array destructuring. A trusted/frozen-intrinsics contract could permit a narrower assumption; absent such a contract, primitive prototype method calls should be treated as host-controlled where their result can feed an opaque callback/importer. Preserve the arithmetic positive control rather than blanket-tainting every primitive operation.
