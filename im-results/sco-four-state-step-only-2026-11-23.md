@@ -2,7 +2,7 @@
 
 **Status:** intermediate adversarial evidence, not an established academic result and not a release candidate. Stored in `im-results/` deliberately. It does not establish arbitrary-JavaScript recovery, source recovery, key recovery, or a stronger obfuscator.
 
-Subsequent extension: [canonical five-state no-reset learner](sco-five-state-step-only-2026-11-23.md), which adds a complete reachable model class through five states and a six-state enumerative scaling analysis.
+Subsequent extension: [canonical five-state no-reset learner](sco-five-state-step-only-2026-11-23.md), which adds a complete reachable model class through five states, a live five-state generated-SCO vs ordinary esbuild-minified matched control, and a six-state enumerative scaling analysis.
 
 ## Question
 
