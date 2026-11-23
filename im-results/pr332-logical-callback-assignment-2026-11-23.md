@@ -70,3 +70,25 @@ The tests also cover `||=` with a null initial value and `&&=` with a truthy obj
 This peer-supplied witness is separate from the earlier six direct property/callback alias cases. It strengthens the case for correctly handling logical assignment in the alias fixed point. The original PR head was not independently re-run for these three additional cases; the red pin used the intermediate member-only patched source to isolate the missing alias propagation.
 
 **Combined independent candidate review:** eleven directly red cases at original draft or subsequent isolated exact candidates plus three logical holder aliases red at intermediate source, all with exact matching green focused two-platform evidence and positive controls. Proven scope is finite and compiler/source-pinned; it is not a full integration gate.
+
+## Direct and nested destructuring callback carriers: six additional red/green paths
+
+A further structurally distinct counterexample bypassed `safeClosedCallerRecordRead`'s conservative callback alias flow without any intermediate named holder. A callback-bearing literal can be bound directly by an array or object destructuring pattern; nested patterns and defaults deliver callbacks even when the RHS literal contains no callback by itself. The existing draft had only recognized a **named identifier source** already classified as a callback-bearing holder and simple direct pattern targets.
+
+**Six native/emitted mismatches:**
+1. `const {callback}={callback:getFactory}`
+2. `const [callback]=[getFactory]`
+3. `const {callback=getFactory}={}`
+4. `const [callback=getFactory]=[]`
+5. `const {inner:{callback}}={inner:{callback:getFactory}}`
+6. `const [[callback]]=[[getFactory]]`
+
+Each used the existing opaque preloader, real ESM state module, Promise callback transfer, dynamic import and native/generated output comparison, and every native case printed `secretField` with value 41. Both numeric-destructuring controls retained exactly one private record rewrite.
+
+- **First two red cases:** source `7ab68632f361d3857ac01bae79dcfdef07667697`, [45127042040](https://github.com/FlareZ123/obfs/actions/runs/45127042040): 50/52 passed, two failures on both OS.
+- **Expanded six red cases:** source `24b51c469fbfd1eaaf525ea8131e8097635ea739`, [45127221658](https://github.com/FlareZ123/obfs/actions/runs/45127221658): **51/57 pass and 6 fail** on Ubuntu and Windows; two numeric positives passed.
+- **Matched green candidate:** source `8d8c5485ba48f02a193158541623fcb9d5d28784`, [45127394775](https://github.com/FlareZ123/obfs/actions/runs/45127394775): **all 57/57 passed** both OS and strict project/external JSDoc gates.
+
+The branch-only bounded correction in `src/cross-properties.js` walks an AST `ObjectPattern` or `ArrayPattern` worklist, collecting nested/Rest/AssignmentPattern binding names but excluding default RHS identifiers from being mistaken as bound names. It joins those names conservatively if the source expression may contain a factory callback or any nested binding default may return one. It uses the existing `holdsFactoryValue` may-flow rather than a new source gate, and does not relax the renamed-field safety veto.
+
+Research branch `agent11/pr332-direct-destructure-review-20261123` contains this candidate. It has **not** been merged into original draft PR #332 or current-main. These six cases, added to prior 11 + 3, total **20 finite red/green callback provenance paths across explicitly distinct source pins**. The full ECMAScript grammar, browser path for this cohort, source-observation scope and universal 2.5× runtime budget remain unproven.
