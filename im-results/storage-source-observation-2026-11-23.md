@@ -14,7 +14,7 @@ Normative source: [WHATWG HTML Standard, Web Storage, Storage interface](https:/
 
 Research branch: `agent12/storage-source-observation-20261123`
 
-Browser test head: `cdf7989f6e72f7f63ea6711f291c08cc2fcf6355`; expanded focused Node test head: `14e7d09e73203d9e1094a8cbd5fc73c6f93c0062` (both based on main `ca137356713babb6cff4d63feb838f9181e2f4db`).
+Browser test head: `cdf7989f6e72f7f63ea6711f291c08cc2fcf6355`; expanded focused Node test head: `0f35ae3ea8dfdaf39e5bba9005e45f25ed27021e` (both based on main `ca137356713babb6cff4d63feb838f9181e2f4db`).
 
 Relevant compiler source blobs:
 - `src/ast.js`: `c227e6e604635a42663af745fd0cfb194b215a67`
@@ -58,7 +58,7 @@ The browser page reads the stored values back through both Storage areas, the na
 
 ### Expanded focused acceptance controls
 
-[Manual validation run 45163858773](https://github.com/FlareZ123/obfs/actions/runs/45163858773), source head `14e7d09e73203d9e1094a8cbd5fc73c6f93c0062`:
+[Manual validation run 45166218960](https://github.com/FlareZ123/obfs/actions/runs/45166218960), source head `0f35ae3ea8dfdaf39e5bba9005e45f25ed27021e`:
 
 - **5/5 focused Node tests passed** on Ubuntu and Windows.
 - The shadowed-host control passed: local variables named `localStorage` and `window` did not become browser source sinks.
