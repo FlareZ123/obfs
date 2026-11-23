@@ -12,7 +12,7 @@ The source is a fixed stateless 32-bit permutation with degree-three nonlinear c
 
 The test asserts a postfit-validated fast clone within the 1,308-query cap, no exact-fallback use, 1,028/1,028 held-out matches after each server closes, and identical query counts/transcripts across the SCO and minified-private-API arms. The public facade contains no private helper/constant names.
 
-**What this adds:** an end-to-end HTTP clone for a rank-four cubic permutation family, beyond the existing rank-three matched API case and rank-five arbitrary-table case. For this bounded class, SCO source partitioning alone did not add functional-oracle resistance over an ordinary server-private minified API.
+**What this adds:** an end-to-end HTTP clone for a rank-four cubic permutation family, with a targeted postfit-validated path capped at 1,308 unique queries. This is an efficiency specialization, not a broader function-class result than the rank-five arbitrary-table attack; the threat model's unlimited-request assumption means query count is an attacker-cost observation, not a security boundary. For this bounded class, SCO source partitioning alone did not add functional-oracle resistance over an ordinary server-private minified API.
 
 **What it does not establish:** that any current production candidate has this structure; that all SCO programs are cloneable; that dynamic server sharding/mutation is ineffective; or anything about COO/SNO, source recovery, tamper resistance, or the 2.5x runtime budget. The global release decision remains RELEASE-BLOCKED.
 
