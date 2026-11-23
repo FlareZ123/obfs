@@ -86,8 +86,8 @@ for(const mode of /** @type {const} */ (['coo','sno','sco'])) {
     const prelude=String(built.find(file=>file.path==='prelude.cjs')?.code);
     const target=built.find(file=>file.path==='target.cjs');
     assert.ok(target,'Compiler must publish the intended downstream module');
-    assert.ok(target.metrics.literals>0,
-      'The decoder sensitivity guard must actually have allowed a rewrite');
+    assert.equal(target.metrics.literals,0,
+      'Known input-visible intrinsic corruption must decline eager decoding');
     assert.equal(
       runKnownSourcePair(prelude,String(target.code)),
       runKnownSourcePair(preludeSource,targetSource),
