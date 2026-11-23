@@ -6,8 +6,8 @@ const { classifyValidationRun } = require('../sims/validation-receipt-classifier
 const fs = require('node:fs');
 const path = require('node:path');
 
-/** @typedef {{head_sha:string,head_branch?:string,status:string,conclusion:string|null,id:number}} SnapshotRun */
-/** @typedef {{name:string,conclusion:string|null,status:string,run_id:number,head_sha:string,steps:{name:string,conclusion:string|null}[]}} SnapshotJob */
+/** @typedef {{head_sha:string,head_branch?:string,status:string,conclusion:string|null,id:number,workflow_id:number,path:string,event:string,run_attempt:number}} SnapshotRun */
+/** @typedef {{name:string,conclusion:string|null,status:string,run_id:number,run_attempt:number,head_sha:string,steps:{name:string,conclusion:string|null}[]}} SnapshotJob */
 /** @typedef {{run:SnapshotRun,jobs:SnapshotJob[],url:string}} SnapshotRecord */
 /** @typedef {{records:{fullRed:SnapshotRecord,focusedGreen:SnapshotRecord}}} SnapshotFile */
 /** @type {SnapshotFile} */
@@ -53,6 +53,7 @@ function makeJob(name, conclusion, required, sourceSha) {
     conclusion,
     status: 'completed',
     run_id: 99,
+    run_attempt: 1,
     head_sha: sourceSha,
     steps: required.map((step) => ({ name: step, conclusion: 'success' }))
   };
@@ -60,7 +61,12 @@ function makeJob(name, conclusion, required, sourceSha) {
 
 /** @param {string} sha @param {string | null} conclusion @param {number} id */
 function makeRun(sha, conclusion, id) {
-  return { head_sha: sha, status: 'completed', conclusion, id };
+  return { head_sha: sha, status: 'completed', conclusion, id,
+    event: 'workflow_dispatch',
+    path: '.github/workflows/manual-validation.yml',
+    workflow_id: 418860858,
+    run_attempt: 1
+  };
 }
 
 /** @param {string} conclusion */
@@ -69,7 +75,7 @@ function makeFullJobs(conclusion) {
     makeJob('node22 (ubuntu-latest)', conclusion,
       fullSteps.concat(chromiumSteps), fullSha),
     makeJob('node22 (windows-latest)', conclusion, fullSteps, fullSha),
-    { name: 'focused', conclusion: 'skipped', status: 'completed', run_id: 99, head_sha: fullSha, steps: [] }
+    { name: 'focused', conclusion: 'skipped', status: 'completed', run_id: 99, run_attempt: 1, head_sha: fullSha, steps: [] }
   ];
 }
 
@@ -78,7 +84,7 @@ function makeFocusedJobs(conclusion) {
   return [
     makeJob('focused (ubuntu-latest)', conclusion, focusedSteps, focusSha),
     makeJob('focused (windows-latest)', conclusion, focusedSteps, focusSha),
-    { name: 'node22', conclusion: 'skipped', status: 'completed', run_id: 99, head_sha: focusSha, steps: [] }
+    { name: 'node22', conclusion: 'skipped', status: 'completed', run_id: 99, run_attempt: 1, head_sha: focusSha, steps: [] }
   ];
 }
 
@@ -182,5 +188,28 @@ test('a not-completed job cannot certify a full run', () => {
   const jobs = makeFullJobs('success');
   jobs[1].status = 'in_progress';
   assert.equal(classifyValidationRun(makeRun(fullSha, 'success', 99), jobs, fullSha)
+    .classification, 'incomplete');
+});
+
+
+test('same run and SHA from a different retry attempt cannot certify full acceptance', () => {
+  const jobs = makeFullJobs('success');
+  jobs[0].run_attempt = 2;
+  const result = classifyValidationRun(makeRun(fullSha, 'success', 99), jobs, fullSha);
+  assert.equal(result.classification, 'incomplete');
+  assert.match(result.reasons.join(';'), /attempt/);
+});
+
+test('a different GitHub workflow with copied green step names is refused', () => {
+  const run = makeRun(fullSha, 'success', 99);
+  run.workflow_id = 1;
+  assert.equal(classifyValidationRun(run, makeFullJobs('success'), fullSha)
+    .classification, 'incomplete');
+});
+
+test('an unexpected dispatch event cannot certify the manual gate', () => {
+  const run = makeRun(fullSha, 'success', 99);
+  run.event = 'push';
+  assert.equal(classifyValidationRun(run, makeFullJobs('success'), fullSha)
     .classification, 'incomplete');
 });
