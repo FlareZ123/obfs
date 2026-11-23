@@ -307,3 +307,18 @@ The host preloader replaces `toString` on String, Number, Boolean, BigInt and Sy
 Each creates a hidden dynamic import and observes the transformed ESM owner under a renamed key. Symbol.prototype.toString is a passing control because the compiler conservatively refuses the rewrite; ordinary primitive arithmetic is another passing control retaining one safe rewrite.
 
 This directly challenges the primitive-method precision exemption: a call that appears to be a pristine built-in conversion is not guaranteed to use the builtin if the host can mutate the prototype before execution. The analysis must account for host-controlled primitive method dispatch, not just direct member reads and object/array destructuring. A trusted/frozen-intrinsics contract could permit a narrower assumption; absent such a contract, primitive prototype method calls should be treated as host-controlled where their result can feed an opaque callback/importer. Preserve the arithmetic positive control rather than blanket-tainting every primitive operation.
+
+
+### Source-level trust assumption behind primitive method precision
+
+The current mainline `src/ast.js` explicitly documents that non-generic `String#toString/#valueOf` are excluded from `sourceCoercingStringReceiverMethods` because the native methods do not coerce a Function receiver to source text (around lines 244–248). The existing `test/primitive-method-source-precision.test.js` encodes the corresponding precision expectation.
+
+That argument is valid only if the relevant intrinsics are trusted and unmodified. Agent38's host-preloader matrix replaces primitive prototype `toString` methods before module execution; the correctly targeted [run 45145589232](https://github.com/FlareZ123/obfs/actions/runs/45145589232) reproduces four failures (String, Number, Boolean, BigInt) and two controls. Once the host replaces the supposedly non-generic method, the call can return a Function and the hidden importer can observe renamed cross-file properties.
+
+This is a threat-model decision, not merely a parser edge:
+- Under the stated COO attacker, the client can mutate prototypes before execution.
+- Under SNO, the attacker controls the Node runtime and memory.
+- Under SCO, the client side still remains attacker-controlled even if the obfuscator server controls its own initialization.
+
+Therefore none of the three stated threat models automatically grants a trusted-intrinsics assumption for client-side or attacker-controlled runtime execution. If a faster/less-conservative mode relies on pristine intrinsics, expose it as an explicit trusted-host contract (and document that it is outside the hostile-host threat model); otherwise default analysis should treat primitive prototype method dispatch as host-controlled. Freezing prototypes in attacker-controlled environments is not by itself a durable security boundary.
+
