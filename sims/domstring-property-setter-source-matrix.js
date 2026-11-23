@@ -32,7 +32,9 @@ const cases=[
   {name:'HTMLButtonElement.name',setup:'const target=document.createElement("button");',target:'target',property:'name'},
   {name:'HTMLOptionElement.label',setup:'const target=document.createElement("option");',target:'target',property:'label'},
   {name:'HTMLOptionElement.value',setup:'const target=document.createElement("option");',target:'target',property:'value'},
-  {name:'HTMLFormElement.name',setup:'const target=document.createElement("form");',target:'target',property:'name'}
+  {name:'HTMLFormElement.name',setup:'const target=document.createElement("form");',target:'target',property:'name'},
+  {name:'Element.innerHTML (TrustedHTML/DOMString)',setup:'const target=document.createElement("div");',target:'target',property:'innerHTML'},
+  {name:'Element.outerHTML (TrustedHTML/DOMString)',setup:'const host=document.createElement("div");const target=document.createElement("span");host.appendChild(target);',target:'target',property:'outerHTML',read:'host.innerHTML'}
 ];
 /** @typedef {{name:string,setup:string,assignment:string,read:string,positiveAssignment:string}} DispatchCase */
 
@@ -96,11 +98,12 @@ function sourceForDispatchCase(item,primitive) {
  */
 function sourceForCase(item,primitive) {
   const lines=[];
+  const read=item.read??item.target+'.'+item.property;
   if(primitive) {
     lines.push('const independent={independentSecret:73};');
     if(item.setup)lines.push(item.setup);
     lines.push(item.target+'.'+item.property+'="literal";');
-    lines.push('export const observed={source:'+item.target+'.'+item.property+
+    lines.push('export const observed={source:'+read+
       ',independent:independent.independentSecret};');
   } else {
     lines.push('const observedOwner={secretField:57};');
@@ -108,12 +111,11 @@ function sourceForCase(item,primitive) {
     lines.push('const independent={independentSecret:73};');
     if(item.setup)lines.push(item.setup);
     lines.push(item.target+'.'+item.property+'=inspect;');
-    lines.push('export const observed={source:'+item.target+'.'+item.property+
+    lines.push('export const observed={source:'+read+
       ',value:inspect(),independent:independent.independentSecret};');
   }
   return lines.join('\n');
 }
-
 /**
  * @param {string} code
  * @param {string} seed
