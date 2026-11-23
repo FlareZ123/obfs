@@ -1259,8 +1259,8 @@ function renameLocalProperties(source, ast, options) {
       let passedToCall=false;
       walk(ast,node=>{
         if((node.type==='CallExpression'||node.type==='NewExpression') &&
-            node.arguments.some(arg=>arg.type==='Identifier' &&
-              proof.aliases.has(arg.name)))passedToCall=true;
+            (/** @type {AstNode[]} */(node.arguments)).some(arg=>
+              arg.type==='Identifier' && proof.aliases.has(arg.name)))passedToCall=true;
       });
       if(passedToCall)continue;
     }
