@@ -58,9 +58,9 @@ function main() {
   // three-tuples; multilinearity makes this exhaustive for each x.
   /** @type {number[][]} */
   const triples = [];
-  for (let a = 0; a < 6; a++) {
-    for (let b = a + 1; b < 6; b++) {
-      for (let c = b + 1; c < 6; c++) {
+  for (let a = 0; a < 8; a++) {
+    for (let b = a + 1; b < 8; b++) {
+      for (let c = b + 1; c < 8; c++) {
         triples.push([1 << a,1 << b,1 << c]);
       }
     }
@@ -82,6 +82,10 @@ function main() {
   const outputs = new Set();
   for (let input = 0; input < 256; input++) outputs.add(rankSixSilentSource(input));
   assert.equal(outputs.size,256,'the source control must be a permutation');
+  /** @type {Set<number>} */
+  const modelOutputs = new Set();
+  for (let input = 0; input < 256; input++) modelOutputs.add(evaluate(model,input));
+  assert.equal(modelOutputs.size,256,'the false candidate must also be a permutation');
 
   /** @type {number[]} */
   const mismatches = [];
