@@ -42,7 +42,12 @@ for(const [name,expression] of [
 }
 
 test('strict equality with string never coerces function source and permits own-key renaming',()=>{
-  const original=fixture('inspect===reference');
+  // Keep the potentially source-observed comparison function source-stable.
+  // The unrelated private owner lives in a direct-call-only local helper.
+  const original="'use strict';function inspect(){return 17;}"+
+    "function privateRead(){const hidden={secretField:17};return hidden.secretField;}"+
+    "const reference='function inspect(){return 17;}';"+
+    "const observed=inspect===reference;module.exports={observed,value:privateRead()};";
   const result=obfuscateFiles([{path:'case.cjs',sourceType:'commonjs',code:original}],{
     mode:'sno',seed:'source-comparison-strict',strings:false
   }).files[0];
