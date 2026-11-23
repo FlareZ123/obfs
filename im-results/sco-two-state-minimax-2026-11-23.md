@@ -86,3 +86,24 @@ Reproduction: test/sco-step-only-two-state-independent.test.js. The new source a
 ## Falsification when the declared state bound is false
 
 A concrete private three-state delayed-output chain has transitions 0 --0--> 1 --0--> 2 and output 1 only at state 2 on input 0 (all other outputs zero; input 1 resets to state 0). When the public no-reset weighted learner is incorrectly told N<=2, it declares a continuation certificate after **seven** legitimate calls with boundedNine and **six** with expected. An independent product-BFS finds a future distinguishing word from the aligned current states in both cases. Both policies are correct under their *trusted two-state bound*; this counterexample shows why the bound cannot be silently inferred from an observed finite transcript. The checked regression is in test/sco-step-only-two-state-online.test.js.
+
+
+## Prior sensitivity: source tables versus behavioral continuations
+
+The **1,884** and **1,776** aggregate-cost results above assume uniformly sampled *labelled source tables*. Under that prior, 144 future-behavior classes each have one original table, while four other classes each have **29** labelled tables. Consequently, a uniform distribution over the **148 distinct initial future behaviors** is a substantially different prior.
+
+A complete prior-policy evaluation across the same 260 source tables and 148 behavior representatives gives the following exact aggregate public-step costs. Columns say which distribution is used to **evaluate** a policy; rows say which distribution was used to **optimize** it.
+
+| Learner (optimization prior) | Source-table uniform, 260 models | Behavior uniform, 148 behaviors |
+| --- | ---: | ---: |
+| Existing greedy policy | 1,992 | 1,096 |
+| Nine-capped expected-optimal (uniform source tables) | 1,884 | 1,100 |
+| Unbounded expected-optimal (uniform source tables; max 10) | 1,776 | 1,104 |
+| Nine-capped expected-optimal (uniform behaviors) | 1,992 | 1,096 |
+| Unbounded expected-optimal (uniform behaviors; max 10) | 1,868 | 1,084 |
+
+The source-prior-optimal unrestricted policy has **1,104** total queries when tested under uniform behaviors, worse than the greedy **1,096**. Its expected-optimality claim is therefore conditional on the **stated labelled-table prior**; it is not a blanket expected-query improvement. Uniform-behavior optimization reduces its own expected cost from 1,096 to 1,084, about 1.095%, and requires max ten calls. Both priors still share the same unconditional **nine-call minimax** bound for the entire model class.
+
+A second, uncompressed labelled-source posterior solver independently corroborates the uniform-behavior optimal calls by assigning an integer mass of 29 to the 144 singleton classes and mass 1 to each of the 116 source-table variants in four 29-member classes. The 4,429-state exact Bellman calculation yields **31,784** total scaled nine-capped calls and **31,436** scaled unrestricted calls, exactly 29 times 1,096 and 1,084. These are integer counts, with no floating-point posterior approximation.
+
+Reproduction: sims/sco-step-only-two-state-prior-sensitivity.js and test/sco-step-only-two-state-prior-sensitivity.test.js. A local Node 22.16.0 run passed the prior sensitivity test; the new strict JSDoc and cross-platform workflow source pin is pending. This is an attacker-prior comparison, not evidence of protection strength or a target-side 2.5x runtime cost improvement.
