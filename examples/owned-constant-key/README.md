@@ -2,14 +2,15 @@
 
 Original [`before.cjs`](before.cjs) reads private numeric fields through an
 immutable local key while consulting a separate global API using the *same*
-key. The compiler's owner proof follows the private `internal[key]` access
+key. Its exported `calculate` function is a source-stable wrapper; the field
+reads live in the private direct-call `privateCalculate` helper. The compiler's owner proof follows the private `internal[key]` access
 only when `key` is uniquely bound, statically string-valued and initialized
 in the same sequential lexical scope before `internal`. It rewrites the
 private owner key and its known accesses while preserving the global
 `globalThis[key]` contract.
 
 [`after.cjs`](after.cjs) is **genuine compiler-emitted SNO CommonJS**,
-derived with the exact arguments in [`build-sample.cjs`](build-sample.cjs).
+derived with the exact arguments in [`build-sample.cjs`](build-sample.cjs), with identifier rewriting disabled so this fixture isolates property renaming.
 The checked-in output is verified byte-for-byte across supported CI operating
 systems. Regression tests exercise the public module contract, separate global
 property, static reconstruction and native behavior across varied inputs.
