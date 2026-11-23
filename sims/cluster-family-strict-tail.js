@@ -2,7 +2,7 @@
 
 /**
  * @typedef {{native:number,candidate:number,blockId:string}} FamilyPair
- * @typedef {{name:string,pairs:FamilyPair[]}} FamilyWorkload
+ * @typedef {{name:string,protocolId:string,pairs:FamilyPair[]}} FamilyWorkload
  */
 
 /**
@@ -24,6 +24,7 @@
  *   confidenceRequested:number,
  *   workloadCount:number,
  *   workloadNames:string[],
+ *   workloadProtocols:Array<{name:string,protocolId:string}>,
  *   independentBlocksDeclared:number,
  *   pairsPerWorkload:Array<{name:string,pairsPerBlock:number}>,
  *   pairsPerBlock:number,
@@ -65,6 +66,9 @@ function clusterFamilyStrictTail(workloads,options={}) {
       throw new TypeError('Workload names must be unique');
     }
     names.add(workload.name);
+    if (typeof workload.protocolId !== 'string' || !workload.protocolId.trim()) {
+      throw new TypeError('Every workload requires a nonempty predeclared protocolId');
+    }
     if (!Array.isArray(workload.pairs) || workload.pairs.length === 0) {
       throw new TypeError('Each workload needs at least one paired measurement');
     }
@@ -157,6 +161,7 @@ function clusterFamilyStrictTail(workloads,options={}) {
     confidenceRequested:confidence,
     workloadCount:workloads.length,
     workloadNames:workloads.map(workload => workload.name),
+    workloadProtocols:workloads.map(workload => ({name:workload.name,protocolId:workload.protocolId})),
     independentBlocksDeclared,
     pairsPerWorkload:perWorkloadCounts,
     pairsPerBlock,
