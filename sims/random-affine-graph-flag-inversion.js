@@ -268,7 +268,10 @@ function findRelation(oracle,target,base,basis,width,degree,randomCoordinates,lo
  * @param {number} degree
  * @param {{seed?:number,delta?:number,maxQueriesPerStage?:number,
  *   randomCoordinates?:(width:number)=>bigint}} [options]
- * @returns {{success:boolean,input:bigint|null,queries:number,stages:object[],verified:boolean,reason:string|null,failedDimension?:number}}
+ * @returns {{success:boolean,input:bigint|null,queries:number,
+ *   stages:Array<{dimension:number,queries:number,rank:number,nullity?:number,
+ *     stagnationLimit:number,reason:string}>,verified:boolean,
+ *   reason:string|null,failedDimension?:number}}
  */
 function invertByRandomAffineGraph(oracle,target,width,degree,options={}) {
   if(!Number.isInteger(width)||width<2||width>64||!Number.isInteger(degree)||degree<1||degree>width)throw new RangeError('width 2..64 and degree 1..width required');
