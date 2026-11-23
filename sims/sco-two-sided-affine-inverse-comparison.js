@@ -81,19 +81,23 @@ function privateSource(seed) {
 
 /** @param {import('node:http').Server} server @returns {Promise<string>} */
 async function listen(server) {
-  await new Promise((resolve,reject)=>{
+  /** @type {Promise<void>} */
+  const ready=new Promise((resolve,reject)=>{
     server.once('error',reject);
-    server.listen(0,'127.0.0.1',resolve);
+    server.listen(0,'127.0.0.1',()=>resolve());
   });
+  await ready;
   const address=server.address();
   assert.ok(address&&typeof address!=='string');
   return 'http://127.0.0.1:'+address.port;
 }
 /** @param {import('node:http').Server} server @returns {Promise<void>} */
 async function stop(server) {
-  await new Promise((resolve,reject)=>{
+  /** @type {Promise<void>} */
+  const ended=new Promise((resolve,reject)=>{
     server.close(error=>error?reject(error):resolve());
   });
+  await ended;
 }
 
 /**
