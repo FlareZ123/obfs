@@ -425,3 +425,31 @@ test('symbolic recovery accepts a harmless branch slot shadow of the parameter',
   assert.equal(actual.round1(1),18);
   assert.equal(actual.round1(-1),16);
 });
+
+
+test('generated source reconstruction refuses an ESM export alias to a different local function',async()=>{
+  const names=['round1','round2','round3'];
+  const generated=name=>
+    'function '+name+'(input){'+
+      'const _ap_input_witness=(input|0);'+
+      'switch(_ap_input_witness&1){'+
+        'case 0:{'+
+          'const _ap_slot_witness=(((_ap_input_witness>>1)<<1)|0);'+
+          '{const _ap_register_witness=_ap_slot_witness+17;return _ap_register_witness|0;}'+
+        '}'+
+        'case 1:{'+
+          'const _ap_slot_witness=(((_ap_input_witness>>1)<<1)|1);'+
+          '{const _ap_register_witness=_ap_slot_witness+17;return _ap_register_witness|0;}'+
+        '}'+
+        'default:throw Error("unreachable");'+
+      '}'+
+    '}';
+  const source=names.map(generated).join('\\n')+
+    '\\nfunction alternate(input){return -123;}'+
+    '\\nexport {alternate as round1,round2,round3};';
+  const actual=await import('data:text/javascript;charset=utf-8,'+encodeURIComponent(source));
+  assert.equal(actual.round1(0),-123);
+  assert.equal(actual.round2(0),-123);
+  assert.equal(actual.round3(0),-123);
+  assert.throws(()=>attackPublishedSource(source),/Unproved public export identity/u);
+});
