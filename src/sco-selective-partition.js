@@ -1348,6 +1348,12 @@ function collectPrivateStaticImportClosure(directPaths,sources) {
       throw new TypeError(
         'SCO private static dependency contains unproved cross-realm text decoding: '+filename);
     }
+    // Private transitive ESM leaf functions execute in the same relocated
+    // Node host as selected exports, including native URL failure paths.
+    if(usesUnprovedRelocatedUrlStatic(ast)){
+      throw new TypeError(
+        'SCO private static dependency uses unproved cross-realm object URL API: '+filename);
+    }
     // Browser-owned values may differ or be absent in the trusted Node
     // process. Only the original caller can establish its own window,
     // document, navigation and application-level global state.
