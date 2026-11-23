@@ -717,7 +717,14 @@ function proveLocalObject(ast, rootName, bindings, importedIdentityFunctions=new
     if(active.has(functionNode))return true;
     active.add(functionNode);
     let opaque=false;
-    walk(functionNode,candidate=>{
+    // The current caller executes only its own body. An uninvoked nested
+    // closure does not synchronously invoke host code; when its name is
+    // actually called, the direct call edge below analyzes that closure.
+    walk(functionNode,(candidate,_parent,_key,ancestors)=>{
+      if(ancestors.some(ancestor=>ancestor!==functionNode&&
+         (ancestor.type==='FunctionDeclaration' ||
+          ancestor.type==='FunctionExpression' ||
+          ancestor.type==='ArrowFunctionExpression')))return;
       if(candidate.type!=='CallExpression')return;
       const callee=candidate.callee;
       if(callee.type==='Identifier') {
