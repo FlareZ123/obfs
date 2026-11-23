@@ -3444,7 +3444,7 @@ function observesDistributedSource(ast,importedStrings=new Map()) {
     if(!value)return false;
     const known=knownKey(value);
     return known!==null &&
-      /(?:^|\s)sha(?:256|384|512)-[A-Za-z0-9+/]{8,}/u.test(known);
+      /(?:^|\s)sha(?:256|384|512)-[A-Za-z0-9+/_-]{8,}/iu.test(known);
   }
   /** @param {AstNode|null|undefined} value @returns {boolean} */
   function isDocumentReceiver(value) {
