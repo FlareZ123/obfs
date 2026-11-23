@@ -63,6 +63,21 @@ test('adjacent literal owner field is a proven imported primitive with four-file
 });
 
 
+
+test('adjacent owner-field imports remain untransformed in open-world COO',async()=>{
+  const sources=fourFileGraph(
+    'export const state={secretValue:3,otherKey:5};'+
+    'export const internalValue=state.secretValue;');
+  const obfuscated=obfuscateFiles(sources,{mode:'coo',seed:'adjacent-open-world',
+    closedWorld:false,strings:false,identifiers:false,properties:true});
+  assert.equal(obfuscated.crossFile.objects,0);
+  assert.equal(obfuscated.crossFile.properties,0);
+  const emitted=obfuscated.files.map(file=>({
+    path:file.path,sourceType:/** @type {'module'} */('module'),code:String(file.code)
+  }));
+  assert.equal(await runNative(emitted),29);
+});
+
 for(const mode of /** @type {Array<'sco'|'sno'>} */ (['sco','sno'])) {
   test('adjacent own literal primitive works in '+mode+' core output with emitted ESM parity',async()=>{
     const sources=fourFileGraph(
