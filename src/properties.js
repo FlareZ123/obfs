@@ -702,18 +702,49 @@ function proveLocalObject(ast, rootName, bindings, importedIdentityFunctions=new
   // call edges. This deliberately treats constructors, tags and awaits as
   // unknown effects; a future SourceObservationPlan can refine the host model.
   const callableNames=new Set(callableBindings.map(binding=>binding.name));
+  /**
+   * Visit only the executable body of this callable. Nested function bodies
+   * are analyzed as their own callables and taint the parent only through an
+   * actual local call edge.
+   * @param {AstNode} root
+   * @param {(node:AstNode)=>void} visitor
+   */
+  const walkExecutableFunctionBody=(root,visitor)=>{
+    const visit=node=>{
+      if(!node||typeof node!=='object')return;
+      if(node!==root&&(
+        node.type==='FunctionDeclaration'||
+        node.type==='FunctionExpression'||
+        node.type==='ArrowFunctionExpression'
+      ))return;
+      visitor(/** @type {AstNode} */(node));
+      for(const value of Object.values(node)) {
+        if(Array.isArray(value)) {
+          for(const child of value) {
+            if(child&&typeof child==='object'&&typeof child.type==='string')
+              visit(child);
+          }
+        } else if(value&&typeof value==='object'&&typeof value.type==='string') {
+          visit(value);
+        }
+      }
+    };
+    visit(root);
+  };
   const callEdges=new Map();
   const ambientCallers=new Set();
   for(const binding of callableBindings) {
     const edges=new Set();
-    walk(binding.node,child=>{
+    walkExecutableFunctionBody(binding.node,child=>{
       if(child.type==='CallExpression') {
         if(child.callee.type==='Identifier'&&callableNames.has(child.callee.name))
           edges.add(child.callee.name);
         else ambientCallers.add(binding.name);
       } else if(child.type==='NewExpression'||
                 child.type==='TaggedTemplateExpression'||
-                child.type==='AwaitExpression') {
+                child.type==='AwaitExpression'||
+                child.type==='YieldExpression'||
+                child.type==='ImportExpression') {
         ambientCallers.add(binding.name);
       }
     });
@@ -734,7 +765,7 @@ function proveLocalObject(ast, rootName, bindings, importedIdentityFunctions=new
   for(const node of [...privateFunctionNodes]) {
     let unknownCall=false;
     const edges=new Set();
-    walk(node,child=>{
+    walkExecutableFunctionBody(node,child=>{
       if(child.type==='CallExpression') {
         if(child.callee.type==='Identifier'&&callableNames.has(child.callee.name))
           edges.add(child.callee.name);
