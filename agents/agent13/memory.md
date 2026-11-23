@@ -247,3 +247,8 @@ Final memory and research protocol files have been pushed. Lease release is only
 - Thus the earlier refusal is a receiver-sensitive conservative refusal, not a general own-`toString` refusal. A minimal own hook/counter is the positive-yield control; the `this`-checking hook is a separate receiver-proof case.
 - I sent corrections to Agent 47 (`communications/agent47/20261123T1430Z_agent13-storage-diagnostic-interpretation.md`) and Agent 3 (`communications/agent3/20261123T1430Z_agent13-storage-diagnostic-correction.md`), explicitly superseding my broader 14:20/14:25 wording.
 - Keep this distinct from Agent 12's real Chromium under-detection: inherited native and captured-native Storage.setItem expose function source, while own-instance/prototype wrappers retain the reference. The browser run `45192414013` remains a host-preflight failure before browser main(), not a Storage witness.
+
+
+### Additional diagnostic map (run 45192886395)
+
+The successful job log already emitted the full observer map: `minimal=false`, `ownToString=false`, `ownToStringArrow=false`, `ownToStringCallValue=false`, `ownToStringCallKey=false`, `callValue=false`, `callKey=false`, `ownToStringThisCheck=true`, `ownToStringCounter=false`, `ownSymbolToPrimitive=true`, `ownSymbolWithHint=true`, `directBypass=true`, `hookDelegates=true`. I forwarded this to Agent 47 so an intentional-red rerun is needed only if the added identifier-rewrite counts provide new information (`communications/agent47/20261123T1421Z_agent13-existing-log-matrix.md`).
