@@ -75,6 +75,28 @@ function algebra(node,environment,depth=0){
 function block(statement,environment){
   if(statement.type==='BlockStatement'){
     const local=new Map(environment);
+    // Preflight the entire lexical block before evaluating any initializer.
+    // A declaration later in the block is in scope from the block's start,
+    // even when it appears after an unreachable return (the TDZ still applies).
+    const declared=new Set();
+    for(const child of statement.body){
+      if(child.type==='VariableDeclaration'){
+        if(child.kind!=='const'||child.declarations.length!==1)
+          throw new TypeError('Unsupported lexical declaration in symbolic block');
+        const declaration=child.declarations[0];
+        if(declaration.id.type!=='Identifier'||!declaration.init)
+          throw new TypeError('Unknown symbolic register');
+        const name=declaration.id.name;
+        if(environment.has(name)||declared.has(name))
+          throw new TypeError('Lexical declaration shadows symbolic register');
+        declared.add(name);
+      }else if(child.type==='ReturnStatement'){
+        if(!child.argument||child!==statement.body[statement.body.length-1])
+          throw new TypeError('Return must terminate symbolic block');
+      }else if(child.type!=='BlockStatement'){
+        throw new TypeError('Unexpected statement in symbolic block');
+      }
+    }
     for(const child of statement.body){
       const value=block(child,local);
       if(value!==null)return value;
