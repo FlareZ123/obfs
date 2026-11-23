@@ -1024,6 +1024,11 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
            memberName(value.callee)==='bind' &&
            isCoercer(value.callee.object))
           changed=add(coercers,name)||changed;
+         if(isOpaqueCallable(value) || value?.type==='CallExpression' &&
+            value.callee.type==='MemberExpression' &&
+            memberName(value.callee)==='bind' &&
+            isOpaqueCallable(value.callee.object))
+           changed=add(opaqueFunctions,name)||changed;
         if(isNativeConstructor(value,nativeStringConstructors,'String'))
           changed=add(nativeStringConstructors,name)||changed;
         if(isNativeConstructor(value,nativeRegExpConstructors,'RegExp'))
@@ -3118,6 +3123,30 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
       if(isOpaqueCallable(callee) && node.arguments.some(
         (/** @type {AstNode} */ value)=>isFunctionValue(value)||containsFunction(value)))
         observed=true;
+      // Imported callables can be invoked through call/apply/bind or
+      // Reflect.apply. Preserve function-bearing operands across those
+      // reflective layers, including an opaque bound alias used later.
+      if(node.type==='CallExpression' && callee.type==='MemberExpression' &&
+         ['call','apply','bind'].includes(memberName(callee)??'') &&
+         isOpaqueCallable(callee.object)) {
+        const invocation=memberName(callee);
+        if(invocation==='apply') {
+          const supplied=node.arguments[1];
+          if(supplied?.type==='ArrayExpression') {
+            if(supplied.elements.some((/** @type {AstNode|null} */ value)=>
+              Boolean(value&&(isFunctionValue(value)||containsFunction(value)))))observed=true;
+          } else if(supplied)observed=true;
+        } else if(node.arguments.slice(1).some((/** @type {AstNode} */ value)=>
+          isFunctionValue(value)||containsFunction(value)))observed=true;
+      }
+      if(node.type==='CallExpression' && isReflectApplyMethod(callee) &&
+         isOpaqueCallable(node.arguments[0])) {
+        const supplied=node.arguments[2];
+        if(supplied?.type==='ArrayExpression') {
+          if(supplied.elements.some((/** @type {AstNode|null} */ value)=>
+            Boolean(value&&(isFunctionValue(value)||containsFunction(value)))))observed=true;
+        } else if(supplied)observed=true;
+      }
       // MessagePort, Worker and browser postMessage use structured cloning.
       // Their DataCloneError can expose exact function source in the payload,
       // including nested values. The receiver may be an opaque host object.
