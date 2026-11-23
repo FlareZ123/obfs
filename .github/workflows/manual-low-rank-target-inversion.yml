@@ -91,6 +91,8 @@ jobs:
         run: node sims/rankfive-top-quartic-functional-clone.js
       - name: Silent rank-six counterexample to quartic signature-span promise check
         run: node sims/rankfive-top-quartic-silent-rank-control.js
+      - name: Reed-Muller-validated quartic clone with silent-rank fallback
+        run: node sims/rankfive-top-quartic-validated-peer.js
       - name: Independent rank-six fifth-derivative top-quintic full-function clone
         run: node sims/rankfive-top-quintic-functional-clone-peer.js
       - name: Reed-Muller-validated quintic clone with silent-rank fallback
