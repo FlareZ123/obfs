@@ -39,3 +39,22 @@ The test is intentionally *green*, asserting the private positive and the public
 - An opt-in source-observer-aware selector could nominate private helper functions instead of public callables, with no need to change the visible API function text. That design requires dynamic escape refusal and exact session-level profiling before automatic admission.
 
 Status: **positive transformation-compatibility control with unmeasured runtime and no attacker-resistance evidence**. The overall three-mode release remains RELEASE-BLOCKED.
+
+## Node 22 matched hot and first-use observations
+
+A follow-up profile `test/agent38-private-wasm-facade-budget.test.js` at exact branch SHA `df7a28822d900b3c1371427b6099e561482b5c38` was executed by [focused two-platform run 45128690288](https://github.com/FlareZ123/obfs/actions/runs/45128690288), **green 1/1 test in each OS with strict JSDoc**. It recompiles the same publicly source-exact CommonJS wrapper and private one-function Wasm helper. A checksum validates every timed workload.
+
+Each mode has 6 prewarm calls per variant, 13 alternating original/protected paired trials, and **400,000 hot invocations per trial**. The first-use comparison separately times a new Node VM context plus first function invocation (also 13 paired trials). All pairs were recorded inside one process, so pair independence and population-wide risk bounds are *not established*. Timings use `performance.now()`, a wall clock proxy for on-thread synchronous compute; they are not independent CPU-clock replications.
+
+| OS | Mode | Hot ratio of medians | Strict hot pairs above 2.5× | First-use ratio of medians | Strict first-use pairs above 2.5× |
+| --- | --- | ---: | ---: | ---: | ---: |
+| Ubuntu | COO | 1.069× | 0/13 | 1.071× | 0/13 |
+| Ubuntu | SNO | 1.076× | 0/13 | 1.043× | **1/13**, max 2.676× |
+| Ubuntu | SCO | 1.104× | 0/13 | 1.122× | 0/13 |
+| Windows | COO | 1.054× | 0/13 | 1.058× | 0/13 |
+| Windows | SNO | 1.042× | 0/13 | 0.957× | 0/13 |
+| Windows | SCO | 1.044× | 0/13 | 1.003× | 0/13 |
+
+The one SNO Ubuntu first-use breach is a **real observed strict >2.5× ratio** in that sampled initialization comparison. The prompt explicitly permits excluding server-side SNO initialization from its sustained compute budget; that exception does not establish that every observed first-use task is a deductible initialization under an arbitrary workload. Here it is an explicit new-VM and first-call profile. Every hot pair was below threshold in this finite sample.
+
+**Interpretation:** This bounded synchronous Node fixture shows a genuine nonzero private virtualization with source-exact public facade and modest **sampled** hot overhead, but neither the 2.5× universal rule nor attacker resistance is qualified. Browser and actual SCO service costs, GC tails, independently replicated process sessions, public static reconstruction against matched minifier controls, and other workloads remain necessary. No claim of binomial 95% confidence follows from 13 correlated trials in one runner.
