@@ -131,3 +131,34 @@ test('type and arity contracts refuse unknown or malformed observations',()=>{
   assert.throws(()=>clone.evaluate(1,2.5),TypeError);
   assert.throws(()=>clone.evaluate(2147483648,1),TypeError);
 });
+
+test('full-width modular affine coefficients recover exactly at arities 1 through 8',{
+  timeout:60000
+},()=>{
+  let families=0;
+  for(let arity=1;arity<=8;arity++){
+    for(let seed=0;seed<15;seed++){
+      const constant=scramble(seed*89+arity*997);
+      const coefficients=Array.from({length:arity},(_,index)=>
+        scramble((seed+1)*3119+(index+1)*7919+arity*733));
+      /** @param {...number} args @returns {number} */
+      const oracle=(...args)=>{
+        let total=constant;
+        for(let i=0;i<arity;i++)
+          total=(total+Math.imul(coefficients[i],args[i]))|0;
+        return total;
+      };
+      const learned=cloneMod32Affine(oracle,arity);
+      assert.equal(learned.queries,arity+1);
+      assert.equal(learned.constant,constant);
+      assert.deepEqual(learned.coefficients,coefficients);
+      for(let index=0;index<350;index++){
+        const input=Array.from({length:arity},(_,axis)=>
+          scramble((index+1)*1171+(seed+1)*1801+(axis+1)*6113));
+        assert.equal(learned.evaluate(...input),oracle(...input));
+      }
+      families++;
+    }
+  }
+  assert.equal(families,120);
+});
