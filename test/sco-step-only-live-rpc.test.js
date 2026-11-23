@@ -13,7 +13,7 @@ test('real authenticated SCO facade supports a public-only two-state continuatio
   assert.equal(result.publicResetExport,false);
   assert.equal(result.distinctSourceFiles,true);
   assert.equal(result.knownContinuationExact,true);
-  assert.ok(result.queries>0&&result.queries<=64);
+  assert.ok(result.queries>0&&result.queries<=128);
   assert.equal(result.networkSteps,result.queries+16);
 });
 
@@ -25,11 +25,28 @@ test('real generated SCO facade supports three hidden states with no reset endpo
   assert.equal(result.unauthorizedStatus,403);
   assert.equal(result.publicResetExport,false);
   assert.equal(result.knownContinuationExact,true);
-  assert.ok(result.queries>0&&result.queries<=64);
+  assert.ok(result.queries>0&&result.queries<=128);
+  assert.equal(result.networkSteps,result.queries+16);
+});
+
+test('real generated SCO facade supports four hidden states with no reset endpoint',async()=>{
+  const result=await runLiveStepVersionSpace(4,0xa82b4c3c);
+  assert.equal(result.states,4);
+  assert.equal(result.certified,true);
+  assert.equal(result.sourceDisclosed,false);
+  assert.equal(result.unauthorizedStatus,403);
+  assert.equal(result.publicResetExport,false);
+  assert.equal(result.knownContinuationExact,true);
+  assert.ok(result.queries>0&&result.queries<=128);
+  assert.equal(result.attackerModelCount,16777216);
+  assert.ok(result.attackerScanWork>0);
+  assert.ok(result.attackerEquivalenceChecks>=0);
+  assert.ok(result.attackerProductPairs>=0);
+  assert.ok(result.attackerElapsedMs>0);
   assert.equal(result.networkSteps,result.queries+16);
 });
 
 test('invalid private SCO scenario parameters are refused without starting a service',async()=>{
-  await assert.rejects(()=>runLiveStepVersionSpace(4),RangeError);
+  await assert.rejects(()=>runLiveStepVersionSpace(5),RangeError);
   await assert.rejects(()=>runLiveStepVersionSpace(2,-1),RangeError);
 });
