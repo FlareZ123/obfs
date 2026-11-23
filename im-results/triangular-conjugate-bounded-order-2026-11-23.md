@@ -80,6 +80,10 @@ For width 32 the exact recurrence yields `Pr[ord(P) <= 2^22]≈0.3297884` and `P
 
 **Model limitations.** A genuinely independent uniform 32-bit triangular gate-family truth-table description contains `2^32−1` independent Boolean bits, almost **512 MiB** before runtime wrappers; replacing it with a compact PRNG or pseudorandom circuit changes the distribution, so neither law automatically applies to such a deployed candidate. Even for the exact uniform model, iteration cost is an attacker-side *upper bound*, not a universal proof of source confidentiality, environment locking, or compliance with the required 2.5× application compute budget. More efficient chosen-query attacks, independent affine input/output wrappers, and target-specific domain constraints require separate analysis.
 
+### Prior mathematical context and independent cross-check
+
+The finite triangular permutation group is isomorphic to the automorphism group of a finite complete rooted binary tree, an iterated wreath product of `C_2`. Richard Pink's [*Orbit length generating functions of automorphisms of a rooted regular binary tree* (2014)](https://arxiv.org/abs/1403.8019), notably its branch rules `(u,v)` and `(u,v)σ`, provides direct historical context for the recursions used above. [OEIS A332757](https://oeis.org/A332757) independently counts involutions **including the identity** in these iterated wreath products; its recurrence gives **2,064** at height four, matching this source's histogram `1+2,063`. These are related historical results, not proof that the exact specialized uniform law is novel. No academic originality is claimed and the algebra remains intermediate evidence.
+
 ## Scope, implications, and limits
 
 1. This is an **exact finite-order algebraic attack on a fixed permutation oracle**, not static deobfuscation or extraction of arbitrary JavaScript. The permutation domain and codomain must match so that successive oracle outputs can be fed back as inputs. If `k` is unknown, cycling `F` until the target first reappears recovers the previous state in at most `2^k` calls, although the prescribed fixed-iteration attack needs the public upper bound `k`.
