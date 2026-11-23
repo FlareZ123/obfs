@@ -56,7 +56,7 @@ const reviewedCrossRealmGlobals=new Set([
   'setTimeout','clearTimeout','setInterval','clearInterval',
   'setImmediate','clearImmediate','queueMicrotask',
   'postMessage','addEventListener','removeEventListener','dispatchEvent',
-  'alert','confirm','prompt',
+  'alert','confirm','prompt','require',
   'URL','URLSearchParams','TextEncoder','TextDecoder',
   'AbortController','AbortSignal','DOMException','crypto','performance'
 ]);
@@ -84,6 +84,28 @@ function patternBindsName(pattern,name){
       property.type==='RestElement'?patternBindsName(property.argument,name):
         patternBindsName(property.value,name));
   return false;
+}
+
+/**
+ * Add every identifier declared by a binding pattern.
+ * @param {import('./ast').AstNode|null|undefined} pattern
+ * @param {Set<string>} names
+ * @returns {void}
+ */
+function collectPatternNames(pattern,names){
+  if(!pattern)return;
+  if(pattern.type==='Identifier'){names.add(pattern.name);return;}
+  if(pattern.type==='RestElement'){collectPatternNames(pattern.argument,names);return;}
+  if(pattern.type==='AssignmentPattern'){collectPatternNames(pattern.left,names);return;}
+  if(pattern.type==='ArrayPattern'){
+    for(const item of pattern.elements)collectPatternNames(item,names);
+    return;
+  }
+  if(pattern.type==='ObjectPattern'){
+    for(const property of pattern.properties){
+      collectPatternNames(property.type==='RestElement'?property.argument:property.value,names);
+    }
+  }
 }
 
 /**
@@ -270,6 +292,20 @@ function firstUnprovedFreeIdentifierReference(root,moduleBindings,rootFormals){
   walk(root,(node,parent,key,ancestors)=>{
     if(unproved!==null||node.type!=='Identifier'||isStaticKey(parent,key)||
        isBindingIdentifier(node,parent,key,ancestors))return;
+    // Match the established typeof rule: an uninvoked function literal inside
+    // a typeof operand is lazy, so its body does not perform a free read.
+    const lazyTypeofFunction=ancestors.some((scope,index)=>{
+      if(!functionScopeTypes.has(scope.type)||
+         !ancestors.slice(0,index).some(ancestor=>
+           ancestor.type==='UnaryExpression'&&ancestor.operator==='typeof'))return false;
+      const containing=ancestors[index-1];
+      return !(containing&&(
+        (containing.type==='CallExpression'||containing.type==='NewExpression')&&
+          containing.callee===scope ||
+        containing.type==='TaggedTemplateExpression'&&containing.tag===scope
+      ));
+    });
+    if(lazyTypeofFunction)return;
     const name=node.name;
     if(moduleBindings.has(name)||rootFormals.has(name)||
        hasEnclosingLexicalBinding(name,ancestors,root))return;
@@ -2015,9 +2051,7 @@ function partitionScoSelectedAsyncExports(file,options) {
   function addPrivateBody(fn){
     privateBodies.push(fn.body);
     const parameters=new Set();
-    for(const parameter of fn.params){
-      if(parameter.type==='Identifier')parameters.add(parameter.name);
-    }
+    for(const parameter of fn.params)collectPatternNames(parameter,parameters);
     privateFormals.set(fn.body,parameters);
   }
   const ambientRoots=new Set(['globalThis','window','self','document','navigator','location','process','global']);
