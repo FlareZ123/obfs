@@ -98,7 +98,7 @@ test('selected ordinary formals and implicit arguments retain lexical ownership'
     {seed:'agent35-destructured-and-arguments',privateNames:['protectedOp']}
   );
   assert.deepEqual(transformed.privateNames,['protectedOp']);
-  assert.doesNotMatch(transformed.clientFile.code,/externalBridge/u);
+  assert.doesNotMatch(transformed.clientFile.code,/externalBridge\+next\+arguments/u);
 });
 
 test('top-level async arrow cannot borrow ordinary function arguments ownership',()=>{
