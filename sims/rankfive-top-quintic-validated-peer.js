@@ -116,8 +116,8 @@ function cachedOracle(oracle, n) {
     const key = (input & inputMask) >>> 0;
     if (!cache.has(key)) {
       const value = oracle(key);
-      if (!Number.isInteger(value) || value < 0 || value > 0xffffffff) {
-        throw new TypeError('Quintic oracle must return unsigned 32-bit integers');
+      if (!Number.isInteger(value) || value < -0x80000000 || value > 0xffffffff) {
+        throw new TypeError('Quintic oracle must return signed or unsigned 32-bit integers');
       }
       cache.set(key, value >>> 0);
     }
@@ -138,7 +138,7 @@ function cachedOracle(oracle, n) {
  * @param {(input:number)=>number} oracle
  * @param {number} n
  * @param {()=>number} [drawWitness]
- * @param {()=>number} [drawVerify]
+ * @param {()=>number} [drawVerify] Independent uniform words for postfit checks; seeded only in tests.
  * @param {number} [delta]
  * @returns {ValidatedModel}
  */
