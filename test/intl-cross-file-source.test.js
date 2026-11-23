@@ -12,6 +12,8 @@ const {atomicWrite}=require('../src/atomic');
 /** @typedef {{path:string,code:string,sourceType:'module'}} ModuleFile */
 const state='const state={secretField:71};export function inspect(){return state.secretField;}';
 const sourceText='function inspect(){return state.secretField;}';
+const wrappedState='const state={secretField:71};function privateInspect(){return state.secretField;}'+
+  'export function inspect(){return privateInspect();}';
 
 /**
  * Exercise the native Node ESM module loader, including imported function
@@ -34,9 +36,9 @@ async function execute(files) {
 }
 
 /** @param {string} expression @returns {ModuleFile[]} */
-function graph(expression) {
+function graph(expression,stateSource=state) {
   return [
-    {path:'state.mjs',code:state,sourceType:'module'},
+    {path:'state.mjs',code:stateSource,sourceType:'module'},
     {path:'main.mjs',code:
       'import {inspect} from "./state.mjs";console.log('+expression+');',
     sourceType:'module'}
@@ -63,7 +65,7 @@ for(const [name,expression] of [
 }
 
 test('without cross-file source observation local owned fields remain renameable',async()=>{
-  const files=graph('inspect()');
+  const files=graph('JSON.stringify({value:inspect(),source:inspect.toString()})',wrappedState);
   const baseline=await execute(files);
   const output=obfuscateFiles(files,{mode:'coo',closedWorld:true,
     seed:'intl-cross-file-positive',strings:false,identifiers:false});
