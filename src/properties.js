@@ -1224,7 +1224,12 @@ function collectPrivateDirectCallables(ast,bindings=collectBindings(ast)) {
     if(name==='caller'&&!(parent?.type==='AssignmentExpression'&&
        key==='left'&&parent.operator==='='))readsCaller=true;
   });
-  if(readsCaller)return new Set();
+  // ESM code and top-level strict scripts cannot expose a strict function
+  // through a sloppy callee's legacy Function#caller getter: it returns null
+  // (or throws for a strict callee). Preserve private-source yield for those
+  // modules while retaining the conservative sloppy-script refusal.
+  const strictSource=ast.sourceType==='module'||ast.body?.[0]?.directive==='use strict';
+  if(readsCaller&&!strictSource)return new Set();
   /**
    * @param {string} name
    * @param {AstNode} definition
