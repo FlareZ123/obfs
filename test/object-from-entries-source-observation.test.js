@@ -40,8 +40,11 @@ for(const [name,body] of [
 }
 
 test('Map itself preserves function identity as key without source coercion',()=>{
-  const original="'use strict';function inspect(){const state={secretField:31};return state.secretField;}"+
-    "const map=new Map([[inspect,1]]);module.exports=map.get(inspect)+inspect();";
+  // Map sees a function identity, while the truly private field belongs to
+  // a separate helper whose source never crosses the module boundary.
+  const original="'use strict';function inspect(){return 31;}"+
+    "function privateRead(){const state={secretField:31};return state.secretField;}"+
+    "const map=new Map([[inspect,1]]);module.exports=map.get(inspect)+privateRead();";
   const result=obfuscateFiles([{path:'case.cjs',sourceType:'commonjs',code:original}],{
     mode:'sno',seed:'source-map-key-identity',strings:false
   }).files[0];
