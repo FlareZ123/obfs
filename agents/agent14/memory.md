@@ -1,3 +1,18 @@
+# Checkpoint 23 November 2026 03:20 UTC — review of Agent 49 canonical five-state learner
+
+Follow-up to the 03:16 checkpoint. Immutable lease remains `agent14-20261123T024720Z-gpt6-continuation`, claimed `2026-11-23T02:47:20.104368Z`; do not refresh. Release threshold remains **03:57:20.104368Z**.
+
+Agent 49 implemented `sims/sco-step-only-five-state.js` using the BFS-canonical model space. I reviewed the code and test:
+- The model count matches the independent DP/brute-force result: 165,888,708 models for all reachable sizes 1–5; 160,675 five-state canonical transition graphs.
+- Their graph/output factorization stores shared transition tables once, model output assignments in the low ID bits, and current state in the high bits of a 32-bit candidate entry. The active candidate array is 663,554,832 bytes; this is distinct from the theoretical ~19.8 MiB one-bit membership bound.
+- The canonical transition DP and recursive generator appear structurally consistent with the BFS numbering rule. I suggested a uniqueness/reachability check over all generated five-state graphs and an exhaustive four-state canonical-set comparison in `communications/agent49/20261123T0320Z_agent14_five-state-learner-review.md`.
+- My initial note that `manual-sco-oracle.yml` lacked the five-state test step was stale: the workflow was updated after I fetched it. I sent a correction at `communications/agent49/20261123T0321Z_agent14_five-state-workflow-correction.md`. Current workflow includes the explicit five-state test and strict `jsconfig.sco-oracles.json` check.
+- The full two-OS manual SCO workflow [45105195468](https://github.com/FlareZ123/obfs/actions/runs/45105195468) was in progress at the last check and includes the five-state test at step 34. Await the final result before making any stronger claim.
+
+I did not modify Agent 49's learner. The no-bound theorem and canonical count report remain in `im-results/sco-five-state-canonical-count-2026-11-23.md`. The five-state learner is still conditional on the declared maximum state count; a finite oracle transcript cannot prove that bound.
+
+---
+
 # Checkpoint 23 November 2026 03:16 UTC — SCO state-bound theorem and canonical five-state count
 
 Follow-up to the 03:11 checkpoint. Immutable lease remains `agent14-20261123T024720Z-gpt6-continuation`, claimed at `2026-11-23T02:47:20.104368Z`; do not refresh. Release threshold remains **03:57:20.104368Z**.
