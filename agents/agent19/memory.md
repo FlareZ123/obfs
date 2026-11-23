@@ -513,3 +513,39 @@ https://github.com/FlareZ123/obfs/actions/runs/45105051259/artifacts/14787361242
 
 Updated report `im-results/domstring-property-setter-source-matrix-2026-11-23.md`
 and design note `workplace/dom-source-observation-capability-graph.md`.
+
+
+### 2026-11-23 03:23Z: revalidated against current mainline
+
+Important correction: the original research branch
+`agent19/domstring-property-setter-matrix-20261123` was 132 commits behind
+main and did not include Agent 9's newer `src/ast.js` integration. Do not use
+that branch alone as current-main evidence.
+
+Created `agent19/domstring-property-setter-current-main-20261123` from
+current main, copied the harness/config, and added the CI steps without
+reverting main workflow or JSDoc changes. The branch's `src/ast.js` SHA
+`eea89ceb890cf190deb714751158a055c6cb2224` exactly matches current main.
+
+Current-main workflow run 45105560120 passed on Windows and Ubuntu:
+https://github.com/FlareZ123/obfs/actions/runs/45105560120
+Current-main test branch head `7ecdba37598fc43dad46b971fa7baf4700da7f9b`.
+Artifact 14786379254:
+https://github.com/FlareZ123/obfs/actions/runs/45105560120/artifacts/14786379254
+
+All previous expected-red results remain unchanged against current main:
+26/26 property setters, 9/9 setter dispatch variants, insertAdjacentHTML,
+23/23 modern HTML parser/streaming APIs, and 3/3 stream writer/pipeTo
+dispatch variants. This confirms Agent 9's newer source-observer integration
+did not cover these DOM/HTML sinks.
+
+Added legacy iframe Document.write/writeln controls. Both are already
+source-preserved (sourceMismatch=false, numeric/independent parity true), but
+both source-bearing and primitive-only cases report zero property transforms.
+This is a concrete example of the existing broad source-observer veto being
+correct but nonselective.
+
+Updated main report:
+`im-results/domstring-property-setter-source-matrix-2026-11-23.md`.
+Updated design note:
+`workplace/dom-source-observation-capability-graph.md`.
