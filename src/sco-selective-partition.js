@@ -47,6 +47,245 @@ const standardRealmGlobals=new Set([
   'WeakRef','FinalizationRegistry'
 ]);
 
+// These names have dedicated realm-specific admission checks below. All other
+// unbound identifiers are application globals until proven otherwise.
+const reviewedCrossRealmGlobals=new Set([
+  ...standardRealmGlobals,...browserOnlyRoots,'globalThis',
+  'console','fetch','Request','Worker','WebSocket','XMLHttpRequest','EventSource',
+  'BroadcastChannel','MessageChannel',
+  'setTimeout','clearTimeout','setInterval','clearInterval',
+  'setImmediate','clearImmediate','queueMicrotask',
+  'postMessage','addEventListener','removeEventListener','dispatchEvent',
+  'alert','confirm','prompt',
+  'URL','URLSearchParams','TextEncoder','TextDecoder',
+  'AbortController','AbortSignal','DOMException','crypto','performance'
+]);
+const functionScopeTypes=new Set([
+  'FunctionDeclaration','FunctionExpression','ArrowFunctionExpression'
+]);
+const classScopeTypes=new Set(['ClassDeclaration','ClassExpression']);
+
+/**
+ * Check whether an identifier is bound by a JavaScript binding pattern.
+ * Object-pattern property keys are deliberately excluded.
+ * @param {import('./ast').AstNode|null|undefined} pattern
+ * @param {string} name
+ * @returns {boolean}
+ */
+function patternBindsName(pattern,name){
+  if(!pattern)return false;
+  if(pattern.type==='Identifier')return pattern.name===name;
+  if(pattern.type==='RestElement')return patternBindsName(pattern.argument,name);
+  if(pattern.type==='AssignmentPattern')return patternBindsName(pattern.left,name);
+  if(pattern.type==='ArrayPattern')return pattern.elements.some(
+    (/** @type {import('./ast').AstNode|null} */ item)=>patternBindsName(item,name));
+  if(pattern.type==='ObjectPattern')return pattern.properties.some(
+    (/** @type {import('./ast').AstNode} */ property)=>
+      property.type==='RestElement'?patternBindsName(property.argument,name):
+        patternBindsName(property.value,name));
+  return false;
+}
+
+/**
+ * Collect the lexical bindings owned by one ESM module scope.
+ * @param {import('./ast').AstNode} program
+ * @returns {Set<string>}
+ */
+function collectModuleBindings(program){
+  const names=new Set();
+  /** @param {import('./ast').AstNode|null|undefined} pattern */
+  function addPattern(pattern){
+    if(!pattern)return;
+    if(pattern.type==='Identifier'){names.add(pattern.name);return;}
+    if(pattern.type==='RestElement'){addPattern(pattern.argument);return;}
+    if(pattern.type==='AssignmentPattern'){addPattern(pattern.left);return;}
+    if(pattern.type==='ArrayPattern'){
+      for(const item of pattern.elements)addPattern(item);
+      return;
+    }
+    if(pattern.type==='ObjectPattern'){
+      for(const property of pattern.properties){
+        addPattern(property.type==='RestElement'?property.argument:property.value);
+      }
+    }
+  }
+  for(const statement of program.body??[]){
+    if(statement.type==='ImportDeclaration'){
+      for(const specifier of statement.specifiers)addPattern(specifier.local);
+      continue;
+    }
+    const declaration=statement.type==='ExportNamedDeclaration'?
+      statement.declaration:statement;
+    if(declaration?.type==='VariableDeclaration'){
+      for(const item of declaration.declarations)addPattern(item.id);
+    }else if((declaration?.type==='FunctionDeclaration'||
+              declaration?.type==='ClassDeclaration')&&declaration.id){
+      names.add(declaration.id.name);
+    }
+    if(statement.type==='ExportDefaultDeclaration'&&
+       (statement.declaration?.type==='FunctionDeclaration'||
+        statement.declaration?.type==='ClassDeclaration')&&
+       statement.declaration.id){
+      names.add(statement.declaration.id.name);
+    }
+  }
+  return names;
+}
+
+/**
+ * Whether this identifier occurrence declares a binding rather than reading it.
+ * @param {import('./ast').AstNode} node
+ * @param {import('./ast').AstNode|null} parent
+ * @param {string|null} key
+ * @param {import('./ast').AstNode[]} ancestors
+ * @returns {boolean}
+ */
+function isBindingIdentifier(node,parent,key,ancestors){
+  if(parent?.type==='MetaProperty'||
+     parent?.type==='LabeledStatement'&&key==='label'||
+     (parent?.type==='BreakStatement'||parent?.type==='ContinueStatement')&&key==='label'||
+     parent?.type==='ExportSpecifier'&&key==='exported'||
+     parent?.type==='ExportAllDeclaration'&&key==='exported'||
+     parent?.type==='ExportSpecifier'&&key==='local'&&
+       ancestors.some(scope=>scope.type==='ExportNamedDeclaration'&&scope.source!==null))return true;
+  let child=node;
+  for(let index=ancestors.length-1;index>=0;index--){
+    const owner=ancestors[index];
+    if(owner.type==='VariableDeclarator'&&owner.id===child)return true;
+    if(functionScopeTypes.has(owner.type)&&
+       (owner.id===child||owner.params.includes(child)))return true;
+    if(classScopeTypes.has(owner.type)&&owner.id===child)return true;
+    if(owner.type==='CatchClause'&&owner.param===child)return true;
+    if(owner.type==='ImportSpecifier'&&
+       (owner.local===child||owner.imported===child))return true;
+    if((owner.type==='ImportDefaultSpecifier'||owner.type==='ImportNamespaceSpecifier')&&
+       owner.local===child)return true;
+    child=owner;
+  }
+  return false;
+}
+
+/**
+ * Collect var-declared names in a function body without crossing nested functions.
+ * @param {import('./ast').AstNode} body
+ * @returns {Set<string>}
+ */
+function collectFunctionVarBindings(body){
+  const names=new Set();
+  walk(body,(node,parent,_key,ancestors)=>{
+    if(node.type!=='VariableDeclarator'||parent?.type!=='VariableDeclaration'||
+       parent.kind!=='var'||ancestors.some(scope=>functionScopeTypes.has(scope.type)))return;
+    const add=pattern=>{
+      if(!pattern)return;
+      if(pattern.type==='Identifier'){names.add(pattern.name);return;}
+      if(pattern.type==='RestElement'){add(pattern.argument);return;}
+      if(pattern.type==='AssignmentPattern'){add(pattern.left);return;}
+      if(pattern.type==='ArrayPattern'){
+        for(const item of pattern.elements)add(item);
+      }else if(pattern.type==='ObjectPattern'){
+        for(const property of pattern.properties){
+          add(property.type==='RestElement'?property.argument:property.value);
+        }
+      }
+    };
+    add(node.id);
+  });
+  return names;
+}
+
+/** @type {WeakMap<import('./ast').AstNode,Set<string>>} */
+const functionVarBindingCache=new WeakMap();
+
+/**
+ * A unique lexical binding must be in an enclosing scope, not an unrelated
+ * sibling function or block. This deliberately rejects ambiguous name reuse.
+ * @param {string} name
+ * @param {import('./ast').AstNode[]} ancestors
+ * @param {import('./ast').AstNode} root
+ * @returns {boolean}
+ */
+function hasEnclosingLexicalBinding(name,ancestors,root){
+  for(const scope of ancestors){
+    if(functionScopeTypes.has(scope.type)){
+      if(scope.id?.type==='Identifier'&&scope.id.name===name||
+         scope.params.some(parameter=>patternBindsName(parameter,name)))return true;
+    }
+    if(classScopeTypes.has(scope.type)&&scope.id?.type==='Identifier'&&
+       scope.id.name===name)return true;
+    if(scope.type==='BlockStatement'||scope.type==='Program'){
+      for(const statement of scope.body){
+        const declaration=statement.type==='ExportNamedDeclaration'?
+          statement.declaration:statement;
+        if((declaration?.type==='FunctionDeclaration'||
+            declaration?.type==='ClassDeclaration')&&
+           declaration.id?.type==='Identifier'&&declaration.id.name===name)return true;
+        if(declaration?.type==='VariableDeclaration'&&
+           declaration.declarations.some(item=>patternBindsName(item.id,name)))return true;
+      }
+    }
+    if(scope.type==='CatchClause'&&patternBindsName(scope.param,name))return true;
+    if(scope.type==='ForStatement'&&scope.init?.type==='VariableDeclaration'&&
+       scope.init.declarations.some(item=>patternBindsName(item.id,name)))return true;
+    if((scope.type==='ForInStatement'||scope.type==='ForOfStatement')&&
+       scope.left?.type==='VariableDeclaration'&&ancestors.includes(scope.body)&&
+       scope.left.declarations.some(item=>patternBindsName(item.id,name)))return true;
+    if(scope.type==='SwitchStatement'&&!ancestors.includes(scope.discriminant)&&
+       scope.cases.some(item=>item.consequent.some(statement=>{
+         const declaration=statement.type==='ExportNamedDeclaration'?
+           statement.declaration:statement;
+         return declaration?.type==='VariableDeclaration'&&
+           declaration.declarations.some(binding=>patternBindsName(binding.id,name))||
+           (declaration?.type==='FunctionDeclaration'||
+            declaration?.type==='ClassDeclaration')&&
+             declaration.id?.type==='Identifier'&&declaration.id.name===name;
+       })))return true;
+  }
+  const bodies=[];
+  if(root.type==='BlockStatement')bodies.push(root);
+  for(const scope of ancestors){
+    if(functionScopeTypes.has(scope.type)&&scope.body?.type==='BlockStatement'){
+      bodies.push(scope.body);
+    }
+  }
+  for(const body of bodies){
+    let names=functionVarBindingCache.get(body);
+    if(!names){names=collectFunctionVarBindings(body);functionVarBindingCache.set(body,names);}
+    if(names.has(name))return true;
+  }
+  return false;
+}
+
+/**
+ * Reject unresolved free identifiers whose values may come from the client
+ * global environment. Known globals are admitted only so their narrower,
+ * dedicated semantic guards can decide whether their particular use is safe.
+ * @param {import('./ast').AstNode} root
+ * @param {Map<string,number>} bindings
+ * @param {Set<string>} moduleBindings
+ * @param {Set<string>} rootFormals
+ * @returns {string|null}
+ */
+function firstUnprovedFreeIdentifierReference(root,bindings,moduleBindings,rootFormals){
+  /** @type {string|null} */
+  let unproved=null;
+  walk(root,(node,parent,key,ancestors)=>{
+    if(unproved!==null||node.type!=='Identifier'||isStaticKey(parent,key)||
+       isBindingIdentifier(node,parent,key,ancestors))return;
+    const name=node.name;
+    const bindingCount=bindings.get(name)??0;
+    if(bindingCount===0){
+      if(reviewedCrossRealmGlobals.has(name))return;
+      unproved=name;
+      return;
+    }
+    if(bindingCount!==1){unproved=name;return;}
+    if(moduleBindings.has(name)||rootFormals.has(name))return;
+    if(hasEnclosingLexicalBinding(name,ancestors,root))return;
+    unproved=name;
+  });
+  return unproved;
+}
+
 /**
  * Whether an AST literal is an owned primitive whose typeof result does not
  * depend on a host global. RegExp syntax carries an object, so exclude it.
@@ -1320,6 +1559,7 @@ function collectPrivateStaticImportClosure(directPaths,sources) {
     // when its spelling matches a browser global. Nested same-name bindings
     // stay unproved: syntax-only name resolution cannot safely unify them.
     const localBindings=collectBindings(ast);
+    const moduleBindings=collectModuleBindings(ast);
     const provenModuleOwnedBrowserNames=new Set();
     const provenModuleTypeofNames=new Set();
     for(const statement of ast.body){
@@ -1398,6 +1638,12 @@ function collectPrivateStaticImportClosure(directPaths,sources) {
     if(freeTypeof!==null){
       throw new TypeError('SCO private static dependency has unproved free typeof reference: '+
         filename+':'+freeTypeof);
+    }
+    const freeGlobal=firstUnprovedFreeIdentifierReference(
+      ast,localBindings,moduleBindings,new Set());
+    if(freeGlobal!==null){
+      throw new TypeError('SCO private static dependency has unproved free host-global reference: '+
+        filename+':'+freeGlobal);
     }
     walk(ast,node=>{
       // Destructuring can carry process.getBuiltinModule or a global root
@@ -2047,6 +2293,7 @@ function partitionScoSelectedAsyncExports(file,options) {
   // same ambient root is consumed on both sides of the partition.
   const sharedAmbient=privateAmbient.size>0&&publicAmbient.size>0;
   const allPrivateBindings=collectBindings(ast);
+  const moduleBindings=collectModuleBindings(ast);
   // Server imports and primitive constants were already admitted as explicit
   // immutable private bindings. Exempt only globally unique lexical names;
   // a shadowed formal or nested declaration cannot inherit their provenance.
@@ -2172,6 +2419,11 @@ function partitionScoSelectedAsyncExports(file,options) {
       serverConstants,privateFormals.get(body)??new Set());
     if(freeTypeof!==null){
       throw new TypeError('Private SCO export or helper uses unproved free typeof reference: '+freeTypeof);
+    }
+    const freeGlobal=firstUnprovedFreeIdentifierReference(
+      body,allPrivateBindings,moduleBindings,privateFormals.get(body)??new Set());
+    if(freeGlobal!==null){
+      throw new TypeError('Private SCO export or helper uses unproved free host-global reference: '+freeGlobal);
     }
   }
   // Global roots can alias across spellings, e.g. window versus globalThis.
