@@ -4,6 +4,10 @@ const {test}=require('node:test');
 const assert=require('node:assert/strict');
 const {invertBoundedDegree,trainBoundedDegreeInverse,parity}=
   require('../sims/two-sided-affine-degree-inversion');
+const {learnBoundedDegreeOracle}=
+  require('../sims/bounded-degree-oracle-functional-clone');
+const {invertQuadraticAffineTriangularModel}=
+  require('../sims/quadratic-affine-triangular-inverse');
 const {makeDenseOracle,makeSparseWitness,makeUnstructuredOracle}=
   require('../sims/affine-flag-oracle-fixtures');
 
@@ -229,6 +233,87 @@ test('offline polynomial cloning also supports an independent degree-three wrapp
     assert.equal(recovered?.input,original);
     assert.equal(online,1351,'All inverse work remains in the learned offline model');
   }
+});
+
+
+test('quadratic polar transport needs exactly one local model evaluation per offline inverse',()=>{
+  let observed=0,queries=0,fastModelEvaluations=0,oldModelEvaluations=0;
+  for(const [n,seeds,perSource] of [[8,20,256],[16,25,25],[24,25,25],[32,25,25]]) {
+    for(let seed=0;seed<seeds;seed++) {
+      const next=rng((0xed10a1bf^n^Math.imul(seed+1,0x9e3779b9))>>>0);
+      const F=createOracle(n,next,2);
+      let online=0;
+      const model=learnBoundedDegreeOracle(input=>{online++;return F(input);},n,2);
+      const expected=1+n+n*(n-1)/2;
+      assert.equal(online,expected,'Exactly M(n,2) original query calls');
+      queries+=online;
+      for(let targetId=0;targetId<perSource;targetId++) {
+        const input=n===8?targetId:(next()&wordMask(n))>>>0;
+        const requested=F(input);
+        const fast=invertQuadraticAffineTriangularModel(model,requested);
+        assert.equal(fast?.input,input,'Polar transport must invert hidden affine sandwich');
+        assert.equal(fast?.localModelEvaluations,1);
+        assert.ok(fast&&fast.linearSystemsSolved>=n);
+        fastModelEvaluations+=fast.localModelEvaluations;
+        if(targetId===0) {
+          // Compare to independently implemented subset-Mobius method.
+          const old=invertBoundedDegree(
+            x=>{
+              let value=0;
+              for(const [mask,coefficient] of model.coefficients) {
+                if(((x&mask)>>>0)===mask)value^=coefficient;
+              }
+              return value>>>0;
+            },requested,n,2
+          );
+          assert.equal(old?.input,input);
+          assert.ok(old);
+          oldModelEvaluations+=old.queries;
+        }
+        assert.equal(online,expected,'Inversion must not call protected online oracle');
+        observed++;
+      }
+    }
+  }
+  assert.equal(fastModelEvaluations,observed);
+  assert.ok(oldModelEvaluations>fastModelEvaluations);
+  console.log('QUADRATIC_POLAR_TRANSPORT '+JSON.stringify({
+    sources:95,preimages:observed,onlineQueries:queries,
+    localPolynomialEvaluations:fastModelEvaluations,
+    oldOnlineAlgorithmSampledLocalEvaluations:oldModelEvaluations
+  }));
+});
+
+test('quadratic affine-coset inversion refuses nonpermutations and malformed models',()=>{
+  const model=learnBoundedDegreeOracle(input=>((input&3)===3?1:0),8,2);
+  assert.equal(invertQuadraticAffineTriangularModel(model,1),null);
+  assert.throws(
+    ()=>invertQuadraticAffineTriangularModel({...model,degree:3},1),
+    /quadratic ANF model/
+  );
+  assert.throws(
+    ()=>invertQuadraticAffineTriangularModel(model,256),
+    /unsigned word/
+  );
+  const duplicate={
+    ...model,coefficients:model.coefficients.map(([mask,value],i)=>
+      /** @type {[number,number]} */([i===1?0:mask,value]))
+  };
+  assert.throws(()=>invertQuadraticAffineTriangularModel(duplicate,0),/duplicate/);
+});
+
+test('false quadratic degree premise can yield a wrong source preimage after honest offline model check',()=>{
+  const bits=8,gateBit=7,prefix=127,hi=(1<<gateBit);
+  /** @param {number} input @returns {number} */
+  const actual=input=>
+    ((input&127)===prefix?input^hi:input)>>>0;
+  const model=learnBoundedDegreeOracle(actual,bits,2);
+  const target=actual(255);
+  const recovered=invertQuadraticAffineTriangularModel(model,target);
+  assert.equal(recovered?.input,127,
+    'A low-weight source-model learner cannot detect an unseen rare gate');
+  assert.notEqual(actual(recovered.input),target,
+    'Source oracle equality MUST be checked before any unconditional claim');
 });
 
 test('rejects unsupported oracle, width, degree and budget',()=>{
