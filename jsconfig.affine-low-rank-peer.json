@@ -46,6 +46,7 @@
     "sims/sco-rank6-adaptive-real-http-clone.js",
     "sims/vector-top-tensor-quotient-peer.js",
     "sims/rankfive-top-quartic-functional-clone.js",
+    "sims/rankfive-top-quartic-silent-rank-control.js",
     "sims/rankfive-top-quintic-functional-clone-peer.js",
     "sims/rankfive-top-quintic-validated-peer.js",
     "sims/projected-affine-coset-profile-clone.js",
