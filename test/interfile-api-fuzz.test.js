@@ -11,5 +11,6 @@ test('260 native ESM graphs retain behavior across sync/async forwarding, reflec
   assert.equal(result.negative,220);
   assert.equal(result.parityOnly,20);
   assert.ok(result.positiveProperties>=40);
+  assert.equal(result.settledAsync,40);
   assert.equal(result.nativeEqual,true);
 });
