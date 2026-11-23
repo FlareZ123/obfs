@@ -18,20 +18,20 @@ The private ESM export `protectedCubic` is a 32-bit permutation. Its four parity
 - `0x0000f0f0`
 - `0x00033333`
 
-Their binary rank is four. Let their parity outputs be (z_0,z_1,z_2,z_3). The function applies an invertible linear mixing to the low 20 input bits, leaves the high 12 affine coordinates unchanged, adds a fixed offset, and applies these nonlinear corrections to high output bits:
+Their binary rank is four. Let their parity outputs be \(z_0,z_1,z_2,z_3\). The function applies an invertible linear mixing to the low 20 input bits, leaves the high 12 affine coordinates unchanged, adds a fixed offset, and applies these nonlinear corrections to high output bits:
 
-- bit 28: (z_0z_3)
-- bit 29: (z_1z_3)
-- bit 30: (z_0z_1z_2)
-- bit 31: (z_1z_2z_3)
+- bit 28: \(z_0 z_3\)
+- bit 29: \(z_1 z_3\)
+- bit 30: \(z_0 z_1 z_2\)
+- bit 31: \(z_1 z_2 z_3\)
 
 The low-20 mixing is a composition of invertible triangular shears. All four parity masks depend only on the low 20 input bits, while nonlinear corrections affect only the high 12 output bits. Thus the map is triangular: recover the low 20 input bits from the low 20 output bits, then recover the high 12 bits after recomputing the corrections. The source is therefore a permutation, not a non-injective lookup-table example.
 
-The top cubic tensor on the four-dimensional projection space has joint radical ({0}), so its joint-radical codimension is four. The top tensor is \(e_{30}z_0z_1z_2+e_{31}z_1z_2z_3\); the two scalar-form radicals are \(\\langle e_3\\rangle\) and \(\\langle e_0\\rangle\), whose intersection is zero. Thus the vector-valued joint-radical codimension is four. The script independently checks projection-mask rank four and top-projection radical size one.
+The top cubic tensor on the four-dimensional projection space is \(e_{30} z_0 z_1 z_2 + e_{31} z_1 z_2 z_3\). The two scalar-form radicals are \(\langle e_3\rangle\) and \(\langle e_0\rangle\); their intersection is \(\{0\}\), so the vector-valued joint-radical codimension is four. The script independently checks projection-mask rank four and top-projection radical size one.
 
 ## Experiment
 
-The attack uses `cloneProjectedCubicValidated` with (delta=10^{-10}), independent witness and verifier CSPRNG tapes, and an asynchronous replay adapter that turns each missing synchronous oracle value into one authenticated HTTP RPC.
+The attack uses `cloneProjectedCubicValidated` with \(\delta=10^{-10}\), independent witness and verifier CSPRNG tapes, and an asynchronous replay adapter that turns each missing synchronous oracle value into one authenticated HTTP RPC.
 
 Two arms run the same source and JSON RPC contract:
 
