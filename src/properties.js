@@ -372,10 +372,11 @@ function collectOwnedConstantKeys(ast,rootName,bindings,scopes) {
  * @param {Map<string,string>} [importedSourceKeys] Verified string imports used only to detect source observation; this may include keys unrelated to the owner's fields.
  * @param {Set<string>} [importedPrimitives] Verified immutable primitive results from the exact ESM graph.
  * @param {boolean} [allowDirectReflection] Allow a closed-world caller to rewrite a narrowly proved direct reflective key.
+ * @param {Set<string>} [knownObjectBindings] Require() bindings proven as inert objects by the closed-world CommonJS graph.
  * @returns {{aliases:Set<string>,members:AstNode[],memberNames:Map<AstNode,string>,patterns:AstNode[],patternNames:Map<AstNode,string>,inChecks:AstNode[],reflections:{call:AstNode,key:AstNode,property:string}[],forwardedCalls:Set<AstNode>}|null}
  */
-function proveLocalObject(ast, rootName, bindings, importedIdentityFunctions=new Map(), importedConsumers=new Map(), importedConstantKeys=new Map(), importedSourceKeys=importedConstantKeys, importedPrimitives=new Set(), allowDirectReflection=false) {
-  if(observesFunctionSource(ast,importedSourceKeys,new Set(),new Set(),importedPrimitives)) return null;
+function proveLocalObject(ast, rootName, bindings, importedIdentityFunctions=new Map(), importedConsumers=new Map(), importedConstantKeys=new Map(), importedSourceKeys=importedConstantKeys, importedPrimitives=new Set(), allowDirectReflection=false, knownObjectBindings=new Set()) {
+  if(observesFunctionSource(ast,importedSourceKeys,new Set(),new Set(),importedPrimitives,new Set(),knownObjectBindings)) return null;
   /** @type {Map<string,{node:AstNode,params:AstNode[],forwardIndex:number,returnsRoot?:boolean,external?:boolean,consumerIndex?:number}>} */
   const functions = new Map();
   const {calls,declarationSet,identifiers,identifierUses,parents,dynamicScope,
