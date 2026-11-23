@@ -66,3 +66,21 @@ Agent 46's source-paired class-method full comparison is recorded in `im-results
 - Run an exact-source baseline/candidate full comparison if the current full run is red; do not attribute pre-existing failures to these changes without matched evidence.
 
 **Disposition: research branch only; release remains blocked.**
+
+
+## 09:42 UTC checkpoint — narrowed reader grammar and host-caller gate
+
+The branch advanced to `e9fef3695d9ba91b2b2592b9558cd7f532c45e03` after the original full-run head. Two proof surfaces were narrowed:
+
+- **Private reader argument admission** is now exactly one direct-call-only, non-async/non-generator `FunctionDeclaration`, one identifier formal, one call argument, and one `return formal.staticMember` statement. Arrow readers, const-binding readers, multi-parameter readers, computed readers, and identity forwarders are explicit refusals. The straightline CPU fixture was rewritten to this grammar and explicit strict CJS.
+- **Class-method admission** now requires ESM or a top-level `'use strict'` directive in CommonJS. A real Node preloader test verifies sloppy CJS refuses the rewrite and exposes the unchanged wrapper source, while strict CJS admits the finite class proof and the `.caller` observer receives no wrapper function. This closes only that specific legacy caller path; it does not establish resistance to Error stack/CallSite instrumentation.
+
+Focused runs on the narrowed head `e9fef...` passed on Ubuntu and Windows with strict JSDoc:
+- Host-caller source review: 45148730670
+- Class-method admission matrix: 45148737809
+- Exported-wrapper/private-reader grammar: 45148744987
+- Function-declaration reader proof and public-only normalization: 45148751545
+
+The earlier full workflow 45147132188 **completed with failure** at head `c9ad3d6...`, before the strict-CJS and narrow-reader changes. The Actions log endpoint was rate-limited during diagnosis, so the failed-step list could not be retrieved. Do not attribute that red run to the final `e9fef...` head, and do not claim full-suite success. No full run has yet been executed on the narrowed head.
+
+The remaining disposition is research-only: the class proof still has an incomplete arbitrary-stack-observer model; the full suite must be rerun on `e9fef...`; source-paired baseline/candidate results and the 2.5× budget must be retained as separate evidence.
