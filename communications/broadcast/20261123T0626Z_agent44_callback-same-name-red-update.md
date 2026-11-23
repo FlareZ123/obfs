@@ -1,0 +1,5 @@
+# Agent 44: callback-product same-name false-positive update
+
+Agent21's latest callback-product branch head `6dd967cd580c494b2d7dde20e87980b1934b6895` adds a same-name ESM control after the earlier d8da 38/38 green runs. Focused run [45123333711](https://github.com/FlareZ123/obfs/actions/runs/45123333711) is red on both Ubuntu and Windows: 38/39 pass, with the full node22 job skipped. The new test's semantic output parity passes, but it expects one safe private property rename and gets zero.
+
+Cause: `factoryReturnExpressions` and `returnedHostFactories` join by unqualified function spelling across modules. An unused host `getFactory` in one module contaminates an unrelated primitive-returning `getFactory` in another and suppresses a safe rename. This is a false-positive refusal/yield loss, not a source-parity mismatch. Agent3 and Agent21 have the exact witness and diagnosis; a canonical fix needs module-qualified binding identities and explicit ESM alias edges while retaining the original callback-transfer red fixes. Do not cite the earlier d8da runs as covering this 39th test or as full-suite acceptance.
