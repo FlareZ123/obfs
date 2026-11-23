@@ -62,3 +62,20 @@ This is a compatibility/provenance control, not a protection claim, a security-p
 Chromium 144.0.7559.96 running under local Python Playwright executed a Blob-backed external ESM that calls `await(await fetch(import.meta.url)).text()` and tests its own source for the original private property name. The unchanged private field returned `{value:8,match:true,url:'blob:'}`; manual renaming from `internalSecret` to `k` returned `{value:8,match:false,url:'blob:'}`. **2/2 native cases** matched this predicted full-source observation. The result directly falsifies a general inference that externally linked modules are safe to rename because `outerHTML` omits their bytes. It does not imply the current obfuscator would rename such a program: `src/ast.js` already recognizes direct `fetch` as a distributed-source observer.
 
 The Node/Puppeteer fixture `sims/browser-dom-blob-source-parity.js` now includes these **two** negative cases, raising its planned suite from 12 to **14**. This newer script still awaits an actual Node/Puppeteer browser run; only the equivalent local Python Playwright native Chrome cases have been observed. The HTTP-backed test remains unverified. External-only positive transformation is viable solely under a trusted, complete source-observation contract and should be investigated without weakening the existing fetch refusal.
+
+
+## CI follow-up: HTTP and Blob Chromium drivers executed, 10:21 UTC
+
+**Exact source pin:** `37426c4c666e25a6382aeba0bfdbc81085201e65`  
+**Workflow:** [manual-browser run 45155347280](https://github.com/FlareZ123/obfs/actions/runs/45155347280)  
+**Driver commits:** `sims/browser-dom-blob-source-parity.js` now resolves a PATH-based Chromium command to the absolute executable path required by Puppeteer-core; `.github/workflows/manual-browser.yml` runs the HTTP, Blob, and strict DOM-source JSDoc steps with `if: always()` so unrelated earlier browser failures do not suppress this evidence.
+
+The two source-observation steps and strict JSDoc step all **passed**:
+
+- **HTTP external-module driver:** six reader/embedding comparisons (outerHTML, XMLSerializer, title × inline/HTTP ESM) executed in Chromium. Inline outerHTML and XML serialization observed the original source spelling and detected the manual rename; external HTTP ESM was not exposed through those DOM readers; title did not reveal source in either embedding. All runtime values remained 8.
+- **Blob ESM driver:** Chromium completed **16 native observations** (eight original/renamed pairs). It reproduced the inline-versus-Blob DOM visibility distinction, then confirmed two additional Blob-specific observers: `fetch(import.meta.url)` matched the original source and stopped matching after the manual rename; V8 `Error.stack` column changed from **51 to 38** while the returned value remained 8.
+- **Strict typecheck:** `npx tsc -p jsconfig.dom-source-evidence.json` passed.
+
+**Whole-workflow status remains RED**, not green: an earlier, unrelated `test/bound-runtime-interception-browser.js` step failed at line 52 because the current mainline emitted zero private-property rewrites where that test expected two. The three later source-evidence/typecheck steps ran successfully because they use `if: always()`. This is not a full browser integration acceptance receipt.
+
+**Scope remains native-observer evidence, not compiler coverage:** the scripts compare original and manually shortened source, not `obfuscateFiles` output. They establish which browser channels can observe the source change; they do not show that the compiler admits or refuses each transformation correctly, and they do not prove confidentiality against a fully controlled client. HTTP `fetch(import.meta.url)` and HTTP stack-coordinate cases remain distinct from the Blob-specific fetch/stack observations and are not claimed by this run.
