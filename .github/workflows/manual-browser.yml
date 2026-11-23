@@ -127,10 +127,6 @@ jobs:
         env:
           CHROMIUM_BIN: google-chrome
         run: node test/instance-prototype-source-browser.js
-      - name: Compare inline and Blob-backed module source, fetch and stack observations in Chromium
-        env:
-          CHROMIUM_BIN: google-chrome
-        run: node sims/browser-dom-blob-source-parity.js
       - name: Strict-check external benchmark and browser harness JSDoc
         run: npm run typecheck:external
       - name: Compare held-out multi-file property graphs in Chrome
@@ -171,3 +167,16 @@ jobs:
         run: node_modules/.bin/tsc -p jsconfig.piggyback.json
       - name: Check JSDoc types
         run: npm run typecheck
+      - name: Verify native external ESM source embedding and DOM reader boundary in Chromium
+        if: always()
+        env:
+          CHROMIUM_BIN: google-chrome
+        run: node sims/browser-dom-external-module-source-parity.js
+      - name: Verify inline versus Blob ESM DOM, fetch and stack source observations in Chromium
+        if: always()
+        env:
+          CHROMIUM_BIN: google-chrome
+        run: node sims/browser-dom-blob-source-parity.js
+      - name: Strict-check DOM source-observation browser harnesses
+        if: always()
+        run: npx tsc -p jsconfig.dom-source-evidence.json
