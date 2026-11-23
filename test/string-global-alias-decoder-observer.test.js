@@ -72,9 +72,22 @@ for(const mode of /** @type {const} */ (['coo','sno'])){
       const originalValue=evaluate(native);
       const compiledValue=evaluate(emitted);
       const count=result.files.reduce((sum,file)=>sum+file.metrics.literals,0);
+      const targetLiterals=result.files.find(file=>file.path==='target.cjs')?.metrics.literals;
       assert.equal(compiledValue,originalValue,
         'String decoder changed output after intrinsic mutation; encoded literals='+count+
         '; emitted target='+emitted['target.cjs']);
+      assert.equal(targetLiterals,0,
+        'A later-target decoder must refuse after earlier intrinsic mutation');
     });
   }
 }
+
+test('CJS baseline without intrinsic mutation retains useful string encoding',()=>{
+  const native={'entry.cjs':entry,'poison.cjs':'module.exports=1;','target.cjs':target};
+  const result=compile('coo',native['poison.cjs']);
+  const metrics=result.files.find(file=>file.path==='target.cjs')?.metrics;
+  assert.ok(metrics&&metrics.literals>0,
+    'The static group should still encode a private ordinary literal');
+  const output=Object.fromEntries(result.files.map(file=>[file.path,String(file.code)]));
+  assert.equal(evaluate(output),evaluate(native));
+});
