@@ -170,6 +170,33 @@ def fixture(n,seed):
             'output':[[rng.randrange(2) for _ in (0,1)] for _ in range(n)]}
 
 
+def observable_states(private):
+    """Independently count reachable future-distinct states in the hidden fixture."""
+    transitions=private['next']
+    outputs=private['output']
+    n=len(transitions)
+    reached={0}
+    frontier=[0]
+    for state in frontier:
+        for successor in transitions[state]:
+            if successor not in reached:
+                reached.add(successor)
+                frontier.append(successor)
+    signatures=[tuple(outputs[state]) for state in range(n)]
+    classes={signature:i for i,signature in enumerate(sorted(set(signatures)))}
+    colors=[classes[signature] for signature in signatures]
+    for _ in range(n):
+        signatures=[(outputs[state][0],outputs[state][1],
+                     colors[transitions[state][0]],colors[transitions[state][1]])
+                    for state in range(n)]
+        classes={signature:i for i,signature in enumerate(sorted(set(signatures)))}
+        refined=[classes[signature] for signature in signatures]
+        if len(set(refined))==len(set(colors)):
+            break
+        colors=refined
+    return len(reached),len({colors[state] for state in reached})
+
+
 def evaluate(private,n,policy='full'):
     state=[0]
     step_count=[0]
@@ -185,6 +212,7 @@ def evaluate(private,n,policy='full'):
 
     result=learn(step,n,max_queries=100,max_solves=100,timeout_ms=3000,policy=policy)
     assert step_count[0]==result['queries']
+    result['reachable_states'],result['observable_states']=observable_states(private)
     clone=result.pop('clone',None)
     if clone is not None:
         truth={'next':private['next'],'output':private['output'],'state':state[0]}
