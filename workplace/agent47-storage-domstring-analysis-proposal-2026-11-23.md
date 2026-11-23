@@ -5,7 +5,7 @@
 
 ## Why this needs a separate model
 
-The [HTML Web Storage definition](https://html.spec.whatwg.org/multipage/webstorage.html#the-storage-interface) declares `setter undefined setItem(DOMString key, DOMString value)`. That is both the explicit `storage.setItem(key, value)` operation and the Storage named-property setter used by `storage[key] = value`; the Web IDL special-operation rules pass the property name as the first argument and the assigned value as the second. Each argument is converted to `DOMString` by Web IDL's [ECMAScript-to-DOMString conversion](https://webidl.spec.whatwg.org/#es-DOMString), which invokes ECMAScript `ToString` and therefore the object's `ToPrimitive` path. A function can be stringified in either argument position or through the named-property assignment form.
+The [HTML Web Storage definition](https://html.spec.whatwg.org/multipage/webstorage.html#the-storage-interface) declares `setter undefined setItem(DOMString key, DOMString value)`. For an explicit `storage.setItem(key, value)` call, Web IDL converts both JavaScript arguments to `DOMString`, invoking `ToString` and the object's `ToPrimitive` path. For `storage[key] = value`, JavaScript first applies `ToPropertyKey` to the computed key; if the Storage named-property setter is reached, Web IDL passes that already-string property name as the first operation argument and converts the assigned value to the second argument's `DOMString` type. A function can therefore be stringified through the explicit method's key/value conversions, through computed-key `ToPropertyKey`, or through the named setter's assigned-value conversion.
 
 The current evidence is deliberately split across dispatch shapes:
 
@@ -22,9 +22,9 @@ The current evidence is deliberately split across dispatch shapes:
 
 These rows are not interchangeable. The named-property assignment is a distinct syntax for the same IDL setter, not a generic JavaScript property write. A method-name-only `.setItem` veto would wrongly treat JavaScript overrides as native Web IDL dispatch, while a blanket computed-property veto loses safe `Symbol.toPrimitive` yield.
 
-**Important dispatch distinction (spec-derived; browser control pending):** `storage[key] = value` does not necessarily perform a JavaScript property lookup of `storage.setItem`. Web IDL's legacy-platform-object `[[Set]]` algorithm invokes the named-property setter, and the named-property-setter invocation algorithm performs the declared IDL operation's method steps directly with the property name and assigned value. The Storage IDL declares that setter as `setter undefined setItem(DOMString key, DOMString value)`. Therefore the named-property assignment must be modeled as its own internal dispatch identity; do not assume that replacing `Storage.prototype.setItem` or an own `storage.setItem` property intercepts it. This prediction follows from the [HTML Storage IDL](https://html.spec.whatwg.org/multipage/webstorage.html#the-storage-interface) and [Web IDL's named-property and legacy-platform-object algorithms](https://webidl.spec.whatwg.org/). The prototype/own-property interaction is now browser-verified by the probe recorded below.
+**Important dispatch distinction (spec-derived and browser-verified):** `storage[key] = value` does not perform a JavaScript property lookup of `storage.setItem`. Web IDL's legacy-platform-object `[[Set]]` algorithm invokes the named-property setter; the named-setter algorithm passes the already-string property name as the first operation argument and converts the assigned value to the second argument's `DOMString` type before performing the IDL method steps. The Storage IDL declares that setter as `setter undefined setItem(DOMString key, DOMString value)`. Model this as its own internal dispatch identity; replacing `Storage.prototype.setItem` or an own `storage.setItem` property does not intercept it. This follows from the [HTML Storage IDL](https://html.spec.whatwg.org/multipage/webstorage.html#the-storage-interface) and [Web IDL's named-property and legacy-platform-object algorithms](https://webidl.spec.whatwg.org/), and is confirmed by the Chromium probe below.
 
-**Do not conflate the two coercions on the left-hand side:** for `storage[inspect] = value`, JavaScript first applies `ToPropertyKey` to the computed key expression. The current generic scanner already marks syntactically tracked function-valued computed member keys as source-observing (`src/ast.js:1759-1761, 2876-2882)); that is a separate ECMAScript effect and may incur the existing whole-file veto. The new named-setter probe uses a string key deliberately, isolating the *assigned value*'s Web IDL `DOMString` conversion. The named setter receives the property name as a string and converts the assigned value independently.
+**Do not conflate the two coercions on the left-hand side:** for `storage[inspect] = value`, JavaScript first applies `ToPropertyKey` to the computed key expression. The current generic scanner already marks syntactically tracked function-valued computed member keys as source-observing (`src/ast.js:1759-1761, 2876-2882); that is a separate ECMAScript effect and may incur the existing whole-file veto. The new named-setter probe uses a string key deliberately, isolating the *assigned value*'s Web IDL `DOMString` conversion. The named setter receives the property name as a string and converts the assigned value independently.
 
 **Chromium confirmation:** test-only branch `agent47/storage-named-setter-dispatch-20261123`, source commit `df2b1e1b5b1a1889ff91d912b4c1ce8264629394`, manual browser run [45229225022](https://github.com/FlareZ123/obfs/actions/runs/45229225022), Storage step 6. All assertions passed: the baseline native method and named setter both stored the function's native source; replacing `Storage.prototype.setItem` intercepted an explicit method call but did not intercept `storage[key] = inspect`; defining an own `localStorage.setItem` override likewise intercepted the explicit call but not the named-property assignment. Each JavaScript wrapper was called exactly once, while both named assignments still stored the native function source. This confirms the spec-derived separate-dispatch prediction in Chromium 157. This is a focused-step receipt only; the containing full browser workflow was still running when this note was written.
 
@@ -41,22 +41,20 @@ Resolve the actual receiver of the call:
 
 Do not use identifier spelling as proof. A same-spelled parameter named `localStorage` is not the browser global.
 
-### 2. Effective callable identity
+### 2. Effective dispatch identity
 
-Resolve the effective `setItem` property or named-property setter at the call site, including:
-- inherited native `Storage.prototype.setItem`;
-- a previously captured native method alias;
-- an own instance override;
-- a replaced `Storage.prototype.setItem`;
-- a wrapper reached through `.call`, `.apply`, `Reflect.apply`, or `bind`;
-- the named-property form `storage[key] = value`, which invokes the same native setter with the property key and assigned value as its two DOMString arguments;
-- unknown/proxy/accessor cases.
+Keep two separate resolution paths:
 
-The method's name is not sufficient. A captured native alias remains native after a prototype replacement; a JavaScript override is not the Web IDL native operation.
+- **Explicit method call:** resolve the effective JavaScript `setItem` property on the proven Storage receiver. Distinguish inherited native method, previously captured native alias, own instance override, replaced prototype method, and wrappers reached through `.call`, `.apply`, `Reflect.apply`, or `bind`.
+- **Named-property assignment:** resolve the receiver's internal legacy-platform-object `[[Set]]` and Storage named-property setter. This is not a lookup of the JavaScript `setItem` property; the browser probe confirms own/prototype method replacements do not intercept it. A Proxy receiver or an explicit `Reflect.set` receiver different from the Storage object must remain Unknown until modeled.
+
+The method's name is not sufficient. A captured native alias remains native after a prototype replacement; a JavaScript override is not the native method. Conversely, the named setter is an internal IDL dispatch even when the visible method property is replaced.
 
 ### 3. Argument-specific conversion
 
-Only after proving the effective callable is native `Storage.setItem`, apply DOMString conversion to both arguments independently.
+For an explicit method call, only after proving the effective callable is native `Storage.setItem`, apply Web IDL `DOMString` conversion to both arguments independently.
+
+For named-property assignment, analyze the computed property expression's ECMAScript `ToPropertyKey` conversion separately. A function-valued key can expose source before the Storage setter runs; a Symbol result does not enter the named-property setter path. Once a proven Storage named setter is reached, the property name is already a JavaScript string and the assigned value alone undergoes the second argument's Web IDL `DOMString` conversion. Reflective `[[Set]]` / `[[DefineOwnProperty]]` entry points such as `Reflect.set`, `Object.assign`, or `Object.defineProperty` remain separate controls unless their exact receiver and internal dispatch are proven.
 
 For each value, compute the string-hint conversion path:
 
@@ -93,35 +91,35 @@ This is a proposed data shape, not an existing API or implementation.
 
 ```text
 analyzeStorageSink(sink):
-  if sink is a direct call:
-    receiver = resolveReceiver(sink.callee.object)
-    callable = resolveEffectiveProperty(receiver, "setItem")
-    arguments = [sink.key, sink.value]
-  else if sink is a named-property assignment:
-    receiver = resolveReceiver(sink.left.object)
-    callable = resolveEffectiveNamedPropertySetter(receiver)
-    arguments = [sink.left.property, sink.right]
-  else:
+  if sink is a direct setItem call:
+    receiver = resolveStorageReceiver(sink.callee.object)
+    dispatch = resolveEffectiveJSMethod(receiver, "setItem")
+    if dispatch is a JS override:
+      analyze wrapper body, arguments, and escapes
+      return
+    if dispatch is not proven native Storage.setItem:
+      return UnknownHostEffect
+    analyzeToString(sink.key, hint="string", realm=receiver.realm)
+    analyzeToString(sink.value, hint="string", realm=receiver.realm)
     return
 
-
-  if callable is proven JS override:
-    analyze wrapper body and argument escape
-    do not apply native DOMString conversion
+  if sink is a named-property assignment:
+    receiver = resolveLegacyPlatformObject(sink.left.object)
+    key = analyzeToPropertyKey(sink.left.property)
+    if key is a Symbol:
+      analyze ordinary JS property-set semantics; no Storage named setter
+      return
+    if key is not proven a String or receiver is not proven Storage:
+      return UnknownHostEffect
+    dispatch = resolveInternalStorageNamedPropertySetter(receiver)
+    if dispatch is not the native Storage named setter:
+      return UnknownHostEffect
+    // The property name is already a String; only the assigned value
+    // undergoes Web IDL DOMString conversion at this boundary.
+    analyzeToString(sink.right, hint="string", realm=receiver.realm)
     return
 
-  if callable is not proven native Storage.setItem:
-    return UnknownHostEffect
-
-  for argument in arguments:
-    path = analyzeToString(argument, hint="string", realm=receiver.realm)
-
-    if path reaches pristine Function.prototype.toString:
-      record FunctionSourceObservation(path.callable, path)
-    else if path is proven to return an unrelated primitive:
-      record no function-source effect
-    else:
-      record UnknownHostEffect
+  return
 ```
 
 The actual implementation must also track captured aliases and invocation forms, not only direct member calls.
