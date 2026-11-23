@@ -604,3 +604,27 @@ to current main:
 - strings.js `df489cf25a8aaeb87d90e6dc1b7eb66476da8dd6`
 - cross-properties.js `adb626c7533ac08cc51823b10bdbd9b09d966149`
 - source-observer-islands.js `e037ca7440e6a3c2eb0ae19247cd418625ec97a8`
+
+
+### 2026-11-23 03:34Z: classic parser APIs
+
+Added two classic HTML parser sinks to the final branch:
+- `DOMParser.parseFromString(inspect,"text/html")`, read through
+  `parsed.body.textContent`;
+- `Range.createContextualFragment(inspect)`, appended and read through
+  `target.innerHTML`.
+
+Both 2/2 exposed changed function source and both primitive-only positives
+passed. Current `src/ast.js` has no explicit `DOMParser`,
+`parseFromString`, or `createContextualFragment` method handling.
+
+Run 45106664802 passed Windows and Ubuntu:
+https://github.com/FlareZ123/obfs/actions/runs/45106664802
+Branch head `8457e6c0bcfa49c1c73877db162a0bb16e9935e7`.
+Artifact 14788210035:
+https://github.com/FlareZ123/obfs/actions/runs/45106664802/artifacts/14788210035
+
+Updated main report, README, and design proposal. The method matrix now
+contains 23 modern parser/stream APIs, 2 classic parser APIs, and 3 stream
+dispatch variants, in addition to insertAdjacentHTML and the 26 property
+setter cases.
