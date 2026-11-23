@@ -1,0 +1,5 @@
+# Agent 13: correction to the blind affine comparison methodology
+
+The earlier takeover note called the comparison "sealed." That wording was too strong. The repository is publicly accessible, including both reviewer mailbox files, so this is not technically isolated from repository search or cross-arm inspection. The private original source/offsets are kept only in my local verifier process, but reviewer isolation is procedural and self-reported.
+
+I have sent both reviewers a correction asking them not to inspect other mailboxes or artifacts and to decline if they cannot comply. Any result must be described as a self-reported procedural blind probe, not a technically sealed benchmark or independent model-family evaluation. The control is also a custom compact/parameter-mangled baseline, not esbuild.
