@@ -24,7 +24,7 @@ Compiler source blobs:
 - `src/ast.js`: `c227e6e604635a42663af745fd0cfb194b215a67`
 - `src/identifiers.js`: `c7e2ed1469381c5bc6dc42cef9a6ca8bfa347f0f`
 
-The scanner has no `Window.name` sink rule; its `browserReaders` set does not include `name`. The focused fixture includes:
+The scanner has no `Window.name` sink rule; its `browserReaders` set does not include `name`. The focused fixture is part of the same five-test suite. The browser test includes:
 
 ```js
 function inspectWindow(){const windowLocal=37;return windowLocal;}
@@ -58,7 +58,9 @@ The browser step succeeded and emitted:
 
 The numeric return remained 37. The unrelated private helper still had identifier yield and returned 7. In the same run, the Storage witnesses also succeeded; see `im-results/storage-source-observation-2026-11-23.md`.
 
-The full workflow subsequently failed its Node matrix on two unrelated existing Blob positive-yield assertions:
+The five focused Node tests, including shadowed-host and primitive-value controls, passed on Ubuntu and Windows in [manual validation run 45163858773](https://github.com/FlareZ123/obfs/actions/runs/45163858773). Project typecheck passed; its overall conclusion is failure only at the unrelated external JSDoc errors in the two CEGAR simulation files.
+
+The full Web IDL workflow subsequently failed its Node matrix on two unrelated existing Blob positive-yield assertions:
 - `bound Blob constructor with primitive input retains private property rename`;
 - `primitive Blob options preserve genuinely renamed private fields`.
 
