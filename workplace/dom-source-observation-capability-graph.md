@@ -176,3 +176,23 @@ A source-observer fix should turn the expected-red differential into a green reg
 The capability graph should be computed during obfuscation/build time wherever possible. Source-preserving output regions add no runtime work by themselves. Any runtime descriptor-integrity checks or anti-tamper guards in browser code count against the client runtime budget; the initialization exception is only available in the specific server initialization cases defined by the project objective.
 
 This proposal establishes no 2.5× performance result, no resistance to dynamic extraction, and no domain-lock guarantee. Those require separate measurements and adversarial tests.
+
+
+## Modern HTML parser/streaming API evidence (2026-11-23 update)
+
+A HeadlessChrome 157.0.0.0 feature probe reports support for all 23 tested methods below. The differential found source mismatch in **23/23**, with all 23 primitive-only positive controls passing:
+
+- `Element.setHTML`, `appendHTML`, `prependHTML`;
+- `Element.setHTMLUnsafe`, `appendHTMLUnsafe`, `prependHTMLUnsafe`;
+- `Element.beforeHTML`, `afterHTML`, `replaceWithHTML`;
+- `Document.parseHTML`, `Document.parseHTMLUnsafe`;
+- `Element.streamHTML`, `streamAppendHTML`, `streamPrependHTML`;
+- `Element.streamHTMLUnsafe`, `streamAppendHTMLUnsafe`, `streamPrependHTMLUnsafe`;
+- `Element.streamBeforeHTML`, `streamAfterHTML`, `streamReplaceWithHTML`;
+- `Element.streamBeforeHTMLUnsafe`, `streamAfterHTMLUnsafe`, `streamReplaceWithHTMLUnsafe`.
+
+The stream methods are particularly important. The method returns a `WritableStream`; the source-bearing function reaches the parser when passed to `writer.write(inspect)`. The analysis must propagate function values through the returned stream and writer acquisition to the underlying HTML parser sink. Treating only the stream-creation method as the sink misses the actual conversion edge.
+
+The authoritative interface definitions and algorithms are in the [WHATWG HTML Standard, dynamic markup insertion](https://html.spec.whatwg.org/multipage/dynamic-markup-insertion.html). The browser result is specific to HeadlessChrome 157.0.0.0; Firefox and WebKit remain untested. See the updated intermediate evidence report and raw artifact linked there.
+
+Add these methods to the acceptance suite. For streaming methods, require native/emitted parity for both the source-bearing function chunk and primitive chunk; also test writer aliases, `pipeTo`, chunk arrays, and async boundaries separately.
