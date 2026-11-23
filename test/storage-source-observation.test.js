@@ -122,6 +122,17 @@ const propertySource=[
 ].join('\n');
 
 test('property pass keeps the Storage-observed owner stable while renaming an independent owner',()=>{
+  const propertyBaseline=[
+    'const privateOwner={privateField:7};',
+    'function independent(){return privateOwner.privateField;}',
+    'export function sample(){return independent();}'
+  ].join('\\n');
+  const baseline=obfuscateFiles([{path:'entry.mjs',sourceType:'module',code:propertyBaseline}],{
+    mode:'coo',seed:'storage-property-owner-baseline',
+    closedWorld:true,properties:true,identifiers:false,strings:false
+  });
+  assert.ok(!String(baseline.files[0].code).includes('privateField'),
+    'the same private owner must be renameable without a source-observer case');
   const result=obfuscateFiles([{path:'entry.mjs',sourceType:'module',code:propertySource}],{
     mode:'coo',seed:'storage-property-owner-control',
     closedWorld:true,properties:true,identifiers:false,strings:false
