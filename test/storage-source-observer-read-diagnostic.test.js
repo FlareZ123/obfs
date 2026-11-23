@@ -23,23 +23,23 @@ const variants={
   setFunctionKeyOnly:[
     'function inspect(){const privateLocal=29;return privateLocal;}',
     'export function sample(){localStorage.setItem(inspect,"value");return inspect();}'
-  ].join('\\n'),
+  ].join('\n'),
   setFunctionValueLiteral:[
     'function inspect(){const privateLocal=29;return privateLocal;}',
     'export function sample(){localStorage.setItem("key",inspect);return inspect();}'
-  ].join('\\n'),
+  ].join('\n'),
   namedFunctionKey:[
     'function inspect(){const privateLocal=29;return privateLocal;}',
     'export function sample(){localStorage[inspect]="value";return inspect();}'
-  ].join('\\n'),
+  ].join('\n'),
   namedFunctionValue:[
     'function inspect(){const privateLocal=29;return privateLocal;}',
     'export function sample(){localStorage["key"]=inspect;return inspect();}'
-  ].join('\\n'),
+  ].join('\n'),
   namedDynamicKey:[
     'function inspect(){const privateLocal=29;return privateLocal;}',
     'export function sample(prefix){const key=prefix+"-source";localStorage[key]=inspect;return inspect();}'
-  ].join('\\n'),
+  ].join('\n'),
   setThenGetNotReturned:[
     'function inspect(){const privateLocal=29;return privateLocal;}',
     'export function sample(){localStorage.setItem("key",inspect);const read=localStorage.getItem("key");return inspect();}'
