@@ -160,6 +160,7 @@ test('ESM audit refuses custom conditions, loaders and symlink-preservation mode
     const output=path.join(temp,'output');
     await fs.mkdir(root,{recursive:true});
     await fs.mkdir(output,{recursive:true});
+    /** @type {import('../src/core').SourceFile[]} */
     const files=[{
       path:'engine.mjs',sourceType:'module',
       code:"import value from 'sno-esm-resolution-probe';export default value;"
@@ -179,6 +180,7 @@ test('ESM audit refuses custom conditions, loaders and symlink-preservation mode
 });
 
 test('ESM audit refuses future emitted package scopes',async()=>{
+  /** @type {import('../src/core').SourceFile[]} */
   const source=[{
     path:'engine.mjs',sourceType:'module',
     code:"import value from 'sno-esm-resolution-probe';export default value;"
