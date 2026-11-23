@@ -247,8 +247,27 @@ function degreeFourSource(n) {
   const mask = n === 32 ? 0xffffffff : (2 ** n - 1);
   return input => {
     const x = (input & mask) >>> 0;
-    return (x ^ ((x & 3) === 3 ? 0x13579bdf : 0)) >>> 0;
+    return (x ^ ((x & 15) === 15 ? 0x80000000 : 0)) >>> 0;
   };
+}
+
+/**
+ * Evaluate a finite difference at zero for the supplied direction tuple.
+ *
+ * @param {(input:number)=>number} source
+ * @param {number[]} directions
+ * @returns {number}
+ */
+function finiteDifferenceAtZero(source, directions) {
+  let result = 0;
+  for (let subset = 0; subset < 2 ** directions.length; subset++) {
+    let input = 0;
+    for (let bit = 0; bit < directions.length; bit++) {
+      if (((subset >>> bit) & 1) !== 0) input ^= directions[bit];
+    }
+    result ^= source(input);
+  }
+  return result >>> 0;
 }
 
 /** @returns {(input:number)=>number} */
@@ -285,8 +304,19 @@ function main() {
   assert.equal(positive.degree,5);
   assert.ok(positive.queries <= 44836);
 
+  const noTopSource = degreeFourSource(32);
+  assert.equal(
+    finiteDifferenceAtZero(noTopSource,[1,2,4,8]),
+    0x80000000,
+    'the no-top control must contain a genuine degree-four term'
+  );
+  assert.equal(
+    finiteDifferenceAtZero(noTopSource,[1,2,4,8,16]),
+    0,
+    'the no-top control must have zero fifth derivative'
+  );
   const noTop = cloneTopQuinticValidated(
-    degreeFourSource(32),
+    noTopSource,
     32,
     () => 0,
     seeded(0x44a202612)
@@ -295,6 +325,20 @@ function main() {
   assert.equal(noTop.fallbackUsed,false);
   assert.equal(noTop.degree,4);
   assert.ok(noTop.queries <= 44836);
+
+  const finiteDegreeFourSource = degreeFourSource(7);
+  const finiteDegreeFour = cloneTopQuinticValidated(
+    finiteDegreeFourSource,
+    7,
+    () => 0,
+    seeded(0x44a202615)
+  );
+  assert.equal(finiteDegreeFour.verificationPassed,true);
+  assert.equal(finiteDegreeFour.fallbackUsed,false);
+  assert.equal(finiteDegreeFour.degree,4);
+  for (let input = 0; input < 128; input++) {
+    assert.equal(evaluateModel(finiteDegreeFour,input),finiteDegreeFourSource(input));
+  }
 
   const silentSource = rankSevenSilentSource();
   const silentFastCandidate = cloneTopQuintic(
@@ -358,7 +402,15 @@ function main() {
     exactDegreeFourFallbackControl:{
       queries:noTop.queries,
       verificationQueries:noTop.verificationQueries,
-      degree:noTop.degree
+      degree:noTop.degree,
+      fourthDerivative:'0x80000000',
+      fifthDerivative:'0x00000000'
+    },
+    finiteDegreeFourControl:{
+      queries:finiteDegreeFour.queries,
+      verificationSamples:finiteDegreeFour.verificationSamples,
+      exhaustiveOutputs:128,
+      exactAll128:true
     },
     silentRankSevenControl:{
       fallbackReason:silent.fallbackReason,
