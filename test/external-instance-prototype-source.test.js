@@ -298,3 +298,16 @@ for(const [caseName,reader] of /** @type {Array<[string,string]>} */ ([
     }
   });
 }
+
+test('plain inert record toString destructure preserves independent private work',()=>{
+  const code="'use strict';const owner={secretField:7};"+
+    'const plain={foo:1};const {toString:format}=plain;'+
+    'module.exports=owner.secretField+format.call(plain).length;';
+  const result=obfuscateFiles([{path:'safe.cjs',sourceType:'commonjs',code}],{
+    mode:'sno',properties:true,identifiers:false,strings:false,
+    closedWorld:true,seed:'inert-plain-record-source-positive'
+  });
+  const rewrites=result.crossFile.properties+
+    result.files.reduce((sum,file)=>sum+file.metrics.properties,0);
+  assert.ok(rewrites>0,'Inert record source-method read should retain private rewrite');
+});
