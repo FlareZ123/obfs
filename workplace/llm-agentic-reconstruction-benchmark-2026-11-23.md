@@ -65,6 +65,16 @@ A useful team decomposition is reconnaissance (exports, module graph, host APIs)
 - SCO: controls the client, intercepts every response, and may make unlimited legitimate requests; report request count and server-visible state separately.
 - SNO: receives the stated full filesystem/runtime/memory access; do not quietly weaken this to a static-only task.
 
+### T2-H — LLM-guided deterministic hybrid attack
+
+Keep a distinct sub-track for a CASCADE-style pipeline:
+1. The LLM labels semantic roles and source locations of a small decoder/prelude/dispatcher component set.
+2. A deterministic validator checks dependency and data-flow constraints before accepting those labels.
+3. A controlled runtime executes only the identified decoder/prelude; a deterministic IR/constant-propagation pass resolves aliases, wrappers and calls.
+4. For a VM candidate, the analogous attacker locates the dispatcher, bytecode tables and handler families, then builds a bounded symbolic/dynamic interpreter.
+
+Score component-localization precision/recall, validator acceptance, runtime executions, recovered literals/structure, and hidden-test clone success separately. This is a hybrid compiler attack, not direct LLM source reconstruction. CASCADE's published results are specific to Obfuscator.IO string arrays; they motivate testing the workflow against a stable prelude/dispatcher but do not establish that it succeeds against this project's VM.
+
 A candidate that survives T0 but fails T1/T2 is not LLM-resistant under the stronger tier.
 
 ## Corpus and controls
