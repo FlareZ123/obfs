@@ -11,6 +11,10 @@ test('all four-bit triangular sources admit completion from every exact derivati
     'Every enumerated triangular source must be a true permutation');
   assert.equal(result.allChoicesComplete,1<<15,
     'No globally valid scalar derivative choice may become a dead end');
+  assert.equal(result.nonzeroSubspaces,66);
+  assert.equal(result.allSubspaceChecks,2162688);
+  assert.equal(result.subspaceFailures,0,
+    'Every nonzero input subspace must admit a nonzero globally constant output scalar derivative');
   assert.equal(result.triangularScalarFunctions,279,
     'The 15 nonzero scalar output masks produce all 278 possible triangular component truth functions plus zero');
   assert.ok(result.rootCandidates>=1<<15,
