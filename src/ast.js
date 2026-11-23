@@ -2556,6 +2556,14 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
         return;
       }
       if(id?.type!=='Identifier')return;
+      // An immutable alias of a known Error constructor produces the same
+      // source-bearing stack as a directly spelled new Error(). Include it
+      // in this monotone discovery before resolving its constructed values.
+      if(value.type==='Identifier' && stackErrorConstructors.has(value.name) &&
+         !stackErrorConstructors.has(id.name)) {
+        stackErrorConstructors.add(id.name);
+        changedStackAliases=true;
+      }
       if(isConsoleReceiver(value)&&!stackConsoleAliases.has(id.name)) {
         stackConsoleAliases.add(id.name);
         changedStackAliases=true;
