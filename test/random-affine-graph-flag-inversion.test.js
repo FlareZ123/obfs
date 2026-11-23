@@ -11,6 +11,8 @@ test('random affine-graph inversion recovers targets in two-sided triangular per
     ...[1,2].map(seed=>({width:32,degree:6,seed})),
     {width:64,degree:4,seed:1}
   ];
+  /** @type {{width:number,degree:number,seed:number,queries:number}[]} */
+  const metrics=[];
   for(const {width,degree,seed} of cases){
     const {oracle,inputOffset,outputOffset}=makeRandomTriangularOracle(width,degree,seed);
     assert.notEqual(inputOffset,0n);
@@ -22,7 +24,9 @@ test('random affine-graph inversion recovers targets in two-sided triangular per
     assert.equal(result.input,secret);
     assert.equal(result.verified,true);
     assert.ok(result.queries<binomialSum(width,degree));
+    metrics.push({width,degree,seed,queries:result.queries});
   }
+  process.stdout.write('OBFS_GRAPH_REVISED_QUERIES '+JSON.stringify(metrics)+'\\n');
 });
 
 test('the graph method refuses a residual permutation with no nonconstant affine output component',()=>{
