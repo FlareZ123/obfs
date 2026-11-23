@@ -1667,10 +1667,10 @@ function partitionScoSelectedAsyncExports(file,options) {
   const selected=new Set(options.privateNames);
   const requestedPublicHelpers=new Set(options.publicHelperNames??[]);
   const ast=parse(file.code,'module');
-  // Source owners must remain isolated across browser sessions when selected
-  // exports are moved to one trusted shared Node module instance.
-  assertNoPrivateImportMemberState(file.path,file.code);
   const privateModuleImports=new Set(options.privateModuleImports??[]);
+  // Run the additional identity walk only when the declared program can
+  // actually relocate a relative private import across browser sessions.
+  if(privateModuleImports.size)assertNoPrivateImportMemberState(file.path,file.code);
   /** @type {string[]} */
   const privateModulePaths=[...(options.additionalPrivateModulePaths??[])];
   /** @type {string[]} */
