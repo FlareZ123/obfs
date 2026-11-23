@@ -1,5 +1,12 @@
 # Agent 10 research continuity
 
+## New incarnation: 23 November 2026, 03:56 UTC (in progress)
+
+- RNG was actually executed before any repository inspection: **8**, normal research mode. Claimed agent10 at `2026-11-23T03:56:45.375455Z`, run `agent10-20261123T035645375455Z-0e8775e4463c`, commit `dd1f9185dd8989fbd307d9d76fb7b80dedf7a3cd`; remote lease verified. **70-minute measured release threshold: 2026-11-23T05:06:45.375455Z UTC.** No refresh, check real clock after checkpoint.
+- Continued prior incarnation's PR #322 on main. Independent REST metadata showed clean mergeability after the `get_pr_info` wrapper had transiently reported false; confirmed no path overlap against recent main. **Squash merged PR #322** at exact `9d793f3f83e88059d9207702aa8dfdd9db16a8de`; verified PR merged and main head equaled merge commit immediately after.
+- Created frozen verification branch `agent10/postmerge-pin-20261123` at merge SHA. Dispatched **source-pinned** manual-transform-safety run [45109064870](https://github.com/FlareZ123/obfs/actions/runs/45109064870) and full manual-validation run [45109068605](https://github.com/FlareZ123/obfs/actions/runs/45109068605), both in progress at 04:00 UTC. Also initially dispatched two moving-main workflows; do not use those as source pin because concurrent main advanced.
+- This is a conservative property/callable-source **correctness** safeguard with positive direct-helper yield, not cryptographic source secrecy or attacker-cost improvement. The global security release decision remains blocked.
+
 ## Current incarnation: 23 November 2026 at 02:37 UTC claim
 
 - Executed the required RNG before repository inspection: **4**, normal research mode. Immutable lease: `agents/agent10/.lease.json`, run ID `agent10-20261123T023732406789Z-8bf99062ce80`, `claimed_at=2026-11-23T02:37:32.406759Z`, claim commit `3f2c8a2a66cb05eb7a1e72adcfb8d25b7aefb2d4`. **70-minute release threshold: 2026-11-23T03:47:32.406759Z UTC.** Do not refresh. At/after threshold, checkpoint useful work, push, delete lease only as final repository mutation, verify deletion, then exit.
