@@ -69,25 +69,37 @@ function solveLinear(equations,width) {
  * An output parity annihilating those coefficients, and nonconstant on
  * the coset, cuts its dimension by one without excluding the target.
  *
- * Upper bound on distinct oracle queries:
+ * Default-mode upper bound on distinct oracle queries:
  *   sum(d=1..width) sum(j=0..min(degree,d)) choose(d,j)
  * = sum(j=0..degree) choose(width+1,j+1) - 1.
- * This is O(width^(degree+1)) for constant degree, exponential when
- * degree grows with width. It is not a polynomial-time arbitrary-JS
- * inversion method.
+ * Opting into an exact residual search adds at most
+ * 2^maxResidualDimension distinct queries (usually fewer after memoized
+ * low-order subset samples). Enumeration is capped at dimension 16 and
+ * respects the same total original-oracle query budget. This is
+ * O(width^(degree+1)) for constant degree and fixed fallback cap,
+ * exponential when degree grows with width. It is not a polynomial-time
+ * arbitrary-JS inversion method.
  *
  * @param {(input:number)=>number} oracle An n-bit forward permutation oracle
  * @param {number} target Output to invert
  * @param {number} width Integer in [1,32]
  * @param {number} degree Claimed maximum ANF degree in [1,width]
  * @param {number} [queryBudget] Maximum distinct oracle queries
- * @returns {{input:number,queries:number,dimensionCounts:number[]}|null}
+ * @param {{maxResidualDimension?:number}} [options] Optional exact coset
+ *   fallback if no affine output relation exists at dimension <=16.
+ * @returns {{input:number,queries:number,dimensionCounts:number[],
+ *   exactResidualDimension?:number,exactResidualExtraQueries?:number}|null}
  */
-function invertBoundedDegree(oracle,target,width,degree,queryBudget=300000) {
+function invertBoundedDegree(oracle,target,width,degree,queryBudget=300000,options={}) {
   if(typeof oracle!=='function'||!Number.isInteger(width)||width<1||
       width>32||!Number.isInteger(degree)||degree<1||degree>width||
       !Number.isSafeInteger(queryBudget)||queryBudget<1) {
     throw new RangeError('Expected forward oracle, width, degree and positive budget');
+  }
+  const maxResidualDimension=options.maxResidualDimension??0;
+  if(!Number.isInteger(maxResidualDimension)||
+     maxResidualDimension<0||maxResidualDimension>16) {
+    throw new RangeError('maxResidualDimension must be an integer from 0 through 16');
   }
   const mask=width===32?0xffffffff:(2**width-1)>>>0;
   if(!Number.isSafeInteger(target)||target<0||target>mask){
@@ -162,7 +174,27 @@ function invertBoundedDegree(oracle,target,width,degree,queryBudget=300000) {
       functional=solveLinear([...homogeneous,{mask:difference,rhs:1}],width);
       if(functional!==null)break;
     }
-    if(functional===null)return null;
+    if(functional===null) {
+      if(dimension>maxResidualDimension)return null;
+      // The affine flag stopped at this coset, but its small finite domain can
+      // be inverted exactly by enumeration. Every candidate is checked with
+      // the ORIGINAL forward oracle, and already sampled points are cached.
+      // This also works for a genuinely nontriangular residual permutation.
+      const priorQueries=cache.size;
+      for(let subset=0;subset<2**dimension;subset++) {
+        let candidate=base;
+        for(let bit=0;bit<dimension;bit++) {
+          if((subset>>>bit)&1)candidate=(candidate^basis[bit])>>>0;
+        }
+        if(F(candidate)===((target&mask)>>>0)) {
+          dimensionCounts.push(cache.size-before);
+          return {input:candidate,queries:cache.size,dimensionCounts,
+            exactResidualDimension:dimension,
+            exactResidualExtraQueries:cache.size-priorQueries};
+        }
+      }
+      return null;
+    }
 
     const coefficients=differences.map(delta=>parity(functional&delta));
     const pivotIndex=coefficients.findIndex(Boolean);
