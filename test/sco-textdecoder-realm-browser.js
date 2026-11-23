@@ -4,7 +4,7 @@ const assert=require('node:assert/strict');
 const {execFile}=require('node:child_process');
 const {promisify}=require('node:util');
 
-/** @typedef {{label:string,bytes:number[],recoverConstructor?:boolean}} DecoderCase */
+/** @typedef {{label:string,bytes:number[],recoverConstructor?:boolean,chunks?:number[][],ignoreBOM?:boolean}} DecoderCase */
 /** @type {DecoderCase[]} */
 const samples=[
   {label:'windows-1252',bytes:[0x80]},
@@ -30,13 +30,34 @@ samples.push(
   {label:'windows-1252',bytes:[0x80],recoverConstructor:true},
   {label:'gbk',bytes:[0xff],recoverConstructor:true}
 );
+// UTF-8 multi-call decoding must preserve pending bytes and BOM state.
+// The final chunk always flushes with stream:false; no exceptions are expected.
+const streamingUtf8Cases=[
+  {label:'utf-8',bytes:[],chunks:[[0xe2],[0x82],[0xac]]},
+  {label:'utf-8',bytes:[],chunks:[[0xf0,0x9f],[0x92],[0xa9]]},
+  {label:'utf-8',bytes:[],chunks:[[0xc2],[0x41]]},
+  {label:'utf-8',bytes:[],chunks:[[0xed,0xa0],[0x80]]},
+  {label:'utf-8',bytes:[],chunks:[[],[0xe2,0x82]]},
+  {label:'utf-8',bytes:[],chunks:[[0xef],[0xbb],[0xbf],[0x41]]},
+  {label:'utf-8',bytes:[],chunks:[[0xef],[0xbb],[0xbf],[0x41]],ignoreBOM:true},
+  {label:'utf-8',bytes:[],chunks:[[0xef,0xbb,0xbf],[0xef,0xbb,0xbf]]},
+  {label:'utf-8',bytes:[],chunks:[[0xe2],[0x28,0xa1]]},
+  {label:'utf-8',bytes:[],chunks:[[0x61],[0x00],[0x62]]},
+  {label:'utf-8',bytes:[],chunks:[[0x80],[0xbf]]},
+  {label:'utf-8',bytes:[],chunks:[[0xf4,0x8f],[0xbf,0xbf]]}
+];
+samples.push(...streamingUtf8Cases);
 
 /** @param {DecoderCase} sample @returns {number[]} */
 function decodeInNode(sample){
   const Decoder=sample.recoverConstructor?
     (new TextDecoder('utf-8')).constructor:TextDecoder;
-  return Array.from(new Decoder(sample.label).decode(Uint8Array.from(sample.bytes)),
-    character=>character.codePointAt(0)??0);
+  const decoder=new Decoder(sample.label,sample.ignoreBOM?{ignoreBOM:true}:undefined);
+  const decoded=sample.chunks?
+    sample.chunks.map((chunk,index)=>decoder.decode(Uint8Array.from(chunk),
+      {stream:index+1<sample.chunks.length})).join(''):
+    decoder.decode(Uint8Array.from(sample.bytes));
+  return Array.from(decoded,character=>character.codePointAt(0)??0);
 }
 
 async function main(){
@@ -45,8 +66,11 @@ async function main(){
     'document.getElementById("answer").textContent=JSON.stringify('+ 
     'samples.map(sample=>{const Decoder=sample.recoverConstructor?'+
     '(new TextDecoder("utf-8")).constructor:TextDecoder;'+
-    'return Array.from(new Decoder(sample.label).decode(Uint8Array.from(sample.bytes)),'+
-    'character=>character.codePointAt(0));}));';
+    'const decoder=new Decoder(sample.label,sample.ignoreBOM?{ignoreBOM:true}:undefined);'+
+    'const decoded=sample.chunks?sample.chunks.map((chunk,index)=>'+
+    'decoder.decode(Uint8Array.from(chunk),{stream:index+1<sample.chunks.length})).join(""):'+ 
+    'decoder.decode(Uint8Array.from(sample.bytes));'+
+    'return Array.from(decoded,character=>character.codePointAt(0));}));';
   const html='<!doctype html><html><body><pre id="answer">loading</pre>'+
     '<script>'+script+'</script></body></html>';
   const binary=process.env.CHROMIUM_BIN??'google-chrome';
@@ -92,7 +116,7 @@ async function main(){
     }]);
   console.log('Cross-host TextDecoder native comparison: '+JSON.stringify({
     nodeVersion:process.version,browserEngine:binary,
-    compared:samples.length,
+    compared:samples.length,streamingUtf8Cases:streamingUtf8Cases.length,
     utf8Cases:samples.filter(sample=>
       ['utf-8','utf8','unicode-1-1-utf-8'].includes(sample.label.toLowerCase())).length,
     mismatch
