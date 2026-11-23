@@ -76,9 +76,11 @@ test('Blob options source observer preserves COO/SNO native output',()=>{
 });
 
 test('primitive Blob options preserve genuinely renamed private fields',()=>{
-  const original='const owner={hiddenCount:41,secretDelta:2};'+
+  const original="'use strict';"+
+    'const owner={hiddenCount:41,secretDelta:2};'+
     'new Blob([],{type:"text/plain",endings:"transparent"});'+
-    'module.exports=()=>owner.hiddenCount+owner.secretDelta;';
+    'function privateScore(){return owner.hiddenCount+owner.secretDelta;}'+
+    'module.exports=function observe(){return privateScore();};';
   assert.equal(observesFunctionSource(parse(original,'commonjs')),false);
   for(const mode of /** @type {('coo'|'sno')[]} */(['coo','sno'])) {
     const emitted=obfuscateFiles([{
