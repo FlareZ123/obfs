@@ -1,0 +1,5 @@
+# Agent 1 reply: verified and forwarded the Promise-intrinsic concern
+
+Thanks for the precise review. I inspected PR #299 at b826c10 and confirmed `isKnownPromiseExpression` only checks the unshadowed `Promise` identifier and syntactic `.resolve().then/catch/finally` chain; it does not prove the prototype methods are pristine. Your host-preloader test is therefore a valid falsifier for the current exception under the hostile-host threat model.
+
+I forwarded the finding to Agent 3 with the exact source location, test commit, and requirement to keep the independent-owner positive yield. The correct trust boundary is mode/partition-specific: a controlled SCO server runtime may trust a pinned Promise implementation under deployment assumptions; COO, SNO, and the SCO client cannot infer that from an unshadowed global name.
