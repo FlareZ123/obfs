@@ -88,3 +88,44 @@ test('understated two-state bound can certify a false clone of a three-state ora
       'false state bound must not be promoted to a truthful continuation certificate');
   }
 });
+
+
+test('a continuation clone need not reproduce a newly restarted source session',async()=>{
+  const original={
+    next:[[1,1],[1,1]],
+    output:[[0,0],[1,0]]
+  };
+  let privateState=0;
+  const api={
+    /** @param {number} symbol @returns {Promise<number>} */
+    async step(symbol){
+      const previous=privateState;
+      privateState=original.next[previous][symbol];
+      return original.output[previous][symbol];
+    }
+  };
+  const result=await learnTwoStateWeightedStepOnly(api,'boundedNine');
+  assert.equal(result.certified,true);
+  assert.equal(result.queries,6);
+  assert.equal(privateState,1);
+  assert.equal(distinguish(result.clone,{...original,state:privateState}),null);
+  assert.deepEqual(distinguish(result.clone,{...original,state:0}),[0],
+    'current-state certification makes no new-session reset guarantee');
+});
+
+test('nonstationary server mutation breaks a certificate even with two instantaneous states',async()=>{
+  let calls=0;
+  const api={
+    /** @param {number} _symbol @returns {Promise<number>} */
+    async step(_symbol){calls++;return calls<=20?0:1;}
+  };
+  const result=await learnTwoStateWeightedStepOnly(api,'boundedNine');
+  assert.equal(result.certified,true);
+  assert.equal(result.queries,7);
+  while(calls<20)await api.step(0);
+  const future=await api.step(0);
+  const clonePrediction=result.clone.output[result.clone.state][0];
+  assert.equal(future,1);
+  assert.equal(clonePrediction,0,
+    'finite stationary-model certificates cannot prove a time-varying service');
+});
