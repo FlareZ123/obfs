@@ -71,3 +71,39 @@ test('plain primitive catch still allows unrelated owner private rename',()=>{
   }).files[0];
   assert.equal(output.metrics.properties,1);
 });
+
+test('caught Error direct alias with dynamic key remains source-observable',()=>{
+  const native=source().replace(
+    'catch(caught){frame=caught[key]',
+    'catch(caught){const alias=caught;frame=alias[key]'
+  );
+  assert.equal(observesFunctionSource(parse(native,'module')),true);
+  const output=obfuscateFiles([{path:'entry.mjs',sourceType:'module',code:native}],{
+    mode:'coo',closedWorld:true,seed:'caught-error-alias-computed-stack',
+    properties:true,identifiers:false,strings:false
+  }).files[0];
+  assert.equal(output.metrics.properties,0);
+});
+
+test('caught Error computed object-pattern key may extract stack',()=>{
+  const native=source().replace(
+    'catch(caught){frame=caught[key]',
+    'catch({[key]:trace}){frame=trace'
+  );
+  assert.equal(observesFunctionSource(parse(native,'module')),true);
+  const output=obfuscateFiles([{path:'entry.mjs',sourceType:'module',code:native}],{
+    mode:'coo',closedWorld:true,seed:'caught-error-pattern-computed-stack',
+    properties:true,identifiers:false,strings:false
+  }).files[0];
+  assert.equal(output.metrics.properties,0);
+});
+
+test('known caught Error.message read retains unrelated private owner renaming',()=>{
+  const native=source().replace("caught[key].split('\\n')[1]",'caught.message');
+  assert.equal(observesFunctionSource(parse(native,'module')),false);
+  const output=obfuscateFiles([{path:'entry.mjs',sourceType:'module',code:native}],{
+    mode:'coo',closedWorld:true,seed:'caught-error-message-positive',
+    properties:true,identifiers:false,strings:false
+  }).files[0];
+  assert.equal(output.metrics.properties,1);
+});
