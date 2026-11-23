@@ -365,7 +365,7 @@ const localPrivateClassMethodCache=new WeakMap();
 
 /**
  * Prove source privacy for a single, pure method on a nonescaping local class.
- * The class is constructed once with no arguments, and its sole instance is
+ * Each instance is an immutable local value constructed with no arguments,
  * used only as the receiver of direct calls to that method. The method does
  * nothing except return a fixed member of a lexical owner; its owner is still
  * checked separately by the ordinary closed-world proof.
@@ -404,38 +404,38 @@ function locallyPrivateClassMethods(ast,bindings,scopes,inventory){
        member.object.type!=='Identifier'||
        (member.computed?staticString(member.property):staticName(member.property))===null)return;
 
-    /** @type {AstNode|null} */
-    let instance=null;
+    // Multiple independent instances are safe if every constructor use
+    // still creates an immutable local receiver and none of them escape.
+    /** @type {AstNode[]} */
+    const instances=[];
     for(const use of inventory.identifierUses.get(className)??[]){
       if(use.node===cls.id)continue;
       if(!use.ancestors.includes(classScope)||use.parent?.type!=='NewExpression'||
-         use.parent.callee!==use.node||use.parent.arguments.length!==0){
-        instance=null;return;
-      }
+         use.parent.callee!==use.node||use.parent.arguments.length!==0)return;
       const candidate=inventory.parents.get(use.parent);
-      if(instance||candidate?.type!=='VariableDeclarator'||
+      if(candidate?.type!=='VariableDeclarator'||
          candidate.init!==use.parent||candidate.id.type!=='Identifier'||
          bindings.get(candidate.id.name)!==1||
          inventory.parents.get(candidate)?.type!=='VariableDeclaration'||
-         inventory.parents.get(candidate)?.kind!=='const'){
-        instance=null;return;
-      }
-      instance=candidate;
+         inventory.parents.get(candidate)?.kind!=='const'||
+         scopes.get(candidate.id.name)!==classScope)return;
+      instances.push(candidate);
     }
-    if(!instance||instance.id.type!=='Identifier'||
-       scopes.get(instance.id.name)!==classScope)return;
-    for(const use of inventory.identifierUses.get(instance.id.name)??[]){
-      if(use.node===instance.id)continue;
-      const access=use.parent;
-      const invocation=access?inventory.parents.get(access):null;
-      if(!use.ancestors.includes(classScope)||
-         access?.type!=='MemberExpression'||access.object!==use.node||
-         access.optional||access.computed||
-         access.property.type!=='Identifier'||
-         access.property.name!==method.key.name||
-         invocation?.type!=='CallExpression'||
-         invocation.callee!==access||invocation.optional||
-         invocation.arguments.length!==0)return;
+    if(!instances.length)return;
+    for(const instance of instances){
+      for(const use of inventory.identifierUses.get(instance.id.name)??[]){
+        if(use.node===instance.id)continue;
+        const access=use.parent;
+        const invocation=access?inventory.parents.get(access):null;
+        if(!use.ancestors.includes(classScope)||
+           access?.type!=='MemberExpression'||access.object!==use.node||
+           access.optional||access.computed||
+           access.property.type!=='Identifier'||
+           access.property.name!==method.key.name||
+           invocation?.type!=='CallExpression'||
+           invocation.callee!==access||invocation.optional||
+           invocation.arguments.length!==0)return;
+      }
     }
     admitted.add(method.value);
   });
