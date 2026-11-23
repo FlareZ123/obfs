@@ -37,3 +37,8 @@ The stronger fixture first failed at [browser CI 43919701173](https://github.com
 ## Security interpretation
 
 The attack demonstrates a compact, efficiently observable equivalence class for this request-time formatting mechanism. It neither reconstructs an arbitrary program nor undermines cryptographic server-side source separation. The existing stronger [AST literal canonicalizer](../sims/sco-variant-normalize.js) already removes tested spelling variations without even recovering the mask. Therefore increasing the private nonce alone cannot make public literal spelling into an effective confidentiality or host-integrity mechanism. Future candidate defenses should be measured against independent end-to-end reconstruction and functional cloning, with the 2.5× runtime bound reported separately.
+
+## Current-main revalidation (23 November 2026)
+
+The existing live HTTP/source-only regression was rerun against current main at exact SHA `48b9b7ff0fcfc1a20589f35e932f7a4fd41934f9`: [focused validation 45129889219](https://github.com/FlareZ123/obfs/actions/runs/45129889219) **passed Ubuntu and Windows**. This reran `test/sco-spelling-mask-attack.test.js`: 24 independently fresh HTTP responses, 24/24 exact full-response byte predictions from served source only, 32 recovered selector bits per response, and project, external, and paired-budget strict JSDoc all passed. The workflow's full `node22` job was skipped. This revalidates the bounded HTTP mask attack on current main; it does **not** rerun the separate Chromium harness or full Node/Chromium acceptance suite, so the browser evidence above retains its historical source pin.
+
