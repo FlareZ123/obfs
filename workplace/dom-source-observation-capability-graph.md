@@ -235,3 +235,20 @@ Current-main run:
 https://github.com/FlareZ123/obfs/actions/runs/45105560120
 Raw artifact:
 https://github.com/FlareZ123/obfs/actions/runs/45105560120/artifacts/14786379254
+
+
+### Cross-file ESM stream witness
+
+A second cross-file graph exports the function from a producer module and
+imports it in a consumer that writes it to `target.streamHTML()`. Native source
+is `observedOwner.secretField`; emitted source is
+`observedOwner._p2327adc78d`. Numeric/independent values and the
+primitive-only cross-file counterpart pass. This proves that the stream-sink
+source-observation edge crosses an ESM import boundary and asynchronous writer
+path. The cross-file negative/positive graphs report 2/1 property
+transformations respectively.
+
+Current-main validation run 45105967275:
+https://github.com/FlareZ123/obfs/actions/runs/45105967275
+Artifact:
+https://github.com/FlareZ123/obfs/actions/runs/45105967275/artifacts/14787730516
