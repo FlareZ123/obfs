@@ -2040,6 +2040,10 @@ function renameCrossFileProperties(files,seed) {
       modules.set(file.path,{file,...parseFile(file)});
     }
   }
+  // String-selector metadata has already been verified across the static ESM
+  // graph. Use it during native-pattern admission to avoid refusing known
+  // private keys merely because their spellings arrive through imports.
+  const verifiedStrings=collectVerifiedImportedStrings(files,parseFile);
   // Only a uniquely named, nonexported local callable with exclusively
   // direct, fully closed literal callsites can safely receive a native-named
   // object-pattern formal without acquiring an ambient intrinsic.
@@ -2136,7 +2140,7 @@ function renameCrossFileProperties(files,seed) {
   // Only source-proven closed literal calls are exempt from graph-wide refusal.
   for(const module of modules.values()) {
     /** @type {Map<string,string>} */
-    const knownNames=new Map();
+    const knownNames=new Map(verifiedStrings.get(module.file.path)||[]);
     for(const statement of module.ast.body) {
       const declaration=statement.type==='VariableDeclaration'?statement:
         statement.type==='ExportNamedDeclaration'&&!statement.source?
@@ -2195,7 +2199,6 @@ function renameCrossFileProperties(files,seed) {
     if(unprovedNativeFormal)return {files,objects:0,properties:0};
   }
   const knownFiles=new Set(files.map(file=>file.path));
-  const verifiedStrings=collectVerifiedImportedStrings(files,parseFile);
   const verifiedClones=collectVerifiedImportedCloneAliases(files,parseFile);
   const verifiedUrlStatics=collectVerifiedImportedUrlStaticAliases(files,parseFile);
   const verifiedPrimitives=collectVerifiedImportedPrimitives(files,parseFile);
