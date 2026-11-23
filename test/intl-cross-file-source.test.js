@@ -65,7 +65,7 @@ for(const [name,expression] of [
 }
 
 test('without cross-file source observation local owned fields remain renameable',async()=>{
-  const files=graph('JSON.stringify({value:inspect(),source:inspect.toString()})',wrappedState);
+  const files=graph('inspect()',wrappedState);
   const baseline=await execute(files);
   const output=obfuscateFiles(files,{mode:'coo',closedWorld:true,
     seed:'intl-cross-file-positive',strings:false,identifiers:false});
