@@ -45,3 +45,34 @@ for(const mode of /** @type {const} */(['coo','sno'])) {
       'A helper with .caller exposure cannot retain renamed source properties');
   });
 }
+
+for(const mode of /** @type {const} */(['coo','sno'])) {
+  test(mode+' arguments.callee escapes direct-call private helper to external source reader',()=>{
+    const source='const owner={secretField:41,otherField:2};'+
+      'let captured=null;'+
+      'function privateReader(){captured=arguments.callee;return owner.secretField+owner.otherField;}'+
+      'module.exports={run(){return privateReader();},getCaptured(){return captured;}};';
+    const before=observe(source);
+    const output=obfuscateFiles([{path:'entry.cjs',sourceType:'commonjs',code:source}],{
+      mode,seed:'sloppy-arguments-callee-source-leak',
+      identifiers:false,strings:false,properties:true
+    }).files[0];
+    assert.deepEqual(observe(String(output.code)),before,
+      'A hidden sloppy helper can return itself via arguments.callee');
+    assert.equal(output.metrics.properties,0);
+  });
+  test(mode+' named FunctionExpression self-binding escapes direct-call private helper',()=>{
+    const source='const owner={secretField:41,otherField:2};'+
+      'let captured=null;'+
+      'const privateReader=function selfNamed(){captured=selfNamed;return owner.secretField+owner.otherField;};'+
+      'module.exports={run(){return privateReader();},getCaptured(){return captured;}};';
+    const before=observe(source);
+    const output=obfuscateFiles([{path:'entry.cjs',sourceType:'commonjs',code:source}],{
+      mode,seed:'function-expression-internal-name-source-leak',
+      identifiers:false,strings:false,properties:true
+    }).files[0];
+    assert.deepEqual(observe(String(output.code)),before,
+      'Internal named FunctionExpression can export its own source through alias');
+    assert.equal(output.metrics.properties,0);
+  });
+}
