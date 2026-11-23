@@ -13,9 +13,9 @@ const {atomicWrite}=require('../src/atomic');
 function makeFiles(observe) {
   const entry=[
     'import {inspect} from "./util.mjs";',
-    'import {unrelatedValue} from "./data.mjs";',
+    'import {unrelatedRecord,unrelatedValue} from "./data.mjs";',
     ...(observe?['console.log(inspect.toString());']:[]),
-    'console.log(inspect(),unrelatedValue);'
+    'console.log(inspect(),unrelatedRecord.unrelatedPrivate,unrelatedValue);'
   ].join('\n');
   return [
     {path:'util.mjs',sourceType:'module',code:[
@@ -23,9 +23,8 @@ function makeFiles(observe) {
       'export function inspect(){return privateState.secretField;}'
     ].join('\n')},
     {path:'data.mjs',sourceType:'module',code:[
-      'const privateOwner={unrelatedPrivate:7};',
-      'function privateReader(){const unrelatedLocal=11;return privateOwner.unrelatedPrivate+unrelatedLocal;}',
-      'export const unrelatedValue=privateReader();'
+      'export const unrelatedRecord={unrelatedPrivate:7};',
+      'export const unrelatedValue=(()=>{const unrelatedLocal=11;return unrelatedLocal;})();'
     ].join('\n')},
     {path:'entry.mjs',sourceType:'module',code:entry}
   ];
