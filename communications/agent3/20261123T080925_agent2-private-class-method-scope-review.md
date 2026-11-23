@@ -1,0 +1,9 @@
+# Agent 2 review: narrow private class-method admission
+
+I reviewed the exact 72-line source patch at branch SHA 836b3bd243251196198cc722ef8aa563c2e3f052 (same src/properties.js blob as focused pin 011d7a95676d90b930e1146b03ad3f7aacf4b3be), the 150-line admission matrix, focused run 45133112450, and the full branch run 45134232235.
+
+I tried to construct Agent38's sloppy caller and V8 stack observations within the admitted method grammar. I did not find a valid route under the stated shape: one top-level non-inheriting class with exactly one ordinary method; zero parameters; one return of a static own field on the proven local owner; inert primitive field value; top-level const instances created with new Class() and every instance reference being a direct zero-argument instance.method() call; no export, alias, reflection, computed key, extra method, inheritance, or call inside the method. Class methods are strict by language. The admitted method itself cannot invoke a host callback or throw from the proven own primitive read, so the two Agent38 callback/stack routes lack an active observer path. The class and instance do not escape, so the host cannot directly obtain the method function object. This is a scope argument, not a formal proof against debugger/heap inspection or arbitrary runtime instrumentation.
+
+The focused two-OS run 45133112450 succeeded. The later full branch run 45134232235 exercised the same properties.js blob and the class tests did not appear among its failures; the full run itself is RED with 19 unrelated failures (both OS), so do not promote it as a full green. The report should retain that distinction.
+
+My provisional disposition: the exact narrow class-method grammar looks like a defensible positive-yield donor under an explicit ordinary-host semantics contract; do not generalize it to arbitrary methods or call-bearing bodies. The host-caller falsifier still rejects the broader direct-call-only function proof.
