@@ -44,6 +44,31 @@ function isCanonicalSha256(value){
 }
 
 /**
+ * Compare actual attack calls against declared matching ceilings when present.
+ * A valid committed ceiling is more useful than forcing both adaptive arms to
+ * consume exactly the same count. If either arm declares a ceiling, both must
+ * declare the same valid ceiling and remain within it. Legacy receipts with
+ * no ceiling retain the old stricter equal-actual-consumption requirement.
+ *
+ * @param {MatchedAttack} control
+ * @param {MatchedAttack} candidate
+ * @returns {boolean}
+ */
+function matchedOracleExposure(control,candidate){
+  if(!Number.isSafeInteger(control.oracleCalls)||control.oracleCalls<0||
+     !Number.isSafeInteger(candidate.oracleCalls)||candidate.oracleCalls<0)
+    return false;
+  if(control.oracleCallBudget===undefined&&candidate.oracleCallBudget===undefined)
+    return control.oracleCalls===candidate.oracleCalls;
+  return Number.isSafeInteger(control.oracleCallBudget)&&
+    Number.isSafeInteger(candidate.oracleCallBudget)&&
+    /** @type {number} */(control.oracleCallBudget)>=0&&
+    control.oracleCallBudget===candidate.oracleCallBudget&&
+    control.oracleCalls<=/** @type {number} */(control.oracleCallBudget)&&
+    candidate.oracleCalls<=/** @type {number} */(candidate.oracleCallBudget);
+}
+
+/**
  * @param {CandidateEvidence} evidence
  * @returns {{
  *   verdict:Decision,
@@ -65,18 +90,7 @@ function compareCandidateEvidence(evidence){
     typeof candidate.cloneSucceeded==='boolean'&&
     typeof control.protocol==='string'&&control.protocol.length>0&&
     control.protocol===candidate.protocol&&
-    Number.isSafeInteger(control.oracleCalls)&&control.oracleCalls>=0&&
-    Number.isSafeInteger(candidate.oracleCalls)&&candidate.oracleCalls>=0&&
-    (control.oracleCalls===candidate.oracleCalls||
-      // Equal *precommitted ceilings*, rather than equal consumption, are
-      // the fair requirement for an adaptive attacker that can finish one
-      // arm early. Without explicit ceilings preserve the older equal-count
-      // rule and classify unequal consumption as inconclusive.
-      Number.isSafeInteger(control.oracleCallBudget)&&
-      /** @type {number} */(control.oracleCallBudget)>=0&&
-      control.oracleCallBudget===candidate.oracleCallBudget&&
-      control.oracleCalls<=/** @type {number} */(control.oracleCallBudget)&&
-      candidate.oracleCalls<=/** @type {number} */(candidate.oracleCallBudget))&&
+    matchedOracleExposure(control,candidate)&&
     Number.isSafeInteger(control.verifiedHeldoutComparisons)&&
     control.verifiedHeldoutComparisons>=evidence.protectedFunctions&&
     control.verifiedHeldoutComparisons===candidate.verifiedHeldoutComparisons;
