@@ -148,10 +148,11 @@ async function runChallenge(options={}){
     assert.equal(published.status,200);
     const delivered=await published.text();
     assert.equal(delivered,publicCode);
-    const route=delivered.match(
-      /export async function protectedTriangular\([^)]*\)\{return await [\w$]+\("([^"]+)",\[\.\.\.arguments\]\);\}/u);
-    assert.ok(route?.[1],'Published private method route was not recoverable');
-    assert.equal(route[1],selected.methodNames[METHOD]);
+    const routeMatch=delivered.match(
+      /export async function protectedTriangular\\([^)]*\\)\\{return await [\\w$]+\\("([^"]+)",\\[\\.\\.\\.arguments\\]\\);\\}/u);
+    const publicMethod=routeMatch?.[1];
+    assert.ok(publicMethod,'Published private method route was not recoverable');
+    assert.equal(publicMethod,selected.methodNames[METHOD]);
 
     const [scoClone,ordinaryClone]=await Promise.all([
       cloneAuthorizedQuadratic({origin:scoOrigin,method:publicMethod,credential:TOKEN}),
