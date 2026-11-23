@@ -609,3 +609,50 @@ test('logical member assignment of unrelated numeric callback retains positive w
   assert.equal(await execute(compiled.files),native);
   assert.equal(compiled.crossFile.properties,1);
 });
+
+
+/**
+ * An ordinary local identifier can receive a host-returning callback through
+ * a conditional logical assignment. This is distinct from the member-write
+ * carriers tested above and should flow into Promise callback provenance.
+ */
+for(const [operator,initial] of /** @type {[string,string][]} */([
+  ['??=','let callback;'],
+  ['||=','let callback=null;'],
+  ['&&=','let callback=()=>7;']
+])) {
+  test('logical local callback alias '+operator+' preserves ESM owner keys',async()=>{
+    const files=graph([
+      'function getFactory(){return globalThis.RUNTIME_FACTORY;}',
+      initial,
+      'callback '+operator+' getFactory;',
+      'const ctor=await Promise.resolve().then(callback);',
+      'const remote=await ctor("return import(\'./state.mjs\')")();',
+      "const result=[inspectRecord('auditCount').value,Object.keys(remote.state),remote.state.secretField];"
+    ].join('\n'));
+    const native=await execute(files,true);
+    assert.equal(native,'[41,[3,["secretField"],41]]\n');
+    const compiled=obfuscateFiles(files,{
+      mode:'coo',closedWorld:true,seed:'host-logical-alias/'+operator,
+      identifiers:false,strings:false,properties:true
+    });
+    assert.equal(await execute(compiled.files,true),native,operator);
+    assert.equal(compiled.crossFile.properties,0,operator);
+  });
+}
+
+test('numeric logical local callback alias keeps unrelated private-property rewrite',async()=>{
+  const files=graph([
+    'const numeric=()=>7;',
+    'let callback; callback ??= numeric;',
+    'const value=await Promise.resolve().then(callback);',
+    "const result=[inspectRecord('externalFormat').value,value];"
+  ].join('\n'));
+  const native=await execute(files);
+  const compiled=obfuscateFiles(files,{
+    mode:'coo',closedWorld:true,seed:'host-logical-alias-numeric',
+    identifiers:false,strings:false,properties:true
+  });
+  assert.equal(await execute(compiled.files),native);
+  assert.equal(compiled.crossFile.properties,1);
+});
