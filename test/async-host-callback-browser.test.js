@@ -10,8 +10,9 @@ const exec=promisify(execFile);
 
 /** @typedef {{path:string,sourceType:'module',code:string}} ModuleFile */
 
-/** @type {ModuleFile[]} */
-const files=[
+/** @param {string} setup @returns {ModuleFile[]} */
+function filesFor(setup){
+return [
   {path:'state.mjs',sourceType:'module',
     code:'export const state={secretField:41};'},
   {path:'record.mjs',sourceType:'module',code:[
@@ -24,14 +25,13 @@ const files=[
   {path:'entry.mjs',sourceType:'module',code:[
     "import {state} from './state.mjs';",
     "import {inspectRecord} from './record.mjs';",
-    'const callback=()=>globalThis.RUNTIME_FACTORY;',
-    'const holder={callback};',
-    'const ctor=await Promise.resolve().then(holder.callback);',
+    setup,
     'const remote=await ctor("return import(\'./state.mjs\')")();',
     "export const result=[state.secretField,inspectRecord('auditCount').value,",
     '  Object.keys(remote.state),remote.state.secretField];'
   ].join('\n')}
 ];
+}
 
 /**
  * Browser host initialization deliberately occurs before static module
@@ -54,8 +54,26 @@ function html(folder){
   ].join('\n');
 }
 
-test('Chromium host callback through Promise and object holder retains ESM observable keys',
+for(const [name,setup] of /** @type {[string,string][]} */ ([
+  ['baseline object holder',[
+    'const callback=()=>globalThis.RUNTIME_FACTORY;',
+    'const holder={callback};',
+    'const ctor=await Promise.resolve().then(holder.callback);'
+  ].join('\n')],
+  ['logical assignment object holder',[
+    'function getFactory(){return globalThis.RUNTIME_FACTORY;}',
+    'const holder={}; holder.callback ??= getFactory;',
+    'const ctor=await Promise.resolve().then(holder.callback);'
+  ].join('\n')],
+  ['conditional callback alias',[
+    'function getFactory(){return globalThis.RUNTIME_FACTORY;}',
+    'const callback=true ? getFactory : (()=>7);',
+    'const ctor=await Promise.resolve().then(callback);'
+  ].join('\n')]
+])) {
+test('Chromium host callback '+name+' preserves original ESM keys',
   async t=>{
+    const files=filesFor(setup);
     const chromium=process.env.CHROMIUM_BIN??'google-chrome';
     const probe=spawnSync(chromium,['--version'],{encoding:'utf8',timeout:5000});
     if(probe.error?.code==='ENOENT') {
@@ -115,3 +133,5 @@ test('Chromium host callback through Promise and object holder retains ESM obser
         server.close(error=>error?reject(error):resolve()));
     }
   });
+
+}
