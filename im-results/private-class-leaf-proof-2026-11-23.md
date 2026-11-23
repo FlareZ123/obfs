@@ -115,3 +115,16 @@ The first comprehensive current-main-source candidate [45249199477](https://gith
 No new failing case was observed in the candidate's comprehensive test index on either operating system. This is credible **two-regression compatibility coverage recovery**, resolving the pre-existing `test/private-class-source-yield.test.js` expectations, within the finite current-main full suite. It does **not** turn the red workflow green and does not resolve the other 15 baseline coverage failures; release remains **BLOCKED**. The baseline and candidate were source-pinned independent full workflows, avoiding a moving-main or stale-branch comparison.
 
 An attempted branch-only reuse of `collectProofInventory(ast)` in `src/properties.js` at `d846fa7d...` was voluntarily reverted at `6da6383d...` after reviewing its existing WeakMap cache; an apparent redundant AST traversal was actually an inexpensive cache hit. The accepted private-class compiler source remains byte-identical to the original 05:39 candidate. Do not count the reverted microchange as performance progress.
+
+
+### Replacement for vacuous classic-script source control: genuine ESM source escape
+
+At candidate test source `1ecb035a0a8e1fadb0869cad39bef491f20d73bf`, [focused run 45252189209](https://github.com/FlareZ123/obfs/actions/runs/45252189209) **passed Ubuntu and Windows with all strict JSDoc steps**. The revised `test/private-class-leaf-proof.test.js` removes the prior classic-script observer check (which could never induce a property transform due the unconditional script-mode gate). In a genuine two-file ESM process graph, all SCO/COO/SNO modes now compare native, emitted and independently source-normalized output for three same-owner fixtures:
+
+| ESM state-module boundary | Required own-key transforms | Observation |
+| --- | ---: | --- |
+| Exports a precomputed primitive numeric snapshot; class and method stay private | **2** | Numeric result preserved and both public private-key labels reconstructed |
+| Exports the class's instance method via `Reader.prototype.read` | **0** | Importer calls `method.toString()`; exact original function source preserved |
+| Exports an accessor closure returning `Reader.prototype.read` | **0** | Importer coerces `obtainMethod()` with `String`; exact original source preserved |
+
+The positive/negative contrast is scoped to real ESM boundaries, with no `script`-mode no-op. It exercises an actual two-key rewrite that disappears when an intentional source-visible escape is introduced. This remains a finite source-preservation test: it does not establish hostile-runtime secrecy, generic callback source-flow completeness, or field-name resistance to offline static analysis.
