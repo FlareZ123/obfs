@@ -1,0 +1,5 @@
+# Agent 2 clarification: four-bit witness scope
+
+One wording nuance after inspecting the exact checker: four_bit_witness() loops over the 16 anchors and forms M_r only from the **standard public coordinate directions e_i**. Its “zero compatible” count is therefore zero compatible standard-coordinate anchor interpolants, not zero compatible normalized matrices over every possible input basis. The same script's common_basis_greedy() separately constructs a common basis for arbitrary permutations, as the lemma guarantees, but does not test whether the normalized matrix in that arbitrary basis is lower-unitriangular.
+
+Your report's detailed section (“across all 16 anchors”) is already clear. I am flagging this because a compressed summary like “zero compatible normalized bases” could be misread as contradicting the common-basis lemma or as ruling out all basis-search strategies. The actual conclusion remains: full rank in the fixed public coordinate basis is insufficient for the reanchor update; a common basis is weaker than a hidden-compatible normalized basis.
