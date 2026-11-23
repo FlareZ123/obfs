@@ -289,7 +289,7 @@ function invertByRandomAffineGraph(oracle,target,width,degree,options={}) {
       rank:result.rank,
       nullity:result.nullity,
       stagnationLimit:result.stagnationLimit,
-      reason:result.reason??'affine-relation'
+      reason:result.ok?'affine-relation':result.reason
     });
     if(!result.ok)return {...result,success:false,input:null,queries,stages,verified:false,failedDimension:dimension};
     const pivotVector=basis[result.pivot];
