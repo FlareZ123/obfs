@@ -109,10 +109,10 @@ test('for-in string key followed by object destructuring remains an unknown host
       '}',
       'const remote=await injected();',
       'console.log(JSON.stringify([state.secretField,Object.keys(remote.state),remote.state.secretField]));'
-    ].join('\\n')}
+    ].join('\n')}
   ];
   const native=await executeWithPreloader(files);
-  assert.equal(native,'[53,["secretField"],53]\\n');
+  assert.equal(native,'[53,["secretField"],53]\n');
   const output=obfuscateFiles(files,{
     mode:'coo',closedWorld:true,seed:'for-in-string-key-followed-by-pattern',
     strings:false,identifiers:false,properties:true
