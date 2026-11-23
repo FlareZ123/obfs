@@ -2,7 +2,7 @@
 
 const assert = require('node:assert/strict');
 const http = require('node:http');
-const {createHash, randomBytes} = require('node:crypto');
+const {createHash, createHmac, randomBytes} = require('node:crypto');
 const {transform} = require('esbuild');
 const {
   partitionScoSelectedAsyncExports,
@@ -19,7 +19,7 @@ const METHOD = 'protectedCubic';
 const PROJECTION_MASKS = [0x00015555, 0x0002aaaa, 0x0000f0f0, 0x00033333];
 
 /** @typedef {{origin:string,method:string,credential:string}} Access */
-/** @typedef {{witness:number[],verify:number[]}} DrawTapes */
+/** @typedef {{witness:number[],verify:number[],seed:Buffer}} DrawTapes */
 /** @typedef {ReturnType<typeof cloneProjectedCubicValidated>} ValidatedModel */
 /**
  * @typedef {Object} ScoResult
@@ -181,6 +181,25 @@ function topProjectionRadicalSize() {
 }
 
 /**
+ * Derive a reproducible pseudorandom 32-bit draw from a CSPRNG seed.
+ * Separate domains keep witness and verifier streams independent under HMAC.
+ *
+ * @param {Buffer} seed
+ * @param {'witness'|'verify'} domain
+ * @param {number} index
+ * @returns {number}
+ */
+function seededWord(seed, domain, index) {
+  const counter = Buffer.alloc(4);
+  counter.writeUInt32BE(index >>> 0);
+  return createHmac('sha256', seed)
+    .update('rankfour-cubic-' + domain)
+    .update(counter)
+    .digest()
+    .readUInt32BE(0);
+}
+
+/**
  * Replay the synchronous validated learner against real authenticated HTTP.
  * The two draw tapes survive replay and are shared across the matched arms.
  *
@@ -199,14 +218,14 @@ async function cloneOverHttp(access, tapes) {
     /** @returns {number} */
     function drawWitness() {
       if (witnessIndex === tapes.witness.length) {
-        tapes.witness.push(randomBytes(4).readUInt32BE(0));
+        tapes.witness.push(seededWord(tapes.seed, 'witness', witnessIndex));
       }
       return tapes.witness[witnessIndex++];
     }
     /** @returns {number} */
     function drawVerify() {
       if (verifyIndex === tapes.verify.length) {
-        tapes.verify.push(randomBytes(4).readUInt32BE(0));
+        tapes.verify.push(seededWord(tapes.seed, 'verify', verifyIndex));
       }
       return tapes.verify[verifyIndex++];
     }
@@ -547,7 +566,17 @@ async function main() {
     'The top cubic tensor must have zero radical on the four-bit projection');
   const source = privateSource();
   /** @type {DrawTapes} */
-  const tapes = {witness: [], verify: []};
+  const configuredSeed = process.env.OBFS_RANKFOUR_SEED;
+  if (configuredSeed !== undefined) {
+    assert.match(configuredSeed, /^[0-9a-f]{64}$/iu,
+      'OBFS_RANKFOUR_SEED must be exactly 32 bytes of hexadecimal');
+  }
+  /** @type {DrawTapes} */
+  const tapes = {
+    witness: [],
+    verify: [],
+    seed: configuredSeed ? Buffer.from(configuredSeed, 'hex') : randomBytes(32)
+  };
   const sco = await runScoArm(source, tapes);
   const minified = await runMinifiedArm(source, sco.method, tapes, sco);
   assert.equal(sco.sourceHash, minified.sourceHash);
@@ -573,6 +602,7 @@ async function main() {
     topJointRadicalSizeOnProjection: 1,
     topJointRadicalCodimension: 4,
     sourceSha256: sco.sourceHash,
+    tapeSeedHex: tapes.seed.toString('hex'),
     scoQueries: sco.queries,
     minifiedQueries: minified.queries,
     fastQueries: sco.fastQueries,
