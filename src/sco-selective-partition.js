@@ -333,31 +333,48 @@ function usesUnprovedRelocatedTextDecoder(body){
     return Boolean(value?.type==='NewExpression'&&decoderRoot(value.callee));
   }
   const instanceBindings=collectBindings(body);
-  /** @type {Set<string>} */
-  const instanceAliases=new Set();
+  // Unique names alone are insufficient. A const inside an unrelated
+  // function or block cannot establish the provenance of an outer free
+  // identifier with the same spelling. Record the lexical owner for every
+  // admitted alias, and require every use to occur inside that scope.
+  /** @type {Map<string,import('./ast').AstNode>} */
+  const instanceAliases=new Map();
   /** @type {Set<import('./ast').AstNode>} */
   const provedInstanceDeclarations=new Set();
   let aliasesChanged=true;
   while(aliasesChanged){
     aliasesChanged=false;
-    walk(body,(node,parent)=>{
+    walk(body,(node,parent,_key,ancestors)=>{
       if(node.type!=='VariableDeclarator'||parent?.type!=='VariableDeclaration'||
          parent.kind!=='const'||node.id.type!=='Identifier'||
          instanceBindings.get(node.id.name)!==1)return;
+      const scope=ancestors[ancestors.length-2];
+      // A direct const statement in a lexical block has a bounded owner.
+      // For-head lexical environments require their own scope proof.
+      if(!scope||!['BlockStatement','Program'].includes(scope.type)||
+         !Array.isArray(scope.body)||!scope.body.includes(parent))return;
       const source=node.init;
+      const sourceScope=source?.type==='Identifier'?
+        instanceAliases.get(source.name):undefined;
       if(!isDirectInstance(source)&&
-         !(source?.type==='Identifier'&&instanceAliases.has(source.name)))return;
+         !(sourceScope&&ancestors.includes(sourceScope)))return;
       provedInstanceDeclarations.add(node);
       if(!instanceAliases.has(node.id.name)){
-        instanceAliases.add(node.id.name);
+        instanceAliases.set(node.id.name,scope);
         aliasesChanged=true;
       }
     });
   }
   walk(body,(node,parent,key,ancestors)=>{
-    if(!isDirectInstance(node)&&
-       !(node.type==='Identifier'&&instanceAliases.has(node.name)))return;
+    const aliasScope=node.type==='Identifier'?instanceAliases.get(node.name):undefined;
+    if(!isDirectInstance(node)&&!aliasScope)return;
     if(node.type==='Identifier'&&isStaticKey(parent,key))return;
+    // An identically spelled free identifier outside a nested const's
+    // lexical scope must never inherit its constructor provenance.
+    if(aliasScope&&!ancestors.includes(aliasScope)){
+      unproved=true;
+      return;
+    }
     if(parent?.type==='VariableDeclarator'&&
        provedInstanceDeclarations.has(parent)&&(key==='id'||key==='init'))return;
     if(parent?.type==='MemberExpression'&&key==='object'&&
