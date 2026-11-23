@@ -61,7 +61,7 @@ function invertMatrixRows(rows,width) {
  * @returns {LinearMapPair}
  */
 function makeRandomInvertibleMatrix(width,seed) {
-  if(!Number.isInteger(width)||width<1||width>64)throw new RangeError('width must be 1..64');
+  if(!Number.isInteger(width)||width<1||width>256)throw new RangeError('width must be 1..256');
   const next=seeded(seed);
   const forwardRows=Array.from({length:width},(_,i)=>1n<<BigInt(i));
   for(let step=0;step<30*width;step++){
