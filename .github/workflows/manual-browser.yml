@@ -117,6 +117,10 @@ jobs:
         env:
           CHROMIUM_BIN: google-chrome
         run: node test/heldout-browser-integration.js
+      - name: Compare asynchronous cross-file shared-reference graphs under Chromium CSP
+        env:
+          CHROMIUM_BIN: google-chrome
+        run: node test/interfile-async-browser.js
       - name: Compare imported constant-key ownership under real browser CSP
         env:
           CHROMIUM_BIN: google-chrome
