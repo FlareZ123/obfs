@@ -31,7 +31,7 @@ The passing assertions establish:
 | Own `Symbol.toPrimitive` returns a stable primitive | true | 0 | Conservative over-refusal; the computed symbol-key write is treated as unknown |
 | Direct `Function.prototype.toString.call(inspect)` despite an own `toString` hook | true | 0 | Correct source-observation negative |
 
-An earlier intentionally-red classification matrix, [run 45193389961](https://github.com/FlareZ123/obfs/actions/runs/45193389961), isolated a receiver-sensitive variant. A plain own-`toString` assignment, the same hook with a counter, and function-valued native Storage key/value calls all classify false. The combination `if (this !== inspect) throw new Error(...)` classifies true. The new positive fixture uses a non-throwing receiver comparison; the strict identity comparison alone is therefore not the cause. The exact internal reason for the throwing branch's refusal is not established here.
+An earlier intentionally-red classification matrix, [run 45193389961](https://github.com/FlareZ123/obfs/actions/runs/45193389961), isolated a receiver-sensitive variant. A plain own-`toString` assignment, the same hook with a counter, and function-valued native Storage key/value calls all classify false. The combination `if (this !== inspect) throw new Error(...)` classifies true. The new positive fixture uses a non-throwing `this === inspect` receiver check and is accepted, while the original `this !== inspect` plus `throw new Error(...)` combination is refused. This does not isolate whether the operator difference, throw statement, or Error-stack path is responsible; do not infer a more specific cause from this matrix.
 
 ### Real Chromium
 
