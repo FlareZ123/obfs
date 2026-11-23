@@ -36,3 +36,67 @@ Later statuses must be checked and recorded against their exact source commit, e
 ## Destructured descriptor-entry alias: source-pinned red and green
 
 A separate **source-pinned falsifier** demonstrates that destructuring is an equivalent entry reference: `const {ref:entry}=descriptors; entry.get=()=>String.prototype; Object.create(null,descriptors)`. The compiler without a destructuring read edge (test-only source `24f743d8df13cd4084975280fc989febf8f12f50`) produced native/emitted mismatches for all three String-sensitive modes while the Number.prototype controls passed in [Ubuntu run 45052655596](https://github.com/FlareZ123/obfs/actions/runs/45052655596). The narrow repair adds ObjectPattern identifier bindings sourced from another identifier to `descriptorMemberReadAliases`, including assignment-style patterns and unknown computed keys as conservative may aliases. With the new repair at `d6fc3b6af2bdbefa293b8a63a41de6be27e5b6a8`, [Ubuntu run 45052702468](https://github.com/FlareZ123/obfs/actions/runs/45052702468) completed successfully across the full validation suite. The paired Windows result was still pending at this report update. The real Chromium fixture now includes native/emitted ESM String-sensitive and Number-benign getter aliases, while a later full run will validate that expanded source.
+
+## 23 November: cross-file exported descriptor-entry factory, red-first and repaired
+
+The previous local `Object.assign(entry,build())` failure recorded in
+run 45053027969 was **already repaired** by this branch's later
+`proxyHandlerHasSensitiveGet` factory-source handling. Historical full
+run [45053887753](https://github.com/FlareZ123/obfs/actions/runs/45053887753)
+at `947c4c0d536445a941b5ff8a078318d7b03ccab6` passed Ubuntu and
+Windows. The present result concerns a *different* bug at a **CommonJS
+module boundary**, not a new claim about that resolved local test.
+
+In the new three-file graph, `factory.cjs` exports a function whose
+direct return is `{get:function(){return String.prototype}}`.
+`entry.cjs` requires the factory, `Object.assign` copies the returned
+function into `descriptors.ref.get`, and `Object.create(null,descriptors)`
+constructs an own accessor. Reading `box.ref` exposes
+`String.prototype`, so `box.ref.charCodeAt=()=>0` corrupts a subsequent
+eager decoder in `target.cjs`. The original target exports a single
+2049-character literal and does not use that intrinsic. A paired
+`Number.prototype` case leaves `String.prototype` intact and tests
+that encoding still occurs. This dependency/descriptor sequence is
+consistent with [ECMAScript 2026 Object.assign and Object.create semantics](https://tc39.es/ecma262/2026/multipage/fundamental-objects.html#sec-object.assign):
+`Object.assign` copies the enumerable `get` function, and
+`Object.create` interprets the supplied descriptor map.
+
+The **identical** test source blob
+`8ed85267251f551bd91d1275ecdc3ec747e93862` is committed
+as `test/decoder-descriptor-factory-export.test.js` on both the test-only
+control branch and the repaired candidate. It covers COO, SNO, SCO,
+String-sensitive negative encoding and Number-benign positive encoding.
+
+- Test-only baseline `86e3c21dd26b76802cead891637267c7f95b21b7`,
+  [full run 45194095215](https://github.com/FlareZ123/obfs/actions/runs/45194095215):
+  Ubuntu **three real native/emitted mismatches**, one per String-sensitive
+  mode, while all three Number controls passed. Independent remaining
+  test suites were not the cause of these specific failures.
+- Candidate scanner change `84ac6bf4cb601d5d0ef0cb0eecba9fadf6bb1854`
+  adds a fixed-point `decoderGetterDescriptorFactories` provenance set,
+  `isDecoderGetterDescriptorFactory`, and a descriptor-factory export guard.
+  This distinguishes an exported descriptor **entry** factory from an
+  exported descriptor **map** factory, which the earlier analyzer already
+  recognized.
+- Test-inclusive candidate `bf6ffc9c0d24a696bc6092896ebadc670cb5a781`,
+  [full run 45194103943](https://github.com/FlareZ123/obfs/actions/runs/45194103943):
+  **Ubuntu and Windows SUCCESS**. Both source-pinned jobs completed the
+  complete behavioral/adversarial suites, project/external JSDoc checks,
+  runtime performance stages, and the Ubuntu real-Chromium stages. All six
+  imported-descriptor-factory test cases passed, with zero target encoded
+  literals for String and exactly one for Number.
+
+The earlier patch-only source `84ac6bf4` had a separate general
+`/module.html` Chromium assertion on Ubuntu in
+[run 45192833424](https://github.com/FlareZ123/obfs/actions/runs/45192833424);
+its 4,459 Node cases, JSDoc and dedicated descriptor-alias Chromium checks
+passed. The later **exact test-inclusive source** succeeded on both OS,
+resolving that run's validation uncertainty without reclassifying the
+earlier failure as a semantic regression.
+
+The repair is an additional bounded, syntax-directed may-provenance guard
+on a **stacked draft branch**. It makes no statement about arbitrary
+computed/dynamic imports, opaque factories, all interprocedural flows,
+independent adversarial deobfuscation resistance, mainline integration,
+or a universal 2.5× runtime proof. The primary security deliverable
+remains **RELEASE-BLOCKED**.
