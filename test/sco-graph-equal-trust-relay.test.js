@@ -228,11 +228,13 @@ test('real multi-module private SCO graph and equal-trust minified client allow 
     // The private HMAC is intentionally heavy, making a sampled
     // caller+server CPU comparison meaningful. Preserve each raw pair rather
     // than using only medians to conceal strict 2.5x counterexamples.
+    /** @type {{native:number[],sco:number[],ordinary:number[]}} */
     const cpu={native:[],sco:[],ordinary:[]};
     for(let index=0;index<8;index++){
       const input=Buffer.alloc(16,index+1).toString('hex');
       const expected=await api.derive(input);
-      const order=index%2===0?['native','sco','ordinary']:['ordinary','sco','native'];
+      const order=/** @type {('native'|'sco'|'ordinary')[]} */ (
+        index%2===0?['native','sco','ordinary']:['ordinary','sco','native']);
       for(const kind of order){
         const sample=await sampleCpu(async()=>{
           if(kind==='native')return await api.derive(input);
