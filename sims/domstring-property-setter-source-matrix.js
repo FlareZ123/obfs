@@ -71,6 +71,109 @@ const dispatchCases=[
   {name:'Proxy forwarding to native setter',setup:'const target=document.createElement("div");const proxy=new Proxy(target,{set(object,key,value){return Reflect.set(object,key,value,object);}});',
     assignment:'proxy.id=inspect;',read:'target.id',
     positiveAssignment:'proxy.id="literal";'}
+];;
+
+/** @typedef {DispatchCase & {supportKey:string}} HtmlApiCase */
+
+/**
+ * @param {string} name
+ * @param {string} supportKey
+ * @param {string} method
+ * @returns {HtmlApiCase}
+ */
+function elementHtmlMethodCase(name,supportKey,method) {
+  return {
+    name,supportKey,
+    setup:'const target=document.createElement("div");',
+    assignment:'target.'+method+'(inspect);',
+    read:'target.innerHTML',
+    positiveAssignment:'target.'+method+'("literal");'
+  };
+}
+
+/**
+ * @param {string} name
+ * @param {string} supportKey
+ * @param {string} method
+ * @returns {HtmlApiCase}
+ */
+function elementStreamMethodCase(name,supportKey,method) {
+  return {
+    name,supportKey,
+    setup:'const target=document.createElement("div");',
+    assignment:'const stream=target.'+method+'();const writer=stream.getWriter();await writer.write(inspect);await writer.close();',
+    read:'target.innerHTML',
+    positiveAssignment:'const stream=target.'+method+'();const writer=stream.getWriter();await writer.write("literal");await writer.close();'
+  };
+}
+
+/**
+ * @param {string} name
+ * @param {string} supportKey
+ * @param {string} method
+ * @returns {HtmlApiCase}
+ */
+function nodeHtmlMethodCase(name,supportKey,method) {
+  return {
+    name,supportKey,
+    setup:'const host=document.createElement("div");const target=document.createElement("span");host.appendChild(target);',
+    assignment:'target.'+method+'(inspect);',
+    read:'host.textContent',
+    positiveAssignment:'target.'+method+'("literal");'
+  };
+}
+
+/**
+ * @param {string} name
+ * @param {string} supportKey
+ * @param {string} method
+ * @returns {HtmlApiCase}
+ */
+function nodeStreamMethodCase(name,supportKey,method) {
+  return {
+    name,supportKey,
+    setup:'const host=document.createElement("div");const target=document.createElement("span");host.appendChild(target);',
+    assignment:'const stream=target.'+method+'();const writer=stream.getWriter();await writer.write(inspect);await writer.close();',
+    read:'host.textContent',
+    positiveAssignment:'const stream=target.'+method+'();const writer=stream.getWriter();await writer.write("literal");await writer.close();'
+  };
+}
+
+/** @type {HtmlApiCase[]} */
+const htmlApiCases=[
+  elementHtmlMethodCase('Element.setHTML','setHTML','setHTML'),
+  elementHtmlMethodCase('Element.appendHTML','appendHTML','appendHTML'),
+  elementHtmlMethodCase('Element.prependHTML','prependHTML','prependHTML'),
+  elementHtmlMethodCase('Element.setHTMLUnsafe','setHTMLUnsafe','setHTMLUnsafe'),
+  elementHtmlMethodCase('Element.appendHTMLUnsafe','appendHTMLUnsafe','appendHTMLUnsafe'),
+  elementHtmlMethodCase('Element.prependHTMLUnsafe','prependHTMLUnsafe','prependHTMLUnsafe'),
+  nodeHtmlMethodCase('Element.beforeHTML','beforeHTML','beforeHTML'),
+  nodeHtmlMethodCase('Element.afterHTML','afterHTML','afterHTML'),
+  nodeHtmlMethodCase('Element.replaceWithHTML','replaceWithHTML','replaceWithHTML'),
+  {
+    name:'Document.parseHTML',supportKey:'documentParseHTML',setup:'',
+    assignment:'const parsed=Document.parseHTML(inspect);',
+    read:'parsed.body.textContent',
+    positiveAssignment:'const parsed=Document.parseHTML("literal");'
+  },
+  {
+    name:'Document.parseHTMLUnsafe',supportKey:'documentParseHTMLUnsafe',setup:'',
+    assignment:'const parsed=Document.parseHTMLUnsafe(inspect);',
+    read:'parsed.body.textContent',
+    positiveAssignment:'const parsed=Document.parseHTMLUnsafe("literal");'
+  },
+  elementStreamMethodCase('Element.streamHTML','streamHTML','streamHTML'),
+  elementStreamMethodCase('Element.streamAppendHTML','streamAppendHTML','streamAppendHTML'),
+  elementStreamMethodCase('Element.streamPrependHTML','streamPrependHTML','streamPrependHTML'),
+  elementStreamMethodCase('Element.streamHTMLUnsafe','streamHTMLUnsafe','streamHTMLUnsafe'),
+  elementStreamMethodCase('Element.streamAppendHTMLUnsafe','streamAppendHTMLUnsafe','streamAppendHTMLUnsafe'),
+  elementStreamMethodCase('Element.streamPrependHTMLUnsafe','streamPrependHTMLUnsafe','streamPrependHTMLUnsafe'),
+  nodeStreamMethodCase('Element.streamBeforeHTML','streamBeforeHTML','streamBeforeHTML'),
+  nodeStreamMethodCase('Element.streamAfterHTML','streamAfterHTML','streamAfterHTML'),
+  nodeStreamMethodCase('Element.streamReplaceWithHTML','streamReplaceWithHTML','streamReplaceWithHTML'),
+  nodeStreamMethodCase('Element.streamBeforeHTMLUnsafe','streamBeforeHTMLUnsafe','streamBeforeHTMLUnsafe'),
+  nodeStreamMethodCase('Element.streamAfterHTMLUnsafe','streamAfterHTMLUnsafe','streamAfterHTMLUnsafe'),
+  nodeStreamMethodCase('Element.streamReplaceWithHTMLUnsafe','streamReplaceWithHTMLUnsafe','streamReplaceWithHTMLUnsafe')
 ];
 
 /**
@@ -202,6 +305,30 @@ async function main() {
     bodies.set(pair.positiveNative,positive);
     bodies.set(pair.positiveCompiled,positiveOutput.code);
   }
+  /** @type {{name:string,supportKey:string,native:string,compiled:string,positiveNative:string,positiveCompiled:string,negativeProperties:number,positiveProperties:number}[]} */
+  const htmlApiPairs=[];
+  for(let index=0;index<htmlApiCases.length;index++) {
+    const item=htmlApiCases[index];
+    const negative=sourceForDispatchCase(item,false);
+    const negativeOutput=compile(negative,'domstring-html-api-negative-'+index);
+    const positive=sourceForDispatchCase(item,true);
+    const positiveOutput=compile(positive,'domstring-html-api-positive-'+index);
+    const pair={
+      name:item.name,supportKey:item.supportKey,
+      native:'/html-api-native-'+index+'.mjs',
+      compiled:'/html-api-compiled-'+index+'.mjs',
+      positiveNative:'/html-api-positive-native-'+index+'.mjs',
+      positiveCompiled:'/html-api-positive-compiled-'+index+'.mjs',
+      negativeProperties:negativeOutput.properties,
+      positiveProperties:positiveOutput.properties
+    };
+    htmlApiPairs.push(pair);
+    bodies.set(pair.native,negative);
+    bodies.set(pair.compiled,negativeOutput.code);
+    bodies.set(pair.positiveNative,positive);
+    bodies.set(pair.positiveCompiled,positiveOutput.code);
+  }
+
   const dataPropertySource=[
     'const observedOwner={secretField:57};',
     'function inspect(){return observedOwner.secretField;}',
@@ -330,6 +457,7 @@ async function main() {
     '<script type="module">',
     'const pairs='+JSON.stringify(pairs)+';',
     'const dispatchPairs='+JSON.stringify(dispatchPairs)+';',
+    'const htmlApiPairs='+JSON.stringify(htmlApiPairs)+';',
     'const htmlProbe=document.createElement("div");',
     'const nodeProbe=document.createTextNode("");',
     'const browserEnvironment={userAgent:navigator.userAgent,htmlApiSupport:{',
@@ -345,7 +473,17 @@ async function main() {
     ' documentParseHTML:typeof Document.parseHTML==="function",',
     ' documentParseHTMLUnsafe:typeof Document.parseHTMLUnsafe==="function",',
     ' streamHTML:typeof htmlProbe.streamHTML==="function",',
+    ' streamAppendHTML:typeof htmlProbe.streamAppendHTML==="function",',
+    ' streamPrependHTML:typeof htmlProbe.streamPrependHTML==="function",',
     ' streamHTMLUnsafe:typeof htmlProbe.streamHTMLUnsafe==="function",',
+    ' streamAppendHTMLUnsafe:typeof htmlProbe.streamAppendHTMLUnsafe==="function",',
+    ' streamPrependHTMLUnsafe:typeof htmlProbe.streamPrependHTMLUnsafe==="function",',
+    ' streamBeforeHTML:typeof nodeProbe.streamBeforeHTML==="function",',
+    ' streamAfterHTML:typeof nodeProbe.streamAfterHTML==="function",',
+    ' streamReplaceWithHTML:typeof nodeProbe.streamReplaceWithHTML==="function",',
+    ' streamBeforeHTMLUnsafe:typeof nodeProbe.streamBeforeHTMLUnsafe==="function",',
+    ' streamAfterHTMLUnsafe:typeof nodeProbe.streamAfterHTMLUnsafe==="function",',
+    ' streamReplaceWithHTMLUnsafe:typeof nodeProbe.streamReplaceWithHTMLUnsafe==="function",',
     ' insertAdjacentHTML:typeof htmlProbe.insertAdjacentHTML==="function"',
     '}};',
     'try {',
@@ -367,6 +505,24 @@ async function main() {
     '     JSON.stringify(positiveNative)===JSON.stringify(positiveEmitted),',
     '   negativeProperties:pair.negativeProperties,',
     '   positiveProperties:pair.positiveProperties});',
+    ' }',
+    ' const htmlApiRows=[];',
+    ' for(const pair of htmlApiPairs){',
+    '  const supported=!!browserEnvironment.htmlApiSupport[pair.supportKey];',
+    '  if(!supported){htmlApiRows.push({name:pair.name,supported:false});continue;}',
+    '  const [n,e,pn,pe]=await Promise.all([',
+    '   import(pair.native),import(pair.compiled),',
+    '   import(pair.positiveNative),import(pair.positiveCompiled)]);',
+    '  const native=n.observed,emitted=e.observed,',
+    '   positiveNative=pn.observed,positiveEmitted=pe.observed;',
+    '  htmlApiRows.push({name:pair.name,supported:true,',
+    '   nativeSourceValid:native.source.includes("observedOwner.secretField"),',
+    '   sourceMismatch:native.source!==emitted.source,',
+    '   numericParity:native.value===emitted.value&&native.value===57,',
+    '   independentParity:native.independent===emitted.independent&&native.independent===73,',
+    '   positiveParity:positiveNative.source==="literal"&&',
+    '     JSON.stringify(positiveNative)===JSON.stringify(positiveEmitted),',
+    '   negativeProperties:pair.negativeProperties,positiveProperties:pair.positiveProperties});',
     ' }',
     ' const dispatchRows=[];',
     ' for(const pair of dispatchPairs){',
@@ -428,7 +584,7 @@ async function main() {
     '    JSON.stringify(pn.observed)===JSON.stringify(pe.observed),',
     '  negativeProperties:'+crossNegativeProperties+',',
     '  positiveProperties:'+crossPositiveProperties+'};',
-    ' document.getElementById("result").textContent=JSON.stringify({rows,dispatchRows,userland,dataPropertyControl,customAccessorControl,proxyStorageControl,proxyBrandCheckControl,htmlMethodControl,browserEnvironment,crossFile});',
+    ' document.getElementById("result").textContent=JSON.stringify({rows,dispatchRows,htmlApiRows,userland,dataPropertyControl,customAccessorControl,proxyStorageControl,proxyBrandCheckControl,htmlMethodControl,browserEnvironment,crossFile});',
     '}catch(error){document.getElementById("result").textContent=',
     ' "BROWSER_ERROR "+String(error.stack||error);}',
     '</script>'
@@ -462,6 +618,15 @@ async function main() {
     assert.ok(!match[1].startsWith('BROWSER_ERROR '),match[1]);
     const browser=JSON.parse(match[1]);
     const browserEnvironment=browser.browserEnvironment;
+    const htmlApiRows=browser.htmlApiRows;
+    const supportedHtmlApiCases=htmlApiCases.filter((/** @type {HtmlApiCase} */ item)=>
+      !!browserEnvironment.htmlApiSupport[item.supportKey]);
+    const htmlApiExpectedRed=htmlApiRows.length===htmlApiCases.length&&
+      htmlApiRows.filter((/** @type {any} */ row)=>row.supported).length===supportedHtmlApiCases.length&&
+      htmlApiRows.every((/** @type {any} */ row)=>!row.supported||
+        (row.nativeSourceValid&&row.sourceMismatch&&row.numericParity&&
+         row.independentParity&&row.positiveParity&&row.negativeProperties>=1&&
+         row.positiveProperties>=1));
     const rows=browser.rows;
     const allExpectedRed=rows.length===cases.length&&rows.every(
       (/** @type {any} */ row)=>row.nativeSourceValid&&row.sourceMismatch&&
@@ -513,13 +678,13 @@ async function main() {
       dispatchRows.every((/** @type {any} */ row)=>row.sourceMismatch&&row.numericParity&&
         row.independentParity&&row.positiveParity);
     const summary={
-      expectedRedReproduced:allExpectedRed&&userlandPositive&&crossFileExpectedRed&&dataPropertyPositive&&customAccessorPositive&&proxyStoragePositive&&proxyBrandCheckPositive&&htmlMethodExpectedRed&&dispatchExpectedRed,
+      expectedRedReproduced:allExpectedRed&&userlandPositive&&crossFileExpectedRed&&dataPropertyPositive&&customAccessorPositive&&proxyStoragePositive&&proxyBrandCheckPositive&&htmlMethodExpectedRed&&htmlApiExpectedRed&&dispatchExpectedRed,
       sinkCount:rows.length,
       sourceMismatchCount:rows.filter((/** @type {any} */ row)=>row.sourceMismatch).length,
       sourceMismatchNames:rows.filter((/** @type {any} */ row)=>row.sourceMismatch).map(
         (/** @type {any} */ row)=>row.name),
       crossFileExpectedRed,crossFile,dispatchSummary,dataPropertyControl,customAccessorControl,proxyStorageControl,proxyBrandCheckControl,
-      htmlMethodExpectedRed,htmlMethodControl,
+      htmlMethodExpectedRed,htmlMethodControl,htmlApiExpectedRed,htmlApiRows,
       htmlMethodProperties:{negative:htmlMethodOutput.properties,positive:htmlMethodPositiveOutput.properties},
       browserEnvironment,
       rows,userland,
