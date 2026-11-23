@@ -2179,6 +2179,9 @@ function renameCrossFileProperties(files,seed) {
         unprovedNativeFormal=true;
       if(node.type==='CatchClause' && canExtractNative(node.param))
         unprovedNativeFormal=true;
+      if((node.type==='ForOfStatement'||node.type==='ForInStatement') &&
+         (node.left.type==='ObjectPattern'||node.left.type==='ArrayPattern') &&
+         canExtractNative(node.left))unprovedNativeFormal=true;
       if(!['FunctionDeclaration','FunctionExpression','ArrowFunctionExpression'].includes(node.type))return;
       for(let i=0;i<node.params.length;i++) {
         const arg=node.params[i];
