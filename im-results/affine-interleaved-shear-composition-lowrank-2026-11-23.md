@@ -100,3 +100,28 @@ These are attack upper bounds, not lower bounds or a claim that a provider would
 - **Mode relevance:** In SCO, an attacker with unlimited authorized chosen requests can potentially exploit a public low-rank API; SNO and COO hostile-runtime access additionally permits static/trace/patch attacks. The result does not bypass an account boundary or prove unauthorized execution.
 - **Research decision:** Treat low-rank-per-layer affine interleaving as **vulnerable to bounded-query exact inversion** whenever the total displacement rank remains small, even if code structure and nonlinear degree seem complicated. Require independent invertibility/rank assessment, source-aware attacker baselines, and 2.5× profiles before claiming added protection. The project's strong release decision stays **RELEASE-BLOCKED**.
 
+
+
+## Cross-family challenge: bounded-degree affine-flag inversion is not a generic low-degree permutation inverter
+
+To compare the bounded-degree affine-coset method in the separate two-sided-affine report against this broader layered family, I ran a local line-for-line port of its solveLinear/invertBoundedDegree logic using the exact source generator and deterministic seed schedule in sims/layered-rankone-crosswrapped-inversion.js. The port was matched against sims/two-sided-affine-degree-inversion.js as it stood at source SHA 920ce49f0ad14386c50ba84ca55955be5fd4aceb; the layered generator SHA was bc66c8718da246d0d1a4a095cf5db2a236b4b6a9. This was a local exploratory check, not a new CI/source-pinned test.
+
+For four sources each, the bounded-degree flag method recovered all targets for one, two, and three layers at declared degrees 2, 3, and 4, respectively:
+- one layer: 3,027 / 3,006 / 3,019 / 3,022 distinct oracle calls;
+- two layers: 23,498 / 23,430 / 23,507 / 23,427;
+- three layers: 141,915 / 142,101 / 142,190 / 142,301.
+
+For four layers at degree bound 5, the first four deterministic sources were mixed. Seed 1408068602 refused at residual dimension 3 after 695,873 calls; seeds 3526619077, 1366844368, and 3515803579 inverted exactly after 695,487, 696,790, and 695,759 calls. The D=5 direct-online worst-case bound is Q(32,5)=1,431,840; the routine's default 300,000-call budget is insufficient for these sources, so the local check used 2,000,000.
+
+The failing seed's final three-dimensional coset is a genuine permutation on eight points. Its three nonzero nonlinear vector ANF coefficients are 0x7, 0x4, and 0x6, which have rank 3 over GF(2). No nonzero output parity annihilates all nonlinear coefficients, so there is no nonconstant affine output parity on that residual coset. This is a structural refusal, not an oracle or row-reduction error. The same source is inverted by the separate rank-sum low-rank method already tested in this report, with the existing four-layer maximum of 65 calls.
+
+A minimal independent control makes the scope boundary even clearer. Let G be the three-bit permutation with input-order table [0,1,2,4,3,6,7,5], and define the 32-bit permutation F(x)=(x & 0xfffffff8) | G(x & 7). The three output coordinate ANFs are:
+- G0 = x0 XOR x0*x1 XOR x2;
+- G1 = x1 XOR x0*x1 XOR x2 XOR x1*x2;
+- G2 = x0*x1 XOR x0*x2 XOR x1*x2.
+
+The three quadratic coefficient vectors are 0x7, 0x4, and 0x6, linearly independent. Thus all seven nonzero output parities of G have degree 2, and the embedded F is a 32-bit degree-two permutation with no nonconstant affine output parity on its final three-bit coset. For secret 0x9a123457 and target 0x9a123455, the local port refuses at dimension 3 after 2,361 calls; the remaining coset is base 0x9a123450 plus span{1,2,4}. This is a small S-box scope control, not a security candidate.
+
+A local optional fallback that enumerates the residual coset after flag refusal recovered the embedded S-box target in 2,362 calls (one extra point; the D=2 coefficient frame already queried 7/8) and the four-layer seed-0 target in 695,873 calls (zero extra points because D=5 had already sampled all eight residual inputs). A configurable small residual-dimension fallback can therefore turn these refusals into exact inversions, but it has no polynomial worst-case guarantee if the residual dimension remains large.
+
+Interpretation: the bounded-degree affine-flag algorithm often succeeds on this layered family because many residual cosets happen to have flags, but it is not a generic low-degree permutation inverter. The stated two-sided triangular-affine promise remains important. The existing rank-sum attack is both more general for this particular family and dramatically cheaper. These checks do not challenge the rank-sum theorem or establish a positive obfuscation result.
