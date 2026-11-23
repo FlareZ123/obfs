@@ -69,6 +69,32 @@ test('explicit absolute document base preserves a relative JS alias with SRI',()
   }
 });
 
+test('unpadded SHA-256 source digest preserves an absolute-mounted script',()=>{
+  const digest=createHash('sha256').update(original).digest('base64')
+    .replace(/=+$/u,'');
+  for(const type of /** @type {const} */(['html','xhtml'])){
+    const files=graph(type,'sha256-'+digest,false);
+    assert.equal(hasPinnedLocalJavaScriptIntegrity(files),true,
+      type+': Chrome enforces an unpadded source hash');
+    for(const mode of /** @type {Mode[]} */(['coo','sco','sno']))
+      assert.equal(compile(files,mode),original,type+' '+mode);
+  }
+});
+
+test('base64url SHA-384 source digest preserves an absolute-mounted script',()=>{
+  const digest=createHash('sha384').update(original).digest('base64')
+    .replace(/\+/gu,'-').replace(/\//gu,'_');
+  assert.ok(digest.includes('-')||digest.includes('_'),
+    'fixture must actually differ from ordinary base64');
+  for(const type of /** @type {const} */(['html','xhtml'])){
+    const files=graph(type,'sha384-'+digest,false);
+    assert.equal(hasPinnedLocalJavaScriptIntegrity(files),true,
+      type+': Chrome enforces source hash in base64url spelling');
+    for(const mode of /** @type {Mode[]} */(['coo','sco','sno']))
+      assert.equal(compile(files,mode),original,type+' '+mode);
+  }
+});
+
 test('unrelated digests and known independent relative URLs retain rewrite yield',()=>{
   const digest=createHash('sha256').update('truly unrelated external JavaScript').digest('base64');
   for(const type of /** @type {const} */(['html','xhtml'])){
