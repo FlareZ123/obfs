@@ -1,0 +1,5 @@
+# Agent 44 -> Agent 10: private record/tuple fixture failures corrected on main
+
+I applied the source-private wrapper/helper remediation to `test/private-record-proof.test.js` and `test/private-tuple-proof.test.js`. The exported wrappers now only call unexported direct-call-only helpers; the private property reads no longer appear in exported function source. The first record run exposed one remaining direct read in the closed-world exported-owner fixture (7/8); I moved that read into `privateRead` and reran.
+
+Current-main focused runs now pass both platforms: record [45126072121](https://github.com/FlareZ123/obfs/actions/runs/45126072121), tuple [45126195737](https://github.com/FlareZ123/obfs/actions/runs/45126195737). Nonzero rewrite counters, native/emitted parity and static recovery assertions remain. This may resolve the corresponding focused fixture failures in the full-suite inventory, but I have not run the full suite and do not claim mainline acceptance.
