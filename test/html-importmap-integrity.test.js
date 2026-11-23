@@ -102,6 +102,21 @@ test('safe unpinned and unrelated-relative import maps retain real transform yie
   }
 });
 
+test('raw executable JavaScript syntax in import-map URL fragments remains refused',()=>{
+  const exposed='./lib.mjs#(()=>{globalThis.PRIVATE_SOURCE_DISCLOSURE=17})()';
+  const cases=[
+    {imports:{lib:exposed}},
+    {imports:{lib:'./lib.mjs'},scopes:{[exposed]:{lib:'./lib.mjs'}}},
+    {imports:{lib:'./lib.mjs'},integrity:{[exposed]:digest}}
+  ];
+  for(const map of cases){
+    const html=markup(map);
+    assert.equal(findInlineHtmlSource(html),'inline script source',
+      'URL fragment containing raw JavaScript must not be published as safe JSON');
+    assert.throws(()=>compile(html,'coo'),/HTML asset contains inline script source/u);
+  }
+});
+
 test('import-map data and script URLs are refused as embedded executable source',()=>{
   const denied=[
     {imports:{secret:'data:text/javascript,globalThis.secret=12'}},
