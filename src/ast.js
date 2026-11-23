@@ -2802,13 +2802,22 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
        node.type==='AssignmentExpression' && isIntlSourceCallback(node.right)) {
       observed=true;
     }
-    // Destructuring is a property read too: a first-class native source
-    // method can be obtained from a function or Function.prototype without
-    // any MemberExpression named "toString" in the AST.
+    // Destructuring is a property read too: first-class native source
+    // methods can be obtained from a function or a method-valued member.
+    // Follow unique, immutable local aliases of member reads; a callable
+    // exported via a class instance may not be in the syntactic function set.
+    /** @param {AstNode|null|undefined} input @param {number} [depth] @returns {boolean} */
+    function mayBeMemberMethod(input,depth=0) {
+      if(!input||depth>16)return false;
+      if(input.type==='MemberExpression')return !isDefinitelyPrimitive(input);
+      return input.type==='Identifier' && !dynamicScope &&
+        bindingCounts.get(input.name)===1 &&
+        mayBeMemberMethod(primitiveCandidates.get(input.name),depth+1);
+    }
     if(node.type==='VariableDeclarator' && node.id.type==='ObjectPattern' &&
-         isFunctionValue(node.init) ||
+         (isFunctionValue(node.init)||mayBeMemberMethod(node.init)) ||
        node.type==='AssignmentExpression' && node.left.type==='ObjectPattern' &&
-         isFunctionValue(node.right)) {
+         (isFunctionValue(node.right)||mayBeMemberMethod(node.right))) {
       const pattern=node.type==='VariableDeclarator'?node.id:node.left;
       for(const property of pattern.properties) {
         if(property.type!=='Property')continue;
