@@ -6,6 +6,7 @@ const http=require('node:http');
 const {spawnSync,execFile}=require('node:child_process');
 const {promisify}=require('node:util');
 const {obfuscateFiles}=require('../src/core');
+const {normalizePublicFields}=require('../sims/public-token-normalizer');
 
 const runChrome=promisify(execFile);
 
@@ -50,6 +51,11 @@ test('adjacent own-data primitive four-file graph preserves real Chromium ESM re
     assert.equal(typeof file.code,'string');
     files.set('/emitted/'+file.path,/** @type {string} */(file.code));
   }
+  const normalized=normalizePublicFields(emitted.files.map(file=>({
+    path:file.path,sourceType:/** @type {'module'} */('module'),code:String(file.code)
+  })));
+  assert.equal(normalized.properties,2);
+  for(const file of normalized.files)files.set('/normalized/'+file.path,file.code);
   const html=[
     '<!doctype html><html><head><meta charset="utf-8"></head><body>',
     '<script type="module">',
@@ -81,7 +87,7 @@ test('adjacent own-data primitive four-file graph preserves real Chromium ESM re
     const addr=server.address();
     if(!addr||typeof addr==='string')throw Error('Server did not return a listening address');
     const origin='http://127.0.0.1:'+addr.port;
-    for(const lane of ['native','emitted']) {
+    for(const lane of ['native','emitted','normalized']) {
       const {stdout}=await runChrome(chromium,[
         '--headless','--no-sandbox','--disable-gpu','--disable-dev-shm-usage',
         '--no-first-run','--virtual-time-budget=12000','--dump-dom',
