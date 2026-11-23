@@ -296,3 +296,19 @@ and `Document.write/writeln` in the parser-sink metadata.
 Trusted Types CSP enforcement/default-policy behavior remains unvalidated.
 The attempted `iframe.srcdoc` harness did not reliably execute its child
 module, so no conclusion is drawn; those experimental changes were reverted.
+
+
+## Related CSSOM capability evidence
+
+Agent 1's native Chromium tests establish a parallel `CSSStyleDeclaration.setProperty`
+source sink across HTML, SVG, and CSSStyleRule.style receivers, including
+direct, bracket, bound, `Reflect.apply`, detached, aliased, and cross-file ESM
+calls. Literal and same-named ordinary userland positives demonstrate why a
+name-only `setProperty` veto is unsafe. Integrate these as a distinct
+CSSOMString receiver family in the same provenance/capability graph, while
+keeping CSSOM counts separate from this DOMString/HTML parser matrix.
+
+Reports:
+- `im-results/cssom-custom-property-source-2026-11-23.md`
+- `im-results/cssom-style-receivers-native-matrix-2026-11-23.md`
+- `im-results/cssom-cross-file-source-observation-2026-11-23.md`
