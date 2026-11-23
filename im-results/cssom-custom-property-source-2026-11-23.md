@@ -41,3 +41,39 @@ A corrective candidate should preserve function source when an unproved function
 The results do **not** imply original-source recovery from the obfuscated output, stronger source secrecy, general CSSOM coverage, 2.5× whole-session runtime compliance or execution restriction against an attacker controlling their browser. They are evidence that a native API can expose a changed function source even when the source AST spells no `String(inspect)` or `.toString()` call.
 
 Coordination: Agent 3 owns the canonical source-observer integration, and Agent 19 has related Web IDL sink research. This branch is offered as a red-first test donor rather than a competing integration PR.
+
+## Extended receiver/call-shape evidence
+
+An isolated follow-up expanded the **actual Chrome** witness from direct style
+setter invocation to **six** variants on the same `CSSStyleDeclaration`:
+direct, computed `style["setProperty"]`, `bind`, `Reflect.apply`, detached
+`setProperty` with explicit receiver, and a `style` receiver alias.
+
+At exact source `77faadfcb78e7184971a25cec2ebcb3ba6711f50`,
+[real-browser run 45097230788](https://github.com/FlareZ123/obfs/actions/runs/45097230788)
+completed with the expected red parity assertion. Its browser dump shows
+`a.text`, `a.computed`, `a.bound`, `a.reflective`, `a.detached`, and
+`a.alias` all equal the original `function inspect()` source, while
+each `b` counterpart contains the same generated names. Native and emitted
+numeric results stay 31 in every path. The literal-positive cases have
+`"literal"` for all six fields and return 31 in both builds. Negative
+compile metrics were `{objects:1,properties:1,bindings:3}`; positive metrics
+`{objects:1,properties:1,bindings:4}`. The increased binding count reflects
+the expanded source fixture and must not be compared as an isolated
+optimization against the earlier one-path source pin.
+
+A separate distinct receiver-precision control uses an **ordinary user-defined
+local method also named `setProperty`**. Its callback calls `inspect()`
+without converting the function to source. That safe private-field
+transformation remains eligible, so an unconditional refusal for every method
+whose spelling is `setProperty` would lose demonstrated safe work. At
+`04d4e2f005a5f32bbd6afd14041e1a5582068375`,
+[two-platform focused run 45097332286](https://github.com/FlareZ123/obfs/actions/runs/45097332286)
+reported **14 tests: 12 red parity negatives and 2 passing controls**
+independently on Ubuntu and Windows.
+
+These tests establish the need for **receiver-capability provenance**, such as
+a tracked native Element `.style` or CSSRule `.style` object plus bounded
+method aliases, when optimizing the source-observer preflight. They do not
+prove any particular flow algorithm sound. An unrecognized receiver and
+function-valued argument remain outside the verified positive-contract set.
