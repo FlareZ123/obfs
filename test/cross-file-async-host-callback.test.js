@@ -44,7 +44,7 @@ async function execute(files,injectHost=false,arrayIteratorHook=false){
         '  return originalIterator.call(this);',
         '};'
       ]:[])
-    ].join('\\n'));
+    ].join('\n'));
     const args=injectHost?['--require',preloader,path.join(root,'entry.mjs')]:
       [path.join(root,'entry.mjs')];
     const processResult=spawnSync(process.execPath,args,{encoding:'utf8',timeout:15000});
