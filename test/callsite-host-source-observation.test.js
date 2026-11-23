@@ -281,3 +281,37 @@ for(const mode of /** @type {const} */(['coo','sno','sco'])) {
       'An externally supplied global accessor can observe caller source');
   });
 }
+
+
+/**
+ * Deprecated legacy caller inspection is independent of V8's structured
+ * stack-trace API. It remains observable for sloppy plain functions in Node.
+ * @param {string} code
+ * @returns {{value:number,source:string}}
+ */
+function executeWithLegacyCaller(code) {
+  const observed={source:''};
+  const module={exports:0};
+  const hostCallback=/** @type {() => void} */(vm.runInNewContext(
+    '(function hostCallback(){observed.source=String(hostCallback.caller);})',
+    {observed}
+  ));
+  vm.runInNewContext(code,{module,hostCallback},{timeout:3000});
+  return {value:module.exports,source:observed.source};
+}
+
+for(const mode of /** @type {const} */(['coo','sno','sco'])) {
+  test(mode+' legacy sloppy Function.caller host source observation',()=>{
+    const native=executeWithLegacyCaller(observableSource);
+    const output=compile(observableSource,mode);
+    const actual=executeWithLegacyCaller(/** @type {string} */(output.code));
+    process.stdout.write('CALLSITE_LEGACY_CALLER '+JSON.stringify({
+      mode,properties:output.metrics.properties,native,emitted:actual
+    })+'\n');
+    assert.equal(native.value,31);
+    assert.equal(actual.value,native.value);
+    assert.match(native.source,/owner\.privateSecret/);
+    assert.equal(actual.source,native.source,
+      'Sloppy legacy caller inspection must preserve observable function source');
+  });
+}
