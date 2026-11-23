@@ -111,6 +111,27 @@ test('selected SCO graph refuses shared base-function identity through class her
     /private imported identity escapes|shared imported member state/u);
 });
 
+test('selected SCO graph refuses reflected member access on expression-wrapped import',()=>{
+  assert.throws(()=>compile('return (0,next).count??0;'),
+    /shared imported member state/u);
+});
+
+test('selected SCO graph refuses in-operator reflection on imported function',()=>{
+  assert.throws(()=>compile('return "count" in (0,next);'),
+    /reflective iteration/u);
+});
+
+test('selected SCO graph refuses for-in key enumeration on imported function',()=>{
+  assert.throws(()=>compile(
+    'let names="";for(const key in (0,next)){names+=key;}return names;'),
+    /reflective iteration/u);
+});
+
+test('selected SCO graph keeps unrelated primitive field inspections eligible',()=>{
+  assert.doesNotThrow(()=>compile(
+    'const obj={count:3};return "count" in obj?obj.count:0;'));
+});
+
 test('selected SCO graph keeps direct stateless private function calls eligible',()=>{
   assert.doesNotThrow(()=>compile('return next();'));
 });
