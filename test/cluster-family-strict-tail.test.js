@@ -9,7 +9,7 @@ const {clusterStrictTail} = require('../sims/cluster-strict-tail');
  * @param {number} blocks
  * @param {number} workloadCount
  * @param {number|number[]} pairsPerWorkload
- * @returns {Array<{name:string,pairs:Array<{native:number,candidate:number,blockId:string}>}>}
+ * @returns {Array<{name:string,protocolId:string,pairs:Array<{native:number,candidate:number,blockId:string}>}>}
  */
 function family(blocks,workloadCount,pairsPerWorkload=1) {
   return Array.from({length:workloadCount},(_,workloadIndex)=>{
@@ -17,6 +17,7 @@ function family(blocks,workloadCount,pairsPerWorkload=1) {
       pairsPerWorkload[workloadIndex] : pairsPerWorkload;
     return {
       name:'workload-'+workloadIndex,
+      protocolId:'protocol-workload-'+workloadIndex+'-v1',
       pairs:Array.from({length:blocks*count},(_,index)=>({
         native:10,
         candidate:10,
@@ -87,9 +88,10 @@ test('different workload sizes are allowed when each exposure is fixed across bl
 test('missing workloads, unequal per-workload exposure, and invalid inputs refuse',()=>{
   assert.throws(()=>clusterFamilyStrictTail([]),TypeError);
   assert.throws(()=>clusterFamilyStrictTail([{name:'',pairs:[]}]),TypeError);
+  assert.throws(()=>clusterFamilyStrictTail([{name:'missing-protocol',pairs:[{native:1,candidate:1,blockId:'b'}]}]),TypeError);
   assert.throws(()=>clusterFamilyStrictTail([
-    {name:'a',pairs:[{native:1,candidate:1,blockId:'b'}]},
-    {name:'a',pairs:[{native:1,candidate:1,blockId:'b'}]}
+    {name:'a',protocolId:'a-v1',pairs:[{native:1,candidate:1,blockId:'b'}]},
+    {name:'a',protocolId:'a-v1',pairs:[{native:1,candidate:1,blockId:'b'}]}
   ]),TypeError);
   const missing=family(2,2,1);
   missing[1].pairs.pop();
