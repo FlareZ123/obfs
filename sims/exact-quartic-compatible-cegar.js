@@ -5,6 +5,13 @@ const {evaluateBoundedDegreeModel,masksOfWeight}=
 
 const WIDTH=32;
 
+/** @param {number} target @returns {number} */
+function checkedTarget(target){
+  if(!Number.isSafeInteger(target)||target<0||target>0xffffffff)
+    throw new RangeError('Expected unsigned 32-bit target');
+  return target>>>0;
+}
+
 /** @param {number} value @returns {number} */
 function parity32(value) {
   let x=value>>>0;
@@ -220,12 +227,13 @@ function prepareExactBoundedDegreeInverter(model){
   }
   /** @param {number} target @returns {number} */
   function invert(target){
+    const desired=checkedTarget(target);
     let candidate=0;
     for(let level=0;level<WIDTH;level++){
-      if(parity32(outputMasks[level]&((target^clone(candidate))>>>0)))
+      if(parity32(outputMasks[level]&((desired^clone(candidate))>>>0)))
         candidate=(candidate^inputToggles[level])>>>0;
     }
-    if(clone(candidate)!==(target>>>0))throw new Error('exact bounded-degree inverse equality failed');
+    if(clone(candidate)!==desired)throw new Error('exact bounded-degree inverse equality failed');
     return candidate>>>0;
   }
   // Compile a target-independent exact local forward difference for
@@ -248,10 +256,11 @@ function prepareExactBoundedDegreeInverter(model){
    * @returns {number}
    */
   function invertFast(target){
+    const desired=checkedTarget(target);
     let candidate=0;
     let currentOutput=base;
     for(let level=0;level<WIDTH;level++){
-      if(!parity32(outputMasks[level]&((target^currentOutput)>>>0)))continue;
+      if(!parity32(outputMasks[level]&((desired^currentOutput)>>>0)))continue;
       const update=derivativeUpdates[level];
       let delta=update.zeroDelta;
       for(const [mask,value] of update.terms){
@@ -262,7 +271,7 @@ function prepareExactBoundedDegreeInverter(model){
     }
     // Check both the maintained invariant and an independent local model
     // evaluation. Neither check makes a false source-degree promise true.
-    if(currentOutput!==(target>>>0)||clone(candidate)!==(target>>>0))
+    if(currentOutput!==desired||clone(candidate)!==desired)
       throw new Error('exact incremental inverse equality failed');
     return candidate>>>0;
   }
