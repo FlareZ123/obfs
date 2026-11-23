@@ -44,9 +44,16 @@ def solve(q,timeout_ms=3000):
     status=answer.splitlines()[0] if answer else 'unknown'
     assert status in ('sat','unsat','unknown'),answer[:400]
     if status=='sat':
-        answer,extra=checker.z3(content+q['valuesCommand'])
+        model_answer,extra=checker.z3(content+q['valuesCommand'])
         elapsed+=extra
-        assert answer.startswith('sat\n'),answer[:400]
+        model_status=model_answer.splitlines()[0] if model_answer else 'unknown'
+        if model_status=='unknown':
+            # A second, independently timed model-retrieval solve may time out
+            # even if the preceding decision was SAT. This is inconclusive.
+            return 'unknown',model_answer,elapsed
+        if model_status!='sat':
+            raise RuntimeError('inconsistent SMT model retrieval: '+model_answer[:400])
+        answer=model_answer
     return status,answer,elapsed
 
 
@@ -65,6 +72,47 @@ def model_from_values(prefix,values,n,inputs,outputs):
     assert state==values[f'{prefix}_q_{len(inputs)}']
     return {'next':next_,'output':out,'state':state}
 
+
+def minimize_reference(machine):
+    """Quotient future-equivalent states, then keep only classes reachable from zero.
+
+    BFS numbering preserves the external initial-state-zero transcript contract.
+    The returned current state represents the old current state's continuation.
+    """
+    transitions=machine['next']
+    outputs=machine['output']
+    n=len(transitions)
+    signatures=[tuple(outputs[state]) for state in range(n)]
+    classes={signature:i for i,signature in enumerate(sorted(set(signatures)))}
+    colors=[classes[signature] for signature in signatures]
+    for _ in range(n):
+        signatures=[(outputs[state][0],outputs[state][1],
+                     colors[transitions[state][0]],colors[transitions[state][1]])
+                    for state in range(n)]
+        classes={signature:i for i,signature in enumerate(sorted(set(signatures)))}
+        refined=[classes[signature] for signature in signatures]
+        if refined==colors:
+            break
+        colors=refined
+    representatives={colors[state]:state for state in range(n)}
+    root=colors[0]
+    order=[root]
+    mapped={root:0}
+    next_,out=[],[]
+    for cls in order:
+        state=representatives[cls]
+        edges=[]
+        for x in (0,1):
+            successor=colors[transitions[state][x]]
+            if successor not in mapped:
+                mapped[successor]=len(order)
+                order.append(successor)
+            edges.append(mapped[successor])
+        next_.append(edges)
+        out.append(outputs[state].copy())
+    if colors[machine['state']] not in mapped:
+        raise ValueError('current state is unreachable from the declared initial state')
+    return {'next':next_,'output':out,'state':mapped[colors[machine['state']]]}
 
 def future_first_mismatch(a,b,word):
     qa,qb=a['state'],b['state']
@@ -94,7 +142,7 @@ def equivalent(a,b):
     return True
 
 
-def learn(step,n,max_queries=100,max_solves=100,timeout_ms=3000,policy="full"):
+def learn(step,n,max_queries=100,max_solves=100,timeout_ms=3000,policy="full",minimize=False):
     """Learn through a one-bit step callback without private-state access or reset."""
     start=perf_counter()
     transcript_inputs=[]; transcript_outputs=[]
@@ -110,6 +158,8 @@ def learn(step,n,max_queries=100,max_solves=100,timeout_ms=3000,policy="full"):
                 return {'status':'model_violation' if status=='unsat' else 'unknown','calls':calls,'queries':len(transcript_inputs),
                         'wall_s':round(perf_counter()-start,3),'solver_s':round(sum(timings),3)}
             reference=model_from_values('A',parse_values(answer),n,transcript_inputs,transcript_outputs)
+            if minimize:
+                reference=minimize_reference(reference)
         q=query('fixed',n,transcript_inputs,transcript_outputs,reference)
         status,answer,elapsed=solve(q,timeout_ms)
         timings.append(elapsed);calls+=1
@@ -197,7 +247,7 @@ def observable_states(private):
     return len(reached),len({colors[state] for state in reached})
 
 
-def evaluate(private,n,policy='full'):
+def evaluate(private,n,policy='full',minimize=False):
     state=[0]
     step_count=[0]
 
@@ -210,7 +260,7 @@ def evaluate(private,n,policy='full'):
         step_count[0]+=1
         return output
 
-    result=learn(step,n,max_queries=100,max_solves=100,timeout_ms=3000,policy=policy)
+    result=learn(step,n,max_queries=100,max_solves=100,timeout_ms=3000,policy=policy,minimize=minimize)
     assert step_count[0]==result['queries']
     result['reachable_states'],result['observable_states']=observable_states(private)
     clone=result.pop('clone',None)
@@ -235,8 +285,10 @@ def main():
     if len(sys.argv)>1 and sys.argv[1]=='--worker':
         n,seed=int(sys.argv[2]),int(sys.argv[3])
         result=evaluate(fixture(n,seed),n,
-                        policy=sys.argv[4] if len(sys.argv)>4 else 'full')
-        print(json.dumps({'bound':n,'seed':seed,'policy':sys.argv[4] if len(sys.argv)>4 else 'full',**result}),flush=True)
+                        policy=sys.argv[4] if len(sys.argv)>4 else 'full',
+                        minimize='--minimize' in sys.argv[5:])
+        print(json.dumps({'bound':n,'seed':seed,'policy':sys.argv[4] if len(sys.argv)>4 else 'full',
+                          'minimize': '--minimize' in sys.argv[5:],**result}),flush=True)
         assert result.get('verified',True),(n,seed,result)
         assert result.get('heldout_matches',128)==128,(n,seed,result)
         return

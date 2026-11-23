@@ -33,3 +33,20 @@ On two three-state fixtures, bounded-depth binary search reduced public queries 
 ## Threat-model and engineering limits
 
 The experiment validates an information-theoretic bounded behavioral attack against a stationary *simulated* step-only oracle. Its private table is hidden from the learner function and accessed by the evaluator only when serving steps and checking the returned clone. A real SCO service must additionally be tested with its authentication, transport, client contention, state isolation, rate limits and clock mutation. Solver time belongs to the attacker, so none of these observations measures the project's 2.5x protected-application execution ceiling. The repository's **RELEASE-BLOCKED** status remains appropriate. Future research should measure difficult N=6 UNSAT queries, introduce a fixed blind live-server harness, and compare against an equal-trust minified control without hiding timeouts.
+
+## Follow-up: quotienting a symbolic reference before each inequality query
+
+The optional `--minimize` flag instructs the *attacker-side* learner to merge future-equivalent states of each newly extracted reference model using fixed-point Mealy partition refinement, then trim unreachable quotient classes and relabel reachable states in input-ordered BFS. The result retains initial state zero, all observed outputs, and the same current continuation. A smaller reference can shorten the complete product horizon from `N * N` to `|minimal reference| * N`. This is an admissible semantic optimization under the deterministic model, rather than a defense feature.
+
+`workplace/sco-step-only-smt-adaptive-reliability.py` provides **four executable tests**, including **16,000 seeded random models (2,000 for each N=1..8)**. For every model it independently checked complete product-BFS future equivalence from the original current state and the quotient current state, then replayed an additional random 0..49-step path and rechecked equivalence. Tests also simulate two Z3 responses where satisfiability succeeds but later model extraction returns `unknown`; the learner must classify the resulting operation as inconclusive, instead of crashing. All four local Python tests passed. The Z3 dependency and Linux platform limitations remain the same as the main report.
+
+A matched four-fixture full-horizon comparison used the *same* hidden machines and 3-second per-solve budget, running the baseline then quotient variant in separate processes:
+
+| Bound and seed | Baseline public calls / SMT calls | Quotient public calls / SMT calls | Both full-product and heldout-exact? |
+| --- | --- | --- | --- |
+| N3, 21308842 | 40 / 17 | 38 / 20 | yes |
+| N3, 11259378 | 26 / 18 | 12 / 14 | yes |
+| N4, 21308843 | 41 / 22 | 44 / 25 | yes |
+| N4, 11259379 | 42 / 23 | 32 / 26 | yes |
+
+All four underlying machines have their full nominal number of reachable, observably distinct states. The quotient reduced public steps on three fixtures and increased them on one; SMT call counts were likewise mixed. One single N5 run under quotient returned `unknown` (seed 21308844, 67 oracle steps, 40 solver calls), while the other certified (seed 11259380, 27 oracle steps, 31 solver calls), with independent product-BFS equality and 128/128 heldout comparisons. These are **small, order-sensitive solver runs** and do not establish a uniform public-query, SMT wall-time, or reliability advantage. The original full-horizon attack's correct-bound certification and timeouts remain as reported above; no benchmark has been promoted to product acceptance.
