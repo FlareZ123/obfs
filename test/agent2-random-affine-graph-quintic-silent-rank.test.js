@@ -4,6 +4,10 @@ const assert=require('node:assert/strict');
 const {test}=require('node:test');
 const {invertByRandomAffineGraph,binomialSum}=
   require('../sims/random-affine-graph-flag-inversion');
+const {invertByReanchoring}=
+  require('../sims/random-affine-anchor-compatible-inversion');
+const {makeLinearTransform,applyLinear}=
+  require('../sims/compatible-permutation-linear-sandwich-blackbox');
 
 /**
  * Identity extension to 32 bits of the two-monomial degree-five permutation:
@@ -127,6 +131,87 @@ test('corrected affine-graph inversion recovers the 32-bit silent-rank quintic p
     },
     nineTargetTotal,
     rawCandidateMismatchesIn9BitCore:16,
+    allTargetsRecovered:true
+  })+'\\n');
+});
+
+
+test('affine-graph inversion survives hidden two-sided affine wrappers with a singular canonical reanchor',()=>{
+  const inputColumns=makeLinearTransform(0x12345678);
+  const outputColumns=makeLinearTransform(0x9abcdef0);
+  const inputBias=0x13579bdf;
+  const outputBias=0x2468ace0;
+  /** @param {number} input @returns {number} */
+  const wrappedOracleNumber=input=>{
+    const hidden=(applyLinear(inputColumns,input)^inputBias)>>>0;
+    return (applyLinear(outputColumns,silentRankQuinticPermutation(hidden))^outputBias)>>>0;
+  };
+  /** @param {number} input @returns {number} */
+  const wrappedFastNumber=input=>{
+    const hidden=(applyLinear(inputColumns,input)^inputBias)>>>0;
+    return (applyLinear(outputColumns,rankSixFastCandidate(hidden))^outputBias)>>>0;
+  };
+  /** @param {bigint} input @returns {bigint} */
+  const wrappedOracle=input=>BigInt(wrappedOracleNumber(Number(input)));
+
+  // These public inputs map to B-active hidden inputs under the fixed dense
+  // affine wrapper. Both values of hidden bit 31 and both A states occur.
+  const secrets=[
+    0x4f0ff4eb,0xc108ecdd,0xa58a6017,0x34f93989,
+    0x640944ac,0x805d7db1,0xc2b25462,0x7cf97486
+  ];
+  const expectedHidden=[
+    0x67aa29fe,0x628acbff,0xfe1940fd,0xc1ece67f,
+    0x3e41177e,0x37fff37f,0xbd72767e,0x8721e5ff
+  ];
+  /** @type {Array<{secret:string,hidden:string,target:string,queries:number}>} */
+  const receipts=[];
+  let totalGraphQueries=0;
+  for(let index=0;index<secrets.length;index++){
+    const secret=secrets[index]>>>0;
+    const hidden=(applyLinear(inputColumns,secret)^inputBias)>>>0;
+    assert.equal(hidden,expectedHidden[index]);
+    assert.equal(hidden&124,124,'hidden B monomial must be active');
+    const target=wrappedOracleNumber(secret);
+    assert.notEqual(wrappedFastNumber(secret),target,
+      'the wrapped rank-six candidate must miss every B-active target');
+    const result=invertByRandomAffineGraph(wrappedOracle,BigInt(target),32,5,{
+      seed:0xb600+index,
+      delta:1e-8
+    });
+    assert.equal(result.success,true,JSON.stringify({
+      index,reason:result.reason,failedDimension:result.failedDimension
+    }));
+    assert.equal(result.input,BigInt(secret));
+    assert.equal(result.verified,true);
+    assert.equal(wrappedOracle(result.input),BigInt(target));
+    assert.equal(result.stages.length,32);
+    assert.ok(result.stages.every(stage=>stage.reason==='affine-relation'));
+    totalGraphQueries+=result.queries;
+    receipts.push({
+      secret:'0x'+secret.toString(16).padStart(8,'0'),
+      hidden:'0x'+hidden.toString(16).padStart(8,'0'),
+      target:'0x'+target.toString(16).padStart(8,'0'),
+      queries:result.queries
+    });
+  }
+
+  // At public anchor zero, the 32 neighbor differences are rank-deficient
+  // for this fixed wrapper. A one-basis canonical reanchor cannot proceed,
+  // while the graph method above still inverts all selected targets.
+  assert.throws(()=>invertByReanchoring(
+    wrappedOracleNumber,wrappedOracleNumber(secrets[0]),0x51515151,1,true
+  ),/No successful reanchored inversion/);
+
+  const exactCloneQueries=binomialSum(32,5);
+  assert.equal(exactCloneQueries,242825);
+  assert.ok(totalGraphQueries<exactCloneQueries);
+  process.stdout.write('OBFS_GRAPH_QUINTIC_AFFINE_WRAPPED '+JSON.stringify({
+    width:32,degree:5,
+    jointTopDerivativeRadicalCodimension:7,
+    affineFlag:true,
+    targets:receipts.length,receipts,totalGraphQueries,exactCloneQueries,
+    canonicalAnchorReanchor:'rank-deficient',
     allTargetsRecovered:true
   })+'\\n');
 });
