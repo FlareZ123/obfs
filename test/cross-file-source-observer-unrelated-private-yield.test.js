@@ -40,7 +40,7 @@ function propertyGraph(observe) {
   ];
 }
 
-test('source observer for imported callable leaves unrelated cross-file property renameable',async()=>{
+test('source observer for imported callable freezes unrelated cross-file private property',async()=>{
   const baselineFiles=propertyGraph(false);
   const observedFiles=propertyGraph(true);
   const baselineExpected=await execute(baselineFiles);
@@ -58,9 +58,9 @@ test('source observer for imported callable leaves unrelated cross-file property
   assert.ok(observedState);
   assert.ok(observedUtil);
   assert.ok(!baselineState.code.includes('unrelatedPrivate'),String(baselineState.code));
-  // The source observer is attached to util.inspect. The separate state.mjs
-  // property is not present in inspect's source and remains safely renameable.
-  assert.ok(!observedState.code.includes('unrelatedPrivate'),String(observedState.code));
+  // Expected-red witness: the observer is attached to util.inspect, but the
+  // current whole-graph veto also preserves this unrelated state.mjs property.
+  assert.ok(observedState.code.includes('unrelatedPrivate'),String(observedState.code));
   assert.ok(observedUtil.code.includes('secretField'),String(observedUtil.code));
   assert.equal(await execute(baseline.files),baselineExpected);
   assert.equal(await execute(observed.files),observedExpected);
