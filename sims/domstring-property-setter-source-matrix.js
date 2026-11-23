@@ -515,8 +515,54 @@ async function main() {
   bodies.set('/compiled-positive/logic.mjs',/** @type {string} */(positiveLogicOutput.code));
   bodies.set('/compiled-positive/observer.mjs',/** @type {string} */(positiveObserverOutput.code));
 
-  const page=[
-    '<!doctype html><meta charset="utf-8"><pre id="result">pending</pre>',
+
+  const negativeStreamObserver=[
+    'import {inspect,independentValue} from "./logic.mjs";',
+    'const target=document.createElement("div");',
+    'const stream=target.streamHTML();',
+    'const writer=stream.getWriter();',
+    'await writer.write(inspect);',
+    'await writer.close();',
+    'export const observed={source:target.innerHTML,value:inspect(),independent:independentValue};'
+  ].join('\n');
+  const positiveStreamObserver=[
+    'import {independentValue} from "./logic.mjs";',
+    'const target=document.createElement("div");',
+    'const stream=target.streamHTML();',
+    'const writer=stream.getWriter();',
+    'await writer.write("literal");',
+    'await writer.close();',
+    'export const observed={source:target.innerHTML,independent:independentValue};'
+  ].join('\n');
+  const streamGraphResult=obfuscateFiles([
+    {path:'negative-stream-logic.mjs',sourceType:'module',code:negativeLogic},
+    {path:'negative-stream-observer.mjs',sourceType:'module',code:negativeStreamObserver},
+    {path:'positive-stream-logic.mjs',sourceType:'module',code:positiveLogic},
+    {path:'positive-stream-observer.mjs',sourceType:'module',code:positiveStreamObserver}
+  ],{
+    mode:'coo',seed:'domstring-property-crossfile-stream',closedWorld:true,
+    properties:true,identifiers:true,strings:false
+  });
+  const negativeStreamLogicOutput=streamGraphResult.files.find(file=>file.path==='negative-stream-logic.mjs');
+  const negativeStreamObserverOutput=streamGraphResult.files.find(file=>file.path==='negative-stream-observer.mjs');
+  const positiveStreamLogicOutput=streamGraphResult.files.find(file=>file.path==='positive-stream-logic.mjs');
+  const positiveStreamObserverOutput=streamGraphResult.files.find(file=>file.path==='positive-stream-observer.mjs');
+  assert.ok(negativeStreamLogicOutput&&negativeStreamObserverOutput&&
+    positiveStreamLogicOutput&&positiveStreamObserverOutput,'Cross-file stream compiler outputs are incomplete');
+  const crossStreamNegativeProperties=negativeStreamLogicOutput.metrics.properties+
+    negativeStreamObserverOutput.metrics.properties;
+  const crossStreamPositiveProperties=positiveStreamLogicOutput.metrics.properties+
+    positiveStreamObserverOutput.metrics.properties;
+  bodies.set('/native-negative-stream/logic.mjs',negativeLogic);
+  bodies.set('/native-negative-stream/observer.mjs',negativeStreamObserver);
+  bodies.set('/compiled-negative-stream/logic.mjs',/** @type {string} */(negativeStreamLogicOutput.code));
+  bodies.set('/compiled-negative-stream/observer.mjs',/** @type {string} */(negativeStreamObserverOutput.code));
+  bodies.set('/native-positive-stream/logic.mjs',positiveLogic);
+  bodies.set('/native-positive-stream/observer.mjs',positiveStreamObserver);
+  bodies.set('/compiled-positive-stream/logic.mjs',/** @type {string} */(positiveStreamLogicOutput.code));
+  bodies.set('/compiled-positive-stream/observer.mjs',/** @type {string} */(positiveStreamObserverOutput.code));
+
+  const page=[    '<!doctype html><meta charset="utf-8"><pre id="result">pending</pre>',
     '<script type="module">',
     'const pairs='+JSON.stringify(pairs)+';',
     'const dispatchPairs='+JSON.stringify(dispatchPairs)+';',
@@ -656,6 +702,16 @@ async function main() {
     ' const [cn,ce,pn,pe]=await Promise.all([',
     '  import("/native-negative/observer.mjs"),import("/compiled-negative/observer.mjs"),',
     '  import("/native-positive/observer.mjs"),import("/compiled-positive/observer.mjs")]);',
+    ' const [csn,cse,cspn,cspe]=await Promise.all([',
+    '  import("/native-negative-stream/observer.mjs"),import("/compiled-negative-stream/observer.mjs"),',
+    '  import("/native-positive-stream/observer.mjs"),import("/compiled-positive-stream/observer.mjs")]);',
+    ' const crossStream={native:csn.observed,emitted:cse.observed,',
+    '  nativeSourceValid:csn.observed.source.includes("observedOwner.secretField"),',
+    '  sourceMismatch:csn.observed.source!==cse.observed.source,',
+    '  numericParity:csn.observed.value===cse.observed.value&&csn.observed.value===57,',
+    '  independentParity:csn.observed.independent===cse.observed.independent&&csn.observed.independent===73,',
+    '  positiveParity:cspn.observed.source==="literal"&&',
+    '   JSON.stringify(cspn.observed)===JSON.stringify(cspe.observed)};',
     ' const crossFile={native:cn.observed,emitted:ce.observed,',
     '  nativeSourceValid:cn.observed.source.includes("observedOwner.secretField"),',
     '  sourceMismatch:cn.observed.source!==ce.observed.source,',
@@ -666,7 +722,7 @@ async function main() {
     '    JSON.stringify(pn.observed)===JSON.stringify(pe.observed),',
     '  negativeProperties:'+crossNegativeProperties+',',
     '  positiveProperties:'+crossPositiveProperties+'};',
-    ' document.getElementById("result").textContent=JSON.stringify({rows,dispatchRows,htmlApiRows,legacyDocumentRows,userland,dataPropertyControl,customAccessorControl,proxyStorageControl,proxyBrandCheckControl,htmlMethodControl,browserEnvironment,crossFile});',
+    ' document.getElementById("result").textContent=JSON.stringify({rows,dispatchRows,htmlApiRows,legacyDocumentRows,userland,dataPropertyControl,customAccessorControl,proxyStorageControl,proxyBrandCheckControl,htmlMethodControl,browserEnvironment,crossFile,crossStream});',
     '}catch(error){document.getElementById("result").textContent=',
     ' "BROWSER_ERROR "+String(error.stack||error);}',
     '</script>'
@@ -723,6 +779,10 @@ async function main() {
       userland.emitted.value===57&&userland.native.independent===73&&
       userland.emitted.independent===73&&userlandOutput.properties>=1;
     const crossFile=browser.crossFile;
+    const crossStream=browser.crossStream;
+    const crossStreamExpectedRed=crossStream.nativeSourceValid&&crossStream.sourceMismatch&&
+      crossStream.numericParity&&crossStream.independentParity&&crossStream.positiveParity&&
+      crossStreamNegativeProperties>=1&&crossStreamPositiveProperties>=1;
     const crossFileExpectedRed=crossFile.nativeSourceValid&&crossFile.sourceMismatch&&
       crossFile.numericParity&&crossFile.independentParity&&crossFile.positiveParity&&
       crossFile.negativeProperties>=1&&crossFile.positiveProperties>=1;
@@ -764,12 +824,12 @@ async function main() {
       dispatchRows.every((/** @type {any} */ row)=>row.sourceMismatch&&row.numericParity&&
         row.independentParity&&row.positiveParity);
     const summary={
-      expectedRedReproduced:allExpectedRed&&userlandPositive&&crossFileExpectedRed&&dataPropertyPositive&&customAccessorPositive&&proxyStoragePositive&&proxyBrandCheckPositive&&htmlMethodExpectedRed&&htmlApiExpectedRed&&legacyDocumentParity&&dispatchExpectedRed,
+      expectedRedReproduced:allExpectedRed&&userlandPositive&&crossFileExpectedRed&&crossStreamExpectedRed&&dataPropertyPositive&&customAccessorPositive&&proxyStoragePositive&&proxyBrandCheckPositive&&htmlMethodExpectedRed&&htmlApiExpectedRed&&legacyDocumentParity&&dispatchExpectedRed,
       sinkCount:rows.length,
       sourceMismatchCount:rows.filter((/** @type {any} */ row)=>row.sourceMismatch).length,
       sourceMismatchNames:rows.filter((/** @type {any} */ row)=>row.sourceMismatch).map(
         (/** @type {any} */ row)=>row.name),
-      crossFileExpectedRed,crossFile,dispatchSummary,dataPropertyControl,customAccessorControl,proxyStorageControl,proxyBrandCheckControl,
+      crossFileExpectedRed,crossFile,crossStreamExpectedRed,crossStream,dispatchSummary,dataPropertyControl,customAccessorControl,proxyStorageControl,proxyBrandCheckControl,
       htmlMethodExpectedRed,htmlMethodControl,htmlApiExpectedRed,htmlApiRows,legacyDocumentRows,
       htmlMethodProperties:{negative:htmlMethodOutput.properties,positive:htmlMethodPositiveOutput.properties},
       browserEnvironment,
