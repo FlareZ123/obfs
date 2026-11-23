@@ -213,7 +213,9 @@ test('selected SCO Web IDL method admission fails closed on alias and extraction
     "const key='Headers';let H;({[key]:H=0}=globalThis);return new H().get('x-demo');",
     "let rest;({...rest}=globalThis);const H=rest.Headers;return new H().get('x-demo');",
     "const root=globalThis;const {...rest}=root;const H=rest.Headers;return new H().get('x-demo');",
-    "const root=globalThis;let rest;({...rest}=root);const H=rest.Headers;return new H().get('x-demo');"
+    "const root=globalThis;let rest;({...rest}=root);const H=rest.Headers;return new H().get('x-demo');",
+    "const input='a=1';return new URLSearchParams(input).get('a');",
+    "return new URLSearchParams(`a=${'1'}`).get('a');"
   ])assert.throws(()=>compile(body),/unproved cross-realm WebIDL constructor/,body);
   for(const body of [
     "const H=Reflect.get(globalThis,'Headers');return new H().get('x-demo');",
@@ -284,7 +286,8 @@ test('private SCO ESM graph applies Web IDL method admission to imported leaves'
     "const key='Headers';const H=globalThis[key];return new H().get('x-demo');",
     "let H;({Headers:H}=globalThis);return new H().get('x-demo');",
     "const {...rest}=globalThis;const H=rest.Headers;return new H().get('x-demo');",
-    "const {Headers:H=0}=globalThis;return new H().get('x-demo');"
+    "const {Headers:H=0}=globalThis;return new H().get('x-demo');",
+    "const input='a=1';return new URLSearchParams(input).get('a');"
   ])assert.throws(()=>graph(body),/unproved cross-realm WebIDL constructor|realm-local intrinsic state access/,body);
   for(const body of [
     "const H=Reflect.get(globalThis,'Headers');return new H().get('x-demo');",
