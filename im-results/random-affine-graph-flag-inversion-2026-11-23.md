@@ -50,6 +50,7 @@ up to ceiling terms. This is an expected query bound, not a deterministic worst-
 - Attack and test generator: sims/random-affine-graph-flag-inversion.js
 - Tests: test/random-affine-graph-flag-inversion.test.js
 - Both are included in jsconfig.external.json for strict JSDoc validation.
+- Final focused two-platform validation **45125176161** at exact head `59ad24d0309ee276dabd89f0f16f68d8c6a80f7e` passed on Ubuntu and Windows: both tests passed, strict project/external JSDoc passed, and the paired/complete-suite runtime-budget evaluator typecheck passed. The immediately preceding attempt `45125006964` passed both behavioral test jobs but failed strict external JSDoc on one un-narrowed union-property read; this was corrected before the green run. An earlier pre-annotation attempt also exposed `never[]` inference and implicit-any issues, which were corrected.
 - The test generator creates two-sided affine-wrapped triangular permutations P_i(z)=z_i XOR h_i(z_<i), with independent random invertible input and output linear maps. It uses sparse random ANFs of declared degree D.
 - The test sampler is a deterministic xorshift64* PRNG for reproducibility. The probability proof assumes ideal independent uniform samples; a real attacker should inject a cryptographically secure coordinate sampler.
 
