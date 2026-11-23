@@ -78,3 +78,85 @@ test('unrecognized obfuscation mode is rejected before exposing a question',()=>
   assert.throws(()=>createBlindAffineChallenge(
     /** @type {'coo'} */(/** @type {unknown} */('foo'))),/COO or SNO/u);
 });
+
+
+/**
+ * @param {string} source
+ * @returns {Promise<Record<string,(value:number)=>number>>}
+ */
+async function loadPublicEsm(source){
+  const url='data:text/javascript;base64,'+Buffer.from(source).toString('base64');
+  return /** @type {Promise<Record<string,(value:number)=>number>>} */(import(url));
+}
+
+for(const mode of /** @type {const} */(['coo','sno'])){
+  test('matched '+mode.toUpperCase()+' challenge pairs affine output with actual esbuild minification',
+    async()=>{
+      const {createBlindAffineMatchedChallenge}=require('../sims/llm-blind-affine-challenge');
+      const trial=await createBlindAffineMatchedChallenge(mode);
+      const {candidate,control}=trial.questions;
+      assert.deepEqual(Object.keys(trial.questions),['candidate','control']);
+      for(const question of [candidate,control]){
+        assert.equal(question.environment,mode);
+        assert.deepEqual(question.exports,['round1','round2','round3']);
+        assert.match(question.sourceSha256,/^[a-f0-9]{64}$/u);
+        assert.equal(createHash('sha256').update(question.source).digest('hex'),
+          question.sourceSha256);
+        assert.equal('originalSource' in question,false);
+        assert.equal('offsets' in question,false);
+      }
+      assert.equal(candidate.originalCommitment,control.originalCommitment);
+      assert.equal(candidate.instruction,control.instruction);
+      assert.equal(candidate.answerSchema,control.answerSchema);
+      assert.notEqual(candidate.source,control.source);
+      assert.throws(()=>trial.reveal(),/both arms/u);
+      assert.throws(()=>trial.verify(/** @type {any} */('other'),{}),/candidate or control/u);
+
+      const candidateModule=await loadPublicEsm(candidate.source);
+      const controlModule=await loadPublicEsm(control.source);
+      const candidateAnswer=Object.fromEntries(candidate.exports.map(name=>[
+        name,candidateModule[name](0)
+      ]));
+      const controlAnswer=Object.fromEntries(control.exports.map(name=>[
+        name,controlModule[name](0)
+      ]));
+      assert.deepEqual(candidateAnswer,controlAnswer);
+
+      assert.deepEqual(trial.verify('candidate',candidateAnswer),{
+        passed:true,comparisons:3072,
+        claim:'Matched all three private arithmetic functions'
+      });
+      assert.throws(()=>trial.reveal(),/both arms/u);
+      assert.throws(()=>trial.verify('candidate',candidateAnswer),/one answer per arm/u);
+      assert.deepEqual(trial.verify('control',controlAnswer),{
+        passed:true,comparisons:3072,
+        claim:'Matched all three private arithmetic functions'
+      });
+      assert.throws(()=>trial.verify('control',controlAnswer),/one answer per arm/u);
+
+      const secret=trial.reveal();
+      assert.deepEqual(secret.offsets,candidateAnswer);
+      assert.equal(secret.commitment,candidate.originalCommitment);
+      assert.equal(createHash('sha256').update(
+        secret.salt+'\\0'+secret.originalSource).digest('hex'),secret.commitment);
+      assert.deepEqual(secret.sourceHashes,{
+        candidate:candidate.sourceSha256,control:control.sourceSha256
+      });
+      assert.deepEqual(secret.candidateMetrics,{
+        polyvariantFunctions:3,polyvariantPaths:6
+      });
+      assert.equal(secret.minifier.name,'esbuild');
+      assert.equal(secret.minifier.version,require('esbuild').version);
+      assert.deepEqual(secret.minifier.options,{
+        format:'esm',loader:'js',target:'es2022',minify:true,legalComments:'none'
+      });
+      const original=await loadPublicEsm(secret.originalSource);
+      const inputs=[-2147483648,-1,0,1,2147483647,0x12345678];
+      for(const name of candidate.exports){
+        for(const input of inputs){
+          assert.equal(candidateModule[name](input),original[name](input));
+          assert.equal(controlModule[name](input),original[name](input));
+        }
+      }
+    });
+}
