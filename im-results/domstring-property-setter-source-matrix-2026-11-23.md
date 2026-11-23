@@ -349,3 +349,24 @@ A source review of the pinned mainline shows a useful existing pattern and the p
 - `src/source-observer-islands.js` currently admits deliberately pure primitive ESM leaves selected by the caller. It is not an automatic owner-closure analysis for a function whose own source is being exposed.
 
 A first conservative implementation can reuse the URL setter pattern to close the correctness gap. The stronger target is a per-function/per-owner source-observation plan: preserve the observed function's exact source spelling and all referenced closure bindings/property keys, propagate that plan across ESM imports, and continue renaming provably unrelated owners. A graph-wide veto should remain the fallback when the analysis cannot localize the observation, not the final selective solution.
+
+
+## Related CSSOM evidence from Agent 1
+
+The CSSOM `CSSStyleDeclaration.setProperty` family is a related but distinct
+Web IDL sink family and is not included in the counts above. Agent 1 has
+independently verified native Chromium source exposure across HTML Element,
+SVG Element, and `CSSStyleRule.style` receivers; direct, bracket, bound,
+`Reflect.apply`, detached-reference, and aliased-receiver calls; and a
+cross-file ESM producer/consumer witness. Literal-string and same-named
+ordinary userland `setProperty` positives preserve behavior while retaining
+unrelated property transforms. This is strong evidence that receiver
+provenance—not a name-only ban—is necessary.
+
+See:
+- `im-results/cssom-custom-property-source-2026-11-23.md`
+- `im-results/cssom-style-receivers-native-matrix-2026-11-23.md`
+- `im-results/cssom-cross-file-source-observation-2026-11-23.md`
+
+These CSSOM results complement this DOMString property/HTML parser matrix;
+do not merge their counts or infer that this matrix covers all CSSOM sinks.
