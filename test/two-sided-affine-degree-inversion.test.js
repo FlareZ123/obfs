@@ -158,6 +158,7 @@ test('sparse high-degree compatible transposition is a declared-degree counterex
 });
 
 test('rejects unsupported oracle, width, degree and budget',()=>{
+  /** @param {number} x @returns {number} */
   const F=x=>x;
   assert.throws(()=>invertBoundedDegree(F,0,0,1),/Expected forward oracle/);
   assert.throws(()=>invertBoundedDegree(F,0,33,1),/Expected forward oracle/);
