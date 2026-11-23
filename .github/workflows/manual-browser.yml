@@ -47,6 +47,10 @@ jobs:
         env:
           CHROMIUM_BIN: google-chrome
         run: node test/sri-metadata-base-alias-browser.js
+      - name: Reproduce opaque imported-factory Base64URL SRI mismatch in Chromium
+        env:
+          CHROMIUM_BIN: google-chrome
+        run: node test/sri-url-safe-opaque-dynamic-browser.js
       - name: Verify inert foreign SVG base cannot mask the active HTML SRI base
         env:
           CHROMIUM_BIN: google-chrome
