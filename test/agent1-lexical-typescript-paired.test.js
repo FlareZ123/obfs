@@ -65,7 +65,9 @@ test('150 source-paired Acorn/TypeScript reference classifications',()=>{
   const source='export {};\n'+cases.map(item=>item.expr).join('\n');
   const ast=acorn.parse(source,{ecmaVersion:'latest',sourceType:'module'});
   const proof=resolveLexicalReferences(ast,'module');
-  const filename=path.join(process.cwd(),'obfs-binder-reference-virtual.js');
+  const filename=path.join(process.cwd(),'obfs-binder-reference-virtual.js').replaceAll('\\','/');
+  const canonical=name=>path.resolve(name).replaceAll('\\','/').toLowerCase();
+  const target=canonical(filename);
   const options={
     allowJs:true,
     checkJs:false,
@@ -79,10 +81,10 @@ test('150 source-paired Acorn/TypeScript reference classifications',()=>{
   const host=ts.createCompilerHost(options);
   const originalGetSourceFile=host.getSourceFile.bind(host);
   const originalFileExists=host.fileExists.bind(host);
-  host.fileExists=name=>name===filename||originalFileExists(name);
+  host.fileExists=name=>canonical(name)===target||originalFileExists(name);
   host.getSourceFile=(name,languageVersion,onError,shouldCreateNewSourceFile)=>
-    name===filename?
-      ts.createSourceFile(filename,source,languageVersion,true,ts.ScriptKind.JS):
+    canonical(name)===target?
+      ts.createSourceFile(name,source,languageVersion,true,ts.ScriptKind.JS):
       originalGetSourceFile(name,languageVersion,onError,shouldCreateNewSourceFile);
   const program=ts.createProgram([filename],options,host);
   const checker=program.getTypeChecker();
