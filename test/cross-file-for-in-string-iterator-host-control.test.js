@@ -159,6 +159,24 @@ test('ForIn StringKey direct member read observes a host String getter',async()=
     'A host-provided Function obtained from a StringKey must not permit owner-key renaming');
 });
 
+test('direct primitive String array destructuring observes a host iterator',async()=>{
+  const files=graph([
+    'import {state} from "./state.mjs";',
+    'const [Loader]="x";',
+    'const injected=Loader(\'return import("./state.mjs")\');',
+    'const remote=await injected();',
+    'console.log(JSON.stringify([state.secretField,Object.keys(remote.state),remote.state.secretField]));'
+  ].join('\n'));
+  const native=await executeWithHostStringCapabilities(files);
+  assert.equal(native,'[53,["secretField"],53]\n');
+  const output=transform(files,'primitive-string-array-destructuring');
+  const emitted=await executeWithHostStringCapabilities(output.files);
+  assert.equal(emitted,native,
+    'Array destructuring from a primitive string must account for the host-modified String iterator');
+  assert.equal(output.crossFile.properties,0,
+    'A Function supplied by a host String iterator must not permit owner-key renaming');
+});
+
 test('simple ForIn identifier binding retains independent private-field rewrite yield',async()=>{
   const files=graph([
     'import {state} from "./state.mjs";',
