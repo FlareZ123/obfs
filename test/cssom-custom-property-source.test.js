@@ -46,26 +46,27 @@ const cases=[
 ];
 
 for(const [name,setter] of cases) {
-  test('CSSOM custom property preserves native function source: '+name,()=>{
-    const source=negative(setter);
-    const native=execute(source);
-    assert.equal(native.number,31);
-    assert.ok(native.text.includes('secretField'));
-    for(const mode of /** @type {const} */(['coo','sno','sco'])) {
+  const original=negative(setter);
+  for(const mode of /** @type {const} */(['coo','sno','sco'])) {
+    test('CSSOM custom property function-source parity: '+name+'/'+mode,()=>{
+      const native=execute(original);
+      assert.equal(native.number,31);
+      assert.ok(native.text.includes('secretField'));
       const emitted=obfuscateFiles([{
-        path:'case.cjs',sourceType:'commonjs',code:source
-      }],{mode,seed:'cssom-source/'+name,
+        path:'case.cjs',sourceType:'commonjs',code:original
+      }],{mode,seed:'cssom-source/'+name+'/'+mode,
         properties:true,identifiers:true,strings:false}).files[0];
       const actual=execute(/** @type {string} */(emitted.code));
       process.stdout.write('CSSOM_SOURCE_CASE '+JSON.stringify({
         name,mode,properties:emitted.metrics.properties,
         bindings:emitted.metrics.bindings,
         equal:JSON.stringify(actual)===JSON.stringify(native)
-      })+'\n');
-      assert.equal(JSON.stringify(actual),JSON.stringify(native),mode+'/'+name+' '+emitted.code);
-    }
-    assert.equal(observesFunctionSource(parse(source,'commonjs')),true,name);
-  });
+      })+'\\n');
+      assert.equal(JSON.stringify(actual),JSON.stringify(native),
+        mode+'/'+name+' '+emitted.code);
+      assert.equal(observesFunctionSource(parse(original,'commonjs')),true,name);
+    });
+  }
 }
 
 test('CSSOM primitive custom property leaves an unrelated private key eligible',()=>{
