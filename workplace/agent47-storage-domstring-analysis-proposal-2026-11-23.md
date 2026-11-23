@@ -5,7 +5,7 @@
 
 ## Why this needs a separate model
 
-The [HTML Web Storage definition](https://html.spec.whatwg.org/multipage/webstorage.html) specifies `Storage.setItem(DOMString key, DOMString value)`. Both arguments are converted, so a function can be stringified in either position. The conversion semantics are defined by Web IDL's [ECMAScript-to-DOMString conversion](https://webidl.spec.whatwg.org/#es-DOMString), which reaches ECMAScript `ToString` and `ToPrimitive` behavior.
+The [HTML Web Storage definition](https://html.spec.whatwg.org/multipage/webstorage.html#the-storage-interface) declares `setter undefined setItem(DOMString key, DOMString value)`. That is both the explicit `storage.setItem(key, value)` operation and the Storage named-property setter used by `storage[key] = value`; the Web IDL special-operation rules pass the property name as the first argument and the assigned value as the second. Each argument is converted to `DOMString` by Web IDL's [ECMAScript-to-DOMString conversion](https://webidl.spec.whatwg.org/#es-DOMString), which invokes ECMAScript `ToString` and therefore the object's `ToPrimitive` path. A function can be stringified in either argument position or through the named-property assignment form.
 
 The current evidence is deliberately split across dispatch shapes:
 
@@ -19,7 +19,7 @@ The current evidence is deliberately split across dispatch shapes:
 | Direct `Function.prototype.toString.call(fn)` | Bypasses own conversion hook and exposes source | Correctly refused |
 | Native Storage + patched `Function.prototype.toString` delegating to captured native | Patched method is called and original source is stored | Correctly refused |
 
-These rows are not interchangeable. In particular, a method-name-only `.setItem` veto would wrongly treat JavaScript overrides as native Web IDL dispatch, while a blanket computed-property veto loses safe `Symbol.toPrimitive` yield.
+These rows are not interchangeable. The named-property assignment is a distinct syntax for the same IDL setter, not a generic JavaScript property write. A method-name-only `.setItem` veto would wrongly treat JavaScript overrides as native Web IDL dispatch, while a blanket computed-property veto loses safe `Symbol.toPrimitive` yield.
 
 ## Required resolution chain
 
@@ -36,12 +36,13 @@ Do not use identifier spelling as proof. A same-spelled parameter named `localSt
 
 ### 2. Effective callable identity
 
-Resolve the effective `setItem` property at the call site, including:
+Resolve the effective `setItem` property or named-property setter at the call site, including:
 - inherited native `Storage.prototype.setItem`;
 - a previously captured native method alias;
 - an own instance override;
 - a replaced `Storage.prototype.setItem`;
 - a wrapper reached through `.call`, `.apply`, `Reflect.apply`, or `bind`;
+- the named-property form `storage[key] = value`, which invokes the same native setter with the property key and assigned value as its two DOMString arguments;
 - unknown/proxy/accessor cases.
 
 The method's name is not sufficient. A captured native alias remains native after a prototype replacement; a JavaScript override is not the Web IDL native operation.
@@ -84,9 +85,18 @@ This is a proposed data shape, not an existing API or implementation.
 ## Minimal algorithm sketch
 
 ```text
-analyzeStorageCall(call):
-  receiver = resolveReceiver(call.callee.object)
-  callable = resolveEffectiveProperty(receiver, "setItem")
+analyzeStorageSink(sink):
+  if sink is a direct call:
+    receiver = resolveReceiver(sink.callee.object)
+    callable = resolveEffectiveProperty(receiver, "setItem")
+    arguments = [sink.key, sink.value]
+  else if sink is a named-property assignment:
+    receiver = resolveReceiver(sink.left.object)
+    callable = resolveEffectiveNamedPropertySetter(receiver)
+    arguments = [sink.left.property, sink.right]
+  else:
+    return
+
 
   if callable is proven JS override:
     analyze wrapper body and argument escape
@@ -96,7 +106,7 @@ analyzeStorageCall(call):
   if callable is not proven native Storage.setItem:
     return UnknownHostEffect
 
-  for argument in [key, value]:
+  for argument in arguments:
     path = analyzeToString(argument, hint="string", realm=receiver.realm)
 
     if path reaches pristine Function.prototype.toString:
@@ -111,7 +121,7 @@ The actual implementation must also track captured aliases and invocation forms,
 
 ## Proof obligations before compiler admission
 
-- Native inherited call and captured native alias both expose source for ordinary function key and value.
+- Native inherited calls, captured native aliases, and named-property assignments expose source for ordinary function values in the tested same-file cases; function-valued keys are also covered by the Storage source-parity matrix.
 - Own instance and prototype wrappers preserve exact function identity; use a `WeakMap` assertion, not only a numeric return value.
 - Own `toString` and own `Symbol.toPrimitive` are separate hooks; assert receiver, hint, hook count, stored value, and private rewrite yield.
 - Direct `Function.prototype.toString.call` bypasses own hooks and preserves source.
