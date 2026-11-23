@@ -12,6 +12,9 @@
  * @typedef {{
  *   name: string,
  *   conclusion: string | null,
+ *   status: string,
+ *   run_id: number,
+ *   head_sha: string,
  *   steps?: WorkflowStep[]
  * }} WorkflowJob
  * @typedef {{
@@ -89,8 +92,9 @@ function classifyValidationRun(run, jobs, expectedSha) {
     reasons.push('Workflow head SHA differs from the required source pin');
     return receipt('sha-mismatch');
   }
-  if (run.status !== 'completed') {
-    reasons.push('Workflow run is not completed');
+  if (run.status !== 'completed' ||
+      !Number.isSafeInteger(run.id) || (run.id ?? 0) < 1) {
+    reasons.push('Workflow run is not completed or has no valid run ID');
     return receipt('incomplete');
   }
   const byName = new Map(jobs.map((job) => [job.name, job]));
@@ -120,6 +124,17 @@ function classifyValidationRun(run, jobs, expectedSha) {
       reasons.push('Missing required matrix job: ' + name);
     } else {
       selectedJobs.push(job);
+    }
+  }
+  if (reasons.length) return receipt('incomplete');
+
+  // GitHub assigns each job its own immutable run identifier and source SHA.
+  // Mixing an older green job with another run's head is an easy accidental
+  // evidence error when reviewing concurrent, same-named manual matrices.
+  for (const job of selectedJobs) {
+    if (job.run_id !== run.id || job.head_sha !== run.head_sha ||
+        job.status !== 'completed') {
+      reasons.push(job.name + ': job run ID, head SHA or completion differs from workflow');
     }
   }
   if (reasons.length) return receipt('incomplete');
