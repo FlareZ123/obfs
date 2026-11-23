@@ -15,7 +15,7 @@ const {layerXorFunctions}=require('../workplace/layered-mba');
 
 const mathematical=[
   'function roundA(x,y){return (((x^y)&0x55aa00ff)^(x&~y))|0;}',
-  'function roundB(x,y){return (((x^y)|(x&y))^((~x)&y))|0;}',
+  'function roundB(x,y){return (((x^y)|(x&y))^((~x)&0x13579bdf))|0;}',
   'module.exports={roundA,roundB};'
 ].join('\n');
 const engine=[
@@ -25,7 +25,7 @@ const engine=[
   ' return {step(a,b){',
   '  const first=math.roundA(state^a,b);',
   '  const second=math.roundB(first,a^b);',
-  '  state=(second^first)|0;',
+  '  state=(second^((first<<7)|(first>>>25))^Math.imul(a,33)^b)|0;',
   '  return state;',
   ' },current(){return state;}};',
   '};'
@@ -114,7 +114,7 @@ test('same-source stateful graph process-CPU profile records every paired strict
       folders[arm]=dir;
     }
     assert.equal(sha256(sources.native),sha256(sources.placebo));
-    const warm=200000,steps=1200000,replicates=7;
+    const warm=1000000,steps=10000000,replicates=7;
     /** @type {Array<Record<Arm,Sample>>} */
     const rows=[];
     for(let index=0;index<replicates;index++){
