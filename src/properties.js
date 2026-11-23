@@ -1,6 +1,7 @@
 'use strict';
 
 const {createHash} = require('node:crypto');
+const {exposesSloppyCallerSource}=require('./caller-source-purity');
 const {parse, walk, applyEdits, observesFunctionSource, staticString, sourceSpelledErrorOperand} = require('./ast');
 
 /** @typedef {import('./ast').AstNode} AstNode */
@@ -1387,6 +1388,11 @@ function renameLocalProperties(source, ast, options) {
   for (const candidate of candidates) {
     const proof = proveLocalObject(ast, candidate.name, bindings);
     if (!proof || (!proof.members.length && !proof.patterns.length && !proof.inChecks.length)) continue;
+    // A foreign sloppy callee, getter or implicit ToPrimitive callback can
+    // reveal its running caller's exact source through Function#caller.
+    // The bounded pure-effect certificate keeps only independently inert
+    // body/source edits; unknown synchronous execution declines the owner.
+    if (exposesSloppyCallerSource(ast,candidate.node,candidate.properties,proof)) continue;
     if(sourceExposedEdits.has(candidate.node)||
        candidate.properties.some(property=>sourceExposedEdits.has(property))||
        proof.members.some(member=>sourceExposedEdits.has(member))||
