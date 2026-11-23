@@ -135,6 +135,16 @@ function resolveLexicalReferences(root,sourceType) {
       collect(node.body,child(incoming,'with'),node,'body');
       return;
     }
+    // The switch discriminant is evaluated in the incoming environment.
+    // Case tests and consequents share the new CaseBlock lexical scope;
+    // case var declarations still hoist to the enclosing function.
+    if(node.type==='SwitchStatement') {
+      scopes.set(node,incoming);
+      collect(node.discriminant,incoming,node,'discriminant');
+      const cases=child(incoming,'switch');
+      for(const clause of node.cases)collect(clause,cases,node,'cases');
+      return;
+    }
     let scope=incoming;
     if(node!==root) {
       if(node.type==='FunctionDeclaration'||node.type==='FunctionExpression'||node.type==='ArrowFunctionExpression') {
@@ -184,7 +194,7 @@ function resolveLexicalReferences(root,sourceType) {
         scope=child(incoming,'catch');
         declarePattern(node.param,scope,'catch');
       }else if(['ForStatement','ForInStatement','ForOfStatement'].includes(node.type))scope=child(incoming,'loop');
-      else if(node.type==='SwitchStatement')scope=child(incoming,'switch');
+
 
     }
     scopes.set(node,scope);
