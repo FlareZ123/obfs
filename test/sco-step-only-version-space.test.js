@@ -188,7 +188,8 @@ test('compact complete four-state space certifies independent no-reset machines'
     assert.ok(typeof result.scanWork==='number'&&result.scanWork>0);
     assert.ok(typeof result.equivalenceChecks==='number'&&result.equivalenceChecks>=0);
     assert.ok(typeof result.productPairs==='number'&&result.productPairs>=0);
-    assert.ok(typeof result.elapsedMs==='number'&&result.elapsedMs>0);
+    assert.ok(typeof result.elapsedMs==='number'&&result.elapsedMs>0&&result.elapsedMs<5000,
+      'per-model offline attacker CPU budget is five seconds');
     assert.ok(result.clone);
     const hidden={...model,state:privateState};
     assert.equal(equivalentFromStates(result.clone,hidden),true,
@@ -215,6 +216,7 @@ test('compact complete four-state space certifies independent no-reset machines'
   }));
   assert.equal(records.length,8);
   assert.ok(Math.max(...queries)<=128);
+  console.log('STEP_ONLY_FOUR_STATE_RECORDS '+JSON.stringify(records));
 });
 
 test('compact four-state space also covers smaller machines through unreachable padding',async()=>{
