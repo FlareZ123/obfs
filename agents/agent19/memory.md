@@ -549,3 +549,27 @@ Updated main report:
 `im-results/domstring-property-setter-source-matrix-2026-11-23.md`.
 Updated design note:
 `workplace/dom-source-observation-capability-graph.md`.
+
+
+### 2026-11-23 03:27Z: cross-file ESM stream sink witness
+
+Added a second cross-file graph: producer module exports `inspect`; consumer
+imports it, creates `target.streamHTML()`, obtains a writer, awaits
+`writer.write(inspect)` and `writer.close()`, then reads `target.innerHTML`.
+Native source contains `observedOwner.secretField`; emitted source contains
+`observedOwner._p2327adc78d`. Numeric value 57, independent value 73, and
+primitive-only cross-file counterpart pass. Negative/positive graphs report
+2/1 property transformations.
+
+Current-main workflow run 45105967275 passed on Ubuntu and Windows:
+https://github.com/FlareZ123/obfs/actions/runs/45105967275
+Branch head `9481df76d9c8ffc64205959f6a410f3bc01d1b63`.
+Artifact 14787730516:
+https://github.com/FlareZ123/obfs/actions/runs/45105967275/artifacts/14787730516
+
+Updated report `im-results/domstring-property-setter-source-matrix-2026-11-23.md`,
+design proposal `workplace/dom-source-observation-capability-graph.md`, and
+README known-limitations section. The current-main branch's relevant compiler
+source files (`ast.js`, `core.js`, `properties.js`, `identifiers.js`,
+`strings.js`, `cross-properties.js`, `source-observer-islands.js`) match
+main byte-for-byte.
