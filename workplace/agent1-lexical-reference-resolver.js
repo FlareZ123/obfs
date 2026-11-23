@@ -203,22 +203,13 @@ function resolveLexicalReferences(root,sourceType) {
   }
   collect(root,program,null,null);
 
-  /** @param {Scope} scope @param {string} name @returns {Binding|null} */
-  function findBinding(scope,name){
-    /** @type {Scope|null} */
-    let s=scope;
-    for(;s;s=s.parent){
-      if(s.uncertain.has(name))return null;
-      const b=s.bindings.get(name);if(b)return b;
-    }
-    return null;
-  }
-  // A direct eval can introduce names in its activation's environment, and
-  // descendants created in that activation can observe those names.
-  for(const entry of evalCalls){
-    if(findBinding(entry.scope,'eval'))continue;
-    varScope(entry.scope).directEval=true;
-  }
+  // Any direct syntactic eval(...) can call the intrinsic eval function
+  // even when its identifier is shadowed by a parameter or local binding.
+  // The runtime value might be the intrinsic, e.g. f(eval) where
+  // function f(eval){ eval('var window=1'); return window; }.
+  // Without proving the effective callable, conservatively taint this
+  // activation and nested closures. An unrelated sibling stays untainted.
+  for(const entry of evalCalls)varScope(entry.scope).directEval=true;
   /** @param {Scope} scope @param {string} name @returns {Resolution} */
   function resolve(scope,name) {
     /** @type {Scope|null} */
