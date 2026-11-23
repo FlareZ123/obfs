@@ -5,6 +5,7 @@ const {test}=require('node:test');
 const vm=require('node:vm');
 const {performance}=require('node:perf_hooks');
 const {lowerWasmI32Functions}=require('../src/wasm-i32');
+const {obfuscateFiles}=require('../src/core');
 const {recoverPublicWasmExpression}=require('../sims/wasm-i32-static-recover');
 
 /**
@@ -221,4 +222,39 @@ test('seeded additive/bitwise/conditional grammar fuzz preserves native and sour
   assert.equal(pairs,7200);
   console.log(JSON.stringify({seed:'0x4c957f2d',trees:45,variants:90,
     comparisons:7200,attack:'public-bytecode symbolic recovery'}));
+});
+
+test('explicit COO/SNO pipeline selections and ESM public import preserve coerced addition',async()=>{
+  const common='function f(a,b){return ((a+b)|0)^(a>>>5);}module.exports=f;';
+  const native=load(common);
+  for(const mode of /** @type {('coo'|'sno')[]} */(['coo','sno'])){
+    const output=obfuscateFiles([{
+      path:'kernel.cjs',sourceType:'commonjs',code:common
+    }],{
+      mode,seed:'additive-pipeline-'+mode,
+      strings:false,identifiers:false,properties:false,
+      experimentalWasmI32:{'kernel.cjs':['f']}
+    });
+    assert.equal(output.files[0].metrics.wasmI32Functions,1);
+    const emitted=load(String(output.files[0].code));
+    for(let i=0;i<100;i++){
+      const a=i<boundaries.length?boundaries[i]:next();
+      const b=i<boundaries.length?boundaries[boundaries.length-1-i]:next();
+      assert.ok(Object.is(emitted(a,b),native(a,b)),mode+'/'+i);
+    }
+  }
+  const esm='export function f(a,b){return ((a+b)|0)^(a>>>5);}';
+  const emitted=lowerWasmI32Functions(esm,'module',{
+    seed:'additive-esm',names:['f']
+  });
+  assert.equal(emitted.functions,1);
+  const originalModule=await import('data:text/javascript;base64,'+
+    Buffer.from(esm).toString('base64'));
+  const rewrittenModule=await import('data:text/javascript;base64,'+
+    Buffer.from(emitted.code).toString('base64'));
+  for(let i=0;i<100;i++){
+    const a=i<boundaries.length?boundaries[i]:next();
+    const b=i<boundaries.length?boundaries[boundaries.length-1-i]:next();
+    assert.ok(Object.is(rewrittenModule.f(a,b),originalModule.f(a,b)),'esm/'+i);
+  }
 });
