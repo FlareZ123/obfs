@@ -30,7 +30,7 @@ function compile(source,mode){
 
 for(const mode of /** @type {const} */(['coo','sno'])) {
   test(mode+' admits source-unobservable direct arrow IIFE and preserves native output',()=>{
-    const source='const owner={hiddenCount:41,secretDelta:2};'+
+    const source="'use strict';const owner={hiddenCount:41,secretDelta:2};"+
       'module.exports=(()=>owner.hiddenCount+owner.secretDelta)();';
     const out=compile(source,mode);
     assert.equal(out.metrics.properties,2,String(out.code));
@@ -42,6 +42,22 @@ for(const mode of /** @type {const} */(['coo','sno'])) {
     const out=compile(source,mode);
     assert.equal(out.metrics.properties,0,String(out.code));
     assert.deepEqual(execute(String(out.code)),execute(source));
+  });
+  test(mode+' sloppy caller observer can recover an IIFE arrow source: must refuse',()=>{
+    const source='const owner={hiddenCount:41,secretDelta:2};'+
+      'function capture(){return capture.caller;}'+
+      'module.exports=(()=>{const n=owner.hiddenCount+owner.secretDelta;return capture();})();';
+    const out=compile(source,mode);
+    assert.equal(out.metrics.properties,0,String(out.code));
+    /** @param {string} code @returns {string} */
+    function externalSource(code){
+      /** @type {{module:{exports:unknown}}} */
+      const ctx={module:{exports:null}};
+      vm.runInNewContext(code,ctx,{timeout:1000});
+      assert.equal(typeof ctx.module.exports,'function');
+      return Function.prototype.toString.call(ctx.module.exports);
+    }
+    assert.equal(externalSource(String(out.code)),externalSource(source));
   });
   test(mode+' declines optional invoked arrow IIFE before source-proof upgrade',()=>{
     const source='const owner={hiddenCount:41,secretDelta:2};'+
