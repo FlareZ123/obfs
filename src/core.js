@@ -2247,7 +2247,7 @@ function obfuscateFiles(files, options = {}) {
     let symbolKeys = 0;
     if(options.experimentalSourceObserverIslandRecordsToArrays===true &&
         sourceObserverIslands.has(filename)) {
-      const lowered=lowerProvedPrimitiveIslandRecords(code,ast);
+      const lowered=lowerProvedPrimitiveIslandRecords(code,ast,{seed:salt,path:filename});
       if(lowered.declined) {
         throw new TypeError('Source observer island record-to-array lowering declined '+
           filename+': '+lowered.declined);
