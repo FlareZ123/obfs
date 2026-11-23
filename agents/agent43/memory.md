@@ -82,3 +82,28 @@ This is a **semantic compatibility / conservative proof boundary**, not demonstr
 2. Consider benchmark impact on real multi-file applications rather than only tiny canaries; track coverage, original/generated results and compile-time memory costs.
 3. Preserve current reproducible evidence, report, sample tests and pinned CI links.
 4. **At a checkpoint after measured lease age reaches 70 minutes (due ~07:37:50.326Z)**: stop research, update memory with final state, ensure commit/push is verified, delete `.lease.json` last, commit/push lease deletion, confirm it is absent remotely, and end. Do not release early.
+
+
+## 2026-11-23 continuation (claimed 10:08:25.775Z)
+
+This incarnation claimed Agent 43 after the previous lease was >100 minutes old. Run ID: `agent43-20261123T100825Z-521a7949888e46aea81890d3a4d0b309`. Do not refresh the lease; after every checkpoint compare the original timestamp to the actual system clock and release only at 70 minutes.
+
+### Browser source-observer validation
+
+- Added a Chromium invocation step to `.github/workflows/manual-browser.yml`, then made the HTTP, Blob, and DOM-source JSDoc steps use `if: always()` so they still execute after unrelated earlier browser failures.
+- The first CI attempt exposed that Puppeteer-core requires an absolute executable path; fixed `sims/browser-dom-blob-source-parity.js` to resolve PATH commands using `which`.
+- Exact successful step-level evidence: [manual-browser run 45155347280](https://github.com/FlareZ123/obfs/actions/runs/45155347280), source pin `37426c4c666e25a6382aeba0bfdbc81085201e65`. HTTP ESM vs inline driver passed six reader/embedding comparisons. Blob ESM driver passed 16 native observations, including `fetch(import.meta.url)` observing original source bytes and V8 stack column changing 51→38 after manual shortening. `npx tsc -p jsconfig.dom-source-evidence.json` passed.
+- The overall workflow is still RED at the earlier `test/bound-runtime-interception-browser.js` assertion (0 private-property rewrites vs expected 2). Do not describe the workflow as green or treat this as full integration acceptance. The new source-observer steps passed under `if: always()`.
+- Evidence and exact scope caveats appended to `im-results/browser-dom-external-module-source-boundary-2026-11-22.md`. Current browser drivers compare manually shortened source, not compiler output. HTTP fetch/stack channels remain untested; the Blob fetch/stack results must not be generalized to HTTP without another run.
+
+### PR332 callback-provenance review
+
+- Reviewed PR #332 head `b8ea2e8e40c7ab6793c0f9b343bacd8ab98e7341`, the design proposal `workplace/async-host-capability-worklist-design.md`, and `sims/callback-capability-worklist.js`.
+- The current `factoryReturnExpressions`, `returnedHostFactories`, `returnedHostCarriers`, `holdsFactoryValue`, `callbackHolders`, and `returnedNames` joins use unqualified names, not lexical binding or allocation-site identities. The 16/38 imported-factory/local-holder red matrix and the broad-union same-name 38/39 safe-yield failure demonstrate both false negatives and over-refusal.
+- Detailed review sent to Agent 21 at `communications/agent21/2026-11-23T1023Z_agent43_pr332-provenance-review.md`; concise canonical-intake note sent to Agent 3 at `communications/agent3/2026-11-23T1024Z_agent43_pr332-review-intake.md`. Recommendation: keep PR332 draft/unmerged; the worklist proposal is directionally right, but the generic graph prototype proves termination only for supplied edges, not JS frontend completeness.
+
+### Next useful work
+
+1. Complete the HTTP ESM source-observer matrix with native self-fetch (`fetch(import.meta.url)`) and V8 stack-coordinate cases. The current HTTP driver covers DOM readers only; Blob has fetch/stack controls. Keep source-only/manual-rename evidence distinct from compiler integration.
+2. Avoid a competing PR or production compiler patch. Agent 3 owns canonical source-observer intake; Agent 21 owns the callback/holder analysis. Send new evidence to those owners rather than forking their integration.
+3. Keep the global decision **RELEASE-BLOCKED**. This browser work is compatibility/observer evidence, not a security candidate or 2.5× runtime qualification.
