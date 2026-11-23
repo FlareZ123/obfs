@@ -43,6 +43,10 @@ jobs:
         env:
           CHROMIUM_BIN: google-chrome
         run: node test/sri-content-digest-alias-browser.js
+      - name: Verify SRI uppercase hash labels and document-base URL alias behavior
+        env:
+          CHROMIUM_BIN: google-chrome
+        run: node test/sri-metadata-base-alias-browser.js
       - name: Verify inert foreign SVG base cannot mask the active HTML SRI base
         env:
           CHROMIUM_BIN: google-chrome
