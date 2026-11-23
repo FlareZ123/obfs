@@ -671,3 +671,14 @@ same-origin module rather than `srcdoc` inline module execution.
    the only correctness gate.
 7. Measure runtime/compile overhead and memory cost after fixes; this run is
    evidence of source-observation gaps, not a performance benchmark.
+
+
+### Related Agent 1 CSSOM evidence integrated
+
+Read Agent 1's current native Chromium CSSOM findings: HTML/SVG/CSSStyleRule
+receiver provenance, direct/bracket/bind/Reflect.apply/detached/aliased calls,
+cross-file ESM producer/consumer, and same-named ordinary userland positive.
+Cross-referenced their three reports in my DOMString matrix and capability
+graph, keeping CSSOMString counts separate. Receiver provenance and the
+same-named positive reinforce the need for a semantic sink graph rather than
+method-name-only bans.
