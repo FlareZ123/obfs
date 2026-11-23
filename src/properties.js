@@ -364,7 +364,7 @@ function collectOwnedConstantKeys(ast,rootName,bindings,scopes) {
 const localPrivateClassMethodCache=new WeakMap();
 
 /**
- * Prove source privacy for a single, pure method on a nonescaping local class.
+ * Prove source privacy for a pure method on a nonescaping local class or const-bound anonymous class.
  * Each instance is an immutable local value constructed with no arguments,
  * used only as the receiver of direct calls to that method. The method does
  * nothing except return a fixed member of a lexical owner; its owner is still
@@ -381,11 +381,19 @@ function locallyPrivateClassMethods(ast,bindings,scopes,inventory){
   if(cached)return cached;
   /** @type {Set<AstNode>} */
   const admitted=new Set();
-  walk(ast,(cls,_parent,_key,ancestors)=>{
-    if(cls.type!=='ClassDeclaration'||cls.id?.type!=='Identifier'||
-       cls.superClass||cls.body.body.length!==1||
+  walk(ast,(cls,parent,_key,ancestors)=>{
+    const declaration=cls.type==='ClassDeclaration'&&cls.id?.type==='Identifier';
+    // An anonymous class assigned directly to a unique immutable const
+    // has the same local class-value ownership proof as a declaration.
+    const expression=cls.type==='ClassExpression'&&!cls.id&&
+      parent?.type==='VariableDeclarator'&&parent.init===cls&&
+      parent.id.type==='Identifier'&&
+      inventory.parents.get(parent)?.type==='VariableDeclaration'&&
+      inventory.parents.get(parent)?.kind==='const';
+    if((!declaration&&!expression)||cls.superClass||cls.body.body.length!==1||
        ancestors.some(a=>/^Export/.test(a.type)))return;
-    const className=cls.id.name;
+    const classId=declaration?cls.id:parent.id;
+    const className=classId.name;
     // Class declarations are absent from the existing binding-scope cache.
     // Recover the exact nearest lexical region from this walk's ancestry.
     const classScope=[...ancestors].reverse().find(a=>
@@ -409,7 +417,7 @@ function locallyPrivateClassMethods(ast,bindings,scopes,inventory){
     /** @type {AstNode[]} */
     const instances=[];
     for(const use of inventory.identifierUses.get(className)??[]){
-      if(use.node===cls.id)continue;
+      if(use.node===classId)continue;
       if(!use.ancestors.includes(classScope)||use.parent?.type!=='NewExpression'||
          use.parent.callee!==use.node||use.parent.arguments.length!==0)return;
       const candidate=inventory.parents.get(use.parent);
