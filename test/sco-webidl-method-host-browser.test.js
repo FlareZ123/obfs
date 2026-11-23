@@ -263,7 +263,7 @@ test('private SCO ESM graph applies Web IDL method admission to imported leaves'
     "let H;({Headers:H}=globalThis);return new H().get('x-demo');",
     "const {...rest}=globalThis;const H=rest.Headers;return new H().get('x-demo');",
     "const {Headers:H=0}=globalThis;return new H().get('x-demo');"
-  ])assert.throws(()=>graph(body),/unproved cross-realm WebIDL constructor/,body);
+  ])assert.throws(()=>graph(body),/unproved cross-realm WebIDL constructor|realm-local intrinsic state access/,body);
   for(const name of ['Headers','URLSearchParams']){
     const body='const '+name+'=17;export function leaf(){return new '+name+'().get("x");}';
     const source=partitionScoSelectedGraph.bind(null,[{
