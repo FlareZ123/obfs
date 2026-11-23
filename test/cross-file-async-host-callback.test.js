@@ -703,3 +703,46 @@ test('primitive conditional callback preserves positive own-key rewrite',async()
   assert.equal(await execute(compiled.files),native);
   assert.equal(compiled.crossFile.properties,1);
 });
+
+
+/**
+ * Binding patterns may destructure a callback directly from its own literal
+ * producer, with no intermediate identifier holder to seed alias tracking.
+ */
+for(const [name,binding] of /** @type {[string,string][]} */([
+  ['direct object literal','const {callback}={callback:getFactory};'],
+  ['direct array literal','const [callback]=[getFactory];']
+])) {
+  test('inline destructured host callback via '+name+' preserves remote key spelling',async()=>{
+    const files=graph([
+      'function getFactory(){return globalThis.RUNTIME_FACTORY;}',
+      binding,
+      'const ctor=await Promise.resolve().then(callback);',
+      'const remote=await ctor("return import(\'./state.mjs\')")();',
+      "const result=[inspectRecord('auditCount').value,Object.keys(remote.state),remote.state.secretField];"
+    ].join('\n'));
+    const native=await execute(files,true);
+    assert.equal(native,'[41,[3,["secretField"],41]]\n');
+    const compiled=obfuscateFiles(files,{
+      mode:'coo',closedWorld:true,seed:'host-inline-destructure/'+name,
+      identifiers:false,strings:false,properties:true
+    });
+    assert.equal(await execute(compiled.files,true),native,name);
+    assert.equal(compiled.crossFile.properties,0,name);
+  });
+}
+
+test('literal destructuring of numeric callback retains private ESM record rename',async()=>{
+  const files=graph([
+    'const {callback}={callback:()=>7};',
+    'const value=await Promise.resolve().then(callback);',
+    "const result=[inspectRecord('externalFormat').value,value];"
+  ].join('\n'));
+  const native=await execute(files);
+  const compiled=obfuscateFiles(files,{
+    mode:'coo',closedWorld:true,seed:'host-inline-destructure-primitive',
+    identifiers:false,strings:false,properties:true
+  });
+  assert.equal(await execute(compiled.files),native);
+  assert.equal(compiled.crossFile.properties,1);
+});
