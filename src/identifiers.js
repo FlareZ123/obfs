@@ -25,6 +25,12 @@ function classifyIdentifier(node,parent,key) {
   if ((parent.type==='MethodDefinition'||parent.type==='PropertyDefinition') && key==='key' && !parent.computed) return 'ignore';
   if (/^(ImportSpecifier|ImportDefaultSpecifier|ImportNamespaceSpecifier)$/.test(parent.type)) return 'ignore';
   if (/^(ExportSpecifier|ExportDefaultDeclaration)$/.test(parent.type)) return 'ambiguous';
+  // `export * as label from "module"` creates a public export name, not a
+  // lexical read. Rewriting this name while renaming an unrelated local
+  // binding silently changes import compatibility across files.
+  if (parent.type==='ExportAllDeclaration' && key==='exported') return 'ignore';
+  // The Identifier key of an ESM import attribute is syntax, not a binding.
+  if (parent.type==='ImportAttribute' && key==='key') return 'ignore';
   if (parent.type==='MetaProperty' || parent.type==='LabeledStatement' && key==='label' ||
       /^(BreakStatement|ContinueStatement)$/.test(parent.type) && key==='label') return 'ignore';
   if (parent.type==='VariableDeclarator' && key==='id') return 'ignore';
