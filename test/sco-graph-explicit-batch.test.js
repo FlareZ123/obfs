@@ -63,6 +63,42 @@ test('SCO graph batching is explicit, path-bounded, and immune to caller iterati
   }),/batchPaths must be an array/u);
 });
 
+test('SCO graph snapshots batch options once and supports two distinct batched modules',()=>{
+  let pathReads=0;
+  let limitReads=0;
+  const graph=partitionScoAsyncGraph(SOURCES,{
+    seed:'agent31-sco-graph-batch-snapshot-20261123',
+    exposedPaths:['public.mjs','check.mjs'],
+    get batchPaths(){
+      pathReads++;
+      return pathReads===1?['public.mjs','check.mjs']:['secret.mjs'];
+    },
+    get maxBatchCalls(){
+      limitReads++;
+      return limitReads===1?2:1;
+    }
+  });
+  assert.equal(pathReads,1);
+  assert.equal(limitReads,1);
+  const first=graph.partitions['public.mjs'];
+  const second=graph.partitions['check.mjs'];
+  assert.equal(first.maxBatchCalls,2);
+  assert.equal(second.maxBatchCalls,2);
+  assert.ok(first.batchMethod);
+  assert.ok(second.batchMethod);
+  assert.notEqual(first.batchMethod,second.batchMethod);
+  assert.match(graph.clientFiles[0].code,/export async function batch/u);
+  assert.match(graph.clientFiles[1].code,/export async function batch/u);
+
+  graph.partitions['public.mjs'].batchMethod='m'+'0'.repeat(24);
+  assert.throws(()=>createScoGraphHandler(graph,{
+    'public.mjs':{write:async()=> 'allowed'},
+    'check.mjs':{peek:async()=> 'checked'}
+  },{
+    authorizeRpc:()=>true,authorizeOperation:()=>true
+  }),/manifest was modified after partitioning/u);
+});
+
 test('composed SCO graph requires and enforces authorization for every inner batch operation',async()=>{
   const graph=partitionScoAsyncGraph(SOURCES,{
     seed:'agent31-sco-graph-preflight-20261123',
