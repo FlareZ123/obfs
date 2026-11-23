@@ -172,3 +172,14 @@ Specific caveats and next steps:
 4. Separate no-tool, static-tool, and agentic-retrieval conditions. The strongest practical attacker is a hybrid pipeline; an LLM-only result is a lower-bound condition, not the complete threat model.
 5. Score exact semantic recovery with hidden inputs/outputs, syntax, source reconstruction, code simplification and runtime extraction separately. For this affine offset task, exact signed Int32 equality is the primary outcome; source similarity is secondary.
 6. Preserve every seed, source hash, artifact hash, compiler/backend pin, and hidden verifier result. Do not put private source, salt, expected answers, or the other arm into a public mailbox before the attempt.
+
+
+### Existing repository minification control to reuse
+
+A pinned real-esbuild full-application control already exists in this repository:
+- `.github/workflows/manual-minified-control.yml`
+- `sims/polyvariant-app-four-way-control.js`
+- `sims/polyvariant-app-minified-static-attacker.js`
+- `test/minified-control-static-attacker.test.js`
+
+The runner uses the declared `esbuild@0.28.2` dependency and `esbuild.transform` with ESM format, ES2022 target, minification and no legal comments. It compares native, minified, published and statically reconstructed ESM graphs, and runs a pinned JSIMPLIFIER static-only configuration. This is a full-application attacker/control experiment, not a matched LLM trial on a private fresh source. Reuse it as the implementation template for a future true-esbuild LLM control instead of building a second unrelated minification harness. The separate `manual-esbuild-mangle-control.yml` workflow concerns cross-file property mangling.
