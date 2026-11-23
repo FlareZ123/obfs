@@ -266,7 +266,9 @@
     "test/esm-public-callable-browser.js",
     "test/callsite-source-provenance.test.js",
     "test/promise-then-callback-source.test.js",
-    "test/sloppy-caller-source-leak.test.js"
+    "test/sloppy-caller-source-leak.test.js",
+    "test/strict-caller-private-source-yield.test.js",
+    "test/descriptor-caller-source-leak.test.js"
   ],
   "exclude": [
     "node_modules"
