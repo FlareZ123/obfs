@@ -500,6 +500,8 @@ async function main() {
       sourceMismatchNames:rows.filter((/** @type {any} */ row)=>row.sourceMismatch).map(
         (/** @type {any} */ row)=>row.name),
       crossFileExpectedRed,crossFile,dispatchSummary,dataPropertyControl,customAccessorControl,proxyStorageControl,proxyBrandCheckControl,
+      htmlMethodExpectedRed,htmlMethodControl,
+      htmlMethodProperties:{negative:htmlMethodOutput.properties,positive:htmlMethodPositiveOutput.properties},
       rows,userland,
       userlandProperties:userlandOutput.properties
     };
