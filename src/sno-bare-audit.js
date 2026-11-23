@@ -366,6 +366,22 @@ function resolveEsmRequests(requests) {
  * @returns {void}
  */
 function assertEsmPackageScopeParity(original,generated,filenames) {
+  const packagePaths=[...original,...generated]
+    .filter(file=>path.posix.basename(file.path).toLowerCase()==='package.json')
+    .map(file=>file.path);
+  for(const filename of filenames) {
+    let directory=path.posix.dirname(filename);
+    for(;;) {
+      const expected=path.posix.join(directory,'package.json');
+      const variant=packagePaths.find(name=>
+        name.toLowerCase()===expected.toLowerCase()&&name!==expected);
+      if(variant) {
+        throw new Error('SNO ESM bare dependency audit cannot model case-variant package.json path: '+variant);
+      }
+      if(directory==='.')break;
+      directory=path.posix.dirname(directory);
+    }
+  }
   /** @type {Map<string,SourceFile>} */
   const sourcePackages=new Map();
   /** @type {Map<string,SourceFile>} */
