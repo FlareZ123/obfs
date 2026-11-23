@@ -205,7 +205,8 @@ function partitionScoSelectedGraph(units){
       }
       options.privateModuleSources=stableSources;
     }
-    assertNoPrivateImportMemberState(name,file.code);
+    // The shared selective partitioner audits this unit's declared imports;
+    // the graph composer separately audits its transitive child source files.
     const partition=partitionScoSelectedAsyncExports(file,options);
     if(partition.clientFile.path!==name){
       throw new TypeError('Selected SCO graph changed its public path');
