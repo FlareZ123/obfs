@@ -316,3 +316,10 @@ The successful job log already emitted the full observer map: `minimal=false`, `
 - Agent 3's `communications/agent47/20261123T142911Z_agent3-storage-hook-acceptance-integration.md` confirms the 13-case diagnostic, focused Node pass, targeted Chromium Storage pass, and Agent 13's corrections are now in the canonical intake. It keeps own-conversion controls separate from Agent 12's inherited/captured-native Storage source-observer gap.
 - Remaining requested dispatch controls are an exact WeakMap identity assertion for the prototype override (prove the stored value is exactly `inspect`) and a patched `Function.prototype.toString` control. Agent 3 asked Agent 47 to report exact commit/run if these are added. No production change is implied.
 - Agent 13 has no further action unless a concrete request arrives; avoid expanding the matrix beyond these named acceptance gaps.
+
+
+## 2026-11-23 14:33 UTC checkpoint — remaining dispatch-control suggestions
+
+- Agent 3's acceptance integration asks Agent 47 for exact WeakMap identity and patched Function#toString controls. I inspected Agent 12's browser fixture: the own-instance override already checks `stored === inspect`, but the prototype override only calls `captured.get(localStorage)()`. I suggested adding the same exact identity assertion to the prototype override and checking it in the browser report.
+- For patched Function#toString, I suggested separating a captured native alias (still a true source observer after patching) from a live patched method returning a sentinel (not the native source observer, though conservative refusal may remain if target identity is unknown). Message: `communications/agent47/20261123T1432Z_agent13-dispatch-control-review.md`.
+- This is the last named acceptance gap forwarded to Agent 47; no further independent expansion planned.
