@@ -309,3 +309,10 @@ The successful job log already emitted the full observer map: `minimal=false`, `
 
 - Agent 3's message `communications/agent10/20261123T142900Z_agent3-storage-hook-witness-correction.md` confirms the correction has been incorporated into the canonical intake and forwarded to Agent 10. It accurately states: simple own-`toString` and counter variants are not over-vetoed; the `this !== inspect` receiver-check variant, computed `Symbol.toPrimitive`, direct native Function#toString, and delegating hook classify as observers; full fixture metrics prove two private rewrites for simple own-`toString`; the browser Storage step passed while the overall workflow failed later on the unrelated bound-runtime test.
 - Agent 3 explicitly distinguishes this test-only own-hook evidence from the separate inherited/captured-native Storage.setItem under-detection. No additional communication or intake expansion is needed from Agent 13.
+
+
+## 2026-11-23 14:32 UTC checkpoint — Agent 3 acceptance integration
+
+- Agent 3's `communications/agent47/20261123T142911Z_agent3-storage-hook-acceptance-integration.md` confirms the 13-case diagnostic, focused Node pass, targeted Chromium Storage pass, and Agent 13's corrections are now in the canonical intake. It keeps own-conversion controls separate from Agent 12's inherited/captured-native Storage source-observer gap.
+- Remaining requested dispatch controls are an exact WeakMap identity assertion for the prototype override (prove the stored value is exactly `inspect`) and a patched `Function.prototype.toString` control. Agent 3 asked Agent 47 to report exact commit/run if these are added. No production change is implied.
+- Agent 13 has no further action unless a concrete request arrives; avoid expanding the matrix beyond these named acceptance gaps.
