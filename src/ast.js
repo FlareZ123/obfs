@@ -233,6 +233,9 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
   // Catch bindings can receive an Error from any throw path. Their computed
   // reads may select .stack without a statically spelled property key.
   const catchParameterNames=new Set();
+  // Rejected Promise values can carry a captured Error.stack into an inline
+  // handler without exposing the Error constructor at the member read.
+  const rejectionParameterNames=new Set();
   const arraysWithFunctions=new Set();
   // Native Array algorithms can implicitly stringify contained functions.
   // Track methods detached from Array.prototype through simple assignments;
@@ -300,6 +303,14 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
        node.id?.type==='Identifier')functions.add(node.id.name);
     if(node.type==='CatchClause'&&node.param?.type==='Identifier')
       catchParameterNames.add(node.param.name);
+    if(node.type==='CallExpression'&&node.callee.type==='MemberExpression') {
+      const method=memberName(node.callee);
+      const callback=method==='catch'?node.arguments[0]:
+        method==='then'?node.arguments[1]:null;
+      if(callback&&['ArrowFunctionExpression','FunctionExpression'].includes(callback.type)&&
+         callback.params[0]?.type==='Identifier')
+        rejectionParameterNames.add(callback.params[0].name);
+    }
     if((node.type==='ImportSpecifier'||node.type==='ImportDefaultSpecifier') &&
        node.local?.type==='Identifier')opaqueFunctions.add(node.local.name);
     if(node.type==='ImportNamespaceSpecifier'&&node.local?.type==='Identifier') {
@@ -2456,7 +2467,7 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
   // the caller's location without an explicit Error construction.
   const stackErrorConstructors=new Set(['Error','EvalError','RangeError',
     'ReferenceError','SyntaxError','TypeError','URIError','AggregateError']);
-  const stackErrorAliases=new Set(catchParameterNames);
+  const stackErrorAliases=new Set([...catchParameterNames,...rejectionParameterNames]);
   const stackConsoleAliases=new Set(['console']);
   const stackConsoleMethodNames=new Set(['trace','log','info','warn','error','debug','dir',
     // Node's additional console formatters inspect functions or stringify
