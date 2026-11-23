@@ -1015,9 +1015,9 @@ function proveLocalObject(ast, rootName, bindings, importedIdentityFunctions=new
    * An exported wrapper may pass its private owner to a local, nonescaping
    * direct reader. The wrapper's own source contains only the call and owner
    * binding, not the private field spelling. Admit this one argument edge
-   * only when the callee's existing reader summary and direct-call-only
-   * escape proof both succeed; never extend it to identity forwarders or
-   * imported/public consumers.
+   * only for a direct-call-only, one-parameter FunctionDeclaration whose
+   * complete body returns one static member of the proven alias. Identity
+   * forwarding, arrows, multi-statement readers, and public consumers refuse.
    * @param {AstNode} node
    * @param {AstNode|null} parent
    * @param {string|null} key
