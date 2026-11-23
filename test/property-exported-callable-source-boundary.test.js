@@ -61,6 +61,13 @@ const cases=[
       'module.exports=publicReader;'
   },
   {
+    name:'arrow callable stored in a local binding and exported',
+    kind:'function',
+    source:'const privateOwner={secretField:17,otherField:5};'+
+      'const publicReader=()=>privateOwner.secretField;'+
+      'module.exports=publicReader;'
+  },
+  {
     name:'method on exported object literal',
     kind:'method',
     source:'const privateOwner={secretField:17,otherField:5};'+
@@ -92,5 +99,44 @@ for(const mode of /** @type {const} */ (['coo','sno'])) {
     const output=compile(mode,source);
     assert.equal(output.metrics.properties,1,output.code);
     assert.equal(observeValue(output.code),observeValue(source));
+  });
+}
+
+
+/**
+ * Evaluate a named ESM export through a data URL so the native and emitted
+ * function source strings are observed from outside the module.
+ * @param {string} source
+ * @returns {Promise<{value:unknown,source:string}>}
+ */
+async function observeModule(source) {
+  const url='data:text/javascript;base64,'+Buffer.from(source,'utf8').toString('base64');
+  const namespace=await import(url);
+  const callable=namespace.publicReader;
+  assert.equal(typeof callable,'function');
+  const fn=/** @type {() => unknown} */(callable);
+  return {value:fn(),source:fn.toString()};
+}
+
+/** @param {'coo'|'sno'} mode @param {string} source @returns {ReturnType<typeof obfuscateFiles>['files'][number]} */
+function compileModule(mode,source) {
+  const out=obfuscateFiles([{
+    path:'entry.mjs',sourceType:'module',code:source
+  }],{
+    mode,seed:'legacy-exported-callable-esm-source-boundary',
+    identifiers:false,strings:false,properties:true
+  });
+  assert.equal(out.files.length,1);
+  return out.files[0];
+}
+
+for(const mode of /** @type {const} */ (['coo','sno'])) {
+  test(mode+' legacy local-owner proof preserves exported ESM callable source',async()=>{
+    const source='const privateOwner={secretField:17,otherField:5};'+
+      'export function publicReader(){return privateOwner.secretField;}';
+    const native=await observeModule(source);
+    const output=compileModule(mode,source);
+    assert.equal(output.metrics.properties,0,output.code);
+    assert.deepEqual(await observeModule(output.code),native);
   });
 }
