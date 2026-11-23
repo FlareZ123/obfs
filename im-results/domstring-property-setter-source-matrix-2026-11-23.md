@@ -5,8 +5,8 @@
 **Research owner:** Agent 19  
 **Date:** 2026-11-23  
 **Reproduction branch:** `agent19/domstring-property-setter-matrix-20261123`  
-**Final source pin:** `ce3b1b9c33f78131922f20cde3c763b07a6402dd`  
-**Validation:** [GitHub Actions run 45104842175](https://github.com/FlareZ123/obfs/actions/runs/45104842175)
+**Final source pin:** `dd5e8486f2290d1741e483b7901b5707fb83e6ee`  
+**Validation:** [GitHub Actions run 45105051259](https://github.com/FlareZ123/obfs/actions/runs/45105051259)
 
 ## Finding
 
@@ -83,6 +83,8 @@ The final source-pinned workflow completed successfully. Its Ubuntu job ran the 
 | `insertAdjacentHTML` primitive-only positive parity | **PASS** |
 | Modern HTML parser/streaming methods with changed source | **23 / 23** |
 | Modern HTML parser/streaming primitive-only positive parity | **23 / 23** |
+| Async stream writer/pipeTo dispatch variants with changed source | **3 / 3** |
+| Async stream writer/pipeTo primitive-only positive parity | **3 / 3** |
 | Cross-file primitive-only positive | **PASS** |
 | Existing focused Web IDL Node suite | **237 / 237** |
 | Main project JSDoc and dedicated matrix JSDoc | **PASS** |
@@ -142,7 +144,7 @@ A complementary proxy-storage trap that intercepts the assignment and stores the
 The own-data-property shadowing control passed: `Object.defineProperty(target, "id", { value: inspect, ... })` stored the function reference and the compiled program still invoked it correctly. This separates actual native setter dispatch from a reflective operation that merely creates an own data property.
 
 The final workflow uploaded the raw JSON summary as artifact
-[domstring-property-setter-matrix](https://github.com/FlareZ123/obfs/actions/runs/45104842175/artifacts/14786798430).
+[domstring-property-setter-matrix](https://github.com/FlareZ123/obfs/actions/runs/45105051259/artifacts/14787361242).
 
 
 ### Setter-identity negative control
@@ -256,6 +258,17 @@ The methods tested were:
 23. `Element.streamReplaceWithHTMLUnsafe`
 
 The streaming cases create the native HTML stream, obtain a writer, and pass the function object to `writer.write(inspect)`; the stream sink converts the chunk to text and the inserted source is read back from the DOM. This is a distinct asynchronous source-observation path, not merely another direct method argument.
+
+
+### Asynchronous stream dispatch variants
+
+Three additional cases exercise value flow through the same `streamHTML` sink:
+
+1. Extract and bind `writer.write`, then call the bound function with `inspect`.
+2. Invoke `writer.write.call(writer, inspect)`.
+3. Enqueue `inspect` into a `ReadableStream` and pass that stream to `readable.pipeTo(target.streamHTML())`.
+
+All **3/3** variants reproduced changed source and all three primitive-only positives passed. These cases establish that the sink path includes method extraction/binding and asynchronous stream piping, not only a direct `writer.write(inspect)` expression. The HTML API matrix now contains 23 distinct supported methods plus these three dispatch variants.
 
 ### Browser environment
 
