@@ -3,7 +3,17 @@
 const assert = require('node:assert/strict');
 const { test } = require('node:test');
 const { classifyValidationRun } = require('../sims/validation-receipt-classifier.js');
-const recorded = require('./fixtures/validation-receipts-20261123.json');
+const fs = require('node:fs');
+const path = require('node:path');
+
+/** @typedef {{head_sha:string,head_branch?:string,status:string,conclusion:string|null,id:number}} SnapshotRun */
+/** @typedef {{name:string,conclusion:string|null,steps:{name:string,conclusion:string|null}[]}} SnapshotJob */
+/** @typedef {{run:SnapshotRun,jobs:SnapshotJob[],url:string}} SnapshotRecord */
+/** @typedef {{records:{fullRed:SnapshotRecord,focusedGreen:SnapshotRecord}}} SnapshotFile */
+/** @type {SnapshotFile} */
+const recorded = JSON.parse(fs.readFileSync(
+  path.join(__dirname, 'fixtures', 'validation-receipts-20261123.json'), 'utf8'));
+
 
 const fullSteps = [
   'Behavioral and adversarial suites with compact failure diagnostics',
