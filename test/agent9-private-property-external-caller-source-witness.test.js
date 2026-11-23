@@ -53,3 +53,40 @@ for(const mode of /** @type {const} */ (['coo','sno','sco'])) {
       'A source-observable helper must not receive local property rewrites');
   });
 }
+
+
+const privateSource='function hidden(){'+
+  'const owner={secretField:41,otherField:2};'+
+  'return owner.secretField+owner.otherField;'+
+  '}'+
+  'function publicReader(){return hidden();}'+
+  'module.exports=publicReader;';
+
+/**
+ * Run a source graph with no external host callback.
+ * @param {string} code
+ * @returns {unknown}
+ */
+function execute(code) {
+  /** @type {{module:{exports:unknown}}} */
+  const context={module:{exports:null}};
+  vm.runInNewContext(code,context,{timeout:2500});
+  const exported=/** @type {()=>unknown} */(context.module.exports);
+  return exported();
+}
+
+for(const mode of /** @type {const} */ (['coo','sno','sco'])) {
+  test(mode+' direct-call private helper without unknown calls retains property yield',()=>{
+    const before=execute(privateSource);
+    const output=obfuscateFiles([{
+      path:'entry.cjs',sourceType:'commonjs',code:privateSource
+    }],{
+      mode,seed:'private-helper-without-unknown-calls',
+      identifiers:false,strings:false,properties:true
+    }).files[0];
+    const after=execute(String(output.code));
+    assert.equal(after,before,'The runtime result must remain unchanged');
+    assert.ok(output.metrics.properties>=1,
+      'A private helper with no unknown call should retain safe property renaming');
+  });
+}
