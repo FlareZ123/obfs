@@ -177,6 +177,22 @@ test('direct primitive String array destructuring observes a host iterator',asyn
     'A Function supplied by a host String iterator must not permit owner-key renaming');
 });
 
+test('ForIn StringKey own length read retains safe private-field rewrite yield',async()=>{
+  const files=graph([
+    'import {state} from "./state.mjs";',
+    'const lengths=[];',
+    'for(const key in ["x"])lengths.push(key.length);',
+    'console.log(JSON.stringify([state.secretField,lengths]));'
+  ].join('\n'));
+  const native=await executeWithHostStringCapabilities(files);
+  assert.equal(native,'[53,[1]]\n');
+  const output=transform(files,'for-in-stringkey-own-length-positive');
+  const emitted=await executeWithHostStringCapabilities(output.files);
+  assert.equal(emitted,native);
+  assert.equal(output.crossFile.properties,1,
+    'StringKey own length is a primitive-string own property and should preserve one safe rewrite');
+});
+
 test('simple ForIn identifier binding retains independent private-field rewrite yield',async()=>{
   const files=graph([
     'import {state} from "./state.mjs";',
