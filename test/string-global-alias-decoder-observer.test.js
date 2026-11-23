@@ -19,7 +19,8 @@ function evaluate(files) {
   const cache=new Map();
   /** @param {string} filename @returns {unknown} */
   function load(filename) {
-    if(cache.has(filename))return cache.get(filename).exports;
+    const cached=cache.get(filename);
+    if(cached)return cached.exports;
     const source=files[filename];
     if(typeof source!=='string')throw new Error('Missing module '+filename);
     const record={exports:{}};
