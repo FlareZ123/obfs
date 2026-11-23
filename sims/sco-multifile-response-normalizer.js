@@ -17,11 +17,11 @@ function main() {
   /** @type {Record<string,string>} */
   const files={};
   for(const [name,item] of Object.entries(input.files)) {
-    if(!name.endsWith('.mjs')||!item||typeof item!=='object'||
-        typeof item.code!=='string') {
-      throw new TypeError('Expected named ESM response bodies');
+    if((!name.endsWith('.js')&&!name.endsWith('.mjs'))||!item||typeof item!=='object'||
+        typeof item.code!=='string'||(item.sourceType!=='script'&&item.sourceType!=='module')) {
+      throw new TypeError('Expected named JavaScript response bodies with a sourceType');
     }
-    files[name]=normalizeScoVariant(item.code,'module');
+    files[name]=normalizeScoVariant(item.code,item.sourceType);
   }
   if(Object.keys(files).length<2)throw new TypeError('Expected a multi-file response graph');
   process.stdout.write(JSON.stringify({files})+'\n');
