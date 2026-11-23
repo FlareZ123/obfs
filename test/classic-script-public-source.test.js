@@ -49,3 +49,30 @@ test('classic browser script direct-called global function source remains observ
   })+'\n');
   assert.equal(actual,expected,'Classic script top-level function is public through globalThis');
 });
+
+
+test('classic script nested IIFE helper remains transformable when source cannot escape',()=>{
+  const source=[
+    '(function(){',
+    ' function privateHelper(){',
+    '  const privateValue="CLASSIC_SCRIPT_PRIVATE_NESTED_SOURCE_MARKER_0123456789_ABCDEF";',
+    '  return privateValue.length;',
+    ' }',
+    ' globalThis.answer=privateHelper();',
+    '})();'
+  ].join('\n');
+  /** @type {import('../src/core').SourceFile[]} */
+  const files=[{path:'private-entry.js',sourceType:'script',code:source}];
+  const result=obfuscateFiles(files,{
+    mode:'coo',seed:'agent44-classic-script-private-positive',
+    strings:true,identifiers:true,properties:true,preservePublicCallableSource:true
+  });
+  const output=String(result.files[0].code);
+  const originalContext=vm.createContext({});
+  const emittedContext=vm.createContext({});
+  vm.runInContext(source,originalContext,{timeout:1500});
+  vm.runInContext(output,emittedContext,{timeout:1500});
+  assert.equal(emittedContext.answer,originalContext.answer);
+  assert.ok(result.files[0].metrics.literals>0,
+    'Actually private nested helper must still allow positive string transformation');
+});
