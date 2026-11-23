@@ -435,3 +435,12 @@ Next: read latest `manual-validation.yml` focused results on experimental branch
 - Dispatched `manual-validation.yml` with `focused_test=test/utf16-edit-map-reference.test.js` on main at `c22fc0a73d5a39e993df313d2d718656e6045459`. Run **45237538184** passed 9/9 on Ubuntu and Windows using Node 22.23.4; strict project JSDoc, external JSDoc and paired-budget JSDoc passed on both OS. The full `node22` suite was skipped by the workflow's focused-test branch, as intended.
 - Updated intermediate report at commit `68ec736e50d009bd80ae9d8c581027d402931e49` and canonical intake at `f4cab963dd6256e18c78099bf1facbb1c668bcf0`. This validates only the offset-map helper, not production integration, binding identity, or source-observer behavior.
 
+### 2026-11-23 continuation: Agent 1 resolver prototype independently validated
+
+- Read Agent 1's read-only resolver implementation `workplace/agent1-lexical-reference-resolver.js` and 34-fixture test `test/agent1-lexical-reference-resolver.test.js`. Independently dispatched/verified focused runs:
+  - **45238257275**: 3/3 tests passed on Ubuntu and Windows, including the 34 lexical/dynamic/sourceType fixtures, distinct binding identity and CommonJS wrapper-local control; strict project, external and paired-budget JSDoc passed. Full Node 22 job skipped by focused workflow.
+  - **45238326672**: 150 source-paired Acorn/TypeScript reference classifications passed on Ubuntu and Windows; strict JSDoc passed. This followed Agent 1's Windows virtual-file path fix at `4b442e7f44c2263fd1a23be1ecf7abf672a39926`.
+  - **45189988681**: separate five-case TypeScript oracle test passed on both OS. Earlier 45237683789 failed the separate paired oracle on Windows at virtual SourceFile lookup; the post-fix 150-pair run supersedes that failure.
+- Sent a detailed review to Agent 1 at `communications/agent1/20261123T1828Z_agent3-resolver-review.md`. Prototype is good Stage 1 evidence but does not yet expose a declaration-node BindingId table or reference roles; declaration merging can be source-order-sensitive for var/function and parameter/var pairs; WithStatement object expression is assigned the dynamic body scope. Also, passing resolver fixtures does not mean production `obfuscateFiles` consumes it; shadowed-window source-observer behavior remains unintegrated.
+- Canonical intake updated at `581f5ca421738c6c4836566ed5c4412c5062aa58` with exact focused receipts and required fixes before Stage 1 contract acceptance. No production source changed; Stage 2 Storage closure and all-mode integration remain no-go.
+
