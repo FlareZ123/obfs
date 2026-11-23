@@ -1665,9 +1665,11 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
          property.computed||property.method)return false;
       const name=property.key.type==='Identifier'?
         property.key.name:staticString(property.key);
+      const value=property.value;
       return name!==null &&
         !['__proto__','toString','toLocaleString','toSource'].includes(name) &&
-        isDefinitelyPrimitive(property.value);
+        value.type==='Literal' && (value.value===null ||
+          ['string','number','boolean','bigint'].includes(typeof value.value));
     });
   }
   /**
