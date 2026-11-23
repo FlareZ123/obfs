@@ -21,7 +21,23 @@ function source(primitive) {
     'const element=document.createElement("div");',
     'const style=element.style;',
     'style.setProperty("--observed",'+(primitive?'"literal"':'inspect')+');',
-    'export const observed={text:style.getPropertyValue("--observed"),',
+    'style["setProperty"]("--computed",'+(primitive?'"literal"':'inspect')+');',
+    'const bound=style.setProperty.bind(style);',
+    'bound("--bound",'+(primitive?'"literal"':'inspect')+');',
+    'Reflect.apply(style.setProperty,style,["--reflective",'+
+      (primitive?'"literal"':'inspect')+']);',
+    'const detached=style.setProperty;',
+    'Reflect.apply(detached,style,["--detached",'+
+      (primitive?'"literal"':'inspect')+']);',
+    'const alias=style;',
+    'alias.setProperty("--alias",'+(primitive?'"literal"':'inspect')+');',
+    'export const observed={',
+    'text:style.getPropertyValue("--observed"),',
+    'computed:style.getPropertyValue("--computed"),',
+    'bound:style.getPropertyValue("--bound"),',
+    'reflective:style.getPropertyValue("--reflective"),',
+    'detached:style.getPropertyValue("--detached"),',
+    'alias:style.getPropertyValue("--alias"),',
     'number:'+(primitive?'value':'inspect()')+'};'
   ].join('\n');
 }
@@ -59,8 +75,9 @@ async function main() {
     'import("/native-negative.mjs"),import("/compiled-negative.mjs"),',
     'import("/native-positive.mjs"),import("/compiled-positive.mjs")]);',
     'const a=an.observed,b=bn.observed,c=ap.observed,d=bp.observed;',
-    'if(!a.text.includes("secretField")||a.number!==31||',
-    'c.text!=="literal"||c.number!==31)',
+    'const keys=["text","computed","bound","reflective","detached","alias"];',
+    'if(keys.some(key=>!a[key].includes("secretField")||c[key]!=="literal")||',
+    'a.number!==31||c.number!==31)',
     'throw Error("invalid native controls "+JSON.stringify({a,c}));',
     'if(JSON.stringify(a)!==JSON.stringify(b)||JSON.stringify(c)!==JSON.stringify(d))',
     'throw Error("CSSOM source parity mismatch "+JSON.stringify({a,b,c,d}));',
