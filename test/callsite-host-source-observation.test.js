@@ -44,7 +44,13 @@ function createHostCallback(observed) {
 function execute(code) {
   const observed={source:''};
   const module={exports:0};
-  vm.runInNewContext(code,{module,hostCallback:createHostCallback(observed)},{timeout:3000});
+  const hostCallback=createHostCallback(observed);
+  // A sloppy external getter can invoke the host callback without an
+  // explicit CallExpression in the protected function's source.
+  const externalObserver=vm.runInNewContext(
+    '({get trigger(){hostCallback();return 0;}})',{hostCallback}
+  );
+  vm.runInNewContext(code,{module,hostCallback,externalObserver},{timeout:3000});
   return {value:module.exports,source:observed.source};
 }
 
@@ -228,5 +234,25 @@ for(const [shape,source] of [
     assert.match(native.source,/owner\.privateSecret/);
     assert.equal(actual.source,native.source,
       'Runtime stack inspection must preserve the caller function source');
+  });
+}
+
+
+for(const mode of /** @type {const} */(['coo','sno','sco'])) {
+  test(mode+' implicit host getter executes callback without explicit call syntax',()=>{
+    const source='const owner={privateSecret:31};'+
+      'function readPrivate(){void externalObserver.trigger;return owner.privateSecret;}'+
+      'module.exports=readPrivate();';
+    const native=execute(source);
+    const output=compile(source,mode);
+    const actual=execute(/** @type {string} */(output.code));
+    process.stdout.write('CALLSITE_IMPLICIT_GETTER '+JSON.stringify({
+      mode,properties:output.metrics.properties,native,emitted:actual
+    })+'\n');
+    assert.equal(native.value,31);
+    assert.equal(actual.value,native.value);
+    assert.match(native.source,/owner\.privateSecret/);
+    assert.equal(actual.source,native.source,
+      'An externally provided getter can synchronously observe caller source');
   });
 }
