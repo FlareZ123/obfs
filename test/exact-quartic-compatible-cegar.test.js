@@ -287,3 +287,17 @@ test('exact reusable quartic flags agree with established target-specific symbol
   }
   console.log('EXACT_QUARTIC_BASIS_VS_SYMBOLIC '+JSON.stringify(receipts));
 });
+
+
+test('exact inversion entrypoints reject non-uint32 targets before coercion',()=>{
+  const identity=learnBoundedDegreeOracle(x=>x>>>0,32,2);
+  const inverter=prepareExactBoundedDegreeInverter(identity);
+  for(const invalid of [-1,2**32,2**32+1,1.9,NaN,Infinity,-Infinity]){
+    assert.throws(()=>inverter.invert(invalid),/unsigned 32-bit target/);
+    assert.throws(()=>inverter.invertFast(invalid),/unsigned 32-bit target/);
+  }
+  for(const valid of [0,1,0x80000000,0xffffffff]){
+    assert.equal(inverter.invert(valid),valid);
+    assert.equal(inverter.invertFast(valid),valid);
+  }
+});
