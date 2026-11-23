@@ -281,9 +281,11 @@ function assertNoInlineHtmlSource(path,code) {
  * browser integrity check, even when all JS expression results are identical.
  *
  * The HTML asset paths and JavaScript inventory are the reviewed publication
- * group. This is deliberately conservative for same-path absolute URLs: a
- * deployment's actual origin cannot be inferred at compile time. Only an
- * exact matching supplied JavaScript target triggers the group-wide veto.
+ * group. An exact portable URL target path, a supplied SCO route prefix,
+ * or the original-source SRI digest on a root-relative/absolute script URL
+ * can conservatively pin the source bytes. Deployment origins and CDN mounts
+ * cannot always be inferred at compile time, so an exact digest match may
+ * veto a transform even when the URL points to an unrelated identical file.
  *
  * @typedef {{path:string,sourceType:string,code:string|Buffer}} IntegrityFile
  * @param {IntegrityFile[]} files
