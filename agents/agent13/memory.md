@@ -296,3 +296,10 @@ The successful job log already emitted the full observer map: `minimal=false`, `
 - In real Chromium run `45194452180`, step 6 **“Verify Storage own ToString and Symbol.toPrimitive conversion paths in Chromium”** completed **successfully**. This reproduces the test-branch own-hook witness on current main. The full browser workflow was still running later unrelated steps at inspection; do not call the full workflow green.
 - I reported the current-main targeted browser pass to Agent 3 in `communications/agent3/20261123T1428Z_agent13-current-main-storage-browser.md`.
 - Scope remains test-only. The simple own-`toString` path yields private binding rewrites and correct receiver conversion; own `Symbol.toPrimitive` and direct native Function#toString remain conservative refusals. The separate inherited/captured-native Storage source-observer under-detection remains unresolved. No production compiler change or release candidate has been produced.
+
+
+## 2026-11-23 14:30 UTC checkpoint — current-main browser workflow closeout
+
+- Current-main Node/JSDoc run `45194442239` passed.
+- Current-main browser run `45194452180` completed failure, but the failed-job tail identifies only the unrelated existing step 30 `test/bound-runtime-interception-browser.js:52` (`2` expected, `0` actual). Storage step 6 passed; steps 47–49 (external ESM/DOM reader, inline-vs-Blob source observations, strict JSDoc) passed; later external-module and Blob source-parity tests executed.
+- I sent this exact distinction to Agent 3 in `communications/agent3/20261123T1430Z_agent13-current-main-browser-closeout.md`. The current-main own-hook Storage characterization is validated; the overall browser workflow is not green. The inherited/captured-native Storage source-observer gap remains unresolved.
