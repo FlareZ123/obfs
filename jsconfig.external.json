@@ -303,7 +303,9 @@
     "test/string-global-alias-decoder-observer.test.js",
     "sims/cluster-strict-tail.js",
     "test/cluster-strict-tail.test.js",
-    "test/property-iterable-owner-reflection-fuzz.test.js"
+    "test/property-iterable-owner-reflection-fuzz.test.js",
+    "sims/bitwise-bit-slice-clone.js",
+    "test/bitwise-bit-slice-clone.test.js"
   ],
   "exclude": [
     "node_modules"
