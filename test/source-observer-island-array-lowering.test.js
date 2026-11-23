@@ -65,6 +65,7 @@ test('proved primitive island records lower to tuples without recoverable proper
     'the current seedless public property normalizer has no private key spelling to recover');
   assert.equal(attacker.code,lowered.code);
 
+  /** @type {SourceFile} */
   const probe={
     path:'entry.mjs',sourceType:'module',
     code:'import "./observer.mjs";'+
