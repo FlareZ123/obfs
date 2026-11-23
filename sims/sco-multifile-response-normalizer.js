@@ -24,13 +24,13 @@ function main() {
     files[name]=normalizeScoVariant(item.code,'module');
   }
   if(Object.keys(files).length<2)throw new TypeError('Expected a multi-file response graph');
-  process.stdout.write(JSON.stringify({files})+'\\n');
+  process.stdout.write(JSON.stringify({files})+'\n');
 }
 
 if(require.main===module) {
   try {main();}
   catch(error) {
-    process.stderr.write(String(error?.stack??error)+'\\n');
+    process.stderr.write(String(error?.stack??error)+'\n');
     process.exitCode=1;
   }
 }
