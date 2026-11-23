@@ -68,7 +68,7 @@ test('nested direct-call-only function retains class-leaf property transformatio
     ' return reader.read()+owner.secretBeta;',
     '}',
     'module.exports=run();'
-  ].join('\\n');
+  ].join('\n');
   for(const mode of /** @type {const} */ (['coo','sno','sco'])){
     const result=compile(source,mode);
     assert.equal(result.metrics.properties,2,mode+': nested lexical class is private');
@@ -86,7 +86,7 @@ test('externally returned wrapper function retains exact class method source',()
     ' return reader.read()+owner.secretBeta;',
     '}',
     'module.exports=exposed;'
-  ].join('\\n');
+  ].join('\n');
   for(const mode of /** @type {const} */ (['coo','sno','sco'])){
     const result=compile(source,mode);
     assert.equal(result.metrics.properties,0,mode+': externally readable callable source');
