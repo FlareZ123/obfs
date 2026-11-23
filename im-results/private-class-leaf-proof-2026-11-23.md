@@ -128,3 +128,21 @@ At candidate test source `1ecb035a0a8e1fadb0869cad39bef491f20d73bf`, [focused ru
 | Exports an accessor closure returning `Reader.prototype.read` | **0** | Importer coerces `obtainMethod()` with `String`; exact original source preserved |
 
 The positive/negative contrast is scoped to real ESM boundaries, with no `script`-mode no-op. It exercises an actual two-key rewrite that disappears when an intentional source-visible escape is introduced. This remains a finite source-preservation test: it does not establish hostile-runtime secrecy, generic callback source-flow completeness, or field-name resistance to offline static analysis.
+
+
+### Experimental private-class Symbol fields: correctness, static recovery, CPU (23 November 19:50-20:00 UTC)
+
+The bounded `proveLocalObject` class-method admission is reused by the existing optional `experimentalSymbolKeys:true` backend. On a source-private CJS class reading an inert own-key and exposing only a numeric result, it replaces both original string-labeled fields with separately allocated native `Symbol()` keys, including their matching method and direct reads. Cases for SCO/COO/SNO modes all require **two actual Symbol-key substitutions**. Visible `Reader.prototype.read.toString()` behavior triggers **zero** substitutions, preserving the original method source. Source-pinned pilot [45252912210](https://github.com/FlareZ123/obfs/actions/runs/45252912210) green Ubuntu/Windows with strict checks, test `test/private-class-symbol-proof.test.js`.
+
+The public-source-only `sims/symbol-key-static-recover.js` attack extracts the injected `const _sk_*=Symbol()` bindings and consistently substitutes unique string keys at static computed access sites, **without build seed, original source, or runtime instrumentation**. On the same private-class code it reconstructs **2 of 2** Symbol fields and preserves emitted/native behavior in each mode, proven by [45253691286](https://github.com/FlareZ123/obfs/actions/runs/45253691286) on both OS. This proves **functional program cloning**; it does not recover original private spellings, which are irrelevant to a source-only behavioral replica. It is a negative result for claims of strong static deobfuscation resistance.
+
+Real headless Chromium loaded three independently served ESM program variants: two own-string-field private method reads, a visibly exported method whose `Function#toString` source must stay exact, and a new two-private-`Symbol()`-field graph. Native, emitted, and *independently public-source-recovered* copies agree. Real Chrome on Ubuntu with Windows JSDoc passed first [45253272993](https://github.com/FlareZ123/obfs/actions/runs/45253272993), then with the stronger actual Symbol recovery [45253914445](https://github.com/FlareZ123/obfs/actions/runs/45253914445). Browser test `test/private-class-leaf-browser.test.js`.
+
+Source-paired seven-alternating-fresh-process Node 22.23.4 budget sample, [45253428222](https://github.com/FlareZ123/obfs/actions/runs/45253428222), `sims/private-class-symbol-cost.js`:
+
+| 200M loop metric | Linux emitted/native | Windows emitted/native |
+| --- | ---: | ---: |
+| Measured process CPU | **1.001013×** | **1.000000×** |
+| Whole-process wall | **1.000133×** | **1.050228×** |
+
+One-event and 100K CPU durations were below the defensible 32ms threshold, so those rows only qualify whole-process wall (all four 0.986-1.027×). The tested graph emits 2 Symbols and uses a trusted native `Symbol` constructor in a fresh Node process. Under the stated SCO/COO/SNO hostile runtime models, an attacker can intercept or change that constructor and reconstruct a functional clone. The sampled ratio is not a universal 2.5× guarantee, and browser runtime latency was not benchmarked. Keep Symbol lowering experimental.
