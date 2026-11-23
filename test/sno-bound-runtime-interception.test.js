@@ -66,7 +66,8 @@ test('SNO refuses to rewrite a bound private target capturable before requiring 
     assert.equal(protectedResult.value,original.value);
     assert.equal(protectedResult.boundSource,original.boundSource);
     assert.ok(original.targets.some(code=>code.includes('owner.secretField')));
-    assert.ok(protectedResult.targets.some(code=>/owner\._p[0-9a-f]{10}/u.test(code)));
+    assert.ok(protectedResult.targets.some(code=>code.includes('owner.secretField')));
+    assert.ok(protectedResult.targets.some(code=>code.includes('owner.otherField')));
   }finally{
     await fs.rm(root,{recursive:true,force:true});
   }
