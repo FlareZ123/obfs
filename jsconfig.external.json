@@ -356,7 +356,9 @@
     "sims/reanchor-depth-tightness.js",
     "test/reanchor-depth-tightness.test.js",
     "sims/reanchor-depth-width3-exhaustive.js",
-    "test/reanchor-depth-width3-exhaustive.test.js"
+    "test/reanchor-depth-width3-exhaustive.test.js",
+    "sims/reanchor-top-shear-bound.js",
+    "test/reanchor-top-shear-bound.test.js"
   ],
   "exclude": [
     "node_modules"
