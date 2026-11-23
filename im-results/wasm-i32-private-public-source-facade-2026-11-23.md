@@ -84,3 +84,19 @@ The adversary receives only the distributed JavaScript output from the three-mod
 The facade's native `Function#toString` also matches exactly between original and attacker clone in all six cases. The adversary uses **zero online oracle requests** and only the published JS + Wasm bytes. The decoder was already known to recover the project's restricted direct Wasm kernels; this reproduces the vulnerability when the numerical kernel is hidden behind a source-exact, unvirtualized public facade.
 
 **Security disposition: static deobfuscation resistance is contradicted for this concrete protected-work pattern.** A 1.04–1.10× sampled hot-path overhead and correct callable-source behavior cannot be promoted into a claim of hard-to-recover private arithmetic. The test does not claim a universal attack on arbitrary JavaScript or all WebAssembly bytecodes.
+
+## Numeric-domain boundary: object coercion is observably non-equivalent
+
+A deliberately out-of-grammar negative control `test/agent38-wasm-object-coercion-boundary.test.js` at source SHA `8c3ebbd752cda78b3a2caa490978327f2794efe1` passed on both OS in [focused run 45129663694](https://github.com/FlareZ123/obfs/actions/runs/45129663694) (1/1 test plus strict JSDoc per OS). It compiled the private numerical helper in all three modes and both CJS/ESM distributions. It then passed host-side objects with side-effectful `Symbol.toPrimitive` or `valueOf` implementations, and one whose second `Symbol.toPrimitive` call throws.
+
+The original expression `(((x^137)&(x>>>3))|(x<<7))` executes the primitive conversion **three times**. The WebAssembly entrypoint converts the incoming JavaScript object to an i32 **once**. All **18** object-probe cases recorded a semantic difference, identically on Ubuntu and Windows. Representative cases:
+
+| Probe | Original behavior | Obfuscated helper |
+| --- | --- | --- |
+| Counter `Symbol.toPrimitive` | 3 coercions, result `1920` | 1 coercion, result `640` |
+| Counter `valueOf` | 3 coercions, result `1920` | 1 coercion, result `640` |
+| Throw on second coercion | 2 coercions, throws `Error: second coercion observed` | 1 coercion, returns `640` |
+
+Every public facade retains **exact Function#toString** source even while the helper's results, exceptions, and observable coercion counts diverge. The transformed helper is a *typed-number domain* experiment, and its prior 2,060-input parity grid covered primitive Number values only. These 18 probes are **outside that explicitly stated narrow grammar**, so they invalidate promotion of the typed evidence into an **arbitrary JavaScript 1:1 semantics claim**. They do not contradict the numeric-input result. An automatic compiler admission proof must establish that no unknown caller can pass coercible objects, or must preserve the original multi-coercion behavior through a semantics-correct fallback. Such a fallback may also defeat the static obfuscation purpose; evaluate performance and attacker extraction independently.
+
+Because this test asserts the known out-of-contract differential as a negative control, the CI test itself is green. It is retained on the research branch, not automatically merged into the main supported workload.
