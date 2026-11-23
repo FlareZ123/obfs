@@ -41,6 +41,7 @@ function recordPropertyName(member) {
 function lowerProvedPrimitiveIslandRecords(source,ast,options={}) {
   const seed=options.seed??'';
   const filePath=options.path??'';
+  const delimiter=String.fromCharCode(0);
   /** @type {Map<string,{node:import('./ast').AstNode,properties:import('./ast').AstNode[],indices:Map<string,number>}>} */
   const records=new Map();
   for(const statement of ast.body) {
@@ -79,7 +80,7 @@ function lowerProvedPrimitiveIslandRecords(source,ast,options={}) {
         }
         seen.add(key);
         const rank=createHash('sha256').update(
-          seed+'\\0'+filePath+'\\0'+declaration.id.name+'\\0'+key
+          seed+delimiter+filePath+delimiter+declaration.id.name+delimiter+key
         ).digest('hex');
         fields.push({key,property,rank});
       }
