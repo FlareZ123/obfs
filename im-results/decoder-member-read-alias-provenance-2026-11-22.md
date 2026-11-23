@@ -100,3 +100,32 @@ computed/dynamic imports, opaque factories, all interprocedural flows,
 independent adversarial deobfuscation resistance, mainline integration,
 or a universal 2.5× runtime proof. The primary security deliverable
 remains **RELEASE-BLOCKED**.
+
+## 23 November follow-up: ESM exported entry factory with late import
+
+The CJS result generalizes to native ESM if the target module is loaded
+**after** the getter mutation. A static import of the string-bearing target
+would execute its decoder *before* the entry body's mutation and would
+provide a vacuous control. The new `moduleGraph` in
+`test/decoder-descriptor-factory-export.test.js` instead uses a static
+`import build from './factory.mjs'`, then `Object.assign` and
+`Object.create`, then `await import('./target.mjs')` as a later
+initialization point. The factory exports a direct descriptor **entry**
+return rather than a map. It also retains the required benign
+`Number.prototype` positive-encoding control.
+
+The **same expanded test source** blob
+`5b4c06a3b3a629f7f9342c64cfa58d2eb66c56dc` is pinned on both
+branches. Test-only control `1e7af9beb320a3ef147715585a87e55a24c24b39`,
+[run 45195595676](https://github.com/FlareZ123/obfs/actions/runs/45195595676),
+produced **six native/emitted behavioral mismatches on both Ubuntu and Windows**:
+three CJS String cases and three new ESM String cases, each for COO, SNO,
+SCO. The six Number cases passed. The candidate with the same compiler
+change, source `b5fadc9ed809218c6c3a8e68b3b733e2ad867b75`,
+[full run 45195605045](https://github.com/FlareZ123/obfs/actions/runs/45195605045),
+**succeeded on Ubuntu and Windows**, including full behavioral/adversarial
+suites, strict project/external JSDoc, performance steps and Ubuntu
+Chromium. This is independent ESM evidence for the same exported-entry
+factory provenance guard, still restricted to the static, exact supplied
+import path. Literal or computed *dynamic factory imports* require a
+separate proof.
