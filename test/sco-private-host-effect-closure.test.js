@@ -896,7 +896,7 @@ test('Selected SCO refuses globalThis hidden by array destructuring',()=>{
   ),/SCO|realm-local/u);
 });
 
-test('Selected SCO refuses globalThis hidden in a private default parameter',()=>{
+test('Selected SCO rejects unsupported default parameters before host analysis',()=>{
   const source=[
     'export async function protectedOp(root=globalThis){',
     'return root.externalBridge?.value??"missing";',
@@ -906,10 +906,61 @@ test('Selected SCO refuses globalThis hidden in a private default parameter',()=
   assert.throws(()=>partitionScoSelectedAsyncExports(
     {path:'mixed.mjs',code:source,sourceType:'module'},
     {seed:'sco-global-root-default-20261123',privateNames:['protectedOp']}
-  ),/SCO|realm-local/u);
+  ),/RPC partition requires distinct non-generator async functions with plain parameters/u);
 });
 
 test('Private static SCO graph refuses globalThis hidden by array destructuring',()=>{
   const body='const [root]=[globalThis];return root.externalBridge?.value??"missing";';
   assert.throws(()=>partitionGraph(body,false),/SCO|realm-local/u);
+});
+
+
+test('Selected SCO refuses host globals returned from private helpers',async()=>{
+  const vm=require('node:vm');
+  const source=[
+    'function getRoot(){return globalThis;}',
+    'export async function protectedOp(){return getRoot().externalBridge?.value??"missing";}',
+    'export function visible(){return 7;}'
+  ].join('\n');
+  const runtime=source.replaceAll('export ','');
+  const browserContext=vm.createContext({externalBridge:{value:'browser-only'}});
+  const serverContext=vm.createContext({});
+  vm.runInContext(runtime,browserContext);
+  vm.runInContext(runtime,serverContext);
+  const browserValue=await vm.runInContext('protectedOp()',browserContext);
+  const serverValue=await vm.runInContext('protectedOp()',serverContext);
+  assert.equal(browserValue,'browser-only');
+  assert.equal(serverValue,'missing');
+  assert.throws(()=>partitionScoSelectedAsyncExports(
+    {path:'mixed.mjs',code:source,sourceType:'module'},
+    {seed:'sco-global-root-helper-return-20261123',privateNames:['protectedOp']}
+  ),/SCO|realm-local/u);
+});
+
+test('Selected SCO refuses host globals returned by invoked closures',()=>{
+  const source=[
+    'export async function protectedOp(){',
+    'return (()=>globalThis)().externalBridge?.value??"missing";',
+    '}',
+    'export function visible(){return 7;}'
+  ].join('\n');
+  assert.throws(()=>partitionScoSelectedAsyncExports(
+    {path:'mixed.mjs',code:source,sourceType:'module'},
+    {seed:'sco-global-root-iife-20261123',privateNames:['protectedOp']}
+  ),/SCO|realm-local/u);
+});
+
+test('Private static SCO graph refuses host globals returned from private helpers',()=>{
+  const body='function getRoot(){return globalThis;}return getRoot().externalBridge?.value??"missing";';
+  assert.throws(()=>partitionGraph(body,false),/SCO|realm-local/u);
+});
+
+test('Private static SCO graph refuses host globals returned inside containers',()=>{
+  const bodies=[
+    'function getRoot(){return [globalThis];}return getRoot()[0].externalBridge?.value??"missing";',
+    'function getRoot(){return {root:globalThis};}return getRoot().root.externalBridge?.value??"missing";'
+  ];
+  for(const body of bodies){
+    assert.throws(()=>partitionGraph(body,false),/SCO|realm-local/u,body);
+  }
 });
