@@ -3,6 +3,9 @@
 const {walk,staticString}=require('./ast');
 
 /** @typedef {import('./ast').AstNode} AstNode */
+/** @type {WeakMap<AstNode,{parents:WeakMap<AstNode,AstNode>,calls:Map<string,AstNode[]>}>} */
+const inventoryCache=new WeakMap();
+
 /** @typedef {{members:AstNode[],memberNames:Map<AstNode,string>,patterns:AstNode[],inChecks:AstNode[],reflections:{key:AstNode}[]}} OwnerProof */
 
 const functionKinds=new Set([
@@ -181,18 +184,27 @@ function strictCallable(fn,ast,parents) {
  */
 function exposesSloppyCallerSource(ast,literal,properties,proof) {
   if(ast.sourceType==='module')return false;
-  /** @type {WeakMap<AstNode,AstNode>} */
-  const parents=new WeakMap();
-  /** @type {Map<string,AstNode[]>} */
-  const calls=new Map();
-  walk(ast,(node,parent,key)=>{
-    if(parent)parents.set(node,parent);
-    if(node.type==='CallExpression'&&node.callee.type==='Identifier'){
-      const sites=calls.get(node.callee.name)??[];
-      sites.push(node);
-      calls.set(node.callee.name,sites);
-    }
-  });
+  // Root-independent call and ancestry inventories are immutable for one
+  // parsed AST. Reuse them across private owner candidates instead of
+  // traversing the entire source for every property proof.
+  let inventory=inventoryCache.get(ast);
+  if(!inventory){
+    /** @type {WeakMap<AstNode,AstNode>} */
+    const parents=new WeakMap();
+    /** @type {Map<string,AstNode[]>} */
+    const calls=new Map();
+    walk(ast,(node,parent)=>{
+      if(parent)parents.set(node,parent);
+      if(node.type==='CallExpression'&&node.callee.type==='Identifier'){
+        const sites=calls.get(node.callee.name)??[];
+        sites.push(node);
+        calls.set(node.callee.name,sites);
+      }
+    });
+    inventory={parents,calls};
+    inventoryCache.set(ast,inventory);
+  }
+  const {parents,calls}=inventory;
   /** @type {Map<string,AstNode>} */
   const ownValues=new Map();
   for(const property of properties){
