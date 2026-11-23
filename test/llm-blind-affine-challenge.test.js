@@ -180,6 +180,7 @@ for(const mode of /** @type {const} */(['coo','sno'])){
         assert.deepEqual(Object.keys(packet),['id','question']);
         assert.match(packet.id,/^[a-f0-9]{24}$/u);
         assert.equal(Object.isFrozen(packet),true);
+        assert.equal(Object.isFrozen(packet.question),true);
         assert.equal(packet.question.environment,mode);
         assert.equal('arm' in packet,false);
         assert.equal('candidate' in packet,false);
@@ -189,17 +190,26 @@ for(const mode of /** @type {const} */(['coo','sno'])){
       }
       assert.throws(()=>trial.submit('candidate',{}),/Unknown opaque arm ID/u);
       assert.throws(()=>trial.reveal(),/Both opaque answers/u);
+      /** @type {Map<string,Record<string,number>>} */
       const answers=new Map();
+      /** @type {Map<string,Record<string,number>>} */
+      const expectedAnswers=new Map();
       for(const packet of trial.packets){
         const module=await loadPublicEsm(packet.question.source);
-        answers.set(packet.id,Object.fromEntries(packet.question.exports.map(name=>[
+        const answer=Object.fromEntries(packet.question.exports.map(name=>[
           name,module[name](0)
-        ])));
+        ]));
+        answers.set(packet.id,answer);
+        expectedAnswers.set(packet.id,{...answer});
       }
       const first=trial.packets[0],second=trial.packets[1];
       const firstResult=trial.submit(first.id,answers.get(first.id));
       assert.deepEqual(firstResult,{accepted:true,complete:false,submitted:1});
       assert.equal('verdicts' in firstResult,false);
+      const mutableFirstAnswer=answers.get(first.id);
+      assert.ok(mutableFirstAnswer);
+      mutableFirstAnswer.round1=(mutableFirstAnswer.round1+1)|0;
+      assert.notDeepEqual(mutableFirstAnswer,expectedAnswers.get(first.id));
       assert.throws(()=>trial.reveal(),/Both opaque answers/u);
       const secondResult=trial.submit(second.id,answers.get(second.id));
       assert.deepEqual(secondResult,{accepted:true,complete:true,submitted:2});
@@ -216,7 +226,7 @@ for(const mode of /** @type {const} */(['coo','sno'])){
       for(const packet of trial.packets){
         const arm=secret.armById[packet.id];
         assert.equal(secret.sourceHashes[arm],packet.question.sourceSha256);
-        assert.deepEqual(secret.answersById[packet.id],answers.get(packet.id));
+        assert.deepEqual(secret.answersById[packet.id],expectedAnswers.get(packet.id));
         assert.deepEqual(secret.verdictsById[packet.id],{
           passed:true,comparisons:3072,
           claim:'Matched all three private arithmetic functions'
