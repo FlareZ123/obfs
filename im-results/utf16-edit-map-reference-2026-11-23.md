@@ -30,6 +30,8 @@ Environment: Node.js v22.16.0.
 
 The tests cover replacement and deletion before/after a protected span, edits intersecting a span, insertion boundary semantics, explicit offset bias, astral characters, sequential composition, and overlapping/ambiguous edits. A deterministic LCG property check used seed `0x51f15e`, 2,000 samples, up to six non-overlapping edits per sample and 20 spans per sample: **40,000 span checks passed**. The run is deterministic and requires no external packages.
 
+The same focused test was also run on the current main source pin `c22fc0a73d5a39e993df313d2d718656e6045459` through [manual validation run 45237538184](https://github.com/FlareZ123/obfs/actions/runs/45237538184), using Node.js v22.23.4 on Ubuntu and Windows. Both focused jobs passed all 9 tests, strict project JSDoc, strict external JSDoc, and the paired-budget JSDoc check. The separate full `node22` job was skipped because the workflow was intentionally dispatched with a focused-test input; this is not a full repository gate.
+
 ## Limitations
 
 This prototype proves only the offset-mapping helper's stated behavior. It does **not**:
