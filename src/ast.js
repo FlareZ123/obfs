@@ -1652,6 +1652,39 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
     return false;
   }
   /**
+   * Inline fresh literal records whose own data fields are proven primitive
+   * have only native Object.prototype source methods at construction time.
+   * Never extrapolate this proof across aliases, writes, or unknown escapes.
+   * @param {AstNode|null|undefined} input
+   * @returns {boolean}
+   */
+  function isInertPlainRecord(input) {
+    if(!input || input.type!=='ObjectExpression')return false;
+    return input.properties.every((/** @type {AstNode} */ property)=>{
+      if(property.type!=='Property'||property.kind!=='init'||
+         property.computed||property.method)return false;
+      const name=property.key.type==='Identifier'?
+        property.key.name:staticString(property.key);
+      const value=property.value;
+      return name!==null &&
+        !['__proto__','toString','toLocaleString','toSource'].includes(name) &&
+        value.type==='Literal' && (value.value===null ||
+          ['string','number','boolean','bigint'].includes(typeof value.value));
+    });
+  }
+  /**
+   * An unknown source-method receiver may be callable after arbitrary
+   * forwarding, including promises and opaque imported return values.
+   * Refuse source-affecting edits except for proven primitives and inert
+   * local literal records under the native-realm contract.
+   * @param {AstNode|null|undefined} input
+   * @returns {boolean}
+   */
+  function mayBeMemberMethod(input) {
+    return Boolean(input && !isDefinitelyPrimitive(input) &&
+      !isInertPlainRecord(input));
+  }
+  /**
    * Recognize immutable, uniquely-bound constant string keys at a consumer.
    * Local variables used as computed member names are common around native
    * toString/Reflect.get observers. Ambiguous bindings remain unresolved.
@@ -2802,13 +2835,14 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
        node.type==='AssignmentExpression' && isIntlSourceCallback(node.right)) {
       observed=true;
     }
-    // Destructuring is a property read too: a first-class native source
-    // method can be obtained from a function or Function.prototype without
-    // any MemberExpression named "toString" in the AST.
+    // Destructuring is a property read too: first-class native source
+    // methods can be obtained from a function or a method-valued member.
+    // Follow unique, immutable local aliases of member reads; a callable
+    // exported via a class instance may not be in the syntactic function set.
     if(node.type==='VariableDeclarator' && node.id.type==='ObjectPattern' &&
-         isFunctionValue(node.init) ||
+         (isFunctionValue(node.init)||mayBeMemberMethod(node.init)) ||
        node.type==='AssignmentExpression' && node.left.type==='ObjectPattern' &&
-         isFunctionValue(node.right)) {
+         (isFunctionValue(node.right)||mayBeMemberMethod(node.right))) {
       const pattern=node.type==='VariableDeclarator'?node.id:node.left;
       for(const property of pattern.properties) {
         if(property.type!=='Property')continue;
@@ -2873,9 +2907,21 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
       // A plain assignment overwrites the property without reading or
       // invoking its previous value. Preserve the source-observation guard
       // for calls, reads, compound writes, and other receiver uses.
-      if(((name==='toString'||name==='toSource') &&
-            !isDefinitelyPrimitive(node.object) ||
-          name==='toLocaleString'&&(isFunctionValue(node.object)||containsFunction(node.object))) &&
+      // Object#toLocaleString delegates to the receiver's toString method.
+      // A prototype-reachable callable can therefore expose its exact source
+      // even if this scan has not inferred that the receiver is a function.
+      // Reading the unshadowed native Number.prototype formatter only obtains
+      // an engine-owned function. Its calls/options are guarded separately,
+      // allowing unrelated private-owner edits under the native-realm premise.
+      const nativeNumberLocale=name==='toLocaleString' &&
+        node.object.type==='MemberExpression' &&
+        !node.object.computed && node.object.property.type==='Identifier' &&
+        node.object.property.name==='prototype' &&
+        node.object.object.type==='Identifier' &&
+        node.object.object.name==='Number' &&
+        !bindingCounts.has('Number') && !dynamicScope;
+      if((name==='toString'||name==='toSource'||name==='toLocaleString') &&
+          !isDefinitelyPrimitive(node.object) && !nativeNumberLocale &&
           !(parent?.type==='AssignmentExpression' && key==='left' && parent.operator==='=')) observed=true;
     }
     if(node.type==='CallExpression'||node.type==='NewExpression') {
