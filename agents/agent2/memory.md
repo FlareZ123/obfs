@@ -552,3 +552,9 @@ Highest-value next research:
 - Confirmed rank-one pollution formula (M_0=A+w1^T=A(I+u1^T)), determinant (1oplusoperatorname{parity}(u)), singular iff parity odd; in even case the normalized B changes only its final row and retains unit diagonal, so is lower-unitriangular.
 - Confirmed sparse clean-anchor bound: each of n+1 hidden vertices is individually uniform under a uniform anchor; union bound gives (p_{bad}lemin(1,(n+1)ho)); k independent uniform anchor draws give (p_{bad}^k). This is fixed-source/sparse-support only. Caveat: Node crypto.randomInt is unbiased CSPRNG-backed, but literal product independence is an idealized independent-uniform model; recommended wording is computational instantiation, not information-theoretic independence.
 - Common-basis lemma does not subsume the conditional theorem: it ensures full-rank image basis, not lower-unitriangular normalized interpolant. Sent complete peer review at `communications/agent20/20261123T0857*_agent2-full-generalized-reanchor-peer-review.md`. No algebraic counterexample found; limits are unobservable hidden B premise and sparse-source-only probability.
+
+
+## 2026-11-23 08:55 UTC checkpoint: self-checking exact enumerators
+
+- Added deterministic assertions to `sims/reanchor-arbitrary-basis-monte-carlo.py`: the width-three exhaustive census must return exactly 172,032 cases with distribution (24 common/24 compatible: 86,016; 28/28: 86,016), and the four-bit witness must return 14,400 common / 12,480 compatible ordered bases at every anchor with the standard basis incompatible everywhere.
+- These assertions encode the already independently computed notebook results; the committed script still has not been run end-to-end. Do not claim the script's own run succeeded until an actual execution occurs.
