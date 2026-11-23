@@ -404,8 +404,10 @@ function usesUnprovedRelocatedTextDecoder(body){
     return input.type==='NewExpression'&&input.callee.type==='Identifier'&&
       input.callee.name==='Uint8Array'&&input.arguments.length===1&&
       input.arguments[0].type==='ArrayExpression'&&
-      input.arguments[0].elements.every(element=>
-        element!==null&&element.type!=='SpreadElement'&&elementBytes(element));
+      input.arguments[0].elements.every(
+        /** @param {import('./ast').AstNode|null} element */
+        element=>element!==null&&element.type!=='SpreadElement'&&
+          elementBytes(element));
   }
   /**
    * Prove that all input bytes are ASCII. UTF-8 ASCII cannot cause a native
