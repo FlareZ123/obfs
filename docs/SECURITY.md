@@ -63,9 +63,11 @@ module, changing an encoded target literal while leaving the original value
 unchanged in real Chromium. The [pinned import-map witness](../im-results/browser-host-importmap-decoder-assumption-2026-11-22.md)
 runs that native/emitted differential under the same browser host.
 A Node 22 `--import` preload can similarly register a loader hook that
-remaps `node:path` to arbitrary code, falsifying a proposed trust-by-builtin
-whitelist. The [Node loader-hook report](../im-results/sno-native-builtin-loader-hook-whitelist-counterexample-2026-11-22.md)
-records the unsafe candidate and the merged safe refusal regression.
+remaps `node:path` in ESM or bare `path` in CommonJS to arbitrary code,
+falsifying a proposed trust-by-builtin whitelist. The [Node loader-hook
+report](../im-results/sno-native-builtin-loader-hook-whitelist-counterexample-2026-11-22.md)
+records the unsafe ESM candidate, the merged safe ESM refusal regression,
+and the separate CommonJS bare-builtin negative control.
 A deployed application must audit the actual HTML import maps, Node loader
 hooks and preload code if it relies on ambient decoder equivalence. A hostile
 COO browser or fully controlled SNO runtime cannot furnish that trust.

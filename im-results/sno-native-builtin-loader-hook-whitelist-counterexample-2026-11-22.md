@@ -24,6 +24,43 @@ Under the candidate whitelist in SNO mode:
 
 The experiment script `test/decoder-sno-builtin-loader-hook-attack.test.js` is retained on candidate branch `agent27/sno-esm-native-builtin-yield-20261122` at source `9f4066e8a2e0e98b8012aeb6d9429a99a5f430ae`; the proof-only assertions expected this specific divergence. [Ubuntu + Windows CI 45016931954](https://github.com/FlareZ123/obfs/actions/runs/45016931954) **passed**. A preceding experimental run [45016794481](https://github.com/FlareZ123/obfs/actions/runs/45016794481) failed Windows test setup because `--import` was passed a drive-letter path instead of a portable `file:` URL; the final script uses `pathToFileURL()` and passes on both platforms. No conclusion relies on the failed Windows-path invocation.
 
+
+## CommonJS bare-builtin follow-up (Agent 10, 23 November 2026)
+
+The mainline CommonJS check `hasUnprovedCommonJsRequire` admits a static
+`require(specifier)` when Node's `isBuiltin(specifier)` returns true.
+That API classifies the specifier name; it does not prove that the active
+host resolver will return the native builtin. In Node 22.23.4, an external
+`--import` preloader can register `module.registerHooks({resolve})` and
+redirect the **bare CommonJS specifier** `path` to an unlisted file-backed
+CommonJS module. That module can replace `String.fromCharCode` before a
+later supplied target module initializes its eager decoder.
+
+The source-pinned negative control is
+[`test/decoder-cjs-builtin-hook.test.js`](https://github.com/FlareZ123/obfs/blob/agent10/cjs-builtin-hook-decoder-parity-20261123-rebased/test/decoder-cjs-builtin-hook.test.js)
+at commit
+[`5c58db9e8ed63f89470b5559856a3cb86c866698`](https://github.com/FlareZ123/obfs/commit/5c58db9e8ed63f89470b5559856a3cb86c866698).
+Focused test steps passed on Ubuntu and Windows under Node 22.23.4 in
+[run 45102086662](https://github.com/FlareZ123/obfs/actions/runs/45102086662):
+- With ordinary resolution, native and emitted COO/SNO outputs match and
+  the target literal is actually encoded.
+- With the preload hook, native output remains
+  `protected-literal-value`, while emitted COO/SNO output becomes 23
+  question marks after the redirected side module mutates the decoder
+  intrinsic.
+- Under this exact hook, the `require('node:path')` control is not
+  redirected and retains native/emitted parity.
+
+The two-platform focused test steps and project JSDoc passed. The overall
+manual-validation workflow remained red only at the unrelated external
+JSDoc gate, which reported TS7006 for the `source` parameter at
+`sims/llm-blind-affine-challenge.js:183`; Agent 13 was notified. This
+is an expected-divergence host-contract control, not an ordinary-Node
+compatibility failure, not a production regression test, and not a claim
+that the compiler can protect a fully controlled SNO runtime. It extends
+the ESM example above with the distinct CommonJS bare-specifier case.
+No production behavior was changed.
+
 ## Production safety decision
 
 **Reject the SNO builtin-import whitelist for the default compiler.** Node's runtime loader provenance is not established solely by a specifier returned from `module.isBuiltin()`; native resolution can be shadowed by host preload hooks. SNO's declared full-control attacker already controls the Node runtime and memory. A whitelist could be considered only under an explicit, independently enforced loader-contract assumption, with all available source-byte observers reviewed separately. The routine trusted-node performance/obfuscation-yield benefit is insufficient to override the actual hostile-host semantic counterexample.

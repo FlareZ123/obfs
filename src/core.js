@@ -214,7 +214,10 @@ function hasUnprovedModuleImport(ast,filename,knownJavaScript) {
  * A CommonJS require can load unlisted application code before a later
  * module's ambient String decoder initializes. Accept exact in-group
  * relative JavaScript modules and Node's ordinary native builtins.
- * Other calls may have unknown source and side effects at runtime.
+ * Other calls may have unknown source and side effects at runtime. This
+ * builtin exception assumes ordinary Node resolution: isBuiltin() classifies
+ * a specifier but does not prove that host loader hooks cannot remap a bare
+ * name such as 'path'. See docs/SECURITY.md for this host-contract boundary.
  *
  * @param {import('./ast').AstNode} ast
  * @param {string} filename
