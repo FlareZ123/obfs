@@ -120,8 +120,9 @@ prepublication refusal under the compiler's output lock. A positive
 shared-package control emits byte-identical launcher and source to the
 same-seed build without the audit, adding no application runtime work.
 Known lexical aliases and computed direct `require` arguments are
-conservatively refused; independently constructed resolver functions,
-reflective import paths remain outside this CJS-only audit; ESM imports are handled separately by the opt-in --audit-bare-esm check below. It
+conservatively refused; independently constructed resolver functions
+and reflective import paths remain outside this CJS-only audit. ESM
+imports are handled separately by the opt-in `--audit-bare-esm` check below. It
 also declines direct calls under an emitted
 `package.json` because prepublication Node resolution cannot see that
 future package scope. Opaque or asset-marked JavaScript files are
