@@ -91,6 +91,8 @@ jobs:
         run: node sims/rankfive-top-quartic-functional-clone.js
       - name: Independent rank-six fifth-derivative top-quintic full-function clone
         run: node sims/rankfive-top-quintic-functional-clone-peer.js
+      - name: Reed-Muller-validated quintic clone with silent-rank fallback
+        run: node sims/rankfive-top-quintic-validated-peer.js
       - name: Arbitrary nonlinear rank-four-to-six source-independent offline coset clone
         run: node --test test/projected-affine-coset-profile-clone.test.js
       - name: Matched authenticated SCO and native HTTP clone of hidden arbitrary rank-five table
