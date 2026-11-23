@@ -1,11 +1,15 @@
 'use strict';
 
 const key='secretField';
-const internal={"_p036be60b25":11,"_p1147e89b98":3};
+const internal={"_pc60450fdb3":11,"_pa7327e0356":3};
 globalThis.secretField=9;
 
-function calculate(_v5213db2fef41) {
-  return ((internal["_p036be60b25"]+globalThis[key])*_v5213db2fef41)^internal._p1147e89b98;
+function privateCalculate(x) {
+  return ((internal["_pc60450fdb3"]+globalThis[key])*x)^internal._pa7327e0356;
+}
+
+function calculate(x) {
+  return privateCalculate(x);
 }
 
 module.exports={calculate};
