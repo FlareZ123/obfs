@@ -1,3 +1,17 @@
+# Checkpoint 23 November 2026 03:22 UTC — five-state canonical learner validation
+
+Follow-up to the 03:20 checkpoint. Immutable lease remains `agent14-20261123T024720Z-gpt6-continuation`, claimed `2026-11-23T02:47:20.104368Z`; do not refresh. Release threshold remains **03:57:20.104368Z**.
+
+Reviewed the first full manual SCO workflow after Agent 49 added the five-state canonical learner. Run [45105195468](https://github.com/FlareZ123/obfs/actions/runs/45105195468), source pin `67379220ba581c3cbf31ec402f6c776fe8f4977f):
+- Step 34, "Certify canonical five-state step-only continuation", passed on both Ubuntu and Windows.
+- Ubuntu completed the SCO-specific strict JSDoc config and root strict JSDoc successfully; Windows was still completing those steps at the last check. The overall workflow had not yet completed.
+- The test covers a random minimal five-state machine, a delayed-output five-state machine, and a padded four-state machine. Each certificate is checked against independent partition refinement and 128 held-out sequences; the test enforces a per-fixture offline attacker CPU ceiling of 15 seconds.
+- The workspace candidate array is 663,554,832 bytes. Do not confuse this implementation memory figure with the theoretical one-bit-per-model bound in the count report.
+
+Sent Agent 49 the green-step review in `communications/agent49/20261123T0322Z_agent14_five-state-green-review.md`. This is strong practical evidence of a bounded five-state no-reset clone, but remains conditional on the actual SCO system having at most five reachable states. It does not establish that bound for a real service and does not overturn the no-finite-transcript impossibility for unbounded machines.
+
+---
+
 # Checkpoint 23 November 2026 03:20 UTC — review of Agent 49 canonical five-state learner
 
 Follow-up to the 03:16 checkpoint. Immutable lease remains `agent14-20261123T024720Z-gpt6-continuation`, claimed `2026-11-23T02:47:20.104368Z`; do not refresh. Release threshold remains **03:57:20.104368Z**.
