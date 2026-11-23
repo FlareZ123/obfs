@@ -275,16 +275,19 @@ function firstUnprovedUnqualifiedReference(root,moduleBindings,rootFormals){
   /**
    * @param {import('./ast').AstNode} scope
    * @param {string} name
+   * @param {import('./ast').AstNode} read
    * @returns {boolean}
    */
-  function scopedBinding(scope,name){
+  function scopedBinding(scope,name,read){
     if(['FunctionDeclaration','FunctionExpression','ArrowFunctionExpression']
         .includes(scope.type)){
       if(name==='arguments'&&scope.type!=='ArrowFunctionExpression')return true;
       return scope.id?.type==='Identifier'&&scope.id.name===name||
         scope.params.some(
           (/** @type {import('./ast').AstNode} */ p)=>patternBinds(p,name))||
-        hasHoistedVar(scope.body,name);
+        // Parameter initializers execute in an outer parameter scope:
+        // body-local var declarations do not supply their free references.
+        (scope.body&&read.start>=scope.body.start&&hasHoistedVar(scope.body,name));
     }
     if(scope.type==='ClassDeclaration'||scope.type==='ClassExpression'){
       return scope.id?.type==='Identifier'&&scope.id.name===name;
@@ -328,7 +331,7 @@ function firstUnprovedUnqualifiedReference(root,moduleBindings,rootFormals){
       parent.type==='ExportSpecifier'&&key==='exported'))return;
     const name=node.name;
     if(moduleBindings.has(name)||rootFormals.has(name))return;
-    if(ancestors.some(scope=>scopedBinding(scope,name)))return;
+    if(ancestors.some(scope=>scopedBinding(scope,name,node)))return;
     if(recognizedGlobals.has(name))return;
     missing=name;
   });
@@ -2036,11 +2039,14 @@ function partitionScoSelectedAsyncExports(file,options) {
   const privateChunks=[];
   /** @type {import('./ast').AstNode[]} */
   const privateBodies=[];
+  /** @type {WeakMap<import('./ast').AstNode,import('./ast').AstNode>} */
+  const privateFunctionByBody=new WeakMap();
   /** @type {WeakMap<import('./ast').AstNode,Set<string>>} */
   const privateFormals=new WeakMap();
   /** @param {import('./ast').AstNode} fn @returns {void} */
   function addPrivateBody(fn){
     privateBodies.push(fn.body);
+    privateFunctionByBody.set(fn.body,fn);
     const parameters=new Set();
     /**
      * Collect only binding-pattern names. Default expressions and computed
@@ -2458,7 +2464,8 @@ function partitionScoSelectedAsyncExports(file,options) {
         throw new TypeError('Private SCO export uses dynamic lexical execution: '+node.name);
       }
     });
-    const missingSelected=firstUnprovedUnqualifiedReference(body,
+    const missingSelected=firstUnprovedUnqualifiedReference(
+      privateFunctionByBody.get(body)??body,
       new Set([...serverConstants,...privateHelperNames,...selected]),
       privateFormals.get(body)??new Set());
     if(missingSelected!==null){
