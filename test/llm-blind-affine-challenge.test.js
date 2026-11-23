@@ -211,7 +211,7 @@ for(const mode of /** @type {const} */(['coo','sno'])){
       assert.deepEqual(Object.values(secret.armById).sort(),['candidate','control']);
       assert.deepEqual(secret.deliveryOrder,ids);
       assert.equal(createHash('sha256').update(
-        secret.salt+'\\0'+secret.originalSource).digest('hex'),secret.commitment);
+        secret.salt+'\0'+secret.originalSource).digest('hex'),secret.commitment);
       assert.equal(secret.commitment,first.question.originalCommitment);
       for(const packet of trial.packets){
         const arm=secret.armById[packet.id];
