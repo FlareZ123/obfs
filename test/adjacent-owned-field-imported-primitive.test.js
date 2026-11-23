@@ -115,9 +115,12 @@ test('adjacent owner primitive remains primitive with hostile inherited getter',
     closedWorld:true,strings:false,identifiers:false,properties:true}).files.map(file=>({
       path:file.path,sourceType:/** @type {'module'} */('module'),code:String(file.code)
     }));
-  assert.equal(await runNative(sources),29);
-  assert.equal(await runNative(emitted),29);
-  delete Object.prototype.secretValue;
+  try {
+    assert.equal(await runNative(sources),29);
+    assert.equal(await runNative(emitted),29);
+  }finally{
+    delete Object.prototype.secretValue;
+  }
 });
 
 for(const [label,producer] of /** @type {Array<[string,string]>} */ ([
