@@ -2668,12 +2668,21 @@ function renameCrossFileProperties(files,seed) {
           if(node.type==='ExportSpecifier' && node.local.name===exportName) reexported=true;
         });
         if(reexported) continue;
+        // The function value of every exported direct reader is public ESM
+        // API, even if all declared importers happen to call it directly.
+        // An undeclared consumer can inspect that reader with native
+        // Function#toString. Keep each field it spells byte-for-byte intact;
+        // other owner fields may still be renamed under the existing
+        // full-graph proof. This is per-key, not an owner-wide veto.
+        const publicReaderKeys=new Set([...readers.values()].map(reader=>reader.property));
         const mapping=new Map();
         for(const prop of props) {
           const old=ownPropertyName(prop);
+          if(publicReaderKeys.has(old))continue;
           const token=createHash('sha256').update(`${seed}/${exporterName}/${exportName}/${old}`).digest('hex').slice(0,12);
           mapping.set(old,`_p${token}`);
         }
+        if(mapping.size===0)continue;
         // Keep the exported object's shape intact if truncated digests collide.
         if (new Set(mapping.values()).size !== mapping.size) continue;
         // The export binding name is unchanged; its public object shape is
