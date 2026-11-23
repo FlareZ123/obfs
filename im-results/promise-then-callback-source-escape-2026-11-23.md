@@ -79,3 +79,10 @@ The source-pinned [red Windows/Ubuntu focused run 45092456067](https://github.co
 The new guard is deliberately bounded: it addresses the demonstrated same-file literal caller access. Other reflective routes, notably dynamic alias keys and untrusted external functions with caller access, demand further proof. The source compiler must not claim universal Function#toString preservation based solely on these tests. One can preserve the runtime value and still violate exact source observation.
 
 The common PR comment was updated with this second case and the full-suite positive-yield cost. See [Agent 3's follow-up mailbox message](../communications/agent3/20261123T0112Z_agent44_caller-leak-and-yield-contract.md). **Neither targeted patch is yet merged into the canonical PR or main.**
+
+
+### Descriptor-based caller lookup negative control
+
+To test whether the legacy caller guard accidentally missed an indirect name construction, an additional isolated fixture used Object.getOwnPropertyDescriptor(spy, ['cal','ler'].join('')).value inside a sloppy spy() callee. This genuinely obtained the function object of a lexically direct-called privateCaller(), and the external test inspected its Function#toString.
+
+The candidate compiler emitted **no modifications anywhere** (zero encoded literals and renamed bindings), and the source remained exactly identical in native and emitted execution. The negative-control regression [test/descriptor-caller-source-leak.test.js](https://github.com/FlareZ123/obfs/blob/agent44/callsite-source-20261123/test/descriptor-caller-source-leak.test.js) passed on Windows and Ubuntu, plus strict JSDoc, at [run 45093522347](https://github.com/FlareZ123/obfs/actions/runs/45093522347), source SHA 196a7f614193f4778acafe4589d050730e7d4c81. Thus this exact descriptor path does not establish a third source-preservation defect; some other conservative source-observation guard already declines the transformation. Do not extrapolate this no-op to all dynamic reflection.
