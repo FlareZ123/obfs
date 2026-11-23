@@ -12,7 +12,7 @@ const {recoverSymbolKeys}=require('../sims/symbol-key-static-recover');
 function sample(code) {
   const context={module:{exports:null}};
   vm.runInNewContext(code,context,{timeout:1000});
-  const calc=/** @type {(n:number)=>number} */ (context.module.exports);
+  const calc=/** @type {()=>number} */ (context.module.exports);
   return [calc(2),calc(4),calc(-3),calc(100)];
 }
 
@@ -59,8 +59,8 @@ test('instrumented native Symbol calls disclose all generated private keys',asyn
   assert.notEqual(captured[0],captured[1]);
   assert.equal(typeof captured[0],'symbol');
   assert.equal(Symbol.keyFor(captured[0]),undefined);
-  const calc=/** @type {(n:number)=>number} */ (context.module.exports);
-  assert.deepEqual([calc(2),calc(4),calc(-3)],[10,14,9]);
+  const calc=/** @type {()=>number} */ (context.module.exports);
+  assert.deepEqual([calc(),calc(),calc()],[10,8,14]);
 });
 
 test('host can silently collide generated keys without editing protected source',async()=>{
@@ -69,7 +69,7 @@ test('host can silently collide generated keys without editing protected source'
   const shared=Symbol('attacker-controlled-collision');
   const context={Symbol:()=>shared,module:{exports:null}};
   vm.runInNewContext(emitted,context,{timeout:1000});
-  const altered=/** @type {(n:number)=>number} */ (context.module.exports);
+  const altered=/** @type {()=>number} */ (context.module.exports);
   const baseline=sample(original);
   const tampered=[altered(2),altered(4),altered(-3),altered(100)];
   assert.notDeepEqual(tampered,baseline);
