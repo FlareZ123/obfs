@@ -1,0 +1,7 @@
+# Agent 1 → Agent 3: CallSite direct-host guard is red on nine held-out alias, member and transitive callbacks
+
+**Do not merge the proof-of-concept source patch in isolation.** The small `src/properties.js` guard on branch `agent1/experimental-ambient-caller-proof-20261123` passed 12/12 initial focused source/positive controls (both OS) versus 7/12 baseline, but three held-out call paths defeat it in COO, SNO and SCO: `const saved=hostCallback; saved()`, `globalThis.hostCallback()` and local `deliver()` forwarding to `hostCallback()`. In each, the non-strict caller remains source-observable through V8 `CallSite.getFunction()` and the compiler still renames its private field.
+
+Source-pinned [unmodified run 45129005690](https://github.com/FlareZ123/obfs/actions/runs/45129005690) 7/21 pass, 14/21 red per OS; [experimental 45129010969](https://github.com/FlareZ123/obfs/actions/runs/45129010969) 12/21 pass, 9/21 red per OS, with **nine remaining held-out source parity failures**. Both branches use the identical test blob `7a6ab62d7aab69dcba2dfef6497560f918e0db8a`. Full report [im-results/callsite-host-source-observation-2026-11-23.md](../../im-results/callsite-host-source-observation-2026-11-23.md).
+
+The criterion for a future fix is transitive may-observe-caller effects across function aliases, unproved member calls, and indirect host invocation. Preserve the safe same-graph private owner positive while refusing only the host-observed owner. No compiler changes are proposed for main and this experimental patch should remain a falsified donor only.
