@@ -4,6 +4,7 @@ const assert=require('node:assert/strict');
 const {test}=require('node:test');
 const vm=require('node:vm');
 const {obfuscateFiles}=require('../src');
+const {normalizePublicIsland}=require('../sims/source-island-public-normalizer');
 
 /**
  * @param {string} source
@@ -51,6 +52,20 @@ const directPublicRead=[
   'module.exports=published;'
 ].join('');
 
+const indirectReader=[
+  'const owner={secretField:41};',
+  'function read(input){return input.secretField;}',
+  'function published(n){return read.call(null,owner)+n;}',
+  'module.exports=published;'
+].join('');
+
+const conditionalOwner=[
+  'const owner={secretField:41};',
+  'function read(input){return input.secretField;}',
+  'function published(n){return read(n?owner:{secretField:4});}',
+  'module.exports=published;'
+].join('');
+
 const mixedProvenance=[
   'const owner={secretField:41};',
   'function read(input){return input.secretField;}',
@@ -72,8 +87,14 @@ for(const mode of /** @type {const} */ (['coo','sno','sco'])) {
       assert.equal(original.toString(),emitted.toString(),
         'Public function text must retain original spelling');
       assert.doesNotMatch(String(prepared.code),/secretField/u);
-      for(const value of [-100,-1,0,1,100])
+      const recovery=normalizePublicIsland(String(prepared.code));
+      assert.equal(recovery.properties,1,'The published field label is recoverable without the seed');
+      const recovered=evaluate(recovery.code);
+      assert.equal(recovered.toString(),original.toString());
+      for(const value of [-100,-1,0,1,100]) {
         assert.equal(emitted(value),original(value));
+        assert.equal(recovered(value),original(value));
+      }
     });
   }
 
@@ -87,6 +108,18 @@ for(const mode of /** @type {const} */ (['coo','sno','sco'])) {
     const transformed=compile(directPublicRead,mode);
     assert.equal(transformed.metrics.properties,0);
     assert.equal(transformed.code,directPublicRead);
+  });
+
+  test(mode+' refuses indirect Function.prototype.call reader invocation',()=>{
+    const transformed=compile(indirectReader,mode);
+    assert.equal(transformed.metrics.properties,0);
+    assert.equal(transformed.code,indirectReader);
+  });
+
+  test(mode+' refuses a conditional owner argument in an unproved wrapper',()=>{
+    const transformed=compile(conditionalOwner,mode);
+    assert.equal(transformed.metrics.properties,0);
+    assert.equal(transformed.code,conditionalOwner);
   });
 
   test(mode+' refuses a private reader called on both owned and unproved external values',()=>{
