@@ -710,6 +710,7 @@ function proveLocalObject(ast, rootName, bindings, importedIdentityFunctions=new
    * @param {(node:AstNode)=>void} visitor
    */
   const walkExecutableFunctionBody=(root,visitor)=>{
+    /** @param {AstNode} node */
     const visit=node=>{
       if(!node||typeof node!=='object')return;
       if(node!==root&&(
