@@ -105,6 +105,7 @@ function popcount(value) {
  */
 function makeTriangular(width,degree,seed,termsPerBit=6) {
   const next=seeded32(seed);
+  /** @type {bigint[][]} */
   const terms=Array.from({length:width},()=>[]);
   const constants=Array.from({length:width},()=>next()&1);
   for(let bit=0;bit<width;bit++){
@@ -272,6 +273,7 @@ function invertByRandomAffineGraph(oracle,target,width,degree,options={}) {
   let base=0n;
   let basis=Array.from({length:width},(_,i)=>1n<<BigInt(i));
   let queries=0;
+  /** @type {{dimension:number,queries:number,rank:number,nullity?:number,stagnationLimit:number,reason:string}[]} */
   const stages=[];
   while(basis.length){
     const dimension=basis.length;
