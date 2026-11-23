@@ -6,6 +6,8 @@ const {invertByRandomAffineGraph,binomialSum}=
   require('../sims/random-affine-graph-flag-inversion');
 const {invertByReanchoring}=
   require('../sims/random-affine-anchor-compatible-inversion');
+const {inverseOfColumns}=
+  require('../sims/sparse-triangular-fixedpoint-inversion');
 const {makeLinearTransform,applyLinear}=
   require('../sims/compatible-permutation-linear-sandwich-blackbox');
 
@@ -207,11 +209,40 @@ test('affine-graph inversion survives hidden two-sided affine wrappers with a si
   // this sparse source admits successful random anchors for some seeds,
   // but not all fixed four-anchor streams.
   const randomReanchor=invertByReanchoring(
-    wrappedOracleNumber,wrappedOracleNumber(secrets[0]),0x12345678,4,false
+    wrappedOracleNumber,wrappedOracleNumber(secrets[0]),0xdeadbeef,4,false
   );
   assert.equal(randomReanchor.value,secrets[0]>>>0);
   assert.equal(randomReanchor.basesTried,3);
-  assert.ok(randomReanchor.queries<=110);
+  assert.equal(randomReanchor.anchor,0xba8c2458);
+  assert.equal(randomReanchor.queries,101);
+  assert.equal(randomReanchor.corrections,1);
+  assert.equal(randomReanchor.failedBases.length,2);
+  assert.ok(randomReanchor.failedBases.every(failure=>
+    failure.reason==='interpolant-rank-deficient'));
+
+  // Source-private audit: the third anchor's normalized interpolant
+  // B=Lout^-1 M_r Lin^-1 is lower-unitriangular, satisfying the theorem's
+  // sufficient condition. The attacker only sees the oracle and final check.
+  const inputInverse=inverseOfColumns(inputColumns);
+  const outputInverse=inverseOfColumns(outputColumns);
+  assert.notEqual(inputInverse,null);
+  assert.notEqual(outputInverse,null);
+  const compatibleAnchor=0xba8c2458;
+  const anchorBase=wrappedOracleNumber(compatibleAnchor);
+  const observedColumns=Array.from({length:32},(_,bit)=>
+    (wrappedOracleNumber((compatibleAnchor^(2**bit))>>>0)^anchorBase)>>>0);
+  const normalizedColumns=Array.from({length:32},(_,bit)=>{
+    const hiddenDirection=inputInverse(2**bit>>>0);
+    const publicOutputDirection=applyLinear(observedColumns,hiddenDirection);
+    return outputInverse(publicOutputDirection)>>>0;
+  });
+  for(let bit=0;bit<32;bit++){
+    assert.equal(normalizedColumns[bit]&((2**bit)-1),0,
+      'compatible B must have no entries above its diagonal');
+    assert.equal((normalizedColumns[bit]>>>bit)&1,1,
+      'compatible B must have unit diagonal');
+  }
+
   assert.throws(()=>invertByReanchoring(
     wrappedOracleNumber,wrappedOracleNumber(secrets[0]),0x51515151,4,false
   ),/No successful reanchored inversion/);
@@ -226,9 +257,11 @@ test('affine-graph inversion survives hidden two-sided affine wrappers with a si
     targets:receipts.length,receipts,totalGraphQueries,exactCloneQueries,
     canonicalAnchorReanchor:'rank-deficient',
     randomReanchorSuccess:{
+      anchor:'0x'+randomReanchor.anchor.toString(16).padStart(8,'0'),
       queries:randomReanchor.queries,
       basesTried:randomReanchor.basesTried,
-      corrections:randomReanchor.corrections
+      corrections:randomReanchor.corrections,
+      normalizedBLowerUnitriangular:true
     },
     randomReanchorFailureSeed:'0x51515151',
     allTargetsRecovered:true
