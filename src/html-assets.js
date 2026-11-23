@@ -315,8 +315,15 @@ function hasPinnedLocalJavaScriptIntegrity(files,routePrefix='') {
     // SRI metadata contains whitespace-separated hashes; syntax reserves
     // an optional ?options suffix. Exact digest comparison avoids relying
     // on a deployment path that the offline compiler cannot observe.
-    return metadata.trim().split(/\s+/u).some(token=>
-      originalDigests.has(token.split('?',1)[0]));
+    return metadata.trim().split(/\s+/u).some(token=>{
+      const expression=token.split('?',1)[0];
+      const separator=expression.indexOf('-');
+      if(separator<0)return false;
+      // The algorithm token is ASCII case-insensitive by SRI section 2.
+      // The base64 digest remains case-sensitive.
+      return originalDigests.has(expression.slice(0,separator).toLowerCase()+
+        expression.slice(separator));
+    });
   }
   /**
    * A rooted or absolute web URL may use a deployment prefix not declared in
@@ -407,6 +414,7 @@ function hasPinnedLocalJavaScriptIntegrity(files,routePrefix='') {
     let ambiguousBase=false;
     let xmlBaseAffectsPin=false;
     let pinnedDigest=false;
+    let relativeDigest=false;
     parser.on('opentag',tag=>{
       const attributes=Object.values(tag.attributes);
       const localXmlBase=attributes.some(attr=>
@@ -429,7 +437,10 @@ function hasPinnedLocalJavaScriptIntegrity(files,routePrefix='') {
       const address=name==='script'?attr('src'):linked?attr('href'):null;
       if(address) {
         pinnedUrls.push(address);
-        if(hasUnknownMount(address)&&matchesOriginalDigest(integrity))pinnedDigest=true;
+        if(matchesOriginalDigest(integrity)){
+          if(hasUnknownMount(address))pinnedDigest=true;
+          else relativeDigest=true;
+        }
         if(activeXmlBase)xmlBaseAffectsPin=true;
       }
     });
@@ -438,7 +449,8 @@ function hasPinnedLocalJavaScriptIntegrity(files,routePrefix='') {
     });
     parser.on('error',error=>{throw new TypeError('Malformed XHTML XML: '+error.message);});
     parser.write(xml).close();
-    if(pinnedDigest)return true;
+    if(pinnedDigest||relativeDigest&&declaredBases.some(hasUnknownMount))
+      return true;
     if(!pinnedUrls.length)return false;
     // XML base changes URI resolution only for its own element/subtree.
     // A base tag with that feature needs a separate XML URI proof.
@@ -515,7 +527,9 @@ function hasPinnedLocalJavaScriptIntegrity(files,routePrefix='') {
            relation.includes('preload') && as.toLowerCase()==='script');
         const address=node.tagName==='script'?src:linked?href:null;
         if(address){
-          if(hasUnknownMount(address)&&matchesOriginalDigest(integrity)){
+          if((hasUnknownMount(address)||
+              baseHref!==null&&hasUnknownMount(baseHref)) &&
+              matchesOriginalDigest(integrity)){
             observed=true;return;
           }
           // The parser may already have started fetching a script before a
