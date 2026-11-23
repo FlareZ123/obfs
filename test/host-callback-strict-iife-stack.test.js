@@ -138,3 +138,32 @@ test('manual equal-width private-key rewrite retains strict host stack frame coo
     await rm(root,{recursive:true,force:true});
   }
 });
+
+test('host accessor can capture strict IIFE source column without being called',async()=>{
+  const source='const owner={longPrivateFieldForHost:47};'+
+    'const result=(()=>[owner.longPrivateFieldForHost,globalThis.HOST_STACK_VALUE])();'+
+    'export const observed=result;';
+  const candidate=compiled(source,'strict-host-getter-stack-iife');
+  const root=await mkdtemp(path.join(tmpdir(),'obfs-arrow-host-getter-'));
+  const previous=Object.getOwnPropertyDescriptor(globalThis,'HOST_STACK_VALUE');
+  try{
+    Object.defineProperty(globalThis,'HOST_STACK_VALUE',{
+      configurable:true,
+      get(){
+        const row=new Error('host getter observer').stack?.split('\n')[2]??'';
+        const match=/:(\d+):(\d+)\)?$/u.exec(row);
+        assert.ok(match,'Native V8 stack must identify ESM accessor use');
+        return {line:Number(match[1]),column:Number(match[2])};
+      }
+    });
+    const original=(await load(root,'native-getter',source)).observed;
+    const protectedEntry=(await load(root,'compiled-getter',
+      /** @type {string} */(candidate.code))).observed;
+    assert.deepEqual(protectedEntry,original,
+      'An opaque host global getter may inspect source coordinates on property access');
+  }finally{
+    if(previous)Object.defineProperty(globalThis,'HOST_STACK_VALUE',previous);
+    else delete globalThis.HOST_STACK_VALUE;
+    await rm(root,{recursive:true,force:true});
+  }
+});
