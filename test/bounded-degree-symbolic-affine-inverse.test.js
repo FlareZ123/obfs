@@ -112,8 +112,8 @@ test('symbolic ANF transport exactly inverts independently randomized affine-san
   const groups=[
     [8,1,10,256],[16,1,10,12],[32,1,10,12],
     [8,2,10,256],[16,2,10,12],[24,2,10,12],[32,2,10,12],
-    [8,3,10,256],[16,3,8,8],[24,3,6,5],
-    [8,4,10,256],[16,4,8,5],[20,4,5,4]
+    [8,3,10,256],[16,3,8,8],[24,3,6,5],[32,3,4,6],
+    [8,4,10,256],[16,4,8,5],[20,4,5,4],[32,4,2,3]
   ];
   let models=0,targets=0,trainingQueries=0,modelEvaluations=0;
   for(const [bits,degree,seeds,requests] of groups) {
@@ -149,7 +149,7 @@ test('symbolic ANF transport exactly inverts independently randomized affine-san
       }
     }
   }
-  assert.equal(models,117);
+  assert.equal(models,123);
   assert.equal(modelEvaluations,targets);
   console.log('BOUNDED_DEGREE_SYMBOLIC_AFFINE_INVERSE '+JSON.stringify({
     models,targets,trainingQueries,finalModelEvaluations:modelEvaluations
