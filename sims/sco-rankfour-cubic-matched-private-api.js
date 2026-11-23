@@ -352,6 +352,7 @@ async function runScoArm(source, tapes) {
 
     let matched = 0;
     let heldouts = 0;
+    /** @type {Set<number>} */
     const heldoutInputs = new Set();
     for (let i = 0; heldouts < 1028; i++) {
       const input = createHash('sha256')
@@ -490,6 +491,7 @@ async function runMinifiedArm(source, method, tapes, expected) {
 
     let matched = 0;
     let heldouts = 0;
+    /** @type {Set<number>} */
     const heldoutInputs = new Set();
     for (let i = 0; heldouts < 1028; i++) {
       const input = createHash('sha256')
