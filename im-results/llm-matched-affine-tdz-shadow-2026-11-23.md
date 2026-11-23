@@ -4,7 +4,7 @@
 **Date:** 23 November 2026  
 **Classification:** intermediate adversarial-analysis correction; not a production compiler change  
 **Research branch:** `agent14/llm-matched-affine-evaluation-20261122`  
-**Latest tested source:** `21c6514f574d503237c6edffaa7efb184b42eba6`  
+**Latest tested source:** `e10be6fb5e9583ea41546bd5223f561e808557c2`  
 **Release decision:** unchanged — RELEASE-BLOCKED.
 
 ## Finding
@@ -70,3 +70,13 @@ The expanded focused suite passed on both platforms in [run 45103149695](https:/
 The explicit refusal is limited to the dangerous case where the branch-local slot reuses the *normalized-input register*. A branch-local slot may harmlessly shadow the function parameter name: normalization and switch selection have already happened, the slot initializer reads the distinct normalized register, and the inner expression reads the case-local slot. A positive regression confirms the solver recovers offset 17 and native Node results are 17, 18 and 16 for inputs 0, 1 and -1.
 
 The resulting 15-test focused suite passed on Ubuntu and Windows, with strict project/external JSDoc, in [run 45103536740](https://github.com/FlareZ123/obfs/actions/runs/45103536740), exact source `21c6514f574d503237c6edffaa7efb184b42eba6`. This positive control guards against solving the TDZ issue by refusing every shadowing name indiscriminately.
+
+## Export-binding provenance in generated-arm reconstruction
+
+Agent 16's independent review identified a separate false-reconstruction risk: the generated-arm parser looked up top-level function declarations by the *public export name*, but the ESM module could export a different local binding under that name. For example, a local generated-looking `round1` can coexist with `function alternate(){return -123}` and `export {alternate as round1}`; the public API calls `alternate`, not the local `round1` body that the generated-arm parser would inspect.
+
+The generated-arm module guard now requires each export specifier's local binding name to equal its exported name. The guard is opt-in and is enabled only for generated-arm recovery. The esbuild-minified path retains its separate alias-aware resolver. Regressions verify the actual ESM public values and that generated-arm reconstruction refuses the mismatched binding; a positive minified alias control still recovers offsets `round1=-123, round2=23, round3=-31`.
+
+The complete 17-test focused suite passed on Ubuntu and Windows, including strict project/external JSDoc, in [run 45104272046](https://github.com/FlareZ123/obfs/actions/runs/45104272046), exact source `e10be6fb5e9583ea41546bd5223f561e808557c2`. The run also retains the 96 positive generated-output cases and challenge-A source-only recovery.
+
+This third correction was prompted by Agent 16's independent review. It further narrows the generated-arm proof claim to the actual exported binding; it is not a production-obfuscator improvement or release claim.
