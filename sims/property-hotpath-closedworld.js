@@ -44,10 +44,10 @@ function generate(style,valueKind='literal') {
   const alias=style==='identity'?
     'import {identity} from "./identity.mjs";const stable=identity(state);':
     style==='readers'?
-      'function score(x){return x.hotScore;}function weight(x){return x.hotWeight;}':'';
-  const score=style==='readers'?'score(state)':
+      'function score(){return state.hotScore;}function weight(){return state.hotWeight;}':'';
+  const score=style==='readers'?'score()':
     (style==='identity'?'stable.hotScore':'state.hotScore');
-  const weight=style==='readers'?'weight(state)':
+  const weight=style==='readers'?'weight()':
     (style==='identity'?'stable.hotWeight':'state.hotWeight');
   const worker=[
     imports,alias,
