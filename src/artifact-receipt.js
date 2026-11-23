@@ -88,8 +88,14 @@ async function enumerateArtifactFiles(root) {
       pathParts(name);
       assert.ok(!entry.isSymbolicLink(),
         'Artifact path must not contain symlinks: '+name);
-      if(entry.isDirectory())await visit(path.join(directory,entry.name),name);
-      else {
+      if(entry.isDirectory()){
+        const before=files.length;
+        await visit(path.join(directory,entry.name),name);
+        // A directory with no file descendants is invisible in a file-only
+        // receipt, but its existence can affect filesystem-sensitive code.
+        assert.ok(files.length>before,
+          'Empty artifact directory cannot be frozen: '+name);
+      }else {
         assert.ok(entry.isFile(),'Artifact must be a regular file: '+name);
         registerFilePath(inventory,name,'Ambiguous artifact path: ');
         files.push(name);

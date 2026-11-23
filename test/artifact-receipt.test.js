@@ -175,3 +175,13 @@ test('receipt refuses undeclared filesystem Unicode aliases before hashing',
     await assert.rejects(collectArtifactReceipt(input),
       /Ambiguous artifact path|Artifact group must enumerate every regular delivered file/);
   });
+
+
+test('receipt refuses empty artifact directories absent from a file-only manifest',async t=>{
+  const input=await fixture(t);
+  const candidate=input.arms.find(arm=>arm.arm==='candidate');
+  assert.ok(candidate);
+  await fs.mkdir(path.join(candidate.root,'empty-plugin-directory'));
+  await assert.rejects(collectArtifactReceipt(input),
+    /Empty artifact directory cannot be frozen/);
+});
