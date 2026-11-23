@@ -90,13 +90,20 @@ function invertBoundedDegree(oracle,target,width,degree,queryBudget=300000) {
     throw new RangeError('Expected forward oracle, width, degree and positive budget');
   }
   const mask=width===32?0xffffffff:(2**width-1)>>>0;
+  if(!Number.isSafeInteger(target)||target<0||target>mask){
+    throw new RangeError('Target must be an unsigned word of declared width');
+  }
   const cache=new Map();
   /** @param {number} input @returns {number} */
   function F(input) {
     const key=(input&mask)>>>0;
     if(cache.has(key))return /** @type {number} */ (cache.get(key));
     if(cache.size>=queryBudget)throw new RangeError('Oracle query budget exhausted');
-    const value=(oracle(key)&mask)>>>0;
+    const response=oracle(key);
+    if(!Number.isSafeInteger(response)||response<0||response>mask){
+      throw new TypeError('Forward oracle must return an unsigned word of declared width');
+    }
+    const value=response>>>0;
     cache.set(key,value);
     return value;
   }
