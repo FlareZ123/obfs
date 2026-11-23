@@ -53,3 +53,8 @@ These are finite Node measurements, **not** a general proof of a 2.5× bound; CO
 ## Decision
 
 This real program and literal public candidate were functionally reconstructed under a source-only attack while preserving full host-callback order. The identified adversary is unblinded and fixed-layout; it was not compared on equal effort with an independently chosen ordinary-minifier attacker, so no relative attacker-cost advantage is established. The final security decision remains **RELEASE-BLOCKED** for all three modes. Preserve the reusable controlled negative evidence and avoid promoting this candidate as strong confidentiality.
+
+
+## Final integrated-main broad regression gate
+
+The integrated `main` broad opt-in `manual-wasm-i32.yml` regression [run 45100599458](https://github.com/FlareZ123/obfs/actions/runs/45100599458) completed **successfully on Ubuntu and Windows** at exact source `3b7482f9b9da730f81e60eae3d5f991a91e2bb61`. This is the original broader Wasm/Chromium suite and verifies that the seven-local decoder extension and preserved candidate files did not break its explicitly exercised prior workflows. The separate isolated branch [45100137822](https://github.com/FlareZ123/obfs/actions/runs/45100137822) contains the real stateful three-arm cold/warm replay steps; those were deliberately omitted from the integrated main routine workflow.
