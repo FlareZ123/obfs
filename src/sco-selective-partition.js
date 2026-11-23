@@ -180,6 +180,161 @@ function isStaticKey(parent,key){
 }
 
 /**
+ * Refuse unqualified references whose lexical owner cannot be found in the
+ * shipped private module graph. A browser host can supply arbitrary extra
+ * global names (for example externalBridge); moving those reads to the Node
+ * RPC server would silently change their value or throw a ReferenceError.
+ *
+ * This is a conservative syntax-level admission check, not proof that known
+ * host intrinsics have identical client/server semantics. The separate
+ * host-effect and realm-state guards retain responsibility for known globals.
+ * In particular, an unrelated sibling's parameter must never prove ownership
+ * of a same-spelled read in the selected function.
+ *
+ * @param {import('./ast').AstNode} root
+ * @param {ReadonlySet<string>} moduleBindings Declared server-only module bindings
+ * @param {ReadonlySet<string>} rootFormals Parameters of the selected export
+ * @returns {string|null}
+ */
+function firstUnprovedUnqualifiedReference(root,moduleBindings,rootFormals){
+  const recognizedGlobals=new Set([
+    ...standardRealmGlobals,...browserOnlyRoots,
+    'globalThis','global','process','Buffer','console','performance','crypto',
+    'URL','URLSearchParams','TextEncoder','TextDecoder','AbortController',
+    'AbortSignal','structuredClone','atob','btoa','fetch','Request','Response',
+    'Headers','Worker','WebSocket','EventSource','BroadcastChannel',
+    'MessageChannel','setTimeout','clearTimeout','setInterval','clearInterval',
+    'setImmediate','clearImmediate','queueMicrotask','postMessage',
+    'addEventListener','removeEventListener','dispatchEvent','alert',
+    'confirm','prompt'
+  ]);
+  /**
+   * @param {import('./ast').AstNode|null|undefined} pattern
+   * @param {string} name
+   * @returns {boolean}
+   */
+  function patternBinds(pattern,name){
+    if(!pattern)return false;
+    if(pattern.type==='Identifier')return pattern.name===name;
+    if(pattern.type==='RestElement')return patternBinds(pattern.argument,name);
+    if(pattern.type==='AssignmentPattern')return patternBinds(pattern.left,name);
+    if(pattern.type==='ArrayPattern')return pattern.elements.some(
+      (/** @type {import('./ast').AstNode|null} */ item)=>patternBinds(item,name));
+    if(pattern.type==='ObjectPattern')return pattern.properties.some(
+      (/** @type {import('./ast').AstNode} */ prop)=>
+        patternBinds(prop.type==='RestElement'?prop.argument:prop.value,name));
+    return false;
+  }
+  /**
+   * Test a declaration at its immediate statement scope. Export wrappers
+   * expose the same lexical declaration, whereas an exported *name* is not
+   * itself a reference to an undeclared client global.
+   * @param {import('./ast').AstNode} statement
+   * @param {string} name
+   * @returns {boolean}
+   */
+  function statementBinds(statement,name){
+    const decl=statement.type==='ExportNamedDeclaration'||
+      statement.type==='ExportDefaultDeclaration'?statement.declaration:statement;
+    if(!decl)return false;
+    if(decl.type==='VariableDeclaration')return decl.declarations.some(
+      (/** @type {import('./ast').AstNode} */ item)=>patternBinds(item.id,name));
+    if(['FunctionDeclaration','ClassDeclaration'].includes(decl.type)){
+      return decl.id?.type==='Identifier'&&decl.id.name===name;
+    }
+    if(decl.type==='ImportDeclaration')return decl.specifiers.some(
+      (/** @type {import('./ast').AstNode} */ item)=>
+        item.local?.type==='Identifier'&&item.local.name===name);
+    return false;
+  }
+  /**
+   * JavaScript var is function/program scoped even inside a conditional or
+   * loop. Traverse only the current execution scope, not nested functions.
+   * @param {import('./ast').AstNode} node
+   * @param {string} name
+   * @param {boolean} [top]
+   * @returns {boolean}
+   */
+  function hasHoistedVar(node,name,top=true){
+    if(!top&&['FunctionDeclaration','FunctionExpression',
+      'ArrowFunctionExpression','ClassDeclaration','ClassExpression']
+      .includes(node.type))return false;
+    if(node.type==='VariableDeclaration'&&node.kind==='var'&&
+       node.declarations.some(
+         (/** @type {import('./ast').AstNode} */ item)=>
+           patternBinds(item.id,name)))return true;
+    return Object.entries(node).some(([key,value])=>{
+      if(key==='parent'||key==='comments')return false;
+      if(Array.isArray(value))return value.some(item=>
+        item&&typeof item==='object'&&typeof item.type==='string'&&
+        hasHoistedVar(item,name,false));
+      return Boolean(value&&typeof value==='object'&&
+        typeof value.type==='string'&&hasHoistedVar(value,name,false));
+    });
+  }
+  /**
+   * @param {import('./ast').AstNode} scope
+   * @param {string} name
+   * @returns {boolean}
+   */
+  function scopedBinding(scope,name){
+    if(['FunctionDeclaration','FunctionExpression','ArrowFunctionExpression']
+        .includes(scope.type)){
+      return scope.id?.type==='Identifier'&&scope.id.name===name||
+        scope.params.some(
+          (/** @type {import('./ast').AstNode} */ p)=>patternBinds(p,name))||
+        hasHoistedVar(scope.body,name);
+    }
+    if(scope.type==='ClassDeclaration'||scope.type==='ClassExpression'){
+      return scope.id?.type==='Identifier'&&scope.id.name===name;
+    }
+    if(scope.type==='CatchClause')return patternBinds(scope.param,name);
+    if(['Program','BlockStatement','StaticBlock'].includes(scope.type)){
+      return scope.body.some(
+        (/** @type {import('./ast').AstNode} */ statement)=>
+          statementBinds(statement,name))||
+        scope.type==='Program'&&hasHoistedVar(scope,name);
+    }
+    if(scope.type==='ForStatement'){
+      return scope.init?.type==='VariableDeclaration'&&
+        scope.init.declarations.some(
+          (/** @type {import('./ast').AstNode} */ item)=>
+            patternBinds(item.id,name));
+    }
+    if(scope.type==='ForOfStatement'||scope.type==='ForInStatement'){
+      return scope.left?.type==='VariableDeclaration'&&
+        scope.left.declarations.some(
+          (/** @type {import('./ast').AstNode} */ item)=>
+            patternBinds(item.id,name));
+    }
+    if(scope.type==='SwitchStatement'){
+      return scope.cases.some(
+        (/** @type {import('./ast').AstNode} */ item)=>item.consequent.some(
+          (/** @type {import('./ast').AstNode} */ statement)=>
+            statementBinds(statement,name)));
+    }
+    return false;
+  }
+  /** @type {string|null} */
+  let missing=null;
+  walk(root,(node,parent,key,ancestors)=>{
+    if(missing!==null||node.type!=='Identifier'||isStaticKey(parent,key))return;
+    if(parent&&(
+      ['LabeledStatement','BreakStatement','ContinueStatement'].includes(parent.type)&&
+        key==='label'||
+      parent.type==='MetaProperty'||
+      parent.type==='ImportSpecifier'&&key==='imported'||
+      parent.type==='ExportSpecifier'&&key==='exported'))return;
+    const name=node.name;
+    if(moduleBindings.has(name)||rootFormals.has(name))return;
+    if(ancestors.some(scope=>scopedBinding(scope,name)))return;
+    if(recognizedGlobals.has(name))return;
+    missing=name;
+  });
+  return missing;
+}
+
+/**
  * Browser-relative network requests, workers and event channels depend on
  * host-owned state whose semantics are not preserved by moving code into a
  * Node server. Keep this syntactic admission conservative when local names
@@ -1495,6 +1650,11 @@ function collectPrivateStaticImportClosure(directPaths,sources) {
         }
       }
     });
+    const missingStatic=firstUnprovedUnqualifiedReference(ast,new Set(),new Set());
+    if(missingStatic!==null){
+      throw new TypeError('SCO private static dependency has unproved unqualified free reference: '+
+        filename+':'+missingStatic);
+    }
     const freeTypeof=firstUnprovedTypeofReference(ast,localBindings,
       provenModuleTypeofNames,new Set());
     if(freeTypeof!==null){
@@ -2276,6 +2436,13 @@ function partitionScoSelectedAsyncExports(file,options) {
         throw new TypeError('Private SCO export uses dynamic lexical execution: '+node.name);
       }
     });
+    const missingSelected=firstUnprovedUnqualifiedReference(body,
+      new Set([...serverConstants,...privateHelperNames,...selected]),
+      privateFormals.get(body)??new Set());
+    if(missingSelected!==null){
+      throw new TypeError('Private SCO export or helper uses unproved unqualified free reference: '+
+        missingSelected);
+    }
     const freeTypeof=firstUnprovedTypeofReference(body,allPrivateBindings,
       serverConstants,privateFormals.get(body)??new Set());
     if(freeTypeof!==null){
