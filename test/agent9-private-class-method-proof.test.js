@@ -4,6 +4,7 @@ const assert=require('node:assert/strict');
 const {test}=require('node:test');
 const vm=require('node:vm');
 const {obfuscateFiles}=require('../src');
+const {neutralizeHashedNames}=require('../sims/offline-normalize');
 
 /**
  * @param {string} source
@@ -41,6 +42,13 @@ for(const [name,source,expected] of /** @type {Array<[string,string,number]>} */
       assert.equal(emitted.metrics.objects,1);
       assert.equal(emitted.metrics.properties,1);
       assert.doesNotMatch(String(emitted.code),/privateField/u);
+      // The public-only static attacker needs no secret seed to relabel the
+      // compiler-owned hash. This is positive transform yield, not secrecy.
+      const recovered=neutralizeHashedNames([{
+        path:'private-class.cjs',sourceType:'commonjs',code:String(emitted.code)
+      }]);
+      assert.equal(recovered.properties,1);
+      assert.equal(execute(recovered.files[0].code),expected);
     });
   }
 }
