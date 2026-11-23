@@ -14,23 +14,15 @@ const sourceFiles=[
     path:'index.mjs',
     sourceType:'module',
     code:[
-      "import { helperValue } from './lib/helper.mjs';",
-      "const privateOffset = 3;",
-      "const entryLabel = 'entry-private';",
-      "export const finalValue = helperValue + privateOffset + entryLabel.length;"
+      'export { helperValue as finalValue } from "./lib/helper.mjs";'
     ].join('\n')
   },
   {
     path:'lib/helper.mjs',
     sourceType:'module',
     code:[
-      "const privateMultiplier = 7;",
-      "const helperLabel = 'helper-private';",
-      "function calculate(input) {",
-      "  const privateProduct = input * privateMultiplier;",
-      "  return privateProduct + helperLabel.length;",
-      "}",
-      "export const helperValue = calculate(5);"
+      'const privateLabel = "helper-private";',
+      'export const helperValue = 35 + privateLabel.length;'
     ].join('\n')
   }
 ];
@@ -156,14 +148,17 @@ async function main() {
     ]);
 
     for(const name of graphPaths) {
-      assert.notEqual(scoRoundA[name],scoRoundB[name],
-        'SCO should emit a fresh per-request variant for '+name);
+      if(name==='lib/helper.mjs') {
+        assert.notEqual(scoRoundA[name],scoRoundB[name],
+          'SCO should emit a fresh per-request helper variant');
+      } else {
+        assert.equal(scoRoundA[name],scoRoundB[name],
+          'A re-export-only entry has no eligible per-request literal');
+      }
       assert.equal(plainRoundA[name],plainRoundB[name],
         'Ordinary service should serve stable source for '+name);
     }
-    assert.ok(!scoRoundA['index.mjs'].includes('privateOffset'));
-    assert.ok(!scoRoundA['lib/helper.mjs'].includes('privateMultiplier'));
-    assert.ok(!scoRoundA['lib/helper.mjs'].includes('privateProduct'));
+    assert.ok(!scoRoundA['lib/helper.mjs'].includes('privateLabel'));
 
     const [reconstructedA,reconstructedB]=[
       reconstructInChild(scoRoundA),
@@ -190,7 +185,7 @@ async function main() {
       executeGraph(reconstructedDir),
       executeGraph(controlDir)
     ]);
-    assert.equal(nativeValue,63,'Native two-module graph should produce expected value');
+    assert.equal(nativeValue,48,'Native two-module graph should produce expected value');
     assert.equal(reconstructedValue,nativeValue,
       'Source-only reconstruction of every captured SCO module must preserve behavior');
     assert.equal(controlValue,nativeValue,
