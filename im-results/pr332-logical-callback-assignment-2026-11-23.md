@@ -204,3 +204,25 @@ The same two-case test file (ForIn object binding declaration and assignment pat
 - Focused [run 45140171695](https://github.com/FlareZ123/obfs/actions/runs/45140171695): both cases **failed on Ubuntu and Windows** with the same mismatches as the mainline and Agent11-candidate controls.
 
 This confirms that the frozen PR #332 draft does not repair the baseline ForIn host-prototype callback defect. The source-paired evidence now covers three exact revisions: current main, Agent11's catch/ForOf candidate, and Agent21's frozen PR head. The declaration and assignment pattern forms both fail on the candidate and PR; the declaration form also fails on current main. The PR remains draft and independently release-blocked by its already documented full-gate and 16/38 cross-module matrix failures. This ForIn witness adds to those existing blockers; it does not replace them.
+
+
+### Follow-on StringKey flow and precision control
+
+The ForIn test-only branch was extended to distinguish direct loop-head destructuring from a simple string-key binding that is destructured later:
+
+```js
+for (const key in ["x"]) {
+  const {callback:Loader}=key;
+  injected=Loader('return import("./state.mjs")');
+}
+```
+
+This is important because a fix that only taints direct `ForInStatement.left` patterns will still miss the later `VariableDeclarator` pattern. The loop's simple identifier receives a property-key string; when that value is later destructured, `String.prototype.callback` is consulted and the host getter can supply `Function`.
+
+The current candidate test file at `9e82e712ca2298285eb4d15ace896788a2cec859`, [run 45140889201](https://github.com/FlareZ123/obfs/actions/runs/45140889201), has **three distinct semantic failures and one passing positive control on both Ubuntu and Windows**:
+- direct object-pattern declaration: generated key `_pde6d7fbcf816`;
+- direct object-pattern assignment: generated key `_pf024082ab089`;
+- simple ForIn key followed by object-pattern destructuring: generated key `_p57008e9b9143`;
+- plain ForIn identifier with no destructuring: passes and preserves `crossFile.properties=1`.
+
+The native result in each negative case is `[53,["secretField"],53]`; generated results expose the renamed key and return `null` for the stale dynamic-import lookup. The positive control shows why the right abstraction is not “every ForIn identifier is callable”: retain a distinct **StringKey-origin** fact for simple loop variables, and convert it to unknown host-value taint only when consumed by object/array destructuring (including nested/default/rest targets). Propagate StringKey through ordinary aliases/assignments before such destructuring. Direct ForIn destructuring should taint its targets immediately. Never treat `node.right` as the bound value.
