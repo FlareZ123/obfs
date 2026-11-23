@@ -31,7 +31,8 @@ function program(size,position,bracket){
     'const alias='+access+';',
     'function identity(y){return y;}',
     'const reader=x=>x.hiddenCount;',
-    'module.exports=function score(n){return reader(identity(alias))*n+owner.secretDelta;}'
+    'function privateScore(n){return reader(identity(alias))*n+owner.secretDelta;}',
+    'module.exports=function score(n){return privateScore(n);}'
   ].join('\n');
 }
 
