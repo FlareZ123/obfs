@@ -120,6 +120,8 @@
     "sims/affine-flag-oracle-attacker.js",
     "sims/affine-flag-oracle-fixtures.js",
     "test/affine-flag-oracle-attack.test.js",
+    "sims/affine-flag-portfolio.js",
+    "test/affine-flag-portfolio.test.js",
     "sims/string-eligibility-matrix.js",
     "sims/typed-array-decoder-tradeoff.js",
     "test/inline-array-primitive-source.test.js",
