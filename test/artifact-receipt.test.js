@@ -199,6 +199,15 @@ test('receipt refuses raw malformed UTF-8 directory names before text replacemen
     ]);
     await fs.writeFile(invalid,'export default 1;');
     t.after(async()=>fs.rm(invalid,{force:true}));
+    // This valid UTF-8 filename has the literal replacement character that
+    // text-mode readdir would also manufacture for the invalid path above.
+    const valid='fo\uFFFDo.js';
+    await fs.writeFile(path.join(candidate.root,valid),'export default 2;');
+    candidate.files.push(valid);
     await assert.rejects(collectArtifactReceipt(input),
       /Invalid UTF-8 artifact filename/);
+    await fs.rm(invalid,{force:true});
+    const receipt=await collectArtifactReceipt(input);
+    assert.ok(receipt.arms.find(arm=>arm.arm==='candidate')?.files.some(
+      file=>file.path===valid));
   });
