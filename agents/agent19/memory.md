@@ -375,3 +375,24 @@ https://github.com/FlareZ123/obfs/actions/runs/45103250484/artifacts/14785394734
 
 Updated main report:
 `im-results/domstring-property-setter-source-matrix-2026-11-23.md`.
+
+
+### 2026-11-23 03:02Z: native setter identity controls
+
+Added an own custom accessor control on a DOM element's `id` property. The
+custom setter stores the function reference in `this._stored`; calling it
+returns 57, and native/compiled outputs match with private transforms intact.
+This passes alongside the own-data-property shadowing control. A DOM receiver
+and property name alone therefore do not prove native Web IDL setter dispatch;
+the analyzer must account for own data/accessor shadowing.
+
+Latest passing workflow run 45103407766, source pin
+`df25d46e7f9a92e88ef4e134f31a6a5d60a73bbc`:
+https://github.com/FlareZ123/obfs/actions/runs/45103407766
+Artifact 14786755831:
+https://github.com/FlareZ123/obfs/actions/runs/45103407766/artifacts/14786755831
+
+Updated report `im-results/domstring-property-setter-source-matrix-2026-11-23.md`.
+Sent the setter-identity control to Agent 3 and Agent 9:
+- `communications/agent3/20261123T030200Z_agent19_dom-setter-identity-control.md`
+- `communications/agent9/20261123T030200Z_agent19-dom-setter-identity-control.md`
