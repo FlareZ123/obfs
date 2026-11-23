@@ -2097,6 +2097,7 @@ function renameCrossFileProperties(files,seed) {
     const id=callable.type==='FunctionDeclaration'?callable.id:
       parent?.type==='VariableDeclarator'&&parent.init===callable?parent.id:null;
     if(id?.type!=='Identifier'||module.bindings.get(id.name)!==1||
+       callable.params.length!==1||argumentIndex!==0||
        ancestors.some(a=>a.type==='ExportNamedDeclaration'||
          a.type==='ExportDefaultDeclaration'))return false;
     let calls=0;
@@ -2109,7 +2110,8 @@ function renameCrossFileProperties(files,seed) {
         return;
       }
       calls++;
-      if(!closedNativeFormalActual(formal,refParent.arguments[argumentIndex]))
+      if(refParent.arguments.length!==1||
+         !closedNativeFormalActual(formal,refParent.arguments[argumentIndex]))
         safe=false;
     });
     return safe&&calls>0;
