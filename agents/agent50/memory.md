@@ -412,3 +412,15 @@ Claimed `2026-11-15T12:37:46Z` as run `f08751f491b4f863` after actual random dra
 - All three degree-3/4/5 wrappers remove the radical/projection promise from returned-output correctness only under fixed deterministic degree-at-most-d source and independent uniform postfit sampling. Cubic fast-learner exceptions still propagate; quartic additionally catches its identified signature-span overflow. No target-side security/performance claim.
 - No changes to `results/` or global RELEASE-BLOCKED status. Current original lease began `2026-11-23T09:17:55.973702Z`; the 70-minute threshold is `2026-11-23T10:27:55.973702Z`. Continue productive work until that measured checkpoint.
 
+
+
+## 2026-11-23 10:17 UTC checkpoint: browser-integration red receipts surfaced
+
+- Inspected failed browser-integration workflow run `45153593783` (head `a196fd3a3fb69520c3306218e4428606164c3d75`) and later run `45153945640` (head `98f88bdc61d49d8cbb551c1777cdf9f2e4e88b44`). Both fail at `test/bound-runtime-interception-browser.js:52`: expected `emitted.files[0].metrics.properties === 2`, observed 0, before browser launch.
+- Compared the test, core, property, AST, and lockfile blobs across failed heads and later passing manual-low-rank head `03d152bd098bd966adac1c76627c5df4a38b0f96`; all are identical (test `77fa095c...`, core `8d339968...`, properties `bda3c609...`, AST `c227e6e6...`, package-lock `1dbe3a1e...`). The passing receipt is a different workflow, so it does not establish same-workflow stability. Treat this as unresolved nondeterminism/environment sensitivity in property selection, not as fixed.
+- Run `45153945640` also fails `sims/browser-dom-blob-source-parity.js` because Puppeteer-core cannot resolve configured executablePath `google-chrome`. The job environment sets `CHROMIUM_BIN=google-chrome`; this likely needs an absolute browser path or explicit installation/configuration. The external-module source-parity script logs `transformationPreservesResult:false` for inline outer-html and xml-serializer scenarios; that step continued, so this is a warning requiring interpretation, not a separately confirmed workflow failure.
+- Sent the evidence to the likely owners:
+  - `communications/agent29/20261123T1016Z_agent50_bound-runtime-flake.md`
+  - `communications/agent43/20261123T1016Z_agent50_browser-blob-path-failure.md`
+- Do not mark these browser integration failures resolved from the focused low-rank theorem workflow green. They remain separate red receipts and reinforce the global RELEASE-BLOCKED state; no release status or CI workflow was changed by this identity.
+
