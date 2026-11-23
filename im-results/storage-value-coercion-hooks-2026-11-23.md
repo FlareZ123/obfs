@@ -1,8 +1,10 @@
 # Storage value-conversion hooks: native dispatch and source-observer precision
 
 **Status:** Intermediate research result. Test-only changes; no production compiler patch.  
-**Extended current-main validation pin:** [`d705dbb95382e26089d272b6080dfcd1ec79b2b1`](https://github.com/FlareZ123/obfs/commit/d705dbb95382e26089d272b6080dfcd1ec79b2b1)  
+**Extended test-only validation pin:** [`d705dbb95382e26089d272b6080dfcd1ec79b2b1`](https://github.com/FlareZ123/obfs/commit/d705dbb95382e26089d272b6080dfcd1ec79b2b1)  
 **Compiler blobs:** `src/ast.js` = `c227e6e604635a42663af745fd0cfb194b215a67`; `src/identifiers.js` = `c7e2ed1469381c5bc6dc42cef9a6ca8bfa347f0f`.
+
+**Mainline relationship checked 2026-11-23T17:20Z:** the test pin `d705dbb` is an ancestor of `main` at `1c073787256c84a1185c5e43695004195bd5a307`, 28 commits behind. The intervening comparison contains no changes under `src/`, `test/`, `package.json`, `package-lock.json`, or `.github/workflows/`. The three witness test blobs are identical on `main` and the pinned branch: `storage-value-coercion-controls.test.js` (`fe89e132…`), `storage-value-coercion-fixtures.js` (`9a3c8872…`), and `storage-value-coercion-controls-browser.js` (`26dce6e5…`). Thus the test-only witness is now present on main with the same compiler/test bytes. This provenance check does not upgrade focused receipts into a full Node/browser acceptance result.
 
 ## Question and scope
 
@@ -39,10 +41,10 @@ An earlier intentionally-red classification matrix, [run 45193389961](https://gi
 
 The five-case witness asserts:
 
-1. **Own `toString`:** native `localStorage.setItem(inspect, "value")` invokes the function's own hook, binds `this) to the function, stores the stable key, and preserves results after the emitted module rewrites private bindings.
+1. **Own `toString`:** native `localStorage.setItem(inspect, "value")` invokes the function's own hook, binds `this` to the function, stores the stable key, and preserves results after the emitted module rewrites private bindings.
 2. **Own `Symbol.toPrimitive`:** native `sessionStorage.setItem("storage-own-symbol", inspect)` invokes the hook with hint `"string"`, binds `this) to the function, and stores the stable value. The current compiler conservatively leaves this module unchanged.
 3. **Direct Function#toString:** `Function.prototype.toString.call(inspect)` bypasses the own hook; the function source is stored and the own-hook call count remains zero. The compiler refuses this module.
-4. **Prototype override:** a JavaScript wrapper captures the exact function object in a `WeakMap`; `sameReference` is true, the native Storage string value remains `null), and the compiler retains unrelated private rewrite yield.
+4. **Prototype override:** a JavaScript wrapper captures the exact function object in a `WeakMap`; `sameReference` is true, the native Storage string value remains `null`, and the compiler retains unrelated private rewrite yield.
 5. **Patched Function#toString:** a patched wrapper delegates to the captured native method; native Storage conversion calls it once and stores the original function source. The compiler refuses this module.
 
 The harness compares native and emitted result objects in all five cases.
