@@ -17,7 +17,8 @@ const source=[
   'const OBFS_PRIVATE_SBOX=[0,1,2,4,3,6,7,5];',
   'const x=input>>>0;',
   'return ((x&65528)|OBFS_PRIVATE_SBOX[x&7])>>>0;',
-  '}'
+  '}',
+  'export function publicIdentity(value){return value>>>0;}'
 ].join('\n');
 
 /** @param {import('node:http').Server} server @returns {Promise<string>} */
