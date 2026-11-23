@@ -10,7 +10,7 @@ const {transformSync}=require('esbuild');
 const execFileAsync=promisify(execFile);
 
 /** @typedef {import('../src/core').SourceFile} SourceFile */
-/** @typedef {{name:string,code:string,publicSource:boolean}} Fixture */
+/** @typedef {{name:string,code:string,publicSource:boolean,transform?:'properties'}} Fixture */
 
 /** @type {Fixture[]} */
 const fixtures=[
@@ -64,6 +64,23 @@ const fixtures=[
     publicSource:true
   },
   {
+    name:'domparser-owned-property',
+    code:"const owner={secretField:43};"+
+      "function observed(){return owner.secretField;}"+
+      "const doc=new DOMParser().parseFromString(observed,'text/html');"+
+      "globalThis.__obfsResult={coerced:doc.body.textContent,value:observed()};",
+    publicSource:true,transform:'properties'
+  },
+  {
+    name:'element-owned-property',
+    code:"const owner={secretField:47};"+
+      "function observed(){return owner.secretField;}"+
+      "const element=document.createElement('span');"+
+      "element.setAttribute('data-source',observed);"+
+      "globalThis.__obfsResult={coerced:element.getAttribute('data-source'),value:observed()};",
+    publicSource:true,transform:'properties'
+  },
+  {
     name:'nonescaping-control',
     code:"function observed(){return 'source-observed-literal';}"+
       "globalThis.__obfsResult={coerced:'inert',value:observed()};",
@@ -103,12 +120,12 @@ async function readBrowser(url) {
  * nonescaping private string. This is a diagnostic and deliberately does not
  * assert the candidate's suspected source mismatch before it is reproduced.
  *
- * @returns {Promise<{cases:number,valueMatches:number,minifiedValueMatches:number,sourceMismatches:number,minifiedSourceMismatches:number,publicStringRewrites:number,privateRewriteControls:number}>}
+ * @returns {Promise<{cases:number,valueMatches:number,minifiedValueMatches:number,sourceMismatches:number,minifiedSourceMismatches:number,publicStringRewrites:number,publicPropertyRewrites:number,privateRewriteControls:number}>}
  */
 async function main() {
   /** @type {Map<string,string>} */
   const resources=new Map();
-  /** @type {{mode:string,name:string,publicSource:boolean,original:string,emitted:string,minified:string,literals:number}[]} */
+  /** @type {{mode:string,name:string,publicSource:boolean,transform:string,original:string,emitted:string,minified:string,literals:number,properties:number}[]} */
   const pairs=[];
   for(const mode of /** @type {const} */ (['coo','sno','sco'])) {
     for(const fixture of fixtures) {
@@ -116,7 +133,9 @@ async function main() {
       const source=[{path:'entry.mjs',sourceType:'module',code:fixture.code}];
       const emitted=obfuscateFiles(source,{
         mode,seed:'domparser-webidl-'+mode+'-'+fixture.name,
-        strings:true,properties:false,identifiers:false
+        strings:fixture.transform!=='properties',
+        properties:fixture.transform==='properties',identifiers:false,
+        closedWorld:fixture.transform==='properties'
       });
       const prefix='/'+mode+'/'+fixture.name;
       const original=prefix+'/original/index.html';
@@ -132,7 +151,9 @@ async function main() {
       resources.set(minified,page());
       pairs.push({
         mode,name:fixture.name,publicSource:fixture.publicSource,
-        original,emitted:compiled,minified,literals:emitted.files[0].metrics.literals
+        transform:fixture.transform??'strings',original,emitted:compiled,minified,
+        literals:emitted.files[0].metrics.literals,
+        properties:emitted.files[0].metrics.properties
       });
     }
   }
@@ -155,6 +176,7 @@ async function main() {
   let minifiedSourceMismatches=0;
   let sourceMismatches=0;
   let publicStringRewrites=0;
+  let publicPropertyRewrites=0;
   let privateRewriteControls=0;
   try {
     const addr=server.address();
@@ -172,10 +194,12 @@ async function main() {
       if(pair.publicSource)minifiedSourceMismatches+=Number(original.coerced!==minified.coerced);
       if(pair.publicSource) {
         sourceMismatches+=Number(!sourceEqual);
-        publicStringRewrites+=Number(pair.literals>0);
+        if(pair.transform==='properties')publicPropertyRewrites+=Number(pair.properties>0);
+        else publicStringRewrites+=Number(pair.literals>0);
       }else if(pair.literals>0&&valueEqual&&sourceEqual)privateRewriteControls++;
       console.log('WEBIDL_FUNCTION_SOURCE '+JSON.stringify({
-        mode:pair.mode,case:pair.name,literals:pair.literals,
+        mode:pair.mode,case:pair.name,transform:pair.transform,
+        literals:pair.literals,properties:pair.properties,
         valueEqual,sourceEqual,minifiedValueEqual,
         minifiedSourceEqual:original.coerced===minified.coerced,
         originalSource:original.coerced,
@@ -190,11 +214,11 @@ async function main() {
   const summary={
     cases:pairs.length,valueMatches,minifiedValueMatches,
     sourceMismatches,minifiedSourceMismatches,
-    publicStringRewrites,privateRewriteControls
+    publicStringRewrites,publicPropertyRewrites,privateRewriteControls
   };
-  assert.equal(summary.cases,21);
-  assert.equal(summary.valueMatches,21);
-  assert.equal(summary.minifiedValueMatches,21);
+  assert.equal(summary.cases,27);
+  assert.equal(summary.valueMatches,27);
+  assert.equal(summary.minifiedValueMatches,27);
   console.log('WEBIDL_FUNCTION_SOURCE_SUMMARY '+JSON.stringify(summary));
   return summary;
 }
