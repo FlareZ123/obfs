@@ -79,6 +79,7 @@ test('real Chromium classic script host callback preserves source-visible owner'
   try {
     const address=server.address();
     if(!address||typeof address==='string')throw Error('Missing local Chrome test port');
+    const port=address.port;
     /**
      * @param {'native'|'emitted'} mode
      * @returns {Promise<Observation>}
@@ -88,7 +89,7 @@ test('real Chromium classic script host callback preserves source-visible owner'
         process.env.CHROMIUM_BIN??'google-chrome',[
           '--headless','--no-sandbox','--disable-gpu','--disable-dev-shm-usage',
           '--no-first-run','--virtual-time-budget=3000','--dump-dom',
-          'http://127.0.0.1:'+address.port+'/'+mode
+          'http://127.0.0.1:'+port+'/'+mode
         ],{timeout:45000,maxBuffer:8*1024*1024,encoding:'utf8'});
       const match=/<pre id="result">([^<]*)<\/pre>/u.exec(stdout);
       assert.ok(match,stderr+'\n'+stdout.slice(0,3000));
