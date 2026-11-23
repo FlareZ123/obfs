@@ -11,6 +11,12 @@ test('n chosen forward queries recover the exact hidden linear conjugator at wid
     assert.equal(result.matrixRecovered,true);
     assert.equal(result.targetsInverted,true);
   }
+  for(const width of [128,256])for(let seed=1;seed<=2;seed++){
+    const result=runExperiment(width,seed,10);
+    assert.equal(result.queries,width);
+    assert.equal(result.matrixRecovered,true);
+    assert.equal(result.targetsInverted,true);
+  }
 });
 
 test('the adaptive query chain exposes each inverse-matrix column directly',()=>{
