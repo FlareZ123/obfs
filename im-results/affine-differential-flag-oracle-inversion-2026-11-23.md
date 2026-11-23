@@ -128,3 +128,49 @@ npm run typecheck:external
 Source-only attack implementation: sims/affine-flag-portfolio.js. Source-private extra 32-bit Feistel fixture: sims/affine-flag-oracle-fixtures.js. Strict type inputs: jsconfig.external.json. The original exact learned-flag test and the earlier source-pinned report remain unmodified.
 
 The result combines two previous attack methods under a specified forward-oracle interface. It makes no claim of full offline function cloning, anti-tamper bypass, static source extraction, runtime overhead compliance, or a meaningful defender advantage over an equal-trust ordinary service. No obfuscated distribution was produced in this extension. It remains intermediate attack-method research, and the project's strong-protection release is **RELEASE-BLOCKED**.
+
+
+## Exhaustive exact-greedy flag census at four bits
+
+**Executable source:** 46f2d4810e4fe10ceee6339dac5149568d178efc, [fully green Ubuntu/Windows focused workflow 45089806133](https://github.com/FlareZ123/obfs/actions/runs/45089806133), including strict project and external JSDoc. This report appendix is a separate provenance unit following the source-pinned test. Its report-only commit changes no executable code.
+
+An independent exact-truth-table program, sims/compatible-derivative-greedy-exhaustive.js, enumerates all possible width-four bitwise compatible triangular permutations, not sampled instances of a pseudorandom mixer. There are precisely 2^(1+2+4+8) = **32,768** distinct four-bit sources, because output bit j can use an arbitrary Boolean gate on the j lower input bits, requiring 2^j gate truth bits. Each generated source's complete 16-element map is separately checked to be a bijection.
+
+For each source, the checker builds the full truth vector of every one of the 15 nonzero output scalar masks. It independently tests whether each scalar derivative D_h(w.F)(x) is **globally constant** for all 16 x and all 16 directions h, and records the exact derivative-one set. It begins with the entire input-direction vector space represented as a 16-bit membership set.
+
+Crucially the recursive checker uses a stronger success condition than finding one working flag: **every** globally valid scalar w with a nonzero derivative l on the current subspace U must lead to a kernel U'={h in U: l(h)=0} where the same property holds for **every** subsequent valid choice. Each recursion step verifies that U' has exactly half the elements of U. Visited subspaces are memoized, but the checker does not prune adverse choices or consult the separate sampled attacker implementation. Success requires that no permitted globally exact choice at any reachable stage becomes a dead end.
+
+**Observed full census result:**
+
+    EXACT_GREEDY_FLAG_CENSUS {
+      "triangularSources":32768,
+      "allChoicesComplete":32768,
+      "permutationFailures":0,
+      "negativeControls":64,
+      "negativeRefusals":64,
+      "triangularScalarFunctions":279,
+      "distinctScalarTruthFunctions":1192,
+      "rootCandidates":180224
+    }
+
+Every one of the 32,768 width-four compatible permutations permits completion from *every* globally exact legitimate greedy derivative choice at *every* stage. There were **180,224** eligible first-step scalar masks across the 32,768 sources, an average of 5.5 eligible first choices per source. The 279 distinct scalar truth vectors from the triangular family are the zero vector plus all functions whose highest nonzero coordinate appears with unit coefficient: 2 + 4 + 16 + 256 = 278. The total 1,192 truth vectors includes the unrelated permutation control population.
+
+For a nonvacuous negative, the checker also applies the same all-choices criterion to 64 deterministic shuffled full permutations of 16 inputs. All **64/64** are rejected. An arbitrary permutation is not required to admit an affine output derivative quotient; therefore this negative demonstrates the checker is not programmed to return success for every bijection.
+
+### Affine-wrapper invariance of the finite census
+
+The exact all-choices property is invariant under invertible affine input and output changes. For F'=Bout ◦ F ◦ Ain and any input difference h, the derivative transforms as D_h F'(x) = Lout (D_(Lin h) F(Ain x)), with affine offsets canceling. Input subspaces are mapped bijectively by Lin and nonzero output scalar masks by the invertible dual map Lout transpose. The property that a scalar derivative is globally constant, its nonzero linear form, the corresponding kernel, and all subsequent valid mask choices therefore correspond one-to-one across the conjugated source. Thus the **width-four exhaustive property also holds for every two-sided invertible affine wrapping of those same 32,768 triangular maps**, as a mathematical consequence of the enumerated property, without enumerating each affine wrapper separately.
+
+This invariance is about the **exact global derivative criterion**, not about which derivative masks will be selected under finite pseudorandom samples. Affine wrapping can change the query distribution and the probability that a sampled learner mistakes a nonconstant derivative for a constant one.
+
+### Reproduction, novelty and open problem
+
+~~~powershell
+node --test test/compatible-derivative-greedy-exhaustive.test.js
+npm run typecheck
+npm run typecheck:external
+~~~
+
+The new self-contained checker, independent single-file Node test and strict typed file entries are in sims/compatible-derivative-greedy-exhaustive.js, test/compatible-derivative-greedy-exhaustive.test.js and jsconfig.external.json. The mathematical tool is exact enumeration of scalar Boolean-function linear structures, a standard concept in cryptanalysis, for example [Musukwa et al., A Note on Vectorial Boolean Functions as Embeddings (2024)](https://boolean.w.uib.no/files/2024/09/4_musukwa.pdf). This report does not claim novelty for that terminology or known basic derivative-subspace facts.
+
+**Unresolved:** Whether every globally legitimate greedy derivative choice can be extended for every bit-width n and every compatible permutation remains an unproved conjecture. The complete width-four census is evidence, not a proof in arbitrary dimension. It also does not show a polynomial-query procedure that finds globally valid masks from public black-box observations. The already documented sparse 32-bit failure under 16 samples per stage remains a decisive counterexample to that extrapolation. No claim about strong client-only or server-only obfuscation resistance follows. The strong-protection project release remains **RELEASE-BLOCKED**.
