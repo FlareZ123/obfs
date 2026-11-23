@@ -104,7 +104,10 @@
               "name": "Complete job",
               "conclusion": "success"
             }
-          ]
+          ],
+          "run_id": 45136105520,
+          "head_sha": "72e1c170b28b165c150a12df1d12ee21cf4b891c",
+          "status": "completed"
         },
         {
           "name": "node22 (windows-latest)",
@@ -198,12 +201,18 @@
               "name": "Complete job",
               "conclusion": "success"
             }
-          ]
+          ],
+          "run_id": 45136105520,
+          "head_sha": "72e1c170b28b165c150a12df1d12ee21cf4b891c",
+          "status": "completed"
         },
         {
           "name": "focused",
           "conclusion": "skipped",
-          "steps": []
+          "steps": [],
+          "run_id": 45136105520,
+          "head_sha": "72e1c170b28b165c150a12df1d12ee21cf4b891c",
+          "status": "completed"
         }
       ]
     },
@@ -265,7 +274,10 @@
               "name": "Complete job",
               "conclusion": "success"
             }
-          ]
+          ],
+          "run_id": 45141870967,
+          "head_sha": "d1efacb1578b5443456a18b87839c2f3a024b24a",
+          "status": "completed"
         },
         {
           "name": "focused (windows-latest)",
@@ -315,12 +327,18 @@
               "name": "Complete job",
               "conclusion": "success"
             }
-          ]
+          ],
+          "run_id": 45141870967,
+          "head_sha": "d1efacb1578b5443456a18b87839c2f3a024b24a",
+          "status": "completed"
         },
         {
           "name": "node22",
           "conclusion": "skipped",
-          "steps": []
+          "steps": [],
+          "run_id": 45141870967,
+          "head_sha": "d1efacb1578b5443456a18b87839c2f3a024b24a",
+          "status": "completed"
         }
       ]
     }
