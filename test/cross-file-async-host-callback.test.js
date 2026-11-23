@@ -148,3 +148,78 @@ for(const [label,setup,extraSource] of /** @type {[string,string,string|null][]}
     assert.equal(generated.crossFile.properties,0,label);
   });
 }
+
+
+/**
+ * Higher-order callback references can be routed through differently shaped
+ * local objects, arrays, destructuring, and ESM namespace objects.
+ * These are concrete graph-complete sources, with an opaque host preloader
+ * deliberately outside the compiler's declared input.
+ */
+for(const [label,setup,extraModule] of /** @type {[string,string,string|null][]} */ ([
+  ['array-held named callback',[
+    'const getFactory=()=>globalThis.RUNTIME_FACTORY;',
+    'const holder=[getFactory];',
+    'const ctor=await Promise.resolve().then(holder[0]);'
+  ].join('\n'),null],
+  ['aliased object-held callback',[
+    'const getFactory=()=>globalThis.RUNTIME_FACTORY;',
+    'const holder={getFactory};const alias=holder;',
+    'const ctor=await Promise.resolve().then(alias.getFactory);'
+  ].join('\n'),null],
+  ['nested object-held callback',[
+    'const getFactory=()=>globalThis.RUNTIME_FACTORY;',
+    'const holder={inner:{getFactory}};',
+    'const ctor=await Promise.resolve().then(holder.inner.getFactory);'
+  ].join('\n'),null],
+  ['destructured object-held callback',[
+    'const getFactory=()=>globalThis.RUNTIME_FACTORY;',
+    'const holder={getFactory};',
+    'const {getFactory:cb}=holder;',
+    'const ctor=await Promise.resolve().then(cb);'
+  ].join('\n'),null],
+  ['namespace ESM callback',[
+    "import * as providers from './factory.mjs';",
+    'const ctor=await Promise.resolve().then(providers.getFactory);'
+  ].join('\n'),
+    'export function getFactory(){return globalThis.RUNTIME_FACTORY;}'],
+  ['computed holder key callback',[
+    'const getFactory=()=>globalThis.RUNTIME_FACTORY;',
+    'const holder={getFactory};',
+    "const ctor=await Promise.resolve().then(holder['getFactory']);"
+  ].join('\n'),null]
+])){
+  test('higher-order '+label+' preserves native observed owner',async()=>{
+    const files=graph([
+      setup,
+      'const remote=await ctor("return import(\'./state.mjs\')")();',
+      "const result=[inspectRecord('auditCount').value,Object.keys(remote.state),remote.state.secretField];"
+    ].join('\n'));
+    if(extraModule)files.push({path:'factory.mjs',sourceType:'module',code:extraModule});
+    const native=await execute(files,true);
+    assert.equal(native,'[41,[3,["secretField"],41]]\n');
+    const compiled=obfuscateFiles(files,{
+      mode:'coo',closedWorld:true,seed:'higher-order-callback/'+label,
+      identifiers:false,strings:false,properties:true
+    });
+    assert.equal(await execute(compiled.files,true),native,label);
+    assert.equal(compiled.crossFile.properties,0,label);
+  });
+}
+
+test('object-held primitive-only callback still permits private record rename',async()=>{
+  const files=graph([
+    'const getNumber=()=>7;',
+    'const holder={getNumber};',
+    'const value=await Promise.resolve().then(holder.getNumber);',
+    "const result=[inspectRecord('externalFormat').value,value];"
+  ].join('\n'));
+  const native=await execute(files);
+  const compiled=obfuscateFiles(files,{
+    mode:'coo',closedWorld:true,seed:'holder-safe-primitive',
+    identifiers:false,strings:false,properties:true
+  });
+  assert.equal(await execute(compiled.files),native);
+  assert.equal(compiled.crossFile.properties,1,
+    'Unrelated primitive callbacks should retain a protected own-field rewrite');
+});
