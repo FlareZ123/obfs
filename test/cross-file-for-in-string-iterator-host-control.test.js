@@ -69,6 +69,8 @@ for(const [label,loop] of [
     const native=await executeWithHostStringIterator(files);
     assert.equal(native,'[53,["secretField"],53]\n');
     const output=transform(files,'for-in-string-iterator-'+label);
+    assert.equal(output.crossFile.properties,1,
+      'The baseline must exercise exactly one unsafe cross-file property rewrite');
     const emitted=await executeWithHostStringIterator(output.files);
     assert.equal(emitted,native,
       'Generated ESM must preserve the host-injected dynamic-import behavior');
