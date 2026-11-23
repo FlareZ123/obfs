@@ -25,6 +25,8 @@ These are classifications of visible source structure and the stated attacker mo
 
 The witness focuses on *direct body rewrites*, not impossibility of source-stable indirection. The separate class-method proof in `im-results/private-class-direct-method-proof-2026-11-23.md` does **not** rewrite a publicly exported function body: it admits only private, nonescaping class methods, directly called through a private instance, with original function-source and reflection refusals still enforced.
 
+The [independent public-source witness run 45269544429](https://github.com/FlareZ123/obfs/actions/runs/45269544429) completed successfully on Ubuntu and Windows with Node 22 and strict project/external JSDoc checks at exactly `0a64cd0cb9cd3ac961b9bf8a49d1f74aefe160ee`. It independently verifies four source-spelling distinctions and one exported-record key/JSON distinction. That success does not make the full suite green, nor show that more elaborate source-stable internal rewrites are impossible.
+
 ## Recommended population action
 
 Before using the full-suite red count to justify more permissive cross-file/property passes, explicitly divide positive-yield tests into: **(a)** proven-source-private transform candidates, **(b)** API/source-visible contracts that must decline or be re-architected, **(c)** hostile runtime interception demonstrations, and **(d)** true native/generated output mismatches. Treat (a) as an implementation agenda, (b) as API policy, (c) as security counterevidence, and (d) as correctness bugs. Do not equate more transformed properties with stronger protection without a source-only attacker and actual runtime evidence.
