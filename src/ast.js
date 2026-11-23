@@ -211,14 +211,15 @@ function collectDirectCarrierFactories(ast) {
  * @param {Set<string>} [importedFunctionArrays] Function-bearing named ESM arrays.
  * @param {Set<string>} [importedPrimitives] Proven immutable ESM primitive imports.
  * @param {Set<string>} [importedUrlStaticMethods] Proven native URL parser ESM imports.
+ * @param {Set<string>} [knownObjectBindings] Imports proven to be inert object records by a closed module graph.
  * @returns {boolean}
  */
-function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunctions=new Set(),importedFunctionArrays=new Set(),importedPrimitives=new Set(),importedUrlStaticMethods=new Set()) {
+function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunctions=new Set(),importedFunctionArrays=new Set(),importedPrimitives=new Set(),importedUrlStaticMethods=new Set(),knownObjectBindings=new Set()) {
   // A cached opaque-import result does not apply when imported keys have
   // been independently verified against the supplied ESM files.
   if(!importedStrings.size&&!importedCloneFunctions.size&&
      !importedFunctionArrays.size&&!importedPrimitives.size&&
-     !importedUrlStaticMethods.size) {
+     !importedUrlStaticMethods.size&&!knownObjectBindings.size) {
     const cached=sourceObservationCache.get(ast);
     if(cached!==undefined)return cached;
   }
@@ -1207,7 +1208,10 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
             for(const key of map.get(name)??[])addWebObjectKey(map,value.name,key);
           }
         }
-        if(isOpaqueNamespace(value)) {
+        // A caller may discharge the usual opaque-require result only after
+        // proving the exact CommonJS producer is an inert object literal and
+        // every static importer is inside the closed file group.
+        if(isOpaqueNamespace(value)&&!knownObjectBindings.has(name)) {
           changed=add(opaqueNamespaces,name)||changed;
           changed=add(opaqueFunctions,name)||changed;
         }
