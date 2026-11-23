@@ -6,7 +6,7 @@
 
 The current-main-pinned source-observer scanner does not classify `Storage.setItem` as a function-source observer. The HTML Standard declares the `Storage.setItem(DOMString key, DOMString value)` signature. A function passed as the value undergoes Web IDL `DOMString` conversion. The resulting native function source is stored and can be read back using `getItem`. This is confirmed for `localStorage` and `sessionStorage`.
 
-A second route is the Storage named-property setter: `localStorage[key] = inspect`. The first `setItem` argument is also a `DOMString`: passing `inspect` as the key stores its source as a key, which is returned by `Storage.key(index)`. Both forms read back the same native/emitted source string.
+A second route is the Storage named-property setter: `localStorage[key] = inspect`. The first `setItem` argument is also a `DOMString`: passing `inspect` as the key stores its source as a key, which is returned by `Storage.key(index)`. The browser fixture verifies the value, key, session-storage, and named-property paths.
 
 Normative source: [WHATWG HTML Standard, Web Storage, Storage interface](https://html.spec.whatwg.org/multipage/webstorage.html#the-storage-interface).
 
@@ -61,11 +61,11 @@ The browser page reads the stored values back through both Storage areas, the na
     "literals": 0,
     "objects": 0,
     "properties": 0,
-    "bindings": 2
+    "bindings": 4
   },
   "sourceMismatch": true,
   "nativeSource": "function inspect(){const privateLocal=29;return privateLocal;}",
-  "emittedSource": "function inspect(){const _v45acf5f7243d=29;return _v45acf5f7243d;}",
+  "emittedSource": "function inspect(){const _v165c108fd51b=29;return _v45acf5f7243d;}",
   "nativeNamed": "function inspect(){const privateLocal=29;return privateLocal;}",
   "emittedNamed": "function inspect(){const _v45acf5f7243d=29;return _v45acf5f7243d;}",
   "valuesPreserved": true
@@ -78,7 +78,7 @@ The overall manual Web IDL workflow subsequently failed its existing Node matrix
 - `bound Blob constructor with primitive input retains private property rename`;
 - `primitive Blob options preserve genuinely renamed private fields`.
 
-The Storage browser step itself passed. Do not attribute those two Blob failures to this fixture.
+The Storage browser step itself passed. The expanded Storage/Window.name Node subtests also passed on both OSes within this run. Do not attribute those two Blob failures to this fixture.
 
 ## Cross-file control and limits
 
