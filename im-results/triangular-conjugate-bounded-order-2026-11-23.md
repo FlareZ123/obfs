@@ -39,7 +39,7 @@ The standalone executable [`sims/triangular-conjugate-order.js`](../sims/triangu
 
 Order histogram, independent of `k`: order 1: **1**, order 2: **2,063**, order 4: **16,112**, order 8: **12,544**, order 16: **2,048**. Hence **30,720/32,768 = 93.75%** of the complete *width-four* source population have order at most eight and can be inverted using at most seven fixed forward iterations. This proportion is **not** an estimate for random width-32 constructions. A separate local Node 22 execution of the exact checker yielded all displayed counts before repository publication.
 
-The source and test are included in strict external JSDoc type checking. The targeted Ubuntu/Windows GitHub Actions run should be pinned here once it completes; do not claim cross-platform validation until both jobs finish.
+The source and test are included in strict external JSDoc type checking. **Source-pinned validation:** [focused Ubuntu/Windows Node 22 run 45107523497](https://github.com/FlareZ123/obfs/actions/runs/45107523497), exact source `3e369b42b3b14f8061dcab6dbe352855cda08301`. Both OS jobs passed the focused exhaustive test and strict project/external JSDoc. The generated source and strict config were independently fetched from that exact SHA after completion.
 
 ## Scope, implications, and limits
 
