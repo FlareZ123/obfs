@@ -265,7 +265,8 @@
     "test/cssom-source-esbuild-baseline.test.js",
     "sims/webidl-coercion-capability-matrix.js",
     "test/cssom-source-owner-closure.test.js",
-    "test/cssom-interfile-source.test.js"
+    "test/cssom-interfile-source.test.js",
+    "test/cssom-interfile-source-browser.js"
   ],
   "exclude": [
     "node_modules"
