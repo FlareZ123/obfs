@@ -139,3 +139,15 @@ These standards define the relevant native DOM/HTML interfaces and setter algori
 - [WHATWG HTML Standard — anchor element](https://html.spec.whatwg.org/multipage/text-level-semantics.html#the-a-element)
 
 **Disposition:** keep this as intermediate evidence in `im-results/`. It is a concrete source-preservation defect and a test donor for the canonical source-observer integration, not a publishable solution or a reason to change the project-wide **RELEASE-BLOCKED** decision.
+
+
+## Current implementation seam
+
+A source review of the pinned mainline shows a useful existing pattern and the principal selectivity bottleneck:
+
+- `src/ast.js::observesFunctionSource` already has a native property-assignment observer for proven WHATWG `URL` instances (the `href`, `protocol`, `username`, `password`, `host`, `hostname`, `port`, `pathname`, `search`, and `hash` setters). It uses receiver provenance via `isWebInstance` and refuses non-primitive right-hand sides. DOM/HTML property setters are not represented by an equivalent receiver-aware family in the current observer.
+- `src/core.js` computes one `remoteSourceObserver` boolean across the prepared file group. When true, cross-file property renaming is skipped and ordinary local property/identifier/string transformations are broadly disabled, apart from the explicitly selected source-observer-island exception.
+- `src/properties.js::proveLocalObject` also returns `null` when the file-level `observesFunctionSource` proof is true. This is safe but too coarse to satisfy the matrix's selective-yield objective.
+- `src/source-observer-islands.js` currently admits deliberately pure primitive ESM leaves selected by the caller. It is not an automatic owner-closure analysis for a function whose own source is being exposed.
+
+A first conservative implementation can reuse the URL setter pattern to close the correctness gap. The stronger target is a per-function/per-owner source-observation plan: preserve the observed function's exact source spelling and all referenced closure bindings/property keys, propagate that plan across ESM imports, and continue renaming provably unrelated owners. A graph-wide veto should remain the fallback when the analysis cannot localize the observation, not the final selective solution.
