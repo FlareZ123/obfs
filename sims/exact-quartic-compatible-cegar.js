@@ -178,8 +178,9 @@ function makeBoundedDegreeDefectContractor(model){
  * a basis of each current input subspace.
  *
  * @param {PolynomialModel} model
- * @returns {{invert:(target:number)=>number,clone:(input:number)=>number,
- *  contractions:number,coefficientSlots:number,splitTermCount:number}}
+ * @returns {{invert:(target:number)=>number,invertFast:(target:number)=>number,
+ *   clone:(input:number)=>number,contractions:number,
+ *   derivativeContractions:number,coefficientSlots:number,splitTermCount:number}}
  */
 function prepareExactBoundedDegreeInverter(model){
   const prepared=makeBoundedDegreeDefectContractor(model);
@@ -227,7 +228,46 @@ function prepareExactBoundedDegreeInverter(model){
     if(clone(candidate)!==(target>>>0))throw new Error('exact bounded-degree inverse equality failed');
     return candidate>>>0;
   }
-  return {invert,clone,contractions,
+  // Compile a target-independent exact local forward difference for
+  // every selected toggle. It allows incremental inversion in place of
+  // recomputing the full degree-four ANF model at every stage.
+  /** @type {Array<{toggle:number,zeroDelta:number,terms:Array<[number,number]>}>} */
+  const derivativeUpdates=[];
+  for(const toggle of inputToggles){
+    /** @type {Array<[number,number]>} */
+    const terms=[];
+    prepared.contract(toggle,(value,xMask)=>terms.push([xMask,value]));
+    derivativeUpdates.push({toggle,zeroDelta:(clone(toggle)^base)>>>0,terms});
+  }
+  /**
+   * Maintain the *actual model output* F(candidate). For an input toggle u,
+   * F(x xor u) = F(x) xor Z(x,u) xor F(u) xor F(0).
+   * All Z coefficient terms are precomputed at setup, so only monomial
+   * membership tests and XORs are needed after the output decision.
+   * @param {number} target
+   * @returns {number}
+   */
+  function invertFast(target){
+    let candidate=0;
+    let currentOutput=base;
+    for(let level=0;level<WIDTH;level++){
+      if(!parity32(outputMasks[level]&((target^currentOutput)>>>0)))continue;
+      const update=derivativeUpdates[level];
+      let delta=update.zeroDelta;
+      for(const [mask,value] of update.terms){
+        if(((candidate&mask)>>>0)===mask)delta=(delta^value)>>>0;
+      }
+      candidate=(candidate^update.toggle)>>>0;
+      currentOutput=(currentOutput^delta)>>>0;
+    }
+    // Check both the maintained invariant and an independent local model
+    // evaluation. Neither check makes a false source-degree promise true.
+    if(currentOutput!==(target>>>0)||clone(candidate)!==(target>>>0))
+      throw new Error('exact incremental inverse equality failed');
+    return candidate>>>0;
+  }
+  return {invert,invertFast,clone,contractions,
+    derivativeContractions:derivativeUpdates.length,
     coefficientSlots:prepared.coefficientSlots,splitTermCount:prepared.splitTermCount};
 }
 
