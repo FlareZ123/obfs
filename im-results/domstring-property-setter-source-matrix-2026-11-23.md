@@ -1,16 +1,16 @@
-# Native DOMString property-setter source-observation matrix
+# Native DOM property and HTML parser source-observation matrix
 
 **Status:** confirmed expected-red semantic mismatch in the mainline compiler; no protection patch is included here.
 
 **Research owner:** Agent 19  
 **Date:** 2026-11-23  
 **Reproduction branch:** `agent19/domstring-property-setter-matrix-20261123`  
-**Final source pin:** `7af69a09ac9b1d193e67e469129d4ce272ca6b00`  
-**Validation:** [GitHub Actions run 45103672785](https://github.com/FlareZ123/obfs/actions/runs/45103672785)
+**Final source pin:** `5f3699a02bac20de2798bba8334e794110be26ec`  
+**Validation:** [GitHub Actions run 45104124757](https://github.com/FlareZ123/obfs/actions/runs/45104124757)
 
 ## Finding
 
-The source-observation surface is not limited to native method calls whose Web IDL arguments undergo string conversion. Assigning a function object to a native DOM property can implicitly convert the function to text, and a subsequent property read can expose the exact original `Function#toString` spelling.
+The source-observation surface includes both native writable property setters and HTML parser method arguments whose Web IDL conversions expose function source. Assigning a function object to a native DOM property can implicitly convert the function to text, and a subsequent property read can expose the exact original `Function#toString` spelling.
 
 The current compiler's COO output changed that observable source in **26 of 26 tested native property-setter cases**. The test functions returned the same numeric values before and after compilation, so ordinary return-value tests alone would not detect the mismatch.
 
@@ -79,6 +79,8 @@ The final source-pinned workflow completed successfully. Its Ubuntu job ran the 
 | Own data-property shadowing control | **PASS** |
 | Own custom-accessor shadowing control | **PASS** |
 | Proxy storage-trap control | **PASS** |
+| `Element.insertAdjacentHTML` method source mismatch | **1 / 1** |
+| `insertAdjacentHTML` primitive-only positive parity | **PASS** |
 | Cross-file primitive-only positive | **PASS** |
 | Existing focused Web IDL Node suite | **237 / 237** |
 | Main project JSDoc and dedicated matrix JSDoc | **PASS** |
@@ -138,7 +140,7 @@ A complementary proxy-storage trap that intercepts the assignment and stores the
 The own-data-property shadowing control passed: `Object.defineProperty(target, "id", { value: inspect, ... })` stored the function reference and the compiled program still invoked it correctly. This separates actual native setter dispatch from a reflective operation that merely creates an own data property.
 
 The final workflow uploaded the raw JSON summary as artifact
-[domstring-property-setter-matrix](https://github.com/FlareZ123/obfs/actions/runs/45103672785/artifacts/14786336857).
+[domstring-property-setter-matrix](https://github.com/FlareZ123/obfs/actions/runs/45104124757/artifacts/14786259045).
 
 
 ### Setter-identity negative control
@@ -190,10 +192,35 @@ These standards define the relevant native DOM/HTML interfaces and setter algori
 - [WHATWG HTML Standard — input element](https://html.spec.whatwg.org/multipage/input.html)
 - [WHATWG HTML Standard — form elements](https://html.spec.whatwg.org/multipage/form-elements.html)
 - [WHATWG HTML Standard — anchor element](https://html.spec.whatwg.org/multipage/text-level-semantics.html#the-a-element)
-- [WHATWG HTML Standard — dynamic markup insertion (`innerHTML`/`outerHTML` TrustedHTML-or-DOMString setters)](https://html.spec.whatwg.org/multipage/dynamic-markup-insertion.html)
+- [WHATWG HTML Standard — dynamic markup insertion (`innerHTML`/`outerHTML` TrustedHTML-or-DOMString setters and `insertAdjacentHTML` method argument)](https://html.spec.whatwg.org/multipage/dynamic-markup-insertion.html)
 
 **Disposition:** keep this as intermediate evidence in `im-results/`. It is a concrete source-preservation defect and a test donor for the canonical source-observer integration, not a publishable solution or a reason to change the project-wide **RELEASE-BLOCKED** decision.
 
+
+
+## Related HTML parser method sink: insertAdjacentHTML
+
+The same harness tests one separate method-call sink. It invokes:
+
+```js
+target.insertAdjacentHTML("beforeend", inspect);
+```
+
+and reads the inserted text back through `target.innerHTML`. In Chromium, the native source was:
+
+```js
+function inspect(){return observedOwner.secretField;}
+```
+
+The compiled source was:
+
+```js
+function inspect(){return observedOwner._pb3295925cc;}
+```
+
+The function's numeric result remained 57 and the independent value remained 73. The literal-string positive passed; the negative reported two property transformations and the positive one. The source observer's current `src/ast.js` contains no `insertAdjacentHTML` sink rule.
+
+The HTML Standard declares `insertAdjacentHTML(DOMString position, (TrustedHTML or DOMString) string)`. This test exercises the second argument with Trusted Types enforcement absent, so the DOMString conversion path is active. The method is not part of the 26 property-setter count; it is an additional method-call sink that should be covered by the call-argument source-observation analysis.
 
 ## Current implementation seam
 
