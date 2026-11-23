@@ -73,7 +73,7 @@ test('documented 23 November full run is red even when Chromium and typechecks p
     job.steps[0].conclusion = 'failure';
   }
   for (const job of jobs.slice(0, 2)) {
-    assert.equal(job.steps.find((s) => s.name === 'JSDoc type safety').conclusion, 'success');
+    assert.equal(job.steps.find((s) => s.name === 'JSDoc type safety')?.conclusion, 'success');
   }
   const receipt = classifyValidationRun(makeRun(fullSha, 'failure', 45136105520), jobs, fullSha);
   assert.equal(receipt.classification, 'full-red');
