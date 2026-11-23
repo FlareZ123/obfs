@@ -628,3 +628,25 @@ Updated main report, README, and design proposal. The method matrix now
 contains 23 modern parser/stream APIs, 2 classic parser APIs, and 3 stream
 dispatch variants, in addition to insertAdjacentHTML and the 26 property
 setter cases.
+
+
+### 2026-11-23 03:42Z: Trusted Types experiment reverted; final matrix rerun
+
+Attempted to test CSP `require-trusted-types-for 'script'` with and without
+a default policy by running native/compiled code in `iframe.srcdoc`. The
+child module did not reliably execute/postMessage (the parent result remained
+pending), even after fixing nested `</script>` escaping and trying a CSP nonce.
+No Trusted Types conclusion is valid. Reverted the experimental changes to
+the last validated matrix (DOMParser/Range included).
+
+Final clean run 45107404758 passed Windows and Ubuntu, including Chromium,
+artifact upload, and strict JSDoc:
+https://github.com/FlareZ123/obfs/actions/runs/45107404758
+Branch head `f3d19ad0b1e5ef991adda5062f9722710018ee6a`.
+Artifact 14787743674:
+https://github.com/FlareZ123/obfs/actions/runs/45107404758/artifacts/14787743674
+
+Report/README/design note now point to this passing run and explicitly mark
+Trusted Types enforcement as unvalidated. A better future harness should use
+a dedicated HTTP route with a real CSP response header and an external
+same-origin module rather than `srcdoc` inline module execution.
