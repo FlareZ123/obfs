@@ -13,7 +13,7 @@ function sample(code) {
   const context={module:{exports:null}};
   vm.runInNewContext(code,context,{timeout:1000});
   const calc=/** @type {()=>number} */ (context.module.exports);
-  return [calc(2),calc(4),calc(-3),calc(100)];
+  return [calc(),calc(),calc(),calc()];
 }
 
 test('seedless public-output attacker removes every Symbol key in generated example',async()=>{
@@ -71,7 +71,7 @@ test('host can silently collide generated keys without editing protected source'
   vm.runInNewContext(emitted,context,{timeout:1000});
   const altered=/** @type {()=>number} */ (context.module.exports);
   const baseline=sample(original);
-  const tampered=[altered(2),altered(4),altered(-3),altered(100)];
+  const tampered=[altered(),altered(),altered(),altered()];
   assert.notDeepEqual(tampered,baseline);
   assert.equal(Object.isFrozen(context),false);
 });
