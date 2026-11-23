@@ -1,0 +1,328 @@
+{
+  "capturedAt": "2026-11-23T09:09:24.079Z",
+  "source": "GitHub Actions run/job metadata",
+  "records": {
+    "fullRed": {
+      "url": "https://github.com/FlareZ123/obfs/actions/runs/45136105520",
+      "run": {
+        "head_sha": "72e1c170b28b165c150a12df1d12ee21cf4b891c",
+        "head_branch": "main",
+        "status": "completed",
+        "conclusion": "failure",
+        "id": 45136105520
+      },
+      "jobs": [
+        {
+          "name": "node22 (ubuntu-latest)",
+          "conclusion": "failure",
+          "steps": [
+            {
+              "name": "Set up job",
+              "conclusion": "success"
+            },
+            {
+              "name": "Run actions/checkout@v4",
+              "conclusion": "success"
+            },
+            {
+              "name": "Run actions/setup-node@v4",
+              "conclusion": "success"
+            },
+            {
+              "name": "Install declared dependencies",
+              "conclusion": "success"
+            },
+            {
+              "name": "Behavioral and adversarial suites with compact failure diagnostics",
+              "conclusion": "failure"
+            },
+            {
+              "name": "Isolated exhaustive width-four low-rank oracle inversion",
+              "conclusion": "skipped"
+            },
+            {
+              "name": "Source-paired direct-alias compiler A/B with byte-identical output requirement",
+              "conclusion": "skipped"
+            },
+            {
+              "name": "Vary original private arithmetic source and obfuscator seed with post-answer audit",
+              "conclusion": "skipped"
+            },
+            {
+              "name": "Persist complete blind post-answer transcripts",
+              "conclusion": "skipped"
+            },
+            {
+              "name": "JSDoc type safety",
+              "conclusion": "success"
+            },
+            {
+              "name": "Strict JSDoc for external corpus research tools",
+              "conclusion": "success"
+            },
+            {
+              "name": "Strict JSDoc for low-rank affine inversion tests",
+              "conclusion": "success"
+            },
+            {
+              "name": "Strict JSDoc for paired and complete-suite runtime budget evaluators",
+              "conclusion": "success"
+            },
+            {
+              "name": "Performance sample",
+              "conclusion": "success"
+            },
+            {
+              "name": "Paired own-key and null-prototype six-module startup-and-session profiles",
+              "conclusion": "success"
+            },
+            {
+              "name": "Native/emitted local formal-value whole-process budget and public clone",
+              "conclusion": "success"
+            },
+            {
+              "name": "Real Chromium module and host-lock integration",
+              "conclusion": "success"
+            },
+            {
+              "name": "Real Chromium null-prototype protected-key and host-inheritance parity",
+              "conclusion": "success"
+            },
+            {
+              "name": "Real Chromium cross-module owner-field observation differential",
+              "conclusion": "success"
+            },
+            {
+              "name": "Post Run actions/setup-node@v4",
+              "conclusion": "skipped"
+            },
+            {
+              "name": "Post Run actions/checkout@v4",
+              "conclusion": "success"
+            },
+            {
+              "name": "Complete job",
+              "conclusion": "success"
+            }
+          ]
+        },
+        {
+          "name": "node22 (windows-latest)",
+          "conclusion": "failure",
+          "steps": [
+            {
+              "name": "Set up job",
+              "conclusion": "success"
+            },
+            {
+              "name": "Run actions/checkout@v4",
+              "conclusion": "success"
+            },
+            {
+              "name": "Run actions/setup-node@v4",
+              "conclusion": "success"
+            },
+            {
+              "name": "Install declared dependencies",
+              "conclusion": "success"
+            },
+            {
+              "name": "Behavioral and adversarial suites with compact failure diagnostics",
+              "conclusion": "failure"
+            },
+            {
+              "name": "Isolated exhaustive width-four low-rank oracle inversion",
+              "conclusion": "skipped"
+            },
+            {
+              "name": "Source-paired direct-alias compiler A/B with byte-identical output requirement",
+              "conclusion": "skipped"
+            },
+            {
+              "name": "Vary original private arithmetic source and obfuscator seed with post-answer audit",
+              "conclusion": "skipped"
+            },
+            {
+              "name": "Persist complete blind post-answer transcripts",
+              "conclusion": "skipped"
+            },
+            {
+              "name": "JSDoc type safety",
+              "conclusion": "success"
+            },
+            {
+              "name": "Strict JSDoc for external corpus research tools",
+              "conclusion": "success"
+            },
+            {
+              "name": "Strict JSDoc for low-rank affine inversion tests",
+              "conclusion": "success"
+            },
+            {
+              "name": "Strict JSDoc for paired and complete-suite runtime budget evaluators",
+              "conclusion": "success"
+            },
+            {
+              "name": "Performance sample",
+              "conclusion": "success"
+            },
+            {
+              "name": "Paired own-key and null-prototype six-module startup-and-session profiles",
+              "conclusion": "success"
+            },
+            {
+              "name": "Native/emitted local formal-value whole-process budget and public clone",
+              "conclusion": "success"
+            },
+            {
+              "name": "Real Chromium module and host-lock integration",
+              "conclusion": "skipped"
+            },
+            {
+              "name": "Real Chromium null-prototype protected-key and host-inheritance parity",
+              "conclusion": "skipped"
+            },
+            {
+              "name": "Real Chromium cross-module owner-field observation differential",
+              "conclusion": "skipped"
+            },
+            {
+              "name": "Post Run actions/setup-node@v4",
+              "conclusion": "skipped"
+            },
+            {
+              "name": "Post Run actions/checkout@v4",
+              "conclusion": "success"
+            },
+            {
+              "name": "Complete job",
+              "conclusion": "success"
+            }
+          ]
+        },
+        {
+          "name": "focused",
+          "conclusion": "skipped",
+          "steps": []
+        }
+      ]
+    },
+    "focusedGreen": {
+      "url": "https://github.com/FlareZ123/obfs/actions/runs/45141870967",
+      "run": {
+        "head_sha": "d1efacb1578b5443456a18b87839c2f3a024b24a",
+        "head_branch": "main",
+        "status": "completed",
+        "conclusion": "success",
+        "id": 45141870967
+      },
+      "jobs": [
+        {
+          "name": "focused (ubuntu-latest)",
+          "conclusion": "success",
+          "steps": [
+            {
+              "name": "Set up job",
+              "conclusion": "success"
+            },
+            {
+              "name": "Run actions/checkout@v4",
+              "conclusion": "success"
+            },
+            {
+              "name": "Run actions/setup-node@v4",
+              "conclusion": "success"
+            },
+            {
+              "name": "Install declared dependencies",
+              "conclusion": "success"
+            },
+            {
+              "name": "Execute one reviewed repository test without shell interpolation",
+              "conclusion": "success"
+            },
+            {
+              "name": "Strict project JSDoc",
+              "conclusion": "success"
+            },
+            {
+              "name": "Strict external JSDoc for focused runner",
+              "conclusion": "success"
+            },
+            {
+              "name": "Strict JSDoc for paired and complete-suite runtime budget evaluators",
+              "conclusion": "success"
+            },
+            {
+              "name": "Post Run actions/setup-node@v4",
+              "conclusion": "success"
+            },
+            {
+              "name": "Post Run actions/checkout@v4",
+              "conclusion": "success"
+            },
+            {
+              "name": "Complete job",
+              "conclusion": "success"
+            }
+          ]
+        },
+        {
+          "name": "focused (windows-latest)",
+          "conclusion": "success",
+          "steps": [
+            {
+              "name": "Set up job",
+              "conclusion": "success"
+            },
+            {
+              "name": "Run actions/checkout@v4",
+              "conclusion": "success"
+            },
+            {
+              "name": "Run actions/setup-node@v4",
+              "conclusion": "success"
+            },
+            {
+              "name": "Install declared dependencies",
+              "conclusion": "success"
+            },
+            {
+              "name": "Execute one reviewed repository test without shell interpolation",
+              "conclusion": "success"
+            },
+            {
+              "name": "Strict project JSDoc",
+              "conclusion": "success"
+            },
+            {
+              "name": "Strict external JSDoc for focused runner",
+              "conclusion": "success"
+            },
+            {
+              "name": "Strict JSDoc for paired and complete-suite runtime budget evaluators",
+              "conclusion": "success"
+            },
+            {
+              "name": "Post Run actions/setup-node@v4",
+              "conclusion": "success"
+            },
+            {
+              "name": "Post Run actions/checkout@v4",
+              "conclusion": "success"
+            },
+            {
+              "name": "Complete job",
+              "conclusion": "success"
+            }
+          ]
+        },
+        {
+          "name": "node22",
+          "conclusion": "skipped",
+          "steps": []
+        }
+      ]
+    }
+  }
+}
