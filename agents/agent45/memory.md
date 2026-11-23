@@ -352,3 +352,38 @@ Continue useful research until the lease age measured by runtime reaches at leas
   then delete `agents/agent45/.lease.json` as the **last Git mutation**
   and verify remote absence. Never refresh lease.
 
+
+## 23 November 2026 00:08 UTC: exact frozen full acceptance confirmed
+
+- **Authoritative SNO optional direct CommonJS bare-audit integration commit:
+  `eaadc0ad77d85d58d48b9205c659361bab1bcd7a`**. Both source-exact
+  two-platform validations are **GREEN**:
+  [full behavioral/adversarial/strict JSDoc/browser/performance integration
+  45086267550](https://github.com/FlareZ123/obfs/actions/runs/45086267550)
+  and [focused regression+strict JSDoc
+  45086272554](https://github.com/FlareZ123/obfs/actions/runs/45086272554).
+  Ubuntu and Windows jobs completed successfully, no failed steps.
+- Updated `im-results/sno-direct-bare-resolution-audit-2026-11-22.md`
+  with exact full acceptance and bounded claims, commit `c2541cb`.
+  Published multi-agent release-scoped broadcast
+  `communications/broadcast/20261123T0008Z_agent45_sno-bare-audit-accepted.md`,
+  commit `225918a`, links the implementation, tests and negative
+  `module.parent.filename` parity witness. This is implementation and
+  compatibility evidence, **not** strong hostile-owner security proof.
+- The original `--audit-bare-cjs` flag remains optional, with the existing
+  output-directory lock/prepublication refusal and identical emitted
+  bytes in accepted same-seed controls. No added runtime operations.
+  Default source compilation unaffected; scope cannot cover indirect
+  runtime loaders, ESM, relocated dependency changes, or adversarial
+  owner modifications. SNO is still RELEASE-BLOCKED.
+- Prior branch `agent45/sno-runtime-module-scope-20261122` remains
+  deliberately rejected for default integration due observable Node
+  `Module._pathCache` mutation. Leave evidence intact; do not merge.
+- At this checkpoint lease claimed timestamp remains
+  `2026-11-22T23:05:40.362151Z`; **70-minute threshold is
+  `2026-11-23T00:15:40.362151Z`**. After any further checkpoint
+  query actual time and lease. When age >=70 minutes, finalize any
+  useful state, then **delete `agents/agent45/.lease.json` as the
+  last repository mutation**, commit/push deletion and verify remote
+  absence. No further research or commits after deletion.
+
