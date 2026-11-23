@@ -268,7 +268,8 @@
     "test/stateful-arx-wasm-artifact.test.js",
     "sims/stateful-arx-cold-child.cjs",
     "sims/stateful-arx-three-way-cold.js",
-    "sims/stateful-arx-three-way-warm.js"
+    "sims/stateful-arx-three-way-warm.js",
+    "sims/domstring-property-setter-source-matrix.js"
   ],
   "exclude": [
     "node_modules"
