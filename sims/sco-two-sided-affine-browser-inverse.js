@@ -4,6 +4,7 @@ const assert=require('node:assert/strict');
 const http=require('node:http');
 const {randomBytes,createHash}=require('node:crypto');
 const path=require('node:path');
+const {execFileSync}=require('node:child_process');
 const esbuild=require('esbuild');
 const puppeteer=require('puppeteer-core');
 const {partitionScoSelectedAsyncExports,bindScoModuleExports,createScoHandler}=
@@ -195,8 +196,11 @@ async function runBrowserChallenge(){
       body:JSON.stringify({method:selected.methodNames.protectedTriangular,args:[1]})
     });
     assert.equal(denied.status,403);
+    const chromiumName=process.env.CHROMIUM_BIN??'google-chrome';
+    const chromiumPath=path.isAbsolute(chromiumName)?chromiumName:
+      String(execFileSync('which',[chromiumName],{encoding:'utf8'})).trim();
     browser=await puppeteer.launch({
-      executablePath:process.env.CHROMIUM_BIN??'google-chrome',
+      executablePath:chromiumPath,
       headless:true,
       args:['--no-sandbox','--disable-gpu','--disable-dev-shm-usage','--no-first-run']
     });
