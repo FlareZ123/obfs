@@ -26,7 +26,7 @@ test('random affine-graph inversion recovers targets in two-sided triangular per
     assert.ok(result.queries<binomialSum(width,degree));
     metrics.push({width,degree,seed,queries:result.queries});
   }
-  process.stdout.write('OBFS_GRAPH_REVISED_QUERIES '+JSON.stringify(metrics)+'\\n');
+  process.stdout.write('OBFS_GRAPH_REVISED_QUERIES '+JSON.stringify(metrics)+'\n');
 });
 
 test('the graph method refuses a residual permutation with no nonconstant affine output component',()=>{
