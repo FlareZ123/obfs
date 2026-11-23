@@ -462,10 +462,41 @@ function runLayeredFullWidthClone() {
   return {sources,oracleCalls,heldoutPredictions,exactPredictions,byLayers};
 }
 
+/**
+ * Genuine low-rank, higher-degree control: a single triangular top-bit
+ * toggle with a four-coordinate AND predicate. This is an involutive
+ * rank-one permutation but has degree four, so the promised degree<=2/3
+ * ANF clone is expected to fail on an unqueried four-hot challenge input.
+ *
+ * @returns {{queryCounts:number[],counterexample:number,
+ *   trueOutput:number,incorrectPredictions:number[]}}
+ */
+function runHighDegreeCloneNegative() {
+  /** @param {number} x @returns {number} */
+  const oracle=x=>((x>>>0)^(((x&15)===15)?0x80000000:0))>>>0;
+  for(let input=0;input<256;input++){
+    assert.equal(oracle(oracle(input)),input,
+      'Top-bit gate must be an actual bijection, not an oracle artifact');
+  }
+  const counterexample=15;
+  const trueOutput=oracle(counterexample);
+  const queryCounts=[];
+  const incorrectPredictions=[];
+  for(const degree of /** @type {(2|3)[]} */ ([2,3])){
+    const attack=boundedDegreeClone32(oracle,degree);
+    const observed=attack.predict(counterexample);
+    assert.notEqual(observed,trueOutput);
+    assert.equal(observed,counterexample);
+    queryCounts.push(attack.oracleCalls);
+    incorrectPredictions.push(observed);
+  }
+  return {queryCounts,counterexample,trueOutput,incorrectPredictions};
+}
+
 if(require.main===module){
   process.stdout.write('LAYERED_LOWRANK_COMPOSITION '+
     JSON.stringify(runLayeredLowRankComposition())+'\n');
 }
 module.exports={makeLayeredOracle,runLayeredLowRankComposition,
   runTinyLayeredAnfAudit,runTinyBoundedDegreeCloner,
-  runLayeredFullWidthClone};
+  runLayeredFullWidthClone,runHighDegreeCloneNegative};
