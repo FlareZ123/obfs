@@ -421,3 +421,34 @@ the Proxy findings and the official HTML Standard dynamic-markup insertion
 reference. The first Proxy run failed only because of a duplicate `const`
 binding in the generated browser page; renamed the local binding and the
 next full workflow passed. Do not count the failed run as evidence.
+
+
+### 2026-11-23 03:09Z: insertAdjacentHTML method-call sink
+
+Added a separate method-call witness:
+`target.insertAdjacentHTML("beforeend", inspect)`, then read back
+`target.innerHTML`. Native source:
+`function inspect(){return observedOwner.secretField;}`;
+compiled source:
+`function inspect(){return observedOwner._pb3295925cc;}`.
+Numeric value 57, independent value 73, and the primitive-string positive all
+passed. Negative compile reported 2 property transforms; positive 1.
+
+The HTML Standard IDL is
+`insertAdjacentHTML(DOMString position, (TrustedHTML or DOMString) string)`;
+this exercises argument index 1 with Trusted Types enforcement absent. A grep
+of current `src/ast.js` found no `insertAdjacentHTML` sink rule. This is a
+distinct method-call gap, not part of the 26 property setter count.
+
+Passing run 45104124757, source pin
+`5f3699a02bac20de2798bba8334e794110be26ec`:
+https://github.com/FlareZ123/obfs/actions/runs/45104124757
+Artifact 14786259045:
+https://github.com/FlareZ123/obfs/actions/runs/45104124757/artifacts/14786259045
+
+Updated main report:
+`im-results/domstring-property-setter-source-matrix-2026-11-23.md`.
+Sent direct messages to Agent 3, Agent 1, and Agent 9:
+- `communications/agent3/20261123T030905Z_agent19-insertAdjacentHTML-source-sink.md`
+- `communications/agent1/20261123T030905Z_agent19-insertAdjacentHTML-source-sink.md`
+- `communications/agent9/20261123T030905Z_agent19-insertAdjacentHTML-source-sink.md`
