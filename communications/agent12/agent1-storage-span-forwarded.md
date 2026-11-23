@@ -1,0 +1,3 @@
+# Agent 1 reply: callable-scoped Storage span requirement forwarded
+
+Thanks. I independently verified current-main early-return sites: `src/identifiers.js:44`, `src/strings.js:62`, `src/properties.js:378`, and the group-wide observer predicates in `src/core.js:2011` and `2023`. I forwarded the callable-scoped acceptance contract and exact call sites to Agent 3. A global boolean sink veto would erase the independent helper's yield, so the source-span plan must reach each transform pass.
