@@ -200,7 +200,7 @@ function firstUnprovedUnqualifiedReference(root,moduleBindings,rootFormals){
   const recognizedGlobals=new Set([
     ...standardRealmGlobals,...browserOnlyRoots,
     'globalThis','global','process','Buffer','console','performance','crypto',
-    'URL','URLSearchParams','TextEncoder','TextDecoder','AbortController',
+    'URL','URLSearchParams','TextEncoder','TextDecoder','DOMException','AbortController',
     'AbortSignal','structuredClone','atob','btoa','fetch','Request','Response',
     'Headers','Worker','WebSocket','EventSource','BroadcastChannel',
     'MessageChannel','setTimeout','clearTimeout','setInterval','clearInterval',
@@ -329,6 +329,16 @@ function firstUnprovedUnqualifiedReference(root,moduleBindings,rootFormals){
       parent.type==='MetaProperty'||
       parent.type==='ImportSpecifier'&&key==='imported'||
       parent.type==='ExportSpecifier'&&key==='exported'))return;
+    // A function literal used solely as a direct operand of typeof is
+    // created, not executed. The existing typeof proof admits this precise
+    // lazy case; do not falsely convert it into a free-host read.
+    const lazyTypeofLiteral=ancestors.some((scope,index)=>{
+      if(!['FunctionExpression','ArrowFunctionExpression'].includes(scope.type))return false;
+      const enclosing=ancestors[index-1];
+      return enclosing?.type==='UnaryExpression'&&enclosing.operator==='typeof'&&
+        enclosing.argument===scope;
+    });
+    if(lazyTypeofLiteral)return;
     const name=node.name;
     if(moduleBindings.has(name)||rootFormals.has(name))return;
     if(ancestors.some(scope=>scopedBinding(scope,name,node)))return;
@@ -1654,16 +1664,16 @@ function collectPrivateStaticImportClosure(directPaths,sources) {
         }
       }
     });
-    const missingStatic=firstUnprovedUnqualifiedReference(ast,new Set(),new Set());
-    if(missingStatic!==null){
-      throw new TypeError('SCO private static dependency has unproved unqualified free reference: '+
-        filename+':'+missingStatic);
-    }
     const freeTypeof=firstUnprovedTypeofReference(ast,localBindings,
       provenModuleTypeofNames,new Set());
     if(freeTypeof!==null){
       throw new TypeError('SCO private static dependency has unproved free typeof reference: '+
         filename+':'+freeTypeof);
+    }
+    const missingStatic=firstUnprovedUnqualifiedReference(ast,new Set(),new Set());
+    if(missingStatic!==null){
+      throw new TypeError('SCO private static dependency has unproved unqualified free reference: '+
+        filename+':'+missingStatic);
     }
     walk(ast,node=>{
       // Destructuring can carry process.getBuiltinModule or a global root
@@ -2464,6 +2474,11 @@ function partitionScoSelectedAsyncExports(file,options) {
         throw new TypeError('Private SCO export uses dynamic lexical execution: '+node.name);
       }
     });
+    const freeTypeof=firstUnprovedTypeofReference(body,allPrivateBindings,
+      serverConstants,privateFormals.get(body)??new Set());
+    if(freeTypeof!==null){
+      throw new TypeError('Private SCO export or helper uses unproved free typeof reference: '+freeTypeof);
+    }
     const missingSelected=firstUnprovedUnqualifiedReference(
       privateFunctionByBody.get(body)??body,
       new Set([...serverConstants,...privateHelperNames,...selected]),
@@ -2471,11 +2486,6 @@ function partitionScoSelectedAsyncExports(file,options) {
     if(missingSelected!==null){
       throw new TypeError('Private SCO export or helper uses unproved unqualified free reference: '+
         missingSelected);
-    }
-    const freeTypeof=firstUnprovedTypeofReference(body,allPrivateBindings,
-      serverConstants,privateFormals.get(body)??new Set());
-    if(freeTypeof!==null){
-      throw new TypeError('Private SCO export or helper uses unproved free typeof reference: '+freeTypeof);
     }
   }
   // Global roots can alias across spellings, e.g. window versus globalThis.
