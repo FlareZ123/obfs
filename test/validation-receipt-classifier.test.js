@@ -3,6 +3,7 @@
 const assert = require('node:assert/strict');
 const { test } = require('node:test');
 const { classifyValidationRun } = require('../sims/validation-receipt-classifier.js');
+const recorded = require('./fixtures/validation-receipts-20261123.json');
 
 const fullSteps = [
   'Behavioral and adversarial suites with compact failure diagnostics',
@@ -67,23 +68,27 @@ function makeFocusedJobs(conclusion) {
   ];
 }
 
-test('documented 23 November full run is red even when Chromium and typechecks pass', () => {
-  const jobs = makeFullJobs('failure');
-  for (const job of jobs.slice(0, 2)) {
-    job.steps[0].conclusion = 'failure';
-  }
-  for (const job of jobs.slice(0, 2)) {
-    assert.equal(job.steps.find((s) => s.name === 'JSDoc type safety')?.conclusion, 'success');
-  }
-  const receipt = classifyValidationRun(makeRun(fullSha, 'failure', 45136105520), jobs, fullSha);
+test('actual captured 23 November full run is red despite green Chromium/typechecks', () => {
+  const {run, jobs} = recorded.records.fullRed;
+  assert.equal(run.id, 45136105520);
+  assert.deepEqual(jobs.filter((job) => job.name.startsWith('node22 ('))
+    .map((job) => job.conclusion), ['failure', 'failure']);
+  assert.equal(jobs[0].steps.find((step) => step.name === 'JSDoc type safety')?.conclusion,
+    'success');
+  const receipt = classifyValidationRun(run, jobs, fullSha);
   assert.equal(receipt.classification, 'full-red');
   assert.equal(receipt.runId, 45136105520);
-  assert.equal(receipt.reasons.some((s) => s.includes('Behavioral and adversarial')), true);
+  assert.equal(receipt.reasons.some((reason) =>
+    reason.includes('Behavioral and adversarial')), true);
 });
 
-test('documented main focused success cannot be promoted to full suite success', () => {
-  const receipt = classifyValidationRun(makeRun(focusSha, 'success', 45141870967),
-    makeFocusedJobs('success'), focusSha);
+test('actual captured main focused success cannot become full suite success', () => {
+  const {run, jobs} = recorded.records.focusedGreen;
+  assert.equal(run.id, 45141870967);
+  assert.deepEqual(jobs.filter((job) => job.name.startsWith('focused ('))
+    .map((job) => job.conclusion), ['success', 'success']);
+  assert.equal(jobs.find((job) => job.name === 'node22')?.conclusion, 'skipped');
+  const receipt = classifyValidationRun(run, jobs, focusSha);
   assert.equal(receipt.classification, 'focused-green');
 });
 
