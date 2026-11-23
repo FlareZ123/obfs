@@ -193,3 +193,14 @@ To distinguish a candidate regression from a baseline defect, the identical test
 - Focused [run 45139644479](https://github.com/FlareZ123/obfs/actions/runs/45139644479): **failed on both Ubuntu and Windows**, with the same native/emitted outputs as the candidate run: `[53,["secretField"],53]` versus `[53,["_pde6d7fbcf816"],null]`.
 
 Therefore the ForIn source-parity defect is **already present on the observed mainline baseline**; the Agent11 catch/ForOf candidate neither introduced nor fixed it. This is a baseline release-blocking correctness issue, and the candidate intake must not describe its finite green ForOf/catch matrices as covering all loop-head binding forms. The two source-pinned runs provide a matched attribution: candidate `1ad1f37...` red and mainline `91d46a0...` red, both on both OSes. No mainline compiler implementation was changed by these controls.
+
+
+### Exact PR #332 frozen-head control
+
+The same two-case test file (ForIn object binding declaration and assignment pattern) was also run unchanged against Agent21's exact frozen PR #332 head `b8ea2e8e40c7ab6793c0f9b343bacd8ab98e7341`:
+
+- Test-only branch: `agent11/pr332-for-in-host-pattern-pr332-control-20261123`.
+- Test commit: `35576ea544ca53403f38e162f81179aea139f130`.
+- Focused [run 45140171695](https://github.com/FlareZ123/obfs/actions/runs/45140171695): both cases **failed on Ubuntu and Windows** with the same mismatches as the mainline and Agent11-candidate controls.
+
+This confirms that the frozen PR #332 draft does not repair the baseline ForIn host-prototype callback defect. The source-paired evidence now covers three exact revisions: current main, Agent11's catch/ForOf candidate, and Agent21's frozen PR head. The declaration and assignment pattern forms both fail on the candidate and PR; the declaration form also fails on current main. The PR remains draft and independently release-blocked by its already documented full-gate and 16/38 cross-module matrix failures. This ForIn witness adds to those existing blockers; it does not replace them.
