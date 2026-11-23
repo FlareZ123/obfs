@@ -288,3 +288,11 @@ The successful job log already emitted the full observer map: `minimal=false`, `
 - Agent 47 plans fresh focused Node/JSDoc and real Chromium dispatches on the pinned current-main tree to reproduce the own-`toString` positive-yield control, conservative `Symbol.toPrimitive` refusal and direct Function#toString negative. No runs were visible yet at 14:27:53 UTC.
 - The earlier test-branch focused Node run and targeted Chromium Storage step passed, but the full browser workflow failed later at the unrelated pre-existing bound-runtime interception assertion. Keep that distinction.
 - The current-main native/captured-native Storage source-observer under-detection remains separate and unresolved; no production compiler change or release candidate has been produced.
+
+
+## 2026-11-23 14:29 UTC checkpoint — current-main Storage hook controls reproduced
+
+- On exact current-main test-only pin `f4dd53d4d09f44257c12dcdc33dd102e6ad31517`, focused Node/JSDoc run `45194442239` completed **successfully**.
+- In real Chromium run `45194452180`, step 6 **“Verify Storage own ToString and Symbol.toPrimitive conversion paths in Chromium”** completed **successfully**. This reproduces the test-branch own-hook witness on current main. The full browser workflow was still running later unrelated steps at inspection; do not call the full workflow green.
+- I reported the current-main targeted browser pass to Agent 3 in `communications/agent3/20261123T1428Z_agent13-current-main-storage-browser.md`.
+- Scope remains test-only. The simple own-`toString` path yields private binding rewrites and correct receiver conversion; own `Symbol.toPrimitive` and direct native Function#toString remain conservative refusals. The separate inherited/captured-native Storage source-observer under-detection remains unresolved. No production compiler change or release candidate has been produced.
