@@ -328,6 +328,7 @@ function makeFixture(seed){
 function polarRadicalDimensions(clone,polar){
   const base=clone(0)>>>0;
   const standard=Array.from({length:WIDTH},(_,i)=>(2**i)>>>0);
+  /** @type {bigint[]} */
   const columns=[];
   for(let leftIndex=0;leftIndex<WIDTH;leftIndex+=1){
     const left=standard[leftIndex];
@@ -375,7 +376,9 @@ function runTrial(seed,options={}){
   const query=input=>{
     const key=input>>>0;
     if(!cache.has(key))cache.set(key,fixture.oracle(key)>>>0);
-    return cache.get(key);
+    const value=cache.get(key);
+    if(value===undefined)throw new Error('missing cached oracle value');
+    return value;
   };
   const model=learnBoundedDegreeOracle(query,WIDTH,2);
   const evaluator=makeQuadraticModelEvaluator(model);
