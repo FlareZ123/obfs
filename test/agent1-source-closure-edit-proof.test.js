@@ -140,3 +140,26 @@ test('real ESM module retains observed callable source under independent edits',
   assert.equal(emitted.sibling(),9);
   assert.equal(emitted.observed.toString(),original.observed.toString());
 });
+
+
+test('fixed ESM provider import retains lexical closure during unrelated edits',async()=>{
+  /** @param {string} text */
+  const url=text=>'data:text/javascript;base64,'+Buffer.from(text).toString('base64');
+  const provider=url('export const secret=40;');
+  const code='import {secret} from '+JSON.stringify(provider)+';' +
+    'export function observed(){return secret+2;}' +
+    'export function sibling(){let unrelated=9;return unrelated;}';
+  const first=code.indexOf('unrelated');
+  const second=code.lastIndexOf('unrelated');
+  const result=applyObservedFunctionEdits(code,'module','observed',[
+    {start:first,end:first+9,text:'_g'},
+    {start:second,end:second+9,text:'_g'}
+  ]);
+  const [original,emitted]=await Promise.all([import(url(code)),import(url(result.code))]);
+  assert.equal(original.observed(),42);
+  assert.equal(emitted.observed(),42);
+  assert.equal(emitted.sibling(),9);
+  assert.equal(original.observed.toString(),emitted.observed.toString());
+  assert.ok(result.plan.guarded.some(span=>span.reason==='LexicalDeclaration'&&
+    code.slice(span.start,span.end)==='secret'));
+});
