@@ -1,5 +1,6 @@
 'use strict';
 
+const {createHash}=require('node:crypto');
 const {applyEdits,staticString}=require('./ast');
 
 /**
@@ -34,9 +35,12 @@ function recordPropertyName(member) {
  *
  * @param {string} source
  * @param {import('./ast').AstNode} ast
+ * @param {{seed?:string,path?:string}} [options]
  * @returns {{code:string,records:number,properties:number,declined:string|null}}
  */
-function lowerProvedPrimitiveIslandRecords(source,ast) {
+function lowerProvedPrimitiveIslandRecords(source,ast,options={}) {
+  const seed=options.seed??'';
+  const filePath=options.path??'';
   /** @type {Map<string,{node:import('./ast').AstNode,properties:import('./ast').AstNode[],indices:Map<string,number>}>} */
   const records=new Map();
   for(const statement of ast.body) {
@@ -46,9 +50,9 @@ function lowerProvedPrimitiveIslandRecords(source,ast) {
          declaration.init?.type!=='ObjectExpression'||
          !declaration.init.properties.length)continue;
       const properties=declaration.init.properties;
-      const indices=new Map();
-      for(let index=0;index<properties.length;index++) {
-        const property=properties[index];
+      const fields=[];
+      const seen=new Set();
+      for(const property of properties) {
         if(property.type!=='Property'||property.method||property.shorthand||
            property.kind!=='init') {
           return {code:source,records:0,properties:0,declined:'unsupported record property'};
@@ -65,7 +69,7 @@ function lowerProvedPrimitiveIslandRecords(source,ast) {
         if(key==='length') {
           return {code:source,records:0,properties:0,declined:'special length property'};
         }
-        if(['__proto__','constructor','prototype'].includes(key)||indices.has(key)) {
+        if(['__proto__','constructor','prototype'].includes(key)||seen.has(key)) {
           return {code:source,records:0,properties:0,declined:'unsafe or duplicate property key'};
         }
         const value=property.value;
@@ -73,9 +77,17 @@ function lowerProvedPrimitiveIslandRecords(source,ast) {
            (typeof value.value==='object'&&value.value!==null)) {
           return {code:source,records:0,properties:0,declined:'non-primitive record value'};
         }
-        indices.set(key,index);
+        seen.add(key);
+        const rank=createHash('sha256').update(
+          seed+'\\0'+filePath+'\\0'+declaration.id.name+'\\0'+key
+        ).digest('hex');
+        fields.push({key,property,rank});
       }
-      records.set(declaration.id.name,{node:declaration.init,properties,indices});
+      fields.sort((a,b)=>a.rank<b.rank?-1:a.rank>b.rank?1:0);
+      const indices=new Map(fields.map((field,index)=>[field.key,index]));
+      records.set(declaration.id.name,{
+        node:declaration.init,properties:fields.map(field=>field.property),indices
+      });
     }
   }
   if(!records.size)return {code:source,records:0,properties:0,declined:null};
