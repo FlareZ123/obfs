@@ -374,5 +374,5 @@ test('reexport identifier belongs to source module while unsupported local expor
   // a source specifier is a local reference that requires a declaration.
   assert.throws(()=>emit([
     {path:engine.path,code:'export {deriveProof};'}
-  ]),/unproved|audit|export|undefined|binding/u);
+  ]),/unproved|audit|[Ee]xport|undefined|binding/u);
 });
