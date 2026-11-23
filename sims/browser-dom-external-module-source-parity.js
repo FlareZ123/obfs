@@ -120,6 +120,8 @@ async function main() {
     const renamed=await evaluate(executable,mode,stackProgram(true));
     assert.equal(original.value,8);
     assert.equal(renamed.value,8);
+    assert.ok('column' in original,'Missing native stack column');
+    assert.ok('column' in renamed,'Missing renamed stack column');
     assert.equal(typeof original.column,'number','Missing native stack column');
     assert.equal(typeof renamed.column,'number','Missing renamed stack column');
     assert.notEqual(original.column,renamed.column,
