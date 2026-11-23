@@ -5,14 +5,14 @@ const Module=require('node:module');
 const {obfuscateFiles}=require('../src');
 
 const safe=[
-  'module.exports=n=>left.privateCash+right.hiddenFee+n;',
-  'const read=x=>x.privateCash;module.exports=n=>read(left)+right.hiddenFee+n;',
-  'function read(x){return x.privateCash;}module.exports=n=>read(left)+right.hiddenFee+n;',
-  'const id=x=>x;const third=id(left);module.exports=n=>third.privateCash+right.hiddenFee+n;',
-  'const read=x=>{return x.privateCash;};module.exports=n=>read(right)+left.hiddenFee+n;',
-  'const extra=holder[0];module.exports=n=>extra.privateCash+right.hiddenFee+n;',
-  'const get=()=>vault;const next=get();module.exports=n=>next.privateCash+right.hiddenFee+n;',
-  'module.exports=n=>left["privateCash"]+right.hiddenFee+n;'
+  'function privateCompute(n){return left.privateCash+right.hiddenFee+n;}',
+  'const read=x=>x.privateCash;function privateCompute(n){return read(left)+right.hiddenFee+n;}',
+  'function read(x){return x.privateCash;}function privateCompute(n){return read(left)+right.hiddenFee+n;}',
+  'const id=x=>x;const third=id(left);function privateCompute(n){return third.privateCash+right.hiddenFee+n;}',
+  'const read=x=>{return x.privateCash;};function privateCompute(n){return read(right)+left.hiddenFee+n;}',
+  'const extra=holder[0];function privateCompute(n){return extra.privateCash+right.hiddenFee+n;}',
+  'const get=()=>vault;const next=get();function privateCompute(n){return next.privateCash+right.hiddenFee+n;}',
+  'function privateCompute(n){return left["privateCash"]+right.hiddenFee+n;}'
 ];
 const unsafe=[
   'holder[0]=vault;module.exports=n=>left.privateCash+right.hiddenFee+n;',
@@ -55,7 +55,7 @@ function runGrid(){
     for(let caseIndex=0;caseIndex<fixtures.length;caseIndex++){
       const head='const vault={privateCash:17,hiddenFee:6};'+
         'const holder=[vault];const left=holder[0];const right=holder[0];';
-      const code=head+fixtures[caseIndex];
+      const code=head+fixtures[caseIndex]+(shouldRename?'module.exports=n=>privateCompute(n);':'');
       const native=execute(code);
       programs++;
       if(!shouldRename)negative++;
