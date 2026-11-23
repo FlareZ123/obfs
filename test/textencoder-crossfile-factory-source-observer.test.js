@@ -103,3 +103,44 @@ for(const mode of /** @type {const} */ (['coo','sno','sco'])) {
       run(esmFactory,asyncApp,true),'awaited local encoder factory preserves source text');
   });
 }
+
+const cjsObjectFactory="module.exports={make(){return new TextEncoder();}};\n";
+const cjsNamespaceApp=
+  "const factory=require('./factory.cjs');\n"+
+  "const encoder=factory.make();\n"+
+  "function observed(){return 'commonjs-namespace-encoder-source';}\n"+
+  "module.exports=Array.from(encoder.encode(observed));\n";
+const esmNamespaceApp=
+  "import * as factory from './factory.mjs';\n"+
+  "const encoder=factory.make();\n"+
+  "function observed(){return 'esm-namespace-encoder-source';}\n"+
+  "export const result=Array.from(encoder.encode(observed));\n";
+
+for(const mode of /** @type {const} */ (['coo','sno','sco'])) {
+  test('CJS namespace TextEncoder factory source coercion '+mode,()=>{
+    const output=obfuscateFiles([
+      {path:'factory.cjs',sourceType:'commonjs',code:cjsObjectFactory},
+      {path:'app.cjs',sourceType:'commonjs',code:cjsNamespaceApp}
+    ],{mode,seed:'encoder-cjs-namespace/'+mode,
+       strings:true,identifiers:false,properties:false}).files;
+    const factoryOut=output.find(f=>f.path==='factory.cjs');
+    const appOut=output.find(f=>f.path==='app.cjs');
+    assert.ok(factoryOut&&appOut);
+    assert.equal(run(String(factoryOut.code),String(appOut.code)),
+      run(cjsObjectFactory,cjsNamespaceApp),
+      'CJS object module method returns a native source-observing encoder');
+  });
+  test('ESM namespace TextEncoder factory source coercion '+mode,()=>{
+    const output=obfuscateFiles([
+      {path:'factory.mjs',sourceType:'module',code:esmFactory},
+      {path:'app.mjs',sourceType:'module',code:esmNamespaceApp}
+    ],{mode,seed:'encoder-esm-namespace/'+mode,
+       strings:true,identifiers:false,properties:false}).files;
+    const factoryOut=output.find(f=>f.path==='factory.mjs');
+    const appOut=output.find(f=>f.path==='app.mjs');
+    assert.ok(factoryOut&&appOut);
+    assert.equal(run(String(factoryOut.code),String(appOut.code),true),
+      run(esmFactory,esmNamespaceApp,true),
+      'ESM namespace method returns a native source-observing encoder');
+  });
+}
