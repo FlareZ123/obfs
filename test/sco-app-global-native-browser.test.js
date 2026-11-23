@@ -310,3 +310,110 @@ test('selected SCO retains inert local Response scalar ownership',async()=>{
     {seed:'agent35-response-local-scalar',privateNames:['protectedOp']});
   assert.deepEqual(transformed.privateNames,['protectedOp']);
 });
+
+
+/**
+ * Deterministic syntax wrappers probe unqualified native host roots through
+ * closures, accessors, await, arrays, scalar records and branch expressions.
+ * All native outputs are observed in independent Node and browser ESM realms.
+ * @param {string} expression
+ * @returns {string[]}
+ */
+function ambientBodies(expression){
+  return [
+    'return '+expression+';',
+    'return ['+expression+'][0];',
+    'const value='+expression+';return value;',
+    'const reader=()=>'+expression+';return reader();',
+    'const reader=async()=>'+expression+';return await reader();',
+    'return ({get value(){return '+expression+';}}).value;',
+    'const record={value:'+expression+'};return record.value;',
+    'return (true?'+expression+':0);'
+  ];
+}
+
+/**
+ * All text outputs are explicitly converted to scalar strings so the
+ * Chromium and Node realms do not share object prototypes or host errors.
+ * @param {unknown} value
+ * @returns {string}
+ */
+function scalarObservation(value){
+  return 'value:'+String(value);
+}
+
+test('56-wrapper original-host ESM differential is covered by SCO admission',{
+  skip:!browserEnabled,timeout:45000
+},async()=>{
+  const fixtures=nodeAmbientCandidates.flatMap(ambient=>
+    ambientBodies(ambient.expression).map((body,index)=>({
+      label:ambient.name+' / wrapper '+index,
+      code:'export async function protectedOp(){'+body+'}'+
+        'export function publicOp(){return 0;}'
+    }))
+  );
+  assert.equal(fixtures.length,56);
+  const puppeteer=require('puppeteer-core');
+  /** @type {import('puppeteer-core').Browser|undefined} */
+  let browser;
+  try{
+    browser=await puppeteer.launch({
+      channel:process.env.CHROMIUM_BIN?undefined:'chrome',
+      ...(process.env.CHROMIUM_BIN?{executablePath:process.env.CHROMIUM_BIN}:{}),
+      headless:true,
+      args:['--no-sandbox','--disable-dev-shm-usage','--disable-gpu']
+    });
+    const page=await browser.newPage();
+    await page.goto('about:blank');
+    const browserResults=await page.evaluate(async(sources)=>{
+      /** @type {string[]} */
+      const values=[];
+      for(const code of sources){
+        try{
+          const module=await import('data:text/javascript,'+encodeURIComponent(code));
+          values.push('value:'+String(await module.protectedOp()));
+        }catch(error){
+          const name=error&&typeof error==='object'&&'name' in error?
+            String(error.name):String(error);
+          values.push('throw:'+name);
+        }
+      }
+      return values;
+    },fixtures.map(fixture=>fixture.code));
+    const nativeResults=[];
+    for(const fixture of fixtures){
+      const module=await import('data:text/javascript,'+
+        encodeURIComponent(fixture.code));
+      try{
+        nativeResults.push(scalarObservation(await module.protectedOp()));
+      }catch(error){
+        const name=error&&typeof error==='object'&&'name' in error?
+          String(error.name):String(error);
+        nativeResults.push('throw:'+name);
+      }
+    }
+    assert.equal(browserResults.length,fixtures.length);
+    /** @type {string[]} */
+    const admitted=[];
+    for(let index=0;index<fixtures.length;index++){
+      const fixture=fixtures[index];
+      assert.notEqual(browserResults[index],nativeResults[index],fixture.label);
+      try{
+        partitionScoSelectedAsyncExports(
+          {path:'mixed.mjs',sourceType:'module',code:fixture.code},
+          {seed:'agent35-native-ambient-wrapper-matrix',privateNames:['protectedOp']}
+        );
+        admitted.push(fixture.label);
+      }catch(error){
+        assert.match(String(error),/unproved|host|realm|ambient|global/u,
+          fixture.label);
+      }
+    }
+    console.log('SCO_NODE_AMBIENT_WRAPPER_MATRIX '+JSON.stringify({
+      total:fixtures.length,mismatched:fixtures.length,admitted
+    }));
+    assert.deepEqual(admitted,[]);
+  }finally{
+    if(browser)await browser.close();
+  }
+});
