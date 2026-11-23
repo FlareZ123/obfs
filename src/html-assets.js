@@ -316,6 +316,18 @@ function hasPinnedLocalJavaScriptIntegrity(files,routePrefix='') {
     return metadata.trim().split(/\s+/u).some(token=>
       originalDigests.has(token.split('?',1)[0]));
   }
+  /**
+   * A rooted or absolute web URL may use a deployment prefix not declared in
+   * this offline source tree. Ordinary relative references retain the
+   * compiler's precise path proof so an unrelated ./other.js with an
+   * intentionally reused digest need not suppress positive rewrite yield.
+   * @param {string} address
+   * @returns {boolean}
+   */
+  function hasUnknownMount(address) {
+    const value=address.trimStart();
+    return value.startsWith('/')||/^https?:/iu.test(value);
+  }
   // The output tree already treats NFC- and case-equivalent paths as one
   // portable filename identity. An SRI URL may resolve to the same file on a
   // case-insensitive/normalizing host even when its raw spelling differs.
@@ -415,7 +427,7 @@ function hasPinnedLocalJavaScriptIntegrity(files,routePrefix='') {
       const address=name==='script'?attr('src'):linked?attr('href'):null;
       if(address) {
         pinnedUrls.push(address);
-        if(matchesOriginalDigest(integrity))pinnedDigest=true;
+        if(hasUnknownMount(address)&&matchesOriginalDigest(integrity))pinnedDigest=true;
         if(activeXmlBase)xmlBaseAffectsPin=true;
       }
     });
@@ -501,7 +513,7 @@ function hasPinnedLocalJavaScriptIntegrity(files,routePrefix='') {
            relation.includes('preload') && as.toLowerCase()==='script');
         const address=node.tagName==='script'?src:linked?href:null;
         if(address){
-          if(matchesOriginalDigest(integrity)){
+          if(hasUnknownMount(address)&&matchesOriginalDigest(integrity)){
             observed=true;return;
           }
           // The parser may already have started fetching a script before a
