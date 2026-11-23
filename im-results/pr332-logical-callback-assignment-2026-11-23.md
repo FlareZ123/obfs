@@ -153,3 +153,32 @@ Current branch: `agent11/pr332-catch-pattern-review-20261123`. All preceding loo
 At the **exact catch-patched source** `1ad1f37f5916155f26236d53011d32e609c2935e`, two additional pattern validation suites passed both Ubuntu/Windows: `test/cross-file-pattern-binding-context-gate.test.js` [CI 45130781052](https://github.com/FlareZ123/obfs/actions/runs/45130781052) and `test/computed-pattern-cross-file-matrix.test.js` [CI 45130787231](https://github.com/FlareZ123/obfs/actions/runs/45130787231). A matched [real Chromium browser gate 45130793264](https://github.com/FlareZ123/obfs/actions/runs/45130793264) completed **4/4 native-versus-generated ESM scenarios green, zero skips in Ubuntu Chromium**: baseline, logical assignment, conditional alias, defaulted object destructuring. Windows runs strict type checks and skips browser due unavailable executable. The same source independently passed [71/71 Node cases on both OS](https://github.com/FlareZ123/obfs/actions/runs/45130493429).
 
 These source-pinned focused gates comprise the final review-branch baseline for this invocation. They are *not* the current-main full integration gate or 2.5× emitted runtime admission. PR #332 and current-main have not incorporated this candidate.
+
+
+## Additional ForInStatement binding-pattern host callback falsifier
+
+**Agent 11, 23 November 2026.** This is a distinct grammar path not covered by the preceding ForOf/catch review. It is a finite host-environment correctness witness against the current candidate branch, not a general ForIn or prototype theorem.
+
+The isolated review branch `agent11/pr332-for-in-pattern-review-20261123` is based on the catch-patched source `1ad1f37f5916155f26236d53011d32e609c2935e`. Test source `test/cross-file-for-in-host-pattern-gate.test.js` is at `23acb766fb59fb4d7bc18df289d313a58f1b9c75`; the initial test-only commit was `d30f844c0976219c60b4937b47eb8f1254bb501b`.
+
+The two-module ESM fixture exports `state={secretField:53}`, imports it into `main.mjs`, then executes:
+
+```js
+for (const {callback:Loader} in ["x"]) {
+  injected=Loader('return import("./state.mjs")');
+}
+const remote=await injected();
+console.log(JSON.stringify([
+  state.secretField,
+  Object.keys(remote.state),
+  remote.state.secretField
+]));
+```
+
+A host-owned Node `--require` preloader (outside the compiler graph) installs a configurable getter on `String.prototype.callback` that returns the native `Function` constructor. The ForInStatement yields the string key `"0"`; object-pattern destructuring performs a property read on that string wrapper and invokes the inherited getter, so `Loader` receives the host Function constructor. The resulting dynamically imported module is not visible in the source graph.
+
+At exact candidate source `1ad1f37f5916155f26236d53011d32e609c2935e`, the focused [run 45139289282](https://github.com/FlareZ123/obfs/actions/runs/45139289282) failed on **both Ubuntu and Windows**. Native output was `[53,["secretField"],53]`; emitted output was `[53,["_pde6d7fbcf816"],null]`. The cross-file pass reported one property rewrite. This is a real Node ESM execution with an external preloader, not a synthetic AST-only assertion.
+
+The current `safeClosedCallerRecordRead` binding walk handles `ForOfStatement` and `CatchClause`, but does not handle `ForInStatement` as a loop-head binding source. A ForInStatement does **not** bind values from its RHS: it binds property-key strings. Destructuring those strings can nevertheless read host-modified inherited `String.prototype` accessors; array patterns can also consult the host-modified string iterator. The RHS object must never be treated as the loop's bound value.
+
+**Review recommendation:** before integrating this candidate, conservatively treat a ForInStatement's destructuring LHS as an unknown source and taint its binding targets (including nested object/array/default/rest targets); do not infer a binding from `node.right`. A simple identifier loop target receives a string key and does not by itself need callback taint. Preserve a matched numeric own-data positive control if a narrower proof is attempted. No compiler patch was made in this review branch. This witness is separate from the earlier host-iterator and catch-binding families and should be added to the same canonical intake rather than spawning another report.
