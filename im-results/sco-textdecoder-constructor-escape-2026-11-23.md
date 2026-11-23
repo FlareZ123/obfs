@@ -57,3 +57,29 @@ Node 22.23.5 matched Chrome on these four direct/recovered legacy calls and all 
 ## Deployment implications
 
 The change affects compile-time admission only. It adds no output-time interpreter, no runtime wrapper, and no new overhead to the JavaScript emitted for programs still accepted by the selector. The stricter scanner may reject previously accepted code that creates or passes around TextDecoder objects; this is intentional until a bounded semantic proof is available. Source identity, debug tooling, server secrets, RPC authorization, and the project-wide release-blocked decision remain separate questions.
+
+## Second red/green: lexical alias proof must respect scope
+
+A follow-up independent test identified a new false admission in the first instance-escape fix. It used a uniquely named `const decoder=new TextDecoder('utf-8')` **inside an unrelated nested function**, then referenced a free `decoder.decode(...)` outside that function:
+
+```js
+function unrelated(){
+  const decoder=new TextDecoder('utf-8');
+  return decoder.decode(Uint8Array.of(65));
+}
+return decoder.decode(Uint8Array.of(66));
+```
+
+The first implementation treated the nested unique binding as proof for the disconnected outer reference. That was unsound because the outer `decoder` is outside the nested function's lexical environment. [Red run 45108950431](https://github.com/FlareZ123/obfs/actions/runs/45108950431) at `7c4f2f2d5350e2d706d925c20fc29a86dcc57bb4` failed the new missing-exception assertion on both OSs. The preceding all-green run on the earlier, narrower suite remains valid for its stated scope.
+
+The fix now associates each admitted unique `const` alias with its actual immediate lexical `BlockStatement` or `Program` owner. It propagates a source alias only if its use appears inside that source's owner scope, and rejects identically spelled references elsewhere. Other syntactic declaration containers, including for-head environments, are conservatively refused. [Two-platform green run 45109104465](https://github.com/FlareZ123/obfs/actions/runs/45109104465) at commit `296316f09a22766fe176c15e55653f77260e376b` included targeted SCO graph correctness and strict JSDoc.
+
+Further positive tests confirm unique `const` aliases are admitted within nested functions and nested lexical blocks when the references really occur in their defining scope. Negative tests cover an unrelated nested function and a disconnected sibling block. [Expanded two-platform green run 45109203796](https://github.com/FlareZ123/obfs/actions/runs/45109203796) at `02b0b1674f2ff2d014e8c6f42ce55e3372f4e58d` passed the target suite and strict JSDoc. These scope conditions do **not** prove arbitrary JavaScript free-binding safety; they only close this particular decoder-alias proof mistake.
+
+## Further native streaming parity
+
+[Run 45108889681](https://github.com/FlareZ123/obfs/actions/runs/45108889681) at `bc468f406873194b9e42e88ea5a7fd8d361226e0` extended the direct/recovered 280-case native browser comparison with 12 extra UTF-8 **streaming** vectors: multibyte splits, truncated sequences, invalid lead bytes, split and repeated BOM, `ignoreBOM:true`, null/ASCII chunks, and the maximum Unicode scalar. Total **292 cases** with **288 UTF-8 cases**. Node 22.16.0 and 22.23.5 matched Chrome 157 on all 288 sampled UTF-8 cases, with the four known direct/recovered legacy mismatches present only on Node 22.16.0. This is still finite cross-runtime test evidence; streaming input variants, mutable global bindings, abnormal receiver objects, and arbitrary options remain outside a general equivalence claim.
+
+## Full integration baseline
+
+[Full Linux/Windows manual validation 45108507085](https://github.com/FlareZ123/obfs/actions/runs/45108507085) passed at earlier immutable code commit `1ad859a91fd9df3bcd7a31b01a36f9208a49bebe`, **before** the additional lexical alias proof and streaming test. Windows recorded 4,801 Node tests (4,792 passing, nine skipped, zero failed); Ubuntu also passed its full job. This pin demonstrates that the narrower earlier fix integrated successfully, not that the subsequent scope change passed a full-source suite. A later full pin is required for that stronger claim.
