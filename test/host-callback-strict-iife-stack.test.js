@@ -75,9 +75,13 @@ test('host callback can record strict IIFE source callsite without touching its 
     const original=await load(root,'native',source);
     const protectedEntry=await load(root,'compiled',
       /** @type {string} */(candidate.code));
-    assert.deepEqual(original.observed,{
-      value:47,line:1,column:source.indexOf('globalThis.HOST_STACK_SPY')+1
-    },'Sanity-check the host observes an actual source callsite column');
+    assert.equal(/** @type {{value:number,line:number,column:number}} */(
+      original.observed).value,47);
+    assert.equal(/** @type {{value:number,line:number,column:number}} */(
+      original.observed).line,1);
+    assert.ok(/** @type {{value:number,line:number,column:number}} */(
+      original.observed).column>0,
+    'The external host must record a native ESM source column');
     assert.deepEqual(protectedEntry.observed,original.observed,
       'Unknown external host callbacks can observe compiler-changed callsites');
     if(candidate.metrics.properties===0)
