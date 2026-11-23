@@ -9,6 +9,8 @@ const {partitionScoSelectedAsyncExports,bindScoModuleExports,createScoHandler}=
 const {cloneAuthorizedQuadratic}=require('./sco-quadratic-529-live-clone');
 const {inverseFromBoundedDegreeModel}=
   require('./two-sided-affine-degree-inversion');
+const {invertQuadraticAffineTriangularModel}=
+  require('./quadratic-affine-triangular-inverse');
 
 const TOKEN='authorized-triangular-inverse-comparison';
 
@@ -278,6 +280,8 @@ async function runComparison() {
       samples.push(digest.readUInt32BE(0));
     }
     let matchedTargets=0,scoOfflineLocalEvaluations=0,ordinaryOfflineLocalEvaluations=0;
+    let fastScoLocalEvaluations=0,fastOrdinaryLocalEvaluations=0;
+    let fastScoLinearSystems=0,fastOrdinaryLinearSystems=0;
     for(const hidden of samples) {
       // Verifier-only target generation; no HTTP and no input disclosure to
       // either attacker-side inverse. Values are independent of fit inputs.
@@ -288,6 +292,15 @@ async function runComparison() {
         'Attacker must recover SCO private-source preimage after server shutdown');
       assert.equal(candidateOrdinary?.input,hidden,
         'Same task on minified ordinary private baseline must also be recoverable');
+      const fastSco=invertQuadraticAffineTriangularModel(scoClone.model,target);
+      const fastOrdinary=invertQuadraticAffineTriangularModel(ordinaryClone.model,target);
+      assert.equal(fastSco?.input,hidden,'Coefficient-only SCO inverse mismatch');
+      assert.equal(fastOrdinary?.input,hidden,'Coefficient-only ordinary inverse mismatch');
+      assert.ok(fastSco&&fastOrdinary);
+      fastScoLocalEvaluations+=fastSco.localModelEvaluations;
+      fastOrdinaryLocalEvaluations+=fastOrdinary.localModelEvaluations;
+      fastScoLinearSystems+=fastSco.linearSystemsSolved;
+      fastOrdinaryLinearSystems+=fastOrdinary.linearSystemsSolved;
       assert.ok(candidateSco&&candidateOrdinary);
       matchedTargets++;
       scoOfflineLocalEvaluations+=candidateSco.localEvaluations;
@@ -303,6 +316,8 @@ async function runComparison() {
       scoPrivateExecutions,ordinaryPrivateExecutions,
       modelsEqual:true,matchedTargets,heldoutTargets:samples.length,
       scoOfflineLocalEvaluations,ordinaryOfflineLocalEvaluations,
+      fastScoLocalEvaluations,fastOrdinaryLocalEvaluations,
+      fastScoLinearSystems,fastOrdinaryLinearSystems,
       stoppedBeforeInversion:true
     };
   }finally {
