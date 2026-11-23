@@ -550,10 +550,14 @@ function usesUnprovedRelocatedWebIdlConstructors(body){
         node.property.type==='Identifier'?node.property.name:null;
       if(names.has(property??''))unproved=true;
     }
-    if(node.type==='VariableDeclarator'&&
-       node.id.type==='ObjectPattern'&&node.init?.type==='Identifier'&&
-       globals.has(node.init.name)){
-      for(const property of node.id.properties){
+    const destructured=node.type==='VariableDeclarator'?node.id:
+      node.type==='AssignmentExpression'&&node.operator==='='?node.left:null;
+    const destructuringSource=node.type==='VariableDeclarator'?node.init:
+      node.type==='AssignmentExpression'&&node.operator==='='?node.right:null;
+    if(destructured?.type==='ObjectPattern'&&
+       destructuringSource?.type==='Identifier'&&
+       globals.has(destructuringSource.name)){
+      for(const property of destructured.properties){
         const propertyName=property.type==='Property'?
           (property.computed?staticString(property.key):
             property.key.type==='Identifier'?property.key.name:
