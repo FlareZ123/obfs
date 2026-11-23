@@ -279,7 +279,9 @@
     "sims/triangular-active-crosswrapped-inversion.js",
     "test/triangular-active-crosswrapped-inversion.test.js",
     "sims/rankone-width3-minimax-inversion.js",
-    "test/rankone-width3-minimax-inversion.test.js"
+    "test/rankone-width3-minimax-inversion.test.js",
+    "sims/width3-anf-rank-minimax.js",
+    "test/width3-anf-rank-minimax.test.js"
   ],
   "exclude": [
     "node_modules"
