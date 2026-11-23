@@ -59,6 +59,7 @@
     "sims/low-rank-coset-permutation-audit.js",
     "test/low-output-residual-cycle-independent.test.js",
     "sims/rankfour-vector-signature-exhaustive.js",
-    "sims/rankfive-four-wedge-exhaustive.js"
+    "sims/rankfive-four-wedge-exhaustive.js",
+    "sims/sco-rankfour-cubic-matched-private-api.js"
   ]
 }
