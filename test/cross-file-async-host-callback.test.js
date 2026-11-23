@@ -561,3 +561,51 @@ for(const [label,source,extra] of /** @type {[string,string,ModuleFile[]][]} */ 
     assert.equal(generated.crossFile.properties,0,label);
   });
 }
+
+
+/**
+ * Independent review: logical member assignment is an ordinary dynamic
+ * callback installation when the property is initially absent, falsy, or
+ * truthy (depending on the operator). Each must preserve the native module's
+ * remotely observed key spelling when the callback returns a host Function.
+ */
+for(const [operator,initial] of /** @type {[string,string][]} */([
+  ['??=','const holder={};'],
+  ['||=','const holder={callback:null};'],
+  ['&&=','const holder={callback:()=>7};']
+])) {
+  test('logical host callback member '+operator+' preserves ESM property spelling',async()=>{
+    const files=graph([
+      'const cb=()=>globalThis.RUNTIME_FACTORY;',
+      initial,
+      'holder.callback '+operator+' cb;',
+      'const ctor=await Promise.resolve().then(holder.callback);',
+      'const remote=await ctor("return import(\'./state.mjs\')")();',
+      "const result=[inspectRecord('auditCount').value,Object.keys(remote.state),remote.state.secretField];"
+    ].join('\n'));
+    const native=await execute(files,true);
+    assert.equal(native,'[41,[3,["secretField"],41]]\n');
+    const compiled=obfuscateFiles(files,{
+      mode:'coo',closedWorld:true,seed:'host-logical-write/'+operator,
+      identifiers:false,strings:false,properties:true
+    });
+    assert.equal(await execute(compiled.files,true),native,operator);
+    assert.equal(compiled.crossFile.properties,0,operator);
+  });
+}
+
+test('logical member assignment of unrelated numeric callback retains positive work',async()=>{
+  const files=graph([
+    'const cb=()=>7;',
+    'const holder={};holder.callback ??= cb;',
+    'const value=await Promise.resolve().then(holder.callback);',
+    "const result=[inspectRecord('externalFormat').value,value];"
+  ].join('\n'));
+  const native=await execute(files);
+  const compiled=obfuscateFiles(files,{
+    mode:'coo',closedWorld:true,seed:'host-logical-write-primitive',
+    identifiers:false,strings:false,properties:true
+  });
+  assert.equal(await execute(compiled.files),native);
+  assert.equal(compiled.crossFile.properties,1);
+});
