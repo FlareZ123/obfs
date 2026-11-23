@@ -76,9 +76,9 @@ An earlier version of this opt-in mechanism at
 passed the **full** Ubuntu and Windows behavioral/adversarial, configured
 browser and performance integration workflow
 [45084516422](https://github.com/FlareZ123/obfs/actions/runs/45084516422).
-Later changes only tighten the optional scanner and its negative
-cases; the full CI is **historical coverage**, not an exact full
-integration verdict for the current source.
+The older full run is historical support for an earlier scanner.
+The final integrated source has its own exact-pin full acceptance run
+listed below.
 
 ### Parent-module identity remains observable
 
@@ -106,12 +106,15 @@ The frozen final source `eaadc0ad77d85d58d48b9205c659361bab1bcd7a`
 passed the **focused Ubuntu and Windows suite**, including strict
 project/external JSDoc typechecks, in
 [run 45086272554](https://github.com/FlareZ123/obfs/actions/runs/45086272554).
-The identical frozen source's full behavioral/adversarial,
-browser and performance workflow is
+The identical frozen source's **full Ubuntu and Windows
+integration** passed in
 [run 45086267550](https://github.com/FlareZ123/obfs/actions/runs/45086267550).
-Its Ubuntu full job passed; Windows was still running the broad
-behavioral suite when this section was written, so **a full two-platform
-verdict remains pending** until both jobs conclude.
+Both platform jobs completed successfully with zero failed steps, including
+the repository's broad behavioral/adversarial suites, strict JSDoc,
+configured native/browser workloads and performance checks.
+This is exact-source acceptance evidence for the optional build-time
+dependency auditor, without establishing complete external dependency
+semantics or an adversarial SNO-owner protection guarantee.
 
 The smoke-tested option is `node bin/sno.js --root <input> --entry entry.cjs --out <output> --audit-bare-cjs`.
 This flag is restricted to the CLI and only to SNO, and its
