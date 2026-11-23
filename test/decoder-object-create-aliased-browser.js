@@ -51,6 +51,20 @@ function graphFactoryExport(intrinsic) {
 }
 
 /**
+ * A literal dynamic import of the factory is another dependency edge. The
+ * target must still initialize later for the mutation to be observable.
+ * @param {'String'|'Number'} intrinsic
+ * @returns {SourceFile[]}
+ */
+function graphDynamicFactoryExport(intrinsic) {
+  return graphFactoryExport(intrinsic).map(file=>file.path==='entry.mjs'?
+    {...file,code:(/** @type {string} */ (file.code)).replace(
+      "import build from './factory.mjs';",
+      "const {default:build}=await import('./factory.mjs');"
+    )}:file);
+}
+
+/**
  * Evaluate the original and emitted ESM graphs inside real Chromium, retaining
  * their exact cross-module order. Each graph uses an isolated HTTP origin.
  *
@@ -199,6 +213,22 @@ async function main() {
   for(const intrinsic of /** @type {const} */(['String','Number'])){
     const name='imported ESM descriptor factory '+intrinsic;
     const original=graphFactoryExport(intrinsic);
+    const transformed=obfuscateFiles(original,{mode:'coo',strings:true,
+      properties:false,identifiers:false,seed:'browser/'+name});
+    const target=transformed.files.find(file=>file.path==='target.mjs');
+    assert.ok(target);
+    const nativeOutput=await runBrowser(original);
+    const transformedOutput=await runBrowser(transformed.files);
+    assert.equal(nativeOutput,'Z'.repeat(2048)+'P',name+' native');
+    assert.equal(transformedOutput,nativeOutput,name+' native/emitted parity');
+    assert.equal(target.metrics.literals,intrinsic==='String'?0:1,
+      name+' transform yield');
+    outcomes.push({case:name,emittedLiteralCount:target.metrics.literals,
+      outputLength:transformedOutput.length});
+  }
+  for(const intrinsic of /** @type {const} */(['String','Number'])){
+    const name='dynamically imported ESM descriptor factory '+intrinsic;
+    const original=graphDynamicFactoryExport(intrinsic);
     const transformed=obfuscateFiles(original,{mode:'coo',strings:true,
       properties:false,identifiers:false,seed:'browser/'+name});
     const target=transformed.files.find(file=>file.path==='target.mjs');
