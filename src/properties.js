@@ -664,11 +664,48 @@ function proveLocalObject(ast, rootName, bindings, importedIdentityFunctions=new
   for(const [alias,source] of immutableIdentityAliases) {
     if(!functions.has(source))functions.delete(alias);
   }
-  // Only callable bodies whose function values remain in this map have been
-  // proven local and direct-call-only. A public/unknown function exposes its
-  // original source through Function#toString even when the owner object itself
-  // never escapes; rewriting a member token inside that body is observable.
-  const privateFunctionNodes=new Set([...functions.values()].map(fn=>fn.node));
+  // Source privacy is broader than the identity/consumer summaries above:
+  // any uniquely bound function value used only as a direct call is private
+  // even when its body does not return an identity or a simple parameter read.
+  // Conversely, a value stored, returned, exported, or passed elsewhere can
+  // expose its original body through Function#toString.
+  const privateFunctionNodes=new Set();
+  /** @type {{name:string,node:AstNode,decl:AstNode}[]} */
+  const callableBindings=[];
+  for(const node of functionDeclarations) {
+    if(node.id?.type==='Identifier'&&bindings.get(node.id.name)===1)
+      callableBindings.push({name:node.id.name,node,decl:node.id});
+  }
+  for(const declarator of callableDeclarators) {
+    const declaration=parents.get(declarator);
+    const value=declarator.init;
+    if(declaration?.type==='VariableDeclaration'&&declaration.kind==='const'&&
+       declarator.id.type==='Identifier'&&bindings.get(declarator.id.name)===1&&
+       (value?.type==='FunctionExpression'||value?.type==='ArrowFunctionExpression'))
+      callableBindings.push({name:declarator.id.name,node:value,decl:declarator.id});
+  }
+  for(const binding of callableBindings) {
+    const scope=scopes.get(binding.name);
+    if(!scope)continue;
+    let privateValue=true;
+    for(const use of identifierUses.get(binding.name)??[]) {
+      if(use.ancestors.some(ancestor=>/^Export/.test(ancestor.type))||
+         use.ancestors.some(ancestor=>ancestor.type==='AssignmentExpression'&&
+           ancestor.left===use.node)) {
+        privateValue=false;
+        break;
+      }
+      if(use.node===binding.decl)continue;
+      if(!use.ancestors.includes(scope)||
+         use.parent?.type!=='CallExpression'||
+         use.parent.callee!==use.node||
+         use.parent.optional) {
+        privateValue=false;
+        break;
+      }
+    }
+    if(privateValue)privateFunctionNodes.add(binding.node);
+  }
 
   const aliases = new Set([rootName]);
   /**
