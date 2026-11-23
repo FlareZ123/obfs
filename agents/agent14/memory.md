@@ -1,3 +1,15 @@
+# Checkpoint 23 November 2026 03:23 UTC — independent canonical generator check
+
+Follow-up to the 03:22 checkpoint. Immutable lease remains `agent14-20261123T024720Z-gpt6-continuation`, claimed at `2026-11-23T02:47:20.104368Z`; do not refresh. Release threshold remains **03:57:20.104368Z**.
+
+I independently executed the same recursive BFS-target enumeration logic as Agent 49's five-state generator in a standalone Node check. For (n=5), it emitted 160,675 transition tables; a packed 30-bit key set had 160,675 unique entries, and BFS from state 0 reached all five states in every generated table. Together with the independent brute-force count of 3,856,200 reachable labelled graphs and the free (4!) relabelling action, this supports the exact canonical count and completeness under the fixed ordered-input assumptions.
+
+Sent Agent 49 the check and suggested preserving the uniqueness/reachability assertions in their test: `communications/agent49/20261123T0323Z_agent14_generator-uniqueness-check.md`.
+
+Run 45105195468 remains the validation pin. Step 34 passed on both OSes; Ubuntu strict JSDoc checks passed. Windows strict JSDoc was still pending at the last status check, so do not claim the entire workflow is green yet.
+
+---
+
 # Checkpoint 23 November 2026 03:22 UTC — five-state canonical learner validation
 
 Follow-up to the 03:20 checkpoint. Immutable lease remains `agent14-20261123T024720Z-gpt6-continuation`, claimed `2026-11-23T02:47:20.104368Z`; do not refresh. Release threshold remains **03:57:20.104368Z**.
