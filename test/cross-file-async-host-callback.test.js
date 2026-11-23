@@ -788,3 +788,31 @@ test('numeric default array destructure retains one safe private field transform
   assert.equal(await execute(compiled.files),native);
   assert.equal(compiled.crossFile.properties,1);
 });
+
+
+/**
+ * A function-valued slot in a literal does not make its disjoint numeric
+ * sibling callable. These positive controls detect whole-pattern taint
+ * that discards proven private-field transformations unnecessarily.
+ */
+for(const [name,binding] of /** @type {[string,string][]} */([
+  ['disjoint object fields','const {unused,numeric}={unused:getFactory,numeric:()=>7};'],
+  ['disjoint array positions','const [unused,numeric]=[getFactory,()=>7];'],
+  ['disjoint object defaults','const {unused=getFactory,numeric=()=>7}={};']
+])) {
+  test('mixed literal destructuring keeps safe numeric callback field rewrite: '+name,async()=>{
+    const files=graph([
+      'function getFactory(){return globalThis.RUNTIME_FACTORY;}',
+      binding,
+      'const value=await Promise.resolve().then(numeric);',
+      "const result=[inspectRecord('externalFormat').value,value];"
+    ].join('\n'));
+    const native=await execute(files);
+    const compiled=obfuscateFiles(files,{
+      mode:'coo',closedWorld:true,seed:'mixed-pattern-positive/'+name,
+      identifiers:false,strings:false,properties:true
+    });
+    assert.equal(await execute(compiled.files),native,name);
+    assert.equal(compiled.crossFile.properties,1,name);
+  });
+}
