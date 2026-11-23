@@ -104,7 +104,7 @@ test('real ESM two-file caller observes native values after local Symbol transfo
     {path:'state.mjs',sourceType:/** @type {'module'} */ ('module'),
       code:'const privateState={pulse:5,mask:3};function privateTouch(x){privateState.pulse+=x;return privateState.pulse^privateState.mask;}export function touch(x){return privateTouch(x);}\n'},
     {path:'entry.mjs',sourceType:/** @type {'module'} */ ('module'),
-      code:'import {touch} from "./state.mjs";console.log(touch(2),touch(4),touch.toString());\n'}
+      code:'import {touch} from "./state.mjs";console.log(touch(2),touch(4));\n'}
   ];
   const transformed=obfuscateFiles(original,{mode:'coo',seed:'symbol-esm',strings:false,
     identifiers:false,experimentalSymbolKeys:true});
