@@ -689,13 +689,12 @@ function proveLocalObject(ast, rootName, bindings, importedIdentityFunctions=new
     if(!scope)continue;
     let privateValue=true;
     for(const use of identifierUses.get(binding.name)??[]) {
-      if(use.ancestors.some(ancestor=>/^Export/.test(ancestor.type))||
-         use.ancestors.some(ancestor=>ancestor.type==='AssignmentExpression'&&
-           ancestor.left===use.node)) {
-        privateValue=false;
-        break;
+      if(use.node===binding.decl) {
+        if(use.ancestors.some(ancestor=>/^Export/.test(ancestor.type)))
+          privateValue=false;
+        if(!privateValue)break;
+        continue;
       }
-      if(use.node===binding.decl)continue;
       if(!use.ancestors.includes(scope)||
          use.parent?.type!=='CallExpression'||
          use.parent.callee!==use.node||
