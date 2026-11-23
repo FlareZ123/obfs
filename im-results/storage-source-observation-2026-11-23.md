@@ -6,7 +6,7 @@
 
 The current-main-pinned source-observer scanner does not classify `Storage.setItem` as a function-source observer. The HTML Standard declares the `Storage.setItem(DOMString key, DOMString value)` signature. A function passed as the value undergoes Web IDL `DOMString` conversion. The resulting native function source is stored and can be read back using `getItem`. This is confirmed for `localStorage` and `sessionStorage`.
 
-A second route is the Storage named-property setter: `localStorage[key] = inspect`. It also stores the function's native source and reads back the same string.
+A second route is the Storage named-property setter: `localStorage[key] = inspect`. The first `setItem` argument is also a `DOMString`: passing `inspect` as the key stores its source as a key, which is returned by `Storage.key(index)`. Both forms read back the same native/emitted source string.
 
 Normative source: [WHATWG HTML Standard, Web Storage, Storage interface](https://html.spec.whatwg.org/multipage/webstorage.html#the-storage-interface).
 
@@ -14,7 +14,7 @@ Normative source: [WHATWG HTML Standard, Web Storage, Storage interface](https:/
 
 Research branch: `agent12/storage-source-observation-20261123`
 
-Browser and focused-test head: `3f172b1d53c18a106f66ce224b9a8298c033cb68` (based on main `ca137356713babb6cff4d63feb838f9181e2f4db`).
+Browser and focused-test head: `cdf7989f6e72f7f63ea6711f291c08cc2fcf6355` (based on main `ca137356713babb6cff4d63feb838f9181e2f4db`).
 
 Relevant compiler source blobs:
 - `src/ast.js`: `c227e6e604635a42663af745fd0cfb194b215a67`
@@ -34,7 +34,7 @@ The real-browser fixture is `test/storage-source-observation-browser.js`. Its mo
 - `independent()`, whose `independentLocal` binding is a safe positive-yield control;
 - calls to both functions whose numeric results are compared native versus emitted.
 
-The browser page reads the stored values back through both Storage areas and the named property.
+The browser page reads the stored values back through both Storage areas, the named property, and the function-valued storage key. The same harness also tests the separate `Window.name` sink; its evidence is documented in `im-results/window-name-source-observation-2026-11-23.md`.
 
 ## Evidence
 
@@ -52,7 +52,7 @@ The browser page reads the stored values back through both Storage areas and the
 
 ### Real Chromium run
 
-[Manual Web IDL run 45161326114](https://github.com/FlareZ123/obfs/actions/runs/45161326114), same source head. The new browser step ran before the existing Web IDL Node matrix and succeeded. Its exact emitted record was:
+[Manual Web IDL run 45162975795](https://github.com/FlareZ123/obfs/actions/runs/45162975795), same source head. The new browser step ran before the existing Web IDL Node matrix and succeeded. Its exact emitted record was:
 
 ```json
 {
@@ -74,7 +74,7 @@ The browser page reads the stored values back through both Storage areas and the
 
 Thus the emitted `inspect` function's source changed, while its numeric result remained 29. The independent helper also retained a nonzero identifier transformation and returned 7. The `localStorage.setItem`, `sessionStorage.setItem`, and Storage named-property readbacks all contained the corresponding native/emitted function source.
 
-The overall manual Web IDL workflow subsequently failed its existing 239-test Node matrix on both OSes in two unrelated Blob positive-yield assertions:
+The overall manual Web IDL workflow subsequently failed its existing Node matrix on both OSes in two unrelated Blob positive-yield assertions:
 - `bound Blob constructor with primitive input retains private property rename`;
 - `primitive Blob options preserve genuinely renamed private fields`.
 
@@ -84,7 +84,7 @@ The Storage browser step itself passed. Do not attribute those two Blob failures
 
 An attempted cross-file consumer-sink extension did **not** establish a second source-parity failure. In the tested ESM shape, the producer's exported callable remained source-stable under the current export-ancestor guard, while an unrelated unexported helper in the consumer retained identifier yield. This is a useful boundary control, not proof that every cross-file Storage source-observer path is modeled.
 
-The confirmed failure is an implicit Web IDL string-coercion source observer in the same file, not an explicit call to `Function.prototype.toString`. It currently bypasses the AST source-observer guard and changes a function's source through identifier mangling. The witness exercises COO ESM in one real Chromium environment; it does not establish Firefox/WebKit behavior, cross-tab `storage` event behavior, actual HTTP SCO partition behavior, or a universal browser compatibility claim.
+The confirmed Storage failure is an implicit Web IDL string-coercion source observer in the same file, not an explicit call to `Function.prototype.toString`. It currently bypasses the AST source-observer guard and changes a function's source through identifier mangling. The witness exercises COO ESM in one real Chromium environment; it does not establish Firefox/WebKit behavior, cross-tab `storage` event behavior, actual HTTP SCO partition behavior, or a universal browser compatibility claim.
 
 The immediate correctness requirement is to classify nonprimitive values passed to `Storage.setItem` and the named-property setter as source-observing. The source-observed callable must retain exact source spelling. A future fix should also preserve useful yield in the unrelated `independent()` helper; a whole-file veto would repair parity but would lose that positive control. Property metrics were zero in this experiment: the demonstrated failure is identifier mangling.
 
