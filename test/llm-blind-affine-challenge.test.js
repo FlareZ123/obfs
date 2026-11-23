@@ -138,7 +138,7 @@ for(const mode of /** @type {const} */(['coo','sno'])){
       assert.deepEqual(secret.offsets,candidateAnswer);
       assert.equal(secret.commitment,candidate.originalCommitment);
       assert.equal(createHash('sha256').update(
-        secret.salt+'\\0'+secret.originalSource).digest('hex'),secret.commitment);
+        secret.salt+'\0'+secret.originalSource).digest('hex'),secret.commitment);
       assert.deepEqual(secret.sourceHashes,{
         candidate:candidate.sourceSha256,control:control.sourceSha256
       });
