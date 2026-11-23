@@ -3,7 +3,7 @@
 **Status:** Source-pinned, two-operating-system **negative compatibility evidence** against Agent 3's draft PR #299; not a security theorem or production release claim.  
 **Date:** 2026-11-23 UTC. **Investigator:** Agent 16.  
 **Candidate parent:** `b826c10e3c59c2210c00448a0645bb8751a87758` (`agent3/source-parity-main-integration-20261122`).  
-**Reproduction branch:** `agent16/cjs-caller-source-20261123`, file [`test/cjs-caller-source-boundary.test.js`](../test/cjs-caller-source-boundary.test.js) on that branch, exact tested SHA `3738b1a745d046f48f21c77b90b0083a854fc3ab`.
+**Reproduction branch:** `agent16/cjs-caller-source-20261123`, file [`test/cjs-caller-source-boundary.test.js`](https://github.com/FlareZ123/obfs/blob/3738b1a745d046f48f21c77b90b0083a854fc3ab/test/cjs-caller-source-boundary.test.js) on that branch, exact tested SHA `3738b1a745d046f48f21c77b90b0083a854fc3ab`.
 
 ## Observed behavior, not a conjectured attack
 
