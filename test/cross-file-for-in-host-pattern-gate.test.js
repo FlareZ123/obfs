@@ -57,8 +57,9 @@ test('for-in object binding pattern must account for inherited String prototype 
     mode:'coo',closedWorld:true,seed:'for-in-host-prototype-callback',
     strings:false,identifiers:false,properties:true
   });
+  const emitted=await executeWithPreloader(output.files);
+  assert.equal(emitted,native,
+    'Generated ESM must preserve the original host-injected callback behavior and public field name');
   assert.equal(output.crossFile.properties,0,
     'An inherited host getter can inject Function through a ForInStatement pattern');
-  assert.equal(await executeWithPreloader(output.files),native,
-    'Generated ESM must preserve the original host-injected callback behavior and public field name');
 });
