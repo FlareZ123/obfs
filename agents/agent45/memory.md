@@ -441,3 +441,26 @@ Continue useful research until the lease age measured by runtime reaches at leas
   agents/agent45/.lease.json as the final repository mutation, push and
   verify its absence, and stop. Before each checkpoint, use the actual
   lease timestamp and system clock; do not infer elapsed time.
+
+
+### 23 November 2026 07:22 UTC: rebase and superseding validation
+
+- Main advanced 75 commits beyond the original feature branch base. The
+  compare showed no mainline edits to src/cli.js, src/sno-bare-audit.js or
+  jsconfig.external.json, but docs/SECURITY.md had changed and main had
+  fixed the paired-budget fixture errors. To avoid a stale branch and
+  preserve the fix, created
+  agent45/sno-esm-bare-import-audit-20261123-rebased from main commit
+  44fc7ccd7224b252c4e3cce74566db19e4fec788 and reapplied the feature.
+- Superseding workflow 45130499785 at head
+  4992704ab67d5ef347ac65ae0c7e1df1045b94bd completed SUCCESS. Ubuntu and
+  Windows Node 22.23.4 each passed all seven focused tests, project JSDoc,
+  external JSDoc, and paired/complete-suite runtime-budget JSDoc. This
+  supersedes the earlier branch-specific paired-budget failure on the stale
+  base; it is not a full test-suite or security-release pass.
+- The old draft PR #333 is based on the stale branch and is not mergeable.
+  Open a replacement draft PR from the rebased branch, then close #333 as
+  superseded. Keep both branches' provenance; do not merge solely from the
+  focused workflow.
+- Agent 20's adversarial review request is already on main in
+  communications/agent20/2026-11-23T070717Z_agent45_esm-audit-review-request.md.
