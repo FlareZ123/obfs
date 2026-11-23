@@ -632,7 +632,7 @@ function realmStateObservation(body,checkHostConfiguration=false){
   // this syntactic contract. UTC-only Date operations remain eligible.
   const localeConstructors=new Set(['DateTimeFormat','NumberFormat','Collator',
     'PluralRules','RelativeTimeFormat','ListFormat','DisplayNames','Segmenter',
-    'DurationFormat']);
+    'DurationFormat','Locale']);
   // ECMAScript's locale-sensitive prototype methods implicitly construct
   // Intl formatters from the executing host's defaults. They can return
   // different JSON-visible strings across client/server locales even if no
@@ -651,15 +651,18 @@ function realmStateObservation(body,checkHostConfiguration=false){
       expression.object.type==='Identifier' &&
       globalNames.has(expression.object.name) && keyName(expression)==='Date';
   }
-  /** @param {import('./ast').AstNode} expression @returns {boolean} */
-  function isIntlConstructor(expression){
-    if(expression.type!=='MemberExpression' ||
-       !localeConstructors.has(keyName(expression)??''))return false;
-    const receiver=expression.object;
+  /** @param {import('./ast').AstNode} receiver @returns {boolean} */
+  function isIntlNamespace(receiver){
     return receiver.type==='Identifier'&&intrinsicKinds.get(receiver.name)==='Intl' ||
       receiver.type==='MemberExpression' &&
       receiver.object.type==='Identifier' &&
       globalNames.has(receiver.object.name)&&keyName(receiver)==='Intl';
+  }
+  /** @param {import('./ast').AstNode} expression @returns {boolean} */
+  function isIntlConstructor(expression){
+    return expression.type==='MemberExpression' &&
+      localeConstructors.has(keyName(expression)??'') &&
+      isIntlNamespace(expression.object);
   }
   // ECMA-262 gives each realm's Math.random a distinct pseudorandom
   // sequence. Browser crypto and performance also observe host-specific
@@ -980,6 +983,11 @@ function realmStateObservation(body,checkHostConfiguration=false){
     if(node.type==='MemberExpression'){
       const member=keyName(node);
       if(isMathRoot(node.object)&&member==='random')entropyTouched=true;
+      // Intl.supportedValuesOf exposes the executing host's ICU/CLDR data.
+      // Browser and Node may enumerate different currencies or collations.
+      if(isIntlNamespace(node.object)&&member==='supportedValuesOf'){
+        configurationTouched=true;
+      }
       // Error.stack captures source filenames and call-site coordinates.
       // These change when selected SCO moves work into a server module.
       if((member==='stack'||member===null)&&isStackReceiver(node.object)){
@@ -1023,6 +1031,14 @@ function realmStateObservation(body,checkHostConfiguration=false){
     const source=node.type==='VariableDeclarator'?node.init:
       node.type==='AssignmentExpression'&&node.operator==='='?node.right:null;
     if(pattern?.type==='ObjectPattern'&&source){
+      // Destructuring the host-data function is equivalent to reading it
+      // directly; static computed keys are included in keyName().
+      if(isIntlNamespace(source)&&pattern.properties.some(
+        (/** @type {import('./ast').AstNode} */ property)=>
+          property.type!=='Property'||keyName(property)===null||
+          keyName(property)==='supportedValuesOf')){
+        configurationTouched=true;
+      }
       if(isStackReceiver(source)&&pattern.properties.some(
         (/** @type {import('./ast').AstNode} */ property)=>
           property.type!=='Property'||keyName(property)==='stack'||
