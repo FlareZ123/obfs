@@ -4,7 +4,8 @@ const assert=require('node:assert/strict');
 const http=require('node:http');
 const {test}=require('node:test');
 const {
-  partitionScoSelectedAsyncExports,createScoHandler,bindScoModuleExports
+  partitionScoSelectedAsyncExports,partitionScoSelectedGraph,
+  createScoHandler,bindScoModuleExports
 }=require('../src');
 
 const enabled=process.env.OBFS_FOCUSED_TEST===
@@ -154,4 +155,36 @@ test('SCO WebIDL constructor admission denies unproved values and keeps literal 
     "return new Headers({'x-demo':'ok'}).get('x-demo');",
     "return Math.imul(17,19);"
   ])assert.deepEqual(partition(body).privateNames,['privateOp'],body);
+});
+
+test('private imported ESM WebIDL constructors share the selected-export admission guard',{
+  skip:process.env.OBFS_FOCUSED_TEST!=='test/sco-webidl-errors-browser.test.js'
+},()=>{
+  /** @param {string} body */
+  const graph=body=>partitionScoSelectedGraph([{
+    file:{
+      path:'mixed.mjs',sourceType:'module',
+      code:"import {leaf} from './private/leaf.mjs';"+
+        'export async function privateOp(){return leaf();}'+
+        'export function visible(){return 7;}'
+    },
+    options:{
+      seed:'sco-webidl-graph-host-20261123',privateNames:['privateOp'],
+      privateModuleImports:['./private/leaf.mjs'],
+      privateModuleSources:[{
+        path:'private/leaf.mjs',
+        code:'export function leaf(){'+body+'}'
+      }]
+    }
+  }]);
+  for(const body of [
+    "new URLSearchParams([['a']]);return 'bad';",
+    "new Headers({'bad name':'x'});return 'bad';",
+    'return new URLSearchParams(globalThis.location.search).toString();'
+  ])assert.throws(()=>graph(body),/unproved cross-realm WebIDL constructor|unproved client host state|unproved application global/,body);
+  for(const body of [
+    "return new URLSearchParams([['a','1']]).toString();",
+    "return new Headers({'x-demo':'ok'}).get('x-demo');",
+    'return Math.imul(17,19);'
+  ])assert.deepEqual(graph(body).exposedPaths,['mixed.mjs'],body);
 });
