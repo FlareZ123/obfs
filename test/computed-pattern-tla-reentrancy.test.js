@@ -61,6 +61,21 @@ const cases=[
     ]
   },
   {
+    label:'multi-hop named reexport with top-level await in key producer and relay',
+    kind:'cross',expectPositive:true,
+    files:[
+      {path:'keys.mjs',sourceType:'module',
+        code:'await Promise.resolve();export const key="secretField";'},
+      {path:'relay.mjs',sourceType:'module',
+        code:'export {key as lookup} from "./keys.mjs";await Promise.resolve();'},
+      {path:'state.mjs',sourceType:'module',
+        code:'export const bag={secretField:41,bias:2};'},
+      {path:'main.mjs',sourceType:'module',
+        code:'import {bag} from "./state.mjs";import {lookup} from "./relay.mjs";'+
+          'await Promise.resolve();const {[lookup]:value}=bag;console.log(value,lookup);'}
+    ]
+  },
+  {
     label:'local later key after top-level await',
     kind:'local',expectPositive:true,
     files:[
