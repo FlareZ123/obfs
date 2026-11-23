@@ -68,7 +68,8 @@ test('cross-module native ESM graph preserves direct named declaration reader ca
       'const privateRecord={secretAlpha:23,secretBeta:7};',
       'function readAlpha(ownerAlpha){return ownerAlpha.secretAlpha;}',
       'function readBeta(ownerBeta){return ownerBeta.secretBeta;}',
-      'export function calculate(k){return k*readAlpha(privateRecord)+readBeta(privateRecord);}'
+      'function privateCalculate(k){return k*readAlpha(privateRecord)+readBeta(privateRecord);}',
+      'export function calculate(k){return privateCalculate(k);}'
     ].join('\n')},
     {path:'api.mjs',sourceType:'module',code:[
       'import {calculate} from "./owner.mjs";',
@@ -156,6 +157,9 @@ test('public-only source normalization retains a functional clone beside an ordi
   ];
   for(const variant of variants)assert.equal(typeof variant,'function');
   const functions=/** @type {Array<(value:number)=>number>} */(variants);
+  assert.equal(Function.prototype.toString.call(functions[2]),
+    Function.prototype.toString.call(functions[0]),
+    'Obfuscated public wrapper source must retain native spelling');
   for(let input=-256;input<=256;input++){
     const expected=functions[0](input);
     for(const fn of functions.slice(1))assert.equal(fn(input),expected);
