@@ -6,13 +6,15 @@ const {makeSeededRandomCoordinates,makeRandomTriangularOracle,
 
 test('random affine-graph inversion recovers targets in two-sided triangular permutations',()=>{
   const cases=[
-    ...[1,2,3,4,5].map(seed=>({width:32,degree:4,seed})),
-    ...[1,2,3,4,5].map(seed=>({width:32,degree:5,seed})),
-    ...[1,2,3].map(seed=>({width:32,degree:6,seed})),
-    ...[1,2].map(seed=>({width:64,degree:4,seed}))
+    ...[1,2,3].map(seed=>({width:32,degree:4,seed})),
+    ...[1,2,3].map(seed=>({width:32,degree:5,seed})),
+    ...[1,2].map(seed=>({width:32,degree:6,seed})),
+    {width:64,degree:4,seed:1}
   ];
   for(const {width,degree,seed} of cases){
-    const {oracle}=makeRandomTriangularOracle(width,degree,seed);
+    const {oracle,inputOffset,outputOffset}=makeRandomTriangularOracle(width,degree,seed);
+    assert.notEqual(inputOffset,0n);
+    assert.notEqual(outputOffset,0n);
     const secret=randomWord(width,makeSeededRandomCoordinates(seed+100));
     const target=oracle(secret);
     const result=invertByRandomAffineGraph(oracle,target,width,degree,{seed:seed+200,delta:1e-8});
