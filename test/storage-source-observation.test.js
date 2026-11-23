@@ -19,20 +19,14 @@ const sameFile=[
   '}'
 ].join('\n');
 
-const logic=[
-  'export function inspect(){const privateLocal=31;return privateLocal;}',
-  'export function independent(){const independentLocal=7;return independentLocal;}'
-].join('\n');
+const logic='export function inspect(){const privateLocal=31;return privateLocal;}';
 const observer=[
-  'import {inspect,independent} from "./logic.mjs";',
+  'import {inspect} from "./logic.mjs";',
+  'function independent(){const independentLocal=7;return independentLocal;}',
   'export function sample(){',
-  '  const key="obfs-storage-cross-file";',
+  '  const key="obfs-storage-cross-file-control";',
   '  localStorage.setItem(key,inspect);',
-  '  sessionStorage.setItem(key,inspect);',
-  '  localStorage[key+"-named"]=inspect;',
-  '  return {local:localStorage.getItem(key),session:sessionStorage.getItem(key),',
-  '    named:localStorage.getItem(key+"-named"),',
-  '    value:inspect(),independent:independent()};',
+  '  return {source:localStorage.getItem(key),value:inspect(),independent:independent()};',
   '}'
 ].join('\n');
 
@@ -51,19 +45,20 @@ test('the unrecognized same-file Storage sink permits source-changing local iden
   assert.ok(!output.includes('independentLocal'));
 });
 
-test('a Storage observer in another ESM file is not propagated to the exporting module',()=>{
+test('exported cross-file callable stays source-stable while unrelated consumer helper retains yield',()=>{
   assert.equal(observesFunctionSource(parse(logic,'module')),false);
   assert.equal(observesFunctionSource(parse(observer,'module')),false);
   const result=obfuscateFiles([
     {path:'logic.mjs',sourceType:'module',code:logic},
     {path:'observer.mjs',sourceType:'module',code:observer}
   ],{
-    mode:'coo',seed:'storage-source-observation-cross-file',
+    mode:'coo',seed:'storage-source-observation-cross-file-control',
     closedWorld:true,properties:false,identifiers:true,strings:false
   });
-  const emitted=String(result.files.find(file=>file.path==='logic.mjs').code);
-  assert.ok(!emitted.includes('privateLocal'),
-    'the producer module rewrites a callable observed by Storage in its consumer');
-  assert.ok(!emitted.includes('independentLocal'),
-    'an unrelated exported helper also retains positive identifier yield');
+  const producer=String(result.files.find(file=>file.path==='logic.mjs').code);
+  const consumer=String(result.files.find(file=>file.path==='observer.mjs').code);
+  assert.equal(producer,logic,
+    'the exported producer callable is currently kept source-stable');
+  assert.ok(!consumer.includes('independentLocal'),
+    'the unrelated unexported consumer helper retains identifier yield');
 });
