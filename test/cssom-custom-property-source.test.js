@@ -101,3 +101,21 @@ test('unrelated local setProperty method preserves private renaming opportunity'
   assert.ok(emitted.metrics.properties>0,
     'Userland setProperty should not globally disqualify private-field renaming');
 });
+
+test('CSSOM numeric result is a source-safe function-call positive',()=>{
+  const source='function inspect(){const state={secretField:29};return state.secretField;}'+
+    'const style=document.createElement("div").style;'+
+    'style.setProperty("--number",inspect());'+
+    'module.exports={text:style.getPropertyValue("--number"),number:inspect()};';
+  const native=execute(source);
+  assert.equal(JSON.stringify(native),JSON.stringify({text:'29',number:29}));
+  assert.equal(observesFunctionSource(parse(source,'commonjs')),false);
+  const emitted=obfuscateFiles([{
+    path:'case.cjs',sourceType:'commonjs',code:source
+  }],{mode:'coo',seed:'cssom-numeric-call-result-positive',
+    properties:true,identifiers:true,strings:false}).files[0];
+  assert.equal(JSON.stringify(execute(/** @type {string} */(emitted.code))),
+    JSON.stringify(native));
+  assert.ok(emitted.metrics.properties>0,
+    'Passing a numeric call result does not expose the callable source');
+});
