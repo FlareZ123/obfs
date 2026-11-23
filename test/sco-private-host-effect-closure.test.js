@@ -857,3 +857,30 @@ test('SCO refuses legacy TextDecoder results with unproved host mapping tables',
     }
   }
 });
+
+
+test('SCO relocated Response.redirect refuses a browser-base-relative URL',()=>{
+  const body='return Response.redirect("/next",302).headers.get("location");';
+  const direct='export async function protectedOp(){'+body+'}'+
+    'export function visible(){return 7;}';
+  assert.throws(()=>partitionScoSelectedAsyncExports(
+    {path:'mixed.mjs',code:direct,sourceType:'module'},
+    {seed:'sco-response-relative-base-20261123',privateNames:['protectedOp']}
+  ),/(?:unproved cross-realm host API|unproved unqualified free reference)/u);
+  for(const transitive of [false,true]){
+    assert.throws(()=>partitionGraph(body,transitive),
+      /(?:unproved cross-realm host API|unproved unqualified free reference)/u,
+      'relative redirect transitive='+transitive);
+  }
+
+  const inert='const record={Response:41};return record.Response;';
+  const safe='export async function protectedOp(){'+inert+'}'+
+    'export function visible(){return 7;}';
+  assert.doesNotThrow(()=>partitionScoSelectedAsyncExports(
+    {path:'mixed.mjs',code:safe,sourceType:'module'},
+    {seed:'sco-response-own-label-20261123',privateNames:['protectedOp']}
+  ));
+  for(const transitive of [false,true]){
+    assert.deepEqual(partitionGraph(inert,transitive).privateNames,['protectedOp']);
+  }
+});
