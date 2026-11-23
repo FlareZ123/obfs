@@ -50,7 +50,12 @@ function execute(code) {
   const externalObserver=vm.runInNewContext(
     '({get trigger(){hostCallback();return 0;}})',{hostCallback}
   );
-  vm.runInNewContext(code,{module,hostCallback,externalObserver},{timeout:3000});
+  const ambientGetter=/** @type {() => number} */(vm.runInNewContext(
+    '(function ambientGetter(){hostCallback();return 0;})',{hostCallback}
+  ));
+  const hostScope={module,hostCallback,externalObserver};
+  Object.defineProperty(hostScope,'ambientValue',{get:ambientGetter});
+  vm.runInNewContext(code,hostScope,{timeout:3000});
   return {value:module.exports,source:observed.source};
 }
 
@@ -254,5 +259,25 @@ for(const mode of /** @type {const} */(['coo','sno','sco'])) {
     assert.match(native.source,/owner\.privateSecret/);
     assert.equal(actual.source,native.source,
       'An externally provided getter can synchronously observe caller source');
+  });
+}
+
+
+for(const mode of /** @type {const} */(['coo','sno','sco'])) {
+  test(mode+' ambient free-identifier getter can inspect caller without call or member syntax',()=>{
+    const source='const owner={privateSecret:31};'+
+      'function readPrivate(){void ambientValue;return owner.privateSecret;}'+
+      'module.exports=readPrivate();';
+    const native=execute(source);
+    const output=compile(source,mode);
+    const actual=execute(/** @type {string} */(output.code));
+    process.stdout.write('CALLSITE_AMBIENT_IDENTIFIER '+JSON.stringify({
+      mode,properties:output.metrics.properties,native,emitted:actual
+    })+'\n');
+    assert.equal(native.value,31);
+    assert.equal(actual.value,native.value);
+    assert.match(native.source,/owner\.privateSecret/);
+    assert.equal(actual.source,native.source,
+      'An externally supplied global accessor can observe caller source');
   });
 }
