@@ -1,68 +1,76 @@
 # Storage value-conversion hooks: native dispatch and source-observer precision
 
-**Status:** Intermediate research result. Test-only change; no production compiler patch.  
-**Exact current-main validation pin:** [`f4dd53d4d09f44257c12dcdc33dd102e6ad31517`](https://github.com/FlareZ123/obfs/commit/f4dd53d4d09f44257c12dcdc33dd102e6ad31517)  
+**Status:** Intermediate research result. Test-only changes; no production compiler patch.  
+**Extended current-main validation pin:** [`d705dbb95382e26089d272b6080dfcd1ec79b2b1`](https://github.com/FlareZ123/obfs/commit/d705dbb95382e26089d272b6080dfcd1ec79b2b1)  
 **Compiler blobs:** `src/ast.js` = `c227e6e604635a42663af745fd0cfb194b215a67`; `src/identifiers.js` = `c7e2ed1469381c5bc6dc42cef9a6ca8bfa347f0f`.
 
 ## Question and scope
 
-The Storage interface defines `setItem(DOMString key, DOMString value)` in the [WHATWG HTML Standard, Web Storage](https://html.spec.whatwg.org/multipage/webstorage.html). Therefore either argument can invoke JavaScript string conversion. The question here is narrower than general Web IDL coverage: how native Storage dispatch interacts with a function object's own `toString` / `Symbol.toPrimitive` hooks, and whether the current source observer preserves unrelated rewrite yield.
-
-The fixtures use a function as the **key** for the own-`toString` case on `localStorage), a function as the **value** for the own-`Symbol.toPrimitive` case on `sessionStorage), and a direct `Function.prototype.toString.call` bypass control.
+The Storage interface defines `setItem(DOMString key, DOMString value)` in the [WHATWG HTML Standard, Web Storage](https://html.spec.whatwg.org/multipage/webstorage.html). Either argument can therefore invoke JavaScript string conversion. This investigation isolates native Storage dispatch, own conversion hooks, direct Function#toString, patched Function#toString, and JavaScript prototype overrides, while checking whether unrelated private rewrite yield survives.
 
 ## Reproduction artifacts
 
 - `test/storage-value-coercion-fixtures.js`: shared exact source fixtures.
 - `test/storage-value-coercion-controls.test.js`: source-observer and binding-yield characterization.
 - `test/storage-value-coercion-controls-browser.js`: native-versus-emitted Chromium witness.
-- `.github/workflows/manual-browser.yml`: adds one manual-only Chromium step for the witness. No per-commit workflow was added.
+- `.github/workflows/manual-browser.yml`: one manual-only Chromium step for the witness. No per-commit workflow was added.
 
 ## Evidence
 
 ### Focused Node and JSDoc
 
-[Manual focused run 45194442239](https://github.com/FlareZ123/obfs/actions/runs/45194442239) passed on the exact pin on both Ubuntu and Windows. Strict project and external JSDoc passed on both. The full Node 22 job was skipped; this is not a full-suite acceptance receipt.
+[Manual focused run 45196328867](https://github.com/FlareZ123/obfs/actions/runs/45196328867) passed on the exact pin on both Ubuntu and Windows. Strict project and external JSDoc passed on both. The full Node 22 job was skipped; this is not a full-suite acceptance receipt.
 
 The passing assertions establish:
 
 | Fixture | `observesFunctionSource` | Binding rewrite | Interpretation |
 |---|---:|---:|---|
-| Own `toString` returns a stable primitive; non-throwing `this === inspect` receiver check | false | At least 2 | Safe positive-yield control; `privateLocal` and `independentLocal` are both rewritten |
-| Own `Symbol.toPrimitive` returns a stable primitive | true | 0 | Conservative over-refusal; the computed symbol-key write is treated as unknown |
-| Direct `Function.prototype.toString.call(inspect)` despite an own `toString` hook | true | 0 | Correct source-observation negative |
+| Own `toString` returns a stable primitive; non-throwing `this === inspect` receiver check | false | At least 2 | Safe positive-yield control; `privateLocal` and `independentLocal` are rewritten |
+| Own `Symbol.toPrimitive` returns a stable primitive | true | 0 | Conservative over-refusal; computed symbol-key write is treated as unknown |
+| Direct `Function.prototype.toString.call(inspect)` despite own `toString` | true | 0 | Correct source-observation negative |
+| JavaScript `Storage.prototype.setItem` override captures the function in a `WeakMap` | false | At least 2 | Positive-yield wrapper path; exact object identity retained |
+| Patched `Function.prototype.toString` delegates to captured native method | true | 0 | Correct source-observation negative |
 
-An earlier intentionally-red classification matrix, [run 45193389961](https://github.com/FlareZ123/obfs/actions/runs/45193389961), isolated a receiver-sensitive variant. A plain own-`toString` assignment, the same hook with a counter, and function-valued native Storage key/value calls all classify false. The combination `if (this !== inspect) throw new Error(...)` classifies true. The new positive fixture uses a non-throwing `this === inspect` receiver check and is accepted, while the original `this !== inspect` plus `throw new Error(...)` combination is refused. This does not isolate whether the operator difference, throw statement, or Error-stack path is responsible; do not infer a more specific cause from this matrix.
+An earlier intentionally-red classification matrix, [run 45193389961](https://github.com/FlareZ123/obfs/actions/runs/45193389961), isolated a receiver-sensitive variant. A plain own-`toString` assignment, the same hook with a counter, and function-valued native Storage key/value calls all classify false. The combination `if (this !== inspect) throw new Error(...)` classifies true. The accepted fixture uses a non-throwing `this === inspect` result check. This does not isolate whether the operator difference, throw statement, or Error-stack path is responsible; do not infer a more specific cause.
 
 ### Real Chromium
 
-[Manual browser run 45194452180](https://github.com/FlareZ123/obfs/actions/runs/45194452180) completed the new step **“Verify Storage own ToString and Symbol.toPrimitive conversion paths in Chromium”** successfully at the exact pin.
+[Manual browser run 45196524492](https://github.com/FlareZ123/obfs/actions/runs/45196524492) completed the new step **“Verify Storage own ToString and Symbol.toPrimitive conversion paths in Chromium”** successfully on Chrome 157.0.8103.78 at the exact pin.
 
-The step asserts that both Storage objects use the inherited native `Storage.prototype.setItem` callable in the fresh browser realm, and verifies:
+The five-case witness asserts:
 
-1. Native `localStorage.setItem(inspect, "value")` invokes the function's own `toString` hook, binds `this) to the function, stores the stable key, and preserves both numeric results after the emitted module's private bindings are rewritten.
-2. Native `sessionStorage.setItem("storage-own-symbol", inspect)` invokes own `Symbol.toPrimitive`, passes the hint `"string"`, binds `this) to the function, and stores the stable value. The current compiler conservatively leaves this module unchanged.
-3. `Function.prototype.toString.call(inspect)` bypasses the own `toString` hook; the source is stored and the hook call count remains zero. The current compiler refuses this module.
+1. **Own `toString`:** native `localStorage.setItem(inspect, "value")` invokes the function's own hook, binds `this) to the function, stores the stable key, and preserves results after the emitted module rewrites private bindings.
+2. **Own `Symbol.toPrimitive`:** native `sessionStorage.setItem("storage-own-symbol", inspect)` invokes the hook with hint `"string"`, binds `this) to the function, and stores the stable value. The current compiler conservatively leaves this module unchanged.
+3. **Direct Function#toString:** `Function.prototype.toString.call(inspect)` bypasses the own hook; the function source is stored and the own-hook call count remains zero. The compiler refuses this module.
+4. **Prototype override:** a JavaScript wrapper captures the exact function object in a `WeakMap`; `sameReference` is true, the native Storage string value remains `null), and the compiler retains unrelated private rewrite yield.
+5. **Patched Function#toString:** a patched wrapper delegates to the captured native method; native Storage conversion calls it once and stores the original function source. The compiler refuses this module.
 
-Native and emitted result objects match in all three cases.
+The harness compares native and emitted result objects in all five cases.
 
-The overall manual-browser workflow is **red**, not green. It later fails in the separate existing `test/bound-runtime-interception-browser.js:52` assertion (`0 !== 2`). Subsequent DOM source-parity diagnostics also report their pre-existing source/stack mismatches. These failures are not in the new Storage step and do not invalidate its completed assertions, but they prevent any full-workflow acceptance claim.
+The overall manual-browser workflow is **red**, not green. After the new Storage step passed, the existing `test/bound-runtime-interception-browser.js:52` assertion failed with `0 !== 2`. The run also logged the existing DOM source/stack parity mismatches. These are separate from the completed Storage step and prevent any full-workflow acceptance claim.
+
+### Harness failure accounting
+
+The first extended attempt at `ae844bf` was invalidated by two test-harness defects: the fixture helper lacked `module.exports={fixtures}`, and the browser script contained unquoted lines inside the HTML source array. Runs [45195813252](https://github.com/FlareZ123/obfs/actions/runs/45195813252) and [45195822563](https://github.com/FlareZ123/obfs/actions/runs/45195822563) are harness failures, not evidence about compiler semantics. Both defects were fixed before the validated `d705dbb` pin.
 
 ### Related native dispatch evidence
 
-Agent 12's separate four-path witness remains distinct and complementary: inherited native `localStorage.setItem` and a captured native alias expose function source; own-instance and prototype JavaScript wrappers retain the function object. Its focused Node/JSDoc run is [45181276801](https://github.com/FlareZ123/obfs/actions/runs/45181276801), and its Chromium Storage step is in [45181268302](https://github.com/FlareZ123/obfs/actions/runs/45181268302). The four-path witness's prototype override should still add an explicit `WeakMap` value identity assertion.
+Agent 12's separate four-path witness remains distinct and complementary: inherited native `localStorage.setItem` and a captured native alias expose function source; own-instance and prototype JavaScript wrappers retain the function object. Its focused Node/JSDoc run is [45181276801](https://github.com/FlareZ123/obfs/actions/runs/45181276801), and its Chromium Storage step is in [45181268302](https://github.com/FlareZ123/obfs/actions/runs/45181268302). The new mainline prototype fixture now adds the exact `WeakMap` identity assertion Agent 3 requested.
 
 ## Interpretation
 
-- **Native Storage source observation remains a missed analyzer case.** Agent 12's ordinary-function native/captured-native witness shows that the browser's native Web IDL conversion can expose changed function source while numeric behavior remains unchanged. The current main source observer does not model Storage receiver/callable identity, and the reduced plain `setItem` key/value forms classify `observesFunctionSource=false`. Do not infer that those plain calls are safe merely from the current predicate.
-- **Own `toString` can be a safe positive-yield path.** When the hook returns a stable primitive, the native DOMString conversion does not need the function's source, and the compiler can still rewrite unrelated private bindings.
+- **Native Storage source observation remains a missed analyzer case.** Agent 12's ordinary-function native/captured-native witness shows native Web IDL conversion can expose changed function source while numeric behavior remains unchanged. The current source observer does not model Storage receiver/callable identity, and reduced plain `setItem` key/value forms classify `observesFunctionSource=false`. Do not infer those plain calls are safe from the current predicate.
+- **Own `toString` can be a safe positive-yield path.** A stable primitive hook intercepts native DOMString conversion; unrelated private bindings can still be renamed.
 - **Own `Symbol.toPrimitive` is currently over-refused.** The computed symbol-key write is classified as an unknown source-observing operation even when the hook returns a fixed primitive. This is a precision/yield loss, not evidence of source exposure.
-- **Direct Function#toString remains a true source observer.** It bypasses own conversion hooks and must preserve the observed function's source.
+- **Direct Function#toString remains a true source observer.** It bypasses own conversion hooks and must preserve observed function source.
+- **A JavaScript prototype override is not native dispatch.** The wrapper receives and retains the exact callable object; this path can preserve private rewrite yield.
+- **A patched Function#toString that delegates to the native method is source-observing.** The browser confirms native Storage conversion reaches the patched method and returns the original source.
 - The receiver-check plus `throw new Error` variant is a separate conservative refusal; do not conflate it with native Storage dispatch or weaken the source-preservation negative to admit it.
 
 ## Limitations and next work
 
-This evidence is one Chromium browser environment and three bounded function-value conversion shapes. It does not establish behavior across all engines, realms, proxies, pre-module host patches, or arbitrary conversion-hook bodies. It does not implement the required BindingId / receiver / effective callable / ToPrimitive capability graph, source-span protection, or closure-preserving rewrite plan.
+This evidence is one Chromium environment and five bounded cases. It does not establish behavior across all engines, realms, proxies, pre-module host patches, or arbitrary conversion-hook bodies. It does not implement the required BindingId / receiver / effective callable / ToPrimitive capability graph, source-span protection, or closure-preserving rewrite plan.
 
 Next work should keep separate controls for native inherited dispatch, captured native aliases, own/prototype overrides, both DOMString argument positions, own `toString`, own `Symbol.toPrimitive`, bound functions, patched `Function.prototype.toString`, and direct Function#toString. Any eventual compiler admission must preserve the callable's exact source and source-reachable closure while retaining unrelated private yield. A method-name-only `.setItem` veto is not an acceptable solution.
 
-**No release status changed.** This is an intermediate falsifier/positive-control result, not a production security claim or comprehensive acceptance result.
+**No release status changed.** This is an intermediate result, not a production security claim or comprehensive acceptance result.
