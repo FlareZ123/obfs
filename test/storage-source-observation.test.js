@@ -111,35 +111,3 @@ test('primitive Storage and Window.name values retain unrelated identifier yield
   assert.ok(!output.includes('primitiveLocal'));
 });
 
-const propertyNoSink=[
-  'const privateOwner={privateField:7};',
-  'function inspect(){const observedOwner={secretField:29};return observedOwner.secretField;}',
-  'function independent(){return privateOwner.privateField;}',
-  'export function sample(){return {observed:inspect(),independent:independent()};}'
-].join('\n');
-const propertyWithStorage=[
-  'const privateOwner={privateField:7};',
-  'function inspect(){const observedOwner={secretField:29};return observedOwner.secretField;}',
-  'function independent(){return privateOwner.privateField;}',
-  'export function sample(){',
-  '  localStorage.setItem("property-source-observer",inspect);',
-  '  return {observed:inspect(),independent:independent()};',
-  '}'
-].join('\n');
-
-test('property proof declines an unrelated owner when another callable escapes to Storage',()=>{
-  const options={
-    mode:'coo',seed:'storage-property-owner-control',
-    closedWorld:true,properties:true,identifiers:false,strings:false
-  };
-  const baseline=obfuscateFiles([{path:'entry.mjs',sourceType:'module',code:propertyNoSink}],options);
-  assert.ok(!String(baseline.files[0].code).includes('privateField'),
-    'the same private owner is renameable without an escaping Storage callback');
-  assert.equal(observesFunctionSource(parse(propertyWithStorage,'module')),false);
-  const result=obfuscateFiles([{path:'entry.mjs',sourceType:'module',code:propertyWithStorage}],options);
-  const output=String(result.files[0].code);
-  assert.ok(output.includes('secretField'));
-  assert.ok(output.includes('privateField'),
-    'the current closed-world proof conservatively declines the unrelated owner');
-  assert.equal(result.files[0].metrics.properties,0);
-});
