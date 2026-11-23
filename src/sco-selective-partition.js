@@ -457,6 +457,7 @@ function usesUnprovedRelocatedWebIdlConstructors(body,knownFormals=new Set()){
     knownFormals.has(name)||bindings.has(name)));
   /** @param {import('./ast').AstNode|null|undefined} expression @returns {boolean} */
   function asciiText(expression){
+    if(!expression)return false;
     const value=staticString(expression);
     return value!==null&&/^[\x20-\x7e]*$/u.test(value);
   }
