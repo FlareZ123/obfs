@@ -81,6 +81,7 @@ test('exact basis-direction CEGAR inverts degree-two through degree-four affine-
     assert.ok(nonzeroTop>0,'fixture should really exercise its declared highest degree');
     const inverter=prepareExactBoundedDegreeInverter(model);
     assert.equal(inverter.contractions,528);
+    assert.equal(inverter.derivativeContractions,32);
     assert.equal(inverter.coefficientSlots,entry.slots);
     assert.ok(inverter.splitTermCount>0);
     const next=random32(entry.seed^0xbad51234);
@@ -90,6 +91,8 @@ test('exact basis-direction CEGAR inverts degree-two through degree-four affine-
       const output=oracle(input);
       assert.equal(inverter.clone(input),output,'ANF clone diverged at an unqueried input');
       assert.equal(inverter.invert(output),input,'offline greedy inverse failed');
+      assert.equal(inverter.invertFast(output),input,
+        'incremental precomputed-derivative inverse failed');
     }
   }
 });
@@ -121,6 +124,7 @@ if(process.env.OBFS_STRESS_QUARTIC==='1'){
       assert.equal(model.queryCount,41449);
       const inverter=prepareExactBoundedDegreeInverter(model);
       assert.equal(inverter.contractions,528);
+      assert.equal(inverter.derivativeContractions,32);
       assert.equal(inverter.coefficientSlots,5488);
       const next=random32(seed^0xbad51234);
       for(let sample=0;sample<8;sample++){
@@ -131,6 +135,8 @@ if(process.env.OBFS_STRESS_QUARTIC==='1'){
           'quartic held-out clone diverged at seed '+seed);
         assert.equal(inverter.invert(output),input,
           'quartic held-out inverse diverged at seed '+seed);
+        assert.equal(inverter.invertFast(output),input,
+          'quartic incremental inverse diverged at seed '+seed);
       }
     }
   });
@@ -243,7 +249,8 @@ test('a degree-three bijection outside the compatible triangular family fails cl
 
 
 test('exact reusable quartic flags agree with established target-specific symbolic inverse',()=>{
-  /** @type {Array<{seed:number,targets:number,flagSetupMs:number,flagTargetsMs:number,symbolicTargetsMs:number}>} */
+  /** @type {Array<{seed:number,targets:number,flagSetupMs:number,
+   *  flagTargetsMs:number,fastTargetsMs:number,symbolicTargetsMs:number}>} */
   const receipts=[];
   for(const seed of [0x71812345,0x61a97123]){
     const oracle=makeOracle(seed,4);
@@ -262,6 +269,10 @@ test('exact reusable quartic flags agree with established target-specific symbol
     for(const [input,target] of pairs)
       assert.equal(flags.invert(target),input);
     const flagTargetsMs=performance.now()-flagStart;
+    const fastStart=performance.now();
+    for(const [input,target] of pairs)
+      assert.equal(flags.invertFast(target),input);
+    const fastTargetsMs=performance.now()-fastStart;
     const symbolicStart=performance.now();
     for(const [input,target] of pairs){
       const found=invertBoundedDegreeModelSymbolically(model,target);
@@ -271,6 +282,7 @@ test('exact reusable quartic flags agree with established target-specific symbol
     receipts.push({seed,targets:pairs.length,
       flagSetupMs:Math.round(flagSetupMs),
       flagTargetsMs:Math.round(flagTargetsMs),
+      fastTargetsMs:Math.round(fastTargetsMs),
       symbolicTargetsMs:Math.round(symbolicTargetsMs)});
   }
   console.log('EXACT_QUARTIC_BASIS_VS_SYMBOLIC '+JSON.stringify(receipts));
