@@ -69,3 +69,32 @@ proposes independent class-name spelling coupling, ESM syntactic-label
 exclusions and direct-delete binding roles. Any eventual adoption of that
 donor must retain this AST-branch distinction; its branch still contains
 the old span-containment logic as of this report.
+
+
+## Independent native binding-effect oracle (19:57 UTC extension)
+
+The AST-only expected-role assertions above are supported by an independent
+runtime observation surface in
+`test/agent1-reference-role-native-effects.test.js`. It executes **16
+sloppy classic-script fixtures** in separate `node:vm` contexts with
+instrumented configurable `globalThis.window` and `globalThis.target`
+getters and setters. It checks the resulting `get`/`set` event sequence
+against the expected read/write operations while checking the Acorn Stage 1
+role list. The corpus covers simple, compound, update and member assignments;
+object destructuring defaults and computed keys; `for...of` member/default
+targets; and nested writes inside defaults. The independent event logging
+does not invoke the obfuscation transform.
+
+- Source `test/agent1-reference-role-native-effects.test.js` committed
+  `45fd4a55c4d4ffb4a83f9463ca6e7017db977b74`;
+  strict external JSDoc test inclusion
+  `ce78c134e22de4e6512775c5519a01703eb865ad`.
+- Two-platform Node 22 focused
+  [45254009587](https://github.com/FlareZ123/obfs/actions/runs/45254009587)
+  passed on **Ubuntu and Windows**, all **16/16** fixture groups, strict
+  project/external/budget typechecks. Full Node runner skipped.
+- This models the observable ECMAScript global-property reference operations
+  for the named cases. It neither exercises lexical TDZ, proxies or accessors
+  other than configured globals nor proves all AST language patterns,
+  arbitrary native host identity, compiler equivalence, confidentiality or
+  the project-wide performance budget.
