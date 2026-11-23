@@ -182,7 +182,7 @@ test('SCO imported safe Reflect.get key retains private-property renaming',async
   /** @type {ModuleFile[]} */
   const files=[
     {path:'state.mjs',sourceType:'module',code:
-      'const item={secretField:11};export function compute(){return item.secretField;}'},
+      'const item={secretField:11};function privateCompute(){return item.secretField;}export function compute(){return privateCompute();}'},
     {path:'key.mjs',sourceType:'module',code:'export const lookupKey="value";'},
     {path:'entry.mjs',sourceType:'module',code:
       'import {compute} from "./state.mjs";'+
@@ -238,7 +238,7 @@ test('SCO named-exported safe key preserves renaming of a private ESM owner',asy
   /** @type {ModuleFile[]} */
   const files=[
     {path:'state.mjs',sourceType:'module',code:
-      'const item={secretField:13};export function compute(){return item.secretField;}'},
+      'const item={secretField:13};function privateCompute(){return item.secretField;}export function compute(){return privateCompute();}'},
     {path:'key.mjs',sourceType:'module',code:
       'const internal="value";export {internal as lookupKey};'},
     {path:'entry.mjs',sourceType:'module',code:
