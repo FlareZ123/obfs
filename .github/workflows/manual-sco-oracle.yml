@@ -85,7 +85,7 @@ jobs:
         run: node sims/sco-step-only-version-space-report.js
       - name: Challenge bounded continuation attack on independent SHA holdouts
         run: node sims/sco-step-only-version-space-report.js --holdout
-      - name: Validate two through four-state continuation through real authenticated SCO RPC
+      - name: Validate two through five-state continuation through real authenticated SCO RPC
         run: node --test test/sco-step-only-live-rpc.test.js
       - name: Publish real SCO server-private to public continuation result
         run: node sims/sco-step-only-live-rpc.js
