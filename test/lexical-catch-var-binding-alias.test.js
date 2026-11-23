@@ -29,6 +29,11 @@ function execute(code){
   return new Function(code+'\nreturn demonstration();')();
 }
 
+/** @param {string} code @returns {unknown} */
+function executeStrict(code){
+  return new Function('"use strict";'+code+'\nreturn demonstration();')();
+}
+
 /** @type {{name:string,source:string,independent:string}[]} */
 const aliasCases=[
   {
@@ -73,6 +78,7 @@ test('native catch/var same-name behavior differs from independent binding renam
     const native=execute(source);
     const separatelyRenamed=execute(independent);
     assert.notDeepEqual(separatelyRenamed,native,name);
+    assert.notDeepEqual(executeStrict(independent),executeStrict(source),'strict: '+name);
   }
 });
 
