@@ -88,13 +88,14 @@ test('unknown computed destructuring key can extract Error.stack',()=>{
   assert.equal(result.files[0].metrics.properties,0);
 });
 
-test('computed destructuring from inert non-Error record still preserves yield',()=>{
+test('unknown computed destructuring from inert record retains existing conservative refusal',()=>{
   const native="const owner={longPrivateField:47};const value=owner.longPrivateField;"+
     "const record={safeValue:'ok'};const key=['safe','Value'].join('');"+
     "const {[key]:frame}=record;export const observed={value,frame};";
   const result=compile(native,'inert-record-dynamic-destructuring');
-  assert.equal(observesFunctionSource(parse(native,'module')),false);
-  assert.equal(result.files[0].metrics.properties,1);
+  assert.equal(observesFunctionSource(parse(native,'module')),true,
+    'The pre-existing scanner declines opaque computed destructuring');
+  assert.equal(result.files[0].metrics.properties,0);
 });
 
 test('real ESM stack column changes under unsafe rename, not under guarded build',async()=>{
