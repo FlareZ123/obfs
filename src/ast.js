@@ -5,6 +5,9 @@ const acorn = require('acorn');
 /** @type {WeakMap<object,boolean>} */
 const sourceObservationCache=new WeakMap();
 
+/** @type {WeakMap<object,'script'|'module'|'commonjs'>} */
+const originalSourceTypes=new WeakMap();
+
 /**
  * @typedef {{[key:string]:any,type: string, start: number, end: number}} AstNode
  * @typedef {{ start: number, end: number, text: string }} Edit
@@ -17,13 +20,26 @@ const sourceObservationCache=new WeakMap();
  * @returns {AstNode}
  */
 function parse(source, sourceType) {
-  return /** @type {AstNode} */ (acorn.parse(source, {
+  const ast=/** @type {AstNode} */ (acorn.parse(source, {
     ecmaVersion: 'latest',
     sourceType: sourceType === 'commonjs' ? 'script' : sourceType,
     allowReturnOutsideFunction: sourceType === 'commonjs',
     allowHashBang: true,
     preserveParens: false
   }));
+  originalSourceTypes.set(ast,sourceType);
+  return ast;
+}
+
+/**
+ * Retrieve the caller's original source mode. CommonJS and classic scripts
+ * share Acorn's script grammar, but only classic top-level bindings are
+ * directly accessible to other scripts in the same Realm.
+ * @param {AstNode} ast
+ * @returns {'script'|'module'|'commonjs'}
+ */
+function originalSourceType(ast) {
+  return originalSourceTypes.get(ast)??(ast.sourceType==='module'?'module':'script');
 }
 
 /**
@@ -4025,4 +4041,4 @@ function observesDistributedSource(ast,importedStrings=new Map()) {
   return observed;
 }
 
-module.exports = {parse, walk, applyEdits, observesFunctionSource, observesDistributedSource, staticString, collectDirectCarrierFactories, sourceSpelledErrorOperand};
+module.exports = {parse, originalSourceType, walk, applyEdits, observesFunctionSource, observesDistributedSource, staticString, collectDirectCarrierFactories, sourceSpelledErrorOperand};
