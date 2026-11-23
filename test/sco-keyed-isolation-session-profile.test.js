@@ -6,19 +6,21 @@ const {createHmac} = require('node:crypto');
 const {performance} = require('node:perf_hooks');
 const {createScoKeyedIsolation} = require('../src/rpc-keyed-isolation.js');
 
-/** @typedef {'direct' | 'uncapped' | 'capped'} Variant */
+/** @typedef {'direct' | 'direct-control' | 'uncapped' | 'capped'} Variant */
 /** @typedef {{name:string,calls:number,rounds:number,payloadBytes:number}} Workload */
 /** @typedef {{trial:number,variant:Variant,wallMs:number,cpuMs:number,checksum:number}} Observation */
 /** @typedef {{name:string,observations:Observation[],summary:{
  *   uncappedCpuRatioMedian:number,cappedCpuRatioMedian:number,
+ *   placeboCpuRatioMedian:number,placeboCpuBreaches:number,
  *   cappedVsUncappedMedian:number,cappedCpuBreaches:number,
  *   cappedWallRatioMedian:number,cappedWallBreaches:number,
- *   rawCappedCpuRatios:number[],rawCappedWallRatios:number[]
+ *   rawCappedCpuRatios:number[],rawCappedWallRatios:number[],
+ *   rawPlaceboCpuRatios:number[]
  * }}} WorkloadResult */
 
 const KEY = Buffer.from('72657365617263682d7374726963742d746573742d6b6579', 'hex');
 /** @type {Variant[]} */
-const VARIANTS = ['direct', 'uncapped', 'capped'];
+const VARIANTS = ['direct', 'direct-control', 'uncapped', 'capped'];
 /** @type {Workload[]} */
 const WORKLOADS = [
   {name:'tiny-hmac-per-call',calls:8192,rounds:1,payloadBytes:64},
@@ -50,7 +52,7 @@ function median(values) {
 async function runTrial(workload,variant,trial) {
   const request=/** @type {import('node:http').IncomingMessage} */(
     /** @type {unknown} */ ({headers:{authorization:'trusted-fixture'}}));
-  const isolation=variant==='direct'?null:createScoKeyedIsolation(
+  const isolation=(variant==='direct'||variant==='direct-control')?null:createScoKeyedIsolation(
     ()=> 'trusted-principal',
     variant==='capped'?{maxPendingPerPrincipal:8,maxPendingTotal:32}:{}
   );
@@ -97,7 +99,7 @@ async function profileWorkload(workload,trials) {
   /** @type {Observation[]} */
   const observations=[];
   for(let trial=0;trial<trials;trial++){
-    // Every arm occurs at each order rank over three consecutive trials.
+    // With 12 trials, every arm occurs at each order rank three times.
     const order=VARIANTS.slice(trial%VARIANTS.length).concat(
       VARIANTS.slice(0,trial%VARIANTS.length));
     /** @type {Observation[]} */
@@ -113,20 +115,25 @@ async function profileWorkload(workload,trials) {
   /** @param {Variant} variant @returns {Observation[]} */
   const arm=(variant)=>observations.filter(x=>x.variant===variant)
     .sort((a,b)=>a.trial-b.trial);
-  const direct=arm('direct'),uncapped=arm('uncapped'),capped=arm('capped');
+  const direct=arm('direct'),placebo=arm('direct-control'),
+    uncapped=arm('uncapped'),capped=arm('capped');
   const cappedCpu=capped.map((entry,i)=>entry.cpuMs/direct[i].cpuMs);
   const cappedWall=capped.map((entry,i)=>entry.wallMs/direct[i].wallMs);
   const uncappedCpu=uncapped.map((entry,i)=>entry.cpuMs/direct[i].cpuMs);
+  const placeboCpu=placebo.map((entry,i)=>entry.cpuMs/direct[i].cpuMs);
   const capVsUncapped=capped.map((entry,i)=>entry.cpuMs/uncapped[i].cpuMs);
   return {name:workload.name,observations,summary:{
     uncappedCpuRatioMedian:median(uncappedCpu),
     cappedCpuRatioMedian:median(cappedCpu),
+    placeboCpuRatioMedian:median(placeboCpu),
+    placeboCpuBreaches:placeboCpu.filter(value=>value>2.5).length,
     cappedVsUncappedMedian:median(capVsUncapped),
     cappedCpuBreaches:cappedCpu.filter(value=>value>2.5).length,
     cappedWallRatioMedian:median(cappedWall),
     cappedWallBreaches:cappedWall.filter(value=>value>2.5).length,
     rawCappedCpuRatios:cappedCpu,
-    rawCappedWallRatios:cappedWall
+    rawCappedWallRatios:cappedWall,
+    rawPlaceboCpuRatios:placeboCpu
   }};
 }
 
@@ -136,14 +143,14 @@ test('bounded SCO keyed isolation preserves repeated-use HMAC and profiles compu
   /** @type {WorkloadResult[]} */
   const results=[];
   for(const workload of WORKLOADS) {
-    results.push(await profileWorkload(workload,9));
+    results.push(await profileWorkload(workload,12));
   }
   // These measurements are intentionally observations, not a passing 2.5x
   // budget certificate. Every strict breach stays in the machine-readable log.
   console.log('SCO_KEYED_ISOLATION_SESSION_PROFILE='+JSON.stringify({
     node:process.version,platform:process.platform,arch:process.arch,
-    trialCount:9,results
+    trialCount:12,results
   }));
   assert.equal(results.length,2);
-  assert.ok(results.every(result=>result.observations.length===27));
+  assert.ok(results.every(result=>result.observations.length===48));
 });
