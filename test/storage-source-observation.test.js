@@ -122,6 +122,7 @@ const propertySource=[
 ].join('\n');
 
 test('property pass keeps the Storage-observed owner stable while renaming an independent owner',()=>{
+  assert.equal(observesFunctionSource(parse(propertySource,'module')),false);
   const propertyBaseline=[
     'const privateOwner={privateField:7};',
     'function independent(){return privateOwner.privateField;}',
