@@ -2,7 +2,7 @@
 
 **Status:** design proposal; not an implemented or validated source-observer fix.  
 **Evidence:** `im-results/domstring-property-setter-source-matrix-2026-11-23.md`  
-**Test donor:** branch `agent19/domstring-property-setter-current-main-20261123`
+**Test donor:** branch `agent19/domstring-property-setter-final-20261123`
 
 ## Problem statement
 
@@ -260,3 +260,9 @@ current main byte-for-byte: `src/ast.js`, `src/core.js`, `src/properties.js`,
 `src/source-observer-islands.js`. The branch may be behind in unrelated
 repository files; these exact source hashes are the basis for the current-main
 claim.
+
+
+The final manual-workflow branch `agent19/domstring-property-setter-final-20261123`
+was created from the latest main immediately before validation. Run 45106288191
+passed both OS jobs and strict JSDoc:
+https://github.com/FlareZ123/obfs/actions/runs/45106288191
