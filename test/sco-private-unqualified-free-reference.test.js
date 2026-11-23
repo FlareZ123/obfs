@@ -210,3 +210,37 @@ test('source-paired compiler-time probe: many distinct locally bound names',()=>
     medianMs:Number(sorted[1].toFixed(3)),outputDigest:hash
   }));
 });
+
+
+test('scope-index boundary: sibling and disjoint lexical bindings never legalize free reads',()=>{
+  const reject=[
+    '{const externalBridge=41;}return externalBridge;',
+    'function sibling(){const externalBridge=41;}return externalBridge;',
+    'for(let externalBridge=0;externalBridge<1;externalBridge++){}return externalBridge;',
+    'switch(1){case 1:{const externalBridge=41;break;}default:break;}return externalBridge;',
+    'class Record{static {var externalBridge=41;}}return externalBridge;',
+    'return ({[externalBridge]:41});',
+    'try{throw {}}catch({value=externalBridge}){return 41;}'
+  ];
+  for(const body of reject)for(const dependency of [false,true]){
+    assert.throws(()=>compile(body,dependency),
+      /unproved unqualified free reference/u,
+      body+' / dependency='+dependency);
+  }
+});
+
+test('scope-index boundary: effective lexical owners preserve positive private yield',()=>{
+  const safe=[
+    'try{throw 41;}catch(externalBridge){return externalBridge;}',
+    'let total=0;for(let externalBridge=1;externalBridge<3;externalBridge++){total+=externalBridge;}return total;',
+    'if(false){var externalBridge=41;}return externalBridge===undefined?7:0;',
+    'const {externalBridge}=({externalBridge:41});return externalBridge;',
+    'function sibling(){const externalBridge=41;return externalBridge;}return sibling();',
+    'switch(1){case 1:{const externalBridge=41;return externalBridge;}default:return 0;}'
+  ];
+  for(const body of safe)for(const dependency of [false,true]){
+    const compiled=compile(body,dependency);
+    assert.deepEqual(compiled.privateNames,['protectedOp']);
+    assert.doesNotMatch(compiled.clientFile.code,/return externalBridge/u);
+  }
+});
