@@ -44,7 +44,7 @@ const fixtures={
     '  Object.defineProperty(Storage.prototype,"setItem",descriptor);',
     '  return captured.get(localStorage)()+independent();',
     '}'
-  ].join('\\n'),
+  ].join('\n'),
   capturedNative:[
     'function inspect(){const privateLocal=29;return privateLocal;}',
     'function independent(){const independentLocal=7;return independentLocal;}',
