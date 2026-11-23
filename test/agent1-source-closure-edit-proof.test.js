@@ -163,3 +163,37 @@ test('fixed ESM provider import retains lexical closure during unrelated edits',
   assert.ok(result.plan.guarded.some(span=>span.reason==='LexicalDeclaration'&&
     code.slice(span.start,span.end)==='secret'));
 });
+
+
+test('negative control: external property rewrite can preserve source yet change behavior',()=>{
+  const code='const data={value:40};function observed(){return data.value+2;}' +
+    'function sibling(){return 1;}';
+  const start=code.indexOf('value:40');
+  const result=applyObservedFunctionEdits(code,'commonjs','observed',[
+    {start,end:start+5,text:'other'}
+  ]);
+  const original=run(code);
+  const emitted=run(result.code);
+  assert.equal(original.value,42);
+  assert.equal(original.source,emitted.source);
+  assert.ok(Number.isNaN(emitted.value));
+});
+
+test('negative control: changing an imported provider is outside lexical source proof',async()=>{
+  /** @param {string} text */
+  const url=text=>'data:text/javascript;base64,'+Buffer.from(text).toString('base64');
+  const originalProvider=url('export const secret=40;');
+  const otherProvider=url('export const secret=1;');
+  const specifier=JSON.stringify(originalProvider);
+  const code='import {secret} from '+specifier+';' +
+    'export function observed(){return secret+2;}' +
+    'export function sibling(){return 1;}';
+  const start=code.indexOf(specifier);
+  const result=applyObservedFunctionEdits(code,'module','observed',[
+    {start,end:start+specifier.length,text:JSON.stringify(otherProvider)}
+  ]);
+  const [original,emitted]=await Promise.all([import(url(code)),import(url(result.code))]);
+  assert.equal(original.observed(),42);
+  assert.equal(emitted.observed(),3);
+  assert.equal(original.observed.toString(),emitted.observed.toString());
+});
