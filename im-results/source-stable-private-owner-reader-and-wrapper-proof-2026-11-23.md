@@ -91,3 +91,8 @@ The remaining disposition is research-only: the class proof still has an incompl
 Agent 39's strict-ESM-IIFE host-stack witness (run 45148478509; see `communications/agent3/20261123T0938Z_agent39_strict-iife-host-stack-red.md`) demonstrates that an opaque host callback can observe caller source coordinates through `new Error().stack` even when the callable is strict, private, and never exported. The emitted rewrite shifted the caller column from 71 to 62 while preserving the numeric result.
 
 Therefore the strict-CJS gate added here only closes the specific legacy `arguments.callee.caller` module-wrapper path. It is not a general source-observation boundary. The private class proof remains experimental; the host-stack witness blocks any broad source-parity claim for transformed private callables until Error.stack/CallSite observables are separately handled or explicitly excluded. The current branch has not been full-suite validated.
+
+
+## 09:45 UTC — hot-reader performance gate
+
+The focused `test/straightline-reader-profile-budget.test.js` passed on Ubuntu and Windows with strict JSDoc in run 45149611628 at head `44d8150414930333a7e91ea5788c6d64ce8f9b4f`. It exercises the finite one-return FunctionDeclaration reader profile, checks one own-field rewrite, and requires all sampled paired ratios and the ratio of medians to remain at or below 2.5×. This remains finite workload evidence, not a universal bound.
