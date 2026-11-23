@@ -138,18 +138,24 @@ test('public source-only normalizer still relabels all protected adjacent owner 
   const sourceOnly=obfuscated.files.map(file=>({
     path:file.path,sourceType:/** @type {'module'} */('module'),code:String(file.code)
   }));
-  const attack=normalizePublicFields(sourceOnly,{preserveFreeMemberReceivers:true});
+  // A sound external-receiver refusal prevents this local attacker from
+  // tracing the worker's parameter alias: relabeling becomes incomplete.
+  const conservative=normalizePublicFields(sourceOnly,{preserveFreeMemberReceivers:true});
+  assert.equal(conservative.properties,2);
+  const partial=conservative.files.map(file=>({
+    path:file.path,sourceType:/** @type {'module'} */('module'),code:String(file.code)
+  }));
+  assert.equal(Number.isNaN(await runNative(partial)),true,
+    'Conservative source-only pass cannot normalize the worker parameter alias');
+
+  // The unrestricted source-only normalizer can relabel every hashed key in
+  // this wholly local graph while preserving the actual application result.
+  const attack=normalizePublicFields(sourceOnly);
   assert.equal(attack.properties,2,'Public source-only attacker relabels both protected keys');
   const attacked=attack.files.map(file=>({
     path:file.path,sourceType:/** @type {'module'} */('module'),code:String(file.code)
   }));
-  const attackedResult=await runNative(attacked);
-  if(attackedResult!==29) {
-    console.log('PUBLIC_NORMALIZER_REPRO '+JSON.stringify({
-      original:sourceOnly,normalized:attacked,actual:attackedResult
-    }));
-  }
-  assert.equal(attackedResult,29,'Source-only relabeling preserves behavior');
+  assert.equal(await runNative(attacked),29,'Public source-only normalization preserves behavior');
 });
 
 test('imported primitive proof cannot bypass an observed external owner-key shape',async()=>{
