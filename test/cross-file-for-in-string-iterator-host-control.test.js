@@ -108,6 +108,32 @@ for(const [label,setup] of [
   });
 }
 
+test('ForIn StringKey provenance crosses an ESM identity-return edge',async()=>{
+  const files=graph([
+    'import {state} from "./state.mjs";',
+    'import {identity} from "./pass.mjs";',
+    'let injected;',
+    'for(const key in ["x"]){',
+    'const alias=identity(key);',
+    'const [Loader]=alias;',
+    'injected=Loader(\'return import("./state.mjs")\');',
+    '}',
+    'const remote=await injected();',
+    'console.log(JSON.stringify([state.secretField,Object.keys(remote.state),remote.state.secretField]));'
+  ].join('\n'));
+  files.push({path:'pass.mjs',sourceType:'module',
+    code:'export function identity(value){return value;}'
+  });
+  const native=await executeWithHostStringIterator(files);
+  assert.equal(native,'[53,["secretField"],53]\n');
+  const output=transform(files,'for-in-stringkey-cross-module-return');
+  const emitted=await executeWithHostStringIterator(output.files);
+  assert.equal(emitted,native,
+    'A StringKey must remain host-sensitive across an ESM function return');
+  assert.equal(output.crossFile.properties,0,
+    'Cross-module return of a ForIn key must not publish a renamed owner key');
+});
+
 test('simple ForIn identifier binding retains independent private-field rewrite yield',async()=>{
   const files=graph([
     'import {state} from "./state.mjs";',
