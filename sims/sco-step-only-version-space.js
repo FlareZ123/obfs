@@ -5,6 +5,8 @@ const {learnFourStateStepOnly}=require('./sco-step-only-four-state');
 /** @typedef {{next:number[][],output:number[][],state:number}} Candidate */
 /** @typedef {{step:(symbol:number)=>Promise<number>}} StepOnlyOracle */
 /** @typedef {{certified:boolean,queries:number,remaining:number,inputs:number[],outputs:number[],clone:Candidate|null}} LearningResult */
+/** @typedef {LearningResult & {modelBound?:4,modelCount?:number,scanWork?:number,
+ *  equivalenceChecks?:number,productPairs?:number,elapsedMs?:number}} ExtendedLearningResult */
 
 /**
  * Exhaustively list binary Mealy machines with at most maxStates states.
@@ -119,7 +121,7 @@ function chooseSymbol(hypotheses){
  * @param {StepOnlyOracle} api
  * @param {number} [maxStates]
  * @param {number} [maxQueries]
- * @returns {Promise<LearningResult>}
+ * @returns {Promise<ExtendedLearningResult>}
  */
 async function learnBoundedStepOnly(api,maxStates=2,maxQueries=64){
   if(maxStates===4)return learnFourStateStepOnly(api,maxQueries);
