@@ -98,7 +98,7 @@ const primitiveStorage=[
   '  window.name="literal-window-name";',
   '  return independent();',
   '}'
-].join('\\n');
+].join('\n');
 
 test('primitive Storage and Window.name values retain unrelated identifier yield',()=>{
   assert.equal(observesFunctionSource(parse(primitiveStorage,'module')),false);
