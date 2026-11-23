@@ -63,7 +63,7 @@ mutation, and unsupplied JavaScript source consumers remains absent.
 | Baseline `ed61de0de3da42db02e1cf20b6251eaddac74cab`, [run 45134739512](https://github.com/FlareZ123/obfs/actions/runs/45134739512) | Existing two `private-class-source-yield` cases | 0 pass, **2 fail** | 0 pass, **2 fail** |
 | Experimental `f9e760a5257d03862c3cc2dd9ccdbce3fc83dc3e`, [run 45132248783](https://github.com/FlareZ123/obfs/actions/runs/45132248783) | Same existing two cases | **2 pass** | **2 pass** |
 | Experimental `0d214d01c93e4210a275bfba3b0a4cd0c67b34c9`, [run 45132366078](https://github.com/FlareZ123/obfs/actions/runs/45132366078) | New three-mode positive/refusal matrix | **42 pass** | **42 pass** |
-| Experimental `011d7a95676d90b930e1146b03ad3f7aacf4b3be`, [run 45133112450](https://github.com/FlareZ123/obfs/actions/runs/45133112450) | Expanded matrix with native three-file? **two-file** ESM execution | **45 pass** | **45 pass** |
+| Experimental `011d7a95676d90b930e1146b03ad3f7aacf4b3be`, [run 45133112450](https://github.com/FlareZ123/obfs/actions/runs/45133112450) | Expanded matrix with native two-file ESM execution | **45 pass** | **45 pass** |
 
 The first two receipts are from the same underlying baseline except for
 the compiler's class-method proof patch. This is a source-matched **finite
