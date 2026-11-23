@@ -51,7 +51,7 @@ Earlier focused runs exposed only test-harness mistakes (over-escaped regular ex
 - The new browser fixture in that old commit stopped before launching Chrome because it asserted exactly one rewritten property; the selected leaves actually reported two (`2 !== 1`). This was a brittle test expectation, not a runtime mismatch. The branch tip was corrected to assert `properties >= 1`, and its browser fixture received explicit JSDoc types.
 - The same full run's existing Chromium checks `verified-record-browser.js` and `esm-observation-browser.js` passed, but they did not exercise the new source-island fixture because the earlier assertion aborted `test/browser-integration.js`.
 - Focused run [45276197251](https://github.com/FlareZ123/obfs/actions/runs/45276197251) passed on Ubuntu and Windows: all 9 focused source-island tests and all strict JSDoc gates passed. This focused run does not execute Chromium.
-- A dedicated real-Chromium source-island test now exists at `test/source-observer-islands-browser.test.js`; focused run [45277031949](https://github.com/FlareZ123/obfs/actions/runs/45277031949) is queued against the corrected branch tip.
+- A dedicated real-Chromium source-island test now exists on the experiment branch at `test/source-observer-islands-browser.test.js`; focused run [45277031949](https://github.com/FlareZ123/obfs/actions/runs/45277031949) completed successfully. The Ubuntu job executed real Chromium and passed the external source/metadata/value probe; the Windows job skipped browser execution as intended and passed the strict JSDoc gates.
 
 Do not infer a browser pass until run 45277031949 completes.
 
