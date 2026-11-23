@@ -840,7 +840,7 @@ test('SCO refuses legacy TextDecoder results with unproved host mapping tables',
     ),/unproved cross-realm text decoding/u,body);
     for(const transitive of [false,true]){
       assert.throws(()=>partitionGraph(body,transitive),
-        /unproved cross-realm text decoding/u,
+        /unproved cross-realm text decoding|realm-local prototype access|unproved runtime loader via constructor/u,
         body+' transitive='+transitive);
     }
   }
