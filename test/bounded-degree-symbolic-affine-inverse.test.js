@@ -156,6 +156,63 @@ test('symbolic ANF transport exactly inverts independently randomized affine-san
   }));
 });
 
+
+test('two-round quadratic Feistel is degree-four and invertible yet lacks a global affine output flag',()=>{
+  // A deliberately *non*-triangular-affine target under the identical
+  // degree-four promise: two nonlinear Feistel rounds on 4+4 bit halves.
+  // The vector-valued nonlinear ANF has full output rank eight, therefore
+  // no nonconstant output parity can be affine on the *whole* input space.
+  // This demonstrates why low algebraic degree + bijectivity alone is not
+  // sufficient for the hidden-single-round triangular inversion theorem.
+  const pairs=[[0,1],[0,2],[0,3],[1,2],[1,3],[2,3]];
+  const g=[[4,0,3,1],[0,5,1,2],[4,3,2,1],[0,2,3,5]];
+  const h=[[5,3,0,4],[4,5,2,3],[4,0,3,1],[0,2,3,1]];
+  /** @param {number} word @param {number[][]} controls @returns {number} */
+  function nonlinear(word,controls) {
+    let transformed=0;
+    for(let bit=0;bit<4;bit++) {
+      let value=0;
+      for(const index of controls[bit]) {
+        const pair=pairs[index];
+        value^=((word>>>pair[0])&1)&((word>>>pair[1])&1);
+      }
+      transformed^=value<<bit;
+    }
+    return transformed;
+  }
+  /** @param {number} x @returns {number} */
+  function F(x) {
+    const low=x&15, high=(x>>>4)&15;
+    const middle=(high^nonlinear(low,g))&15;
+    const finalHigh=(low^nonlinear(middle,h))&15;
+    return ((finalHigh<<4)|middle)>>>0;
+  }
+  const values=Array.from({length:256},(_,i)=>F(i));
+  assert.equal(new Set(values).size,256,'Feistel must be bijective');
+  const model=learnBoundedDegreeOracle(F,8,4);
+  assert.ok(model.coefficients.some(([monomial,value])=>
+    popcount(monomial)===4&&value!==0),
+    'Feistel must have actual algebraic degree four');
+  /** @type {number[]} */
+  const pivots=Array(8).fill(0);
+  let nonlinearRank=0;
+  for(const [monomial,value] of model.coefficients) {
+    if(popcount(monomial)<2)continue;
+    let row=value;
+    for(let bit=7;bit>=0&&row;bit--) {
+      if(!((row>>>bit)&1))continue;
+      if(pivots[bit])row^=pivots[bit];
+      else {pivots[bit]=row;nonlinearRank++;break;}
+    }
+  }
+  assert.equal(nonlinearRank,8,
+    'Every nonzero output parity has a nonlinear coefficient');
+  for(const input of [0,1,173,255]) {
+    assert.equal(invertBoundedDegreeModelSymbolically(model,F(input)),null,
+      'No global affine parity: the single-round algorithm must refuse');
+  }
+});
+
 test('symbolic coefficient transport rejects malformed models and unsupported target domains',()=>{
   const F=/** @type {(x:number)=>number} */(x=>x);
   const model=learnBoundedDegreeOracle(F,8,2);
