@@ -314,7 +314,7 @@ This is a useful contrast with the unprotected DOM property and modern HTML meth
 
 ## Validation against current mainline
 
-The harness was copied to a branch created from current `main`, rather than relying on the earlier stale research branch. The current-main workflow passed on Windows and Ubuntu, including the real Chromium differential and both strict JSDoc checks. The `src/ast.js` SHA in the validation branch matches current main exactly (`eea89ceb890cf190deb714751158a055c6cb2224`).
+The harness was copied to a branch created from current `main`, rather than relying on the earlier stale research branch. The current-main workflow passed on Windows and Ubuntu, including the real Chromium differential and both strict JSDoc checks. The validation branch's relevant compiler files match current main byte-for-byte: `src/ast.js` (`eea89ceb890cf190deb714751158a055c6cb2224`), `src/core.js` (`8d33996821650de540b87502baff00a9e7ea99c7`), `src/properties.js` (`5748e5b27146fe8a0b2937b0ad6b4bc4382ebe6f`), `src/identifiers.js` (`c7e2ed1469381c5bc6dc42cef9a6ca8bfa347f0f`), `src/strings.js` (`df489cf25a8aaeb87d90e6dc1b7eb66476da8dd6`), `src/cross-properties.js` (`adb626c7533ac08cc51823b10bdbd9b09d966149`), and `src/source-observer-islands.js` (`e037ca7440e6a3c2eb0ae19247cd418625ec97a8`).
 
 All previously reported expected-red findings remained unchanged against this current source:
 - 26/26 native property setter cases;
