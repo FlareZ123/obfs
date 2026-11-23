@@ -21,25 +21,24 @@ function compile(code,seed) {
 function evaluate(code) {
   /** @type {{module:{exports:unknown}}} */
   const context={module:{exports:null}};
-  vm.runInNewContext(
-    code+'\nmodule.exports={value:sample(),source:observedSource};',
-    context,{timeout:1500}
-  );
+  vm.runInNewContext(code,context,{timeout:1500});
   return /** @type {{value:number,source:string}} */(context.module.exports);
 }
-
 test('one source-observed callable currently vetoes unrelated private property and identifier rewrites',()=>{
   const baseline=[
+    'const observedSource="";',
     'const helperRecord={unrelatedPrivate:7};',
     'function helper(){return helperRecord.unrelatedPrivate;}',
-    'function sample(){return helper();}'
+    'function sample(){return observedSource.length+helper();}',
+    'module.exports={value:sample(),source:observedSource};'
   ].join('\n');
   const observed=[
     'function inspect(){const observedRecord={observedPrivate:29};return observedRecord.observedPrivate;}',
     'const observedSource=Function.prototype.toString.call(inspect);',
     'const helperRecord={unrelatedPrivate:7};',
     'function helper(){return helperRecord.unrelatedPrivate;}',
-    'function sample(){return observedSource.length+inspect()+helper();}'
+    'function sample(){return observedSource.length+inspect()+helper();}',
+    'module.exports={value:sample(),source:observedSource};'
   ].join('\n');
 
   assert.equal(observesFunctionSource(parse(observed,'script')),true,
