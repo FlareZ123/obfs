@@ -225,6 +225,26 @@ test('ESM audit supports identical type-only package scopes for .js ESM modules'
 });
 
 
+
+test('ESM audit refuses case-variant package.json external ancestors',async()=>{
+  await fixture(async temp=>{
+    const project=path.join(temp,'project');
+    const source=path.join(project,'source');
+    const output=path.join(project,'output');
+    await fs.mkdir(source,{recursive:true});
+    await atomicWrite(path.join(project,'Package.json'),JSON.stringify({type:'module'}));
+    /** @type {import('../src/core').SourceFile[]} */
+    const files=[{
+      path:'engine.mjs',sourceType:'module',
+      code:"import value from 'sno-esm-resolution-probe';export default value;"
+    }];
+    await assert.rejects(
+      assertSnoDirectBareImportParity(files,files,source,output),
+      /case-variant package.json ancestor/u
+    );
+  });
+});
+
 test('ESM audit refuses case-variant package.json paths',async()=>{
   /** @type {import('../src/core').SourceFile[]} */
   const files=[{
