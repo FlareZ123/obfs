@@ -35,7 +35,7 @@ The source-pinned Node regression is:
 
 - `test/agent2-random-affine-graph-quintic-silent-rank.test.js`
 - added to `jsconfig.external.json`
-- branch commit `28b10235f9d97cfeaee9505e4dd7f71b64347289` (test), followed by `ab284e4f55fd19a14e7ca19a6405af9bc2250976` (strict external JSDoc inclusion).
+- branch commit `14fd46a9abe12660852b13579fb224c46ddf7538` (test with eight/nine-target boundary), with `ab284e4f55fd19a14e7ca19a6405af9bc2250976` providing strict external JSDoc inclusion.
 
 The focused `manual-validation.yml` run **45281998892** completed successfully on both `ubuntu-latest` and `windows-latest`. Both jobs executed the test, project JSDoc, external JSDoc, and paired-budget JSDoc. The full-suite Node job was correctly skipped by the focused-test dispatch. This is not a full-mainline release run.
 
@@ -70,4 +70,4 @@ Run:
 
 `node --test test/agent2-random-affine-graph-quintic-silent-rank.test.js`
 
-Then run the focused manual-validation workflow with `focused_test=test/agent2-random-affine-graph-quintic-silent-rank.test.js` on branch `agent2/graph-quintic-silent-rank-20261123`. The two-platform source-pinned receipt is run 45281998892.
+Then run the focused manual-validation workflow with `focused_test=test/agent2-random-affine-graph-quintic-silent-rank.test.js` on branch `agent2/graph-quintic-silent-rank-20261123`. The two-platform source-pinned receipt for the final eight/nine-target test is run 45284407589 (commit `04229ee6d23553a956a0b7d9f62ca68462c0f37f`).
