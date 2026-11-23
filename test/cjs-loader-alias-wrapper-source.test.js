@@ -54,6 +54,8 @@ for(const {label,expression} of loaders){
       identifiers:false,strings:false,properties:true
     });
     assert.equal(output.files.length,1);
+    assert.equal(output.files[0].metrics.properties,0,
+      'Alias loader observer shapes must retain original owner-key text');
     const root=await fs.mkdtemp(path.join(os.tmpdir(),'obfs-cjs-loader-alias-'));
     try{
       const native=await run(path.join(root,'native'),original);
