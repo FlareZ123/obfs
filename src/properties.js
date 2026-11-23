@@ -1072,7 +1072,7 @@ function proveLocalObject(ast, rootName, bindings, importedIdentityFunctions=new
     // functions survive the escape analysis above and remain eligible.
     if(ancestors.some(ancestor=>
       ['FunctionDeclaration','FunctionExpression','ArrowFunctionExpression'].includes(ancestor.type)&&
-      !privateFunctionNodes.has(ancestor))&&!privateConsumerArgument(node,parent,key))return null;
+      !privateFunctionNodes.has(ancestor)))return null;
     const scope=scopes.get(node.name);
     if (!scope || !ancestors.includes(scope)) return null;
     if (!parent) return null;
