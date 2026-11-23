@@ -2873,9 +2873,11 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
       // A plain assignment overwrites the property without reading or
       // invoking its previous value. Preserve the source-observation guard
       // for calls, reads, compound writes, and other receiver uses.
-      if(((name==='toString'||name==='toSource') &&
-            !isDefinitelyPrimitive(node.object) ||
-          name==='toLocaleString'&&(isFunctionValue(node.object)||containsFunction(node.object))) &&
+      // Object#toLocaleString delegates to the receiver's toString method.
+      // A prototype-reachable callable can therefore expose its exact source
+      // even if this scan has not inferred that the receiver is a function.
+      if((name==='toString'||name==='toSource'||name==='toLocaleString') &&
+          !isDefinitelyPrimitive(node.object) &&
           !(parent?.type==='AssignmentExpression' && key==='left' && parent.operator==='=')) observed=true;
     }
     if(node.type==='CallExpression'||node.type==='NewExpression') {
