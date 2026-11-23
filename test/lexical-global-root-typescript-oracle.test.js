@@ -8,6 +8,17 @@ const {test}=require('node:test');
 const ts=require('typescript');
 
 /**
+ * @param {import('typescript').Node} node
+ * @returns {boolean}
+ */
+function isFunctionScope(node) {
+  return ts.isFunctionDeclaration(node)||ts.isFunctionExpression(node)||
+    ts.isArrowFunction(node)||ts.isMethodDeclaration(node)||
+    ts.isConstructorDeclaration(node)||ts.isGetAccessorDeclaration(node)||
+    ts.isSetAccessorDeclaration(node);
+}
+
+/**
  * @param {string} source
  * @param {number} referenceStart
  * @returns {{symbolName:string|null,declarations:Array<{kind:string,parent:string,fileName:string,flags:number,parentFlags:number}>,hasDirectEval:boolean,hasWith:boolean}}
@@ -52,22 +63,23 @@ function inspectReference(source,referenceStart) {
     }));
     let hasDirectEval=false;
     let hasWith=false;
-    /** @param {import('typescript').Node} node */
-    function inspectDynamicScope(node) {
+    /**
+     * Scan one lexical scope, but do not attribute eval in nested functions to
+     * the enclosing function's variable environment.
+     * @param {import('typescript').Node} node
+     * @param {import('typescript').Node} root
+     */
+    function scanScope(node,root) {
+      if(node!==root&&isFunctionScope(node)) return;
       if(ts.isCallExpression(node)&&ts.isIdentifier(node.expression)&&node.expression.text==='eval'&&!node.questionDotToken) {
         hasDirectEval=true;
       }
-      if(ts.isWithStatement(node)) hasWith=true;
-      ts.forEachChild(node,inspectDynamicScope);
+      ts.forEachChild(node,child=>scanScope(child,root));
     }
-    let scope=reference.parent;
-    while(scope&& !(
-      ts.isFunctionDeclaration(scope)||ts.isFunctionExpression(scope)||
-      ts.isArrowFunction(scope)||ts.isMethodDeclaration(scope)||
-      ts.isConstructorDeclaration(scope)||ts.isGetAccessorDeclaration(scope)||
-      ts.isSetAccessorDeclaration(scope)||ts.isSourceFile(scope)
-    )) scope=scope.parent;
-    if(scope) inspectDynamicScope(scope);
+    for(let current=reference.parent;current;current=current.parent) {
+      if(ts.isWithStatement(current)) hasWith=true;
+      if(isFunctionScope(current)||ts.isSourceFile(current)) scanScope(current,current);
+    }
     return {
       symbolName:symbol?.getName()??null,
       declarations,
@@ -128,4 +140,18 @@ test('direct eval can leave an ambient checker symbol but must make the affected
   assert.equal(result.symbolName,'window');
   assert.ok(result.declarations.some(d=>d.fileName.endsWith('lib.dom.d.ts')));
   assert.equal(result.hasDirectEval,true);
+});
+
+test('direct eval in an enclosing function makes a nested function root unknown',()=>{
+  const source='function outer(){eval("var window = {}");return function inner(){window.onerror=handler;};}';
+  const result=inspectReference(source,source.indexOf('window.onerror'));
+  assert.equal(result.symbolName,'window');
+  assert.equal(result.hasDirectEval,true);
+});
+
+test('direct eval in a sibling function does not taint a separate nested function',()=>{
+  const source='function outer(){function sibling(){eval("var window = {}");}return function inner(){window.onerror=handler;};}';
+  const result=inspectReference(source,source.indexOf('window.onerror'));
+  assert.equal(result.symbolName,'window');
+  assert.equal(result.hasDirectEval,false);
 });
