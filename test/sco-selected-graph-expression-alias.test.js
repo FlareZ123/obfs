@@ -103,6 +103,14 @@ test('selected SCO graph refuses imported function through static class field',(
     /private imported identity escapes|shared imported member state/u);
 });
 
+test('selected SCO graph refuses shared base-function identity through class heritage',()=>{
+  const caller='class Derived extends next{}'+
+    'const fn=Object.getPrototypeOf(Derived);'+
+    'fn.count=(fn.count??0)+1;return fn.count;';
+  assert.throws(()=>compile(caller),
+    /private imported identity escapes|shared imported member state/u);
+});
+
 test('selected SCO graph keeps direct stateless private function calls eligible',()=>{
   assert.doesNotThrow(()=>compile('return next();'));
 });
