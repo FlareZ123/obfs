@@ -15,20 +15,20 @@ const {obfuscateFiles}=require('../src');
 function execute(code) {
   const observed={source:''};
   const module={exports:0};
-  function hostCallback() {
-    const previous=Error.prepareStackTrace;
-    try {
-      Error.prepareStackTrace=(_error,frames)=>{
-        const caller=frames.find(frame=>frame.getFunctionName()==='readPrivate');
-        observed.source=caller ? String(caller.getFunction()) : '';
-        return '';
-      };
-      void new Error('caller-source-probe').stack;
-    } finally {
-      if(previous===undefined)delete Error.prepareStackTrace;
-      else Error.prepareStackTrace=previous;
-    }
-  }
+  // A sloppy external host function is required: V8 deliberately masks
+  // CallSite.getFunction() for strict-mode callers. The compiled CommonJS
+  // fixture below is also sloppy; the test module itself is strict.
+  const hostCallback=/** @type {() => void} */(vm.runInNewContext(
+    '(function hostCallback(){'+
+      'const previous=Error.prepareStackTrace;'+
+      'try{Error.prepareStackTrace=(_error,frames)=>{'+
+        'const caller=frames.find(frame=>frame.getFunctionName()==="readPrivate");'+
+        'observed.source=caller?String(caller.getFunction()):"";return "";'+
+      '};void new Error("caller-source-probe").stack;}'+
+      'finally{if(previous===undefined)delete Error.prepareStackTrace;'+
+        'else Error.prepareStackTrace=previous;}})',
+    {Error,observed}
+  ));
   vm.runInNewContext(code,{module,hostCallback},{timeout:3000});
   return {value:module.exports,source:observed.source};
 }
