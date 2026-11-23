@@ -357,6 +357,30 @@ The authorizeRpc callback first validates the request at the transport level. Th
 Measured HTTP overhead can exceed the 2.5× budget by orders of magnitude for tiny protected operations, even over loopback. See im-results/sco-rpc-cost-2026-11-15.md for both unbatched and bounded-batch results. Coarse server-resident functions and explicitly batched calls are the currently demonstrated performance approach; real deployment measurements remain necessary. The code splitting API does not automatically select a performant partition or justify any universal throughput guarantee.
 
 
+## Opt-in batching across an SCO private graph
+
+The composed multi-module graph API can explicitly batch approved async exports to reduce repeated HTTP round trips. A batching opt-in is **per exposed module**; a server-only dependency cannot be named in 'batchPaths'. The default graph has no batches, preserving the existing publication contract.
+
+Example (original ESM module namespaces remain on the trusted server):
+
+```js
+const graph=partitionScoAsyncGraph(privateSourceFiles,{
+  exposedPaths:['api.mjs','audit.mjs'],
+  batchPaths:['api.mjs'],
+  maxBatchCalls:8
+});
+const handler=createScoGraphHandler(graph,privateNamespaces,{
+  authorizeRpc:request=>verifySession(request),
+  authorizeOperation:(request,method,args)=>verifyPolicy(request,method,args)
+});
+```
+
+The generated 'api.mjs' facade now exports a 'batch(calls)' function alongside its original async exports; 'audit.mjs' has no batch export. The client supplies up to eight calls, each with '{name, args}' where 'name' is an exported function name on that module. The private server executes the corresponding original functions **in order**, returning an ordered array of per-call result wrappers. Calls whose protected methods fail are represented by generic failed results, which is observably different from the ordinary unbatched exception path. The operator must review those semantics and concurrency/interleaving assumptions before adopting batching.
+
+The composed handler derives the protected batch method IDs from its compiler-owned graph manifest. When even one batched module exists, 'authorizeOperation' is mandatory. The existing trusted SCO HTTP handler checks the **outer batch request and every individual inner operation** before executing the first private item. A denied later item prevents earlier allowed items from running. The caller cannot override 'batchPreflightRoutes' in createScoGraphHandler, and 'batchPaths' input is copied by indexed reads to exclude custom iterators and changing accessors. 'batchPaths' entries must be unique members of 'exposedPaths'. 'maxBatchCalls' must be between 1 and 1024 and requires a nonempty batch selection.
+
+These checks are application-policy defenses on a trusted server. They do not prevent unlimited authorized calls, same-account relays, or an attacker from extracting public RPC method IDs. Native direct invocation does not incur HTTP serialization, so batching's benefit depends strongly on original method cost, network latency, payload size and call density. The executable [graph batch authorization regression](../test/sco-graph-explicit-batch.test.js) and [native/generated/ordinary CPU diagnostic](../test/sco-graph-batch-cpu.test.js) deliberately keep the security result separate from workload-specific measured overhead.
+
 ## Closed private ESM graph deployment verification
 
 `partitionScoAsyncGraph(files,{exposedPaths:[...]})` now returns a
