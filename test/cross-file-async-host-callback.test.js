@@ -106,3 +106,45 @@ test('literal-only Promise callback retains the proven own-record rewrite',async
   assert.equal(generated.crossFile.properties,1,
     'Safe literal callback should not force an all-zero property transform');
 });
+
+
+/**
+ * Challenge the scope of callback-value provenance without assuming that
+ * syntactically direct and imported callbacks cover holder-mediated calls.
+ */
+for(const [label,setup,extraSource] of /** @type {[string,string,string|null][]} */ ([
+  ['inline function-expression callback',
+    'const ctor=await Promise.resolve().then(function(){return globalThis.RUNTIME_FACTORY;});',
+    null],
+  ['imported named callback',[
+    "import {getFactory as fetchFactory} from './factory.mjs';",
+    'const ctor=await Promise.resolve().then(fetchFactory);'
+  ].join('\n'),
+    'export function getFactory(){return globalThis.RUNTIME_FACTORY;}'],
+  ['local arrow callback',[
+    'const getFactory=()=>globalThis.RUNTIME_FACTORY;',
+    'const ctor=await Promise.resolve().then(getFactory);'
+  ].join('\n'),null],
+  ['object-held callback',[
+    'const getFactory=()=>globalThis.RUNTIME_FACTORY;',
+    'const holder={getFactory};',
+    'const ctor=await Promise.resolve().then(holder.getFactory);'
+  ].join('\n'),null]
+])){
+  test('host callable via '+label+' preserves native ESM property names',async()=>{
+    const files=graph([
+      setup,
+      'const remote=await ctor("return import(\'./state.mjs\')")();',
+      "const result=[inspectRecord('auditCount').value,Object.keys(remote.state),remote.state.secretField];"
+    ].join('\n'));
+    if(extraSource)files.push({path:'factory.mjs',sourceType:'module',code:extraSource});
+    const native=await execute(files,true);
+    assert.equal(native,'[41,[3,["secretField"],41]]\n');
+    const generated=obfuscateFiles(files,{
+      mode:'coo',closedWorld:true,seed:'host-callback-value-'+label,
+      identifiers:false,strings:false,properties:true
+    });
+    assert.equal(await execute(generated.files,true),native,label);
+    assert.equal(generated.crossFile.properties,0,label);
+  });
+}
