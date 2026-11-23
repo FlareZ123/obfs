@@ -10,6 +10,8 @@ test('exact minimax: all 3-bit rank-one source permutations invert in five queri
   assert.equal(result.parameterizedForms,150528);
   assert.equal(result.targetCases,86016);
   assert.equal(result.exactInversions,86016);
+  assert.equal(result.allPermutationAudit,40320);
+  assert.deepEqual(result.nonlinearRankHistogram,[1344,9408,18816,10752]);
   assert.equal(result.fourQueriesSuffice,false);
   assert.equal(result.fiveQueriesSuffice,true);
   assert.equal(result.minimaxWorstQueries,5);
