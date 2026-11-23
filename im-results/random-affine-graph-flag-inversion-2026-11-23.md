@@ -60,7 +60,7 @@ where the last bound uses the ceilings conservatively. This is an expected query
 
 ## Empirical results
 
-All 15 tested triangular oracles were inverted exactly, with the final candidate checked by the forward oracle:
+**Historical pre-correction threshold:** All 15 tested triangular oracles were inverted exactly, with the final candidate checked by the forward oracle:
 
 | Width | Degree | Instances | Queries per inversion | Full ANF clone M(n,D) |
 |---:|---:|---:|---:|---:|
@@ -70,6 +70,19 @@ All 15 tested triangular oracles were inverted exactly, with the final candidate
 | 64 | 4 | 2 | 27,213–27,346 | 679,121 |
 
 The graph method is target-specific. Full ANF cloning can be amortized over many targets, so the query comparison is not an unconditional cost comparison. A separate affine-offset stress test then added independent input and output translations: 9 additional instances all inverted exactly (n32 D4, 3 seeds: 12,278–12,306 queries; n32 D5, 3 seeds: 23,497–23,590; n32 D6, 2 seeds: 45,930–45,944; n64 D4, 1 seed: 27,261). These offset cases are now the ones exercised by the repository test. For the tested 32-bit cases, the graph method used about 3.4x, 10.3x, and 25x fewer queries than full cloning at degrees 4, 5, and 6, respectively.
+
+### Corrected confidence threshold, source-coincident measurements (23 November 2026)
+
+The additional rank-episode accounting raises the sampling threshold and consequently the target-specific query count. [Focused two-platform run 45271384103](https://github.com/FlareZ123/obfs/actions/runs/45271384103), exact source `104129bf1133c4de9b7a078c164f117fa59ba149`, passed all three behavioral tests and strict project/external/paired-budget JSDoc on **both** Node 22 Ubuntu and Windows. Both OS jobs printed byte-identical per-instance query counts. Each counted query is a real call to the 32-/64-bit original oracle; there is no memoized response cache or hidden original inverse in the attacker.
+
+| Width | Degree | Seeds | Queries after confidence correction | Full ANF model queries |
+|---:|---:|---|---:|---:|
+| 32 | 4 | 1, 2, 3 | 14,238; 14,236; 14,244 | 41,449 |
+| 32 | 5 | 1, 2, 3 | 27,500; 27,518; 27,446 | 242,825 |
+| 32 | 6 | 1, 2 | 53,810; 53,867 | 1,149,017 |
+| 64 | 4 | 1 | 31,897 | 679,121 |
+
+These are deterministic-source examples with a seeded test sampler. They verify the revised implementation's practical behavior and overhead for selected targets; they do not empirically establish a uniform `delta` failure rate. The conservative failure-probability proof applies when an independent uniform sampler replaces the test PRNG and the degree promise is true.
 
 A negative control used the 32-bit embedding of the three-bit permutation with input-order table [0,1,2,4,3,6,7,5]. The method recovered affine flags through the 29 trivial coordinates, then correctly refused at residual dimension 3, where the permutation has no nonconstant affine output parity. It stopped after 3,357 queries. This is expected scope behavior, not an implementation failure.
 
