@@ -863,3 +863,44 @@ test('host-altered array iterator can replace disjoint numeric destructured call
   assert.equal(compiled.crossFile.properties,0,
     'Host-mutated iteration can inject an opaque Function callback into any array slot');
 });
+
+
+/**
+ * Loop-head destructuring is a separate binding initialization path from a
+ * VariableDeclarator with an ordinary initializer. External iterators can
+ * deliver a host-returning callback through either grammar form.
+ */
+for(const [name,loop] of /** @type {[string,string][]} */([
+  ['for-of object',[
+    'let ctor;',
+    'for(const {callback} of [{callback:getFactory}])',
+    '  ctor=await Promise.resolve().then(callback);'
+  ].join('\n')],
+  ['for-of nested array',[
+    'let ctor;',
+    'for(const [callback] of [[getFactory]])',
+    '  ctor=await Promise.resolve().then(callback);'
+  ].join('\n')],
+  ['for-await-of object',[
+    'let ctor;',
+    'for await(const {callback} of [{callback:getFactory}])',
+    '  ctor=await Promise.resolve().then(callback);'
+  ].join('\n')]
+])) {
+  test('loop-carried host callback via '+name+' preserves observed ESM property names',async()=>{
+    const files=graph([
+      'function getFactory(){return globalThis.RUNTIME_FACTORY;}',
+      loop,
+      'const remote=await ctor("return import(\'./state.mjs\')")();',
+      "const result=[inspectRecord('auditCount').value,Object.keys(remote.state),remote.state.secretField];"
+    ].join('\n'));
+    const native=await execute(files,true);
+    assert.equal(native,'[41,[3,["secretField"],41]]\n');
+    const compiled=obfuscateFiles(files,{
+      mode:'coo',closedWorld:true,seed:'host-loop-pattern/'+name,
+      identifiers:false,strings:false,properties:true
+    });
+    assert.equal(await execute(compiled.files,true),native,name);
+    assert.equal(compiled.crossFile.properties,0,name);
+  });
+}
