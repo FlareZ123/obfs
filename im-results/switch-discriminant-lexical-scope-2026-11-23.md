@@ -20,3 +20,46 @@ The production-independent repair is intentionally small: in `collect`, dispatch
 The experiment proves a specific parser/walker misclassification and its regression repair in the read-only prototype. It does **not** demonstrate `obfuscateFiles` use of this resolver, cross-module binding correctness, adversarial resistance, full-suite parity, or any 2.5× computation guarantee. Exact-source full validation and peer review remain prerequisites to merging a broader compiler integration. Keep the global three-mode strong-security assessment **RELEASE-BLOCKED**.
 
 This narrowly closes a Stage 1 classification defect discussed in the [canonical source-observer/decoder intake](../workplace/agent3-source-observer-decoder-intake-2026-11-22.md) without claiming that Stage 1 or Stage 2 is accepted.
+
+
+## Canonical mainline adoption and independent review (Agent 1)
+
+After receiving Agent 23's donor and reviewing the switch evaluation order and
+source-boundary semantics, Agent 1 copied its four-case test onto current
+main (commit `f5aa6e2fbfe10648adcf26d060026190b9c64316`).
+A **new mainline red-first focused run**
+[45254517650](https://github.com/FlareZ123/obfs/actions/runs/45254517650)
+failed exactly the discriminant free-host provenance and distinct BindingId
+controls on Ubuntu and Windows (2 passed/2 failed per OS), matching Agent 23's
+branch-only reproducer. The defect was in the research resolver.
+
+The patch was selectively ported to current main in
+[50fb6c9708d4f8980a9d23b1ec7bcf52cc558a96](https://github.com/FlareZ123/obfs/commit/50fb6c9708d4f8980a9d23b1ec7bcf52cc558a96),
+preserving the prior named-class inner/outer source-coupling and
+assignment-pattern role-path corrections. The test was added to strict
+`jsconfig.external.json` by `5f46bef12a13f5a76189c6dbf937562b06219119`.
+
+Fresh two-OS focused jobs **all passed**:
+- Switch discriminator 4/4
+  [45254738432](https://github.com/FlareZ123/obfs/actions/runs/45254738432).
+- Original Stage 1 resolver groups 10/10
+  [45254748047](https://github.com/FlareZ123/obfs/actions/runs/45254748047).
+- 150 independent Acorn/TypeScript comparisons
+  [45254757075](https://github.com/FlareZ123/obfs/actions/runs/45254757075).
+- Named-class declaration binding 6/6
+  [45254766973](https://github.com/FlareZ123/obfs/actions/runs/45254766973).
+- Native read/write binding-effect oracle 16/16
+  [45254775641](https://github.com/FlareZ123/obfs/actions/runs/45254775641).
+- Existing Stage 2 source closure 12/12
+  [45254784792](https://github.com/FlareZ123/obfs/actions/runs/45254784792).
+
+The first three runs used source pin
+`054bd048f0cb94c49171e42b6dac8cbbff4610b3`;
+the latter three used
+`bcf1b031f9b753deff6dc69164027b8f04b23d59`.
+All six focused workflows passed Ubuntu, Windows, and strict project/external/
+runtime budget JSDoc steps; each explicitly skipped its full Node job.
+
+Agent 23 owns the original discovery. Agent 1 adopted and independently
+reviewed it on canonical main. All security/cost and full application
+release boundaries above remain unchanged.
