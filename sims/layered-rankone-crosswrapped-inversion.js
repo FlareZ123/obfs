@@ -418,24 +418,54 @@ function boundedDegreeClone32(oracle,degree) {
  * for every possible input (the harness additionally tests heldout seeds).
  *
  * @returns {{sources:number,oracleCalls:number,heldoutPredictions:number,
- *   exactPredictions:number,byLayers:{layers:number,sourceFunctions:number,
- *     chosenCallsPerSource:number,heldoutPredictions:number}[]}}
+ *   exactPredictions:number,offlineInverseTargets:number,
+ *   offlineInternalMaxQueries:number,
+ *   byLayers:{layers:number,sourceFunctions:number,
+ *     chosenCallsPerSource:number,heldoutPredictions:number,
+ *     offlineInverseTargets:number}[]}}
  */
 function runLayeredFullWidthClone() {
   const byLayers=[];
   let sources=0,oracleCalls=0,heldoutPredictions=0,exactPredictions=0;
+  let offlineInverseTargets=0,offlineInternalMaxQueries=0;
   for(let layers=1;layers<=2;layers++) {
     const degree=/** @type {2|3} */ (layers+1);
     let chosenCallsPerSource=0,localSources=0,localHeldout=0;
+    let localOfflineTargets=0;
     for(let trial=0;trial<10;trial++){
       const seed=(0x6a09e667^Math.imul(layers,0x9e3779b1)^
         Math.imul(trial+1,0x7f4a7c15))>>>0;
       const oracle=makeLayeredOracle(seed,layers);
-      const attack=boundedDegreeClone32(oracle,degree);
+      const next=seeded((seed^0x9b05688c)>>>0);
+      const offlineChallenges=Array.from({length:3},()=>{
+        const secret=next();
+        return {secret,target:oracle(secret)};
+      });
+      let serviceOnline=true,publicOracleCalls=0;
+      /** @param {number} input @returns {number} */
+      const publicOracle=input=>{
+        if(!serviceOnline)throw new Error('Original service is offline');
+        publicOracleCalls++;
+        return oracle(input);
+      };
+      const attack=boundedDegreeClone32(publicOracle,degree);
+      serviceOnline=false;
+      assert.equal(publicOracleCalls,attack.oracleCalls);
       assert.equal(attack.oracleCalls,layers===1?529:5489);
       chosenCallsPerSource=attack.oracleCalls;
       oracleCalls+=attack.oracleCalls;
-      const next=seeded((seed^0x9b05688c)>>>0);
+      for(const challenge of offlineChallenges){
+        const inverted=invertLowRankDeterministic(
+          attack.predict,challenge.target,{bits:32,rankBound:layers});
+        assert.equal(inverted.preimage,challenge.secret);
+        assert.equal(attack.predict(inverted.preimage),challenge.target);
+        assert.ok(inverted.oracleCalls<=33+2**(2*layers));
+        offlineInternalMaxQueries=Math.max(
+          offlineInternalMaxQueries,inverted.oracleCalls);
+        offlineInverseTargets++;localOfflineTargets++;
+      }
+      assert.equal(publicOracleCalls,attack.oracleCalls,
+        'Offline target inversion must not contact the original oracle');
       for(let trialIndex=0;trialIndex<96;trialIndex++){
         let input=next();
         // These withheld input words are not the queried low-weight
@@ -453,13 +483,16 @@ function runLayeredFullWidthClone() {
       sources++;localSources++;
     }
     byLayers.push({layers,sourceFunctions:localSources,
-      chosenCallsPerSource,heldoutPredictions:localHeldout});
+      chosenCallsPerSource,heldoutPredictions:localHeldout,
+      offlineInverseTargets:localOfflineTargets});
   }
   assert.equal(sources,20);
   assert.equal(oracleCalls,60180);
   assert.equal(heldoutPredictions,1920);
   assert.equal(exactPredictions,heldoutPredictions);
-  return {sources,oracleCalls,heldoutPredictions,exactPredictions,byLayers};
+  assert.equal(offlineInverseTargets,60);
+  return {sources,oracleCalls,heldoutPredictions,exactPredictions,
+    offlineInverseTargets,offlineInternalMaxQueries,byLayers};
 }
 
 /**
