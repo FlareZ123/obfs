@@ -10,6 +10,7 @@ const {encodeStrings} = require('./strings');
 const {provenLocalReflectGetCaptures} = require('./decoder-safe-reads');
 const {createPathInventory,registerFilePath,safePath} = require('./portable-paths');
 const {renameCrossFileProperties,collectVerifiedImportedStrings,collectVerifiedImportedPrimitives,collectVerifiedImportedCloneAliases,collectVerifiedImportedUrlStaticAliases,collectImportedFunctionArrays} = require('./cross-properties');
+const {collectCommonJsKnownObjectBindings}=require('./commonjs-cross-properties');
 const {renameLocalIdentifiers} = require('./identifiers');
 const {virtualizeRegisterChains} = require('./register-vm');
 const {virtualizeExpressionGraphs} = require('./expression-vm');
@@ -2002,6 +2003,12 @@ function obfuscateFiles(files, options = {}) {
     collectVerifiedImportedUrlStaticAliases(prepared) : new Map();
   const importedFunctionArrays=prepared.length>1 ?
     collectImportedFunctionArrays(prepared) : new Map();
+  // The default CommonJS source-observer rule treats require() results as
+  // opaque function-or-namespace values. Discharge that uncertainty only for
+  // const bindings whose exact static producer is a literal object and whose
+  // entire supplied require graph passed the bounded CommonJS closure scan.
+  const knownCommonJsObjectBindings=prepared.length>1&&options.closedWorld ?
+    collectCommonJsKnownObjectBindings(prepared) : new Map();
   // Declared HTML script/modulepreload SRI metadata also observes the exact
   // served JavaScript bytes. If the HTML asset is preserved, every emitted
   // integrity-pinned script must retain its source hash.
@@ -2012,7 +2019,8 @@ function obfuscateFiles(files, options = {}) {
       prepared.length>1 && observesFunctionSource(parse(file.code,file.sourceType),
         importedStringProof.get(file.path),importedCloneProof.get(file.path),
         importedFunctionArrays.get(file.path),importedPrimitiveProof.get(file.path),
-        importedUrlStaticProof.get(file.path))));
+        importedUrlStaticProof.get(file.path),
+        knownCommonJsObjectBindings.get(file.path))));
   // A single-file host lock is still a source-coordinate rewrite. Local AST
   // transforms can independently decline Function/source observers, but the
   // wrapper itself has no later per-transform guard. Reuse the same broad
@@ -2023,7 +2031,8 @@ function obfuscateFiles(files, options = {}) {
       observesFunctionSource(parse(file.code,file.sourceType),
         importedStringProof.get(file.path),importedCloneProof.get(file.path),
         importedFunctionArrays.get(file.path),importedPrimitiveProof.get(file.path),
-        importedUrlStaticProof.get(file.path)));
+        importedUrlStaticProof.get(file.path),
+        knownCommonJsObjectBindings.get(file.path)));
   // Only explicitly selected, proved primitive-returning ESM leaves can
   // retain local property renaming despite a separate source observer.
   // No other backend is enabled by this exception, and it is opt-in.
