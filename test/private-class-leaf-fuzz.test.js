@@ -59,7 +59,7 @@ function positive(id){
  * @returns {{label:string,source:string}}
  */
 function negative(id){
-  const n=id%14;
+  const n=id%16;
   const field='secretValue'+id;
   const bias='biasField'+id;
   const name='Reader'+id;
@@ -74,7 +74,7 @@ function negative(id){
     'named class expression','mutable class expression','extends Object',
     'extra method statement','nonzero parameter','constructor args',
     'second instance leaks','prototype reflection','inline constructor',
-    'detached method invocation'
+    'detached method invocation','direct eval class source','sloppy with scope'
   ];
   if(n===0) {
     extra='const alias=receiver;';
@@ -96,7 +96,12 @@ function negative(id){
   if(n===11)output=`module.exports=[${name}.prototype.${method}.toString(),receiver.${method}()+owner.${bias}];`;
   if(n===12)output=`module.exports=new ${name}().${method}()+owner.${bias};`;
   if(n===13)output=`module.exports=(0,receiver.${method})()+owner.${bias};`;
-  return {label:labels[n],source:["'use strict';",owner,cls,instance,extra,output].join('\n')};
+  if(n===14)output=`module.exports=[receiver.${method}()+owner.${bias},eval("${name}.prototype.${method}.toString()").includes("${field}")];`;
+  if(n===15) {
+    extra=`with({}){module.exports=receiver.${method}()+owner.${bias};}`;
+    output='';
+  }
+  return {label:labels[n],source:[n===15?'':"'use strict';",owner,cls,instance,extra,output].join('\n')};
 }
 
 test('seeded 32-case positive matrix keeps 96 mode outputs and private-key rewrites',()=>{
@@ -126,9 +131,9 @@ test('seeded 32-case positive matrix keeps 96 mode outputs and private-key rewri
   })+'\n');
 });
 
-test('seeded 28-case refusal matrix keeps 84 mode outputs without unsafe rewrites',()=>{
+test('seeded 32-case refusal matrix keeps 96 mode outputs without unsafe rewrites',()=>{
   let refusals=0;
-  for(let id=0;id<28;id++){
+  for(let id=0;id<32;id++){
     const {label,source}=negative(id);
     const expected=run(source);
     assert.ok(expected!==undefined,id+'/'+label+': reference must have an export');
@@ -144,6 +149,6 @@ test('seeded 28-case refusal matrix keeps 84 mode outputs without unsafe rewrite
     }
   }
   process.stdout.write('CLASS_LEAF_FUZZ_REFUSAL '+JSON.stringify({
-    scenarios:28,modeCases:84,refusals
+    scenarios:32,modeCases:96,refusals
   })+'\n');
 });
