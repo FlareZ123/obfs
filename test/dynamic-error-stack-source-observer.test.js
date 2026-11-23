@@ -129,3 +129,11 @@ test('real ESM stack column changes under unsafe rename, not under guarded build
     await rm(dir,{recursive:true,force:true});
   }
 });
+
+test('immutable Error constructor alias still exposes dynamic stack column',()=>{
+  const native=source("['st','ack'].join('')")
+    .replace("const error=new Error(", "const LocalError=Error;const error=new LocalError(");
+  const result=compile(native,'dynamic-error-stack-constructor-alias');
+  assert.equal(result.files[0].metrics.properties,0);
+  assert.equal(observesFunctionSource(parse(native,'module')),true);
+});
