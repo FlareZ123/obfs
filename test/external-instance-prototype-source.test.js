@@ -117,3 +117,26 @@ test('source-observer-free standalone module retains positive private field yiel
     assert.ok(rewritten>0,mode+' lost private-field rewrite yield');
   }
 });
+
+test('without a closed-world promise, external method-source clients retain source',async t=>{
+  const directory=await fs.mkdtemp(path.join(os.tmpdir(),'obfs-open-instance-'));
+  try {
+    const native=await observe(path.join(directory,'native'),inputs);
+    for(const mode of /** @type {Array<'coo'|'sno'>} */ (['coo','sno'])) {
+      await t.test(mode,async()=>{
+        const built=obfuscateFiles(inputs,{
+          mode,closedWorld:false,properties:true,identifiers:false,
+          strings:false,seed:'open-graph-external-instance/'+mode
+        });
+        const actual=await observe(path.join(directory,mode),built.files);
+        assert.deepEqual(actual,native,
+          mode+' must preserve an unknown consumer method-source contract');
+        t.diagnostic(mode+' open-graph rewrites: '+
+          (built.crossFile.properties+
+            built.files.reduce((sum,file)=>sum+file.metrics.properties,0)));
+      });
+    }
+  } finally {
+    await fs.rm(directory,{recursive:true,force:true});
+  }
+});
