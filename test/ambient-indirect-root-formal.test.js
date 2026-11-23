@@ -214,3 +214,18 @@ for(const [name,mutation] of [
     assert.equal(compiled.crossFile.properties,0);
   });
 }
+
+test('for-of assignment ObjectPattern extracts live ambient Reflect',async()=>{
+  const original=sourceGraph([
+    'let cap;',
+    'for({Reflect:cap} of [(0,globalThis)])cap.ownKeys=globalThis.HOST_REFLECT;'
+  ].join('\n'));
+  const native=await execute(original);
+  assert.equal(native,'[41,1,["secretField"]]');
+  const compiled=obfuscateFiles(original,{
+    mode:'coo',closedWorld:true,seed:'ambient-native-for-of-pattern-assignment',
+    identifiers:false,strings:false,properties:true
+  });
+  assert.equal(await execute(compiled.files),native);
+  assert.equal(compiled.crossFile.properties,0);
+});
