@@ -76,6 +76,25 @@ const cases=[
     ]
   },
   {
+    label:'cyclic ESM graph observes owner through imported async function during top-level await',
+    kind:'cross',expectPositive:false,
+    files:[
+      {path:'state.mjs',sourceType:'module',
+        code:'import {observe} from "./observer.mjs";'+
+          'export const bag={secretField:41,bias:2};'+
+          'export const observed=await observe(bag);'+
+          'export const key="secretField";'},
+      {path:'observer.mjs',sourceType:'module',
+        code:'import {key} from "./state.mjs";'+
+          'export async function observe(record){'+
+          'await new Promise(resolve=>setTimeout(resolve,0));'+
+          'return Object.keys(record).join(",");}'},
+      {path:'main.mjs',sourceType:'module',
+        code:'import {bag,key,observed} from "./state.mjs";'+
+          'const {[key]:value}=bag;console.log(value,key,observed);'}
+    ]
+  },
+  {
     label:'local later key after top-level await',
     kind:'local',expectPositive:true,
     files:[
