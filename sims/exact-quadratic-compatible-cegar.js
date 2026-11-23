@@ -219,7 +219,9 @@ function prepareExactQuadraticInverter(clone,polar){
   let inputBasis=Array.from({length:WIDTH},(_,i)=>(2**i)>>>0);
   let outputBasis=Array.from({length:WIDTH},(_,i)=>(2**i)>>>0);
   const standard=Array.from({length:WIDTH},(_,i)=>(2**i)>>>0);
+  /** @type {number[]} */
   const outputMasks=[];
+  /** @type {number[]} */
   const inputToggles=[];
   let offlineDefectEvaluations=0;
 
