@@ -23,7 +23,7 @@ const KEY = Buffer.from('72657365617263682d7374726963742d746573742d6b6579', 'hex
 const VARIANTS = ['direct', 'direct-control', 'uncapped', 'capped'];
 /** @type {Workload[]} */
 const WORKLOADS = [
-  {name:'tiny-hmac-per-call',calls:8192,rounds:1,payloadBytes:64},
+  {name:'tiny-hmac-per-call',calls:65536,rounds:1,payloadBytes:64},
   {name:'substantial-hmac-per-call',calls:128,rounds:128,payloadBytes:16384}
 ];
 
@@ -138,7 +138,7 @@ async function profileWorkload(workload,trials) {
 }
 
 test('bounded SCO keyed isolation preserves repeated-use HMAC and profiles compute overhead', {
-  timeout:180000
+  timeout:240000
 }, async()=>{
   /** @type {WorkloadResult[]} */
   const results=[];
