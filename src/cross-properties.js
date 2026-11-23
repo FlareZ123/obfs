@@ -2069,17 +2069,31 @@ function renameCrossFileProperties(files,seed) {
     return false;
   }
   /**
+   * @param {AstNode} property
+   * @param {ReadonlyMap<string,string>} knownNames
+   * @returns {string|null}
+   */
+  function provenFormalPropertyName(property,knownNames) {
+    const direct=ownPropertyName(property);
+    if(direct!==null)return direct;
+    if(property.computed&&property.key.type==='Identifier')
+      return knownNames.get(property.key.name)??null;
+    return null;
+  }
+  /**
    * @param {AstNode} formal
    * @param {AstNode|null|undefined} actual
+   * @param {ReadonlyMap<string,string>} knownNames
    * @returns {boolean}
    */
-  function closedNativeFormalActual(formal,actual) {
+  function closedNativeFormalActual(formal,actual,knownNames) {
     if(formal.type!=='ObjectPattern'||actual?.type!=='ObjectExpression'||
        !inertFormalActualValue(actual,0))return false;
     const provided=new Set(actual.properties.map(
       (/** @type {AstNode} */ property)=>ownPropertyName(property)));
     return formal.properties.every((/** @type {AstNode} */ property)=>{
-      const name=property.type==='Property'?ownPropertyName(property):null;
+      const name=property.type==='Property'?
+        provenFormalPropertyName(property,knownNames):null;
       return name!==null&&provided.has(name)&&
         property.type==='Property'&&property.value.type==='Identifier';
     });
@@ -2091,9 +2105,10 @@ function renameCrossFileProperties(files,seed) {
    * @param {AstNode[]} ancestors
    * @param {number} argumentIndex
    * @param {AstNode} formal
+   * @param {ReadonlyMap<string,string>} knownNames
    * @returns {boolean}
    */
-  function onlyClosedNativeCalls(module,callable,parent,ancestors,argumentIndex,formal) {
+  function onlyClosedNativeCalls(module,callable,parent,ancestors,argumentIndex,formal,knownNames) {
     const id=callable.type==='FunctionDeclaration'?callable.id:
       parent?.type==='VariableDeclarator'&&parent.init===callable?parent.id:null;
     if(id?.type!=='Identifier'||module.bindings.get(id.name)!==1||
@@ -2111,7 +2126,7 @@ function renameCrossFileProperties(files,seed) {
       }
       calls++;
       if(refParent.arguments.length!==1||
-         !closedNativeFormalActual(formal,refParent.arguments[argumentIndex]))
+         !closedNativeFormalActual(formal,refParent.arguments[argumentIndex],knownNames))
         safe=false;
     });
     return safe&&calls>0;
@@ -2120,6 +2135,20 @@ function renameCrossFileProperties(files,seed) {
   // indirect named actual, including computed selectors and nested patterns.
   // Only source-proven closed literal calls are exempt from graph-wide refusal.
   for(const module of modules.values()) {
+    /** @type {Map<string,string>} */
+    const knownNames=new Map();
+    for(const statement of module.ast.body) {
+      const declaration=statement.type==='VariableDeclaration'?statement:
+        statement.type==='ExportNamedDeclaration'&&!statement.source?
+          statement.declaration:null;
+      if(declaration?.type!=='VariableDeclaration'||declaration.kind!=='const')continue;
+      for(const entry of declaration.declarations) {
+        if(entry.id.type!=='Identifier'||!entry.init||
+           module.bindings.get(entry.id.name)!==1)continue;
+        const name=staticString(entry.init);
+        if(name!==null)knownNames.set(entry.id.name,name);
+      }
+    }
     let unprovedNativeFormal=false;
     walk(module.ast,(node,parent,key,ancestors)=>{
       if(unprovedNativeFormal||
@@ -2131,11 +2160,11 @@ function renameCrossFileProperties(files,seed) {
         let nativeKey=false;
         walk(formal,property=>{
           if(property.type!=='Property')return;
-          const name=ownPropertyName(property);
+          const name=provenFormalPropertyName(property,knownNames);
           if(name==='Reflect'||name==='Object'||
              name===null&&property.computed===true)nativeKey=true;
         });
-        if(nativeKey&&!onlyClosedNativeCalls(module,node,parent,ancestors,i,formal))
+        if(nativeKey&&!onlyClosedNativeCalls(module,node,parent,ancestors,i,formal,knownNames))
           unprovedNativeFormal=true;
       }
     });
