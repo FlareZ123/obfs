@@ -194,7 +194,7 @@ function isStaticKey(parent,key){
  * @param {import('./ast').AstNode} root
  * @param {ReadonlySet<string>} moduleBindings Declared server-only module bindings
  * @param {ReadonlySet<string>} rootFormals Parameters of the selected export
- * @param {boolean} [allowServerNodeGlobals] True only for declared server-owned dependencies
+ * @param {boolean} [allowServerNodeGlobals] Explicit Node-origin private source only
  * @returns {string|null}
  */
 function firstUnprovedUnqualifiedReference(root,moduleBindings,rootFormals,allowServerNodeGlobals=false){
@@ -210,7 +210,8 @@ function firstUnprovedUnqualifiedReference(root,moduleBindings,rootFormals,allow
     'confirm','prompt'
   ]);
   // Node's free Buffer and process globals are absent in ordinary Chromium.
-  // Only declared server-owned dependencies may rely on them without a local owner.
+  // They may be retained without lexical owners only for Node-origin source
+  // under an explicit opt-in; inferred server ownership cannot prove browser parity.
   if(!allowServerNodeGlobals){
     recognizedGlobals.delete('Buffer');
     recognizedGlobals.delete('process');
@@ -1522,9 +1523,10 @@ function isCanonicalPrivateModulePath(sourcePath,specifier){
  *
  * @param {string[]} directPaths
  * @param {ScoPrivateModuleSource[]} sources
+ * @param {boolean} [allowServerNodeGlobals] Explicit Node-origin source only
  * @returns {string[]}
  */
-function collectPrivateStaticImportClosure(directPaths,sources) {
+function collectPrivateStaticImportClosure(directPaths,sources,allowServerNodeGlobals=false) {
   /** @type {Map<string,string>} */
   const sourceByPath=new Map();
   const caseNames=new Set();
@@ -1860,7 +1862,7 @@ function collectPrivateStaticImportClosure(directPaths,sources) {
     // Report recognized dynamic-loader hazards through their specialized
     // diagnostics before applying the general free-name refusal to remaining
     // code. Refusal precedence does not weaken the admitted source grammar.
-    const missingStatic=firstUnprovedUnqualifiedReference(ast,new Set(),new Set(),true);
+    const missingStatic=firstUnprovedUnqualifiedReference(ast,new Set(),new Set(),allowServerNodeGlobals);
     if(missingStatic!==null){
       throw new TypeError('SCO private static dependency has unproved unqualified free reference: '+
         filename+':'+missingStatic);
@@ -2020,7 +2022,8 @@ function partitionScoSelectedAsyncExports(file,options) {
     if(!privateModulePaths.includes(resolved))privateModulePaths.push(resolved);
   }
   if(auditedSources!==undefined){
-    for(const resolved of collectPrivateStaticImportClosure(directPrivatePaths,auditedSources)){
+    for(const resolved of collectPrivateStaticImportClosure(
+      directPrivatePaths,auditedSources,options.allowServerNodeGlobals===true)){
       if(!privateModulePaths.includes(resolved))privateModulePaths.push(resolved);
     }
   }
