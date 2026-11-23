@@ -56,8 +56,7 @@ test('three-file ESM exported wrapper retains exact callable source and values i
     '<body><script type="module" src="./runner.mjs"></script></body></html>';
   /** @type {Map<string,string>} */
   const files=new Map([
-    ['/native/owner.mjs',ownerSource],['native/api.mjs',apiSource],
-    ['/native/api.mjs',apiSource],['/native/runner.mjs',runner],
+    ['/native/owner.mjs',ownerSource],['/native/api.mjs',apiSource],['/native/runner.mjs',runner],
     ['/native/index.html',html],
     ['/emitted/owner.mjs',String(owner.code)],
     ['/emitted/api.mjs',String(api.code)],
