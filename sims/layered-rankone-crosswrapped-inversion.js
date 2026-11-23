@@ -312,16 +312,17 @@ function tinyDegreeClone(oracle,degree) {
  * full ANF audit. This is an executable attacker rather than a source-only
  * prediction: it sees only the public function oracle and promised degree.
  *
- * @returns {{sourceFunctions:number,heldoutInputs:number,exactPredictions:number,
+ * @returns {{sourceFunctions:number,allPredictions:number,
+ *   heldoutPredictions:number,
  *   byLayers:{layers:number,queries:number,sourceFunctions:number,
- *      heldoutInputs:number}[]}}
+ *      verifiedOutputs:number,heldoutOutputs:number}[]}}
  */
 function runTinyBoundedDegreeCloner() {
   const byLayers=[];
-  let sourceFunctions=0,heldoutInputs=0,exactPredictions=0;
+  let sourceFunctions=0,allPredictions=0,heldoutPredictions=0;
   for(let layers=1;layers<=6;layers++){
     const degree=Math.min(8,layers+1);
-    let queries=-1,localSources=0,localInputs=0;
+    let queries=-1,localSources=0,verifiedOutputs=0,heldoutOutputs=0;
     for(let trial=0;trial<24;trial++){
       const seed=(0x8a71c2be^Math.imul(layers,0x9e3779b1)^
         Math.imul(trial+1,0x7f4a7c15))>>>0;
@@ -330,11 +331,10 @@ function runTinyBoundedDegreeCloner() {
       queries=attack.oracleCalls;
       for(let input=0;input<256;input++){
         assert.equal(attack.predict(input),oracle(input));
-        if(input!==0&&input===255) {
-          // The all-ones input is not queried until degree reaches width.
-          assert.ok(degree===8||queries<256);
-        }
-        heldoutInputs++;localInputs++;exactPredictions++;
+        let weight=0;
+        for(let bit=0;bit<8;bit++)weight+=(input>>>bit)&1;
+        if(weight>degree){heldoutPredictions++;heldoutOutputs++;}
+        allPredictions++;verifiedOutputs++;
       }
       localSources++;sourceFunctions++;
     }
@@ -344,13 +344,14 @@ function runTinyBoundedDegreeCloner() {
       return weight<=degree?1:0;
     }).reduce((a,b)=>a+b,0);
     assert.equal(queries,expected);
+    assert.equal(heldoutOutputs,24*(256-queries));
     byLayers.push({layers,queries,sourceFunctions:localSources,
-      heldoutInputs:localInputs});
+      verifiedOutputs,heldoutOutputs});
   }
   assert.equal(sourceFunctions,144);
-  assert.equal(heldoutInputs,144*256);
-  assert.equal(exactPredictions,heldoutInputs);
-  return {sourceFunctions,heldoutInputs,exactPredictions,byLayers};
+  assert.equal(allPredictions,144*256);
+  assert.equal(heldoutPredictions,12528);
+  return {sourceFunctions,allPredictions,heldoutPredictions,byLayers};
 }
 
 if(require.main===module){
