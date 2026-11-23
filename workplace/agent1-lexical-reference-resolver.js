@@ -260,14 +260,21 @@ function resolveLexicalReferences(root,sourceType) {
         ['Property','MethodDefinition','PropertyDefinition'].includes(parent.type)&&
           key==='key'&&parent.computed)return 'computed-key';
     if (['ForInStatement','ForOfStatement'].includes(parent.type)&&key==='left')return 'write';
-    // Destructuring assignment references are nested below a pattern node.
+    // In a destructuring LHS, the assigned binding and the expressions
+    // used to compute a default, member receiver or key have different roles.
+    // Follow the actual AST branch upward; source-range containment alone
+    // would misclassify an evaluated receiver/default as a binding write.
     for(let i=ancestors.length-1;i>=0;i--){
       const a=ancestors[i];
-      if((a.type==='AssignmentExpression'||a.type==='ForInStatement'||
-          a.type==='ForOfStatement') && a.left &&
-          a.left.start<=node.start && node.end<=a.left.end &&
-          a.left.type!=='VariableDeclaration')
-        return a.type==='AssignmentExpression'&&a.operator!=='='?'read-write':'write';
+      const branch=ancestors[i+1]||node;
+      if(a.type==='MemberExpression' &&
+         (a.object===branch||a.property===branch))return 'read';
+      if(a.type==='AssignmentPattern'&&a.right===branch)return 'read';
+      if(a.type==='Property'&&a.computed&&a.key===branch)return 'read';
+      if(a.type==='AssignmentExpression'&&a.left===branch)
+        return a.operator==='='?'write':'read-write';
+      if(['ForInStatement','ForOfStatement'].includes(a.type)&&
+         a.left===branch&&a.left.type!=='VariableDeclaration')return 'write';
     }
     return 'read';
   }
