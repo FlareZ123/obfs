@@ -72,3 +72,12 @@ Four predeclared runs cover two independent fixed seeds and both policies:
 - Seed 0xa82b11f5 (reachable two-state fixture): bounded-nine policy nine public steps, unconstrained expected-policy ten steps.
 
 These are precomputed deterministic **query predictions**, not yet a claim of real-HTTP cross-platform success. The test requires bit-identical attacker input/output transcripts, equivalent clones, authorization refusals, and 16 matching future live follow-ups for generated SCO and ordinary minified services. The protected application still has no additional runtime compute bound measured here. An independent pinned GitHub Actions receipt is required before treating this as a validated network experiment.
+
+
+## Independent, source-labelled minimax and expected-cost calculation
+
+An independently written checker now avoids the first algorithm's signature grouping and weighted-type compression. sims/sco-step-only-two-state-independent.js independently enumerates the mixed-radix 260 labelled source tables, constructs a 516-by-516 rooted product-BFS equivalence matrix, and explicitly tracks every original source table's current state (one 260-byte state vector per information state; 255 means eliminated). It builds **4,429 distinct reachable labelled belief states**, compared with 2,365 weighted future-type beliefs and 1,713 unweighted future-type beliefs in the original implementations. These differing counts arise from the representations, not different adversarial objectives.
+
+Exact minimax and integer weighted-cost Bellman iterations on this **uncompressed** graph independently yield **nine** worst-case public queries, **1,884** total calls for the nine-step expected-optimal policy under a uniform source-table prior, and **1,776** globally optimal expected total calls. Every labelled state has a finite minimax rank, and the weighted DP reaches a global fixed point at depth 11. This is a second algorithmic route to the three main cost findings, with its own source enumeration, product BFS, state representation and Bellman recurrence. Local Node 22.16.0 executed both new independent tests successfully.
+
+Reproduction: test/sco-step-only-two-state-independent.test.js. The new source and test are checked under the separate SCO workflow's strict JSDoc gate. Until source-pinned cross-platform validation finishes, the independent result remains local evidence; independent peer review by Agent14 is also requested.

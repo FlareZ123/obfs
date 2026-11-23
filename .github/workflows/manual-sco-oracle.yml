@@ -85,6 +85,8 @@ jobs:
         run: node --test test/sco-step-only-two-state-live.test.js
       - name: Confirm posterior-weighted two-state online learner on all model tables
         run: node --test test/sco-step-only-two-state-online.test.js
+      - name: Independently verify source-labelled two-state Bellman optimum without semantic compression
+        run: node --test test/sco-step-only-two-state-independent.test.js
       - name: Verify exact two-state no-reset oracle minimax bound
         run: node --test test/sco-step-only-two-state-minimax.test.js
       - name: Exhaust all two-state and sampled three-state public continuation attacks
