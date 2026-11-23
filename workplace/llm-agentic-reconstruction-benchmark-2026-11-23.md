@@ -69,6 +69,8 @@ A useful team decomposition is reconnaissance (exports, module graph, host APIs)
 
 ### T2-H — LLM-guided deterministic hybrid attack
 
+T2-H is a sub-track of the existing T2 attacker tier, not a fourth obfuscation mode. Keep it distinct from direct LLM inference.
+
 Keep a distinct sub-track for a CASCADE-style pipeline:
 1. The LLM labels semantic roles and source locations of a small decoder/prelude/dispatcher component set.
 2. A deterministic validator checks dependency and data-flow constraints before accepting those labels.
