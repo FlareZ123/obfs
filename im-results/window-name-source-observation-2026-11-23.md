@@ -18,7 +18,7 @@ Normative source: [WHATWG HTML Standard — Window object](https://html.spec.wha
 
 Research branch: `agent12/storage-source-observation-20261123`.
 
-Browser test head: `cdf7989f6e72f7f63ea6711f291c08cc2fcf6355`.
+Browser test head: `cdf7989f6e72f7f63ea6711f291c08cc2fcf6355`; expanded focused Node test head: `14e7d09e73203d9e1094a8cbd5fc73c6f93c0062`.
 
 Compiler source blobs:
 - `src/ast.js`: `c227e6e604635a42663af745fd0cfb194b215a67`
