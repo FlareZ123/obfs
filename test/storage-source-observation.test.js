@@ -76,7 +76,7 @@ const shadowedHostNames=[
   'localStorage.setItem("key",inspect);',
   'window.name=inspectWindow;',
   'export function sample(){return inspect()+inspectWindow();}'
-].join('\\n');
+].join('\n');
 
 test('shadowed localStorage and window bindings are not browser source-observer sinks',()=>{
   assert.equal(observesFunctionSource(parse(shadowedHostNames,'module')),false);
