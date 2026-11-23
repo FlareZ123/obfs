@@ -25,7 +25,9 @@ The result must be reported as a candidate-minus-control difference. Candidate-o
 
 3. **Adversarial prompting/obfuscation — Acoda (June 2026).** Acoda reports eight semantics-preserving transforms and up to 70% attack success against seven models. Its score includes model refusal or misinterpretation, so it measures a different objective from exact source reconstruction or functional cloning. Refusal must be recorded separately; comments, alarming identifiers, dead-code decoys, or token tricks that trigger a safety refusal are not a durable confidentiality result. [Preprint](https://arxiv.org/abs/2606.11755).
 
-4. **Vulnerability detection is not reconstruction — AntiAgent (19 Nov 2026).** The existing repository note reports the authors' 52.0–60.7% reduction in vulnerabilities found by LLM agents on 40 applications. That is a vulnerability-discovery metric, not source recovery, cloning, extraction, or the project's runtime budget. Keep the scope distinction in `im-results/antiagent-2026-external-evidence-scope-2026-11-22.md`.
+4. **Direct inference on protected code — “Robustness and Trade-offs for Code LLMs on Protected Code” (3 Jul 2026 preprint).** This execution-based study evaluates seven code LLMs, four source languages (including JavaScript), five protection methods, and three protocols: plain, obfuscated, and same-model-deobfuscated inference. It uses 164 HumanEval-style instances per setting, so it is function-level rather than repository-scale. GPT-4.1 and Qwen3-Coder-30B achieve 90.0% and 90.5% Pass@1 on obfuscated translation inputs versus 92.9% and 88.3% on plain inputs; six of seven models lose accuracy after same-model restoration. This is direct evidence that an attacker may not need to deobfuscate before understanding or translating code. It motivates measuring direct task success on obfuscated input and a separate rescue/degradation trade-off for any restoration stage. [Preprint](https://arxiv.org/abs/2609.04220).
+
+5. **Vulnerability detection is not reconstruction — AntiAgent (19 Nov 2026).** The existing repository note reports the authors' 52.0–60.7% reduction in vulnerabilities found by LLM agents on 40 applications. That is a vulnerability-discovery metric, not source recovery, cloning, extraction, or the project's runtime budget. Keep the scope distinction in `im-results/antiagent-2026-external-evidence-scope-2026-11-22.md`.
 
 5. **LLM-assisted JavaScript deobfuscation tooling — JSIMPLIFIER (NDSS 2026).** This multi-stage static-analysis, dynamic-tracing and LLM-assisted tool is a useful candidate attacker baseline, not a defense result. Its reported 44,421-sample corpus and broad transformation support motivate including deterministic and hybrid recovery tools alongside LLM agents. [Paper](https://doi.org/10.14722/ndss.2026.242198).
 
@@ -70,7 +72,13 @@ A candidate that survives T0 but fails T1/T2 is not LLM-resistant under the stro
 
 ## Tasks and scoring
 
-The primary endpoint is **functional reconstruction**, not prose quality.
+The primary endpoint is **functional reconstruction**, not prose quality. In addition, run the same downstream task against three inputs: original (Plain), emitted candidate (Obfuscated), and an independently produced restored version (Deobfuscated). Do not assume the restoration stage is beneficial. Report:
+- **Direct obfuscated pass rate:** the attacker's functional success without any restoration step.
+- **Rescue rate:** among cases where Plain passes and Obfuscated fails, the fraction where Deobfuscated passes.
+- **Degradation rate:** among cases where Plain passes and Obfuscated passes, the fraction where Deobfuscated fails.
+- **Net restoration effect:** rescue minus degradation, reported separately from direct obfuscated success.
+
+The recent protected-code study uses these conditional metrics and finds that strong models can operate directly on protected input; its 164-instance function-level setup does not replace this project's multi-file/host API corpus.
 
 - **Clone pass@1 / pass@k:** the submitted replacement passes hidden differential/property tests against the original across held-out inputs and relevant host environments.
 - **Behavior recovery:** exact predictions for a preregistered hidden query set; score separately from a code clone.
