@@ -306,7 +306,26 @@ function directBareImports(files) {
  * @param {ESMResolveRequest[]} requests
  * @returns {ESMResolveResult[]}
  */
+
+/**
+ * Refuse resolver modes that the parent-URL comparison does not model.
+ * NODE_OPTIONS is inherited by the helper process, but process.execArgv is
+ * not; custom conditions are therefore explicitly rejected rather than
+ * silently compared under different export conditions.
+ * @returns {void}
+ */
+function assertDefaultEsmResolverContext() {
+  const unsupported=/^(?:--conditions(?:=|$)|--preserve-symlinks(?:-main)?(?:=|$)|--(?:loader|experimental-loader|import|require)(?:=|$)|-r)$/u;
+  const nodeOptions=(process.env.NODE_OPTIONS||'').match(/(?:--[^\s]+|-r)/gu)||[];
+  if([...process.execArgv,...nodeOptions].some(flag=>unsupported.test(flag))) {
+    throw new Error(
+      'SNO ESM bare dependency audit does not model custom loaders, preloads, '+
+      'symlink-preservation flags or nondefault Node conditions');
+  }
+}
+
 function resolveEsmRequests(requests) {
+  assertDefaultEsmResolverContext();
   const script=[
     "import {readFileSync} from 'node:fs';",
     "const requests=JSON.parse(readFileSync(0,'utf8'));",
