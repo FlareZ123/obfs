@@ -294,3 +294,20 @@ for(const [name,mutation] of [
     assert.equal(compiled.crossFile.properties,0);
   });
 }
+
+test('indirect native member extraction through returned global receiver keeps ESM names',async()=>{
+  const original=sourceGraph([
+    'function getRoot(){return globalThis;}',
+    'const indirect=getRoot();',
+    'const cap=indirect.Reflect;',
+    'cap.ownKeys=globalThis.HOST_REFLECT;'
+  ].join('\n'));
+  const native=await execute(original);
+  assert.equal(native,'[41,1,["secretField"]]');
+  const compiled=obfuscateFiles(original,{
+    mode:'coo',closedWorld:true,seed:'ambient-native-member-returned-root',
+    identifiers:false,strings:false,properties:true
+  });
+  assert.equal(await execute(compiled.files),native);
+  assert.equal(compiled.crossFile.properties,0);
+});
