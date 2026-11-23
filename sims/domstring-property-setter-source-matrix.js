@@ -163,6 +163,27 @@ const htmlApiCases=[
     positiveAssignment:'const parsed=Document.parseHTMLUnsafe("literal");'
   },
   elementStreamMethodCase('Element.streamHTML','streamHTML','streamHTML'),
+  {
+    name:'Element.streamHTML via bound writer.write',supportKey:'streamHTML',
+    setup:'const target=document.createElement("div");',
+    assignment:'const stream=target.streamHTML();const writer=stream.getWriter();const write=writer.write.bind(writer);await write(inspect);await writer.close();',
+    read:'target.innerHTML',
+    positiveAssignment:'const stream=target.streamHTML();const writer=stream.getWriter();const write=writer.write.bind(writer);await write("literal");await writer.close();'
+  },
+  {
+    name:'Element.streamHTML via writer.write.call',supportKey:'streamHTML',
+    setup:'const target=document.createElement("div");',
+    assignment:'const stream=target.streamHTML();const writer=stream.getWriter();await writer.write.call(writer,inspect);await writer.close();',
+    read:'target.innerHTML',
+    positiveAssignment:'const stream=target.streamHTML();const writer=stream.getWriter();await writer.write.call(writer,"literal");await writer.close();'
+  },
+  {
+    name:'Element.streamHTML via ReadableStream.pipeTo',supportKey:'streamHTML',
+    setup:'const target=document.createElement("div");',
+    assignment:'const stream=target.streamHTML();const readable=new ReadableStream({start(controller){controller.enqueue(inspect);controller.close();}});await readable.pipeTo(stream);',
+    read:'target.innerHTML',
+    positiveAssignment:'const stream=target.streamHTML();const readable=new ReadableStream({start(controller){controller.enqueue("literal");controller.close();}});await readable.pipeTo(stream);'
+  },
   elementStreamMethodCase('Element.streamAppendHTML','streamAppendHTML','streamAppendHTML'),
   elementStreamMethodCase('Element.streamPrependHTML','streamPrependHTML','streamPrependHTML'),
   elementStreamMethodCase('Element.streamHTMLUnsafe','streamHTMLUnsafe','streamHTMLUnsafe'),
