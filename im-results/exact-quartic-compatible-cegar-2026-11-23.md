@@ -74,3 +74,10 @@ The experiment rules out hiding this **promised low-degree family** by merely di
 ## Source-pinned focused cross-platform validation
 
 [Manual-validation run 45256584371](https://github.com/FlareZ123/obfs/actions/runs/45256584371), immutable source `d087ae6a40da170716bc60fc5423a1833da0176b`, completed with **both Ubuntu and Windows focused jobs green**; the full Node 22 suite was explicitly skipped. The exact test ran the four 32-bit promised degree-two/three/four instances with the 64 target inversions, source-derived degree-five negative control, and the 528-contraction assertions. The focused workflow includes project/external strict JSDoc gates on its source snapshot. This remains bounded cross-platform verification and does not change the release decision.
+
+
+## Prior-work distinction
+
+This is **not the first known exact degree-four inversion algorithm in this repository**. The pre-existing `sims/bounded-degree-symbolic-affine-inverse.js` already supports degree-two, degree-three and degree-four compatible-triangular target inversion after the same low-weight ANF learning, by **target-specific symbolic restriction of the entire coefficient table**. The `Q(32,4)=41,449` query bound comes from the existing generic bounded-degree learner, not this work.
+
+The distinct candidate here precomputes a global, target-independent derivative flag using the basis-only span identity, then reuses that flag for multiple target values. Whether this improves total compute, peak memory or amortized break-even compared with the established symbolic inverter has **not yet been independently benchmarked**, and neither method provides positive obfuscation security. The proof and tests establish a second, independently structured exact inverter under the same source-family promise.
