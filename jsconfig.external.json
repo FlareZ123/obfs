@@ -1,6 +1,8 @@
 {
   "extends": "./jsconfig.json",
   "include": [
+    "workplace/agent1-source-closure-edit-proof.js",
+    "test/agent1-source-closure-edit-proof.test.js",
     "workplace/agent1-lexical-reference-resolver.js",
     "test/agent1-lexical-reference-resolver.test.js",
     "test/agent1-lexical-typescript-paired.test.js",
