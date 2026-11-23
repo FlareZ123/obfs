@@ -49,7 +49,7 @@ async function loadEsm(source){
 test('all three modes preserve public CommonJS source while hiding a private Wasm helper',()=>{
   const original='"use strict";'+hiddenSource+publicBody+'module.exports=published;';
   const native=loadCommonJs(original);
-  /** @type {{mode:string,wasmFunctions:number,sourceExact:boolean,inputs:number,recoveredBytes:number,recoveredExpression:string,recoveredInputs:number}[]} */
+  /** @type {{mode:string,wasmFunctions:number,sourceExact:boolean,inputs:number,recoveredBytes:number,recoveredExpression:string,recoveredFacadeSourceExact:boolean,recoveredInputs:number}[]} */
   const rows=[];
   for(const mode of /** @type {const} */(['coo','sno','sco'])){
     const out=obfuscateFiles([{path:'entry.cjs',sourceType:'commonjs',code:original}],{
@@ -59,24 +59,27 @@ test('all three modes preserve public CommonJS source while hiding a private Was
     const emitted=String(out.code);
     const fn=loadCommonJs(emitted);
     const recovered=recoverPublicWasmExpression(emitted);
-    const clone=loadCommonJs('function published(x){return '+recovered.expression+';}module.exports=published;');
+    const clone=loadCommonJs('"use strict";function secretI32(x){return '+recovered.expression+';}'+publicBody+'module.exports=published;');
     rows.push({mode,wasmFunctions:out.metrics.wasmI32Functions??0,
       sourceExact:Function.prototype.toString.call(fn)===
         Function.prototype.toString.call(native),
       inputs:compareResults(native,fn),recoveredBytes:recovered.bytes,
       recoveredExpression:recovered.expression,
+      recoveredFacadeSourceExact:Function.prototype.toString.call(clone)===
+        Function.prototype.toString.call(native),
       recoveredInputs:compareResults(native,clone)});
     assert.ok(String(out.code).includes('WebAssembly.Module('));
   }
   console.log('WASM_PRIVATE_CJS_PUBLIC_SOURCE '+JSON.stringify(rows));
   assert.ok(rows.every(row=>row.sourceExact&&row.wasmFunctions===1&&row.inputs===2060&&
-    row.recoveredBytes>25&&row.recoveredExpression.length>0&&row.recoveredInputs===2060));
+    row.recoveredBytes>25&&row.recoveredExpression.length>0&&
+    row.recoveredFacadeSourceExact&&row.recoveredInputs===2060));
 });
 
 test('all three modes preserve source of an exported ESM facade over private Wasm',async()=>{
   const original=hiddenSource+'export '+publicBody;
   const native=await loadEsm(original);
-  /** @type {{mode:string,wasmFunctions:number,sourceExact:boolean,inputs:number,recoveredBytes:number,recoveredExpression:string,recoveredInputs:number}[]} */
+  /** @type {{mode:string,wasmFunctions:number,sourceExact:boolean,inputs:number,recoveredBytes:number,recoveredExpression:string,recoveredFacadeSourceExact:boolean,recoveredInputs:number}[]} */
   const rows=[];
   for(const mode of /** @type {const} */(['coo','sno','sco'])){
     const out=obfuscateFiles([{path:'entry.mjs',sourceType:'module',code:original}],{
@@ -86,17 +89,20 @@ test('all three modes preserve source of an exported ESM facade over private Was
     const emitted=String(out.code);
     const fn=await loadEsm(emitted);
     const recovered=recoverPublicWasmExpression(emitted);
-    const clone=await loadEsm('export function published(x){return '+recovered.expression+';}');
+    const clone=await loadEsm('function secretI32(x){return '+recovered.expression+';}export '+publicBody);
     rows.push({mode,wasmFunctions:out.metrics.wasmI32Functions??0,
       sourceExact:Function.prototype.toString.call(fn)===
         Function.prototype.toString.call(native),
       inputs:compareResults(native,fn),recoveredBytes:recovered.bytes,
       recoveredExpression:recovered.expression,
+      recoveredFacadeSourceExact:Function.prototype.toString.call(clone)===
+        Function.prototype.toString.call(native),
       recoveredInputs:compareResults(native,clone)});
   }
   console.log('WASM_PRIVATE_ESM_PUBLIC_SOURCE '+JSON.stringify(rows));
   assert.ok(rows.every(row=>row.sourceExact&&row.wasmFunctions===1&&row.inputs===2060&&
-    row.recoveredBytes>25&&row.recoveredExpression.length>0&&row.recoveredInputs===2060));
+    row.recoveredBytes>25&&row.recoveredExpression.length>0&&
+    row.recoveredFacadeSourceExact&&row.recoveredInputs===2060));
 });
 
 test('selecting the exported callable itself for Wasm changes observable function source',()=>{
