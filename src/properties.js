@@ -169,6 +169,9 @@ const constantDeclaratorsCache=new WeakMap();
  */
 const proofInventoryCache=new WeakMap();
 
+/** @type {WeakMap<AstNode,Set<AstNode>>} */
+const privateCallableCache=new WeakMap();
+
 /**
  * @param {AstNode} ast
  * @returns {{
@@ -670,41 +673,48 @@ function proveLocalObject(ast, rootName, bindings, importedIdentityFunctions=new
   // even when its body does not return an identity or a simple parameter read.
   // Conversely, a value stored, returned, exported, or passed elsewhere can
   // expose its original body through Function#toString.
-  const privateFunctionNodes=new Set();
-  /** @type {{name:string,node:AstNode,decl:AstNode}[]} */
-  const callableBindings=[];
-  for(const node of functionDeclarations) {
-    if(node.id?.type==='Identifier'&&bindings.get(node.id.name)===1)
-      callableBindings.push({name:node.id.name,node,decl:node.id});
-  }
-  for(const declarator of callableDeclarators) {
-    const declaration=parents.get(declarator);
-    const value=declarator.init;
-    if(declaration?.type==='VariableDeclaration'&&declaration.kind==='const'&&
-       declarator.id.type==='Identifier'&&bindings.get(declarator.id.name)===1&&
-       (value?.type==='FunctionExpression'||value?.type==='ArrowFunctionExpression'))
-      callableBindings.push({name:declarator.id.name,node:value,decl:declarator.id});
-  }
-  for(const binding of callableBindings) {
-    const scope=scopes.get(binding.name);
-    if(!scope)continue;
-    let privateValue=true;
-    for(const use of identifierUses.get(binding.name)??[]) {
-      if(use.node===binding.decl) {
-        if(use.ancestors.some(ancestor=>/^Export/.test(ancestor.type)))
-          privateValue=false;
-        if(!privateValue)break;
-        continue;
-      }
-      if(!use.ancestors.includes(scope)||
-         use.parent?.type!=='CallExpression'||
-         use.parent.callee!==use.node||
-         use.parent.optional) {
-        privateValue=false;
-        break;
-      }
+  // This proof depends only on immutable AST declarations, lexical scopes,
+  // and unique-binding counts; reuse it across all owner candidates.
+  let privateFunctionNodes=privateCallableCache.get(ast);
+  if(!privateFunctionNodes) {
+    privateFunctionNodes=new Set();
+    /** @type {{name:string,node:AstNode,decl:AstNode}[]} */
+    const callableBindings=[];
+    for(const node of functionDeclarations) {
+      if(node.id?.type==='Identifier'&&bindings.get(node.id.name)===1)
+        callableBindings.push({name:node.id.name,node,decl:node.id});
     }
-    if(privateValue)privateFunctionNodes.add(binding.node);
+    for(const declarator of callableDeclarators) {
+      const declaration=parents.get(declarator);
+      const value=declarator.init;
+      if(declaration?.type==='VariableDeclaration'&&declaration.kind==='const'&&
+         declarator.id.type==='Identifier'&&bindings.get(declarator.id.name)===1&&
+         (value?.type==='FunctionExpression'||value?.type==='ArrowFunctionExpression'))
+        callableBindings.push({name:declarator.id.name,node:value,decl:declarator.id});
+    }
+    for(const binding of callableBindings) {
+      const scope=scopes.get(binding.name);
+      if(!scope)continue;
+      let privateValue=true;
+      for(const use of identifierUses.get(binding.name)??[]) {
+        if(use.node===binding.decl) {
+          if(use.ancestors.some(ancestor=>/^Export/.test(ancestor.type)))
+            privateValue=false;
+          if(!privateValue)break;
+          continue;
+        }
+        if(!use.ancestors.includes(scope)||
+           use.parent?.type!=='CallExpression'||
+           use.parent.callee!==use.node||
+           use.parent.optional) {
+          privateValue=false;
+          break;
+        }
+      }
+      if(privateValue)privateFunctionNodes.add(binding.node);
+    }
+  
+    privateCallableCache.set(ast,privateFunctionNodes);
   }
 
   const aliases = new Set([rootName]);
