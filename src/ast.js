@@ -2876,8 +2876,18 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
       // Object#toLocaleString delegates to the receiver's toString method.
       // A prototype-reachable callable can therefore expose its exact source
       // even if this scan has not inferred that the receiver is a function.
+      // Reading the unshadowed native Number.prototype formatter only obtains
+      // an engine-owned function. Its calls/options are guarded separately,
+      // allowing unrelated private-owner edits under the native-realm premise.
+      const nativeNumberLocale=name==='toLocaleString' &&
+        node.object.type==='MemberExpression' &&
+        !node.object.computed && node.object.property.type==='Identifier' &&
+        node.object.property.name==='prototype' &&
+        node.object.object.type==='Identifier' &&
+        node.object.object.name==='Number' &&
+        !bindingCounts.has('Number') && !dynamicScope;
       if((name==='toString'||name==='toSource'||name==='toLocaleString') &&
-          !isDefinitelyPrimitive(node.object) &&
+          !isDefinitelyPrimitive(node.object) && !nativeNumberLocale &&
           !(parent?.type==='AssignmentExpression' && key==='left' && parent.operator==='=')) observed=true;
     }
     if(node.type==='CallExpression'||node.type==='NewExpression') {
