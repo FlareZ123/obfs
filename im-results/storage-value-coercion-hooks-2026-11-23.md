@@ -59,6 +59,20 @@ The first extended attempt at `ae844bf` was invalidated by two test-harness defe
 
 Agent 12's separate four-path witness remains distinct and complementary: inherited native `localStorage.setItem` and a captured native alias expose function source; own-instance and prototype JavaScript wrappers retain the function object. Its focused Node/JSDoc run is [45181276801](https://github.com/FlareZ123/obfs/actions/runs/45181276801), and its Chromium Storage step is in [45181268302](https://github.com/FlareZ123/obfs/actions/runs/45181268302). The new mainline prototype fixture now adds the exact `WeakMap` identity assertion Agent 3 requested.
 
+### Named-property setter is a separate native dispatch route
+
+The Storage IDL declares `setter undefined setItem(DOMString key, DOMString value)`. Web IDL's legacy-platform-object `[[Set]]` algorithm invokes the named-property setter, and the named-property-setter algorithm converts the assigned value to the declared IDL type before performing the operation's method steps. This is not a JavaScript property lookup of `storage.setItem` (see [HTML Storage IDL](https://html.spec.whatwg.org/multipage/webstorage.html#the-storage-interface) and [Web IDL §§2.5.6.2, 3.9.2, 3.9.7](https://webidl.spec.whatwg.org/)).
+
+A test-only probe at branch commit `df2b1e1b5b1a1889ff91d912b4c1ce8264629394`, [manual browser run 45229225022](https://github.com/FlareZ123/obfs/actions/runs/45229225022), completed the Storage step on Chrome 157.0.8103.78 with:
+
+```json
+{"baselineMethod":true,"baselineNamed":true,"prototypeMethodOverride":true,"prototypeNamedBypassesMethod":true,"ownMethodOverride":true,"ownNamedBypassesMethod":true,"prototypeCalls":1,"ownCalls":1}
+```
+
+The native method and named setter both stored the function's native source. Replacing `Storage.prototype.setItem` intercepted the explicit method call but not `storage[key] = inspect`; defining an own `localStorage.setItem` override had the same result. Each JavaScript wrapper was called exactly once, while each named-property assignment still stored native source. This confirms that the named-property setter is a distinct native Web IDL dispatch route, unaffected by these JavaScript method-property overrides.
+
+The containing full browser workflow was **red**, not green: it later failed at the existing `test/bound-runtime-interception-browser.js:52` assertion (`0 !== 2`). The named-setter probe itself passed. No compiler source changed.
+
 ## Interpretation
 
 - **Native Storage source observation remains a missed analyzer case.** Agent 12's ordinary-function native/captured-native witness shows native Web IDL conversion can expose changed function source while numeric behavior remains unchanged. The current source observer does not model Storage receiver/callable identity, and reduced plain `setItem` key/value forms classify `observesFunctionSource=false`. Do not infer those plain calls are safe from the current predicate.
@@ -73,6 +87,6 @@ Agent 12's separate four-path witness remains distinct and complementary: inheri
 
 This evidence is one Chromium environment and five bounded cases. It does not establish behavior across all engines, realms, proxies, pre-module host patches, or arbitrary conversion-hook bodies. It does not implement the required BindingId / receiver / effective callable / ToPrimitive capability graph, source-span protection, or closure-preserving rewrite plan.
 
-Next work should keep separate controls for native inherited dispatch, captured native aliases, own/prototype overrides, both DOMString argument positions, own `toString`, own `Symbol.toPrimitive`, bound functions, patched `Function.prototype.toString`, and direct Function#toString. Any eventual compiler admission must preserve the callable's exact source and source-reachable closure while retaining unrelated private yield. A method-name-only `.setItem` veto is not an acceptable solution.
+Next work should keep separate controls for native inherited method calls, captured native aliases, the internal named-property setter (`storage[key] = value`), own/prototype method overrides, both DOMString argument positions, own `toString`, own `Symbol.toPrimitive`, bound functions, patched `Function.prototype.toString`, and direct Function#toString. Any eventual compiler admission must preserve the callable's exact source and source-reachable closure while retaining unrelated private yield. A method-name-only `.setItem` veto is not an acceptable solution.
 
 **No release status changed.** This is an intermediate result, not a production security claim or comprehensive acceptance result.
