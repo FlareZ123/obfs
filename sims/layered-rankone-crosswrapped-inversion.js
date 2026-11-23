@@ -440,9 +440,12 @@ function runLayeredFullWidthClone() {
         let input=next();
         // These withheld input words are not the queried low-weight
         // polynomial coefficient positions.
-        while(input===0||parity32(input&0xffffffff)===-1 ||
-          (()=>{let w=0;for(let b=0;b<32;b++)w+=(input>>>b)&1;return w<=degree;})()){
+        let weight=0;
+        for(let bit=0;bit<32;bit++)weight+=(input>>>bit)&1;
+        while(weight<=degree){
           input=next();
+          weight=0;
+          for(let bit=0;bit<32;bit++)weight+=(input>>>bit)&1;
         }
         assert.equal(attack.predict(input),oracle(input));
         heldoutPredictions++;localHeldout++;exactPredictions++;
