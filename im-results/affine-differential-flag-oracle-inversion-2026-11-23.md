@@ -257,3 +257,71 @@ Every one of the sixteen output records used the sampled-flag route after the fa
 **Interpretation and limitation:** The general derivative theorem explains why a legitimate hidden flag remains globally correct regardless of arbitrary strictly lower-bit gates. Once the current input subspace has zero variation in the lower source bits of an output component, a gate depending only on those bits cancels in all directional derivatives. The selected dense baseline evidently provided enough differentiation for the sampled learner to find useful valid masks despite not necessarily seeing the rare prefix in calibration. This is a plausible structural explanation, not an independently verified claim that every learned mask in these eight instances was globally valid. The exact target checks show that the returned preimages are correct.
 
 The result does not establish that all mixed rare/dense arrangements will succeed, nor does it falsify the earlier **8/8** standalone learner failures on the separate sparse sources. It prevents a misleading claim of defense robustness based on simply superposing one rare high-bit gate on this particular dense source family. It supplies no full source reconstruction, no generic black-box inversion proof, no protected-artifact benchmark and no obfuscation-security advantage. The project remains **RELEASE-BLOCKED**.
+
+
+## Lower bound for certifying a proposed globally affine scalar from forward queries
+
+**Author:** Agent 2. **Date:** 23 November 2026. **Classification:** intermediate information-theoretic, **candidate-mask certification** lower bound. This result is about an explicitly proposed scalar derivative and an oracle-only certifier. It is not a lower bound for the existence of a suitable flag, the discovery of some *alternative* valid mask, or the complexity of full function inversion.
+
+### Two indistinguishable source families
+
+Fix n >= 3 and a bit position j with 2 <= j < n. Define the following width-n compatible triangular permutations, indexed by an unknown j-bit prefix c:
+
+    P0(x) = x,
+    Pc(x) = x XOR e_j * 1[x mod 2^j = c].
+
+Here e_j toggles output bit j and the indicator examines only the j **strictly lower** input bits. Every Pc is an involutive permutation: toggling source bit j leaves the gate's j lower bits invariant, and therefore applying Pc twice restores the original input. Every Pc lies in the allowed compatible triangular family, with all other source output coordinates unchanged.
+
+The candidate output scalar e_j is globally affine under P0: <e_j,P0(x)>=x_j. But it is **not** globally affine under any Pc for j >= 2. To prove this explicitly, examine its first derivative along input h=e_0. At lower-bit prefix x_<j=c, the rare gate toggles on exactly one of x and x XOR e_0, so the scalar derivative equals 1. At prefix x_<j=c XOR e_1, neither of those two inputs hits c, so the scalar derivative equals 0. The source-coordinate j contribution to the derivative is zero in both cases. Thus the derivative is not globally constant.
+
+The unwrapped family is a subclass of the two-sided invertible-affine-compatible family (A=B=I and zero offsets). Hence a worst-case lower bound for a *specified scalar certificate* in this subclass also constrains such certificates for a procedure claiming to work on **every** source of the larger family.
+
+### Deterministic adaptive lower bound
+
+Consider an arbitrary deterministic forward-query tester which asks at most q inputs and attempts to decide whether the proposed scalar e_j has globally constant derivatives. Run the tester against P0. Let S be the set of distinct j-bit lower prefixes of its actual queried inputs. Then |S| <= q.
+
+For every c outside S, the complete adaptive transcript against Pc is **identical** to the transcript against P0. The proof is by induction on query number: before a first response difference, the tester has seen the exact same history and chooses the exact same next query; because the next query's prefix is not c, Pc answers with exactly the identity output. Therefore no response differs, including the final test decision.
+
+If q < 2^j, at least one c remains outside S. Any deterministic tester that accepts the truly affine scalar for P0 must incorrectly accept at least one nonaffine Pc, unless it can access additional private source information. Repeating arithmetic or reasoning on the same q transcript cannot resolve this ambiguity.
+
+### Randomized distributional inequality
+
+Choose the rare c uniformly from all 2^j possible prefixes, **independently** of the tester's random coins. Couple the randomized tester's interaction with Pc to its interaction with P0 using the same coins. Conditional on those coins, the test can notice a difference only if c lies in the at-most-q exposed prefixes from its P0 transcript. Hence:
+
+    Pr[tester sees any transcript difference] <= min(1, q / 2^j).
+
+Let the probability that the tester declares the proposed scalar globally affine under P0 be at least 1-delta. Let its false-accept probability under independently uniform Pc be at most epsilon. The coupling implies:
+
+    Pr[accept under Pc] >= 1 - delta - q/2^j.
+
+Therefore the simultaneous error requirements imply the **chosen-query lower bound**
+
+    q >= (1 - delta - epsilon) * 2^j,
+
+provided the right side is positive. In particular zero false negatives and zero false positives require q >= 2^j. More generally, constant confidence for **certifying this proposed scalar** requires exponentially many queries as a function of j.
+
+At n=32 and j=27 there are **134,217,728** prefixes. If a proposed certificate uses only q=9,236 chosen inputs, the probability that those inputs expose an independent uniform 27-bit rare prefix is at most **6.881356239318848e-5** (0.006881356239318848%). This arithmetic is a probability upper bound under the stated independent-uniform prefix distribution, and is **not** an empirical success rate for the seeded 32-bit simulation.
+
+### Source-separated exact adaptive enumeration
+
+A new independent checker sims/rare-prefix-mask-certificate-lower-bound.js and test/rare-prefix-mask-certificate-lower-bound.test.js replay a small exact instance at n=9, j=7. The policy issues 13 **adaptive** queries: each next input depends on the prior real oracle response. The checker compares the public identity transcript against a fresh run with each of all **128** hidden rare prefixes.
+
+For each source it separately verifies full 512-state output bijectivity and explicitly exhibits two input points with *different* scalar derivatives along e_0, preventing trivial acceptance because the rare source is accidentally affine. It counts distinguishable and indistinguishable sources exactly. The theorem predicts that at most 13 distinct lower prefixes are visited, so at least **115** nonaffine Pc remain transcript-identical to the genuine affine P0.
+
+**Observed CI summary:** 13 adaptive calls exposed exactly **10 distinct** prefixes, yielding **118/128** nonaffine rare-gated sources completely indistinguishable from identity on the entire adaptive transcript, and **10/128** distinguished sources. Independently, **128/128** rare sources were bijections with globally nonconstant proposed scalar derivatives. These counts are exact for this specified 13-query strategy and source family. The test also replays budgets 0, 1, 7, 13, and 25 as independent controls.
+
+**Executable source pin:** e65f6d4fa1a13c30783e6952a3b022ac4f3b52c5, [two-platform focused validation 45091232774](https://github.com/FlareZ123/obfs/actions/runs/45091232774). The test is included in jsconfig.external.json and is checked by project and external strict JSDoc. The report-only follow-up does not alter executable source.
+
+Reproduce from the exact source pin:
+
+~~~powershell
+node --test test/rare-prefix-mask-certificate-lower-bound.test.js
+npm run typecheck
+npm run typecheck:external
+~~~
+
+### Precise significance and remaining work
+
+The theorem proves a fundamental **candidate-certification** blind spot for finite forward-only sampling. It gives a rigorous explanation for how a sampler can accept a globally false derivative condition when the only counterexample lives on an unobserved rare prefix. That remains true when sampled outputs agree exactly with an affine source at every queried point.
+
+Crucially an oracle-only attacker may avoid the problematic scalar by finding another globally valid mask. The previously proved **global greedy extension theorem** guarantees some valid choice on every nonzero input subspace, and the existing four-basis reanchoring attack recovers many sparse-gate targets with few queries. The candidate-certification lower bound does **not** prove a high query cost for full preimage inversion, functional cloning, obfuscated source recovery, or arbitrary algorithm reconstruction. Nor does it imply a measured security improvement for a particular obfuscator versus an equal-trust minified service. The project remains **RELEASE-BLOCKED**.

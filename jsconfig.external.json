@@ -125,6 +125,8 @@
     "sims/compatible-derivative-greedy-exhaustive.js",
     "test/compatible-derivative-greedy-exhaustive.test.js",
     "test/affine-flag-mixed-gate-stress.test.js",
+    "sims/rare-prefix-mask-certificate-lower-bound.js",
+    "test/rare-prefix-mask-certificate-lower-bound.test.js",
     "sims/string-eligibility-matrix.js",
     "sims/typed-array-decoder-tradeoff.js",
     "test/inline-array-primitive-source.test.js",
