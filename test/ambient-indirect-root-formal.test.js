@@ -85,9 +85,11 @@ for(const [name,rootExpression] of [
       mode:'coo',closedWorld:true,seed:'ambient-root-'+name,
       identifiers:false,strings:false,properties:true
     });
+    const emitted=await execute(compiled.files);
+    assert.equal(emitted,native,
+      'A host callback must observe the original published ESM owner keys');
     assert.equal(compiled.crossFile.properties,0,
       'An unproved ambient-root alias must not justify renaming exported key');
-    assert.equal(await execute(compiled.files),native);
   });
 }
 
