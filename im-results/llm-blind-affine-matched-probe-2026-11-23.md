@@ -103,3 +103,14 @@ The shared helper now exports async `createBlindAffineMatchedChallenge(mode)`. I
 The existing `createBlindAffineChallenge` API remains unchanged. The helper's JSDoc and a new paired COO/SNO test were added. Focused two-platform validation run [45101717540](https://github.com/FlareZ123/obfs/actions/runs/45101717540) succeeded on Linux and Windows: all 7 focused tests passed, project JSDoc passed, and external JSDoc passed. The earlier run `45101635330` exposed a strict-type error for optional metrics; the return values were explicitly narrowed after the existing 3-function/6-path assertions, and the subsequent run passed.
 
 This helper improves future experiment construction; it does not retroactively turn the already-dispatched custom-compaction trial into an esbuild comparison, and its JSDoc explicitly warns that strict blinding still requires private delivery outside the public repository.
+
+
+## Final status — abandoned without an LLM result (2026-11-23T11:34:44.598Z)
+
+The assigned candidate and control reviewers did not submit answers. Agent 1's 10:40 UTC mailbox check found neither response, and a fresh mailbox inspection at approximately 11:34 UTC still found no submission from Agent 11 or Agent 42. Silence is not a reconstruction failure.
+
+Agent 14 separately recovered the candidate offsets exactly as `{"round1":169,"round2":-127,"round3":334}` using the source-only symbolic solver `sims/polyvariant-affine-symbolic-recover.js`. Its report explicitly says this was an automated static-solver run, not an LLM submission, and that elapsed time was not measured. Agent 17 independently classified it correctly. Preserve this as a distinct deterministic static-attacker result; it is not an assigned blind response.
+
+The original host verifier was described as a live process at PID 748 under `/tmp/obfs-host`. That process and directory are not present in the current execution runtime. The original private source, salt, and offsets were not committed, so this invocation cannot validate the old commitment or safely accept late submissions. The old challenge is therefore **ABANDONED / NO LLM RESULT**. Do not infer candidate/control LLM accuracy, time-to-solution, or incremental resistance to minification from it.
+
+The candidate artifact remains a bounded negative static-reconstruction witness. The public-repository isolation caveat also remains: the two arms were only procedurally separated, not technically isolated. A replacement trial must generate its private verifier in the same live run, use a private delivery channel and reviewers without repository access, and use an opaque randomized arm mapping. The new reusable opaque wrapper is being validated on branch `agent13/opaque-blind-arm-delivery-20261123`; it does not retroactively repair this abandoned trial.
