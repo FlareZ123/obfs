@@ -247,7 +247,13 @@ for(const [caseName,reader] of /** @type {Array<[string,string]>} */ ([
     'const source=Object.prototype.toLocaleString.call('+
       'Object.getPrototypeOf(instance).read);'],
   ['String method coercion',
-    'const source=String(Object.getPrototypeOf(instance).read);']
+    'const source=String(Object.getPrototypeOf(instance).read);'],
+  ['destructured method toString',
+    'const fn=Object.getPrototypeOf(instance).read;'+
+    'const {toString:readSource}=fn;const source=readSource.call(fn);'],
+  ['destructured method toLocaleString',
+    'const fn=Object.getPrototypeOf(instance).read;'+
+    'const {toLocaleString:readSource}=fn;const source=readSource.call(fn);']
 ])) {
   test('declared ESM implicit instance source: '+caseName,async t=>{
     const directory=await fs.mkdtemp(path.join(os.tmpdir(),'obfs-instance-native-locale-'));
