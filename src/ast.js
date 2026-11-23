@@ -1087,6 +1087,13 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
           if(item?.type==='Identifier')changed=add(encoderInstances,item.name)||changed;
         }
       }
+      if(node.type==='VariableDeclarator'&&node.id.type==='ObjectPattern'&&
+         mayCarryEncoder(node.init)) {
+        for(const property of node.id.properties) {
+          const target=property.type==='Property'?property.value:property.argument;
+          if(target?.type==='Identifier')changed=add(encoderInstances,target.name)||changed;
+        }
+      }
       if(node.type==='VariableDeclarator' && node.id.type==='Identifier' ||
          node.type==='AssignmentExpression' && node.operator==='=' &&
          node.left.type==='Identifier') {
