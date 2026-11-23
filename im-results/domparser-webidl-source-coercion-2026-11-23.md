@@ -94,3 +94,17 @@ The six newly added property-specific original/emitted pairs retained byte-exact
 Interpret this narrowly: the property transform's conservative refusal prevents this particular source-observation incompatibility, at the cost of zero property-obfuscation yield for these public-source fixtures. This evidence does **not** prove a general property alias safety theorem. It also does not demonstrate the property pass can rewrite otherwise equivalent nonescaping ownership graphs under these exact fixture conditions; a positive nonescaping property control is the appropriate follow-up.
 
 Again, the targeted browser diagnostic passed and the full workflow failed at two unrelated positive-yield assertions per OS. No production source file changed.
+
+## Positive private-owned property yield confirms contextual refusal
+
+A distinct `nonescaping-owned-property-control` uses the same captured local `owner.secretField` and `observed()` function as the exposed native coercion pair, but no native source-reading host API. It produces only a primitive `globalThis.__obfsResult`, with `coerced:'inert'`. The fixture compiles with identical explicit `strings:false`, `properties:true`, `identifiers:false`, and `closedWorld:true` options.
+
+[Source-pinned run 45187527611](https://github.com/FlareZ123/obfs/actions/runs/45187527611), code `801960fbef50205cfc398bc5cdbcaa3b45a8f505`, expanded the real-Chromium, same-source-esbuild differential to **30 original/emitted/minified comparisons**. Summary:
+
+```json
+{"cases":30,"valueMatches":30,"minifiedValueMatches":30,"sourceMismatches":18,"minifiedSourceMismatches":24,"publicStringRewrites":18,"publicPropertyRewrites":0,"privateRewriteControls":3,"privatePropertyRewriteControls":3}
+```
+
+Specifically, the compiler made exactly **one actual owned-field rewrite in each of the three private nonescaping property controls**, and all three preserved ordinary behavior. With direct DOMParser/Element source observation, the otherwise similar six property cases each made **zero owned-field rewrites**, preserving the text. The private string controls continued to rewrite positively (3/3) and the eighteen observable string rewrite cases still changed function source. All thirty ordinary return values matched for both transformed and minified arms.
+
+This comparison supports a **bounded positive-yield vs conservative-refusal contrast** in the property engine, beyond a trivial universal zero-rewrite implementation. It does not mean the property engine soundly recognizes every Web IDL source sink or that every source-readable callable is protected. The string pass has a distinct observed source-compatibility gap. The full workflow remains RED on two prior property-yield assertions elsewhere, while the targeted Chromium step passed.
