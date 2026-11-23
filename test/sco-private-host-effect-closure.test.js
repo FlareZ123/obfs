@@ -992,8 +992,8 @@ test('Private static SCO graph refuses unresolved unqualified application-global
 
 test('Explicitly owned local bindings with host-like names remain eligible',()=>{
   const source=[
-    'const externalBridge={value:41};',
-    'export async function protectedOp(){return externalBridge.value;}',
+    'const externalBridge=41;',
+    'export async function protectedOp(){return externalBridge;}',
     'export function visible(){return 7;}'
   ].join('\n');
   assert.doesNotThrow(()=>partitionScoSelectedAsyncExports(
@@ -1001,6 +1001,17 @@ test('Explicitly owned local bindings with host-like names remain eligible',()=>
     {seed:'sco-local-global-name-20261123',privateNames:['protectedOp']}
   ));
   assert.deepEqual(partitionGraph(
-    'const externalBridge={value:41};return externalBridge.value;',false
+    'const externalBridge=41;return externalBridge;',false
   ).privateNames,['protectedOp']);
+  const localObject=[
+    'export async function protectedOp(){',
+    'const externalBridge={value:41};return externalBridge.value;',
+    '}',
+    'export function visible(){return 7;}'
+  ].join('\n');
+  assert.doesNotThrow(()=>partitionScoSelectedAsyncExports(
+    {path:'mixed.mjs',code:localObject,sourceType:'module'},
+    {seed:'sco-local-object-name-20261123',privateNames:['protectedOp']}
+  ));
 });
+
