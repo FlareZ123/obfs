@@ -109,6 +109,7 @@ test('addition, shifts and state invalidate the pointwise promise',()=>{
   assert.notEqual(shift.evaluate(2),1,
     'A bit shift couples distinct bit positions and invalidates interpolation');
   let counter=0;
+  /** @param {number} x @param {number} y @returns {number} */
   const stateful=(x,y)=>((x^y)^(++counter))|0;
   const cloned=cloneBitwiseBitSlice(stateful,2);
   assert.notEqual(cloned.evaluate(0,0),stateful(0,0),
