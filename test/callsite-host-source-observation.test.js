@@ -153,3 +153,22 @@ test('actual SNO CommonJS launcher preserves numeric behavior but exposes rewrit
     fs.rmSync(root,{recursive:true,force:true});
   }
 });
+
+
+test('equal-trust ordinary esbuild property-mangling control also changes observed caller source',()=>{
+  const {transformSync}=require('esbuild');
+  const transformed=transformSync(observableSource,{
+    loader:'js',mangleProps:/^privateSecret$/,minify:false
+  }).code;
+  const native=execute(observableSource);
+  const mangled=execute(transformed);
+  process.stdout.write('CALLSITE_ESBUILD_CONTROL '+JSON.stringify({
+    nativeValue:native.value,mangledValue:mangled.value,
+    nativeSource:native.source,mangledSource:mangled.source
+  })+'\n');
+  assert.equal(native.value,31);
+  assert.equal(mangled.value,native.value);
+  assert.match(native.source,/owner\.privateSecret/);
+  assert.match(mangled.source,/owner\.(?!privateSecret)\w+/);
+  assert.notEqual(mangled.source,native.source);
+});
