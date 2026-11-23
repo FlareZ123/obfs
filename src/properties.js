@@ -359,6 +359,105 @@ function collectOwnedConstantKeys(ast,rootName,bindings,scopes) {
   return keys;
 }
 
+
+/** @type {WeakMap<AstNode,Set<AstNode>>} */
+const localPrivateClassMethodCache=new WeakMap();
+
+/**
+ * Prove source privacy for a pure method on a nonescaping local class or const-bound anonymous class.
+ * Each instance is an immutable local value constructed with no arguments,
+ * used only as the receiver of direct calls to that method. The method does
+ * nothing except return a fixed member of a lexical owner; its owner is still
+ * checked separately by the ordinary closed-world proof.
+ *
+ * @param {AstNode} ast
+ * @param {Map<string,number>} bindings
+ * @param {Map<string,AstNode>} scopes
+ * @param {ReturnType<typeof collectProofInventory>} inventory
+ * @returns {Set<AstNode>}
+ */
+function locallyPrivateClassMethods(ast,bindings,scopes,inventory){
+  const cached=localPrivateClassMethodCache.get(ast);
+  if(cached)return cached;
+  /** @type {Set<AstNode>} */
+  const admitted=new Set();
+  walk(ast,(cls,parent,_key,ancestors)=>{
+    const declaration=cls.type==='ClassDeclaration'&&cls.id?.type==='Identifier';
+    // An anonymous class assigned directly to a unique immutable const
+    // has the same local class-value ownership proof as a declaration.
+    const expression=cls.type==='ClassExpression'&&!cls.id&&
+      parent?.type==='VariableDeclarator'&&parent.init===cls&&
+      parent.id.type==='Identifier'&&
+      inventory.parents.get(parent)?.type==='VariableDeclaration'&&
+      inventory.parents.get(parent)?.kind==='const';
+    if((!declaration&&!expression)||cls.superClass||cls.body.body.length!==1||
+       ancestors.some(a=>/^Export/.test(a.type)))return;
+    const classId=declaration?cls.id:parent?.id;
+    if(classId?.type!=='Identifier')return;
+    const className=classId.name;
+    // Class declarations are absent from the existing binding-scope cache.
+    // Recover the exact nearest lexical region from this walk's ancestry.
+    const classScope=[...ancestors].reverse().find(a=>
+      ['Program','BlockStatement','StaticBlock','SwitchStatement',
+       'ForStatement','ForInStatement','ForOfStatement','CatchClause'].includes(a.type))??ast;
+    if(!classScope||bindings.get(className)!==1)return;
+    const method=cls.body.body[0];
+    // Computed string literals (and constant-string concatenation) are inert
+    // at class definition time. Dynamic expressions can invoke an ambient
+    // callback while the class body is evaluated, so decline those.
+    const methodName=method.type==='MethodDefinition' ?
+      method.computed?staticString(method.key):
+        method.key.type==='Identifier'?method.key.name:null : null;
+    if(method.type!=='MethodDefinition'||method.static||
+       methodName===null||['constructor','__proto__','prototype'].includes(methodName)||
+       method.kind!=='method'||method.value.type!=='FunctionExpression'||
+       method.value.async||method.value.generator||method.value.params.length||
+       method.value.body.body.length!==1)return;
+    const statement=method.value.body.body[0];
+    const member=statement.type==='ReturnStatement'?statement.argument:null;
+    if(member?.type!=='MemberExpression'||member.optional||
+       member.object.type!=='Identifier'||
+       (member.computed?staticString(member.property):staticName(member.property))===null)return;
+
+    // Multiple independent instances are safe if every constructor use
+    // still creates an immutable local receiver and none of them escape.
+    /** @type {AstNode[]} */
+    const instances=[];
+    for(const use of inventory.identifierUses.get(className)??[]){
+      if(use.node===classId)continue;
+      if(!use.ancestors.includes(classScope)||use.parent?.type!=='NewExpression'||
+         use.parent.callee!==use.node||use.parent.arguments.length!==0)return;
+      const candidate=inventory.parents.get(use.parent);
+      if(candidate?.type!=='VariableDeclarator'||
+         candidate.init!==use.parent||candidate.id.type!=='Identifier'||
+         bindings.get(candidate.id.name)!==1||
+         inventory.parents.get(candidate)?.type!=='VariableDeclaration'||
+         inventory.parents.get(candidate)?.kind!=='const'||
+         scopes.get(candidate.id.name)!==classScope)return;
+      instances.push(candidate);
+    }
+    if(!instances.length)return;
+    for(const instance of instances){
+      for(const use of inventory.identifierUses.get(instance.id.name)??[]){
+        if(use.node===instance.id)continue;
+        const access=use.parent;
+        const invocation=access?inventory.parents.get(access):null;
+        if(!use.ancestors.includes(classScope)||
+           access?.type!=='MemberExpression'||access.object!==use.node||
+           access.optional||access.computed||
+           access.property.type!=='Identifier'||
+           access.property.name!==methodName||
+           invocation?.type!=='CallExpression'||
+           invocation.callee!==access||invocation.optional||
+           invocation.arguments.length!==0)return;
+      }
+    }
+    admitted.add(method.value);
+  });
+  localPrivateClassMethodCache.set(ast,admitted);
+  return admitted;
+}
+
 /**
  * Closed-world proof of safe uses of a candidate object and its aliases.
  * Recognizes const aliases, direct function parameters, and identity forwarding.
@@ -680,7 +779,8 @@ function proveLocalObject(ast, rootName, bindings, importedIdentityFunctions=new
   // even when its body does not return an identity or a simple parameter read.
   // Conversely, a value stored, returned, exported, or passed elsewhere can
   // expose its original body through Function#toString.
-  const privateFunctionNodes=new Set(directInvokedArrows);
+  const privateFunctionNodes=new Set([...directInvokedArrows,
+    ...locallyPrivateClassMethods(ast,bindings,scopes,collectProofInventory(ast))]);
   /** @type {{name:string,node:AstNode,decl:AstNode}[]} */
   const callableBindings=[];
   for(const node of functionDeclarations) {
