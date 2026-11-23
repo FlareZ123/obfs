@@ -759,6 +759,19 @@ function proveLocalObject(ast, rootName, bindings, importedIdentityFunctions=new
       if(ancestor.type==='ClassDeclaration')localClassUses.add(ancestor);
     }
   }
+  // A sloppy CommonJS wrapper can be recovered through a host-controlled
+  // callback's arguments.callee.caller even when the class and instance do
+  // not escape. Only ESM (strict by definition) and explicit strict CJS may
+  // use this finite class-method exemption.
+  let strictSource=ast.sourceType==='module';
+  if(!strictSource) {
+    for(const statement of ast.body??[]) {
+      const directive=/** @type {string|undefined} */ (statement.directive);
+      if(statement.type!=='ExpressionStatement'||directive===undefined)break;
+      if(directive==='use strict')strictSource=true;
+    }
+  }
+  if(!strictSource)localClassUses.clear();
   for(const cls of localClassUses) {
     if(ownerInitializationEnd<0||cls.start<ownerInitializationEnd)continue;
     if(parents.get(cls)!==ast||cls.superClass||cls.id?.type!=='Identifier'||
