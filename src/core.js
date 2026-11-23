@@ -135,8 +135,13 @@ function staticallyRequiredCommonJsTargets(files) {
       const argument=node.arguments[0];
       if(!argument)return;
       const specifier=staticString(argument);
-      if(specifier===null||
-         (!specifier.startsWith('./')&&!specifier.startsWith('../'))||
+      if(specifier===null) {
+        // A runtime-computed require may select any supplied CommonJS file.
+        // Preserve behavior by treating their sensitive exports as reachable.
+        for(const candidate of known)required.add(candidate);
+        return;
+      }
+      if((!specifier.startsWith('./')&&!specifier.startsWith('../'))||
          /[?#%\\\\]/u.test(specifier))return;
       const base=path.posix.normalize(
         path.posix.join(path.posix.dirname(file.path),specifier));
@@ -184,8 +189,13 @@ function staticallyImportedEsmTargets(files) {
     walk(ast,node=>{
       if(node.type!=='ImportExpression')return;
       const specifier=staticString(node.source);
-      if(specifier===null||
-         (!specifier.startsWith('./')&&!specifier.startsWith('../'))||
+      if(specifier===null) {
+        // An opaque dynamic specifier can reach any supplied ESM module.
+        // Scan every known export rather than trusting an unsound path guess.
+        for(const candidate of known)imported.add(candidate);
+        return;
+      }
+      if((!specifier.startsWith('./')&&!specifier.startsWith('../'))||
          /[?#%\\\\]/u.test(specifier))return;
       const target=path.posix.normalize(
         path.posix.join(path.posix.dirname(file.path),specifier));
