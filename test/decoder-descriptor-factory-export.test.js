@@ -62,6 +62,20 @@ function moduleGraph(intrinsic) {
 }
 
 /**
+ * Load the factory itself dynamically from a literal supplied ESM path.
+ * The follow-on import of target.mjs runs after the String mutation.
+ * @param {'String'|'Number'} intrinsic
+ * @returns {SourceFile[]}
+ */
+function dynamicFactoryGraph(intrinsic) {
+  return moduleGraph(intrinsic).map(file=>file.path==='entry.mjs'?
+    {...file,code:(/** @type {string} */ (file.code)).replace(
+      "import build from './factory.mjs';",
+      "const {default:build}=await import('./factory.mjs');"
+    )}:file);
+}
+
+/**
  * @param {string} directory
  * @param {SourceFile[]|ReturnType<typeof obfuscateFiles>['files']} files
  * @param {'entry.cjs'|'entry.mjs'} [entry]
@@ -128,5 +142,33 @@ for(const mode of /** @type {const} */(['coo','sno','sco'])){
       assert.equal(target.metrics.literals,intrinsic==='String'?0:1,
         'an ESM String getter must suppress eager decoding; benign Number must encode');
     });
+  }
+}
+
+
+for(const mode of /** @type {const} */(['coo','sno','sco'])){
+  for(const intrinsic of /** @type {const} */(['String','Number'])){
+    test('dynamically imported ESM descriptor factory '+mode+' '+intrinsic,
+      async()=>{
+        const input=dynamicFactoryGraph(intrinsic);
+        const compiled=obfuscateFiles(input,{
+          mode,properties:false,identifiers:false,strings:true,
+          seed:'agent5-dynamic-factory/'+mode+'/'+intrinsic
+        });
+        const target=compiled.files.find(file=>file.path==='target.mjs');
+        assert.ok(target);
+        const root=await fs.mkdtemp(path.join(os.tmpdir(),'obfs-dynamic-factory-'));
+        try{
+          const native=await execute(path.join(root,'native'),input,'entry.mjs');
+          const transformed=await execute(path.join(root,'transformed'),compiled.files,'entry.mjs');
+          assert.equal(native.status,0,native.stderr);
+          assert.deepEqual(transformed,native,
+            'dynamic factory must preserve late-import behavior');
+        }finally{
+          await fs.rm(root,{recursive:true,force:true});
+        }
+        assert.equal(target.metrics.literals,intrinsic==='String'?0:1,
+          'dynamic sensitive factory must refuse; harmless factory should encode');
+      });
   }
 }
