@@ -291,3 +291,8 @@ Both expose changed function source in emitted output and both primitive-only
 positives pass. Current `src/ast.js` has no explicit method-name handling for
 either. Include them alongside `insertAdjacentHTML`, the modern parser APIs,
 and `Document.write/writeln` in the parser-sink metadata.
+
+
+Trusted Types CSP enforcement/default-policy behavior remains unvalidated.
+The attempted `iframe.srcdoc` harness did not reliably execute its child
+module, so no conclusion is drawn; those experimental changes were reverted.
