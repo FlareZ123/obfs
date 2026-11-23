@@ -37,12 +37,26 @@ function classifyIdentifier(node,parent,key) {
 /**
  * @param {string} source
  * @param {AstNode} ast
- * @param {{seed:string,sourceType:'script'|'module'|'commonjs'}} options
+ * @param {{seed:string,sourceType:'script'|'module'|'commonjs',preserveExportedFunctionSource?:boolean}} options
  * @returns {{code:string,bindings:number}}
  */
 function renameLocalIdentifiers(source,ast,options) {
   if(observesFunctionSource(ast)) return {code:source,bindings:0};
   const counts=collectBindings(ast);
+  // An opt-in source-observer island may contain exported primitive readers.
+  // Keep every lexical spelling appearing in those exported function bodies
+  // stable, including captured outer bindings. Other local bindings can still
+  // be renamed without changing any exported Function#toString() result.
+  const sourceVisibleNames=new Set();
+  if(options.preserveExportedFunctionSource) {
+    for(const statement of ast.body) {
+      if(statement.type!=='ExportNamedDeclaration' ||
+         statement.declaration?.type!=='FunctionDeclaration')continue;
+      walk(statement.declaration,node=>{
+        if(node.type==='Identifier')sourceVisibleNames.add(node.name);
+      });
+    }
+  }
   /** @type {{identifier:AstNode,name:string,scope:AstNode}[]} */
   const candidates=[];
   /** @type {{node:AstNode,parent:AstNode|null,key:string|null,ancestors:AstNode[]}[]} */
@@ -144,6 +158,7 @@ function renameLocalIdentifiers(source,ast,options) {
   for(const candidate of candidates) {
     const {name,scope,identifier}=candidate;
     if (counts.get(name)!==1 || inferredNames.has(name) || errorSpellingNames.has(name) ||
+        sourceVisibleNames.has(name) ||
         ['arguments','eval','require','module','exports','globalThis','window'].includes(name)) continue;
     // TDZ ReferenceError messages expose the original binding spelling.
     // Until a control-flow dominance proof exists, reject a candidate when a
