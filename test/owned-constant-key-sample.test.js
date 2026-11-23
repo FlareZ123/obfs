@@ -31,7 +31,7 @@ const probes=[0,1,2,-2,11,255,0.5,-2.5,NaN,Infinity,-Infinity,
 
 test('real emitted private-key sample is exactly reproducible',()=>{
   const output=obfuscateFiles([{path:'entry.cjs',sourceType:'commonjs',code:before}],{
-    mode:'sno',seed:'owned-constant-key-sample',strings:false
+    mode:'sno',seed:'owned-constant-key-sample',strings:false,identifiers:false
   }).files[0];
   assert.equal(output.metrics.objects,1);
   assert.equal(output.metrics.properties,2);
