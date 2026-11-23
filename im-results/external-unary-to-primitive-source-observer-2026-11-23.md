@@ -33,6 +33,22 @@ Original and transformed numeric results both remain `NaN`, but the external dep
 - Node 22.16.0 local semantics control confirmed that `fn + ''` exposes the native function source as a string while `+fn` yields `NaN`; the latter still invokes the patched `Function#toString` before the source is discarded.
 - The application AST contains no `Function.prototype.toString` reference. The source observer must therefore account for implicit ToPrimitive effects, not only explicit source-reader calls.
 
+
+## Expanded baseline and opaque-import return-flow witness
+
+The 55-case matrix was also run against a test-only branch based on unmodified current-main compiler source (`agent3/proxy-observer-baseline-20261123`):
+- **Run 45277861598:** RED on Ubuntu and Windows. It reports 50 failed source-observing contexts out of 51; the existing string-concatenation source-observer case (`reader+''`) is already covered by the pre-existing `BinaryExpression +` guard, and the four non-coercive controls pass. This separates the newly missing numeric/alias cases from the already-covered string coercion.
+- **Run 45277740099:** a local Proxy whose generic `Reflect.get` trap binds target methods is GREEN on both OS even on the baseline branch. This variant was already caught by existing reflective source-observer logic and is not a new regression.
+
+A distinct unlisted-import boundary does fail on baseline. The app imports `wrap` from an unlisted `proxy-package`, passes local `reader` to it, receives a function Proxy, then evaluates `+proxied`. The external factory uses a generic `Reflect.get` trap that binds function-valued properties to the target; a host preload patches Function#toString and captures the target source.
+
+- **Baseline run 45277989112:** RED on Ubuntu and Windows; transformed capture contains a renamed parameter instead of `secretValue`.
+- The candidate now treats function-bearing arguments passed to opaque imported/namespace/require callables as source escapes, because the external implementation may retain, wrap, coerce or stringify them. It tracks direct imports, aliases, bound aliases, `.call/.apply/.bind`, and `Reflect.apply`. This is conservative: unresolved imports are effect-opaque even if their implementation is actually pure.
+- Direct candidate witness run **45278782901**: GREEN on both OS.
+- Expanded direct/call/apply/bind/bound-alias/Reflect.apply matrix run **45279689540**: Ubuntu GREEN; Windows was still in progress at report update. A later checkpoint must update this status before treating it as fully validated.
+
+The test files are `test/agent3-proxy-numeric-source-observer.test.js` (baseline already green) and `test/agent3-external-proxy-factory-source-observer.test.js` (new opaque-import escape). The candidate's source-escape guard is an interim fail-closed rule; a future module/effect graph should analyze supplied imports interprocedurally and only treat unresolved external callables as opaque.
+
 ## Candidate correction
 
 The branch adds a conservative source-observer guard in `src/ast.js` for function-capable values in:
