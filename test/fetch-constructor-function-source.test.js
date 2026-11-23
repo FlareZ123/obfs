@@ -100,8 +100,11 @@ const inertCases=[
 
 for(const [name,expression] of inertCases) {
   test('Fetch and File primitive inputs preserve private-key transformation: '+name,async()=>{
-    const source='const state={secretField:37};'+
-      'module.exports=Promise.resolve('+expression+').then(observed=>({observed,value:state.secretField}));';
+    // Keep the transformed owner inside a locally called helper: the
+    // published Promise callback is observable by Promise instrumentation.
+    // Its source must remain stable, while the private helper can be renamed.
+    const source='function privateRead(){const state={secretField:37};return state.secretField;}'+
+      'module.exports=Promise.resolve('+expression+').then(observed=>({observed,value:privateRead()}));';
     const native=await execute(source);
     assert.equal(observesFunctionSource(parse(source,'commonjs')),false,
       name+' is a fully proven inert input');
