@@ -27,7 +27,7 @@ Their binary rank is four. Let their parity outputs be \(z_0,z_1,z_2,z_3\). The 
 
 The low-20 mixing is a composition of invertible triangular shears. All four parity masks depend only on the low 20 input bits, while nonlinear corrections affect only the high 12 output bits. Thus the map is triangular: recover the low 20 input bits from the low 20 output bits, then recover the high 12 bits after recomputing the corrections. The source is therefore a permutation, not a non-injective lookup-table example.
 
-The top cubic tensor on the four-dimensional projection space is \(e_{30} z_0 z_1 z_2 + e_{31} z_1 z_2 z_3\). The two scalar-form radicals are \(\langle e_3\rangle\) and \(\langle e_0\rangle\); their intersection is \(\{0\}\), so the vector-valued joint-radical codimension is four. The script independently checks projection-mask rank four and top-projection radical size one.
+The top cubic ANF component is \(e_{30} z_0 z_1 z_2 + e_{31} z_1 z_2 z_3\). Its third-derivative tensor has scalar components \(\phi_{012}\) and \(\phi_{123}\), whose radicals are \(\langle e_3\rangle\) and \(\langle e_0\rangle\), respectively. Because the output directions \(e_{30},e_{31}\) are independent, the vector-valued tensor's joint radical is their intersection, \(\{0\}\), so its joint-radical codimension is four. The script independently checks projection-mask rank four and top-projection radical size one.
 
 ## Experiment
 
