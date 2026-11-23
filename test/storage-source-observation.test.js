@@ -118,7 +118,7 @@ const propertySource=[
   '  localStorage.setItem("property-source-observer",inspect);',
   '  return {observed:inspect(),independent:independent()};',
   '}'
-].join('\\n');
+].join('\n');
 
 test('property pass keeps the Storage-observed owner stable while renaming an independent owner',()=>{
   const result=obfuscateFiles([{path:'entry.mjs',sourceType:'module',code:propertySource}],{
