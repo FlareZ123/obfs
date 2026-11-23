@@ -41,7 +41,7 @@ for(const mode of /** @type {const} */ (['coo','sno','sco'])) {
   test(mode+' privately constructed class method has nonzero owned-field rewrite',()=>{
     const original=[
       '\'use strict\';',
-      'const owner={secretA:7,secretB:11};'
+      'const owner={secretA:7,secretB:11};',
       'class Reader{read(){return owner.secretA;}}',
       'const reader=new Reader();',
       'module.exports=reader.read()+owner.secretB;'
