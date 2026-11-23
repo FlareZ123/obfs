@@ -27,6 +27,10 @@ The existing prototype gave distinct non-null declaration BindingIds to the catc
 - Draft branch: `agent6/catch-var-binding-alias-20261123`; patch conservatively marks affected catch and containing var-scope bindings uncertain rather than issuing distinct non-null IDs. It checks the same var environment and keeps nested function declarations independent. The subsequent expanded branch includes destructured patterns and for-of loop heads.
 - The expanded patch at `6141f90ee3f7d0ad247899fc1dfd01b0f3585e4e` passed the [focused two-OS regression and strict JSDoc workflow 45244135765](https://github.com/FlareZ123/obfs/actions/runs/45244135765). This checks the new negative and independent-name controls, not the whole repo or the separate Acorn/TypeScript matrix; those require their own source-pinned receipts.
 
+## Additional independent Stage 1 checks
+
+At exactly `833b0a64e2a8a5e5666df4e3a260f05886bcce0a`, the existing Stage 1 resolver fixture gate passed **9/9 tests** on both platforms in [45244417256](https://github.com/FlareZ123/obfs/actions/runs/45244417256), including its bounded 39 input fixtures; the separate Acorn/TypeScript semantic pairing gate passed **150 comparisons** on both platforms in [45244425109](https://github.com/FlareZ123/obfs/actions/runs/45244425109). Both runs include strict JSDoc steps. They do not test full application semantics because the resolver remains unused by the compiler.
+
 ## Boundaries and next verification
 
 This is an admission-contract concern for the proposed lexical BindingId and rename passes. It does not show current production compiler output breaking on the example; no full-suite release conclusion follows. Before integrating the prototype, test the two-platform red/green regression and existing 39+ lexical and 150 independent Acorn/TypeScript classifications, then feed the binding uncertainty through future transformations conservatively. A richer alias-equivalence relation could preserve more rename opportunities but needs a separate semantic proof.
