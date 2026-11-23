@@ -101,6 +101,7 @@ test('exact cubic ANF certificate and greedy flag invert affine-wrapped full tri
     const oracle=makeWrappedOracle(seed);
     const model=learnBoundedDegreeOracle(oracle,WIDTH,3);
     assert.equal(model.queryCount,5489);
+    /** @param {number} x @returns {number} */
     const clone=x=>evaluateBoundedDegreeModel(model,x);
     const contract=makeCubicDefectContractor(model);
     const next=makeRng(seed^0xa54ff53a);
