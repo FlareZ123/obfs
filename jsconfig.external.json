@@ -317,7 +317,8 @@
     "test/affine-conjugated-odometer-oracle-attack.test.js",
     "sims/random-affine-graph-flag-inversion.js",
     "test/random-affine-graph-flag-inversion.test.js",
-    "test/callsite-host-source-observation.test.js"
+    "test/callsite-host-source-observation.test.js",
+    "test/callsite-host-chromium.test.js"
   ],
   "exclude": [
     "node_modules"
