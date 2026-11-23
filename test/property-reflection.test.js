@@ -99,3 +99,16 @@ test('Reflect.ownKeys exposes own-key spelling',()=>{
   compare(`'use strict';const a={secretField:14};
     module.exports=[Reflect.ownKeys(a),a.secretField];`,0);
 });
+
+test('Object.groupBy exposes original object keys through retained group members',()=>{
+  compare(`'use strict';const a={privateField:23};
+    const groups=Object.groupBy([a],value=>value.privateField?'yes':'no');
+    module.exports=[Object.keys(groups.yes[0]),groups.yes[0].privateField];`,0);
+});
+
+test('Map.groupBy keeps shared reference observable to own-key reflection',()=>{
+  compare(`'use strict';const a={privateField:24};
+    const groups=Map.groupBy([a],value=>value.privateField>0);
+    const [item]=groups.get(true);
+    module.exports=[Object.keys(item),item.privateField];`,0);
+});
