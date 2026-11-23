@@ -12,6 +12,13 @@ function execute(code) {
   return /** @type {()=>string} */(module.exports)();
 }
 
+/** @param {string} code @returns {string} */
+function exportedFunctionSource(code) {
+  const module={exports:/** @type {unknown} */(null)};
+  new Function('module',code)(module);
+  return Function.prototype.toString.call(module.exports);
+}
+
 /** @param {string} declarations @param {string} expression @returns {string} */
 function source(declarations,expression) {
   return "'use strict';"+
@@ -96,8 +103,9 @@ test('bound and owned Blob constructors must preserve COO/SNO source spelling',(
 
 test('bound Blob constructor with primitive input retains private property rename',()=>{
   const original='const owner={hiddenCount:41,secretDelta:2};'+
+    'const privateRead=()=>owner.hiddenCount+owner.secretDelta;'+
     'const make=Blob.bind(null);new make([],{type:"text/plain"});'+
-    'module.exports=()=>owner.hiddenCount+owner.secretDelta;';
+    'module.exports=()=>privateRead();';
   assert.equal(observesFunctionSource(parse(original,'commonjs')),false);
   for(const mode of /** @type {('coo'|'sno')[]} */(['coo','sno'])) {
     const compiled=obfuscateFiles([{
@@ -106,5 +114,7 @@ test('bound Blob constructor with primitive input retains private property renam
       properties:true,identifiers:false,strings:false});
     assert.equal(compiled.files[0].metrics.properties,2,mode);
     assert.equal(execute(String(compiled.files[0].code)),execute(original));
+    assert.equal(exportedFunctionSource(String(compiled.files[0].code)),
+      exportedFunctionSource(original),mode+' public callable source parity');
   }
 });
