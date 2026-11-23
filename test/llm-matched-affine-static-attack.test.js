@@ -390,7 +390,7 @@ test('symbolic recovery refuses a branch slot that shadows the normalized input'
         'default:throw Error("unreachable");'+
       '}'+
     '}'
-  ).join('\\n');
+  ).join('\n');
   const actual=await import('data:text/javascript;charset=utf-8,'+encodeURIComponent(source));
   assert.throws(()=>actual.round1(0),ReferenceError);
   assert.throws(()=>actual.round1(1),ReferenceError);
