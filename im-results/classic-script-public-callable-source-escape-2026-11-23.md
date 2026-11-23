@@ -43,3 +43,10 @@ A positive control inside the global-function test uses a nested IIFE with a pri
 This is a concrete observable JavaScript semantics bug in a **draft opt-in preservation backend**, not a proof of unauthorized access, security compromise or runtime obfuscation bypass. The corrected collector restricts unsound private-source assumptions for a classic top-level binding. It has no evidence of overcoming the original full-matrix release blockers, source reconstruction or the strict 2.5x speed ceiling.
 
 The work is deliberately retained on the isolated branch for the canonical integrator. The overall objective remains **RELEASE-BLOCKED** until the canonical branch's multi-platform full validation and a real equal-trust adversarial advantage can be demonstrated.
+
+
+### Additional classic-script scope controls
+
+A subsequent [let/var lexical binding extension](https://github.com/FlareZ123/obfs/blob/agent44/callsite-source-20261123/test/classic-script-lexical-source.test.js) checks three declared function-valued bindings, const, let, and var, each retrieved from a second script in the same Realm. The expanded test passed both operating systems at [focused run 45094507714](https://github.com/FlareZ123/obfs/actions/runs/45094507714), source SHA ae2f2451d62a0f325eb4ed4ec86771863291c41c. This is exact external source parity across all three declaration spellings.
+
+A separate [Annex B block-declaration control](https://github.com/FlareZ123/obfs/blob/agent44/callsite-source-20261123/test/classic-script-annex-b-source.test.js) creates a sloppy classic script's block-contained function in an if(true) statement and observes its Annex B global-function binding after evaluation. The output was an **exact no-op** (zero literal/binding transformations, source unchanged), and [two-OS focused run 45094560388](https://github.com/FlareZ123/obfs/actions/runs/45094560388), source SHA a38cbae59659fef1c1b3e20bdbd43dfef3bfcde0, passed. This is a negative control: existing collector conservatism already prevents that exact block function rewrite, so it is not a fourth new compiler defect. It does not establish blanket safety for every Annex B declaration scope.
