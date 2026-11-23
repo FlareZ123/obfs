@@ -18,6 +18,15 @@ const sinks=[
   {id:'cssom-set-property',setup:'const el=document.createElement("div");',
     write:'el.style.setProperty("--observed",VALUE);',
     read:'el.style.getPropertyValue("--observed")'},
+  {id:'cssom-svg-style',setup:
+    'const el=document.createElementNS("http://www.w3.org/2000/svg","rect");',
+    write:'el.style.setProperty("--observed",VALUE);',
+    read:'el.style.getPropertyValue("--observed")'},
+  {id:'cssom-stylesheet-rule',setup:
+    'const sheet=new CSSStyleSheet();sheet.replaceSync(":root {}");'+
+    'const rule=sheet.cssRules[0];',
+    write:'rule.style.setProperty("--observed",VALUE);',
+    read:'rule.style.getPropertyValue("--observed")'},
   {id:'element-set-attribute',setup:'const el=document.createElement("div");',
     write:'el.setAttribute("data-observed",VALUE);',
     read:'el.getAttribute("data-observed")'},
