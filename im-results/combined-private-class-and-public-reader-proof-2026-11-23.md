@@ -79,3 +79,51 @@ claiming any static-reconstruction advantage over ordinary minification from
 these two property-name proofs alone**. It does not amount to a general
 deobfuscator, complete attacker-cost benchmark, or argument that all
 obfuscation techniques lack security value.
+
+## Corrected paired post-initialization CPU experiment
+
+A paired Node.js 22 hot-work experiment on the same two admitted proof
+patterns (each **actually renaming one field**) is committed at
+[`agent46/private-proof-public-recovery-20261123`](https://github.com/FlareZ123/obfs/tree/agent46/private-proof-public-recovery-20261123),
+revision `d3753dc5c0fdd4d16e6946a1a4a6af354f101e97`, file
+`test/private-proof-hot-budget.test.js`.
+[Focused two-OS run **45150995933**](https://github.com/FlareZ123/obfs/actions/runs/45150995933)
+was **GREEN on Ubuntu and Windows**, six tests per platform, with strict
+compiler/external JSDoc checks. There are seven order-counterbalanced,
+native/emitted CPU-time pairs per source pattern and mode; **84 total
+paired observations**, with executed-call checksums and 2,049 held-out
+input checks before measurement. The private reader receives three million
+calls per sample; the optimized private class receives sixty million per
+sample to exceed coarse Windows CPU-clock quanta.
+
+| Source pattern | Mode | Ubuntu ratio of CPU medians | Windows ratio of CPU medians |
+| --- | --- | ---: | ---: |
+| Public wrapper → private reader | COO | 1.00870× | 0.99681× |
+| Public wrapper → private class | COO | 1.00069× | 1.00000× |
+| Public wrapper → private reader | SNO | 0.99442× | 1.00000× |
+| Public wrapper → private class | SNO | 1.00719× | 0.94340× |
+| Public wrapper → private reader | SCO | 0.99560× | 1.00000× |
+| Public wrapper → private class | SCO | 0.99965× | 1.06400× |
+
+The largest **individual** protected/native CPU ratio was
+**1.20513×** (Windows SCO class), with **zero of 84** sampled pairs
+strictly above **2.5×**. Full paired arrays and checksums are logged as
+`PRIVATE_PROOF_PAIRED_HOT` in the exact run. This is a post-initialization
+local compute profile; it excludes cold process startup, offline
+transformation, SCO network response costs, and all workloads outside
+these two straight-line shapes.
+
+**Method correction:** The earlier
+[run 45150708258](https://github.com/FlareZ123/obfs/actions/runs/45150708258)
+used only three million calls for the optimized class source.
+Windows CPU accounting reported 0ms for some class samples,
+creating `Infinity` ratios that serialized as JSON `null`. These
+ratios are **measurement artifacts**, not valid performance exceedances;
+we preserved that receipt and corrected the fixture to use 60 million
+calls for class profiles and assert both observed CPU times are strictly
+positive. Both variants of the earlier run passed program equivalence,
+but its class cost ratios cannot be used for the 2.5× claim.
+
+Thus the repaired evidence supports budget compliance for **84 measured
+hot paired executions** under these exact workload/runtime assumptions.
+A universal worst-case 2.5× bound remains unproved.
