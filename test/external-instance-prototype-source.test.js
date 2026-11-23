@@ -236,3 +236,46 @@ test('declared dynamic prototype method locale key preserves exact source',async
     await fs.rm(directory,{recursive:true,force:true});
   }
 });
+
+for(const [caseName,reader] of /** @type {Array<[string,string]>} */ ([
+  ['captured method locale', 
+    'const method=Object.getPrototypeOf(instance).read;'+
+    'const source=method.toLocaleString();'],
+  ['array of captured method locale',
+    'const source=[Object.getPrototypeOf(instance).read].toLocaleString();'],
+  ['Object prototype locale.call',
+    'const source=Object.prototype.toLocaleString.call('+
+      'Object.getPrototypeOf(instance).read);'],
+  ['String method coercion',
+    'const source=String(Object.getPrototypeOf(instance).read);']
+])) {
+  test('declared ESM implicit instance source: '+caseName,async t=>{
+    const directory=await fs.mkdtemp(path.join(os.tmpdir(),'obfs-instance-native-locale-'));
+    try{
+      const alternative=consumer.replace(
+        'const source=Object.getPrototypeOf(instance).read.toString();',reader
+      );
+      assert.notEqual(alternative,consumer);
+      /** @type {Input[]} */
+      const declared=[...inputs,{
+        path:'consumer.mjs',sourceType:'module',code:alternative
+      }];
+      const native=await observe(path.join(directory,'native'),declared);
+      assert.equal(native.value,7);
+      assert.equal(native.privateValue,13);
+      assert.match(native.source,/secretField/u);
+      for(const mode of /** @type {Array<'coo'|'sno'>} */ (['coo','sno'])) {
+        await t.test(mode,async()=>{
+          const built=obfuscateFiles(declared,{
+            mode,closedWorld:true,properties:true,identifiers:false,
+            strings:false,seed:'instance-source-locale-'+caseName+'/'+mode
+          });
+          const actual=await observe(path.join(directory,mode),built.files);
+          assert.deepEqual(actual,native);
+        });
+      }
+    }finally{
+      await fs.rm(directory,{recursive:true,force:true});
+    }
+  });
+}
