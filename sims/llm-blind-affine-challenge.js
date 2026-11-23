@@ -180,6 +180,7 @@ async function createBlindAffineMatchedChallenge(mode='coo'){
   const minified=await transform(originalSource,minifierOptions);
   const controlSource=minified.code;
   assert.ok(controlSource.length>0,'esbuild control must emit source');
+  /** @param {string} source */
   const loadModule=source=>import('data:text/javascript;base64,'+
     Buffer.from(source).toString('base64'));
   const [nativeModule,candidateModule,controlModule]=await Promise.all([
