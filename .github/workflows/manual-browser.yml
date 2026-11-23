@@ -25,6 +25,10 @@ jobs:
         run: |
           command -v google-chrome
           google-chrome --version
+      - name: Compare asynchronous cross-file shared-reference graphs under Chromium CSP
+        env:
+          CHROMIUM_BIN: google-chrome
+        run: node test/interfile-async-browser.js
       - name: Verify native COO and SCO V8 failed-operand text under Chromium CSP
         env:
           CHROMIUM_BIN: google-chrome
@@ -117,10 +121,6 @@ jobs:
         env:
           CHROMIUM_BIN: google-chrome
         run: node test/heldout-browser-integration.js
-      - name: Compare asynchronous cross-file shared-reference graphs under Chromium CSP
-        env:
-          CHROMIUM_BIN: google-chrome
-        run: node test/interfile-async-browser.js
       - name: Compare imported constant-key ownership under real browser CSP
         env:
           CHROMIUM_BIN: google-chrome
