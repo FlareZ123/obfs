@@ -38,5 +38,19 @@ jobs:
         env:
           CHROMIUM_BIN: google-chrome
         run: node test/url-static-source-browser.js
+      - name: Real Chromium DOMString writable-property and HTML-stream source-observation matrix
+        if: matrix.os == 'ubuntu-latest'
+        env:
+          CHROMIUM_BIN: google-chrome
+        run: node sims/domstring-property-setter-source-matrix.js
+      - name: Upload raw DOMString and HTML API observations
+        if: always() && matrix.os == 'ubuntu-latest'
+        uses: actions/upload-artifact@v4
+        with:
+          name: domstring-property-setter-matrix
+          path: domstring-property-setter-matrix.json
+          if-no-files-found: ignore
       - name: Strict source-transform JSDoc typing
         run: npm run typecheck
+      - name: Strict JSDoc for DOM source-observation matrix
+        run: node_modules/.bin/tsc -p jsconfig.domstring-matrix.json
