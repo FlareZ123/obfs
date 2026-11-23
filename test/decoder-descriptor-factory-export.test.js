@@ -76,6 +76,20 @@ function dynamicFactoryGraph(intrinsic) {
 }
 
 /**
+ * Importing via a lexical string identifier is dynamically resolved by
+ * native ESM even though the static decoder scan sees an identifier.
+ * @param {'String'|'Number'} intrinsic
+ * @returns {SourceFile[]}
+ */
+function identifierDynamicFactoryGraph(intrinsic) {
+  return dynamicFactoryGraph(intrinsic).map(file=>file.path==='entry.mjs'?
+    {...file,code:(/** @type {string} */ (file.code)).replace(
+      "const {default:build}=await import('./factory.mjs');",
+      "const spec='./factory.mjs';const {default:build}=await import(spec);"
+    )}:file);
+}
+
+/**
  * @param {string} directory
  * @param {SourceFile[]|ReturnType<typeof obfuscateFiles>['files']} files
  * @param {'entry.cjs'|'entry.mjs'} [entry]
@@ -169,6 +183,34 @@ for(const mode of /** @type {const} */(['coo','sno','sco'])){
         }
         assert.equal(target.metrics.literals,intrinsic==='String'?0:1,
           'dynamic sensitive factory must refuse; harmless factory should encode');
+      });
+  }
+}
+
+
+for(const mode of /** @type {const} */(['coo','sno','sco'])){
+  for(const intrinsic of /** @type {const} */(['String','Number'])){
+    test('identifier-imported ESM descriptor factory '+mode+' '+intrinsic,
+      async()=>{
+        const input=identifierDynamicFactoryGraph(intrinsic);
+        const compiled=obfuscateFiles(input,{
+          mode,properties:false,identifiers:false,strings:true,
+          seed:'agent5-identifier-factory/'+mode+'/'+intrinsic
+        });
+        const target=compiled.files.find(file=>file.path==='target.mjs');
+        assert.ok(target);
+        const root=await fs.mkdtemp(path.join(os.tmpdir(),'obfs-identifier-factory-'));
+        try{
+          const native=await execute(path.join(root,'native'),input,'entry.mjs');
+          const transformed=await execute(path.join(root,'transformed'),compiled.files,'entry.mjs');
+          assert.equal(native.status,0,native.stderr);
+          assert.deepEqual(transformed,native,
+            'identifier dynamic factory must preserve late-import behavior');
+        }finally{
+          await fs.rm(root,{recursive:true,force:true});
+        }
+        assert.equal(target.metrics.literals,intrinsic==='String'?0:1,
+          'identifier import must refuse sensitive factory and preserve benign yield');
       });
   }
 }
