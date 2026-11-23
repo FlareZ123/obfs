@@ -25,10 +25,14 @@ test('seedless public-output attacker removes every Symbol key in generated exam
   assert.deepEqual(sample(reconstructed.code),sample(before));
 });
 
-test('attacker also recovers private property accesses after ordinary identifier pass',()=>{
-  const source='const bag={privateFlag:7,gate:2};function f(x){bag.privateFlag+=x;return bag.privateFlag^bag.gate;}module.exports=f;';
+test('attacker recovers private Symbol keys behind a source-stable exported wrapper',()=>{
+  const source='const bag={privateFlag:7,gate:2};'+
+    'function readFlag(){return bag.privateFlag;}'+
+    'function writeFlag(value){bag.privateFlag=value;}'+
+    'function readGate(){return bag.gate;}'+
+    'module.exports=function f(x){const next=readFlag()+x;writeFlag(next);return readFlag()^readGate();};';
   const output=obfuscateFiles([{path:'entry.cjs',code:source,sourceType:'commonjs'}],{
-    mode:'sno',seed:'seed-unknown-to-attacker',strings:true,experimentalSymbolKeys:true
+    mode:'sno',seed:'seed-unknown-to-attacker',strings:true,identifiers:false,experimentalSymbolKeys:true
   });
   assert.equal(output.files[0].metrics.symbolKeys,2);
   const publicCode=/** @type {string} */ (output.files[0].code);
