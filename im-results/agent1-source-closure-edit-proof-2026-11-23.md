@@ -37,3 +37,16 @@ The two research files were included in `jsconfig.external.json` at source commi
 The production obfuscator is unchanged. This candidate is a possible research building block for Agent 3's source-observer plan, whose canonical intake remains `workplace/agent3-source-observer-decoder-intake-2026-11-22.md` and **NO-GO**. A direct port would be unsafe without full source-observer receiver identity, callable metadata and actual Web IDL dispatch, all transformations consuming a protection manifest, and cross-file/cross-reparse binding correspondence. The repository's primary release remains **RELEASE-BLOCKED**.
 
 Source-local exactness and lexical dependency preservation are valuable *necessary constraints*. They have not independently established tamper resistance, static/dynamic reconstruction resistance, environmental locking, or the universal 2.5× runtime bound.
+
+
+## Subsequent source-map and ESM controls, final focused pin at 18:59 UTC
+
+The earlier six-test receipt remains a valid, source-pinned historical result. Four additional Node test groups were added to `test/agent1-source-closure-edit-proof.test.js`, exercising:
+1. An unrelated local rename *preceding* the observed function, including an earlier UTF-16 surrogate pair, which shifts the observed function's source offsets while the emitted exact source fragment and captured declaration links remain stable.
+2. Rejecting zero-length insertions exactly at the start/end boundary of the observed function, rather than treating those as safe range-adjacent edits.
+3. Executing a **real Node ESM module** loaded from a `data:text/javascript` URL before and after an unrelated local rename, verifying both value and exact native `Function.prototype.toString`.
+4. Executing an ESM consumer importing a captured `secret` from a separately loaded **fixed provider** module, then verifying value and native function source after an unrelated consumer-local rename. This is a one-provider unchanged dependency control. It does not prove the multi-file property/interface graph is safe for coordinated obfuscation.
+
+**Latest source pin:** `7257b78efbbd64f99047c4b5361084438ae4c834`, [focused GitHub Actions run 45243943915](https://github.com/FlareZ123/obfs/actions/runs/45243943915). Ubuntu **10/10 Node tests pass** and Windows focused job **pass**, strict project/external/budget JSDoc checks pass on both. Full main Node suite still skipped by focused-test mode. Previous [45243620856](https://github.com/FlareZ123/obfs/actions/runs/45243620856) also passed after the two prefix/boundary tests; [45243749812](https://github.com/FlareZ123/obfs/actions/runs/45243749812) passed after the real ESM module test.
+
+**Interpretation unchanged:** a necessary source/lexical-dependency edit constraint for an explicitly selected observed function in narrowly modelled settings. No automatic observer identification, no independent provider mutation, no complete cross-file proof, no source-visible method/accessor semantics, and no main compiler integration.
