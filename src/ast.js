@@ -1801,6 +1801,20 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
         numericCoercionFunctions.add(node.id.name);
       }
     }
+    if(node.id.type==='Identifier' && init?.type==='CallExpression' &&
+       init.callee.type==='MemberExpression' && memberName(init.callee)==='bind') {
+      const target=init.callee.object;
+      const targetName=target.type==='Identifier'?target.name:null;
+      const targetNamespace=target.type==='MemberExpression' &&
+        target.object.type==='Identifier'?target.object.name:null;
+      const targetMethod=target.type==='MemberExpression'?memberName(target):null;
+      if(numericCoercionFunctions.has(targetName??'')||
+         mathNamespaces.has(targetNamespace??'')&&mathNumericMethods.has(targetMethod??'')||
+         dateNamespaces.has(targetNamespace??'')&&dateNumericMethods.has(targetMethod??'')||
+         numberNamespaces.has(targetNamespace??'')&&numberNumericMethods.has(targetMethod??'')) {
+        numericCoercionFunctions.add(node.id.name);
+      }
+    }
     if(node.id.type==='ObjectPattern' && init?.type==='Identifier') {
       const namespace=init.name;
       for(const property of node.id.properties) {
