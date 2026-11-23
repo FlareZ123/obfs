@@ -1652,6 +1652,21 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
     return false;
   }
   /**
+   * A prototype method may be exported through a class instance and later
+   * destructured through an immutable local alias. Syntactic function-carrier
+   * tracking alone cannot identify such a method's inherited source methods.
+   * @param {AstNode|null|undefined} input
+   * @param {number} [depth]
+   * @returns {boolean}
+   */
+  function mayBeMemberMethod(input,depth=0) {
+    if(!input||depth>16)return false;
+    if(input.type==='MemberExpression')return !isDefinitelyPrimitive(input);
+    return input.type==='Identifier' && !dynamicScope &&
+      bindingCounts.get(input.name)===1 &&
+      mayBeMemberMethod(primitiveCandidates.get(input.name),depth+1);
+  }
+  /**
    * Recognize immutable, uniquely-bound constant string keys at a consumer.
    * Local variables used as computed member names are common around native
    * toString/Reflect.get observers. Ambiguous bindings remain unresolved.
@@ -2806,14 +2821,6 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
     // methods can be obtained from a function or a method-valued member.
     // Follow unique, immutable local aliases of member reads; a callable
     // exported via a class instance may not be in the syntactic function set.
-    /** @param {AstNode|null|undefined} input @param {number} [depth] @returns {boolean} */
-    function mayBeMemberMethod(input,depth=0) {
-      if(!input||depth>16)return false;
-      if(input.type==='MemberExpression')return !isDefinitelyPrimitive(input);
-      return input.type==='Identifier' && !dynamicScope &&
-        bindingCounts.get(input.name)===1 &&
-        mayBeMemberMethod(primitiveCandidates.get(input.name),depth+1);
-    }
     if(node.type==='VariableDeclarator' && node.id.type==='ObjectPattern' &&
          (isFunctionValue(node.init)||mayBeMemberMethod(node.init)) ||
        node.type==='AssignmentExpression' && node.left.type==='ObjectPattern' &&
