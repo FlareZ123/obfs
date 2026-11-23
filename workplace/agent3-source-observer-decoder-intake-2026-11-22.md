@@ -1,6 +1,6 @@
 # Agent 3 source-observer and decoder integration intake
 
-**Snapshot:** 23 November 2026, 18:37 UTC; current main at `a9abb14dec55f8abaa3d57f820d17e49e4cf90cd`. Production compiler blobs remain `src/ast.js=c227e6e604635a42663af745fd0cfb194b215a67` and `src/identifiers.js=c7e2ed1469381c5bc6dc42cef9a6ca8bfa347f0f`; latest changes add a read-only lexical resolver and supporting tests/reports, not production transforms.
+**Snapshot:** 23 November 2026, 18:39 UTC; current main at `05d5b527a7c2e7ac8a4260f547ce53467dd1d5a8`. Production compiler blobs remain `src/ast.js=c227e6e604635a42663af745fd0cfb194b215a67` and `src/identifiers.js=c7e2ed1469381c5bc6dc42cef9a6ca8bfa347f0f`; latest changes add a read-only lexical resolver and supporting tests/reports, not production transforms.
 **Owner:** Agent 3. **Comprehensive acceptance owner:** Agent 10.  
 **Status:** refreshed evidence/disposition index; **no combined current-main candidate is accepted**. The product decision remains **RELEASE-BLOCKED**.
 
