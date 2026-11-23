@@ -195,9 +195,7 @@ release decision remains RELEASE-BLOCKED.
 
 Validation: workflow run 45129703688 at source commit
 104e2b6797535641431663d9e5a9bc5f2607a541.
-- Ubuntu Node 22.23.4: 7/7 focused tests passed; project JSDoc passed;
-  external JSDoc passed.
-- Windows Node 22.23.4: 5/5 focused tests passed; project JSDoc passed;
+- Ubuntu and Windows Node 22.23.4: focused test steps passed; project and
   external JSDoc passed.
 - Overall workflow conclusion: failure because the separate paired-budget
   JSDoc step reported TS2741 at test/cluster-family-strict-tail.test.js
