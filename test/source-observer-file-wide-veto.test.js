@@ -9,7 +9,7 @@ const {parse,observesFunctionSource}=require('../src/ast');
 /** @param {string} code @param {string} seed @returns {ReturnType<typeof obfuscateFiles>['files'][number]} */
 function compile(code,seed) {
   const result=obfuscateFiles([{
-    path:'entry.js',sourceType:'script',code
+    path:'entry.cjs',sourceType:'commonjs',code
   }],{
     mode:'coo',seed,properties:true,identifiers:true,strings:false
   });
