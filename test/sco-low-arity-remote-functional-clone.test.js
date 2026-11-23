@@ -51,6 +51,14 @@ function conventionalHandler(methods,counts){
       const body=JSON.parse(Buffer.concat(chunks).toString('utf8'));
       if(!Object.hasOwn(methods,body.method)||!Array.isArray(body.args))
         throw Error('Invalid method');
+      // Match SCO's explicit per-operation policy, not merely its valid
+      // attacker transcript: two integer arguments are required.
+      if(body.args.length!==2||
+         !body.args.every(value=>typeof value==='number'&&Number.isInteger(value))){
+        res.writeHead(403);
+        res.end(JSON.stringify({ok:false,error:'Forbidden'}));
+        return;
+      }
       const fn=methods[/** @type {'bitwise'|'affine'} */(body.method)];
       counts[body.method]++;
       const value=fn(body.args[0],body.args[1]);
@@ -181,6 +189,9 @@ test('actual authenticated SCO RPCs disclose 2 private low-arity functions in ex
       for(const port of [scoPort,controlPort]){
         const denied=await rpc(port,'bitwise',[0,0],false);
         assert.equal(denied.status,403,'Unauthenticated requests must stay denied');
+        const invalid=await rpc(port,'bitwise',[0]);
+        assert.equal(invalid.status,403,
+          'Both services must enforce the same operation argument policy');
         const leaked=await fetch('http://127.0.0.1:'+port+'/obfs/private.cjs',{
           headers:{'x-test-capability':'allowed'}
         });
