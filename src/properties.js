@@ -719,6 +719,22 @@ function proveLocalObject(ast, rootName, bindings, importedIdentityFunctions=new
     }
     if(privateValue)privateFunctionNodes.add(binding.node);
   }
+  // ESM modules and top-level strict scripts deny legacy Function#caller
+  // extraction of the lexical caller. In those strict contexts only, an
+  // immediately and nonoptionally invoked arrow has no first-class alias
+  // through which a host can inspect its native Function#toString source.
+  // Do not apply this exception in sloppy CommonJS: a nested function can
+  // obtain the running arrow through its own .caller accessor.
+  const programBody=/** @type {AstNode[]} */(ast.body);
+  const hasStrictPrologue=ast.sourceType==='module' ||
+    programBody.some((statement,index)=>
+      statement.directive==='use strict' &&
+      programBody.slice(0,index).every(prefix=>typeof prefix.directive==='string'));
+  if(hasStrictPrologue)walk(ast,(node,parent)=>{
+    if(node.type==='ArrowFunctionExpression' && parent?.type==='CallExpression' &&
+       parent.callee===node && !parent.optional)
+      privateFunctionNodes.add(node);
+  });
 
   const aliases = new Set([rootName]);
   /**
