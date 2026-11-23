@@ -6,6 +6,7 @@ const {learnBoundedDegreeOracle,evaluateBoundedDegreeModel}=
   require('../sims/bounded-degree-oracle-functional-clone');
 const {prepareExactBoundedDegreeInverter,makeBoundedDegreeDefectContractor}=
   require('../sims/exact-quartic-compatible-cegar');
+const {binaryRank}=require('../sims/derivative-basis-span');
 
 /** @param {number} seed @returns {()=>number} */
 function random32(seed){
@@ -199,4 +200,41 @@ test('sparse quartic ANF contractor matches raw second differences on random 32-
   }
   assert.equal(comparisons,3*69);
   assert.ok(nonzero>0,'probe genuinely nonlinear source coefficients');
+});
+
+
+test('a degree-three bijection outside the compatible triangular family fails closed',()=>{
+  // An explicitly enumerated bijective 4-bit substitution has a full
+  // four-dimensional global defect span, hence no nonzero constant
+  // output derivative. Eight independent nibbles give an invertible
+  // 32-bit vector map of degree <=3 but with zero global mask space.
+  const sbox=[11,13,0,4,1,14,9,3,2,12,5,7,15,10,8,6];
+  assert.deepEqual([...sbox].sort((a,b)=>a-b),
+    Array.from({length:16},(_,i)=>i));
+  /** @type {number[]} */
+  const defects=[];
+  for(let x=0;x<16;x++){
+    for(let direction=0;direction<16;direction++){
+      defects.push(sbox[x^direction]^sbox[x]^sbox[direction]^sbox[0]);
+    }
+  }
+  assert.equal(binaryRank(defects,4),4);
+  /** @param {number} raw @returns {number} */
+  const oracle=raw=>{
+    const input=raw>>>0;
+    let output=0;
+    for(let nibble=0;nibble<8;nibble++){
+      output=(output|(sbox[(input>>>(4*nibble))&15]<<(4*nibble)))>>>0;
+    }
+    return output>>>0;
+  };
+  const model=learnBoundedDegreeOracle(oracle,32,3);
+  assert.equal(model.queryCount,5489);
+  for(const sample of [0,0xffffffff,0x12345678,0xabcdef01,0xa5a5a5a5]){
+    assert.equal(evaluateBoundedDegreeModel(model,sample),oracle(sample),
+      'nontriangular control should still be exactly degree-three cloneable');
+  }
+  assert.throws(()=>prepareExactBoundedDegreeInverter(model),
+    /exact derivative flag unavailable at level 0/,
+    'global derivative flag must not be promised for arbitrary cubic permutations');
 });
