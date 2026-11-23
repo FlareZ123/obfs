@@ -69,6 +69,6 @@ test('compact runner indexes every failure beyond its detailed log cap',()=>{
   assert.equal(index.length,30);
   assert.match(index[0].case,/synthetic case 0/u);
   assert.match(index[29].case,/synthetic case 29/u);
-  assert.match(index[29].location,/case\\.test\\.js:/u);
+  assert.ok(index[29].location.includes('case.test.js:'),index[29].location);
   assert.match(result.stdout,/Omitted 5 additional failing test blocks/u);
 });
