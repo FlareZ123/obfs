@@ -86,3 +86,25 @@ test('explicit function String observation gives a conservative parity baseline'
   assert.ok(output.metrics.properties<=1,
     'The observed outer owner must retain original property spelling');
 });
+
+test('source-observed function protects captured outer lexical binding and leaves private owner eligible',()=>{
+  const source='const capturedValue=31;'+
+    'function inspect(){return capturedValue;}'+
+    'const independentOwner={unrelatedSecret:73};'+
+    'const style=document.createElement("div").style;'+
+    'style.setProperty("--observed",inspect);'+
+    'module.exports={source:style.getPropertyValue("--observed"),'+
+    'number:inspect(),independent:independentOwner.unrelatedSecret};';
+  const native=execute(source);
+  const output=transform(source,'cssom-captured-outer-lexical-binding');
+  const actual=execute(/** @type {string} */(output.code));
+  process.stdout.write('CSSOM_CAPTURED_LEXICAL_SOURCE '+JSON.stringify({
+    properties:output.metrics.properties,bindings:output.metrics.bindings,
+    nativeSource:native.source,emittedSource:actual.source,
+    equal:JSON.stringify(native)===JSON.stringify(actual),
+    independentNumericPreserved:actual.independent===73
+  })+'\n');
+  assert.equal(JSON.stringify(actual),JSON.stringify(native));
+  assert.equal(output.metrics.properties,1,
+    'Disjoint independent private record must stay transformable');
+});
