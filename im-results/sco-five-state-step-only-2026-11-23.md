@@ -63,7 +63,15 @@ An exploratory bitset implementation is preserved at `workplace/sco-five-state-b
 
 A better memory/time compromise is preserved in `workplace/sco-five-state-blocklist-benchmark.js`. It stores one byte per candidate in fixed 32-candidate blocks (five local-ID bits plus three current-state bits) and keeps a sorted `Uint32Array` of nonempty block IDs and active counts. Candidate storage remains **186,624,800 bytes**, but block-local in-place compaction avoids per-candidate bit extraction. The local prototype produced the same query counts, remaining candidates, scan counts and 384 held-out traces under independent product BFS. Workspace initialization was 643 ms; learner times were 4,528.20 / 4,962.46 / 4,341.49 ms; peak RSS was 227,221,504 bytes. Aggregate learner time is about **1.11×** the default active-ID implementation while using about **3.56× less candidate storage**. The preserved workplace harness additionally asserts disjoint-union partition refinement; it is exploratory and not in CI. The current default remains the faster active-ID list pending a decision whether the lower-memory representation is worth an ~11% local runtime penalty.
 
-For the random five-state fixture, the learner isolated one canonical candidate in 31 binary-output queries. The raw model-count information lower bound is (lceillog_2(165,888,708)ceil=28) binary outputs; this is only a coarse bound because behaviorally equivalent hypotheses need not be distinguished.
+For the random five-state fixture, the learner isolated one canonical candidate in 31 binary-output queries. The raw model-count information lower bound is ceil(log2(165,888,708)) = 28 binary outputs; this is only a coarse bound because behaviorally equivalent hypotheses need not be distinguished.
+## Live authenticated RPC matched control
+
+The five-state learner was also exercised through the existing local authenticated HTTP harness, not only an in-process callback. `runLiveStepVersionSpace(5, 0x42f5a7c9, true)` runs the generated SCO endpoint and a conventional esbuild-minified Node service backed by the same five-state machine. It reuses one five-state workspace sequentially for both arms.
+
+The live test asserts identical attacker input/output transcripts and query counts (31 per arm for this deterministic fixture), exact continuation clones, matching 16-symbol live followups, no public reset, no generated source canary disclosure, and HTTP 403 from both unauthorized endpoints. The workspace/candidate representation is checked at 663,554,832 bytes. This is a local HTTP integration control; it is not a WAN/TLS or production deployment test.
+
+Cross-platform CI: [manual SCO run 45106569967](https://github.com/FlareZ123/obfs/actions/runs/45106569967), source head `29e51bcee0a7046c51879ea5933beec6e1f91cb3`, passed on Ubuntu and Windows. The run includes the live five-state generated-SCO vs ordinary minified matched control, offline five-state learner, exhaustive generator checks, four-state matched control, and strict SCO JSDoc. The workflow display label was subsequently updated to say “two through five-state”; that label-only change does not alter the tested code.
+
 
 ## Why the state bound is essential
 
@@ -86,10 +94,10 @@ This is a practical limit of this exhaustive representation, not a security thre
 
 The existing dispatch-only manual workflow was extended; no new workflow was created.
 
-- [Manual SCO authorized oracle run 45105822873](https://github.com/FlareZ123/obfs/actions/runs/45105822873)
-- Source head: `79b3f7c3febc3fa41cfdf1f97503fafd19b9cc94`
-- Ubuntu and Windows jobs succeeded, including uniqueness/reachability checks for all 160,675 generated five-state graphs, exhaustive canonical-set comparison of all 65,536 labelled four-state graphs, the five-state continuation tests, existing four-state/live matched-control tests, and strict SCO JSDoc checks.
-- The earlier five-state run 45105195468 was also green before the exhaustive generator assertions were added.
+- [Manual SCO authorized oracle run 45106569967](https://github.com/FlareZ123/obfs/actions/runs/45106569967)
+- Source head: `29e51bcee0a7046c51879ea5933beec6e1f91cb3`
+- Ubuntu and Windows jobs succeeded, including the live five-state generated-SCO vs ordinary minified matched control, uniqueness/reachability checks for all 160,675 generated five-state graphs, exhaustive canonical-set comparison of all 65,536 labelled four-state graphs, offline five-state learner, four-state matched control, and strict SCO JSDoc checks.
+- Earlier runs 45105195468 and 45105822873 were green before the live five-state RPC extension.
 - The five-state test enforces a 128-query cap and a 15-second per-fixture learner-time cap. The reusable workspace is allocated once per test and reused sequentially.
 
 Reproduction:
@@ -103,7 +111,7 @@ npx tsc -p jsconfig.sco-oracles.json
 
 ## Limitations and interpretation
 
-- The five-state experiment is offline callback testing; the live authenticated generated-SCO versus esbuild-minified ordinary-service matched control is the separate four-state experiment documented in the linked report.
+- The five-state experiment includes both offline callback tests and the live local-HTTP generated-SCO versus esbuild-minified ordinary-service matched control described above. The linked four-state report contains the earlier four-state live experiment.
 - The oracle must be deterministic, binary, stationary, and have a fixed initial state. Shared server state, sessions, time, concurrency, nondeterminism, or external dependencies can violate this model.
 - The candidate array and query learner are attacker-side costs. No target-side runtime measurement or 2.5× budget evaluation was performed.
 - No browser, WAN/TLS, real domain lock, production identity proof, arbitrary-JavaScript reconstruction, source recovery, or key extraction was tested.
