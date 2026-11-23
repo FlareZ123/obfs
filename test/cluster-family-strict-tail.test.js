@@ -9,7 +9,7 @@ const {clusterStrictTail} = require('../sims/cluster-strict-tail');
  * @param {number} blocks
  * @param {number} workloadCount
  * @param {number|number[]} pairsPerWorkload
- * @returns {import('../sims/cluster-family-strict-tail').FamilyWorkload[]}
+ * @returns {Array<{name:string,pairs:Array<{native:number,candidate:number,blockId:string}>}>}
  */
 function family(blocks,workloadCount,pairsPerWorkload=1) {
   return Array.from({length:workloadCount},(_,workloadIndex)=>{
