@@ -127,3 +127,43 @@ test('role annotations preserve reads, writes and computed lookup sites',()=>{
     'computed-key','write','write','export-local'
   ]);
 });
+
+
+test('same-name sibling declaration records remain separate',()=>{
+  const code='export {}; function f(window){return window;} function g(window){return window;}';
+  const ast=acorn.parse(code,{ecmaVersion:'latest',sourceType:'module'});
+  const result=resolveLexicalReferences(ast,'module');
+  const decl=result.declarations.filter(d=>d.name==='window');
+  const refs=result.references.filter(r=>r.name==='window');
+  assert.equal(decl.length,2);
+  assert.equal(refs.length,2);
+  assert.notEqual(decl[0].bindingId,decl[1].bindingId);
+  assert.equal(refs[0].resolution.kind,'local');
+  assert.equal(refs[1].resolution.kind,'local');
+  if(refs[0].resolution.kind==='local'&&refs[1].resolution.kind==='local'){
+    assert.equal(refs[0].resolution.bindingId,decl[0].bindingId);
+    assert.equal(refs[1].resolution.bindingId,decl[1].bindingId);
+  }
+});
+
+test('with-object root is outside dynamic resolution and body remains unknown',()=>{
+  const code='with(window){window.value;}';
+  const ast=acorn.parse(code,{ecmaVersion:'latest',sourceType:'script'});
+  const refs=resolveLexicalReferences(ast,'script').references.filter(r=>r.name==='window');
+  assert.deepEqual(refs.map(r=>r.resolution.kind),['free-host-candidate','unknown']);
+});
+
+test('non-simple parameter and body var conflict refuses independent identity',()=>{
+  const code='export {}; function f(window=1){var window;return window;}';
+  const ast=acorn.parse(code,{ecmaVersion:'latest',sourceType:'module'});
+  const result=resolveLexicalReferences(ast,'module');
+  const decl=result.declarations.filter(d=>d.name==='window');
+  assert.equal(decl.length,2);
+  assert.equal(decl[0].kind,'param');
+  assert.equal(decl[1].kind,'var');
+  assert.ok(decl[0].bindingId!==null);
+  assert.equal(decl[1].bindingId,null);
+  const references=result.references.filter(r=>r.name==='window');
+  assert.equal(references.length,1);
+  assert.deepEqual(references.map(r=>r.resolution.kind),['unknown']);
+});
