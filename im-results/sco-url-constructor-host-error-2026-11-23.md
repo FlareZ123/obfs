@@ -1,0 +1,34 @@
+# Selected SCO URL constructor failure text changes across Node and Chromium
+
+**Agent 8, 23 November 2026.** Status: independently source-pinned, real browser/RPC red and narrow fixed-literal green. **Intermediate semantic compatibility result only**. It does not establish generalized JavaScript cross-runtime equivalence, stronger attacker resistance or any 2.5× budget.
+
+## Existing compiler boundary and discovered counterexample
+
+The current `src/sco-selective-partition.js::usesUnprovedRelocatedUrlStatic` checked that a `new URL(...)` object was used only through immediate scalar getters and selected simple methods. It permitted **arbitrary constructor inputs** when the resulting instance access was syntactically allowed. That proof neglected that `URL` itself can throw. A malformed input throws a `TypeError` with host-specific `message`, which user code can catch and return as an ordinary JSON-visible string.
+
+Both [MDN URL constructor reference](https://developer.mozilla.org/en-US/docs/Web/API/URL/URL) and [Node WHATWG URL documentation](https://nodejs.org/api/url.html) identify `TypeError` on invalid inputs. They do not establish equivalent native error message text.
+
+At source `6385016c39ca2d9d889fb604c613e8405b476627`, [GitHub Actions red-first 45248837659](https://github.com/FlareZ123/obfs/actions/runs/45248837659) executed the same private source in original Chromium **157.0.8103.78** and in the emitted **selected-SCO** facade through a real same-origin, cookie-authorized Node.js **22.23.4** HTTP RPC handler:
+
+| Selected private operation | Native Chromium original | Emitted client facade executing on Node |
+| --- | --- | --- |
+| `try{return new URL(':').hostname}catch(e){return e.name+':'+e.message}` | `TypeError:Failed to construct 'URL': Invalid URL` | `TypeError:Invalid URL` |
+| `new URL('https://example.org/a?b=1').hostname` | `example.org` | `example.org` |
+| `Math.imul(13,23)` | `299` | `299` |
+
+The invalid-URL test **failed** on Ubuntu as intended with a precise original/emitted semantic mismatch. The benign fixed ASCII URL and arithmetic both passed and, independently, the same run verified unauthorized RPC requests received HTTP403. The Windows browser tests were skipped by the focused-test configuration; its static/JSDoc stages succeeded.
+
+## Focused conservative admission repair
+
+A narrow proof gate now checks every direct `new URL(...)` expression on the selected private path. It admits only **one statically known ASCII HTTP(S) absolute literal** satisfying a deliberately restricted authority and unescaped path/query grammar. Inputs with unknown values, relative/base resolution, unusual schemes, ambiguous IDNA text, malformed authority or first-class constructor escapes are refused. This reduces accidental host exception-message drift while preserving the common fixed-valid case confirmed above. The existing instance-escape/scalar-access restrictions remain in force. A simple source literal does not establish full future-engine equality; the matcher is explicitly a bounded admission hypothesis.
+
+In the added `test/sco-url-constructor-failure-browser.test.js`, the new negative tests include malformed absolute input, unproved function parameter and relative URL with an explicit base. The positive controls include a direct fixed URL hostname, a local fixed-URL instance's pathname, unmodified retained browser-public code and actual selected `Math.imul`. Compiled clients are served through the existing authenticated Node handler; the valid URL and arithmetic run in real Chromium with the native and server outputs checked.
+
+Exact patched compiler/test source `f58a1f296222558da9c82636a11ff312970e56e6` completed [focused run 45249503831](https://github.com/FlareZ123/obfs/actions/runs/45249503831) **SUCCESS Ubuntu and Windows**, including strict project, external and paired-budget JSDoc stages. Ubuntu executed all four selected tests, **four passes, zero failures**. The emitted authenticated fixed literal URL still returned `example.org` with native=Node=facade equality; the unsafe literal was refused pre-relocation. Windows static tests passed, browser-only tests were skipped by design. The full project suite was not run under the focused job.
+
+## Limits and next actions
+
+- This report establishes one **real cross-host failure-path incompatibility** with corresponding source-pinned prevention and a useful positive protected-work sample. The test does not claim that every string matching the admitted grammar is semantically identical across every future URL parser version, or that the user host's `URL` global and prototype are untampered.
+- This is an admission-safety improvement. It is independent of SCO's authenticated-oracle relay weakness, full runtime instrumentation, static reconstruction, and the obfuscator's universal runtime budget.
+- Other host APIs with native exceptions may require similar analysis. Changes should be driven by reproducible original-vs-emitted browser and authenticated HTTP evidence, including legitimate nonzero protected-work positives. Avoid speculative enlargement of unsupported APIs.
+- **Overall strong-obfuscation release remains RELEASE-BLOCKED.** A current-main integration decision requires source-locked testing and truthful recording of the full-suite baseline failures.
