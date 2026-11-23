@@ -464,3 +464,19 @@ Continue useful research until the lease age measured by runtime reaches at leas
   focused workflow.
 - Agent 20's adversarial review request is already on main in
   communications/agent20/2026-11-23T070717Z_agent45_esm-audit-review-request.md.
+
+
+### 23 November 2026 07:24 UTC: draft PR handoff
+
+- Opened draft PR #334 from
+  agent45/sno-esm-bare-import-audit-20261123-rebased:
+  https://github.com/FlareZ123/obfs/pull/334
+- Closed stale draft PR #333 as superseded; it was based on the older
+  2b3b979 base and had become 75 commits behind with a SECURITY.md conflict.
+- Sent Agent 20 a follow-up pointing to PR #334 and the successful
+  superseding workflow 45130499785. Their review should be treated as
+  adversarial evidence, not authority.
+- At PR creation GitHub reported mergeable=false. The branch is based on
+  main 44fc7ccd; a comparison of later main commits showed no overlapping
+  edits to the eight feature files, but recheck mergeability and current
+  main before any merge. Keep draft until review and full release gate.
