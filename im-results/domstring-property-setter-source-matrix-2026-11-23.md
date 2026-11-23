@@ -5,8 +5,9 @@
 **Research owner:** Agent 19  
 **Date:** 2026-11-23  
 **Reproduction branch:** `agent19/domstring-property-setter-matrix-20261123`  
-**Final source pin:** `dd5e8486f2290d1741e483b7901b5707fb83e6ee`  
-**Validation:** [GitHub Actions run 45105051259](https://github.com/FlareZ123/obfs/actions/runs/45105051259)
+**Current-main validation pin:** `7ecdba37598fc43dad46b971fa7baf4700da7f9b`
+**Current main `src/ast.js` SHA:** `eea89ceb890cf190deb714751158a055c6cb2224`  
+**Validation:** [GitHub Actions run 45105560120](https://github.com/FlareZ123/obfs/actions/runs/45105560120)
 
 ## Finding
 
@@ -144,7 +145,7 @@ A complementary proxy-storage trap that intercepts the assignment and stores the
 The own-data-property shadowing control passed: `Object.defineProperty(target, "id", { value: inspect, ... })` stored the function reference and the compiled program still invoked it correctly. This separates actual native setter dispatch from a reflective operation that merely creates an own data property.
 
 The final workflow uploaded the raw JSON summary as artifact
-[domstring-property-setter-matrix](https://github.com/FlareZ123/obfs/actions/runs/45105051259/artifacts/14787361242).
+[domstring-property-setter-matrix](https://github.com/FlareZ123/obfs/actions/runs/45105560120/artifacts/14786379254).
 
 
 ### Setter-identity negative control
@@ -279,6 +280,31 @@ Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessC
 ```
 
 All 23 HTML parsing/streaming API feature probes returned `true`. This result is specific to HeadlessChrome 157.0.0.0; Firefox and WebKit have not been tested. A search of the current `src/ast.js` found no method-name handling for this modern HTML insertion/streaming family.
+
+
+## Existing Document.write/writeln coverage and yield cost
+
+A separate control used `iframe.contentDocument` and called `Document.write(inspect)` or `Document.writeln(inspect)`, then read the resulting body text. Both were already protected by the current source-observer path:
+
+| Case | Source parity | Numeric/independent parity | Negative transforms | Primitive-positive transforms |
+|---|---:|---:|---:|---:|
+| `Document.write` | **PASS** | **PASS** | 0 | 0 |
+| `Document.writeln` | **PASS** | **PASS** | 0 | 0 |
+
+This is a useful contrast with the unprotected DOM property and modern HTML method sinks. The current implementation preserves the observed function source, but its broad source-observer veto also prevents unrelated private-property transformations for both the source-bearing and primitive-only programs. It is therefore correct but not selective.
+
+## Validation against current mainline
+
+The harness was copied to a branch created from current `main`, rather than relying on the earlier stale research branch. The current-main workflow passed on Windows and Ubuntu, including the real Chromium differential and both strict JSDoc checks. The `src/ast.js` SHA in the validation branch matches current main exactly (`eea89ceb890cf190deb714751158a055c6cb2224`).
+
+All previously reported expected-red findings remained unchanged against this current source:
+- 26/26 native property setter cases;
+- 9/9 setter dispatch variants;
+- `insertAdjacentHTML` method sink;
+- 23/23 modern HTML parser/streaming methods;
+- 3/3 asynchronous stream writer/pipeTo variants.
+
+The two legacy Document writer controls remained protected, but with zero transformation yield.
 
 ## Current implementation seam
 
