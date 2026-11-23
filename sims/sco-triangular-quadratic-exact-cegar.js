@@ -122,9 +122,11 @@ async function runChallenge(options={}){
       remoteMethods:instrumented,
       authorizeRead:request=>request.headers['x-demo-session']===TOKEN,
       authorizeRpc:request=>request.headers['x-demo-session']===TOKEN,
-      authorizeOperation:(request,method,args)=>
-        request.headers['x-demo-session']===TOKEN&&method===selected.methodNames[METHOD]&&
-        args.length===1&&Number.isInteger(args[0])&&args[0]>=0&&args[0]<2**32
+      authorizeOperation:(request,method,args)=>{
+        const value=args[0];
+        return request.headers['x-demo-session']===TOKEN&&method===selected.methodNames[METHOD]&&
+          args.length===1&&typeof value==='number'&&Number.isInteger(value)&&value>=0&&value<2**32;
+      }
     }));
     ordinaryServer=createOrdinaryOracleServer(oracle,ordinaryCounters,selected.methodNames[METHOD]);
     const [scoOrigin,ordinaryOrigin]=await Promise.all([listen(scoServer),listen(ordinaryServer)]);
@@ -152,8 +154,8 @@ async function runChallenge(options={}){
     assert.equal(route[1],selected.methodNames[METHOD]);
 
     const [scoClone,ordinaryClone]=await Promise.all([
-      cloneAuthorizedQuadratic({origin:scoOrigin,method:route[1],credential:TOKEN}),
-      cloneAuthorizedQuadratic({origin:ordinaryOrigin,method:route[1],credential:TOKEN})
+      cloneAuthorizedQuadratic({origin:scoOrigin,method:publicMethod,credential:TOKEN}),
+      cloneAuthorizedQuadratic({origin:ordinaryOrigin,method:publicMethod,credential:TOKEN})
     ]);
     assert.equal(scoClone.queryCount,529);
     assert.equal(ordinaryClone.queryCount,529);
@@ -162,9 +164,8 @@ async function runChallenge(options={}){
     assert.equal(scoClone.transcriptSha256,ordinaryClone.transcriptSha256,
       'same-trust ordinary service exposed different oracle behavior');
 
-    const closingSco=scoServer;
-    const closingOrdinary=ordinaryServer;
-    await Promise.all([close(closingSco),close(closingOrdinary)]);
+    if(!scoServer||!ordinaryServer)throw new Error('both oracle servers must be listening before shutdown');
+    await Promise.all([close(scoServer),close(ordinaryServer)]);
     scoServer=undefined;
     ordinaryServer=undefined;
 
