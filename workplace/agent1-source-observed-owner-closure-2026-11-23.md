@@ -100,3 +100,54 @@ prove general lexical capture correctness across reassignment,
 destructuring, imports, shadowing, closures, or dynamic access.
 A future capability graph should reuse verified lexical provenance
 instead of adding a second competing name tracker.
+
+## Verified current compiler entrypoints for an incremental repair
+
+Code inspection of the current canonical `src/` tree shows a **shared
+Boolean source-observation classifier**, `observesFunctionSource` in
+`src/ast.js`. As of this source review, the actual text
+`setProperty`, `getPropertyValue` or `style` does not occur in
+that classifier's source. This is a concrete missing host-sink family,
+not proof that every unknown API is mishandled.
+
+The same detector is called by distinct transformations:
+
+- `src/properties.js` returns no local-property-renaming proposal when
+  `observesFunctionSource(ast,...)` is true;
+- `src/identifiers.js` suppresses local identifier renaming on true;
+- `src/strings.js` suppresses string decoding rewrites on true;
+- `src/core.js` computes `remoteSourceObserver` for a supplied
+  **multi-file graph** using this detector, which disables
+  `renameCrossFileProperties` and selected downstream encoders.
+  The detector is also consulted for host-lock source-coordinate safety.
+
+This explains the **controlled cross-file experiment** at
+[two-platform run 45101144402](https://github.com/FlareZ123/obfs/actions/runs/45101144402):
+an explicit `String(inspect)` added in the importing module preserves
+both original source spellings and produces `properties=0` in COO,
+SCO and SNO. With the explicit conversion removed and a real implicit
+`CSSStyleDeclaration.setProperty` sink doing the conversion instead,
+every mode rewrites two producer keys and changes observed function
+source, while the literal-value positive still rewrites one key.
+
+**Near-term integration decision (proposal, not a patch):** a
+receiver-validated implicit CSSOM source-sink classifier entering the
+existing common detector could initially trigger the current
+conservative file-group/local rewrite refusals for semantic safety.
+That is useful as a *compatibility-first fallback*. It does **not**
+meet the more demanding selective-yield acceptance gate; the Boolean
+detector loses which function was actually source-observed and cannot
+by itself protect only that function's outer owner/key class while
+rewriting an independent owner.
+
+**Longer-term integration decision (proposal):** replace or augment
+the Boolean refusal with a set of source-observed root functions,
+actual host-receiver provenance and a transitive set of exact-spelling
+property/lexical-binding constraints. The algorithm must explicitly
+prove that negative source-fixed dependencies and positive unrelated
+owners occupy distinct equivalence classes; otherwise refuse. A
+user-defined local method called `setProperty` has an independently
+green counterexample and must not be treated as native CSSOM solely
+by name. Keep the existing scanner and source-island checks as
+safety backstops until the selective graph proof is validated on
+all three modes and on real browser/Node entrypoints.
