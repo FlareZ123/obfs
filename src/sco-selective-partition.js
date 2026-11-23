@@ -1506,7 +1506,7 @@ function collectPrivateStaticImportClosure(directPaths,sources) {
     }
     if(usesUnprovedRelocatedWebIdlConstructors(ast)){
       throw new TypeError(
-        'SCO private static dependency uses unproved cross-realm WebIDL constructor: '+filename);
+        'SCO private static dependency uses unproved cross-realm WebIDL constructor or method: '+filename);
     }
     // Browser-owned values may differ or be absent in the trusted Node
     // process. Only the original caller can establish its own window,
@@ -2282,7 +2282,7 @@ function partitionScoSelectedAsyncExports(file,options) {
       throw new TypeError('Private SCO export or helper uses unproved cross-realm object URL API');
     }
     if(usesUnprovedRelocatedWebIdlConstructors(body)){
-      throw new TypeError('Private SCO export or helper uses unproved cross-realm WebIDL constructor');
+      throw new TypeError('Private SCO export or helper uses unproved cross-realm WebIDL constructor or method');
     }
     if(usesUnprovedRelocatedTextDecoder(body)){
       throw new TypeError('Private SCO export or helper uses unproved cross-realm text decoding');
