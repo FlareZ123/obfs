@@ -742,6 +742,20 @@ function proveLocalObject(ast, rootName, bindings, importedIdentityFunctions=new
   // could disclose its source. Exported classes/instances, class inheritance,
   // computed methods, additional methods, reflection and opaque calls remain
   // refused by construction and by the existing owner-use proof.
+  // This narrow proof also requires the inert owner literal to complete
+  // initialization before the class declaration. Otherwise a class method
+  // invoked before its owner's lexical initialization can throw a TDZ
+  // ReferenceError, and host error diagnostics can observe rewritten source.
+  // Earlier declarations remain conservatively refused even when a later
+  // control-flow path would happen to invoke them only after initialization.
+  let ownerInitializationEnd=-1;
+  for(const use of identifierUses.get(rootName)??[]) {
+    if(use.parent?.type==='VariableDeclarator'&&
+       use.parent.id===use.node&&use.parent.init?.type==='ObjectExpression'){
+      ownerInitializationEnd=use.parent.init.end;
+      break;
+    }
+  }
   // The owner-use index restricts proof work to classes that actually
   // contain this owner. Scanning every class for every owner is quadratic.
   const localClassUses=new Set();
@@ -751,6 +765,7 @@ function proveLocalObject(ast, rootName, bindings, importedIdentityFunctions=new
     }
   }
   for(const cls of localClassUses) {
+    if(ownerInitializationEnd<0||cls.start<ownerInitializationEnd)continue;
     if(parents.get(cls)!==ast || cls.superClass || cls.id?.type!=='Identifier' ||
        bindings.get(cls.id.name)!==1 || cls.body.body.length!==1)continue;
     const method=cls.body.body[0];
