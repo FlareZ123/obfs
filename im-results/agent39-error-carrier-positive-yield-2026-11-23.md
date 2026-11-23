@@ -34,6 +34,17 @@ The candidate diagnostics, captured in both failed jobs, contain:
 
 A later main commit adds the same three tests to the ordinary repository suite and `jsconfig.external.json`. The first full external-check attempt [45167969546](https://github.com/FlareZ123/obfs/actions/runs/45167969546) correctly exposed a new test-local broad `sourceType:string` JSDoc inference, fixed by explicitly typing the `SourceFile[]` test fixture. [Run 45168220952](https://github.com/FlareZ123/obfs/actions/runs/45168220952), exact main SHA `d3b72880ca3bdae13d87b0c06de2c748eeb1d8e6`, then passed the 3/3 focused test, project JSDoc, external JSDoc and paired budget JSDoc on **both** operating systems. No comprehensive full-suite, browser, hostile prototype or 2.5× compute claim follows.
 
+## Lexical-shadowing extension (same investigation)
+
+Two additional fixtures are now in the same test file:
+
+4. A locally thrown native `Error('contained')` is fully caught by a binding spelled `caught`, but its stack is never inspected. A separate function has an **unrelated formal also named `caught`**, receives a primitive `1`, and reads its computed property before calling the private producer.
+5. A named Promise rejection handler binds a parameter spelled `caught` but returns the fixed primitive `5`. A separate function with a formal of the same spelling receives `1`, performs the computed read and calls the private producer. The handler is resolved and called under native Promise dispatch, and its unrelated parameter must not taint the other binding.
+
+The *frozen-main-derived* control `90b116b18582a595f3b3a6b854ce5e8423081725` [run 45169108523](https://github.com/FlareZ123/obfs/actions/runs/45169108523) passed **5/5** source-observer precision checks, private property positive-yield assertions and native/emitted ESM `73\n` parity on **both** Ubuntu/Windows, plus all focused strict JSDoc steps. The expanded exactly identical main test source was then committed as `9a6c8569f00ddb0816924e99b2261cc1e7c14b2f`; [main run 45169450985](https://github.com/FlareZ123/obfs/actions/runs/45169450985) passed **5/5** and the same JSDoc steps on both OS.
+
+The expanded *name-wide prototype* source `2dbbb1500c85d66ea8642c0d35fefba7656fc18b`, [run 45169458793](https://github.com/FlareZ123/obfs/actions/runs/45169458793), failed **all 5/5** on both OS. Its diagnostic lines for **all five** inputs independently show `observes=true,propertyRewrites=0`. This extension isolates lexical binding identity beyond the three direct-value fixtures. It is a scoped positive-yield test; it does not prove the uninspected Error stack is inaccessible under arbitrary modified host objects.
+
 ## Interpretation and admissible next proof
 
 This **demonstrates a positive-transformation-yield regression** in the earlier branch under the tested pristine Node execution context. Simply marking catch parameters or Promise handler formals as potentially Error-bearing by identifier spelling can protect a genuine `Error.stack` negative while suppressing unrelated private-owner rewrites. The experiment does not prove that current main is safe for caught or rejected Error stack observation; that remains a separate negative acceptance gate.
