@@ -136,6 +136,19 @@ function splitKernel(basis,labels){
 function makeBoundedDegreeDefectContractor(model){
   if(model.bits!==WIDTH || ![2,3,4].includes(model.degree))
     throw new TypeError('expected 32-bit Boolean model with degree 2..4');
+  if(!Array.isArray(model.coefficients))
+    throw new TypeError('expected Boolean ANF coefficient pairs');
+  // A declared invalid coefficient can be rejected, unlike an omitted
+  // high-degree source term that is indistinguishable at fitting inputs.
+  for(const [monomial,value] of model.coefficients){
+    if(!Number.isSafeInteger(monomial)||monomial<0||monomial>0xffffffff||
+       !Number.isSafeInteger(value)||value<0||value>0xffffffff)
+      throw new TypeError('ANF coefficients require unsigned 32-bit words');
+    let remaining=monomial>>>0,weight=0;
+    while(remaining){remaining=(remaining&(remaining-1))>>>0;weight++;}
+    if(weight>model.degree)
+      throw new TypeError('ANF coefficient outside promised degree');
+  }
   /** @type {Map<number,number>} */
   const index=new Map();
   /** @type {number[]} */
