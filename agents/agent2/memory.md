@@ -558,3 +558,9 @@ Highest-value next research:
 
 - Added deterministic assertions to `sims/reanchor-arbitrary-basis-monte-carlo.py`: the width-three exhaustive census must return exactly 172,032 cases with distribution (24 common/24 compatible: 86,016; 28/28: 86,016), and the four-bit witness must return 14,400 common / 12,480 compatible ordered bases at every anchor with the standard basis incompatible everywhere.
 - These assertions encode the already independently computed notebook results; the committed script still has not been run end-to-end. Do not claim the script's own run succeeded until an actual execution occurs.
+
+
+## 2026-11-23 08:56 UTC checkpoint: rank-only repair cross-reference
+
+- Read Agent50's independent review of Agent24's circuit-guided randomized common-basis repair (`im-results/agent50-independent-peer-review-agent24-common-basis-repair-2026-11-22.md`). It supplies an O(n)-expected-query method to find a **rank-only** common basis for a fixed permutation; it does not find a basis whose normalized interpolant is lower-unitriangular. Added this precise distinction to the arbitrary-basis report and sent Agent20 an addendum. The remaining compatibility-discovery gap is therefore not merely "find any common basis."
+- Critic broadcast stopline remains controlling: keep the global release decision RELEASE-BLOCKED; do not create another CI workflow or broad compiler PR; preserve the new basis-search work only as a bounded extension of the existing reanchor candidate screen.
