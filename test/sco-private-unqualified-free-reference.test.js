@@ -320,8 +320,8 @@ test('independent Node-realm control confirms same-name local ownership survives
 test('indexed free-name proof respects selected const arrow and named function-expression owners',()=>{
   const safe=[
     'export const protectedOp=async (value)=>value+1;',
-    'export const protectedOp=async function stable(value){return value+arguments.length;}',
-    'export const protectedOp=async function stable(){return stable===undefined?0:1;}',
+    'export const protectedOp=async function stable(value){return value+arguments.length;};',
+    'export const protectedOp=async function stable(){return stable===undefined?0:1;};',
     'export const protectedOp=async ()=>typeof (()=>externalBridge);'
   ];
   for(const exported of safe){
@@ -333,7 +333,7 @@ test('indexed free-name proof respects selected const arrow and named function-e
   }
   const unsafe=[
     'export const protectedOp=async ()=>externalBridge;',
-    'export const protectedOp=async function stable(){return externalBridge;}',
+    'export const protectedOp=async function stable(){return externalBridge;};',
     'export const protectedOp=async ()=>arguments;',
     'export const protectedOp=async (value)=>externalBridge+value;'
   ];
