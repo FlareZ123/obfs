@@ -13,7 +13,6 @@ const original=[
   'function protocolSensitive(){return "value-723";}',
   'socket.addEventListener("open",()=>{',
   '  socket.send(protocolSensitive);',
-  '  socket.close();',
   '});'
 ].join('\n');
 
@@ -58,8 +57,8 @@ async function captureChromiumFrame(source){
       const opcode=input[0]&15;
       const size=input[1]&127;
       const offset=size===126?4:2;
-      if(opcode!==1 || size===127 || !(input[1]&128)){
-        rejectFrame(new Error('Expected a masked WebSocket text frame'));
+      if(size===127 || !(input[1]&128)){
+        rejectFrame(new Error('Expected masked, bounded WebSocket frame'));
         socket.destroy();return;
       }
       const len=size===126?input.readUInt16BE(2):size;
@@ -67,8 +66,18 @@ async function captureChromiumFrame(source){
       const mask=input.subarray(offset,offset+4);
       const decoded=Buffer.from(input.subarray(offset+4,offset+4+len));
       for(let i=0;i<decoded.length;i++)decoded[i]^=mask[i&3];
-      resolveFrame(decoded.toString('utf8'));
-      socket.end();
+      if(opcode===1){
+        resolveFrame(decoded.toString('utf8'));
+        socket.end();
+      }else{
+        // A browser can send a control frame before its application data.
+        // Consume it without confusing it for a text-data mismatch.
+        input=input.subarray(offset+4+len);
+        if(opcode===8){
+          rejectFrame(new Error('WebSocket closed before any text frame'));
+          socket.end();
+        }
+      }
     });
   });
   await new Promise((resolve,reject)=>{
