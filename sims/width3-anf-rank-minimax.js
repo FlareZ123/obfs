@@ -47,6 +47,7 @@ function nonlinearOutputRank(perm) {
 function classifyAllThreeBitPermutations() {
   /** @type {number[][]} */
   const byRank=Array.from({length:4},()=>[]);
+  /** @type {number[]} */
   const outputs=[];
   /** @param {number} used */
   function walk(used) {
