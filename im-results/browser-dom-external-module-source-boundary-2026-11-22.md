@@ -79,3 +79,21 @@ The two source-observation steps and strict JSDoc step all **passed**:
 **Whole-workflow status remains RED**, not green: an earlier, unrelated `test/bound-runtime-interception-browser.js` step failed at line 52 because the current mainline emitted zero private-property rewrites where that test expected two. The three later source-evidence/typecheck steps ran successfully because they use `if: always()`. This is not a full browser integration acceptance receipt.
 
 **Scope remains native-observer evidence, not compiler coverage:** the scripts compare original and manually shortened source, not `obfuscateFiles` output. They establish which browser channels can observe the source change; they do not show that the compiler admits or refuses each transformation correctly, and they do not prove confidentiality against a fully controlled client. HTTP `fetch(import.meta.url)` and HTTP stack-coordinate cases remain distinct from the Blob-specific fetch/stack observations and are not claimed by this run.
+
+
+## CI follow-up: HTTP self-fetch and stack coordinates also verified, 10:36 UTC
+
+**Exact source pin:** `c730cf6708792bb46b8864c9bc2e61406b4fc19b`  
+**Workflow:** [manual-browser run 45157388486](https://github.com/FlareZ123/obfs/actions/runs/45157388486)
+
+The HTTP driver now includes self-fetch and V8 stack-coordinate cases in addition to the DOM readers. All three new source-evidence/typecheck steps passed:
+
+- **HTTP ESM driver:** ten original/renamed comparisons (five observers × inline/HTTP ESM), twenty module evaluations. DOM `outerHTML` and `XMLSerializer` exposed inline source but not external-module source; `document.title` exposed neither. In contrast, `fetch(import.meta.url)` recovered the original source spelling in **both** inline and external ESM and stopped matching after manual shortening. V8 stack columns shifted **337→311** for inline ESM and **101→75** for external HTTP ESM; returned values stayed 8.
+- **Blob ESM driver:** all 16 native observations passed. DOM readers could see inline source but not Blob module source; Blob self-fetch recovered the original spelling and detected the manual rename; V8 stack column shifted **51→38** while the returned value stayed 8.
+- **Strict typecheck:** `npx tsc -p jsconfig.dom-source-evidence.json` passed.
+
+This supersedes the previous follow-up's statement that HTTP fetch/stack channels were untested. The new evidence shows that external HTTP ESM is **not generally source-opaque**: DOM serialization does not expose its body, but the module can fetch its own `import.meta.url`, and V8 stack columns expose source-length changes.
+
+**Whole-workflow status remains RED** at the independent `test/bound-runtime-interception-browser.js` assertion (0 private-property rewrites vs expected 2). The HTTP, Blob, and JSDoc steps all ran after that failure under `if: always()` and passed. This is not a full browser integration green.
+
+**Scope:** These are native Chromium comparisons of original versus manually shortened source, not `obfuscateFiles` output. They establish observable browser channels and justify conservative source-observer coverage; they do not prove the compiler's detector is complete or precise, nor establish source secrecy against a client-controlled runtime.
