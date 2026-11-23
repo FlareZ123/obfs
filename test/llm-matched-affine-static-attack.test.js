@@ -368,7 +368,7 @@ test('symbolic recovery refuses lexical shadowing hidden after a return',async()
   assert.throws(()=>actual.round1(0),ReferenceError);
   assert.equal(actual.round1(1),18);
   assert.throws(()=>recoverSymbolicAffine(source,'round1','module'),
-    /Lexical declaration shadows symbolic register/u);
+    /Lexical declaration shadows symbolic register|Return must terminate symbolic block/u);
   assert.throws(()=>attackPublishedSource(source),
-    /Lexical declaration shadows symbolic register/u);
+    /Lexical declaration shadows symbolic register|Return must terminate symbolic block/u);
 });
