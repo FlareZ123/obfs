@@ -5,6 +5,7 @@ const assert=require('node:assert/strict');
 const fs=require('node:fs/promises');
 const os=require('node:os');
 const path=require('node:path');
+const {pathToFileURL}=require('node:url');
 const {spawnSync}=require('node:child_process');
 const {obfuscateFiles}=require('../src');
 const {atomicWrite}=require('../src/atomic');
@@ -25,7 +26,7 @@ async function execute(files,external) {
       await atomicWrite(path.join(directory,file.path),file.code);
     }
     const child=spawnSync(process.execPath,[
-      '--import',path.join(directory,'preload.mjs'),
+      '--import',pathToFileURL(path.join(directory,'preload.mjs')).href,
       path.join(directory,'entry.cjs')
     ],{encoding:'utf8',timeout:15000,windowsHide:true});
     if(child.error)throw child.error;
@@ -58,7 +59,7 @@ const external=[
       "});"
     ].join('\n')},
   {path:'side.cjs',sourceType:'commonjs',
-    code:'String.fromCharCode=()=>" ?".trim();module.exports={join(){return "redirected"}};'}
+    code:'String.fromCharCode=()=>"?";module.exports={join(){return "redirected"}};'}
 ];
 
 /**
