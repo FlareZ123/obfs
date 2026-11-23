@@ -49,12 +49,16 @@ test('source-observer positive-yield diagnostic matrix preserves native results'
         identifiers};
       const out=obfuscateFiles([{path:'case.cjs',sourceType:'commonjs',code:source}],
         options).files[0];
-      assert.equal(execute(String(out.code)),execute(source),variant.name);
+      const actual=execute(String(out.code));
+      const expected=execute(source);
       rows.push({variant:variant.name,identifiers,flags,
+        parity:actual===expected,expected,actual,
         objects:out.metrics.objects,properties:out.metrics.properties,
         bindings:out.metrics.bindings});
     }
   }
   assert.equal(rows.length,16);
   console.log('PRIVATE_YIELD_OBSERVER_MATRIX '+JSON.stringify(rows));
+  assert.deepEqual(rows.filter(row=>!row.parity).map(row=>row.variant+':'+row.identifiers),[],
+    'Native Function#toString must match for all externally observable exports');
 });
