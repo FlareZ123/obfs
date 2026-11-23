@@ -239,12 +239,24 @@ The implementation only edits properties of literal objects whose relevant local
 
 ### Public callable source and protected private work
 
-An ESM entrypoint can expose the exact source of its exported functions through
-`Function.prototype.toString`. A field rewrite inside the body of an exported
-function changes that value even if the function's numeric outputs remain the
-same. Keep such a public wrapper's body unchanged and perform private field
-reads in a module-local helper when the application's declared entry contract
-allows that separation.
+An ESM or CommonJS entrypoint can expose the exact source of its exported
+functions through `Function.prototype.toString`. A field rewrite inside the
+body of an exported function (including a CommonJS `module.exports` or
+`exports.*` callable) changes that value even if the function's numeric
+outputs remain the same. Keep such a public wrapper's body unchanged and
+perform private field reads in a module-local helper when the application's
+declared entry contract allows that separation.
+
+The local property proof treats callable source as observable behavior. It
+admits body-local field edits only when a function binding is unique and every
+non-declaration reference is a direct call within that binding's lexical
+scope. Exported, escaping, aliased, returned, passed, and otherwise unproved
+callable values are not treated as private; unknown function expressions and
+methods are conservatively declined. A private direct-call-only helper can
+still contain renamed reads even when an exported wrapper calls it, because
+the wrapper's own source does not contain the field spelling. See the
+[COO/SNO property-source regression](../test/property-exported-callable-source-boundary.test.js)
+and [broader CommonJS callable-source cases](../test/commonjs-public-callable-source.test.js).
 
 The [source-stable wrapper regression](../test/closedworld-private-wrapper.test.js)
 uses two ESM modules, checks `hot.toString()` for exact native/emitted equality,
