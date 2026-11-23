@@ -354,17 +354,6 @@ function resolveEsmRequests(requests) {
   return results;
 }
 
-/**
- * Compare Node's ESM bare-package resolution for every statically proven
- * import site before publishing a SNO output tree. This uses the ESM
- * resolver's import conditions rather than CommonJS require conditions.
- *
- * @param {SourceFile[]} original
- * @param {SourceFile[]} generated
- * @param {string} inputRoot
- * @param {string} outputRoot
- * @returns {Promise<{entries:number,files:number}>}
- */
 
 /**
  * Compare emitted package scopes with their source counterparts. A package
@@ -440,6 +429,17 @@ function packageJsonBytes(file,context) {
   return bytes;
 }
 
+/**
+ * Compare Node's ESM bare-package resolution for every statically proven
+ * import site before publishing a SNO output tree. This uses the ESM
+ * resolver's import conditions rather than CommonJS require conditions.
+ *
+ * @param {SourceFile[]} original
+ * @param {SourceFile[]} generated
+ * @param {string} inputRoot
+ * @param {string} outputRoot
+ * @returns {Promise<{entries:number,files:number}>}
+ */
 async function assertSnoDirectBareImportParity(original,generated,inputRoot,outputRoot) {
   const sources=directBareImports(original);
   const targets=directBareImports(generated);
