@@ -224,6 +224,21 @@ test('ESM audit supports identical type-only package scopes for .js ESM modules'
   });
 });
 
+
+test('ESM audit refuses case-variant package.json paths',async()=>{
+  /** @type {import('../src/core').SourceFile[]} */
+  const files=[{
+    path:'engine.js',sourceType:'module',
+    code:"import value from 'sno-esm-resolution-probe';export default value;"
+  },{
+    path:'Package.json',sourceType:'asset',code:'{"type":"module"}'
+  }];
+  await assert.rejects(
+    assertSnoDirectBareImportParity(files,files,'/not-created/source','/not-created/output'),
+    /case-variant package.json path/u
+  );
+});
+
 test('ESM audit refuses changed or unsupported emitted package scopes',async()=>{
   /** @type {import('../src/core').SourceFile[]} */
   const source=[{
