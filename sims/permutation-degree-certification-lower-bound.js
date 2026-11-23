@@ -150,9 +150,108 @@ function hiddenSwapDegreeWitness(bits,count) {
   };
 }
 
+
+/**
+ * A known-coordinate compatible high-bit gate. This toggles the highest
+ * coordinate if and only if the lower (n-1) input coordinates equal prefix.
+ * It is a bijective compatible/triangular permutation: the lower outputs
+ * equal the lower inputs, and the top output is its input bit XOR a scalar
+ * of the lower coordinates. Its degree is exactly n-1.
+ *
+ * @param {number} bits 3..12
+ * @param {number} prefix 0..2^(bits-1)-1
+ * @returns {(input:number)=>number}
+ */
+function compatibleHighestBitGate(bits,prefix) {
+  if(!Number.isInteger(bits)||bits<3||bits>12||
+     !Number.isInteger(prefix)||prefix<0||prefix>=2**(bits-1))
+    throw new RangeError('Expected 3..12 bits and one lower-bit prefix');
+  const high=2**(bits-1),lowMask=high-1;
+  return input=>((input&lowMask)===prefix?input^high:input)>>>0;
+}
+
+/**
+ * A tight hidden gate witness against an adaptive certifier in the class
+ * of known-coordinate compatible permutations. With fewer than 2^(n-1)
+ * distinct input queries, at least one lower (n-1)-bit prefix is unseen;
+ * choose that prefix after running the reference identity transcript.
+ * All adaptive answers remain unchanged, but the compatible rare gate
+ * has algebraic degree n-1 rather than one.
+ *
+ * This does NOT give the same bound when an unknown outer affine map is
+ * applied: then the coordinate prefix and parity order are hidden.
+ *
+ * @param {number} bits
+ * @param {number} count
+ * @returns {{bits:number,count:number,prefixes:number,
+ *   unseenPrefixes:number,chosenPrefix:number,transcriptEqual:boolean,
+ *   referenceDegree:number,alternateDegree:number,
+ *   alternateBijection:boolean}}
+ */
+function compatibleDegreeWitness(bits,count) {
+  if(!Number.isInteger(bits)||bits<3||bits>12||
+     !Number.isInteger(count)||count<0||count>=2**(bits-1))
+    throw new RangeError('Expected fewer than 2^(bits-1) prefix queries');
+  /** @param {number} x @returns {number} */
+  const reference=x=>x;
+  const baseline=adaptivePermutationTranscript(reference,bits,count);
+  const high=2**(bits-1);
+  const touched=new Set(baseline.map(record=>record.input&(high-1)));
+  let chosenPrefix=-1;
+  for(let prefix=0;prefix<high;prefix++) {
+    if(!touched.has(prefix)){chosenPrefix=prefix;break;}
+  }
+  if(chosenPrefix<0)throw new Error('Pigeonhole hidden prefix did not exist');
+  const alternate=compatibleHighestBitGate(bits,chosenPrefix);
+  const replay=adaptivePermutationTranscript(alternate,bits,count);
+  const transcriptEqual=JSON.stringify(replay)===JSON.stringify(baseline);
+  if(!transcriptEqual)throw new Error('Unprobed compatible gate changed transcript');
+  const alternateBijection=new Set(
+    Array.from({length:2**bits},(_,i)=>alternate(i))
+  ).size===2**bits;
+  return {
+    bits,count,prefixes:high,unseenPrefixes:high-touched.size,
+    chosenPrefix,transcriptEqual,referenceDegree:exactVectorAnfDegree(reference,bits),
+    alternateDegree:exactVectorAnfDegree(alternate,bits),alternateBijection
+  };
+}
+
+/**
+ * Reconstruct a compatible permutation from exactly one output per
+ * (n-1)-bit prefix. If x<2^(n-1), query F(x). For its sibling x+2^(n-1),
+ * known-coordinate triangularity implies F(x+high)=F(x) XOR high:
+ * all lower output bits depend only on lower input bits, and injectivity
+ * makes the high output bit toggle across these two inputs.
+ *
+ * This reconstructs the complete truth table with exactly 2^(n-1)
+ * forward queries, proving the tight upper bound for an exact degree
+ * certifier under this STRONGER known-coordinate-compatible promise.
+ *
+ * @param {(input:number)=>number} compatibleOracle
+ * @param {number} bits
+ * @returns {{table:number[],queries:number}}
+ */
+function reconstructKnownCompatiblePermutation(compatibleOracle,bits) {
+  if(!Number.isInteger(bits)||bits<3||bits>12)
+    throw new RangeError('Expected 3..12 compatible permutation bits');
+  const high=2**(bits-1);
+  const mask=2**bits-1;
+  const table=Array(2**bits).fill(0);
+  for(let prefix=0;prefix<high;prefix++) {
+    const value=compatibleOracle(prefix);
+    if(!Number.isInteger(value)||value<0||value>mask)
+      throw new TypeError('Expected unsigned n-bit compatible oracle output');
+    table[prefix]=value;
+    table[prefix+high]=(value^high)>>>0;
+  }
+  return {table,queries:high};
+}
+
+
 module.exports={
   adaptivePermutationTranscript,exactVectorAnfDegree,swapIdentityOutputs,
-  hiddenSwapDegreeWitness
+  hiddenSwapDegreeWitness,compatibleHighestBitGate,compatibleDegreeWitness,
+  reconstructKnownCompatiblePermutation
 };
 
 if(require.main===module) {
