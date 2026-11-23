@@ -254,6 +254,27 @@ async function main() {
   bodies.set('/proxy-brand-native.mjs',proxyBrandCheckSource);
   bodies.set('/proxy-brand-compiled.mjs',proxyBrandCheckOutput.code);
 
+  const htmlMethodSource=[
+    'const observedOwner={secretField:57};',
+    'function inspect(){return observedOwner.secretField;}',
+    'const independent={independentSecret:73};',
+    'const target=document.createElement("div");',
+    'target.insertAdjacentHTML("beforeend",inspect);',
+    'export const observed={source:target.innerHTML,value:inspect(),independent:independent.independentSecret};'
+  ].join('\n');
+  const htmlMethodOutput=compile(htmlMethodSource,'domstring-insert-adjacent-html-negative');
+  bodies.set('/html-method-native.mjs',htmlMethodSource);
+  bodies.set('/html-method-compiled.mjs',htmlMethodOutput.code);
+  const htmlMethodPositiveSource=[
+    'const independent={independentSecret:73};',
+    'const target=document.createElement("div");',
+    'target.insertAdjacentHTML("beforeend","literal");',
+    'export const observed={source:target.innerHTML,independent:independent.independentSecret};'
+  ].join('\n');
+  const htmlMethodPositiveOutput=compile(htmlMethodPositiveSource,'domstring-insert-adjacent-html-positive');
+  bodies.set('/html-method-positive-native.mjs',htmlMethodPositiveSource);
+  bodies.set('/html-method-positive-compiled.mjs',htmlMethodPositiveOutput.code);
+
   const negativeLogic=[
     'const observedOwner={secretField:57};',
     'export function inspect(){return observedOwner.secretField;}',
@@ -365,6 +386,17 @@ async function main() {
     '  import("/proxy-brand-native.mjs"),import("/proxy-brand-compiled.mjs")]);',
     ' const proxyBrandCheckControl={native:pbn.observed,emitted:pbe.observed,',
     '  parity:JSON.stringify(pbn.observed)===JSON.stringify(pbe.observed)};',
+    ' const [hmn,hme,hmpn,hmpe]=await Promise.all([',
+    '  import("/html-method-native.mjs"),import("/html-method-compiled.mjs"),',
+    '  import("/html-method-positive-native.mjs"),import("/html-method-positive-compiled.mjs")]);',
+    ' const htmlMethodControl={native:hmn.observed,emitted:hme.observed,',
+    '  sourceMismatch:hmn.observed.source!==hme.observed.source,',
+    '  nativeSourceValid:hmn.observed.source.includes("observedOwner.secretField"),',
+    '  numericParity:hmn.observed.value===hme.observed.value&&hmn.observed.value===57,',
+    '  independentParity:hmn.observed.independent===hme.observed.independent&&',
+    '    hmn.observed.independent===73,',
+    '  positiveParity:hmpn.observed.source==="literal"&&',
+    '    JSON.stringify(hmpn.observed)===JSON.stringify(hmpe.observed)};',
     ' const [cn,ce,pn,pe]=await Promise.all([',
     '  import("/native-negative/observer.mjs"),import("/compiled-negative/observer.mjs"),',
     '  import("/native-positive/observer.mjs"),import("/compiled-positive/observer.mjs")]);',
@@ -378,7 +410,7 @@ async function main() {
     '    JSON.stringify(pn.observed)===JSON.stringify(pe.observed),',
     '  negativeProperties:'+crossNegativeProperties+',',
     '  positiveProperties:'+crossPositiveProperties+'};',
-    ' document.getElementById("result").textContent=JSON.stringify({rows,dispatchRows,userland,dataPropertyControl,customAccessorControl,proxyStorageControl,proxyBrandCheckControl,crossFile});',
+    ' document.getElementById("result").textContent=JSON.stringify({rows,dispatchRows,userland,dataPropertyControl,customAccessorControl,proxyStorageControl,proxyBrandCheckControl,htmlMethodControl,htmlMethodControl,crossFile});',
     '}catch(error){document.getElementById("result").textContent=',
     ' "BROWSER_ERROR "+String(error.stack||error);}',
     '</script>'
@@ -453,11 +485,16 @@ async function main() {
       proxyBrandCheckControl.native.value===57&&proxyBrandCheckControl.emitted.value===57&&
       proxyBrandCheckControl.native.independent===73&&proxyBrandCheckControl.emitted.independent===73&&
       proxyBrandCheckOutput.properties>=1;
+    const htmlMethodControl=browser.htmlMethodControl;
+    const htmlMethodExpectedRed=htmlMethodControl.nativeSourceValid&&
+      htmlMethodControl.sourceMismatch&&htmlMethodControl.numericParity&&
+      htmlMethodControl.independentParity&&htmlMethodControl.positiveParity&&
+      htmlMethodOutput.properties>=1&&htmlMethodPositiveOutput.properties>=1;
     const dispatchExpectedRed=dispatchRows.length===dispatchCases.length&&
       dispatchRows.every((/** @type {any} */ row)=>row.sourceMismatch&&row.numericParity&&
         row.independentParity&&row.positiveParity);
     const summary={
-      expectedRedReproduced:allExpectedRed&&userlandPositive&&crossFileExpectedRed&&dataPropertyPositive&&customAccessorPositive&&proxyStoragePositive&&proxyBrandCheckPositive&&dispatchExpectedRed,
+      expectedRedReproduced:allExpectedRed&&userlandPositive&&crossFileExpectedRed&&dataPropertyPositive&&customAccessorPositive&&proxyStoragePositive&&proxyBrandCheckPositive&&htmlMethodExpectedRed&&dispatchExpectedRed,
       sinkCount:rows.length,
       sourceMismatchCount:rows.filter((/** @type {any} */ row)=>row.sourceMismatch).length,
       sourceMismatchNames:rows.filter((/** @type {any} */ row)=>row.sourceMismatch).map(
