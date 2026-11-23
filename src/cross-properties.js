@@ -1514,17 +1514,17 @@ function safeClosedCallerRecordRead(modules,module,member,ancestors) {
      * A call-result alias can be used directly as a constructor or callable,
      * via its member, or as an opaque callback argument. A named import of
      * the factory is recognized across declared ESM module boundaries.
-     * @param {string} factory
+     * @param {Set<string>} factories
      * @returns {boolean}
      */
-    function invokesFactoryResult(factory) {
+    function invokesFactoryResult(factories) {
       for(const caller of modules.values()) {
-        const callableNames=new Set([factory]);
+        const callableNames=new Set(factories);
         /** @type {Set<string>} */
         const namespaceNames=new Set();
         walk(caller.ast,node=>{
           if(node.type==='ImportSpecifier' &&
-             node.imported.type==='Identifier' && node.imported.name===factory &&
+             node.imported.type==='Identifier' && factories.has(node.imported.name) &&
              node.local.type==='Identifier')callableNames.add(node.local.name);
           if(node.type==='ImportNamespaceSpecifier' &&
              node.local.type==='Identifier')namespaceNames.add(node.local.name);
@@ -1579,7 +1579,7 @@ function safeClosedCallerRecordRead(modules,module,member,ancestors) {
             const selected=value.computed?staticString(value.property):
               staticName(value.property);
             if(value.object.type==='Identifier' &&
-               namespaceNames.has(value.object.name) && selected===factory)
+               namespaceNames.has(value.object.name) && selected!==null && factories.has(selected))
               return true;
             // Nested holder.member.member forms retain the same potential
             // host callback even when the outer member is not a name.
@@ -1689,7 +1689,7 @@ function safeClosedCallerRecordRead(modules,module,member,ancestors) {
              callee.object.type!=='Identifier')return false;
           const selected=callee.computed?staticString(callee.property):
             staticName(callee.property);
-          if(namespaceNames.has(callee.object.name) && selected===factory)return true;
+          if(namespaceNames.has(callee.object.name) && selected!==null && factories.has(selected))return true;
           // Native adapters preserve the factory's return value even when
           // the invocation is not a syntactically direct named call.
           if(callableNames.has(callee.object.name) &&
@@ -1758,9 +1758,11 @@ function safeClosedCallerRecordRead(modules,module,member,ancestors) {
       }
       return false;
     }
-    for(const factory of returnedHostFactories) {
-      if(invokesFactoryResult(factory))changedIntrinsic=true;
-    }
+    // A single union-provenance pass is monotone in possible factory roots:
+    // replacing N repeated scans with a fixed-point scan over the union
+    // cannot hide a candidate detected by any individual factory pass.
+    if(returnedHostFactories.size && invokesFactoryResult(returnedHostFactories))
+      changedIntrinsic=true;
     walk(source.ast,(node,parent)=>{
       // Proxy descriptor traps may call opaque host accessors without spelling
       // a Reflect mutation or distributed module import in the declared ESM.
