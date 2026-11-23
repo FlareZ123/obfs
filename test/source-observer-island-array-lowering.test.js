@@ -123,6 +123,15 @@ test('core option lowers selected source-observer island records in COO, SCO and
       'console.log(JSON.stringify({watched:watched.toString(),'+
         'unrelated:unrelated.toString(),value:unrelated()}));'};
   const original=await executeEsm([watched,independent,observer,probe]);
+  const propertyMode=obfuscateFiles([watched,independent,observer],{
+    mode:'coo',closedWorld:true,seed:'island-array-property-mode',
+    strings:false,experimentalSourceObserverIslands:['independent.mjs']
+  });
+  const propertyOutput=propertyMode.files.find(file=>file.path==='independent.mjs');
+  assert.ok(propertyOutput);
+  assert.equal(propertyOutput.metrics.properties,2);
+  assert.equal(normalizePublicIsland(String(propertyOutput.code)).properties,2,
+    'the public normalizer recovers both hashed property names in property mode');
   /** @type {Array<'coo'|'sco'|'sno'>} */
   const modes=['coo','sco','sno'];
   for(const mode of modes) {
