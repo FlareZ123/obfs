@@ -71,6 +71,9 @@ const primitiveCases=[
   ['record redirect alias','(()=>{const methods={go:Response.redirect};const alias=methods;return alias.go("https://example.test/").url;})()']
 ];
 
+// The Promise.prototype.then hook is mutable and may publish a user callback's
+// exact source. Direct async IIFEs keep these primitive-only cases eligible
+// to prove unrelated private-key renaming without assuming native hook provenance.
 for(const [name,expression] of primitiveCases) {
   test('recorded Web API primitive inputs leave unrelated keys eligible: '+name,async()=>{
     const original='const state={secretField:37};'+
