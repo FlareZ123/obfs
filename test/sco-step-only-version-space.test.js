@@ -164,6 +164,8 @@ test('compact complete four-state space certifies independent no-reset machines'
     {name:'base',base:0xa82b11f5,stride:4973},
     {name:'holdout',base:0x51a9c603,stride:8467}
   ];
+  /** @type {Array<{corpus:string,index:number,seed:string,queries:number,remaining:number,
+   *  scanWork:number,equivalenceChecks:number,productPairs:number,elapsedMs:number}>} */
   const records=[];
   for(const corpus of corpora)for(let index=0;index<4;index++){
     const seed=(corpus.base+Math.imul(index,corpus.stride))>>>0;
