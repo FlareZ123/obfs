@@ -2,6 +2,7 @@
 
 const assert=require('node:assert/strict');
 const http=require('node:http');
+const path=require('node:path');
 const puppeteer=require('puppeteer-core');
 const {createScoHandler}=require('../src');
 
@@ -27,9 +28,14 @@ async function withServer(handler,run) {
 
 /** @param {string} url @returns {Promise<string>} */
 async function readDom(url) {
+  // Puppeteer requires an absolute executable path. GitHub Actions supplies
+  // CHROMIUM_BIN=google-chrome as a shell command, so use installed Chrome
+  // channel discovery when the configured value is not an absolute path.
+  const configured=process.env.CHROMIUM_BIN;
+  const launchTarget=configured&&path.isAbsolute(configured)?
+    {executablePath:configured}:{channel:'chrome'};
   const browser=await puppeteer.launch({
-    channel:process.env.CHROMIUM_BIN?undefined:'chrome',
-    executablePath:process.env.CHROMIUM_BIN,
+    ...launchTarget,
     headless:true,
     args:['--no-sandbox','--disable-gpu','--disable-dev-shm-usage',
       '--no-proxy-server','--no-first-run']
