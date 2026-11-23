@@ -1,0 +1,94 @@
+'use strict';
+
+const assert=require('node:assert/strict');
+const {createHash}=require('node:crypto');
+const {test}=require('node:test');
+const {obfuscateFiles}=require('../src');
+const {
+  findInlineHtmlSource,hasPinnedLocalJavaScriptIntegrity
+}=require('../src/html-assets');
+
+const original='export const label="an exact import-map-bound source commitment";';
+const digest='sha256-'+createHash('sha256').update(original).digest('base64');
+
+/** @param {Record<string,unknown>} map @returns {string} */
+function markup(map) {
+  return '<!doctype html><html><head><script type="importmap">'+
+    JSON.stringify(map)+'</script></head><body>'+
+    '<script type="module" src="./consumer.mjs"></script></body></html>';
+}
+
+/** @param {string} html */
+function files(html) {
+  return [
+    {path:'lib.mjs',sourceType:/** @type {const} */ ('module'),code:original},
+    {path:'index.html',sourceType:/** @type {const} */ ('asset'),code:Buffer.from(html)}
+  ];
+}
+
+/** @param {string} html @param {'coo'|'sno'|'sco'} mode */
+function compile(html,mode){
+  return obfuscateFiles(files(html),{
+    mode,seed:'safe-importmap-pinning-'+mode,closedWorld:true,
+    strings:true,identifiers:false,properties:false
+  });
+}
+
+test('safe import map integrity pins original imported module bytes across modes',()=>{
+  const html=markup({
+    imports:{lib:'./lib.mjs'},
+    integrity:{'./lib.mjs':digest}
+  });
+  assert.equal(findInlineHtmlSource(html),null,
+    'an inert, URL-only import map does not embed JavaScript source');
+  assert.equal(hasPinnedLocalJavaScriptIntegrity(files(html)),true);
+  for(const mode of /** @type {const} */ (['coo','sno','sco'])){
+    const result=compile(html,mode);
+    assert.equal(result.files[0].code,original,mode+' pinned original bytes');
+    assert.deepEqual(result.files[1].code,Buffer.from(html));
+  }
+});
+
+test('import map integrity commitment works under an unrecognized public mount',()=>{
+  const html=markup({
+    imports:{lib:'/deployment/lib.mjs'},
+    integrity:{'/deployment/lib.mjs':digest}
+  });
+  assert.equal(findInlineHtmlSource(html),null);
+  assert.equal(hasPinnedLocalJavaScriptIntegrity(files(html)),true,
+    'byte-matched root URL must conserve source despite unknown deployment prefix');
+});
+
+test('safe unpinned and unrelated-relative import maps retain real transform yield',()=>{
+  const cases=[
+    markup({imports:{lib:'./lib.mjs'}}),
+    markup({imports:{lib:'./lib.mjs'},integrity:{'./not-lib.mjs':digest}}),
+    markup({imports:{lib:'./lib.mjs'},scopes:{'./pages/':{lib:'./lib.mjs'}}})
+  ];
+  for(const html of cases) {
+    assert.equal(findInlineHtmlSource(html),null);
+    assert.equal(hasPinnedLocalJavaScriptIntegrity(files(html)),false);
+    const result=compile(html,'coo');
+    assert.notEqual(result.files[0].code,original);
+    assert.ok(result.files[0].metrics.literals>0);
+  }
+});
+
+test('import-map data and script URLs are refused as embedded executable source',()=>{
+  const denied=[
+    {imports:{secret:'data:text/javascript,globalThis.secret=12'}},
+    {imports:{secret:'javascript:globalThis.secret=12'}},
+    {imports:{secret:'./lib.mjs'},scopes:{'./pages/':{
+      secret:'data:text/javascript,globalThis.secret=12'}}},
+    {imports:{secret:'./lib.mjs'},integrity:{
+      'data:text/javascript,globalThis.secret=12':digest}}
+  ];
+  for(const map of denied){
+    const html=markup(map);
+    assert.ok(findInlineHtmlSource(html),'unsafe import map URL must be refused');
+    assert.throws(()=>compile(html,'coo'),/HTML asset contains/);
+  }
+  assert.ok(findInlineHtmlSource(
+    '<script type="application/json">{"source":"function leaked(){}"}</script>'),
+  'inert arbitrary JSON remains conservatively source-bearing');
+});
