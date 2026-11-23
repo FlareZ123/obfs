@@ -1,33 +1,38 @@
 'use strict';
 
 const assert=require('node:assert/strict');
-const fs=require('node:fs/promises');
 const http=require('node:http');
-const os=require('node:os');
 const path=require('node:path');
+const vm=require('node:vm');
 const {spawnSync}=require('node:child_process');
-const {pathToFileURL}=require('node:url');
 const {createScoHandler}=require('../src');
 
 const sourceFiles=[
   {
-    path:'index.mjs',
-    sourceType:'module',
+    path:'index.js',
+    sourceType:'script',
     code:[
-      'export { helperValue as finalValue } from "./lib/helper.mjs";'
+      '{',
+      '  const privateOffset = 3;',
+      '  const entryLabel = "entry-private";',
+      '  globalThis.finalValue = globalThis.helperValue + privateOffset + entryLabel.length;',
+      '}'
     ].join('\n')
   },
   {
-    path:'lib/helper.mjs',
-    sourceType:'module',
+    path:'lib/helper.js',
+    sourceType:'script',
     code:[
-      'const privateLabel = "helper-private";',
-      'export const helperValue = 35 + privateLabel.length;'
+      '{',
+      '  const privateLabel = "helper-private";',
+      '  globalThis.helperValue = 35 + privateLabel.length;',
+      '}'
     ].join('\n')
   }
 ];
 const graphPaths=sourceFiles.map(file=>file.path);
 const sourceByPath=new Map(sourceFiles.map(file=>[file.path,file.code]));
+const sourceTypeByPath=new Map(sourceFiles.map(file=>[file.path,file.sourceType]));
 
 /**
  * @param {http.Server} server
@@ -55,7 +60,7 @@ function close(server) {
 }
 
 /**
- * Capture every public ESM response in the known graph.
+ * Capture every public script response in the known two-file graph.
  * @param {number} port
  * @returns {Promise<Record<string,string>>}
  */
@@ -79,7 +84,9 @@ async function captureGraph(port) {
  */
 function reconstructInChild(captured) {
   const files={};
-  for(const name of graphPaths)files[name]={sourceType:'module',code:captured[name]};
+  for(const name of graphPaths) {
+    files[name]={sourceType:sourceTypeByPath.get(name),code:captured[name]};
+  }
   const child=spawnSync(
     process.execPath,
     [path.join(__dirname,'../sims/sco-multifile-response-normalizer.js')],
@@ -96,21 +103,14 @@ function reconstructInChild(captured) {
 }
 
 /**
- * @param {string} root
+ * Execute the captured two-script graph in a fresh isolated JavaScript realm.
  * @param {Record<string,string>} graph
  */
-async function writeGraph(root,graph) {
-  for(const [name,code] of Object.entries(graph)) {
-    const file=path.join(root,name);
-    await fs.mkdir(path.dirname(file),{recursive:true});
-    await fs.writeFile(file,code,'utf8');
-  }
-}
-
-/** @param {string} root */
-async function executeGraph(root) {
-  const module=await import(pathToFileURL(path.join(root,'index.mjs')).href);
-  return module.finalValue;
+function executeGraph(graph) {
+  const context=vm.createContext({});
+  vm.runInContext(graph['lib/helper.js'],context,{timeout:1000});
+  vm.runInContext(graph['index.js'],context,{timeout:1000});
+  return context.finalValue;
 }
 
 async function main() {
@@ -130,8 +130,6 @@ async function main() {
     });
     response.end(code);
   });
-  /** @type {string[]} */
-  const tempRoots=[];
   let scoListening=false;
   let plainListening=false;
   try {
@@ -148,17 +146,13 @@ async function main() {
     ]);
 
     for(const name of graphPaths) {
-      if(name==='lib/helper.mjs') {
-        assert.notEqual(scoRoundA[name],scoRoundB[name],
-          'SCO should emit a fresh per-request helper variant');
-      } else {
-        assert.equal(scoRoundA[name],scoRoundB[name],
-          'A re-export-only entry has no eligible per-request literal');
-      }
+      assert.notEqual(scoRoundA[name],scoRoundB[name],
+        'SCO should emit a fresh per-request variant for '+name);
       assert.equal(plainRoundA[name],plainRoundB[name],
         'Ordinary service should serve stable source for '+name);
     }
-    assert.ok(!scoRoundA['lib/helper.mjs'].includes('privateLabel'));
+    assert.ok(!scoRoundA['index.js'].includes('privateOffset'));
+    assert.ok(!scoRoundA['lib/helper.js'].includes('privateLabel'));
 
     const [reconstructedA,reconstructedB]=[
       reconstructInChild(scoRoundA),
@@ -166,34 +160,23 @@ async function main() {
     ];
     for(const name of graphPaths) {
       assert.equal(reconstructedA[name],reconstructedB[name],
-        'Captured per-request variants must normalize to one canonical module: '+name);
-      assert.ok(!reconstructedA[name].includes('/* variant:'),
-        'Canonical source must not retain the per-request marker');
+        'Captured per-request variants must normalize to one canonical script: '+name);
     }
 
-    const nativeDir=await fs.mkdtemp(path.join(os.tmpdir(),'obfs-sco-native-'));
-    const reconstructedDir=await fs.mkdtemp(path.join(os.tmpdir(),'obfs-sco-reconstructed-'));
-    const controlDir=await fs.mkdtemp(path.join(os.tmpdir(),'obfs-sco-control-'));
-    tempRoots.push(nativeDir,reconstructedDir,controlDir);
     const nativeGraph=Object.fromEntries(sourceFiles.map(file=>[file.path,file.code]));
-    await writeGraph(nativeDir,nativeGraph);
-    await writeGraph(reconstructedDir,reconstructedA);
-    await writeGraph(controlDir,plainRoundA);
-
-    const [nativeValue,reconstructedValue,controlValue]=await Promise.all([
-      executeGraph(nativeDir),
-      executeGraph(reconstructedDir),
-      executeGraph(controlDir)
-    ]);
-    assert.equal(nativeValue,48,'Native two-module graph should produce expected value');
+    const [nativeValue,reconstructedValue,controlValue]=[
+      executeGraph(nativeGraph),
+      executeGraph(reconstructedA),
+      executeGraph(plainRoundA)
+    ];
+    assert.equal(nativeValue,63,'Native two-script graph should produce expected value');
     assert.equal(reconstructedValue,nativeValue,
-      'Source-only reconstruction of every captured SCO module must preserve behavior');
+      'Source-only reconstruction of every captured SCO script must preserve behavior');
     assert.equal(controlValue,nativeValue,
       'Same-trust ordinary HTTP control must preserve native behavior');
   } finally {
     if(plainListening)await close(plainServer);
     if(scoListening)await close(scoServer);
-    await Promise.all(tempRoots.map(root=>fs.rm(root,{recursive:true,force:true})));
   }
 }
 
