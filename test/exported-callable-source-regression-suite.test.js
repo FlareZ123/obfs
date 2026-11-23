@@ -14,3 +14,4 @@ require('./array-owner-interfile.test.js');
 require('./imported-constant-computed-key.test.js');
 require('./owned-constant-key-sample.test.js');
 require('./primitive-coercer-sample.test.js');
+require('./imported-constant-key-fuzz.test.js');
