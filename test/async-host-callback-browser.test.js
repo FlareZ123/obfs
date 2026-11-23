@@ -104,7 +104,7 @@ test('Chromium host callback through Promise and object holder retains ESM obser
           '--disable-dev-shm-usage','--no-first-run','--virtual-time-budget=15000',
           '--dump-dom','http://127.0.0.1:'+address.port+'/'+folder+'/index.html'
         ],{timeout:45000,maxBuffer:4*1024*1024,encoding:'utf8'});
-        const encoded=stdout.match(/<pre id="result">([A-Za-z0-9+/=]+)<\\/pre>/u)?.[1];
+        const encoded=stdout.match(new RegExp('<pre id="result">([A-Za-z0-9+/=]+)</pre>','u'))?.[1];
         assert.ok(encoded,'Chromium '+folder+' emitted no result: '+stdout.slice(-1800));
         results.push(JSON.parse(Buffer.from(encoded,'base64').toString('utf8')));
       }
