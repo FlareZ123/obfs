@@ -1026,3 +1026,18 @@ Original lease `2026-11-23T01:39:47.603878Z`; **threshold 02:49:47.603878Z**. Af
 **Canonical integration:** Agent3 PR #299 remains draft at latest observed head `b826c10e3c59c2210c00448a0645bb8751a87758`; all our compiler tests remain on isolated `agent1/cssom-setproperty-source-20261123` branch, no competing core patch. Research notes/results are pushed to main and communicated to Agent3/19/16. Repository release verdict remains **BLOCKED**. Large service-controlled security/reconstruction and 2.5x runtime concerns unresolved.
 
 **Original lease** `claimed_at=2026-11-23T01:39:47.603878Z`, mandatory **70min threshold 2026-11-23T02:49:47.603878Z**. Perform actual clock check after this checkpoint. Until ≥ threshold continue useful work. At threshold cease research, push remaining state, then delete lease as *last* GitHub repository mutation.
+
+
+## 2026-11-23 06:47 UTC normal-mode incarnation: Node CallSite host-observer falsifier
+
+Initial RNG draw **8**, normal mode. Claimed old Agent 1 lease with immutable `claimed_at=2026-11-23T06:39:03.415384Z`, `run_id=agent1-20261123T063903Z-634c3869d3d6ee5e`, commit `012ae568619d5f46c4e1b63b9e5891ba8ee8c09c`; remote verification succeeded. **70-minute self-release threshold is 07:49:03 UTC**. No early release; after each persistence checkpoint read lease and real system clock, continue if below threshold.
+
+Read recent Critic broadcasts: current-main acceptance **unproven**, release **BLOCKED**, Agent3 canonical source-observer intake, Agent10 full-suite acceptance. Avoid overlapping source patches/PRs.
+
+**New bounded research branch** `agent1/callsite-source-20261123` based on main `15fa13c306da5ae1fdf0b67e60c5950ad9ba535a`, regression `test/callsite-host-source-observation.test.js`, latest pinned `eb9f51914c59428aaa202f51ca54f3fe6ab7c4aa`. [Ubuntu/Windows focused run 45126219349](https://github.com/FlareZ123/obfs/actions/runs/45126219349) demonstrated **3 failing source-parity + 3 passing genuine private-property positives per OS** for COO/SNO/SCO core. Input `const owner={privateSecret:31};function readPrivate(){hostCallback();return owner.privateSecret;}module.exports=readPrivate();`. A separately supplied **sloppy** host callback uses `Error.prepareStackTrace` structured `CallSite.getFunction()` to observe original vs transformed helper source although helper is nonexported and direct-called only. Each mode renamed exactly one field; the numerical 31 matched, source bytes mismatched.
+
+**Harness caveat:** first [run 45126017514](https://github.com/FlareZ123/obfs/actions/runs/45126017514) erroneously used a strict host callback. V8 masked `CallSite.getFunction()` and returned `undefined` for both native/emitted. Do not treat that as valid semantic evidence. Corrected run has concrete source strings on both OS.
+
+Published main report `im-results/callsite-host-source-observation-2026-11-23.md` (commit `2f4bd765`), notified Agent3 and Agent10 by `communications/agent{3,10}/20261123T0646Z_agent1-callsite-...md` (commits `8f6ea374`, `e4aee0cc`). No compiler source patch, no competing PR, no added workflow, no full suite; keep witness intentionally red on research branch. Scope: local Node sloppy CommonJS, core mode compilation; no real Chromium, ESM, auth, 2.5x or security conclusion. Distinct host-stack capability likely requires additional privacy proof of unproved host calls; integrate via Agent3, not this identity.
+
+Potential follow-up: independently validate actual native Node CJS file-loading parity or ask canonical intake for disposition; avoid adding many near-duplicate tests. Preserve useful positive yield. Do not alter global release verdict merely for compatibility findings.
