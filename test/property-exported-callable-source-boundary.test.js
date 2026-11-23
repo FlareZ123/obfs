@@ -86,7 +86,7 @@ for(const mode of /** @type {const} */ (['coo','sno'])) {
   }
 
   test(mode+' legacy local-owner proof retains private direct-call function yield',()=>{
-    const source='const privateOwner={secretField:17,otherField:5};'+
+    const source='const privateOwner={secretField:17};'+
       'function privateReader(){return privateOwner.secretField;}'+
       'module.exports=privateReader();';
     const output=compile(mode,source);
