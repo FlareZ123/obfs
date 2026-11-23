@@ -7,7 +7,8 @@ const {obfuscateFiles}=require('../src/core');
 const original=[
   'const owner={secretAlpha:23};',
   'const read=(incoming)=>{const value=incoming.secretAlpha;return value;};',
-  'module.exports=function calculate(x){return read(owner)+((x*17)&255);};'
+  'const privateCalculate=(x)=>read(owner)+((x*17)&255);',
+  'module.exports=function calculate(x){return privateCalculate(x);};'
 ].join('\n');
 
 /** @param {string} code @returns {(value:number)=>number} */
@@ -56,6 +57,9 @@ function run(){
   assert.equal(compiled.metrics.properties,1);
   const native=load(original);
   const protectedFn=load(/** @type {string} */ (compiled.code));
+  assert.equal(Function.prototype.toString.call(protectedFn),
+    Function.prototype.toString.call(native),
+    'Public callable must retain native source under private field lowering');
   for(let i=-1024;i<=1024;i++){
     assert.equal(protectedFn(i),native(i),'Held-out native generated parity at '+i);
   }
