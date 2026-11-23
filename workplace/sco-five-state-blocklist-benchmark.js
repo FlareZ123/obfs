@@ -1,8 +1,7 @@
 'use strict';
 
-// Exploratory memory-optimized alternative to the active Uint32 candidate-ID
-// list. Each 32-candidate block stores compact one-byte (local-ID,state)
-// entries; a sorted active-block list lets filtering skip empty blocks.
+// Exploratory block-size tradeoff benchmark. Each block stores compact
+// (local-ID,state) entries; a sorted active-block list skips empty blocks.
 
 const assert=require('node:assert/strict');
 const {performance}=require('node:perf_hooks');
@@ -11,10 +10,11 @@ const {FIVE_STATE_MODEL_COUNT,generateCanonicalTransitions}=
 const {makeIndependentMachine}=require('../sims/sco-sync-independent-distribution');
 const {observableStateClasses}=require('../sims/sco-mealy-refinement');
 
-const BLOCK_SIZE=32;
-const BLOCK_COUNT=Math.ceil(FIVE_STATE_MODEL_COUNT/BLOCK_SIZE);
-
-function createWorkspace(){
+function createWorkspace(blockSize){
+  const localBits=Math.log2(blockSize);
+  const countBits=localBits+1;
+  const countMask=(1<<countBits)-1;
+  const blockCount=Math.ceil(FIVE_STATE_MODEL_COUNT/blockSize);
   const started=performance.now();
   const ranges=[];
   let offset=0;
@@ -30,18 +30,20 @@ function createWorkspace(){
     offset+=count;
   }
   assert.equal(offset,FIVE_STATE_MODEL_COUNT);
-  const entries=new Uint8Array(offset);
-  const activeBlocks=new Uint32Array(BLOCK_COUNT);
+  const EntryArray=localBits+3<=8?Uint8Array:Uint16Array;
+  const entries=new EntryArray(offset);
+  const activeBlocks=new Uint32Array(blockCount);
   function reset(){
-    for(let id=0;id<offset;id++)entries[id]=id&31;
-    for(let block=0;block<BLOCK_COUNT;block++){
-      const count=Math.min(BLOCK_SIZE,offset-block*BLOCK_SIZE);
-      activeBlocks[block]=(block<<6)|count;
+    for(let id=0;id<offset;id++)entries[id]=id&(blockSize-1);
+    for(let block=0;block<blockCount;block++){
+      const count=Math.min(blockSize,offset-block*blockSize);
+      activeBlocks[block]=(block<<countBits)|count;
     }
   }
   reset();
   return {
-    entries,activeBlocks,ranges,blockCount:BLOCK_COUNT,modelCount:offset,reset,
+    entries,activeBlocks,ranges,blockSize,localBits,countBits,countMask,
+    blockCount,modelCount:offset,reset,
     initializationMs:Number((performance.now()-started).toFixed(3)),
     candidateBytes:entries.byteLength+activeBlocks.byteLength
   };
@@ -108,7 +110,7 @@ function decodeCandidate(value){
 async function learn(api,workspace,maxQueries=128){
   workspace.reset();
   const started=performance.now();
-  const {entries,activeBlocks,ranges}=workspace;
+  const {entries,activeBlocks,ranges,blockSize,localBits,countBits,countMask}=workspace;
   let activeBlockCount=workspace.blockCount;
   let count=workspace.modelCount;
   let queries=0,scanWork=0,equivalenceChecks=0,productPairs=0;
@@ -117,13 +119,13 @@ async function learn(api,workspace,maxQueries=128){
     let ones0=0,ones1=0,rangeIndex=0;
     for(let blockIndex=0;blockIndex<activeBlockCount;blockIndex++){
       const packed=activeBlocks[blockIndex];
-      const block=packed>>>6;
-      const blockEntries=packed&63;
-      const base=block*BLOCK_SIZE;
+      const block=packed>>>countBits;
+      const blockEntries=packed&countMask;
+      const base=block*blockSize;
       for(let position=0;position<blockEntries;position++){
         const entry=entries[base+position];
-        const localId=entry&31;
-        const state=entry>>>5;
+        const localId=entry&(blockSize-1);
+        const state=entry>>>localBits;
         const id=base+localId;
         while(id>=ranges[rangeIndex].end)rangeIndex++;
         const range=ranges[rangeIndex];
@@ -138,26 +140,26 @@ async function learn(api,workspace,maxQueries=128){
     let symbol=split0>=split1?0:1;
     if(Math.max(split0,split1)===0){
       const firstBlock=activeBlocks[0];
-      const block=firstBlock>>>6;
-      const firstEntry=entries[block*BLOCK_SIZE];
-      const referenceId=block*BLOCK_SIZE+(firstEntry&31);
-      const reference=descriptor(referenceId,firstEntry>>>5,ranges);
+      const block=firstBlock>>>countBits;
+      const firstEntry=entries[block*blockSize];
+      const referenceId=block*blockSize+(firstEntry&(blockSize-1));
+      const reference=descriptor(referenceId,firstEntry>>>localBits,ranges);
       let witness=null;
       const metrics={productPairs:0};
       rangeIndex=0;
       for(let blockIndex=0;blockIndex<activeBlockCount&&witness===null;blockIndex++){
         const packed=activeBlocks[blockIndex];
-        const activeBlock=packed>>>6;
-        const blockEntries=packed&63;
-        const base=activeBlock*BLOCK_SIZE;
+        const activeBlock=packed>>>countBits;
+        const blockEntries=packed&countMask;
+        const base=activeBlock*blockSize;
         for(let position=0;position<blockEntries;position++){
           const entry=entries[base+position];
-          const id=base+(entry&31);
+          const id=base+(entry&(blockSize-1));
           if(id===referenceId)continue;
           while(id>=ranges[rangeIndex].end)rangeIndex++;
           equivalenceChecks++;
           witness=firstDistinguishingSymbol(
-            reference,descriptor(id,entry>>>5,ranges),metrics);
+            reference,descriptor(id,entry>>>localBits,ranges),metrics);
           if(witness!==null)break;
         }
       }
@@ -177,14 +179,14 @@ async function learn(api,workspace,maxQueries=128){
     rangeIndex=0;
     for(let blockIndex=0;blockIndex<activeBlockCount;blockIndex++){
       const packed=activeBlocks[blockIndex];
-      const block=packed>>>6;
-      const blockEntries=packed&63;
-      const base=block*BLOCK_SIZE;
+      const block=packed>>>countBits;
+      const blockEntries=packed&countMask;
+      const base=block*blockSize;
       let write=0;
       for(let read=0;read<blockEntries;read++){
         const entry=entries[base+read];
-        const localId=entry&31;
-        const state=entry>>>5;
+        const localId=entry&(blockSize-1);
+        const state=entry>>>localBits;
         const id=base+localId;
         while(id>=ranges[rangeIndex].end)rangeIndex++;
         const range=ranges[rangeIndex];
@@ -193,11 +195,11 @@ async function learn(api,workspace,maxQueries=128){
         if(((outputMask>>>pair)&1)===observed){
           const graphIndex=(id-range.start)>>>range.outputBits;
           const nextState=range.transitions[graphIndex*2*range.states+pair];
-          entries[base+write++]=localId|(nextState<<5);
+          entries[base+write++]=localId|(nextState<<localBits);
         }
       }
       if(write>0){
-        activeBlocks[writeBlocks++]=(block<<6)|write;
+        activeBlocks[writeBlocks++]=(block<<countBits)|write;
         kept+=write;
       }
     }
@@ -257,7 +259,6 @@ function equivalentFromStates(left,right){
 }
 
 async function main(){
-  const workspace=createWorkspace();
   const fixtures=[
     {name:'random-five',model:makeIndependentMachine(0x42f5a7c9,5)},
     {name:'delayed-five',model:{
@@ -266,8 +267,11 @@ async function main(){
     }},
     {name:'padded-four',model:makeIndependentMachine(0x1f3a995b,4)}
   ];
-  const records=[];
-  for(let index=0;index<fixtures.length;index++){
+  const allRecords=[];
+  for(const blockSize of [32,8192]){
+    const workspace=createWorkspace(blockSize);
+    const records=[];
+    for(let index=0;index<fixtures.length;index++){
     const fixture=fixtures[index];
     let privateState=0;
     const result=await learn({
@@ -283,21 +287,21 @@ async function main(){
     for(const word of heldoutWords((0x7123abc1+Math.imul(index,10309))>>>0,128)){
       assert.deepEqual(traceFrom(result.clone,word),traceFrom(hidden,word));
     }
-    records.push({
-      name:fixture.name,queries:result.queries,remaining:result.remaining,
-      scanWork:result.scanWork,equivalenceChecks:result.equivalenceChecks,
-      productPairs:result.productPairs,learnerMs:result.elapsedMs
+      records.push({
+        name:fixture.name,queries:result.queries,remaining:result.remaining,
+        scanWork:result.scanWork,equivalenceChecks:result.equivalenceChecks,
+        productPairs:result.productPairs,learnerMs:result.elapsedMs
+      });
+    }
+    allRecords.push({
+      representation:'block-packed active list',models:workspace.modelCount,
+      blockSize,entryType:workspace.entries.constructor.name,blockCount:workspace.blockCount,
+      entryBytes:workspace.entries.byteLength,activeBlockListBytes:workspace.activeBlocks.byteLength,
+      candidateBytes:workspace.candidateBytes,workspaceInitializationMs:workspace.initializationMs,
+      heldoutSequences:fixtures.length*128,records
     });
   }
-  process.stdout.write(JSON.stringify({
-    representation:'Uint8Array block entries + Uint32Array active-block list',
-    models:workspace.modelCount,blockSize:BLOCK_SIZE,blockCount:BLOCK_COUNT,
-    entryBytes:workspace.entries.byteLength,
-    activeBlockListBytes:workspace.activeBlocks.byteLength,
-    candidateBytes:workspace.candidateBytes,
-    workspaceInitializationMs:workspace.initializationMs,
-    heldoutSequences:fixtures.length*128,records
-  })+'\n');
+  process.stdout.write(JSON.stringify(allRecords)+'\n');
 }
 
 main().catch(error=>{process.stderr.write(String(error.stack||error)+'\n');process.exitCode=1;});
