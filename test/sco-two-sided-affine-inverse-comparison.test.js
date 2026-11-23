@@ -19,6 +19,11 @@ test('live 529-query SCO and minified ordinary private API: offline inverse of t
   assert.equal(report.matchedTargets,16);
   assert.ok(report.scoOfflineLocalEvaluations>0);
   assert.equal(report.scoOfflineLocalEvaluations,report.ordinaryOfflineLocalEvaluations);
+  assert.equal(report.fastScoLocalEvaluations,16);
+  assert.equal(report.fastOrdinaryLocalEvaluations,16);
+  assert.equal(report.fastScoLinearSystems,report.fastOrdinaryLinearSystems);
+  assert.ok(report.scoOfflineLocalEvaluations>report.fastScoLocalEvaluations,
+    'Algebraic polar transport must avoid repeated clone evaluations');
   assert.ok(report.publishedBytes<report.originalBytes,
     'Selected private function body must be withheld by SCO facade');
   console.log('SCO_TWO_SIDED_AFFINE_COEFFICIENT_INVERSE '+JSON.stringify(report));
