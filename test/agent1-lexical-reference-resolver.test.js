@@ -32,7 +32,7 @@ const fixtures=[
   {name:'window',source:'function f() { eval("var window = local"); window.onerror = handler; }',sourceType:'script',expected:['unknown']},
   {name:'window',source:'function outer() { eval("var window = local"); return function inner() { window.onerror = handler; }; }',sourceType:'script',expected:['unknown']},
   {name:'window',source:'function outer() { function sibling() { eval("var window = local"); } return function inner() { window.onerror = handler; }; }',sourceType:'script',expected:['free-host-candidate']},
-  {name:'window',source:'function f(eval) { eval("var window = local"); window.onerror = handler; }',sourceType:'script',expected:['free-host-candidate']},
+  {name:'window',source:'function f(eval) { eval("var window = local"); window.onerror = handler; }',sourceType:'script',expected:['unknown']},
   {name:'window',source:'var window; window.onerror = handler;',sourceType:'script',expected:['unknown']},
   {name:'window',source:'export {}; var window; window.onerror = handler;',sourceType:'module',expected:['local']},
   {name:'window',source:'const f=(window)=>()=>window; window.onerror=handler;',sourceType:'module',expected:['local','free-host-candidate']},
@@ -52,7 +52,8 @@ const fixtures=[
   {name:'window',source:'export {}; function f(value=window){var window="body";return window;}',sourceType:'module',expected:['free-host-candidate','local']},
   {name:'window',source:'export {}; function f(value=window){function window(){} return value;}',sourceType:'module',expected:['free-host-candidate']},
   {name:'window',source:'export {}; const f=(value=window)=>{var window="body";return value;};',sourceType:'module',expected:['free-host-candidate']},
-  {name:'window',source:'export {}; function f(value=window){eval("var window = 1");return value;}',sourceType:'module',expected:['free-host-candidate']}
+  {name:'window',source:'export {}; function f(value=window){eval("var window = 1");return value;}',sourceType:'module',expected:['free-host-candidate']},
+  {name:'window',source:'function outer(eval){eval("var window=1");return function inner(){return window;};}',sourceType:'script',expected:['unknown']}
 ];
 
 test('bounded Acorn lexical-root identity and dynamic-scope candidates',()=>{
@@ -67,7 +68,7 @@ test('bounded Acorn lexical-root identity and dynamic-scope candidates',()=>{
     assert.deepEqual(refs.map(reference=>reference.resolution.kind),fixture.expected,fixture.source);
     assert.equal(new Set(refs.map(reference=>reference.start)).size,refs.length,fixture.source);
   }
-  assert.equal(fixtures.length,39);
+  assert.equal(fixtures.length,40);
 });
 
 test('distinct lexical declarations retain separate binding identities',()=>{
@@ -166,4 +167,19 @@ test('non-simple parameter and body var conflict refuses independent identity',(
   const references=result.references.filter(r=>r.name==='window');
   assert.equal(references.length,1);
   assert.deepEqual(references.map(r=>r.resolution.kind),['unknown']);
+});
+
+
+test('shadowed direct eval can still execute the intrinsic and introduce a binding',()=>{
+  const execute=new Function(
+    'function f(eval){eval("var window=37");return window;}return f(eval);'
+  );
+  assert.equal(execute(),37);
+  const code='function f(eval){eval("var window=37");return window;}';
+  const ast=acorn.parse(code,{ecmaVersion:'latest',sourceType:'script'});
+  const refs=resolveLexicalReferences(ast,'script').references.filter(r=>r.name==='window');
+  assert.equal(refs.length,1);
+  assert.equal(refs[0].resolution.kind,'unknown');
+  if(refs[0].resolution.kind==='unknown')
+    assert.equal(refs[0].resolution.reason,'direct-eval-in-lexical-ancestor');
 });
