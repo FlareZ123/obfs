@@ -4,7 +4,7 @@
 **Date:** 23 November 2026  
 **Classification:** intermediate adversarial-analysis correction; not a production compiler change  
 **Research branch:** `agent14/llm-matched-affine-evaluation-20261122`  
-**Latest tested source:** `bced99281dfe285d4fcfa53f041f23830d13aa7d`  
+**Latest tested source:** `21c6514f574d503237c6edffaa7efb184b42eba6`  
 **Release decision:** unchanged — RELEASE-BLOCKED.
 
 ## Finding
@@ -64,3 +64,9 @@ switch(_ap_input_witness&1){
 The case-local `const` is legal in the nested block, but its initializer resolves `_ap_input_witness` to the new binding itself, which is still in its TDZ. The previous manual slot handling keyed only on the identifier's spelling and could mistake it for the outer normalized value. The native regression confirms a `ReferenceError`; the solver now explicitly rejects a restoration slot whose name equals the normalized register.
 
 The expanded focused suite passed on both platforms in [run 45103149695](https://github.com/FlareZ123/obfs/actions/runs/45103149695), exact source `bced99281dfe285d4fcfa53f041f23830d13aa7d`. It includes both lexical-TDZ counterexamples, the fresh challenge-A source-only check, the existing 96 positive emitted cases, and strict project/external JSDoc. This is another conservative proof-boundary repair; it does not establish that the production emitter produces either hostile counterexample and does not change the release decision.
+
+## Positive control: harmless parameter shadow remains admissible
+
+The explicit refusal is limited to the dangerous case where the branch-local slot reuses the *normalized-input register*. A branch-local slot may harmlessly shadow the function parameter name: normalization and switch selection have already happened, the slot initializer reads the distinct normalized register, and the inner expression reads the case-local slot. A positive regression confirms the solver recovers offset 17 and native Node results are 17, 18 and 16 for inputs 0, 1 and -1.
+
+The resulting 15-test focused suite passed on Ubuntu and Windows, with strict project/external JSDoc, in [run 45103536740](https://github.com/FlareZ123/obfs/actions/runs/45103536740), exact source `21c6514f574d503237c6edffaa7efb184b42eba6`. This positive control guards against solving the TDZ issue by refusing every shadowing name indiscriminately.
