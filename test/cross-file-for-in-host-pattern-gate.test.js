@@ -123,3 +123,26 @@ test('for-in string key followed by object destructuring remains an unknown host
   assert.equal(output.crossFile.properties,0,
     'A simple ForIn key remains a String wrapper source for later destructuring');
 });
+
+
+test('simple ForIn identifier without destructuring preserves safe cross-file rewrite yield',async()=>{
+  /** @type {ModuleFile[]} */
+  const files=[
+    {path:'state.mjs',sourceType:'module',
+      code:'export const state={secretField:53};'},
+    {path:'main.mjs',sourceType:'module',code:[
+      'import {state} from "./state.mjs";',
+      'for(const key in ["x"]){void key;}',
+      'console.log(state.secretField);'
+    ].join('\n')}
+  ];
+  const native=await executeWithPreloader(files);
+  assert.equal(native,'53\n');
+  const output=obfuscateFiles(files,{
+    mode:'coo',closedWorld:true,seed:'for-in-simple-key-positive-control',
+    strings:false,identifiers:false,properties:true
+  });
+  assert.equal(output.crossFile.properties,1,
+    'A plain ForIn identifier is only a string key; do not discard unrelated private rewrite yield');
+  assert.equal(await executeWithPreloader(output.files),native);
+});
