@@ -100,6 +100,7 @@ test('60 source-paired TypeScript switch discriminant / CaseBlock references',()
     assert.ok(ref&&ref.name==='window',cases[i].label+': missing Acorn ref');
     assert.ok(name,cases[i].label+': missing TypeScript identifier');
     const declarations=checker.getSymbolAtLocation(name)?.declarations??[];
+    /** @type {'local'|'free-host-candidate'} */
     const expected=declarations.some((/** @type {import('typescript').Declaration} */ declaration)=>
       declaration.getSourceFile()===sf)?'local':'free-host-candidate';
     assert.equal(ref.resolution.kind,expected,
