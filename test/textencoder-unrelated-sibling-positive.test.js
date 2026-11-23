@@ -27,3 +27,22 @@ for(const includeSibling of [false,true]) {
       'Unrelated user .encode method must not be treated as TextEncoder source coercion');
   });
 }
+
+for(const kind of ['directMutation','aliasedMutation']) {
+  test('mutable sibling receiver must keep function source bytes: '+kind,()=>{
+    const change=kind==='directMutation'?
+      'group.safe=new TextEncoder();':
+      'const handle=group;handle.safe=new TextEncoder();';
+    const source='const group={native:new TextEncoder(),'+
+      'safe:{encode(value){return value;}}};'+change+
+      'function observed(){return "mutation-source-sensitive-literal";}'+
+      'module.exports=Array.from(group.safe.encode(observed));';
+    const output=obfuscateFiles(
+      [{path:'mutable.cjs',sourceType:'commonjs',code:source}],
+      {mode:'coo',seed:'mutated-encoder-sibling/'+kind,
+       strings:true,identifiers:false,properties:false}).files[0];
+    assert.equal(execute(String(output.code)),execute(source),
+      'Inline or alias mutation makes the native encoder source observer reachable');
+    assert.equal(output.metrics.literals,0);
+  });
+}
