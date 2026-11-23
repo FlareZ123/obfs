@@ -203,6 +203,19 @@ test('affine-graph inversion survives hidden two-sided affine wrappers with a si
     wrappedOracleNumber,wrappedOracleNumber(secrets[0]),0x51515151,1,true
   ),/No successful reanchored inversion/);
 
+  // Random reanchoring is a stronger baseline than the canonical anchor:
+  // this sparse source admits successful random anchors for some seeds,
+  // but not all fixed four-anchor streams.
+  const randomReanchor=invertByReanchoring(
+    wrappedOracleNumber,wrappedOracleNumber(secrets[0]),0x12345678,4,false
+  );
+  assert.equal(randomReanchor.value,secrets[0]>>>0);
+  assert.equal(randomReanchor.basesTried,3);
+  assert.ok(randomReanchor.queries<=110);
+  assert.throws(()=>invertByReanchoring(
+    wrappedOracleNumber,wrappedOracleNumber(secrets[0]),0x51515151,4,false
+  ),/No successful reanchored inversion/);
+
   const exactCloneQueries=binomialSum(32,5);
   assert.equal(exactCloneQueries,242825);
   assert.ok(totalGraphQueries<exactCloneQueries);
@@ -212,6 +225,12 @@ test('affine-graph inversion survives hidden two-sided affine wrappers with a si
     affineFlag:true,
     targets:receipts.length,receipts,totalGraphQueries,exactCloneQueries,
     canonicalAnchorReanchor:'rank-deficient',
+    randomReanchorSuccess:{
+      queries:randomReanchor.queries,
+      basesTried:randomReanchor.basesTried,
+      corrections:randomReanchor.corrections
+    },
+    randomReanchorFailureSeed:'0x51515151',
     allTargetsRecovered:true
   })+'\\n');
 });
