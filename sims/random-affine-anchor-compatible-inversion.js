@@ -11,6 +11,21 @@ const {
 }=require('./compatible-permutation-linear-sandwich-blackbox');
 
 /**
+ * Refuse non-uint32 oracle words instead of silently converting them
+ * with a bitwise operator. A truncated target could otherwise appear
+ * inverted even though the original value has no 32-bit preimage.
+ * @param {number} value
+ * @param {string} label
+ * @returns {number}
+ */
+function requireUint32(value,label) {
+  if(!Number.isInteger(value)||value<0||value>0xffffffff) {
+    throw new RangeError(label+' must be an unsigned 32-bit integer');
+  }
+  return value;
+}
+
+/**
  * Query-only exact inversion attempt for two-sided wrapped compatible
  * permutations. Instead of assuming the canonical 0/basis probes are
  * clean, try a succession of public, independently seeded affine bases.
@@ -33,6 +48,7 @@ function invertByReanchoring(oracle,target,randomSeed,maxBases=4,initialZero=tru
   if(!Number.isSafeInteger(maxBases)||maxBases<1||maxBases>16) {
     throw new RangeError('maxBases must be 1..16');
   }
+  requireUint32(target,'target');
   const draw=typeof randomSeed==='function'?randomSeed:makeRng(randomSeed);
   /** @type {Map<number,number>} */
   const seen=new Map();
@@ -41,14 +57,14 @@ function invertByReanchoring(oracle,target,randomSeed,maxBases=4,initialZero=tru
     const key=input>>>0;
     const previous=seen.get(key);
     if(previous!==undefined)return previous;
-    const value=oracle(key)>>>0;
+    const value=requireUint32(oracle(key),'oracle result');
     seen.set(key,value);
     return value;
   };
   /** @type {Array<{anchor:number,reason:string,queries:number}>} */
   const failedBases=[];
   for(let basis=0;basis<maxBases;basis++) {
-    const anchor=basis===0&&initialZero?0:draw();
+    const anchor=requireUint32(basis===0&&initialZero?0:draw(),'anchor');
     const base=query(anchor);
     const columns=Array.from({length:32},(_,bit)=>
       u32(query(u32(anchor^(2**bit)))^base));
@@ -60,7 +76,7 @@ function invertByReanchoring(oracle,target,randomSeed,maxBases=4,initialZero=tru
     let candidate=u32(anchor^solve(u32(target^base)));
     for(let correction=0;correction<32;correction++) {
       const observed=query(candidate);
-      if(observed===(target>>>0)) {
+      if(observed===target) {
         return {value:candidate,queries:seen.size,
           basesTried:basis+1,corrections:correction,anchor,failedBases};
       }
