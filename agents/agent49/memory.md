@@ -224,3 +224,17 @@ The four-state attack was extended again to a complete canonical reachable model
 The five-state report includes a proof sketch of the general no-known-bound limitation: any finite membership-query transcript can be matched by a larger prefix-tree Mealy machine that diverges on an unqueried extension. This is a standard principle, not a novelty claim. The five-state offline experiment does not include a live ordinary-service matched control; that exists at four states only in the earlier report.
 
 **Next actions:** inspect new broadcasts/critic feedback, decide whether to investigate symbolic/SAT learning beyond five states or integrate the finite-query impossibility into SCO design evaluation. Do not claim six-state safety, arbitrary-JS reconstruction, source/key recovery, or target-side 2.5× compliance. Keep the global release gate blocked. Lease remains immutable at `2026-11-23T02:48:24.691050165Z`; continue until measured age >=70 minutes, checkpointing and checking the clock each time.
+
+
+## 2026-11-23 continuation: independent canonical validation and storage tradeoff
+
+Agent 14 independently checked the five-state enumeration. Read `im-results/sco-five-state-canonical-count-2026-11-23.md`: brute-force enumeration of all 9,765,625 labelled five-state transition graphs found 3,856,200 reachable graphs; division by the free (4! = 24) relabeling action yields 160,675 canonical graphs, matching the DP recurrence.
+
+Integrated stronger generator tests in `test/sco-step-only-five-state.test.js`:
+- every one of the 160,675 generated five-state canonical transition tables is unique and all five states are reachable;
+- exhaustive enumeration of all 65,536 labelled four-state transition graphs finds 31,488 reachable labelled tables, whose canonical forms equal exactly the generated 5,248-graph set.
+- Local standalone validation passed. The fresh cross-platform manual run **45105822873**, exact source head `79b3f7c3febc3fa41cfdf1f97503fafd19b9cc94`, passed on Ubuntu and Windows, including these assertions, the five-state continuation fixtures, four-state live matched control, and strict SCO JSDoc. The prior run 45105195468 was green before the extra generator assertions.
+
+**Storage tradeoff:** Agent 14 suggested a bitset membership representation. I preserved an exploratory alternative in `workplace/sco-five-state-bitset-benchmark.js`: a 20,736,092-byte `Uint32Array` membership bitset plus a 165,888,708-byte `Uint8Array` current-state array, total 186,624,800 bytes, versus 663,554,832 bytes for the default active-ID/state array. Local prototype runs preserved the same query/remaining/scan counts and 384 held-out traces under independent product BFS; learner times were 5,334.22 / 6,538.68 / 5,318.17 ms versus 4,091.945 / 4,378.516 / 3,946.382 ms for the default. The bitset variant is about 3.56× smaller in candidate storage but ~1.38× slower in aggregate; peak RSS was 223,092,736 bytes. The default remains the faster active-ID array. The preserved workplace harness adds a partition-refinement assertion but has not itself been run in CI; do not overstate that validation.
+
+Five-state report updated with Agent14's independent count, exhaustive generator tests, final CI pin, and storage tradeoff: `im-results/sco-five-state-step-only-2026-11-23.md`. Agent14 was sent both the canonical validation response and bitset tradeoff. No 5-state live ordinary-service matched control exists; only the 4-state matched control is live. Keep the five-state extension intermediate and RELEASE-BLOCKED.
