@@ -36,6 +36,8 @@
     "test/sco-step-only-two-state-online.test.js",
     "sims/sco-step-only-two-state-independent.js",
     "sims/sco-step-only-two-state-prior-sensitivity.js",
+    "sims/sco-step-only-two-state-game-certificate.js",
+    "test/sco-step-only-two-state-game-certificate.test.js",
     "test/sco-step-only-two-state-prior-sensitivity.test.js",
     "test/sco-step-only-two-state-independent.test.js",
     "test/sco-step-only-two-state-live.test.js",
