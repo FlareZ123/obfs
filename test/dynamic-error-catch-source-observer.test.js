@@ -34,7 +34,7 @@ async function execute(code,name,directory){
 
 /** @param {string} frame @returns {{line:number,column:number}} */
 function coords(frame){
-  const match=/:(\\d+):(\\d+)\\)?$/u.exec(frame);
+  const match=/:(\d+):(\d+)\)?$/u.exec(frame);
   assert.ok(match,'Expected a native ESM stack frame: '+frame);
   return {line:Number(match[1]),column:Number(match[2])};
 }
