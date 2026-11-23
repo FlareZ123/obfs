@@ -60,7 +60,16 @@
     "test/fused-arx-static-lift.test.js",
     "sims/stateful-arx-graph-fuse.js",
     "test/stateful-arx-graph-fuse.test.js",
-    "examples/stateful-arx-app/candidate/kernel.mjs"
+    "examples/stateful-arx-app/candidate/kernel.mjs",
+    "sims/stateful-arx-minifier-control.js",
+    "test/stateful-arx-minifier-control.test.js",
+    "sims/stateful-arx-wasm-build.js",
+    "sims/stateful-arx-static-clone.js",
+    "test/stateful-arx-static-clone.test.js",
+    "test/stateful-arx-wasm-artifact.test.js",
+    "sims/stateful-arx-cold-child.cjs",
+    "sims/stateful-arx-three-way-cold.js",
+    "sims/stateful-arx-three-way-warm.js"
   ],
   "exclude": [
     "node_modules"
