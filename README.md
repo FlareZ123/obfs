@@ -143,12 +143,14 @@ separate Node child process and does not load application modules or mutate
 the compiler process's module cache. Missing or different targets cause a
 prepublication refusal. A shared package positive control emits
 byte-identical output with and without the audit. Nonliteral dynamic
-imports, resolver aliases, direct `eval`/`Function`, `#imports`, opaque
-JavaScript and future emitted package scopes are refused. The audit also
+imports, resolver aliases, direct `eval`/`Function`, `#imports` and opaque JavaScript are refused. Changed or unsupported
+emitted package scopes are refused; byte-identical package.json scopes
+without imports or self-reference are allowed. The audit also
 refuses build invocations using custom loaders/preloads, symlink-preservation
 flags or nondefault Node conditions; deployment must use the same resolver
 context. Programmatically registered runtime hooks remain outside the
-comparison. This is a build-time dependency-location diagnostic, not proof
+comparison. Byte-identical package.json scopes without imports or
+self-reference are accepted, including a type: module scope for .js ESM. This is a build-time dependency-location diagnostic, not proof
 of arbitrary ESM behavior or hostile-owner integrity.
 
 **Optional SNO literal bare ESM-import audit:** `--audit-bare-esm` compares
