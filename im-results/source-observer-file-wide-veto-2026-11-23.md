@@ -58,3 +58,15 @@ This scope model must compose with the Storage dispatch finding: native `Storage
 - One small CommonJS fixture and the current Node implementation were exercised.
 - The experiment does not prove a complete callable-span algorithm, nor cover cross-file aliases, nested function source, eval-generated functions, source slices, source maps, stack traces, or browser runtime effects.
 - The test is an expected-red acceptance witness for the current architecture. After a scoped effect implementation, revise it to require preservation of `inspect` while requiring the unrelated property and local binding to be renamed.
+
+## Cross-file propagation
+
+A second witness, `test/cross-file-source-observer-unrelated-private-yield.test.js`, checks the boundary across three ESM modules:
+
+- `util.mjs` defines exported `inspect`, whose source includes `privateState.secretField`.
+- `entry.mjs` imports `inspect` and `state`; the observed variant adds `inspect.toString()`.
+- `state.mjs` exports an unrelated record whose `unrelatedPrivate` property is read by entry outside the observed callable.
+
+Without the observer, the cross-file property is renamed. With the observer, the unrelated property spelling remains in `state.mjs`, even though it does not occur in `inspect`'s source. The observed callable's source and program output remain stable. Focused validation run **45185597107** passed on Ubuntu and Windows, including strict project and external JSDoc.
+
+This shows that the conservative source-observation effect can suppress unrelated cross-file property yield as well as unrelated same-file property/local-binding yield. The cross-file witness covers property renaming only; it does not establish a cross-file identifier-veto result.
