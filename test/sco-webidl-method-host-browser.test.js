@@ -196,7 +196,16 @@ test('selected SCO Web IDL method admission fails closed on alias and extraction
     "const {Headers:H}=globalThis;return new H().get('bad name');",
     "const key='Headers';const H=globalThis[key];return new H().get('x-demo');",
     "const key='URLSearchParams';const {[key]:H}=globalThis;return new H().get('a');",
-    "const root=globalThis;const key='Headers';const H=root[key];return new H().get('x-demo');"
+    "const root=globalThis;const key='Headers';const H=root[key];return new H().get('x-demo');",
+    "const {...rest}=globalThis;const H=rest.Headers;return new H().get('x-demo');",
+    "const {Headers:H=0}=globalThis;return new H().get('x-demo');",
+    "const key='Headers';const {[key]:H=0}=globalThis;return new H().get('x-demo');",
+    "let H;({Headers:H}=globalThis);return new H().get('x-demo');",
+    "let H;({Headers:H=0}=globalThis);return new H().get('x-demo');",
+    "const key='Headers';let H;({[key]:H=0}=globalThis);return new H().get('x-demo');",
+    "let rest;({...rest}=globalThis);const H=rest.Headers;return new H().get('x-demo');",
+    "const root=globalThis;const {...rest}=root;const H=rest.Headers;return new H().get('x-demo');",
+    "const root=globalThis;let rest;({...rest}=root);const H=rest.Headers;return new H().get('x-demo');"
   ])assert.throws(()=>compile(body),/unproved cross-realm WebIDL constructor/,body);
   for(const name of ['Headers','URLSearchParams']){
     const shadowed='export async function privateOp('+name+'){' +
@@ -250,7 +259,10 @@ test('private SCO ESM graph applies Web IDL method admission to imported leaves'
     "return new URLSearchParams().append(Symbol('x'),'1');",
     "return new Headers().append('bad name','x');",
     "const h=new Headers();return h.get('x-demo');",
-    "const key='Headers';const H=globalThis[key];return new H().get('x-demo');"
+    "const key='Headers';const H=globalThis[key];return new H().get('x-demo');",
+    "let H;({Headers:H}=globalThis);return new H().get('x-demo');",
+    "const {...rest}=globalThis;const H=rest.Headers;return new H().get('x-demo');",
+    "const {Headers:H=0}=globalThis;return new H().get('x-demo');"
   ])assert.throws(()=>graph(body),/unproved cross-realm WebIDL constructor/,body);
   for(const name of ['Headers','URLSearchParams']){
     const body='const '+name+'=17;export function leaf(){return new '+name+'().get("x");}';
