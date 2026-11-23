@@ -211,6 +211,19 @@ async function main() {
   bodies.set('/data-property-native.mjs',dataPropertySource);
   bodies.set('/data-property-compiled.mjs',dataPropertyOutput.code);
 
+  const customAccessorSource=[
+    'const observedOwner={secretField:57};',
+    'function inspect(){return observedOwner.secretField;}',
+    'const independent={independentSecret:73};',
+    'const target=document.createElement("div");',
+    'Object.defineProperty(target,"id",{configurable:true,set(value){this._stored=value;}});',
+    'target.id=inspect;',
+    'export const observed={value:target._stored(),independent:independent.independentSecret};'
+  ].join('\n');
+  const customAccessorOutput=compile(customAccessorSource,'domstring-custom-accessor-positive');
+  bodies.set('/custom-accessor-native.mjs',customAccessorSource);
+  bodies.set('/custom-accessor-compiled.mjs',customAccessorOutput.code);
+
   const negativeLogic=[
     'const observedOwner={secretField:57};',
     'export function inspect(){return observedOwner.secretField;}',
@@ -310,6 +323,10 @@ async function main() {
     '  import("/data-property-native.mjs"),import("/data-property-compiled.mjs")]);',
     ' const dataPropertyControl={native:dn.observed,emitted:de.observed,',
     '  parity:JSON.stringify(dn.observed)===JSON.stringify(de.observed)};',
+    ' const [an,ae]=await Promise.all([',
+    '  import("/custom-accessor-native.mjs"),import("/custom-accessor-compiled.mjs")]);',
+    ' const customAccessorControl={native:an.observed,emitted:ae.observed,',
+    '  parity:JSON.stringify(an.observed)===JSON.stringify(ae.observed)};',
     ' const [cn,ce,pn,pe]=await Promise.all([',
     '  import("/native-negative/observer.mjs"),import("/compiled-negative/observer.mjs"),',
     '  import("/native-positive/observer.mjs"),import("/compiled-positive/observer.mjs")]);',
@@ -323,7 +340,7 @@ async function main() {
     '    JSON.stringify(pn.observed)===JSON.stringify(pe.observed),',
     '  negativeProperties:'+crossNegativeProperties+',',
     '  positiveProperties:'+crossPositiveProperties+'};',
-    ' document.getElementById("result").textContent=JSON.stringify({rows,dispatchRows,userland,dataPropertyControl,crossFile});',
+    ' document.getElementById("result").textContent=JSON.stringify({rows,dispatchRows,userland,dataPropertyControl,customAccessorControl,crossFile});',
     '}catch(error){document.getElementById("result").textContent=',
     ' "BROWSER_ERROR "+String(error.stack||error);}',
     '</script>'
@@ -380,13 +397,18 @@ async function main() {
       dataPropertyControl.native.value===57&&dataPropertyControl.emitted.value===57&&
       dataPropertyControl.native.independent===73&&dataPropertyControl.emitted.independent===73&&
       dataPropertyOutput.properties>=1;
+    const customAccessorControl=browser.customAccessorControl;
+    const customAccessorPositive=customAccessorControl.parity&&
+      customAccessorControl.native.value===57&&customAccessorControl.emitted.value===57&&
+      customAccessorControl.native.independent===73&&customAccessorControl.emitted.independent===73&&
+      customAccessorOutput.properties>=1;
     const summary={
-      expectedRedReproduced:allExpectedRed&&userlandPositive&&crossFileExpectedRed&&dataPropertyPositive,
+      expectedRedReproduced:allExpectedRed&&userlandPositive&&crossFileExpectedRed&&dataPropertyPositive&&customAccessorPositive,
       sinkCount:rows.length,
       sourceMismatchCount:rows.filter((/** @type {any} */ row)=>row.sourceMismatch).length,
       sourceMismatchNames:rows.filter((/** @type {any} */ row)=>row.sourceMismatch).map(
         (/** @type {any} */ row)=>row.name),
-      crossFileExpectedRed,crossFile,dispatchSummary,dataPropertyControl,
+      crossFileExpectedRed,crossFile,dispatchSummary,dataPropertyControl,customAccessorControl,
       rows,userland,
       userlandProperties:userlandOutput.properties
     };
