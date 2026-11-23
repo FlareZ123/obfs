@@ -208,4 +208,8 @@ test('rejects unsupported oracle, width, degree and budget',()=>{
   assert.throws(()=>invertBoundedDegree(F,0,8,9),/Expected forward oracle/);
   assert.throws(()=>invertBoundedDegree(F,0,8,2,0),/Expected forward oracle/);
   assert.throws(()=>invertBoundedDegree(F,0,8,2,1),/query budget/);
+  assert.throws(()=>invertBoundedDegree(F,-1,8,2),/unsigned word/);
+  assert.throws(()=>invertBoundedDegree(F,256,8,2),/unsigned word/);
+  assert.throws(()=>invertBoundedDegree(()=>-1,0,8,2),/Forward oracle must return/);
+  assert.throws(()=>invertBoundedDegree(()=>256,0,8,2),/Forward oracle must return/);
 });
