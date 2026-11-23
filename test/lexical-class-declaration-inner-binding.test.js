@@ -76,8 +76,12 @@ test('named class declaration extends and static field self-references have sepa
     const resolved=inspect(source,'commonjs');
     const refs=resolved.references.filter(ref=>ref.name==='window');
     assert.ok(refs.length>=2,source);
-    assert.equal(refs[0].resolution.kind,'unknown',source);
+    assert.equal(refs[0].resolution.kind,'local',source);
     assert.equal(refs[refs.length-1].resolution.kind,'local',source);
+    if(refs[0].resolution.kind==='local'&&
+       refs[refs.length-1].resolution.kind==='local')
+      assert.notEqual(refs[0].resolution.bindingId,
+        refs[refs.length-1].resolution.bindingId,source);
   }
 });
 
