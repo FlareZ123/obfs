@@ -58,9 +58,15 @@ programs. A further direct-reference guard refuses member/property access
 on all relative private-import bindings, including safe primitive members,
 because an imported function is a mutable object even when its exported
 binding is constant. This blocks a caller from retaining state in
-`importedFunction.counter` across browser sessions. Indirect identity
-transfers through higher-order calls, native API effects and other
-cross-module behavior still lack a general proof.
+`importedFunction.counter` across browser sessions. A source-pinned follow-up closes several identity-preserving expression
+wrappers such as `const alias=(0, importedFunction)`, conditional selection,
+and `await importedFunction`, as well as representative returns, arrow
+expression bodies, property/array values, and function-call sinks. The
+[23 November reproducible red/green record](../im-results/sco-import-expression-identity-2026-11-23.md)
+includes a real three-tree Node ESM realm-state witness and a safe direct-call
+admission control. The analysis remains syntactic: dynamic higher-order
+identity transfers, other AST sinks, native API effects and other cross-module
+behavior still lack a general proof.
 
 Source-audited static child modules also decline observable console and
 debugger effects and unproved browser-owned host reads. A browser private
