@@ -67,3 +67,19 @@ for(const mode of /** @type {const} */(['coo','sno'])) {
     assert.deepEqual(execute(String(out.code)),execute(source));
   });
 }
+
+test('ESM strict direct arrow IIFE retains two closed private field rewrites',async()=>{
+  const source='const owner={hiddenCount:41,secretDelta:2};'+
+    'export const answer=(()=>owner.hiddenCount+owner.secretDelta)();';
+  const file=obfuscateFiles([{path:'entry.mjs',sourceType:'module',code:source}],{
+    mode:'coo',seed:'module-direct-arrow-iife',
+    identifiers:false,strings:false,properties:true
+  }).files[0];
+  assert.equal(file.metrics.properties,2,String(file.code));
+  /** @param {string} code @returns {Promise<unknown>} */
+  async function observe(code){
+    const url='data:text/javascript;base64,'+Buffer.from(code,'utf8').toString('base64');
+    return (await import(url)).answer;
+  }
+  assert.equal(await observe(String(file.code)),await observe(source));
+});
