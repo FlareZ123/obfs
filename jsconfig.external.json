@@ -307,7 +307,8 @@
     "sims/bitwise-bit-slice-clone.js",
     "test/bitwise-bit-slice-clone.test.js",
     "test/bitwise-bit-slice-direct-mba.test.js",
-    "test/bitwise-bit-slice-equal-trust-control.test.js"
+    "test/bitwise-bit-slice-equal-trust-control.test.js",
+    "test/bitwise-mba-interfile-functional-clone.test.js"
   ],
   "exclude": [
     "node_modules"
