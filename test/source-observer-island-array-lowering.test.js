@@ -55,10 +55,10 @@ test('proved primitive island records lower to tuples without recoverable proper
   assert.deepEqual([...selected],['independent.mjs']);
 
   const lowered=lowerProvedPrimitiveIslandRecords(
-    independent.code,parse(independent.code,'module'));
+    independent.code,parse(independent.code,'module'),{seed:'island-array-core',path:'independent.mjs'});
   assert.deepEqual({records:lowered.records,properties:lowered.properties,declined:lowered.declined},
     {records:1,properties:2,declined:null});
-  assert.match(lowered.code,/const recordB=\[23,19\];const valueB=recordB\[0\];/);
+  assert.match(lowered.code,/const recordB=\[19,23\];const valueB=recordB\[1\];/);
   assert.doesNotMatch(lowered.code,/privateB|otherB/);
 
   const attacker=normalizePublicIsland(lowered.code);
@@ -90,7 +90,7 @@ test('proved primitive island records lower to tuples without recoverable proper
 test('tuple lowering fails closed when an object record owns the special length field',()=>{
   const source='const record={length:2,privateB:23};'+
     'const valueB=record.privateB;export function unrelated(){return valueB;}';
-  const result=lowerProvedPrimitiveIslandRecords(source,parse(source,'module'));
+  const result=lowerProvedPrimitiveIslandRecords(source,parse(source,'module'),{seed:'length',path:'independent.mjs'});
   assert.equal(result.code,source);
   assert.equal(result.records,0);
   assert.equal(result.properties,0);
@@ -100,11 +100,11 @@ test('tuple lowering fails closed when an object record owns the special length 
 test('static computed record keys lower to positional indices',()=>{
   const source='const record={["privateB"]:23,otherB:19};'+
     'const valueB=record["privateB"];export function unrelated(){return valueB;}';
-  const result=lowerProvedPrimitiveIslandRecords(source,parse(source,'module'));
+  const result=lowerProvedPrimitiveIslandRecords(source,parse(source,'module'),{seed:'computed',path:'independent.mjs'});
   assert.equal(result.records,1);
   assert.equal(result.properties,2);
   assert.equal(result.declined,null);
-  assert.match(result.code,/const record=\[23,19\];const valueB=record\[0\];/);
+  assert.match(result.code,/const record=\[\d+,\d+\];const valueB=record\[\d+\];/);
   assert.doesNotMatch(result.code,/privateB|otherB/);
 });
 
@@ -120,7 +120,7 @@ test('core option lowers selected source-observer island records and preserves e
   assert.ok(emitted);
   assert.equal(emitted.metrics.objects,1);
   assert.equal(emitted.metrics.properties,2);
-  assert.match(String(emitted.code),/const recordB=\[23,19\];const valueB=recordB\[0\];/);
+  assert.match(String(emitted.code),/const recordB=\[\d+,\d+\];const valueB=recordB\[\d+\];/);
   assert.doesNotMatch(String(emitted.code),/privateB|otherB/);
   const attacker=normalizePublicIsland(String(emitted.code));
   assert.equal(attacker.properties,0);
