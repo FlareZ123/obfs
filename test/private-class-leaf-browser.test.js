@@ -19,7 +19,8 @@ const sources={
     'const owner={secretAlpha:23,secretBeta:7};',
     'class Reader{read(){return owner.secretAlpha;}}',
     'const reader=new Reader();',
-    'export const value=reader.read()+owner.secretBeta;'
+    'const another=new Reader();',
+    'export const value=reader.read()+another.read()+owner.secretBeta;'
   ].join('\n'),
   visible:[
     'const owner={secretAlpha:23};',
@@ -116,7 +117,7 @@ test('Chromium preserves private class-leaf output, source visibility and public
       const normalized=await run(origin,name,'neutralized');
       assert.equal(emitted,native,name+': native and emitted Chrome output');
       assert.equal(normalized,native,name+': source-only attacker replay');
-      if(name==='private')assert.equal(native,30);
+      if(name==='private')assert.equal(native,53);
       else assert.match(String(native),/secretAlpha/u);
     }
     process.stdout.write('PRIVATE_CLASS_LEAF_CHROMIUM '+JSON.stringify({
