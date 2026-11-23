@@ -257,3 +257,21 @@ for(const [name,head,extra] of /** @type {ReadonlyArray<[string,string,ModuleFil
     assert.equal(compiled.crossFile.properties,0);
   });
 }
+
+test('indirect global Function constructor must not expose renamed imported owner keys',async()=>{
+  const original=sourceGraph([
+    'function observe({Function:Build}){',
+    '  const importer=Build(\'return import("./state.mjs")\');',
+    '  globalThis.HOST_OBSERVATION=importer().then(ns=>Object.keys(ns.state));',
+    '}',
+    'observe((0,globalThis));'
+  ].join('\n'));
+  const native=await execute(original);
+  assert.equal(native,'[41,1,["secretField"]]');
+  const compiled=obfuscateFiles(original,{
+    mode:'coo',closedWorld:true,seed:'ambient-root-native-constructor-formal',
+    identifiers:false,strings:false,properties:true
+  });
+  assert.equal(await execute(compiled.files),native);
+  assert.equal(compiled.crossFile.properties,0);
+});
