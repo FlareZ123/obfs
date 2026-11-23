@@ -8,7 +8,8 @@ const {
 }=require('../sims/compatible-permutation-linear-sandwich-blackbox');
 const {learnBoundedDegreeOracle,evaluateBoundedDegreeModel}=
   require('../sims/bounded-degree-oracle-functional-clone');
-const {prepareExactCubicInverter}=require('../sims/exact-cubic-compatible-cegar');
+const {prepareExactCubicInverter,prepareExactCubicTransportInverter}=
+  require('../sims/exact-cubic-compatible-cegar');
 const {invertBoundedDegreeModelSymbolically}=
   require('../sims/bounded-degree-symbolic-affine-inverse');
 
@@ -77,6 +78,9 @@ function timed(operation){
  *  targets:number,preparationMs:number,symbolicMedianMs:number,
  *  cubicReuseMedianMs:number,cubicReuseTotalMs:number,
  *  symbolicTotalMs:number,breakEvenTargets:number|null,
+ *  transportPreparationMs:number,transportReuseMedianMs:number,
+ *  transportTotalMs:number,transportBreakEvenTargets:number|null,
+ *  transportCoefficientVectors:number,transportXors:number,
  *  allMatched:boolean,offlineContractions:number}}
  */
 function runComparison(seed){
@@ -91,39 +95,64 @@ function runComparison(seed){
     assert.equal(evaluateBoundedDegreeModel(model,secrets[i]),targets[i]);
   }
 
-  // Warm each code path, including compilation/JIT, outside the measurement.
+  // Warm all three paths, including compilation/JIT, outside timing.
   for(let i=0;i<2;i++){
-    const fast=prepareExactCubicInverter(model);
-    assert.equal(fast.invert(targets[i]),secrets[i]);
+    const existing=prepareExactCubicInverter(model);
+    const transport=prepareExactCubicTransportInverter(model);
+    assert.equal(existing.invert(targets[i]),secrets[i]);
+    assert.equal(transport.invert(targets[i]),secrets[i]);
     assert.equal(invertBoundedDegreeModelSymbolically(model,targets[i])?.input,secrets[i]);
   }
 
+  /** @type {number[]} */
   const preparatory=[];
-  for(let repeat=0;repeat<5;repeat++)preparatory.push(timed(()=>prepareExactCubicInverter(model)));
+  /** @type {number[]} */
+  const transportPreparatory=[];
+  for(let repeat=0;repeat<5;repeat++){
+    preparatory.push(timed(()=>prepareExactCubicInverter(model)));
+    transportPreparatory.push(timed(()=>prepareExactCubicTransportInverter(model)));
+  }
   const selected=prepareExactCubicInverter(model);
+  const transported=prepareExactCubicTransportInverter(model);
   assert.equal(selected.offlineContractions,5984);
+  assert.equal(transported.offlineCoefficientVectors,453376);
   /** @type {number[]} */
   const cubicTimes=[];
   /** @type {number[]} */
   const symbolicTimes=[];
-  for(let repeat=0;repeat<5;repeat++){
-    // Alternating order limits one-sided drift without promising independence.
-    for(const label of (repeat%2===0?['symbolic','reuse']:['reuse','symbolic'])){
+  /** @type {number[]} */
+  const transportTimes=[];
+  const orders=[
+    ['symbolic','reuse','transport'],
+    ['transport','reuse','symbolic'],
+    ['reuse','transport','symbolic'],
+    ['symbolic','transport','reuse'],
+    ['transport','symbolic','reuse']
+  ];
+  for(let repeat=0;repeat<orders.length;repeat++){
+    // Rotated order limits one-sided drift without implying independence.
+    for(const label of orders[repeat]){
       const took=timed(()=>{
         for(let i=0;i<targets.length;i++){
           if(label==='reuse'){
             assert.equal(selected.invert(targets[i]),secrets[i]);
+          }else if(label==='transport'){
+            assert.equal(transported.invert(targets[i]),secrets[i]);
           }else{
             assert.equal(invertBoundedDegreeModelSymbolically(model,targets[i])?.input,secrets[i]);
           }
         }
       });
-      (label==='reuse'?cubicTimes:symbolicTimes).push(took);
+      if(label==='reuse')cubicTimes.push(took);
+      else if(label==='transport')transportTimes.push(took);
+      else symbolicTimes.push(took);
     }
   }
   const prep=median(preparatory),reuse=median(cubicTimes),symbolic=median(symbolicTimes);
+  const transportPrep=median(transportPreparatory),transportReuse=median(transportTimes);
   const perReuse=reuse/targets.length,perSymbolic=symbolic/targets.length;
   const delta=perSymbolic-perReuse;
+  const fastDelta=perSymbolic-transportReuse/targets.length;
   return{
     seed,degreeThreeCoefficients:model.coefficients.filter(([mask,value])=>{
       let x=mask>>>0,n=0;
@@ -134,6 +163,12 @@ function runComparison(seed){
     preparationMs:prep,symbolicMedianMs:symbolic,cubicReuseMedianMs:reuse,
     cubicReuseTotalMs:prep+reuse,symbolicTotalMs:symbolic,
     breakEvenTargets:delta>0?Math.ceil(prep/delta):null,
+    transportPreparationMs:transportPrep,
+    transportReuseMedianMs:transportReuse,
+    transportTotalMs:transportPrep+transportReuse,
+    transportBreakEvenTargets:fastDelta>0?Math.ceil(transportPrep/fastDelta):null,
+    transportCoefficientVectors:transported.offlineCoefficientVectors,
+    transportXors:transported.tensorTransportXors,
     allMatched:true,offlineContractions:selected.offlineContractions
   };
 }
@@ -145,6 +180,10 @@ test('cubic exact-certificate inverter and existing symbolic ANF inverter agree 
     assert.equal(row.targets,24);
     assert.ok(row.degreeThreeCoefficients>0,'source family must really have degree-three monomials');
     assert.equal(row.offlineContractions,5984);
+    assert.equal(row.transportCoefficientVectors,453376);
+    assert.ok(row.transportPreparationMs>=0);
+    assert.ok(row.transportReuseMedianMs>=0);
+    assert.ok(row.transportXors>=0);
     assert.equal(row.allMatched,true);
     assert.ok(row.preparationMs>=0);
     assert.ok(row.symbolicMedianMs>=0);
