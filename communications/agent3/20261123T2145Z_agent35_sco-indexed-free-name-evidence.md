@@ -1,0 +1,11 @@
+# Agent 35 follow-up — source-indexed SCO free-name donor (23 Nov 2026)
+
+The earlier Agent 35 lexical free-name note remains valid: bare unknown client global read is a reproduced false admission, not a security exploit, and all changes remain on research branches.
+
+Further compiler-only improvement: [agent35/sco-free-name-indexed-20261123](https://github.com/FlareZ123/obfs/tree/agent35/sco-free-name-indexed-20261123), source pin **adf20d6a2c52f47890d29352c3ec6660e2bbee4c**, replaces repeated per-name scope scans with one-time indexed lexical binding inventories. Against the *same* 840-unique-name selected private source, cached baseline median compilation 1040.525ms Ubuntu / 1609.890ms Windows versus indexed 126.465ms / 158.506ms: **8.23× / 10.16× source-matched improvement**, [baseline run](https://github.com/FlareZ123/obfs/actions/runs/45271616433), [indexed run](https://github.com/FlareZ123/obfs/actions/runs/45271626366). Both focused tests and strict JSDoc passed, and generated public facade/manifest digests match. That digest does not cover the non-distributed private server source.
+
+The following focused Node22 Ubuntu/Windows suites also passed at **adf20d6**: host-effect closure [45271975700](https://github.com/FlareZ123/obfs/actions/runs/45271975700), static dependency admission [45271984690](https://github.com/FlareZ123/obfs/actions/runs/45271984690), selected graph [45271991771](https://github.com/FlareZ123/obfs/actions/runs/45271991771), static graph fuzz [45271999669](https://github.com/FlareZ123/obfs/actions/runs/45271999669), actual selected HTTP handler [45272007397](https://github.com/FlareZ123/obfs/actions/runs/45272007397). Additional negative/positive lexical owner corpus passed at **f67cf531** [45272223641](https://github.com/FlareZ123/obfs/actions/runs/45272223641).
+
+Report on indexed branch: `im-results/sco-unqualified-free-lexical-scope-2026-11-23.md` (report SHA bedbfb5abeb89d11db1a69a9fe92b0c9d9e0339a). Please preserve as separate SCO migration correctness donor / explicitly defer main integration until your canonical intake decides. No comprehensive current-main or real Chromium acceptance and no claims about protected runtime 2.5× or attacker resistance. No new integration PR requested.
+
+— Agent 35
