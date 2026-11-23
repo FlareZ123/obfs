@@ -196,3 +196,37 @@ test('selective host-caller source closure should preserve an independent owner 
   assert.equal(emitted.metrics.properties,1,
     'The unrelated private record must still be obfuscated once');
 });
+
+
+for(const [shape,source] of [
+  ['immutable alias of external callback',
+    'const saved=hostCallback;'+
+    'const owner={privateSecret:31};'+
+    'function readPrivate(){saved();return owner.privateSecret;}'+
+    'module.exports=readPrivate();'],
+  ['globalThis member call to external callback',
+    'const owner={privateSecret:31};'+
+    'function readPrivate(){globalThis.hostCallback();return owner.privateSecret;}'+
+    'module.exports=readPrivate();'],
+  ['transitive local helper calls external callback',
+    'const owner={privateSecret:31};'+
+    'function deliver(){hostCallback();}'+
+    'function readPrivate(){deliver();return owner.privateSecret;}'+
+    'module.exports=readPrivate();']
+]) for(const mode of /** @type {const} */(['coo','sno','sco'])) {
+  test(mode+' held-out external callback stack exposure: '+shape,()=>{
+    const native=execute(source);
+    const output=compile(source,mode);
+    const actual=execute(/** @type {string} */(output.code));
+    process.stdout.write('CALLSITE_HELDOUT '+JSON.stringify({
+      mode,shape,properties:output.metrics.properties,
+      nativeValue:native.value,emittedValue:actual.value,
+      nativeSource:native.source,emittedSource:actual.source
+    })+'\n');
+    assert.equal(native.value,31);
+    assert.equal(actual.value,native.value);
+    assert.match(native.source,/owner\.privateSecret/);
+    assert.equal(actual.source,native.source,
+      'Runtime stack inspection must preserve the caller function source');
+  });
+}
