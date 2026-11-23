@@ -730,92 +730,6 @@ function proveLocalObject(ast, rootName, bindings, importedIdentityFunctions=new
     if(privateValue)privateFunctionNodes.add(binding.node);
   }
 
-
-  // A class method is ordinarily a public source observer: anyone holding a
-  // class or instance can retrieve its Function#toString. Admit only this
-  // deliberately narrow private shape:
-  //   class Reader { read(){ return owner.secret; } }
-  //   const instance=new Reader();  instance.read();
-  // Every reference to the class must construct a local immutable instance;
-  // every instance reference must invoke the exact method directly. The
-  // method's body cannot return the class or method function under this grammar. Exported classes/instances, class inheritance,
-  // computed methods, additional methods, reflection and opaque calls remain
-  // refused by construction and by the existing owner-use proof.
-  // This narrow proof also requires the inert owner literal to complete
-  // initialization before the class declaration. Otherwise a class method
-  // invoked before its owner's lexical initialization can throw a TDZ
-  // ReferenceError, and host error diagnostics can observe rewritten source.
-  // Earlier declarations remain conservatively refused even when a later
-  // control-flow path would happen to invoke them only after initialization.
-  let ownerInitializationEnd=-1;
-  for(const use of identifierUses.get(rootName)??[]) {
-    if(use.parent?.type==='VariableDeclarator'&&
-       use.parent.id===use.node&&use.parent.init?.type==='ObjectExpression'){
-      ownerInitializationEnd=use.parent.init.end;
-      break;
-    }
-  }
-  // The owner-use index restricts proof work to classes that actually
-  // contain this owner. Scanning every class for every owner is quadratic.
-  const localClassUses=new Set();
-  for(const use of identifierUses.get(rootName)??[]) {
-    for(const ancestor of use.ancestors) {
-      if(ancestor.type==='ClassDeclaration')localClassUses.add(ancestor);
-    }
-  }
-  for(const cls of localClassUses) {
-    if(ownerInitializationEnd<0||cls.start<ownerInitializationEnd)continue;
-    if(parents.get(cls)!==ast || cls.superClass || cls.id?.type!=='Identifier' ||
-       bindings.get(cls.id.name)!==1 || cls.body.body.length!==1)continue;
-    const method=cls.body.body[0];
-    if(method.type!=='MethodDefinition' || method.kind!=='method' ||
-       method.static || method.computed || method.key.type!=='Identifier' ||
-       method.value?.type!=='FunctionExpression' ||
-       method.value.async || method.value.generator || method.value.params.length!==0 ||
-       method.value.body.body.length!==1)continue;
-    const returned=method.value.body.body[0];
-    const member=returned.type==='ReturnStatement' ? returned.argument : null;
-    if(member?.type!=='MemberExpression' || member.optional ||
-       member.object.type!=='Identifier' || member.object.name!==rootName ||
-       (member.computed ? staticString(member.property) : staticName(member.property))===null)
-      continue;
-    const className=cls.id.name;
-    const methodName=method.key.name;
-    let constructed=0, safe=true;
-    for(const use of identifierUses.get(className)??[]) {
-      if(use.node===cls.id)continue;
-      const construction=use.parent;
-      const variable=construction?.type==='NewExpression' &&
-        construction.callee===use.node && construction.arguments.length===0 ?
-        parents.get(construction):null;
-      const declaration=variable?.type==='VariableDeclarator' ?
-        parents.get(variable):null;
-      if(variable?.type!=='VariableDeclarator' || variable.start<cls.end ||
-         variable.init!==construction || variable.id.type!=='Identifier' ||
-         variable.id.name===rootName || bindings.get(variable.id.name)!==1 ||
-         declaration?.type!=='VariableDeclaration' || declaration.kind!=='const' ||
-         parents.get(declaration)!==ast) {
-        safe=false;
-        break;
-      }
-      constructed++;
-      for(const instanceUse of identifierUses.get(variable.id.name)??[]) {
-        if(instanceUse.node===variable.id)continue;
-        const read=instanceUse.parent;
-        const call=read?.type==='MemberExpression' ? parents.get(read) : null;
-        if(read?.type!=='MemberExpression' || read.object!==instanceUse.node ||
-           read.computed || read.optional || staticName(read.property)!==methodName ||
-           call?.type!=='CallExpression' || call.callee!==read ||
-           call.optional || call.arguments.length!==0) {
-          safe=false;
-          break;
-        }
-      }
-      if(!safe)break;
-    }
-    if(safe && constructed>0)privateFunctionNodes.add(method.value);
-  }
-
   const aliases = new Set([rootName]);
   /**
    * Return the only alias fact needed to resolve an expression. A null result
@@ -1028,54 +942,7 @@ function proveLocalObject(ast, rootName, bindings, importedIdentityFunctions=new
     // functions survive the escape analysis above and remain eligible.
     if(ancestors.some(ancestor=>
       ['FunctionDeclaration','FunctionExpression','ArrowFunctionExpression'].includes(ancestor.type)&&
-      !privateFunctionNodes.has(ancestor))) {
-      // The public wrapper can be called or inspected by an external host.
-      // Permit just an unchanged owner identifier passed to a known private,
-      // direct-call-only reader. No renamed member spelling occurs in the
-      // public wrapper's own source, and the receiving formal must already
-      // be the unique tracked owner alias. The private callable's escaping
-      // references and all its call sites were verified above.
-      const index=parent?.type==='CallExpression' ?
-        parent.arguments.indexOf(node):-1;
-      const reader=parent?.type==='CallExpression' && !parent.optional &&
-        parent.callee.type==='Identifier' ?
-        functions.get(parent.callee.name):undefined;
-      // An identity helper can forward the owner into public source:
-      // identity(owner).secretField. Accept only a syntactically primitive
-      // own-field consumer with no opaque calls or returned owner alias.
-      // Its shape is either a direct field return or a two-statement const
-      // field read followed by returning that same local binding.
-      const fn=reader?.node;
-      /** @type {AstNode|null|undefined} */
-      let returned=null;
-      if(fn && !fn.async && !fn.generator) {
-        if(fn.type==='ArrowFunctionExpression' &&
-           fn.body.type==='MemberExpression')returned=fn.body;
-        else if(fn.body.type==='BlockStatement') {
-          const stmts=fn.body.body;
-          if(stmts.length===1 && stmts[0].type==='ReturnStatement')
-            returned=stmts[0].argument;
-          if(stmts.length===2 && stmts[0].type==='VariableDeclaration' &&
-             stmts[0].kind==='const' && stmts[0].declarations.length===1 &&
-             stmts[0].declarations[0].id.type==='Identifier' &&
-             stmts[0].declarations[0].init?.type==='MemberExpression' &&
-             stmts[1].type==='ReturnStatement' &&
-             stmts[1].argument?.type==='Identifier' &&
-             stmts[1].argument.name===stmts[0].declarations[0].id.name)
-            returned=stmts[0].declarations[0].init;
-        }
-      }
-      if(index!==0 || !reader || reader.external ||
-         !privateFunctionNodes.has(reader.node) ||
-         reader.params.length!==1 ||
-         reader.params[0].type!=='Identifier' ||
-         !aliases.has(reader.params[0].name) ||
-         returned?.type!=='MemberExpression' || returned.optional ||
-         returned.object.type!=='Identifier' ||
-         returned.object.name!==reader.params[0].name ||
-         (returned.computed ? staticString(returned.property) :
-           staticName(returned.property))===null)return null;
-    }
+      !privateFunctionNodes.has(ancestor)))return null;
     const scope=scopes.get(node.name);
     if (!scope || !ancestors.includes(scope)) return null;
     if (!parent) return null;
