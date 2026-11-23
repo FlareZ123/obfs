@@ -2,11 +2,11 @@
 
 **Status:** intermediate, test-only evidence. No production compiler code changed.
 
-**Source pin:** `agent18/property-tla-reentrancy-20261123`, final commit
-`51883bc332453fc85cd1e4f9a38e39b83e1cf883` (the first three cases were also run at
-`33aaa2a20fe5a56be53effd954c7f71c81381e75`).
+**Source pin:** `agent18/property-tla-reentrancy-current-20261123`, commit
+`0710b57eebd00147ffd03c5b7d8bff05e9ed0b21`, based on main at
+`2d6bb571915ec30c7e8c7a7e185f54c984a2868f`.
 
-**Validation:** [manual-validation run 45106733028](https://github.com/FlareZ123/obfs/actions/runs/45106733028), focused test on Ubuntu and Windows with Node 22.23.4. Both platform jobs passed all six native ESM cases and strict project/external JSDoc. The earlier [five-case run 45106417122](https://github.com/FlareZ123/obfs/actions/runs/45106417122) and [three-case run 45106211373](https://github.com/FlareZ123/obfs/actions/runs/45106211373) also passed.
+**Validation:** [manual-validation run 45106926177](https://github.com/FlareZ123/obfs/actions/runs/45106926177), focused test on Ubuntu and Windows with Node 22.23.4. Both platform jobs passed all six native ESM cases and strict project/external JSDoc. The test-only change is available as [draft PR #323](https://github.com/FlareZ123/obfs/pull/323); it is mergeable and contains no production compiler changes.
 
 ## Questions tested
 
@@ -116,4 +116,4 @@ These six source-pinned cases support three bounded statements:
 This is not a general proof that all top-level-await graphs are safe, nor that every host callback, reentrant loader, external consumer, dynamic import, custom import map, or runtime observer is covered. It is Node 22 ESM evidence, not native browser evidence. It establishes no confidentiality, tamper resistance, or universal 2.5× performance bound.
 
 The reproducible test is
-`test/computed-pattern-tla-reentrancy.test.js` on the source-pinned research branch above. The tests are not yet merged into mainline's test suite; they are available for the canonical property-proof owner to cherry-pick or extend.
+`test/computed-pattern-tla-reentrancy.test.js` on the source-pinned branch and in draft PR #323. The PR is test-only and awaits review/merge by the canonical property-proof owner.
