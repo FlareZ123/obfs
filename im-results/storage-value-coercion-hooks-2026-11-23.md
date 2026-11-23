@@ -42,7 +42,7 @@ An earlier intentionally-red classification matrix, [run 45193389961](https://gi
 The five-case witness asserts:
 
 1. **Own `toString`:** native `localStorage.setItem(inspect, "value")` invokes the function's own hook, binds `this` to the function, stores the stable key, and preserves results after the emitted module rewrites private bindings.
-2. **Own `Symbol.toPrimitive`:** native `sessionStorage.setItem("storage-own-symbol", inspect)` invokes the hook with hint `"string"`, binds `this) to the function, and stores the stable value. The current compiler conservatively leaves this module unchanged.
+2. **Own `Symbol.toPrimitive`:** native `sessionStorage.setItem("storage-own-symbol", inspect)` invokes the hook with hint `"string"`, binds `this` to the function, and stores the stable value. The current compiler conservatively leaves this module unchanged.
 3. **Direct Function#toString:** `Function.prototype.toString.call(inspect)` bypasses the own hook; the function source is stored and the own-hook call count remains zero. The compiler refuses this module.
 4. **Prototype override:** a JavaScript wrapper captures the exact function object in a `WeakMap`; `sameReference` is true, the native Storage string value remains `null`, and the compiler retains unrelated private rewrite yield.
 5. **Patched Function#toString:** a patched wrapper delegates to the captured native method; native Storage conversion calls it once and stores the original function source. The compiler refuses this module.
