@@ -1,5 +1,7 @@
 'use strict';
 
+const {learnFourStateStepOnly}=require('./sco-step-only-four-state');
+
 /** @typedef {{next:number[][],output:number[][],state:number}} Candidate */
 /** @typedef {{step:(symbol:number)=>Promise<number>}} StepOnlyOracle */
 /** @typedef {{certified:boolean,queries:number,remaining:number,inputs:number[],outputs:number[],clone:Candidate|null}} LearningResult */
@@ -7,8 +9,8 @@
 /**
  * Exhaustively list binary Mealy machines with at most maxStates states.
  * Initial private state can be labeled zero without loss of generality.
- * The state-count cap is essential: at n=4 there are 16,777,216 labeled
- * machines before adding smaller classes and is impractical here.
+ * This object-based helper is limited to three states; the four-state space
+ * is represented compactly by learnFourStateStepOnly instead of 16M objects.
  *
  * @param {number} maxStates
  * @returns {Candidate[]}
@@ -106,6 +108,9 @@ function chooseSymbol(hypotheses){
  * is a fully specified deterministic binary Mealy machine of <=maxStates
  * states, with its own current state advanced after each observed response.
  *
+ * For maxStates <=3 this uses explicit object models. For maxStates ===4 it
+ * uses the compact complete 2^24-model representation. Larger bounds refuse.
+ *
  * A positive certification is a rigorous *conditional continuation* result:
  * every model within the declared size bound consistent with the entire
  * observed transcript has identical behavior from its current state for
@@ -117,6 +122,7 @@ function chooseSymbol(hypotheses){
  * @returns {Promise<LearningResult>}
  */
 async function learnBoundedStepOnly(api,maxStates=2,maxQueries=64){
+  if(maxStates===4)return learnFourStateStepOnly(api,maxQueries);
   return learnWithCandidates(api,enumerateMachines(maxStates),maxQueries);
 }
 
@@ -206,4 +212,5 @@ function createContinuationClone(model){
   };
 }
 
-module.exports={enumerateMachines,distinguish,chooseSymbol,learnBoundedStepOnly,learnWithCandidates,predictContinuation,createContinuationClone};
+module.exports={enumerateMachines,distinguish,chooseSymbol,learnBoundedStepOnly,
+  learnWithCandidates,predictContinuation,createContinuationClone};
