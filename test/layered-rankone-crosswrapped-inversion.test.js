@@ -1,7 +1,8 @@
 'use strict';
 const {test}=require('node:test');
 const assert=require('node:assert/strict');
-const {runLayeredLowRankComposition,runTinyLayeredAnfAudit}=
+const {runLayeredLowRankComposition,runTinyLayeredAnfAudit,
+  runTinyBoundedDegreeCloner}=
   require('../sims/layered-rankone-crosswrapped-inversion');
 
 test('interleaved independently mixed nonlinear rank-one layers remain bounded-rank invertible',()=>{
@@ -32,4 +33,19 @@ test('complete eight-bit ANF audit: nonlinear degree rises while output rank sta
   assert.ok(result.byLayers[5].maximumDegree>=6);
   assert.ok(result.byLayers[5].maximumRank>=5);
   console.log('LAYERED_TINY_ANF_DEGREE_RANK '+JSON.stringify(result));
+});
+
+test('oracle-only low-degree ANF interpolation exactly clones layered 8-bit permutations',()=>{
+  const result=runTinyBoundedDegreeCloner();
+  assert.equal(result.sourceFunctions,144);
+  assert.equal(result.allPredictions,36864);
+  assert.equal(result.heldoutPredictions,12528);
+  assert.deepEqual(result.byLayers.map(row=>row.queries),
+    [37,93,163,219,247,255]);
+  for(const row of result.byLayers){
+    assert.equal(row.sourceFunctions,24);
+    assert.equal(row.verifiedOutputs,6144);
+    assert.equal(row.heldoutOutputs,24*(256-row.queries));
+  }
+  console.log('LAYERED_ANF_ORACLE_CLONE '+JSON.stringify(result));
 });
