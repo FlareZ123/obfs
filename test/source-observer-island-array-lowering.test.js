@@ -7,6 +7,7 @@ const path=require('node:path');
 const {spawnSync}=require('node:child_process');
 const test=require('node:test');
 const {parse}=require('../src/ast');
+const {obfuscateFiles}=require('../src');
 const {atomicWrite}=require('../src/atomic');
 const {proveSourceObserverIslands}=require('../src/source-observer-islands');
 const {lowerProvedPrimitiveIslandRecords}=require('../src/source-observer-island-arrays');
@@ -105,4 +106,52 @@ test('static computed record keys lower to positional indices',()=>{
   assert.equal(result.declined,null);
   assert.match(result.code,/const record=\[23,19\];const valueB=record\[0\];/);
   assert.doesNotMatch(result.code,/privateB|otherB/);
+});
+
+test('core option lowers selected source-observer island records and preserves external ESM behavior',async()=>{
+  const options={
+    mode:'coo',closedWorld:true,seed:'island-array-core',
+    strings:false,
+    experimentalSourceObserverIslands:['independent.mjs'],
+    experimentalSourceObserverIslandRecordsToArrays:true
+  };
+  const result=obfuscateFiles([watched,independent,observer],options);
+  const emitted=result.files.find(file=>file.path==='independent.mjs');
+  assert.ok(emitted);
+  assert.equal(emitted.metrics.objects,1);
+  assert.equal(emitted.metrics.properties,2);
+  assert.match(String(emitted.code),/const recordB=\[23,19\];const valueB=recordB\[0\];/);
+  assert.doesNotMatch(String(emitted.code),/privateB|otherB/);
+  const attacker=normalizePublicIsland(String(emitted.code));
+  assert.equal(attacker.properties,0);
+  assert.equal(attacker.code,String(emitted.code));
+
+  /** @type {SourceFile} */
+  const probe={path:'entry.mjs',sourceType:'module',
+    code:'import "./observer.mjs";'+
+      'import {watched} from "./watched.mjs";'+
+      'import {unrelated} from "./independent.mjs";'+
+      'console.log(JSON.stringify({watched:watched.toString(),'+
+        'unrelated:unrelated.toString(),value:unrelated()}));'};
+  const original=await executeEsm([watched,independent,observer,probe]);
+  const transformed=await executeEsm([...result.files,probe]);
+  assert.equal(transformed,original);
+  assert.deepEqual(JSON.parse(transformed),{
+    watched:'function watched(){return valueA;}',
+    unrelated:'function unrelated(){return valueB;}',
+    value:23
+  });
+});
+
+test('core tuple mode rejects a record whose length field cannot map to an array',()=>{
+  /** @type {SourceFile} */
+  const lengthLeaf={path:'independent.mjs',sourceType:'module',
+    code:'const record={length:2,privateB:23};'+
+      'const valueB=record.privateB;export function unrelated(){return valueB;}'};
+  assert.throws(()=>obfuscateFiles([watched,lengthLeaf,observer],{
+    mode:'coo',closedWorld:true,seed:'island-array-length',
+    strings:false,
+    experimentalSourceObserverIslands:['independent.mjs'],
+    experimentalSourceObserverIslandRecordsToArrays:true
+  }),/special length property/);
 });
