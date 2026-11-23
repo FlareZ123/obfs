@@ -1,6 +1,9 @@
 {
   "extends": "./jsconfig.json",
   "include": [
+    "workplace/agent1-lexical-reference-resolver.js",
+    "test/agent1-lexical-reference-resolver.test.js",
+    "test/agent1-lexical-typescript-paired.test.js",
     "sims/two-sided-affine-degree-inversion.js",
     "sims/quadratic-affine-triangular-inverse.js",
     "sims/bounded-degree-symbolic-affine-inverse.js",
