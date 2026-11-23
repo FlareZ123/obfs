@@ -1,7 +1,7 @@
 'use strict';
 
 const {createHash}=require('node:crypto');
-const {exposesSloppyCallerSource}=require('./caller-source-purity');
+const {exposesSloppyCallerSource,inertPrimitiveMemberReads}=require('./caller-source-purity');
 const {walk,applyEdits}=require('./ast');
 const {
   collectBindings,collectSourceExposedBodies,proveLocalObject,ownPropertyName,
@@ -66,16 +66,26 @@ function symbolizeLocalProperties(source,ast,options) {
     if(new Set(names).size!==names.length)return;
     candidates.push({node:literal,name:parent.id.name,properties});
   });
+  const ownerProofs=candidates.map(candidate=>
+    proveLocalObject(ast,candidate.name,bindings));
+  /** @type {Set<AstNode>} */
+  const sharedPrimitiveReads=new Set();
+  for(const [index,candidate] of candidates.entries()){
+    const proof=ownerProofs[index];
+    if(!proof)continue;
+    for(const member of inertPrimitiveMemberReads(candidate.properties,proof))
+      sharedPrimitiveReads.add(member);
+  }
   /** @type {import('./ast').Edit[]} */
   const edits=[];
   /** @type {string[]} */
   const declarations=[];
   let objects=0,properties=0;
-  for(const candidate of candidates) {
+  for(const [index,candidate] of candidates.entries()) {
     if(candidate.properties.some(property=>sourceExposedEdits.has(property)))continue;
-    const proof=proveLocalObject(ast,candidate.name,bindings);
+    const proof=ownerProofs[index];
     if(!proof||(!proof.members.length&&!proof.patterns.length&&!proof.inChecks.length))continue;
-    if(exposesSloppyCallerSource(ast,candidate.node,candidate.properties,proof))continue;
+    if(exposesSloppyCallerSource(ast,candidate.node,candidate.properties,proof,sharedPrimitiveReads))continue;
     if(proof.members.some(member=>sourceExposedEdits.has(member))||
        proof.patterns.some(property=>sourceExposedEdits.has(property))||
        proof.inChecks.some(check=>sourceExposedEdits.has(check))||
