@@ -131,7 +131,7 @@ function createBlindAffineChallenge(mode='coo'){
  *   questions:{candidate:PublicQuestion,control:PublicQuestion},
  *   verify:(arm:BlindArm,answer:unknown)=>BlindVerdict,
  *   reveal:()=>{salt:string,originalSource:string,offsets:Record<string,number>,
- *     commitment:string,sourceHashes:Record<BlindArm,string>,
+ *     commitment:string,sourceHashes:Record<BlindArm,string>,preflightComparisons:number,
  *     candidateMetrics:{polyvariantFunctions:number,polyvariantPaths:number},
  *     minifier:{name:string,version:string,options:Record<string,unknown>}}
  * }} MatchedBlindChallenge
@@ -180,6 +180,27 @@ async function createBlindAffineMatchedChallenge(mode='coo'){
   const minified=await transform(originalSource,minifierOptions);
   const controlSource=minified.code;
   assert.ok(controlSource.length>0,'esbuild control must emit source');
+  const loadModule=source=>import('data:text/javascript;base64,'+
+    Buffer.from(source).toString('base64'));
+  const [nativeModule,candidateModule,controlModule]=await Promise.all([
+    loadModule(originalSource),loadModule(candidateSource),loadModule(controlSource)
+  ]);
+  const preflightInputs=[
+    -2147483648,-1,-0,0,1,2,3,2147483647,0x12345678
+  ];
+  for(let trial=0;trial<2048;trial++)
+    preflightInputs.push(Math.imul(trial^0x43a97d21,0x9e3779b1)|0);
+  let preflightComparisons=0;
+  for(const name of targets){
+    for(const input of preflightInputs){
+      const expected=nativeModule[name](input);
+      assert.equal(candidateModule[name](input),expected,
+        'Polyvariant candidate failed native preflight for '+name);
+      assert.equal(controlModule[name](input),expected,
+        'esbuild control failed native preflight for '+name);
+      preflightComparisons+=2;
+    }
+  }
   const common={
     originalCommitment:commitment,environment:mode,exports:[...targets],
     answerSchema:'JSON object {"round1": signedInt32, "round2": signedInt32, "round3": signedInt32}',
@@ -193,6 +214,11 @@ async function createBlindAffineMatchedChallenge(mode='coo'){
       ...common,source:controlSource,sourceSha256:sha256(controlSource)
     }
   };
+  for(const question of Object.values(questions)){
+    Object.freeze(question.exports);
+    Object.freeze(question);
+  }
+  Object.freeze(questions);
   /** @type {Set<BlindArm>} */
   const submitted=new Set();
   /** @type {Map<BlindArm,BlindVerdict>} */
@@ -246,6 +272,7 @@ async function createBlindAffineMatchedChallenge(mode='coo'){
           candidate:questions.candidate.sourceSha256,
           control:questions.control.sourceSha256
         },
+        preflightComparisons,
         candidateMetrics:{
           polyvariantFunctions:/** @type {number} */(encoded.files[0].metrics.polyvariantFunctions),
           polyvariantPaths:/** @type {number} */(encoded.files[0].metrics.polyvariantPaths)
