@@ -61,6 +61,7 @@ test('small-width affine-wrapped triangular oracle: exact derivative flag and ex
     globalEquations+=verifyGlobalFlag(bits,source.evaluate,learned.steps);
     for(let secret=0;secret<2**bits;secret++) {
       const target=source.evaluate(secret);
+      /** @type {import('../sims/affine-flag-oracle-attacker').InverseResult} */
       const inverted=learned.invert(target);
       assert.equal(inverted.verified,true,'No unverified candidate may count');
       assert.equal(inverted.input,secret,'Incorrect secret preimage');
@@ -95,6 +96,7 @@ test('32-bit hidden two-sided affine triangular sources admit a sampled exact pr
       const secret=(Math.imul(sample+trial*17,0x27d4eb2d)^
         Math.imul(trial+sample*3,0x9e3779b9))>>>0;
       const target=source.evaluate(secret);
+      /** @type {import('../sims/affine-flag-oracle-attacker').InverseResult} */
       const inverse=learned.invert(target);
       assert.equal(inverse.verified,true,
         'Failed exact equality check at source '+sample+' trial '+trial);
@@ -126,6 +128,7 @@ test('sparse rare-gate and unstructured permutations preserve explicit failure r
     if(learned.status==='unsupported') {
       sparseFailures++;
     }else {
+      /** @type {import('../sims/affine-flag-oracle-attacker').InverseResult} */
       const inverted=learned.invert(target);
       if(inverted.verified) {
         assert.equal(inverted.input,sparse.secret);
