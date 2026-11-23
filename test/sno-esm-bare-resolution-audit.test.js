@@ -118,6 +118,7 @@ test('opt-in SNO ESM audit accepts one shared dependency and preserves emitted b
 });
 
 test('ESM audit collects static, re-export, literal dynamic and import.meta.resolve specifiers',()=>{
+  /** @type {import('../src/core').SourceFile[]} */
   const files=[
     {path:'entry.mjs',sourceType:'module',code:
       "import value from 'alpha';export {value as other} from 'beta';"+
