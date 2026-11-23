@@ -228,6 +228,38 @@ function renameLocalIdentifiers(source,ast,options) {
       if(value)markExportedValue(value);
     }
   }
+  // Opaque exports can expose callables through mutation, spread,
+  // assigning object fields, or runtime value replacement. The name worklist
+  // above only reasons about immutable literal aliases. When these dynamic
+  // carriers coexist with a syntactic export, we have no complete source
+  // visibility proof. Decline identifier rewriting for that file rather than
+  // preserve numerics at the cost of an observable native function source.
+  let hasExportSyntax=false;
+  let hasOpaqueExportFlow=false;
+  walk(ast,(node,parent)=>{
+    if(['ExportNamedDeclaration','ExportDefaultDeclaration',
+      'ExportAllDeclaration'].includes(node.type))hasExportSyntax=true;
+    if(node.type==='AssignmentExpression'){
+      if(isCommonJsExportTarget(node.left))hasExportSyntax=true;
+      else hasOpaqueExportFlow=true;
+    }
+    if(node.type==='UpdateExpression')hasOpaqueExportFlow=true;
+    if(node.type==='VariableDeclaration'&&node.kind!=='const')
+      hasOpaqueExportFlow=true;
+    if(node.type==='SpreadElement'&&parent?.type==='ObjectExpression')
+      hasOpaqueExportFlow=true;
+    if(node.type==='CallExpression'&&
+       node.callee.type==='MemberExpression'&&
+       node.callee.object.type==='Identifier'&&
+       node.callee.object.name==='Object'&&
+       (node.callee.computed ? node.callee.property.type==='Literal'&&
+         node.callee.property.value==='assign':
+         node.callee.property.type==='Identifier'&&
+         node.callee.property.name==='assign'))
+      hasOpaqueExportFlow=true;
+  });
+  if(hasExportSyntax&&hasOpaqueExportFlow)return {code:source,bindings:0};
+
   /** @param {AstNode} identifier @returns {boolean} */
   function isPublicSourceIdentifier(identifier) {
     for(const callable of publicCallables){
