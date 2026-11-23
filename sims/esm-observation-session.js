@@ -27,8 +27,9 @@ function original() {
       code:'globalThis.window={api:{numeric(x){return (Math.imul(x,7)^151)&255;}}};'},
     {path:'bridge.mjs',sourceType:'module',
       code:'import {state} from "./state.mjs";import "./host.mjs";'+
-        'export function read(x){return (Math.imul(state.privateField+x,17)^'+
-        '(state.auxiliaryField-(x>>>1)))+globalThis.window.api.numeric(x);}'},
+        'function privateRead(x){return (Math.imul(state.privateField+x,17)^'+
+        '(state.auxiliaryField-(x>>>1)))+globalThis.window.api.numeric(x);}'+
+        'export function read(x){return privateRead(x);}'},
     {path:'entry.mjs',sourceType:'module',
       code:'import {performance} from "node:perf_hooks";'+
         'import {read} from "./bridge.mjs";'+
