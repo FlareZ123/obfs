@@ -26,6 +26,31 @@ function graph(mutation) {
 }
 
 /**
+ * Required ESM factory whose descriptor-entry getter executes before a later
+ * dynamic import initializes the target's obfuscator string decoder.
+ * @param {'String'|'Number'} intrinsic
+ * @returns {SourceFile[]}
+ */
+function graphFactoryExport(intrinsic) {
+  return [
+    {path:'entry.mjs',sourceType:'module',code:[
+      "import build from './factory.mjs';",
+      'const descriptors={ref:{}};',
+      'Object.assign(descriptors.ref,build());',
+      'const box=Object.create(null,descriptors);',
+      intrinsic==='String'?'box.ref.charCodeAt=()=>0;':'box.ref.unrelated=1;',
+      "const {payload}=await import('./target.mjs');",
+      "document.getElementById('out').textContent=payload;"
+    ].join('')},
+    {path:'factory.mjs',sourceType:'module',
+      code:'export default function build(){return {get:function(){return '+
+        intrinsic+'.prototype}};}'},
+    {path:'target.mjs',sourceType:'module',
+      code:'export const payload='+JSON.stringify('Z'.repeat(2048)+'P')+';'}
+  ];
+}
+
+/**
  * Evaluate the original and emitted ESM graphs inside real Chromium, retaining
  * their exact cross-module order. Each graph uses an isolated HTTP origin.
  *
@@ -170,6 +195,22 @@ async function main() {
     assert.equal(emittedOutput,originalOutput,fixture.name+' native/emitted parity');
     outcomes.push({case:fixture.name,emittedLiteralCount:target.metrics.literals,
       outputLength:emittedOutput.length});
+  }
+  for(const intrinsic of /** @type {const} */(['String','Number'])){
+    const name='imported ESM descriptor factory '+intrinsic;
+    const original=graphFactoryExport(intrinsic);
+    const transformed=obfuscateFiles(original,{mode:'coo',strings:true,
+      properties:false,identifiers:false,seed:'browser/'+name});
+    const target=transformed.files.find(file=>file.path==='target.mjs');
+    assert.ok(target);
+    const nativeOutput=await runBrowser(original);
+    const transformedOutput=await runBrowser(transformed.files);
+    assert.equal(nativeOutput,'Z'.repeat(2048)+'P',name+' native');
+    assert.equal(transformedOutput,nativeOutput,name+' native/emitted parity');
+    assert.equal(target.metrics.literals,intrinsic==='String'?0:1,
+      name+' transform yield');
+    outcomes.push({case:name,emittedLiteralCount:target.metrics.literals,
+      outputLength:transformedOutput.length});
   }
   process.stdout.write(JSON.stringify({browser:'Chromium',outcomes})+'\n');
 }
