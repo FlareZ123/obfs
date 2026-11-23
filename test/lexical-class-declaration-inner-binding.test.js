@@ -81,9 +81,34 @@ test('named class declaration extends and static field self-references have sepa
   }
 });
 
+test('class declaration exposes explicit one-token coupling between two distinct bindings',()=>{
+  for(const sourceType of /** @type {const} */ (['commonjs','module'])){
+    const source='function demonstration(){class window {static own(){return window;}}'+
+      'const original=window;return original.own();}';
+    const result=inspect(source,sourceType);
+    const declared=result.declarations.filter(entry=>entry.name==='window');
+    const reads=result.references.filter(entry=>entry.name==='window');
+    assert.equal(declared.length,1,sourceType+': only one source declaration name');
+    assert.equal(reads.length,2,sourceType);
+    assert.equal(reads[0].resolution.kind,'local',sourceType);
+    assert.equal(reads[1].resolution.kind,'local',sourceType);
+    assert.equal(result.classSpellingCouplings.length,1,sourceType);
+    const coupling=result.classSpellingCouplings[0];
+    assert.equal(coupling.sourceStart,source.indexOf('class window')+'class '.length);
+    assert.equal(coupling.sourceEnd,coupling.sourceStart+'window'.length);
+    assert.equal(coupling.outerBindingId,declared[0].bindingId);
+    if(reads[0].resolution.kind==='local'&&reads[1].resolution.kind==='local'){
+      assert.equal(coupling.innerBindingId,reads[0].resolution.bindingId);
+      assert.equal(coupling.outerBindingId,reads[1].resolution.bindingId);
+      assert.notEqual(coupling.innerBindingId,coupling.outerBindingId);
+    }
+  }
+});
+
 test('named class expressions keep their distinct and explicitly spelled inner BindingId',()=>{
   const source='function demonstration(){const window=class window{static own(){return window;}};return window;}';
   const resolved=inspect(source,'commonjs');
+  assert.deepEqual(resolved.classSpellingCouplings,[],'class expressions spell inner name independently');
   const declarations=resolved.declarations.filter(item=>item.name==='window');
   const refs=resolved.references.filter(ref=>ref.name==='window');
   assert.equal(declarations.length,2);
