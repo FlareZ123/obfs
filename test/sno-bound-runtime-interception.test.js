@@ -39,7 +39,7 @@ function captureTarget(file){
   );
 }
 
-test('SNO cannot conceal a nonconstructible bound private target from host before requiring entry',async()=>{
+test('SNO refuses to rewrite a bound private target capturable before requiring entry',async()=>{
   const source="'use strict';"+
     'const owner={secretField:7,otherField:11};'+
     'const internal=(privateFirst,privateSecond)=>{'+
@@ -50,7 +50,8 @@ test('SNO cannot conceal a nonconstructible bound private target from host befor
     strings:false,identifiers:true,properties:true
   });
   const file=obfuscated.files[0];
-  assert.equal(file.metrics.properties,2,'the SNO private record must actually change');
+  assert.equal(file.metrics.properties,0,
+    'the SNO host can intercept bind before requiring the entry, so the target must remain unchanged');
   const protectedCode=/** @type {string} */ (file.code);
   assert.match(protectedCode,/secretField/u);
   assert.match(protectedCode,/otherField/u);
