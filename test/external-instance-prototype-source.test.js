@@ -140,3 +140,32 @@ test('without a closed-world promise, external method-source clients retain sour
     await fs.rm(directory,{recursive:true,force:true});
   }
 });
+
+test('declared ESM prototype method toLocaleString retains exact original source',async t=>{
+  const directory=await fs.mkdtemp(path.join(os.tmpdir(),'obfs-instance-locale-'));
+  try {
+    const localeConsumer=consumer.replace('.read.toString();','.read.toLocaleString();');
+    assert.notEqual(localeConsumer,consumer);
+    /** @type {Input[]} */
+    const declared=[...inputs,{
+      path:'consumer.mjs',sourceType:'module',code:localeConsumer
+    }];
+    const native=await observe(path.join(directory,'native'),declared);
+    assert.deepEqual(native,{
+      value:7,source:'read(){return owner.secretField;}',privateValue:13
+    });
+    for(const mode of /** @type {Array<'coo'|'sno'>} */ (['coo','sno'])) {
+      await t.test(mode,async()=>{
+        const output=obfuscateFiles(declared,{
+          mode,closedWorld:true,properties:true,identifiers:false,
+          strings:false,seed:'declared-instance-method-locale/'+mode
+        });
+        const actual=await observe(path.join(directory,mode),output.files);
+        assert.deepEqual(actual,native,
+          mode+' must retain native method toLocaleString spelling');
+      });
+    }
+  }finally{
+    await fs.rm(directory,{recursive:true,force:true});
+  }
+});
