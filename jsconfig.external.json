@@ -1,6 +1,7 @@
 {
   "extends": "./jsconfig.json",
   "include": [
+    "test/esm-export-all-identifier-label-red.test.js",
     "test/lexical-catch-var-binding-alias.test.js",
     "workplace/agent1-source-closure-edit-proof.js",
     "test/agent1-source-closure-edit-proof.test.js",
