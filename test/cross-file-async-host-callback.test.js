@@ -223,3 +223,24 @@ test('object-held primitive-only callback still permits private record rename',a
   assert.equal(compiled.crossFile.properties,1,
     'Unrelated primitive callbacks should retain a protected own-field rewrite');
 });
+
+
+test('inert literal object spread keeps useful private record rewrite',async()=>{
+  const files=graph([
+    // Merely declaring an unused source-visible factory must not poison an
+    // unrelated, provably inert literal spread and its Promise argument.
+    'function unusedFactory(){return globalThis.RUNTIME_FACTORY;}',
+    'const safe={...{n:7}};',
+    'const echoed=await Promise.resolve(safe);',
+    "const result=[inspectRecord('externalFormat').value,echoed.n];"
+  ].join('\n'));
+  const native=await execute(files);
+  assert.equal(native,'[41,["audit-v1",7]]\n');
+  const compiled=obfuscateFiles(files,{
+    mode:'coo',closedWorld:true,seed:'inert-object-spread-yield',
+    identifiers:false,strings:false,properties:true
+  });
+  assert.equal(await execute(compiled.files),native);
+  assert.equal(compiled.crossFile.properties,1,
+    'An inert inline literal spread does not carry the unused host-returning factory');
+});
