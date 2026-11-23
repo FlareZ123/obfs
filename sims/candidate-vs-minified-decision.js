@@ -14,6 +14,7 @@ const {familywiseBudgetBounds}=require('./familywise-budget-bound');
  * @typedef {{
  *   protocol:string,
  *   oracleCalls:number,
+ *   oracleCallBudget?:number,
  *   attempted:boolean,
  *   cloneSucceeded:boolean,
  *   verifiedHeldoutComparisons:number,
@@ -65,7 +66,17 @@ function compareCandidateEvidence(evidence){
     typeof control.protocol==='string'&&control.protocol.length>0&&
     control.protocol===candidate.protocol&&
     Number.isSafeInteger(control.oracleCalls)&&control.oracleCalls>=0&&
-    control.oracleCalls===candidate.oracleCalls&&
+    Number.isSafeInteger(candidate.oracleCalls)&&candidate.oracleCalls>=0&&
+    (control.oracleCalls===candidate.oracleCalls||
+      // Equal *precommitted ceilings*, rather than equal consumption, are
+      // the fair requirement for an adaptive attacker that can finish one
+      // arm early. Without explicit ceilings preserve the older equal-count
+      // rule and classify unequal consumption as inconclusive.
+      Number.isSafeInteger(control.oracleCallBudget)&&
+      /** @type {number} */(control.oracleCallBudget)>=0&&
+      control.oracleCallBudget===candidate.oracleCallBudget&&
+      control.oracleCalls<=/** @type {number} */(control.oracleCallBudget)&&
+      candidate.oracleCalls<=/** @type {number} */(candidate.oracleCallBudget))&&
     Number.isSafeInteger(control.verifiedHeldoutComparisons)&&
     control.verifiedHeldoutComparisons>=evidence.protectedFunctions&&
     control.verifiedHeldoutComparisons===candidate.verifiedHeldoutComparisons;
@@ -117,7 +128,7 @@ function compareCandidateEvidence(evidence){
   return {
     verdict,attackAdvantage,measuredRuntimeBudget,measurementReady,
     pairedFamilywise,
-    caveat:'A positive attacker-cost judgment requires independently checked precommitted methods, verifier cases, selected functions and equivalent preparation/analysis budgets. Even a completed failed bounded attack is not proof of arbitrary-program secrecy. Runtime evidence covers sampled median paired ratios; a single observed >2.5x pair vetoes the strict sampled-budget claim.'
+    caveat:'A positive attacker-cost judgment requires independently checked precommitted methods, verifier cases, selected functions and equivalent preparation/analysis budgets. Unequal consumed oracle calls require the same precommitted integer oracle-call ceiling in both arms, with neither exceeding it. These declarations are not independently authenticated. Even a completed failed bounded attack is not proof of arbitrary-program secrecy. Runtime evidence covers sampled median paired ratios; a single observed >2.5x pair vetoes the strict sampled-budget claim.'
   };
 }
 
