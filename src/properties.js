@@ -681,21 +681,56 @@ function proveLocalObject(ast, rootName, bindings, importedIdentityFunctions=new
   // Conversely, a value stored, returned, exported, or passed elsewhere can
   // expose its original body through Function#toString.
   /**
-   * Experimental direct ambient-call hazard: a non-strict Node/V8 callback
-   * may inspect its synchronous caller with CallSite.getFunction(). A local
-   * direct-call-only use proof does not establish this runtime source privacy.
-   * This narrow test branch covers only free identifier call targets.
+   * Experimental conservative synchronous caller-source effect. Any call
+   * target not uniquely proved to be a local function is an opaque source
+   * observer; propagate opaque effects through direct local calls.
+   * This branch is an exploratory overapproximation, not a sound final
+   * model of higher-order, dynamic-host, or cross-file JavaScript effects.
+   * @type {Map<string,AstNode>}
+   */
+  const staticCallableTargets=new Map();
+  for(const candidate of functionDeclarations) {
+    if(candidate.type==='FunctionDeclaration' &&
+       candidate.id?.type==='Identifier' &&
+       bindings.get(candidate.id.name)===1)
+      staticCallableTargets.set(candidate.id.name,candidate);
+  }
+  for(const declaration of callableDeclarators) {
+    if(declaration.id?.type==='Identifier' &&
+       parents.get(declaration)?.type==='VariableDeclaration' &&
+       parents.get(declaration)?.kind==='const' &&
+       bindings.get(declaration.id.name)===1 &&
+       (declaration.init?.type==='FunctionExpression' ||
+        declaration.init?.type==='ArrowFunctionExpression'))
+      staticCallableTargets.set(declaration.id.name,declaration.init);
+  }
+  /** @type {WeakMap<AstNode,boolean>} */
+  const ambientCallEffectCache=new WeakMap();
+  /**
    * @param {AstNode} functionNode
+   * @param {Set<AstNode>} [active]
    * @returns {boolean}
    */
-  function hasUnprovedAmbientDirectCall(functionNode) {
-    let unknown=false;
-    walk(functionNode, candidate=>{
-      if(candidate.type==='CallExpression' &&
-         candidate.callee.type==='Identifier' &&
-         !bindings.has(candidate.callee.name))unknown=true;
+  function hasUnprovedAmbientDirectCall(functionNode,active=new Set()){
+    const cached=ambientCallEffectCache.get(functionNode);
+    if(cached!==undefined)return cached;
+    if(active.has(functionNode))return true;
+    active.add(functionNode);
+    let opaque=false;
+    walk(functionNode,candidate=>{
+      if(candidate.type!=='CallExpression')return;
+      const callee=candidate.callee;
+      if(callee.type==='Identifier') {
+        const target=staticCallableTargets.get(callee.name);
+        if(!target||hasUnprovedAmbientDirectCall(target,active))opaque=true;
+      } else if(callee.type==='ArrowFunctionExpression' ||
+                callee.type==='FunctionExpression') {
+        if(hasUnprovedAmbientDirectCall(callee,active))opaque=true;
+      } else opaque=true;
     });
-    return unknown;
+    active.delete(functionNode);
+    ambientCallEffectCache.set(functionNode,opaque);
+    return opaque;
   }
   const privateFunctionNodes=new Set(directInvokedArrows.filter(node=>
     !hasUnprovedAmbientDirectCall(node)));
