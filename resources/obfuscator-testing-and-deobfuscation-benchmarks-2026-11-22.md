@@ -218,3 +218,24 @@ The paper's code-completion table reports CodeCipher Pass@1 of 47.56% versus 50.
 The later protected-code study (Section 7 above) includes CodeCipher in its Java-slice comparison and reports 53.7% direct obfuscated Pass@1, 52.4% after same-model deobfuscation, 31.2% conditional rescue, and 24.6% conditional degradation. These are downstream task and same-model restoration measurements, not evidence of runtime compatibility or source-reconstruction resistance.
 
 **Disposition:** retain CodeCipher as an adjacent model-facing privacy transformation and a useful reference for direct protected-code inference. Exclude its published token-substitution artifact from the executable COO/SCO/SNO candidate set unless a separate semantics-preserving runtime adaptation is demonstrated with exact Node/browser parity. Do not conflate “hard to restore for one LLM” with “tamper-resistant executable obfuscation.”
+
+
+## 9. Identifier-recovery benchmark: distinguish detection, oracle naming, and end-to-end recovery
+
+Simon Queyrut, Valerio Schiavoni, Giuseppe Antonio Di Luna, Daniele Cono D'Elia, Leonardo Querzoni, and Pascal Felber, **More Context, Mixed Results: Evaluating LLMs for Identifier Recovery and Code Deobfuscation**, arXiv:2611.19043v1, submitted 14 November 2026 (under review):
+https://arxiv.org/abs/2611.19043
+
+The full paper evaluates three open-weight models (Qwen3-30B-A3B, OLMo 3.1-32B-Instruct, DeepSeek-V4-Flash-0731) and four traditional baselines on 175,864 focal methods from 51 Java projects and three obfuscators (Allatori, ProGuard, yGuard). It separates two tasks that should not be collapsed:
+
+1. **Detection:** identify which visible identifier occurrences are genuinely obfuscated, given a public inventory of candidate occurrences. Agentic retrieval reaches 91.56% macro F1 in this task.
+2. **Semantic name recovery:** suggest original names for a supplied inventory of known-obfuscated occurrences. This is a *semi-oracle* task: the model receives the ground-truth occurrence inventory (U(m)), so it does not have to detect the targets itself. It is also not required to produce a compilable program. Exact recovery peaks at 16.42% overall (one-hop context) and 32.93% for field names (repository retrieval); these are naming metrics, not functional-clone scores.
+
+The end-to-end ablation replaces the oracle inventory with the model's own detections. Detection F1 is 63.17% for Qwen and 57.04% for OLMo; method-macro end-to-end BERTScore F1 falls to 44.14% and 42.92%, compared with 52.58% and 47.62% for oracle-target recovery on the same identities. The authors report that both models lose roughly half their exact matches. This demonstrates why the 91.56% detection F1 must not be reported as end-to-end deobfuscation or source reconstruction.
+
+The paper's "agentic" retrieval is deliberately bounded: the model may request at most two read-only inspections, selected together before any evidence is returned, for a combined 700-token evidence budget. The harness exposes definitions, owners, callers, callees, and field uses, but no arbitrary command execution or file modification. It is a useful retrieval experiment, not a full agentic coding agent with iterative tool feedback. Richer repository retrieval uses BM25 plus UniXcoder/FAISS with an 8k-token budget. More context is not monotonically better; larger methods can hinder semantic recovery.
+
+In a 100-method Allatori factorial ablation, adding string encryption to renaming changes little, while control-flow obfuscation causes larger reductions in detection and semantic recovery. For example, Qwen detection F1 falls from 38.40% on renaming alone to 33.89% with control-flow obfuscation and 29.46% with both control flow and string encryption; OLMo falls from 57.86% to 46.08% and 46.58%, respectively. These are bounded Java/Allatori results, not JavaScript or cross-mode guarantees.
+
+**Methodological consequence for this repository:** report at least (a) candidate-use detection, (b) recovery of a supplied true property/identifier target inventory, and (c) end-to-end detection-plus-recovery as separate outcomes. Then separately require executable hidden-test equivalence for any claimed functional clone. Never use detection F1, semantic-name similarity, or exact identifier spelling as a substitute for executable behavior. Our property-renaming benchmark should also distinguish owner/property-key identities from mere textual spellings, because shadowed and same-spelling members can refer to different declarations.
+
+**Scope limits:** this is Java bytecode/decompiled-source identifier renaming, not JavaScript property-key transformation; semantic recovery is primarily a name-suggestion task, not program reconstruction; and the agentic harness is one-shot read-only retrieval rather than unrestricted T1/T2 execution. Use it as a task-design reference, not as a direct score prediction for this project.
