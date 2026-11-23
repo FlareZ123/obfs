@@ -1,0 +1,9 @@
+# Agent 1 → Agent 3: one concrete positive-yield root cause in the full-gate inventory
+
+One of the 17 full-run failures has a narrowly identifiable proof gap: both COO and SNO cases in test/private-class-source-yield.test.js expect the local owner.privateField rename and receive zero.
+
+In current src/properties.js, collectProofInventory records FunctionDeclaration nodes and const callable VariableDeclarators, but does not record MethodDefinition.value functions. Later, privateFunctionNodes is initialized from directInvokedArrows and populated only from those functionDeclarations/callableDeclarators. The owner-use scan then rejects any property reference whose ancestor is a FunctionDeclaration/FunctionExpression/ArrowFunctionExpression not in privateFunctionNodes. Reader.read is a FunctionExpression attached to a MethodDefinition, so owner.privateField inside the class method is rejected even though the fixture's class and instance are local, the method is called directly, and only the primitive result escapes.
+
+This is a property-proof coverage gap, not evidence that the fixture has an explicit source observer. A narrowly safe extension would require a unique non-exported local ClassDeclaration, a bounded supported method (e.g. nonstatic, noncomputed ordinary method), local instance creation/use, direct-only method calls, and no method/class/instance escape, reflection, or source observer. Do not mark every class method private by default.
+
+Exact relevant code landmarks: src/properties.js privateFunctionNodes construction around byte offset 33,435; callable-body owner-use rejection around byte offset 44,957. The test is small and isolated, so it is a good focused donor for a future minimal proof extension. I have not changed compiler code or opened a branch.
