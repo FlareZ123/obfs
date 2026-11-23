@@ -85,3 +85,46 @@ Agent 20's conditional compatible-interpolant attack in im-results/reanchored-co
 Independent review remains open for the formal conditional proof, whether arbitrary two-sided compatible permutations permit efficient *reliable* black-box flag discovery, and whether a stronger adversarial sampler can falsify the current 32-bit dense-source hit rate. The sparse counterexamples prove that this particular fixed-size sampler has no universal success guarantee. They do not prove a general worst-case lower bound for inversion or show a new defender advantage over an equally private conventional service.
 
 The tested primitive is a selected numeric permutation oracle. No actual obfuscated JavaScript artifact was produced in this experiment; no static code reconstruction, browser instrumentation, environment admission, tamper resistance, or protected-runtime 2.5x computation was evaluated here. Its relevance is as an attack-method and candidate-falsification input, not as a release-capable obfuscation technique. Preserve the project's strong-protection **RELEASE-BLOCKED** decision.
+
+
+## Complementary exact-verifying attack portfolio (same-source extension)
+
+**Exact executable extension source:** b02c799c521de9cc20df6f3f6def673e7df75450, [green Ubuntu and Windows manual-validation workflow 45089223740](https://github.com/FlareZ123/obfs/actions/runs/45089223740), including the focused portfolio test and both strict JSDoc projects. This extension is deliberately merged into the same intermediate report because it **reconciles the sparse failure boundary** rather than establishing a competing security claim. Its report-only commit does not change the executable pin.
+
+The additional attacker in sims/affine-flag-portfolio.js tries the existing at-most-four-basis reanchored exact-target inverter **first**, then trains the sampled differential flag only if all four reanchors fail. It shares a single public chosen-oracle cache across both methods. It never returns an unverified preimage: the earlier algorithm verifies each candidate, the new one verifies the final flag-derived candidate, and the wrapper independently checks any successful reanchored result. An unsuccessful result is an explicit refused response. The defender's source generators remain imported only by the tests.
+
+### Complementary 32-bit results
+
+The paired test test/affine-flag-portfolio.test.js uses the same 20 dense hidden-affine sources and eight sparse secret-prefix sources from the earlier evidence. Each source is tested on one selected target, with independent exact secret checks and a source-separated chosen-query boundary.
+
+| Selected population | Exact target results | Successful route |
+| --- | --- | --- |
+| 20 seeded dense two-sided affine compatible sources | **20/20** verified | Sampled differential flag after reanchoring fails four bases (20/20) |
+| Eight sparse 32-bit compatible sources with hidden 27-bit prefix gate | **8/8** verified | Existing fast reanchoring, before any flag calibration |
+| Four unrelated seeded six-round Feistel 32-bit bijections | **0** claimed inversions, **4/4** explicit refusals | Neither route declares a false positive |
+
+The first two populations jointly yielded **28/28** exact selected-target recoveries using **187,560** distinct chosen-oracle calls across independent sources, with a per-source maximum of **9,434**. These costs include the failed fast method before dense flag training, plus any successful fast method. Neither result implies universal attack success or a hard query limit for untested distributions. The Feistel fixture is a synthetic reversible block permutation, not a cryptographic-security claim.
+
+**Interpretation:** The earlier eight sparse cases falsify the *standalone bounded flag learner*, while the cheaper canonical reanchor rescues the exact same rare selected targets. It would be incorrect to infer that a rare compatible gate is hard to invert merely because one sampled attack misses it. Conversely the four-basis reanchor loses against all 20 dense sources in this selected corpus, where the sampled differential route succeeds. The two routes address different source geometry; the combined finite result is stronger than either alone on the selected union.
+
+### Exact single-coordinate sparse-gate corollary
+
+The fast sparse outcome also has a transparent conditional explanation. Let P(z)=z XOR e_j*G(z_0,...,z_(j-1)), where G is any Boolean gate, and let A=Lout Lin. Assume a public interpolation anchor r and each of its n coordinate neighbors have G=0 in hidden source coordinates. Then their oracle differences give **exactly** the clean matrix A. The attacker can invert the observed n×n binary matrix using these n+1 oracle values.
+
+For any target y=F(s), define x_0=r XOR A^-1(y XOR F(r)). If G(s)=0, x_0=s and the first exact check succeeds. If G(s)=1, x_0=s XOR d where d=Lin^-1(e_j), because the target differs from the ordinary affine output by w=Lout(e_j). The lower j source bits are unchanged by d, hence G(x_0)=1. Therefore F(x_0)=y XOR w. One fixed-point correction x_1=x_0 XOR A^-1(y XOR F(x_0))=x_0 XOR d=s, which passes the next exact check.
+
+**Conditional bound:** One clean interpolation basis and at most two target checks suffice, at most n+3 distinct chosen-oracle calls (35 at n=32). This proof holds for any single-coordinate triangular gate G, with arbitrary hidden invertible affine wrappers, provided the chosen anchor's n+1 probes all avoid the gate. It does **not** establish that an attacker can efficiently find such a clean basis on every arbitrary gate, especially dense or deliberately anchor-poisoned instances.
+
+The source-private 27-bit rare prefix has support density exactly 2^-27 in source coordinates. Its deterministic sample test is consistent with the clean-base lemma, but no independently uniform random sampling or theoretical clean-basis probability estimate is inferred from the eight seeded cases.
+
+### Reproduction and scope
+
+~~~powershell
+node --test test/affine-flag-portfolio.test.js
+npm run typecheck
+npm run typecheck:external
+~~~
+
+Source-only attack implementation: sims/affine-flag-portfolio.js. Source-private extra 32-bit Feistel fixture: sims/affine-flag-oracle-fixtures.js. Strict type inputs: jsconfig.external.json. The original exact learned-flag test and the earlier source-pinned report remain unmodified.
+
+The result combines two previous attack methods under a specified forward-oracle interface. It makes no claim of full offline function cloning, anti-tamper bypass, static source extraction, runtime overhead compliance, or a meaningful defender advantage over an equal-trust ordinary service. No obfuscated distribution was produced in this extension. It remains intermediate attack-method research, and the project's strong-protection release is **RELEASE-BLOCKED**.
