@@ -2,7 +2,8 @@
 
 const {test}=require('node:test');
 const assert=require('node:assert/strict');
-const {invertBoundedDegree,parity}=require('../sims/two-sided-affine-degree-inversion');
+const {invertBoundedDegree,trainBoundedDegreeInverse,parity}=
+  require('../sims/two-sided-affine-degree-inversion');
 
 /** @param {number} seed @returns {()=>number} */
 function rng(seed) {
@@ -154,6 +155,47 @@ test('sparse high-degree compatible transposition is a declared-degree counterex
     };
     const result=invertBoundedDegree(F,F(swapped),n,2);
     assert.equal(result,null,'Bounded-degree promise is necessary at width '+n);
+  }
+});
+
+
+test('existing degree-D ANF interpolation supports offline inverse after 529 online calls at width 32',()=>{
+  for(let source=0;source<3;source++) {
+    const n=32,d=2;
+    const next=rng((0x98ce197^Math.imul(source+1,0x9e3779b9))>>>0);
+    const F=createOracle(n,next,d);
+    let realCalls=0;
+    const model=trainBoundedDegreeInverse(input=>{
+      realCalls++;
+      return F(input);
+    },n,d);
+    assert.equal(model.trainingQueries,529);
+    assert.equal(realCalls,529);
+    for(let targetIndex=0;targetIndex<12;targetIndex++) {
+      const secret=(next()&wordMask(n))>>>0;
+      const requested=F(secret); // independent evaluator, never passed to learning wrapper
+      const inverted=model.invert(requested);
+      assert.equal(inverted?.input,secret,
+        'Offline inversion must recover the secret with all matrices unknown');
+      assert.ok(inverted);
+      assert.ok(inverted.localEvaluations<=theoreticalMax(n,d));
+      assert.equal(realCalls,529,'After training, the attacker gets no additional oracle data');
+    }
+  }
+});
+
+test('offline polynomial cloning also supports an independent degree-three wrapped source',()=>{
+  const n=20,d=3;
+  const next=rng(0x42b1ce37);
+  const F=createOracle(n,next,d);
+  let online=0;
+  const trained=trainBoundedDegreeInverse(input=>{online++;return F(input);},n,d);
+  assert.equal(trained.trainingQueries,1351); // 1 + 20 + 190 + 1140
+  for(let t=0;t<4;t++){
+    const original=(next()&wordMask(n))>>>0;
+    const recovered=trained.invert(F(original));
+    assert.equal(recovered?.input,original);
+    assert.equal(online,1351,'All inverse work remains in the learned offline model');
   }
 });
 
