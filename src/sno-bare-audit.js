@@ -148,6 +148,7 @@ async function assertSnoDirectBareRequireParity(original,generated,inputRoot,out
   const [input,output]=await Promise.all([
     futureRealRoot(inputRoot),futureRealRoot(outputRoot)
   ]);
+  await assertEsmPackageScopeParity(original,generated,sources.keys(),input,output);
   let entries=0;
   for(const [filename,specifiers] of sources) {
     const from=createRequire(path.join(input,filename));
@@ -510,7 +511,6 @@ async function assertSnoDirectBareImportParity(original,generated,inputRoot,outp
   const targets=directBareImports(generated);
   if(sources.size===0&&targets.size===0)return {entries:0,files:0};
   assertDefaultEsmResolverContext();
-  await assertEsmPackageScopeParity(original,generated,sources.keys(),input,output);
   for(const [name,specifiers] of sources) {
     const transformed=targets.get(name);
     if(!transformed||JSON.stringify(transformed)!==JSON.stringify(specifiers)) {
