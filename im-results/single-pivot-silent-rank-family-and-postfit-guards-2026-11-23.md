@@ -9,7 +9,7 @@ The cubic, quartic, and quintic projection/signature learners can silently accep
 
 A common construction works for every degree \(d\ge3\). It produces an \(n=d+4\)-bit permutation whose top-derivative joint radical has codimension \(d+2\), while a learner anchored on the first \(d\) basis vectors sees signature rank exactly \(d\). The accepted candidate is also a permutation but omits one degree-\(d\) monomial. The difference has relative Hamming weight exactly \(2^{-d}\), attaining the minimum distance of RM(d,n).
 
-The existing quartic and quintic Reed–Muller postfit wrappers repair returned-output correctness for fixed degree-at-most-four and degree-at-most-five sources. The cubic case admits the same guard, but its wrapper is not yet implemented.
+The cubic, quartic, and quintic Reed–Muller postfit wrappers repair returned-output correctness for fixed degree-at-most-three, degree-at-most-four, and degree-at-most-five sources when the fast learner returns a candidate.
 
 ## General construction
 
@@ -90,6 +90,7 @@ The raw quintic clone keeps only the first monomial. Both source and candidate a
 ### Reproduction artifacts
 
 - **sims/rankfour-projected-cubic-silent-rank-control.js**: exhaustive cubic joint-radical, permutation, and 16-point mismatch control.
+- **sims/rankfour-projected-cubic-validated-peer.js**: cubic postfit verifier and exact degree-three fallback.
 - **sims/rankfour-projected-cubic-rescue.js**: rank-four projected cubic learner whose residual quadratic interpolation silently omits the second cubic term in the new control.
 - **sims/rankfive-top-quartic-silent-rank-control.js**: exhaustive quartic joint-radical, permutation, and 16-point mismatch control.
 - **sims/rankfive-top-quintic-validated-peer.js**: original seven-bit silent-rank control plus the nine-bit permutation version; the latter is caught by the quintic verifier and exactly reconstructed.
@@ -123,7 +124,9 @@ A signature-span overflow can also route directly to exact interpolation.
 
 ### Cubic rescue boundary
 
-A degree-three postfit guard would need 173 independent uniform checks for \(\delta=10^{-10}\), followed by exact degree-three ANF interpolation on mismatch. At \(n=32\), the current fast cap is 1,135; fast plus postfit is 1,308; a conservative fallback cap is 6,268 (1,135 + 173 + 4,960 new weight-three coefficients). This cubic guard is proposed but not implemented here.
+**sims/rankfour-projected-cubic-validated-peer.js** implements the degree-three guard: 173 independent uniform postfit checks followed by exact degree-three ANF interpolation on mismatch. Tests cover a rank-one cubic fast path, a degree-two no-witness fast path, and the silent rank-five permutation (postfit detects a mismatch at input 60 and exact fallback matches all 128 inputs). The wrapper requires the fast learner to return a candidate; exceptions from the fast learner propagate rather than being swallowed.
+
+At \(n=32\), the current fast cap is 1,135; fast plus postfit is 1,308; a conservative fallback cap is 6,268 (1,135 + 173 + 4,960 new weight-three coefficients).
 
 ### Quartic wrapper
 
@@ -158,6 +161,7 @@ These are oracle-query counts, not runtime measurements or target-side overhead.
 ## Validation
 
 - [Manual low-rank workflow run 45153185537](https://github.com/FlareZ123/obfs/actions/runs/45153185537), head SHA **d1072c775e0a933936ea749aca1900dc87f1eeda**: the new projected-cubic silent-rank permutation control and the full targeted workflow passed on Ubuntu and Windows.
+- [Manual low-rank workflow run 45153999928](https://github.com/FlareZ123/obfs/actions/runs/45153999928), head SHA **03d152bd098bd966adac1c76627c5df4a38b0f96**: the cubic Reed–Muller wrapper and all enrolled cubic/quartic/quintic controls passed on Ubuntu and Windows.
 - [Manual low-rank workflow run 45152010645](https://github.com/FlareZ123/obfs/actions/runs/45152010645), head SHA **5bbb99725eb64bbed71b6fa7ff183c938ce2beda**: quartic fast paths, postfit mismatch fallback, signature-overflow fallback, strict JSDoc/typecheck, and the full targeted workflow passed on Ubuntu and Windows.
 
 These are focused low-rank workflow receipts only, not a full mainline or release gate.
@@ -167,7 +171,7 @@ These are focused low-rank workflow receipts only, not a full mainline or releas
 - The counterexamples violate the corresponding input-rank/radical-codimension promise. They do not refute the promised-class reconstruction theorems.
 - The postfit guarantee requires a fixed/stateless source, a degree-at-most-\(d\) promise, a degree-at-most-\(d\) candidate, and independent uniform verifier randomness. It does not cover stateful SCO oracles, arbitrary JavaScript, higher-degree sources, or side effects.
 - Seeded test samplers provide deterministic reproduction, not the probability guarantee. The default cryptographic sampler is the one intended to support the uniform-sampling bound.
-- The cubic postfit wrapper is proposed, not implemented. The quartic and quintic wrappers are implemented and tested.
+- All three postfit wrappers are implemented and tested. The cubic wrapper only postfits after the fast learner returns a candidate; fast-learner exceptions propagate. The quartic wrapper additionally catches its specifically identified signature-span overflow.
 - The exact fallback can be expensive; the query ceilings above do not establish compliance with the project's 2.5x target-runtime budget.
 - These are attack-side correctness and source-class-boundary results. They do not improve target-side obfuscation and do not change the global RELEASE-BLOCKED decision.
 
