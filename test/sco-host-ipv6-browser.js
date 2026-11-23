@@ -12,7 +12,12 @@ const original='document.getElementById("out").textContent=location.hostname+"|4
 
 /** @param {http.RequestListener} handler @param {(origin:string)=>Promise<string>} run @returns {Promise<string>} */
 async function withServer(handler,run) {
-  const server=http.createServer(handler);
+  const server=http.createServer((request,response)=>{
+    response.on('finish',()=>console.log('SCO_IPV6_BROWSER_HTTP '+JSON.stringify({
+      host:request.headers.host,url:request.url,status:response.statusCode
+    })));
+    handler(request,response);
+  });
   await new Promise((resolve,reject)=>{
     server.once('error',reject);
     server.listen(0,'::1',resolve);
@@ -50,6 +55,9 @@ async function readDom(url) {
     page.on('response',response=>{
       if(response.url().endsWith('/client.js')){
         network.push('script status '+response.status());
+        void response.text().then(body=>
+          network.push('script body '+body.slice(0,320))).catch(error=>
+          network.push('script body unreadable '+String(error)));
       }
     });
     await page.goto(url,{waitUntil:'domcontentloaded',timeout:45000});
