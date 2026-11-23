@@ -20,14 +20,31 @@ const {atomicWrite}=require('../src/atomic');
 /**
  * @param {ModuleFile[]} files
  * @param {boolean} [injectHost]
+ * @param {boolean} [arrayIteratorHook]
  * @returns {Promise<string>}
  */
-async function execute(files,injectHost=false){
+async function execute(files,injectHost=false,arrayIteratorHook=false){
   const root=await fs.mkdtemp(path.join(os.tmpdir(),'obfs-host-async-'));
   try {
     for(const file of files)await atomicWrite(path.join(root,file.path),file.code);
     const preloader=path.join(root,'preload.cjs');
-    if(injectHost)await atomicWrite(preloader,'globalThis.RUNTIME_FACTORY=Function;');
+    if(injectHost)await atomicWrite(preloader,[
+      'globalThis.RUNTIME_FACTORY=Function;',
+      ...(arrayIteratorHook?[
+        'const originalIterator=Array.prototype[Symbol.iterator];',
+        'Array.prototype[Symbol.iterator]=function(){',
+        '  if(this.length===1 && this[0]===7){',
+        '    let iteration=0;',
+        '    return {',
+        '      next(){return iteration++===0?',
+        '        {value:()=>Function,done:false}:{done:true};},',
+        '      [Symbol.iterator](){return this;}',
+        '    };',
+        '  }',
+        '  return originalIterator.call(this);',
+        '};'
+      ]:[])
+    ].join('\\n'));
     const args=injectHost?['--require',preloader,path.join(root,'entry.mjs')]:
       [path.join(root,'entry.mjs')];
     const processResult=spawnSync(process.execPath,args,{encoding:'utf8',timeout:15000});
@@ -346,4 +363,26 @@ test('array spread honors externally mutable @@iterator callback transfer',async
   assert.equal(await execute(generated.files,true),native);
   assert.equal(generated.crossFile.properties,0,
     'An array spread executes @@iterator even if its literal elements are inert');
+});
+
+
+test('external host iterator may inject callback into inert-looking array spread',async()=>{
+  const files=graph([
+    // This factory's existence makes host-return capability a known program
+    // possibility, but it is deliberately not invoked on the source path.
+    'function unusedFactory(){return globalThis.RUNTIME_FACTORY;}',
+    'const holder=[...[7]];',
+    'const ctor=await Promise.resolve().then(holder[0]);',
+    'const remote=await ctor("return import(\'./state.mjs\')")();',
+    "const result=[inspectRecord('auditCount').value,Object.keys(remote.state),remote.state.secretField];"
+  ].join('\n'));
+  const native=await execute(files,true,true);
+  assert.equal(native,'[41,[3,["secretField"],41]]\n');
+  const generated=obfuscateFiles(files,{
+    mode:'coo',closedWorld:true,seed:'host-preloaded-iterator-spread',
+    identifiers:false,strings:false,properties:true
+  });
+  assert.equal(await execute(generated.files,true,true),native);
+  assert.equal(generated.crossFile.properties,0,
+    'An unknown host iterator can replace literal-array spread elements');
 });
