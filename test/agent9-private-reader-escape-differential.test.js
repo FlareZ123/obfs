@@ -5,7 +5,7 @@ const {test}=require('node:test');
 const vm=require('node:vm');
 const {obfuscateFiles}=require('../src');
 
-/** @param {string} code @returns {{source:string,result:string,keys:string,readerSource:string,globalKeys:string}} */
+/** @param {string} code @returns {{source:string,result:string,keys:string,exportKeys:string,readerSource:string,hostKeys:string,globalKeys:string}} */
 function observe(code){
   const context={module:{exports:/** @type {unknown} */(null)}};
   vm.runInNewContext(code,context,{timeout:1000,filename:'reader-escape.cjs'});
@@ -13,15 +13,21 @@ function observe(code){
   const fn=typeof exported==='function'?/** @type {(x:number)=>unknown} */(exported):null;
   const result=fn?fn(7):exported;
   const record=/** @type {Record<string,unknown>|null} */(
-    exported!==null&&typeof exported==='object'?exported:null);
+    exported!==null&&(typeof exported==='object'||typeof exported==='function')?
+      exported:null);
   const reader=record?.reader;
   const leaked=/** @type {Record<string,unknown>} */(context).captured;
   return {
     source:fn?Function.prototype.toString.call(fn):'not-a-function',
     result:JSON.stringify(result)??String(result),
     keys:JSON.stringify(result!==null&&typeof result==='object'?Object.keys(result):[]),
+    exportKeys:JSON.stringify(exported!==null&&
+      (typeof exported==='object'||typeof exported==='function')?
+      Reflect.ownKeys(exported).map(String).sort():[]),
     readerSource:typeof reader==='function'?
       Function.prototype.toString.call(reader):'no-exported-reader',
+    hostKeys:JSON.stringify(record?.host!==null&&typeof record?.host==='object'?
+      Object.keys(record.host):[]),
     globalKeys:JSON.stringify(leaked&&typeof leaked==='object'?Object.keys(leaked):[])
   };
 }
