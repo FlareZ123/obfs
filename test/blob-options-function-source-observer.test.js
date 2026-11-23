@@ -13,6 +13,13 @@ function execute(code) {
   return /** @type {()=>string} */(module.exports)();
 }
 
+/** @param {string} code @returns {string} */
+function exportedFunctionSource(code) {
+  const module={exports:/** @type {unknown} */(null)};
+  new Function('module',code)(module);
+  return Function.prototype.toString.call(module.exports);
+}
+
 /** @param {string} declarations @param {string} expression @returns {string} */
 function source(declarations,expression) {
   return "'use strict';"+
@@ -77,8 +84,9 @@ test('Blob options source observer preserves COO/SNO native output',()=>{
 
 test('primitive Blob options preserve genuinely renamed private fields',()=>{
   const original='const owner={hiddenCount:41,secretDelta:2};'+
+    'const privateRead=()=>owner.hiddenCount+owner.secretDelta;'+
     'new Blob([],{type:"text/plain",endings:"transparent"});'+
-    'module.exports=()=>owner.hiddenCount+owner.secretDelta;';
+    'module.exports=()=>privateRead();';
   assert.equal(observesFunctionSource(parse(original,'commonjs')),false);
   for(const mode of /** @type {('coo'|'sno')[]} */(['coo','sno'])) {
     const emitted=obfuscateFiles([{
@@ -88,5 +96,7 @@ test('primitive Blob options preserve genuinely renamed private fields',()=>{
     assert.equal(emitted.files[0].metrics.properties,2,mode);
     assert.doesNotMatch(String(emitted.files[0].code),/hiddenCount|secretDelta/u);
     assert.equal(execute(String(emitted.files[0].code)),execute(original));
+    assert.equal(exportedFunctionSource(String(emitted.files[0].code)),
+      exportedFunctionSource(original),mode+' public callable source parity');
   }
 });
