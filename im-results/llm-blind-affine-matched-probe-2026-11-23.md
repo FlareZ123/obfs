@@ -47,3 +47,16 @@ The exact offset is the primary outcome. Since each function is constrained to a
 ## Relevant external methodology
 
 See `resources/obfuscator-testing-and-deobfuscation-benchmarks-2026-11-22.md` for JsDeObsBench, recent identifier-recovery and binary-deobfuscation studies, and the implications for future multi-dimensional LLM evaluation. In particular, syntax, exact execution semantics, source reconstruction, simplification and runtime extraction should remain separate metrics.
+
+
+## Existing repository control infrastructure discovered after dispatch
+
+The repository already has a stronger **full-application** minification comparison that should be reused rather than duplicated:
+
+- `.github/workflows/manual-minified-control.yml` runs the four-way full ESM application experiment.
+- `sims/polyvariant-app-four-way-control.js` uses `esbuild.transform` with `format:'esm'`, `target:'es2022'`, `minify:true`, and `legalComments:'none'` on the same three native modules used by the published candidate. It compares native, minified, published and statically reconstructed graphs.
+- The workflow also runs the pinned JSIMPLIFIER static attacker with LLM, dynamic and mixed-analysis stages disabled, and records output hashes/timings.
+- `package.json` pins esbuild at `0.28.2`.
+- `.github/workflows/manual-esbuild-mangle-control.yml` is a separate cross-file property-mangling comparator, not the generic minified source control.
+
+This existing infrastructure is a better template for the next **actual esbuild matched LLM** trial. The current private-source trial remains a custom compact baseline; do not retroactively label it esbuild or conflate it with the existing full-application control.
