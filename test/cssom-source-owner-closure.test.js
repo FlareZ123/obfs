@@ -72,3 +72,17 @@ test('numeric call result permits both private owners to transform',()=>{
   assert.ok(output.metrics.properties>=2,
     'Both private owners remain eligible when source is not converted');
 });
+
+test('explicit function String observation gives a conservative parity baseline',()=>{
+  const original=fixture('String(inspect)');
+  const output=transform(original,'cssom-explicit-string-closure-baseline');
+  const native=execute(original);
+  const actual=execute(/** @type {string} */(output.code));
+  process.stdout.write('CSSOM_EXPLICIT_SOURCE_BASELINE '+JSON.stringify({
+    properties:output.metrics.properties,bindings:output.metrics.bindings,
+    nativeSource:native.source,emittedSource:actual.source
+  })+'\n');
+  assert.equal(JSON.stringify(actual),JSON.stringify(native));
+  assert.ok(output.metrics.properties<=1,
+    'The observed outer owner must retain original property spelling');
+});
