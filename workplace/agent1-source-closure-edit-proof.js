@@ -138,7 +138,9 @@ function applyObservedFunctionEdits(source,sourceType,functionName,edits,options
       throw new TypeError('Observed callable has an unresolved reference');
     const fresh=newBindings.references.find(r=>r.start===mapped(oldRef.start)&&
       r.name===oldRef.name);
-    if(fresh?.resolution.kind!=='local')
+    const nextBindingId=fresh?.resolution.kind==='local'?
+      fresh.resolution.bindingId:null;
+    if(nextBindingId===null)
       throw new TypeError('Observed callable lexical binding became unresolved');
     const oldDecls=oldBindings.declarations.filter(d=>
       d.bindingId===oldRef.resolution.bindingId);
@@ -147,7 +149,7 @@ function applyObservedFunctionEdits(source,sourceType,functionName,edits,options
       const nextDecl=newBindings.declarations.find(d=>
         d.start===mapped(oldDecl.start)&&d.name===oldDecl.name);
       if(nextDecl?.bindingId===null || nextDecl?.bindingId===undefined ||
-         nextDecl.bindingId!==fresh.resolution.bindingId)
+         nextDecl.bindingId!==nextBindingId)
         throw new TypeError('Source-visible closure binding identity changed');
     }
   }
