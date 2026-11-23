@@ -55,8 +55,8 @@ test('proved primitive island records lower to tuples without recoverable proper
 
   const lowered=lowerProvedPrimitiveIslandRecords(
     independent.code,parse(independent.code,'module'));
-  assert.deepEqual({records:lowered.records,properties:lowered.properties},
-    {records:1,properties:2});
+  assert.deepEqual({records:lowered.records,properties:lowered.properties,declined:lowered.declined},
+    {records:1,properties:2,declined:null});
   assert.match(lowered.code,/const recordB=\[23,19\];const valueB=recordB\[0\];/);
   assert.doesNotMatch(lowered.code,/privateB|otherB/);
 
@@ -93,4 +93,16 @@ test('tuple lowering fails closed when an object record owns the special length 
   assert.equal(result.code,source);
   assert.equal(result.records,0);
   assert.equal(result.properties,0);
+  assert.equal(result.declined,'special length property');
+});
+
+test('static computed record keys lower to positional indices',()=>{
+  const source='const record={["privateB"]:23,otherB:19};'+
+    'const valueB=record["privateB"];export function unrelated(){return valueB;}';
+  const result=lowerProvedPrimitiveIslandRecords(source,parse(source,'module'));
+  assert.equal(result.records,1);
+  assert.equal(result.properties,2);
+  assert.equal(result.declined,null);
+  assert.match(result.code,/const record=\[23,19\];const valueB=record\[0\];/);
+  assert.doesNotMatch(result.code,/privateB|otherB/);
 });
