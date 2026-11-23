@@ -47,7 +47,12 @@ const fixtures=[
   {name:'window',source:'export {}; let value=window; {let window=1;value=window;}',sourceType:'module',expected:['free-host-candidate','local']},
   {name:'window',source:'export {window as externalName} from "./dep.mjs"; window.onerror=handler;',sourceType:'module',expected:['free-host-candidate']},
   {name:'window',source:'export {}; function f(){ return window; let window=1; }',sourceType:'module',expected:['local']},
-  {name:'window',source:'function f() { eval("var window=1") } function g(){return window}',sourceType:'script',expected:['free-host-candidate']}
+  {name:'window',source:'function f() { eval("var window=1") } function g(){return window}',sourceType:'script',expected:['free-host-candidate']},
+  {name:'window',source:'export {}; function f(value=window){var window="body";return value;}',sourceType:'module',expected:['free-host-candidate']},
+  {name:'window',source:'export {}; function f(value=window){var window="body";return window;}',sourceType:'module',expected:['free-host-candidate','local']},
+  {name:'window',source:'export {}; function f(value=window){function window(){} return value;}',sourceType:'module',expected:['free-host-candidate']},
+  {name:'window',source:'export {}; const f=(value=window)=>{var window="body";return value;};',sourceType:'module',expected:['free-host-candidate']},
+  {name:'window',source:'export {}; function f(value=window){eval("var window = 1");return value;}',sourceType:'module',expected:['free-host-candidate']}
 ];
 
 test('bounded Acorn lexical-root identity and dynamic-scope candidates',()=>{
@@ -62,7 +67,7 @@ test('bounded Acorn lexical-root identity and dynamic-scope candidates',()=>{
     assert.deepEqual(refs.map(reference=>reference.resolution.kind),fixture.expected,fixture.source);
     assert.equal(new Set(refs.map(reference=>reference.start)).size,refs.length,fixture.source);
   }
-  assert.equal(fixtures.length,34);
+  assert.equal(fixtures.length,39);
 });
 
 test('distinct lexical declarations retain separate binding identities',()=>{
