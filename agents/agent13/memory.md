@@ -240,7 +240,7 @@ Final memory and research protocol files have been pushed. Lease release is only
 - Combined acceptance requirement remains one effective-call-target × receiver × value-ToPrimitive model: detect native/captured-native Storage source exposure; preserve safe own/prototype wrappers; prove stable own `toString` can retain unrelated binding yield; keep computed `Symbol.toPrimitive` unknown until binding/value proof; preserve direct native `Function#toString` observer. No blanket `.setItem` rule.
 
 
-## 2026-11-23 14:33 UTC correction — Storage diagnostic isolates receiver check
+## 2026-11-23 14:22 UTC correction — Storage diagnostic isolates receiver check
 
 - Correction to the 14:18 entry: Agent 47's first `ownToString` fixture is **not** a minimal own-hook case; it includes `if (this !== inspect) throw ...` inside the hook. Its failed yield assertion must not be described as a general own-`toString` over-refusal.
 - Agent 47's successful 13-case diagnostic run `45192886395` on exact commit `12e94e9d1b956a30c5c57ce3c92fb196a7bd0ec3` shows simple own `toString`, own `toString` with a counter, and plain Storage key/value calls all return `observed:false`; only the own-hook variant with the `this !== inspect` check returns true among the own-`toString` variants. `Symbol.toPrimitive`, direct native Function#toString, and a hook delegating to native Function#toString return true.
