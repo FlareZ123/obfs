@@ -27,3 +27,7 @@ jobs:
         env:
           CHROMIUM_BIN: google-chrome
         run: node test/sco-textdecoder-realm-browser.js
+      - name: Compare native TextDecoder fatal errors and input diagnostics
+        env:
+          CHROMIUM_BIN: google-chrome
+        run: node test/sco-textdecoder-fatal-diagnostics-browser.js
