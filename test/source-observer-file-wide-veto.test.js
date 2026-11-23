@@ -30,13 +30,15 @@ function evaluate(code) {
 
 test('one source-observed callable currently vetoes unrelated private property and identifier rewrites',()=>{
   const baseline=[
-    'function helper(){const helperRecord={unrelatedPrivate:7};return helperRecord.unrelatedPrivate;}',
+    'const helperRecord={unrelatedPrivate:7};',
+    'function helper(){return helperRecord.unrelatedPrivate;}',
     'function sample(){return helper();}'
   ].join('\n');
   const observed=[
     'function inspect(){const observedRecord={observedPrivate:29};return observedRecord.observedPrivate;}',
     'const observedSource=Function.prototype.toString.call(inspect);',
-    'function helper(){const helperRecord={unrelatedPrivate:7};return helperRecord.unrelatedPrivate;}',
+    'const helperRecord={unrelatedPrivate:7};',
+    'function helper(){return helperRecord.unrelatedPrivate;}',
     'function sample(){return observedSource.length+inspect()+helper();}'
   ].join('\n');
 
