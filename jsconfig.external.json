@@ -5,6 +5,8 @@
     "sims/quadratic-affine-triangular-inverse.js",
     "sims/bounded-degree-symbolic-affine-inverse.js",
     "sims/permutation-degree-certification-lower-bound.js",
+    "sims/hidden-affine-compatible-period-heuristic.js",
+    "test/hidden-affine-compatible-period-heuristic.test.js",
     "test/permutation-degree-certification-lower-bound.test.js",
     "test/bounded-degree-symbolic-affine-inverse.test.js",
     "sims/sco-two-sided-affine-browser-inverse.js",
