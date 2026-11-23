@@ -145,3 +145,22 @@ test('audited dependencies keep own catch, loop and var bindings distinct',()=>{
     assert.doesNotMatch(compiled.clientFile.code,/externalBridge/u);
   }
 });
+
+
+test('source-paired compiler-time probe: repeated reads of a hoisted local',()=>{
+  // Hoisted, but deliberately not an immediate statement declaration:
+  // previous lexical proof re-scanned the complete function for each read.
+  const readCount=720;
+  const body='let total=0;'+
+    'total+=(hoisted??1);'.repeat(readCount)+
+    'if(false){var hoisted=41;}return total;';
+  const begin=process.hrtime.bigint();
+  const compiled=compile(body,false);
+  const compileMs=Number(process.hrtime.bigint()-begin)/1e6;
+  assert.deepEqual(compiled.privateNames,['protectedOp']);
+  assert.doesNotMatch(compiled.clientFile.code,/total\+=/u);
+  console.log('SCO_LEXICAL_HOIST_CPU '+JSON.stringify({
+    readCount,compilerWallMs:Number(compileMs.toFixed(3)),
+    compiledClientBytes:Buffer.byteLength(compiled.clientFile.code,'utf8')
+  }));
+});
