@@ -9,9 +9,12 @@ const original=[
   'const owner={hiddenCount:11,privateDelta:5};',
   'const tuple=[false,"metadata",owner,null];',
   'const alias=tuple[2];',
+  // Keep user-controlled ToPrimitive work in the exported wrapper. The
+  // private step receives only numeric loop state and performs inert reads.
+  'function privateStep(sum,i){return (sum+((alias.hiddenCount+i)&255)+owner.privateDelta)|0;}',
   'module.exports=function score(n){',
   '  let sum=0;',
-  '  for(let i=0;i<n;i++)sum=(sum+((alias.hiddenCount+i)&255)+owner.privateDelta)|0;',
+  '  for(let i=0;i<n;i++)sum=privateStep(sum,i);',
   '  return sum;',
   '};'
 ].join('\n');
