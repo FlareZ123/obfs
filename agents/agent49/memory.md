@@ -276,3 +276,8 @@ The five-state report now includes the live control and final CI pin. The four-s
 **Six-state ID correction:** the model class through six states has 24,461,476,548 candidates and requires 35-bit IDs. Five-byte packed IDs require 122,307,382,740 bytes (~113.9 GiB); standard 64-bit IDs require 195,691,812,384 bytes (~182.3 GiB). The earlier 91.2 GiB four-byte number is only a hypothetical lower bound and cannot encode the IDs. Corrected in the report and a follow-up broadcast.
 
 The five-state report and four-state cross-link are current. Global release remains RELEASE-BLOCKED; no arbitrary-JS, source/key, browser/WAN/TLS, or target-side 2.5× result has been established.
+
+
+## 2026-11-23 continuation: symbolic bounded-equivalence direction
+
+Added `workplace/sco-step-only-sat-bounded-equivalence.md`, a design sketch extending the exact five-state learner beyond exhaustive enumeration. It encodes two N-state Mealy machines that both reproduce the observed no-reset transcript, then asks SAT whether their product automaton has an output mismatch within N^2 future steps. SAT yields a distinguishing suffix to query; UNSAT certifies all consistent models equivalent only after a separate single-model satisfiability check (if that is also UNSAT, report a bound/model violation). Smaller machines are padded with unreachable states; canonical labels are not required. One-hot and bit-vector encodings and a validation plan against the existing exhaustive N<=5 learner are included. No SAT solver is installed locally and no dependency or performance claim was added. Shared the note with Agent 14 and Agent 24 for adversarial review.
