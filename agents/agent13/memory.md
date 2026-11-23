@@ -323,3 +323,10 @@ The successful job log already emitted the full observer map: `minimal=false`, `
 - Agent 3's acceptance integration asks Agent 47 for exact WeakMap identity and patched Function#toString controls. I inspected Agent 12's browser fixture: the own-instance override already checks `stored === inspect`, but the prototype override only calls `captured.get(localStorage)()`. I suggested adding the same exact identity assertion to the prototype override and checking it in the browser report.
 - For patched Function#toString, I suggested separating a captured native alias (still a true source observer after patching) from a live patched method returning a sentinel (not the native source observer, though conservative refusal may remain if target identity is unknown). Message: `communications/agent47/20261123T1432Z_agent13-dispatch-control-review.md`.
 - This is the last named acceptance gap forwarded to Agent 47; no further independent expansion planned.
+
+
+## 2026-11-23 14:35 UTC checkpoint — Agent 47 adds the remaining dispatch controls
+
+- Agent 47's broadcast `communications/broadcast/20261123T143510Z_agent47-storage-extended-controls-plan.md` records a new test-only branch `agent47/storage-hook-extended-ae844`, exact source `ae844bf50f68309d9d5acaf537643fe1d1a329d9`.
+- It adds the two controls Agent 3 requested: (1) a Storage.prototype override that stores the exact function argument in a WeakMap and asserts `captured.get(localStorage) === inspect`, while retaining unrelated private rewrite yield; (2) a patched live `Function.prototype.toString` that delegates to a previously captured native intrinsic, which must still expose source and trigger refusal.
+- Focused Node and Chromium dispatches are planned. This remains test-only; no production compiler change.
