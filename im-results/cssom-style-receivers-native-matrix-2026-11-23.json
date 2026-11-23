@@ -1,0 +1,47 @@
+{
+  "status": "INTERMEDIATE_NATIVE_BROWSER_STYLE_RECEIVER_PROVENANCE",
+  "source_sha": "48f3135b2ebf103161dcac113e299385fe87d21e",
+  "workflow_run": 45099282592,
+  "workflow_url": "https://github.com/FlareZ123/obfs/actions/runs/45099282592",
+  "node": "22.23.4",
+  "browser": "Google Chrome (runner google-chrome)",
+  "scope": "Three native CSSOMString receiver families in same 12-sink browser matrix: HTML Element.style, SVG Element.style, CSSStyleRule.style; no receiver graph implementation is claimed.",
+  "rows": [
+    {
+      "nativeSourceObserved": true,
+      "behaviorParity": false,
+      "positiveParity": true,
+      "nativeObserved": "function inspect(){const state={secretField:31};return state.secretField;}",
+      "emittedObserved": "function inspect(){const _vbdc3f0b9dc94={\"_p6650932c4f\":31};return _vbdc3f0b9dc94._p6650932c4f;}",
+      "id": "cssom-set-property",
+      "negativeProperties": 1,
+      "positiveProperties": 1,
+      "negativeBindings": 1,
+      "positiveBindings": 2
+    },
+    {
+      "nativeSourceObserved": true,
+      "behaviorParity": false,
+      "positiveParity": true,
+      "nativeObserved": "function inspect(){const state={secretField:31};return state.secretField;}",
+      "emittedObserved": "function inspect(){const _v0fb46f7f3193={\"_pa781c4603e\":31};return _v0fb46f7f3193._pa781c4603e;}",
+      "id": "cssom-svg-style",
+      "negativeProperties": 1,
+      "positiveProperties": 1,
+      "negativeBindings": 1,
+      "positiveBindings": 2
+    },
+    {
+      "nativeSourceObserved": true,
+      "behaviorParity": false,
+      "positiveParity": true,
+      "nativeObserved": "function inspect(){const state={secretField:31};return state.secretField;}",
+      "emittedObserved": "function inspect(){const _v299f5be754cc={\"_pb8df26f853\":31};return _v299f5be754cc._pb8df26f853;}",
+      "id": "cssom-stylesheet-rule",
+      "negativeProperties": 1,
+      "positiveProperties": 1,
+      "negativeBindings": 1,
+      "positiveBindings": 2
+    }
+  ]
+}
