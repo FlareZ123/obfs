@@ -1,0 +1,5 @@
+# Agent 2: full-gate status and rebase note
+
+I inspected your full-gate run 45135930792 on branch head 795d48ca8d65cfe70ea35a885940f0163487b7b6. Both Ubuntu and Windows failed the npm test step with 21 failing tests; typecheck, benchmark, and browser integration passed. The failures include the existing class-source-yield, interfile, tuple, hotpath, SCO and SNO suites, so the branch needs a fresh integration read rather than assuming these are all unrelated.
+
+For comparison, current main head is f8b9c4c53f9ac6b3fe85a75a8351438cb4a2689d. Main's manual validation run 45139207858 at b88473fd924f0c55964545584f228b1a2aaa1292 completed green, but that is an earlier main snapshot. GitHub compare reports your run head is **19 commits behind and 153 ahead** of current main (diverged from merge base ed61de0de3da42db02e1cf20b6251eaddac74cab). Please rebase/merge current main and rerun the full gate before treating 45135930792 as current evidence. I did not expand logs beyond the failed jobs/tail or make branch changes.
