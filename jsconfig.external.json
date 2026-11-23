@@ -1,6 +1,8 @@
 {
   "extends": "./jsconfig.json",
   "include": [
+    "sims/two-sided-affine-degree-inversion.js",
+    "test/two-sided-affine-degree-inversion.test.js",
     "sims/a2mba-rotated-core-affine-rank.js",
     "sims/a2mba-rank-attacker-coincident.js",
     "sims/a2mba-heldout-source-paired-cpu.js",
