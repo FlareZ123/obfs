@@ -75,14 +75,18 @@ The native method and named setter both stored the function's native source. Rep
 
 The containing full browser workflow was **red**, not green: it later failed at the existing `test/bound-runtime-interception-browser.js:52` assertion (`0 !== 2`). The named-setter probe itself passed. No compiler source changed.
 
-### COO/SCO and SCO host-lock static controls
+### COO/SCO and SCO host-lock controls
 
 The same Storage source-observer miss was checked across client modes in test-only branch `agent47/storage-named-setter-dispatch-20261123`:
 
 - [Focused validation run 45231065988](https://github.com/FlareZ123/obfs/actions/runs/45231065988), test commit `22d6d87e607fdc12fb4cd040d88fc317c2c0fb51`: the COO and SCO client-transform tests passed on Ubuntu and Windows. In both modes, `observesFunctionSource` returned false and identifier rewriting changed both the source-observed function's private binding and an unrelated helper.
 - [Focused validation run 45231595687](https://github.com/FlareZ123/obfs/actions/runs/45231595687), test commit `bf2bf7f3369d2c26fc5ff8aa1db909a51b8516d9`: the same two mode tests plus an SCO host-lock test passed on Ubuntu and Windows. With `mode:'sco'` and `allowedHosts:['example.com']`, the output contained the allowed hostname/host-lock wrapper and still renamed both private bindings while `observesFunctionSource` returned false.
 
-The host-lock result follows from `src/core.js:2021`: `hostLockSourceObserver` reuses the same source-observer predicate, so the missed Storage sink does not cause host locking to be rejected. The wrapper is inserted after the local identifier rewrite. This is static emitted-output evidence; the host-locked SCO output was not executed in a browser. COO has the direct Chromium source-parity witness; SCO browser parity remains untested. These are passing expected-red tests, not acceptance receipts, and the full Node 22 job was skipped in the focused workflows. No SNO conclusion is made.
+The host-lock result follows from `src/core.js:2021`: `hostLockSourceObserver` reuses the same source-observer predicate, so the missed Storage sink does not cause host locking to be rejected. The wrapper is inserted after the local identifier rewrite.
+
+- **Direct SCO browser source-parity:** [manual browser run 45233032518](https://github.com/FlareZ123/obfs/actions/runs/45233032518), source commit `fcfb7c437b536805b8fa296f6d479c083ad78226`, Chrome 157.0.8103.78. With `mode:'sco'` and `allowedHosts:['127.0.0.1']`, the host-locked module executed on the allowed origin. It reported `sourceMismatch=true`; native source contained `privateLocal`, compiled source contained `_v83c23ee54f48`; both returned value 29 and the independent helper returned 7. Thus the host lock does not repair the Storage source-preservation gap. The Storage step passed, but the full workflow later failed at the existing `test/bound-runtime-interception-browser.js:52` assertion (`0 !== 2`).
+
+The first SCO browser attempt used a parameter-derived Storage key and was conservatively rejected by host locking. [Focused diagnostic run 45232774349](https://github.com/FlareZ123/obfs/actions/runs/45232774349) isolated this: literal-key variants returned `observesFunctionSource=false`, while the parameter-derived-key variant returned true. The final SCO browser witness uses a literal key to isolate the missed function-valued second-argument conversion. These are passing expected-red controls, not acceptance receipts; the full Node 22 job was skipped in focused workflows. No SNO conclusion is made.
 
 ## Interpretation
 
