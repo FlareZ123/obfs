@@ -62,10 +62,11 @@ async function main() {
     if(primitive)assert.ok(compiled.properties>0,
       'Primitive-only input must transform an actual owner');
     const label=primitive?'positive':'negative';
-    for(const [prefix,files] of [['native',source],['emitted',compiled.files]]) {
-      const root='/'+label+'/'+prefix+'/';
-      for(const file of files)paths.set(root+file.path,file.code);
-      metadata.push({id:label+'/'+prefix,root,properties:compiled.properties});
+    for(const group of [{prefix:'native',files:source},
+      {prefix:'emitted',files:compiled.files}]) {
+      const root='/'+label+'/'+group.prefix+'/';
+      for(const file of group.files)paths.set(root+file.path,file.code);
+      metadata.push({id:label+'/'+group.prefix,root,properties:compiled.properties});
     }
   }
   /** @type {unknown} */
