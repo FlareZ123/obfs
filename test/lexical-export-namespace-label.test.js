@@ -43,6 +43,20 @@ test('export-star alias and same-spelled local lexical const remain distinct',()
   assert.equal(inspected.declarations.filter(decl=>decl.name==='window').length,1);
 });
 
+test('module import/export attribute keys are labels, not lexical identifiers',()=>{
+  for(const source of [
+    'import data from "./payload.json" with {type:"json"};export default data;',
+    'export {value} from "./payload.mjs" with {type:"json"};',
+    'export * from "./payload.mjs" with {type:"json"};',
+    'import data from "./payload.json" with {window:"json"};export default data;'
+  ]){
+    const inspected=inspect(source);
+    const marker=source.includes('window:')?'window':'type';
+    assert.deepEqual(inspected.references.filter(ref=>ref.name===marker),[],source);
+    assert.deepEqual(inspected.declarations.filter(decl=>decl.name===marker),[],source);
+  }
+});
+
 test('native Node ESM treats export-star namespace as a name, not a local variable',{
   timeout:30000
 },async()=>{
