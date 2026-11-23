@@ -128,6 +128,31 @@ function splitKernel(basis,labels){
  */
 function makeCubicDefectContractor(model){
   if(model.bits!==WIDTH||model.degree!==3)throw new TypeError('expected a 32-bit cubic ANF model');
+
+  // A complete width-32, degree-three ANF has 1+32+496+4960
+  // distinct coefficients. Refuse incomplete or ill-typed attacker models
+  // instead of silently certifying an invalid polynomial as exact.
+  if(!Array.isArray(model.coefficients)||model.coefficients.length!==5489){
+    throw new TypeError('incomplete 32-bit cubic ANF coefficient table');
+  }
+  const seen=new Set();
+  for(const pair of model.coefficients){
+    if(!Array.isArray(pair)||pair.length!==2){
+      throw new TypeError('invalid cubic ANF coefficient pair');
+    }
+    const [mask,value]=pair;
+    if(!Number.isSafeInteger(mask)||mask<0||mask>=2**32||
+       !Number.isSafeInteger(value)||value<0||value>=2**32){
+      throw new TypeError('invalid cubic ANF unsigned coefficients');
+    }
+    let monomial=mask>>>0;
+    let weight=0;
+    while(monomial!==0){monomial&=monomial-1;weight++;}
+    if(weight>3)throw new TypeError('cubic ANF coefficient above promised degree');
+    if(seen.has(mask))throw new TypeError('duplicate cubic ANF monomial');
+    seen.add(mask);
+  }
+
   /** @type {Array<{i:number,j:number,value:number}>} */
   const quadratic=[];
   /** @type {Array<{i:number,j:number,k:number,value:number}>} */
