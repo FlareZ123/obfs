@@ -456,9 +456,9 @@ function usesUnprovedRelocatedWebIdlConstructors(body,knownFormals=new Set()){
   const shadowed=new Set([...names].filter(name=>
     knownFormals.has(name)||bindings.has(name)));
   /** @param {import('./ast').AstNode|null|undefined} value @returns {boolean} */
-  function asciiText(value){
-    return Boolean(value&&value.type==='Literal'&&
-      typeof value.value==='string'&&/^[\x20-\x7e]*$/u.test(value.value));
+  function asciiText(expression){
+    const value=staticString(expression);
+    return value!==null&&/^[\x20-\x7e]*$/u.test(value);
   }
   /** @param {import('./ast').AstNode} expression @returns {boolean} */
   function validConstruction(expression){
