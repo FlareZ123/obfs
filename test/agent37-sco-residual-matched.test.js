@@ -3,6 +3,7 @@
 const assert=require('node:assert/strict');
 const {test}=require('node:test');
 const http=require('node:http');
+const {randomBytes,createHash}=require('node:crypto');
 const esbuild=require('esbuild');
 const {partitionScoSelectedAsyncExports,bindScoModuleExports,createScoHandler}=
   require('../src');
@@ -12,14 +13,30 @@ const {invertBoundedDegree}=
   require('../sims/two-sided-affine-degree-inversion');
 
 const TOKEN='authorized-residual-sbox-study';
-const source=[
-  'export async function protectedResidual(input){',
-  'const OBFS_PRIVATE_SBOX=[0,1,2,4,3,6,7,5];',
-  'const x=input>>>0;',
-  'return ((x&65528)|OBFS_PRIVATE_SBOX[x&7])>>>0;',
-  '}',
-  'export function publicIdentity(value){return value>>>0;}'
-].join('\n');
+
+/**
+ * Randomize the retained nonlinear S-box by independent input/output XOR
+ * translations. Translation preserves its max degree two and absence of a
+ * nonconstant affine output parity. The random table stays server-side.
+ * @returns {{source:string,sourceSha256:string,inputOffset:number,outputOffset:number}}
+ */
+function makePrivateSource(){
+  const offsets=randomBytes(2);
+  const inputOffset=offsets[0]&7,outputOffset=offsets[1]&7;
+  const base=[0,1,2,4,3,6,7,5];
+  const table=Array.from({length:8},(_,input)=>
+    base[input^inputOffset]^outputOffset);
+  const source=[
+    'export async function protectedResidual(input){',
+    'const OBFS_PRIVATE_SBOX='+JSON.stringify(table)+';',
+    'const x=input>>>0;',
+    'return ((x&65528)|OBFS_PRIVATE_SBOX[x&7])>>>0;',
+    '}',
+    'export function publicIdentity(value){return value>>>0;}'
+  ].join('\n');
+  return {source,sourceSha256:createHash('sha256').update(source).digest('hex'),
+    inputOffset,outputOffset};
+}
 
 /** @param {import('node:http').Server} server @returns {Promise<string>} */
 async function start(server){
@@ -112,6 +129,7 @@ async function learn(origin,method){
 }
 
 test('live SCO and equal-trust ordinary minified APIs admit the same residual offline inversion',async()=>{
+  const {source,sourceSha256,inputOffset,outputOffset}=makePrivateSource();
   const original=await import('data:text/javascript,'+encodeURIComponent(source));
   const ordinary=await import('data:text/javascript,'+encodeURIComponent(
     esbuild.transformSync(source,{
@@ -199,6 +217,7 @@ test('live SCO and equal-trust ordinary minified APIs admit the same residual of
     assert.equal(scoCalls,137);
     assert.equal(ordinaryCalls,137);
     process.stdout.write('OBFS_SCO_RESIDUAL_MATCHED '+JSON.stringify({
+      sourceSha256,inputOffset,outputOffset,
       authorizedRequestsPerService:137,heldoutTargets:hiddenInputs.length,
       recoveredPerService:hiddenInputs.length,withFallback,
       scoPrivateExecutions:scoCalls,ordinaryPrivateExecutions:ordinaryCalls,
