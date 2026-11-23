@@ -149,6 +149,7 @@ async function assertSnoDirectBareRequireParity(original,generated,inputRoot,out
     futureRealRoot(inputRoot),futureRealRoot(outputRoot)
   ]);
   await assertEsmPackageScopeParity(original,generated,sources.keys(),input,output);
+  await assertEsmPackageScopeParity(original,generated,sources.keys(),input,output);
   let entries=0;
   for(const [filename,specifiers] of sources) {
     const from=createRequire(path.join(input,filename));
