@@ -133,6 +133,25 @@ dependency equivalence or hostile-owner integrity.
 
 **Optional SNO literal bare ESM-import audit:** `--audit-bare-esm` compares
 Node's ESM resolution target for static `import` and re-export specifiers,
+literal dynamic `import()`, and direct literal bare-package
+`import.meta.resolve()` calls. It uses Node's
+`import.meta.resolve(specifier, parentURL)` with the actual parent file URL,
+so conditional package exports are evaluated under the ESM `import`
+condition rather than CommonJS `require` conditions. Resolution runs in a
+separate Node child process and does not load application modules or mutate
+the compiler process's module cache. Missing or different targets cause a
+prepublication refusal. A shared package positive control emits
+byte-identical output with and without the audit. Nonliteral dynamic
+imports, resolver aliases, direct `eval`/`Function`, `#imports`, opaque
+JavaScript and future emitted package scopes are refused. The audit also
+refuses build invocations using custom loaders/preloads, symlink-preservation
+flags or nondefault Node conditions; deployment must use the same resolver
+context. Programmatically registered runtime hooks remain outside the
+comparison. This is a build-time dependency-location diagnostic, not proof
+of arbitrary ESM behavior or hostile-owner integrity.
+
+**Optional SNO literal bare ESM-import audit:** `--audit-bare-esm` compares
+Node's ESM resolution target for static `import` and re-export specifiers,
 literal dynamic `import()`, and direct literal `import.meta.resolve()` calls.
 It uses Node's `import.meta.resolve(specifier, parentURL)` with the actual
 parent file URL, so conditional package exports are evaluated under the
