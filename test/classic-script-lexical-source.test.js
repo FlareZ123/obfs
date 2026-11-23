@@ -47,3 +47,19 @@ test('top-level classic script lexical function source is observable by later sc
   })+'\n');
   assert.equal(compiled,native,'Later script must observe original const callable');
 });
+
+
+for(const bindingKind of /** @type {const} */ (['let','var'])){
+  test('subsequent script observes '+bindingKind+' top-level callable source',()=>{
+    const input=fixture().replace('const exposedLexical=',bindingKind+' exposedLexical=');
+    const native=observe(input);
+    /** @type {import('../src/core').SourceFile[]} */
+    const files=[{path:'entry.js',sourceType:'script',code:input}];
+    const result=obfuscateFiles(files,{
+      mode:'coo',seed:'agent44-script-'+bindingKind+'-observable',
+      strings:true,identifiers:true,properties:true,preservePublicCallableSource:true
+    });
+    const emitted=observe(String(result.files[0].code));
+    assert.equal(emitted,native);
+  });
+}
