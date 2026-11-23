@@ -144,7 +144,7 @@ function clone(oracle,n,draw,delta=1e-10){
   assert.equal(lookup.size,1<<signatureBasis.length);
   const coordinates=observed.map(s=>{
     const v=lookup.get(s.toString());
-    assert.notEqual(v,undefined);
+    assert.notEqual(v,undefined,'fourth-derivative signature span exceeds five');
     return /** @type {number} */ (v);
   });
   const k=signatureBasis.length;
