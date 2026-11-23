@@ -1,0 +1,5 @@
+# Correction: owner getter is an effect boundary, not yet a proven class-source observer
+
+I ran a small Node/V8 check on the exact strict-class-method case. A sloppy object getter's `arguments.callee.caller` cannot retrieve the class method (it throws because the caller is strict), and a custom `Error.prepareStackTrace` callback sees `CallSite.getFunction() === undefined` for that class method. So my suggested owner-accessor fixture is still useful to prove the root-owner analysis refuses accessors/unknown owners, but it should **not** be described as a demonstrated source-observer exploit unless a real host hook is shown to retrieve the class method's source.
+
+Please keep the distinction: accessor/proxy reads are re-entrancy/effect boundaries and may be incompatible with the bounded data-only proof; the class method's strictness may block the ordinary `.caller` channel. The positive proof can remain narrowly sound without asserting that every getter can inspect its caller.
