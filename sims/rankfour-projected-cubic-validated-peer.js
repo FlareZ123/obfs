@@ -9,6 +9,17 @@ const {learnBoundedDegreeOracle} = require('./bounded-degree-oracle-functional-c
 /** @typedef {{bits:number,degree:2|3,projected:number[],cubic:number[],lower:LowerModel,queries:number,trials:number}} FastModel */
 /** @typedef {{bits:number,degree:2|3,projected:number[],cubic:number[],lower:LowerModel,queries:number,trials:number,fastQueries:number,verificationQueries:number,verificationSamples:number,verificationCap:number,verificationDelta:number,verificationPassed:boolean,falseAcceptanceBound:number,fallbackUsed:boolean,fallbackReason:string|null,exactByInterpolation:boolean,verificationMismatchAt?:number|null,fallbackQueries?:number}} ValidatedModel */
 
+/** @param {LowerModel} model @returns {boolean} */
+function hasNonzeroCubicCoefficient(model) {
+  return model.coefficients.some(([mask,coefficient])=>{
+    if(coefficient===0)return false;
+    let weight=0;
+    for(let value=mask;value!==0;value&=value-1)weight++;
+    return weight===3;
+  });
+}
+
+
 /** @param {number} seed @returns {()=>number} */
 function seeded(seed) {
   let counter = 0;
@@ -96,7 +107,8 @@ function cloneProjectedCubicValidated(
   drawVerify = secureWord,
   delta = 1e-10
 ) {
-  assert.ok(Number.isInteger(n) && n >= 3 && n <= 32);
+  if(!Number.isInteger(n)||n<4||n>32)
+    throw new RangeError('Cubic wrapper requires 4..32 input bits');
   assert.ok(Number.isFinite(delta) && delta > 0 && delta < 1);
   const {ask,cache} = cachedOracle(oracle,n);
   const sampleLimit = Math.ceil(Math.log(delta) / Math.log(43 / 64));
@@ -143,7 +155,7 @@ function cloneProjectedCubicValidated(
   assert.ok(cache.size <= fallbackCap,'Validated cubic clone exceeded its conservative query cap');
   return {
     bits:n,
-    degree:2,
+    degree:hasNonzeroCubicCoefficient(exactLower)?3:2,
     projected:[],
     cubic:[],
     lower:exactLower,
@@ -195,6 +207,8 @@ function degreeTwoSource(input) {
 /** @returns {object} */
 function main() {
   const delta = 1e-10;
+  assert.throws(()=>cloneProjectedCubicValidated(input=>input,3),RangeError,
+    'the wrapper must reject widths unsupported by the fast learner');
   const verificationCap = Math.ceil(Math.log(delta) / Math.log(7 / 8));
   assert.equal(verificationCap,173);
   assert.ok(Math.pow(7/8,172) > delta);
@@ -246,6 +260,7 @@ function main() {
   );
   assert.equal(validated.fallbackUsed,true);
   assert.equal(validated.fallbackReason,'verification-mismatch');
+  assert.equal(validated.degree,3,'exact fallback metadata must retain the genuine cubic degree');
   assert.notEqual(validated.verificationMismatchAt,null);
   assert.ok(validated.verificationSamples <= 173);
   assert.equal(validated.exactByInterpolation,true);
