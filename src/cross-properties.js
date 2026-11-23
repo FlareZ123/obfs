@@ -1634,6 +1634,16 @@ function safeClosedCallerRecordRead(modules,module,member,ancestors) {
               }
             }
             if(binding.type!=='Identifier')return;
+            // An ordinary local alias of a mutable holder shares its
+            // object identity. A write through the alias can affect reads
+            // through the original binding, so join host-carrier taint in
+            // both directions rather than only source-to-target.
+            if(value.type==='Identifier' &&
+               callbackHolders.has(binding.name) &&
+               !callbackHolders.has(value.name)) {
+              callbackHolders.add(value.name);
+              aliasChanged=true;
+            }
             const ordinaryAlias=value.type==='Identifier' &&
               callableNames.has(value.name);
             // Calling a known host-bearing factory after .bind still
