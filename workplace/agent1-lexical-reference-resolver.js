@@ -149,6 +149,12 @@ function resolveLexicalReferences(root,sourceType) {
       }else if(node.type==='ClassDeclaration'||node.type==='ClassExpression'){
         if(node.type==='ClassDeclaration'&&node.id)declarePattern(node.id,incoming,'class');
         scope=child(incoming,'class');
+        // A named class declaration has a mutable outer binding and a
+        // distinct immutable inner class-name binding used by its body.
+        // One syntax token names both bindings, so independent BindingId
+        // renaming is unproved until the spelling linkage is modeled.
+        if(node.type==='ClassDeclaration'&&node.id)
+          scope.uncertain.add(node.id.name);
         if(node.type==='ClassExpression'&&node.id)declarePattern(node.id,scope,'class-name');
       }else if(node.type==='BlockStatement'){
         // A non-simple formal parameter list has a parameter environment
@@ -241,6 +247,10 @@ function resolveLexicalReferences(root,sourceType) {
     if(parent.type==='ImportSpecifier' || parent.type==='ImportDefaultSpecifier' || parent.type==='ImportNamespaceSpecifier')return false;
     if(parent.type==='ExportSpecifier'&&(key==='exported'||
        ancestors.some(a=>a.type==='ExportNamedDeclaration'&&a.source)))return false;
+    // Re-export namespaces publish a label without a lexical read.
+    if(parent.type==='ExportAllDeclaration'&&key==='exported')return false;
+    // Import attributes are grammar labels, not ambient identifier reads.
+    if(parent.type==='ImportAttribute'&&key==='key')return false;
     if(parent.type==='PrivateIdentifier')return false;
     return true;
   }
@@ -253,6 +263,10 @@ function resolveLexicalReferences(root,sourceType) {
         parent.type==='TaggedTemplateExpression'&&key==='tag')return 'call';
     if (parent.type==='NewExpression'&&key==='callee')return 'construct';
     if (parent.type==='UpdateExpression'&&key==='argument')return 'read-write';
+    // `delete name` can mutate a configurable global binding in sloppy
+    // script/CommonJS. Unlike `delete obj[name]`, this is a binding write.
+    if(parent.type==='UnaryExpression'&&parent.operator==='delete'&&
+       key==='argument')return 'write';
     if (parent.type==='AssignmentExpression'&&key==='left')
       return parent.operator==='='?'write':'read-write';
     if (parent.type==='AssignmentPattern'&&key==='left')return 'write';
