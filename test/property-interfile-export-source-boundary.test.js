@@ -51,6 +51,12 @@ test('external ESM host observes exported cross-file reader exact source',async(
     mode:'coo',closedWorld:true,seed:'external-public-reader-source',
     identifiers:false,strings:false,properties:true
   });
+  assert.equal(transformed.crossFile.properties,1,
+    'The unrelated own field must remain privately renamable');
+  const producer=transformed.files.find(file=>file.path==='state.mjs');
+  assert.ok(producer);
+  assert.match(String(producer.code),/secretValue/u,
+    'Public callable source should keep its original field spelling');
   const output=await observe(/** @type {ModuleFile[]} */(transformed.files));
   assert.deepEqual(output,original,
     'An external named ESM import can observe changed native peek source');
