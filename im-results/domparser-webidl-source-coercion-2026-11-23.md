@@ -46,3 +46,21 @@ The experiment establishes a bounded behavioral incompatibility under an applica
 Route the witness to the canonical `workplace/agent3-source-observer-decoder-intake-2026-11-22.md` decision table as an independent falsifier. Before accepting a fix, convert the diagnostic to an original/emitted **source-parity assertion**, retain its three positive nonescaping rewrite controls, and rerun both the targeted Chromium probe and the source-pinned comprehensive Linux/Windows/Chromium/JSDoc gates. A compiler may conservatively decline unsafe string rewrites in these cases; any claimed positive protected-work yield should be measured elsewhere and reported precisely.
 
 This test-only branch must not be presented as an integrated compiler repair. Global product release status remains **RELEASE-BLOCKED**.
+
+## Equal-source esbuild control (23 November, second source pin)
+
+After the initial diagnostic, the same test acquired a **third ordinary-esbuild arm**, generated from exactly the same source fixture using the repository's pinned `esbuild` package:
+
+```js
+transformSync(fixture.code,{format:'esm',target:'es2022',minify:true}).code
+```
+
+Source-pinned [GitHub Actions run 45185804896](https://github.com/FlareZ123/obfs/actions/runs/45185804896) checked `cb5c4742411e68f3b6e7be1c9089f37880d51867` in actual Ubuntu Chromium. Its source-paired summary was:
+
+```json
+{"cases":9,"valueMatches":9,"minifiedValueMatches":9,"sourceMismatches":6,"minifiedSourceMismatches":6,"publicStringRewrites":6,"privateRewriteControls":3}
+```
+
+Across three mode-labeled repetitions of each source fixture, **both** obfuscated and ordinary-esbuild-minified code changed the source text observed through DOMParser and Element.setAttribute, while both preserved all nine ordinary return values. The three inert controls also maintained text equality. The esbuild control establishes that the selected distinction is a general source-spelling/minification compatibility issue, not evidence that obfs is uniquely defective relative to an equal-source ordinary minifier. This control does not measure attack effort, authorization, code secrecy, or a strong semantic guarantee for either tool.
+
+The overall workflow remained **RED** on the same two earlier, unrelated positive-property-yield assertions in `test/function-declaration-reader-proof.test.js` on Ubuntu and Windows. The Chromium three-arm step was green and logged all nine triplets before those existing failures; no full matrix green claim follows. Neither the original compiler `src/` nor any production entrypoint changed.
