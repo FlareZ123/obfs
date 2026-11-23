@@ -679,7 +679,7 @@ async function main() {
     '  const handler=event=>{if(event.data&&event.data.id===id){',
     '   window.removeEventListener("message",handler);frame.remove();resolve(event.data);}};',
     '  window.addEventListener("message",handler);',
-    '  frame.srcdoc="<meta http-equiv=\\"Content-Security-Policy\\" content=\\"default-src &#39;none&#39;; script-src &#39;unsafe-inline&#39;; require-trusted-types-for &#39;script&#39;; trusted-types default\\"><script type=\\"module\\">"+code+"<\\/script>";',
+    '  frame.srcdoc="<meta http-equiv=\\"Content-Security-Policy\\" content=\\"default-src &#39;none&#39;; script-src &#39;nonce-ttnonce&#39;; require-trusted-types-for &#39;script&#39;; trusted-types default\\"><script nonce=\\"ttnonce\\" type=\\"module\\">"+code+"<\\/script>";',
     '  document.body.appendChild(frame);',
     ' });',
     ' const [ttn,ttc,ttdn,ttdc]=await Promise.all([',
