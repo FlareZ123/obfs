@@ -89,6 +89,20 @@ test('selected SCO graph still admits sequence alias used only for direct call',
   assert.doesNotThrow(()=>compile('const fn=(0,next);return fn();'));
 });
 
+test('selected SCO graph refuses imported function through instance class field',()=>{
+  const caller='class Holder{value=(0,next);}'+
+    'const h=new Holder();h.value.count=(h.value.count??0)+1;return h.value.count;';
+  assert.throws(()=>compile(caller),
+    /private imported identity escapes|shared imported member state/u);
+});
+
+test('selected SCO graph refuses imported function through static class field',()=>{
+  const caller='class Holder{static value=(0,next);}'+
+    'Holder.value.count=(Holder.value.count??0)+1;return Holder.value.count;';
+  assert.throws(()=>compile(caller),
+    /private imported identity escapes|shared imported member state/u);
+});
+
 test('selected SCO graph keeps direct stateless private function calls eligible',()=>{
   assert.doesNotThrow(()=>compile('return next();'));
 });
