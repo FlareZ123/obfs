@@ -63,10 +63,10 @@ for(const mode of /** @type {const} */(['coo','sno','sco'])) {
       mode,metrics:output.metrics,nativeSource:before.source,
       emittedSource:after.source,nativeValue:before.value,
       emittedValue:after.value
-    })+'\\n');
+    })+'\n');
     assert.equal(before.value,31);
     assert.equal(after.value,before.value);
-    assert.match(before.source,/owner\\.privateSecret/);
+    assert.match(before.source,/owner\.privateSecret/);
     assert.ok(output.metrics.properties>=1,
       'Prove nonzero changed private work rather than an all-zero refusal');
     assert.equal(after.source,before.source,
