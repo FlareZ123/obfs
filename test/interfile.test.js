@@ -53,3 +53,33 @@ test('exported reader source observation keeps public function and object spelli
     assert.deepEqual(JSON.parse(result.stdout.trim()),{total:6,source:true});
   }finally{await fs.rm(root,{recursive:true,force:true});}
 });
+
+test('diagnostic matrix identifies first cross-file positive-proof boundary',()=>{
+  const state={path:'state.mjs',code:'export const state={secretValue:3,otherKey:5};'};
+  const primitive={path:'state.mjs',code:'export const state={secretValue:3,otherKey:5};export const internalValue=state.secretValue;'};
+  const visible={path:'state.mjs',code:'export const state={secretValue:3,otherKey:5};export function internal(){return state.secretValue;}'};
+  const index={path:'index.mjs',code:'import {state} from "./state.mjs";export const value=state.secretValue;'};
+  const global={path:'index.mjs',code:'import {state} from "./state.mjs";export const value=state.secretValue+globalThis.window.api.bridge;'};
+  const a={path:'workerA.mjs',code:'import {state} from "./state.mjs";function worker(param){const alias=param;return alias.secretValue+alias.otherKey;}export const partial=worker(state);'};
+  const b={path:'workerB.mjs',code:'import {state} from "./state.mjs";const {secretValue:factor,otherKey}=state;export const partial=factor*otherKey;'};
+  const all={path:'index.mjs',code:'import {state} from "./state.mjs";import {partial as a} from "./workerA.mjs";import {partial as b} from "./workerB.mjs";export const value=a+b+state.secretValue;'};
+  const primAll={path:'index.mjs',code:'import {state,internalValue} from "./state.mjs";import {partial as a} from "./workerA.mjs";import {partial as b} from "./workerB.mjs";export const value=a+b+internalValue+state.secretValue;'};
+  const variants=[
+    ['state-only',[state]],
+    ['state-index',[state,index]],
+    ['state-global',[state,global]],
+    ['state-workerA',[state,a]],
+    ['state-workerB',[state,b]],
+    ['state-A-B',[state,a,b]],
+    ['state-A-B-index',[state,a,b,all]],
+    ['primitive-index',[primitive,index]],
+    ['primitive-A-B-index',[primitive,a,b,primAll]],
+    ['visible-index',[visible,index]]
+  ];
+  const observations=variants.map(([name,files])=>{
+    const output=obfuscateFiles(files,{mode:'coo',seed:'matrix',closedWorld:true,strings:false,identifiers:false});
+    return {name,objects:output.crossFile.objects,properties:output.crossFile.properties};
+  });
+  console.log('INTERFILE_MATRIX '+JSON.stringify(observations));
+  assert.equal(observations.length,10);
+});
