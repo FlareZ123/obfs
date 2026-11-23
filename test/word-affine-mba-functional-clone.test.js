@@ -113,6 +113,7 @@ test('bitwise XOR and multiplication are outside true ring-affine promise',()=>{
   assert.notEqual(xor.evaluate(1,1),(1^1)|0);
   const multiply=cloneMod32Affine((x,y)=>Math.imul(x,y),2);
   assert.notEqual(multiply.evaluate(1,1),Math.imul(1,1));
+  /** @param {number} x @param {number} y @returns {number} */
   const sum=(x,y)=>(x+y)|0;
   const bitwise=cloneBitwiseBitSlice(sum,2);
   assert.notEqual(bitwise.evaluate(1,1),sum(1,1),
