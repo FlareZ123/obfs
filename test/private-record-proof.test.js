@@ -206,7 +206,8 @@ test('closed-world exported owner safely crosses ESM imports alongside a private
       'export const vault={hiddenCount:41,secretDelta:2};',
       'const record={tag:1,owner:vault};',
       'const alias=record.owner;',
-      'export function read(n){return alias.hiddenCount*n+vault.secretDelta;}'
+      'function privateRead(n){return alias.hiddenCount*n+vault.secretDelta;}',
+      'export function read(n){return privateRead(n);}'
     ].join('\n')},
     {path:'entry.mjs',sourceType:'module',code:[
       'import {vault,read} from "./owner.mjs";',
