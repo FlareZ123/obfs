@@ -573,3 +573,22 @@ README known-limitations section. The current-main branch's relevant compiler
 source files (`ast.js`, `core.js`, `properties.js`, `identifiers.js`,
 `strings.js`, `cross-properties.js`, `source-observer-islands.js`) match
 main byte-for-byte.
+
+
+### 2026-11-23 03:30Z: final current-main branch and full validation
+
+Created final test branch `agent19/domstring-property-setter-final-20261123`
+from latest main, copied the full matrix harness and strict JSDoc config, and
+added the manual-only workflow steps while preserving the current main
+workflow and `jsconfig.external.json`.
+
+Run 45106288191 passed both Windows and Ubuntu, including Chromium matrix,
+artifact upload, source-transform JSDoc, and strict matrix JSDoc:
+https://github.com/FlareZ123/obfs/actions/runs/45106288191
+Branch head `2bd8e54a7f6400812d2c5dea3a86568130e7868a`.
+Artifact 14787637047:
+https://github.com/FlareZ123/obfs/actions/runs/45106288191/artifacts/14787637047
+
+Updated report, README, and design note to reference this final branch/run.
+The test harness is on a manual `workflow_dispatch` branch only; it does not
+run per commit. No source-observer implementation patch or PR was opened.
