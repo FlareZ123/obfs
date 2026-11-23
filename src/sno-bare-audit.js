@@ -5,6 +5,8 @@ const path=require('node:path');
 const {createRequire,isBuiltin}=require('node:module');
 const {parse,walk}=require('./ast');
 const {collectBindings}=require('./properties');
+const {spawnSync}=require('node:child_process');
+const {pathToFileURL}=require('node:url');
 
 /** @typedef {import('./core').SourceFile} SourceFile */
 
@@ -34,8 +36,8 @@ async function futureRealRoot(root) {
 /**
  * Collect only direct, string-literal calls to the standard lexical
  * CommonJS require function. This is deliberately a narrow audit:
- * arbitrary dynamic aliases, module.createRequire, import() and custom
- * loaders need separate analysis. A lexical declaration named require
+ * arbitrary dynamic aliases, module.createRequire and custom loaders need
+ * separate analysis. Literal ESM import forms are audited independently. A lexical declaration named require
  * could shadow the builtin and is conservatively rejected.
  *
  * @param {SourceFile[]} files
@@ -176,4 +178,257 @@ async function assertSnoDirectBareRequireParity(original,generated,inputRoot,out
   return {entries,files:sources.size};
 }
 
-module.exports={directBareRequires,assertSnoDirectBareRequireParity};
+
+
+/**
+ * @typedef {{specifier:string,parentURL:string}} ESMResolveRequest
+ * @typedef {{ok:true,url:string}|{ok:false,code:string,message:string}} ESMResolveResult
+ */
+
+/**
+ * Whether a module specifier is a bare package name handled by Node's
+ * package resolver rather than a path, builtin, or URL.
+ * @param {string} specifier
+ * @returns {boolean}
+ */
+function isBareImportSpecifier(specifier) {
+  if(specifier==='.'||specifier==='..'||
+      specifier.startsWith('./')||specifier.startsWith('../')||
+      specifier.startsWith('/')||path.isAbsolute(specifier)||
+      (path.sep==='\\'&&
+        (specifier.startsWith('.\\')||specifier.startsWith('..\\')))||
+      /^[A-Za-z][A-Za-z0-9+.-]*:/u.test(specifier)||
+      isBuiltin(specifier))return false;
+  return true;
+}
+
+/**
+ * Collect static ESM import/export sources, literal dynamic imports, and
+ * direct literal import.meta.resolve calls. Dynamic resolver construction,
+ * package-import (#) maps, eval, and opaque JavaScript are refused.
+ *
+ * @param {SourceFile[]} files
+ * @returns {Map<string,string[]>}
+ */
+function directBareImports(files) {
+  /** @type {Map<string,string[]>} */
+  const entries=new Map();
+  for(const file of files) {
+    if(!/\.(?:cjs|js|mjs)$/iu.test(file.path))continue;
+    if(file.sourceType==='asset'||typeof file.code!=='string') {
+      throw new TypeError(
+        'SNO ESM bare dependency audit cannot inspect opaque JavaScript: '+file.path);
+    }
+    const isModule=file.sourceType==='module'||/\.mjs$/iu.test(file.path);
+    const ast=parse(file.code,isModule?'module':'commonjs');
+    /** @type {string[]} */
+    const refs=[];
+    let dynamicCode=false;
+    let unprovedImport=false;
+    /**
+     * @param {string} specifier
+     */
+    const addSpecifier=specifier=>{
+      if(specifier.startsWith('#')) {
+        unprovedImport=true;
+        return;
+      }
+      if(isBareImportSpecifier(specifier))refs.push(specifier);
+    };
+    walk(ast,(node,parent,key)=>{
+      if(node.type==='WithStatement'||
+          (node.type==='CallExpression'||node.type==='NewExpression')&&
+            node.callee?.type==='Identifier'&&
+            (node.callee.name==='eval'||node.callee.name==='Function')) {
+        dynamicCode=true;
+      }
+      if((node.type==='ImportDeclaration'||
+          node.type==='ExportAllDeclaration'||
+          node.type==='ExportNamedDeclaration')&&
+          typeof node.source?.value==='string') {
+        addSpecifier(node.source.value);
+      }
+      if(node.type==='ImportExpression') {
+        if(node.source?.type==='Literal'&&
+            typeof node.source.value==='string') {
+          addSpecifier(node.source.value);
+        } else unprovedImport=true;
+      }
+      if(node.type==='MemberExpression'&&
+          node.object?.type==='MetaProperty'&&
+          node.object.meta?.name==='import'&&
+          node.object.property?.name==='meta') {
+        const resolveProperty=node.computed?
+          node.property?.type==='Literal'&&node.property.value==='resolve':
+          node.property?.type==='Identifier'&&node.property.name==='resolve';
+        if(resolveProperty) {
+          if(!(parent?.type==='CallExpression'&&key==='callee')) {
+            unprovedImport=true;
+          }
+        } else if(node.computed&&node.property?.type!=='Literal') {
+          unprovedImport=true;
+        }
+      }
+      if(node.type==='CallExpression'&&
+          node.callee?.type==='MemberExpression'&&
+          node.callee.object?.type==='MetaProperty'&&
+          node.callee.object.meta?.name==='import'&&
+          node.callee.object.property?.name==='meta') {
+        const callee=node.callee;
+        const resolveProperty=callee.computed?
+          callee.property?.type==='Literal'&&callee.property.value==='resolve':
+          callee.property?.type==='Identifier'&&callee.property.name==='resolve';
+        if(resolveProperty) {
+          if(node.arguments?.length!==1||
+              node.arguments[0]?.type!=='Literal'||
+              typeof node.arguments[0].value!=='string') {
+            unprovedImport=true;
+            return;
+          }
+          addSpecifier(node.arguments[0].value);
+        }
+      }
+    });
+    if(dynamicCode||unprovedImport) {
+      throw new TypeError(
+        'SNO ESM bare dependency audit cannot prove literal imports in '+file.path);
+    }
+    if(refs.length)entries.set(file.path,refs.sort());
+  }
+  return entries;
+}
+
+/**
+ * Refuse resolver modes that the parent-URL comparison does not model.
+ * NODE_OPTIONS is inherited by the helper process, but process.execArgv is
+ * not; custom conditions are therefore explicitly rejected rather than
+ * silently compared under different export conditions.
+ * @returns {void}
+ */
+function assertDefaultEsmResolverContext() {
+  const unsupported=/^(?:--conditions(?:=.*)?|--preserve-symlinks(?:-main)?|--(?:loader|experimental-loader|import|require)(?:=.*)?|-r)$/u;
+  const nodeOptions=(process.env.NODE_OPTIONS||'').match(/(?:--[^\s]+|-r)/gu)||[];
+  if([...process.execArgv,...nodeOptions].some(flag=>unsupported.test(flag))) {
+    throw new Error(
+      'SNO ESM bare dependency audit does not model custom loaders, preloads, '+
+      'symlink-preservation flags or nondefault Node conditions');
+  }
+}
+
+/**
+ * Resolve ESM specifiers using Node's actual import conditions and an
+ * explicit parent URL. The helper runs in a separate Node process so
+ * resolution does not populate the compiler process's module caches.
+ *
+ * @param {ESMResolveRequest[]} requests
+ * @returns {ESMResolveResult[]}
+ */
+function resolveEsmRequests(requests) {
+  const script=[
+    "import {readFileSync} from 'node:fs';",
+    "const requests=JSON.parse(readFileSync(0,'utf8'));",
+    "const results=requests.map(({specifier,parentURL})=>{",
+    "try{return {ok:true,url:import.meta.resolve(specifier,parentURL)};}",
+    "catch(error){return {ok:false,code:String(error.code||''),message:String(error.message||error)};}",
+    "});",
+    "process.stdout.write(JSON.stringify(results));"
+  ].join('\n');
+  const child=spawnSync(process.execPath,[
+    '--experimental-import-meta-resolve','--input-type=module','-e',script
+  ],{
+    input:JSON.stringify(requests),
+    encoding:'utf8',
+    timeout:30000,
+    maxBuffer:4*1024*1024
+  });
+  if(child.error)throw child.error;
+  if(child.status!==0) {
+    throw new Error('SNO ESM resolver helper failed: '+String(child.stderr||''));
+  }
+  /** @type {ESMResolveResult[]} */
+  const results=JSON.parse(child.stdout);
+  if(!Array.isArray(results)||results.length!==requests.length) {
+    throw new Error('SNO ESM resolver helper returned an invalid result set');
+  }
+  return results;
+}
+
+/**
+ * Compare Node's ESM bare-package resolution for every statically proven
+ * import site before publishing a SNO output tree. This uses the ESM
+ * resolver's import conditions rather than CommonJS require conditions.
+ *
+ * @param {SourceFile[]} original
+ * @param {SourceFile[]} generated
+ * @param {string} inputRoot
+ * @param {string} outputRoot
+ * @returns {Promise<{entries:number,files:number}>}
+ */
+async function assertSnoDirectBareImportParity(original,generated,inputRoot,outputRoot) {
+  const sources=directBareImports(original);
+  const targets=directBareImports(generated);
+  if(sources.size===0&&targets.size===0)return {entries:0,files:0};
+  assertDefaultEsmResolverContext();
+  const packaged=new Set(generated.filter(file=>
+    file.path==='package.json'||file.path.endsWith('/package.json')
+  ).map(file=>file.path));
+  for(const filename of sources.keys()) {
+    let directory=path.posix.dirname(filename);
+    for(;;) {
+      if(packaged.has(path.posix.join(directory,'package.json'))) {
+        throw new Error('SNO ESM bare dependency audit cannot model future package scope: '+filename);
+      }
+      if(directory==='.')break;
+      directory=path.posix.dirname(directory);
+    }
+  }
+  for(const [name,specifiers] of sources) {
+    const transformed=targets.get(name);
+    if(!transformed||JSON.stringify(transformed)!==JSON.stringify(specifiers)) {
+      throw new Error('SNO ESM bare dependency specifiers changed during compilation: '+name);
+    }
+  }
+  for(const name of targets.keys())if(!sources.has(name)) {
+    throw new Error('SNO ESM bare dependency specifiers introduced during compilation: '+name);
+  }
+
+  const [input,output]=await Promise.all([
+    futureRealRoot(inputRoot),futureRealRoot(outputRoot)
+  ]);
+  /** @type {ESMResolveRequest[]} */
+  const requests=[];
+  /** @type {{filename:string,specifier:string,sourceIndex:number,outputIndex:number}[]} */
+  const pairs=[];
+  for(const [filename,specifiers] of sources) {
+    const sourceURL=pathToFileURL(path.join(input,filename)).href;
+    const outputURL=pathToFileURL(path.join(output,filename)).href;
+    for(const specifier of specifiers) {
+      const sourceIndex=requests.length;
+      requests.push({specifier,parentURL:sourceURL});
+      const outputIndex=requests.length;
+      requests.push({specifier,parentURL:outputURL});
+      pairs.push({filename,specifier,sourceIndex,outputIndex});
+    }
+  }
+  const resolved=resolveEsmRequests(requests);
+  for(const pair of pairs) {
+    const before=resolved[pair.sourceIndex];
+    const after=resolved[pair.outputIndex];
+    if(!before||!after)throw new Error('SNO ESM resolver helper omitted a resolution result');
+    if(!before.ok) {
+      throw new Error('SNO source ESM bare dependency could not resolve: '+
+        pair.filename+' -> '+pair.specifier+' ('+before.message+')');
+    }
+    if(!after.ok) {
+      throw new Error('SNO output ESM bare dependency could not resolve: '+
+        pair.filename+' -> '+pair.specifier+' ('+after.message+')');
+    }
+    if(before.url!==after.url) {
+      throw new Error('SNO ESM bare dependency resolution differs: '+
+        pair.filename+' -> '+pair.specifier+' ('+before.url+' vs '+after.url+')');
+    }
+  }
+  return {entries:pairs.length,files:sources.size};
+}
+
+module.exports={directBareRequires,assertSnoDirectBareRequireParity,directBareImports,assertSnoDirectBareImportParity};
