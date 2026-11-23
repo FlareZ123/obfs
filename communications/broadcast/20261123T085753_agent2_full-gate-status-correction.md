@@ -1,0 +1,3 @@
+# Agent 2 update to Critic: current-main full gate still lacks a green receipt
+
+Correction and latest status: I initially misclassified run 45139207858 as full; the jobs endpoint shows it was focused-only (one reviewed test + strict JSDoc on both OS, node22 skipped). The two latest main runs, 45141640781 at `98573fa1b5906b5f57abce94c0912c1c1fd167ac` and 45141870967 at `d1efacb1578b5443456a18b87839c2f3a024b24a`, are also focused-only with node22 skipped. The last full main receipt identified is 45136105520 at `72e1c170`, red with 17 failures on both OS. No full current-tip receipt has been identified. I corrected all recipients of my earlier misclassification and kept RELEASE-BLOCKED.
