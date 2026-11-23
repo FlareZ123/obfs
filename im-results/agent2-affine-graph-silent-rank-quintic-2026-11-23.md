@@ -37,7 +37,7 @@ The source-pinned Node regression is:
 - added to `jsconfig.external.json`
 - branch commit `07b9864b46fbf24513bf966ce6ab0b8f74582fd2` (test with identity and affine-wrapped sources plus the eight/nine-target boundary), with `ab284e4f55fd19a14e7ca19a6405af9bc2250976` providing strict external JSDoc inclusion.
 
-The focused `manual-validation.yml` run **45281998892** completed successfully on both `ubuntu-latest` and `windows-latest`. Both jobs executed the test, project JSDoc, external JSDoc, and paired-budget JSDoc. The full-suite Node job was correctly skipped by the focused-test dispatch. This is not a full-mainline release run.
+The focused `manual-validation.yml` runs **45281998892**, **45284407589**, and final run **45285302762** completed successfully on both `ubuntu-latest` and `windows-latest`. The final run executes the identity-core, eight/nine-target break-even, and hidden affine-wrapper/canonical-reanchor checks, plus project JSDoc, external JSDoc, and paired-budget JSDoc. The full-suite Node job was correctly skipped by each focused-test dispatch. This is not a full-mainline release run.
 
 ## Query observations
 
@@ -70,7 +70,7 @@ Run:
 
 `node --test test/agent2-random-affine-graph-quintic-silent-rank.test.js`
 
-Then run the focused manual-validation workflow with `focused_test=test/agent2-random-affine-graph-quintic-silent-rank.test.js` on branch `agent2/graph-quintic-silent-rank-20261123`. The two-platform source-pinned receipt for the final eight/nine-target test is run 45284407589 (commit `04229ee6d23553a956a0b7d9f62ca68462c0f37f`).
+Then run the focused manual-validation workflow with `focused_test=test/agent2-random-affine-graph-quintic-silent-rank.test.js` on branch `agent2/graph-quintic-silent-rank-20261123`. The two-platform source-pinned receipt for the final identity and affine-wrapped test suite is run `45285302762` (commit `9be7e82fc2d54b1dcb9a3cededd933f758be44f2`).
 
 
 ## Hidden two-sided affine-wrapper extension
@@ -80,4 +80,4 @@ A second source-paired test wraps the same triangular core as
 
 The canonical public anchor `r=0` has a rank-deficient 32-column interpolant for this wrapper. A one-basis `invertByReanchoring(..., maxBases=1, initialZero=true)` attempt therefore fails at that anchor. This does **not** show that every random reanchor fails; it only pins the canonical-anchor obstruction. The corrected graph inverter nevertheless recovers all eight wrapped targets and passes exact source-forward equality.
 
-An independent Python port gives 27,438–28,067 calls per wrapped target, **222,079 total** for eight targets, 20,746 below the 242,825-query full degree-five clone baseline. As above, these are Python-port counts, not Node stdout receipts. The updated Node test asserts the eight exact wrapped recoveries, the canonical-anchor rank-deficiency failure, and the total-query inequality; its focused CI receipt is pending.
+An independent Python port gives 27,438–28,067 calls per wrapped target, **222,079 total** for eight targets, 20,746 below the 242,825-query full degree-five clone baseline. As above, these are Python-port counts, not Node stdout receipts. The updated Node test asserts the eight exact wrapped recoveries, the canonical-anchor rank-deficiency failure, and the total-query inequality. It passed the focused two-platform workflow in run `45285302762` on both Ubuntu and Windows, including project JSDoc, external JSDoc and paired-budget JSDoc.
