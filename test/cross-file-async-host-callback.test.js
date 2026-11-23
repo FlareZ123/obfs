@@ -791,16 +791,16 @@ test('numeric default array destructure retains one safe private field transform
 
 
 /**
- * A function-valued slot in a literal does not make its disjoint numeric
- * sibling callable. These positive controls detect whole-pattern taint
- * that discards proven private-field transformations unnecessarily.
+ * Direct own-data object values are selected by their proven static keys.
+ * Distinct primitive callbacks remain eligible even when an unrelated field
+ * holds a function that could obtain an ambient constructor.
  */
 for(const [name,binding] of /** @type {[string,string][]} */([
   ['disjoint object fields','const {unused,numeric}={unused:getFactory,numeric:()=>7};'],
-  ['disjoint array positions','const [unused,numeric]=[getFactory,()=>7];'],
-  ['disjoint object defaults','const {unused=getFactory,numeric=()=>7}={};']
+  ['disjoint object defaults',
+    'const {unused=getFactory,numeric=()=>7}={unused:undefined,numeric:()=>7};']
 ])) {
-  test('mixed literal destructuring keeps safe numeric callback field rewrite: '+name,async()=>{
+  test('own-data object pattern keeps safe numeric callback rewrite: '+name,async()=>{
     const files=graph([
       'function getFactory(){return globalThis.RUNTIME_FACTORY;}',
       binding,
@@ -816,3 +816,20 @@ for(const [name,binding] of /** @type {[string,string][]} */([
     assert.equal(compiled.crossFile.properties,1,name);
   });
 }
+
+test('array pattern retains conservative host iterator veto for mixed callback fields',async()=>{
+  const files=graph([
+    'function getFactory(){return globalThis.RUNTIME_FACTORY;}',
+    'const [unused,numeric]=[getFactory,()=>7];',
+    'const value=await Promise.resolve().then(numeric);',
+    "const result=[inspectRecord('externalFormat').value,value];"
+  ].join('\n'));
+  const native=await execute(files);
+  const compiled=obfuscateFiles(files,{
+    mode:'coo',closedWorld:true,seed:'mixed-pattern-array-iterator-veto',
+    identifiers:false,strings:false,properties:true
+  });
+  assert.equal(await execute(compiled.files),native);
+  assert.equal(compiled.crossFile.properties,0,
+    'Array destructuring invokes host-mutable @@iterator even for a literal array');
+});
