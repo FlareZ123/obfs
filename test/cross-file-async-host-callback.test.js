@@ -703,3 +703,51 @@ test('primitive conditional callback preserves positive own-key rewrite',async()
   assert.equal(await execute(compiled.files),native);
   assert.equal(compiled.crossFile.properties,1);
 });
+
+
+/**
+ * A holder-alias assignment can also be logical. This path is independent
+ * of assigning a callback to the member itself or to a callback variable.
+ */
+for(const [operator,initial] of /** @type {[string,string][]} */([
+  ['??=','let alias;'],
+  ['||=','let alias=null;'],
+  ['&&=','let alias={};']
+])) {
+  test('holder alias '+operator+' retains remotely visible ESM property spelling',async()=>{
+    const files=graph([
+      'function getFactory(){return globalThis.RUNTIME_FACTORY;}',
+      'const holder={};',
+      initial,
+      'alias '+operator+' holder;',
+      'alias.callback=getFactory;',
+      'const ctor=await Promise.resolve().then(holder.callback);',
+      'const remote=await ctor("return import(\'./state.mjs\')")();',
+      "const result=[inspectRecord('auditCount').value,Object.keys(remote.state),remote.state.secretField];"
+    ].join('\n'));
+    const native=await execute(files,true);
+    assert.equal(native,'[41,[3,["secretField"],41]]\n');
+    const compiled=obfuscateFiles(files,{
+      mode:'coo',closedWorld:true,seed:'host-logical-holder-alias/'+operator,
+      identifiers:false,strings:false,properties:true
+    });
+    assert.equal(await execute(compiled.files,true),native,operator);
+    assert.equal(compiled.crossFile.properties,0,operator);
+  });
+}
+
+test('numeric callback installed through logical holder alias retains one own-key rewrite',async()=>{
+  const files=graph([
+    'const holder={};let alias;alias ??= holder;',
+    'alias.callback=()=>7;',
+    'const value=await Promise.resolve().then(holder.callback);',
+    "const result=[inspectRecord('externalFormat').value,value];"
+  ].join('\n'));
+  const native=await execute(files);
+  const compiled=obfuscateFiles(files,{
+    mode:'coo',closedWorld:true,seed:'host-logical-holder-alias-primitive',
+    identifiers:false,strings:false,properties:true
+  });
+  assert.equal(await execute(compiled.files),native);
+  assert.equal(compiled.crossFile.properties,1);
+});
