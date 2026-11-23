@@ -80,4 +80,20 @@ for(const mode of /** @type {const} */(['coo','sno','sco'])) {
     assert.equal(execute(/** @type {string} */(output.code)).value,
       execute(ordinarySource).value);
   });
+  test(mode+' strict-mode caller masks structured source observation',()=>{
+    const source="'use strict';"+observableSource;
+    const before=execute(source);
+    const output=compile(source,mode);
+    const after=execute(/** @type {string} */(output.code));
+    process.stdout.write('CALLSITE_STRICT_BOUNDARY '+JSON.stringify({
+      mode,properties:output.metrics.properties,nativeSource:before.source,
+      emittedSource:after.source,nativeValue:before.value,
+      emittedValue:after.value
+    })+'\n');
+    assert.equal(before.source,'undefined',
+      'Node/V8 strict stack frames should not expose caller function objects');
+    assert.equal(after.source,before.source);
+    assert.equal(after.value,before.value);
+  });
+
 }
