@@ -246,7 +246,9 @@ function renameCommonJsCrossFileProperties(files,seed) {
         failed=true;
         break;
       }
-      const proof=proveLocalObject(importer.ast,parent.id.name,importer.bindings);
+      const proof=proveLocalObject(importer.ast,parent.id.name,importer.bindings,
+        new Map(),new Map(),new Map(),new Map(),new Set(),false,
+        new Set([parent.id.name]));
       if(!proof) {
         failed=true;
         break;
