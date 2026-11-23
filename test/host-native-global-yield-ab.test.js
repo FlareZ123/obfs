@@ -19,8 +19,11 @@ test('known native Math lookup retains independent private-owner rewrite yield',
     mode:'coo',closedWorld:true,seed:'agent39-native-math-positive',
     properties:true,identifiers:false,strings:false
   });
-  assert.equal(observesFunctionSource(parse(source,'module')),false,
-    'The pristine native Math data property is an explicit positive-host premise');
+  const observer=observesFunctionSource(parse(source,'module'));
+  console.log(JSON.stringify({fixture:'native-Math-owner',
+    sourceObserver:observer,properties:result.files[0].metrics.properties}));
   assert.equal(result.files[0].metrics.properties,1,
     'Safe private-owner rewrite must survive a trusted native Math read');
+  assert.equal(observer,false,
+    'The pristine native Math data property is an explicit positive-host premise');
 });
