@@ -1603,6 +1603,16 @@ function safeClosedCallerRecordRead(modules,module,member,ancestors) {
         do {
           aliasChanged=false;
           walk(caller.ast,node=>{
+            // Ordinary property/index writes may install a host-returning
+            // factory into a previously inert {} or [] holder.
+            if(node.type==='AssignmentExpression' && node.operator==='=' &&
+               node.left.type==='MemberExpression' &&
+               node.left.object.type==='Identifier' &&
+               holdsFactoryValue(node.right,0) &&
+               !callbackHolders.has(node.left.object.name)) {
+              callbackHolders.add(node.left.object.name);
+              aliasChanged=true;
+            }
             const binding=node.type==='VariableDeclarator'?node.id:
               node.type==='AssignmentExpression' && node.operator==='='?node.left:null;
             const value=node.type==='VariableDeclarator'?node.init:
