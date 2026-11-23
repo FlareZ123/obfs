@@ -69,10 +69,12 @@ test('indirect-bound native constructor source guard preserves COO/SNO parity',(
 });
 
 test('primitive indirect-bound constructors allow provable private-key rewrites',()=>{
-  const original='const owner={hiddenCount:41,secretDelta:2};'+
+  // Maintain an observable exported wrapper and exercise renaming only in
+  // the nonescaping direct-call helper.
+  const original='function privateRead(){const owner={hiddenCount:41,secretDelta:2};return owner.hiddenCount+owner.secretDelta;}'+
     'const Make=RegExp.bind.call(RegExp,null,"abc");new Make("i");'+
     'new (Blob.bind.apply(Blob,[null,[]]))({type:"text/plain"});'+
-    'module.exports=()=>owner.hiddenCount+owner.secretDelta;';
+    'module.exports=()=>privateRead();';
   assert.equal(observesFunctionSource(parse(original,'commonjs')),false);
   for(const mode of /** @type {('coo'|'sno')[]} */(['coo','sno'])) {
     const compiled=obfuscateFiles([{
