@@ -2,6 +2,11 @@ name: Manual cross-file property reader proof
 
 on:
   workflow_dispatch:
+    inputs:
+      parse_ab:
+        description: 'Isolated parsed-AST same-source A/B compiler comparison'
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -16,11 +21,16 @@ jobs:
     timeout-minutes: 12
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: ${{ inputs.parse_ab && '0' || '1' }}
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
       - name: Install declared dependencies
         run: npm install --no-package-lock --ignore-scripts
+      - name: Source-isolated parse cache matched A/B
+        if: ${{ inputs.parse_ab }}
+        run: node sims/cross-file-parse-ab.js
       - name: Cross-file differential and negative cases
         run: node --test test/cross-default-export-properties.test.js test/local-root-getter.test.js test/cross-file-local-identity.test.js test/cross-file-reader-flow.test.js test/cross-file-reader-matrix.test.js test/cross-file-identity-return.test.js test/cross-file-identity-grid.test.js test/cross-file-safe-record-read.test.js test/closed-record-host-formal-provenance.test.js test/cross-reflection.test.js test/cross-file-ambiguity.test.js test/cross-file-source-introspection.test.js test/cross-file-absolute-url.test.js test/cross-file-hash-collision.test.js test/cross-file-source-byte-reader.test.js test/node-loader-source-reader.test.js test/module-registry-source-reader.test.js test/module-registry-source-sample.test.js test/imported-constant-computed-key.test.js
       - name: Verify exact immediate-owner getter before/after ESM artifact
