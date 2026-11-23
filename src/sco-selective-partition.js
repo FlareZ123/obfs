@@ -355,6 +355,52 @@ function usesUnprovedRelocatedTextDecoder(body){
   const instanceAliases=new Map();
   /** @type {Set<import('./ast').AstNode>} */
   const provedInstanceDeclarations=new Set();
+  /** @type {Map<string,import('./ast').AstNode>} */
+  const instanceConstructors=new Map();
+  /**
+   * A fresh UTF-8 decoder with an absent or literal false fatal option has
+   * the default replacement behavior, so malformed *bytes* do not throw.
+   * Unknown option values are not a proof of non-fatal decoding.
+   * @param {import('./ast').AstNode|undefined} constructor
+   * @returns {boolean}
+   */
+  function provedNonFatal(constructor){
+    if(constructor?.type!=='NewExpression')return false;
+    const options=constructor.arguments[1];
+    if(options===undefined)return true;
+    if(options.type!=='ObjectExpression')return false;
+    for(const property of options.properties){
+      if(property.type!=='Property'||property.kind!=='init'||property.method||
+         property.computed&&staticString(property.key)===null)return false;
+      const name=property.computed?staticString(property.key):
+        property.key.type==='Identifier'?property.key.name:
+          staticString(property.key);
+      if(name==='fatal'&&
+         !(property.value.type==='Literal'&&property.value.value===false)){
+        return false;
+      }
+    }
+    return true;
+  }
+  /**
+   * Prove that all input bytes are ASCII. UTF-8 ASCII cannot cause a native
+   * fatal decoding error for a newly constructed decoder without streaming
+   * state. Other byte grammars remain conservatively unproved.
+   * @param {import('./ast').AstNode|undefined} input
+   * @returns {boolean}
+   */
+  function provedAsciiInput(input){
+    return Boolean(input?.type==='CallExpression'&&
+      input.callee.type==='MemberExpression'&&
+      !input.callee.computed&&
+      input.callee.object.type==='Identifier'&&
+      input.callee.object.name==='Uint8Array'&&
+      input.callee.property.type==='Identifier'&&
+      input.callee.property.name==='of'&&
+      input.arguments.every(/** @param {import('./ast').AstNode} item */ item=>
+        item.type==='Literal'&&typeof item.value==='number'&&
+        Number.isInteger(item.value)&&item.value>=0&&item.value<=0x7f));
+  }
   let aliasesChanged=true;
   while(aliasesChanged){
     aliasesChanged=false;
@@ -375,6 +421,9 @@ function usesUnprovedRelocatedTextDecoder(body){
       provedInstanceDeclarations.add(node);
       if(!instanceAliases.has(node.id.name)){
         instanceAliases.set(node.id.name,scope);
+        const origin=isDirectInstance(source)?source:
+          source?.type==='Identifier'?instanceConstructors.get(source.name):undefined;
+        if(origin)instanceConstructors.set(node.id.name,origin);
         aliasesChanged=true;
       }
     });
@@ -402,7 +451,16 @@ function usesUnprovedRelocatedTextDecoder(body){
         const input=user.arguments[0];
         if(input&&['Literal','ObjectExpression','ArrayExpression'].includes(input.type)){
           unproved=true;
+          return;
         }
+        // With fatal:true or dynamic fatal options, even valid ArrayBuffer
+        // views can contain malformed UTF-8. An observed native TypeError
+        // message would change across the relocation boundary. Permit only
+        // a new decoder with static ASCII bytes and no streaming options.
+        const constructor=isDirectInstance(node)?node:
+          node.type==='Identifier'?instanceConstructors.get(node.name):undefined;
+        if(!provedNonFatal(constructor)&&
+           (!provedAsciiInput(input)||user.arguments.length>1))unproved=true;
         return;
       }
       // WHATWG-defined native decoder getters return immutable primitives.
