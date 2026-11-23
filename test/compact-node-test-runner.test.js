@@ -56,3 +56,19 @@ test('compact runner preserves failure diagnostics and exit status',()=>{
   assert.match(result.stdout,/1 !== 2/u);
   assert.match(result.stdout,/# fail 1/u);
 });
+
+test('compact runner indexes every failure beyond its detailed log cap',()=>{
+  const source="const {test}=require('node:test');"+
+    "for(let i=0;i<30;i++)test('synthetic case '+i,()=>{throw Error('failure '+i);});";
+  const result=sample(source);
+  assert.ifError(result.error);
+  assert.equal(result.status,1,result.stderr);
+  const match=/^FAILED_TEST_INDEX (.+)$/mu.exec(result.stdout);
+  assert.ok(match,'complete machine-readable failure index must be emitted');
+  const index=JSON.parse(match[1]);
+  assert.equal(index.length,30);
+  assert.match(index[0].case,/synthetic case 0/u);
+  assert.match(index[29].case,/synthetic case 29/u);
+  assert.ok(index[29].location.includes('case.test.js:'),index[29].location);
+  assert.match(result.stdout,/Omitted 5 additional failing test blocks/u);
+});
