@@ -78,3 +78,19 @@ At exact source pin `d0c915a4928d4e97c27f09961c31415af7af4b9f`, [GitHub Actions 
 The six native source-coercion shapes (two original direct paths and four indirect paths) × three mode repetitions each changed observed callable text in **both** obfs and esbuild. All 21 original/compiled and original/minified ordinary values matched. Each of the 18 source-observing obfs compilations contained positive string rewrites, and all three nonescaping string-rewrite controls preserved runtime output. The targeted Chromium step passed; the broader workflow independently failed on two prior `function-declaration-reader-proof` positive-yield assertions on both platforms before reaching all remaining steps.
 
 This supplies bounded evidence that a fix recognizing only `DOMParser.parseFromString(...)` or `element.setAttribute(...)` direct spelling is incomplete for the stated native-source equivalence contract. The precise exposed-source behavior and private rewriting requirement must be checked at the compiled artifact, and any strong security claim needs a separate attacker-cost evaluation.
+
+## Property renaming contrast: safe refusal under the same native consumers
+
+The browser matrix was augmented with original source functions capturing an owned `owner.secretField`, observed through the two **direct** DOMParser and Element.setAttribute paths. Unlike the preceding string-encoder fixtures, these source inputs select `properties:true`, `strings:false`, `identifiers:false`, and `closedWorld:true`. The same-source esbuild minifier remains the third arm.
+
+In exact-source [run 45187092241](https://github.com/FlareZ123/obfs/actions/runs/45187092241) on `863eaa3d568965251fac1e8bcd67d5718041d2a1`, Ubuntu Chromium logged:
+
+```json
+{"cases":27,"valueMatches":27,"minifiedValueMatches":27,"sourceMismatches":18,"minifiedSourceMismatches":24,"publicStringRewrites":18,"publicPropertyRewrites":0,"privateRewriteControls":3}
+```
+
+The six newly added property-specific original/emitted pairs retained byte-exact callable source and ordinary behavior, but **each emitted zero actual property rewrites**. In the same six cases, ordinary esbuild changed native observed source text; across all 27 cases both build arms preserved ordinary values. The earlier 18 positive string rewrites continued to produce the same 18 native source mismatches.
+
+Interpret this narrowly: the property transform's conservative refusal prevents this particular source-observation incompatibility, at the cost of zero property-obfuscation yield for these public-source fixtures. This evidence does **not** prove a general property alias safety theorem. It also does not demonstrate the property pass can rewrite otherwise equivalent nonescaping ownership graphs under these exact fixture conditions; a positive nonescaping property control is the appropriate follow-up.
+
+Again, the targeted browser diagnostic passed and the full workflow failed at two unrelated positive-yield assertions per OS. No production source file changed.
