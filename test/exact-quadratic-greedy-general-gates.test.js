@@ -113,6 +113,7 @@ test('direct second differences and coefficient-based polar agree on wrapped qua
 });
 
 test('degree-three triangular gate defeats the unverified degree-two promise',()=>{
+  /** @param {number} input @returns {number} */
   const cubic=input=>{
     const x=input>>>0;
     return u32(x^((x&7)===7?0x80000000:0));
