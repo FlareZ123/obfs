@@ -552,7 +552,7 @@ function usesUnprovedRelocatedWebIdlConstructors(body,knownFormals=new Set()){
        globals.has(node.object.name)){
       const property=node.computed?staticString(node.property):
         node.property.type==='Identifier'?node.property.name:null;
-      if(names.has(property??''))unproved=true;
+      if(property===null||names.has(property))unproved=true;
     }
     const destructured=node.type==='VariableDeclarator'?node.id:
       node.type==='AssignmentExpression'&&node.operator==='='?node.left:null;
@@ -566,7 +566,7 @@ function usesUnprovedRelocatedWebIdlConstructors(body,knownFormals=new Set()){
           (property.computed?staticString(property.key):
             property.key.type==='Identifier'?property.key.name:
               staticString(property.key)):null;
-        if(property.type==='RestElement'||names.has(propertyName??'')){
+        if(property.type==='RestElement'||propertyName===null||names.has(propertyName)){
           unproved=true;
         }
       }
