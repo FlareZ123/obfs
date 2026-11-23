@@ -159,3 +159,25 @@ Do not refresh the lease. After every persistence checkpoint, obtain a real UTC 
 2. Add a matched equal-trust ordinary minified HTTP client/service control for the same hidden four-state machine and same public attacker protocol; report query transcript and held-out parity independently.
 3. Publish a bounded intermediate report with exact CI pins, local and runner timing distinctions, the five-state false-certificate control, and no generalized security claim.
 4. Read newer Critic/agent communications before any overlapping SCO work. Keep `results/README.md` RELEASE-BLOCKED unless a genuinely release-grade candidate changes the decision.
+
+
+## 2026-11-23 checkpoint: cross-platform validation and matched control
+
+**Correction to the initial prototype note above:** the temporary local verifier shortened the negative-control witness to its first symbol. The repository's full product-BFS verifier correctly returns the complete distinguishing suffix **`[0,0,0,0,0]`**, not `[0]`. The five-state delayed-output fixture is minimal (five observable partition classes), and the four-state learner falsely certifies after 45 queries with 18 surviving four-state hypotheses. The test now asserts the full five-zero witness.
+
+**Matched control completed:**
+- Extended `sims/sco-step-only-live-rpc.js` with an optional four-state matched-control arm: conventional Node HTTP `/step` service, same private machine, initial state, cookie authorization and method semantics as generated SCO, plus an esbuild-minified ESM client stub.
+- `test/sco-step-only-live-rpc.test.js` now runs the same learner against both public step APIs. It asserts identical query input/output transcripts and counts, exact continuation clones, identical 16-symbol live followups, and HTTP 403 without the cookie on both endpoints.
+- The generated public ESM facade still exposes no reset method and does not contain the private canary/table identifiers. This is a local HTTP matched-control experiment, not a WAN/TLS/browser or production identity-proof result.
+
+**Cross-platform validation:**
+- Reused existing `.github/workflows/manual-sco-oracle.yml`; no new workflow created.
+- [Run 45103824383](https://github.com/FlareZ123/obfs/actions/runs/45103824383), source head `1de4a10d58d735576b89542049ab3f02bdcc2a97`: Ubuntu and Windows both succeeded. This includes the compact four-state offline tests, generated SCO live RPC, matched esbuild-minified ordinary control, and strict SCO JSDoc checks.
+- First attempt [run 45103511991](https://github.com/FlareZ123/obfs/actions/runs/45103511991) caught only the incorrect negative-control assertion; it was corrected to the full five-symbol suffix before the green run.
+- After the green run, a test-only edit added a per-model 5,000 ms attacker CPU assertion and full corpus-record logging (commit `4f3d0017cdae219ba57e8c02c5abb9cabbfb37e1`). This last assertion/logging edit is not part of run 45103824383; the exact same eight-model helper was locally rerun on Node 22.16.0/Linux x64 and maxed at 697.260 ms, well inside the asserted budget. It does not change production learner code.
+
+**Intermediate report:** `im-results/sco-four-state-step-only-2026-11-23.md` (commit `672aa6c1269dc086598980a80ef6aee572a6c613`). It contains the eight-seed table, local runtime environment, 1,024 held-out traces, 100,000 product-BFS cross-checks, the five-state false-certificate control, the matched ordinary service experiment, exact CI pin, reproduction commands, and explicit limits. Do not promote it to `results/`; keep the global decision RELEASE-BLOCKED.
+
+**Latest measured local corpus:** eight four-state models, queries 24–58 (mean 33.875), 1,024 held-out traces all exact, maximum 697.260 ms, 618,111,564 candidate scans, 3,770,167 equivalence checks, 5,971,511 product pairs. The maximum surviving equivalent labeled version space was 647,704 candidates. The model count is 16,777,216 and the packed array is 64 MiB.
+
+**Next work:** inspect any newer Critic direction; decide whether a bounded five-state canonical/symbolic model space is feasible or whether the more valuable step is a no-known-bound impossibility statement and a matched-control report synthesis. Do not claim general SCO protection or release readiness. Before any further broad CI, avoid repeating the entire manual matrix for trivial test-only edits. Continue to compare against equal-trust services and preserve negative controls. Check the immutable lease after every checkpoint; claimed_at remains 2026-11-23T02:48:24.691050165Z.
