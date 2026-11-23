@@ -280,6 +280,7 @@ function firstUnprovedUnqualifiedReference(root,moduleBindings,rootFormals){
   function scopedBinding(scope,name){
     if(['FunctionDeclaration','FunctionExpression','ArrowFunctionExpression']
         .includes(scope.type)){
+      if(name==='arguments'&&scope.type!=='ArrowFunctionExpression')return true;
       return scope.id?.type==='Identifier'&&scope.id.name===name||
         scope.params.some(
           (/** @type {import('./ast').AstNode} */ p)=>patternBinds(p,name))||
@@ -2041,9 +2042,30 @@ function partitionScoSelectedAsyncExports(file,options) {
   function addPrivateBody(fn){
     privateBodies.push(fn.body);
     const parameters=new Set();
-    for(const parameter of fn.params){
-      if(parameter.type==='Identifier')parameters.add(parameter.name);
+    /**
+     * Collect only binding-pattern names. Default expressions and computed
+     * keys are evaluated reads, not formal variable declarations.
+     * @param {import('./ast').AstNode|null|undefined} parameter
+     * @returns {void}
+     */
+    function collectParameter(parameter){
+      if(!parameter)return;
+      if(parameter.type==='Identifier'){parameters.add(parameter.name);return;}
+      if(parameter.type==='RestElement'){collectParameter(parameter.argument);return;}
+      if(parameter.type==='AssignmentPattern'){collectParameter(parameter.left);return;}
+      if(parameter.type==='ArrayPattern'){
+        for(const item of parameter.elements)collectParameter(item);
+      }
+      if(parameter.type==='ObjectPattern'){
+        for(const property of parameter.properties){
+          collectParameter(property.type==='RestElement'?property.argument:property.value);
+        }
+      }
     }
+    for(const parameter of fn.params)collectParameter(parameter);
+    // Ordinary functions own an implicit arguments object. Arrow functions
+    // have no such binding and inherit only from a lexically enclosing owner.
+    if(fn.type!=='ArrowFunctionExpression')parameters.add('arguments');
     privateFormals.set(fn.body,parameters);
   }
   const ambientRoots=new Set(['globalThis','window','self','document','navigator','location','process','global']);
