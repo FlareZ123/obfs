@@ -8,7 +8,9 @@
     "sims/application-challenge-sco-count-grid.js",
     "sims/familywise-budget-bound.js",
     "sims/strict-tail-power.js",
-    "test/strict-tail-power.test.js"
+    "test/strict-tail-power.test.js",
+    "sims/cluster-strict-tail.js",
+    "test/cluster-strict-tail.test.js"
   ],
   "exclude": [
     "node_modules"
