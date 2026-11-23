@@ -64,6 +64,8 @@ test('fixed reference removes symbolic A tables and rejects transcript-inconsist
   const reference={next:[[1,1],[0,0]],output:[[0,0],[1,1]],state:1};
   const query=buildFixedReferenceStepOnlySmtQuery(request,reference);
   assert.equal(query.horizon,6);
+  assert.equal(query.fullHorizon,6);
+  assert.equal(query.complete,true);
   assert.match(query.smt2,/\(assert \(= A_p_0 1\)\)/);
   assert.ok(!query.smt2.includes('declare-const A_d_0_0'));
   assert.ok(query.smt2.includes('(declare-const B_d_0_0 Int)'));
@@ -71,6 +73,13 @@ test('fixed reference removes symbolic A tables and rejects transcript-inconsist
   assert.throws(()=>buildFixedReferenceStepOnlySmtQuery(request,{...reference,state:0}),RangeError);
   assert.throws(()=>buildFixedReferenceStepOnlySmtQuery(request,{...reference,output:[[1,0],[1,1]]}),RangeError);
   assert.throws(()=>buildFixedReferenceStepOnlySmtQuery(request,{...reference,next:[[4,1],[0,0]]}),RangeError);
+  const shallow=buildFixedReferenceStepOnlySmtQuery(request,reference,2);
+  assert.equal(shallow.horizon,2);
+  assert.equal(shallow.fullHorizon,6);
+  assert.equal(shallow.complete,false);
+  assert.ok(!shallow.smt2.includes('future_2'));
+  assert.throws(()=>buildFixedReferenceStepOnlySmtQuery(request,reference,0),RangeError);
+  assert.throws(()=>buildFixedReferenceStepOnlySmtQuery(request,reference,7),RangeError);
 });
 
 test('Z3 checks fixed-reference indistinguishability when installed',

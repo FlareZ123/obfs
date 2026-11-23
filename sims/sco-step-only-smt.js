@@ -211,14 +211,17 @@ function defineFixedReference(model,lines){
  *
  * An UNSAT result implies equivalence to A only under the independently trusted
  * state bound and when the validated reference is genuinely transcript-consistent.
- * The product horizon is |A|*maxStates, so small reference models also reduce
- * the future-word search. Only `sat` justifies executing valuesCommand.
+ * The complete product horizon is |A|*maxStates. An optional shorter horizon
+ * supports *bounded depth* SAT queries only: a shortened UNSAT result is not
+ * an equivalence certificate. Inspect `complete` before using UNSAT as a verdict.
+ * Only `sat` justifies executing valuesCommand.
  *
  * @param {SmtTranscript} request
  * @param {FixedReference} reference
- * @returns {SmtQuery}
+ * @param {number} [horizonLimit] Optional positive maximum future-word length
+ * @returns {SmtQuery & {complete:boolean,fullHorizon:number}}
  */
-function buildFixedReferenceStepOnlySmtQuery(request,reference){
+function buildFixedReferenceStepOnlySmtQuery(request,reference,horizonLimit){
   validate(request);
   const referenceStates=validateReference(request,reference);
   const {maxStates,inputs,outputs}=request;
@@ -229,7 +232,11 @@ function buildFixedReferenceStepOnlySmtQuery(request,reference){
   defineFixedReference(reference,lines);
   declareMachine('B',maxStates,lines,names);
   constrainTranscript('B',inputs,outputs,lines,names);
-  const horizon=referenceStates*maxStates;
+  const fullHorizon=referenceStates*maxStates;
+  const horizon=horizonLimit===undefined?fullHorizon:horizonLimit;
+  if(!Number.isSafeInteger(horizon)||horizon<1||horizon>fullHorizon){
+    throw new RangeError('horizonLimit must be 1..fullHorizon');
+  }
   /** @type {string[]} */
   const futureInputNames=[];
   /** @type {string[]} */
@@ -251,7 +258,7 @@ function buildFixedReferenceStepOnlySmtQuery(request,reference){
   lines.push('(check-sat)');
   names.push(...futureInputNames);
   return {smt2:lines.join('\n')+'\n',valuesCommand:`(get-value (${names.join(' ')}))\n`,
-    modelNames:names,futureInputNames,horizon};
+    modelNames:names,futureInputNames,horizon,fullHorizon,complete:horizon===fullHorizon};
 }
 
 module.exports={buildStepOnlySmtQuery,buildFixedReferenceStepOnlySmtQuery};

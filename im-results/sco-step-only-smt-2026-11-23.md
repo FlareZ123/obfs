@@ -43,3 +43,7 @@ The first full SCO workflow attempted after the original generator landed reache
 This symbolic query is an **attacker-side** method for checking potential functional ambiguity in a narrowly bounded stateful SCO API. It supplies no source recovery, key extraction, runtime bypass, general JavaScript equivalence, or universal attack-cost bound. An unbounded or time-varying oracle may always have future behavior outside the modeled class. No claim about the project's 2.5× protected-application CPU limit follows from SMT solver time. It does not change the `RELEASE-BLOCKED` decision. A follow-up should test a solver-certified N=6 **UNSAT** instance, measure solver failures/timeout rates, and use a held-out authenticated server fixture against an equal-trust minified control before considering a real security comparison.
 
 Relevant SMT-LIB references: [Z3 Guide, Basic Commands](https://microsoft.github.io/z3guide/docs/logic/basiccommands/) and [Z3 C API](https://z3prover.github.io/api/html/group__capi.html).
+
+## Follow-up artifact
+
+The subsequent bounded-depth and no-reset adaptive experiment is documented in `im-results/sco-step-only-smt-adaptive-2026-11-23.md`. It includes the invalid-bound negative control and solver-budget failures.

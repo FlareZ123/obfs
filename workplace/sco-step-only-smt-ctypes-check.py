@@ -95,13 +95,36 @@ def first_reference(n,inputs,outputs):
     return None
 
 
-def get_fixed_query(n,inputs,outputs,reference):
+def get_fixed_query(n,inputs,outputs,reference,horizon=None):
     payload=json.dumps({'maxStates':n,'inputs':inputs,'outputs':outputs})
     src=("const g=require('./sims/sco-step-only-smt'); "
-         "const r=g.buildFixedReferenceStepOnlySmtQuery(JSON.parse(process.argv[1]),JSON.parse(process.argv[2])); "
+         "const r=g.buildFixedReferenceStepOnlySmtQuery(JSON.parse(process.argv[1]),JSON.parse(process.argv[2]),process.argv[3]===undefined?undefined:Number(process.argv[3])); "
          "process.stdout.write(JSON.stringify(r));")
-    out=subprocess.check_output(['node','-e',src,payload,json.dumps(reference)],cwd=str(REPO_ROOT))
+    args=['node','-e',src,payload,json.dumps(reference)]
+    if horizon is not None:args.append(str(horizon))
+    out=subprocess.check_output(args,cwd=str(REPO_ROOT))
     return json.loads(out)
+
+
+def mismatch_within(a,b,qa,qb,limit):
+    # Independent product BFS, with the first output disagreement at depth < limit.
+    seen={(qa,qb)}
+    frontier=[(qa,qb,0)]
+    for state_a,state_b,depth in frontier:
+        if depth>=limit:continue
+        for x in (0,1):
+            if a[1][2*state_a+x]!=b[1][2*state_b+x]:return True
+            pair=(a[0][2*state_a+x],b[0][2*state_b+x])
+            if pair not in seen:seen.add(pair);frontier.append((pair[0],pair[1],depth+1))
+    return False
+
+
+def expected_within(n,inputs,outputs,reference,limit):
+    a=(sum(reference['next'],[]),sum(reference['output'],[]),len(reference['next']))
+    for m in models(n):
+        observed,state=advance(m,inputs)
+        if observed==outputs and mismatch_within(a,m,reference['state'],state,limit):return True
+    return False
 
 
 def validate_fixed_witness(query,answer,inputs,outputs,n,reference):
@@ -166,6 +189,7 @@ def main():
                 cases.append((n,inputs,outputs))
     totals={'pair_sat':0,'pair_unsat':0,'single_sat':0,'single_unsat':0}
     fixed_totals={'fixed_sat':0,'fixed_unsat':0}
+    shallow_totals={'sat':0,'unsat':0}
     for index,(n,inputs,outputs) in enumerate(cases):
         consistent,inequivalent=expected(n,inputs,outputs)
         for kind in ('single','pair'):
@@ -192,7 +216,21 @@ def main():
                 answer,_=z3(fixed['smt2']+fixed['valuesCommand'])
                 assert answer.startswith('sat\n'),(index,answer[:200])
                 validate_fixed_witness(fixed,answer,inputs,outputs,n,reference)
+            if fixed['fullHorizon']>1:
+                horizon=min(2,fixed['fullHorizon']-1)
+                shallow=get_fixed_query(n,inputs,outputs,reference,horizon)
+                assert shallow['complete'] is False
+                actual,_=z3(shallow['smt2'])
+                actual=actual.strip()
+                want='sat' if expected_within(n,inputs,outputs,reference,horizon) else 'unsat'
+                assert actual==want,(index,n,'shallow',horizon,want,actual)
+                shallow_totals[actual]+=1
+                if actual=='sat':
+                    answer,_=z3(shallow['smt2']+shallow['valuesCommand'])
+                    assert answer.startswith('sat\n'),(index,answer[:200])
+                    validate_fixed_witness(shallow,answer,inputs,outputs,n,reference)
     print(f'PASS {len(cases)} transcript cases x 2 queries; {totals}; all SAT pair witnesses independently simulated')
     print(f'PASS {sum(fixed_totals.values())} consistent transcript cases x fixed-reference query; {fixed_totals}; all SAT fixed witnesses independently simulated')
+    print(f'PASS {sum(shallow_totals.values())} shallow fixed-reference queries; {shallow_totals}; independent bounded-depth BFS and SAT witnesses checked')
 
 if __name__=='__main__': main()
