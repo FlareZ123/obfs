@@ -76,7 +76,7 @@ function invertHybrid(oracle,target,seed){
       // model failure. Callback/transport failures and implementation
       // errors must remain visible to the caller.
       if(!(error instanceof Error)||
-        !/^(?:no output functional at level \\d+|no validated output functional at level \\d+|CEGAR refinement limit at level \\d+|sandwich inversion failed final equality)$/.test(error.message)) {
+        !/^(?:no output functional at level \d+|no validated output functional at level \d+|CEGAR refinement limit at level \d+|sandwich inversion failed final equality)$/.test(error.message)) {
         throw error;
       }
       failed.push({method:label,reason:error.message});
