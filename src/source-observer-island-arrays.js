@@ -72,7 +72,7 @@ function lowerProvedPrimitiveIslandRecords(source,ast) {
   /** @type {{start:number,end:number,text:string}[]} */
   const edits=[];
   let invalid=false;
-  walk(ast,node=>{
+  walk(ast,(node,parent,key)=>{
     if(node.type!=='MemberExpression'||node.optional||
        parent?.type!=='VariableDeclarator'||key!=='init'||
        node.object.type!=='Identifier')return;
