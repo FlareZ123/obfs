@@ -9,12 +9,26 @@ const original=[
   'const owner={hiddenCount:11,privateDelta:5};',
   'const tuple=[false,"metadata",owner,null];',
   'const alias=tuple[2];',
-  'module.exports=function score(n){',
+  'function privateScore(n){',
   '  let sum=0;',
   '  for(let i=0;i<n;i++)sum=(sum+((alias.hiddenCount+i)&255)+owner.privateDelta)|0;',
   '  return sum;',
-  '};'
+  '}',
+  'module.exports=function score(n){return privateScore(n);};'
 ].join('\n');
+
+/**
+ * Keep the exported callable body unchanged while measuring transformed
+ * private helper work. External Function#toString sees the public wrapper.
+ * @param {string} source
+ * @returns {string}
+ */
+function exportedSource(source){
+  const context=createContext({module:{exports:null}});
+  new Script(source,{filename:'tuple-session.cjs'}).runInContext(context,{timeout:15000});
+  const score=/** @type {Function} */(context.module.exports);
+  return Function.prototype.toString.call(score);
+}
 
 /** @param {number[]} values @returns {number} */
 function median(values){
@@ -59,6 +73,8 @@ function runProfile(){
   assert.equal(file.metrics.properties,2,'Profile must exercise both transformed owner fields');
   const protectedSource=String(file.code);
   assert.doesNotMatch(protectedSource,/hiddenCount|privateDelta/u);
+  assert.equal(exportedSource(protectedSource),exportedSource(original),
+    'Public score() source must retain native spelling');
   /** @type {ReturnType<typeof runProfile>['rows']} */
   const rows=[];
   for(const operations of [1,100,10000,500000]){
