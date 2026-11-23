@@ -9,6 +9,7 @@ const {pathToFileURL}=require('node:url');
 const {obfuscateFiles}=require('../src/core');
 const {collectVerifiedImportedPrimitives}=require('../src/cross-properties');
 const {atomicWrite}=require('../src/atomic');
+const {normalizePublicFields}=require('../sims/public-token-normalizer');
 
 /** @typedef {{path:string,code:string,sourceType:'module'}} Source */
 
@@ -124,6 +125,26 @@ test('adjacent owner primitive remains primitive with hostile inherited getter',
 });
 
 
+
+
+test('public source-only normalizer still relabels all protected adjacent owner fields',async()=>{
+  const sources=fourFileGraph(
+    'export const state={secretValue:3,otherKey:5};'+
+    'export const internalValue=state.secretValue;');
+  const obfuscated=obfuscateFiles(sources,{mode:'coo',seed:'adjacent-public-normalizer',
+    closedWorld:true,strings:false,identifiers:false,properties:true});
+  assert.equal(obfuscated.crossFile.objects,1);
+  assert.equal(obfuscated.crossFile.properties,2);
+  const sourceOnly=obfuscated.files.map(file=>({
+    path:file.path,sourceType:/** @type {'module'} */('module'),code:String(file.code)
+  }));
+  const attack=normalizePublicFields(sourceOnly,{preserveFreeMemberReceivers:true});
+  assert.equal(attack.properties,2,'Public source-only attacker relabels both protected keys');
+  const attacked=attack.files.map(file=>({
+    path:file.path,sourceType:/** @type {'module'} */('module'),code:String(file.code)
+  }));
+  assert.equal(await runNative(attacked),29,'Source-only relabeling preserves behavior');
+});
 
 test('imported primitive proof cannot bypass an observed external owner-key shape',async()=>{
   /** @type {Source[]} */
