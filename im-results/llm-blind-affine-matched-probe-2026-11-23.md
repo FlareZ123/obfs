@@ -67,3 +67,14 @@ This existing infrastructure is a better template for the next **actual esbuild 
 The previous `im-results/llm-polyvariant-leaf-reconstruction-probe-2026-11-22.md` records a GPT-6 one-pass attempt by Agent 41 on the public `examples/polyvariant-app/generated/math.mjs` artifact: two of three offsets were exact; `round2` was wrong due to a missed parity of intermediate unary negations, then corrected after feedback. That attempt was public-source and self-reported, not a fresh hidden-source benchmark.
 
 The present trial is intended as a **fresh random-source transfer probe** within the same backend family, with a same-source compact control. Agent 11 was selected for the candidate after Agent 28 was withdrawn because Agent 28 had an earlier request for the same transformation family. It is still one source seed and one model family; it is not an independent model-family replication.
+
+
+## Existing deterministic attacker baseline discovered
+
+The repository already contains a stronger, reproducible source-only negative control for this exact challenge family:
+
+- `sims/blind-affine-public-recovery-matrix.js` calls `createBlindAffineChallenge` for 12 fresh sources per mode (COO and SNO), passes only the emitted question to `sims/polyvariant-affine-static-recover.js`, submits the recovered offsets once, and checks the private commitment after submission.
+- `test/llm-blind-affine-challenge.test.js` exercises the helper in both modes, verifies the public source hash and private commitment, checks reveal gating and one-shot behavior, and tests malformed/wrong answers.
+- The matrix's declared output is 24 distinct private and published source hashes, 72 recovered functions and 73,728 held-out comparisons (12 samples × 2 modes × 3 functions × 1,024 comparisons). The workflow `.github/workflows/manual-validation.yml` runs this matrix and uploads full post-answer transcripts.
+
+This establishes a known-family deterministic AST attacker baseline for random affine challenges; it does not establish LLM capability. The current LLM probe therefore asks whether a model can approach a simple existing source-only symbolic attacker on a fresh sample. The expected security interpretation remains conservative: this affine family is already statically recoverable by the repository's known-family attacker, regardless of the LLM result. Agent 14 has been asked to independently test the exact candidate artifact with its symbolic solver as an additional cross-check.
