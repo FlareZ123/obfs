@@ -13,7 +13,7 @@ const source=[
   'export function sample(prefix){',
   '  const key=prefix+"-source";',
   '  localStorage.setItem(key,inspect);',
-  '  return {source:localStorage.getItem(key),value:inspect(),independent:independent()};',
+  '  return {key,value:inspect(),independent:independent()}',
   '}'
 ].join('\n');
 
@@ -49,9 +49,9 @@ async function main() {
     '  const emitted=compiledSample("compiled-storage-sco");',
     '  const result={',
     '    hostname:location.hostname,',
-    '    nativeSource:native.source,',
-    '    compiledSource:emitted.source,',
-    '    sourceMismatch:native.source!==emitted.source,',
+    '    nativeSource:localStorage.getItem(native.key),',
+    '    compiledSource:localStorage.getItem(emitted.key),',
+    '    sourceMismatch:localStorage.getItem(native.key)!==localStorage.getItem(emitted.key),',
     '    nativeValue:native.value,',
     '    compiledValue:emitted.value,',
     '    nativeIndependent:native.independent,',
