@@ -693,8 +693,10 @@ process and does not execute application modules or mutate the compiler
 process's module cache. Missing or distinct URLs cause prepublication
 refusal; a shared dependency positive control preserves exact emitted
 bytes. Nonliteral dynamic imports, aliases, package `#imports`, opaque
-sources, direct `eval`/`Function` and future emitted package scopes are
-conservatively declined. The audit refuses build invocations using custom
+sources, direct `eval`/`Function`, changed package metadata, package imports and
+self-reference scopes are conservatively declined. Byte-identical emitted
+package scopes without imports or self-reference are allowed, including
+ordinary type: module scopes for .js ESM. The audit refuses build invocations using custom
 loader/preload flags, symlink-preservation flags or nondefault conditions.
 Deployment must use the same resolver context; programmatically registered
 runtime loader hooks and post-build dependency changes remain outside this
