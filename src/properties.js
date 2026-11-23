@@ -1212,6 +1212,19 @@ function collectPrivateDirectCallables(ast,bindings=collectBindings(ast)) {
   /** @type {Set<AstNode>} */
   const directCallables=new Set();
   if(inventory.dynamicScope)return new Set();
+  // Legacy Function#caller lets a called sloppy function expose the source
+  // of its own caller. Even a lexically direct-call-only caller may therefore
+  // escape through a callee with no explicit reference to the caller binding.
+  // Without proving the whole call stack and every receiver, decline private
+  // callable provenance whenever this reflective capability appears.
+  let readsCaller=false;
+  walk(ast,(node,parent,key)=>{
+    if(node.type!=='MemberExpression')return;
+    const name=node.computed?staticString(node.property):staticName(node.property);
+    if(name==='caller'&&!(parent?.type==='AssignmentExpression'&&
+       key==='left'&&parent.operator==='='))readsCaller=true;
+  });
+  if(readsCaller)return new Set();
   /**
    * @param {string} name
    * @param {AstNode} definition
