@@ -21,7 +21,7 @@ const KEY = Buffer.from('72657365617263682d7374726963742d746573742d6b6579', 'hex
 const VARIANTS = ['direct', 'uncapped', 'capped'];
 /** @type {Workload[]} */
 const WORKLOADS = [
-  {name:'tiny-hmac-per-call',calls:4096,rounds:1,payloadBytes:64},
+  {name:'tiny-hmac-per-call',calls:8192,rounds:1,payloadBytes:64},
   {name:'substantial-hmac-per-call',calls:128,rounds:128,payloadBytes:16384}
 ];
 
@@ -76,7 +76,10 @@ async function runTrial(workload,variant,trial) {
   const wallMs=performance.now()-wallBefore;
   const cpu=process.cpuUsage(cpuBefore);
   const cpuMs=(cpu.user+cpu.system)/1000;
-  assert.ok(wallMs>0&&cpuMs>0,'Measured work must use positive wall and CPU time');
+  assert.ok(wallMs>0,'Measured work must use positive wall time');
+  // Windows CPU accounting may round a short 16-call warmup to zero.
+  // Only long actual paired trials require a positive CPU denominator.
+  if(trial>=0)assert.ok(cpuMs>0,'Measured paired work must use positive CPU time');
   return {trial,variant,wallMs,cpuMs,checksum};
 }
 
