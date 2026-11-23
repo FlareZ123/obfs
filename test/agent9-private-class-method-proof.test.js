@@ -24,15 +24,19 @@ function execute(source) {
   return context.module.exports;
 }
 
-for(const [name,source,expected] of /** @type {Array<[string,string,number]>} */ ([
+for(const [name,source,expected,properties] of /** @type {Array<[string,string,number,number]>} */ ([
   ['one direct invocation',
     "'use strict';const owner={privateField:7};"+
     "class Reader{read(){return owner.privateField;}}"+
-    "const reader=new Reader();module.exports=reader.read();",7],
+    "const reader=new Reader();module.exports=reader.read();",7,1],
   ['repeated direct invocation',
     "'use strict';const owner={privateField:7};"+
     "class Reader{read(){return owner.privateField;}}"+
-    "const reader=new Reader();module.exports=reader.read()+reader.read();",14]
+    "const reader=new Reader();module.exports=reader.read()+reader.read();",14,1],
+  ['two distinct methods reading two private owner fields',
+    "const owner={privateField:7,otherField:11};"+
+    "class Reader{read(){return owner.privateField;}other(){return owner.otherField;}}"+
+    "const reader=new Reader();module.exports=reader.read()+reader.other();",18,2]
 ])) {
   for(const mode of /** @type {Array<'coo'|'sno'|'sco'>} */ (['coo','sno','sco'])) {
     test('private direct-call class positive: '+name+' in '+mode,()=>{
@@ -40,14 +44,14 @@ for(const [name,source,expected] of /** @type {Array<[string,string,number]>} */
       assert.equal(execute(source),expected);
       assert.equal(execute(String(emitted.code)),expected);
       assert.equal(emitted.metrics.objects,1);
-      assert.equal(emitted.metrics.properties,1);
-      assert.doesNotMatch(String(emitted.code),/privateField/u);
+      assert.equal(emitted.metrics.properties,properties);
+      assert.doesNotMatch(String(emitted.code),/privateField|otherField/u);
       // The public-only static attacker needs no secret seed to relabel the
       // compiler-owned hash. This is positive transform yield, not secrecy.
       const recovered=neutralizeHashedNames([{
         path:'private-class.cjs',sourceType:'commonjs',code:String(emitted.code)
       }]);
-      assert.equal(recovered.properties,1);
+      assert.equal(recovered.properties,properties);
       assert.equal(execute(recovered.files[0].code),expected);
     });
   }
@@ -72,8 +76,15 @@ for(const [name,source] of /** @type {Array<[string,string]>} */ ([
   ['method body escapes callable',
     "const owner={privateField:7};class Reader{read(){globalThis.leaked=this.read;return owner.privateField;}}"+
     "const reader=new Reader();module.exports=reader.read();"],
-  ['two methods',
+  ['second method with non-owner return',
     "const owner={privateField:7};class Reader{read(){return owner.privateField;}other(){return 2;}}"+
+    "const reader=new Reader();module.exports=reader.read();"],
+  ['second method returns instance',
+    "const owner={privateField:7};class Reader{read(){return owner.privateField;}other(){return this;}}"+
+    "const reader=new Reader();module.exports=reader.read();"],
+  ['duplicate method definitions',
+    "const owner={privateField:7,otherField:9};"+
+    "class Reader{read(){return owner.privateField;}read(){return owner.otherField;}}"+
     "const reader=new Reader();module.exports=reader.read();"],
   ['explicit constructor',
     "const owner={privateField:7};class Reader{constructor(){}read(){return owner.privateField;}}"+
