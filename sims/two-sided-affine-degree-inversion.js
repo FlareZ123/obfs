@@ -202,14 +202,28 @@ function invertBoundedDegree(oracle,target,width,degree,queryBudget=300000) {
  * @returns {{trainingQueries:number,invert:(target:number)=>{input:number,localEvaluations:number}|null}}
  */
 function trainBoundedDegreeInverse(oracle,width,degree) {
-  const model=learnBoundedDegreeOracle(oracle,width,degree);
+  return inverseFromBoundedDegreeModel(
+    learnBoundedDegreeOracle(oracle,width,degree)
+  );
+}
+
+/**
+ * Reuse a model already learned from HTTP, filesystem artifacts, or another
+ * independent chosen-query importer. Its original forward oracle is never
+ * invoked by this adapter. An external SCO client can learn the model
+ * asynchronously and later run this deterministic inverse fully offline.
+ *
+ * @param {ReturnType<typeof learnBoundedDegreeOracle>} model
+ * @returns {{trainingQueries:number,invert:(target:number)=>{input:number,localEvaluations:number}|null}}
+ */
+function inverseFromBoundedDegreeModel(model) {
   return {
     trainingQueries:model.queryCount,
     /** @param {number} target @returns {{input:number,localEvaluations:number}|null} */
     invert(target) {
       const candidate=invertBoundedDegree(
         input=>evaluateBoundedDegreeModel(model,input),
-        target,width,degree
+        target,model.bits,model.degree
       );
       if(!candidate)return null;
       return {input:candidate.input,localEvaluations:candidate.queries};
@@ -217,4 +231,7 @@ function trainBoundedDegreeInverse(oracle,width,degree) {
   };
 }
 
-module.exports={invertBoundedDegree,trainBoundedDegreeInverse,parity,solveLinear};
+module.exports={
+  invertBoundedDegree,trainBoundedDegreeInverse,inverseFromBoundedDegreeModel,
+  parity,solveLinear
+};
