@@ -1,0 +1,87 @@
+# Matched authenticated SCO and esbuild-private-API clone of a rank-four cubic permutation
+
+**Status:** intermediate, reproducible negative result for one bounded source family.  
+**Run:** manual-low-rank-target-inversion #147, GitHub Actions run `45160518629`, commit `c410be36e679106a7ea886a19276690d21c67eba`. Both `windows-latest` and `ubuntu-latest` jobs completed successfully, including the new live-clone step and project JSDoc typecheck.
+
+## Question
+
+For a fixed deterministic 32-bit function whose nonlinear part has algebraic degree at most three and depends on four independent parity projections, does SCO's server-private source partition create a functional-oracle cloning barrier beyond an ordinary authenticated private API whose server-side implementation is minified?
+
+This is a matched black-box comparison, not a claim about all SCO configurations.
+
+## Source family
+
+The private ESM export `protectedCubic` is a 32-bit permutation. Its four parity masks are:
+
+- `0x00015555`
+- `0x0002aaaa`
+- `0x0000f0f0`
+- `0x00033333`
+
+Their binary rank is four. Let their parity outputs be (z_0,z_1,z_2,z_3). The function applies an invertible linear mixing to the low 20 input bits, leaves the high 12 affine coordinates unchanged, adds a fixed offset, and applies these nonlinear corrections to high output bits:
+
+- bit 28: (z_0z_3)
+- bit 29: (z_1z_3)
+- bit 30: (z_0z_1z_2)
+- bit 31: (z_1z_2z_3)
+
+The low-20 mixing is a composition of invertible triangular shears. All four parity masks depend only on the low 20 input bits, while nonlinear corrections affect only the high 12 output bits. Thus the map is triangular: recover the low 20 input bits from the low 20 output bits, then recover the high 12 bits after recomputing the corrections. The source is therefore a permutation, not a non-injective lookup-table example.
+
+The top cubic tensor on the four-dimensional projection space has joint radical ({0}), so its joint-radical codimension is four. The script independently checks projection-mask rank four and top-projection radical size one.
+
+## Experiment
+
+The attack uses `cloneProjectedCubicValidated` with (delta=10^{-10}), independent witness and verifier CSPRNG tapes, and an asynchronous replay adapter that turns each missing synchronous oracle value into one authenticated HTTP RPC.
+
+Two arms run the same source and JSON RPC contract:
+
+1. **SCO:** `partitionScoSelectedAsyncExports` hides the private export and dependencies; `createScoHandler` serves the generated facade and forwards authenticated calls to the private function.
+2. **Equal-trust conventional control:** the same private ESM source is transformed with esbuild (`format: esm`, `minify: true`, `target: es2022`) and loaded only on a conventional Node HTTP server. The minified implementation is not served to the caller.
+
+Both arms use the same realized witness and verification tapes. The caller receives only the method route, one legitimate credential, and the input/output protocol. No source text or private helper names are supplied to the cloning routine. An unauthenticated RPC attempt is made against each arm.
+
+After learning, each HTTP server is closed. The serialized model is then evaluated on 1,028 deterministic held-out inputs not present in the query cache and compared against the private evaluator in the test harness. Those direct held-out comparisons are not additional RPCs.
+
+## Results established by the passing run
+
+The script asserts all of the following in both operating-system jobs:
+
+- the fast cubic branch is used (`degree === 3`);
+- postfit verification passes and exact-interpolation fallback is not used;
+- the total number of distinct oracle queries is at most **1,308**;
+- SCO and minified-control query counts are equal;
+- the ordered input/output transcript hashes are equal;
+- all **1,028 / 1,028** held-out outputs match in each arm after its server has closed;
+- private server executions equal the number of actual oracle queries;
+- unauthorized requests receive HTTP 403;
+- private mask and helper names do not appear in the published SCO facade;
+- offline evaluation makes no further private RPC calls.
+
+The script prints the exact query count and transcript digest in its JSON result. The reproducible upper bound asserted by the test is 1,308 (fast cap 1,135 plus the 173-sample Reed–Muller postfit verifier). The exact count is deliberately not transcribed here without a source-pinned log excerpt.
+
+## Interpretation
+
+For this specific fixed, stateless, degree-≤3, projection-rank-four 32-bit permutation family, a legitimate caller can reconstruct the complete tested function behavior through the SCO facade. The same attacker, with the same random tapes, obtains the same query count and transcript against an ordinary server-private esbuild-minified implementation. In this experiment, server-private source partitioning does not add functional-oracle resistance beyond the matched private API.
+
+This adds a distinct low-degree rank-four cubic source family to the existing rank-three matched private-API experiment and the rank-five arbitrary-table HTTP experiment. It is useful as a negative candidate-screening test: a design must not treat server-side source hiding alone as a barrier to functional cloning for this source class.
+
+## Scope and limitations
+
+- The source is synthetic and deliberately satisfies the attack's degree and projection-rank promise. This does not establish that a current production candidate has this structure.
+- The test uses a fixed deterministic stateless function. It does not exercise SCO's stronger dynamic sharding, per-request mutation, server-held secret refresh, or stateful integrity mechanisms.
+- The result is functional reconstruction, not recovery of original JavaScript source, server memory, signing keys, or other private state.
+- It does not establish a result for arbitrary JavaScript, COO, or SNO.
+- It does not measure the obfuscator's 2.5x target-runtime budget, dynamic-analysis resistance, or domain-lock bypass resistance.
+- Both arms intentionally allow a legitimate credentialed caller to make repeated chosen-input requests; unauthorized requests are denied.
+- No release-gate status changes follow from this synthetic source-family test. The repository's overall release assessment remains **RELEASE-BLOCKED**.
+
+## Reproduction
+
+- Attack and matched-control script: `sims/sco-rankfour-cubic-matched-private-api.js`
+- Learner and verifier: `sims/rankfour-projected-cubic-validated-peer.js`
+- Cubic functional model: `sims/rankfour-projected-cubic-rescue.js`
+- Strict JSDoc project: `jsconfig.affine-low-rank-peer.json`
+- Manual workflow: `.github/workflows/manual-low-rank-target-inversion.yml`
+- Run: `45160518629`
+
+The run is a focused reproducibility receipt for this intermediate attack result, not a production security certification.
