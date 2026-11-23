@@ -11,7 +11,7 @@
  * @typedef {'read'|'write'|'read-write'|'call'|'construct'|'computed-key'|'export-local'|'unknown'} ReferenceRole
  * @typedef {{node:AstNode,name:string,start:number,end:number,resolution:Resolution,role:ReferenceRole}} Reference
  * @typedef {{node:AstNode,name:string,start:number,end:number,kind:string,bindingId:number|null}} Declaration
- * @typedef {{parent:Scope|null,kind:string,bindings:Map<string,Binding>,uncertain:Set<string>,directEval:boolean,dynamicWith:boolean}} Scope
+ * @typedef {{parent:Scope|null,kind:string,bindings:Map<string,Binding>,uncertain:Set<string>,directEval:boolean,dynamicWith:boolean,nonSimpleParams?:boolean}} Scope
  * @typedef {{id:number,name:string,kind:string}} Binding
  */
 
@@ -42,12 +42,21 @@ function resolveLexicalReferences(root,sourceType) {
   /** @param {Scope} scope @param {string} name @param {string} kind @param {AstNode} node */
   function declare(scope,name,kind,node) {
     let binding=scope.bindings.get(name);
+    if(!binding && scope.kind==='function-body' && !scope.nonSimpleParams &&
+       ['var','function'].includes(kind)) {
+      const parameter=scope.parent?.bindings.get(name);
+      if(parameter?.kind==='param') {
+        binding=parameter;
+        scope.bindings.set(name,binding);
+      }
+    }
     if (binding) {
       const sameVarFunction=['var','function'].includes(kind) &&
         ['var','function'].includes(binding.kind);
-      const paramVar=scope.kind==='function' &&
-        (kind==='var' && binding.kind==='param' ||
-         kind==='param' && binding.kind==='var');
+      const paramVar=(scope.kind==='function'||
+        scope.kind==='function-body'&&!scope.nonSimpleParams) &&
+        (['var','function'].includes(kind) && binding.kind==='param' ||
+         kind==='param' && ['var','function'].includes(binding.kind));
       const duplicatedSloppyParam=sourceType!=='module' &&
         kind==='param' && binding.kind==='param';
       if (sameVarFunction) {
@@ -57,6 +66,11 @@ function resolveLexicalReferences(root,sourceType) {
       binding={id:++bindingCounter,name,kind};
       scope.bindings.set(name,binding);
     }
+    // A separate non-simple parameter environment can contribute an initial
+    // value to a body binding. Do not claim independent rename safety yet.
+    if(scope.kind==='function-body' && scope.nonSimpleParams &&
+       scope.parent?.bindings.has(name) && ['var','function'].includes(kind))
+      scope.uncertain.add(name);
     declarationRecords.push({node,name,start:node.start,end:node.end,
       kind,bindingId:binding.id,scope});
   }
@@ -124,7 +138,8 @@ function resolveLexicalReferences(root,sourceType) {
         const functionBody=parent && key==='body' &&
           ['FunctionDeclaration','FunctionExpression','ArrowFunctionExpression'].includes(parent.type);
         const nonSimple=functionBody && parent.params.some((/** @type {AstNode} */ param)=>param.type!=='Identifier');
-        scope=child(incoming,nonSimple?'function-body':'block');
+        scope=child(incoming,'function-body');
+        scope.nonSimpleParams=Boolean(nonSimple);
       }
       else if(node.type==='StaticBlock')scope=child(incoming,'static-block');
       else if(node.type==='CatchClause'){
