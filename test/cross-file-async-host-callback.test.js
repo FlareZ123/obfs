@@ -511,3 +511,53 @@ test('numeric callback returned inside wrapper still permits one private rewrite
   assert.equal(generated.crossFile.properties,1,
     'Unrelated primitive-returned callbacks are not host capabilities');
 });
+
+
+for(const [label,source,extra] of /** @type {[string,string,ModuleFile[]][]} */ ([
+  ['namespace-imported callback-container factory',[
+    "import * as wrappers from './host-wrapper.mjs';",
+    'const holder=wrappers.makeHolder();',
+    'const ctor=await Promise.resolve().then(holder.callback);'
+  ].join('\n'),[
+    {path:'host-wrapper.mjs',sourceType:'module',
+      code:[
+        'function getFactory(){return globalThis.RUNTIME_FACTORY;}',
+        'export function makeHolder(){return {callback:getFactory};}'
+      ].join('\n')}
+  ]],
+  ['ordinary object-held callback-container factory',[
+    'function getFactory(){return globalThis.RUNTIME_FACTORY;}',
+    'function makeHolder(){return {callback:getFactory};}',
+    'const registry={makeHolder};',
+    'const holder=registry.makeHolder();',
+    'const ctor=await Promise.resolve().then(holder.callback);'
+  ].join('\n'),[]],
+  ['Promise reaction returns callback-container object',[
+    'function getFactory(){return globalThis.RUNTIME_FACTORY;}',
+    'function makeHolder(){return {callback:getFactory};}',
+    'const holder=await Promise.resolve().then(makeHolder);',
+    'const ctor=await Promise.resolve().then(holder.callback);'
+  ].join('\n'),[]],
+  ['Promise reaction returns callback-container array',[
+    'function getFactory(){return globalThis.RUNTIME_FACTORY;}',
+    'function makeHolder(){return [getFactory];}',
+    'const holder=await Promise.resolve().then(makeHolder);',
+    'const ctor=await Promise.resolve().then(holder[0]);'
+  ].join('\n'),[]]
+])){
+  test('forwarded wrapper via '+label+' preserves original owner spelling',async()=>{
+    const files=[...graph([
+      source,
+      'const remote=await ctor("return import(\'./state.mjs\')")();',
+      "const result=[inspectRecord('auditCount').value,Object.keys(remote.state),remote.state.secretField];"
+    ].join('\n')),...extra];
+    const native=await execute(files,true);
+    assert.equal(native,'[41,[3,["secretField"],41]]\n');
+    const generated=obfuscateFiles(files,{
+      mode:'coo',closedWorld:true,seed:'async-returned-container/'+label,
+      identifiers:false,strings:false,properties:true
+    });
+    assert.equal(await execute(generated.files,true),native,label);
+    assert.equal(generated.crossFile.properties,0,label);
+  });
+}
