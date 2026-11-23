@@ -30,6 +30,30 @@ function makeProgram(depth,sensitive=false){
 }
 
 /**
+ * Branches retain both static predecessor edges. Unlike makeProgram's
+ * overwritten assignments, pick=true reaches a0 at runtime and executes
+ * the getter when box.ref is read. pick=false follows b0 instead.
+ * @param {number} depth
+ * @param {boolean} sensitive
+ * @returns {string}
+ */
+function makeReachableProgram(depth,sensitive=false){
+  /** @type {string[]} */
+  const lines=['let a0={},b0={};'];
+  for(let level=1;level<=depth;level++){
+    const prev=level-1;
+    lines.push('let a'+level+',b'+level+';');
+    lines.push('if(globalThis.pick){a'+level+'=a'+prev+';b'+level+'=a'+prev+';}'+
+      'else{a'+level+'=b'+prev+';b'+level+'=b'+prev+';}');
+  }
+  if(sensitive)
+    lines.push('a'+depth+'.ref={get(){return String.prototype;}};');
+  lines.push('const box=Object.create(null,a0);');
+  lines.push("module.exports=['obfs-alias-dag-sentinel',Object.getOwnPropertyNames(box).length,box.ref===String.prototype];");
+  return lines.join('\n');
+}
+
+/**
  * Expose one ordinary literal outside a source-spelled failed-call operand.
  * Its positive encoding control makes sensitive-getter refusal nonvacuous.
  * @param {number} depth
@@ -42,9 +66,9 @@ function exposedLiteralProgram(depth,sensitive=false){
     "'obfs-alias-dag-sentinel'");
 }
 
-/** @param {string} source @returns {string} */
-function evaluate(source){
-  const context={module:{exports:null}};
+/** @param {string} source @param {boolean} [pick] @returns {string} */
+function evaluate(source,pick=false){
+  const context={module:{exports:null},pick};
   vm.runInNewContext(source,context,{timeout:5000});
   return JSON.stringify(context.module.exports);
 }
@@ -83,12 +107,40 @@ test('plain alias diamonds retain eligible string literal encoding',()=>{
   }
 });
 
-test('a descriptor getter write through a deep alias conservatively blocks eager decoding',()=>{
+test('overwritten alias diamonds conservatively refuse encoding even when the getter is unreachable',()=>{
   for(const depth of [2,4,6]){
     const source=exposedLiteralProgram(depth,true);
     const output=compile(source);
     assert.equal(evaluate(String(output.code)),evaluate(source),'depth '+depth);
     assert.equal(output.metrics.literals,0,
       'possible decoder mutation must suppress string rewriting at depth '+depth);
+  }
+});
+
+
+test('branch-reachable alias diamonds preserve observed getters and refuse eager decoding',()=>{
+  for(const depth of [2,4,6]){
+    const source=makeReachableProgram(depth,true);
+    const output=compile(source);
+    assert.equal(output.metrics.literals,0,
+      'runtime-reachable decoder getter must suppress encoding at depth '+depth);
+    for(const pick of [false,true]){
+      const expected=JSON.stringify(['obfs-alias-dag-sentinel',pick?1:0,pick]);
+      assert.equal(evaluate(source,pick),expected,'native reachable path at depth '+depth);
+      assert.equal(evaluate(String(output.code),pick),expected,
+        'compiled reachable path at depth '+depth+', pick='+pick);
+    }
+  }
+});
+
+test('branch diamonds without a getter retain positive string-encoding yield',()=>{
+  for(const depth of [2,4,6]){
+    const source=makeReachableProgram(depth);
+    const output=compile(source);
+    assert.equal(output.metrics.literals,1,'safe branch depth '+depth);
+    for(const pick of [false,true]){
+      assert.equal(evaluate(String(output.code),pick),evaluate(source,pick),
+        'safe branch depth '+depth+', pick='+pick);
+    }
   }
 });
