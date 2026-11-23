@@ -320,6 +320,13 @@ test('equal actual oracle use stays compatible without optional cap',()=>{
   assert.equal(compareCandidateEvidence(input).attackAdvantage,'supported');
   input.conventionalControl.oracleCallBudget=0;
   input.protectedCandidate.oracleCallBudget=1;
-  // Legacy equal-count comparisons do not change their verdict.
+  // Once ceilings are explicitly declared, contradictory limits are
+  // not a fair comparison, even when both arms consumed the same number.
+  assert.equal(compareCandidateEvidence(input).measurementReady,false);
+  input.protectedCandidate.oracleCallBudget=0;
+  assert.equal(compareCandidateEvidence(input).attackAdvantage,'inconclusive',
+    'The equal cap 0 cannot support 3 observed oracle requests');
+  input.conventionalControl.oracleCallBudget=3;
+  input.protectedCandidate.oracleCallBudget=3;
   assert.equal(compareCandidateEvidence(input).attackAdvantage,'supported');
 });
