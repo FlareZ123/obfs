@@ -43,7 +43,7 @@ async function main() {
     '  if(a.value!==b.value||a.independent!==b.independent)',
     '    throw Error("ordinary values differ "+JSON.stringify({a,b}));',
     '  if(a.local!==a.session||a.local!==a.named||a.keySource!==a.local||',
-    '     b.local!==b.session||b.local!==b.named||b.keySource!==b.local)'
+    '     b.local!==b.session||b.local!==b.named||b.keySource!==b.local)',
     '    throw Error("Storage readback paths disagree "+JSON.stringify({a,b}));',
     '  if(!a.local.includes("privateLocal")||b.local.includes("privateLocal"))',
     '    throw Error("expected native/emitted source mismatch "+JSON.stringify({a,b}));',
