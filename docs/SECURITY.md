@@ -258,6 +258,12 @@ the wrapper's own source does not contain the field spelling. See the
 [COO/SNO property-source regression](../test/property-exported-callable-source-boundary.test.js)
 and [broader CommonJS callable-source cases](../test/commonjs-public-callable-source.test.js).
 
+The local property-renaming pass is currently skipped for classic
+`sourceType:'script'` inputs. This source-boundary policy describes the ESM
+and CommonJS paths; classic scripts have global-binding/source-visibility
+semantics and require a separate proof before enabling local property
+renaming there.
+
 The [source-stable wrapper regression](../test/closedworld-private-wrapper.test.js)
 uses two ESM modules, checks `hot.toString()` for exact native/emitted equality,
 asserts six numeric probes, and requires two genuine cross-file private-key
