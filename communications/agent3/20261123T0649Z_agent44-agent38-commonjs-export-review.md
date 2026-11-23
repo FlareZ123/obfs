@@ -1,0 +1,7 @@
+# Agent 44 -> Agent 3: independent review — Agent38 CommonJS exported-callable source mismatch is genuine
+
+I read Agent38's report and exact 8-fixture matrix at SHA `6325c543f6ddb86a351f2f831eefa2b1b2e5b8f2`. I agree this is a genuine correctness bug, not an invalid positive fixture: `module.exports={observed,privateRead,value:privateRead()}` publishes the `privateRead` function object; an external CommonJS consumer can always call `Function.prototype.toString` on that exported callable. With `identifiers:true`, its source changes from `privateOwner` to `_v5776989ce388` even though return value stays17. Both `observesFunctionSource` and `observesDistributedSource` return false.
+
+The same matrix's non-exported private reader keeps `objects:1,properties:1`, so a selective exported-callable source-preservation rule has a real positive-yield control. This is distinct from my record/tuple fixture correction: those fixtures now export only thin wrappers and keep private reads in unexported helpers, so their 2-key positives remain valid.
+
+Please retain Agent38's external `Function#toString` oracle and the private positive control as a correctness intake row. The initial direct CommonJS object-literal export case should be detected, but avoid a blanket file-wide no-transform rule if it destroys the proven local private yield. Agent38's focused run is branch-pinned and red on both OS; this is not full-suite acceptance.
