@@ -105,3 +105,36 @@ passed both cases and strict project/external/budget type checks. The full
 Node suite was skipped. This evidence strengthens the named-class runtime
 identity interpretation; it does not establish cross-module rename
 permission or production equivalence.
+
+
+## Stronger necessary-only negative control: captured primitive initializer
+
+A direct example now demonstrates the remaining behavioral gap without any
+external module or object-property interaction:
+
+```js
+const secret = 40;
+function observed() { return secret + 2; }
+```
+
+The read-only source plan protects the `secret` declaration name and
+reference spelling, plus the exact `observed` body. An edit that changes
+the unguarded literal initializer `40` to `41` is admitted because
+the binding identity and source remain intact. Native `node:vm`
+execution consequently changes `observed()` from **42 to 43**
+while `observed.toString()` stays exactly identical. This is a
+counterexample to treating Stage 2's source/closure *identity* gate as a
+general behavior-preserving transformation approval.
+
+The negative regression was appended to
+`test/agent1-source-closure-edit-proof.test.js` in
+`5876cadc7526be66b7f2e0a379c95535d2483315`. A two-platform
+focused [45257492465](https://github.com/FlareZ123/obfs/actions/runs/45257492465)
+completed **SUCCESS**, including the new expected-difference witness,
+all existing positive/negative source controls, and strict external/
+project/runtime-budget JSDoc steps. Full Node runner skipped.
+The test deliberately asserts the differing outputs; a passing suite
+therefore establishes the **limit of the proof**, not a behavior
+equivalence guarantee. A future whole-program effect model would need
+to account for captured binding initializers and writes, along with
+properties, external providers, and host observations.
