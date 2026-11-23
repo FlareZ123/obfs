@@ -186,3 +186,19 @@ test('receipt refuses empty artifact directories absent from a file-only manifes
   await assert.rejects(collectArtifactReceipt(input),
     /Empty artifact directory cannot be frozen/);
 });
+
+
+test('receipt refuses raw malformed UTF-8 directory names before text replacement',
+  {skip:process.platform==='win32'},async t=>{
+    const input=await fixture(t);
+    const candidate=input.arms.find(arm=>arm.arm==='candidate');
+    assert.ok(candidate);
+    const invalid=Buffer.concat([
+      Buffer.from(candidate.root+path.sep),
+      Buffer.from([0x66,0x6f,0x80,0x6f,0x2e,0x6a,0x73])
+    ]);
+    await fs.writeFile(invalid,'export default 1;');
+    t.after(async()=>fs.rm(invalid,{force:true}));
+    await assert.rejects(collectArtifactReceipt(input),
+      /Invalid UTF-8 artifact filename/);
+  });
