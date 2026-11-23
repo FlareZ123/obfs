@@ -37,6 +37,10 @@ Choose secret `s=0xffffffff`, published target `P(s)=3`. The initial candidate i
 
 This is a conditional chosen-oracle preimage result for a specified compatible basis. Full rank alone does not establish the premise, all-anchor singular examples exist, and random reanchoring against arbitrary dense permutations has no general success guarantee. A preimage attack does not reveal full source code or prove offline cloning, and it gives no guarantee of enforcing an authorized execution environment or a 2.5x defender compute ceiling. The result belongs in `im-results/` pending broader mathematical comparison and source-pinned CI evidence.
 
+## Interpretation relative to prior rank-one inversion
+
+The independent n=3 census below is a compatibility and implementation check rather than independent evidence of harder multi-shear sources: in three bits every compatible permutation has affine output coordinates 0 and 1, and arbitrary nonlinearity can occur only in the highest coordinate. Therefore this entire small-width population is a rank-one residual subclass already covered by the established `n+3` [rank-one inversion theorem](../results/rank-one-nonlinear-perturbation-inversion.md). The direct 32-bit chained witness above, with nonlinear terms in coordinates 2 through 31, is the genuinely multi-output case that distinguishes the 2n conditional derivation from that earlier rank-one attack. Any attack-cost comparison should use independent rank-r methods on the same 32-bit source, rather than assuming a 64-query advantage from a narrow source class.
+
 ## Independent exhaustive width-three check
 
 A second self-contained verifier, `sims/reanchor-depth-width3-exhaustive.js`, enumerates all 128 compatible three-bit permutations, all 168 invertible three-bit input linear maps and all eight hidden input offsets, fixing the public anchor at zero. It reconstructs the observed finite-difference map, checks the source-coordinate lower-unitriangular criterion directly, and tries **every eight target preimages** with an independently implemented finite-table fixed-point step. This is a finite census, not an oracle-hardness extrapolation.
