@@ -130,3 +130,20 @@ With the previously refined callback/provenance patch pinned at `21b655a54b0bdca
 The bounded patch in `src/cross-properties.js::safeClosedCallerRecordRead` recognizes a `ForOfStatement` (including ESTree's `await:true` form) and obtains either its direct LHS pattern or the first `VariableDeclaration.declarations[0].id`, feeding that pattern to the existing conservative callback-target tracing using the iterated RHS only as an **unknown potential source**. The reason is semantic: a loop binding receives values produced by an iterator at runtime; it cannot safely assume that the static iterable's corresponding literal elements are the values bound. A fixed-point loop still marks only previously unknown reachable callable names.
 
 This is a separate loop-head grammar path beyond ordinary `VariableDeclarator` or `AssignmentExpression` destructuring, and a finite red/green result rather than general host provenance completeness. Test branch `agent11/pr332-loop-pattern-review-20261123` remains unmerged and outside PR #332. **Global RELEASE-BLOCKED unchanged**.
+
+## Direct loop identifiers and catch-clause bindings: additional grammar coverage
+
+### Direct loop identifier controls
+
+An extra three variants of the prior `ForOfStatement` fix used simple identifier targets instead of destructuring: `for(const callback of [getFactory])`, `for await(const callback of [getFactory])`, and `let callback;for(callback of [getFactory])`. At source `461ea50570fba4fad2dc07cab380d1df49930ba4`, [focused CI 45129945286](https://github.com/FlareZ123/obfs/actions/runs/45129945286) passed **67/67** Node tests on both OS, including those three additions, with no further compiler change. This is a confirmed positive coverage expansion and **does not add three independent red witnesses**.
+
+### CatchClause binding provenance: three new exact red/green witnesses
+
+The same draft analysis omitted a separate AST binding path: `catch({callback})`, `catch([callback])`, and nested `catch({inner:{callback}})` receive a value thrown by a `try` block. Each case constructs a direct thrown object or array containing the declared `getFactory` callback, passes it through Promise.then to the ambient host `Function`, dynamically imports generated `state.mjs`, and inspects the exact `secretField` published name. Native output has the original field/value, while generated output renamed the key and returned null.
+
+- **Red test-only** source `f597963dba6e5b411b21d5ce97f3cf2940149018`: [focused CI 45130258617](https://github.com/FlareZ123/obfs/actions/runs/45130258617), **68 pass /3 fail of 71** Ubuntu and Windows. A fourth new primitive callback from a known literal `throw {callback:()=>7}` preserved one unrelated private-field rename in both red controls.
+- **Green branch-only** `src/cross-properties.js` source `1ad1f37f5916155f26236d53011d32e609c2935e`: [focused CI 45130493429](https://github.com/FlareZ123/obfs/actions/runs/45130493429), **71/71 pass on Ubuntu and Windows** with both strict JSDoc gates, including the numeric catch positive.
+
+The bounded adjustment recognizes `CatchClause.param` as a potential callback-binding target. When the immediate parent `TryStatement` has exactly one direct `ThrowStatement`, it passes the thrown AST expression into the existing nested/static-own-data pattern may-flow, preserving a numeric own-data literal's independently eligible property rewrite. For other try bodies, it conservatively regards the catch value as unknown and joins all pattern targets when an ambient-returning factory may exist. The patch does not claim to prove the absence of implicit errors during arbitrary expressions, and it is not a complete exception-flow or interprocedural catch theorem. This is finite correctness and positive-work evidence.
+
+Current branch: `agent11/pr332-catch-pattern-review-20261123`. All preceding loop-head, inline binding, own-data object precision, host iterator, logical assignment and expression callbacks remain green in the focused suite. No compiler implementation was merged into Agent21's original draft PR #332 or shared mainline. Release remains **RELEASE-BLOCKED**.
