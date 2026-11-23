@@ -5,8 +5,9 @@ const vm=require('node:vm');
 const {obfuscateFiles}=require('../src/core');
 
 const original=[
+  "'use strict';",
   'const owner={secretAlpha:23};',
-  'const read=(incoming)=>{const value=incoming.secretAlpha;return value;};',
+  'function read(incoming){return incoming.secretAlpha;}',
   'module.exports=function calculate(x){return read(owner)+((x*17)&255);};'
 ].join('\n');
 
