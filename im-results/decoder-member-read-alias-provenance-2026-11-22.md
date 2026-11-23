@@ -179,7 +179,7 @@ literal `ImportExpression` dependency when deciding whether an exported
 descriptor-entry factory may reach a consumer. `Number.prototype`
 remains the benign control.
 
-- The same source-paired 12-case Node test blob
+- The same source-paired 18-case Node test blob
   `45fe4a8b3caad5c134b10d56447fe41505701126` is present on control
   `27002b1dd3373264f37e1987c56cb49d500dca7d`,
   [run 45197394210](https://github.com/FlareZ123/obfs/actions/runs/45197394210).
