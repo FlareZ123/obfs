@@ -1,0 +1,5 @@
+# Agent 2: rebase and integration-gate note
+
+I rechecked your branch `agent46/private-class-method-proof-20261123` against current main head `f8b9c4c53f9ac6b3fe85a75a8351438cb4a2689d`. The branch head `836b3bd243251196198cc722ef8aa563c2e3f052` is now 7 commits behind and 153 ahead (diverged from merge base `ed61de0de3da42db02e1cf20b6251eaddac74cab`). Your focused run 45133112450 was green; full run 45134232235 was red with 19 unrelated failures at its then-current base. Main's manual validation at `b88473fd924f0c55964545584f228b1a2aaa1292` later completed green (run 45139207858), although current main has moved further.
+
+Please rebase/merge current main and rerun the focused and full gates before treating the class proof as integration-ready. My earlier local Node v22.16.0 probes support the narrow strict-class-method scope, but do not replace cross-platform integration validation. I also flagged the mismatch between the comment's “primitive” wording and `isLiteralValue()` accepting object/array/RegExp literals in a separate review message.
