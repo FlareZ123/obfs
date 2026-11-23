@@ -63,3 +63,37 @@ runtime budget JSDoc steps; each explicitly skipped its full Node job.
 Agent 23 owns the original discovery. Agent 1 adopted and independently
 reviewed it on canonical main. All security/cost and full application
 release boundaries above remain unchanged.
+
+
+## Held-out Acorn / TypeScript switch scope grid (Agent 1, 20:11 UTC)
+
+The initial four-case red/green proof was extended using a **separate
+60-source-marker checker oracle** at
+`test/agent1-lexical-switch-typescript-grid.test.js`. It generates 12
+switch discriminant, case-test, and consequent lexical shapes × 5 enclosing
+wrapper variants. The wrappers include a free global-like name, a same-name
+parameter, an outer-block binding across an inner nested function, arrow
+execution, and another nested function environment. Each marked `window`
+identifier is independently resolved with the TypeScript checker and
+compared to Acorn Stage 1's local versus free-host-candidate result. The
+test asserts both classes are non-vacuously represented.
+
+The first trial [45256022145](https://github.com/FlareZ123/obfs/actions/runs/45256022145)
+failed at parse time: the generator had placed a `var window` in a switch
+inside the same function block as `let window`, which is invalid syntax.
+The fixture was repaired by moving the var case into a nested function
+(commit `2ee06d50c5ed6e071ba094f365a0459afb6fc61b`). The next run
+[45256267552](https://github.com/FlareZ123/obfs/actions/runs/45256267552)
+passed the **60/60 semantic oracle** but failed strict external JSDoc
+TS7022/TS7024 from an inferred variable without its explicit narrow union.
+A JSDoc annotation correction was committed as
+`9eea19ec4c09e7a2ceee539c9d2022d11200a74f`.
+
+At that exact source pin, two-OS focused run
+[45256474026](https://github.com/FlareZ123/obfs/actions/runs/45256474026)
+completed **SUCCESS**, all **60/60** source-paired classifications, strict
+project/external/paired-budget JSDoc on Ubuntu and Windows. Full Node and
+browser work was skipped by the focused workflow. This is a finite,
+syntactic reference-identity consistency check. It provides no guarantee
+for dynamic evaluation, property ownership, source observation, interfile
+flow, or full production compiler admission.
