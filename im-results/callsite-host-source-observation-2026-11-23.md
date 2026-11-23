@@ -43,3 +43,11 @@ The repository-wide **RELEASE-BLOCKED** decision and the `results/` promotion st
 ## Strict JSDoc gate
 
 On the same research branch, `jsconfig.external.json` explicitly includes the witness. [Two-platform focused run 45126680018](https://github.com/FlareZ123/obfs/actions/runs/45126680018) at exact `c4f3d1c53236a691e3ba0edaca012e0833ffaf07` passed the selected established primitive-coercer regression, project JSDoc, external JSDoc (including the new witness), and the paired-budget JSDoc gate on both Ubuntu and Windows. The only changes after the intentionally-red source run were this JSDoc inclusion. This **does not** turn the red semantic parity cases green or constitute full-suite acceptance.
+
+## Source-privacy effect distinction for intake
+
+The counterexample separates **function-value escape** from **caller-stack observability**. A direct-only syntactic use summary constrains where an explicit reference to `readPrivate` flows. It says nothing about whether a synchronous callee can inspect *its caller* through Node/V8 structured stack frames. If callback invocation occurs while a private helper is on the stack, a legitimate host-provided callback can observe that helper without receiving a function argument.
+
+A conservative prospective proof would track this separately from string-coercion sinks. In a non-strict Node scope, a call whose target or host contract is not proved source-inert could mark all active reachable caller functions as potentially source-observed. Owners and keys whose source spelling occurs within those functions, including captured outer records, would then be excluded from rewriting; unrelated private owners should remain eligible. Known safe local call edges could remain provable. This effect propagation would need to be reconciled with interprocedural and cross-file property ownership proof, rather than implemented as a global zero-transformation veto.
+
+The proposed model is a **hypothesis about a conservative admission criterion**, not a demonstration that arbitrary external host callbacks, strict-mode boundaries, patched intrinsics, V8 internals, or hostile debugger instrumentation can be decided statically. Explicit runtime authority and attacker control remain outside the claim.
