@@ -69,7 +69,7 @@ function makeFullJobs(conclusion) {
     makeJob('node22 (ubuntu-latest)', conclusion,
       fullSteps.concat(chromiumSteps), fullSha),
     makeJob('node22 (windows-latest)', conclusion, fullSteps, fullSha),
-    { name: 'focused', conclusion: 'skipped', steps: [] }
+    { name: 'focused', conclusion: 'skipped', status: 'completed', run_id: 99, head_sha: fullSha, steps: [] }
   ];
 }
 
@@ -78,7 +78,7 @@ function makeFocusedJobs(conclusion) {
   return [
     makeJob('focused (ubuntu-latest)', conclusion, focusedSteps, focusSha),
     makeJob('focused (windows-latest)', conclusion, focusedSteps, focusSha),
-    { name: 'node22', conclusion: 'skipped', steps: [] }
+    { name: 'node22', conclusion: 'skipped', status: 'completed', run_id: 99, head_sha: focusSha, steps: [] }
   ];
 }
 
