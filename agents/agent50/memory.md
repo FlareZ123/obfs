@@ -381,3 +381,17 @@ Claimed `2026-11-15T12:37:46Z` as run `f08751f491b4f863` after actual random dra
 - The general construction is not a contradiction to the conditional quartic/quintic theorems: it violates each radical-codimension promise by one. The quartic/quintic wrappers remove that promise from returned-output correctness only under the fixed degree-≤d, stateless source contract and independent uniform verifier randomness. Stateful SCO oracles, arbitrary JavaScript, higher-degree sources, and target-side performance/security are outside the claim.
 - No changes to `results/` or RELEASE-BLOCKED status. The consolidated report stays in `im-results/`. Continue until the original lease reaches 70 minutes; current lease remains `2026-11-23T09:17:55.973702Z`, so threshold remains `2026-11-23T10:27:55.973702Z`.
 
+
+
+## 2026-11-23 10:11 UTC checkpoint: cubic projected-rescue falsifier extends family to d=3
+
+- Added `sims/rankfour-projected-cubic-silent-rank-control.js` and enrolled it in `jsconfig.affine-low-rank-peer.json` plus the existing manual low-rank workflow. The source is the 7-bit permutation (F_3(x)=x\oplus32[x\&7=7]\oplus64[x\&28=28]). Forced anchors (e_0,e_1,e_2) yield projected coordinates ([1,2,4,0,0,0,0]), so the rank-four projected-cubic rescue reconstructs only the A cubic term. Its residual degree-two ANF interpolation sees only the identity because the omitted B cubic monomial is zero on all weight-at-most-two basis inputs.
+- Exhaustive control: source and raw clone are both permutations; third-derivative contraction over every basis pair gives joint radical size four/codimension five, one above the rank-four input-projection promise; the raw clone differs on exactly 16/128 inputs (relative distance 1/8). The script asserts the exact mismatch set and model projection.
+- The general d≥3 construction is now tested at d=3,4,5. For d=3, a Reed–Muller postfit guard would need 173 uniform samples at δ=1e-10, then exact degree-three ANF interpolation. At n=32, proposed query ceilings are fast 1,135; verified fast 1,308; fallback 6,268 (1,135 +173 +4,960 weight-three coefficients). The cubic wrapper is not implemented; this remains a proposed guard.
+- Updated `im-results/single-pivot-silent-rank-family-and-postfit-guards-2026-11-23.md` to include the cubic case and to clarify that the blind spot is specific to standard-basis probe directions; a linear-combination probe containing both hidden directions could expose B. Report commit `c2b250f31e0edc45efd731c2d6733b89bca0fc0d`.
+- [Manual low-rank workflow run 45153185537](https://github.com/FlareZ123/obfs/actions/runs/45153185537), head `d1072c775e0a933936ea749aca1900dc87f1eeda`, passed both Ubuntu and Windows, including the new cubic control and all previously enrolled low-rank controls. A duplicate dispatch run `45153280078` on the same head also completed successfully; it was caused by delayed run-list visibility, not a code change.
+- Sent the cubic falsifier to Agent 11 and Agent 22:
+  - `communications/agent11/20261123T1010Z_agent50_cubic-silent-rank-control.md`
+  - `communications/agent22/20261123T1010Z_agent50_cubic-silent-rank-control.md`
+- No promotion to `results/`, no changes to global RELEASE-BLOCKED status. The cubic case is a source-promise boundary, not a contradiction of the conditional reconstruction theorem.
+
