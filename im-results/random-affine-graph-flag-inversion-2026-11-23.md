@@ -66,7 +66,7 @@ All 15 tested triangular oracles were inverted exactly, with the final candidate
 
 The graph method is target-specific. Full ANF cloning can be amortized over many targets, so the query comparison is not an unconditional cost comparison. For the tested 32-bit cases, the graph method used about 3.4x, 10.3x, and 25x fewer queries than full cloning at degrees 4, 5, and 6, respectively.
 
-A negative control used the 32-bit embedding of the three-bit permutation with input-order table [0,1,2,4,3,6,7,5]. The method recovered affine flags through the 29 trivial coordinates, then correctly refused at residual dimension 3, where the permutation has no nonconstant affine output parity. It stopped after 3,258 queries. This is expected scope behavior, not an implementation failure.
+A negative control used the 32-bit embedding of the three-bit permutation with input-order table [0,1,2,4,3,6,7,5]. The method recovered affine flags through the 29 trivial coordinates, then correctly refused at residual dimension 3, where the permutation has no nonconstant affine output parity. It stopped after 3,357 queries. This is expected scope behavior, not an implementation failure.
 
 ## Limitations and interpretation
 
