@@ -5,9 +5,9 @@
 **Research owner:** Agent 19  
 **Date:** 2026-11-23  
 **Reproduction branch:** `agent19/domstring-property-setter-current-main-20261123`  
-**Current-main validation pin:** `7ecdba37598fc43dad46b971fa7baf4700da7f9b`
+**Current-main validation pin:** `9481df76d9c8ffc64205959f6a410f3bc01d1b63`
 **Current main `src/ast.js` SHA:** `eea89ceb890cf190deb714751158a055c6cb2224`  
-**Validation:** [GitHub Actions run 45105560120](https://github.com/FlareZ123/obfs/actions/runs/45105560120)
+**Validation:** [GitHub Actions run 45105967275](https://github.com/FlareZ123/obfs/actions/runs/45105967275)
 
 ## Finding
 
@@ -75,6 +75,7 @@ The final source-pinned workflow completed successfully. Its Ubuntu job ran the 
 | Same-file primitive positives retaining one private-property rename | **26 / 26** |
 | Plain-object `.id` function-reference control | **PASS** |
 | Cross-file native property-setter source mismatch | **1 / 1** |
+| Cross-file ESM stream-sink source mismatch | **1 / 1** |
 | Reflective/aliased setter dispatch variants with changed source | **9 / 9** |
 | Reflective/aliased primitive-only positive parity | **9 / 9** |
 | Own data-property shadowing control | **PASS** |
@@ -87,6 +88,7 @@ The final source-pinned workflow completed successfully. Its Ubuntu job ran the 
 | Async stream writer/pipeTo dispatch variants with changed source | **3 / 3** |
 | Async stream writer/pipeTo primitive-only positive parity | **3 / 3** |
 | Cross-file primitive-only positive | **PASS** |
+| Cross-file stream primitive-only positive | **PASS** |
 | Existing focused Web IDL Node suite | **237 / 237** |
 | Main project JSDoc and dedicated matrix JSDoc | **PASS** |
 
@@ -145,7 +147,7 @@ A complementary proxy-storage trap that intercepts the assignment and stores the
 The own-data-property shadowing control passed: `Object.defineProperty(target, "id", { value: inspect, ... })` stored the function reference and the compiled program still invoked it correctly. This separates actual native setter dispatch from a reflective operation that merely creates an own data property.
 
 The final workflow uploaded the raw JSON summary as artifact
-[domstring-property-setter-matrix](https://github.com/FlareZ123/obfs/actions/runs/45105560120/artifacts/14786379254).
+[domstring-property-setter-matrix](https://github.com/FlareZ123/obfs/actions/runs/45105967275/artifacts/14787730516).
 
 
 ### Setter-identity negative control
@@ -172,7 +174,7 @@ The plain-object `.id` control is especially important: a global ban on property
 ## Scope and limitations
 
 - The native property-setter matrix was executed in Chromium on the Ubuntu GitHub Actions runner; it is not a cross-browser result.
-- The cross-file witness covers a direct ESM import and a direct `HTMLElement.id` assignment. It does not establish all inter-file aliases or reflective dispatch variants.
+- The cross-file suite covers a direct ESM import and `HTMLElement.id` assignment, plus an ESM producer whose function is passed through a consumer's `streamHTML()` writer. It does not establish all inter-file aliases or reflective dispatch variants.
 - The matrix does not cover custom elements, proxies, overridden setters, multiple realms, or all DOM/HTML IDL attributes.
 - The test suite is an expected-red witness against the current compiler, not an implemented guard. The reproduction branch contains no source-observer fix.
 - No performance measurement, 2.5× runtime-budget result, security-strength result, domain-lock result, or SCO/SNO security claim is established.
@@ -202,6 +204,23 @@ These standards define the relevant native DOM/HTML interfaces and setter algori
 **Disposition:** keep this as intermediate evidence in `im-results/`. It is a concrete source-preservation defect and a test donor for the canonical source-observer integration, not a publishable solution or a reason to change the project-wide **RELEASE-BLOCKED** decision.
 
 
+
+
+### Cross-file ESM stream witness
+
+A second cross-file graph exports `inspect` from a producer module and imports it in a consumer module. The consumer creates `target.streamHTML()`, obtains a writer, and awaits `writer.write(inspect)` and `writer.close()`. The native source is:
+
+```js
+function inspect(){return observedOwner.secretField;}
+```
+
+The emitted source is:
+
+```js
+function inspect(){return observedOwner._p2327adc78d;}
+```
+
+The numeric result (57), independent value (73), and primitive-only cross-file counterpart all pass. The negative graph reported two property transformations and the positive graph one. This confirms that the stream-sink source observation crosses an ESM import boundary into an asynchronous writer path.
 
 ## Related HTML parser method sink: insertAdjacentHTML
 
@@ -301,6 +320,7 @@ All previously reported expected-red findings remained unchanged against this cu
 - 26/26 native property setter cases;
 - 9/9 setter dispatch variants;
 - `insertAdjacentHTML` method sink;
+- cross-file ESM stream sink;
 - 23/23 modern HTML parser/streaming methods;
 - 3/3 asynchronous stream writer/pipeTo variants.
 
