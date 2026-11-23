@@ -1724,7 +1724,7 @@ function safeClosedCallerRecordRead(modules,module,member,ancestors) {
                * Propagate a known own-data literal field through its matching
                * binding. Unknown sources and missing own keys can invoke host
                * accessors, so refuse every candidate target in those cases.
-               * Array patterns also invoke externally mutable @@iterator.
+               * Array patterns invoke the externally mutable Symbol.iterator.
                * @param {AstNode|null|undefined} target
                * @param {AstNode|null|undefined} candidate
                * @param {number} depth
