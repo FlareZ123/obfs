@@ -490,3 +490,26 @@ Run 61 failed only because the Node summary referenced an undefined
 `browserEnvironment`; run 62 passed but did not serialize the feature probe;
 run 63 fixed the browser payload and confirmed HeadlessChrome 157.0.0.0 and
 feature support. Run 64 added the modern HTML API cases and passed fully.
+
+
+### 2026-11-23 03:18Z: stream writer aliases and ReadableStream.pipeTo
+
+Added three dispatch variants on the supported `Element.streamHTML` sink:
+1. `writer.write.bind(writer)` alias;
+2. `writer.write.call(writer, inspect)`;
+3. enqueue `inspect` into a `ReadableStream` and `pipeTo(target.streamHTML())`.
+
+All 3/3 reproduced changed function source and all 3 primitive-only positives
+passed. Thus the function value flows through method extraction/binding,
+async writer calls, and stream-to-stream piping before the HTML sink converts
+it. The 23 distinct modern HTML APIs and 3 dispatch variants are now all
+covered.
+
+Final full workflow run 45105051259 succeeded:
+https://github.com/FlareZ123/obfs/actions/runs/45105051259
+Source pin `dd5e8486f2290d1741e483b7901b5707fb83e6ee`.
+Artifact 14787361242:
+https://github.com/FlareZ123/obfs/actions/runs/45105051259/artifacts/14787361242
+
+Updated report `im-results/domstring-property-setter-source-matrix-2026-11-23.md`
+and design note `workplace/dom-source-observation-capability-graph.md`.
