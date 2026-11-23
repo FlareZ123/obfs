@@ -312,6 +312,14 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
       isRequireCall(node)));
   }
   /** @param {AstNode|null|undefined} node @returns {boolean} */
+  function isOpaqueCallable(node) {
+    if(!node)return false;
+    if(node.type==='Identifier')return opaqueFunctions.has(node.name)&&
+      !importedStrings.has(node.name)&&!importedPrimitives.has(node.name);
+    if(node.type==='MemberExpression')return isOpaqueNamespace(node.object);
+    return isRequireCall(node);
+  }
+  /** @param {AstNode|null|undefined} node @returns {boolean} */
   function isFunctionValue(node) {
     return Boolean(node && (node.type==='Identifier'&&
         !importedStrings.has(node.name) && !importedPrimitives.has(node.name) &&
@@ -3102,6 +3110,14 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
     }
     if(node.type==='CallExpression'||node.type==='NewExpression') {
       const callee=node.callee;
+      // An imported/opaque callable can retain, wrap, coerce or explicitly
+      // stringify a function argument, and may return a Proxy whose later
+      // ToPrimitive exposes the original function source. Without the module
+      // body or an effect summary, any function-bearing argument is a source
+      // escape. A zero-argument installer remains eligible.
+      if(isOpaqueCallable(callee) && node.arguments.some(
+        (/** @type {AstNode} */ value)=>isFunctionValue(value)||containsFunction(value)))
+        observed=true;
       // MessagePort, Worker and browser postMessage use structured cloning.
       // Their DataCloneError can expose exact function source in the payload,
       // including nested values. The receiver may be an opaque host object.
