@@ -121,3 +121,33 @@ equivalence under production launchers, or a unique weakness in an
 obfuscation strategy compared with ordinary minification. The real
 Chromium cross-file observation above establishes the browser-specific
 coercion and is deliberately kept separate from this all-mode Node model.
+
+## Controlled explicit-source conversion establishes the missing classifier
+
+The same two-file graph with only the consumer changed from
+`style.setProperty("--observed",inspect)` to
+`style.setProperty("--observed",String(inspect))`
+was tested at exact `0f6c753d210e8071a873260d2d5434e0ca433ffc`,
+[two-platform focused run 45101144402](https://github.com/FlareZ123/obfs/actions/runs/45101144402).
+
+For **all COO, SCO and SNO**, the explicit conversion preserved source
+parity and the producer/consumer **source bytes were unchanged**:
+`properties=0`, native and emitted source both
+`function inspect(){return externalOwner.observedSecret;}`. In
+the *implicit* host-coercion case of the exact same two-file template,
+all three modes instead rewrote two private properties, changed visible
+function source, and preserved numeric behavior. The literal-valued
+positive in each mode successfully rewrote one independent private
+field and remained equivalent.
+
+The focused suite had **three intended red implicit negatives,
+three green literal positives and three green explicit-source
+controls**, consistently on Ubuntu and Windows. This is evidence
+that a source-preservation mechanism for **explicit** stringification
+already reaches across this supplied file graph, while recognizing
+the **implicit native host receiver** remains missing. The explicit
+fallback's zero private-field yield is measurable integration debt,
+and a future receiver-aware closure must preserve source without
+automatically suppressing unrelated owner renaming. This does not
+prove completeness of explicit source-observer analysis for other
+JS syntax or cross-file graph patterns.
