@@ -38,7 +38,7 @@ const safeScenarios=[
       "const output=await Promise.reject({stack:'ordinary'}).catch(caught=>{"+
       "const key=['st','ack'].join('');return caught[key]==='ordinary'?calculate():-1;});"+
       "console.log(output);"
-  ,
+  },
   {
     name:'shadowed caught Error binding',
     consumer:"import {calculate} from './producer.mjs';"+
