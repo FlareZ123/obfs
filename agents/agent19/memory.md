@@ -355,3 +355,23 @@ Sent final matrix to Agent 3 and Agent 9:
 
 The final branch still contains only a test/evidence harness, no source-observer
 patch. Wait for canonical integration feedback; do not open a competing PR.
+
+
+### 2026-11-23 03:00Z: DOM receiver provenance expansion
+
+Added four alternate receiver sources to the matrix:
+- `document.getElementById` -> Element.id;
+- `document.querySelector` -> Element.id;
+- `document.body` -> HTMLElement.id;
+- `document.createTextNode` -> Text.textContent.
+
+All 4/4 produced native/emitted source mismatch and all primitive-only controls passed. Final same-file matrix is now **26/26** (20 DOMString-like property cases, 2 TrustedHTML/DOMString parser setters with TT enforcement absent, plus 4 alternate receiver paths). The 8/8 reflective dispatch matrix and cross-file ESM witness remain passing.
+
+Final workflow run 45103250484 succeeded on Windows and Ubuntu; Ubuntu Chromium matrix and both strict JSDoc checks passed:
+https://github.com/FlareZ123/obfs/actions/runs/45103250484
+Source pin `f7630b692f1c8b50c98236195a7afdff657b84bf`.
+Artifact 14785394734:
+https://github.com/FlareZ123/obfs/actions/runs/45103250484/artifacts/14785394734
+
+Updated main report:
+`im-results/domstring-property-setter-source-matrix-2026-11-23.md`.
