@@ -126,7 +126,8 @@ function swapIdentityOutputs(first,second) {
  *   identityBijection:boolean,alternateBijection:boolean}}
  */
 function hiddenSwapDegreeWitness(bits,count) {
-  const reference=/** @param {number} x @returns {number} */(x=>x);
+  /** @param {number} x @returns {number} */
+  const reference=x=>x;
   const baseline=adaptivePermutationTranscript(reference,bits,count);
   const seen=new Set(baseline.map(record=>record.input));
   /** @type {number[]} */
