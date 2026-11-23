@@ -10,6 +10,7 @@ const {createTwoStateWeightedWorkspace,learnTwoStateWeightedStepOnly}=
 async function census(policy){
   const models=enumerateMachines(2);
   const workspace=createTwoStateWeightedWorkspace();
+  /** @type {number[]} */
   const histogram=[];
   let calls=0,max=0;
   for(const model of models){
