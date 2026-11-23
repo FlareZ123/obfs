@@ -59,6 +59,12 @@ test('proved primitive island records lower to tuples without recoverable proper
   assert.deepEqual({records:lowered.records,properties:lowered.properties,declined:lowered.declined},
     {records:1,properties:2,declined:null});
   assert.match(lowered.code,/const recordB=\[19,23\];const valueB=recordB\[1\];/);
+  const sameSeed=lowerProvedPrimitiveIslandRecords(
+    independent.code,parse(independent.code,'module'),{seed:'island-array-core',path:'independent.mjs'});
+  const otherSeed=lowerProvedPrimitiveIslandRecords(
+    independent.code,parse(independent.code,'module'),{seed:'alpha',path:'independent.mjs'});
+  assert.equal(sameSeed.code,lowered.code);
+  assert.notEqual(otherSeed.code,lowered.code);
   assert.doesNotMatch(lowered.code,/privateB|otherB/);
 
   const attacker=normalizePublicIsland(lowered.code);
