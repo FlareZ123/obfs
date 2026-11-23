@@ -200,6 +200,15 @@ test('selected SCO Web IDL method admission fails closed on alias and extraction
     },{seed:'webidl-method-shadow-v1',privateNames:['privateOp']}),
     /unproved cross-realm WebIDL constructor/,name);
   }
+  for(const name of ['Headers','URLSearchParams']){
+    const source='const '+name+'=17;'+
+      'export async function privateOp(){return new '+name+'().get("x");}'+
+      'export function visible(){return 7;}';
+    assert.throws(()=>partitionScoSelectedAsyncExports({
+      path:'method-module-shadow.mjs',sourceType:'module',code:source
+    },{seed:'webidl-method-module-shadow-v1',privateNames:['privateOp']}),
+    /unproved cross-realm WebIDL constructor/,name);
+  }
   for(const body of [
     "return new URLSearchParams('a=1').get('a');",
     "return new URLSearchParams('a=1').toString();",
@@ -235,6 +244,23 @@ test('private SCO ESM graph applies Web IDL method admission to imported leaves'
     "return new Headers().append('bad name','x');",
     "const h=new Headers();return h.get('x-demo');"
   ])assert.throws(()=>graph(body),/unproved cross-realm WebIDL constructor/,body);
+  for(const name of ['Headers','URLSearchParams']){
+    const body='const '+name+'=17;export function leaf(){return new '+name+'().get("x");}';
+    const source=partitionScoSelectedGraph.bind(null,[{
+      file:{
+        path:'method-shadow-graph.mjs',sourceType:'module',
+        code:"import {leaf} from './private/leaf.mjs';"+
+          'export async function privateOp(){return leaf();}'+
+          'export function visible(){return 7;}'
+      },
+      options:{
+        seed:'webidl-method-shadow-graph-v1',privateNames:['privateOp'],
+        privateModuleImports:['./private/leaf.mjs'],
+        privateModuleSources:[{path:'private/leaf.mjs',code:body}]
+      }
+    }]);
+    assert.throws(source,/unproved cross-realm WebIDL constructor/,name);
+  }
   for(const body of [
     "return new URLSearchParams('a=1').get('a');",
     "return new Headers({'x-demo':'ok'}).get('x-demo');",
