@@ -1660,7 +1660,7 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
    */
   function isInertPlainRecord(input) {
     if(!input || input.type!=='ObjectExpression')return false;
-    return input.properties.every(property=>{
+    return input.properties.every((/** @type {AstNode} */ property)=>{
       if(property.type!=='Property'||property.kind!=='init'||
          property.computed||property.method)return false;
       const name=property.key.type==='Identifier'?
