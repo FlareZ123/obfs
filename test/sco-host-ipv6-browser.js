@@ -2,8 +2,7 @@
 
 const assert=require('node:assert/strict');
 const http=require('node:http');
-const {execFile}=require('node:child_process');
-const {promisify}=require('node:util');
+const puppeteer=require('puppeteer-core');
 const {createScoHandler}=require('../src');
 
 const html='<!doctype html><html><body><pre id="out">pending</pre>'+
@@ -28,15 +27,43 @@ async function withServer(handler,run) {
 
 /** @param {string} url @returns {Promise<string>} */
 async function readDom(url) {
-  const browser=process.env.CHROMIUM_BIN??'chromium';
-  const {stdout}=await promisify(execFile)(browser,[
-    '--headless','--no-sandbox','--disable-gpu','--disable-dev-shm-usage',
-    '--no-proxy-server','--no-first-run','--virtual-time-budget=7000',
-    '--dump-dom',url
-  ],{timeout:45000,maxBuffer:4*1024*1024,encoding:'utf8'});
-  const observed=stdout.match(/<pre id="out">([^<]+)<\/pre>/u)?.[1];
-  assert.ok(observed,'Chromium IPv6 page failed to execute: '+stdout.slice(0,1200));
-  return observed;
+  const browser=await puppeteer.launch({
+    channel:process.env.CHROMIUM_BIN?undefined:'chrome',
+    executablePath:process.env.CHROMIUM_BIN,
+    headless:true,
+    args:['--no-sandbox','--disable-gpu','--disable-dev-shm-usage',
+      '--no-proxy-server','--no-first-run']
+  });
+  try {
+    const page=await browser.newPage();
+    /** @type {string[]} */
+    const network=[];
+    page.on('requestfailed',request=>{
+      network.push('failed '+request.url()+' '+(request.failure()?.errorText??''));
+    });
+    page.on('response',response=>{
+      if(response.url().endsWith('/client.js')){
+        network.push('script status '+response.status());
+      }
+    });
+    await page.goto(url,{waitUntil:'domcontentloaded',timeout:45000});
+    try {
+      await page.waitForFunction(
+        "document.querySelector('#out')?.textContent !== 'pending'",
+        {timeout:15000}
+      );
+    } catch(error) {
+      console.error('Chromium IPv6 navigation diagnostics: '+JSON.stringify({
+        url,network,body:(await page.content()).slice(0,1200)
+      }));
+      throw error;
+    }
+    const observed=await page.$eval('#out',element=>element.textContent??'');
+    assert.ok(observed,'Chromium IPv6 page produced empty result');
+    return observed;
+  } finally {
+    await browser.close();
+  }
 }
 
 /** @returns {Promise<void>} */
