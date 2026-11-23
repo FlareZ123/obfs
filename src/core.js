@@ -21,6 +21,7 @@ const {assertNoSourceMapDisclosure} = require('./source-maps');
 const {hasPinnedLocalJavaScriptIntegrity}=require('./html-assets');
 const {assertReviewedOpaqueAssets}=require('./reviewed-assets');
 const {proveSourceObserverIslands}=require('./source-observer-islands');
+const {lowerProvedPrimitiveIslandRecords}=require('./source-observer-island-arrays');
 const {canonicalAllowedHosts}=require('./hosts');
 
 /** @typedef {'coo'|'sco'|'sno'} ObfuscationMode */
@@ -28,7 +29,7 @@ const {canonicalAllowedHosts}=require('./hosts');
 /** @typedef {{path:string,code:string|Buffer,sourceType?:SourceType,privateModulePaths?:string[],privateOriginalDigests?:string[]}} SourceFile */
 /** @typedef {{path:string,code:string|Buffer,sourceType:SourceType,metrics:{literals:number,objects:number,properties:number,bindings:number,vmFunctions?:number,vmInstructions?:number,expressionVmFunctions?:number,expressionVmInstructions?:number,nativeGraphFunctions?:number,nativeGraphInstructions?:number,branchFunctions?:number,branchBlocks?:number,statementFlowFunctions?:number,statementFlowBlocks?:number,polyvariantFunctions?:number,polyvariantPaths?:number,polyvariantSteps?:number,wasmI32Functions?:number,wasmI32Instructions?:number,wasmI32Bytes?:number,symbolKeys?:number}}} OutputFile */
 /**
- * @typedef {{mode?:ObfuscationMode,seed?:string,strings?:boolean,properties?:boolean,identifiers?:boolean,minimumStringLength?:number,experimentalFixedArityStrings?:boolean,allowedHosts?:string[],closedWorld?:boolean,experimentalRegisterVm?:Record<string,string[]>,experimentalExpressionVm?:Record<string,string[]>,experimentalNativeGraph?:Record<string,string[]>,experimentalBranchBlocks?:Record<string,string[]>,experimentalBranchStateBlinding?:boolean,experimentalStatementFlow?:Record<string,string[]>,experimentalStatementFlowCompact?:boolean,experimentalPolyvariantAffine?:Record<string,string[]>,experimentalPolyvariantCount?:2|4|8,experimentalPolyvariantCompact?:boolean,experimentalWasmI32?:Record<string,string[]>,experimentalSymbolKeys?:boolean,experimentalSourceObserverIslands?:string[],reviewedOpaqueAssets?:import('./reviewed-assets').ReviewedOpaqueAsset[]}} ObfuscationOptions
+ * @typedef {{mode?:ObfuscationMode,seed?:string,strings?:boolean,properties?:boolean,identifiers?:boolean,minimumStringLength?:number,experimentalFixedArityStrings?:boolean,allowedHosts?:string[],closedWorld?:boolean,experimentalRegisterVm?:Record<string,string[]>,experimentalExpressionVm?:Record<string,string[]>,experimentalNativeGraph?:Record<string,string[]>,experimentalBranchBlocks?:Record<string,string[]>,experimentalBranchStateBlinding?:boolean,experimentalStatementFlow?:Record<string,string[]>,experimentalStatementFlowCompact?:boolean,experimentalPolyvariantAffine?:Record<string,string[]>,experimentalPolyvariantCount?:2|4|8,experimentalPolyvariantCompact?:boolean,experimentalWasmI32?:Record<string,string[]>,experimentalSymbolKeys?:boolean,experimentalSourceObserverIslands?:string[],experimentalSourceObserverIslandRecordsToArrays?:boolean,reviewedOpaqueAssets?:import('./reviewed-assets').ReviewedOpaqueAsset[]}} ObfuscationOptions
  */
 
 /**
@@ -2038,6 +2039,17 @@ function obfuscateFiles(files, options = {}) {
   }
   const sourceObserverIslands=options.experimentalSourceObserverIslands?.length ?
     proveSourceObserverIslands(prepared,options.experimentalSourceObserverIslands) : new Set();
+  if(options.experimentalSourceObserverIslandRecordsToArrays===true) {
+    if(!sourceObserverIslands.size) {
+      throw new TypeError('Source observer island record arrays require at least one proved source observer island');
+    }
+    if(options.properties===false) {
+      throw new TypeError('Source observer island record arrays require properties to be enabled');
+    }
+    if(options.experimentalSymbolKeys===true) {
+      throw new TypeError('Source observer island record arrays cannot be combined with Symbol property lowering');
+    }
+  }
   // A hostname wrapper prepends source bytes and source coordinates. Code
   // that observes either must reject the explicit host lock rather than
   // publishing a semantically different stack/source view.
@@ -2233,14 +2245,26 @@ function obfuscateFiles(files, options = {}) {
     let objects = 0;
     let properties = 0;
     let symbolKeys = 0;
+    if(options.experimentalSourceObserverIslandRecordsToArrays===true &&
+        sourceObserverIslands.has(filename)) {
+      const lowered=lowerProvedPrimitiveIslandRecords(code,ast);
+      if(lowered.declined) {
+        throw new TypeError('Source observer island record-to-array lowering declined '+
+          filename+': '+lowered.declined);
+      }
+      code=lowered.code;
+      objects=lowered.records;
+      properties=lowered.properties;
+      ast=parse(code,sourceType);
+    }
     if ((!remoteSourceObserver || sourceObserverIslands.has(filename)) &&
         options.properties !== false && sourceType !== 'script') {
       const modified = options.experimentalSymbolKeys === true ?
         symbolizeLocalProperties(code,ast,{seed:salt}) :
         renameLocalProperties(code,ast,{seed:salt});
       code = modified.code;
-      objects = modified.objects;
-      properties = modified.properties;
+      objects += modified.objects;
+      properties += modified.properties;
       if (options.experimentalSymbolKeys === true) symbolKeys = modified.properties;
       ast = parse(code,sourceType);
     }
