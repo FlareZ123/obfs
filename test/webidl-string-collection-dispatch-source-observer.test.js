@@ -10,7 +10,7 @@ const {parse,observesFunctionSource}=require('../src/ast');
 function execute(code) {
   const context={module:{exports:null},Headers,URLSearchParams};
   vm.runInNewContext(code,context,{timeout:3000});
-  return /** @type {{same:boolean,value:number}} */(context.module.exports);
+  return JSON.parse(JSON.stringify(context.module.exports));
 }
 
 /** @type {Array<[string,string,string]>} */
