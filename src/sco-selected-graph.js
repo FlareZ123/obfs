@@ -106,6 +106,23 @@ function assertNoPrivateImportMemberState(filename,source){
        aliases.has(node.object.name)){
       throw new TypeError('Selected SCO private dependency exposes shared imported member state: '+filename);
     }
+    // Expression wrapping can preserve the same imported identity without
+    // introducing a named alias. Decline unproved first-class sinks before
+    // they are observable through shared server-side module state.
+    if(node.type==='ReturnStatement'&&carriesAlias(node.argument)||
+       node.type==='ArrowFunctionExpression'&&node.expression&&
+         carriesAlias(node.body)||
+       node.type==='YieldExpression'&&carriesAlias(node.argument)||
+       node.type==='AssignmentPattern'&&carriesAlias(node.right)||
+       node.type==='SpreadElement'&&carriesAlias(node.argument)||
+       node.type==='Property'&&carriesAlias(node.value)||
+       node.type==='ArrayExpression'&&node.elements.some(
+         (/** @type {import('./ast').AstNode|null} */ item)=>carriesAlias(item))||
+       (node.type==='CallExpression'||node.type==='NewExpression')&&
+         node.arguments.some(
+           (/** @type {import('./ast').AstNode} */ item)=>carriesAlias(item))){
+      throw new TypeError('Selected SCO private imported identity escapes to unproved consumer: '+filename);
+    }
     if(node.type!=='Identifier'||!aliases.has(node.name))return;
     if(parent?.type==='CallExpression'&&key==='arguments'||
        parent?.type==='NewExpression'&&key==='arguments'||
