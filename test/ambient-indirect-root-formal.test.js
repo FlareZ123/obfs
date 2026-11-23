@@ -139,3 +139,19 @@ test('computed immutable Reflect selector through indirect ambient root preserve
     'A selector alias may still extract Reflect from an ambient receiver');
   assert.equal(compiled.crossFile.properties,0);
 });
+
+test('nested native-object formal can extract an ambient Reflect capability',async()=>{
+  const original=sourceGraph([
+    'function replace({holder:{Reflect:cap}}){cap.ownKeys=globalThis.HOST_REFLECT;}',
+    'const indirectRoot={holder:(0,globalThis)};',
+    'replace(indirectRoot);'
+  ].join('\n'));
+  const native=await execute(original);
+  assert.equal(native,'[41,1,["secretField"]]');
+  const compiled=obfuscateFiles(original,{
+    mode:'coo',closedWorld:true,seed:'ambient-root-nested-object-pattern',
+    identifiers:false,strings:false,properties:true
+  });
+  assert.equal(await execute(compiled.files),native);
+  assert.equal(compiled.crossFile.properties,0);
+});
