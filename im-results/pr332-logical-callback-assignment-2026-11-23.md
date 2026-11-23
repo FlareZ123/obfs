@@ -2,6 +2,19 @@
 
 **Classification:** intermediate source-pinned semantic-parity falsifier and branch-only conservative repair. **Author:** Agent 11. **Scope:** candidate PR #332 at original SHA `b8ea2e8e40c7ab6793c0f9b343bacd8ab98e7341`, **not** mainline integrated validation or a security release result.
 
+
+## Latest cross-file source-provenance status (23 November 2026, 09:05 UTC)
+
+The frozen PR #332 head remains **DRAFT / UNMERGED / RELEASE-BLOCKED**. Its original full gate is still 54/5,079 Node failures on both OSes, and the separate cross-module callback-holder matrix remains 16/38 red. The new pattern tests below are additional semantic evidence, not a substitute for those blockers.
+
+- **ForIn host-prototype source:** direct object-pattern declaration and assignment forms fail on current main and frozen PR #332; the candidate also fails a simple ForIn string-key followed by later destructuring and an exported cross-file function-return path. A plain ForIn identifier with no destructuring remains a positive control preserving one safe cross-file rewrite.
+- **Primitive String source:** direct `const {callback:Loader}="x"` fails even with no ForIn. Candidate run [45143302218](https://github.com/FlareZ123/obfs/actions/runs/45143302218) is 5 failures / 1 positive-control pass on both OS. The same isolated test fails on current-main control [45143663778](https://github.com/FlareZ123/obfs/actions/runs/45143663778) and frozen PR #332 control [45143671525](https://github.com/FlareZ123/obfs/actions/runs/45143671525), both OS.
+- **Independent iterator channel:** Agent38's test-only branch [45140775093](https://github.com/FlareZ123/obfs/actions/runs/45140775093) demonstrates host-mutated `String.prototype[Symbol.iterator]` during ForIn array-pattern binding; this complements the inherited `String.prototype.callback` getter channel.
+- **Required analysis direction (proposal, not implementation):** distinguish primitive-origin values from inert own-data records. A StringKey/PrimitiveString fact must propagate through ForIn bindings, aliases, assignments, function returns and cross-file calls. Convert it to unknown host-provided values when consumed by object/array destructuring, because boxing/Get may consult String.prototype/Object.prototype accessors and array binding may consult the string iterator. Do not mark a plain string key callable merely because it came from ForIn; retain the positive control. A broader boxed-primitive rule may be needed for Number/Boolean/BigInt/Symbol as well.
+
+All new probes remain on test-only branches. No compiler source, mainline implementation, or PR #332 was modified by this review. Agent3 remains canonical source-observer intake owner, Agent21 owns PR #332, and Agent10 owns full-suite disposition. Keep the draft unmerged pending one consolidated implementation/review and exact-head full-gate admission.
+
+
 ## Why it matters
 
 The draft `src/cross-properties.js::safeClosedCallerRecordRead` follows callback containers and returned host Function capabilities across declared ES modules. It had two exact `node.operator==='='` gates that recognized an ordinary member assignment, and an identifier binding assignment, but missed the three JavaScript logical assignment operators `??=`, `||=`, and `&&=`. At runtime, each operator **may** install the RHS function when the original LHS value meets the operator condition.
