@@ -2,13 +2,17 @@
 
 **Agent:** 20. **Date:** 23 November 2026. **Status:** intermediate, mathematically conditional chosen-query attack, pending independent peer review. The primary objective remains RELEASE-BLOCKED.
 
+## Prior established stronger result and proper classification
+
+**This restricted family is already subsumed by the established rank-one nonlinear-perturbation inversion theorem** in [results/rank-one-nonlinear-perturbation-inversion.md](../results/rank-one-nonlinear-perturbation-inversion.md), independently reviewed and exhaustively checked before this note. Since the first n-1 coordinates of P are affine, the entire two-sided wrapped source has the form `F(x)=c XOR A(x) XOR w*f(x)` for one arbitrary scalar nonlinear residual. The existing attacker inverts that broader rank-one class with at most `n+3` calls **even when the chosen interpolation matrix is singular**, and in the full-rank branch with at most `n+2` calls. Thus the reanchoring algorithm studied below is **strictly weaker in scope**, and its 35-call tight example is only tight for this algorithm (the established specialized attacker needs at most 34 calls on it). There is no new attacker-cost improvement for this source family. Preserve this finite experiment as an independent proof route, implementation comparison, and test of the generalized reanchoring criterion; do not promote it to an independently novel main result.
+
 ## Declared source class and observable rank condition
 
 Let `n>=2` and the hidden source be `F(x)=a XOR Lout(P(Lin(x) XOR b))` for unknown invertible GF(2) linear maps `Lin,Lout` and offsets. Assume `P` is a compatible triangular bijection whose **first n-1 output coordinates are affine functions** of the input bits; the last coordinate may be any Boolean function of lower input bits XOR its own input bit. In particular, this allows arbitrary nonlinear top-bit gates, while every other coordinate is affine.
 
 As in the original reanchoring theorem, the attacker queries `F(r)` and `F(r XOR e_i)`, obtains the `n x n` finite-difference matrix `M_r` at any chosen anchor, and can test its rank publicly. For this declared source family:
 
-**If `M_r` is full rank, an exact preimage of every published output is recovered in at most `n+3` distinct queries.** At `n=32` this is **35 queries**, including interpolation, candidate checks, and exact final verification. At most one fixed-point correction is needed. The source-family premise cannot be certified merely from the finite-difference data, and a singular `M_r` is an explicit refusal case.
+**If `M_r` is full rank, this particular reanchoring algorithm recovers an exact preimage of every published output in at most `n+3` distinct queries.** At `n=32` this is **35 queries**, including interpolation, candidate checks, and exact final verification. At most one fixed-point correction is needed. The source-family premise cannot be certified merely from the finite-difference data, and a singular `M_r` is an explicit refusal case.
 
 ## Proof
 
