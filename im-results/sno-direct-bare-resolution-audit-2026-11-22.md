@@ -126,7 +126,7 @@ separately verify the final deployment tree and its resolution flags.
 
 The finite static scanner examines **direct, literal CommonJS calls**.
 It does not certify `module.require`, aliases, `createRequire`,
-ESM static/dynamic imports, nonliteral or reflective specifiers, custom
+ESM static/dynamic imports (covered separately by --audit-bare-esm), nonliteral or reflective specifiers, custom
 loaders, nondefault flags, environment-dependent `NODE_PATH`, remote
 dependency mutation after build, or application-owned packages that
 observe their invoking file's dynamic call stack. No new client/server
@@ -143,3 +143,64 @@ A later deployment move or package upgrade demands a fresh audit.
 
 Strong obfuscator release remains **RELEASE-BLOCKED** and the
 three-mode 2.5× and adversarial evaluations remain independent.
+
+## 23 November 2026: opt-in ESM bare-import resolver extension
+
+A second relocation path affects ESM dependencies. A source entry may
+contain a CommonJS launcher that requires a local .mjs engine; that
+engine imports a bare package. If the input and output trees contain
+different node_modules copies, native execution and generated SNO
+select different package implementations even though the imported
+specifier is unchanged.
+
+The independent Node 22.16.0 reproduction used an ESM package with
+conditional exports targets for both import and require. The source
+import branch returned 103, the output import branch returned 107,
+and the same local +13 operation yielded native 116 versus generated
+120. The test deliberately routes through entry.cjs -> engine.mjs,
+exercising the actual SNO one-entry CommonJS launcher with an ESM
+dependency rather than running an unrelated standalone module.
+
+The opt-in --audit-bare-esm extension adds a build-time preflight
+alongside the existing --audit-bare-cjs flag. It collects static
+import and re-export sources, literal dynamic import(), and direct
+literal import.meta.resolve() calls. It compares the source/output
+URLs using Node's actual ESM import.meta.resolve(specifier,parentURL)
+with the import condition. A short-lived child Node process performs
+resolution using explicit parent URLs; no application module is loaded,
+and the compiler process's module cache is not modified. The preflight
+runs under the existing exclusive output lock before any generated
+source or launcher is written.
+
+The new source-pinned test file
+test/sno-esm-bare-resolution-audit.test.js contains:
+- A source/output sibling-package red witness (native 116, unguarded
+  SNO 120) and an audit refusal before publication. The mismatch
+  error records the ESM import.mjs conditional target.
+- A shared-ancestor positive control with native/emitted value 116
+  and byte-identical engine.mjs, entry.cjs, and sno-entry.cjs
+  with and without the audit.
+- Static import, re-export, literal dynamic import, CJS dynamic-import,
+  and import.meta.resolve collection controls.
+- Refusal controls for nonliteral imports, resolver aliases, #imports,
+  direct eval/Function, opaque JavaScript, and use outside SNO.
+
+This remains a dependency-resolution compatibility diagnostic, not
+source secrecy, tamper resistance, or arbitrary application equivalence.
+It does not cover custom loaders, nondefault deployment conditions,
+runtime-generated import specifiers, #imports maps, future package
+scopes, or dependencies modified after compilation. The existing
+SNO filesystem/runtime owner attacks remain unaffected. The global
+release decision remains RELEASE-BLOCKED.
+
+Validation: workflow run 45129703688 at source commit
+104e2b6797535641431663d9e5a9bc5f2607a541.
+- Ubuntu Node 22.23.4: 7/7 focused tests passed; project JSDoc passed;
+  external JSDoc passed.
+- Windows Node 22.23.4: 5/5 focused tests passed; project JSDoc passed;
+  external JSDoc passed.
+- Overall workflow conclusion: failure because the separate paired-budget
+  JSDoc step reported TS2741 at test/cluster-family-strict-tail.test.js
+  lines 90-91: two FamilyWorkload fixtures are missing protocolId. The
+  feature tests and project/external JSDoc passed; the overall workflow
+  is not reported as green.
