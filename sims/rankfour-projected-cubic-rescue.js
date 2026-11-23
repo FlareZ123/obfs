@@ -5,6 +5,22 @@ const {learnBoundedDegreeOracle,evaluateBoundedDegreeModel}=
   require('./bounded-degree-oracle-functional-clone');
 
 /** @typedef {ReturnType<typeof learnBoundedDegreeOracle>} Quadratic */
+/**
+ * A cubic source whose observed standard-basis signature span exceeds four.
+ * The validated wrapper may safely route only this structural failure to exact ANF.
+ */
+class SignatureSpanOverflowError extends Error {
+  /** @param {number} trials */
+  constructor(trials) {
+    super('Cubic signature span exceeds four');
+    this.name='SignatureSpanOverflowError';
+    /** @type {'ERR_CUBIC_SIGNATURE_SPAN_OVERFLOW'} */
+    this.code='ERR_CUBIC_SIGNATURE_SPAN_OVERFLOW';
+    /** @type {number} */
+    this.trials=trials;
+  }
+}
+
 /** @typedef {{bits:number,degree:2|3,projected:number[],
  cubic:number[],lower:Quadratic,queries:number,trials:number}} Model */
 
@@ -118,7 +134,7 @@ function learn(oracle,bits,draw,delta=1e-10){
     signatures.push(originalSig[fourthIndex]);
   }
   const projected=originalSig.map(x=>coordinate(x,signatures));
-  assert.ok(projected.every(x=>x>=0));
+  if(!projected.every(x=>x>=0))throw new SignatureSpanOverflowError(trials);
   const dimension=basisInputs.length;
   assert.ok(dimension===3||dimension===4);
 
@@ -286,4 +302,4 @@ function main(){
   return summary;
 }
 if(require.main===module)main();
-module.exports={learn,evaluate,main};
+module.exports={learn,evaluate,main,SignatureSpanOverflowError};
