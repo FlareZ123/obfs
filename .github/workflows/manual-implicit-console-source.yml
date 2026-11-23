@@ -21,6 +21,8 @@ jobs:
           node-version: '22'
       - name: Install declared dependencies
         run: npm install --no-package-lock --ignore-scripts
+      - name: Actual native WebSocket.send(function) source observation parity
+        run: node sims/websocket-source-coercion-probe.js
       - name: Run implicit source-coordinate differential
         run: node --test test/implicit-console-stack-source.test.js test/node-util-format-source-observation.test.js test/implicit-source-mode-matrix.test.js test/implicit-source-mode-fuzz.test.js test/node-process-warning-source-observation.test.js
       - name: Dynamic-input host source-boundary reproduction
