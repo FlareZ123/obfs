@@ -82,3 +82,24 @@ for(const mode of /** @type {const} */ (['coo','sno','sco'])) {
       run(esmFactory,esmApp,true),'ESM imported factory source text is observable');
   });
 }
+
+const asyncApp=
+  "async function make(){return new TextEncoder();}\n"+
+  "const encoder=await make();\n"+
+  "function observed(){return 'async-encoder-return-source';}\n"+
+  "export const result=Array.from(encoder.encode(observed));\n";
+
+for(const mode of /** @type {const} */ (['coo','sno','sco'])) {
+  test('local async factory yields a native TextEncoder to await '+mode,()=>{
+    const output=obfuscateFiles([
+      {path:'factory.mjs',sourceType:'module',code:esmFactory},
+      {path:'app.mjs',sourceType:'module',code:asyncApp}
+    ],{mode,seed:'encoder-local-async/'+mode,
+       strings:true,identifiers:false,properties:false}).files;
+    const transformedFactory=output.find(f=>f.path==='factory.mjs');
+    const transformedApp=output.find(f=>f.path==='app.mjs');
+    assert.ok(transformedFactory&&transformedApp);
+    assert.equal(run(String(transformedFactory.code),String(transformedApp.code),true),
+      run(esmFactory,asyncApp,true),'awaited local encoder factory preserves source text');
+  });
+}
