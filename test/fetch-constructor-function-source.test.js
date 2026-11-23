@@ -98,6 +98,9 @@ const inertCases=[
   ['DecompressionStream primitive format','new DecompressionStream("gzip").constructor.name']
 ];
 
+// The Promise.prototype.then hook is mutable and may publish a user callback's
+// exact source. Direct async IIFEs keep these primitive-only cases eligible
+// to prove unrelated private-key renaming without assuming native hook provenance.
 for(const [name,expression] of inertCases) {
   test('Fetch and File primitive inputs preserve private-key transformation: '+name,async()=>{
     const source='const state={secretField:37};'+
