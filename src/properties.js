@@ -658,6 +658,11 @@ function proveLocalObject(ast, rootName, bindings, importedIdentityFunctions=new
     if (!(parent?.type === 'CallExpression' && key === 'callee')) unusableFunctions.add(node.name);
   }
   for (const name of unusableFunctions) functions.delete(name);
+  // Only callable bodies whose function values remain in this map have been
+  // proven local and direct-call-only. A public/unknown function exposes its
+  // original source through Function#toString even when the owner object itself
+  // never escapes; rewriting a member token inside that body is observable.
+  const privateFunctionNodes=new Set([...functions.values()].map(fn=>fn.node));
   // Invalid summaries propagate along source-ordered, acyclic const
   // aliases. Each source precedes its descendants in insertion order, so a
   // single linear pass handles every reachable descendant.
@@ -872,6 +877,12 @@ function proveLocalObject(ast, rootName, bindings, importedIdentityFunctions=new
         parent?.type==='MemberExpression' && key==='property' && !parent.computed ||
         (parent?.type==='MethodDefinition'||parent?.type==='PropertyDefinition') &&
           key==='key' && !parent.computed) continue;
+    // A property spelling inside an unproven callable body is part of that
+    // callable's externally observable source. Private direct-call-only
+    // functions survive the escape analysis above and remain eligible.
+    if(ancestors.some(ancestor=>
+      ['FunctionDeclaration','FunctionExpression','ArrowFunctionExpression'].includes(ancestor.type)&&
+      !privateFunctionNodes.has(ancestor)))return null;
     const scope=scopes.get(node.name);
     if (!scope || !ancestors.includes(scope)) return null;
     if (!parent) return null;
