@@ -34,6 +34,60 @@ const cases=[
   {name:'HTMLOptionElement.value',setup:'const target=document.createElement("option");',target:'target',property:'value'},
   {name:'HTMLFormElement.name',setup:'const target=document.createElement("form");',target:'target',property:'name'}
 ];
+/** @typedef {{name:string,setup:string,assignment:string,read:string,positiveAssignment:string}} DispatchCase */
+
+/** @type {DispatchCase[]} */
+const dispatchCases=[
+  {name:'computed literal key',setup:'const target=document.createElement("div");',
+    assignment:'target["id"]=inspect;',read:'target.id',
+    positiveAssignment:'target["id"]="literal";'},
+  {name:'computed constant key',setup:'const target=document.createElement("div");const key="id";',
+    assignment:'target[key]=inspect;',read:'target.id',
+    positiveAssignment:'target[key]="literal";'},
+  {name:'element alias',setup:'const target=document.createElement("div");const alias=target;',
+    assignment:'alias.id=inspect;',read:'target.id',
+    positiveAssignment:'alias.id="literal";'},
+  {name:'Reflect.set',setup:'const target=document.createElement("div");',
+    assignment:'Reflect.set(target,"id",inspect);',read:'target.id',
+    positiveAssignment:'Reflect.set(target,"id","literal");'},
+  {name:'Object.assign',setup:'const target=document.createElement("div");',
+    assignment:'Object.assign(target,{id:inspect});',read:'target.id',
+    positiveAssignment:'Object.assign(target,{id:"literal"});'},
+  {name:'logical assignment',setup:'const target=document.createElement("div");',
+    assignment:'target.id ||= inspect;',read:'target.id',
+    positiveAssignment:'target.id ||= "literal";'},
+  {name:'native descriptor setter call',setup:'const target=document.createElement("div");const setId=Object.getOwnPropertyDescriptor(Element.prototype,"id").set;',
+    assignment:'setId.call(target,inspect);',read:'target.id',
+    positiveAssignment:'setId.call(target,"literal");'},
+  {name:'Reflect.apply native descriptor setter',setup:'const target=document.createElement("div");const setId=Object.getOwnPropertyDescriptor(Element.prototype,"id").set;',
+    assignment:'Reflect.apply(setId,target,[inspect]);',read:'target.id',
+    positiveAssignment:'Reflect.apply(setId,target,["literal"]);'}
+];
+
+/**
+ * @param {DispatchCase} item
+ * @param {boolean} primitive
+ * @returns {string}
+ */
+function sourceForDispatchCase(item,primitive) {
+  const lines=[];
+  if(primitive) {
+    lines.push('const independent={independentSecret:73};');
+    lines.push(item.setup);
+    lines.push(item.positiveAssignment);
+    lines.push('export const observed={source:'+item.read+
+      ',independent:independent.independentSecret};');
+  } else {
+    lines.push('const observedOwner={secretField:57};');
+    lines.push('function inspect(){return observedOwner.secretField;}');
+    lines.push('const independent={independentSecret:73};');
+    lines.push(item.setup);
+    lines.push(item.assignment);
+    lines.push('export const observed={source:'+item.read+
+      ',value:inspect(),independent:independent.independentSecret};');
+  }
+  return lines.join('\n');
+}
 
 /**
  * @param {SetterCase} item
@@ -116,6 +170,41 @@ async function main() {
   bodies.set('/userland-native.mjs',userlandSource);
   bodies.set('/userland-compiled.mjs',userlandOutput.code);
 
+  /** @type {{name:string,native:string,compiled:string,positiveNative:string,positiveCompiled:string,negativeProperties:number,positiveProperties:number}[]} */
+  const dispatchPairs=[];
+  for(let index=0;index<dispatchCases.length;index++) {
+    const item=dispatchCases[index];
+    const negative=sourceForDispatchCase(item,false);
+    const negativeOutput=compile(negative,'domstring-dispatch-negative-'+index);
+    const positive=sourceForDispatchCase(item,true);
+    const positiveOutput=compile(positive,'domstring-dispatch-positive-'+index);
+    const pair={
+      name:item.name,
+      native:'/dispatch-native-negative-'+index+'.mjs',
+      compiled:'/dispatch-compiled-negative-'+index+'.mjs',
+      positiveNative:'/dispatch-native-positive-'+index+'.mjs',
+      positiveCompiled:'/dispatch-compiled-positive-'+index+'.mjs',
+      negativeProperties:negativeOutput.properties,
+      positiveProperties:positiveOutput.properties
+    };
+    dispatchPairs.push(pair);
+    bodies.set(pair.native,negative);
+    bodies.set(pair.compiled,negativeOutput.code);
+    bodies.set(pair.positiveNative,positive);
+    bodies.set(pair.positiveCompiled,positiveOutput.code);
+  }
+  const dataPropertySource=[
+    'const observedOwner={secretField:57};',
+    'function inspect(){return observedOwner.secretField;}',
+    'const independent={independentSecret:73};',
+    'const target=document.createElement("div");',
+    'Object.defineProperty(target,"id",{value:inspect,writable:true,configurable:true});',
+    'export const observed={value:target.id(),independent:independent.independentSecret};'
+  ].join('\n');
+  const dataPropertyOutput=compile(dataPropertySource,'domstring-own-data-property-positive');
+  bodies.set('/data-property-native.mjs',dataPropertySource);
+  bodies.set('/data-property-compiled.mjs',dataPropertyOutput.code);
+
   const negativeLogic=[
     'const observedOwner={secretField:57};',
     'export function inspect(){return observedOwner.secretField;}',
@@ -170,6 +259,7 @@ async function main() {
     '<!doctype html><meta charset="utf-8"><pre id="result">pending</pre>',
     '<script type="module">',
     'const pairs='+JSON.stringify(pairs)+';',
+    'const dispatchPairs='+JSON.stringify(dispatchPairs)+';',
     'try {',
     ' const rows=[];',
     ' for(const pair of pairs){',
@@ -190,10 +280,30 @@ async function main() {
     '   negativeProperties:pair.negativeProperties,',
     '   positiveProperties:pair.positiveProperties});',
     ' }',
+    ' const dispatchRows=[];',
+    ' for(const pair of dispatchPairs){',
+    '  const [n,e,pn,pe]=await Promise.all([',
+    '   import(pair.native),import(pair.compiled),',
+    '   import(pair.positiveNative),import(pair.positiveCompiled)]);',
+    '  const native=n.observed,emitted=e.observed,',
+    '   positiveNative=pn.observed,positiveEmitted=pe.observed;',
+    '  dispatchRows.push({name:pair.name,',
+    '   nativeSourceValid:native.source.includes("observedOwner.secretField"),',
+    '   sourceMismatch:native.source!==emitted.source,',
+    '   numericParity:native.value===emitted.value&&native.value===57,',
+    '   independentParity:native.independent===emitted.independent&&native.independent===73,',
+    '   positiveParity:positiveNative.source==="literal"&&',
+    '     JSON.stringify(positiveNative)===JSON.stringify(positiveEmitted),',
+    '   negativeProperties:pair.negativeProperties,positiveProperties:pair.positiveProperties});',
+    ' }',
     ' const [un,ue]=await Promise.all([',
     '  import("/userland-native.mjs"),import("/userland-compiled.mjs")]);',
     ' const userland={native:un.observed,emitted:ue.observed,',
     '  parity:JSON.stringify(un.observed)===JSON.stringify(ue.observed)};',
+    ' const [dn,de]=await Promise.all([',
+    '  import("/data-property-native.mjs"),import("/data-property-compiled.mjs")]);',
+    ' const dataPropertyControl={native:dn.observed,emitted:de.observed,',
+    '  parity:JSON.stringify(dn.observed)===JSON.stringify(de.observed)};',
     ' const [cn,ce,pn,pe]=await Promise.all([',
     '  import("/native-negative/observer.mjs"),import("/compiled-negative/observer.mjs"),',
     '  import("/native-positive/observer.mjs"),import("/compiled-positive/observer.mjs")]);',
@@ -207,7 +317,7 @@ async function main() {
     '    JSON.stringify(pn.observed)===JSON.stringify(pe.observed),',
     '  negativeProperties:'+crossNegativeProperties+',',
     '  positiveProperties:'+crossPositiveProperties+'};',
-    ' document.getElementById("result").textContent=JSON.stringify({rows,userland,crossFile});',
+    ' document.getElementById("result").textContent=JSON.stringify({rows,dispatchRows,userland,dataPropertyControl,crossFile});',
     '}catch(error){document.getElementById("result").textContent=',
     ' "BROWSER_ERROR "+String(error.stack||error);}',
     '</script>'
@@ -253,13 +363,24 @@ async function main() {
     const crossFileExpectedRed=crossFile.nativeSourceValid&&crossFile.sourceMismatch&&
       crossFile.numericParity&&crossFile.independentParity&&crossFile.positiveParity&&
       crossFile.negativeProperties>=1&&crossFile.positiveProperties>=1;
+    const dispatchRows=browser.dispatchRows;
+    const dispatchSummary={
+      count:dispatchRows.length,
+      sourceMismatchCount:dispatchRows.filter((/** @type {any} */ row)=>row.sourceMismatch).length,
+      rows:dispatchRows
+    };
+    const dataPropertyControl=browser.dataPropertyControl;
+    const dataPropertyPositive=dataPropertyControl.parity&&
+      dataPropertyControl.native.value===57&&dataPropertyControl.emitted.value===57&&
+      dataPropertyControl.native.independent===73&&dataPropertyControl.emitted.independent===73&&
+      dataPropertyOutput.properties>=1;
     const summary={
-      expectedRedReproduced:allExpectedRed&&userlandPositive&&crossFileExpectedRed,
+      expectedRedReproduced:allExpectedRed&&userlandPositive&&crossFileExpectedRed&&dataPropertyPositive,
       sinkCount:rows.length,
       sourceMismatchCount:rows.filter((/** @type {any} */ row)=>row.sourceMismatch).length,
       sourceMismatchNames:rows.filter((/** @type {any} */ row)=>row.sourceMismatch).map(
         (/** @type {any} */ row)=>row.name),
-      crossFileExpectedRed,crossFile,
+      crossFileExpectedRed,crossFile,dispatchSummary,dataPropertyControl,
       rows,userland,
       userlandProperties:userlandOutput.properties
     };
