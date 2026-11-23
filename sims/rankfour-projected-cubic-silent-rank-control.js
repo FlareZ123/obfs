@@ -50,6 +50,7 @@ function main() {
   assert.deepEqual(model.projected,[1,2,4,0,0,0,0]);
   assert.equal(model.cubic[7],32);
 
+  /** @type {number[][]} */
   const pairs = [];
   for (let a = 0; a < 7; a++) {
     for (let b = a + 1; b < 7; b++) pairs.push([1 << a,1 << b]);
