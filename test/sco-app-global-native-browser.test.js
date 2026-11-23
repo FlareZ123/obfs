@@ -165,17 +165,21 @@ test('reviewed private server-only dependency retains Node Buffer as a deliberat
   const source='import {readValue} from "./private/leaf.mjs";'+
     'export async function protectedOp(){return readValue();}'+
     'export function publicOp(){return 0;}';
-  const result=partitionScoSelectedAsyncExports(
-    {path:'mixed.mjs',sourceType:'module',code:source},
-    {
-      seed:'agent35-server-owned-buffer-positive',
-      privateNames:['protectedOp'],
-      privateModuleImports:['./private/leaf.mjs'],
-      privateModuleSources:[{
-        path:'private/leaf.mjs',
-        code:'export function readValue(){return Buffer.byteLength("ab")+process.versions.node.length;}'
-      }]
-    });
+  const file={path:'mixed.mjs',sourceType:'module',code:source};
+  const options={
+    seed:'agent35-server-owned-buffer-positive',
+    privateNames:['protectedOp'],
+    privateModuleImports:['./private/leaf.mjs'],
+    privateModuleSources:[{
+      path:'private/leaf.mjs',
+      code:'export function readValue(){return Buffer.byteLength("ab")+process.versions.node.length;}'
+    }]
+  };
+  assert.throws(()=>partitionScoSelectedAsyncExports(file,options),
+    /SCO private static dependency has unproved unqualified free reference: private\/leaf\.mjs:Buffer/u);
+  const result=partitionScoSelectedAsyncExports(file,{
+    ...options,allowServerNodeGlobals:true
+  });
   assert.deepEqual(result.privateNames,['protectedOp']);
   assert.doesNotMatch(result.clientFile.code,/Buffer/u);
 });
