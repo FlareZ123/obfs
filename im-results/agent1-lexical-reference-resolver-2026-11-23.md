@@ -58,3 +58,24 @@ The final independent checker comparison passed **150/150** reference matches pe
 Agent 3's canonical intake remains the single source of integration decisions. Adopt or independently recreate a small read-only lexical resolver with its 39 + 150 regression checks, then combine it with the Storage receiver/actual-callable, DOMString and named setter analyses and the multi-pass source-preservation contract. Freeze one exact candidate source and have Agent 10 execute the comprehensive gate. Avoid interpreting isolated focused greens as release acceptance.
 
 **Recorded:** 2026-11-23T18:31:30.870Z
+
+
+## Stage 1 API-extension validation, 23 November 18:43 UTC
+
+This section supersedes the earlier three-test-only and JSDoc-coverage descriptions **for the subsequent candidate**. Earlier receipt rows remain accurate for their historical source pins.
+
+Agent 3 reviewed the read-only candidate and required four explicit contracts before considering its lexical stage coherent. Following `communications/agent1/20261123T1828Z_agent3-resolver-review.md` and `20261123T1842Z_agent3-resolver-api-test-review.md`, the same research module now:
+1. Exposes `declarations` records carrying declaration nodes, spelling, declaration kind and per-declaration BindingId. Ambiguous declarations return null IDs. Sibling same-name function-parameter bindings retain different IDs.
+2. Attaches per-reference syntactic `role` for `read`, `write`, `read-write`, `call`, `construct`, `computed-key` and `export-local`; nested destructuring assignments are marked writes.
+3. Shares a function-body binding identity for simple parameter+`var` collisions and both source orderings of `var`+`function` declarations. Non-simple parameter/body `var` collisions return Unknown where independent binding/rename safety is unresolved. A mistakenly broad `BlockStatement` to function-body conversion was caught by the existing fixture and corrected in `508f39bcb87465fd44fab88c3024c71f8d9e7459`.
+4. Evaluates `with(object)`'s object expression in its incoming lexical scope; the `with` dynamic scope applies to its body. A case with a host-root object expression returns `free-host-candidate` for that root and Unknown for its use inside the with body.
+
+The read-only prototype and both new tests were added to `jsconfig.external.json` for **automated strict JSDoc checking**, commit `b416b13551671f99429409b6bbb3446690b9703e`. The first gate [45239839763](https://github.com/FlareZ123/obfs/actions/runs/45239839763) exposed four JSDoc implicit-any annotations in research code on Ubuntu and Windows; fixed in commits `22362403c013a6d989dad5773060a0181409218c` and `081f02ebde3f10cfd20b98795077b5144151fe34`. The subsequent [focused 45240121562](https://github.com/FlareZ123/obfs/actions/runs/45240121562) passed on both operating systems with strict JSDoc.
+
+A first declaration/role regression [45240754536](https://github.com/FlareZ123/obfs/actions/runs/45240754536) correctly failed on both systems because the function-body experiment accidentally treated *all* nested block statements as body var scopes. Its prior `var` hoisting fixture diagnosed `free-host-candidate` where a local was required. The correction was pushed and revalidated.
+
+**Final focused test pair, exact source commit `61441e2203a737c32fd40cb2d4c69f4fd6c41ea4`:**
+- [Run 45241201721](https://github.com/FlareZ123/obfs/actions/runs/45241201721): Ubuntu **9/9 Node top-level tests passed**, Windows focused job passed, 39 lexical fixtures plus declarations, references, role matrix, scope merge and with receiver controls. Existing strict project/external/budget JSDoc gates passed. Full Node 22 job deliberately skipped.
+- [Run 45241210599](https://github.com/FlareZ123/obfs/actions/runs/45241210599): Ubuntu and Windows independent **150/150 Acorn–TypeScript declaration-resolution comparisons** in one top-level Node test; strict JSDoc passed, full Node job skipped.
+
+The proposition supported is a **bounded read-only lexical binding-reference analysis** for the enumerated AST and source-type examples. It remains outside all production obfuscation modes and does not prove native host identity, all ECMAScript scoping, selective source/closure integrity, or any adversarial/performance gains. The product remains **RELEASE-BLOCKED**.
