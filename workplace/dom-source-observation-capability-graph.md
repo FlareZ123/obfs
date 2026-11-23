@@ -212,3 +212,26 @@ This confirms that the source-observation graph must cross method extraction,
 bound-call semantics, asynchronous writer calls, and ReadableStream-to-
 WritableStream piping. The sink cannot be modeled only as a direct argument to
 `streamHTML()`; the function value reaches the HTML parser later as a chunk.
+
+
+## Legacy Document.write/writeln control and current-main validation
+
+A separate iframe-backed `Document.write`/`Document.writeln` control is already
+source-preserved by the current source-observer path. Both native/emitted
+source comparisons pass, but both the source-bearing and primitive-only
+programs report **zero** private-property transforms. This is an observed
+example of the current broad source-observer veto: correct preservation, no
+selective yield.
+
+The full matrix was then rerun from a branch created on current `main`.
+The branch's `src/ast.js` SHA exactly matches current main:
+`eea89ceb890cf190deb714751158a055c6cb2224`. Current-main CI run
+45105560120 passed on Windows and Ubuntu, including Chromium and strict JSDoc.
+The 26 property cases, 9 setter dispatch variants, insertAdjacentHTML sink,
+23 modern HTML parser/streaming methods, and three stream dispatch variants
+remain expected-red; Document.write/writeln remain protected with zero yield.
+
+Current-main run:
+https://github.com/FlareZ123/obfs/actions/runs/45105560120
+Raw artifact:
+https://github.com/FlareZ123/obfs/actions/runs/45105560120/artifacts/14786379254
