@@ -1,6 +1,8 @@
 {
   "extends": "./jsconfig.json",
   "include": [
+    "src/sno-bare-audit.js",
+    "test/sno-esm-bare-resolution-audit.test.js",
     "sims/two-sided-affine-degree-inversion.js",
     "sims/quadratic-affine-triangular-inverse.js",
     "sims/bounded-degree-symbolic-affine-inverse.js",

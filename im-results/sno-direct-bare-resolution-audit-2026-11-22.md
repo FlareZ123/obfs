@@ -126,7 +126,7 @@ separately verify the final deployment tree and its resolution flags.
 
 The finite static scanner examines **direct, literal CommonJS calls**.
 It does not certify `module.require`, aliases, `createRequire`,
-ESM static/dynamic imports, nonliteral or reflective specifiers, custom
+ESM static/dynamic imports (covered separately by --audit-bare-esm), nonliteral or reflective specifiers, custom
 loaders, nondefault flags, environment-dependent `NODE_PATH`, remote
 dependency mutation after build, or application-owned packages that
 observe their invoking file's dynamic call stack. No new client/server
@@ -143,3 +143,141 @@ A later deployment move or package upgrade demands a fresh audit.
 
 Strong obfuscator release remains **RELEASE-BLOCKED** and the
 three-mode 2.5× and adversarial evaluations remain independent.
+
+## 23 November 2026: opt-in ESM bare-import resolver extension
+
+A second relocation path affects ESM dependencies. A source entry may
+contain a CommonJS launcher that requires a local .mjs engine; that
+engine imports a bare package. If the input and output trees contain
+different node_modules copies, native execution and generated SNO
+select different package implementations even though the imported
+specifier is unchanged.
+
+The independent Node 22.16.0 reproduction used an ESM package with
+conditional exports targets for both import and require. The source
+import branch returned 103, the output import branch returned 107,
+and the same local +13 operation yielded native 116 versus generated
+120. The test deliberately routes through entry.cjs -> engine.mjs,
+exercising the actual SNO one-entry CommonJS launcher with an ESM
+dependency rather than running an unrelated standalone module.
+
+The opt-in --audit-bare-esm extension adds a build-time preflight
+alongside the existing --audit-bare-cjs flag. It collects static
+import and re-export sources, literal dynamic import(), and direct
+literal import.meta.resolve() calls. It compares the source/output
+URLs using Node's actual ESM import.meta.resolve(specifier,parentURL)
+with the import condition. A short-lived child Node process performs
+resolution using explicit parent URLs; no application module is loaded,
+and the compiler process's module cache is not modified. The preflight
+runs under the existing exclusive output lock before any generated
+source or launcher is written.
+
+The new source-pinned test file
+test/sno-esm-bare-resolution-audit.test.js contains:
+- A source/output sibling-package red witness (native 116, unguarded
+  SNO 120) and an audit refusal before publication. The mismatch
+  error records the ESM import.mjs conditional target.
+- A shared-ancestor positive control with native/emitted value 116
+  and byte-identical engine.mjs, entry.cjs, and sno-entry.cjs
+  with and without the audit.
+- Static import, re-export, literal dynamic import, CJS dynamic-import,
+  and import.meta.resolve collection controls.
+- Refusal controls for nonliteral imports, resolver aliases, #imports,
+  direct eval/Function, opaque JavaScript, and use outside SNO.
+
+This remains a dependency-resolution compatibility diagnostic, not
+source secrecy, tamper resistance, or arbitrary application equivalence.
+It does not cover custom loaders, nondefault deployment conditions,
+runtime-generated import specifiers, #imports maps, changed or unsupported package
+scopes, or dependencies modified after compilation. The existing
+SNO filesystem/runtime owner attacks remain unaffected. The global
+release decision remains RELEASE-BLOCKED.
+
+Validation: workflow run 45129703688 at source commit
+104e2b6797535641431663d9e5a9bc5f2607a541.
+- Ubuntu and Windows Node 22.23.4: focused test steps passed; project and
+  external JSDoc passed.
+- Overall workflow conclusion: failure because the separate paired-budget
+  JSDoc step reported TS2741 at test/cluster-family-strict-tail.test.js
+  lines 90-91: two FamilyWorkload fixtures are missing protocolId. The
+  feature tests and project/external JSDoc passed; the overall workflow
+  is not reported as green.
+## 23 November 2026: superseding validation on current main
+
+The initial feature branch was based on 2b3b979 and fell 75 commits behind
+main while the repository was active. Its focused tests and project/external
+JSDoc passed, but its paired-budget JSDoc step exposed two TS2741 errors in
+test/cluster-family-strict-tail.test.js. Main subsequently fixed those
+fixtures. To avoid carrying a stale base and the unrelated typecheck failure,
+the feature was reapplied on branch
+agent45/sno-esm-bare-import-audit-20261123-rebased, based on main commit
+44fc7ccd7224b252c4e3cce74566db19e4fec788.
+
+Superseding focused validation: workflow 45130499785 at branch head
+4992704ab67d5ef347ac65ae0c7e1df1045b94bd.
+- Ubuntu Node 22.23.4: all seven focused tests passed; project JSDoc,
+  external JSDoc, and paired/complete-suite runtime-budget JSDoc passed.
+- Windows Node 22.23.4: all seven focused tests passed; project JSDoc,
+  external JSDoc, and paired/complete-suite runtime-budget JSDoc passed.
+- Overall workflow conclusion: SUCCESS.
+
+This supersedes the earlier branch-specific paired-budget failure. It does
+not constitute a full repository test-suite or SNO security-release pass.
+## 23 November 2026: resolver non-execution regression and expanded validation
+
+Added an eighth test in commit 82ee2c768848d3c4bce177ac60bc79e94bef959a.
+It gives the resolved ESM package an import-time filesystem side effect,
+then audits a source module containing both a static package import and a
+direct import.meta.resolve call. The preflight succeeds for the shared
+dependency path while the marker remains absent, demonstrating that the
+resolver helper locates the package without evaluating its module code.
+
+Latest focused validation: workflow 45131273198 at source/test commit
+82ee2c768848d3c4bce177ac60bc79e94bef959a.
+- Ubuntu Node 22.23.4: 8/8 focused tests passed; project JSDoc, external
+  JSDoc, and paired/complete-suite runtime-budget JSDoc passed.
+- Windows Node 22.23.4: 8/8 focused tests passed; project JSDoc, external
+  JSDoc, and paired/complete-suite runtime-budget JSDoc passed.
+- Overall workflow conclusion: SUCCESS. This is still focused validation,
+  not a full repository test-suite or SNO security-release pass.
+## 23 November 2026: emitted package-scope parity and .js ESM support
+
+The initial blanket refusal for any emitted package.json was unnecessarily
+restrictive for ordinary .js ESM applications whose package scope contains
+only stable metadata such as type: module. The audit now compares the
+nearest source/output package.json byte-for-byte for every audited module.
+It permits identical package metadata when no imports map or package
+self-reference (name plus exports) is present; it refuses added, removed or
+changed package scopes, invalid metadata, imports maps and self-reference.
+The existing SNO package-scope check still handles external ancestor scopes.
+
+A new end-to-end regression uses a CommonJS SNO entry requiring an ESM
+engine.js under an emitted type: module package.json. The ESM engine
+imports a package from a shared ancestor node_modules; native and generated
+results both equal 116 and the optional audit accepts the byte-identical
+package scope. The package-scope refusal test separately checks changed
+metadata, imports maps and output-only scopes.
+
+Latest validation: workflow 45132004860 at source/test commit
+29bf551030cd888400e863cd9d9486a0421f6554.
+- Ubuntu Node 22.23.4: 9/9 focused tests passed; project JSDoc, external
+  JSDoc and paired/complete-suite runtime-budget JSDoc passed.
+- Windows Node 22.23.4: 9/9 focused tests passed; project JSDoc, external
+  JSDoc and paired/complete-suite runtime-budget JSDoc passed.
+- Overall workflow conclusion: SUCCESS.
+## 23 November 2026: case-variant package-scope refusal
+
+Added a cross-platform guard for package scope paths whose basename is a
+case variant of package.json (for example Package.json). Windows file
+systems can resolve such a path case-insensitively while POSIX systems do
+not, and the compiler's package-scope discovery uses canonical lowercase
+names. The ESM audit now refuses an ancestor case variant rather than
+allowing platform-dependent package-scope selection.
+
+A tenth test covers this refusal. Latest workflow 45132427152 at source/test
+commit bf387ae5a154e5747d7a514082fad516ea4778dd succeeded:
+- Ubuntu Node 22.23.4: 10/10 focused tests; project JSDoc, external JSDoc
+  and paired/complete-suite runtime-budget JSDoc passed.
+- Windows Node 22.23.4: 10/10 focused tests; project JSDoc, external JSDoc
+  and paired/complete-suite runtime-budget JSDoc passed.
+- Overall workflow conclusion: SUCCESS.
