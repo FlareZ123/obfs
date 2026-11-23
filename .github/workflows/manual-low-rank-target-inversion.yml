@@ -75,6 +75,8 @@ jobs:
         run: node sims/rankfour-projected-cubic-rescue.js
       - name: Exhaustive vector cubic signature and radical independent peer
         run: node sims/rankfour-vector-signature-exhaustive.js
+      - name: Exhaustive rank-five four-wedge output-rank witness frequencies
+        run: node sims/rankfive-four-wedge-exhaustive.js
       - name: Matched rank-four projected versus generic quartic functional clone
         run: node sims/rankfour-projected-vs-generic-quartic-matched.js
       - name: Independent rank-three quadratic 244-query full clone
