@@ -15,6 +15,29 @@ In a separate non-strict **CommonJS** test, a directly invoked local worker call
 
 An unshadowed built-in name or direct-call-only lexical binding does not establish that a function's source is unobservable through a **mutable or externally implemented callee**. Sound source-preserving transformations need explicit runtime assumptions or conservative refusals that protect complete related edit groups. A refusal protects compatibility while potentially reducing useful obfuscation coverage; positive work-yield and whole-suite gates remain essential. These cases establish **compatibility limitations**, not successful tamper resistance, source confidentiality, or compliance with the 2.5× compute budget. The strong-protection release decision remains blocked.
 
+
+A third boundary concerns the compiler's narrow optimization for a captured
+`const get=Reflect.get` that only reads an own primitive from a fresh object
+literal. That proof is sound for the assumed native intrinsic, but a real Node
+CommonJS `--require` preloader can replace `Reflect.get` before the module
+loads. A non-strict replacement can read its calling CommonJS module wrapper's
+source using the legacy `arguments.callee.caller` accessor. The compiled
+string-literal table changes that observed wrapper source while the originally
+supplied input contains no such observer. An isolated, nonzero-string-rewrite,
+three-mode red witness reproduced the mismatch on both Node 22 operating
+systems in [run 45108344558](https://github.com/FlareZ123/obfs/actions/runs/45108344558),
+with a matching pristine-intrinsic positive semantic control. Its executable
+[research branch test](https://github.com/FlareZ123/obfs/blob/29a81de25425ae3b35c2b3003552dca1cf5f560e/test/decoder-captured-get-host-real-cjs.test.js)
+and [source-pinned report](../im-results/captured-reflect-get-host-caller-source-2026-11-23.md)
+explicitly preserve the failing oracle. Known input-visible global aliases
+that poison the decoder were conservatively refused in a separate control;
+this external preloader witness is therefore a deployment-assumption failure,
+not an established current-source analysis bypass. Review preloads and
+mutated host intrinsics when claiming behavioral parity, or limit admitted
+transforms to a documented pristine-runtime contract. This remains an
+observability counterexample and supplies no evidence of anti-analysis
+strength or general release readiness.
+
 ## Browser DOM-visible executable source
 
 An inline classic script or inline ESM module may read the exact JavaScript
