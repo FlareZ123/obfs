@@ -51,3 +51,27 @@ The focused [Ubuntu/Windows run 45131267690](https://github.com/FlareZ123/obfs/a
 | Local identifier rewrite count | 0 original | 1 | 1 | 1 |
 
 The correct disposition is **do not merge this private direct-call-only proof as a sound default source-parity fix**. Its 84-case and 54-case green results above remain finite useful coverage for known export shapes, but the positive private callable admission fails under a legitimate unknown host observer. Future owners should require a much narrower proof that rules out all exception/callback/proxy/host coercion pathways capable of exposing V8 frames, and must verify the intended semantics for source inspection under their threat model. A conservative all-callable-source preservation fallback might restore this particular parity at the cost of losing private lexical yield; other non-callable transforms and truly server-retained computations can supply separate positive yield. Do not erase this red witness merely to preserve the earlier green matrix.
+
+## Simpler host-only callback source leak, no stack or thrown error required
+
+The more direct negative control `test/agent38-sloppy-caller-source-escape.test.js` at prototype SHA `ffe44819eb006eac404089161a383d71109b506d` exposes the same root cause using standard sloppy `Function.caller` reflection. The source module is:
+
+```js
+function hidden(){const privateLocal=17;getExternal();return privateLocal;}
+function publicReader(){return hidden();}
+module.exports=publicReader;
+```
+
+An ordinary external host callback is made outside the compiler's graph using:
+
+```js
+const getExternal=Function('receiver',
+  'return function external(){receiver.source=arguments.callee.caller.toString();};'
+)(receiver);
+```
+
+At runtime the callback's `arguments.callee.caller` is the directly invoked `hidden` function. The host reads its native source text as part of normal callback telemetry while the exported function still returns **17**. No exceptions, V8 `Error.prepareStackTrace`, debugger, special browser API or in-file source observer are involved. In [focused two-platform run 45131607335](https://github.com/FlareZ123/obfs/actions/runs/45131607335), **both Ubuntu and Windows are RED on exact host trace/source parity**: the baseline captures `const privateLocal=17`; all three obfuscation modes capture seeded `const _v...=17` with `bindings:1`. This is a stronger falsifier than the stack-only route because it changes a normal host callback observation without requiring an exception.
+
+The host callback is sloppy by construction; ordinary CJS source does not include `'use strict'`. Strict-mode callable caller introspection may reject access. This does not rescue a **universal CJS/Node behavioral equivalence** guarantee. Direct-call-only AST references cannot establish non-observability when external host callbacks can inspect their caller.
+
+The prototype is an explicit **REJECT for default admission** until this channel, cross-file escapes and further host reflection are proven safe, even though it repairs the simpler 84-case public-source matrix. The underlying original compiler may share this source mismatch; a control run on the unpatched compiler is queued separately.
