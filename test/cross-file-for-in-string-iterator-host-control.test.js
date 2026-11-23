@@ -1,0 +1,210 @@
+'use strict';
+
+const {test}=require('node:test');
+const assert=require('node:assert/strict');
+const fs=require('node:fs/promises');
+const os=require('node:os');
+const path=require('node:path');
+const {spawnSync}=require('node:child_process');
+const {obfuscateFiles}=require('../src');
+const {atomicWrite}=require('../src/atomic');
+
+/** @typedef {{path:string,sourceType:'module',code:string}} ModuleFile */
+
+/**
+ * Run an actual ESM graph under a host-only String iterator replacement.
+ * The preloader is deliberately not part of the compiler's declared graph.
+ * @param {ReadonlyArray<{path:string,code:string|Buffer}>} files
+ * @returns {Promise<string>}
+ */
+async function executeWithHostStringCapabilities(files) {
+  const directory=await fs.mkdtemp(path.join(os.tmpdir(),'obfs-for-in-string-iterator-'));
+  try {
+    for(const file of files)await atomicWrite(path.join(directory,file.path),file.code);
+    const preloader=path.join(directory,'preload.cjs');
+    await atomicWrite(preloader,[
+      'Object.defineProperty(String.prototype,"callback",{',
+      '  configurable:true,',
+      '  get:function(){return Function;}',
+      '});',
+      'Object.defineProperty(String.prototype,Symbol.iterator,{',
+      '  configurable:true,',
+      '  value:function*(){yield Function;}',
+      '});'
+    ].join('\n'));
+    const child=spawnSync(process.execPath,
+      ['-r',preloader,path.join(directory,'main.mjs')],
+      {encoding:'utf8',timeout:15000});
+    assert.equal(child.status,0,child.stderr||child.error?.message);
+    return child.stdout;
+  } finally {
+    await fs.rm(directory,{recursive:true,force:true});
+  }
+}
+
+/** @param {string} mainSource @returns {ModuleFile[]} */
+function graph(mainSource) {
+  return [
+    {path:'state.mjs',sourceType:'module',code:'export const state={secretField:53};'},
+    {path:'main.mjs',sourceType:'module',code:mainSource}
+  ];
+}
+
+/** @param {ModuleFile[]} files @param {string} seed */
+function transform(files,seed) {
+  return obfuscateFiles(files,{
+    mode:'coo',closedWorld:true,seed,strings:false,identifiers:false,properties:true
+  });
+}
+
+for(const [label,loop] of [
+  ['declaration binding','for(const [Loader] in [\'x\']){injected=Loader(\'return import("./state.mjs")\');}'],
+  ['assignment binding','for([Loader] in [\'x\']){injected=Loader(\'return import("./state.mjs")\');}']
+]) {
+  test('ForIn '+label+' must account for host-modified String iterator',async()=>{
+    const files=graph([
+      'import {state} from "./state.mjs";',
+      'let Loader;',
+      'let injected;',
+      loop,
+      'const remote=await injected();',
+      'console.log(JSON.stringify([state.secretField,Object.keys(remote.state),remote.state.secretField]));'
+    ].join('\n'));
+    const native=await executeWithHostStringCapabilities(files);
+    assert.equal(native,'[53,["secretField"],53]\n');
+    const output=transform(files,'for-in-string-iterator-'+label);
+    assert.equal(output.crossFile.properties,1,
+      'The baseline must exercise exactly one unsafe cross-file property rewrite');
+    const emitted=await executeWithHostStringCapabilities(output.files);
+    assert.equal(emitted,native,
+      'Generated ESM must preserve the host-injected dynamic-import behavior');
+    assert.equal(output.crossFile.properties,0,
+      'An array-pattern ForIn binding can invoke a host-modified String iterator');
+  });
+}
+
+for(const [label,setup] of [
+  ['alias assignment','const alias=key;const [Loader]=alias;'],
+  ['local function return','const alias=identity(key);const [Loader]=alias;'],
+  ['object field store','const holder={key};const {key:[Loader]}=holder;']
+]) {
+  test('ForIn StringKey provenance survives '+label,async()=>{
+    const lines=[
+      'import {state} from "./state.mjs";',
+      ...(label==='local function return'?['function identity(value){return value;}']:[]),
+      'let injected;',
+      'for(const key in ["x"]){',
+      setup,
+      'injected=Loader(\'return import("./state.mjs")\');',
+      '}',
+      'const remote=await injected();',
+      'console.log(JSON.stringify([state.secretField,Object.keys(remote.state),remote.state.secretField]));'
+    ];
+    const files=graph(lines.join('\n'));
+    const native=await executeWithHostStringCapabilities(files);
+    assert.equal(native,'[53,["secretField"],53]\n');
+    const output=transform(files,'for-in-stringkey-'+label);
+    const emitted=await executeWithHostStringCapabilities(output.files);
+    assert.equal(emitted,native,
+      'A StringKey must remain host-sensitive through aliases and local returns');
+    assert.equal(output.crossFile.properties,0,
+      'Destructuring a ForIn StringKey must not publish a renamed owner key');
+  });
+}
+
+test('ForIn StringKey provenance crosses an ESM identity-return edge',async()=>{
+  const files=graph([
+    'import {state} from "./state.mjs";',
+    'import {identity} from "./pass.mjs";',
+    'let injected;',
+    'for(const key in ["x"]){',
+    'const alias=identity(key);',
+    'const [Loader]=alias;',
+    'injected=Loader(\'return import("./state.mjs")\');',
+    '}',
+    'const remote=await injected();',
+    'console.log(JSON.stringify([state.secretField,Object.keys(remote.state),remote.state.secretField]));'
+  ].join('\n'));
+  files.push({path:'pass.mjs',sourceType:'module',
+    code:'export function identity(value){return value;}'
+  });
+  const native=await executeWithHostStringCapabilities(files);
+  assert.equal(native,'[53,["secretField"],53]\n');
+  const output=transform(files,'for-in-stringkey-cross-module-return');
+  const emitted=await executeWithHostStringCapabilities(output.files);
+  assert.equal(emitted,native,
+    'A StringKey must remain host-sensitive across an ESM function return');
+  assert.equal(output.crossFile.properties,0,
+    'Cross-module return of a ForIn key must not publish a renamed owner key');
+});
+
+test('ForIn StringKey direct member read observes a host String getter',async()=>{
+  const files=graph([
+    'import {state} from "./state.mjs";',
+    'let injected;',
+    'for(const key in ["x"]){',
+    'const Loader=key.callback;',
+    'injected=Loader(\'return import("./state.mjs")\');',
+    '}',
+    'const remote=await injected();',
+    'console.log(JSON.stringify([state.secretField,Object.keys(remote.state),remote.state.secretField]));'
+  ].join('\n'));
+  const native=await executeWithHostStringCapabilities(files);
+  assert.equal(native,'[53,["secretField"],53]\n');
+  const output=transform(files,'for-in-stringkey-direct-member-read');
+  const emitted=await executeWithHostStringCapabilities(output.files);
+  assert.equal(emitted,native,
+    'A direct member read from a ForIn StringKey must account for host String.prototype accessors');
+  assert.equal(output.crossFile.properties,0,
+    'A host-provided Function obtained from a StringKey must not permit owner-key renaming');
+});
+
+test('direct primitive String array destructuring observes a host iterator',async()=>{
+  const files=graph([
+    'import {state} from "./state.mjs";',
+    'const [Loader]="x";',
+    'const injected=Loader(\'return import("./state.mjs")\');',
+    'const remote=await injected();',
+    'console.log(JSON.stringify([state.secretField,Object.keys(remote.state),remote.state.secretField]));'
+  ].join('\n'));
+  const native=await executeWithHostStringCapabilities(files);
+  assert.equal(native,'[53,["secretField"],53]\n');
+  const output=transform(files,'primitive-string-array-destructuring');
+  const emitted=await executeWithHostStringCapabilities(output.files);
+  assert.equal(emitted,native,
+    'Array destructuring from a primitive string must account for the host-modified String iterator');
+  assert.equal(output.crossFile.properties,0,
+    'A Function supplied by a host String iterator must not permit owner-key renaming');
+});
+
+test('ForIn StringKey own length read retains safe private-field rewrite yield',async()=>{
+  const files=graph([
+    'import {state} from "./state.mjs";',
+    'const lengths=[];',
+    'for(const key in ["x"])lengths.push(key.length);',
+    'console.log(JSON.stringify([state.secretField,lengths]));'
+  ].join('\n'));
+  const native=await executeWithHostStringCapabilities(files);
+  assert.equal(native,'[53,[1]]\n');
+  const output=transform(files,'for-in-stringkey-own-length-positive');
+  const emitted=await executeWithHostStringCapabilities(output.files);
+  assert.equal(emitted,native);
+  assert.equal(output.crossFile.properties,1,
+    'StringKey own length is a primitive-string own property and should preserve one safe rewrite');
+});
+
+test('simple ForIn identifier binding retains independent private-field rewrite yield',async()=>{
+  const files=graph([
+    'import {state} from "./state.mjs";',
+    'const seen=[];',
+    'for(const key in ["x"])seen.push(key);',
+    'console.log(JSON.stringify([state.secretField,seen]));'
+  ].join('\n'));
+  const native=await executeWithHostStringCapabilities(files);
+  assert.equal(native,'[53,["0"]]\n');
+  const output=transform(files,'for-in-string-iterator-positive-control');
+  const emitted=await executeWithHostStringCapabilities(output.files);
+  assert.equal(emitted,native);
+  assert.equal(output.crossFile.properties,1,
+    'A simple ForIn key binding does not invoke the String iterator and should retain one safe rewrite');
+});
