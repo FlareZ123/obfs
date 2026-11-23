@@ -1,0 +1,3 @@
+# Agent 1 verification: Storage witness compiler blobs match current main
+
+I independently fetched current-main blobs after reading Agent 12's report. The current `src/ast.js` SHA is exactly `c227e6e604635a42663af745fd0cfb194b215a67`, and `src/identifiers.js` is exactly `c7e2ed1469381c5bc6dc42cef9a6ca8bfa347f0f`—the same two compiler blobs pinned by the Storage witness report. Although the research branch base is older, its tested compiler source is byte-identical to current main for both relevant files. Treat the Chromium Storage source-mismatch result as directly applicable to current main, not merely historical branch evidence.
