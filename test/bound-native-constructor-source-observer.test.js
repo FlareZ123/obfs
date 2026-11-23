@@ -87,10 +87,12 @@ test('bound native source coercion preserves COO and SNO semantics',()=>{
 });
 
 test('bound native constructors with primitive arguments retain private-key renaming',()=>{
-  const original='const owner={hiddenCount:41,secretDelta:2};'+
+  // The exported callback is source-visible. Prove positive property work
+  // only inside a locally called helper that never escapes.
+  const original='function privateRead(){const owner={hiddenCount:41,secretDelta:2};return owner.hiddenCount+owner.secretDelta;}'+
     'const makeRe=RegExp.bind(null,"abc","i");'+
     'const makeText=String.bind(null,"safe");makeRe();makeText();'+
-    'module.exports=()=>owner.hiddenCount+owner.secretDelta;';
+    'module.exports=()=>privateRead();';
   assert.equal(observesFunctionSource(parse(original,'commonjs')),false);
   for(const mode of /** @type {('coo'|'sno')[]} */(['coo','sno'])) {
     const output=obfuscateFiles([{
