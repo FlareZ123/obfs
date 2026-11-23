@@ -37,6 +37,21 @@ test('selected SCO graph refuses identity escape through conditional expression'
     /private imported identity escapes|shared imported member state/u);
 });
 
+test('selected SCO graph rejects a matrix of identity-preserving expression aliases',()=>{
+  const expressions=[
+    '(0,next)','(1,2,next)','true?next:null','false?null:next',
+    'next||null','null||next','next??null','null??next',
+    'await next','((next))','next&&next','true?(0,next):null'
+  ];
+  for(const expression of expressions){
+    const caller='const alias='+expression+';'+
+      'alias.count=(alias.count??0)+1;return alias.count;';
+    assert.throws(()=>compile(caller),
+      /private imported identity escapes|shared imported member state/u,
+      expression);
+  }
+});
+
 test('selected SCO graph refuses sequence-wrapped private return identities',()=>{
   assert.throws(()=>compile('return (0,next);'),
     /private imported identity escapes|shared imported member state/u);
