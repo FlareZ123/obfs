@@ -50,7 +50,13 @@ const mutations=[
     'globalThis.aliasString=String; globalThis.aliasString.fromCharCode=function(){return "Q";};'},
   {name:'global getter returning the intrinsic',code:
     'Object.defineProperty(globalThis,"aliasString",{get(){return String;},configurable:true});'+
-    'globalThis.aliasString.fromCharCode=function(){return "Q";};'}
+    'globalThis.aliasString.fromCharCode=function(){return "Q";};'},
+  {name:'dynamic global indirect eval',code:
+    'const key=["ev","al"].join("");globalThis[key]("String.fromCharCode=function(){return \'Q\'};");'},
+  {name:'dynamic global Function constructor',code:
+    'const key=["Fun","ction"].join("");globalThis[key]("String.fromCharCode=function(){return \'Q\'};")();'},
+  {name:'captured dynamic global evaluator',code:
+    'const key=["e","val"].join("");const call=globalThis[key];call("String.fromCharCode=function(){return \'Q\'};");'}
 ];
 
 /** @param {'coo'|'sno'} mode @param {string} poison */
