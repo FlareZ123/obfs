@@ -82,7 +82,7 @@ async function close(server){
 /**
  * Invoke a single authorized public RPC, without reading private methods.
  * @param {number} port
- * @param {'bitwise'|'affine'} method
+ * @param {'bitwise'|'affine'|'stateful'} method
  * @param {number[]} args
  * @param {boolean} [authorized]
  * @returns {Promise<{status:number,value:number|null}>}
@@ -205,5 +205,30 @@ test('actual authenticated SCO RPCs disclose 2 private low-arity functions in ex
     }finally{
       await Promise.all([close(sco),close(conventional)]);
     }
+  }
+});
+
+test('same-input stateful SCO RPC reveals missing fixed-function promise',async()=>{
+  let tick=0;
+  const server=http.createServer(createScoHandler([
+    {path:'client.js',sourceType:'script',code:'globalThis.clientReady=true;'}
+  ],{
+    remoteMethods:{
+      stateful:(x,y)=>((x^y)^(++tick))|0
+    },
+    authorizeRpc:req=>req.headers['x-test-capability']==='allowed',
+    authorizeOperation:(req,method,args)=>method==='stateful'&&args.length===2
+  }));
+  const port=await open(server);
+  try{
+    const first=await rpc(port,'stateful',[0,0]);
+    const second=await rpc(port,'stateful',[0,0]);
+    assert.equal(first.status,200);
+    assert.equal(second.status,200);
+    assert.notEqual(first.value,second.value,
+      'A changing server state has no fixed pure two-input oracle to interpolate');
+    assert.equal(tick,2);
+  }finally{
+    await close(server);
   }
 });
