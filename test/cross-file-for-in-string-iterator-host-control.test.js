@@ -79,6 +79,34 @@ for(const [label,loop] of [
   });
 }
 
+for(const [label,setup] of [
+  ['alias assignment','const alias=key;const [Loader]=alias;'],
+  ['local function return','const alias=identity(key);const [Loader]=alias;']
+]) {
+  test('ForIn StringKey provenance survives '+label,async()=>{
+    const lines=[
+      'import {state} from "./state.mjs";',
+      ...(label==='local function return'?['function identity(value){return value;}']:[]),
+      'let injected;',
+      'for(const key in ["x"]){',
+      setup,
+      'injected=Loader(\'return import("./state.mjs")\');',
+      '}',
+      'const remote=await injected();',
+      'console.log(JSON.stringify([state.secretField,Object.keys(remote.state),remote.state.secretField]));'
+    ];
+    const files=graph(lines.join('\n'));
+    const native=await executeWithHostStringIterator(files);
+    assert.equal(native,'[53,["secretField"],53]\n');
+    const output=transform(files,'for-in-stringkey-'+label);
+    const emitted=await executeWithHostStringIterator(output.files);
+    assert.equal(emitted,native,
+      'A StringKey must remain host-sensitive through aliases and local returns');
+    assert.equal(output.crossFile.properties,0,
+      'Destructuring a ForIn StringKey must not publish a renamed owner key');
+  });
+}
+
 test('simple ForIn identifier binding retains independent private-field rewrite yield',async()=>{
   const files=graph([
     'import {state} from "./state.mjs";',
