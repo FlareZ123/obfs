@@ -3,6 +3,12 @@
 const assert=require('node:assert/strict');
 const {test}=require('node:test');
 const vm=require('node:vm');
+const fs=require('node:fs/promises');
+const os=require('node:os');
+const path=require('node:path');
+const {spawnSync}=require('node:child_process');
+const {atomicWrite}=require('../src/atomic');
+const {neutralizeHashedNames}=require('../sims/offline-normalize');
 const {obfuscateFiles}=require('../src/core');
 
 /**
@@ -43,6 +49,12 @@ for(const mode of /** @type {const} */ (['coo','sno','sco'])){
     assert.equal(output.metrics.objects,1);
     assert.equal(output.metrics.properties,2);
     assert.doesNotMatch(/** @type {string} */ (output.code),/\\bsecretAlpha\\b|\\bsecretBeta\\b/u);
+    const neutralized=neutralizeHashedNames([{
+      path:'leaf.cjs',sourceType:'commonjs',code:/** @type {string} */ (output.code)
+    }]);
+    assert.equal(neutralized.properties,2,
+      'A source-only attacker reconstructs both emitted private-key labels');
+    assert.equal(execute(neutralized.files[0].code),execute(positive));
   });
 }
 
@@ -92,3 +104,58 @@ for(const [name,body,classText,instanceText] of negatives){
     }
   });
 }
+
+/**
+ * Execute a genuine ESM module graph in a separate Node.js process.
+ * @param {Array<{path:string,code:string}>} files
+ * @returns {Promise<string>}
+ */
+async function runEsm(files){
+  const root=await fs.mkdtemp(path.join(os.tmpdir(),'obfs-class-leaf-'));
+  try{
+    for(const file of files)await atomicWrite(path.join(root,file.path),file.code);
+    const child=spawnSync(process.execPath,[path.join(root,'entry.mjs')],{
+      cwd:root,encoding:'utf8',timeout:10000
+    });
+    assert.equal(child.status,0,child.stderr||child.error?.message);
+    return child.stdout.trim();
+  }finally{
+    await fs.rm(root,{recursive:true,force:true});
+  }
+}
+
+test('private class leaf in native multi-file ESM preserves values and key-label reconstruction',async()=>{
+  /** @type {import('../src/core').SourceFile[]} */
+  const files=[
+    {path:'state.mjs',sourceType:'module',code:[
+      'const owner={secretAlpha:23,secretBeta:7};',
+      'class Reader{read(){return owner.secretAlpha;}}',
+      'const reader=new Reader();',
+      'const snapshot=reader.read()+owner.secretBeta;',
+      'export const value=snapshot;'
+    ].join('\\n')},
+    {path:'compute.mjs',sourceType:'module',code:[
+      'import {value} from "./state.mjs";',
+      'export const doubled=value*2;'
+    ].join('\\n')},
+    {path:'entry.mjs',sourceType:'module',code:[
+      'import {doubled} from "./compute.mjs";',
+      'process.stdout.write(JSON.stringify([doubled,doubled+1]));'
+    ].join('\\n')}
+  ];
+  const native=await runEsm(files);
+  assert.equal(native,'[60,61]');
+  for(const mode of /** @type {const} */ (['coo','sno','sco'])){
+    const compiled=obfuscateFiles(files,{mode,seed:'class-leaf-crossfile-'+mode,
+      closedWorld:true,strings:false,identifiers:false});
+    const state=compiled.files.find(file=>file.path==='state.mjs');
+    assert.ok(state && state.metrics.properties===2,
+      mode+': private leaf own fields remain transformable');
+    assert.equal(await runEsm(compiled.files),native);
+    const clone=neutralizeHashedNames(compiled.files.map(file=>({
+      path:file.path,sourceType:file.sourceType,code:/** @type {string} */ (file.code)
+    })));
+    assert.ok(clone.properties>=2);
+    assert.equal(await runEsm(clone.files),native);
+  }
+});
