@@ -85,3 +85,14 @@ At `a11b5bd...`, three focused two-platform + strict typecheck workflows passed:
 Additional independent execution control at source `02ed3f7ed968aa70cbb9821f76db4f95060aec0d`, [run 45275466064](https://github.com/FlareZ123/obfs/actions/runs/45275466064), passed both operating systems. It imports the full original ES module, imports a second **server-only** ES module containing only the selected private function (without the same-spelled public export), compares their primitive return values, and independently binds/invokes the authorized private method through `bindScoModuleExports`. The exercise covers a local literal and a plain formal. This establishes bounded Node ESM relocation parity, not real-Chromium parity for arbitrary inputs. The callable local shadow continues to be refused rather than being admitted without an escape/identity proof.
 
 The compiler side acceptance and runtime security tradeoff decision remains unqualified beyond these tests. The project is RELEASE-BLOCKED.
+
+## Post-repair integration pins
+
+At compiler/test source `02ed3f7ed968aa70cbb9821f76db4f95060aec0d`, the expanded test suite reported **17/17 passed on Ubuntu and Windows**, together with strict JSDoc, [run 45275466064](https://github.com/FlareZ123/obfs/actions/runs/45275466064). Its 840-distinct-name compiler median was 133.169 ms Ubuntu / 149.339 ms Windows, compared with 126.465 ms / 158.506 ms at earlier indexed source `adf20d6`; these are different runner samples and **not** a statistically controlled cost difference. The public-facade publication digest remained `6900efb6...` for the unchanged public signatures and seed.
+
+The following additional two-OS plus strict JSDoc workflows at **that same source** also passed:
+- [Actual Chromium selected SCO parity and authorized HTTP RPC 45275728312](https://github.com/FlareZ123/obfs/actions/runs/45275728312), Ubuntu executes real Chromium (Windows skips browser-only sections according to the fixture).
+- [Existing host-effect closure 45275735605](https://github.com/FlareZ123/obfs/actions/runs/45275735605).
+- [Static dependency admission boundary 45275745030](https://github.com/FlareZ123/obfs/actions/runs/45275745030).
+
+All post-repair validations remain focused. The candidate still lacks a full current-main and Chromium compatibility receipt, attacker instrumentation evidence, and measured whole-session 2.5x hot-path ratio. This is an independently reproducible **correctness and compilation cost donor**, not a general strong-obfuscation acceptance.
