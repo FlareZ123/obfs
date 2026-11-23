@@ -1,6 +1,7 @@
 'use strict';
 
 const {parse}=require('parse5');
+const {createHash}=require('node:crypto');
 const {SaxesParser}=require('saxes');
 const {portableKeys}=require('./portable-paths');
 const xhtmlNamespace='http://www.w3.org/1999/xhtml';
@@ -296,6 +297,25 @@ function hasPinnedLocalJavaScriptIntegrity(files,routePrefix='') {
   const javascriptPaths=new Set(files.filter(file=>file.sourceType!=='asset')
     .map(file=>file.path));
   if(!javascriptPaths.size)return false;
+  // URLs may be mounted, rewritten or CDN-aliased independently of the
+  // compiler's declared paths. A matching SRI digest is an exact commitment
+  // to the original JavaScript bytes even when URL provenance is unknown.
+  const originalDigests=new Set();
+  for(const file of files) {
+    if(file.sourceType==='asset')continue;
+    for(const algorithm of ['sha256','sha384','sha512']) {
+      originalDigests.add(algorithm+'-'+createHash(algorithm)
+        .update(file.code).digest('base64'));
+    }
+  }
+  /** @param {string} metadata @returns {boolean} */
+  function matchesOriginalDigest(metadata) {
+    // SRI metadata contains whitespace-separated hashes; syntax reserves
+    // an optional ?options suffix. Exact digest comparison avoids relying
+    // on a deployment path that the offline compiler cannot observe.
+    return metadata.trim().split(/\\s+/u).some(token=>
+      originalDigests.has(token.split('?',1)[0]));
+  }
   // The output tree already treats NFC- and case-equivalent paths as one
   // portable filename identity. An SRI URL may resolve to the same file on a
   // case-insensitive/normalizing host even when its raw spelling differs.
@@ -372,6 +392,7 @@ function hasPinnedLocalJavaScriptIntegrity(files,routePrefix='') {
     let activeXmlBase=0;
     let ambiguousBase=false;
     let xmlBaseAffectsPin=false;
+    let pinnedDigest=false;
     parser.on('opentag',tag=>{
       const attributes=Object.values(tag.attributes);
       const localXmlBase=attributes.some(attr=>
@@ -394,6 +415,7 @@ function hasPinnedLocalJavaScriptIntegrity(files,routePrefix='') {
       const address=name==='script'?attr('src'):linked?attr('href'):null;
       if(address) {
         pinnedUrls.push(address);
+        if(matchesOriginalDigest(integrity))pinnedDigest=true;
         if(activeXmlBase)xmlBaseAffectsPin=true;
       }
     });
@@ -402,6 +424,7 @@ function hasPinnedLocalJavaScriptIntegrity(files,routePrefix='') {
     });
     parser.on('error',error=>{throw new TypeError('Malformed XHTML XML: '+error.message);});
     parser.write(xml).close();
+    if(pinnedDigest)return true;
     if(!pinnedUrls.length)return false;
     // XML base changes URI resolution only for its own element/subtree.
     // A base tag with that feature needs a separate XML URI proof.
@@ -478,6 +501,9 @@ function hasPinnedLocalJavaScriptIntegrity(files,routePrefix='') {
            relation.includes('preload') && as.toLowerCase()==='script');
         const address=node.tagName==='script'?src:linked?href:null;
         if(address){
+          if(matchesOriginalDigest(integrity)){
+            observed=true;return;
+          }
           // The parser may already have started fetching a script before a
           // later <base> takes effect. Also consider the document fallback
           // rather than assuming a static base was active at fetch time.
