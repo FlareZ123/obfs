@@ -523,8 +523,46 @@ function usesUnprovedRelocatedWebIdlConstructors(body){
     }
     return false;
   }
+  // Explicit global-object member access can recover a Web IDL
+  // constructor without spelling it as a standalone identifier. Preserve
+  // a conservative may-alias set for known global roots.
+  const globals=new Set(['globalThis','window','self','global']);
+  let aliasesChanged=true;
+  while(aliasesChanged){
+    aliasesChanged=false;
+    walk(body,node=>{
+      const target=node.type==='VariableDeclarator'?node.id:
+        node.type==='AssignmentExpression'&&node.operator==='='?node.left:null;
+      const source=node.type==='VariableDeclarator'?node.init:
+        node.type==='AssignmentExpression'&&node.operator==='='?node.right:null;
+      if(target?.type==='Identifier'&&source?.type==='Identifier'&&
+         globals.has(source.name)&&!globals.has(target.name)){
+        globals.add(target.name);
+        aliasesChanged=true;
+      }
+    });
+  }
   let unproved=false;
   walk(body,(node,parent,key)=>{
+    if(node.type==='MemberExpression'&&node.object.type==='Identifier'&&
+       globals.has(node.object.name)){
+      const property=node.computed?staticString(node.property):
+        node.property.type==='Identifier'?node.property.name:null;
+      if(names.has(property??''))unproved=true;
+    }
+    if(node.type==='VariableDeclarator'&&
+       node.id.type==='ObjectPattern'&&node.init?.type==='Identifier'&&
+       globals.has(node.init.name)){
+      for(const property of node.id.properties){
+        const propertyName=property.type==='Property'?
+          (property.computed?staticString(property.key):
+            property.key.type==='Identifier'?property.key.name:
+              staticString(property.key)):null;
+        if(property.type==='RestElement'||names.has(propertyName??'')){
+          unproved=true;
+        }
+      }
+    }
     if(node.type==='NewExpression'&&node.callee.type==='Identifier'&&
        names.has(node.callee.name)){
       // A standalone instance may escape its native realm, even when its
