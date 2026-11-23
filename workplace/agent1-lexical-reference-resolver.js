@@ -138,8 +138,8 @@ function resolveLexicalReferences(root,sourceType) {
         const functionBody=parent && key==='body' &&
           ['FunctionDeclaration','FunctionExpression','ArrowFunctionExpression'].includes(parent.type);
         const nonSimple=functionBody && parent.params.some((/** @type {AstNode} */ param)=>param.type!=='Identifier');
-        scope=child(incoming,'function-body');
-        scope.nonSimpleParams=Boolean(nonSimple);
+        scope=child(incoming,functionBody?'function-body':'block');
+        if(functionBody)scope.nonSimpleParams=Boolean(nonSimple);
       }
       else if(node.type==='StaticBlock')scope=child(incoming,'static-block');
       else if(node.type==='CatchClause'){
