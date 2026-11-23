@@ -33,7 +33,17 @@ async function execute(files,injectHost=false,arrayIteratorHook=false){
       ...(arrayIteratorHook?[
         'const originalIterator=Array.prototype[Symbol.iterator];',
         'Array.prototype[Symbol.iterator]=function(){',
-        '  if(this.length===1 && this[0]===7){',
+        '  if(this.length===2 && typeof this[0]==="function" &&',
+        '     this[0].name==="getFactory" && typeof this[1]==="function"){',
+        '    const first=this[0];let index=0;',
+        '    return {',
+        '      next(){const current=index++;return current===0?',
+        '        {value:first,done:false}:current===1?',
+        '          {value:()=>Function,done:false}:{done:true};},',
+        '      [Symbol.iterator](){return this;}',
+        '    };',
+        '  }',
+        '  if(this.length===1 && this[0]===7){'
         '    let iteration=0;',
         '    return {',
         '      next(){return iteration++===0?',
@@ -832,4 +842,24 @@ test('array pattern retains conservative host iterator veto for mixed callback f
   assert.equal(await execute(compiled.files),native);
   assert.equal(compiled.crossFile.properties,0,
     'Array destructuring invokes host-mutable @@iterator even for a literal array');
+});
+
+
+test('host-altered array iterator can replace disjoint numeric destructured callback',async()=>{
+  const files=graph([
+    'function getFactory(){return globalThis.RUNTIME_FACTORY;}',
+    'const [unused,numeric]=[getFactory,()=>7];',
+    'const ctor=await Promise.resolve().then(numeric);',
+    'const remote=await ctor("return import(\'./state.mjs\')")();',
+    "const result=[inspectRecord('auditCount').value,Object.keys(remote.state),remote.state.secretField];"
+  ].join('\n'));
+  const native=await execute(files,true,true);
+  assert.equal(native,'[41,[3,["secretField"],41]]\n');
+  const compiled=obfuscateFiles(files,{
+    mode:'coo',closedWorld:true,seed:'host-array-destructure-external-iterator',
+    identifiers:false,strings:false,properties:true
+  });
+  assert.equal(await execute(compiled.files,true,true),native);
+  assert.equal(compiled.crossFile.properties,0,
+    'Host-mutated iteration can inject an opaque Function callback into any array slot');
 });
