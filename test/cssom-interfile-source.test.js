@@ -19,12 +19,24 @@ const {obfuscateFiles}=require('../src');
  */
 async function execute(files) {
   const directory=await fs.mkdtemp(path.join(os.tmpdir(),'cssom-interfile-'));
+  const map=new Map();
+  Object.defineProperty(globalThis,'document',{
+    configurable:true,value:{createElement(){
+      return {style:{
+        /** @param {unknown} key @param {unknown} value */
+        setProperty(key,value){map.set(String(key),String(value));},
+        /** @param {unknown} key */
+        getPropertyValue(key){return map.get(String(key))??'';}
+      }};
+    }}
+  });
   try {
     for(const file of files)
       await fs.writeFile(path.join(directory,file.path),file.code,'utf8');
     const imported=await import(pathToFileURL(path.join(directory,'observer.mjs')).href);
     return /** @type {{text:string,value:number,independent:number}} */(imported.observed);
   } finally {
+    Reflect.deleteProperty(globalThis,'document');
     await fs.rm(directory,{recursive:true,force:true});
   }
 }
@@ -34,14 +46,16 @@ async function execute(files) {
  * @returns {ESMFile[]}
  */
 function sources(literal) {
-  const logic='const externalOwner={observedSecret:31};'+
+  const logic=literal?
+    'const independent={otherSecret:73};'+
+    'export const independentValue=independent.otherSecret;'+
+    'export function inspect(){return 31;}' :
+    'const externalOwner={observedSecret:31};'+
     'const independent={otherSecret:73};'+
     'export function inspect(){return externalOwner.observedSecret;}'+
     'export const independentValue=independent.otherSecret;';
   const observer='import {inspect,independentValue} from "./logic.mjs";'+
-    'const attributes=new Map();'+
-    'const style={setProperty(key,value){attributes.set(key,String(value));},'+
-    'getPropertyValue(key){return attributes.get(key)??"";}};'+
+    'const style=document.createElement("div").style;'+
     'style.setProperty("--observed",'+(literal?'"literal"':'inspect')+');'+
     'export const observed={text:style.getPropertyValue("--observed"),'+
     'value:inspect(),independent:independentValue};';
