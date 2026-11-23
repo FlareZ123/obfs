@@ -151,3 +151,14 @@ Under a **ten-query hard cap**, the full nondominated frontier is:
 - (1868, 1084)
 
 Increasing the cap from ten to **eleven** does **not** change this initial Pareto frontier. These values are exact and the semantic sums are represented as integer totals scaled by 29 until final reporting. Source and test: sims/sco-step-only-two-state-pareto.js and test/sco-step-only-two-state-pareto.test.js. Local Node 22.16.0 passed both focused tests; latest strict JSDoc Ubuntu/Windows source-pinned validation is pending.
+
+
+## Executable two-prior robust compromise policy
+
+The ten-query Pareto frontier gives a *small-prior-uncertainty* decision problem: the attacker knows the two-state binary family but does not know whether a future machine is sampled uniformly among **260 labelled source tables** or uniformly among **148 distinct initial behaviors**. Define a policy's regret separately at each endpoint as its excess aggregate public-query cost divided by that endpoint's separately optimal aggregate cost (1,776 and 1,084, respectively), then choose the frontier point minimizing the larger proportional regret.
+
+The exactly minimax-regret ten-step frontier point is **(1,799 labelled-source aggregate queries, 1,099 behavior aggregate queries)**. Relative to the optimal endpoint-specific policies, its proportional regrets are **23/1776 (~1.295%)** and **15/1084 (~1.384%)**, so its maximum is ~**1.384%**, compared with ~1.845% at the source-uniform-optimal endpoint and ~5.180% at the behavior-uniform-optimal endpoint. This is an explicitly defined two-endpoint robustness criterion, not a universal prior-free guarantee; a different weighting or a larger family requires fresh optimization.
+
+The implementation in sims/sco-step-only-two-state-robust.js preserves *actual adaptive input actions and both response-branch continuation plans* alongside each Pareto cost pair in the uncompressed full-source-labelled Bellman recursion. It selects that robust compromise plan once, then runs a public-only asynchronous no-reset learner that receives only step(bit) responses. The supporting test test/sco-step-only-two-state-robust.test.js replays it on all **260 original tables**, checks the exact 1,799 total/10 maximum public steps, and proves each returned clone's future behavior matches the private final state by full product BFS. The 1,099 behavior total is independently tied to the earlier exact Pareto certificate; the robust learner uses the same explicit branch strategy that produces that cost vector. The helper is restricted to the trusted stationary, deterministic, binary, at-most-two-state class.
+
+The local Node22 test and subsequent strict JSDoc/GitHub Actions outcome must be tracked against their exact commit. This is an attacker-side optimization with no protected-application runtime-cost inference.

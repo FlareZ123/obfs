@@ -38,6 +38,8 @@
     "sims/sco-step-only-two-state-prior-sensitivity.js",
     "sims/sco-step-only-two-state-game-certificate.js",
     "sims/sco-step-only-two-state-pareto.js",
+    "sims/sco-step-only-two-state-robust.js",
+    "test/sco-step-only-two-state-robust.test.js",
     "test/sco-step-only-two-state-pareto.test.js",
     "test/sco-step-only-two-state-game-certificate.test.js",
     "test/sco-step-only-two-state-prior-sensitivity.test.js",
