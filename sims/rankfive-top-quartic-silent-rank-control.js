@@ -3,12 +3,6 @@
 const assert = require('node:assert/strict');
 const {clone,evaluate} = require('./rankfive-top-quartic-functional-clone');
 
-/** @param {number[]} directions @returns {()=>number} */
-function fixedDirections(directions) {
-  let index = 0;
-  return () => /** @type {number} */ (directions[index++]);
-}
-
 /** @param {number} input @returns {number} */
 function rankSixSilentSource(input) {
   const x = input & 0xff;
