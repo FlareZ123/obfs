@@ -36,7 +36,7 @@ async function observe(browser, embedding, source) {
   try {
     await page.setContent('<!doctype html><html><head><title>boundary</title></head><body></body></html>',
       {waitUntil:'load'});
-    await page.evaluate(() => { globalThis.__resolveObfsResult=()=>{}; });
+    await page.evaluate(() => { Reflect.set(globalThis,'__resolveObfsResult',()=>{}); });
     await page.evaluate(({kind,code}) => {
       const script = document.createElement('script');
       script.type = 'module';
