@@ -9,7 +9,11 @@
         "head_branch": "main",
         "status": "completed",
         "conclusion": "failure",
-        "id": 45136105520
+        "id": 45136105520,
+        "workflow_id": 418860858,
+        "path": ".github/workflows/manual-validation.yml",
+        "event": "workflow_dispatch",
+        "run_attempt": 1
       },
       "jobs": [
         {
@@ -107,7 +111,8 @@
           ],
           "run_id": 45136105520,
           "head_sha": "72e1c170b28b165c150a12df1d12ee21cf4b891c",
-          "status": "completed"
+          "status": "completed",
+          "run_attempt": 1
         },
         {
           "name": "node22 (windows-latest)",
@@ -204,7 +209,8 @@
           ],
           "run_id": 45136105520,
           "head_sha": "72e1c170b28b165c150a12df1d12ee21cf4b891c",
-          "status": "completed"
+          "status": "completed",
+          "run_attempt": 1
         },
         {
           "name": "focused",
@@ -212,7 +218,8 @@
           "steps": [],
           "run_id": 45136105520,
           "head_sha": "72e1c170b28b165c150a12df1d12ee21cf4b891c",
-          "status": "completed"
+          "status": "completed",
+          "run_attempt": 1
         }
       ]
     },
@@ -223,7 +230,11 @@
         "head_branch": "main",
         "status": "completed",
         "conclusion": "success",
-        "id": 45141870967
+        "id": 45141870967,
+        "workflow_id": 418860858,
+        "path": ".github/workflows/manual-validation.yml",
+        "event": "workflow_dispatch",
+        "run_attempt": 1
       },
       "jobs": [
         {
@@ -277,7 +288,8 @@
           ],
           "run_id": 45141870967,
           "head_sha": "d1efacb1578b5443456a18b87839c2f3a024b24a",
-          "status": "completed"
+          "status": "completed",
+          "run_attempt": 1
         },
         {
           "name": "focused (windows-latest)",
@@ -330,7 +342,8 @@
           ],
           "run_id": 45141870967,
           "head_sha": "d1efacb1578b5443456a18b87839c2f3a024b24a",
-          "status": "completed"
+          "status": "completed",
+          "run_attempt": 1
         },
         {
           "name": "node22",
@@ -338,7 +351,8 @@
           "steps": [],
           "run_id": 45141870967,
           "head_sha": "d1efacb1578b5443456a18b87839c2f3a024b24a",
-          "status": "completed"
+          "status": "completed",
+          "run_attempt": 1
         }
       ]
     }
