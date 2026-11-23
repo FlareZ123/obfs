@@ -9,6 +9,7 @@ const sameFile=[
   'function inspect(){const privateLocal=29;return privateLocal;}',
   'function independent(){const independentLocal=7;return independentLocal;}',
   'export function sample(){',
+  '  localStorage.clear();sessionStorage.clear();',
   '  const key="obfs-storage-source-observer";',
   '  localStorage.setItem(key,inspect);',
   '  localStorage.setItem(inspect,"key-marker");',
