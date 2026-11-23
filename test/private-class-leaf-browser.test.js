@@ -10,12 +10,19 @@ const {neutralizeHashedNames}=require('../sims/offline-normalize');
 
 const runChrome=promisify(execFile);
 
-/** @typedef {'private'|'visible'} CaseName */
+/** @typedef {'private'|'visible'|'symbol'} CaseName */
 /** @typedef {'native'|'emitted'|'neutralized'} VariantName */
 
 /** @type {Record<CaseName,string>} */
 const sources={
   private:[
+    'const owner={secretAlpha:23,secretBeta:7};',
+    'class Reader{read(){return owner.secretAlpha;}}',
+    'const reader=new Reader();',
+    'const another=new Reader();',
+    'export const value=reader.read()+another.read()+owner.secretBeta;'
+  ].join('\n'),
+  symbol:[
     'const owner={secretAlpha:23,secretBeta:7};',
     'class Reader{read(){return owner.secretAlpha;}}',
     'const reader=new Reader();',
@@ -37,7 +44,7 @@ function html(name){
     '<script type="module">',
     'try {',
     'const mod=await import("./state.mjs");',
-    name==='private' ? 'const value=mod.value;' : 'const value=mod.read.toString();',
+    name==='visible' ? 'const value=mod.read.toString();' : 'const value=mod.value;',
     'document.getElementById("result").textContent=btoa(JSON.stringify(value));',
     '} catch(error) {',
     'document.getElementById("result").textContent="ERROR:"+error.message;',
@@ -70,19 +77,23 @@ test('Chromium preserves private class-leaf output, source visibility and public
 },async()=>{
   /** @type {Map<string,string>} */
   const served=new Map();
-  for(const name of /** @type {const} */(['private','visible'])){
+  for(const name of /** @type {const} */(['private','visible','symbol'])){
     const source=sources[name];
     const output=obfuscateFiles([{
       path:'state.mjs',sourceType:'module',code:source
     }],{mode:'coo',seed:'class-leaf-browser-'+name,
-      properties:true,identifiers:false,strings:false}).files[0];
-    const expected=name==='private'?2:0;
+      properties:true,identifiers:false,strings:false,
+      experimentalSymbolKeys:name==='symbol'}).files[0];
+    const expected=name==='visible'?0:2;
     assert.equal(output.metrics.properties,expected,name+': correct rename/refusal');
+    if(name==='symbol')assert.equal(output.metrics.symbolKeys,2,
+      'Symbols represent both truly private owner fields');
     const normalized=neutralizeHashedNames([{
       path:'state.mjs',sourceType:'module',
       code:/** @type {string} */(output.code)
     }]);
-    assert.equal(normalized.properties,expected);
+    assert.equal(normalized.properties,name==='symbol'?0:expected,
+      'Literal key normalizer cannot rename generated Symbol identifiers');
     for(const [variant,code] of /** @type {Array<[VariantName,string]>} */([
       ['native',source],
       ['emitted',/** @type {string} */(output.code)],
@@ -111,17 +122,17 @@ test('Chromium preserves private class-leaf output, source visibility and public
     const address=server.address();
     assert.ok(address&&typeof address!=='string');
     const origin='http://127.0.0.1:'+address.port;
-    for(const name of /** @type {const} */(['private','visible'])){
+    for(const name of /** @type {const} */(['private','visible','symbol'])){
       const native=await run(origin,name,'native');
       const emitted=await run(origin,name,'emitted');
       const normalized=await run(origin,name,'neutralized');
       assert.equal(emitted,native,name+': native and emitted Chrome output');
       assert.equal(normalized,native,name+': source-only attacker replay');
-      if(name==='private')assert.equal(native,53);
+      if(name!=='visible')assert.equal(native,53);
       else assert.match(String(native),/secretAlpha/u);
     }
     process.stdout.write('PRIVATE_CLASS_LEAF_CHROMIUM '+JSON.stringify({
-      cases:2,realChrome:true,privateKeys:2,observedMethodRefusal:true,
+      cases:3,realChrome:true,privateKeys:2,privateSymbolKeys:2,observedMethodRefusal:true,
       sourceOnlyLabelsRecovered:2,publicCloneEqual:true
     })+'\n');
   }finally{
