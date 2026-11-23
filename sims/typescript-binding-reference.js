@@ -6,7 +6,7 @@ const os = require('node:os');
 const path = require('node:path');
 const ts = require('typescript');
 
-/** @typedef {{name:string,source:string,module?:boolean,dynamicScope?:boolean,refIndex?:number,expected:string}} Fixture */
+/** @typedef {{name:string,source:string,module?:boolean,refIndex?:number,expected:string}} Fixture */
 
 /** @param {string} fileName @param {string} defaultLibDirectory @returns {boolean} */
 function isDefaultLibrary(fileName, defaultLibDirectory) {
@@ -27,6 +27,14 @@ function isBindingName(node) {
     (ts.isImportClause(parent) && parent.name === node) ||
     (ts.isImportSpecifier(parent) && parent.name === node) ||
     (ts.isNamespaceImport(parent) && parent.name === node);
+}
+
+/** @param {import('typescript').Node} node @returns {boolean} */
+function isFunctionScope(node) {
+  return ts.isFunctionDeclaration(node) || ts.isFunctionExpression(node) ||
+    ts.isArrowFunction(node) || ts.isMethodDeclaration(node) ||
+    ts.isConstructorDeclaration(node) || ts.isGetAccessorDeclaration(node) ||
+    ts.isSetAccessorDeclaration(node);
 }
 
 /**
@@ -72,6 +80,26 @@ function inspectFixture(fixture) {
     const intrinsicGlobalThis = fixture.name === 'globalThis' && symbol?.name === 'globalThis' &&
       declarations.length === 0 && checker.typeToString(type) === 'typeof globalThis';
     const defaultLibDirectory = path.dirname(ts.getDefaultLibFilePath(options));
+    let hasDirectEval = false;
+    let hasWith = false;
+    /** @param {import('typescript').Node} node @param {import('typescript').Node} root */
+    function scanScope(node, root) {
+      if (node !== root && isFunctionScope(node)) return;
+      if (ts.isCallExpression(node) && ts.isIdentifier(node.expression) &&
+          node.expression.text === 'eval' && !node.questionDotToken) {
+        const evalSymbol = checker.getSymbolAtLocation(node.expression);
+        const evalDeclarations = evalSymbol?.declarations ?? [];
+        const shadowedEval = evalDeclarations.some(d =>
+          !isDefaultLibrary(d.getSourceFile().fileName, defaultLibDirectory) &&
+          !d.getSourceFile().isDeclarationFile && d.kind !== ts.SyntaxKind.Identifier);
+        if (!shadowedEval) hasDirectEval = true;
+      }
+      ts.forEachChild(node, child => scanScope(child, root));
+    }
+    for (let current = reference.parent; current; current = current.parent) {
+      if (ts.isWithStatement(current)) hasWith = true;
+      if (isFunctionScope(current) || ts.isSourceFile(current)) scanScope(current, current);
+    }
     const hasLocal = declarations.some(d =>
       !isDefaultLibrary(d.getSourceFile().fileName, defaultLibDirectory) &&
       !d.getSourceFile().isDeclarationFile && d.kind !== ts.SyntaxKind.Identifier);
@@ -81,7 +109,7 @@ function inspectFixture(fixture) {
       hasLocal && hasDefaultLib ? 'merged' :
       hasLocal ? 'local' :
       hasDefaultLib ? 'ambient' : 'unknown';
-    const decision = fixture.dynamicScope ? 'unknown-dynamic-scope' :
+    const decision = hasWith ? 'unknown-with' : hasDirectEval ? 'unknown-direct-eval' :
       classification === 'ambient' ? 'host-global-candidate' :
       classification === 'local' ? 'shadowed-local' : 'unknown';
     const declarationNames = declarations.map(d =>
@@ -91,6 +119,8 @@ function inspectFixture(fixture) {
       classification,
       decision,
       declarations: declarationNames,
+      hasDirectEval,
+      hasWith,
       diagnostics: program.getSyntacticDiagnostics(sourceFile).length
     };
     assert.equal(decision, fixture.expected,
@@ -119,7 +149,10 @@ const fixtures = [
   { name: 'globalThis', module: true, source: 'export {}; globalThis.window;', expected: 'host-global-candidate' },
   { name: 'globalThis', module: true, source: 'export {}; function f(globalThis) { return globalThis.window; }', expected: 'shadowed-local' },
   { name: 'window', source: 'function f(o) { with (o) { window.onerror = handler; } }', expected: 'unknown' },
-  { name: 'window', source: 'function f() { eval("var window = local"); window.onerror = handler; }', dynamicScope: true, expected: 'unknown-dynamic-scope' },
+  { name: 'window', source: 'function f() { eval("var window = local"); window.onerror = handler; }', expected: 'unknown-direct-eval' },
+  { name: 'window', source: 'function outer() { eval("var window = local"); return function inner() { window.onerror = handler; }; }', expected: 'unknown-direct-eval' },
+  { name: 'window', source: 'function outer() { function sibling() { eval("var window = local"); } return function inner() { window.onerror = handler; }; }', expected: 'host-global-candidate' },
+  { name: 'window', source: 'function f(eval) { eval("var window = local"); window.onerror = handler; }', expected: 'host-global-candidate' },
   { name: 'window', source: 'var window; window.onerror = handler;', expected: 'unknown' },
   { name: 'window', module: true, source: 'export {}; var window; window.onerror = handler;', expected: 'shadowed-local' }
 ];
