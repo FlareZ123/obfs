@@ -149,6 +149,14 @@ function resolveLexicalReferences(root,sourceType) {
       }else if(node.type==='ClassDeclaration'||node.type==='ClassExpression'){
         if(node.type==='ClassDeclaration'&&node.id)declarePattern(node.id,incoming,'class');
         scope=child(incoming,'class');
+        // A named class declaration creates both an outer mutable lexical
+        // binding and a distinct inner class-name binding used by extends,
+        // methods and static initialization. One source identifier names
+        // both, so independent BindingId-based rewrites are unsafe until
+        // their spelling coupling is modeled. Keep outer references local
+        // while declining the hidden inner-binding proof conservatively.
+        if(node.type==='ClassDeclaration'&&node.id)
+          scope.uncertain.add(node.id.name);
         if(node.type==='ClassExpression'&&node.id)declarePattern(node.id,scope,'class-name');
       }else if(node.type==='BlockStatement'){
         // A non-simple formal parameter list has a parameter environment
