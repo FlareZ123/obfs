@@ -911,6 +911,9 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
       node.callee.type==='Identifier' &&
         (encoderReturningFunctions.has(node.callee.name)||
          opaqueFunctions.has(node.callee.name)) ||
+      node.callee.type==='MemberExpression'&&
+        ['next','at','pop','shift','find','findLast'].includes(memberName(node.callee)??'')&&
+        mayCarryEncoder(node.callee.object,depth+1) ||
       node.arguments.some((/** @type {AstNode} */ argument)=>
         mayCarryEncoder(argument.type==='SpreadElement'?argument.argument:argument,depth+1)));
     if(node.type==='MemberExpression')return mayCarryEncoder(node.object,depth+1);
@@ -941,16 +944,16 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
    * @returns {boolean}
    */
   function mayReturnEncoder(fn) {
-    // Await can unwrap a Promise carrying the native encoder.
-    if(fn.generator)return false;
+    // Await and iterator .next().value may unwrap an encoded source observer.
+    // Yielded values can become reachable through ordinary generator iterators.
     let returns=encoderReturnSites.get(fn);
     if(!returns) {
       /** @type {AstNode[]} */
       const discoveredReturns=[];
       if(fn.body.type!=='BlockStatement')discoveredReturns.push(fn.body);
       else walk(fn.body,inner=>{
-        if(inner.type==='ReturnStatement'&&inner.argument)
-          discoveredReturns.push(inner.argument);
+        if((inner.type==='ReturnStatement'||inner.type==='YieldExpression')&&
+           inner.argument)discoveredReturns.push(inner.argument);
       });
       encoderReturnSites.set(fn,discoveredReturns);
       returns=discoveredReturns;
@@ -1159,6 +1162,19 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
         for(const property of node.id.properties) {
           const target=property.type==='Property'?property.value:property.argument;
           if(target?.type==='Identifier')changed=add(encoderInstances,target.name)||changed;
+        }
+      }
+      if(node.type==='AssignmentExpression'&&node.operator==='='&&
+         mayCarryEncoder(node.right)) {
+        if(node.left.type==='ArrayPattern') {
+          for(const item of node.left.elements) {
+            if(item?.type==='Identifier')changed=add(encoderInstances,item.name)||changed;
+          }
+        } else if(node.left.type==='ObjectPattern') {
+          for(const property of node.left.properties) {
+            const target=property.type==='Property'?property.value:property.argument;
+            if(target?.type==='Identifier')changed=add(encoderInstances,target.name)||changed;
+          }
         }
       }
       if(node.type==='VariableDeclarator' && node.id.type==='Identifier' ||
