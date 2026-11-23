@@ -2,6 +2,8 @@
 
 **Status:** intermediate adversarial evidence, not an established academic result and not a release candidate. Stored in `im-results/` deliberately. It does not establish arbitrary-JavaScript recovery, source recovery, key recovery, or a stronger obfuscator.
 
+Subsequent extension: [canonical five-state no-reset learner](sco-five-state-step-only-2026-11-23.md), which adds a complete reachable model class through five states and a six-state enumerative scaling analysis.
+
 ## Question
 
 Can an authorized caller reconstruct the *future observable behavior* of a small stateful SCO operation without a reset endpoint, without private-state access, and without reading the server's private source?
