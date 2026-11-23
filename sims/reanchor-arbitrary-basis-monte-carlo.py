@@ -202,6 +202,36 @@ def target_success_monte_carlo(width, functions, trials, seed):
     return rows
 
 
+def fixed_target_success_monte_carlo(width, functions, trials, seed):
+    """Keep one target fixed per sampled P while varying anchor and basis."""
+    rng = random.Random(seed + width * 7000)
+    rows = []
+    for function_index in range(functions):
+        values, _ = random_triangular_table(width, rng)
+        target_input = rng.getrandbits(width)
+        target_value = values[target_input]
+        successes = compatible = 0
+        for _ in range(trials):
+            anchor = rng.getrandbits(width)
+            basis = random_ordered_basis(width, rng)
+            success, is_compatible = reanchor_trial(
+                values, width, anchor, target_input, basis
+            )
+            successes += int(success)
+            compatible += int(is_compatible)
+        rows.append({
+            "function": function_index,
+            "target_input": target_input,
+            "target_value": target_value,
+            "successes": successes,
+            "compatible": compatible,
+            "trials": trials,
+            "target_success_rate": successes / trials,
+            "compatible_basis_rate": compatible / trials,
+        })
+    return rows
+
+
 def all_invertible_matrices(width):
     return [
         tuple(columns)
@@ -363,7 +393,7 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument(
         "mode",
-        choices=("compat", "target", "exact3", "fourbit", "lower-bound"),
+        choices=("compat", "target", "target-fixed", "exact3", "fourbit", "lower-bound"),
     )
     parser.add_argument("--widths", nargs="*", type=int, default=[8, 12, 16])
     parser.add_argument("--functions", type=int, default=5)
@@ -381,6 +411,13 @@ def main():
     elif args.mode == "target":
         result = {
             str(width): target_success_monte_carlo(
+                width, args.functions, args.trials, args.seed
+            )
+            for width in args.widths
+        }
+    elif args.mode == "target-fixed":
+        result = {
+            str(width): fixed_target_success_monte_carlo(
                 width, args.functions, args.trials, args.seed
             )
             for width in args.widths
