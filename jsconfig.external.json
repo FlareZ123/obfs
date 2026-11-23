@@ -269,7 +269,8 @@
     "sims/stateful-arx-cold-child.cjs",
     "sims/stateful-arx-three-way-cold.js",
     "sims/stateful-arx-three-way-warm.js",
-    "test/classic-private-cross-script-observer-parity.test.js"
+    "test/classic-private-cross-script-observer-parity.test.js",
+    "test/esm-cross-module-source-join.test.js"
   ],
   "exclude": [
     "node_modules"
