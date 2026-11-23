@@ -34,7 +34,10 @@ function work(fn) {
 }
 assert.equal(work(native),work(transformed));
 for(let i=0;i<8;i++){work(native);work(transformed);}
-const originals=[],candidates=[];
+/** @type {number[]} */
+const originals=[];
+/** @type {number[]} */
+const candidates=[];
 for(let i=0;i<19;i++) {
   /** @param {(x:number)=>number} fn @param {number[]} output */
   function sample(fn,output){
