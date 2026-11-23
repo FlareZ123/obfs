@@ -204,3 +204,17 @@ For these two higher-capability models, direct inference on protected code is cl
 **Methodological consequence:** downstream semantic use of protected code is a separate attacker outcome from exact source reconstruction or producing a replacement clone. A model may translate, complete, or otherwise use obfuscated code without ever restoring its source. A future evaluation should therefore report at least (1) direct task success on obfuscated code, (2) exact source/structure reconstruction, (3) hidden-test functional-clone success, and (4) rescue/degradation if a restoration stage is inserted. Do not collapse these into a single "deobfuscation" score.
 
 **Scope limits:** the study is function-level rather than repository-scale; its main translation task produces Python, not reconstructed JavaScript; and its deobfuscation stage uses the same model as the downstream task. It does not establish that this repository's transformations are secure or insecure, and its results should not be read as a reverse-engineering or source-confidentiality measurement. It is evidence that model-aware downstream-use tests belong beside, not in place of, source-reconstruction tests.
+
+
+## 8. CodeCipher is an LLM-facing privacy transform, not an executable JS obfuscator
+
+Yalan Lin, Chengcheng Wan, Yixiong Fang, and Xiaodong Gu, **CodeCipher: Learning to Obfuscate Source Code Against LLMs**, arXiv:2410.05797, submitted 8 October 2024:
+https://arxiv.org/abs/2410.05797
+
+CodeCipher is materially different from a runtime source-to-source obfuscator. It starts from a white-box code LLM's embedding matrix (the proof of concept uses CodeLlama-7B), learns a token-to-token confusion mapping by perturbing embeddings and projecting each step to the nearest valid vocabulary token, and optimizes a task-specific loss so a downstream LLM can still complete, summarize, or translate the transformed input. The paper also tests transfer of the mapping to other models, including black-box APIs. Its target is privacy when submitting code to an LLM service, not a distributable JavaScript artifact that must execute unchanged in Node.js or a browser.
+
+The paper's code-completion table reports CodeCipher Pass@1 of 47.56% versus 50.60% on original code, while identifier renaming and random perturbation score 42.68% and 40.24%. Its separate CodeSearchNet privacy table reports **0% compilation rate** for CodeCipher, a 34% token-recall deobfuscation rate, and 43.18% post-deobfuscation edit distance. The token-recall metric is not exact source recovery or functional-clone success. The 0% compilation result is decisive for this project's runtime requirement: do not shortlist CodeCipher itself as a Node/browser obfuscation backend.
+
+The later protected-code study (Section 7 above) includes CodeCipher in its Java-slice comparison and reports 53.7% direct obfuscated Pass@1, 52.4% after same-model deobfuscation, 31.2% conditional rescue, and 24.6% conditional degradation. These are downstream task and same-model restoration measurements, not evidence of runtime compatibility or source-reconstruction resistance.
+
+**Disposition:** retain CodeCipher as an adjacent model-facing privacy transformation and a useful reference for direct protected-code inference. Exclude its published token-substitution artifact from the executable COO/SCO/SNO candidate set unless a separate semantics-preserving runtime adaptation is demonstrated with exact Node/browser parity. Do not conflate “hard to restore for one LLM” with “tamper-resistant executable obfuscation.”
