@@ -94,3 +94,12 @@ The latest full `manual-validation.yml` run available at review time was [run 45
 Across both platforms and modes this is **24 independent private sources, 72 exact function offsets, and 147,456 held-out comparisons** (73,728 per platform). The Linux and Windows emitted source sizes were approximately 5.3 KB per artifact. The full validation run also reported 4,715 tests passed, zero failed, two skipped, and passed project/external JSDoc checks.
 
 The exact output is in the Linux and Windows job logs under `BLIND_AFFINE_PUBLIC_RECOVERY`; the workflow uploaded `blind-affine-audit-Linux` and `blind-affine-audit-Windows` artifacts. This is actual CI evidence for the known-family AST attacker, not LLM evidence. The static attack runs in milliseconds on these small affine artifacts and recovers both COO and SNO samples exactly. It is a strong negative control for any claim that this affine transform materially frustrates static source reconstruction; it does not generalize to arbitrary JS or SCO.
+
+
+## Reusable matched esbuild challenge helper added
+
+The shared helper now exports async `createBlindAffineMatchedChallenge(mode)`. It generates both public questions from one private original source: the candidate goes through `obfuscateFiles` with two polyvariant paths; the control uses the repository-pinned esbuild transform (`format: esm`, `target: es2022`, `minify: true`, `legalComments: none`). The questions share one salted source commitment and identical instructions. A per-arm one-shot verifier refuses to reveal the original source, salt or offsets until one answer has been submitted for each arm. The post-answer reveal records candidate metrics, both source hashes, and the esbuild version/options.
+
+The existing `createBlindAffineChallenge` API remains unchanged. The helper's JSDoc and a new paired COO/SNO test were added. Focused two-platform validation run [45101717540](https://github.com/FlareZ123/obfs/actions/runs/45101717540) succeeded on Linux and Windows: all 7 focused tests passed, project JSDoc passed, and external JSDoc passed. The earlier run `45101635330` exposed a strict-type error for optional metrics; the return values were explicitly narrowed after the existing 3-function/6-path assertions, and the subsequent run passed.
+
+This helper improves future experiment construction; it does not retroactively turn the already-dispatched custom-compaction trial into an esbuild comparison, and its JSDoc explicitly warns that strict blinding still requires private delivery outside the public repository.
