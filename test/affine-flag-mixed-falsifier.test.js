@@ -9,6 +9,8 @@ test('same dense affine source with one rare triangular gate defeats both sample
   let sources=0,rareRefused=0,rareRecovered=0;
   let controlRecovered=0,controlRefused=0;
   let chosenQueries=0,maxQueries=0;
+  /** @type {{sample:number,selectedRoute:string,selectedVerified:boolean,ordinaryRoute:string,ordinaryVerified:boolean}[]} */
+  const rows=[];
   for(let sample=1;sample<=8;sample++) {
     const source=makeMixedRareDenseOracle(Math.imul(sample,0x85ebca6b));
     assert.notEqual(source.secret,source.control);
@@ -45,10 +47,16 @@ test('same dense affine source with one rare triangular gate defeats both sample
       assert.equal(ordinary.route,'refused');
       controlRefused++;
     }
+    rows.push({sample,selectedRoute:selected.route,
+      selectedVerified:selected.verified,ordinaryRoute:ordinary.route,
+      ordinaryVerified:ordinary.verified});
     chosenQueries+=selected.queries+ordinary.queries;
     maxQueries=Math.max(maxQueries,selected.queries,ordinary.queries);
     sources++;
   }
+  console.log('AFFINE_FLAG_MIXED_DIAGNOSTIC '+JSON.stringify({rows,
+    sources,rareRefused,rareRecovered,controlRecovered,controlRefused,
+    chosenQueries,maxQueries}));
   assert.equal(sources,8);
   assert.ok(rareRefused>=6,
     'Mixed source must yield a reproducible failure region of the portfolio');
