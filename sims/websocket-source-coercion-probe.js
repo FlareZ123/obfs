@@ -93,29 +93,74 @@ const source=[
   '});'
 ].join('\n');
 
-async function main(){
-  const native=await captureSourceFrame(source);
+const aliasSource=[
+  'const Native=globalThis.WebSocket;',
+  'const primary=new Native(globalThis.__url);',
+  'const socket=primary;',
+  'function protocolSensitive(){return "value-723";}',
+  'socket.addEventListener("open",()=>{',
+  '  socket.send(protocolSensitive);',
+  '  socket.close();',
+  '});'
+].join('\n');
+
+const primitiveSource=[
+  'const socket=new WebSocket(globalThis.__url);',
+  'socket.addEventListener("open",()=>{',
+  '  socket.send("safe-literal-893");',
+  '  socket.close();',
+  '});'
+].join('\n');
+
+/**
+ * @param {string} label
+ * @param {string} input
+ * @returns {Promise<{label:string,native:string,transformed:string,transformApplied:boolean,literals:number}>}
+ */
+async function compare(label,input){
+  const native=await captureSourceFrame(input);
   const compiled=obfuscateFiles([{
-    path:'websocket-client.js',sourceType:'script',code:source
+    path:label+'.js',sourceType:'script',code:input
   }],{
     mode:'coo',seed:'agent41-websocket-source-20261123',
     identifiers:true,strings:true,properties:false
   });
-  const code=compiled.files[0].code;
-  const transformed=await captureSourceFrame(code);
-  const evidence={
-    transformApplied:code!==source,
-    nativeFrameBytes:Buffer.byteLength(native),
-    obfuscatedFrameBytes:Buffer.byteLength(transformed),
-    parity:native===transformed,
-    observedFunctionSource:native.includes('function protocolSensitive()'),
-    emittedSourceNamePreserved:transformed.includes('function protocolSensitive()')
+  const output=compiled.files[0];
+  if(typeof output.code!=='string')throw new Error('Expected JavaScript source');
+  const transformed=await captureSourceFrame(output.code);
+  return {
+    label,native,transformed,transformApplied:output.code!==input,
+    literals:output.metrics.literals
   };
-  console.log('WEBSOCKET_SOURCE_COERCION '+JSON.stringify(evidence));
-  assert.ok(evidence.observedFunctionSource,'The native WebSocket did not transmit the expected function source');
-  assert.equal(transformed,native,'Native WebSocket.send(function) source-text output changed');
-  return evidence;
 }
 
+async function main(){
+  const direct=await compare('direct',source);
+  const alias=await compare('alias',aliasSource);
+  const primitive=await compare('literal',primitiveSource);
+  const evidence=[direct,alias,primitive].map(item=>({
+    case:item.label,
+    transformApplied:item.transformApplied,
+    literals:item.literals,
+    nativeFrameBytes:Buffer.byteLength(item.native),
+    obfuscatedFrameBytes:Buffer.byteLength(item.transformed),
+    parity:item.native===item.transformed,
+    observedFunctionSource:item.native.includes('function protocolSensitive()')
+  }));
+  console.log('WEBSOCKET_SOURCE_COERCION '+JSON.stringify(evidence));
+  assert.ok(direct.native.includes('function protocolSensitive()'),
+    'The native WebSocket did not transmit the expected function source');
+  assert.ok(alias.native.includes('function protocolSensitive()'),
+    'An aliased native constructor did not preserve the source observer');
+  assert.equal(direct.transformed,direct.native,
+    'Direct native WebSocket.send(function) source-text output changed');
+  assert.equal(alias.transformed,alias.native,
+    'Aliased WebSocket constructor/instance sent a different function source');
+  assert.equal(primitive.transformed,primitive.native,
+    'Primitive WebSocket payload did not preserve its string contents');
+  assert.ok(primitive.transformApplied && primitive.literals>0,
+    'Safe primitive WebSocket.send string must retain positive string-obfuscation yield');
+  return evidence;
+}
 if(require.main===module)main().catch(error=>{console.error(error);process.exitCode=1;});
 module.exports={main,captureSourceFrame};
