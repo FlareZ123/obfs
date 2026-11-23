@@ -786,8 +786,9 @@ function proveLocalObject(ast, rootName, bindings, importedIdentityFunctions=new
         parents.get(construction):null;
       const declaration=variable?.type==='VariableDeclarator'?
         parents.get(variable):null;
-      if(variable?.type!=='VariableDeclarator'||variable.init!==construction||
-         construction.start<=cls.end||variable.id.type!=='Identifier'||
+      if(!construction||variable?.type!=='VariableDeclarator'||
+         variable.init!==construction||construction.start<=cls.end||
+         variable.id.type!=='Identifier'||
          variable.id.name===rootName||bindings.get(variable.id.name)!==1||
          declaration?.type!=='VariableDeclaration'||declaration.kind!=='const'||
          parents.get(declaration)!==ast) {
