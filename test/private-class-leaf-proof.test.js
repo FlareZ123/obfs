@@ -133,15 +133,15 @@ test('private class leaf in native multi-file ESM preserves values and key-label
       'const reader=new Reader();',
       'const snapshot=reader.read()+owner.secretBeta;',
       'export const value=snapshot;'
-    ].join('\\n')},
+    ].join('\n')},
     {path:'compute.mjs',sourceType:'module',code:[
       'import {value} from "./state.mjs";',
       'export const doubled=value*2;'
-    ].join('\\n')},
+    ].join('\n')},
     {path:'entry.mjs',sourceType:'module',code:[
       'import {doubled} from "./compute.mjs";',
       'process.stdout.write(JSON.stringify([doubled,doubled+1]));'
-    ].join('\\n')}
+    ].join('\n')}
   ];
   const native=await runEsm(files);
   assert.equal(native,'[60,61]');
