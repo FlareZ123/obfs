@@ -531,20 +531,32 @@ function usesUnprovedRelocatedUrlStatic(body){
     return node.type==='NewExpression'&&node.callee.type==='Identifier'&&
       node.callee.name==='URL';
   }
-  // Propagate simple local aliases without inferring container or call flows.
-  const urlInstances=new Set();
+  // A same-spelled alias in an unrelated function or block cannot prove
+  // the identity of a free URL reference. Restrict the source provenance to
+  // unique immutable const bindings and their actual lexical owner scopes.
+  const urlBindingCounts=collectBindings(body);
+  /** @type {Map<string,import('./ast').AstNode>} */
+  const urlInstances=new Map();
+  /** @type {Set<import('./ast').AstNode>} */
+  const provedUrlDeclarations=new Set();
   let changed=true;
   while(changed){
     changed=false;
-    walk(body,node=>{
-      const binding=node.type==='VariableDeclarator'?node.id:
-        node.type==='AssignmentExpression'&&node.operator==='='?node.left:null;
-      const value=node.type==='VariableDeclarator'?node.init:
-        node.type==='AssignmentExpression'&&node.operator==='='?node.right:null;
-      if(binding?.type!=='Identifier'||!value)return;
-      if((newUrl(value)||value.type==='Identifier'&&urlInstances.has(value.name))&&
-         !urlInstances.has(binding.name)){
-        urlInstances.add(binding.name);
+    walk(body,(node,parent,_key,ancestors)=>{
+      if(node.type!=='VariableDeclarator'||parent?.type!=='VariableDeclaration'||
+         parent.kind!=='const'||node.id.type!=='Identifier'||
+         urlBindingCounts.get(node.id.name)!==1)return;
+      const owner=ancestors[ancestors.length-2];
+      if(!owner||!['BlockStatement','Program'].includes(owner.type)||
+         !Array.isArray(owner.body)||!owner.body.includes(parent))return;
+      const source=node.init;
+      const sourceOwner=source?.type==='Identifier'?
+        urlInstances.get(source.name):undefined;
+      if(!source||!newUrl(source)&&
+         !(sourceOwner&&ancestors.includes(sourceOwner)))return;
+      provedUrlDeclarations.add(node);
+      if(!urlInstances.has(node.id.name)){
+        urlInstances.set(node.id.name,owner);
         changed=true;
       }
     });
@@ -552,21 +564,25 @@ function usesUnprovedRelocatedUrlStatic(body){
   const scalarMembers=new Set(['href','origin','protocol','username',
     'password','host','hostname','port','pathname','search','hash']);
   const invokedMethods=new Set(['toString','toJSON']);
-  /** @param {import('./ast').AstNode} node @returns {boolean} */
-  function urlInstance(node){
-    return newUrl(node)||node.type==='Identifier'&&urlInstances.has(node.name);
+  /**
+   * @param {import('./ast').AstNode} node
+   * @param {import('./ast').AstNode[]} ancestors
+   * @returns {boolean}
+   */
+  function urlInstance(node,ancestors){
+    if(newUrl(node))return true;
+    const owner=node.type==='Identifier'?urlInstances.get(node.name):undefined;
+    return Boolean(owner&&ancestors.includes(owner));
   }
   let observed=false;
-  walk(body,(node,parent,key)=>{
+  walk(body,(node,parent,key,ancestors)=>{
     if(newUrl(node)){
       const directMember=parent?.type==='MemberExpression'&&key==='object';
       const localBinding=parent?.type==='VariableDeclarator'&&key==='init'&&
-        parent.id.type==='Identifier';
-      const directAssignment=parent?.type==='AssignmentExpression'&&key==='right'&&
-        parent.operator==='='&&parent.left.type==='Identifier';
-      if(!directMember&&!localBinding&&!directAssignment)observed=true;
+        provedUrlDeclarations.has(parent);
+      if(!directMember&&!localBinding)observed=true;
     }
-    if(node.type==='MemberExpression'&&urlInstance(node.object)){
+    if(node.type==='MemberExpression'&&urlInstance(node.object,ancestors)){
       const member=node.computed?staticString(node.property):
         node.property.type==='Identifier'?node.property.name:null;
       const scalar=scalarMembers.has(member??'');
@@ -579,13 +595,17 @@ function usesUnprovedRelocatedUrlStatic(body){
       if((!scalar&&!directInvocation)||write)observed=true;
     }
     if(node.type==='Identifier'&&urlInstances.has(node.name)&&!isStaticKey(parent,key)){
-      const declaration=parent?.type==='VariableDeclarator'&&key==='id';
+      const owner=urlInstances.get(node.name);
+      if(!owner||!ancestors.includes(owner)){
+        observed=true;
+        return;
+      }
+      const declaration=parent?.type==='VariableDeclarator'&&key==='id'&&
+        provedUrlDeclarations.has(parent);
       const directMember=parent?.type==='MemberExpression'&&key==='object';
       const localAlias=parent?.type==='VariableDeclarator'&&key==='init'&&
-        parent.id.type==='Identifier';
-      const assignmentAlias=parent?.type==='AssignmentExpression'&&key==='right'&&
-        parent.operator==='='&&parent.left.type==='Identifier';
-      if(!declaration&&!directMember&&!localAlias&&!assignmentAlias)observed=true;
+        provedUrlDeclarations.has(parent);
+      if(!declaration&&!directMember&&!localAlias)observed=true;
     }
     if(node.type!=='Identifier'||node.name!=='URL'||isStaticKey(parent,key))return;
     if(parent?.type==='NewExpression'&&key==='callee')return;
