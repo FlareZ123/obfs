@@ -127,6 +127,8 @@ test('selected SCO Headers get valid literal remains protected',{
   assert.deepEqual(computed,{refused:false,original:'ok',emitted:'ok',server:'ok'});
   const templateValue=await compare("return new Headers({'x-demo':`ok`}).get('x-demo');",'headers-template-value');
   assert.deepEqual(templateValue,{refused:false,original:'ok',emitted:'ok',server:'ok'});
+  const concatValue=await compare("return new Headers({'x-demo':'o'+'k'}).get(`x-demo`);",'headers-static-concat-name-value');
+  assert.deepEqual(concatValue,{refused:false,original:'ok',emitted:'ok',server:'ok'});
 });
 
 test('selected SCO literal append keeps defined result parity',{
@@ -151,6 +153,8 @@ test('selected SCO query toString and safe private arithmetic retain yield',{
   assert.deepEqual(templateArg,{refused:false,original:'1',emitted:'1',server:'1'});
   const concatArg=await compare("return new URLSearchParams('a=1').get('a'+'');",'urlsearchparams-concat-argument');
   assert.deepEqual(concatArg,{refused:false,original:'1',emitted:'1',server:'1'});
+  const duplicates=await compare("return new URLSearchParams([['a','1'],['a','2']]).getAll('a');",'urlsearchparams-duplicate-values');
+  assert.deepEqual(duplicates,{refused:false,original:['1','2'],emitted:['1','2'],server:['1','2']});
   const math=await compare('return Math.imul(17,19);','native-private-math');
   assert.deepEqual(math,{refused:false,original:323,emitted:323,server:323});
 });
@@ -271,6 +275,8 @@ test('selected SCO Web IDL method admission fails closed on alias and extraction
     "return new Headers({'x-demo':'ok'}).get('x-demo');",
     "return new Headers({'x-demo':'ok'})['get']('x-demo');",
     "return new Headers({'x-demo':`ok`}).get('x-demo');",
+    "return new Headers({'x-demo':'o'+'k'}).get(`x-demo`);",
+    "return new Headers().get('x-'+'demo');",
     "return new Headers().set('x-demo','ok')===undefined;",
     "return Math.imul(17,19);"
   ])assert.deepEqual(compile(body).privateNames,['privateOp'],body);
