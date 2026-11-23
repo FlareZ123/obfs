@@ -173,6 +173,7 @@ async function createBlindAffineMatchedChallenge(mode='coo'){
     'Matched challenge candidate must protect three arithmetic leaves');
   assert.equal(encoded.files[0].metrics.polyvariantPaths,6);
   const candidateSource=/** @type {string} */(encoded.files[0].code);
+  /** @type {import('esbuild').TransformOptions} */
   const minifierOptions={
     format:'esm',loader:'js',target:'es2022',minify:true,legalComments:'none'
   };
