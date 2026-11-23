@@ -98,6 +98,20 @@ test('externally returned wrapper function retains exact class method source',()
   }
 });
 
+test('two independently private class instances preserve both owner-key rewrites',()=>{
+  const source=positive
+    .replace('const reader=new Reader();',
+      'const reader=new Reader();const another=new Reader();')
+    .replace('module.exports=[reader.read(),owner.secretBeta];',
+      'module.exports=[reader.read(),another.read(),owner.secretBeta];');
+  assert.equal(execute(source),'[23,23,7]');
+  for(const mode of /** @type {const} */ (['coo','sno','sco'])){
+    const result=compile(source,mode);
+    assert.equal(result.metrics.properties,2,mode+': independent private instances');
+    assert.equal(execute(/** @type {string} */(result.code)),execute(source));
+  }
+});
+
 const negatives=[
   ['class method escapes via bound method',
     'const escaped=reader.read;module.exports=escaped.call(reader);'],
@@ -118,8 +132,10 @@ const negatives=[
   ['class method has an extra statement',
     'module.exports=reader.read();',
     'class Reader{read(){const copy=owner.secretAlpha;return copy;}}'],
-  ['two instances exist',
-    'const other=new Reader();module.exports=reader.read()+other.read();'],
+  ['second instance escapes as a value',
+    'const other=new Reader();module.exports=[other,reader.read()];'],
+  ['second instance method escapes',
+    'const other=new Reader();module.exports=other.read;'],
   ['computed method dispatch',
     'module.exports=reader["read"]();'],
   ['unproved class call arguments',
