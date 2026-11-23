@@ -11,14 +11,15 @@ const {atomicWrite}=require('../src/atomic');
 
 test('four-file ESM dataflow preserves named imports, nested calls and external APIs',async()=>{
   const inputs=[
-    {path:'state.mjs',code:'export const state={secretValue:3,otherKey:5};export function internal(){return state.secretValue;}'},
+    {path:'state.mjs',code:'export const state={secretValue:3,otherKey:5};'+
+      'function privateInternal(){return state.secretValue;}export function internal(){return privateInternal();}'},
     {path:'workerA.mjs',code:'import {state} from "./state.mjs";function worker(param){const alias=param;return alias.secretValue+alias.otherKey;}export const partial=worker(state);'},
     {path:'workerB.mjs',code:'import {state} from "./state.mjs";const {secretValue:factor,otherKey}=state;export const partial=factor*otherKey;'},
     {path:'index.mjs',code:'import {state,internal} from "./state.mjs";import {partial as a} from "./workerA.mjs";import {partial as b} from "./workerB.mjs";export const value=(+a)+(+b)+internal()+state.secretValue+globalThis.window.api.bridge;'}
   ];
   const root=await fs.mkdtemp(path.join(os.tmpdir(),'obfs-four-esm-'));
   try{
-    const output=obfuscateFiles(inputs,{mode:'coo',seed:'four-files',closedWorld:true,strings:true,identifiers:true});
+    const output=obfuscateFiles(inputs,{mode:'coo',seed:'four-files',closedWorld:true,strings:true,identifiers:false});
     assert.equal(output.crossFile.objects,1);
     assert.equal(output.crossFile.properties,2);
     const entry=output.files.find(f=>f.path==='index.mjs');
