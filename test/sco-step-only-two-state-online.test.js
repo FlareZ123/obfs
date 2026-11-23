@@ -69,7 +69,9 @@ test('understated two-state bound can certify a false clone of a three-state ora
     output:[[0,0],[0,0],[1,0]]
   };
   const workspace=createTwoStateWeightedWorkspace();
-  for(const policy of /** @type {const} */(['boundedNine','expected'])){
+  /** @type {Array<'boundedNine'|'expected'>} */
+  const policies=['boundedNine','expected'];
+  for(const policy of policies){
     let privateState=0;
     const publicApi={
       /** @param {number} symbol @returns {Promise<number>} */
