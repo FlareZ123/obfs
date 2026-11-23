@@ -441,6 +441,60 @@ function usesUnprovedRelocatedUrlStatic(body){
 }
 
 /**
+ * Cross-runtime Web IDL constructors can throw native, host-specific messages
+ * for invalid input. Admit a bounded, literal-only, non-throwing subset while
+ * refusing first-class or dynamic references that escape this syntax proof.
+ * URLSearchParams and Headers have independent Node/browser implementations.
+ *
+ * @param {import('./ast').AstNode} body
+ * @returns {boolean}
+ */
+function usesUnprovedRelocatedWebIdlConstructors(body){
+  const names=new Set(['URLSearchParams','Headers']);
+  /** @param {import('./ast').AstNode|null|undefined} value @returns {boolean} */
+  function asciiText(value){
+    return Boolean(value&&value.type==='Literal'&&
+      typeof value.value==='string'&&/^[\x20-\x7e]*$/u.test(value.value));
+  }
+  /** @param {import('./ast').AstNode} expression @returns {boolean} */
+  function validConstruction(expression){
+    if(expression.type!=='NewExpression'||
+       expression.callee.type!=='Identifier')return false;
+    const name=expression.callee.name;
+    if(expression.arguments.length===0)return true;
+    if(expression.arguments.length!==1)return false;
+    const argument=expression.arguments[0];
+    if(name==='URLSearchParams'){
+      if(asciiText(argument))return true;
+      return argument.type==='ArrayExpression'&&
+        argument.elements.every((/** @type {import('./ast').AstNode|null} */ pair)=>
+          pair?.type==='ArrayExpression'&&pair.elements.length===2&&
+          pair.elements.every((/** @type {import('./ast').AstNode|null} */ value)=>asciiText(value)));
+    }
+    if(name!=='Headers'||argument.type!=='ObjectExpression')return false;
+    return argument.properties.every((/** @type {import('./ast').AstNode} */ property)=>{
+      if(property.type!=='Property'||property.computed||
+         property.kind!=='init'||property.method||property.shorthand)return false;
+      const key=property.key.type==='Identifier'?property.key.name:
+        property.key.type==='Literal'&&typeof property.key.value==='string'?
+          property.key.value:null;
+      return typeof key==='string'&&/^[a-z0-9-]{1,32}$/u.test(key)&&
+        asciiText(property.value);
+    });
+  }
+  let unproved=false;
+  walk(body,(node,parent,key)=>{
+    if(node.type!=='Identifier'||!names.has(node.name)||isStaticKey(parent,key))return;
+    if(parent?.type==='NewExpression'&&key==='callee'&&
+       validConstruction(parent))return;
+    if(parent?.type==='VariableDeclarator'&&key==='id'||parent?.type==='FunctionDeclaration'&&
+       key==='id')return;
+    unproved=true;
+  });
+  return unproved;
+}
+
+/**
  * Admit only a direct Node.js process.env property read with an explicit
  * static UPPER_SNAKE_CASE key. The private original module runs on the server;
  * this opt-in never copies the environment variable into a client facade.
@@ -1354,6 +1408,10 @@ function collectPrivateStaticImportClosure(directPaths,sources) {
       throw new TypeError(
         'SCO private static dependency uses unproved cross-realm object URL API: '+filename);
     }
+    if(usesUnprovedRelocatedWebIdlConstructors(ast)){
+      throw new TypeError(
+        'SCO private static dependency uses unproved cross-realm WebIDL constructor: '+filename);
+    }
     // Browser-owned values may differ or be absent in the trusted Node
     // process. Only the original caller can establish its own window,
     // document, navigation and application-level global state.
@@ -2126,6 +2184,9 @@ function partitionScoSelectedAsyncExports(file,options) {
     }
     if(usesUnprovedRelocatedUrlStatic(body)){
       throw new TypeError('Private SCO export or helper uses unproved cross-realm object URL API');
+    }
+    if(usesUnprovedRelocatedWebIdlConstructors(body)){
+      throw new TypeError('Private SCO export or helper uses unproved cross-realm WebIDL constructor');
     }
     if(usesUnprovedRelocatedTextDecoder(body)){
       throw new TypeError('Private SCO export or helper uses unproved cross-realm text decoding');
