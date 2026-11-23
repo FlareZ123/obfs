@@ -1210,7 +1210,7 @@ function singleUseFactoryObject(ast,bindings,expression) {
  * A conservative proof failure leaves the complete file unchanged for that object.
  * @param {string} source
  * @param {AstNode} ast
- * @param {{seed:string}} options
+ * @param {{seed:string,sourceType?:'script'|'module'|'commonjs'}} options
  * @returns {{code:string,objects:number,properties:number}}
  */
 function renameLocalProperties(source, ast, options) {
@@ -1223,6 +1223,15 @@ function renameLocalProperties(source, ast, options) {
     const declaration = ancestors[ancestors.length - 2];
     if (declaration?.type !== 'VariableDeclaration' || declaration.kind !== 'const' ||
         ancestors.some(a => a.type === 'ExportNamedDeclaration' || a.type === 'ExportDefaultDeclaration')) return;
+    // Program-level lexical bindings are shared by independent classic scripts.
+    // Only a block/function-local owner may have all its references rewritten.
+    if(options.sourceType==='script' &&
+        !ancestors.some(a=>a.type==='BlockStatement'))return;
+    // Globally callable factories may be replaced or externally inspected by
+    // later classic scripts. The only factory admitted here is an immediate IIFE.
+    if(options.sourceType==='script' && node.type!=='ObjectExpression' &&
+        !(node.type==='CallExpression' &&
+          ['ArrowFunctionExpression','FunctionExpression'].includes(node.callee.type)))return;
     const literal=node.type==='ObjectExpression' ? node : singleUseFactoryObject(ast,bindings,node);
     if(!literal)return;
     /** @type {AstNode[]} */
@@ -1243,6 +1252,18 @@ function renameLocalProperties(source, ast, options) {
   for (const candidate of candidates) {
     const proof = proveLocalObject(ast, candidate.name, bindings);
     if (!proof || (!proof.members.length && !proof.patterns.length && !proof.inChecks.length)) continue;
+    if(options.sourceType==='script') {
+      // Helpers shared across scripts can consume original-spelling objects or
+      // be rebound independently. Their cross-script aliases are not proved.
+      if(proof.forwardedCalls.size)continue;
+      let passedToCall=false;
+      walk(ast,node=>{
+        if((node.type==='CallExpression'||node.type==='NewExpression') &&
+            node.arguments.some(arg=>arg.type==='Identifier' &&
+              proof.aliases.has(arg.name)))passedToCall=true;
+      });
+      if(passedToCall)continue;
+    }
     // An unowned field may invoke an inherited getter with this=object. That
     // getter can enumerate own keys, making otherwise private renaming visible.
     const ownNames=new Set(candidate.properties.map(ownPropertyName));

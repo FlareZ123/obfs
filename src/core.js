@@ -2231,10 +2231,12 @@ function obfuscateFiles(files, options = {}) {
     let properties = 0;
     let symbolKeys = 0;
     if ((!remoteSourceObserver || sourceObserverIslands.has(filename)) &&
-        options.properties !== false && sourceType !== 'script') {
+        options.properties !== false &&
+        (sourceType !== 'script' || options.closedWorld === true &&
+          options.experimentalSymbolKeys !== true)) {
       const modified = options.experimentalSymbolKeys === true ?
         symbolizeLocalProperties(code,ast,{seed:salt}) :
-        renameLocalProperties(code,ast,{seed:salt});
+        renameLocalProperties(code,ast,{seed:salt,sourceType});
       code = modified.code;
       objects = modified.objects;
       properties = modified.properties;
