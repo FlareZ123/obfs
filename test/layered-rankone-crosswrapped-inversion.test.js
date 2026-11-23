@@ -2,7 +2,7 @@
 const {test}=require('node:test');
 const assert=require('node:assert/strict');
 const {runLayeredLowRankComposition,runTinyLayeredAnfAudit,
-  runTinyBoundedDegreeCloner}=
+  runTinyBoundedDegreeCloner,runLayeredFullWidthClone}=
   require('../sims/layered-rankone-crosswrapped-inversion');
 
 test('interleaved independently mixed nonlinear rank-one layers remain bounded-rank invertible',()=>{
@@ -48,4 +48,18 @@ test('oracle-only low-degree ANF interpolation exactly clones layered 8-bit perm
     assert.equal(row.heldoutOutputs,24*(256-row.queries));
   }
   console.log('LAYERED_ANF_ORACLE_CLONE '+JSON.stringify(result));
+});
+
+test('unknown 32-bit one/two-layer quadratic shears are functionally cloned from 529/5489 queries',()=>{
+  const result=runLayeredFullWidthClone();
+  assert.equal(result.sources,20);
+  assert.equal(result.oracleCalls,60180);
+  assert.equal(result.heldoutPredictions,1920);
+  assert.equal(result.exactPredictions,1920);
+  assert.deepEqual(result.byLayers.map(row=>row.chosenCallsPerSource),[529,5489]);
+  for(const row of result.byLayers){
+    assert.equal(row.sourceFunctions,10);
+    assert.equal(row.heldoutPredictions,960);
+  }
+  console.log('LAYERED_FULLWIDTH_ANF_ORACLE_CLONE '+JSON.stringify(result));
 });
