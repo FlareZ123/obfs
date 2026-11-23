@@ -273,7 +273,7 @@
 
 - Agent 39's strict-ESM-IIFE host-stack witness (run 45148478509; `communications/agent3/20261123T0938Z_agent39_strict-iife-host-stack-red.md`) shows an opaque host callback can observe caller source coordinates through Error.stack even when the callable is strict, private, and never exported; property shortening shifted the column 71→62 while preserving value.
 - Consequently the strict-CJS gate only closes the specific legacy `arguments.callee.caller` wrapper capture. It is not a general source-observation boundary. Keep private class proof experimental; no source-parity claim without Error.stack/CallSite differential coverage or explicit exclusions.
-- A private-reader hot-call budget gate is running as workflow 45149611628 at head `44d8150414930333a7e91ea5788c6d64ce8f9b4f`; check status before release. If pending at release, record as pending rather than assume pass.
+- The private-reader hot-call budget gate passed as workflow 45149611628 at head `44d8150414930333a7e91ea5788c6d64ce8f9b4f` on Ubuntu and Windows with strict JSDoc; sampled paired ratios and ratio of medians were <=2.5×.
 
 
 - The focused straightline private-reader hot-call profile passed on Ubuntu and Windows with strict JSDoc: run 45149611628 at head `44d8150414930333a7e91ea5788c6d64ce8f9b4f`. All sampled paired ratios and ratio of medians were <=2.5× for that finite workload; not a universal bound.
