@@ -183,3 +183,24 @@ A pinned real-esbuild full-application control already exists in this repository
 - `test/minified-control-static-attacker.test.js`
 
 The runner uses the declared `esbuild@0.28.2` dependency and `esbuild.transform` with ESM format, ES2022 target, minification and no legal comments. It compares native, minified, published and statically reconstructed ESM graphs, and runs a pinned JSIMPLIFIER static-only configuration. This is a full-application attacker/control experiment, not a matched LLM trial on a private fresh source. Reuse it as the implementation template for a future true-esbuild LLM control instead of building a second unrelated minification harness. The separate `manual-esbuild-mangle-control.yml` workflow concerns cross-file property mangling.
+
+
+## 7. Direct inference on protected code (distinct from reconstruction)
+
+Jin Wen, Yuejun Guo, Yujie Ma, Qiang Hu, and Maxime Cordy, **Robustness and Trade-offs for Code LLMs on Protected Code**, arXiv:2609.04220, submitted 3 July 2026:
+https://arxiv.org/abs/2609.04220
+
+This execution-based study evaluates seven code LLMs across four source languages (C++, Go, Java, JavaScript), five protection methods, and three inference protocols: plain, obfuscated, and deobfuscated. It uses 164 HumanEval-style instances per dataset setting. Translation is the primary task: the model receives a source-language function and produces a functionally equivalent Python implementation; code completion is supporting evidence. The evaluated protections include identifier renaming, dead-branch injection, symbol removal, randomized identifiers, and CodeCipher.
+
+The paper's translation Pass@1 table reports:
+
+| Model | Plain | Obfuscated | Deobfuscated |
+|---|---:|---:|---:|
+| GPT-4.1 | 92.9% | 90.0% | 86.8% |
+| Qwen3-Coder-30B | 88.3% | 90.5% | 88.3% |
+
+For these two higher-capability models, direct inference on protected code is close to the plain baseline; the obfuscated-to-plain ratios are reported as 96.9% and 97.1%. Six of seven models lose accuracy after same-model deobfuscation; the only exception is Qwen2.5-Coder-14B, which improves from 59.6% to 61.8%. The paper defines conditional rescue as (plain pass, obfuscated fail, deobfuscated pass) divided by (plain pass, obfuscated fail), and conditional degradation as (plain pass, obfuscated pass, deobfuscated fail) divided by (plain pass, obfuscated pass). GPT-4.1 reports 69.8% rescue / 8.4% degradation; Qwen3-Coder-30B reports 64.0% / 5.7%.
+
+**Methodological consequence:** downstream semantic use of protected code is a separate attacker outcome from exact source reconstruction or producing a replacement clone. A model may translate, complete, or otherwise use obfuscated code without ever restoring its source. A future evaluation should therefore report at least (1) direct task success on obfuscated code, (2) exact source/structure reconstruction, (3) hidden-test functional-clone success, and (4) rescue/degradation if a restoration stage is inserted. Do not collapse these into a single "deobfuscation" score.
+
+**Scope limits:** the study is function-level rather than repository-scale; its main translation task produces Python, not reconstructed JavaScript; and its deobfuscation stage uses the same model as the downstream task. It does not establish that this repository's transformations are secure or insecure, and its results should not be read as a reverse-engineering or source-confidentiality measurement. It is evidence that model-aware downstream-use tests belong beside, not in place of, source-reconstruction tests.
