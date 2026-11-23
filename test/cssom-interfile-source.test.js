@@ -68,11 +68,12 @@ function sources(literal) {
 /**
  * @param {ESMFile[]} files
  * @param {string} seed
+ * @param {'coo'|'sco'|'sno'} mode
  * @returns {{files:ESMFile[],properties:number}}
  */
-function generate(files,seed) {
+function generate(files,seed,mode) {
   const result=obfuscateFiles(files,{
-    mode:'coo',closedWorld:true,seed,
+    mode,closedWorld:true,seed,
     properties:true,identifiers:true,strings:false
   });
   return {
@@ -83,24 +84,26 @@ function generate(files,seed) {
   };
 }
 
-for(const literal of [false,true]) {
-  test('cross-file CSSOM-function source via imported ESM '+(literal?'literal positive':'negative'),async()=>{
-    const original=sources(literal);
-    const transformed=generate(original,'cssom-interfile/'+String(literal));
-    const native=await execute(original);
-    const actual=await execute(transformed.files);
-    process.stdout.write('CSSOM_INTERFILE_SOURCE '+JSON.stringify({
-      literal,properties:transformed.properties,
-      producerBytesChanged:transformed.files[0].code!==original[0].code,
-      observerBytesChanged:transformed.files[1].code!==original[1].code,
-      exactOutputParity:JSON.stringify(native)===JSON.stringify(actual),
-      native,actual
-    })+'\n');
-    assert.ok(literal||native.text.includes('observedSecret'));
-    assert.equal(JSON.stringify(actual),JSON.stringify(native));
-    if(literal)assert.ok(transformed.properties>0,
-      'A literal CSSOM value leaves the unrelated owner eligible');
-  });
+for(const mode of /** @type {const} */(['coo','sco','sno'])) {
+  for(const literal of [false,true]) {
+    test('cross-file CSSOM imported ESM '+mode+'/'+(literal?'literal positive':'negative'),async()=>{
+      const original=sources(literal);
+      const transformed=generate(original,'cssom-interfile/'+mode+'/'+String(literal),mode);
+      const native=await execute(original);
+      const actual=await execute(transformed.files);
+      process.stdout.write('CSSOM_INTERFILE_SOURCE '+JSON.stringify({
+        mode,literal,properties:transformed.properties,
+        producerBytesChanged:transformed.files[0].code!==original[0].code,
+        observerBytesChanged:transformed.files[1].code!==original[1].code,
+        exactOutputParity:JSON.stringify(native)===JSON.stringify(actual),
+        native,actual
+      })+'\\n');
+      assert.ok(literal||native.text.includes('observedSecret'));
+      assert.equal(JSON.stringify(actual),JSON.stringify(native));
+      if(literal)assert.ok(transformed.properties>0,
+        'Literal CSSOM value leaves an independent private owner eligible');
+    });
+  }
 }
 
 module.exports={execute,sources,generate};
