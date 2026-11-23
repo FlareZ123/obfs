@@ -38,6 +38,22 @@ const safeScenarios=[
       "const output=await Promise.reject({stack:'ordinary'}).catch(caught=>{"+
       "const key=['st','ack'].join('');return caught[key]==='ordinary'?calculate():-1;});"+
       "console.log(output);"
+  ,
+  {
+    name:'shadowed caught Error binding',
+    consumer:"import {calculate} from './producer.mjs';"+
+      "try{throw new Error('contained');}catch(caught){}"+
+      "function ordinary(caught){const key=['st','ack'].join('');"+
+      "return caught[key]===undefined?calculate():-1;}"+
+      "console.log(ordinary(1));"
+  },
+  {
+    name:'shadowed Promise handler binding',
+    consumer:"import {calculate} from './producer.mjs';"+
+      "function handler(caught){return 5;}"+
+      "function ordinary(caught){const key=['st','ack'].join('');"+
+      "return caught[key]===undefined?calculate():-1;}"+
+      "await Promise.reject(1).catch(handler);console.log(ordinary(1));"
   }
 ];
 
