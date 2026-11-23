@@ -7,6 +7,7 @@ const {tmpdir}=require('node:os');
 const path=require('node:path');
 const {pathToFileURL}=require('node:url');
 const {obfuscateFiles}=require('../src');
+const {parse,walk,applyEdits}=require('../src/ast');
 const {atomicWrite}=require('../src/atomic');
 
 /**
@@ -36,6 +37,47 @@ async function load(directory,name,source) {
   const file=path.join(root,'entry.mjs');
   await atomicWrite(file,source);
   return /** @type {Promise<{observed:unknown}>} */(import(pathToFileURL(file).href));
+}
+
+
+/**
+ * Research-only coordinate-neutral AST edit for exactly one private owner
+ * declaration and one noncomputed dot read. This is not the production
+ * compiler's owner-flow proof, and intentionally declines every other form.
+ *
+ * Every touched syntax span is replaced with a valid identifier plus spaces
+ * of equal UTF-16 source width, so later tokens keep their line and column.
+ * @param {string} source
+ * @param {string} oldKey
+ * @param {string} newKey
+ * @returns {string}
+ */
+function equalWidthOwnerEdit(source,oldKey,newKey){
+  assert.match(newKey,/^_[a-z0-9]+$/u);
+  const ast=parse(source,'module');
+  /** @type {import('../src/ast').Edit[]} */
+  const edits=[];
+  walk(ast,(node,parent)=>{
+    let key=null;
+    if(node.type==='Property' && parent?.type==='ObjectExpression' &&
+       !node.computed && !node.shorthand && node.kind==='init' &&
+       node.key.type==='Identifier' && node.key.name===oldKey)
+      key=node.key;
+    if(node.type==='MemberExpression' && node.object.type==='Identifier' &&
+       node.object.name==='owner' && !node.computed &&
+       node.property.type==='Identifier' && node.property.name===oldKey)
+      key=node.property;
+    if(!key)return;
+    const width=key.end-key.start;
+    assert.ok(newKey.length<=width,'A rename longer than a source span is refused');
+    edits.push({start:key.start,end:key.end,text:newKey.padEnd(width,' ')});
+  });
+  assert.equal(edits.length,2,'The restricted private owner shape must have two edits');
+  const edited=applyEdits(source,edits);
+  assert.equal(edited.length,source.length);
+  assert.ok(!edited.includes(oldKey));
+  parse(edited,'module');
+  return edited;
 }
 
 test('strict ESM direct arrow IIFE keeps non-escaping owner property rewrite yield',async()=>{
@@ -106,7 +148,7 @@ test('manual equal-width private-key rewrite retains strict host stack frame coo
     'export const observed=result;';
   const newKey='_r7';
   const naive=native.replaceAll(key,newKey);
-  const padded=native.replaceAll(key,newKey.padEnd(key.length,' '));
+  const padded=equalWidthOwnerEdit(native,key,newKey);
   assert.ok(!naive.includes(key)&&!padded.includes(key));
   assert.equal(padded.length,native.length);
   assert.ok(naive.length<native.length);
