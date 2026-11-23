@@ -55,6 +55,28 @@ test('opaque cross-file DOM script with SHA512 base64url digest pins sibling byt
   }
 });
 
+test('opaque imported-factory SHA384 Base64URL underscore also pins source',()=>{
+  const source='globalThis.dynamicUrlSri="source pinned under opaque URL-safe SRI token sha384 nonce 0";';
+  const hash=createHash('sha384').update(source).digest('base64url');
+  assert.match(hash.slice(0,8),/_/u);
+  const graph=[
+    {path:'client.js',sourceType:/** @type {const} */('script'),code:source},
+    {path:'factory.mjs',sourceType:/** @type {const} */('module'),
+      code:'export function build(){return document.createElement("script");}'},
+    {path:'bootstrap.mjs',sourceType:/** @type {const} */('module'),
+      code:'import {build} from "./factory.mjs";const script=build();'+
+        'script.src="./client.js";const name=globalThis.optionalName||"integrity";'+
+        'script[name]="sha384-'+hash+'";document.head.append(script);'}
+  ];
+  for(const mode of /** @type {Mode[]} */(['coo','sco','sno'])){
+    const compiled=obfuscateFiles(graph,{mode,closedWorld:true,
+      seed:'url-safe-underscore/'+mode,
+      strings:true,identifiers:false,properties:false});
+    assert.equal(compiled.files[0].code,source,
+      mode+': underscore within eight Base64URL characters pins original bytes');
+  }
+});
+
 test('unrelated cross-file DOM factory without integrity retains rewrite yield',()=>{
   for(const mode of /** @type {Mode[]} */(['coo','sco','sno'])){
     assert.notEqual(compile(mode,false),client,
