@@ -143,24 +143,28 @@ test('selected SCO query toString and safe private arithmetic retain yield',{
 
 
 test('selected SCO bounded Web IDL method matrix matches native host semantics',{
-  skip:!enabled,timeout:120000
+  skip:!enabled,timeout:60000
 },async()=>{
+  // Execute the method family through one selected private RPC and one
+  // real Chromium launch to keep the focused two-OS gate decision-bearing.
   const cases=[
-    {label:'query-get-all',body:"return JSON.stringify(new URLSearchParams('a=1&a=2').getAll('a'));",result:'["1","2"]'},
-    {label:'query-has',body:"return new URLSearchParams('a=1').has('a');",result:true},
-    {label:'query-delete',body:"return new URLSearchParams('a=1').delete('a')===undefined;",result:true},
-    {label:'query-set',body:"return new URLSearchParams('a=1').set('b','2')===undefined;",result:true},
-    {label:'query-sort',body:"return new URLSearchParams('b=2&a=1').sort()===undefined;",result:true},
-    {label:'headers-has',body:"return new Headers({'x-demo':'ok'}).has('x-demo');",result:true},
-    {label:'headers-append',body:"return new Headers().append('x-demo','ok')===undefined;",result:true},
-    {label:'headers-delete',body:"return new Headers({'x-demo':'ok'}).delete('x-demo')===undefined;",result:true}
+    {label:'query-get-all',expr:"JSON.stringify(new URLSearchParams('a=1&a=2').getAll('a'))",result:'["1","2"]'},
+    {label:'query-has',expr:"new URLSearchParams('a=1').has('a')",result:true},
+    {label:'query-delete',expr:"new URLSearchParams('a=1').delete('a')===undefined",result:true},
+    {label:'query-set',expr:"new URLSearchParams('a=1').set('b','2')===undefined",result:true},
+    {label:'query-sort',expr:"new URLSearchParams('b=2&a=1').sort()===undefined",result:true},
+    {label:'headers-has',expr:"new Headers({'x-demo':'ok'}).has('x-demo')",result:true},
+    {label:'headers-append',expr:"new Headers().append('x-demo','ok')===undefined",result:true},
+    {label:'headers-delete',expr:"new Headers({'x-demo':'ok'}).delete('x-demo')===undefined",result:true}
   ];
-  for(const fixture of cases){
-    const got=await compare(fixture.body,fixture.label);
-    assert.deepEqual(got,{
-      refused:false,original:fixture.result,emitted:fixture.result,server:fixture.result
-    },fixture.label);
-  }
+  const body='return ['+cases.map(item=>'('+item.expr+')').join(',')+'];';
+  const got=await compare(body,'bounded-method-matrix');
+  assert.deepEqual(got,{
+    refused:false,
+    original:cases.map(item=>item.result),
+    emitted:cases.map(item=>item.result),
+    server:cases.map(item=>item.result)
+  },cases.map(item=>item.label).join(','));
 });
 
 test('selected SCO Web IDL method admission fails closed on alias and extraction',{
