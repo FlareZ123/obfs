@@ -152,6 +152,22 @@ function resolveLexicalReferences(root,sourceType) {
     scopes.set(node,scope);
     if(node.type==='VariableDeclaration'){
       for(const dec of node.declarations){
+        // Annex B catch parameter / var name interactions are not independent
+        // bindings for source-renaming purposes. In a simple catch parameter,
+        // a same-spelled var initializer writes the catch binding rather than
+        // the hoisted var binding. Do not issue independently usable IDs.
+        if(node.kind==='var' && dec.id.type==='Identifier'){
+          const owner=varScope(scope);
+          for(let enclosing=scope;enclosing;enclosing=enclosing.parent){
+            if(enclosing.kind==='catch' &&
+               enclosing.bindings.get(dec.id.name)?.kind==='catch' &&
+               varScope(enclosing)===owner){
+              enclosing.uncertain.add(dec.id.name);
+              owner.uncertain.add(dec.id.name);
+            }
+            if(enclosing===owner)break;
+          }
+        }
         declarePattern(dec.id,node.kind==='var'?varScope(scope):scope,node.kind);
       }
     }
