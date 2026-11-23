@@ -47,3 +47,7 @@ The same prototype-reachable method source is observable through a **declared, s
 - Integrated `test/sco-instance-prototype-source.test.js` to main in `bb611324b6ad4dc67576e1f9193a68f15d2d2104`.
 
 This extends the **compatibility** control from prebuilt COO/SNO to real SCO publication. It does not establish a hostile-client confidentiality, integrity, or query-oracle advantage; the served graph exposes the prototype method by design.
+
+## Mainline correctness integration pin
+
+At exact source `a277fcbe1027656eee43c4422bb594acfe711e0e`, the [manual full Node 22.23.4 Ubuntu/Windows and Ubuntu Chromium gate 45097373277](https://github.com/FlareZ123/obfs/actions/runs/45097373277) **passed** both platform jobs, strict project/external JSDoc, the complete Node behavioral/adversarial runner, sampled performance checks, and the workflow's real-browser checks. This source includes the integrated COO/SNO instance-source test and predates the subsequent SCO-specific test and this report update; it cannot certify those later changes or arbitrary workloads. A successful correctness gate does not alter the project's primary RELEASE-BLOCKED security decision.
