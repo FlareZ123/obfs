@@ -106,6 +106,19 @@ graph differ from the digest committed for the deployment. The compiler
 does not freeze the filesystem or certify that the supplied sources are
 authentic. The optional startup verifier must still compare the deployed bytes.
 
+For declared relative `privateModuleImports`, the standalone selective
+compiler and composed graph use a shared conservative imported-identity
+analysis. Direct stateless function calls and primitive-import arithmetic remain
+eligible. A private imported function can retain mutable own properties across
+clients after relocation to one server singleton, so expression-wrapped aliases,
+first-class value escapes, class-held identities, and reflective member/own-key
+reads are refused unless safety is established by this bounded analysis.
+The [source-pinned Linux/Windows red-green record](../im-results/sco-import-expression-identity-2026-11-23.md)
+and [standalone regression](../test/sco-selective-private-import-identity.test.js)
+show the supported syntax and its limits. The check is a compile-time gate.
+It cannot prove general higher-order alias safety or intentional server-shared
+state isolation.
+
 When an audited graph is supplied, the returned **server-side partition**
 also carries `privateSourceDigests`: SHA-256 commitments for the original
 mixed module and each supplied private dependency. These commitments are kept
