@@ -964,3 +964,43 @@ test('Private static SCO graph refuses host globals returned inside containers',
     assert.throws(()=>partitionGraph(body,false),/SCO|realm-local/u,body);
   }
 });
+
+
+test('Selected SCO refuses unresolved unqualified application-global reads',async()=>{
+  const vm=require('node:vm');
+  const source=[
+    'export async function protectedOp(){return externalBridge?.value??"missing";}',
+    'export function visible(){return 7;}'
+  ].join('\n');
+  const runtime=source.replaceAll('export ','');
+  const browserContext=vm.createContext({externalBridge:{value:'browser-only'}});
+  const serverContext=vm.createContext({});
+  vm.runInContext(runtime,browserContext);
+  vm.runInContext(runtime,serverContext);
+  assert.equal(await vm.runInContext('protectedOp()',browserContext),'browser-only');
+  await assert.rejects(vm.runInContext('protectedOp()',serverContext),/externalBridge is not defined/u);
+  assert.throws(()=>partitionScoSelectedAsyncExports(
+    {path:'mixed.mjs',code:source,sourceType:'module'},
+    {seed:'sco-free-global-selected-20261123',privateNames:['protectedOp']}
+  ),/SCO|realm-local/u);
+});
+
+test('Private static SCO graph refuses unresolved unqualified application-global reads',()=>{
+  const body='return externalBridge?.value??"missing";';
+  assert.throws(()=>partitionGraph(body,false),/SCO|realm-local/u);
+});
+
+test('Explicitly owned local bindings with host-like names remain eligible',()=>{
+  const source=[
+    'const externalBridge={value:41};',
+    'export async function protectedOp(){return externalBridge.value;}',
+    'export function visible(){return 7;}'
+  ].join('\n');
+  assert.doesNotThrow(()=>partitionScoSelectedAsyncExports(
+    {path:'mixed.mjs',code:source,sourceType:'module'},
+    {seed:'sco-local-global-name-20261123',privateNames:['protectedOp']}
+  ));
+  assert.deepEqual(partitionGraph(
+    'const externalBridge={value:41};return externalBridge.value;',false
+  ).privateNames,['protectedOp']);
+});
