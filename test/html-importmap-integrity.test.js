@@ -90,6 +90,7 @@ test('import map integrity commitment works under an unrecognized public mount',
 test('safe unpinned and unrelated-relative import maps retain real transform yield',()=>{
   const cases=[
     markup({imports:{lib:'./lib.mjs'}}),
+    markup({imports:{lib:'./lib.mjs?build=27#release-1'}}),
     markup({imports:{lib:'./lib.mjs'},integrity:{'./not-lib.mjs':digest}}),
     markup({imports:{lib:'./lib.mjs'},scopes:{'./pages/':{lib:'./lib.mjs'}}})
   ];
