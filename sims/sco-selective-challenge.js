@@ -46,7 +46,9 @@ function median(samples){
 async function runChallenge(){
   const source=await fs.readFile(path.join(ROOT,'before','mixed.mjs'),'utf8');
   const partition=partitionScoSelectedAsyncExports({path:'mixed.mjs',code:source},
-    {seed:'sco-selective-20261115-example',privateNames:['protectedDigest']});
+    {seed:'sco-selective-20261115-example',privateNames:['protectedDigest'],
+      // The fixture's trusted private source intentionally uses Node Buffer and node:crypto.
+      allowServerNodeGlobals:true});
   const directory=await fs.mkdtemp(path.join(os.tmpdir(),'obfs-selective-challenge-'));
   const nativeFetch=globalThis.fetch;
   /** @type {import('node:http').Server|undefined} */
