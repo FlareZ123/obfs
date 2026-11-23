@@ -2687,7 +2687,11 @@ function renameCrossFileProperties(files,seed) {
         if (new Set(mapping.values()).size !== mapping.size) continue;
         // The export binding name is unchanged; its public object shape is
         // changed only when callers opted into closed-world semantics.
-        for(const prop of props) add(exporterName,{start:prop.key.start,end:prop.key.end,text:JSON.stringify(mapping.get(ownPropertyName(prop)))});
+        for(const prop of props) {
+          const replacement=mapping.get(ownPropertyName(prop));
+          if(replacement===undefined)continue;
+          add(exporterName,{start:prop.key.start,end:prop.key.end,text:JSON.stringify(replacement)});
+        }
         // Rewrite the reader's one proven member access only after every
         // importing call site has passed ownership validation.
         for(const name of usedReaders) {
