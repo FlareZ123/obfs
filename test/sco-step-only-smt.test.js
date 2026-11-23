@@ -34,6 +34,7 @@ test('malformed transcripts and oversized bounds fail before building a solver q
     {maxStates:2,inputs:[0],outputs:[true]},
     {maxStates:2,inputs:Array(257).fill(0),outputs:Array(257).fill(0)}
   ])assert.throws(()=>buildStepOnlySmtQuery(request),RangeError);
+  // @ts-expect-error Deliberately exercise the runtime invalid-mode guard.
   assert.throws(()=>buildStepOnlySmtQuery({maxStates:1,inputs:[],outputs:[]},'wrong'),RangeError);
 });
 
