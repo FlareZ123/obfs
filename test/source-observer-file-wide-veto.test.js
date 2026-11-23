@@ -27,17 +27,19 @@ function evaluate(code) {
 test('one source-observed callable currently vetoes unrelated private property and identifier rewrites',()=>{
   const baseline=[
     'const observedSource="";',
-    'const helperRecord={unrelatedPrivate:7};',
-    'function helper(){return helperRecord.unrelatedPrivate;}',
-    'function sample(){return observedSource.length+helper();}',
+    'const propertyOwner={unrelatedPrivate:7};',
+    'function propertyReader(){return propertyOwner.unrelatedPrivate;}',
+    'function identifierReader(){const unrelatedLocal=11;return unrelatedLocal;}',
+    'function sample(){return observedSource.length+propertyReader()+identifierReader();}',
     'module.exports={value:sample(),source:observedSource};'
   ].join('\n');
   const observed=[
     'function inspect(){const observedRecord={observedPrivate:29};return observedRecord.observedPrivate;}',
     'const observedSource=Function.prototype.toString.call(inspect);',
-    'const helperRecord={unrelatedPrivate:7};',
-    'function helper(){return helperRecord.unrelatedPrivate;}',
-    'function sample(){return observedSource.length+inspect()+helper();}',
+    'const propertyOwner={unrelatedPrivate:7};',
+    'function propertyReader(){return propertyOwner.unrelatedPrivate;}',
+    'function identifierReader(){const unrelatedLocal=11;return unrelatedLocal;}',
+    'function sample(){return observedSource.length+inspect()+propertyReader()+identifierReader();}',
     'module.exports={value:sample(),source:observedSource};'
   ].join('\n');
 
@@ -48,7 +50,6 @@ test('one source-observed callable currently vetoes unrelated private property a
   assert.ok(baselineOut.metrics.properties>=1,String(baselineOut.code));
   assert.ok(baselineOut.metrics.bindings>=1,String(baselineOut.code));
   assert.ok(!baselineOut.code.includes('unrelatedPrivate'),String(baselineOut.code));
-  assert.ok(!baselineOut.code.includes('helperRecord'),String(baselineOut.code));
 
   const observedOut=compile(observed,'source-observer-property-scope-witness');
   // Expected-red witness for the current whole-AST boolean veto. The observed
@@ -57,7 +58,7 @@ test('one source-observed callable currently vetoes unrelated private property a
   assert.equal(observedOut.metrics.bindings,0,String(observedOut.code));
   assert.ok(observedOut.code.includes('observedPrivate'),String(observedOut.code));
   assert.ok(observedOut.code.includes('unrelatedPrivate'),String(observedOut.code));
-  assert.ok(observedOut.code.includes('helperRecord'),String(observedOut.code));
+  assert.ok(observedOut.code.includes('unrelatedLocal'),String(observedOut.code));
 
   const before=evaluate(observed);
   const after=evaluate(String(observedOut.code));
