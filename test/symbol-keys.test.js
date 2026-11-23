@@ -17,8 +17,8 @@ const {buildSample}=require('../examples/symbol-keys/build-sample.cjs');
 function run(code) {
   const scope={module:{exports:null}};
   vm.runInNewContext(code,scope,{timeout:2000});
-  const calc=/** @type {(x:number)=>number} */ (scope.module.exports);
-  return [calc(2),calc(4),calc(-3)];
+  const calc=/** @type {()=>number} */ (scope.module.exports);
+  return [calc(),calc(),calc()];
 }
 
 test('local Symbol keys preserve mutation and are generated only once',()=>{
@@ -93,7 +93,7 @@ test('real ESM two-file caller observes native values after local Symbol transfo
         'function privateStep(){privateState.pulse+=2;return privateState.pulse^privateState.mask;}'+
         'export function touch(){return privateStep();}\n'},
     {path:'entry.mjs',sourceType:/** @type {'module'} */ ('module'),
-      code:'import {touch} from "./state.mjs";console.log(touch(2),touch(4));\n'}
+      code:'import {touch} from "./state.mjs";console.log(touch(),touch());\n'}
   ];
   const transformed=obfuscateFiles(original,{mode:'coo',seed:'symbol-esm',strings:false,
     identifiers:false,experimentalSymbolKeys:true});
