@@ -25,6 +25,10 @@ jobs:
         run: |
           command -v google-chrome
           google-chrome --version
+      - name: Verify Storage own ToString and Symbol.toPrimitive conversion paths in Chromium
+        env:
+          CHROMIUM_BIN: google-chrome
+        run: node test/storage-value-coercion-controls-browser.js
       - name: Compare asynchronous cross-file shared-reference graphs under Chromium CSP
         env:
           CHROMIUM_BIN: google-chrome
