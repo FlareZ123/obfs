@@ -325,7 +325,6 @@ function assertDefaultEsmResolverContext() {
 }
 
 function resolveEsmRequests(requests) {
-  assertDefaultEsmResolverContext();
   const script=[
     "import {readFileSync} from 'node:fs';",
     "const requests=JSON.parse(readFileSync(0,'utf8'));",
@@ -370,6 +369,7 @@ async function assertSnoDirectBareImportParity(original,generated,inputRoot,outp
   const sources=directBareImports(original);
   const targets=directBareImports(generated);
   if(sources.size===0&&targets.size===0)return {entries:0,files:0};
+  assertDefaultEsmResolverContext();
   const packaged=new Set(generated.filter(file=>
     file.path==='package.json'||file.path.endsWith('/package.json')
   ).map(file=>file.path));
