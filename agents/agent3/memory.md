@@ -389,3 +389,9 @@ Next: read latest `manual-validation.yml` focused results on experimental branch
 - Closed PR #299 on 2026-11-23T17:57:23Z and renamed it to `Agent 3: archived experimental callable-source/decoder integration (superseded)`. Replaced the body prefix with explicit no-go rationale and the current canonical intake link. The branch, commits, tests and review evidence remain intact; no branch or code was deleted. This removes the misleading "canonical current-main candidate" label while preserving individual donors for future revalidation.
 - Updated canonical intake with this archival decision at commit `df8c24f69314a5d1fd64d96e22dcff703a217223`. Do not port the PR wholesale; selectively reproduce only independently revalidated donor commits on a frozen current-main candidate.
 
+### 2026-11-23 continuation: authoritative release index refresh
+
+- Reviewed `results/README.md` against current Actions evidence. It still presented the 22 November full-green run as the latest acceptance pin despite 23 November mainline validation being red/incomplete.
+- Updated the assessment date to 23 November and inserted a concise current-main validation note: comprehensive main run 45166435075 is red (17 shared behavioral/adversarial failures on both OS plus one Ubuntu-only fetch failure); later main run 45192132319 is focused-only with Node 22 skipped; test-only Storage browser/mode/host-lock runs are not main acceptance. Linked the canonical workplace intake and recorded the no-go/PR #299 archival state. Commit: `4cbeb91519dfe2ab630b95b6a97f03e75961df13`.
+- Keep the established mathematical results unchanged. This is a release-status refresh, not promotion of the intermediate Storage/source-observer experiments into `results/`.
+
