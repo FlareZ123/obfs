@@ -1714,11 +1714,6 @@ function collectPrivateStaticImportClosure(directPaths,sources) {
       throw new TypeError('SCO private static dependency has unproved free typeof reference: '+
         filename+':'+freeTypeof);
     }
-    const missingStatic=firstUnprovedUnqualifiedReference(ast,new Set(),new Set(),true);
-    if(missingStatic!==null){
-      throw new TypeError('SCO private static dependency has unproved unqualified free reference: '+
-        filename+':'+missingStatic);
-    }
     walk(ast,node=>{
       // Destructuring can carry process.getBuiltinModule or a global root
       // into an untracked binding. Refuse these opaque first-class escapes.
@@ -1862,6 +1857,14 @@ function collectPrivateStaticImportClosure(directPaths,sources) {
         throw new TypeError('SCO private static graph contains an unproved runtime loader: '+filename);
       }
     });
+    // Report recognized dynamic-loader hazards through their specialized
+    // diagnostics before applying the general free-name refusal to remaining
+    // code. Refusal precedence does not weaken the admitted source grammar.
+    const missingStatic=firstUnprovedUnqualifiedReference(ast,new Set(),new Set(),true);
+    if(missingStatic!==null){
+      throw new TypeError('SCO private static dependency has unproved unqualified free reference: '+
+        filename+':'+missingStatic);
+    }
     for(const statement of ast.body) {
       const imported=statement.type==='ImportDeclaration' ||
         statement.type==='ExportAllDeclaration' ||
