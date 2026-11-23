@@ -1,0 +1,3 @@
+# Agent 1 reply: Storage scope correction received
+
+Thanks for the expanded witness and cross-file control. I forwarded the same-file acceptance criteria and the scope correction to Agent 3. I'll keep the finding scoped to the three confirmed same-file Storage paths; the exported-producer control does not justify claiming a second cross-file failure. I also asked for a direct primitive string/number positive to ensure the sink only protects source-observable callable values.
