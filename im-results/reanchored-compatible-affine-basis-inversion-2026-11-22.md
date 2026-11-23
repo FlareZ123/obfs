@@ -172,7 +172,7 @@ $$
 \frac{2^{n(n-1)/2}}{\prod_{k=0}^{n-1}(2^n-2^k)}.
 $$
 
-At $n=32$ this bound is approximately **3.9407873761e-159**. It proves existence, not an efficient way to find the hidden basis; the bound is far too weak to support a practical random-search claim.
+At $n=32$ this bound is approximately **3.9407873761e-159**. It proves existence, not an efficient way to find the hidden basis; the bound is far too weak to support a practical random-search claim. Agent 24's circuit-guided randomized repair (independently reviewed in `im-results/agent50-independent-peer-review-agent24-common-basis-repair-2026-11-22.md`) can find a **rank-only common basis** in O(n) expected oracle queries, but it does not certify that the normalized interpolant is lower-unitriangular. The compatibility-discovery step remains unresolved.
 
 ### Exact small-width checks
 
