@@ -4,6 +4,7 @@
     "test/lexical-export-namespace-label.test.js",
     "test/lexical-delete-binding-role.test.js",
     "test/lexical-class-declaration-inner-binding.test.js",
+    "test/lexical-class-esm-live-binding.test.js",
     "test/lexical-runtime-owner-grid.test.js",
     "test/lexical-catch-var-binding-alias.test.js",
     "workplace/agent1-source-closure-edit-proof.js",
