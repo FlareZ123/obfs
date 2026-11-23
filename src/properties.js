@@ -948,8 +948,8 @@ function proveLocalObject(ast, rootName, bindings, importedIdentityFunctions=new
     const parameter=fn?.params[index];
     const reader=fn?.node;
     if(!fn||fn.external||fn.forwardIndex!==-1||fn.returnsRoot||
-       parameter?.type!=='Identifier'||!aliases.has(parameter.name)||
-       !privateFunctionNodes.has(reader)||!reader||
+       parameter?.type!=='Identifier'||!aliases.has(parameter.name)||!reader||
+       !privateFunctionNodes.has(reader)||
        !['FunctionDeclaration','FunctionExpression','ArrowFunctionExpression'].includes(reader.type)||
        reader.async||reader.generator||
        !reader.params.every((/** @type {AstNode} */ item)=>item.type==='Identifier'))return false;
