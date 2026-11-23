@@ -402,9 +402,15 @@ function locallyPrivateClassMethods(ast,bindings,scopes,inventory){
        'ForStatement','ForInStatement','ForOfStatement','CatchClause'].includes(a.type))??ast;
     if(!classScope||bindings.get(className)!==1)return;
     const method=cls.body.body[0];
-    if(method.type!=='MethodDefinition'||method.static||method.computed||
-       method.kind!=='method'||method.key.type!=='Identifier'||
-       method.key.name==='constructor'||method.value.type!=='FunctionExpression'||
+    // Computed string literals (and constant-string concatenation) are inert
+    // at class definition time. Dynamic expressions can invoke an ambient
+    // callback while the class body is evaluated, so decline those.
+    const methodName=method.type==='MethodDefinition' ?
+      method.computed?staticString(method.key):
+        method.key.type==='Identifier'?method.key.name:null : null;
+    if(method.type!=='MethodDefinition'||method.static||
+       methodName===null||['constructor','__proto__','prototype'].includes(methodName)||
+       method.kind!=='method'||method.value.type!=='FunctionExpression'||
        method.value.async||method.value.generator||method.value.params.length||
        method.value.body.body.length!==1)return;
     const statement=method.value.body.body[0];
@@ -440,7 +446,7 @@ function locallyPrivateClassMethods(ast,bindings,scopes,inventory){
            access?.type!=='MemberExpression'||access.object!==use.node||
            access.optional||access.computed||
            access.property.type!=='Identifier'||
-           access.property.name!==method.key.name||
+           access.property.name!==methodName||
            invocation?.type!=='CallExpression'||
            invocation.callee!==access||invocation.optional||
            invocation.arguments.length!==0)return;
