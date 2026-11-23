@@ -823,7 +823,9 @@ test('SCO refuses legacy TextDecoder results with unproved host mapping tables',
     "return new globalThis.TextDecoder('windows-1252').decode(Uint8Array.of(0x80));",
     "const {TextDecoder:Decoder}=globalThis;return new Decoder('gbk').decode(Uint8Array.of(0xff));",
     "const root=globalThis;return new root['TextDecoder']('gbk').decode(Uint8Array.of(0xff));",
-    "const label='windows-1252';return new TextDecoder(label).decode(Uint8Array.of(0x80));"
+    "const label='windows-1252';return new TextDecoder(label).decode(Uint8Array.of(0x80));",
+    "const Decoder=(new TextDecoder('utf-8')).constructor;return new Decoder('windows-1252').decode(Uint8Array.of(0x80));",
+    "const decoder=new TextDecoder('utf-8');const Decoder=decoder.constructor;return new Decoder('gbk').decode(Uint8Array.of(0xff));"
   ];
   for(const body of unsafe){
     const code='export async function protectedOp(){'+body+'}'+
