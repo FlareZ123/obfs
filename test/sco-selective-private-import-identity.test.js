@@ -36,6 +36,21 @@ test('standalone selective SCO refuses sequence-wrapped imported function mutati
   /private imported identity escapes|shared imported member state/u);
 });
 
+test('standalone selective SCO rejects value-preserving expression alias matrix',()=>{
+  const expressions=[
+    '(0,next)','(1,2,next)','true?next:null','false?null:next',
+    'next||null','null||next','next??null','null??next',
+    'await next','((next))','next&&next','true?(0,next):null'
+  ];
+  for(const expression of expressions){
+    const caller='const alias='+expression+';'+
+      'alias.count=(alias.count??0)+1;return alias.count;';
+    assert.throws(()=>compile(caller),
+      /private imported identity escapes|shared imported member state/u,
+      expression);
+  }
+});
+
 test('standalone selective SCO refuses class-held imported function identity',()=>{
   assert.throws(()=>compile(
     'class Holder{static fn=(0,next);}return Holder.fn.count??0;'),
