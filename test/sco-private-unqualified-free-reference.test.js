@@ -2,6 +2,7 @@
 
 const {test}=require('node:test');
 const assert=require('node:assert/strict');
+const {createHash}=require('node:crypto');
 const {partitionScoSelectedAsyncExports}=require('../src');
 
 /**
@@ -154,13 +155,28 @@ test('source-paired compiler-time probe: repeated reads of a hoisted local',()=>
   const body='let total=0;'+
     'total+=(hoisted??1);'.repeat(readCount)+
     'if(false){var hoisted=41;}return total;';
-  const begin=process.hrtime.bigint();
-  const compiled=compile(body,false);
-  const compileMs=Number(process.hrtime.bigint()-begin)/1e6;
-  assert.deepEqual(compiled.privateNames,['protectedOp']);
-  assert.doesNotMatch(compiled.clientFile.code,/total\+=/u);
+  /** @type {number[]} */
+  const measurements=[];
+  /** @type {string|null} */
+  let outputDigest=null;
+  for(let sample=0;sample<4;sample++){
+    const begin=process.hrtime.bigint();
+    const compiled=compile(body,false);
+    measurements.push(Number(process.hrtime.bigint()-begin)/1e6);
+    assert.deepEqual(compiled.privateNames,['protectedOp']);
+    assert.doesNotMatch(compiled.clientFile.code,/total\+=/u);
+    const sha=createHash('sha256').update(JSON.stringify({
+      clientFile:compiled.clientFile,serverFile:compiled.serverFile,
+      methodNames:compiled.methodNames,privateNames:compiled.privateNames,
+      publicNames:compiled.publicNames
+    })).digest('hex');
+    if(outputDigest!==null)assert.equal(sha,outputDigest);
+    outputDigest=sha;
+  }
+  const sorted=[...measurements].sort((a,b)=>a-b);
   console.log('SCO_LEXICAL_HOIST_CPU '+JSON.stringify({
-    readCount,compilerWallMs:Number(compileMs.toFixed(3)),
-    compiledClientBytes:Buffer.byteLength(compiled.clientFile.code,'utf8')
+    readCount,compilerWallMs:measurements.map(v=>Number(v.toFixed(3))),
+    warmMedianMs:Number(((sorted[1]+sorted[2])/2).toFixed(3)),
+    outputDigest
   }));
 });
