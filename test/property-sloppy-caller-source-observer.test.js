@@ -45,3 +45,27 @@ for(const mode of /** @type {const} */(['coo','sno'])) {
       'A helper with .caller exposure cannot retain renamed source properties');
   });
 }
+
+for(const mode of /** @type {const} */(['coo','sno'])) {
+  test(mode+' plain data property named caller preserves private rewrite yield',()=>{
+    const source='const owner={secretField:41};'+
+      'const metadata={caller:2};'+
+      'function local(){return owner.secretField;}'+
+      'module.exports=local()+metadata.caller;';
+    const out=obfuscateFiles([{
+      path:'value.cjs',sourceType:'commonjs',code:source
+    }],{
+      mode,seed:'plain-data-caller-precision',
+      identifiers:false,strings:false,properties:true
+    }).files[0];
+    assert.ok(out.metrics.properties>=1,String(out.code));
+    /** @param {string} code @returns {unknown} */
+    function value(code) {
+      /** @type {{module:{exports:unknown}}} */
+      const realm={module:{exports:null}};
+      vm.runInNewContext(code,realm,{timeout:2000});
+      return realm.module.exports;
+    }
+    assert.equal(value(String(out.code)),value(source));
+  });
+}
