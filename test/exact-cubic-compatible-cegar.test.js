@@ -11,6 +11,8 @@ const {
 const {
   makeCubicDefectContractor,prepareExactCubicInverter
 }=require('../sims/exact-cubic-compatible-cegar');
+const {invertBoundedDegreeModelSymbolically}=
+  require('../sims/bounded-degree-symbolic-affine-inverse');
 
 const WIDTH=32;
 
@@ -134,4 +136,41 @@ test('degree-four triangular gate spoofs all cubic low-weight oracle training va
   assert.equal(model.queryCount,5489);
   assert.equal(evaluateBoundedDegreeModel(model,15),15);
   assert.notEqual(evaluateBoundedDegreeModel(model,15),quartic(15));
+});
+
+
+test('genuine cubic nontriangular permutation refuses a globally incompatible flag',()=>{
+  // Independently selected 4-bit permutation. All 4-bit Boolean permutation
+  // coordinates have degree at most 3, yet this one has no nonzero affine
+  // output parity. Embed it into 32 bits with the other 28 bits unchanged.
+  const p=[3,15,9,11,1,14,4,0,10,12,6,8,5,2,13,7];
+  assert.equal(new Set(p).size,16);
+  let affineOutputMasks=0;
+  for(let mask=1;mask<16;mask++){
+    const base=parity32(p[0]&mask);
+    let isAffine=true;
+    for(let input=0;input<16;input++){
+      let expected=base;
+      for(let j=0;j<4;j++){
+        if((input>>>j)&1)expected^=parity32(p[1<<j]&mask)^base;
+      }
+      if(expected!==parity32(p[input]&mask)){isAffine=false;break;}
+    }
+    if(isAffine)affineOutputMasks++;
+  }
+  assert.equal(affineOutputMasks,0,
+    'control must have no nonzero affine output coordinate combination');
+  /** @param {number} input @returns {number} */
+  const oracle=input=>u32((input&0xfffffff0)|p[input&15]);
+  const model=learnBoundedDegreeOracle(oracle,WIDTH,3);
+  assert.equal(model.queryCount,5489);
+  for(const input of [0,7,15,31,0xffffffff,0x76543210]){
+    assert.equal(evaluateBoundedDegreeModel(model,input),oracle(input),
+      'nontriangular control is genuinely degree three');
+  }
+  assert.throws(()=>prepareExactCubicInverter(model),
+    /no nonzero mask at level/,
+    'global triangular flag must not be invented for an unrelated cubic permutation');
+  assert.equal(invertBoundedDegreeModelSymbolically(model,oracle(7)),null,
+    'established symbolic solver should independently refuse the same source');
 });
