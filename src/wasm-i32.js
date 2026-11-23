@@ -50,9 +50,11 @@ function utf8(name) {
  * @param {AstNode} node
  * @param {readonly string[]} parameters
  * @param {number} depth
+ * @param {boolean} [coerced] True only when an enclosing bitwise operator
+ *   ultimately applies ToInt32; this is not a general Number addition proof.
  * @returns {boolean}
  */
-function accepted(node,parameters,depth=0) {
+function accepted(node,parameters,depth=0,coerced=false) {
   if(depth>16)return false;
   if(node.type==='Identifier')return parameters.includes(node.name);
   if(node.type==='Literal')return typeof node.value==='number' &&
@@ -60,12 +62,14 @@ function accepted(node,parameters,depth=0) {
   if(node.type==='ConditionalExpression') {
     // All three operands are pure primitive-i32 expressions. Evaluating both
     // arms eagerly with Wasm select cannot trigger source-level side effects.
-    return accepted(node.test,parameters,depth+1) &&
-      accepted(node.consequent,parameters,depth+1) &&
-      accepted(node.alternate,parameters,depth+1);
+    // Test truthiness is observed before any enclosing bitwise ToInt32.
+    // For example, a+b may be 2**32 (truthy) even though i32.add is zero.
+    return accepted(node.test,parameters,depth+1,false) &&
+      accepted(node.consequent,parameters,depth+1,coerced) &&
+      accepted(node.alternate,parameters,depth+1,coerced);
   }
   if(node.type==='UnaryExpression'&&node.prefix&&node.operator==='~') {
-    return accepted(node.argument,parameters,depth+1);
+    return accepted(node.argument,parameters,depth+1,true);
   }
   if(node.type==='UnaryExpression'&&node.prefix&&node.operator==='-'&&
       node.argument.type==='Literal'&&typeof node.argument.value==='number'&&
@@ -76,8 +80,18 @@ function accepted(node,parameters,depth=0) {
     if(Object.is(-node.argument.value,-0))return false;
     return -node.argument.value>=-2147483648&&-node.argument.value<=2147483647;
   }
-  return node.type==='BinaryExpression'&&Object.hasOwn(OPS,node.operator)&&
-    accepted(node.left,parameters,depth+1)&&accepted(node.right,parameters,depth+1);
+  if(node.type!=='BinaryExpression')return false;
+  if(node.operator==='+') {
+    // A depth <=16 pure additive tree has at most 2**16 i32/uint32 leaves.
+    // Its absolute mathematical sum is <2**48, exactly representable by JS
+    // Number; only an enclosing bitwise coercion discards high bits.  A raw
+    // return, a conditional test or an uncoerced branch must refuse.
+    return coerced && accepted(node.left,parameters,depth+1,true) &&
+      accepted(node.right,parameters,depth+1,true);
+  }
+  return Object.hasOwn(OPS,node.operator)&&
+    accepted(node.left,parameters,depth+1,true)&&
+    accepted(node.right,parameters,depth+1,true);
 }
 
 /**
@@ -163,7 +177,8 @@ function emit(node,parameters,entropy,state,conditionalStrategy) {
   if(node.type!=='BinaryExpression')throw Error('Compiler validation mismatch');
   const left=emit(node.left,parameters,entropy,state,conditionalStrategy);
   const right=emit(node.right,parameters,entropy,state,conditionalStrategy);
-  const opcode=OPS[node.operator];
+  // Wasm i32.add is admitted only inside a proven ToInt32 context.
+  const opcode=node.operator==='+'?0x6a:OPS[node.operator];
   if((node.operator==='&'||node.operator==='|'||node.operator==='^')&&
      simpleOperand(node.left)&&simpleOperand(node.right)&&
      state.diversified<2 && (entropy[state.position++%entropy.length]&1)===1) {
