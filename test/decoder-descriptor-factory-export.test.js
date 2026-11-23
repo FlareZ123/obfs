@@ -37,15 +37,41 @@ function graph(intrinsic) {
 }
 
 /**
+ * ESM static importer receives a factory, then dynamically imports the
+ * string-bearing target *after* reading its returned accessor.
+ * @param {'String'|'Number'} intrinsic
+ * @returns {SourceFile[]}
+ */
+function moduleGraph(intrinsic) {
+  return [
+    {path:'entry.mjs',sourceType:'module',code:[
+      "import build from './factory.mjs';",
+      'const descriptors={ref:{}};',
+      'Object.assign(descriptors.ref,build());',
+      'const box=Object.create(null,descriptors);',
+      intrinsic==='String'?'box.ref.charCodeAt=()=>0;':'box.ref.unrelated=1;',
+      "const {payload}=await import('./target.mjs');",
+      'process.stdout.write(payload);'
+    ].join('')},
+    {path:'factory.mjs',sourceType:'module',
+      code:'export default function build(){return {get:function(){return '+
+        intrinsic+'.prototype}};}'},
+    {path:'target.mjs',sourceType:'module',
+      code:'export const payload='+JSON.stringify('Z'.repeat(2048)+'P')+';'}
+  ];
+}
+
+/**
  * @param {string} directory
  * @param {SourceFile[]|ReturnType<typeof obfuscateFiles>['files']} files
+ * @param {'entry.cjs'|'entry.mjs'} [entry]
  * @returns {Promise<{status:number|null,stdout:string,stderr:string}>}
  */
-async function execute(directory,files) {
+async function execute(directory,files,entry='entry.cjs') {
   await fs.mkdir(directory,{recursive:true});
   for(const file of files)
     await atomicWrite(path.join(directory,file.path),file.code);
-  const child=spawnSync(process.execPath,[path.join(directory,'entry.cjs')],{
+  const child=spawnSync(process.execPath,[path.join(directory,entry)],{
     encoding:'utf8',windowsHide:true,timeout:15000,maxBuffer:1024*1024
   });
   if(child.error)throw child.error;
@@ -74,6 +100,33 @@ for(const mode of /** @type {const} */(['coo','sno','sco'])){
       }
       assert.equal(target.metrics.literals,intrinsic==='String'?0:1,
         'a String getter must suppress eager decoding; benign Number must encode');
+    });
+  }
+}
+
+
+for(const mode of /** @type {const} */(['coo','sno','sco'])){
+  for(const intrinsic of /** @type {const} */(['String','Number'])){
+    test('imported ESM descriptor-entry factory '+mode+' '+intrinsic,async()=>{
+      const input=moduleGraph(intrinsic);
+      const compiled=obfuscateFiles(input,{
+        mode,properties:false,identifiers:false,strings:true,
+        seed:'agent5-esm-factory-export/'+mode+'/'+intrinsic
+      });
+      const target=compiled.files.find(file=>file.path==='target.mjs');
+      assert.ok(target);
+      const root=await fs.mkdtemp(path.join(os.tmpdir(),'obfs-esm-factory-export-'));
+      try{
+        const native=await execute(path.join(root,'native'),input,'entry.mjs');
+        const transformed=await execute(path.join(root,'transformed'),compiled.files,'entry.mjs');
+        assert.equal(native.status,0,native.stderr);
+        assert.deepEqual(transformed,native,
+          'ESM factory export must preserve late-import decoder mutation');
+      }finally{
+        await fs.rm(root,{recursive:true,force:true});
+      }
+      assert.equal(target.metrics.literals,intrinsic==='String'?0:1,
+        'an ESM String getter must suppress eager decoding; benign Number must encode');
     });
   }
 }
