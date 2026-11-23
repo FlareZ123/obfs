@@ -323,6 +323,7 @@
     "test/random-affine-graph-flag-inversion.test.js",
     "sims/dynamic-frame-source-control.js",
     "sims/typescript-binding-reference.js",
+    "test/typescript-binding-reference.test.js",
     "test/agent39-error-carrier-positive-yield.test.js"
   ],
   "exclude": [
