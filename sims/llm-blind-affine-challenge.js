@@ -318,7 +318,8 @@ async function createBlindAffineMatchedChallenge(mode='coo'){
  *
  * This reduces accidental label/order leakage but is not reviewer isolation:
  * deliver each packet privately to a distinct reviewer that cannot inspect
- * this repository, the other packet, or the hidden source.
+ * this repository, the other packet, or the hidden source. IDs are opaque
+ * labels, not authentication credentials.
  *
  * @param {Mode} [mode]
  * @returns {Promise<OpaqueMatchedBlindChallenge>}
@@ -343,6 +344,13 @@ async function createOpaqueBlindAffineMatchedChallenge(mode='coo'){
   const frozenPackets=Object.freeze(packets);
   return {
     packets:frozenPackets,
+    /**
+     * Accept one already-parsed JSON answer. Preserve the original response
+     * text separately in the experiment record.
+     * @param {string} id
+     * @param {unknown} answer
+     * @returns {OpaqueBlindSubmission}
+     */
     submit(id,answer){
       if(!armById.has(id))throw new TypeError('Unknown opaque arm ID');
       if(answersById.has(id))
@@ -363,6 +371,7 @@ async function createOpaqueBlindAffineMatchedChallenge(mode='coo'){
       }
       return {accepted:true,complete:true,submitted:2};
     },
+    /** @returns {OpaqueBlindReveal} */
     reveal(){
       if(answersById.size!==2||verdictsById.size!==2)
         throw new Error('Both opaque answers are required before reveal');
