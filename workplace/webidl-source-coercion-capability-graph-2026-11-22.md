@@ -90,6 +90,20 @@ cross-file dependency closure where function and sink inhabit different
 modules. If receiver or value proof is incomplete, record that
 uncertainty rather than claiming exhaustive safety.
 
+One measured yield limitation of the current coarse observer is
+**file-wide refusal**. For example,
+`test/css-escape-function-source.test.js` includes a separately owned
+`state.secretField` record unrelated to the source-observed `inspect`
+function. The source-observing cases have
+`metrics.properties===0`, `metrics.bindings===0`, and
+`metrics.literals===0`. The primitive-only `CSS.escape("literal")`
+positive permits renaming again. The globally conservative refusal is
+semantically safe for these cases, while its zero private-key yield
+illustrates the need for a *source-reachable owner closure*: protect
+only values whose source spelling can reach a proven host observer,
+subject to credible escape and alias analysis. This is a future
+research requirement and is not implemented by draft #308 or #309.
+
 When a sink input is a proven primitive, continue renaming independently
 owned private fields. For every new sink category, keep a transformed
 positive fixture with an actual nonzero private-key yield.
