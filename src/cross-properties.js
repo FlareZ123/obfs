@@ -2040,28 +2040,101 @@ function renameCrossFileProperties(files,seed) {
       modules.set(file.path,{file,...parseFile(file)});
     }
   }
-  // A function formal can extract a mutable native reflection object from a
-  // named actual produced by an arbitrary expression. Existing direct-name
-  // alias transfer cannot establish that the receiver is nonambient. A
-  // source-visible host may then replace a method and dynamically import an
-  // owner whose exported property was otherwise considered closed-world.
-  // For this admission lane, decline unproved native-object formals.
+  // Only a uniquely named, nonexported local callable with exclusively
+  // direct, fully closed literal callsites can safely receive a native-named
+  // object-pattern formal without acquiring an ambient intrinsic.
+  /**
+   * @param {AstNode} node
+   * @param {number} depth
+   * @returns {boolean}
+   */
+  function inertFormalActualValue(node,depth) {
+    if(depth>16)return false;
+    if(node.type==='Literal')return node.value===null||
+      ['number','string','boolean','bigint'].includes(typeof node.value);
+    if(node.type==='ObjectExpression') {
+      const names=new Set();
+      return node.properties.every((/** @type {AstNode} */ property)=>{
+        if(property.type!=='Property'||property.kind!=='init'||
+           property.method||property.shorthand)return false;
+        const name=ownPropertyName(property);
+        if(name===null||name==='__proto__'||names.has(name))return false;
+        names.add(name);
+        return inertFormalActualValue(property.value,depth+1);
+      });
+    }
+    if(node.type==='ArrayExpression')return node.elements.every(
+      (/** @type {AstNode|null} */ element)=>element!==null&&
+        element.type!=='SpreadElement'&&inertFormalActualValue(element,depth+1));
+    return false;
+  }
+  /**
+   * @param {AstNode} formal
+   * @param {AstNode|null|undefined} actual
+   * @returns {boolean}
+   */
+  function closedNativeFormalActual(formal,actual) {
+    if(formal.type!=='ObjectPattern'||actual?.type!=='ObjectExpression'||
+       !inertFormalActualValue(actual,0))return false;
+    const provided=new Set(actual.properties.map(
+      (/** @type {AstNode} */ property)=>ownPropertyName(property)));
+    return formal.properties.every((/** @type {AstNode} */ property)=>{
+      const name=property.type==='Property'?ownPropertyName(property):null;
+      return name!==null&&provided.has(name)&&
+        property.type==='Property'&&property.value.type==='Identifier';
+    });
+  }
+  /**
+   * @param {{ast:AstNode,bindings:Map<string,number>}} module
+   * @param {AstNode} callable
+   * @param {AstNode|null|undefined} parent
+   * @param {AstNode[]} ancestors
+   * @param {number} argumentIndex
+   * @param {AstNode} formal
+   * @returns {boolean}
+   */
+  function onlyClosedNativeCalls(module,callable,parent,ancestors,argumentIndex,formal) {
+    const id=callable.type==='FunctionDeclaration'?callable.id:
+      parent?.type==='VariableDeclarator'&&parent.init===callable?parent.id:null;
+    if(id?.type!=='Identifier'||module.bindings.get(id.name)!==1||
+       ancestors.some(a=>a.type==='ExportNamedDeclaration'||
+         a.type==='ExportDefaultDeclaration'))return false;
+    let calls=0;
+    let safe=true;
+    walk(module.ast,(node,refParent)=>{
+      if(!safe||node.type!=='Identifier'||node.name!==id.name||node===id)return;
+      if(refParent?.type!=='CallExpression'||refParent.callee!==node||
+         refParent.optional) {
+        safe=false;
+        return;
+      }
+      calls++;
+      if(!closedNativeFormalActual(formal,refParent.arguments[argumentIndex]))
+        safe=false;
+    });
+    return safe&&calls>0;
+  }
+  // A function formal can extract mutable native reflection state from an
+  // indirect named actual, including computed selectors and nested patterns.
+  // Only source-proven closed literal calls are exempt from graph-wide refusal.
   for(const module of modules.values()) {
     let unprovedNativeFormal=false;
-    walk(module.ast,node=>{
-      if(!['FunctionDeclaration','FunctionExpression','ArrowFunctionExpression'].includes(node.type))return;
-      for(const argument of node.params) {
-        const formal=argument.type==='AssignmentPattern'?argument.left:argument;
+    walk(module.ast,(node,parent,key,ancestors)=>{
+      if(unprovedNativeFormal||
+         !['FunctionDeclaration','FunctionExpression','ArrowFunctionExpression'].includes(node.type))return;
+      for(let i=0;i<node.params.length;i++) {
+        const arg=node.params[i];
+        const formal=arg.type==='AssignmentPattern'?arg.left:arg;
         if(formal.type!=='ObjectPattern'&&formal.type!=='ArrayPattern')continue;
-        // Nested destructuring can extract the same native capability through
-        // a carrier object: ({holder:{Reflect:cap}}) must be treated like a
-        // direct ({Reflect:cap}) formal.
+        let nativeKey=false;
         walk(formal,property=>{
           if(property.type!=='Property')return;
           const name=ownPropertyName(property);
           if(name==='Reflect'||name==='Object'||
-             name===null&&property.computed===true)unprovedNativeFormal=true;
+             name===null&&property.computed===true)nativeKey=true;
         });
+        if(nativeKey&&!onlyClosedNativeCalls(module,node,parent,ancestors,i,formal))
+          unprovedNativeFormal=true;
       }
     });
     if(unprovedNativeFormal)return {files,objects:0,properties:0};
