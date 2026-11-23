@@ -5,6 +5,7 @@ const fs=require('node:fs/promises');
 const os=require('node:os');
 const path=require('node:path');
 const {createHash}=require('node:crypto');
+const {isUtf8}=require('node:buffer');
 const {safePath,createPathInventory,registerFilePath}=require('./portable-paths');
 
 /** @typedef {'native'|'minified'|'candidate'} ArtifactArm */
@@ -83,8 +84,17 @@ async function enumerateArtifactFiles(root) {
   const inventory=createPathInventory();
   /** @param {string} directory @param {string} relative @returns {Promise<void>} */
   async function visit(directory,relative) {
-    for(const entry of await fs.readdir(directory,{withFileTypes:true})) {
-      const name=relative?relative+'/'+entry.name:entry.name;
+    // Inspect raw directory-entry bytes before constructing a Unicode path.
+    // Text-mode readdir can replace invalid UTF-8 with U+FFFD, making two
+    // distinct files appear to have the same declared name.
+    const entries=await fs.readdir(directory,{withFileTypes:true,encoding:'buffer'});
+    for(const entry of entries) {
+      if(!Buffer.isBuffer(entry.name)||!isUtf8(entry.name)) {
+        throw new TypeError('Invalid UTF-8 artifact filename in '+
+          (relative||'.')+': '+Buffer.from(entry.name).toString('hex'));
+      }
+      const filename=entry.name.toString('utf8');
+      const name=relative?relative+'/'+filename:filename;
       pathParts(name);
       assert.ok(!entry.isSymbolicLink(),
         'Artifact path must not contain symlinks: '+name);
