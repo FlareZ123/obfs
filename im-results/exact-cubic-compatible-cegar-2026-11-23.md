@@ -92,6 +92,23 @@ The current test and its strict JSDoc annotations passed [manual-validation run 
 
 Across three independently seeded 32-bit two-sided affine-wrapped full cubic triangular sources, the deterministic regression made 5,489 training calls per source, checked 72 separate direct-vs-contracted second differences, 120 held-out clone evaluations and 48 exact target inversions, with zero mismatches. It also checked the exact 5,984-contraction and 453,376-coefficient-vector counts per instance. The fourth-degree sparse-gate negative control passed: a cubic degree learner reproduced training values but disagreed on an unqueried input. These are reproducible finite engineering checks, not a statistical worst-case security bound.
 
+## Equal-model competing inversion profile
+
+**Prior art boundary:** This work must be compared against the *existing* exact symbolic coefficient-transport method at \`sims/bounded-degree-symbolic-affine-inverse.js\`, which already inverts affine-wrapped compatible-triangular polynomial maps up to degree four from the same \(\sum_{j\le d}\binom n j\) chosen queries, including the cubic case. The cubic contractor is an independently implemented target-**independent** flag-precomputation alternative, **not** the first 5,489-query inversion result. The older symbolic implementation recomputes target-conditioned coefficient restrictions for each inversion; the new method spends upfront computation so later arbitrary targets reuse the same masks.
+
+The controlled \`test/exact-cubic-vs-symbolic-profile.test.js\` constructs three independent *genuine cubic* two-sided affine-triangular permutations. For each fixed 5,489-query learned ANF model, both independent inversion implementations receive exactly the same 24 target outputs. Both invert all 72 targets exactly, without extra source-oracle calls. After two warmups, five preparation samples and five alternating-order 24-target batches are run, recording within-run wall-clock medians. No timing threshold determines whether the test passes.
+
+The [successful two-platform focused and strict-JSDoc workflow 45254485416](https://github.com/FlareZ123/obfs/actions/runs/45254485416) at immutable \`48636007ebce444ee6efa091152a7a51ae4e21b3\` logged the following observed ranges over the three independent seed instances:
+
+| Runner | Exact cubic flag preparation | Existing symbolic: 24 targets | Flag reuse: 24 targets | Preparation + reuse: 24 targets | Amortized break-even |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Ubuntu Node 22 | 243.41–245.59 ms | 404.76–428.48 ms | 71.95–75.21 ms | 315.35–320.80 ms | 17–18 targets |
+| Windows Node 22 | 281.68–288.84 ms | 456.77–507.36 ms | 111.69–122.19 ms | 398.20–403.87 ms | 18–21 targets |
+
+All six compared cases have 4,960 nonzero cubic ANF coefficient masks (dense under these seed/mixer choices), identical 5,489 initial remote-query budgets, correct 24/24 targets, and 5,984 local cubic contractions for the flag-precomputation arm. The reported break-even is a derived per-target estimate \(\lceil t_{\mathrm{prep}}/(t_{\mathrm{sym}}/24-t_{\mathrm{reuse}}/24)\rceil\) using the sampled medians, not a measured immutable per-target crossover.
+
+In this finite workload, the reusable global flag reduces *additional* local compute for many target inversions, but it pays a material setup cost. The symbolic inverter is the appropriate pre-existing reference, not an arbitrary slower CEGAR with repeated server requests. These are single-run warmed wall-clock samples, not repeated-process CPU distributions or product runtime overhead; no universal performance advantage, security gain, or defender 2.5× compute compliance follows. Both attacks rely on the same strong low-degree and triangular source promises and produce the same legitimate chosen-query information advantage against an exposed service.
+
 ## Reproduce
 
 From a checkout of the source with declared dependencies:
