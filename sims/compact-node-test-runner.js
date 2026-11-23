@@ -50,6 +50,15 @@ async function main() {
   })+'\n');
   for(const failure of failures.slice(0,25))
     process.stdout.write(failure.join('\n')+'\n');
+  // Preserve every red case even when the detailed diagnostic cap is reached.
+  // This avoids needing to rerun a full two-platform suite to locate failures.
+  if(failures.length) {
+    const index=failures.map(block=>{
+      const location=block.find(line=>/^\s*location: /u.test(line));
+      return {case:block[0].trim(),location:location?.trim()??null};
+    });
+    process.stdout.write('FAILED_TEST_INDEX '+JSON.stringify(index)+'\n');
+  }
   for(const line of summary.slice(-16))
     process.stdout.write(line+'\n');
   if(failures.length>25)
