@@ -54,6 +54,7 @@ function main() {
 
   // Independently determine the joint radical by checking all basis
   // three-tuples; multilinearity makes this exhaustive for each x.
+  /** @type {number[][]} */
   const triples = [];
   for (let a = 0; a < 6; a++) {
     for (let b = a + 1; b < 6; b++) {
@@ -75,6 +76,7 @@ function main() {
   }
   assert.equal(radicalCount,1);
 
+  /** @type {number[]} */
   const mismatches = [];
   for (let input = 0; input < 64; input++) {
     if (rankSixSilentSource(input) !== evaluate(model,input)) mismatches.push(input);
