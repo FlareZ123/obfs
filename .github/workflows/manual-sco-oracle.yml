@@ -81,6 +81,8 @@ jobs:
         run: node --test test/sco-step-only-version-space.test.js
       - name: Certify canonical five-state step-only continuation
         run: node --test test/sco-step-only-five-state.test.js
+      - name: Verify exact two-state no-reset oracle minimax bound
+        run: node --test test/sco-step-only-two-state-minimax.test.js
       - name: Exhaust all two-state and sampled three-state public continuation attacks
         run: node sims/sco-step-only-version-space-report.js
       - name: Challenge bounded continuation attack on independent SHA holdouts

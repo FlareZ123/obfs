@@ -31,6 +31,8 @@
     "workplace/sco-five-state-block-packed-benchmark.js",
     "test/sco-five-state-block-packed-benchmark.test.js",
     "sims/sco-step-only-smt.js",
+    "sims/sco-step-only-two-state-minimax.js",
+    "test/sco-step-only-two-state-minimax.test.js",
     "test/sco-step-only-smt.test.js"
   ],
   "exclude": [
