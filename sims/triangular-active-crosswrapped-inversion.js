@@ -155,7 +155,7 @@ function runCrosswrappedActiveTriangularAttack() {
         const secret=next();
         const target=oracle(secret);
         const inversion=invertLowRankDeterministic(oracle,target,{
-          bits:32,rankBound:k,maxOrbitCalls:2**Math.min(32,2*k)
+          bits:32,rankBound:k
         });
         const valid=oracle(inversion.preimage)===target&&
           inversion.preimage===secret;
