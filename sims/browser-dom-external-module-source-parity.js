@@ -21,7 +21,8 @@ function program(reader, renamed) {
   const key = renamed ? 'k' : 'internalSecret';
   return 'function calculate(){const owner={' + key + ':8};return owner.' + key + ';}' +
     'const observed=' + reader + ';' +
-    'globalThis.result={value:calculate(),sourceMatch:observed.includes("internal"+"Secret")};';
+    'globalThis.__obfsResult={value:calculate(),sourceMatch:observed.includes("internal"+"Secret")};' +
+    'globalThis.__resolveObfsResult();';
 }
 
 /**
@@ -34,7 +35,8 @@ function stackProgram(renamed) {
   return 'function calculate(){const owner={' + key + ':8};return owner.' + key + ';}' +
     'const frame=String(new Error().stack).split(String.fromCharCode(10))[1]||"";' +
     'const match=frame.match(/:(\\d+):(\\d+)\\)?$/);' +
-    'globalThis.result={value:calculate(),column:match?Number(match[2]):null};';
+    'globalThis.__obfsResult={value:calculate(),column:match?Number(match[2]):null};' +
+    'globalThis.__resolveObfsResult();';
 }
 
 /**
@@ -47,10 +49,12 @@ function page(mode, moduleSource) {
     ? '<script type="module" id="probe">' + moduleSource + '</script>'
     : '<script type="module" src="/entry.mjs"></script>';
   return '<!doctype html><html><head><title>boundary</title></head><body>' +
-    '<pre id="result">pending</pre>' + source +
-    '<script>addEventListener("load",()=>{' +
+    '<pre id="result">pending</pre>' +
+    '<script>globalThis.__obfsResultReady=new Promise(resolve=>{' +
+    'globalThis.__resolveObfsResult=resolve;});</script>' + source +
+    '<script>globalThis.__obfsResultReady.then(()=>{' +
     'document.getElementById("result").textContent=' +
-    'btoa(JSON.stringify(globalThis.result));});</script></body></html>';
+    'btoa(JSON.stringify(globalThis.__obfsResult));});</script></body></html>';
 }
 
 /**
