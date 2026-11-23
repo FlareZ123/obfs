@@ -56,9 +56,7 @@ test('Wasm i32 admits bounded additive expressions only under explicit bitwise c
       // The embedded i32.add is public, not a secret or an anti-debugging key.
       const recovered=recoverPublicWasmExpression(compiled.code,fixture.parameters);
       const cloned=load('function f('+fixture.parameters.join(',')+
-        '){return '+recovered.expression+
-        (fixture.expression.includes('>>>0')&&fixture.expression.startsWith('((a+b)>>>')?
-          ';}module.exports=f;':';}module.exports=f;'));
+        '){return '+recovered.expression+';}module.exports=f;');
       for(let sample=0;sample<160;sample++){
         const values=fixture.parameters.map((_,index)=>sample<boundaries.length?
           boundaries[(sample+index)%boundaries.length]:next());
