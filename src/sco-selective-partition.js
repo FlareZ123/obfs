@@ -300,6 +300,20 @@ function usesUnprovedRelocatedTextDecoder(body){
     return value!==null&&['utf-8','utf8','unicode-1-1-utf-8'].includes(value.toLowerCase());
   }
   let unproved=false;
+  // Native TextDecoder error messages are host-specific even when the UTF-8
+  // decoding table agrees. A catch anywhere in this selected function can
+  // observe these messages or throwables through lexical aliases. Without
+  // a typed-input and exception-provenance proof, decline the whole bounded
+  // catch/decoder combination instead of silently changing error behavior.
+  let catchesNativeDecoder=false;
+  let constructsNativeDecoder=false;
+  walk(body,node=>{
+    if(node.type==='CatchClause')catchesNativeDecoder=true;
+    if(node.type==='NewExpression'&&decoderRoot(node.callee)){
+      constructsNativeDecoder=true;
+    }
+  });
+  if(catchesNativeDecoder&&constructsNativeDecoder)unproved=true;
   walk(body,(node,parent,key)=>{
     const binding=node.type==='VariableDeclarator'?node.id:
       node.type==='AssignmentExpression'&&node.operator==='='?node.left:null;
@@ -382,7 +396,15 @@ function usesUnprovedRelocatedTextDecoder(body){
         parent.property.type==='Identifier'?parent.property.name:null;
       const user=ancestors[ancestors.length-2];
       if(member==='decode'&&
-         user?.type==='CallExpression'&&user.callee===parent)return;
+         user?.type==='CallExpression'&&user.callee===parent){
+        // A direct primitive or record argument is not an ArrayBuffer/View.
+        // Node and browser throw TypeError with different native messages.
+        const input=user.arguments[0];
+        if(input&&['Literal','ObjectExpression','ArrayExpression'].includes(input.type)){
+          unproved=true;
+        }
+        return;
+      }
       // WHATWG-defined native decoder getters return immutable primitives.
       // Restrict them to a direct return or simple initializer so a write
       // target, destructuring assignment or first-class instance escape
