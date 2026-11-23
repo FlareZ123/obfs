@@ -3,10 +3,12 @@
 const {parse,walk}=require('./ast');
 
 /**
- * A copied module namespace would otherwise keep property writes on imported
- * function objects across principals. Decline direct member access on any
- * relative private-import binding, even for primitive imports: no general
- * binding-provenance or singleton-state proof is available here.
+ * Keep imported function-object state from crossing independent browser
+ * module realms into one server-owned ESM singleton. Track named aliases and
+ * bounded identity-preserving expressions, then refuse first-class sinks,
+ * property reads, class carriers, and reflection when provenance is unproved.
+ * The analysis deliberately overrejects some primitive imports. It cannot
+ * prove arbitrary higher-order flows or transitive host effects.
  *
  * @param {string} filename
  * @param {string} source
