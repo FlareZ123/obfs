@@ -307,7 +307,7 @@ function hasPinnedLocalJavaScriptIntegrity(files,routePrefix='') {
     if(file.sourceType==='asset')continue;
     for(const algorithm of ['sha256','sha384','sha512']) {
       originalDigests.add(algorithm+'-'+createHash(algorithm)
-        .update(file.code).digest('base64'));
+        .update(file.code).digest('base64').replace(/=+$/u,''));
     }
   }
   /** @param {string} metadata @returns {boolean} */
@@ -319,10 +319,15 @@ function hasPinnedLocalJavaScriptIntegrity(files,routePrefix='') {
       const expression=token.split('?',1)[0];
       const separator=expression.indexOf('-');
       if(separator<0)return false;
-      // The algorithm token is ASCII case-insensitive by SRI section 2.
-      // The base64 digest remains case-sensitive.
+      // Algorithm labels are ASCII case-insensitive. The digest alphabet
+      // can use base64url characters and optional '=' padding. Preserve
+      // base64 letter case while mapping its two URL-safe spellings.
+      const digest=expression.slice(separator+1);
+      if(!/^[A-Za-z0-9+/_-]+={0,2}$/u.test(digest))return false;
+      const canonical=digest.replace(/-/gu,'+').replace(/_/gu,'/')
+        .replace(/=+$/u,'');
       return originalDigests.has(expression.slice(0,separator).toLowerCase()+
-        expression.slice(separator));
+        '-'+canonical);
     });
   }
   /**
