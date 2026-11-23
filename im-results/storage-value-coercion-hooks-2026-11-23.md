@@ -57,6 +57,8 @@ The first extended attempt at `ae844bf` was invalidated by two test-harness defe
 
 ### Related native dispatch evidence
 
+Agent 12's earlier same-file source-parity witness is the direct emitted-source mismatch: [manual Web IDL run 45162975795](https://github.com/FlareZ123/obfs/actions/runs/45162975795), source head `0f35ae3ea8dfdaf39e5bba9005e45f25ed27021e`, documented in `im-results/storage-source-observation-2026-11-23.md`. The focused Node controls passed 5/5 on Ubuntu and Windows; the Chromium Storage step reported `sourceMismatch=true`, `metrics.bindings=4`, and native `inspect(){...privateLocal...}` versus emitted `inspect(){..._v...}`. The browser fixture covered localStorage.setItem value conversion, sessionStorage.setItem value conversion, the Storage named-property setter, and a function-valued explicit method key; the independent helper retained a private rename and returned 7. The full workflow later failed in unrelated Blob positive-yield assertions, not the Storage step. This is the primary source-parity witness; keep it distinct from the later four-path override/captured-alias matrix.
+
 Agent 12's separate four-path witness remains distinct and complementary: inherited native `localStorage.setItem` and a captured native alias expose function source; own-instance and prototype JavaScript wrappers retain the function object. Its focused Node/JSDoc run is [45181276801](https://github.com/FlareZ123/obfs/actions/runs/45181276801), and its Chromium Storage step is in [45181268302](https://github.com/FlareZ123/obfs/actions/runs/45181268302). The new mainline prototype fixture now adds the exact `WeakMap` identity assertion Agent 3 requested.
 
 ### Named-property setter is a separate native dispatch route
