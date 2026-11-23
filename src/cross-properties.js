@@ -1264,15 +1264,9 @@ function safeClosedCallerRecordRead(modules,module,member,ancestors) {
         }
       }
     } while(aliasChanged);
-    // A named actual may be an ambient root produced by a sequence,
-    // conditional, computed read, or local function return. The direct
-    // name-alias graph cannot prove those expressions exclude globalThis.
-    // Refuse native-reflection destructuring in such unresolved cases.
+    // A callsite-rooted destructured formal acquires the same ambient
+    // capabilities as a declaration or assignment ObjectPattern.
     for(const {origin,binding} of formalObjectPatterns) {
-      if(!hostRoots.has(origin) && binding.properties.some(property=>{
-        const name=property.type==='Property'?ownPropertyName(property):null;
-        return name==='Reflect'||name==='Object';
-      }))changedIntrinsic=true;
       if(!hostRoots.has(origin))continue;
       for(const property of binding.properties) {
         if(property.type==='Property' && property.value.type==='Identifier')
@@ -2045,6 +2039,27 @@ function renameCrossFileProperties(files,seed) {
     if ((file.sourceType ?? (file.path.endsWith('.mjs') ? 'module' : 'script'))==='module' && typeof file.code==='string') {
       modules.set(file.path,{file,...parseFile(file)});
     }
+  }
+  // A function formal can extract a mutable native reflection object from a
+  // named actual produced by an arbitrary expression. Existing direct-name
+  // alias transfer cannot establish that the receiver is nonambient. A
+  // source-visible host may then replace a method and dynamically import an
+  // owner whose exported property was otherwise considered closed-world.
+  // For this admission lane, decline unproved native-object formals.
+  for(const module of modules.values()) {
+    let unprovedNativeFormal=false;
+    walk(module.ast,node=>{
+      if(!['FunctionDeclaration','FunctionExpression','ArrowFunctionExpression'].includes(node.type))return;
+      for(const argument of node.params) {
+        const formal=argument.type==='AssignmentPattern'?argument.left:argument;
+        if(formal.type!=='ObjectPattern')continue;
+        if(formal.properties.some(property=>{
+          const name=property.type==='Property'?ownPropertyName(property):null;
+          return name==='Reflect'||name==='Object';
+        }))unprovedNativeFormal=true;
+      }
+    });
+    if(unprovedNativeFormal)return {files,objects:0,properties:0};
   }
   const knownFiles=new Set(files.map(file=>file.path));
   const verifiedStrings=collectVerifiedImportedStrings(files,parseFile);
