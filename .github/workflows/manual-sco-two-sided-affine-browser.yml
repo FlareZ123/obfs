@@ -1,0 +1,28 @@
+name: Manual SCO two-sided affine browser offline inversion
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  browser-source-pinned:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.23.4'
+      - name: Install pinned lockfile dependencies
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Check project and research tools' strict JSDoc
+        run: |
+          npm run typecheck
+          npm run typecheck:external
+      - name: Real Google Chrome with HttpOnly session, CSP, and 529 authorized private RPCs
+        env:
+          CHROMIUM_BIN: google-chrome
+          OBFS_RUN_BROWSER_OFFLINE: '1'
+        run: node --test test/sco-two-sided-affine-browser-inverse.test.js
