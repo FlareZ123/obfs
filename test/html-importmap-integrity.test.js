@@ -2,8 +2,9 @@
 
 const assert=require('node:assert/strict');
 const {createHash}=require('node:crypto');
+const http=require('node:http');
 const {test}=require('node:test');
-const {obfuscateFiles}=require('../src');
+const {obfuscateFiles,createScoHandler}=require('../src');
 const {
   findInlineHtmlSource,hasPinnedLocalJavaScriptIntegrity
 }=require('../src/html-assets');
@@ -49,6 +50,32 @@ test('safe import map integrity pins original imported module bytes across modes
   }
 });
 
+test('SCO serves original imported module bytes when import-map integrity pins it',async()=>{
+  const html=markup({
+    imports:{lib:'./lib.mjs'},
+    integrity:{'./lib.mjs':digest}
+  });
+  const server=http.createServer(createScoHandler(files(html),{
+    closedWorld:true,routePrefix:'/custom/'
+  }));
+  await new Promise((resolve,reject)=>{
+    server.once('error',reject);
+    server.listen(0,'127.0.0.1',()=>resolve(undefined));
+  });
+  try{
+    const address=server.address();
+    assert.ok(address&&typeof address==='object');
+    for(let attempt=0;attempt<2;attempt++){
+      const response=await fetch('http://127.0.0.1:'+address.port+'/custom/lib.mjs');
+      assert.equal(response.status,200);
+      assert.equal(await response.text(),original);
+    }
+  }finally{
+    await new Promise((resolve,reject)=>
+      server.close(error=>error?reject(error):resolve(undefined)));
+  }
+});
+
 test('import map integrity commitment works under an unrecognized public mount',()=>{
   const html=markup({
     imports:{lib:'/deployment/lib.mjs'},
@@ -81,7 +108,9 @@ test('import-map data and script URLs are refused as embedded executable source'
     {imports:{secret:'./lib.mjs'},scopes:{'./pages/':{
       secret:'data:text/javascript,globalThis.secret=12'}}},
     {imports:{secret:'./lib.mjs'},integrity:{
-      'data:text/javascript,globalThis.secret=12':digest}}
+      'data:text/javascript,globalThis.secret=12':digest}},
+    {imports:{secret:'./lib.mjs'},integrity:{
+      './lib.mjs':'function leaked(){return 12;}'}}
   ];
   for(const map of denied){
     const html=markup(map);
