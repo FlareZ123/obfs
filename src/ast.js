@@ -908,7 +908,9 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
     if(node.type==='NewExpression')
       return isWebConstructor(node.callee,encoderConstructors,encoderNames);
     if(node.type==='CallExpression')return (
-      node.callee.type==='Identifier' && encoderReturningFunctions.has(node.callee.name) ||
+      node.callee.type==='Identifier' &&
+        (encoderReturningFunctions.has(node.callee.name)||
+         opaqueFunctions.has(node.callee.name)) ||
       node.arguments.some((/** @type {AstNode} */ argument)=>
         mayCarryEncoder(argument.type==='SpreadElement'?argument.argument:argument,depth+1)));
     if(node.type==='MemberExpression')return mayCarryEncoder(node.object,depth+1);
