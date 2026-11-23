@@ -44,21 +44,62 @@ test('source-observer positive-yield diagnostic matrix preserves native results'
     const ast=parse(source,'commonjs');
     const flags={functionSource:observesFunctionSource(ast),
       distributedSource:observesDistributedSource(ast)};
-    for(const identifiers of [true,false]) {
-      const options={mode:'sno',seed:'agent38-yield-matrix/'+variant.name,strings:false,
+    for(const mode of /** @type {const} */(['coo','sno','sco']))for(const identifiers of [true,false]) {
+      const options={mode,seed:'agent38-yield-matrix/'+variant.name,strings:false,
         identifiers};
       const out=obfuscateFiles([{path:'case.cjs',sourceType:'commonjs',code:source}],
         options).files[0];
       const actual=execute(String(out.code));
       const expected=execute(source);
-      rows.push({variant:variant.name,identifiers,flags,
+      rows.push({variant:variant.name,mode,identifiers,flags,
         parity:actual===expected,expected,actual,
         objects:out.metrics.objects,properties:out.metrics.properties,
         bindings:out.metrics.bindings});
     }
   }
-  assert.equal(rows.length,16);
+  assert.equal(rows.length,48);
   console.log('PRIVATE_YIELD_OBSERVER_MATRIX '+JSON.stringify(rows));
-  assert.deepEqual(rows.filter(row=>!row.parity).map(row=>row.variant+':'+row.identifiers),[],
+  assert.deepEqual(rows.filter(row=>!row.parity).map(row=>row.mode+':'+row.variant+':'+row.identifiers),[],
     'Native Function#toString must match for all externally observable exports');
+});
+
+/**
+ * @param {string} code
+ * @returns {Promise<{source:string,value:number,primitive:number}>}
+ */
+async function externalModuleObservation(code) {
+  const url='data:text/javascript;base64,'+Buffer.from(code,'utf8').toString('base64');
+  const namespace=await import(url);
+  return {
+    source:Function.prototype.toString.call(namespace.published),
+    value:namespace.published(7),
+    primitive:namespace.primitive
+  };
+}
+
+test('an unknown ESM importer observes public function source after identifier lowering',async()=>{
+  const original=[
+    'const privateValue={secretField:17};',
+    'export function published(value){const secretLocal=value+privateValue.secretField;return secretLocal;}',
+    'export const primitive=published(3);'
+  ].join('\n');
+  const expected=await externalModuleObservation(original);
+  const rows=[];
+  for(const mode of /** @type {const} */ (['coo','sno','sco'])) {
+    for(const identifiers of [true,false]) {
+      const out=obfuscateFiles([{path:'entry.mjs',sourceType:'module',code:original}],{
+        mode,seed:'agent38-public-esm/'+mode,strings:false,identifiers
+      }).files[0];
+      const actual=await externalModuleObservation(String(out.code));
+      rows.push({mode,identifiers,parity:JSON.stringify(actual)===JSON.stringify(expected),
+        valuesEqual:actual.value===expected.value&&actual.primitive===expected.primitive,
+        originalSource:expected.source,emittedSource:actual.source,
+        objects:out.metrics.objects,properties:out.metrics.properties,
+        bindings:out.metrics.bindings});
+    }
+  }
+  console.log('PUBLIC_ESM_IDENTIFIER_SOURCE_MATRIX '+JSON.stringify(rows));
+  assert.ok(rows.every(row=>row.valuesEqual));
+  assert.deepEqual(rows.filter(row=>!row.parity).map(row=>row.mode+':'+row.identifiers),[],
+    'External ESM callers can observe original Function#toString of named exports');
 });
