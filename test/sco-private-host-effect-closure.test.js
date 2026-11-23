@@ -839,7 +839,11 @@ test('SCO refuses legacy TextDecoder results with unproved host mapping tables',
     "return new TextDecoder('utf-8',{fatal:true}).decode(Uint8Array.of(0x80));",
     "return new TextDecoder('utf-8').decode('bad');",
     "const decoder=new TextDecoder('utf-8');return decoder.decode(null);",
-    "return new TextDecoder('utf-8').decode([]);"
+    "return new TextDecoder('utf-8').decode([]);",
+    "const decoder=new TextDecoder('utf-8',{fatal:true});return decoder.decode(Uint8Array.of(0x80));",
+    "const decoder=new TextDecoder('utf-8',{fatal:true});const alias=decoder;return alias.decode(Uint8Array.of(0x80));",
+    "return new TextDecoder('utf-8',{fatal:true}).decode(bytes);",
+    "return new TextDecoder('utf-8',{fatal:true}).decode(Uint8Array.of(65),{stream:true});"
   ];
   for(const body of unsafe){
     const code='export async function protectedOp(){'+body+'}'+
@@ -868,6 +872,9 @@ test('SCO refuses legacy TextDecoder results with unproved host mapping tables',
     "const decoder=new TextDecoder('UTF8',{fatal:true});return decoder.fatal;",
     "const decoder=new TextDecoder('utf-8',{ignoreBOM:true});return decoder.ignoreBOM;",
     "const decoder=new TextDecoder('UTF8');const alias=decoder;return alias['encoding'];",
+    "return new TextDecoder('UTF8',{fatal:false}).decode(Uint8Array.of(0x80));",
+    "const decoder=new TextDecoder('utf-8',{fatal:true});return decoder.decode(Uint8Array.of(65));",
+    "const decoder=new TextDecoder('utf-8',{fatal:true});const alias=decoder;return alias.decode(Uint8Array.of(66));",
     "const decoder=new TextDecoder('utf-8');const value=decoder.encoding;return value;"
   ];
   for(const body of safe){
