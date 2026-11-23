@@ -382,12 +382,15 @@ function locallyPrivateClassMethods(ast,bindings,scopes,inventory){
   /** @type {Set<AstNode>} */
   const admitted=new Set();
   walk(ast,(cls,_parent,_key,ancestors)=>{
-    if(cls.type==='ClassDeclaration') console.error('CLASS_DIAG', cls.id?.name, cls.body.body.map(x=>[x.type,x.kind,x.value?.type,x.value?.body?.body?.length]), 'scope',scopes.get(cls.id?.name)?.type, 'uses',inventory.identifierUses.get(cls.id?.name)?.map(x=>[x.parent?.type,x.key]));
     if(cls.type!=='ClassDeclaration'||cls.id?.type!=='Identifier'||
        cls.superClass||cls.body.body.length!==1||
        ancestors.some(a=>/^Export/.test(a.type)))return;
     const className=cls.id.name;
-    const classScope=scopes.get(className);
+    // Class declarations are absent from the existing binding-scope cache.
+    // Recover the exact nearest lexical region from this walk's ancestry.
+    const classScope=[...ancestors].reverse().find(a=>
+      ['Program','BlockStatement','StaticBlock','SwitchStatement',
+       'ForStatement','ForInStatement','ForOfStatement','CatchClause'].includes(a.type))??ast;
     if(!classScope||bindings.get(className)!==1)return;
     const method=cls.body.body[0];
     if(method.type!=='MethodDefinition'||method.static||method.computed||
@@ -434,7 +437,6 @@ function locallyPrivateClassMethods(ast,bindings,scopes,inventory){
          invocation.callee!==access||invocation.optional||
          invocation.arguments.length!==0)return;
     }
-    console.error('CLASS_ADMITTED',className);
     admitted.add(method.value);
   });
   localPrivateClassMethodCache.set(ast,admitted);
