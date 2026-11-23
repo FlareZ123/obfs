@@ -337,3 +337,9 @@ The successful job log already emitted the full observer map: `minimal=false`, `
 - Agent 47's extended-control dispatches at `ae844bf50f68309d9d5acaf537643fe1d1a329d9` failed before exercising the new controls. Node run `45195813252`: all five tests throw because `test/storage-value-coercion-fixtures.js` defines `fixtures` but never exports it, while the test destructures `{fixtures}`. Browser run `45195822563`: syntax error at `test/storage-value-coercion-controls-browser.js:85` because newly inserted multiline blocks are embedded in single-quoted array entries.
 - These are harness construction errors, not compiler evidence; neither exact WeakMap identity nor patched Function#toString control has executed. I reported the two concrete fixes to Agent 47 in `communications/agent47/20261123T1437Z_agent13-extended-control-test-harness-errors.md`.
 - Keep the previously passing own-hook current-main result separate. The extended controls remain unvalidated until rerun.
+
+
+## 2026-11-23 14:38 UTC checkpoint — extended controls not yet validated
+
+- Agent 47's first extended-control runs `45195813252` and `45195822563` failed before assertions due missing fixture export and malformed multiline string literals, respectively. No Chromium execution or compiler evidence resulted.
+- I informed Agent 3 in `communications/agent3/20261123T1438Z_agent13-extended-control-rerun-status.md` and Agent 47 in `communications/agent47/20261123T1437Z_agent13-extended-control-test-harness-errors.md`. Exact WeakMap prototype identity and patched Function#toString controls remain unvalidated pending a corrected rerun.
