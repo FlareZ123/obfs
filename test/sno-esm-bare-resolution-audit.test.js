@@ -8,7 +8,7 @@ const path=require('node:path');
 const {spawnSync}=require('node:child_process');
 const {main}=require('../src/cli');
 const {atomicWrite}=require('../src/atomic');
-const {directBareImports}=require('../src/sno-bare-audit');
+const {directBareImports,assertSnoDirectBareImportParity}=require('../src/sno-bare-audit');
 
 const packageName='sno-esm-resolution-probe';
 
@@ -151,6 +151,45 @@ test('ESM audit refuses unresolved dynamic imports, aliases, package imports and
     path:'opaque.mjs',sourceType:'asset',
     code:Buffer.from("import value from 'pkg';")
   }]),/cannot inspect opaque JavaScript/u);
+});
+
+
+test('ESM audit refuses custom conditions, loaders and symlink-preservation modes',async()=>{
+  await fixture(async temp=>{
+    const root=path.join(temp,'root');
+    const output=path.join(temp,'output');
+    await fs.mkdir(root,{recursive:true});
+    await fs.mkdir(output,{recursive:true});
+    const files=[{
+      path:'engine.mjs',sourceType:'module',
+      code:"import value from 'sno-esm-resolution-probe';export default value;"
+    }];
+    const previous=process.env.NODE_OPTIONS;
+    process.env.NODE_OPTIONS='--conditions=custom';
+    try {
+      await assert.rejects(
+        assertSnoDirectBareImportParity(files,files,root,output),
+        /does not model custom loaders/u
+      );
+    } finally {
+      if(previous===undefined)delete process.env.NODE_OPTIONS;
+      else process.env.NODE_OPTIONS=previous;
+    }
+  });
+});
+
+test('ESM audit refuses future emitted package scopes',async()=>{
+  const source=[{
+    path:'engine.mjs',sourceType:'module',
+    code:"import value from 'sno-esm-resolution-probe';export default value;"
+  }];
+  const generated=[...source,{
+    path:'package.json',sourceType:'asset',code:'{}'
+  }];
+  await assert.rejects(
+    assertSnoDirectBareImportParity(source,generated,'/not-created/source','/not-created/output'),
+    /cannot model future package scope/u
+  );
 });
 
 test('ESM audit flag is restricted to SNO',async()=>{
