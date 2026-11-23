@@ -130,10 +130,13 @@ function splitKernel(basis,labels){
  * nonempty proper subset S of M, with no source-oracle evaluations.
  *
  * @param {PolynomialModel} model
+ * @param {'scan'|'grouped'} [strategy]
  * @returns {{contract:(direction:number,consume:(vector:number,xMask:number)=>void)=>void,
  *   splitTermCount:number,coefficientSlots:number}}
  */
-function makeBoundedDegreeDefectContractor(model){
+function makeBoundedDegreeDefectContractor(model,strategy='scan'){
+  if(strategy!=='scan'&&strategy!=='grouped')
+    throw new TypeError('Unknown derivative contraction strategy');
   if(model.bits!==WIDTH || ![2,3,4].includes(model.degree))
     throw new TypeError('expected 32-bit Boolean model with degree 2..4');
   if(!Array.isArray(model.coefficients))
@@ -164,13 +167,22 @@ function makeBoundedDegreeDefectContractor(model){
   }
   /** @type {SplitTerm[]} */
   const terms=[];
+  /** @type {Map<number,Array<[number,number]>>} */
+  const grouped=new Map();
+  let splitTermCount=0;
   for(const [maskRaw,valueRaw] of model.coefficients){
     const mask=maskRaw>>>0,value=valueRaw>>>0;
     if(!value)continue;
     for(let subset=(mask-1)&mask;subset;subset=(subset-1)&mask){
       const xIndex=index.get(subset>>>0);
       if(xIndex===undefined)continue;
-      terms.push({xIndex,vMask:(mask^subset)>>>0,value});
+      const vMask=(mask^subset)>>>0;
+      if(strategy==='grouped'){
+        let bucket=grouped.get(vMask);
+        if(!bucket){bucket=[];grouped.set(vMask,bucket);}
+        bucket.push([xIndex,value]);
+      }else terms.push({xIndex,vMask,value});
+      splitTermCount++;
     }
   }
   /** @param {number} direction
@@ -178,17 +190,46 @@ function makeBoundedDegreeDefectContractor(model){
   function contract(direction,consume){
     const v=direction>>>0;
     const coefficients=new Uint32Array(index.size);
-    for(const term of terms){
-      // Bitwise AND yields signed int32. Normalize before comparing vMasks
-      // whose highest bit is set; otherwise the derivative certificate fails.
-      if(((v&term.vMask)>>>0)===term.vMask)coefficients[term.xIndex]^=term.value;
+    if(strategy==='grouped'){
+      /** @type {number[]} */
+      const setBits=[];
+      for(let bit=0;bit<WIDTH;bit++){
+        if(((v>>>bit)&1)!==0)setBits.push((2**bit)>>>0);
+      }
+      /** @param {number} mask @returns {void} */
+      function accumulate(mask){
+        const bucket=grouped.get(mask);
+        if(!bucket)return;
+        for(const [xIndex,value] of bucket)coefficients[xIndex]^=value;
+      }
+      // Every nonempty v monomial in a degree <=4 defect has weight
+      // at most three. Enumerating only active bit subsets avoids scanning
+      // every source term for every direction, especially sparse directions.
+      for(let i=0;i<setBits.length;i++){
+        const one=setBits[i];
+        accumulate(one);
+        if(model.degree<3)continue;
+        for(let j=i+1;j<setBits.length;j++){
+          const two=(one|setBits[j])>>>0;
+          accumulate(two);
+          if(model.degree<4)continue;
+          for(let k=j+1;k<setBits.length;k++)
+            accumulate((two|setBits[k])>>>0);
+        }
+      }
+    }else{
+      for(const term of terms){
+        // Bitwise AND yields signed int32. Normalize before comparing vMasks
+        // whose highest bit is set; otherwise the derivative certificate fails.
+        if(((v&term.vMask)>>>0)===term.vMask)coefficients[term.xIndex]^=term.value;
+      }
     }
     for(let slot=0;slot<coefficients.length;slot++){
       const coefficient=coefficients[slot];
       if(coefficient!==0)consume(coefficient>>>0,xMasks[slot]);
     }
   }
-  return{contract,splitTermCount:terms.length,coefficientSlots:index.size};
+  return{contract,splitTermCount,coefficientSlots:index.size};
 }
 
 /**
@@ -198,12 +239,13 @@ function makeBoundedDegreeDefectContractor(model){
  * a basis of each current input subspace.
  *
  * @param {PolynomialModel} model
+ * @param {{strategy?:'scan'|'grouped'}} [options]
  * @returns {{invert:(target:number)=>number,invertFast:(target:number)=>number,
  *   clone:(input:number)=>number,contractions:number,
  *   derivativeContractions:number,coefficientSlots:number,splitTermCount:number}}
  */
-function prepareExactBoundedDegreeInverter(model){
-  const prepared=makeBoundedDegreeDefectContractor(model);
+function prepareExactBoundedDegreeInverter(model,options={}){
+  const prepared=makeBoundedDegreeDefectContractor(model,options.strategy??'scan');
   /** @param {number} x @returns {number} */
   const clone=x=>evaluateBoundedDegreeModel(model,x>>>0)>>>0;
   const base=clone(0);
