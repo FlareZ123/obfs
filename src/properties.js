@@ -706,13 +706,17 @@ function proveLocalObject(ast, rootName, bindings, importedIdentityFunctions=new
     }
     if(privateValue)privateFunctionNodes.add(binding.node);
   }
-  // An anonymous arrow used directly as the callee of a nonoptional call
-  // has no first-class function identity that an ordinary consumer could
-  // capture. Its own source is not observable through an export or alias.
-  // Every enclosing callable must independently pass this same privacy gate.
-  // A named/ordinary function IIFE remains excluded: arguments.callee can
-  // expose its own function value in sloppy mode.
-  walk(ast,(node,parent)=>{
+  // A nonoptional, directly invoked arrow is not materialized as an
+  // exported binding, but a *sloppy* arrow can still be reached through
+  // a nested function's .caller. Restrict this local positive to a module's
+  // inherent strictness or an explicit top-level strict directive: strict
+  // callers are not exposed by that legacy reflective accessor.
+  // An enclosing publicly observable callable remains a separate veto.
+  const hasStrictPrologue=ast.sourceType==='module' ||
+    ast.body.some((statement,index)=>
+      statement.directive==='use strict' &&
+      ast.body.slice(0,index).every(prefix=>typeof prefix.directive==='string'));
+  if(hasStrictPrologue)walk(ast,(node,parent)=>{
     if(node.type==='ArrowFunctionExpression' && parent?.type==='CallExpression' &&
        parent.callee===node && !parent.optional)
       privateFunctionNodes.add(node);
