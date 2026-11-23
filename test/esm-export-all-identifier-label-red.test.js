@@ -8,6 +8,7 @@ const path=require('node:path');
 const {pathToFileURL}=require('node:url');
 const {obfuscateFiles}=require('../src');
 
+/** @type {import('../src/core').SourceFile[]} */
 const sources=[
   {path:'dep.mjs',sourceType:'module',code:'export const sentinel=7;'},
   {path:'owner.mjs',sourceType:'module',code:[
@@ -21,11 +22,11 @@ const sources=[
   ].join('\n')}
 ];
 
-/** @param {string} folder @param {{path:string,code:string}[]} files */
+/** @param {string} folder @param {{path:string,code:string|Buffer}[]} files */
 async function writeGraph(folder,files){
   await fs.mkdir(folder,{recursive:true});
   for(const file of files){
-    await fs.writeFile(path.join(folder,file.path),file.code+'\n');
+    await fs.writeFile(path.join(folder,file.path),typeof file.code==='string'?file.code+'\n':file.code);
   }
 }
 
@@ -64,6 +65,7 @@ test('export-star namespace label must survive unrelated local const identifier 
 test('import-attribute key must survive unrelated local const identifier rename',{
   timeout:30000
 },async()=>{
+  /** @type {import('../src/core').SourceFile[]} */
   const input=[
     {path:'owner.mjs',sourceType:'module',code:[
       'import data from "./data.json" with {type:"json"};',
