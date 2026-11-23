@@ -85,6 +85,39 @@ test('isolated original ESM realms keep sequence-wrapped function-object counter
   }
 });
 
+test('independent ESM realms retain separate class-field imported function counters',{
+  timeout:15000
+},async()=>{
+  const fs=require('node:fs/promises');
+  const os=require('node:os');
+  const path=require('node:path');
+  const {pathToFileURL}=require('node:url');
+  const {atomicWrite}=require('../src/atomic');
+  const source=[
+    'import {next} from "./private/next.mjs";',
+    'export async function secret(){',
+    'class Holder{static value=(0,next);}',
+    'Holder.value.count=(Holder.value.count??0)+1;',
+    'return Holder.value.count;',
+    '}'
+  ].join(String.fromCharCode(10));
+  const root=await fs.mkdtemp(path.join(os.tmpdir(),'obfs-graph-class-field-state-'));
+  try{
+    for(const name of ['client-a','client-b','server']){
+      await atomicWrite(path.join(root,name,'mixed.mjs'),source);
+      await atomicWrite(path.join(root,name,'private','next.mjs'),leaf.code);
+    }
+    const namespaces=await Promise.all(['client-a','client-b','server'].map(
+      name=>import(pathToFileURL(path.join(root,name,'mixed.mjs')).href)));
+    assert.equal(await namespaces[0].secret(),1);
+    assert.equal(await namespaces[1].secret(),1);
+    assert.equal(await namespaces[2].secret(),1);
+    assert.equal(await namespaces[2].secret(),2);
+  }finally{
+    await fs.rm(root,{recursive:true,force:true});
+  }
+});
+
 test('selected SCO graph still admits sequence alias used only for direct call',()=>{
   assert.doesNotThrow(()=>compile('const fn=(0,next);return fn();'));
 });
