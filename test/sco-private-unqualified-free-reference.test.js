@@ -180,3 +180,33 @@ test('source-paired compiler-time probe: repeated reads of a hoisted local',()=>
     outputDigest
   }));
 });
+
+
+test('source-paired compiler-time probe: many distinct locally bound names',()=>{
+  const count=840;
+  const names=Array.from({length:count},(_,i)=>'unique'+i);
+  const body=names.map((name,i)=>'const '+name+'='+i+';').join('')+
+    'return '+names.join('+')+';';
+  /** @type {number[]} */
+  const readings=[];
+  /** @type {string|null} */
+  let hash=null;
+  for(let i=0;i<3;i++){
+    const before=process.hrtime.bigint();
+    const compiled=compile(body);
+    readings.push(Number(process.hrtime.bigint()-before)/1e6);
+    assert.deepEqual(compiled.privateNames,['protectedOp']);
+    const next=createHash('sha256').update(JSON.stringify({
+      clientFile:compiled.clientFile,serverFile:compiled.serverFile,
+      methodNames:compiled.methodNames,privateNames:compiled.privateNames,
+      publicNames:compiled.publicNames
+    })).digest('hex');
+    if(hash!==null)assert.equal(next,hash);
+    hash=next;
+  }
+  const sorted=[...readings].sort((a,b)=>a-b);
+  console.log('SCO_LEXICAL_UNIQUE_CPU '+JSON.stringify({
+    names:count,compilerWallMs:readings.map(x=>Number(x.toFixed(3))),
+    medianMs:Number(sorted[1].toFixed(3)),outputDigest:hash
+  }));
+});
