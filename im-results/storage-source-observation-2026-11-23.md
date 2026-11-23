@@ -23,9 +23,11 @@ Relevant compiler source blobs:
 The scanner source contains no `Storage`, `localStorage`, or `sessionStorage` sink recognition. `renameLocalIdentifiers` returns unchanged only when `observesFunctionSource(ast)` is true; the Storage call is not recognized, so local binding edits proceed.
 
 The focused fixture is `test/storage-source-observation.test.js`. It checks:
-1. the scanner returns false for the same-file Storage source observer;
-2. identifier rewriting changes the local binding in the observed function;
-3. a cross-file exported producer callable is currently left source-stable by the export-ancestor guard, while an unrelated unexported helper in the consumer retains identifier yield.
+1. the scanner returns false for the same-file Storage/Window source observers;
+2. identifier rewriting changes the local bindings inside the observed functions;
+3. a cross-file exported producer callable is currently left source-stable by the export-ancestor guard, while an unrelated unexported helper in the consumer retains identifier yield;
+4. shadowed local objects named `localStorage` and `window` are not treated as browser host sinks;
+5. primitive Storage and Window.name values do not trigger a source-observer veto, and an unrelated private local still rewrites.
 
 The real-browser fixture is `test/storage-source-observation-browser.js`. Its module contains:
 
@@ -49,6 +51,16 @@ The browser page reads the stored values back through both Storage areas, the na
   - `sims/exact-quadratic-compatible-cegar.js` lines 222, 223, 266, 267: implicit-any `outputMasks` and `inputToggles`.
   - `sims/sco-triangular-quadratic-exact-cegar.js` lines 157–158: unresolved `publicMethod`.
 - The workflow conclusion is therefore failure; do not describe the complete focused workflow as green.
+
+
+### Expanded focused acceptance controls
+
+[Manual validation run 45163858773](https://github.com/FlareZ123/obfs/actions/runs/45163858773), source head `14e7d09e73203d9e1094a8cbd5fc73c6f93c0062`:
+
+- **5/5 focused Node tests passed** on Ubuntu and Windows.
+- The shadowed-host control passed: local variables named `localStorage` and `window` did not become browser source sinks.
+- The primitive-value control passed: `localStorage.setItem(key, "literal")`, `sessionStorage.setItem(key, 7)`, and `window.name = "literal-window-name"` did not create a source-observer veto; an unrelated private local still rewrote.
+- Project typecheck passed on both platforms. The workflow then failed at the known unrelated external JSDoc errors in the two CEGAR simulation files listed above.
 
 ### Real Chromium run
 
