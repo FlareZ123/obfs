@@ -2158,6 +2158,7 @@ function renameCrossFileProperties(files,seed) {
     // Track only source-proven possible global values; ordinary records with
     // a same-named key are outside this admission guard.
     const possibleGlobalRoots=new Set(['globalThis']);
+    const possibleGlobalReturningCalls=new Set();
     /**
      * @param {AstNode|null|undefined} value
      * @returns {boolean}
@@ -2165,6 +2166,8 @@ function renameCrossFileProperties(files,seed) {
     function possibleGlobalValue(value) {
       if(!value)return false;
       if(value.type==='Identifier')return possibleGlobalRoots.has(value.name);
+      if(value.type==='CallExpression'&&value.callee.type==='Identifier'&&
+         possibleGlobalReturningCalls.has(value.callee.name))return true;
       if(value.type==='SequenceExpression')
         return possibleGlobalValue(value.expressions[value.expressions.length-1]);
       if(value.type==='ConditionalExpression')
@@ -2183,7 +2186,23 @@ function renameCrossFileProperties(files,seed) {
     let rootChanged;
     do {
       rootChanged=false;
-      walk(module.ast,node=>{
+      walk(module.ast,(node,parent)=>{
+        if(['FunctionDeclaration','FunctionExpression','ArrowFunctionExpression'].includes(node.type)) {
+          const candidate=node.type==='FunctionDeclaration'?node.id:
+            parent?.type==='VariableDeclarator'&&parent.init===node?parent.id:null;
+          if(candidate?.type==='Identifier'&&!possibleGlobalReturningCalls.has(candidate.name)) {
+            let returnsGlobal=node.type==='ArrowFunctionExpression'&&
+              node.expression&&possibleGlobalValue(node.body);
+            walk(node.body,part=>{
+              if(part.type==='ReturnStatement'&&possibleGlobalValue(part.argument))
+                returnsGlobal=true;
+            });
+            if(returnsGlobal) {
+              possibleGlobalReturningCalls.add(candidate.name);
+              rootChanged=true;
+            }
+          }
+        }
         const binding=node.type==='VariableDeclarator'&&
           node.id.type==='Identifier'?node.id:
           node.type==='AssignmentExpression'&&
