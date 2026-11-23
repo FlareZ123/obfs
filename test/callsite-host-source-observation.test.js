@@ -172,3 +172,26 @@ test('equal-trust ordinary esbuild property-mangling control also changes observ
   assert.match(mangled.source,/owner\.(?!privateSecret)\w+/);
   assert.notEqual(mangled.source,native.source);
 });
+
+
+test('selective host-caller source closure should preserve an independent owner rewrite',()=>{
+  const source='const observedOwner={observedSecret:31};'+
+    'function readPrivate(){hostCallback();return observedOwner.observedSecret;}'+
+    'const independentOwner={unrelatedSecret:73};'+
+    'module.exports=readPrivate()+independentOwner.unrelatedSecret;';
+  const original=execute(source);
+  const emitted=compile(source,'sno');
+  const actual=execute(/** @type {string} */(emitted.code));
+  process.stdout.write('CALLSITE_DISJOINT_OWNER '+JSON.stringify({
+    nativeValue:original.value,emittedValue:actual.value,
+    nativeSource:original.source,emittedSource:actual.source,
+    protectedProperties:emitted.metrics.properties
+  })+'\n');
+  assert.equal(original.value,104);
+  assert.equal(actual.value,original.value);
+  assert.match(original.source,/observedOwner\.observedSecret/);
+  assert.equal(actual.source,original.source,
+    'Captured owner source in a host-observed callable must retain original spelling');
+  assert.equal(emitted.metrics.properties,1,
+    'The unrelated private record must still be obfuscated once');
+});
