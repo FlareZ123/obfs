@@ -226,6 +226,29 @@ test('ESM audit supports identical type-only package scopes for .js ESM modules'
 
 
 
+
+test('ESM audit refuses case-variant package.json in resolved dependency',async()=>{
+  await fixture(async temp=>{
+    const root=path.join(temp,'project');
+    const source=path.join(root,'source');
+    const output=path.join(root,'output');
+    await writeApplication(source);
+    await atomicWrite(path.join(source,'engine.mjs'),
+      "import value from '"+packageName+"';export default value+13;");
+    const directory=path.join(root,'node_modules',packageName);
+    await atomicWrite(path.join(directory,'Package.json'),JSON.stringify({
+      type:'module',exports:{'.':{import:'./import.mjs'}}
+    }));
+    await atomicWrite(path.join(directory,'import.mjs'),'export default 103;');
+    await atomicWrite(path.join(directory,'index.js'),'module.exports=103;');
+    await assert.rejects(
+      main('sno',['--root',source,'--entry','entry.cjs',
+        '--out',output,'--seed','sno-esm-case-variant-dependency','--audit-bare-esm']),
+      /case-variant package.json dependency scope/u
+    );
+  });
+});
+
 test('ESM audit refuses case-variant package.json external ancestors',async()=>{
   await fixture(async temp=>{
     const project=path.join(temp,'project');
