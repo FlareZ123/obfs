@@ -316,7 +316,9 @@
     "sims/affine-conjugated-odometer-oracle-attack.js",
     "test/affine-conjugated-odometer-oracle-attack.test.js",
     "sims/random-affine-graph-flag-inversion.js",
-    "test/random-affine-graph-flag-inversion.test.js"
+    "test/random-affine-graph-flag-inversion.test.js",
+    "sims/validation-receipt-classifier.js",
+    "test/validation-receipt-classifier.test.js"
   ],
   "exclude": [
     "node_modules"
