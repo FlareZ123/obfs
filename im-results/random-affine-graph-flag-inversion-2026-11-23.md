@@ -28,35 +28,39 @@ A nonzero Boolean polynomial of degree at most D on d variables has support at l
 
 If H_sample is still a proper subspace of the full graph span, some linear functional vanishes on H_sample but not on the full graph. Its evaluation on g(u) is a nonzero degree-at-most-D polynomial. Therefore each fresh uniform sample increases rank with conditional probability at least 2^-D.
 
-At dimension d, stop after
+At dimension d, a rank increase resets the consecutive-miss counter. The same test can therefore encounter several distinct incomplete-rank episodes, each of which could terminate prematurely. The graph's true nonconstant affine relation implies its full rank is at most `r_d <= n+d`. Give each unresolved rank level a failure budget `delta/(n*r_d)`. The implementation uses the conservative stage upper bound `n+d` and stops after
 
-    m = ceil(2^D * ln(n/delta))
+    m_d = ceil(2^D * ln(n*(n+d)/delta))
 
-consecutive samples that do not increase rank. If the span is still incomplete, the probability of m consecutive misses is at most
+consecutive samples that do not increase rank. More precisely, it sums the logarithms to preserve very small positive delta parameters.
 
-    (1 - 2^-D)^m <= delta/n.
+For any fixed incomplete-rank episode, repeated independent uniform draws have a probability of `m_d` consecutive misses bounded by
 
-A union bound over at most n cosets gives probability at most delta that any stage stops before its graph span is complete. Once complete, the nullspace contains only true affine relations. The final forward verification ensures the algorithm never returns an incorrect preimage; a premature stop can instead cause a failed inversion.
+    (1 - 2^-D)^m_d <= exp(-m_d/2^D) <= delta/(n*(n+d)).
 
-Let r_d be the full graph-span rank at dimension d. Since a nonconstant affine relation exists, r_d <= n+d. Each rank increment takes at most 2^D samples in expectation, so under the stated sampling and degree assumptions,
+There can be at most `r_d` incomplete-rank episodes at a stage. A union bound across those adaptively reached episodes gives stage failure probability at most `delta/n`. A further union bound over at most `n` cosets gives overall premature-stop probability at most `delta`. Conditional probabilities suffice: each episode begins after the prior rank increment, and fresh independent uniform samples maintain the same lower bound.
 
-    E[queries] <= 2^D * ( sum_(d=1..n) (n+d) + n*ln(n/delta) ) + 1
-                = 2^D * ( (3*n^2+n)/2 + n*ln(n/delta) ) + 1,
+**Correction:** The initial source used `m_d = ceil(2^D ln(n/delta))`, counting only one possible incomplete-rank episode per stage. That argument does not account for resets after rank increases and therefore does not establish the advertised global `delta` guarantee. The corrected implementation adds the rank-episode factor. This is a proof/accounting correction; the original empirical successful inversions are still valid observations and a tighter graph-specific argument could potentially yield a shorter threshold.
 
-up to ceiling terms. This is an expected query bound, not a deterministic worst-case bound. The implementation also has an operational per-stage query cap; hitting it returns failure rather than an unverified answer.
+Let `r_d` be the full graph-span rank at dimension `d`, with `r_d <= n+d` under the affine-flag hypothesis. Each rank increment takes at most `2^D` samples in expectation. After the full rank is reached, the process spends at most `m_d` additional stagnant draws. Thus
+
+    E[queries] <= sum_(d=1..n) (2^D*r_d + m_d) + 1
+                <= 2^D * ((3*n^2+n)/2 + n*ln(2*n^2/delta)) + n + 1,
+
+where the last bound uses the ceilings conservatively. This is an expected query bound, not a deterministic worst-case bound. The implementation also has an operational per-stage query cap; hitting it returns failure rather than an unverified answer.
 
 ## Reproducible implementation
 
 - Attack and test generator: sims/random-affine-graph-flag-inversion.js
 - Tests: test/random-affine-graph-flag-inversion.test.js
 - Both are included in jsconfig.external.json for strict JSDoc validation.
-- Final focused two-platform validation **45125176161** at exact head `59ad24d0309ee276dabd89f0f16f68d8c6a80f7e` passed on Ubuntu and Windows: both tests passed, strict project/external JSDoc passed, and the paired/complete-suite runtime-budget evaluator typecheck passed. The immediately preceding attempt `45125006964` passed both behavioral test jobs but failed strict external JSDoc on one un-narrowed union-property read; this was corrected before the green run. An earlier pre-annotation attempt also exposed `never[]` inference and implicit-any issues, which were corrected.
+- Historical focused two-platform validation (before the confidence correction) **45125176161** at exact head `59ad24d0309ee276dabd89f0f16f68d8c6a80f7e` passed on Ubuntu and Windows: both tests passed, strict project/external JSDoc passed, and the paired/complete-suite runtime-budget evaluator typecheck passed. The immediately preceding attempt `45125006964` passed both behavioral test jobs but failed strict external JSDoc on one un-narrowed union-property read; this was corrected before the green run. An earlier pre-annotation attempt also exposed `never[]` inference and implicit-any issues, which were corrected.
 - The test generator creates two-sided affine-wrapped triangular permutations P_i(z)=z_i XOR h_i(z_<i), with independent random invertible input and output linear maps plus independent random input/output translation offsets. It uses sparse random ANFs of declared degree D.
 - The test sampler is a deterministic xorshift64* PRNG for reproducibility. The probability proof assumes ideal independent uniform samples; a real attacker should inject a cryptographically secure coordinate sampler.
 
 ## Empirical results
 
-All 15 tested triangular oracles were inverted exactly, with the final candidate checked by the forward oracle:
+**Historical pre-correction threshold:** All 15 tested triangular oracles were inverted exactly, with the final candidate checked by the forward oracle:
 
 | Width | Degree | Instances | Queries per inversion | Full ANF clone M(n,D) |
 |---:|---:|---:|---:|---:|
@@ -66,6 +70,19 @@ All 15 tested triangular oracles were inverted exactly, with the final candidate
 | 64 | 4 | 2 | 27,213–27,346 | 679,121 |
 
 The graph method is target-specific. Full ANF cloning can be amortized over many targets, so the query comparison is not an unconditional cost comparison. A separate affine-offset stress test then added independent input and output translations: 9 additional instances all inverted exactly (n32 D4, 3 seeds: 12,278–12,306 queries; n32 D5, 3 seeds: 23,497–23,590; n32 D6, 2 seeds: 45,930–45,944; n64 D4, 1 seed: 27,261). These offset cases are now the ones exercised by the repository test. For the tested 32-bit cases, the graph method used about 3.4x, 10.3x, and 25x fewer queries than full cloning at degrees 4, 5, and 6, respectively.
+
+### Corrected confidence threshold, source-coincident measurements (23 November 2026)
+
+The additional rank-episode accounting raises the sampling threshold and consequently the target-specific query count. [Focused two-platform run 45271384103](https://github.com/FlareZ123/obfs/actions/runs/45271384103), exact source `104129bf1133c4de9b7a078c164f117fa59ba149`, passed all three behavioral tests and strict project/external/paired-budget JSDoc on **both** Node 22 Ubuntu and Windows. Both OS jobs printed byte-identical per-instance query counts. Each counted query is a real call to the 32-/64-bit original oracle; there is no memoized response cache or hidden original inverse in the attacker.
+
+| Width | Degree | Seeds | Queries after confidence correction | Full ANF model queries |
+|---:|---:|---|---:|---:|
+| 32 | 4 | 1, 2, 3 | 14,238; 14,236; 14,244 | 41,449 |
+| 32 | 5 | 1, 2, 3 | 27,500; 27,518; 27,446 | 242,825 |
+| 32 | 6 | 1, 2 | 53,810; 53,867 | 1,149,017 |
+| 64 | 4 | 1 | 31,897 | 679,121 |
+
+These are deterministic-source examples with a seeded test sampler. They verify the revised implementation's practical behavior and overhead for selected targets; they do not empirically establish a uniform `delta` failure rate. The conservative failure-probability proof applies when an independent uniform sampler replaces the test PRNG and the degree promise is true.
 
 A negative control used the 32-bit embedding of the three-bit permutation with input-order table [0,1,2,4,3,6,7,5]. The method recovered affine flags through the 29 trivial coordinates, then correctly refused at residual dimension 3, where the permutation has no nonconstant affine output parity. It stopped after 3,357 queries. This is expected scope behavior, not an implementation failure.
 
