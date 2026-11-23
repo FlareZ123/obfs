@@ -137,7 +137,7 @@ test('SCO refuses cross-host base64 functions but preserves owned local shadows'
     "const btoa=input=>input.length;return btoa('ok');",
     "return Math.imul(17,19);"
   ])assert.deepEqual(partition(body).privateNames,['privateOp'],body);
-  assert.match(partition('return 7;',
-    "try{atob('%');return 'ok';}catch(e){return e.message;}").clientFile.code,
-    /atob\\('%'\\)/u);
+  assert.ok(partition('return 7;',
+    "try{atob('%');return 'ok';}catch(e){return e.message;}").clientFile.code
+    .includes("atob('%')"));
 });
