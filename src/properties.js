@@ -681,31 +681,42 @@ function proveLocalObject(ast, rootName, bindings, importedIdentityFunctions=new
   // Conversely, a value stored, returned, exported, or passed elsewhere can
   // expose its original body through Function#toString.
   const privateFunctionNodes=new Set(directInvokedArrows);
-  // A class method is normally source-observable through its prototype.
-  // Admit only an isolated, non-exported class with exactly one primitive
-  // owner-read method, one zero-argument construction into a private const,
-  // and only direct calls of that method on the sole instance. Neither the
-  // class, the instance nor the function value can escape this grammar.
-  // This does not extend to arbitrary class control flow or dynamic hosts.
+  // Class methods are usually source-observable through their prototype.
+  // Admit a bounded class only when every ordinary method is a single
+  // immutable-owner read, and the sole instance can only invoke those methods
+  // directly without arguments. Never infer arbitrary class control flow.
   if(!dynamicScope)for(const statement of ast.body) {
     if(statement.type!=='ClassDeclaration'||statement.superClass||
-       statement.id?.type!=='Identifier'||statement.body.body.length!==1||
+       statement.id?.type!=='Identifier'||
+       statement.body.body.length<1||statement.body.body.length>8||
        bindings.get(statement.id.name)!==1)continue;
-    const method=statement.body.body[0];
-    if(method.type!=='MethodDefinition'||method.kind!=='method'||
-       method.static||method.computed||method.key.type!=='Identifier'||
-       method.key.name==='constructor'||method.value?.type!=='FunctionExpression'||
-       method.value.async||method.value.generator||method.value.params.length!==0||
-       method.value.body.body.length!==1)continue;
-    const returned=method.value.body.body[0];
-    if(returned.type!=='ReturnStatement'||
-       returned.argument?.type!=='MemberExpression'||
-       returned.argument.optional||
-       returned.argument.object.type!=='Identifier'||
-       returned.argument.object.name!==rootName ||
-       (returned.argument.computed?
-         staticString(returned.argument.property)===null:
-         returned.argument.property.type!=='Identifier'))continue;
+    const methods=statement.body.body;
+    /** @type {Set<string>} */
+    const methodNames=new Set();
+    let safeMethods=true;
+    for(const method of methods) {
+      if(method.type!=='MethodDefinition'||method.kind!=='method'||
+         method.static||method.computed||method.key.type!=='Identifier'||
+         method.key.name==='constructor'||methodNames.has(method.key.name)||
+         method.value?.type!=='FunctionExpression'||
+         method.value.async||method.value.generator||method.value.params.length!==0||
+         method.value.body.body.length!==1){
+        safeMethods=false;break;
+      }
+      const returned=method.value.body.body[0];
+      if(returned.type!=='ReturnStatement'||
+         returned.argument?.type!=='MemberExpression'||
+         returned.argument.optional||
+         returned.argument.object.type!=='Identifier'||
+         returned.argument.object.name!==rootName ||
+         (returned.argument.computed?
+           staticString(returned.argument.property)===null:
+           returned.argument.property.type!=='Identifier')){
+        safeMethods=false;break;
+      }
+      methodNames.add(method.key.name);
+    }
+    if(!safeMethods)continue;
     const classUses=identifierUses.get(statement.id.name)??[];
     if(classUses.length!==2)continue;
     const classUse=classUses.find(use=>use.node!==statement.id);
@@ -728,12 +739,12 @@ function proveLocalObject(ast, rootName, bindings, importedIdentityFunctions=new
       if(receiver?.type!=='MemberExpression'||receiver.object!==use.node||
          receiver.computed||receiver.optional||
          receiver.property.type!=='Identifier'||
-         receiver.property.name!==method.key.name)return true;
+         !methodNames.has(receiver.property.name))return true;
       const invoked=parents.get(receiver);
       return invoked?.type!=='CallExpression'||invoked.callee!==receiver||
         invoked.optional||invoked.arguments.length!==0;
     }))continue;
-    privateFunctionNodes.add(method.value);
+    for(const method of methods)privateFunctionNodes.add(method.value);
   }
   /** @type {{name:string,node:AstNode,decl:AstNode}[]} */
   const callableBindings=[];
