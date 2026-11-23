@@ -88,3 +88,24 @@ test('explicit primitive server constants and named private imports keep positiv
   assert.deepEqual(transformed.privateNames,['protectedOp']);
   assert.doesNotMatch(transformed.clientFile.code,/serverNumber/u);
 });
+
+test('selected export destructured formals and ordinary arguments retain lexical ownership',()=>{
+  const source='export async function protectedOp({externalBridge},next){'+
+    'return externalBridge+next+arguments.length;}'+
+    'export function publicOp(){return 1;}';
+  const transformed=partitionScoSelectedAsyncExports(
+    {path:'mixed.mjs',sourceType:'module',code:source},
+    {seed:'agent35-destructured-and-arguments',privateNames:['protectedOp']}
+  );
+  assert.deepEqual(transformed.privateNames,['protectedOp']);
+  assert.doesNotMatch(transformed.clientFile.code,/externalBridge/u);
+});
+
+test('top-level async arrow cannot borrow ordinary function arguments ownership',()=>{
+  const source='export const protectedOp=async ()=>arguments;'+
+    'export function publicOp(){return 0;}';
+  assert.throws(()=>partitionScoSelectedAsyncExports(
+    {path:'mixed.mjs',sourceType:'module',code:source},
+    {seed:'agent35-async-arrow-arguments',privateNames:['protectedOp']}
+  ),/unproved unqualified free reference: arguments/u);
+});
