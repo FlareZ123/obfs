@@ -315,3 +315,33 @@ test('independent Node-realm control confirms same-name local ownership survives
     }
   }
 });
+
+
+test('indexed free-name proof respects selected const arrow and named function-expression owners',()=>{
+  const safe=[
+    'export const protectedOp=async (value)=>value+1;',
+    'export const protectedOp=async function stable(value){return value+arguments.length;}',
+    'export const protectedOp=async function stable(){return stable===undefined?0:1;}',
+    'export const protectedOp=async ()=>typeof (()=>externalBridge);'
+  ];
+  for(const exported of safe){
+    const compiled=partitionScoSelectedAsyncExports({
+      path:'mixed.mjs',sourceType:'module',
+      code:exported+'export function publicOp(){return 0;}'
+    },{seed:'agent35-selected-const-arrow-local-index',privateNames:['protectedOp']});
+    assert.deepEqual(compiled.privateNames,['protectedOp'],exported);
+  }
+  const unsafe=[
+    'export const protectedOp=async ()=>externalBridge;',
+    'export const protectedOp=async function stable(){return externalBridge;}',
+    'export const protectedOp=async ()=>arguments;',
+    'export const protectedOp=async (value)=>externalBridge+value;'
+  ];
+  for(const exported of unsafe){
+    assert.throws(()=>partitionScoSelectedAsyncExports({
+      path:'mixed.mjs',sourceType:'module',
+      code:exported+'export function publicOp(){return 0;}'
+    },{seed:'agent35-selected-const-arrow-free-index',privateNames:['protectedOp']}),
+    /unproved unqualified free reference/u,exported);
+  }
+});
