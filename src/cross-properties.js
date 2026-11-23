@@ -2678,6 +2678,7 @@ function renameCrossFileProperties(files,seed) {
         const mapping=new Map();
         for(const prop of props) {
           const old=ownPropertyName(prop);
+          if(typeof old!=='string')continue;
           if(publicReaderKeys.has(old))continue;
           const token=createHash('sha256').update(`${seed}/${exporterName}/${exportName}/${old}`).digest('hex').slice(0,12);
           mapping.set(old,`_p${token}`);
