@@ -31,7 +31,7 @@ The passing assertions establish:
 | JavaScript `Storage.prototype.setItem` override captures the function in a `WeakMap` | false | At least 2 | Positive-yield wrapper path; exact object identity retained |
 | Patched `Function.prototype.toString` delegates to captured native method | true | 0 | Correct source-observation negative |
 
-An earlier intentionally-red classification matrix, [run 45193389961](https://github.com/FlareZ123/obfs/actions/runs/45193389961), isolated a receiver-sensitive variant. A plain own-`toString` assignment, the same hook with a counter, and function-valued native Storage key/value calls all classify false. The combination `if (this !== inspect) throw new Error(...)` classifies true. The accepted fixture uses a non-throwing `this === inspect` result check. This does not isolate whether the operator difference, throw statement, or Error-stack path is responsible; do not infer a more specific cause.
+An earlier intentionally-red classification matrix, [run 45193389961](https://github.com/FlareZ123/obfs/actions/runs/45193389961), isolated a receiver-sensitive variant. A plain own-`toString` assignment, the same hook with a counter, and function-valued native Storage key/value calls all classify false. The combination `if (this !== inspect) throw new Error(...)` classifies true. This is a throw-path effect, not a receiver-identity effect: `observesFunctionSource` marks a `ThrowStatement` when `failureMayReachHost(ancestors)` is true (`src/ast.js:2627-2631`), because uncaught host diagnostics can expose source coordinates. The accepted fixture's non-throwing `this === inspect` result check therefore remains eligible for private rewrites; a potentially uncaught throw remains conservatively refused.
 
 ### Real Chromium
 
@@ -65,7 +65,7 @@ Agent 12's separate four-path witness remains distinct and complementary: inheri
 - **Direct Function#toString remains a true source observer.** It bypasses own conversion hooks and must preserve observed function source.
 - **A JavaScript prototype override is not native dispatch.** The wrapper receives and retains the exact callable object; this path can preserve private rewrite yield.
 - **A patched Function#toString that delegates to the native method is source-observing.** The browser confirms native Storage conversion reaches the patched method and returns the original source.
-- The receiver-check plus `throw new Error` variant is a separate conservative refusal; do not conflate it with native Storage dispatch or weaken the source-preservation negative to admit it.
+- The potentially uncaught throw inside the receiver-check variant is a separate source-coordinate refusal; do not conflate it with native Storage dispatch or weaken the source-preservation negative to admit it.
 
 ## Limitations and next work
 
