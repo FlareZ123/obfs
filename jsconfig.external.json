@@ -127,6 +127,8 @@
     "test/affine-flag-mixed-gate-stress.test.js",
     "sims/rare-prefix-mask-certificate-lower-bound.js",
     "test/rare-prefix-mask-certificate-lower-bound.test.js",
+    "sims/conjugated-rare-first-mask-selection.js",
+    "test/conjugated-rare-first-mask-selection.test.js",
     "sims/string-eligibility-matrix.js",
     "sims/typed-array-decoder-tradeoff.js",
     "test/inline-array-primitive-source.test.js",
