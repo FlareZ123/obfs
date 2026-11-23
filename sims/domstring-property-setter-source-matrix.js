@@ -34,7 +34,11 @@ const cases=[
   {name:'HTMLOptionElement.value',setup:'const target=document.createElement("option");',target:'target',property:'value'},
   {name:'HTMLFormElement.name',setup:'const target=document.createElement("form");',target:'target',property:'name'},
   {name:'Element.innerHTML (TrustedHTML/DOMString)',setup:'const target=document.createElement("div");',target:'target',property:'innerHTML'},
-  {name:'Element.outerHTML (TrustedHTML/DOMString)',setup:'const host=document.createElement("div");const target=document.createElement("span");host.appendChild(target);',target:'target',property:'outerHTML',read:'host.innerHTML'}
+  {name:'Element.outerHTML (TrustedHTML/DOMString)',setup:'const host=document.createElement("div");const target=document.createElement("span");host.appendChild(target);',target:'target',property:'outerHTML',read:'host.innerHTML'},
+  {name:'Element.id via Document.getElementById',setup:'const seed=document.createElement("div");seed.id="dom-prop-getbyid";document.body.appendChild(seed);const target=document.getElementById("dom-prop-getbyid");',target:'target',property:'id'},
+  {name:'Element.id via Document.querySelector',setup:'const seed=document.createElement("div");seed.id="dom-prop-query";document.body.appendChild(seed);const target=document.querySelector("#dom-prop-query");',target:'target',property:'id'},
+  {name:'HTMLElement.id via document.body',setup:'',target:'document.body',property:'id'},
+  {name:'Text.textContent via Document.createTextNode',setup:'const target=document.createTextNode("");',target:'target',property:'textContent'}
 ];
 /** @typedef {{name:string,setup:string,assignment:string,read:string,positiveAssignment:string}} DispatchCase */
 
