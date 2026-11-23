@@ -16,9 +16,7 @@ test('a parameter named window is not a browser-global source-coordinate observe
     'module.exports={value:localWindow({})+independent()};'
   ].join('\n');
 
-  assert.equal(observesFunctionSource(parse(source,'commonjs')),false,
-    'the window reference resolves to a function parameter, not the browser global');
-
+  const sourceObserved=observesFunctionSource(parse(source,'commonjs'));
   const result=obfuscateFiles([{
     path:'entry.cjs',sourceType:'commonjs',code:source
   }],{
@@ -30,6 +28,15 @@ test('a parameter named window is not a browser-global source-coordinate observe
   });
   const file=result.files[0];
   assert.ok(file);
+  console.log(JSON.stringify({
+    sourceObserved,
+    metrics:file.metrics,
+    retainedPrivateKey:file.code.includes('privateKey'),
+    retainedPrivateLocal:file.code.includes('privateLocal')
+  }));
+
+  assert.equal(sourceObserved,false,
+    'the window reference resolves to a function parameter, not the browser global');
   assert.ok(file.metrics.properties>=1,'unrelated private owner property should still rename');
   assert.ok(file.metrics.bindings>=1,'unrelated private local binding should still rename');
   assert.ok(!file.code.includes('privateKey'),String(file.code));
