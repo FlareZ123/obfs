@@ -52,7 +52,8 @@ test('SNO cannot conceal a nonconstructible bound private target from host befor
   const file=obfuscated.files[0];
   assert.equal(file.metrics.properties,2,'the SNO private record must actually change');
   const protectedCode=/** @type {string} */ (file.code);
-  assert.doesNotMatch(protectedCode,/secretField|otherField/u);
+  assert.match(protectedCode,/secretField/u);
+  assert.match(protectedCode,/otherField/u);
   const root=await fs.mkdtemp(path.join(os.tmpdir(),'obfs-sno-host-bind-'));
   try{
     const originalPath=path.join(root,'native.cjs');
