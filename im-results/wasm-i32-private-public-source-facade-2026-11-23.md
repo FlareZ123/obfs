@@ -58,3 +58,13 @@ Each mode has 6 prewarm calls per variant, 13 alternating original/protected pai
 The one SNO Ubuntu first-use breach is a **real observed strict >2.5× ratio** in that sampled initialization comparison. The prompt explicitly permits excluding server-side SNO initialization from its sustained compute budget; that exception does not establish that every observed first-use task is a deductible initialization under an arbitrary workload. Here it is an explicit new-VM and first-call profile. Every hot pair was below threshold in this finite sample.
 
 **Interpretation:** This bounded synchronous Node fixture shows a genuine nonzero private virtualization with source-exact public facade and modest **sampled** hot overhead, but neither the 2.5× universal rule nor attacker resistance is qualified. Browser and actual SCO service costs, GC tails, independently replicated process sessions, public static reconstruction against matched minifier controls, and other workloads remain necessary. No claim of binomial 95% confidence follows from 13 correlated trials in one runner.
+
+## Actual Chromium public-facade positive
+
+The separate opt-in `test/agent38-chromium-private-wasm-facade.test.js` on research branch `agent38/private-yield-observer-matrix-20261123` at SHA `fb3e648647314b9ff6f73629d7925e658871d425` runs a genuine HTTP origin plus headless Chromium, and installs an *unknown external importing page* after compiling only `public.mjs`. The compilation selects `secretI32` for WebAssembly (metrics `wasmI32Functions:1`) while preserving `export function published(value){return secretI32(value);}`.
+
+[Focused run 45128792219](https://github.com/FlareZ123/obfs/actions/runs/45128792219) is **green overall**: Ubuntu real Chromium test **1/1 pass**, public `Function#toString` equals exactly `function published(value){return secretI32(value);}` for original plus all three mode options; both browser-observed function result and exported primitive snapshot also match. The Windows focused job **succeeded with the real-browser test skipped**, so it does not establish Windows Chrome coverage. Strict JSDoc gates passed.
+
+This is the positive counterpart to the source-breaking unknown-import Chromium test `test/agent38-chromium-public-identifier-source.test.js`: both use unmodified browser Function#toString and independent externally served importing pages. The protected helper's public Wasm bytes remain recoverable, and no browser runtime budget was measured.
+
+The browser test remains on its research branch: it is a real-Chromium fixture requiring an installed executable, unsuitable for unconditional `node --test` runs on developer machines without Chrome. The Node-only private facade positive regression has been committed to main separately.
