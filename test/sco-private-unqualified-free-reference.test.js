@@ -345,3 +345,30 @@ test('indexed free-name proof respects selected const arrow and named function-e
     /unproved unqualified free reference/u,exported);
   }
 });
+
+
+test('private lexical owners may shadow same-spelled separated public exports',()=>{
+  const positive=[
+    'export async function protectedOp(){const publicOp=()=>41;return publicOp();}',
+    'export async function protectedOp(publicOp){return publicOp+1;}'
+  ];
+  for(const exported of positive){
+    const result=partitionScoSelectedAsyncExports({
+      path:'mixed.mjs',sourceType:'module',
+      code:exported+'export function publicOp(){return 0;}'
+    },{seed:'agent35-public-shadow-positive',privateNames:['protectedOp']});
+    assert.deepEqual(result.privateNames,['protectedOp']);
+    assert.deepEqual(result.publicNames,['publicOp']);
+  }
+  const negative=[
+    'export async function protectedOp(){return publicOp();}',
+    'export async function protectedOp(){function sibling(publicOp){return publicOp;}return publicOp();}'
+  ];
+  for(const exported of negative){
+    assert.throws(()=>partitionScoSelectedAsyncExports({
+      path:'mixed.mjs',sourceType:'module',
+      code:exported+'export function publicOp(){return 41;}'
+    },{seed:'agent35-public-shadow-negative',privateNames:['protectedOp']}),
+    /references a separated public binding/u,exported);
+  }
+});
