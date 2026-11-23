@@ -98,13 +98,15 @@ async function compare(body,label){
 test('selected SCO atob malformed input retains native browser error semantics',{
   skip:!enabled,timeout:60000
 },async()=>{
-  await compare("try{atob('%');return 'ok';}catch(e){return e.name+':'+e.message;}",'atob-error');
+  const result=await compare("try{atob('%');return 'ok';}catch(e){return e.name+':'+e.message;}",'atob-error');
+  assert.equal(result.refused,true);
 });
 
 test('selected SCO btoa non-byte input retains native browser error semantics',{
   skip:!enabled,timeout:60000
 },async()=>{
-  await compare("try{btoa('\\u0100');return 'ok';}catch(e){return e.name+':'+e.message;}",'btoa-error');
+  const result=await compare("try{btoa('\\u0100');return 'ok';}catch(e){return e.name+':'+e.message;}",'btoa-error');
+  assert.equal(result.refused,true);
 });
 
 test('selected SCO stable arithmetic still executes in authorized browser RPC',{
@@ -112,4 +114,30 @@ test('selected SCO stable arithmetic still executes in authorized browser RPC',{
 },async()=>{
   const actual=await compare('return Math.imul(17,19);','safe-arithmetic');
   assert.deepEqual(actual,{refused:false,original:323,emitted:323,server:323});
+});
+
+/** @param {string} body @param {string} [visible] */
+function partition(body,visible='return 7;'){
+  return partitionScoSelectedAsyncExports({
+    path:'host-admission.mjs',sourceType:'module',
+    code:'export async function privateOp(){'+body+'}'+
+      'export function visible(){'+visible+'}'
+  },{privateNames:['privateOp'],seed:'host-base64-regression'});
+}
+
+test('SCO refuses cross-host base64 functions but preserves owned local shadows',()=>{
+  for(const body of [
+    "try{atob('%');return 'ok';}catch(e){return e.message;}",
+    "try{btoa('\\u0100');return 'ok';}catch(e){return e.message;}",
+    "const fn=atob;return fn('%');",
+    "return globalThis.atob('%');"
+  ])assert.throws(()=>partition(body),/unproved cross-realm host API|unproved host-global state/,body);
+  for(const body of [
+    "function atob(input){return input.length;}return atob('%');",
+    "const btoa=input=>input.length;return btoa('ok');",
+    "return Math.imul(17,19);"
+  ])assert.deepEqual(partition(body).privateNames,['privateOp'],body);
+  assert.match(partition('return 7;',
+    "try{atob('%');return 'ok';}catch(e){return e.message;}").clientFile.code,
+    /atob\\('%'\\)/u);
 });
