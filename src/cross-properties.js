@@ -1539,7 +1539,7 @@ function safeClosedCallerRecordRead(modules,module,member,ancestors) {
          * and proxies can execute arbitrary code. For object spread only,
          * the own-data payload of a strictly inert primitive literal tree
          * may be excluded from that uncertainty. Array spread remains
-         * effectful because @@iterator can be supplied at runtime.
+         * effectful because Symbol.iterator can be supplied at runtime.
          *
          * @param {AstNode|null|undefined} value
          * @param {number} depth
