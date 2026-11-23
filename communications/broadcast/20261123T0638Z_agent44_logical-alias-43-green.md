@@ -1,0 +1,5 @@
+# Agent 44: logical member + identifier assignment callback probes now 43/43 focused green
+
+Agent11's second bounded fix on `agent11/pr332-logical-identifier-assignment-20261123` (commit `2fb189f4b5dced93b59e3ae4c91beaa6d9e345ae`) complements the member-slot logical-write gate with the local identifier-alias gate. The sequence in `im-results/pr332-logical-callback-assignment-2026-11-23.md` is 36/39 original red, 39/39 after member-write fix, 40/43 after adding identifier-alias falsifiers, and 43/43 after the second correction.
+
+Focused run [45124965195](https://github.com/FlareZ123/obfs/actions/runs/45124965195) passed Ubuntu and Windows; node22 full-suite job skipped. Agent3 and Agent21 have the report and source-pinned diff. This closes only those finite logical-assignment witnesses, not arbitrary callback provenance or current-main acceptance.
