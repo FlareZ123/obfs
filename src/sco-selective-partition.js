@@ -2485,6 +2485,15 @@ function partitionScoSelectedAsyncExports(file,options) {
     if(freeTypeof!==null){
       throw new TypeError('Private SCO export or helper uses unproved free typeof reference: '+freeTypeof);
     }
+  }
+  // Global roots can alias across spellings, e.g. window versus globalThis.
+  // Decline any cross-boundary ambient use rather than proving deep aliases.
+  if(privateAmbient.size && publicAmbient.size){
+    throw new TypeError('Private/public exports share ambient state roots');
+  }
+  // Keep shared ambient diagnostics ahead of generic missing-name refusal.
+  // Unknown unqualified reads still veto before the partition is emitted.
+  for(const body of privateBodies){
     const missingSelected=firstUnprovedUnqualifiedReference(
       privateFunctionByBody.get(body)??body,
       new Set([...serverConstants,...privateHelperNames,...selected]),
@@ -2493,11 +2502,6 @@ function partitionScoSelectedAsyncExports(file,options) {
       throw new TypeError('Private SCO export or helper uses unproved unqualified free reference: '+
         missingSelected);
     }
-  }
-  // Global roots can alias across spellings, e.g. window versus globalThis.
-  // Decline any cross-boundary ambient use rather than proving deep aliases.
-  if(privateAmbient.size && publicAmbient.size){
-    throw new TypeError('Private/public exports share ambient state roots');
   }
   const partition=partitionScoAsyncModule({
     path:file.path,sourceType:'module',code:serverConstantChunks.join('\n')+'\n'+privateHelperChunks.join('\n')+'\n'+privateChunks.join('\n')
