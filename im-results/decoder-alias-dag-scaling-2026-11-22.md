@@ -50,3 +50,35 @@ PR #239 is draft and stacked on older PR #217; no mainline integration or curren
 The initial compiler-scale fixture deliberately keeps its long sentinel inside a call operand whose source spelling might become observable in a native TypeError. That yields zero encoded strings independent of descriptor sensitivity, so a separate fixture now exposes the literal directly. On **safe descriptor aliases**, the compiler must encode exactly one ordinary literal; with a deep getter returning `String.prototype`, it must conservatively decline encoding. Source-pinned [full Ubuntu/Windows run 45049920209](https://github.com/FlareZ123/obfs/actions/runs/45049920209) at `6a038314df9700c5d9ab55cfa570f4f60c77cc57` passed both cases and strict project/external JSDoc, performance steps and Ubuntu Chromium.
 
 The independent seeded model is now checked into `test/decoder-alias-dag-reachability-model.test.js`: 10,000 generated directed cyclic graphs, two roots each, each compared to an iterative breadth-first search reference, plus an exact 16-level diamond call-count assertion (**131,071 vs 63**). The enhanced source `43382b5690c007b9bcef1328dfeb13c4aff9f5ee` passed the [full two-platform 45050490533 workflow](https://github.com/FlareZ123/obfs/actions/runs/45050490533), including Ubuntu real Chromium. This pin retains the same compiler core as the earlier `dbb3f19` run and adds tests only. The branch remains draft, stacked and release-blocked for the primary objective.
+
+## 23 November: reachable sensitive getter regression and independent safe branch
+
+An independent fixture review identified two limitations in the earlier
+`makeProgram(depth,true)` test. Sequentially overwriting each alias with
+the second predecessor made the recorded sensitivity edge conservative but
+runtime-unreachable: the terminal write targeted the object originating at
+`b0`, while `Object.create(null,a0)` consulted `a0`. Additionally,
+`Object.keys(box)` did not read the installed accessor, and the
+`get`-only descriptor was nonenumerable. Thus the original regression
+remains useful for **may-alias false-positive/yield-cost** and graph-scaling
+evidence; it must not be cited as a runtime-reachable getter witness.
+
+Test-only commit `b8dc516b6f1c60efac756942bd16472e3df1a1d9`
+adds an explicit `globalThis.pick` branch at each layer. With
+`pick=true`, the terminal alias is `a0`, and the descriptor is installed
+on `box`. With `pick=false`, it follows `b0`, leaving `box` without
+the descriptor. The test reads `box.ref` and compares native/emitted
+results for both choices at depths 2, 4 and 6; it requires zero eagerly
+encoded literals for the String-sensitive case. A separate no-getter branch
+test at the same depths demands one encoded literal and native/emitted
+behavioral parity for both choices. The old overwritten-alias test has
+been accurately relabeled.
+
+The exact source-pinned [manual validation run 45190784624](https://github.com/FlareZ123/obfs/actions/runs/45190784624)
+**succeeded on both Ubuntu and Windows Node 22**. Both jobs completed the
+full branch-configured behavioral/adversarial suite, project and external
+JSDoc checks, and the paired sampled performance stages; the Ubuntu job
+also completed its configured real-Chromium integrations. These are
+regression and coverage findings for the stacked draft candidate; they do
+not establish mainline parity, protection against hostile-runtime analysis,
+source secrecy or universal runtime-budget compliance.
