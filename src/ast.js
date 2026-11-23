@@ -2915,6 +2915,14 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
     if(node.type==='MemberExpression') {
       const name=node.computed ? sourceStringKey(node.property) :
         (node.property.type==='Identifier' ? node.property.name : null);
+      // Accessing a host-injected global may invoke an opaque property getter,
+      // which can collect Error.stack and return this module's source column.
+      // Direct method calls also pass through this MemberExpression. Until
+      // host provenance can prove an inert data property, fail closed for
+      // all direct reads (including accessor-backed and callable values).
+      if(node.object.type==='Identifier' &&
+         ['globalThis','window','self','global'].includes(node.object.name))
+        observed=true;
       // Error stack strings expose generated source line/column coordinates.
       // Even harmless identifier-length edits change those coordinates, so
       // refuse rewrites for syntactic stack observers. This deliberately also
@@ -2963,15 +2971,6 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
     }
     if(node.type==='CallExpression'||node.type==='NewExpression') {
       const callee=node.callee;
-      // An unknown callable obtained directly from a host global can capture
-      // an Error.stack inside its own body and observe this module's caller
-      // column without ever receiving a Function object as an argument.
-      // Refuse all direct host-global invocations in this source-local proof;
-      // trusted-native provenance and alias handling require separate proofs.
-      if(callee.type==='MemberExpression' &&
-         callee.object.type==='Identifier' &&
-         ['globalThis','window','self','global'].includes(callee.object.name))
-        observed=true;
       // MessagePort, Worker and browser postMessage use structured cloning.
       // Their DataCloneError can expose exact function source in the payload,
       // including nested values. The receiver may be an opaque host object.
