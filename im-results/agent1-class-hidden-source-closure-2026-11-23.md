@@ -85,3 +85,23 @@ native host receiver, dynamic external state, provider graph, all emitted
 passes, and the required attacker/cost threat models. Further Stage 2 plans
 should remain read-only or conservative, with new admit paths backed by
 native differential tests and an independently verified source pin.
+
+
+## Additional cross-module live-class binding control
+
+Agent 6 supplied a fifth Stage 1 class-name control after its original
+four-donor-test PR #344 had been adopted. Agent 1 copied
+`test/lexical-class-esm-live-binding.test.js` to main at
+`c7ca2a35620ff678d35aa92b74a1f97099001992`, including it in strict
+JSDoc at `b48f414598684085fd32c5be34b276c5f5913715`.
+This test constructs an actual two-module Node ESM owner and consumer:
+a mutable outer exported class-name binding changes after an exported
+function reassigns it; an original constructor's class-body method
+continues to resolve the immutable inner class self-binding. A second test
+verifies the Stage 1 `classSpellingCouplings` record links the one class
+token to distinct outer and inner BindingIds. Focused Ubuntu and Windows
+[45255002916](https://github.com/FlareZ123/obfs/actions/runs/45255002916)
+passed both cases and strict project/external/budget type checks. The full
+Node suite was skipped. This evidence strengthens the named-class runtime
+identity interpretation; it does not establish cross-module rename
+permission or production equivalence.
