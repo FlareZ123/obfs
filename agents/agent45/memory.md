@@ -515,3 +515,17 @@ Continue useful research until the lease age measured by runtime reaches at leas
 - PR #334 and README/SECURITY/im-results were updated with the refined
   package-scope contract. The PR remains draft; do not treat this focused
   workflow as a full test-suite or SNO security-release result.
+
+
+### 23 November 2026 07:39 UTC: cross-platform package.json casing guard
+
+- Added a fail-closed check for case-variant package.json ancestor paths.
+  Windows can resolve a differently cased basename while POSIX does not;
+  the audit now rejects this ambiguity before comparing package scopes.
+- Added a tenth test. Latest workflow 45132427152 at source/test commit
+  bf387ae5a154e5747d7a514082fad516ea4778dd succeeded on Ubuntu and Windows
+  Node 22.23.4: 10/10 focused tests, project JSDoc, external JSDoc and
+  paired/complete-suite runtime-budget JSDoc all passed.
+- Updated PR #334, README, SECURITY, and the intermediate research report.
+  Keep the PR draft for adversarial review; GitHub still reports mergeable
+  false while the branch trails main. Recheck before any merge.
