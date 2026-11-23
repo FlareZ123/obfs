@@ -3,7 +3,7 @@
 const assert=require('node:assert/strict');
 const {test}=require('node:test');
 const {createHash}=require('node:crypto');
-const {createBlindAffineChallenge}=require('../sims/llm-blind-affine-challenge');
+const {createBlindAffineChallenge,createOpaqueBlindAffineMatchedChallenge}=require('../sims/llm-blind-affine-challenge');
 const {recover}=require('../sims/polyvariant-affine-static-recover');
 
 /**
@@ -163,6 +163,64 @@ for(const mode of /** @type {const} */(['coo','sno'])){
           assert.equal(candidateModule[name](input),original[name](input));
           assert.equal(controlModule[name](input),original[name](input));
         }
+      }
+    });
+}
+
+
+for(const mode of /** @type {const} */(['coo','sno'])){
+  test('opaque '+mode.toUpperCase()+' matched challenge hides arm labels and defers feedback',
+    async()=>{
+      const trial=await createOpaqueBlindAffineMatchedChallenge(mode);
+      assert.equal(Object.isFrozen(trial.packets),true);
+      assert.equal(trial.packets.length,2);
+      const ids=trial.packets.map(packet=>packet.id);
+      assert.equal(new Set(ids).size,2);
+      for(const packet of trial.packets){
+        assert.deepEqual(Object.keys(packet),['id','question']);
+        assert.match(packet.id,/^[a-f0-9]{24}$/u);
+        assert.equal(Object.isFrozen(packet),true);
+        assert.equal(packet.question.environment,mode);
+        assert.equal('arm' in packet,false);
+        assert.equal('candidate' in packet,false);
+        assert.equal('control' in packet,false);
+        assert.equal('originalSource' in packet.question,false);
+        assert.equal('offsets' in packet.question,false);
+      }
+      assert.throws(()=>trial.submit('candidate',{}),/Unknown opaque arm ID/u);
+      assert.throws(()=>trial.reveal(),/Both opaque answers/u);
+      const answers=new Map();
+      for(const packet of trial.packets){
+        const module=await loadPublicEsm(packet.question.source);
+        answers.set(packet.id,Object.fromEntries(packet.question.exports.map(name=>[
+          name,module[name](0)
+        ])));
+      }
+      const first=trial.packets[0],second=trial.packets[1];
+      const firstResult=trial.submit(first.id,answers.get(first.id));
+      assert.deepEqual(firstResult,{accepted:true,complete:false,submitted:1});
+      assert.equal('verdicts' in firstResult,false);
+      assert.throws(()=>trial.reveal(),/Both opaque answers/u);
+      const secondResult=trial.submit(second.id,answers.get(second.id));
+      assert.deepEqual(secondResult,{accepted:true,complete:true,submitted:2});
+      assert.equal('verdicts' in secondResult,false);
+      assert.throws(()=>trial.submit(first.id,answers.get(first.id)),/only one answer/u);
+
+      const secret=trial.reveal();
+      assert.deepEqual(Object.keys(secret.armById).sort(),ids.slice().sort());
+      assert.deepEqual(Object.values(secret.armById).sort(),['candidate','control']);
+      assert.deepEqual(secret.deliveryOrder,ids);
+      assert.equal(createHash('sha256').update(
+        secret.salt+'\\0'+secret.originalSource).digest('hex'),secret.commitment);
+      assert.equal(secret.commitment,first.question.originalCommitment);
+      for(const packet of trial.packets){
+        const arm=secret.armById[packet.id];
+        assert.equal(secret.sourceHashes[arm],packet.question.sourceSha256);
+        assert.deepEqual(secret.answersById[packet.id],answers.get(packet.id));
+        assert.deepEqual(secret.verdictsById[packet.id],{
+          passed:true,comparisons:3072,
+          claim:'Matched all three private arithmetic functions'
+        });
       }
     });
 }
