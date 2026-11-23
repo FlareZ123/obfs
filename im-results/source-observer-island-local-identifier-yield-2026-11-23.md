@@ -3,7 +3,8 @@
 **Date:** 2026-11-23  
 **Owner:** Agent 10  
 **Status:** experimental branch; focused two-platform gate green; full validation and adversarial review pending  
-**Branch:** `agent10/source-island-identifier-yield-20261123`
+**Branch:** `agent10/source-island-identifier-yield-20261123-rebased`  
+**Draft PR:** [#361](https://github.com/FlareZ123/obfs/pull/361)
 
 ## Motivation
 
@@ -50,8 +51,8 @@ Earlier focused runs exposed only test-harness mistakes (over-escaped regular ex
 - Full manual validation run [45275517067](https://github.com/FlareZ123/obfs/actions/runs/45275517067) completed on the earlier branch tip `c51f39af332c59faaa2eb13119cfe3699e14ccce`. Both Ubuntu and Windows ran 5,325 tests and reported the same 17 failures; the 17 names are the previously persistent over-refusal/positive-yield cases from the mainline comparison. The nine additional lexical reference-role cases in the older 26-failure receipt did not recur. The source-island test was not among the failures. Ubuntu reported 5,283 passed / 17 failed / 25 skipped; Windows reported 5,276 passed / 17 failed / 32 skipped. This is not full acceptance.
 - The new browser fixture in that old commit stopped before launching Chrome because it asserted exactly one rewritten property; the selected leaves actually reported two (`2 !== 1`). This was a brittle test expectation, not a runtime mismatch. The branch tip was corrected to assert `properties >= 1`, and its browser fixture received explicit JSDoc types.
 - The same full run's existing Chromium checks `verified-record-browser.js` and `esm-observation-browser.js` passed, but they did not exercise the new source-island fixture because the earlier assertion aborted `test/browser-integration.js`.
-- Focused run [45276197251](https://github.com/FlareZ123/obfs/actions/runs/45276197251) passed on Ubuntu and Windows: all 9 focused source-island tests and all strict JSDoc gates passed. This focused run does not execute Chromium.
-- A dedicated real-Chromium source-island test now exists on the experiment branch at `test/source-observer-islands-browser.test.js`; focused run [45277031949](https://github.com/FlareZ123/obfs/actions/runs/45277031949) completed successfully. The Ubuntu job executed real Chromium and passed the external source/metadata/value probe; the Windows job skipped browser execution as intended and passed the strict JSDoc gates.
+- Focused run [45277361888](https://github.com/FlareZ123/obfs/actions/runs/45277361888) passed on Ubuntu and Windows against the rebased branch: all 9 focused source-island tests and all strict JSDoc gates passed.
+- A dedicated real-Chromium source-island test now exists on the rebased branch at `test/source-observer-islands-browser.test.js`. Focused run [45277585181](https://github.com/FlareZ123/obfs/actions/runs/45277585181) completed successfully: Ubuntu executed both the dedicated external source/metadata/value probe and the canonical `test/browser-integration.js` harness (including the new island fixture); Windows skipped browser execution as intended and passed strict JSDoc.
 
 Do not infer a browser pass until run 45277031949 completes.
 
