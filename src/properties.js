@@ -810,8 +810,13 @@ function proveLocalObject(ast, rootName, bindings, importedIdentityFunctions=new
       }
       if(!safe)break;
     }
-    if(safe&&constructed>0)privateFunctionNodes.add(method.value);
+    if(safe&&constructed>0) {
+      console.error('PRIVATE_CLASS_PROOF',rootName,className,methodName,source.slice(cls.start,cls.end));
+      privateFunctionNodes.add(method.value);
+    }
   }
+  if(localClassUses.size)console.error('CLASS_LOCAL_USES',rootName,
+    [...localClassUses].map(cls=>cls.id?.name??null));
 
   const aliases = new Set([rootName]);
   /**
