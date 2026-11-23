@@ -140,18 +140,25 @@ function makeTriangular(width,degree,seed,termsPerBit=6) {
  * @param {number} width
  * @param {number} degree
  * @param {number} seed
- * @returns {{oracle:(input:bigint)=>bigint,inputRows:bigint[],outputRows:bigint[]}}
+ * @returns {{oracle:(input:bigint)=>bigint,inputRows:bigint[],outputRows:bigint[],inputOffset:bigint,outputOffset:bigint}}
  */
 function makeRandomTriangularOracle(width,degree,seed) {
   if(width<2||width>64||degree<1||degree>width)throw new RangeError('width 2..64 and degree 1..width required');
   const next=seeded32(seed);
   const inputRows=randomRows(width,next);
   const outputRows=randomRows(width,next);
+  let inputOffset=0n,outputOffset=0n;
+  for(let bit=0;bit<width;bit++){
+    if(next()&1)inputOffset|=1n<<BigInt(bit);
+    if(next()&1)outputOffset|=1n<<BigInt(bit);
+  }
   const triangular=makeTriangular(width,degree,seed^0x7f4a7c15);
   return {
-    oracle:input=>applyLinear(outputRows,triangular(applyLinear(inputRows,input))),
+    oracle:input=>applyLinear(outputRows,triangular(applyLinear(inputRows,input)^inputOffset))^outputOffset,
     inputRows,
-    outputRows
+    outputRows,
+    inputOffset,
+    outputOffset
   };
 }
 
