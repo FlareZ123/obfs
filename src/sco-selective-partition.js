@@ -319,6 +319,31 @@ function firstUnprovedUnqualifiedReference(root,moduleBindings,rootFormals){
     }
     return false;
   }
+  // Repeated references to the same name in a large function otherwise
+  // re-scan each ancestor's full declaration list and var-hoist subtree.
+  // A function parameter initializer sees a different var environment from
+  // its body, so those two visibility regions must never share a cache key.
+  /** @type {WeakMap<import('./ast').AstNode,Map<string,boolean>>} */
+  const resolvedByScope=new WeakMap();
+  /**
+   * @param {import('./ast').AstNode} scope
+   * @param {string} name
+   * @param {import('./ast').AstNode} read
+   * @returns {boolean}
+   */
+  function cachedScopedBinding(scope,name,read){
+    let cached=resolvedByScope.get(scope);
+    if(!cached){cached=new Map();resolvedByScope.set(scope,cached);}
+    const functionScope=['FunctionDeclaration','FunctionExpression',
+      'ArrowFunctionExpression'].includes(scope.type);
+    const inBody=Boolean(functionScope&&scope.body&&read.start>=scope.body.start);
+    const cacheKey=(inBody?'body:':'parameter:')+name;
+    const saved=cached.get(cacheKey);
+    if(saved!==undefined)return saved;
+    const resolved=scopedBinding(scope,name,read);
+    cached.set(cacheKey,resolved);
+    return resolved;
+  }
   /** @type {string|null} */
   let missing=null;
   walk(root,(node,parent,key,ancestors)=>{
@@ -341,7 +366,7 @@ function firstUnprovedUnqualifiedReference(root,moduleBindings,rootFormals){
     if(lazyTypeofLiteral)return;
     const name=node.name;
     if(moduleBindings.has(name)||rootFormals.has(name))return;
-    if(ancestors.some(scope=>scopedBinding(scope,name,node)))return;
+    if(ancestors.some(scope=>cachedScopedBinding(scope,name,node)))return;
     if(recognizedGlobals.has(name))return;
     missing=name;
   });
