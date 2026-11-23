@@ -146,3 +146,28 @@ test('opaque Proxy dynamic Reflect.get is conservatively refused in a closed gra
     'An unproved dynamic native property read must preserve original key names');
   assert.deepEqual(await execute(transformed.files),await execute(originals));
 });
+
+test('ES2024 groupBy builtins retain externally observable cross-file private keys',async()=>{
+  /** @type {ModuleFile[]} */
+  const originals=[
+    {path:'state.mjs',sourceType:'module',
+      code:'export const state={groupedPrivate:31,otherPrivate:71};'},
+    {path:'entry.mjs',sourceType:'module',
+      code:"import {state} from './state.mjs';"+
+        "const objectGroup=Object.groupBy([state],()=> 'hit');"+
+        "const mapGroup=Map.groupBy([state],()=>true);"+
+        "const objectAlias=objectGroup.hit[0];"+
+        "const mapAlias=mapGroup.get(true)[0];"+
+        "console.log(JSON.stringify([Object.keys(objectAlias),Object.keys(mapAlias),"+
+        "objectAlias.groupedPrivate,mapAlias.otherPrivate]));"}
+  ];
+  const original=await execute(originals);
+  assert.equal(original.status,0,original.stderr);
+  const transformed=obfuscateFiles(originals,{
+    mode:'coo',closedWorld:true,seed:'crossfile-groupby-original-key-observer',
+    identifiers:false,strings:false,properties:true
+  });
+  assert.equal(transformed.crossFile.properties,0,
+    'Object.groupBy and Map.groupBy must not hide retained object-key observers');
+  assert.deepEqual(await execute(transformed.files),original);
+});
