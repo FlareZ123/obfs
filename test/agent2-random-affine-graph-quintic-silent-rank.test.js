@@ -225,8 +225,9 @@ test('affine-graph inversion survives hidden two-sided affine wrappers with a si
   // sufficient condition. The attacker only sees the oracle and final check.
   const inputInverse=inverseOfColumns(inputColumns);
   const outputInverse=inverseOfColumns(outputColumns);
-  assert.notEqual(inputInverse,null);
-  assert.notEqual(outputInverse,null);
+  if(inputInverse===null||outputInverse===null){
+    throw new Error('Affine wrapper matrices must be invertible');
+  }
   const compatibleAnchor=0xba8c2458;
   const anchorBase=wrappedOracleNumber(compatibleAnchor);
   const observedColumns=Array.from({length:32},(_,bit)=>
