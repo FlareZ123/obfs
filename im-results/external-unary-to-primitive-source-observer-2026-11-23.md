@@ -57,7 +57,8 @@ The candidate is on this branch only. No production change has been merged to `m
 A separate control isolates the same whole-file boolean cost in the property pass. The observed function `reader` is independent of a private object `unrelatedOwner`; its numeric coercion is observed by the unlisted patcher, but the unrelated object's key is not part of the observed function source. With the candidate guard, `metrics.properties === 0` and `unrelatedPrivate` remains unchanged. Replacing numeric coercion with `Boolean(reader)` is a non-coercive positive control: the property pass renames `unrelatedPrivate` and preserves runtime result 17.
 
 - Test: `test/agent3-to-primitive-property-yield.test.js`
-- Run 45275533166: GREEN on Ubuntu and Windows with strict project/external JSDoc.
+- Run 45275533166: initial unrelated-key control GREEN on Ubuntu and Windows.
+- Run 45277156645: strengthened version GREEN on Ubuntu and Windows with strict project/external JSDoc; it also asserts that `observedKey` inside `reader` remains present in the captured function source.
 
 This confirms that the boolean observer blocks unrelated property yield as well as identifier yield. The candidate is safe but materially overconservative; a callable/source-span summary is the intended next step, not a global boolean merged as a final solution.
 
