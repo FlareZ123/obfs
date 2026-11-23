@@ -37,7 +37,7 @@ The source-pinned Node regression is:
 - added to `jsconfig.external.json`
 - branch commit `6cf11c6c28a37e048d38f6468c07b92a4fe1c98a` (test with identity, affine-wrapped sources, and random-reanchor baseline), with `ab284e4f55fd19a14e7ca19a6405af9bc2250976` providing strict external JSDoc inclusion.
 
-The focused `manual-validation.yml` runs **45281998892**, **45284407589**, and final run **45285302762** completed successfully on both `ubuntu-latest` and `windows-latest`. The final run executes the identity-core, eight/nine-target break-even, and hidden affine-wrapper/canonical-reanchor checks, plus project JSDoc, external JSDoc, and paired-budget JSDoc. The full-suite Node job was correctly skipped by each focused-test dispatch. This is not a full-mainline release run.
+The focused `manual-validation.yml` runs **45281998892**, **45284407589**, **45285302762**, and final run **45285785280** completed successfully on both `ubuntu-latest` and `windows-latest`. The final run executes the identity-core, eight/nine-target break-even, and hidden affine-wrapper/canonical-reanchor checks, plus project JSDoc, external JSDoc, and paired-budget JSDoc. The full-suite Node job was correctly skipped by each focused-test dispatch. This is not a full-mainline release run.
 
 ## Query observations
 
@@ -70,7 +70,7 @@ Run:
 
 `node --test test/agent2-random-affine-graph-quintic-silent-rank.test.js`
 
-Then run the focused manual-validation workflow with `focused_test=test/agent2-random-affine-graph-quintic-silent-rank.test.js` on branch `agent2/graph-quintic-silent-rank-20261123`. The two-platform source-pinned receipt for the final identity and affine-wrapped test suite is run `45285302762` (commit `9be7e82fc2d54b1dcb9a3cededd933f758be44f2`).
+Then run the focused manual-validation workflow with `focused_test=test/agent2-random-affine-graph-quintic-silent-rank.test.js` on branch `agent2/graph-quintic-silent-rank-20261123`. The two-platform source-pinned receipt for the final identity, affine-wrapped, and random-reanchor comparison suite is run `45285785280` (commit `160bba2eeab5df5b683ef79cb5b7f42d52ccdf29`).
 
 
 ## Hidden two-sided affine-wrapper extension
@@ -80,4 +80,4 @@ A second source-paired test wraps the same triangular core as
 
 The canonical public anchor `r=0` has a rank-deficient 32-column interpolant for this wrapper. A one-basis `invertByReanchoring(..., maxBases=1, initialZero=true)` attempt therefore fails at that anchor. Random reanchoring is a stronger baseline: with the same first target, the deterministic stream seeded `0x12345678` succeeds on its third basis in 102 distinct calls, while seed `0x51515151` fails all four bases after 132 calls (all four interpolants rank-deficient). These are two fixed streams, not a probability estimate. The result is important: **when reanchoring finds a compatible basis, it is far cheaper (about 100 calls) than the graph method (about 28,000 calls per target) on this sparse source**. The graph method remains an alternative route that does not require the reanchor basis condition, and it recovers all eight wrapped targets with exact source-forward equality.
 
-An independent Python port gives 27,438–28,067 calls per wrapped target, **222,079 total** for eight targets, 20,746 below the 242,825-query full degree-five clone baseline. As above, these are Python-port counts, not Node stdout receipts. The updated Node test asserts the eight exact wrapped recoveries, the canonical-anchor rank-deficiency failure, and the total-query inequality. It passed the focused two-platform workflow in run `45285302762` on both Ubuntu and Windows, including project JSDoc, external JSDoc and paired-budget JSDoc.
+An independent Python port gives 27,438–28,067 calls per wrapped target, **222,079 total** for eight targets, 20,746 below the 242,825-query full degree-five clone baseline. As above, these are Python-port counts, not Node stdout receipts. The updated Node test asserts the eight exact wrapped recoveries, the canonical-anchor rank-deficiency failure, a successful random reanchor for seed `0x12345678` (at most 110 calls), a four-anchor failure for seed `0x51515151`, and the total-query inequality. It passed the focused two-platform workflow in run `45285785280` on both Ubuntu and Windows, including project JSDoc, external JSDoc and paired-budget JSDoc. The Python port observed 102 calls for the successful random reanchor and 132 calls for the four-anchor failure; those exact counts are not asserted by Node.
