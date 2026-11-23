@@ -297,3 +297,37 @@ test('live SCO and equal-trust ordinary minified APIs admit the same residual of
     if(plainLive)await close(plainServer);
   }
 });
+
+test('three chosen outputs identify all translated S-boxes, while two cannot',()=>{
+  const family=[];
+  for(let inputOffset=0;inputOffset<8;inputOffset++){
+    for(let outputOffset=0;outputOffset<8;outputOffset++){
+      family.push({inputOffset,outputOffset});
+    }
+  }
+  /** @param {{inputOffset:number,outputOffset:number}} model
+   * @param {number} input @returns {number} */
+  const evaluate=(model,input)=>
+    BASE_SBOX[input^model.inputOffset]^model.outputOffset;
+  assert.equal(family.length,64);
+  const triples=new Set(family.map(model=>
+    [0,1,2].map(input=>evaluate(model,input)).join(',')));
+  assert.equal(triples.size,64,
+    'The fixed three-query transcript identifies every translation');
+
+  // After ANY first chosen input/output, exactly eight possible offset
+  // pairs remain. For EVERY possible second chosen input, their outputs
+  // collide, so adapting the second query to the first cannot guarantee
+  // identification in two queries.
+  for(let first=0;first<8;first++){
+    for(let firstOutput=0;firstOutput<8;firstOutput++){
+      const possible=family.filter(model=>
+        evaluate(model,first)===firstOutput);
+      assert.equal(possible.length,8);
+      for(let second=0;second<8;second++){
+        const next=new Set(possible.map(model=>evaluate(model,second)));
+        assert.ok(next.size<8,'Two observations cannot separate all candidates');
+      }
+    }
+  }
+});
