@@ -45,8 +45,10 @@ function identifierGraph(observe) {
   return [
     {path:'util.mjs',sourceType:'module',code:
       'export function inspect(){return 3;}'},
-    {path:'data.mjs',sourceType:'module',code:
-      'export const unrelatedValue=(()=>{const unrelatedLocal=11;return unrelatedLocal;})();'},
+    {path:'data.mjs',sourceType:'module',code:[
+      'function privateReader(){const unrelatedLocal=11;return unrelatedLocal;}',
+      'export const unrelatedValue=privateReader();'
+    ].join('\\n')},
     {path:'entry.mjs',sourceType:'module',code:[
       'import {inspect} from "./util.mjs";',
       'import {unrelatedValue} from "./data.mjs";',
@@ -56,7 +58,7 @@ function identifierGraph(observe) {
   ];
 }
 
-test('source observer in entry freezes unrelated cross-file private property',async()=>{
+test('source observer in entry preserves unrelated cross-file private property yield',async()=>{
   const baselineFiles=propertyGraph(false);
   const observedFiles=propertyGraph(true);
   const baselineExpected=await execute(baselineFiles);
@@ -81,7 +83,7 @@ test('source observer in entry freezes unrelated cross-file private property',as
   assert.equal(await execute(observed.files),observedExpected);
 });
 
-test('source observer in entry freezes unrelated cross-file private local binding',async()=>{
+test('source observer in entry preserves unrelated cross-file private local binding yield',async()=>{
   const baselineFiles=identifierGraph(false);
   const observedFiles=identifierGraph(true);
   const baselineExpected=await execute(baselineFiles);
@@ -98,9 +100,10 @@ test('source observer in entry freezes unrelated cross-file private local bindin
   assert.ok(observedData);
   assert.ok(!baselineData.code.includes('unrelatedLocal'),String(baselineData.code));
   assert.ok(baselineData.metrics.bindings>=1,String(baselineData.code));
-  // The source observer's graph-level veto also blocks this unrelated module.
-  assert.ok(observedData.code.includes('unrelatedLocal'),String(observedData.code));
-  assert.equal(observedData.metrics.bindings,0,String(observedData.code));
+  // The observed callable is in util.mjs; unrelated data.mjs locals remain
+  // eligible for identifier rewriting across the same compilation graph.
+  assert.ok(!observedData.code.includes('unrelatedLocal'),String(observedData.code));
+  assert.ok(observedData.metrics.bindings>=1,String(observedData.code));
   assert.equal(await execute(baseline.files),baselineExpected);
   assert.equal(await execute(observed.files),observedExpected);
 });
