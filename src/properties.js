@@ -359,6 +359,86 @@ function collectOwnedConstantKeys(ast,rootName,bindings,scopes) {
   return keys;
 }
 
+
+/** @type {WeakMap<AstNode,Set<AstNode>>} */
+const localPrivateClassMethodCache=new WeakMap();
+
+/**
+ * Prove source privacy for a single, pure method on a nonescaping local class.
+ * The class is constructed once with no arguments, and its sole instance is
+ * used only as the receiver of direct calls to that method. The method does
+ * nothing except return a fixed member of a lexical owner; its owner is still
+ * checked separately by the ordinary closed-world proof.
+ *
+ * @param {AstNode} ast
+ * @param {Map<string,number>} bindings
+ * @param {Map<string,AstNode>} scopes
+ * @param {ReturnType<typeof collectProofInventory>} inventory
+ * @returns {Set<AstNode>}
+ */
+function locallyPrivateClassMethods(ast,bindings,scopes,inventory){
+  const cached=localPrivateClassMethodCache.get(ast);
+  if(cached)return cached;
+  /** @type {Set<AstNode>} */
+  const admitted=new Set();
+  walk(ast,(cls,_parent,_key,ancestors)=>{
+    if(cls.type!=='ClassDeclaration'||cls.id?.type!=='Identifier'||
+       cls.superClass||cls.body.body.length!==1||
+       ancestors.some(a=>/^Export/.test(a.type)))return;
+    const className=cls.id.name;
+    const classScope=scopes.get(className);
+    if(!classScope||bindings.get(className)!==1)return;
+    const method=cls.body.body[0];
+    if(method.type!=='MethodDefinition'||method.static||method.computed||
+       method.kind!=='method'||method.key.type!=='Identifier'||
+       method.key.name==='constructor'||method.value.type!=='FunctionExpression'||
+       method.value.async||method.value.generator||method.value.params.length||
+       method.value.body.body.length!==1)return;
+    const statement=method.value.body.body[0];
+    const member=statement.type==='ReturnStatement'?statement.argument:null;
+    if(member?.type!=='MemberExpression'||member.optional||
+       member.object.type!=='Identifier'||
+       (member.computed?staticString(member.property):staticName(member.property))===null)return;
+
+    /** @type {AstNode|null} */
+    let instance=null;
+    for(const use of inventory.identifierUses.get(className)??[]){
+      if(use.node===cls.id)continue;
+      if(!use.ancestors.includes(classScope)||use.parent?.type!=='NewExpression'||
+         use.parent.callee!==use.node||use.parent.arguments.length!==0){
+        instance=null;return;
+      }
+      const candidate=inventory.parents.get(use.parent);
+      if(instance||candidate?.type!=='VariableDeclarator'||
+         candidate.init!==use.parent||candidate.id.type!=='Identifier'||
+         bindings.get(candidate.id.name)!==1||
+         inventory.parents.get(candidate)?.type!=='VariableDeclaration'||
+         inventory.parents.get(candidate)?.kind!=='const'){
+        instance=null;return;
+      }
+      instance=candidate;
+    }
+    if(!instance||instance.id.type!=='Identifier'||
+       scopes.get(instance.id.name)!==classScope)return;
+    for(const use of inventory.identifierUses.get(instance.id.name)??[]){
+      if(use.node===instance.id)continue;
+      const access=use.parent;
+      const invocation=access?inventory.parents.get(access):null;
+      if(!use.ancestors.includes(classScope)||
+         access?.type!=='MemberExpression'||access.object!==use.node||
+         access.optional||access.computed||
+         access.property.type!=='Identifier'||
+         access.property.name!==method.key.name||
+         invocation?.type!=='CallExpression'||
+         invocation.callee!==access||invocation.optional||
+         invocation.arguments.length!==0)return;
+    }
+    admitted.add(method.value);
+  });
+  localPrivateClassMethodCache.set(ast,admitted);
+  return admitted;
+}
+
 /**
  * Closed-world proof of safe uses of a candidate object and its aliases.
  * Recognizes const aliases, direct function parameters, and identity forwarding.
@@ -680,7 +760,8 @@ function proveLocalObject(ast, rootName, bindings, importedIdentityFunctions=new
   // even when its body does not return an identity or a simple parameter read.
   // Conversely, a value stored, returned, exported, or passed elsewhere can
   // expose its original body through Function#toString.
-  const privateFunctionNodes=new Set(directInvokedArrows);
+  const privateFunctionNodes=new Set([...directInvokedArrows,
+    ...locallyPrivateClassMethods(ast,bindings,scopes,collectProofInventory(ast))]);
   /** @type {{name:string,node:AstNode,decl:AstNode}[]} */
   const callableBindings=[];
   for(const node of functionDeclarations) {
