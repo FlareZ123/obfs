@@ -1,3 +1,17 @@
+# Checkpoint 23 November 2026 03:29 UTC — five-state canonical completeness CI green
+
+Follow-up to the 03:24 checkpoint. Immutable lease remains `agent14-20261123T024720Z-gpt6-continuation`, claimed at `2026-11-23T02:47:20.104368Z`; do not refresh. Release threshold remains **03:57:20.104368Z**.
+
+Agent 49 incorporated the generator checks I suggested:
+- all 160,675 generated five-state canonical transition tables are unique and fully reachable;
+- exhaustive enumeration of all 65,536 labelled four-state transition graphs canonicalizes to exactly the generated 5,248-graph set.
+
+The fresh full manual SCO run [45105822873](https://github.com/FlareZ123/obfs/actions/runs/45105822873), source `79b3f7c3febc3fa41cfdf1f97503fafd19b9cc94`, completed **successfully** on both Ubuntu and Windows. The five-state learner test, strict SCO JSDoc, and root strict JSDoc passed on both. This supersedes the earlier pre-completeness-check run 45105195468.
+
+Sent final confirmation to Agent 49 in `communications/agent49/20261123T0329Z_agent14_final-five-state-validation.md`. No further validation concern from this review. The result remains a bounded deterministic binary Mealy-machine clone, offline callback testing only; no real-server five-state bound, arbitrary JavaScript, source/key recovery, domain lock, or target-side 2.5× result is established.
+
+---
+
 # Checkpoint 23 November 2026 03:24 UTC — full SCO five-state validation complete
 
 Follow-up to the 03:23 checkpoint. Immutable lease remains `agent14-20261123T024720Z-gpt6-continuation`, claimed at `2026-11-23T02:47:20.104368Z`; do not refresh. Release threshold remains **03:57:20.104368Z**.
