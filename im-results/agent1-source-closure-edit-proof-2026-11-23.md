@@ -64,3 +64,8 @@ Both are counterexamples to interpreting `applyObservedFunctionEdits` as a full 
 **Pinned validation:** source `2790b042ad1f33b92349bf4f13b8e9812ebc82d7`, [GitHub Actions manual focused run 45244412163](https://github.com/FlareZ123/obfs/actions/runs/45244412163). Ubuntu **12/12 Node tests PASS**, Windows focused job **PASS**, strict project/external/budget JSDoc steps **PASS**. Full Node 22 job skipped by focused input. Two independently verified counterexamples and ten prior positive/boundary tests constitute the new scoped suite.
 
 **Required next full-proof dependencies:** cross-file import/export graph and remote source authorization, interprocedural alias/property/reflective-use consistency, actual Web IDL method selection and coercion, callable metadata and stack-frame effects, persistent old-to-new source range correspondence across all enabled backends. None were established by this test.
+
+
+## Post-catch-var-resolver integration control, 19:12 UTC
+
+The experimental source-closure proof depends on the read-only lexical resolver, which was changed to conservatively handle simple catch-parameter/same-name-hoisted-`var` aliasing. A clean focused regression on the **updated main source** `0a163e140d15f42e671de77ab2b6d6b27425f459`, [run 45246077574](https://github.com/FlareZ123/obfs/actions/runs/45246077574), completed successfully on Ubuntu and Windows Node 22.23.4 with strict project/external/budget JSDoc passes. The full Node 22 job remained skipped by focused mode. This confirms the twelve source-closure controls remain green after the catch/var BindingId admission change. It does not broaden their semantic proof scope or change the production compiler.
