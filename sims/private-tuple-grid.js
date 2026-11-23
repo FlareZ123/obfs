@@ -32,7 +32,8 @@ function source(length,ownerPosition) {
     'const alias=tuple['+ownerPosition+'];',
     'function identity(y){return y;}',
     'const reader=x=>x.hiddenCount;',
-    'module.exports=function compute(n){return reader(identity(alias))*n+owner.privateDelta;}'
+    'function privateCompute(n){return reader(identity(alias))*n+owner.privateDelta;}',
+    'module.exports=function compute(n){return privateCompute(n);}'
   ].join('\n');
 }
 
