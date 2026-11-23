@@ -3,6 +3,10 @@
 const {test}=require('node:test');
 const assert=require('node:assert/strict');
 const vm=require('node:vm');
+const fs=require('node:fs');
+const os=require('node:os');
+const path=require('node:path');
+const {createSnoLauncher}=require('../src/sno');
 const {obfuscateFiles}=require('../src');
 
 /**
@@ -12,13 +16,15 @@ const {obfuscateFiles}=require('../src');
  * @param {string} code
  * @returns {{value:number,source:string}}
  */
-function execute(code) {
-  const observed={source:''};
-  const module={exports:0};
-  // A sloppy external host function is required: V8 deliberately masks
-  // CallSite.getFunction() for strict-mode callers. The compiled CommonJS
-  // fixture below is also sloppy; the test module itself is strict.
-  const hostCallback=/** @type {() => void} */(vm.runInNewContext(
+/**
+ * Construct a sloppy external host callback that inspects its synchronous
+ * caller. The test module is strict; source observation requires a separate
+ * sloppy host function to avoid V8's strict-frame privacy rule.
+ * @param {{source:string}} observed
+ * @returns {() => void}
+ */
+function createHostCallback(observed) {
+  return /** @type {() => void} */(vm.runInNewContext(
     '(function hostCallback(){'+
       'const previous=Error.prepareStackTrace;'+
       'try{Error.prepareStackTrace=(_error,frames)=>{'+
@@ -29,7 +35,16 @@ function execute(code) {
         'else Error.prepareStackTrace=previous;}})',
     {Error,observed}
   ));
-  vm.runInNewContext(code,{module,hostCallback},{timeout:3000});
+}
+
+/**
+ * @param {string} code
+ * @returns {{value:number,source:string}}
+ */
+function execute(code) {
+  const observed={source:''};
+  const module={exports:0};
+  vm.runInNewContext(code,{module,hostCallback:createHostCallback(observed)},{timeout:3000});
   return {value:module.exports,source:observed.source};
 }
 
@@ -97,3 +112,44 @@ for(const mode of /** @type {const} */(['coo','sno','sco'])) {
   });
 
 }
+
+
+test('actual SNO CommonJS launcher preserves numeric behavior but exposes rewritten caller source',()=>{
+  const root=fs.mkdtempSync(path.join(os.tmpdir(),'obfs-sno-callsite-'));
+  const nativeDir=path.join(root,'native');
+  const compiledDir=path.join(root,'compiled');
+  const before={source:''};
+  const after={source:''};
+  const oldHost=Object.getOwnPropertyDescriptor(globalThis,'hostCallback');
+  try {
+    fs.mkdirSync(nativeDir);
+    fs.mkdirSync(compiledDir);
+    fs.writeFileSync(path.join(nativeDir,'case.cjs'),observableSource);
+    const emitted=compile(observableSource,'sno');
+    fs.writeFileSync(path.join(compiledDir,'case.cjs'),emitted.code);
+    fs.writeFileSync(path.join(compiledDir,'sno-entry.cjs'),
+      createSnoLauncher([{path:'case.cjs',code:emitted.code}],'case.cjs'));
+    Object.defineProperty(globalThis,'hostCallback',{
+      value:createHostCallback(before),configurable:true
+    });
+    const nativeValue=/** @type {number} */(require(path.join(nativeDir,'case.cjs')));
+    Object.defineProperty(globalThis,'hostCallback',{
+      value:createHostCallback(after),configurable:true
+    });
+    const compiledValue=/** @type {number} */(require(path.join(compiledDir,'sno-entry.cjs')));
+    process.stdout.write('CALLSITE_SNO_LAUNCHER '+JSON.stringify({
+      properties:emitted.metrics.properties,nativeValue,compiledValue,
+      nativeSource:before.source,emittedSource:after.source
+    })+'\n');
+    assert.equal(nativeValue,31);
+    assert.equal(compiledValue,nativeValue);
+    assert.ok(emitted.metrics.properties>=1);
+    assert.match(before.source,/owner\.privateSecret/);
+    assert.equal(after.source,before.source,
+      'The verified SNO launch path should preserve externally observed function source');
+  } finally {
+    if(oldHost)Object.defineProperty(globalThis,'hostCallback',oldHost);
+    else Reflect.deleteProperty(globalThis,'hostCallback');
+    fs.rmSync(root,{recursive:true,force:true});
+  }
+});
