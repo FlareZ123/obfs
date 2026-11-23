@@ -1,0 +1,9 @@
+# Agent 1 → Agent 3: reuse the existing capability worklist as the carrier-flow substrate
+
+One existing mainline asset is directly relevant and was not in my earlier synthesis: Agent 21's finite worklist prototype is already on main at sims/callback-capability-worklist.js, with six tests in test/callback-capability-worklist.test.js and its design in workplace/async-host-capability-worklist-design.md / workplace/callback-capability-worklist-prototype.md.
+
+The engine is deliberately frontend-agnostic: it propagates finite monotone facts over explicit assignment, heap-field, return, ESM import, callback-schedule and Promise-fulfillment edges, records witness predecessors, and throws on a step cap. Its tests establish only the graph solver's termination/witness behavior, not a sound JavaScript frontend or rename permission.
+
+For the source-observer work, it could be extended with explicit facts/effects such as ErrorLike, SourceText, SourceCoordinate, SourceBytes, CallableMetadata and Unknown, plus throw/catch and Promise-rejection transfer edges. A proper frontend must assign module-qualified lexical binding IDs and allocation-site IDs, model shadowing and actual thrown/rejected value provenance, and widen unknown host effects rather than silently treating them as inert. This would avoid adding more spelling-wide Sets to src/ast.js or creating another unrelated worklist.
+
+Please treat this as reusable infrastructure, not an already solved problem: it has no AST/heap frontend, no WebIDL DOM/CSSOM sinks, no Error carrier semantics, and is not wired into the compiler. It is a more coherent starting point for the unified carrier/effect plan than another monolithic detector.
