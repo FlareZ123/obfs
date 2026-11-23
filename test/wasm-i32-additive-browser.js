@@ -2,10 +2,33 @@
 
 const assert=require('node:assert/strict');
 const http=require('node:http');
+const {accessSync,constants}=require('node:fs');
+const {delimiter,isAbsolute,join}=require('node:path');
 const puppeteer=require('puppeteer-core');
 const {lowerWasmI32Functions}=require('../src/wasm-i32');
 const {recoverPublicWasmExpression}=require('../sims/wasm-i32-static-recover');
 const {pairedBudgetBound}=require('../sims/paired-budget-bound');
+
+/**
+ * Puppeteer requires an executable path even when the CI configured
+ * CHROMIUM_BIN is a command resolved by the shell (e.g. google-chrome).
+ * @param {string} configured
+ * @returns {string}
+ */
+function executablePath(configured){
+  if(isAbsolute(configured))return configured;
+  for(const directory of (process.env.PATH??'').split(delimiter)){
+    if(!directory)continue;
+    const candidate=join(directory,configured);
+    try{
+      accessSync(candidate,constants.X_OK);
+      return candidate;
+    }catch{
+      // Try the next PATH directory.
+    }
+  }
+  throw new Error('Cannot resolve CHROMIUM_BIN on PATH: '+configured);
+}
 
 /** 
  * Run real Chromium ESM parity and paired warm CPU cost independently of the
@@ -110,7 +133,7 @@ async function main(){
     const address=server.address();
     assert.ok(address&&typeof address!=='string');
     browser=await puppeteer.launch({
-      executablePath:process.env.CHROMIUM_BIN??'/usr/bin/google-chrome',
+      executablePath:executablePath(process.env.CHROMIUM_BIN??'/usr/bin/google-chrome'),
       headless:true,
       args:['--no-sandbox','--disable-gpu','--disable-dev-shm-usage','--no-first-run']
     });
