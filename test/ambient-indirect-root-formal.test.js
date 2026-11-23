@@ -155,3 +155,22 @@ test('nested native-object formal can extract an ambient Reflect capability',asy
   assert.equal(await execute(compiled.files),native);
   assert.equal(compiled.crossFile.properties,0);
 });
+
+test('a second arguments-vector receiver invalidates closed single-formal proof',async()=>{
+  const original=sourceGraph([
+    'function replace({Reflect:local}){',
+    '  void local;',
+    '  const host=arguments[1];',
+    '  host.Reflect.ownKeys=globalThis.HOST_REFLECT;',
+    '}',
+    'replace({Reflect:{ownKeys:null}},(0,globalThis));'
+  ].join('\n'));
+  const native=await execute(original);
+  assert.equal(native,'[41,1,["secretField"]]');
+  const compiled=obfuscateFiles(original,{
+    mode:'coo',closedWorld:true,seed:'ambient-root-unobserved-extra-actual',
+    identifiers:false,strings:false,properties:true
+  });
+  assert.equal(await execute(compiled.files),native);
+  assert.equal(compiled.crossFile.properties,0);
+});
