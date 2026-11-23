@@ -263,7 +263,8 @@
     "test/cssom-custom-property-source.test.js",
     "test/cssom-custom-property-source-browser.js",
     "test/cssom-source-esbuild-baseline.test.js",
-    "sims/webidl-coercion-capability-matrix.js"
+    "sims/webidl-coercion-capability-matrix.js",
+    "test/cssom-source-owner-closure.test.js"
   ],
   "exclude": [
     "node_modules"
