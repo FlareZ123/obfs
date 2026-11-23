@@ -428,7 +428,7 @@ async function main() {
     '    JSON.stringify(pn.observed)===JSON.stringify(pe.observed),',
     '  negativeProperties:'+crossNegativeProperties+',',
     '  positiveProperties:'+crossPositiveProperties+'};',
-    ' document.getElementById("result").textContent=JSON.stringify({rows,dispatchRows,userland,dataPropertyControl,customAccessorControl,proxyStorageControl,proxyBrandCheckControl,htmlMethodControl,htmlMethodControl,crossFile});',
+    ' document.getElementById("result").textContent=JSON.stringify({rows,dispatchRows,userland,dataPropertyControl,customAccessorControl,proxyStorageControl,proxyBrandCheckControl,htmlMethodControl,browserEnvironment,crossFile});',
     '}catch(error){document.getElementById("result").textContent=',
     ' "BROWSER_ERROR "+String(error.stack||error);}',
     '</script>'
