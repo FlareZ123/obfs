@@ -123,7 +123,7 @@ function splitKernel(basis,labels){
  * nonempty proper subset S of M, with no source-oracle evaluations.
  *
  * @param {PolynomialModel} model
- * @returns {{contract:(direction:number,consume:(vector:number)=>void)=>void,
+ * @returns {{contract:(direction:number,consume:(vector:number,xMask:number)=>void)=>void,
  *   splitTermCount:number,coefficientSlots:number}}
  */
 function makeBoundedDegreeDefectContractor(model){
@@ -131,11 +131,16 @@ function makeBoundedDegreeDefectContractor(model){
     throw new TypeError('expected 32-bit Boolean model with degree 2..4');
   /** @type {Map<number,number>} */
   const index=new Map();
+  /** @type {number[]} */
+  const xMasks=[];
   // A sparse coefficient table can omit zero-coefficient monomials, but
   // their x slots can still receive derivatives of higher-degree terms.
   // Build every possible low-weight x slot independently of model entries.
   for(let bits=1;bits<model.degree;bits++){
-    for(const mask of masksOfWeight(WIDTH,bits))index.set(mask,index.size);
+    for(const mask of masksOfWeight(WIDTH,bits)){
+      index.set(mask,index.size);
+      xMasks.push(mask);
+    }
   }
   /** @type {SplitTerm[]} */
   const terms=[];
@@ -148,7 +153,8 @@ function makeBoundedDegreeDefectContractor(model){
       terms.push({xIndex,vMask:(mask^subset)>>>0,value});
     }
   }
-  /** @param {number} direction @param {(vector:number)=>void} consume @returns {void} */
+  /** @param {number} direction
+   *  @param {(vector:number,xMask:number)=>void} consume @returns {void} */
   function contract(direction,consume){
     const v=direction>>>0;
     const coefficients=new Uint32Array(index.size);
@@ -157,7 +163,10 @@ function makeBoundedDegreeDefectContractor(model){
       // whose highest bit is set; otherwise the derivative certificate fails.
       if(((v&term.vMask)>>>0)===term.vMask)coefficients[term.xIndex]^=term.value;
     }
-    for(const coefficient of coefficients)if(coefficient!==0)consume(coefficient>>>0);
+    for(let slot=0;slot<coefficients.length;slot++){
+      const coefficient=coefficients[slot];
+      if(coefficient!==0)consume(coefficient>>>0,xMasks[slot]);
+    }
   }
   return{contract,splitTermCount:terms.length,coefficientSlots:index.size};
 }
