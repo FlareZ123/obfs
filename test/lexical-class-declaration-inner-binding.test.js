@@ -47,6 +47,25 @@ test('Stage 1 must not conflate hidden inner class binding with mutable outer Bi
   }
 });
 
+test('class declaration inner self-assignment is immutable even though outer name can be assigned',()=>{
+  const source='function demonstration(){class window{static mutate(){window="inner";}}'+
+    'const saved=window;let innerFailed=false;try{saved.mutate();}'+
+    'catch(error){innerFailed=error instanceof TypeError;}'+
+    'window="outer";return [innerFailed,saved===window];}';
+  assert.deepEqual(execute(source),[true,false]);
+  const resolved=inspect(source,'commonjs');
+  const references=resolved.references.filter(item=>item.name==='window');
+  const innerWrite=references[0];
+  const outerWrite=references[references.length-1];
+  assert.equal(innerWrite.role,'write');
+  assert.equal(outerWrite.role,'write');
+  assert.equal(outerWrite.resolution.kind,'local');
+  assert.equal(innerWrite.resolution.kind==='unknown' ||
+    innerWrite.resolution.kind==='local' &&
+    outerWrite.resolution.kind==='local' &&
+    innerWrite.resolution.bindingId!==outerWrite.resolution.bindingId,true);
+});
+
 test('named class declaration extends and static field self-references have separate provenance',()=>{
   for(const source of [
     'function demonstration(){class window extends window {} return 0;}',
