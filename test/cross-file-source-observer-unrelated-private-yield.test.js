@@ -9,92 +9,98 @@ const {spawnSync}=require('node:child_process');
 const {obfuscateFiles}=require('../src');
 const {atomicWrite}=require('../src/atomic');
 
+/** @param {Array<{path:string,code:string}>} files @returns {Promise<string>} */
+async function execute(files) {
+  const dir=await fs.mkdtemp(path.join(os.tmpdir(),'obfs-source-observer-cross-file-'));
+  try {
+    for(const file of files)await atomicWrite(path.join(dir,file.path),file.code);
+    const child=spawnSync(process.execPath,[path.join(dir,'entry.mjs')],{encoding:'utf8'});
+    assert.equal(child.status,0,child.stderr);
+    return child.stdout;
+  } finally {
+    await fs.rm(dir,{recursive:true,force:true});
+  }
+}
+
 /** @param {boolean} observe @returns {{path:string,sourceType:'module',code:string}[]} */
-function makeFiles(observe) {
-  const entry=[
-    'import {inspect} from "./util.mjs";',
-    'import {unrelatedRecord,unrelatedValue} from "./data.mjs";',
-    ...(observe?['console.log(inspect.toString());']:[]),
-    'console.log(inspect(),unrelatedRecord.unrelatedPrivate,unrelatedValue);'
-  ].join('\n');
+function propertyGraph(observe) {
   return [
     {path:'util.mjs',sourceType:'module',code:[
       'const privateState={secretField:3};',
       'export function inspect(){return privateState.secretField;}'
     ].join('\n')},
-    {path:'data.mjs',sourceType:'module',code:[
-      'export const unrelatedRecord={unrelatedPrivate:7};',
-      'export const unrelatedValue=(()=>{const unrelatedLocal=11;return unrelatedLocal;})();'
-    ].join('\n')},
-    {path:'entry.mjs',sourceType:'module',code:entry}
+    {path:'state.mjs',sourceType:'module',code:
+      'export const state={unrelatedPrivate:7};'},
+    {path:'entry.mjs',sourceType:'module',code:[
+      'import {inspect} from "./util.mjs";',
+      'import {state} from "./state.mjs";',
+      ...(observe?['console.log(inspect.toString());']:[]),
+      'console.log(state.unrelatedPrivate);'
+    ].join('\n')}
   ];
 }
 
-test('source observation in one module and unrelated cross-file rename scopes',async()=>{
-  const dir=await fs.mkdtemp(path.join(os.tmpdir(),'obfs-source-observer-unrelated-'));
-  /** @param {{path:string,code:string}[]} sources */
-  async function execute(sources) {
-    for(const file of sources)await atomicWrite(path.join(dir,file.path),file.code);
-    const child=spawnSync(process.execPath,[path.join(dir,'entry.mjs')],{encoding:'utf8'});
-    assert.equal(child.status,0,child.stderr);
-    return child.stdout;
-  }
-  const baselineFiles=makeFiles(false);
-  const observedFiles=makeFiles(true);
-  try {
-    const baselineExpected=await execute(baselineFiles);
-    const observedExpected=await execute(observedFiles);
+/** @param {boolean} observe @returns {{path:string,sourceType:'module',code:string}[]} */
+function identifierGraph(observe) {
+  return [
+    {path:'util.mjs',sourceType:'module',code:
+      'export function inspect(){return 3;}'},
+    {path:'data.mjs',sourceType:'module',code:
+      'export const unrelatedValue=(()=>{const unrelatedLocal=11;return unrelatedLocal;})();'},
+    {path:'entry.mjs',sourceType:'module',code:[
+      'import {inspect} from "./util.mjs";',
+      'import {unrelatedValue} from "./data.mjs";',
+      ...(observe?['console.log(inspect.toString());']:[]),
+      'console.log(unrelatedValue);'
+    ].join('\n')}
+  ];
+}
 
-    const propertyOptions={
-      mode:'coo',closedWorld:true,seed:'source-observer-unrelated-property',
-      properties:true,identifiers:false,strings:false
-    };
-    const propertyBaseline=obfuscateFiles(baselineFiles,propertyOptions);
-    const propertyObserved=obfuscateFiles(observedFiles,propertyOptions);
-    const baselineData=propertyBaseline.files.find(file=>file.path==='data.mjs');
-    const observedData=propertyObserved.files.find(file=>file.path==='data.mjs');
-    assert.ok(baselineData);
-    assert.ok(observedData);
-    assert.ok(!baselineData.code.includes('unrelatedPrivate'),String(baselineData.code));
-    assert.ok(baselineData.metrics.properties>=1,String(baselineData.code));
-    // Expected-red witness: the entry observer currently suppresses a private
-    // cross-file property that is not present in inspect's source text.
-    assert.ok(observedData.code.includes('unrelatedPrivate'),String(observedData.code));
-    assert.equal(observedData.metrics.properties,0,String(observedData.code));
-    assert.equal(await execute(propertyBaseline.files),baselineExpected);
-    assert.equal(await execute(propertyObserved.files),observedExpected);
+test('source observer in entry freezes unrelated cross-file private property',async()=>{
+  const baselineFiles=propertyGraph(false);
+  const observedFiles=propertyGraph(true);
+  const baselineExpected=await execute(baselineFiles);
+  const observedExpected=await execute(observedFiles);
+  const options={
+    mode:'coo',closedWorld:true,seed:'source-observer-cross-file-property',
+    properties:true,identifiers:false,strings:false
+  };
+  const baseline=obfuscateFiles(baselineFiles,options);
+  const observed=obfuscateFiles(observedFiles,options);
+  const baselineState=baseline.files.find(file=>file.path==='state.mjs');
+  const observedState=observed.files.find(file=>file.path==='state.mjs');
+  assert.ok(baselineState);
+  assert.ok(observedState);
+  assert.ok(!baselineState.code.includes('unrelatedPrivate'),String(baselineState.code));
+  assert.ok(baselineState.metrics.properties>=1,String(baselineState.code));
+  // Expected-red witness: observing util.inspect in entry suppresses an
+  // unrelated state.mjs property that is not in inspect's source.
+  assert.ok(observedState.code.includes('unrelatedPrivate'),String(observedState.code));
+  assert.equal(observedState.metrics.properties,0,String(observedState.code));
+  assert.equal(await execute(baseline.files),baselineExpected);
+  assert.equal(await execute(observed.files),observedExpected);
+});
 
-    const identifierOptions={
-      mode:'coo',closedWorld:true,seed:'source-observer-unrelated-identifier',
-      properties:false,identifiers:true,strings:false
-    };
-    const identifierBaseline=obfuscateFiles(baselineFiles,identifierOptions);
-    const identifierObserved=obfuscateFiles(observedFiles,identifierOptions);
-    const baselineIdentifierData=identifierBaseline.files.find(file=>file.path==='data.mjs');
-    const observedIdentifierData=identifierObserved.files.find(file=>file.path==='data.mjs');
-    assert.ok(baselineIdentifierData);
-    assert.ok(observedIdentifierData);
-    assert.ok(!baselineIdentifierData.code.includes('unrelatedLocal'),String(baselineIdentifierData.code));
-    assert.ok(baselineIdentifierData.metrics.bindings>=1,String(baselineIdentifierData.code));
-    // The same compilation-unit source observer also blocks the unrelated
-    // module's private local binding under the identifier-only pass.
-    assert.ok(observedIdentifierData.code.includes('unrelatedLocal'),String(observedIdentifierData.code));
-    assert.equal(observedIdentifierData.metrics.bindings,0,String(observedIdentifierData.code));
-    assert.equal(await execute(identifierBaseline.files),baselineExpected);
-    assert.equal(await execute(identifierObserved.files),observedExpected);
-
-    console.log(JSON.stringify({
-      baselinePropertyMetrics:baselineData.metrics,
-      observedPropertyMetrics:observedData.metrics,
-      baselineIdentifierMetrics:baselineIdentifierData.metrics,
-      observedIdentifierMetrics:observedIdentifierData.metrics,
-      unrelatedPropertyRenamedWithoutObserver:true,
-      unrelatedPropertyFrozenWithObserver:true,
-      unrelatedBindingRenamedWithoutObserver:true,
-      unrelatedBindingFrozenWithObserver:true,
-      runtimeAndObservedSourceParity:true
-    }));
-  } finally {
-    await fs.rm(dir,{recursive:true,force:true});
-  }
+test('source observer in entry freezes unrelated cross-file private local binding',async()=>{
+  const baselineFiles=identifierGraph(false);
+  const observedFiles=identifierGraph(true);
+  const baselineExpected=await execute(baselineFiles);
+  const observedExpected=await execute(observedFiles);
+  const options={
+    mode:'coo',closedWorld:true,seed:'source-observer-cross-file-identifier',
+    properties:false,identifiers:true,strings:false
+  };
+  const baseline=obfuscateFiles(baselineFiles,options);
+  const observed=obfuscateFiles(observedFiles,options);
+  const baselineData=baseline.files.find(file=>file.path==='data.mjs');
+  const observedData=observed.files.find(file=>file.path==='data.mjs');
+  assert.ok(baselineData);
+  assert.ok(observedData);
+  assert.ok(!baselineData.code.includes('unrelatedLocal'),String(baselineData.code));
+  assert.ok(baselineData.metrics.bindings>=1,String(baselineData.code));
+  // The source observer's graph-level veto also blocks this unrelated module.
+  assert.ok(observedData.code.includes('unrelatedLocal'),String(observedData.code));
+  assert.equal(observedData.metrics.bindings,0,String(observedData.code));
+  assert.equal(await execute(baseline.files),baselineExpected);
+  assert.equal(await execute(observed.files),observedExpected);
 });
