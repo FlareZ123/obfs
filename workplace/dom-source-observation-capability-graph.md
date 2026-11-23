@@ -279,3 +279,15 @@ byte-identical between `main` and
 - `src/strings.js`: `df489cf25a8aaeb87d90e6dc1b7eb66476da8dd6`
 - `src/cross-properties.js`: `adb626c7533ac08cc51823b10bdbd9b09d966149`
 - `src/source-observer-islands.js`: `e037ca7440e6a3c2eb0ae19247cd418625ec97a8`
+
+
+### Classic parser APIs
+
+The matrix also confirms two classic parser methods:
+- `DOMParser.parseFromString(inspect, "text/html")`;
+- `Range.createContextualFragment(inspect)`.
+
+Both expose changed function source in emitted output and both primitive-only
+positives pass. Current `src/ast.js` has no explicit method-name handling for
+either. Include them alongside `insertAdjacentHTML`, the modern parser APIs,
+and `Document.write/writeln` in the parser-sink metadata.
