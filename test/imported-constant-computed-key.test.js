@@ -165,7 +165,7 @@ test('cyclic earlier named local key is safe after exported owner initialization
       'export const bag={secretField:8};export {internalKey as publicKey};'+
       'console.log("cycle",probe());',
     'import {bag,publicKey} from "./state.mjs";'+
-      'export function probe(){return bag[publicKey];}'
+      'function privateProbe(){return bag[publicKey];}export function probe(){return privateProbe();}'
   ),1);
 });
 
@@ -176,7 +176,7 @@ test('cyclic later named local key preserves early TDZ ReferenceError',async()=>
       'const internalKey="secretField";export {internalKey as publicKey};'+
       'console.log("ready",probe());',
     'import {bag,publicKey} from "./state.mjs";'+
-      'export function probe(){return bag[publicKey];}'
+      'function privateProbe(){return bag[publicKey];}export function probe(){return privateProbe();}'
   ),0);
 });
 
@@ -207,7 +207,7 @@ test('cyclic ESM imports preserve early TDZ access to a third-module key',async(
     'import {probe} from "./main.mjs";export const bag={secretField:8};'+
       'try{console.log(probe());}catch(error){console.log(error.name);}',
     'import {bag} from "./state.mjs";import {key} from "./key.mjs";'+
-      'export function probe(){return bag[key];}console.log(bag[key]);',
+      'function privateProbe(){return bag[key];}export function probe(){return privateProbe();}console.log(bag[key]);',
     [{path:'key.mjs',sourceType:'module',code:'export const key="secretField";'}]
   ),0);
 });
@@ -270,7 +270,7 @@ test('ESM cycle reads proven imported key after owner initialization',async()=>{
   await compare(graph(
     'import {probe} from "./main.mjs";export const key="secretField";'+
       'export const bag={secretField:8};console.log("cycle",probe());',
-    'import {bag,key} from "./state.mjs";export function probe(){return bag[key];}'
+    'import {bag,key} from "./state.mjs";function privateProbe(){return bag[key];}export function probe(){return privateProbe();}'
   ),1);
 });
 
@@ -278,7 +278,7 @@ test('ESM cycle owner-first and key-later order remains refused',async()=>{
   await compare(graph(
     'import {probe} from "./main.mjs";export const bag={secretField:8};'+
       'export const key="secretField";console.log("cycle",probe());',
-    'import {bag,key} from "./state.mjs";export function probe(){return bag[key];}'
+    'import {bag,key} from "./state.mjs";function privateProbe(){return bag[key];}export function probe(){return privateProbe();}'
   ),0);
 });
 
@@ -287,7 +287,7 @@ test('ESM cycle TDZ before owner initialization keeps exception semantics',async
     'import {probe} from "./main.mjs";export const key="secretField";'+
       'try{console.log(probe());}catch(error){console.log(error.name);}'+
       'export const bag={secretField:8};console.log(probe());',
-    'import {bag,key} from "./state.mjs";export function probe(){return bag[key];}'
+    'import {bag,key} from "./state.mjs";function privateProbe(){return bag[key];}export function probe(){return privateProbe();}'
   ),1);
 });
 
