@@ -1,6 +1,7 @@
 'use strict';
 
 const {parse}=require('parse5');
+const {createHash}=require('node:crypto');
 const {SaxesParser}=require('saxes');
 const {portableKeys}=require('./portable-paths');
 const xhtmlNamespace='http://www.w3.org/1999/xhtml';
@@ -280,9 +281,11 @@ function assertNoInlineHtmlSource(path,code) {
  * browser integrity check, even when all JS expression results are identical.
  *
  * The HTML asset paths and JavaScript inventory are the reviewed publication
- * group. This is deliberately conservative for same-path absolute URLs: a
- * deployment's actual origin cannot be inferred at compile time. Only an
- * exact matching supplied JavaScript target triggers the group-wide veto.
+ * group. An exact portable URL target path, a supplied SCO route prefix,
+ * or the original-source SRI digest on a root-relative/absolute script URL
+ * can conservatively pin the source bytes. Deployment origins and CDN mounts
+ * cannot always be inferred at compile time, so an exact digest match may
+ * veto a transform even when the URL points to an unrelated identical file.
  *
  * @typedef {{path:string,sourceType:string,code:string|Buffer}} IntegrityFile
  * @param {IntegrityFile[]} files
@@ -296,6 +299,37 @@ function hasPinnedLocalJavaScriptIntegrity(files,routePrefix='') {
   const javascriptPaths=new Set(files.filter(file=>file.sourceType!=='asset')
     .map(file=>file.path));
   if(!javascriptPaths.size)return false;
+  // URLs may be mounted, rewritten or CDN-aliased independently of the
+  // compiler's declared paths. A matching SRI digest is an exact commitment
+  // to the original JavaScript bytes even when URL provenance is unknown.
+  const originalDigests=new Set();
+  for(const file of files) {
+    if(file.sourceType==='asset')continue;
+    for(const algorithm of ['sha256','sha384','sha512']) {
+      originalDigests.add(algorithm+'-'+createHash(algorithm)
+        .update(file.code).digest('base64'));
+    }
+  }
+  /** @param {string} metadata @returns {boolean} */
+  function matchesOriginalDigest(metadata) {
+    // SRI metadata contains whitespace-separated hashes; syntax reserves
+    // an optional ?options suffix. Exact digest comparison avoids relying
+    // on a deployment path that the offline compiler cannot observe.
+    return metadata.trim().split(/\s+/u).some(token=>
+      originalDigests.has(token.split('?',1)[0]));
+  }
+  /**
+   * A rooted or absolute web URL may use a deployment prefix not declared in
+   * this offline source tree. Ordinary relative references retain the
+   * compiler's precise path proof so an unrelated ./other.js with an
+   * intentionally reused digest need not suppress positive rewrite yield.
+   * @param {string} address
+   * @returns {boolean}
+   */
+  function hasUnknownMount(address) {
+    const value=address.trimStart();
+    return value.startsWith('/')||/^https?:/iu.test(value);
+  }
   // The output tree already treats NFC- and case-equivalent paths as one
   // portable filename identity. An SRI URL may resolve to the same file on a
   // case-insensitive/normalizing host even when its raw spelling differs.
@@ -372,6 +406,7 @@ function hasPinnedLocalJavaScriptIntegrity(files,routePrefix='') {
     let activeXmlBase=0;
     let ambiguousBase=false;
     let xmlBaseAffectsPin=false;
+    let pinnedDigest=false;
     parser.on('opentag',tag=>{
       const attributes=Object.values(tag.attributes);
       const localXmlBase=attributes.some(attr=>
@@ -394,6 +429,7 @@ function hasPinnedLocalJavaScriptIntegrity(files,routePrefix='') {
       const address=name==='script'?attr('src'):linked?attr('href'):null;
       if(address) {
         pinnedUrls.push(address);
+        if(hasUnknownMount(address)&&matchesOriginalDigest(integrity))pinnedDigest=true;
         if(activeXmlBase)xmlBaseAffectsPin=true;
       }
     });
@@ -402,6 +438,7 @@ function hasPinnedLocalJavaScriptIntegrity(files,routePrefix='') {
     });
     parser.on('error',error=>{throw new TypeError('Malformed XHTML XML: '+error.message);});
     parser.write(xml).close();
+    if(pinnedDigest)return true;
     if(!pinnedUrls.length)return false;
     // XML base changes URI resolution only for its own element/subtree.
     // A base tag with that feature needs a separate XML URI proof.
@@ -478,6 +515,9 @@ function hasPinnedLocalJavaScriptIntegrity(files,routePrefix='') {
            relation.includes('preload') && as.toLowerCase()==='script');
         const address=node.tagName==='script'?src:linked?href:null;
         if(address){
+          if(hasUnknownMount(address)&&matchesOriginalDigest(integrity)){
+            observed=true;return;
+          }
           // The parser may already have started fetching a script before a
           // later <base> takes effect. Also consider the document fallback
           // rather than assuming a static base was active at fetch time.
