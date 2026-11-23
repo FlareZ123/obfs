@@ -1,22 +1,22 @@
 'use strict';
 
-const {applyEdits,staticString,walk}=require('./ast');
+const {applyEdits,staticString}=require('./ast');
 
 /**
  * Resolve the static spelling of a record field admitted by the island proof.
- * @param {import('./ast').AstNode} property
+ * @param {import('./ast').AstNode} member
  * @returns {string|null}
  */
-function recordPropertyName(property) {
-  if(!property.computed && property.property?.type==='Identifier') {
-    return property.property.name;
+function recordPropertyName(member) {
+  if(!member.computed && member.property?.type==='Identifier') {
+    return member.property.name;
   }
-  if(property.computed && property.property?.type==='Literal') {
-    const value=property.property.value;
+  if(member.computed && member.property?.type==='Literal') {
+    const value=member.property.value;
     if(typeof value==='string')return value;
     if(typeof value==='number')return String(value);
   }
-  if(property.computed)return staticString(property.property);
+  if(member.computed)return staticString(member.property);
   return null;
 }
 
@@ -34,7 +34,7 @@ function recordPropertyName(property) {
  *
  * @param {string} source
  * @param {import('./ast').AstNode} ast
- * @returns {{code:string,records:number,properties:number}}
+ * @returns {{code:string,records:number,properties:number,declined:string|null}}
  */
 function lowerProvedPrimitiveIslandRecords(source,ast) {
   /** @type {Map<string,{node:import('./ast').AstNode,properties:import('./ast').AstNode[],indices:Map<string,number>}>} */
@@ -49,45 +49,62 @@ function lowerProvedPrimitiveIslandRecords(source,ast) {
       const indices=new Map();
       for(let index=0;index<properties.length;index++) {
         const property=properties[index];
-        if(property.type!=='Property'||property.computed||property.method||
-           property.shorthand||property.kind!=='init')return {code:source,records:0,properties:0};
-        const key=property.key.type==='Identifier'?property.key.name:
+        if(property.type!=='Property'||property.method||property.shorthand||
+           property.kind!=='init') {
+          return {code:source,records:0,properties:0,declined:'unsupported record property'};
+        }
+        const key=property.computed?staticString(property.key):
+          property.key.type==='Identifier'?property.key.name:
           property.key.type==='Literal'&&typeof property.key.value==='string'?
             property.key.value:
           property.key.type==='Literal'&&typeof property.key.value==='number'?
             String(property.key.value):null;
-        if(key===null||key==='length'||
-           ['__proto__','constructor','prototype'].includes(key)||indices.has(key)) {
-          return {code:source,records:0,properties:0};
+        if(key===null) {
+          return {code:source,records:0,properties:0,declined:'non-static property key'};
+        }
+        if(key==='length') {
+          return {code:source,records:0,properties:0,declined:'special length property'};
+        }
+        if(['__proto__','constructor','prototype'].includes(key)||indices.has(key)) {
+          return {code:source,records:0,properties:0,declined:'unsafe or duplicate property key'};
+        }
+        const value=property.value;
+        if(value.type!=='Literal'||value.regex||
+           (typeof value.value==='object'&&value.value!==null)) {
+          return {code:source,records:0,properties:0,declined:'non-primitive record value'};
         }
         indices.set(key,index);
       }
       records.set(declaration.id.name,{node:declaration.init,properties,indices});
     }
   }
-  if(!records.size)return {code:source,records:0,properties:0};
+  if(!records.size)return {code:source,records:0,properties:0,declined:null};
 
   /** @type {Set<string>} */
   const used=new Set();
   /** @type {{start:number,end:number,text:string}[]} */
   const edits=[];
-  let invalid=false;
-  walk(ast,(node,parent,childKey)=>{
-    if(node.type!=='MemberExpression'||node.optional||
-       parent?.type!=='VariableDeclarator'||childKey!=='init'||
-       node.object.type!=='Identifier')return;
-    const record=records.get(node.object.name);
-    if(!record)return;
-    const fieldName=recordPropertyName(node);
-    const index=fieldName===null?undefined:record.indices.get(fieldName);
-    if(index===undefined){invalid=true;return;}
-    used.add(node.object.name);
-    edits.push({
-      start:node.start,end:node.end,
-      text:node.object.name+'['+index+']'
-    });
-  });
-  if(invalid||!used.size)return {code:source,records:0,properties:0};
+  for(const statement of ast.body) {
+    if(statement.type!=='VariableDeclaration'||statement.kind!=='const')continue;
+    for(const declaration of statement.declarations) {
+      const member=declaration.init;
+      if(member?.type!=='MemberExpression'||member.optional||
+         member.object.type!=='Identifier')continue;
+      const record=records.get(member.object.name);
+      if(!record)continue;
+      const fieldName=recordPropertyName(member);
+      const index=fieldName===null?undefined:record.indices.get(fieldName);
+      if(index===undefined) {
+        return {code:source,records:0,properties:0,declined:'unproved member read'};
+      }
+      used.add(member.object.name);
+      edits.push({
+        start:member.start,end:member.end,
+        text:member.object.name+'['+index+']'
+      });
+    }
+  }
+  if(!used.size)return {code:source,records:0,properties:0,declined:null};
 
   let properties=0;
   let recordCount=0;
@@ -103,7 +120,7 @@ function lowerProvedPrimitiveIslandRecords(source,ast) {
     properties+=record.properties.length;
     recordCount++;
   }
-  return {code:applyEdits(source,edits),records:recordCount,properties};
+  return {code:applyEdits(source,edits),records:recordCount,properties,declined:null};
 }
 
 module.exports={lowerProvedPrimitiveIslandRecords};
