@@ -92,3 +92,32 @@ A guard that only recognizes the setter in the consumer file or
 only freezes the callable body is insufficient when outer owner
 keys are rewritten. Selective integration must retain its
 independent private-key positive; the current source is not release-ready.
+
+## Cross-mode real-ESM Node model
+
+The cross-file Node ESM test was independently extended to all three
+emission modes at exact `bfb5e1e9a30389517748751d45d707b7a76d5e65`,
+[two-platform focused run 45100985263](https://github.com/FlareZ123/obfs/actions/runs/45100985263).
+It still uses **actual Node ESM imports with a test-owned model of browser
+CSSOMString coercion**. It is not a claim that SNO executes in a browser or
+that SCO includes a real server private-code service in this test.
+
+| Emission mode | Implicit imported-function case, original vs emitted source | Private keys renamed in negative | Primitive literal positive source parity | Keys renamed in positive |
+| --- | --- | ---: | --- | ---: |
+| COO | **Mismatch**, original `observedSecret` replaced by `_p97a6240ecb` | 2 | **Pass** | 1 |
+| SCO | **Mismatch**, original `observedSecret` replaced by `_p99c888d576` | 2 | **Pass** | 1 |
+| SNO | **Mismatch**, original `observedSecret` replaced by `_p11f0366bce` | 2 | **Pass** | 1 |
+
+Both operating systems showed **three red negative comparisons and three
+green transformed positives**, with identical native/emitted numeric values
+31 and 73 for all cases. The importing observer's source bytes remained
+unchanged in all six cases; the emitting module changed for each
+transformed case.
+
+This evidence localizes the same missing implicit native-source dependency
+to the shared cross-mode file-graph emitter. It does not establish SNO
+manifest bypass, SCO server authorization failure, cross-mode runtime
+equivalence under production launchers, or a unique weakness in an
+obfuscation strategy compared with ordinary minification. The real
+Chromium cross-file observation above establishes the browser-specific
+coercion and is deliberately kept separate from this all-mode Node model.
