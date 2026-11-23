@@ -109,3 +109,20 @@ test('top-level async arrow cannot borrow ordinary function arguments ownership'
     {seed:'agent35-async-arrow-arguments',privateNames:['protectedOp']}
   ),/unproved unqualified free reference: arguments/u);
 });
+
+test('selected parameter default and computed binding key do not read unknown client globals',()=>{
+  const sourceVariants=[
+    'export async function protectedOp(value=externalBridge){return value;}',
+    'export async function protectedOp({[externalBridge]:value}){return value;}',
+    'export async function protectedOp(value=externalBridge){'+
+      'var externalBridge=12;return value;}',
+    'export async function protectedOp({value=externalBridge}={}){return value;}'
+  ];
+  for(const body of sourceVariants){
+    assert.throws(()=>partitionScoSelectedAsyncExports(
+      {path:'mixed.mjs',sourceType:'module',code:body+
+        'export function publicOp(){return 0;}'},
+      {seed:'agent35-selected-default-lexical-host',privateNames:['protectedOp']}
+    ),/unproved unqualified free reference: externalBridge/u,body);
+  }
+});
