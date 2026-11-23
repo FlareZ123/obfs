@@ -1510,22 +1510,55 @@ function safeClosedCallerRecordRead(modules,module,member,ancestors) {
         }
       }
     }while(returnChanged);
+    // A wrapper may return an object/array containing a function that will
+    // itself acquire an opaque host capability when invoked. The wrapper is
+    // not an ambient callable directly; track its result as a holder, not
+    // as a direct invocation of a host function.
+    /** @type {Set<string>} */
+    const returnedHostCarriers=new Set();
+    let carrierChanged;
+    do {
+      carrierChanged=false;
+      for(const [name,expressions] of factoryReturnExpressions) {
+        if(returnedHostCarriers.has(name))continue;
+        let carries=false;
+        for(const expression of expressions) {
+          walk(expression,node=>{
+            if(node.type==='Identifier' &&
+               returnedHostFactories.has(node.name))carries=true;
+            if(node.type==='CallExpression' &&
+               node.callee.type==='Identifier' &&
+               returnedHostCarriers.has(node.callee.name))carries=true;
+          });
+          if(carries)break;
+        }
+        if(carries) {
+          returnedHostCarriers.add(name);
+          carrierChanged=true;
+        }
+      }
+    }while(carrierChanged);
     /**
      * A call-result alias can be used directly as a constructor or callable,
      * via its member, or as an opaque callback argument. A named import of
      * the factory is recognized across declared ESM module boundaries.
      * @param {Set<string>} factories
+     * @param {Set<string>} carriers
      * @returns {boolean}
      */
-    function invokesFactoryResult(factories) {
+    function invokesFactoryResult(factories,carriers) {
       for(const caller of modules.values()) {
         const callableNames=new Set(factories);
+        const holderReturnNames=new Set(carriers);
         /** @type {Set<string>} */
         const namespaceNames=new Set();
         walk(caller.ast,node=>{
           if(node.type==='ImportSpecifier' &&
              node.imported.type==='Identifier' && factories.has(node.imported.name) &&
              node.local.type==='Identifier')callableNames.add(node.local.name);
+          if(node.type==='ImportSpecifier' &&
+             node.imported.type==='Identifier' && carriers.has(node.imported.name) &&
+             node.local.type==='Identifier')holderReturnNames.add(node.local.name);
           if(node.type==='ImportNamespaceSpecifier' &&
              node.local.type==='Identifier')namespaceNames.add(node.local.name);
         });
@@ -1573,6 +1606,9 @@ function safeClosedCallerRecordRead(modules,module,member,ancestors) {
           if(depth>24)return true;
           if(value.type==='Identifier')return callableNames.has(value.name) ||
             callbackHolders.has(value.name);
+          if(value.type==='CallExpression' &&
+             value.callee.type==='Identifier' &&
+             holderReturnNames.has(value.callee.name))return true;
           if(value.type==='MemberExpression') {
             // A named ESM namespace export can itself be passed as the
             // callback, rather than being directly invoked in source.
@@ -1682,7 +1718,8 @@ function safeClosedCallerRecordRead(modules,module,member,ancestors) {
               aliasChanged=true;
             }
             const contained=(value.type==='ObjectExpression' ||
-              value.type==='ArrayExpression') && holdsFactoryValue(value,0) ||
+              value.type==='ArrayExpression' || value.type==='CallExpression') &&
+                holdsFactoryValue(value,0) ||
               value.type==='Identifier' && callbackHolders.has(value.name);
             if(contained && !callbackHolders.has(binding.name)) {
               callbackHolders.add(binding.name);
@@ -1780,7 +1817,8 @@ function safeClosedCallerRecordRead(modules,module,member,ancestors) {
     // A single union-provenance pass is monotone in possible factory roots:
     // replacing N repeated scans with a fixed-point scan over the union
     // cannot hide a candidate detected by any individual factory pass.
-    if(returnedHostFactories.size && invokesFactoryResult(returnedHostFactories))
+    if(returnedHostFactories.size &&
+       invokesFactoryResult(returnedHostFactories,returnedHostCarriers))
       changedIntrinsic=true;
     walk(source.ast,(node,parent)=>{
       // Proxy descriptor traps may call opaque host accessors without spelling
