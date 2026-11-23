@@ -34,3 +34,24 @@ for(const mode of ['coo','sco']) {
     assert.ok(!output.includes('independentLocal'));
   });
 }
+
+test('SCO host-lock wrapper is admitted despite the missed native Storage source observer',()=>{
+  assert.equal(observesFunctionSource(parse(source,'module')),false);
+  const result=obfuscateFiles([{
+    path:'entry.mjs',
+    sourceType:'module',
+    code:source
+  }],{
+    mode:'sco',
+    allowedHosts:['example.com'],
+    seed:'storage-source-observation-sco-host-lock',
+    properties:false,
+    identifiers:true,
+    strings:false
+  });
+  const output=String(result.files[0].code);
+  assert.ok(output.includes('example.com'));
+  assert.ok(result.files[0].metrics.bindings>=2);
+  assert.ok(!output.includes('privateLocal'));
+  assert.ok(!output.includes('independentLocal'));
+});
