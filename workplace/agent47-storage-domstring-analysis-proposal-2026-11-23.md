@@ -21,6 +21,8 @@ The current evidence is deliberately split across dispatch shapes:
 
 These rows are not interchangeable. The named-property assignment is a distinct syntax for the same IDL setter, not a generic JavaScript property write. A method-name-only `.setItem` veto would wrongly treat JavaScript overrides as native Web IDL dispatch, while a blanket computed-property veto loses safe `Symbol.toPrimitive` yield.
 
+**Important dispatch distinction (spec-derived; browser control pending):** `storage[key] = value` does not necessarily perform a JavaScript property lookup of `storage.setItem`. Web IDL's legacy-platform-object `[[Set]]` algorithm invokes the named-property setter, and the named-property-setter invocation algorithm performs the declared IDL operation's method steps directly with the property name and assigned value. The Storage IDL declares that setter as `setter undefined setItem(DOMString key, DOMString value)`. Therefore the named-property assignment must be modeled as its own internal dispatch identity; do not assume that replacing `Storage.prototype.setItem` or an own `storage.setItem` property intercepts it. This prediction follows from the [HTML Storage IDL](https://html.spec.whatwg.org/multipage/webstorage.html#the-storage-interface) and [Web IDL's named-property and legacy-platform-object algorithms](https://webidl.spec.whatwg.org/), but the interaction with prototype/own-property mutation still needs a real-browser control.
+
 ## Required resolution chain
 
 A future candidate should prove the following in order. Failure to prove any step should produce an explicit Unknown/unsafe result, not a guessed native conversion.
@@ -122,7 +124,8 @@ The actual implementation must also track captured aliases and invocation forms,
 ## Proof obligations before compiler admission
 
 - Native inherited calls, captured native aliases, and named-property assignments expose source for ordinary function values in the tested same-file cases; function-valued keys are also covered by the Storage source-parity matrix.
-- Own instance and prototype wrappers preserve exact function identity; use a `WeakMap` assertion, not only a numeric return value.
+- Own instance and prototype wrappers preserve exact function identity for explicit method calls; use a `WeakMap` assertion, not only a numeric return value.
+- Named-property assignment `storage[key] = value` is a separate Web IDL `[[Set]]` route. Add a browser control that replaces both `Storage.prototype.setItem` and an own `storage.setItem`, then checks whether assignment still uses the named setter and performs native DOMString conversion.
 - Own `toString` and own `Symbol.toPrimitive` are separate hooks; assert receiver, hint, hook count, stored value, and private rewrite yield.
 - Direct `Function.prototype.toString.call` bypasses own hooks and preserves source.
 - Patched `Function.prototype.toString` delegating to the captured native method preserves source.
