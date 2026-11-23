@@ -70,7 +70,7 @@ const ordinarySource=
   'module.exports=readPrivate();';
 
 for(const mode of /** @type {const} */(['coo','sno','sco'])) {
-  test(mode+' host-supplied CallSite.getFunction exposes direct-only caller source',()=>{
+  test(mode+' host-supplied CallSite.getFunction must preserve caller source',()=>{
     const before=execute(observableSource);
     const output=compile(observableSource,mode);
     const after=execute(/** @type {string} */(output.code));
@@ -82,8 +82,8 @@ for(const mode of /** @type {const} */(['coo','sno','sco'])) {
     assert.equal(before.value,31);
     assert.equal(after.value,before.value);
     assert.match(before.source,/owner\.privateSecret/);
-    assert.ok(output.metrics.properties>=1,
-      'Prove nonzero changed private work rather than an all-zero refusal');
+    assert.equal(output.metrics.properties,0,
+      'A source-observed owner must remain unchanged');
     assert.equal(after.source,before.source,
       'A host callback must not observe changed caller function-source bytes');
   });
@@ -114,7 +114,7 @@ for(const mode of /** @type {const} */(['coo','sno','sco'])) {
 }
 
 
-test('actual SNO CommonJS launcher preserves numeric behavior but exposes rewritten caller source',()=>{
+test('actual SNO CommonJS launcher must preserve externally observed caller source',()=>{
   const root=fs.mkdtempSync(path.join(os.tmpdir(),'obfs-sno-callsite-'));
   const nativeDir=path.join(root,'native');
   const compiledDir=path.join(root,'compiled');
@@ -143,7 +143,8 @@ test('actual SNO CommonJS launcher preserves numeric behavior but exposes rewrit
     })+'\n');
     assert.equal(nativeValue,31);
     assert.equal(compiledValue,nativeValue);
-    assert.ok(emitted.metrics.properties>=1);
+    assert.equal(emitted.metrics.properties,0,
+      'The SNO entry should preserve its source-observed owner');
     assert.match(before.source,/owner\.privateSecret/);
     assert.equal(after.source,before.source,
       'The verified SNO launch path should preserve externally observed function source');
