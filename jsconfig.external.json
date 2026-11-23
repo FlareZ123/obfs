@@ -263,7 +263,9 @@
     "test/decoder-object-create-array-entry-alias.test.js",
     "test/commonjs-public-callable-source.test.js",
     "test/esm-public-callable-source.test.js",
-    "test/esm-public-callable-browser.js"
+    "test/esm-public-callable-browser.js",
+    "test/callsite-source-provenance.test.js",
+    "test/promise-then-callback-source.test.js"
   ],
   "exclude": [
     "node_modules"
