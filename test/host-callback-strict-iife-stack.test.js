@@ -93,3 +93,44 @@ test('host callback can record strict IIFE source callsite without touching its 
     await rm(root,{recursive:true,force:true});
   }
 });
+
+test('manual equal-width private-key rewrite retains strict host stack frame coordinates',async()=>{
+  // This is a research proof-only edit, not the production obfuscator output.
+  const key='longPrivateFieldForHost';
+  const native='const owner={'+key+':47};'+
+    'const result=(()=>globalThis.HOST_STACK_SPY(owner.'+key+'))();'+
+    'export const observed=result;';
+  const newKey='_r7';
+  const naive=native.replaceAll(key,newKey);
+  const padded=native.replaceAll(key,newKey.padEnd(key.length,' '));
+  assert.ok(!naive.includes(key)&&!padded.includes(key));
+  assert.equal(padded.length,native.length);
+  assert.ok(naive.length<native.length);
+  const root=await mkdtemp(path.join(tmpdir(),'obfs-arrow-coordinate-neutral-'));
+  const previous=globalThis.HOST_STACK_SPY;
+  try{
+    globalThis.HOST_STACK_SPY=/** @type {(value:number)=>{value:number,line:number,column:number}} */(
+      value=>{
+        const row=new Error('host source observer').stack?.split('\n')[2]??'';
+        const match=/:(\d+):(\d+)\)?$/u.exec(row);
+        assert.ok(match,'Native V8 stack must include ESM callsite coordinates');
+        return {value,line:Number(match[1]),column:Number(match[2])};
+      }
+    );
+    const original=(await load(root,'balanced-native',native)).observed;
+    const compressed=(await load(root,'balanced-short',naive)).observed;
+    const unchangedColumn=(await load(root,'balanced-pad',padded)).observed;
+    assert.notDeepEqual(compressed,original,
+      'A naive shorter rewrite changes an externally captured caller column');
+    assert.deepEqual(unchangedColumn,original,
+      'A byte-width-preserving plain-ASCII key rewrite keeps this same-line callsite');
+    assert.equal(/** @type {{value:number}} */(unchangedColumn).value,47);
+    console.log(JSON.stringify({original,compressed,unchangedColumn,
+      originalLength:native.length,shorterLength:naive.length,
+      paddedLength:padded.length}));
+  }finally{
+    if(previous===undefined)delete globalThis.HOST_STACK_SPY;
+    else globalThis.HOST_STACK_SPY=previous;
+    await rm(root,{recursive:true,force:true});
+  }
+});
