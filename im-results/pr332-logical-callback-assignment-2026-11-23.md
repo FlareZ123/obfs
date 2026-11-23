@@ -226,3 +226,16 @@ The current candidate test file at `9e82e712ca2298285eb4d15ace896788a2cec859`, [
 - plain ForIn identifier with no destructuring: passes and preserves `crossFile.properties=1`.
 
 The native result in each negative case is `[53,["secretField"],53]`; generated results expose the renamed key and return `null` for the stale dynamic-import lookup. The positive control shows why the right abstraction is not “every ForIn identifier is callable”: retain a distinct **StringKey-origin** fact for simple loop variables, and convert it to unknown host-value taint only when consumed by object/array destructuring (including nested/default/rest targets). Propagate StringKey through ordinary aliases/assignments before such destructuring. Direct ForIn destructuring should taint its targets immediately. Never treat `node.right` as the bound value.
+
+
+### Cross-file function-return StringKey propagation failure
+
+The same test-only branch was extended with a three-module ESM case:
+
+- `keys.mjs` exports `getKey()`, which returns a simple ForIn property-key string.
+- `main.mjs` imports `getKey`, destructures `{callback:Loader}` from `getKey()`, then invokes the host-provided callback to dynamically import `state.mjs`.
+- The host preloader still supplies `String.prototype.callback` as an inherited getter returning `Function`.
+
+At test commit `e4c6195f3807669c5dd7f9c88b989d5247315703`, focused [run 45141620747](https://github.com/FlareZ123/obfs/actions/runs/45141620747) failed on both Ubuntu and Windows. The five-case suite reported **four failures and one passing plain-identifier positive control**. The new cross-file-return case produced native `[53,["secretField"],53]` versus emitted `[53,["_pc3b043b29d7d"],null]`.
+
+This establishes that the required provenance is not merely a direct ForIn loop-head flag. A simple property-key string can leave its loop scope through a function return, cross an ESM export/import edge, and later be destructured. The proposed StringKey fact therefore needs to propagate through function return summaries and cross-file calls, as well as local aliases/assignments, before being converted to unknown host-value taint at object/array destructuring. The current candidate does not do this. This remains a test-only finding; no compiler source was changed.
