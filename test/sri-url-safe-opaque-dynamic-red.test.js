@@ -77,6 +77,21 @@ test('opaque imported-factory SHA384 Base64URL underscore also pins source',()=>
   }
 });
 
+test('unrelated Base64URL hash-looking literal outside opaque setters still rewrites',()=>{
+  const otherSource='globalThis.unrelatedHash="ordinary URL-safe hash metadata is only data";';
+  const hash=createHash('sha512').update(otherSource).digest('base64url');
+  assert.match(hash,/[-_]/u);
+  const original='globalThis.unrelatedHash="sha512-'+hash+'";';
+  for(const mode of /** @type {Mode[]} */(['coo','sco','sno'])){
+    const output=obfuscateFiles([{
+      path:'unrelated.js',sourceType:/** @type {const} */('script'),code:original
+    }],{mode,seed:'hash-plain-positive/'+mode,
+      strings:true,identifiers:false,properties:false});
+    assert.notEqual(output.files[0].code,original,
+      mode+': a URL-safe hash in a plain global string must not veto decoding');
+  }
+});
+
 test('unrelated cross-file DOM factory without integrity retains rewrite yield',()=>{
   for(const mode of /** @type {Mode[]} */(['coo','sco','sno'])){
     assert.notEqual(compile(mode,false),client,
