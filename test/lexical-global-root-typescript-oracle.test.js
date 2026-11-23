@@ -10,7 +10,7 @@ const ts=require('typescript');
 /**
  * @param {string} source
  * @param {number} referenceStart
- * @returns {{symbolName:string|null,declarations:Array<{kind:string,parent:string,fileName:string,flags:number}>,hasDirectEval:boolean,hasWith:boolean}}
+ * @returns {{symbolName:string|null,declarations:Array<{kind:string,parent:string,fileName:string,flags:number,parentFlags:number}>,hasDirectEval:boolean,hasWith:boolean}}
  */
 function inspectReference(source,referenceStart) {
   const directory=fs.mkdtempSync(path.join(os.tmpdir(),'obfs-ts-binding-oracle-'));
@@ -47,7 +47,8 @@ function inspectReference(source,referenceStart) {
       kind:ts.SyntaxKind[declaration.kind],
       parent:ts.SyntaxKind[declaration.parent.kind],
       fileName:declaration.getSourceFile().fileName,
-      flags:declaration.flags
+      flags:declaration.flags,
+      parentFlags:declaration.parent.flags
     }));
     let hasDirectEval=false;
     let hasWith=false;
@@ -103,7 +104,7 @@ test('TypeScript checker provides binding-identity oracle for supported lexical 
   const varSource='function f(){{var window={};}return window;}';
   const hoistedVar=inspectReference(varSource,varSource.lastIndexOf('window'));
   assert.ok(hoistedVar.declarations.some(d=>d.kind==='VariableDeclaration'));
-  assert.ok(hoistedVar.declarations.some(d=>d.parent==='VariableDeclarationList'&&(d.flags & ts.NodeFlags.BlockScoped)===0));
+  assert.ok(hoistedVar.declarations.some(d=>d.parent==='VariableDeclarationList'&&(d.parentFlags & ts.NodeFlags.BlockScoped)===0));
 
   const destructuredSource='function f({window}){return window;}';
   const destructured=inspectReference(destructuredSource,destructuredSource.lastIndexOf('window'));
@@ -111,7 +112,7 @@ test('TypeScript checker provides binding-identity oracle for supported lexical 
 
   const blockLetSource='function f(){{let window={};return window;}}';
   const blockLet=inspectReference(blockLetSource,blockLetSource.lastIndexOf('window'));
-  assert.ok(blockLet.declarations.some(d=>d.kind==='VariableDeclaration'&&(d.flags & ts.NodeFlags.BlockScoped)!==0));
+  assert.ok(blockLet.declarations.some(d=>d.kind==='VariableDeclaration'&&(d.parentFlags & ts.NodeFlags.BlockScoped)!==0));
 });
 
 test('with leaves host-root lookup unresolved in the TypeScript checker probe',()=>{
