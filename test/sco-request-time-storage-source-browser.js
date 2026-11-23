@@ -5,6 +5,7 @@ const http=require('node:http');
 const {execFile}=require('node:child_process');
 const {promisify}=require('node:util');
 const {createScoHandler}=require('../src/sco');
+const {parse,observesFunctionSource}=require('../src/ast');
 
 const storageKey='sco-request-time-storage-source';
 const sourceMarker='sco-request-time-source-marker-0123456789abcdef0123456789abcdef';
@@ -64,6 +65,9 @@ function requestModule(port,hostHeader) {
  * @returns {Promise<void>}
  */
 async function main() {
+  const compilerSourceObservation=observesFunctionSource(parse(source,'module'));
+  assert.equal(compilerSourceObservation,false,
+    'current source observer should expose this unmodeled Storage conversion path');
   const handler=createScoHandler([{
     path:'entry.mjs',
     sourceType:'module',
@@ -190,7 +194,7 @@ async function main() {
         first:report.first.result,
         second:report.second.result
       },
-      compilerSourceObservation:false
+      compilerSourceObservation
     },null,2)+'\n');
   } finally {
     await new Promise((resolve,reject)=>
