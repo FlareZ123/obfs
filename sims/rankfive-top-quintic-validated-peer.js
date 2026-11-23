@@ -279,6 +279,19 @@ function rankSevenSilentSource() {
 }
 
 /** @returns {(input:number)=>number} */
+function rankSevenSilentPermutationSource() {
+  const mask = 0x1ff;
+  return input => {
+    const x = (input & mask) >>> 0;
+    return (
+      x ^
+      (((x & 31) === 31) ? 128 : 0) ^
+      (((x & 124) === 124) ? 256 : 0)
+    ) >>> 0;
+  };
+}
+
+/** @returns {(input:number)=>number} */
 function rankSevenOverflowSource() {
   const terms = masksOfWeight(7,5).map((support,index)=>[support,2 ** index]);
   return input => {
@@ -371,6 +384,48 @@ function main() {
     assert.equal(evaluateModel(silent,input),silentSource(input));
   }
 
+  // The same hidden-two-direction construction can be embedded as a
+  // permutation: the two output coordinates are outside both monomial supports.
+  const silentPermutationSource = rankSevenSilentPermutationSource();
+  const silentPermutationFastCandidate = cloneTopQuintic(
+    silentPermutationSource,
+    9,
+    fixedDirections(directions)
+  );
+  assert.equal(silentPermutationFastCandidate.degree,5);
+  assert.equal(silentPermutationFastCandidate.quotientRank,5);
+  assert.deepEqual(silentPermutationFastCandidate.top,[[31,128]]);
+  /** @type {Set<number>} */
+  const sourcePermutationOutputs = new Set();
+  /** @type {Set<number>} */
+  const fastPermutationOutputs = new Set();
+  let silentPermutationDifferenceCount = 0;
+  for (let input = 0; input < 512; input++) {
+    sourcePermutationOutputs.add(silentPermutationSource(input));
+    fastPermutationOutputs.add(evaluateModel(silentPermutationFastCandidate,input));
+    if (silentPermutationSource(input) !== evaluateModel(silentPermutationFastCandidate,input)) {
+      silentPermutationDifferenceCount++;
+    }
+  }
+  assert.equal(sourcePermutationOutputs.size,512);
+  assert.equal(fastPermutationOutputs.size,512);
+  assert.equal(silentPermutationDifferenceCount,16);
+
+  const silentPermutation = cloneTopQuinticValidated(
+    silentPermutationSource,
+    9,
+    fixedDirections(directions),
+    seeded(0x44a202616)
+  );
+  assert.equal(silentPermutation.fallbackUsed,true);
+  assert.equal(silentPermutation.fallbackReason,'verification-mismatch');
+  assert.notEqual(silentPermutation.verificationMismatchAt,null);
+  assert.ok(silentPermutation.verificationSamples <= 726);
+  assert.equal(silentPermutation.exactByInterpolation,true);
+  for (let input = 0; input < 512; input++) {
+    assert.equal(evaluateModel(silentPermutation,input),silentPermutationSource(input));
+  }
+
   const overflowSource = rankSevenOverflowSource();
   const overflow = cloneTopQuinticValidated(
     overflowSource,
@@ -421,6 +476,19 @@ function main() {
       falseCandidateDistance:{mismatches:silentDifferenceCount,domain:128,relative:silentDifferenceCount/128},
       exactAll128:true,
       queries:silent.queries
+    },
+    silentPermutationRankSevenControl:{
+      fallbackReason:silentPermutation.fallbackReason,
+      verificationSamples:silentPermutation.verificationSamples,
+      verificationMismatchAt:silentPermutation.verificationMismatchAt,
+      sourceAt124:silentPermutationSource(124),
+      fastCloneAt124:evaluateModel(silentPermutationFastCandidate,124),
+      validatedAt124:evaluateModel(silentPermutation,124),
+      falseCandidateDistance:{mismatches:silentPermutationDifferenceCount,domain:512,relative:silentPermutationDifferenceCount/512},
+      sourcePermutation:true,
+      fastCandidatePermutation:true,
+      exactAll512:true,
+      queries:silentPermutation.queries
     },
     detectedRankSevenControl:{
       fallbackReason:overflow.fallbackReason,
