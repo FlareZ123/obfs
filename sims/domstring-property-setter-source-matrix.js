@@ -240,6 +240,20 @@ async function main() {
   bodies.set('/proxy-storage-native.mjs',proxyStorageSource);
   bodies.set('/proxy-storage-compiled.mjs',proxyStorageOutput.code);
 
+  const proxyBrandCheckSource=[
+    'const observedOwner={secretField:57};',
+    'function inspect(){return observedOwner.secretField;}',
+    'const independent={independentSecret:73};',
+    'const target=document.createElement("div");',
+    'const proxy=new Proxy(target,{});',
+    'let errorName=null;',
+    'try{proxy.id=inspect;}catch(error){errorName=error.name;}',
+    'export const observed={errorName,source:target.id,value:inspect(),independent:independent.independentSecret};'
+  ].join('\n');
+  const proxyBrandCheckOutput=compile(proxyBrandCheckSource,'domstring-proxy-brand-check-positive');
+  bodies.set('/proxy-brand-native.mjs',proxyBrandCheckSource);
+  bodies.set('/proxy-brand-compiled.mjs',proxyBrandCheckOutput.code);
+
   const negativeLogic=[
     'const observedOwner={secretField:57};',
     'export function inspect(){return observedOwner.secretField;}',
@@ -347,6 +361,10 @@ async function main() {
     '  import("/proxy-storage-native.mjs"),import("/proxy-storage-compiled.mjs")]);',
     ' const proxyStorageControl={native:psn.observed,emitted:pse.observed,',
     '  parity:JSON.stringify(psn.observed)===JSON.stringify(pse.observed)};',
+    ' const [pbn,pbe]=await Promise.all([',
+    '  import("/proxy-brand-native.mjs"),import("/proxy-brand-compiled.mjs")]);',
+    ' const proxyBrandCheckControl={native:pbn.observed,emitted:pbe.observed,',
+    '  parity:JSON.stringify(pbn.observed)===JSON.stringify(pbe.observed)};',
     ' const [cn,ce,pn,pe]=await Promise.all([',
     '  import("/native-negative/observer.mjs"),import("/compiled-negative/observer.mjs"),',
     '  import("/native-positive/observer.mjs"),import("/compiled-positive/observer.mjs")]);',
@@ -360,7 +378,7 @@ async function main() {
     '    JSON.stringify(pn.observed)===JSON.stringify(pe.observed),',
     '  negativeProperties:'+crossNegativeProperties+',',
     '  positiveProperties:'+crossPositiveProperties+'};',
-    ' document.getElementById("result").textContent=JSON.stringify({rows,dispatchRows,userland,dataPropertyControl,customAccessorControl,proxyStorageControl,crossFile});',
+    ' document.getElementById("result").textContent=JSON.stringify({rows,dispatchRows,userland,dataPropertyControl,customAccessorControl,proxyStorageControl,proxyBrandCheckControl,crossFile});',
     '}catch(error){document.getElementById("result").textContent=',
     ' "BROWSER_ERROR "+String(error.stack||error);}',
     '</script>'
@@ -427,16 +445,24 @@ async function main() {
       proxyStorageControl.native.value===57&&proxyStorageControl.emitted.value===57&&
       proxyStorageControl.native.independent===73&&proxyStorageControl.emitted.independent===73&&
       proxyStorageOutput.properties>=1;
+    const proxyBrandCheckControl=browser.proxyBrandCheckControl;
+    const proxyBrandCheckPositive=proxyBrandCheckControl.parity&&
+      proxyBrandCheckControl.native.errorName==='TypeError'&&
+      proxyBrandCheckControl.emitted.errorName==='TypeError'&&
+      proxyBrandCheckControl.native.source===proxyBrandCheckControl.emitted.source&&
+      proxyBrandCheckControl.native.value===57&&proxyBrandCheckControl.emitted.value===57&&
+      proxyBrandCheckControl.native.independent===73&&proxyBrandCheckControl.emitted.independent===73&&
+      proxyBrandCheckOutput.properties>=1;
     const dispatchExpectedRed=dispatchRows.length===dispatchCases.length&&
       dispatchRows.every((/** @type {any} */ row)=>row.sourceMismatch&&row.numericParity&&
         row.independentParity&&row.positiveParity);
     const summary={
-      expectedRedReproduced:allExpectedRed&&userlandPositive&&crossFileExpectedRed&&dataPropertyPositive&&customAccessorPositive&&proxyStoragePositive&&dispatchExpectedRed,
+      expectedRedReproduced:allExpectedRed&&userlandPositive&&crossFileExpectedRed&&dataPropertyPositive&&customAccessorPositive&&proxyStoragePositive&&proxyBrandCheckPositive&&dispatchExpectedRed,
       sinkCount:rows.length,
       sourceMismatchCount:rows.filter((/** @type {any} */ row)=>row.sourceMismatch).length,
       sourceMismatchNames:rows.filter((/** @type {any} */ row)=>row.sourceMismatch).map(
         (/** @type {any} */ row)=>row.name),
-      crossFileExpectedRed,crossFile,dispatchSummary,dataPropertyControl,customAccessorControl,proxyStorageControl,
+      crossFileExpectedRed,crossFile,dispatchSummary,dataPropertyControl,customAccessorControl,proxyStorageControl,proxyBrandCheckControl,
       rows,userland,
       userlandProperties:userlandOutput.properties
     };
