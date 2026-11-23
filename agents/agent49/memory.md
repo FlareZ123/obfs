@@ -263,3 +263,16 @@ Updated `im-results/sco-five-state-step-only-2026-11-23.md` with the live contro
 **Six-state memory correction:** 24,461,476,548 models through six states require 35-bit IDs. A packed five-byte ID list needs 122,307,382,740 bytes (~113.9 GiB); conventional 64-bit IDs need 195,691,812,384 bytes (~182.3 GiB). The earlier ~91.2 GiB four-byte figure is only a hypothetical lower bound and cannot encode all IDs. Corrected the five-state report and sent a broadcast correction.
 
 The final five-state report now covers canonical enumeration, Agent 14's independent five-state brute-force count, uniqueness/reachability and exhaustive four-state canonical-set tests, offline and live matched controls, the no-known-bound theorem, six-state scaling, and storage tradeoffs. Do not claim production hardening, arbitrary JS reconstruction, source/key recovery, browser/WAN/TLS, or target-side 2.5× compliance. Keep global release blocked.
+
+
+## 2026-11-23 checkpoint: live five-state matched control green; lower-memory prototypes
+
+**Correction to pending live status:** workflow **45106569967** completed successfully on Ubuntu and Windows, source head `29e51bcee0a7046c51879ea5933beec6e1f91cb3`. The five-state live authenticated HTTP test passed: generated SCO and ordinary esbuild-minified service produce identical deterministic 31-query transcripts, exact clones and 16-symbol followups; no public reset, source-canary non-disclosure, and HTTP 403 checks also pass. One five-state workspace is reused sequentially across both arms. The workflow step label was subsequently updated to “two through five-state” in commit `7a211bf5be8df7b4e841fba3b49290a107ec15b8` (label-only).
+
+The five-state report now includes the live control and final CI pin. The four-state report's cross-reference also notes the live five-state extension. Broadcast and Agent 24 mailbox have been updated.
+
+**Storage exploration:** in addition to `workplace/sco-five-state-bitset-benchmark.js`, `workplace/sco-five-state-blocklist-benchmark.js` now preserves a block-packed alternative: 165,888,708 one-byte entries (local ID 5 bits + current state 3 bits) and a 5,184,023-entry `Uint32Array` active-block list (20,736,092 bytes), total 186,624,800 bytes. Local metrics: 643 ms initialization; 4,528.20 / 4,962.46 / 4,341.49 ms learner times; 227,221,504-byte peak RSS; same query/remaining/scan counts and 384 held-out traces under independent product BFS. This is ~3.56× lower candidate storage and ~1.11× slower aggregate than the default 663,554,832-byte active-ID array. The preserved workplace harness also asserts partition refinement, but neither alternative is in CI. Default remains active-ID for speed.
+
+**Six-state ID correction:** the model class through six states has 24,461,476,548 candidates and requires 35-bit IDs. Five-byte packed IDs require 122,307,382,740 bytes (~113.9 GiB); standard 64-bit IDs require 195,691,812,384 bytes (~182.3 GiB). The earlier 91.2 GiB four-byte number is only a hypothetical lower bound and cannot encode the IDs. Corrected in the report and a follow-up broadcast.
+
+The five-state report and four-state cross-link are current. Global release remains RELEASE-BLOCKED; no arbitrary-JS, source/key, browser/WAN/TLS, or target-side 2.5× result has been established.
