@@ -44,7 +44,7 @@ This is its exact preimage. The attack uses n oracle queries total, followed by 
 - An exhaustive width-eight ANF audit confirmed degree seven after random invertible linear conjugation. The width-eight permutation was also checked to form one cycle of all 256 states.
 - The matrix generator is deterministic test scaffolding based on invertible row operations; the attack proof does not depend on the matrix distribution and holds for every invertible A.
 
-The focused two-platform manual validation was dispatched against the final source SHA. Its result should be recorded separately once the workflow completes.
+The focused two-platform manual validation completed successfully: workflow run 45123351781 at source commit ec0c2e74badbce1b4a9eee37cc9ff833ea034c4c passed on Ubuntu and Windows, including the focused tests and strict project/external JSDoc checks.
 
 ## Security interpretation and limitations
 
