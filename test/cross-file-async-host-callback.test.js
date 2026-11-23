@@ -386,3 +386,56 @@ test('external host iterator may inject callback into inert-looking array spread
   assert.equal(generated.crossFile.properties,0,
     'An unknown host iterator can replace literal-array spread elements');
 });
+
+
+for(const [label,holderCode] of /** @type {[string,string][]} */ ([
+  ['nested object member target',[
+    'const carrier={holder:{}};',
+    'carrier.holder.cb=getFactory;',
+    'const ctor=await Promise.resolve().then(carrier.holder.cb);'
+  ].join('\n')],
+  ['nested array index target',[
+    'const carrier={inner:[]};',
+    'carrier.inner[0]=getFactory;',
+    'const ctor=await Promise.resolve().then(carrier.inner[0]);'
+  ].join('\n')],
+  ['aliased nested member target',[
+    'const carrier={holder:{}};const alias=carrier.holder;',
+    'alias.cb=getFactory;',
+    'const ctor=await Promise.resolve().then(carrier.holder.cb);'
+  ].join('\n')]
+])){
+  test('nested mutable '+label+' does not hide host-return callback',async()=>{
+    const files=graph([
+      'function getFactory(){return globalThis.RUNTIME_FACTORY;}',
+      holderCode,
+      'const remote=await ctor("return import(\'./state.mjs\')")();',
+      "const result=[inspectRecord('auditCount').value,Object.keys(remote.state),remote.state.secretField];"
+    ].join('\n'));
+    const native=await execute(files,true);
+    assert.equal(native,'[41,[3,["secretField"],41]]\n');
+    const generated=obfuscateFiles(files,{
+      mode:'coo',closedWorld:true,seed:'nested-mutable-holder/'+label,
+      identifiers:false,strings:false,properties:true
+    });
+    assert.equal(await execute(generated.files,true),native,label);
+    assert.equal(generated.crossFile.properties,0,label);
+  });
+}
+
+test('nested holder of a primitive callback retains its private rewrite',async()=>{
+  const files=graph([
+    'function unusedFactory(){return globalThis.RUNTIME_FACTORY;}',
+    'const carrier={holder:{}};',
+    'carrier.holder.cb=()=>7;',
+    'const value=await Promise.resolve().then(carrier.holder.cb);',
+    "const result=[inspectRecord('externalFormat').value,value];"
+  ].join('\n'));
+  const native=await execute(files);
+  const generated=obfuscateFiles(files,{
+    mode:'coo',closedWorld:true,seed:'nested-mutable-inert-positive',
+    identifiers:false,strings:false,properties:true
+  });
+  assert.equal(await execute(generated.files),native);
+  assert.equal(generated.crossFile.properties,1);
+});
