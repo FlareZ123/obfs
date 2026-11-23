@@ -23,7 +23,7 @@ function random(){
 }
 
 /**
- * Generate five positive graphs and five conservative-refusal graphs. The cycle case
+ * Generate six positive graphs and four conservative-refusal graphs. The cycle case
  * intentionally invokes an importer function before its sibling key module
  * initializes, exercising an observable TDZ ReferenceError.
  *
@@ -74,12 +74,14 @@ function fixture(index){
     imports='import {bag,key} from "./state.mjs";';
     main=imports+'const alias=bag;console.log(alias[key]+bag.otherField);';
   } else {
+    // Acyclic same-module owner-first/key-later exports are initialized before
+    // main.mjs runs, so this order is positive rather than a TDZ refusal.
     owner=owner+'const hidden='+literal+';export {hidden as key};';
     key='export const unrelated=1;';
     imports='import {bag,key} from "./state.mjs";';
     main=imports+'console.log(bag[key]+bag.otherField);';
   }
-  return {kind,properties:kind<3||kind===6||kind===8?2:0,files:[
+  return {kind,properties:kind<3||kind===6||kind===8||kind===9?2:0,files:[
     {path:'state.mjs',sourceType:'module',code:owner},
     {path:'key.mjs',sourceType:'module',code:key},
     ...extra,
