@@ -272,7 +272,15 @@ for(const [caseName,reader] of /** @type {Array<[string,string]>} */ ([
     'const {toString:readSource}=fn;const source=readSource.call(fn);'],
   ['conditional-selected method toLocaleString',
     'const fn=true?instance.read:()=>99;'+
-    'const {toLocaleString:readSource}=fn;const source=readSource.call(fn);']
+    'const {toLocaleString:readSource}=fn;const source=readSource.call(fn);'],
+  ['nested object method toString destructuring',
+    'const packet={method:instance.read};'+
+    'const {method:{toString:readSource}}=packet;'+
+    'const source=readSource.call(instance.read);'],
+  ['array method locale destructuring',
+    'const packet=[instance.read];'+
+    'const [{toLocaleString:readSource}]=packet;'+
+    'const source=readSource.call(instance.read);']
 ])) {
   test('declared ESM implicit instance source: '+caseName,async t=>{
     const directory=await fs.mkdtemp(path.join(os.tmpdir(),'obfs-instance-native-locale-'));
