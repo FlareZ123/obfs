@@ -11,9 +11,11 @@ function fixedDirections(directions) {
 
 /** @param {number} input @returns {number} */
 function rankSixSilentSource(input) {
+  const x = input & 0xff;
   return (
-    (((input & 15) === 15) ? 1 : 0) ^
-    (((input & 60) === 60) ? 2 : 0)
+    x ^
+    (((x & 15) === 15) ? 64 : 0) ^
+    (((x & 60) === 60) ? 128 : 0)
   ) >>> 0;
 }
 
@@ -37,20 +39,20 @@ function fourthDerivative(oracle, directions) {
 /** @returns {object} */
 function main() {
   const directions = [1, 2, 4, 8];
-  assert.equal(fourthDerivative(rankSixSilentSource,directions),1);
-  assert.equal(fourthDerivative(rankSixSilentSource,[4,8,16,32]),2);
+  assert.equal(fourthDerivative(rankSixSilentSource,directions),64);
+  assert.equal(fourthDerivative(rankSixSilentSource,[4,8,16,32]),128);
 
   let drawCount = 0;
   const model = clone(
     rankSixSilentSource,
-    6,
+    8,
     () => /** @type {number} */ (directions[drawCount++]),
     1e-10
   );
   assert.equal(drawCount,4);
   assert.equal(model.degree,4);
   assert.equal(model.quotientRank,4);
-  assert.deepEqual(model.quartic,[[15,1]]);
+  assert.deepEqual(model.quartic,[[15,64]]);
 
   // Independently determine the joint radical by checking all basis
   // three-tuples; multilinearity makes this exhaustive for each x.
@@ -64,7 +66,7 @@ function main() {
     }
   }
   let radicalCount = 0;
-  for (let x = 0; x < 64; x++) {
+  for (let x = 0; x < 256; x++) {
     let inRadical = true;
     for (const triple of triples) {
       if (fourthDerivative(rankSixSilentSource,[x,...triple]) !== 0) {
@@ -74,29 +76,36 @@ function main() {
     }
     if (inRadical) radicalCount++;
   }
-  assert.equal(radicalCount,1);
+  assert.equal(radicalCount,4);
+
+  /** @type {Set<number>} */
+  const outputs = new Set();
+  for (let input = 0; input < 256; input++) outputs.add(rankSixSilentSource(input));
+  assert.equal(outputs.size,256,'the source control must be a permutation');
 
   /** @type {number[]} */
   const mismatches = [];
-  for (let input = 0; input < 64; input++) {
+  for (let input = 0; input < 256; input++) {
     if (rankSixSilentSource(input) !== evaluate(model,input)) mismatches.push(input);
   }
-  assert.deepEqual(mismatches,[60,61,62,63]);
-  assert.equal(rankSixSilentSource(60),2);
-  assert.equal(evaluate(model,60),0);
+  assert.equal(mismatches.length,16);
+  assert.ok(mismatches.every(input => (input & 60) === 60));
+  assert.equal(rankSixSilentSource(60),188);
+  assert.equal(evaluate(model,60),60);
 
   const result = {
-    width:6,
+    width:8,
     degree:4,
+    sourceIsPermutation:true,
     jointRadicalSize:radicalCount,
-    jointRadicalCodimension:6,
+    jointRadicalCodimension:8 - Math.log2(radicalCount),
     promisedMaximumCodimension:5,
     observedSignatureRank:model.quotientRank,
     anchors:directions,
     reconstructedQuartic:model.quartic,
     mismatches,
     mismatchCount:mismatches.length,
-    relativeDistance:mismatches.length/64,
+    relativeDistance:mismatches.length/256,
     sourceAt60:rankSixSilentSource(60),
     cloneAt60:evaluate(model,60),
     distinctOracleQueries:model.queries,
