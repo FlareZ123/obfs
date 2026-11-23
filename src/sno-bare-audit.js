@@ -84,7 +84,7 @@ function directBareRequires(files) {
           isBuiltin(specifier))return;
       refs.push(specifier);
     });
-    if(unprovedRequire || (shadow||dynamicScope)&&refs.length) {
+    if(unprovedRequire||shadow||dynamicScope) {
       throw new TypeError(
         'SNO bare dependency audit cannot prove direct lexical require in '+file.path);
     }

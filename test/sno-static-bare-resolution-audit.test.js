@@ -191,6 +191,14 @@ test('audit scope is direct bare CJS calls and refuses lexical require shadowing
     path:'entry.cjs',sourceType:'commonjs',
     code:"module.exports=require(`audit-example`);"
   }]),/cannot prove direct lexical require/u);
+  assert.throws(()=>directBareRequires([{
+    path:'entry.cjs',sourceType:'commonjs',
+    code:"eval('require(\\'audit-example\\')');"
+  }]),/cannot prove direct lexical require/u);
+  assert.throws(()=>directBareRequires([{
+    path:'entry.cjs',sourceType:'commonjs',
+    code:"function unused(require){return 1;}module.exports=7;"
+  }]),/cannot prove direct lexical require/u);
 });
 
 test('opt-in audit refuses opaque or unreviewed-case JavaScript instead of skipping it',()=>{
