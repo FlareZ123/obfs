@@ -35,6 +35,10 @@ jobs:
         env:
           CHROMIUM_BIN: google-chrome
         run: node test/html-sri-browser.js
+      - name: Verify byte-identical SRI under unknown public URL mounts in Chromium
+        env:
+          CHROMIUM_BIN: google-chrome
+        run: node test/sri-content-digest-alias-browser.js
       - name: Verify inert foreign SVG base cannot mask the active HTML SRI base
         env:
           CHROMIUM_BIN: google-chrome
