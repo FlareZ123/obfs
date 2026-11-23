@@ -958,54 +958,66 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
   }
   /** @type {Set<AstNode>} */
   const provenLocalIdentityEncodeReceivers=new Set();
-  // A closed, unaliased own record can carry a real TextEncoder in one field
-  // while an unrelated field owns an identity-only encode method. Recognize
-  // that exact method receiver to avoid disabling otherwise safe rewrites.
-  walk(ast,node=>{
+  // Only a closed, unaliased, constant own record with a pure identity
+  // .encode method may exempt its sibling field from native TextEncoder
+  // provenance. Dynamic keys, spreads, mutation, and escapes revoke proof.
+  walk(ast,(node,parent)=>{
     if(node.type!=='VariableDeclarator'||node.id.type!=='Identifier'||
-       node.init?.type!=='ObjectExpression')return;
+       parent?.type!=='VariableDeclaration'||parent.kind!=='const'||
+       node.init?.type!=='ObjectExpression'||!mayCarryEncoder(node.init))return;
     const owner=node.id.name;
+    /** @type {Set<string>} */
+    const names=new Set();
     /** @type {Set<string>} */
     const identityFields=new Set();
     for(const field of node.init.properties) {
-      if(field.type!=='Property'||field.kind!=='init'||field.method||
-         field.value.type!=='ObjectExpression')continue;
-      const fieldName=field.computed?staticString(field.key):memberName({
-        computed:false,property:field.key,type:'MemberExpression',start:0,end:0
-      });
-      if(fieldName===null)continue;
-      const child=field.value.properties.find((/** @type {AstNode} */ property)=>
-        property.type==='Property'&&
-        (property.computed?staticString(property.key):
-          property.key.type==='Identifier'?property.key.name:
-          staticString(property.key))==='encode');
-      const fn=child?.type==='Property'?child.value:null;
-      if(!fn||!['FunctionExpression','ArrowFunctionExpression'].includes(fn.type)||
-         fn.async||fn.generator||fn.params.length!==1||
-         fn.params[0].type!=='Identifier'||fn.body.type!=='BlockStatement'||
-         fn.body.body.length!==1||fn.body.body[0].type!=='ReturnStatement'||
-         fn.body.body[0].argument?.type!=='Identifier'||
-         fn.body.body[0].argument.name!==fn.params[0].name)continue;
+      if(field.type!=='Property'||field.kind!=='init'||field.method)return;
+      const fieldName=field.computed?staticString(field.key):
+        field.key.type==='Identifier'?field.key.name:staticString(field.key);
+      if(fieldName===null||names.has(fieldName))return;
+      names.add(fieldName);
+      if(field.value.type!=='ObjectExpression')continue;
+      /** @type {Set<string>} */
+      const childNames=new Set();
+      /** @type {AstNode|null} */
+      let method=null;
+      let valid=true;
+      for(const child of field.value.properties) {
+        if(child.type!=='Property'||child.kind!=='init'){valid=false;break;}
+        const childName=child.computed?staticString(child.key):
+          child.key.type==='Identifier'?child.key.name:staticString(child.key);
+        if(childName===null||childNames.has(childName)){valid=false;break;}
+        childNames.add(childName);
+        if(childName==='encode')method=child.value;
+      }
+      if(!valid||!method||
+         !['FunctionExpression','ArrowFunctionExpression'].includes(method.type)||
+         method.async||method.generator||method.params.length!==1||
+         method.params[0].type!=='Identifier'||
+         method.body.type!=='BlockStatement'||method.body.body.length!==1||
+         method.body.body[0].type!=='ReturnStatement'||
+         method.body.body[0].argument?.type!=='Identifier'||
+         method.body.body[0].argument.name!==method.params[0].name)continue;
       identityFields.add(fieldName);
     }
     if(!identityFields.size)return;
     let safe=true;
     /** @type {AstNode[]} */
     const proven=[];
-    walk(ast,(use,parent,key,ancestors)=>{
+    walk(ast,(use,ancestor,key,ancestors)=>{
       if(use.type==='WithStatement'||use.type==='CallExpression'&&
          use.callee.type==='Identifier'&&use.callee.name==='eval')safe=false;
       if(use.type!=='Identifier'||use.name!==owner||use===node.id)return;
-      if(parent?.type!=='MemberExpression'||key!=='object'||
-         !identityFields.has(memberName(parent)??'')) {
+      if(ancestor?.type!=='MemberExpression'||key!=='object'||
+         !identityFields.has(memberName(ancestor)??'')) {
         safe=false;
         return;
       }
       const chain=ancestors[ancestors.length-2];
       const call=ancestors[ancestors.length-3];
-      if(chain?.type==='MemberExpression'&&chain.object===parent&&
+      if(chain?.type==='MemberExpression'&&chain.object===ancestor&&
          memberName(chain)==='encode'&&call?.type==='CallExpression'&&
-         call.callee===chain)proven.push(parent);
+         call.callee===chain)proven.push(ancestor);
       else safe=false;
     });
     if(safe)for(const receiver of proven)provenLocalIdentityEncodeReceivers.add(receiver);
