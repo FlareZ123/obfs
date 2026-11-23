@@ -102,3 +102,32 @@ test('quartic low-weight oracle fitting cannot certify an unpromised degree-five
   assert.equal(inverter.clone(31),31);
   assert.notEqual(degreeFive(31),31);
 });
+
+/**
+ * Optional higher-cost deterministic stress sweep. Keep the regular focused
+ * CI test fast; explicitly opt in with OBFS_STRESS_QUARTIC=1 for 24 independent
+ * degree-four sources and 192 held-out postfit exact target inversions.
+ */
+if(process.env.OBFS_STRESS_QUARTIC==='1'){
+  test('opt-in 24-seed affine triangular quartic exact inversion stress',()=>{
+    for(let index=0;index<24;index++){
+      const seed=(0x6e123456+Math.imul(index,0x1020305))>>>0;
+      const oracle=makeOracle(seed,4);
+      const model=learnBoundedDegreeOracle(oracle,32,4);
+      assert.equal(model.queryCount,41449);
+      const inverter=prepareExactBoundedDegreeInverter(model);
+      assert.equal(inverter.contractions,528);
+      assert.equal(inverter.coefficientSlots,5488);
+      const next=random32(seed^0xbad51234);
+      for(let sample=0;sample<8;sample++){
+        let input=next();
+        while(bitCount(input)<=4)input=next();
+        const output=oracle(input);
+        assert.equal(inverter.clone(input),output,
+          'quartic held-out clone diverged at seed '+seed);
+        assert.equal(inverter.invert(output),input,
+          'quartic held-out inverse diverged at seed '+seed);
+      }
+    }
+  });
+}
