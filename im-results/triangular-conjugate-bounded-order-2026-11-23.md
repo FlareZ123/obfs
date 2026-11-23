@@ -41,6 +41,45 @@ Order histogram, independent of `k`: order 1: **1**, order 2: **2,063**, order 4
 
 The source and test are included in strict external JSDoc type checking. **Source-pinned validation:** [focused Ubuntu/Windows Node 22 run 45107523497](https://github.com/FlareZ123/obfs/actions/runs/45107523497), exact source `3e369b42b3b14f8061dcab6dbe352855cda08301`. Both OS jobs passed the focused exhaustive test and strict project/external JSDoc. The generated source and strict config were independently fetched from that exact SHA after completion.
 
+## Exact random-order and target-orbit laws (uniform full truth-table model)
+
+The width-four statistic is not a uniform estimate of wider constructions. For a **specific** wider reference distribution, independently choose every Boolean gate truth table `g_i:GF(2)^i→GF(2)` uniformly from its `2^(2^i)` possibilities. This is the uniform distribution on the finite triangular permutation group `T_n`; it is **not** the distribution of compact seeded Boolean circuits.
+
+**Target-orbit theorem.** For any fixed target `y`, write `L_n` for the length of its cycle under uniform `P∈T_n`. Then
+
+```text
+log2(L_n) ~ Binomial(n, 1/2),
+Pr[L_n = 2^j] = binom(n,j)/2^n,   0<=j<=n,
+E[L_n] = (3/2)^n.
+```
+
+**Proof.** The lowest-coordinate gate is a uniform bit. Conditional on no lowest-bit flip, `P` stays within the target's lower-bit branch, and the restriction to its `n−1` higher coordinates is uniform `T_(n−1)`. Conditional on a lowest-bit flip, the two branch maps are independently uniform `T_(n−1)`, and the two-step return map on the starting branch is their product, again uniformly distributed in this finite group. Hence `L_n` is equally likely to equal a fresh `L_(n−1)` or `2L_(n−1)`. Induction from `L_0=1` gives a sum of `n` independent fair exponent increments, and the binomial generating function gives the expectation.
+
+An attacker who does **not** know the target's cycle length can repeatedly query `F` starting from `y` until `y` first reappears, returning the previous state as its exact preimage. That *particular cycle-traversal strategy* consumes `L_n` forward calls. Thus its mean over this mathematical random-source distribution is `(3/2)^n`; this is **not** an information-theoretic lower bound on a stronger adaptive inverter.
+
+**Entire permutation order.** Let `C_n(m)=Pr[ord(P) <= 2^m]`, with `C_0(m)=1` for `m>=0` and `C_n(-1)=0`. The same root-bit decomposition yields
+
+```text
+C_n(m) = [C_(n−1)(m)^2 + C_(n−1)(m−1)] / 2.
+```
+
+If the low bit is unchanged, two independent branch permutations act in parallel; their orders are powers of two, so the combined order is their maximum. If the low bit is flipped, squaring leaves each branch fixed and gives the product of two independent uniform `T_(n−1)` elements; that product is uniform, and the original permutation has twice its order. This proves the recurrence. In particular `Pr[ord(P)=2^n]=2^(-n)` by induction. These source-order and **individual target-orbit** distributions are different.
+
+The new standalone [order-law evaluator](../sims/triangular-random-order-law.js) and [test](../test/triangular-random-order-law.test.js) reproduce the recursion and check both exact finite histograms against the independent exhaustive four-bit program. All **524,288** target-orbit observations are partitioned into lengths 1,2,4,8,16 with respective counts **32,768, 131,072, 196,608, 131,072, 32,768**, exactly the `Binomial(4,1/2)` coefficients multiplied by 32,768.
+
+| Width | Median target cycle | Mean target cycle | Median permutation order |
+|--:|--:|--:|--:|
+| 4 | 4 | 5.0625 | 4 |
+| 8 | 16 | 25.62890625 | 32 |
+| 16 | 256 | 656.84083557 | 2,048 |
+| 32 | 65,536 | 431,439.883274 | 8,388,608 |
+
+For width 32 the exact recurrence yields `Pr[ord(P) <= 2^22]≈0.3297884` and `Pr[ord(P) <= 2^24]≈0.9410283`. About **10.766%** of target cycles have length at least `2^20`, while the **mean** cycle-traversal attack cost is about **431,440** calls. The earlier 93.75% at-most-seven-iteration statistic was **only** for width four and should never be projected to this model.
+
+**Source-pinned two-platform validation:** [focused Ubuntu/Windows Node 22 run 45107974399](https://github.com/FlareZ123/obfs/actions/runs/45107974399) on exact source `dce812f2dc1a96a784a0f0e535e20720579d2f0b`, including the complete n4 census and strict project/external JSDoc, completed successfully on both systems.
+
+**Model limitations.** A genuinely independent uniform 32-bit triangular gate-family truth-table description contains `2^32−1` independent Boolean bits, almost **512 MiB** before runtime wrappers; replacing it with a compact PRNG or pseudorandom circuit changes the distribution, so neither law automatically applies to such a deployed candidate. Even for the exact uniform model, iteration cost is an attacker-side *upper bound*, not a universal proof of source confidentiality, environment locking, or compliance with the required 2.5× application compute budget. More efficient chosen-query attacks, independent affine input/output wrappers, and target-specific domain constraints require separate analysis.
+
 ## Scope, implications, and limits
 
 1. This is an **exact finite-order algebraic attack on a fixed permutation oracle**, not static deobfuscation or extraction of arbitrary JavaScript. The permutation domain and codomain must match so that successive oracle outputs can be fed back as inputs. If `k` is unknown, cycling `F` until the target first reappears recovers the previous state in at most `2^k` calls, although the prescribed fixed-iteration attack needs the public upper bound `k`.
