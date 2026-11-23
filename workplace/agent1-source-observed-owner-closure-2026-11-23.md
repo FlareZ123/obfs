@@ -151,3 +151,44 @@ green counterexample and must not be treated as native CSSOM solely
 by name. Keep the existing scanner and source-island checks as
 safety backstops until the selective graph proof is validated on
 all three modes and on real browser/Node entrypoints.
+
+## Concrete property-renamer integration seam
+
+Current `src/properties.js` implements `renameLocalProperties(source,ast,options)`
+as a candidate loop over independently owned `const` object literals.
+Each candidate is associated with `candidate.name` and its property
+definition AST nodes. It calls
+`proveLocalObject(ast,candidate.name,bindings)` to obtain all proved
+`members`, destructuring `patterns` and membership `inChecks`,
+then builds a single old-name/new-name mapping that is applied
+consistently to **definitions and proved uses**. The mapping and
+all edits are generated per candidate before committing the pass.
+
+This existing **whole-candidate edit unit** is directly relevant to
+selective source-spelling preservation. Under a sound source-observation
+root proof, a candidate can be declined entirely when any of its
+field-definition/key-reference tokens are within a source-visible
+callable or are linked by the necessary interprocedural provenance.
+That preserves a property key coherently at both its outer definition
+and inner source-spelled use, while unrelated candidates can still be
+renamed. Merely suppressing one `MemberExpression` rewrite is
+unsound: it leaves the object's renamed key mismatched with its
+unchanged source-fixed read.
+
+There are two significant remaining integration obligations:
+
+1. Source-visible callable **root identification** must be derived
+   from the actual proven host method and argument flow, not method
+   name alone. The existing Boolean `observesFunctionSource` can
+   force a broad conservative refusal, yet supplies no individual
+   function spans or the set of property owner classes they constrain.
+2. `src/core.js` runs its **cross-file property renaming pass before**
+   file-local renaming. The same source-spelling constraint must reach
+   exported producer owner classes before that cross-file mapping is
+   generated. A local-only candidate filter does not repair the
+   actual two-file Chromium failure.
+
+This is a location-specific engineering proposal inferred from source
+structure, **not a tested production algorithm**. The separate native
+Chrome and two-OS acceptance fixtures remain the required evidence
+that a future patch preserves source and independent rewrite yield.
