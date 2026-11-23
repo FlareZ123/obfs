@@ -712,10 +712,11 @@ function proveLocalObject(ast, rootName, bindings, importedIdentityFunctions=new
   // inherent strictness or an explicit top-level strict directive: strict
   // callers are not exposed by that legacy reflective accessor.
   // An enclosing publicly observable callable remains a separate veto.
+  const programBody=/** @type {AstNode[]} */(ast.body);
   const hasStrictPrologue=ast.sourceType==='module' ||
-    ast.body.some((statement,index)=>
+    programBody.some((statement,index)=>
       statement.directive==='use strict' &&
-      ast.body.slice(0,index).every(prefix=>typeof prefix.directive==='string'));
+      programBody.slice(0,index).every(prefix=>typeof prefix.directive==='string'));
   if(hasStrictPrologue)walk(ast,(node,parent)=>{
     if(node.type==='ArrowFunctionExpression' && parent?.type==='CallExpression' &&
        parent.callee===node && !parent.optional)
