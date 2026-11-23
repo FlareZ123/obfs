@@ -234,7 +234,10 @@ function recoverSymbolicAffine(source,name,sourceType='module'){
          !slot.declarations[0].init)
         throw new TypeError('Unproved branch-local state');
       assertRestoration(slot.declarations[0].init,normalized,shift,label);
-      environment.set(slot.declarations[0].id.name,{
+      const slotName=slot.declarations[0].id.name;
+      if(slotName===normalized)
+        throw new TypeError('Branch-local slot shadows normalized input');
+      environment.set(slotName,{
         factor:1,offset:0,bound:2147483648
       });
       result=block(inner,environment);

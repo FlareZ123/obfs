@@ -372,3 +372,30 @@ test('symbolic recovery refuses lexical shadowing hidden after a return',async()
   assert.throws(()=>attackPublishedSource(source),
     /Lexical declaration shadows symbolic register|Return must terminate symbolic block/u);
 });
+
+
+test('symbolic recovery refuses a branch slot that shadows the normalized input',async()=>{
+  const source=['round1','round2','round3'].map(name=>
+    'export function '+name+'(input){'+
+      'const _ap_input_witness=input|0;'+
+      'switch(_ap_input_witness&1){'+
+        'case 0:{'+
+          'const _ap_input_witness=(((_ap_input_witness>>1)<<1)|0);'+
+          '{const value=_ap_input_witness+17;return value|0;}'+
+        '}'+
+        'case 1:{'+
+          'const _ap_input_witness=(((_ap_input_witness>>1)<<1)|1);'+
+          '{const value=_ap_input_witness+17;return value|0;}'+
+        '}'+
+        'default:throw Error("unreachable");'+
+      '}'+
+    '}'
+  ).join('\\n');
+  const actual=await import('data:text/javascript;charset=utf-8,'+encodeURIComponent(source));
+  assert.throws(()=>actual.round1(0),ReferenceError);
+  assert.throws(()=>actual.round1(1),ReferenceError);
+  assert.throws(()=>recoverSymbolicAffine(source,'round1','module'),
+    /Branch-local slot shadows normalized input/u);
+  assert.throws(()=>attackPublishedSource(source),
+    /Branch-local slot shadows normalized input/u);
+});
