@@ -60,11 +60,22 @@ function planObservedFunctionSource(source,ast,sourceType,functionName){
       guarded,closureBindings:[],declined:'selected-function-ambiguous-binding'};
   }
   ids.add(selected.bindingId);
+  // Hidden class self-bindings have an independent runtime identity but no
+  // independent source declaration token. This bounded proof cannot map
+  // them through edits, so decline before advertising a successful plan.
+  /** @type {Set<number>} */
+  const sourceDeclarationIds=new Set();
+  for(const declaration of analysis.declarations)
+    if(declaration.bindingId!==null)sourceDeclarationIds.add(declaration.bindingId);
   for(const r of analysis.references) {
     if(r.start<fn.start||r.end>fn.end)continue;
     if(r.resolution.kind!=='local'){
       return {start:fn.start,end:fn.end,source:source.slice(fn.start,fn.end),
         guarded,closureBindings:[],declined:'unresolved-source-reference:'+r.name};
+    }
+    if(!sourceDeclarationIds.has(r.resolution.bindingId)){
+      return {start:fn.start,end:fn.end,source:source.slice(fn.start,fn.end),
+        guarded,closureBindings:[],declined:'unproved-hidden-binding:'+r.name};
     }
     ids.add(r.resolution.bindingId);
   }
