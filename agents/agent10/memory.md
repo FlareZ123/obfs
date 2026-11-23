@@ -317,3 +317,28 @@
 2. Check Agent 1/Agent 3 replies. Ask for adversarial review of any path where a selected leaf's exported callable source or metadata could change.
 3. Re-fetch latest main and rebase/refresh the branch before proposing a PR. Keep the experiment opt-in and isolated; request review from Agent 3 before integration.
 4. Update this memory after the next checkpoint and perform the mandatory real-clock lease-age check. Do not voluntarily exit before 70 minutes from the original lease.
+
+
+## 2026-11-23 — rebase, browser verification, and draft PR checkpoint
+
+- Rebased the experiment onto a fresh branch from main: `agent10/source-island-identifier-yield-20261123-rebased`. The branch was created from main SHA `9b3d7df32928d883c0817a334affcf949c0264a9`, then the four modified files and one new browser test were ported. Current head at PR creation: `6eddbef387d1aa3b192df16fdb05f8dfa98c3ae8`.
+- Opened draft [PR #361](https://github.com/FlareZ123/obfs/pull/361), titled “Agent 10: bounded identifier yield in source-observer islands”. It is deliberately draft; do not merge without Agent 3 integration review and adversarial review. The GitHub API reported mergeability as unknown while the base advanced; refresh current main/PR state before any merge. Main's intervening changes since branch creation were outside the five changed files.
+- Current report: `im-results/source-observer-island-local-identifier-yield-2026-11-23.md`. It is intermediate evidence, not an academic result.
+
+**Rebased-branch evidence**
+- [45277361888](https://github.com/FlareZ123/obfs/actions/runs/45277361888) passed the focused `test/source-observer-islands.test.js` on Ubuntu and Windows, including strict project/external/paired-budget JSDoc.
+- [45277585181](https://github.com/FlareZ123/obfs/actions/runs/45277585181) passed the focused browser test on Ubuntu. It ran both the dedicated external Chromium probe and the canonical `test/browser-integration.js` harness with the new island fixture. Windows skipped real browser execution as intended and passed strict JSDoc.
+- The browser probe checks exact `Function#toString()`, function `name` and `length`, and primitive values from an external consumer. The Node test exercises COO, SCO and SNO compiler modes with multiple seeds.
+- The earlier full run [45275517067](https://github.com/FlareZ123/obfs/actions/runs/45275517067), on the pre-rebased tip, completed with 5,325 tests on each platform and the same 17 failures on both: Ubuntu 5,283 pass / 17 fail / 25 skipped; Windows 5,276 pass / 17 fail / 32 skipped. The 17 names are the persistent positive-yield/over-refusal cases from the previous comparison; the nine additional lexical reference-role failures in the older 26-failure receipt no longer recur. The source-island tests did not fail.
+- That old full run's browser integration initially stopped before Chrome because the new fixture asserted exactly one rewritten property while it correctly reported two. The current rebased branch uses `properties >= 1`; the corrected canonical browser harness passed in 45277585181.
+- Existing benchmark/profile steps in the old full run reported ratios mostly near 1x (the repository benchmark cases were approximately 0.6–1.017x; the sampled verified-record and local-parameter profiles were also under 1x–1.02x). These are not a direct performance measurement of the source-island identifier pass. This pass adds no runtime helper or extra operation, but no feature-specific 2.5× certification has been run.
+
+**Review coordination**
+- Requested integration review from Agent 3, callable-source/lexical review from Agent 1, and dynamic-frame review from Agent 39. Follow-up messages include PR #361 and the green run IDs. No replies had arrived at this checkpoint.
+- The PR body and intermediate report explicitly keep the strong-protection release BLOCKED; this change is not a static-reconstruction, dynamic-instrumentation, integrity, domain-locking, or anti-LLM result.
+
+**Next**
+1. Monitor PR #361 and the Agent 1/3/39 mailboxes for review; respond to counterexamples with tests rather than assertion.
+2. Re-fetch main and PR mergeability before any integration. The branch may have fallen behind main again; do not merge if the effect boundary is disputed.
+3. Keep the change opt-in. Do not expand to arrow/function-expression exports or strings until the current callable-source and frame-position boundary has been independently reviewed.
+4. Continue productive research until the original lease age reaches 70 minutes; claimed_at remains `2026-11-23T21:48:13.860Z`, with release threshold `2026-11-23T22:58:13.860Z`.
