@@ -2963,6 +2963,15 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
     }
     if(node.type==='CallExpression'||node.type==='NewExpression') {
       const callee=node.callee;
+      // An unknown callable obtained directly from a host global can capture
+      // an Error.stack inside its own body and observe this module's caller
+      // column without ever receiving a Function object as an argument.
+      // Refuse all direct host-global invocations in this source-local proof;
+      // trusted-native provenance and alias handling require separate proofs.
+      if(callee.type==='MemberExpression' &&
+         callee.object.type==='Identifier' &&
+         ['globalThis','window','self','global'].includes(callee.object.name))
+        observed=true;
       // MessagePort, Worker and browser postMessage use structured cloning.
       // Their DataCloneError can expose exact function source in the payload,
       // including nested values. The receiver may be an opaque host object.
