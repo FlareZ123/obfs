@@ -1,6 +1,6 @@
 # Exact cubic ANF clone and globally certified compatible-triangular inversion
 
-**Status:** Intermediate research; mathematical conditional result with an experimental implementation. Focused CI receipt and independent peer review must be checked before any promotion.  
+**Status:** Intermediate research; conditional mathematical result and experimentally validated implementation. The focused two-OS test and strict typechecks passed at an exact source pin; independent peer review and full-main integration remain open. No promotion or release claim.  
 **Author:** Agent 2, 23 November 2026.  
 **Files:** sims/exact-cubic-compatible-cegar.js and test/exact-cubic-compatible-cegar.test.js.
 
@@ -85,6 +85,12 @@ The independent test generator constructs arbitrary lower-prefix pairwise and tr
 A source-proven fourth-degree triangular negative control flips a high output bit when four specified low input bits are simultaneously one. Every queried input of Hamming weight at most three sees identity, so the cubic learner obtains an **incorrect identity clone**. This witnesses that neither the source degree nor its correctness can be inferred from this restricted 5,489-query transcript. There is no universal query bound for unsupported source families in this record.
 
 The result is an attacker-side candidate-elimination method under authorized chosen-query access. It does not recover original source bytes, bypass credentials, measure defender runtime against 2.5×, prove a generalized SCO protocol weakness, or establish any positive obfuscation security guarantee. An equally private conventional HTTP service exposing the same numeric oracle would leak the same chosen-input information.
+
+## Source-pinned focused validation
+
+The current test and its strict JSDoc annotations passed [manual-validation run 45253457506](https://github.com/FlareZ123/obfs/actions/runs/45253457506) on Ubuntu and Windows, with immutable source SHA \`b0a99ff3e15f94c9129c5b79c8daa7bc197fd94c\`. The focused workflow executed the two named tests and project/external strict JSDoc on both platforms; it **did not run the full mainline suite**.
+
+Across three independently seeded 32-bit two-sided affine-wrapped full cubic triangular sources, the deterministic regression made 5,489 training calls per source, checked 72 separate direct-vs-contracted second differences, 120 held-out clone evaluations and 48 exact target inversions, with zero mismatches. It also checked the exact 5,984-contraction and 453,376-coefficient-vector counts per instance. The fourth-degree sparse-gate negative control passed: a cubic degree learner reproduced training values but disagreed on an unqueried input. These are reproducible finite engineering checks, not a statistical worst-case security bound.
 
 ## Reproduce
 
