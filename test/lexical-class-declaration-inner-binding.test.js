@@ -68,7 +68,7 @@ test('class declaration inner self-assignment is immutable even though outer nam
 
 test('named class declaration extends and static field self-references have separate provenance',()=>{
   for(const source of [
-    'function demonstration(){class window extends window {} return 0;}',
+    'function demonstration(){class window extends window {} return window;}',
     'function demonstration(){class window { static own=window; }return window;}',
     'function demonstration(){class window { static {this.own=window;} }return window;}',
     'function demonstration(){class window { [window.name](){return 1;} }return window;}'
