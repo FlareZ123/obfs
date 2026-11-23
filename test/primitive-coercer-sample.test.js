@@ -27,7 +27,7 @@ function outcome(run) {
 
 test('before and after are exactly the current production compiler output',()=>{
   const result=obfuscateFiles([{path:'sample.cjs',sourceType:'commonjs',code:before}],{
-    mode:'sno',seed:'primitive-coercer-proof-sample',strings:false
+    mode:'sno',seed:'primitive-coercer-proof-sample',strings:false,identifiers:false
   }).files[0];
   assert.equal(result.metrics.objects,1);
   assert.equal(result.metrics.properties,2);

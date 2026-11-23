@@ -80,6 +80,12 @@ for(const [name,observer] of [
 test('function-free ESM structuredClone input preserves one private owner key',async()=>{
   const files=graph("const observed=structuredClone({kind:'ping',records:[1,{ready:true}]});"+
     "export {observed};");
+  // Keep the public inspector's source stable; only its private direct-call
+  // helper contains the owner key that the property pass may safely rename.
+  files[0].code="const hidden={secretField:17};"+
+    "function privateInspect(){const marker='opaque-literal';"+
+    "return hidden.secretField+marker.length;}"+
+    "export function inspect(){return privateInspect();}";
   // This positive isolates the clone input: the shared graph() fixture's
   // JSON.stringify(...)+'\\n' coerces an *unknown call result*. A mutable
   // JSON.stringify may return a function, whose exact source would be exposed

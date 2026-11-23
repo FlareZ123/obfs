@@ -30,9 +30,11 @@ async function execute(files,directory) {
 }
 
 /** @param {string} key @param {number} value @param {boolean} positive @returns {ModuleFile[]} */
-function fixture(key,value,positive) {
+function fixture(key,value,fieldKeyFirst) {
+  // This graph is acyclic: the importer executes only after state.mjs has
+  // completed, so either export declaration order leaves both bindings ready.
   const other='guardField',q=JSON.stringify(key);
-  const state=positive ?
+  const state=fieldKeyFirst ?
     `export const fieldKey=${q};export const owner={${q}:${value},${other}:3};` :
     `export const owner={${q}:${value},${other}:3};export const fieldKey=${q};`;
   const variant=random()%4;
@@ -57,23 +59,21 @@ async function run(cases=32) {
     for(let index=0;index<cases;index++){
       const value=random()%201;
       const name='private_'+(random()%100000).toString(16)+'_'+index;
-      const positive=index%4!==3;
-      const original=fixture(name,value,positive);
+      const fieldKeyFirst=index%4!==3;
+      const original=fixture(name,value,fieldKeyFirst);
       const expected=await execute(original,dir);
       const result=obfuscateFiles(original,{mode:'coo',seed:'imported-key-fuzz/'+index,
         closedWorld:true,strings:false,identifiers:false});
-      const required=positive?2:0;
+      const required=2;
       assert.equal(result.crossFile.properties,required,
         'case '+index+' result '+JSON.stringify(result.crossFile));
       assert.equal(await execute(/** @type {ModuleFile[]} */ (result.files),dir),expected,
         'case '+index+' compiled output differs');
-      if(positive){
-        positives++;
-        const neutralized=neutralizeHashedNames(result.files);
-        assert.equal(neutralized.properties,2);
-        assert.equal(await execute(/** @type {ModuleFile[]} */ (neutralized.files),dir),expected);
-        normalized++;
-      }else declined++;
+      positives++;
+      const neutralized=neutralizeHashedNames(result.files);
+      assert.equal(neutralized.properties,2);
+      assert.equal(await execute(/** @type {ModuleFile[]} */ (neutralized.files),dir),expected);
+      normalized++;
     }
   }finally{await fs.rm(dir,{force:true,recursive:true});}
   return {seed:'0x'+seed.toString(16),cases,positives,declined,normalized};

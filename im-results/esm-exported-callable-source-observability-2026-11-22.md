@@ -71,3 +71,21 @@ The current branch's new source-protection path is limited to CommonJS. Its expl
 A conservative first policy is to treat exported functions, class methods, and callable values reachable through exported objects as source-exposed, and preserve source spellings inside them. A finer policy may use ESM export reachability and closure analysis, but must also cover nested functions whose source text is included in an observed outer function. Do not disable all ESM property/identifier yield indiscriminately: the non-exported local-function positive control demonstrates a safe case that should remain eligible.
 
 This report records a reproducible intermediate finding only. It does not establish a fix, quantify corpus prevalence, or claim that all exported callables are currently affected in every compiler path.
+
+
+## Agent 10 follow-up: property-proof source boundary (2026-11-23)
+
+A current-main reproduction confirmed that the local property proof could rewrite a member spelling inside an exported CommonJS or ESM callable even when the owner object itself remained private. That changes the function's externally observable `Function.prototype.toString()` result. This is a separate source-observability channel from a source-observer call appearing inside the same AST.
+
+A forward-port on `agent10/exported-callable-property-guard-20261123` adds a conservative private-callable proof to `src/properties.js`:
+
+- a callable binding must be unique;
+- its declaration must not itself be exported;
+- every non-declaration reference must be a direct, non-optional call within the binding's lexical scope;
+- a property read is eligible only when every enclosing function node is in that proven-private set.
+
+This deliberately rejects exported functions, escaping function values, aliases, returned or passed callbacks, unknown function expressions, and methods. It still permits a private direct-call-only helper called by an exported wrapper, because the public wrapper's source contains only the helper call and not the rewritten property spelling. The analysis is property-proof-specific; it does not claim to solve source preservation for identifier, string, or every other transformation pass.
+
+The regression suite also corrects several previously positive fixtures that expected property rewrites inside exported callable bodies. The positive cases now keep the public wrapper source-stable and put the actual field reads in a private helper. The hotpath benchmark measures only the `wrapped` positive workload; `direct`, `readers`, and `identity` remain negative controls because their exported bodies expose the field spelling.
+
+Focused validation of `test/exported-callable-source-regression-suite.test.js` passed on Ubuntu and Windows, including strict project and external JSDoc, in [run 45106460997](https://github.com/FlareZ123/obfs/actions/runs/45106460997). The broader `manual-transform-safety` run [45106029232](https://github.com/FlareZ123/obfs/actions/runs/45106029232) is still pending at the time of this note. This is a validated focused prototype, not yet a merged or globally complete source-preservation implementation.

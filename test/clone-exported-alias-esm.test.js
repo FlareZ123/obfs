@@ -13,14 +13,19 @@ const {atomicWrite}=require('../src/atomic');
 /**
  * @param {string} utility
  * @param {string} consumer
+ * @param {boolean} [privateReader]
  * @returns {Source[]}
  */
-function files(utility,consumer){
+function files(utility,consumer,privateReader=false){
   return [
     {path:'utility.mjs',sourceType:'module',code:utility},
     {path:'state.mjs',sourceType:'module',
-      code:"const hidden={secretField:17};export function inspect(){"+
-        "const marker='opaque-literal';return hidden.secretField+marker.length;}"},
+      code:privateReader?
+        "const hidden={secretField:17};function privateInspect(){"+
+          "const marker='opaque-literal';return hidden.secretField+marker.length;}"+
+          "export function inspect(){return privateInspect();}":
+        "const hidden={secretField:17};export function inspect(){"+
+          "const marker='opaque-literal';return hidden.secretField+marker.length;}"},
     {path:'observer.mjs',sourceType:'module',code:consumer},
     {path:'entry.mjs',sourceType:'module',
       code:"import {inspect} from './state.mjs';import {observed} from './observer.mjs';"+
@@ -82,7 +87,8 @@ test('unrelated imported function preserves an eligible ESM private owner',async
   const source=files(
     'export const helper=value=>value;',
     "import {helper} from './utility.mjs';"+
-      "const observed=helper(19);export {observed};"
+      "const observed=helper(19);export {observed};",
+    true
   );
   const transformed=obfuscateFiles(source,{
     mode:'sno',seed:'imported-clone-safe-other',strings:false,closedWorld:true

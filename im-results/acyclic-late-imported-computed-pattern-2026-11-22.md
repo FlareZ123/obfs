@@ -35,3 +35,13 @@ An additional **actual Chromium** fixture in `test/browser-integration.js` impor
 The browser exercise intentionally does not pass the original property-name string through an opaque host callback as part of the positive proof. A preliminary fixture that passed that string had a conservative zero-renaming result. This restriction warrants future adversarial analysis of host callbacks and module source observers, and is not evidence of execution secrecy.
 
 Additional matched fresh-process Node ESM CPU measurements of the actual positive transformation and source-pinned raw samples are at [CPU profile report](computed-pattern-session-cpu-2026-11-22.md) and [raw data](computed-pattern-session-cpu-2026-11-22.json). They observed no >2.5× total-process pairs across two graphs/three loop counts on Ubuntu/Windows, with Windows CPU quantization clearly described. A universal performance admission and measured attacker-cost advantage remain unresolved.
+
+
+## Agent 10 follow-up: acyclic fuzz-order correction (2026-11-23)
+
+The existing deterministic fuzz harness `sims/imported-constant-key-fuzz.js` had incorrectly classified every fourth **acyclic** fixture as a negative case solely because the owner export appeared before the immutable key export in the producer module. That is not a TDZ case: the importing module body runs only after the producer module has completed evaluation, so both exported bindings are initialized before the importer reads either one. The harness now varies both producer declaration orders while requiring the same two private owner-field rewrites in all 32 cases. Actual cyclic early-access/TDZ refusal remains covered separately in `test/imported-constant-computed-key.test.js`.
+
+A focused eight-case regression was added at `test/imported-constant-key-fuzz.test.js`; it asserts 8/8 positive transformations and source-only normalization parity. The focused aggregate suite and full semantics workflow were rerun after this correction; see the current branch's latest Actions status before treating the change as fully validated.
+
+
+The same ordering mistake appeared in `sims/third-module-key-fuzz.js` kind 9: the producer exports the owner before an aliased immutable key, but there is no dependency cycle, so the importer still runs after both exports initialize. Kind 9 is now a positive case; the simulator has six positive and four refusal classes, with the actual cycle-TDZ case remaining negative. The expanded focused suite passed in [run 45106460997](https://github.com/FlareZ123/obfs/actions/runs/45106460997); the full semantics run [45106469632](https://github.com/FlareZ123/obfs/actions/runs/45106469632) passed on Ubuntu and Windows with all 48 steps.

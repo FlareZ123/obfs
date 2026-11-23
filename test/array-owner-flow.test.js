@@ -37,7 +37,8 @@ const positive=[
   'const first=holder[0];',
   'const second=holder[0];',
   'function read(v){return v.secretCount+v.privateDelta;}',
-  'module.exports=function score(input){return read(first)+second.secretCount*input+first.privateDelta;}'
+  'function privateScore(input){return read(first)+second.secretCount*input+first.privateDelta;}',
+  'module.exports=function score(input){return privateScore(input);}'
 ].join('\n');
 
 test('private one-slot array preserves owned-object property renaming in COO and SNO',()=>{
@@ -92,7 +93,8 @@ test('single-slot array supports direct owner references and safe aliases in one
     'const owner={secretCount:19};',
     'const holder=[owner];',
     'const alias=holder[0];',
-    'module.exports=function compute(n){return alias.secretCount*n+owner.secretCount;}'
+    'function privateCompute(n){return alias.secretCount*n+owner.secretCount;}',
+    'module.exports=function compute(n){return privateCompute(n);}'
   ].join('\n');
   for(const mode of ['coo','sno']){
     const result=compile(source,mode);
@@ -107,7 +109,7 @@ test('checked-in private array before/after is exactly reproducible',async()=>{
   const report=await buildSample(true);
   assert.equal(report.objects,1);
   assert.equal(report.properties,2);
-  assert.equal(report.bytes,452);
+  assert.equal(report.bytes,514);
 });
 
 test('seedless source-only normalizer removes array-owner labels and clones behavior',()=>{

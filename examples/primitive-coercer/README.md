@@ -1,14 +1,17 @@
 # Proven primitive coercion, conservative field renaming
 
 This example uses a real SNO CommonJS compiler output from `src/ast.js`
-and `src/properties.js`. The source creates a private object with two
+and `src/properties.js`. The exported `calculate` function is a stable
+wrapper; the coercions and private field reads live in a direct-call-only
+`privateCalculate` helper. The source creates a private object with two
 owned numeric fields and performs both `String(caption)` and
 `new RangeError(caption)`, where `caption` is a uniquely declared immutable
 string. Native JavaScript cannot observe a function's source text through
 these proven primitive arguments.
 
 The earlier source-observation guard treated these identifier arguments as
-unknown and refused unrelated private-field rewriting. The updated guard
+unknown and refused unrelated private-field rewriting. Identifier rewriting is
+disabled in this fixture so it isolates the property-source contract. The updated guard
 uses the already conservative `isDefinitelyPrimitive` proof, admitting the
 two source-local own keys without touching external names.
 

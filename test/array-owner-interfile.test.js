@@ -37,7 +37,8 @@ const modules=[
   {path:'owner.mjs',sourceType:'module',code:[
     'const vault={privateCount:41,hiddenAddend:5};',
     'const holder=[vault];const alias=holder[0];',
-    'export function inner(v){return alias.privateCount+vault.hiddenAddend+v;}'
+    'function privateInner(v){return alias.privateCount+vault.hiddenAddend+v;}',
+    'export function inner(v){return privateInner(v);}'
   ].join('\n')},
   {path:'entry.mjs',sourceType:'module',code:[
     'import {inner} from "./owner.mjs";',
