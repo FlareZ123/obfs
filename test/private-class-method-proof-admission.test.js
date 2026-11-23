@@ -3,6 +3,11 @@
 const assert=require('node:assert/strict');
 const {test}=require('node:test');
 const vm=require('node:vm');
+const fs=require('node:fs/promises');
+const os=require('node:os');
+const path=require('node:path');
+const {spawnSync}=require('node:child_process');
+const {atomicWrite}=require('../src/atomic');
 const {obfuscateFiles}=require('../src');
 
 /**
@@ -54,6 +59,43 @@ for(const mode of /** @type {const} */ (['coo','sno','sco'])) {
     const transformed=compile(original,mode);
     assert.equal(transformed.metrics.properties,1);
     assert.equal(execute(String(transformed.code)),execute(original));
+  });
+}
+
+
+for(const mode of /** @type {const} */ (['coo','sno','sco'])) {
+  test(mode+' private class in native two-file ESM retains numeric public interface',async()=>{
+    const original=[
+      {path:'state.mjs',sourceType:/** @type {'module'} */('module'),
+        code:'const owner={secretA:13};class Reader{read(){return owner.secretA;}}'+
+          'const reader=new Reader();export const value=reader.read();'},
+      {path:'entry.mjs',sourceType:/** @type {'module'} */('module'),
+        code:'import {value} from "./state.mjs";process.stdout.write(String(value));'}
+    ];
+    const emitted=obfuscateFiles(original,{mode,seed:'private-class-real-esm/'+mode,
+      properties:true,identifiers:false,strings:false});
+    const state=emitted.files.find(file=>file.path==='state.mjs');
+    assert.ok(state);
+    assert.equal(state.metrics.properties,1);
+    const folder=await fs.mkdtemp(path.join(os.tmpdir(),'obfs-private-class-'));
+    try {
+      /**
+       * @param {typeof original | typeof emitted.files} files
+       * @returns {Promise<string>}
+       */
+      async function runFiles(files){
+        for(const file of files)await atomicWrite(path.join(folder,file.path),file.code);
+        const child=spawnSync(process.execPath,[path.join(folder,'entry.mjs')],{
+          encoding:'utf8',timeout:10000
+        });
+        assert.equal(child.status,0,child.stderr||child.error?.message);
+        return child.stdout.trim();
+      }
+      assert.equal(await runFiles(original),'13');
+      assert.equal(await runFiles(emitted.files),'13');
+    } finally {
+      await fs.rm(folder,{recursive:true,force:true});
+    }
   });
 }
 
