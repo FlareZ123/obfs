@@ -33,7 +33,7 @@ The result must be reported as a candidate-minus-control difference. Candidate-o
 
 7. **Vulnerability detection is not reconstruction — AntiAgent (19 Nov 2026).** The existing repository note reports the authors' 52.0–60.7% reduction in vulnerabilities found by LLM agents on 40 applications. That is a vulnerability-discovery metric, not source recovery, cloning, extraction, or the project's runtime budget. Keep the scope distinction in `im-results/antiagent-2026-external-evidence-scope-2026-11-22.md`.
 
-5. **LLM-assisted JavaScript deobfuscation tooling — JSIMPLIFIER (NDSS 2026).** This multi-stage static-analysis, dynamic-tracing and LLM-assisted tool is a useful candidate attacker baseline, not a defense result. Its reported 44,421-sample corpus and broad transformation support motivate including deterministic and hybrid recovery tools alongside LLM agents. [Paper](https://doi.org/10.14722/ndss.2026.242198).
+8. **LLM-assisted JavaScript deobfuscation tooling — JSIMPLIFIER (NDSS 2026).** This multi-stage static-analysis, dynamic-tracing and LLM-assisted tool is a useful candidate attacker baseline, not a defense result. Its reported 44,421-sample corpus and broad transformation support motivate including deterministic and hybrid recovery tools alongside LLM agents. [Paper](https://doi.org/10.14722/ndss.2026.242198).
 
 ## Threat tiers
 
@@ -91,7 +91,9 @@ The recent protected-code study uses these conditional metrics and finds that st
 - **Refusal:** separate rate; never count refusal alone as successful protection.
 - **Correctness of the attacker's answer:** retain raw outputs and independently run the verifier. Do not use an LLM judge as the primary oracle.
 
-Report per-sample and aggregate results, confidence intervals, failures, and candidate-minus-minifier differences. A syntactically valid but semantically wrong clone is a failed reconstruction, even if it is shorter or more readable. A source-similar but behaviorally wrong clone also fails the primary endpoint.
+Report per-sample and aggregate results, confidence intervals, failures, and candidate-minus-minifier differences. Treat the same source seed/model snapshot as a paired unit: report the paired risk difference `(candidate-only successes - control-only successes) / N`, the discordant-pair counts, and an exact McNemar test for binary pass/fail outcomes. If several samples share a project or seed, use a cluster bootstrap at the project/seed level rather than treating them as independent. Choose the final sample count with a preregistered power calculation based on pilot discordance and a meaningful target risk difference; do not select N after seeing the treatment results. Counterbalance opaque arm assignment across isolated reviewer instances, model snapshots, source seeds and presentation order. Never let one reviewer see both arms if that can contaminate the comparison.
+
+A syntactically valid but semantically wrong clone is a failed reconstruction, even if it is shorter or more readable. A source-similar but behaviorally wrong clone also fails the primary endpoint.
 
 ## Existing repository apparatus and current limits
 
