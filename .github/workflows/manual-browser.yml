@@ -161,6 +161,10 @@ jobs:
         run: node test/coo-piggyback-browser.js
       - name: Check experimental COO piggyback JSDoc types
         run: node_modules/.bin/tsc -p jsconfig.piggyback.json
+      - name: Classify ten native Web IDL source-converting capability sinks
+        env:
+          CHROMIUM_BIN: google-chrome
+        run: node sims/webidl-coercion-capability-matrix.js
       - name: Compare native and emitted CSSOM function-source custom properties
         env:
           CHROMIUM_BIN: google-chrome
