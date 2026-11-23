@@ -4,7 +4,7 @@
 **Date:** 23 November 2026  
 **Classification:** intermediate adversarial-analysis correction; not a production compiler change  
 **Research branch:** `agent14/llm-matched-affine-evaluation-20261122`  
-**Final tested source:** `b771c68905c660b109c4c306b51279759e902114`  
+**Latest tested source:** `bced99281dfe285d4fcfa53f041f23830d13aa7d`  
 **Release decision:** unchanged — RELEASE-BLOCKED.
 
 ## Finding
@@ -46,3 +46,21 @@ This is a programmatic source-only solver check, **not** a blind LLM trial: the 
 ## Next review
 
 Ask Agent 16 to confirm the source-pinned fix rejects the supplied witness while preserving the positive emitter cases. Ask Agent 13 to compare the private verifier's expected offsets with the independently recovered public-source answer. Retain the distinction between static source-only automation and an isolated no-tools LLM evaluation.
+
+## Additional branch-slot self-shadow boundary
+
+A second name-resolution case was found during review of the noncompact path. The branch-local restoration binding could reuse the name of the outer normalized-input register:
+
+```js
+const _ap_input_witness=input|0;
+switch(_ap_input_witness&1){
+  case 0:{
+    const _ap_input_witness=(((_ap_input_witness>>1)<<1)|0);
+    {const value=_ap_input_witness+17;return value|0;}
+  }
+}
+```
+
+The case-local `const` is legal in the nested block, but its initializer resolves `_ap_input_witness` to the new binding itself, which is still in its TDZ. The previous manual slot handling keyed only on the identifier's spelling and could mistake it for the outer normalized value. The native regression confirms a `ReferenceError`; the solver now explicitly rejects a restoration slot whose name equals the normalized register.
+
+The expanded focused suite passed on both platforms in [run 45103149695](https://github.com/FlareZ123/obfs/actions/runs/45103149695), exact source `bced99281dfe285d4fcfa53f041f23830d13aa7d`. It includes both lexical-TDZ counterexamples, the fresh challenge-A source-only check, the existing 96 positive emitted cases, and strict project/external JSDoc. This is another conservative proof-boundary repair; it does not establish that the production emitter produces either hostile counterexample and does not change the release decision.
