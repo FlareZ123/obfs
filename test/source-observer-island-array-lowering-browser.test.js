@@ -45,7 +45,8 @@ test('Chromium executes tuple-lowered source-observer islands with exact exporte
     assert.ok(emitted);
     assert.equal(emitted.metrics.objects,1);
     assert.ok(emitted.metrics.properties>=1);
-    assert.match(String(emitted.code),new RegExp('const '+recordName+'=\\['+value+'(?:,\\d+)*\\];'));
+    assert.match(String(emitted.code),new RegExp('const '+recordName+'=\\\\[\\\\d+(?:,\\\\d+)*\\\\];'));
+    assert.match(String(emitted.code),new RegExp('const value'+(recordName==='recordB'?'B':'C')+'='+recordName+'\\\\[\\\\d+\\\\];'));
     assert.ok(String(emitted.code).includes(
       'export function '+fnName+'(){return '+captured+';}'));
     assert.doesNotMatch(String(emitted.code),/privateB|otherB|privateC/);
