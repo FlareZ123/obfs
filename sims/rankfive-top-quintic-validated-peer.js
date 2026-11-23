@@ -297,6 +297,21 @@ function main() {
   assert.ok(noTop.queries <= 44836);
 
   const silentSource = rankSevenSilentSource();
+  const silentFastCandidate = cloneTopQuintic(
+    silentSource,
+    7,
+    fixedDirections(directions)
+  );
+  let silentDifferenceCount = 0;
+  for (let input = 0; input < 128; input++) {
+    if (silentSource(input) !== evaluateModel(silentFastCandidate,input)) {
+      silentDifferenceCount++;
+    }
+  }
+  assert.equal(silentDifferenceCount,4);
+  assert.ok(Math.pow(31/32,725) > 1e-10);
+  assert.ok(Math.pow(31/32,726) <= 1e-10);
+
   const silentVerificationRng = seeded(0x44a202613);
   const silent = cloneTopQuinticValidated(
     silentSource,
@@ -351,6 +366,7 @@ function main() {
       verificationMismatchAt:silent.verificationMismatchAt,
       sourceAt124:silentSource(124),
       cloneAt124:evaluateModel(silent,124),
+      falseCandidateDistance:{mismatches:silentDifferenceCount,domain:128,relative:silentDifferenceCount/128},
       exactAll128:true,
       queries:silent.queries
     },
