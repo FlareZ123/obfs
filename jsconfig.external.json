@@ -275,7 +275,9 @@
     "sims/triangular-conjugate-order.js",
     "test/triangular-conjugate-order.test.js",
     "sims/triangular-random-order-law.js",
-    "test/triangular-random-order-law.test.js"
+    "test/triangular-random-order-law.test.js",
+    "sims/triangular-active-crosswrapped-inversion.js",
+    "test/triangular-active-crosswrapped-inversion.test.js"
   ],
   "exclude": [
     "node_modules"
