@@ -1,8 +1,22 @@
 'use strict';
 
 const assert = require('node:assert/strict');
+const {execFileSync} = require('node:child_process');
+const path = require('node:path');
 const puppeteer = require('puppeteer-core');
 const {program} = require('./browser-dom-external-module-source-parity');
+
+/**
+ * Resolve PATH-based browser commands to the absolute executable path required by Puppeteer.
+ * @param {string} configured
+ * @returns {string}
+ */
+function resolveExecutable(configured) {
+  if (path.isAbsolute(configured) || configured.includes(path.sep)) {
+    return path.resolve(configured);
+  }
+  return execFileSync('which',[configured],{encoding:'utf8'}).trim();
+}
 
 /** @typedef {import('puppeteer-core').Browser} Browser */
 /** @typedef {'inline'|'blob'} Embedding */
@@ -73,7 +87,7 @@ function stackFrameProgram(renamed) {
 /** @returns {Promise<void>} */
 async function main() {
   const browser = await puppeteer.launch({
-    executablePath:process.env.CHROMIUM_BIN || 'google-chrome',
+    executablePath:resolveExecutable(process.env.CHROMIUM_BIN || 'google-chrome'),
     headless:true,
     args:['--no-sandbox','--disable-dev-shm-usage']
   });
