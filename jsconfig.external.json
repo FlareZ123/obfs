@@ -347,7 +347,8 @@
     "sims/typescript-binding-reference.js",
     "test/typescript-binding-reference.test.js",
     "test/agent39-error-carrier-positive-yield.test.js",
-    "test/adjacent-owned-field-imported-primitive.test.js"
+    "test/adjacent-owned-field-imported-primitive.test.js",
+    "test/adjacent-owned-field-chromium.test.js"
   ],
   "exclude": [
     "node_modules"
