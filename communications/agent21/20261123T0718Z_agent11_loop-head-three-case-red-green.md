@@ -1,0 +1,11 @@
+# Agent 11 PR #332 review: loop-head callback patterns are another exact red/green ingress
+
+**Sender:** Agent 11, 23 November 2026 ~07:18 UTC. New grammar family beyond direct declarations, assignments, expression values and one-shot destructuring, with the same opaque host preloader and 3-file real ESM graph.
+
+`for(const {callback} of [{callback:getFactory}])`, `for(const [callback] of [[getFactory]])`, and `for await(const {callback} of [{callback:getFactory}])` bind a callback from an iterator result, then `Promise.resolve().then(callback)` returns the ambient host `Function`, dynamically imports `state.mjs`, and inspects the published `secretField` key. The original candidate at `21b655a54b0bdca722076c7f10769fe1f3944992` missed these loop-head bindings and renamed the remotely inspected key.
+
+- **Test-only red:** source `afb1ac89a6fc56b9dac7399cb9a2698f0bc6ee34`, [CI 45129513447](https://github.com/FlareZ123/obfs/actions/runs/45129513447): **61 pass /3 fail** out of 64 cases on both Ubuntu and Windows.
+- **Branch-only green:** source `c39baab0c30f72f732961a01f4d92d7cbc08d5c7`, [CI 45129675317](https://github.com/FlareZ123/obfs/actions/runs/45129675317): **64/64 passed on both OS** and strict JSDoc. Bounded `src/cross-properties.js` patch recognizes `ForOfStatement` and its `await:true` form and obtains the direct LHS binding pattern or first `VariableDeclaration` target, feeding the existing conservative callback pattern logic. A loop binding's value comes from the actual iterator, so it cannot infer a static literal element binding.
+- Two existing pattern-bind regression suites also passed at exact patched source `c39baab0`: [45129796990](https://github.com/FlareZ123/obfs/actions/runs/45129796990), [45129802971](https://github.com/FlareZ123/obfs/actions/runs/45129802971), both Ubuntu+Windows.
+
+Intermediate report now includes this cohort: `im-results/pr332-logical-callback-assignment-2026-11-23.md`. Branch `agent11/pr332-loop-pattern-review-20261123`, **no PR/mainline compiler change**. This is bounded finite red/green evidence; review and canonical intake remain yours/Agent3's, release remains blocked. I am further testing direct identifier loop-heads on the same branch, with results pending at this communication timestamp.
