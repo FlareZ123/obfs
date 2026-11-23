@@ -5,6 +5,7 @@ const assert=require('node:assert/strict');
 const {distinguish}=require('../sims/sco-step-only-version-space');
 const {observationWords,buildBehaviorTypes,advance,analyzeTwoStateMinimax}=
   require('../sims/sco-step-only-two-state-minimax');
+const {analyzeTwoStateExpectedQueries}=require('../sims/sco-step-only-two-state-expected');
 
 test('four-step binary signatures exactly match independent product-BFS behavior',()=>{
   assert.equal(observationWords().length,30);
@@ -36,4 +37,20 @@ test('all two-state binary models require nine queries in the minimax worst case
   assert.equal(result.heuristicWorstCase,9);
   assert.equal(result.heuristicHistogram.reduce((sum,n)=>sum+n,0),260);
   console.log('SCO_TWO_STATE_MINIMAX '+JSON.stringify(result));
+});
+
+
+test('weighted posterior policy improves calls and reaches a finite global Bellman fixed point',()=>{
+  const result=analyzeTwoStateExpectedQueries();
+  assert.equal(result.weightedBeliefs,2365);
+  assert.equal(result.unboundedConverged,true);
+  assert.equal(result.convergenceDepth,11);
+  assert.equal(result.baselineTotal,1992);
+  assert.equal(result.boundedNineTotal,1884);
+  assert.equal(result.optimalTotal,1776);
+  assert.deepEqual(result.nineHistogram,[0,0,0,0,0,0,40,156,24,40]);
+  assert.deepEqual(result.optimalHistogram,[0,0,0,0,0,16,132,48,32,8,24]);
+  assert.equal(result.nineHistogram.reduce((s,n)=>s+n,0),260);
+  assert.equal(result.optimalHistogram.reduce((s,n)=>s+n,0),260);
+  console.log('SCO_TWO_STATE_WEIGHTED '+JSON.stringify(result));
 });

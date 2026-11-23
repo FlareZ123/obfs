@@ -33,3 +33,22 @@ The existing chooseSymbol policy in sims/sco-step-only-version-space.js was eval
 This establishes no secrecy or resource bound in a real JavaScript application. It assumes the finite two-state oracle model is true. Machines with more hidden states, nonstationary oracles, unauthorized request paths, memory/clock mutations and multi-user state sharing are outside the proof. It does not improve the global **RELEASE-BLOCKED** decision. More realistic SCO oracle comparisons are documented in im-results/sco-step-only-smt-adaptive-2026-11-23.md and im-results/sco-five-state-step-only-2026-11-23.md.
 
 Classical related context: Rivest and Schapire, [Inference of finite automata using homing sequences](https://people.csail.mit.edu/rivest/pubs/RS93a.pdf) (1993), addresses a broader reset-free inference problem. The exhaustive nine-query value here is specific to the finite binary two-state class.
+
+
+## Exact posterior-weighted call-cost refinement
+
+Under a **uniform prior over the 260 labelled source tables** (a specified sampling distribution, not a uniform prior over the 148 semantic types), the posterior can be represented by integer model counts on each future-behavior type. The complete reachable posterior graph has **2,365 weighted belief states**. Every submitted bit costs one call for each model represented by its current posterior; if m models survive, the integer aggregate-cost Bellman recurrence is:
+
+\[
+C(S)=m+\min_{x\in\{0,1\}}\sum_{y:S_{x,y}\ne\emptyset} C(S_{x,y}).
+\]
+
+With C(singleton behavioral type)=0, a finite-horizon recurrence converges to a global fixed point on **all 2,365 states at depth 11**; the initial state's cost already stabilizes at depth 10. Positive per-query costs and the finite fixed point establish the optimum over all eventually certifying policies under this declared prior. The independent per-machine evaluator replays the chosen posterior policy on **every** original table.
+
+- Existing heuristic: **1,992 total calls** over 260 tables; mean **7.66153846**, max 9. Histogram for calls 6/7/8/9: 32/32/188/8.
+- Expected-call optimal with a strict **worst-case cap of nine**: **1,884 total calls**, mean **7.24615385**, max 9. Histogram for calls 6/7/8/9: 40/156/24/40.
+- Globally minimum expected calls: **1,776 total calls**, mean **6.83076923**, max 10. Histogram for calls 5/6/7/8/9/10: 16/132/48/32/8/24.
+
+The nine-cap optimization saves **108 / 1,992 = 5.42168675%** of the existing heuristic's total calls without increasing its worst case. Allowing one extra worst-case call saves **216 / 1,992 = 10.84337349%**. These are exact counts for a small synthetic model family under a specified prior, not statistical estimates or a production service benchmark.
+
+Reproduction is in sims/sco-step-only-two-state-expected.js and the third test in test/sco-step-only-two-state-minimax.test.js. The implementation computes the weighted posterior graph, Bellman layers, and full 260-model replay. Local Node v22.16.0 passed all **three** focused tests with these exact metrics; cross-platform and full strict JSDoc results require a separately source-pinned workflow.
