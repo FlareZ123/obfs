@@ -725,6 +725,18 @@ function proveLocalObject(ast, rootName, bindings, importedIdentityFunctions=new
          (ancestor.type==='FunctionDeclaration' ||
           ancestor.type==='FunctionExpression' ||
           ancestor.type==='ArrowFunctionExpression')))return;
+      // A free global name can be backed by a host-supplied getter; even a
+      // read-only expression may run source-inspecting code synchronously.
+      // Grammar property labels are tokens, not binding references.
+      if(candidate.type==='Identifier' && !bindings.has(candidate.name)){
+        const parent=/** @type {AstNode|null} */(_parent);
+        const key=/** @type {string|null} */(_key);
+        if(parent?.type==='MemberExpression'&&key==='property'&&!parent.computed||
+           parent?.type==='Property'&&key==='key'&&!parent.computed||
+           (parent?.type==='MethodDefinition'||parent?.type==='PropertyDefinition')&&
+             key==='key'&&!parent.computed)return;
+        opaque=true;
+      }
       if(candidate.type!=='CallExpression')return;
       const callee=candidate.callee;
       if(callee.type==='Identifier') {
