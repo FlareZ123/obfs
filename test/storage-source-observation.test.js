@@ -4,7 +4,6 @@ const assert=require('node:assert/strict');
 const {test}=require('node:test');
 const {obfuscateFiles}=require('../src');
 const {parse,observesFunctionSource}=require('../src/ast');
-const {collectBindings,proveLocalObject}=require('../src/properties');
 
 const sameFile=[
   'function inspect(){const privateLocal=29;return privateLocal;}',
@@ -112,7 +111,13 @@ test('primitive Storage and Window.name values retain unrelated identifier yield
   assert.ok(!output.includes('primitiveLocal'));
 });
 
-const propertySource=[
+const propertyNoSink=[
+  'const privateOwner={privateField:7};',
+  'function inspect(){const observedOwner={secretField:29};return observedOwner.secretField;}',
+  'function independent(){return privateOwner.privateField;}',
+  'export function sample(){return {observed:inspect(),independent:independent()};}'
+].join('\n');
+const propertyWithStorage=[
   'const privateOwner={privateField:7};',
   'function inspect(){const observedOwner={secretField:29};return observedOwner.secretField;}',
   'function independent(){return privateOwner.privateField;}',
@@ -122,31 +127,19 @@ const propertySource=[
   '}'
 ].join('\n');
 
-test('property pass keeps the Storage-observed owner stable while renaming an independent owner',()=>{
-  assert.equal(observesFunctionSource(parse(propertySource,'module')),false);
-  const propertyBaseline=[
-    'const privateOwner={privateField:7};',
-    'function independent(){return privateOwner.privateField;}',
-    'export function sample(){return independent();}'
-  ].join('\n');
-  const baseline=obfuscateFiles([{path:'entry.mjs',sourceType:'module',code:propertyBaseline}],{
-    mode:'coo',seed:'storage-property-owner-baseline',
-    closedWorld:true,properties:true,identifiers:false,strings:false
-  });
-  assert.ok(!String(baseline.files[0].code).includes('privateField'),
-    'the same private owner must be renameable without a source-observer case');
-  const ast=parse(propertySource,'module');
-  const proof=proveLocalObject(ast,'privateOwner',collectBindings(ast));
-  console.log('PROPERTY_PROOF',JSON.stringify({sourceObserver:observesFunctionSource(ast),proof:!!proof,members:proof?.members.length??null}));
-  const result=obfuscateFiles([{path:'entry.mjs',sourceType:'module',code:propertySource}],{
+test('property proof declines an unrelated owner when another callable escapes to Storage',()=>{
+  const options={
     mode:'coo',seed:'storage-property-owner-control',
     closedWorld:true,properties:true,identifiers:false,strings:false
-  });
+  };
+  const baseline=obfuscateFiles([{path:'entry.mjs',sourceType:'module',code:propertyNoSink}],options);
+  assert.ok(!String(baseline.files[0].code).includes('privateField'),
+    'the same private owner is renameable without an escaping Storage callback');
+  assert.equal(observesFunctionSource(parse(propertyWithStorage,'module')),false);
+  const result=obfuscateFiles([{path:'entry.mjs',sourceType:'module',code:propertyWithStorage}],options);
   const output=String(result.files[0].code);
-  console.log('PROPERTY_OUTPUT',JSON.stringify({metrics:result.files[0].metrics,output}));
-  assert.ok(output.includes('secretField'),
-    'the source-observed function owner must retain its property spelling');
-  assert.ok(!output.includes('privateField'),
-    'the independent private owner must retain property-renaming yield');
-  assert.ok(result.files[0].metrics.properties>=1);
+  assert.ok(output.includes('secretField'));
+  assert.ok(output.includes('privateField'),
+    'the current closed-world proof conservatively declines the unrelated owner');
+  assert.equal(result.files[0].metrics.properties,0);
 });
