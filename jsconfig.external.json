@@ -322,7 +322,8 @@
     "sims/random-affine-graph-flag-inversion.js",
     "test/random-affine-graph-flag-inversion.test.js",
     "sims/dynamic-frame-source-control.js",
-    "test/agent39-error-carrier-positive-yield.test.js"
+    "test/agent39-error-carrier-positive-yield.test.js",
+    "test/domparser-webidl-source-browser.js"
   ],
   "exclude": [
     "node_modules"
