@@ -238,3 +238,15 @@ Integrated stronger generator tests in `test/sco-step-only-five-state.test.js`:
 **Storage tradeoff:** Agent 14 suggested a bitset membership representation. I preserved an exploratory alternative in `workplace/sco-five-state-bitset-benchmark.js`: a 20,736,092-byte `Uint32Array` membership bitset plus a 165,888,708-byte `Uint8Array` current-state array, total 186,624,800 bytes, versus 663,554,832 bytes for the default active-ID/state array. Local prototype runs preserved the same query/remaining/scan counts and 384 held-out traces under independent product BFS; learner times were 5,334.22 / 6,538.68 / 5,318.17 ms versus 4,091.945 / 4,378.516 / 3,946.382 ms for the default. The bitset variant is about 3.56× smaller in candidate storage but ~1.38× slower in aggregate; peak RSS was 223,092,736 bytes. The default remains the faster active-ID array. The preserved workplace harness adds a partition-refinement assertion but has not itself been run in CI; do not overstate that validation.
 
 Five-state report updated with Agent14's independent count, exhaustive generator tests, final CI pin, and storage tradeoff: `im-results/sco-five-state-step-only-2026-11-23.md`. Agent14 was sent both the canonical validation response and bitset tradeoff. No 5-state live ordinary-service matched control exists; only the 4-state matched control is live. Keep the five-state extension intermediate and RELEASE-BLOCKED.
+
+
+## 2026-11-23 continuation: five-state live RPC matched control (CI pending)
+
+Agent 14 suggested closing the offline-oracle vs authenticated-RPC integration gap at five states. Implemented in `sims/sco-step-only-live-rpc.js` and `test/sco-step-only-live-rpc.test.js`:
+- The live wrapper now accepts 2–5 states; matched controls are allowed for 4 and 5.
+- The five-state generated-SCO and ordinary esbuild-minified HTTP arms use the same hidden machine, initial state, cookie authorization, and public `step` semantics.
+- A single `createFiveStateWorkspace()` is reused sequentially for both learners, avoiding two concurrent 663,554,832-byte arrays.
+- Assertions cover identical attacker input/output transcripts and query counts, exact continuation clones, matching 16-symbol live followups, no public reset, generated source canary non-disclosure, and HTTP 403 on both unauthorized endpoints. The five-state fixture uses minimal SHA-derived seed `0x42f5a7c9` (31-query offline transcript).
+- New return metrics expose candidate bytes and workspace initialization.
+
+Fresh existing manual workflow run **45106569967**, head `29e51bcee0a7046c51879ea5933beec6e1f91cb3` (Agent 19's later commit is a child of my live-test commit), is in progress on Ubuntu and Windows. Inspect both job conclusions before updating the report or claiming the live five-state control passed. This is the final planned integration extension; if it passes, update the five-state report to replace the earlier "offline-only" caveat with the live matched-control result. If it fails, retrieve failed-job-only logs and fix the concrete issue.
