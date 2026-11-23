@@ -565,7 +565,6 @@ async function main() {
   assert.equal(topProjectionRadicalSize(), 1,
     'The top cubic tensor must have zero radical on the four-bit projection');
   const source = privateSource();
-  /** @type {DrawTapes} */
   const configuredSeed = process.env.OBFS_RANKFOUR_SEED;
   if (configuredSeed !== undefined) {
     assert.match(configuredSeed, /^[0-9a-f]{64}$/iu,
