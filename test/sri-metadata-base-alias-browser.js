@@ -110,7 +110,6 @@ async function main(){
       // though the current SRI specification accepts it. Preserve bytes in
       // the compiler for conformant or future browsers; do not misreport
       // Chrome's observed uppercase metadata behavior as a byte rejection.
-      if(scenario==='unpadded'||scenario==='base64url')continue;
       const expected=scenario==='uppercase'?[true,true,true]:[true,true,false];
       assert.deepEqual([outcome.native,outcome.safe,outcome.unsafe],
         expected,scenario+': observed Chrome enforcement and byte parity');
