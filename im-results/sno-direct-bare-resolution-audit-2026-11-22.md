@@ -193,9 +193,9 @@ scopes, or dependencies modified after compilation. The existing
 SNO filesystem/runtime owner attacks remain unaffected. The global
 release decision remains RELEASE-BLOCKED.
 
-Validation: workflow run 45128500358 at source commit
-5218f5c91e94961b30bb991a6eb3bf98d231c841.
-- Ubuntu Node 22.23.4: 5/5 focused tests passed; project JSDoc passed;
+Validation: workflow run 45129703688 at source commit
+104e2b6797535641431663d9e5a9bc5f2607a541.
+- Ubuntu Node 22.23.4: 7/7 focused tests passed; project JSDoc passed;
   external JSDoc passed.
 - Windows Node 22.23.4: 5/5 focused tests passed; project JSDoc passed;
   external JSDoc passed.
