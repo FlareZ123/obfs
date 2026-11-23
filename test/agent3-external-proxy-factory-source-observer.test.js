@@ -53,31 +53,45 @@ async function run(code){
   }
 }
 
-test('unlisted proxy factory cannot expose a renamed function through numeric coercion',async()=>{
-  const source=[
-    "import {wrap} from 'proxy-package';",
-    "function reader(secretValue){return secretValue+1;}",
-    "const proxied=wrap(reader);",
-    "const unrelatedPrivate=17;",
-    "globalThis.__functionSources.length=0;",
-    "export const result=Number.isNaN(+proxied);",
-    "export const capturedSource=globalThis.__functionSources[0]??'';",
-    "export const unrelatedResult=unrelatedPrivate;"
-  ].join('\n');
-  const output=obfuscateFiles([{path:'app.mjs',code:source}],{
-    mode:'coo',seed:'external-proxy-factory-source',properties:false,
-    strings:false,identifiers:true
-  }).files[0];
-  const native=await run(source);
-  const transformed=await run(output.code);
-  assert.equal(output.metrics.bindings,0,
-    'a function escaping to an opaque external callable must fail closed');
-  assert.equal(output.code,source);
-  assert.equal(native.result,true);
-  assert.equal(transformed.result,true);
-  assert.equal(transformed.unrelatedResult,17);
-  assert.ok(native.capturedSource.includes('secretValue'));
-  assert.equal(transformed.capturedSource,native.capturedSource,
-    'an unlisted proxy factory must not expose renamed target source');
-  console.log(JSON.stringify({renamedBindings:output.metrics.bindings,codeChanged:output.code!==source}));
+const cases=[
+  ['direct','', 'const proxied=wrap(reader);'],
+  ['call','', 'const proxied=wrap.call(null,reader);'],
+  ['apply','', 'const proxied=wrap.apply(null,[reader]);'],
+  ['bind with argument','', 'const proxied=wrap.bind(null,reader)();'],
+  ['bound alias','const bound=wrap.bind(null);', 'const proxied=bound(reader);'],
+  ['Reflect.apply','', 'const proxied=Reflect.apply(wrap,null,[reader]);'],
+  ['Reflect.apply alias','const apply=Reflect.apply;', 'const proxied=apply(wrap,null,[reader]);']
+];
+
+test('unlisted proxy factory cannot expose a renamed function through numeric coercion',async t=>{
+  for(const [label,setup,proxyExpression] of cases){
+    await t.test(label,async()=>{
+      const source=[
+        "import {wrap} from 'proxy-package';",
+        "function reader(secretValue){return secretValue+1;}",
+        setup,
+        proxyExpression,
+        "const unrelatedPrivate=17;",
+        "globalThis.__functionSources.length=0;",
+        "export const result=Number.isNaN(+proxied);",
+        "export const capturedSource=globalThis.__functionSources[0]??'';",
+        "export const unrelatedResult=unrelatedPrivate;"
+      ].filter(Boolean).join('\\n');
+      const output=obfuscateFiles([{path:'app.mjs',code:source}],{
+        mode:'coo',seed:'external-proxy-factory-source',properties:false,
+        strings:false,identifiers:true
+      }).files[0];
+      const native=await run(source);
+      const transformed=await run(output.code);
+      assert.equal(output.metrics.bindings,0,
+        'a function escaping to an opaque external callable must fail closed');
+      assert.equal(output.code,source);
+      assert.equal(native.result,true);
+      assert.equal(transformed.result,true);
+      assert.equal(transformed.unrelatedResult,17);
+      assert.ok(native.capturedSource.includes('secretValue'));
+      assert.equal(transformed.capturedSource,native.capturedSource,
+        'an unlisted proxy factory must not expose renamed target source');
+    });
+  }
 });
