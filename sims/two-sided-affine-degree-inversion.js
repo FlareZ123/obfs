@@ -10,6 +10,9 @@
  * efficiently certify it using this query budget alone.
  */
 
+const {learnBoundedDegreeOracle,evaluateBoundedDegreeModel} =
+  require('./bounded-degree-oracle-functional-clone');
+
 /** @param {number} x @returns {number} */
 function parity(x) {
   x >>>= 0;
@@ -171,4 +174,40 @@ function invertBoundedDegree(oracle,target,width,degree,queryBudget=300000) {
   return {input:base>>>0,queries:cache.size,dimensionCounts};
 }
 
-module.exports={invertBoundedDegree,parity,solveLinear};
+
+/**
+ * Stronger query-accounting variant: interpolate the entire degree-D forward
+ * map ONCE using the existing generic ANF learning tool. All subsequent
+ * affine-coset reductions run on that offline clone, never on the real oracle.
+ *
+ * The exact external training count is sum(j=0..D) choose(width,j):
+ * 529 at width=32,D=2 and 5489 at width=32,D=3.
+ * This cloning bound is already known in this repository; this wrapper adds
+ * polynomial-time inversion under the further triangular-affine promise.
+ *
+ * No post-learning oracle is available for confirmation. Returned inverse
+ * candidates are exact ONLY under the stated degree/permutation promise;
+ * callers with a live oracle should independently compare F(input) to target.
+ *
+ * @param {(input:number)=>number} oracle
+ * @param {number} width
+ * @param {number} degree Supported existing interpolation degree 1..4
+ * @returns {{trainingQueries:number,invert:(target:number)=>{input:number,localEvaluations:number}|null}}
+ */
+function trainBoundedDegreeInverse(oracle,width,degree) {
+  const model=learnBoundedDegreeOracle(oracle,width,degree);
+  return {
+    trainingQueries:model.queryCount,
+    /** @param {number} target @returns {{input:number,localEvaluations:number}|null} */
+    invert(target) {
+      const candidate=invertBoundedDegree(
+        input=>evaluateBoundedDegreeModel(model,input),
+        target,width,degree
+      );
+      if(!candidate)return null;
+      return {input:candidate.input,localEvaluations:candidate.queries};
+    }
+  };
+}
+
+module.exports={invertBoundedDegree,trainBoundedDegreeInverse,parity,solveLinear};
