@@ -48,12 +48,12 @@ async function main() {
   process.stdout.write('TEST_DIAGNOSTIC '+JSON.stringify({
     fileCount:tests.length,seenLines,failedBlocks:failures.length,status
   })+'\n');
-  for(const failure of failures.slice(0,25))
+  for(const failure of failures.slice(0,75))
     process.stdout.write(failure.join('\n')+'\n');
   for(const line of summary.slice(-16))
     process.stdout.write(line+'\n');
-  if(failures.length>25)
-    process.stdout.write('Omitted '+(failures.length-25)+' additional failing test blocks\n');
+  if(failures.length>75)
+    process.stdout.write('Omitted '+(failures.length-75)+' additional failing test blocks\n');
   process.exitCode=status;
 }
 
