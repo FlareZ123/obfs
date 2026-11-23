@@ -59,7 +59,12 @@ function analyzeTwoStatePareto(maximumDepth=11){
   let previous=new Map();
   for(const [id,node] of beliefs)previous.set(id,node.terminal?[[0,0]]:[]);
   /** @type {CostPair[]} */
-  let nineFrontier=[],tenFrontier=[],elevenFrontier=[];
+  /** @type {CostPair[]} */
+  let nineFrontier=[];
+  /** @type {CostPair[]} */
+  let tenFrontier=[];
+  /** @type {CostPair[]} */
+  let elevenFrontier=[];
   let maxLocalFrontier=0,maxLocalCandidates=0;
   for(let depth=1;depth<=maximumDepth;depth++){
     /** @type {Map<string,CostPair[]>} */
