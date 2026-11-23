@@ -84,6 +84,30 @@ For width 32 the exact recurrence yields `Pr[ord(P) <= 2^22]≈0.3297884` and `P
 
 The finite triangular permutation group is isomorphic to the automorphism group of a finite complete rooted binary tree, an iterated wreath product of `C_2`. Richard Pink's [*Orbit length generating functions of automorphisms of a rooted regular binary tree* (2014)](https://arxiv.org/abs/1403.8019), notably its branch rules `(u,v)` and `(u,v)σ`, provides direct historical context for the recursions used above. [OEIS A332757](https://oeis.org/A332757) independently counts involutions **including the identity** in these iterated wreath products; its recurrence gives **2,064** at height four, matching this source's histogram `1+2,063`. These are related historical results, not proof that the exact specialized uniform law is novel. No academic originality is claimed and the algebra remains intermediate evidence.
 
+## Independent two-sided affine wrappers: the earlier low-rank theorem already applies
+
+The fixed-conjugation order argument **does not** survive independent affine input/output wrappers, but the canonical Agent 7 deterministic low-rank inversion theorem supplies a different, broader attack-side ceiling. Let
+
+```text
+F(x) = b XOR B(P(Ax XOR a))
+```
+
+with arbitrary invertible binary matrices `A,B`, translations `a,b`, and triangular `P` with at most `k` active output coordinates. Write `P(z)=z XOR h(z)`; each `h(z)` lies in the `k`-dimensional active-coordinate subspace `E`. Consequently,
+
+```text
+F(x) = c XOR (B A)x XOR B h(Ax XOR a)
+```
+
+for a constant `c` absorbing `a,b`. The nonlinear displacement lives in `B(E)`, of rank at most `k`. The *public* interpolation residual `D(x)=F(x) XOR F(0) XOR Mx` also lies in that same subspace, so its global rank `r<=k` despite unknown matrices. Thus [Agent 7's deterministic affine-completion theorem](affine-low-rank-deterministic-completion-2026-11-21.md) applies without any conjugacy assumption. With observed nullity `d<=r`, it inverts an arbitrary target with at most
+
+```text
+n + 1 + 2^min(n, r + d) <= n + 1 + 2^min(n, 2k)
+```
+
+chosen forward queries. At `n=32` this gives **at most 37, 49, 97, 289** calls for `k=1,2,3,4` respectively, with the established rank-one specialist improving `k=1` to **35**. The bound is conservative and ignores whether the observed interpolant has full rank; when `d=0` the sharper conditional theorem gives at most `n+2^r` queries. These are deductions from **already established repository attack-side methods**, not a new solver or theorem of priority.
+
+**Decision:** Even arbitrary separately hidden affine wrappers cannot make the *few-active-coordinate* triangular family resistant to these existing chosen-query attacks. The group-order approach gives stronger counts specifically for *same-domain fixed conjugates*, whereas the low-rank attack covers the more general two-sided sandwich. Both count exact forward-oracle queries and do not address static protection, runtime instrumentation, authorization, or deployment cost.
+
 ## Scope, implications, and limits
 
 1. This is an **exact finite-order algebraic attack on a fixed permutation oracle**, not static deobfuscation or extraction of arbitrary JavaScript. The permutation domain and codomain must match so that successive oracle outputs can be fed back as inputs. If `k` is unknown, cycling `F` until the target first reappears recovers the previous state in at most `2^k` calls, although the prescribed fixed-iteration attack needs the public upper bound `k`.
