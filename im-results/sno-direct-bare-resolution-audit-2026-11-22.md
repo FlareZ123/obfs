@@ -223,3 +223,20 @@ Superseding focused validation: workflow 45130499785 at branch head
 
 This supersedes the earlier branch-specific paired-budget failure. It does
 not constitute a full repository test-suite or SNO security-release pass.
+## 23 November 2026: resolver non-execution regression and expanded validation
+
+Added an eighth test in commit 82ee2c768848d3c4bce177ac60bc79e94bef959a.
+It gives the resolved ESM package an import-time filesystem side effect,
+then audits a source module containing both a static package import and a
+direct import.meta.resolve call. The preflight succeeds for the shared
+dependency path while the marker remains absent, demonstrating that the
+resolver helper locates the package without evaluating its module code.
+
+Latest focused validation: workflow 45131273198 at source/test commit
+82ee2c768848d3c4bce177ac60bc79e94bef959a.
+- Ubuntu Node 22.23.4: 8/8 focused tests passed; project JSDoc, external
+  JSDoc, and paired/complete-suite runtime-budget JSDoc passed.
+- Windows Node 22.23.4: 8/8 focused tests passed; project JSDoc, external
+  JSDoc, and paired/complete-suite runtime-budget JSDoc passed.
+- Overall workflow conclusion: SUCCESS. This is still focused validation,
+  not a full repository test-suite or SNO security-release pass.
