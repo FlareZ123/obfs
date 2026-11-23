@@ -3,6 +3,7 @@
 const assert=require('node:assert/strict');
 const {test}=require('node:test');
 const {learnFlag,parity}=require('../sims/affine-flag-oracle-attacker');
+const {invertByReanchoring}=require('../sims/random-affine-anchor-compatible-inversion');
 const {
   makeDenseOracle,makeSparseWitness,makeRareAffineOracle,makeUnstructuredOracle
 }=require('../sims/affine-flag-oracle-fixtures');
@@ -112,6 +113,46 @@ test('32-bit hidden two-sided affine triangular sources admit a sampled exact pr
   assert.equal(exactTargets,1280);
   console.log('AFFINE_FLAG_32BIT '+JSON.stringify({
     sources,exactTargets,totalTraining,maxTraining,additionalQueries
+  }));
+});
+
+test('dense 32-bit attack contrasts existing four-basis reanchored fixed-point policy',()=>{
+  let newMethodRecovered=0,quickRecovered=0,quickRejected=0;
+  for(let sample=1;sample<=12;sample++) {
+    const source=makeDenseOracle(32,Math.imul(sample,0x85ebca6b));
+    const secret=(Math.imul(sample,0x27d4eb2d)^Math.imul(sample*3,0x9e3779b9))>>>0;
+    const target=source.evaluate(secret);
+    const learned=learnFlag(source.evaluate,{
+      bits:32,samplesPerStage:16,
+      sampleSeed:Math.imul(sample+19,0x9e3779b9),maxQueries:15000
+    });
+    assert.equal(learned.status,'calibrated');
+    if(learned.status!=='calibrated')throw new Error('Expected a sampled flag');
+    /** @type {import('../sims/affine-flag-oracle-attacker').InverseResult} */
+    const recovered=learned.invert(target);
+    assert.equal(recovered.verified,true);
+    assert.equal(recovered.input,secret);
+    newMethodRecovered++;
+
+    try {
+      const quick=invertByReanchoring(
+        source.evaluate,target,Math.imul(sample+229,0x9e3779b9),4
+      );
+      assert.equal(quick.value,secret);
+      quickRecovered++;
+    }catch(error) {
+      assert.match(String(error),/No successful reanchored inversion/u,
+        'Expected the bounded old policy to refuse, not silently misrecover');
+      quickRejected++;
+    }
+  }
+  assert.equal(newMethodRecovered,12);
+  assert.equal(quickRecovered+quickRejected,12);
+  assert.ok(quickRejected>=1,
+    'At least one source must defeat the earlier quick reanchoring policy');
+  console.log('AFFINE_FLAG_REANCHOR_COMPARISON '+JSON.stringify({
+    sources:12,newMethodRecovered,quickRecovered,quickRejected,
+    quickPolicyMaxBases:4
   }));
 });
 
