@@ -161,6 +161,7 @@ test('degree-five affine-flag graph inversion on rank-21 displacement (joint rad
   let totalGraphQueries=0;
   let totalLowRankQueries=0;
   for(let index=0;index<hiddenTargets.length;index++){
+    /** @type {number} */
     const secret=inputInverse((hiddenTargets[index]^inputBias)>>>0);
     const target=oracle(secret);
     const lowRank=invertLowRankPermutation(oracle,target,{
