@@ -416,3 +416,20 @@ test('bound callable wrappers retain their local target provenance',()=>{
   );
   assert.equal(named(result,'hidden')[0].hostHeldCallable,true);
 });
+
+
+test('classic-script block and Annex-B callable bindings are not fixed local edges',()=>{
+  const blockFunction=analyze(
+    'if(true){function helper(){return 1;}}function caller(){return helper();}',
+    'script'
+  );
+  assert.equal(named(blockFunction,'helper')[0].externallyReachable,true);
+  assert.equal(named(blockFunction,'caller')[0].ambient,true);
+  const blockVar=analyze(
+    'if(true){var helper=function helper(){return 1;};}'+
+    'function caller(){return helper();}',
+    'script'
+  );
+  assert.equal(named(blockVar,'helper')[0].externallyReachable,true);
+  assert.equal(named(blockVar,'caller')[0].ambient,true);
+});
