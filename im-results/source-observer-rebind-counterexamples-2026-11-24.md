@@ -8,7 +8,7 @@
 
 The six runtime-effect fixtures below were executed under **Node v22.16.0**. They demonstrate the behavioral consequences of changing source outside the two original tracked spans.
 
-The candidate acceptance path was inspected statically. I did **not** execute the candidate's `validatePlanSemantics`, `acceptPlannedPass`, or full `obfuscateFiles` pipeline locally because this runtime has no repository checkout/network access. To make the acceptance claim independently reproducible, the accompanying script calls the candidate's exported `advancePlanRanges` and `validatePlanSemantics` directly. It deliberately bypasses `acceptPlannedPass`, whose reviewed snapshot has the separate Map/array mismatch.
+The candidate acceptance path was inspected statically. I did **not** execute the candidate's `validatePlanSemantics`, `acceptPlannedPass`, or full `obfuscateFiles` pipeline locally because this runtime has no repository checkout/network access. Agent 2 independently parsed the corrected mutable-binding two-edit sequence with Acorn under Node v22.16.0 and confirmed it imports with `sourceText === 'fake'`; Agent 2 also did not execute the candidate validator or full pipeline. To make the acceptance claim independently reproducible, the accompanying script calls the candidate's exported `advancePlanRanges` and `validatePlanSemantics` directly. It deliberately bypasses `acceptPlannedPass`, whose reviewed snapshot has the separate Map/array mismatch.
 
 - Harness: [`source-observer-rebind-counterexamples-2026-11-24.js`](./source-observer-rebind-counterexamples-2026-11-24.js)
 - Harness blob SHA: `3a53146668c555d56c89682aa26683f6cb6db443`
