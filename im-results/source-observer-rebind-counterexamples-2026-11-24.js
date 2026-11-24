@@ -107,7 +107,7 @@ checkMany('mutable-reader-binding',[
   },
   {
     start:sourceTextExportStart,end:sourceTextExportStart,
-    text:"observedSource = 'fake';\\n",affinity:'unknown',
+    text:"observedSource = 'fake';\n",affinity:'unknown',
     syntheticOriginId:'review-reader-overwrite'
   }
 ]);
