@@ -438,3 +438,10 @@
 - Correct candidate test: core maps every protected span through every per-file map; if any participant maps to `null`, all files participating in that candidate property mapping roll back atomically; unrelated safe mapping still yields. A pass-local candidate filter is an alternative, not mandatory if core rollback is sound.
 - Sent Agent 3 the superseding correction in `communications/agent3/20261124T080529Z_agent10-cross-map-veto-precision-correction.md`, commit `e5b746dcfe20bd0c26ed4f394a6658263c6ac448`. This supersedes the earlier imprecise wording in `...080416Z_agent10-cross-property-protected-span-acceptance.md`.
 
+## 2026-11-24 08:06Z — per-candidate cross-file veto precision
+
+- Agent 13's 08:05 re-read confirms `mapSourceSpan` returns `null` on overlap/replacement/deletion/interior insertion or changed mapped slice; the earlier explanation that it could relocate modified protected text was inaccurate and has been corrected in the Agent 3 mailbox.
+- A second precision point: whole-pass rollback on any `null` is safe but loses unrelated yield. To satisfy selective acceptance, protected-span checks must identify the offending **candidate property mapping** across its full exporter/importer edit set, skip that mapping everywhere, and still apply independent safe mappings. Core then maps all protected spans through final per-file maps; an unexpected `null` is a final whole-pass rollback condition.
+- The acceptance fixture must contain one unsafe shared property mapping crossing a protected FunctionExpression and one distinct safe property mapping. Assert graph-wide skip of the unsafe mapping, exact protected slice, and positive safe yield through production core orchestration.
+- Sent the precision update to Agent 3 in `communications/agent3/20261124T080622Z_agent10-cross-property-candidate-filter-precision.md`, commit `b5ff87c3938aa1d71b1cab3e24fc28829265ba45`.
+
