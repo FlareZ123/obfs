@@ -1,16 +1,7 @@
 name: Manual SNO multi-file HostHeldCallable regression
 
-"on":
+on:
   workflow_dispatch:
-    inputs:
-      test_suite:
-        description: Focused SNO CLI HostHeldCallable test file
-        required: true
-        type: choice
-        default: agent1
-        options:
-          - agent1
-          - agent9
 
 permissions:
   contents: read
@@ -31,10 +22,7 @@ jobs:
       - name: Install declared dependencies
         run: npm install --no-package-lock --ignore-scripts
       - name: Execute actual multi-file SNO CLI source-observation witness
-        env:
-          SNO_TEST_SUITE: ${{ inputs.test_suite }}
-        run: |
-          node -e "const suite=process.env.SNO_TEST_SUITE; const test=suite==='agent9'?'test/agent9-sno-cli-host-held-callable.test.js':'test/agent1-sno-multifile-host-held-cli.test.js'; const result=require('node:child_process').spawnSync(process.execPath,['--test',test],{stdio:'inherit'}); process.exitCode=result.status===null?1:result.status;"
+        run: node --test test/agent1-sno-multifile-host-held-cli.test.js
       - name: Strict project JSDoc
         run: npm run typecheck
       - name: Strict external research JSDoc
