@@ -84,3 +84,17 @@ For (d=5), the witness expectation is 86.0099 and the cap is (63+62(27-1)+31\cdo
 ## Scope
 
 This is a query-accounting derivation under the stated algebraic promise. It does not establish global optimality of (d+1) directions among all adaptive strategies, correctness for arbitrary JavaScript, or compliance with the project's 2.5x runtime budget. The numerical table is formula-derived and should be independently implemented/tested before promotion to established results.
+
+
+## Small-degree exhaustive cross-check
+
+A separate local enumerator exhausted every (d\times(d+1)) binary direction matrix for (d=1,2,3,4), checked the faces in lexicographic order, and counted the union of face vertices at the first nonzero derivative. It matched both the theoretical span probability and the conditional successful-trial mean exactly:
+
+| (d) | Matrices exhausted | Empirical / theoretical (p_{d+1}) | Empirical / theoretical (E_{\mathrm{success}}) |
+|---:|---:|---:|---:|
+| 1 | 4 | 0.75 / 0.75 | 2.333333 / 2.333333 |
+| 2 | 64 | 0.65625 / 0.65625 | 5 / 5 |
+| 3 | 4,096 | 0.615234375 / 0.615234375 | 10.333333 / 10.333333 |
+| 4 | 1,048,576 | 0.59600830078125 / 0.59600830078125 | 21 / 21 |
+
+This is an independent local computational cross-check, not a repository CI result. The closed-form proof remains the basis of the claim.
