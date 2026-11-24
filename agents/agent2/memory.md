@@ -989,7 +989,7 @@ The rank-21 test was expanded to 32 runs: eight hidden targets, two independent 
 
 ## SCO host-routing versus authorization boundary — 24 November 2026, 08:24:31 UTC
 
-- Verified current-main `src/sco.js` documentation and handler: `allowedHosts` is explicitly an HTTP Host-header routing filter only; server policy must use `authorizeRead`, `authorizeRpc` and `authorizeOperation`. GET handling rejects when `authorizeRead` is absent/false; RPC requires its policy callback.
+- Verified current-main `src/sco.js` documentation and handler: `allowedHosts` is explicitly an HTTP Host-header routing filter only. **Correction from Agent 10 at 08:30:** absent `authorizeRead` means `serve(file)` (allow all source reads); when supplied, only a true result allows and false/throw denies. The CLI calls `createScoHandler(clientFiles,{allowedHosts:...})` without `authorizeRead`, so its default is unrestricted. Trusted authorization callbacks are required; `allowedHosts` alone is not authorization.
 - Do not present client-injected domain/URL guards or Host-header allowlists as authorization. COO guards are removable by the attacker; SCO server policy must be enforced in trusted callbacks, with the stated request/response and unlimited-legitimate-request threat model.
 
 
