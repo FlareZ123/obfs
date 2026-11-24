@@ -73,7 +73,7 @@ function matchedOracleExposure(control,candidate){
  * @returns {{
  *   verdict:Decision,
  *   attackAdvantage:Decision,
- *   declaredAttackAdvantage:Decision,
+ *   declarationStatus:'complete'|'contradicted'|'incomplete',
  *   externalAuditRequired:boolean,
  *   auditStatus:'not-integrated',
  *   measuredRuntimeBudget:Decision,
@@ -125,17 +125,17 @@ function compareCandidateEvidence(evidence){
     Number.isFinite(control.analysisBudgetMs)&&control.analysisBudgetMs>0&&
     control.analysisBudgetMs===candidate.analysisBudgetMs;
   /** @type {Decision} */
-  let declaredAttackAdvantage='inconclusive';
+  let declarationStatus='incomplete';
   if(measurementReady){
-    if(candidate.cloneSucceeded)declaredAttackAdvantage='contradicted';
-    else if(positiveDeclarationReady)declaredAttackAdvantage='supported';
+    if(candidate.cloneSucceeded)declarationStatus='contradicted';
+    else if(positiveDeclarationReady)declarationStatus='complete';
   }
   // An observed successful clone is a real contradiction. A claimed failure
   // after a claimed budget exhaustion is not empirical support until a
   // separate trusted audit binds the pre-run manifest and server-side usage.
   const attackAdvantage=measurementReady&&candidate.cloneSucceeded?
     'contradicted':'inconclusive';
-  const externalAuditRequired=declaredAttackAdvantage==='supported';
+  const externalAuditRequired=declarationStatus==='complete';
   /** @type {Decision} */
   const measuredRuntimeBudget=pairedFamilywise.observedSampleHasOverBudgetPair||
     pairedFamilywise.verdict==='sample-exceeded'?
@@ -148,10 +148,10 @@ function compareCandidateEvidence(evidence){
     attackAdvantage==='contradicted'?
     'contradicted':'inconclusive';
   return {
-    verdict,attackAdvantage,declaredAttackAdvantage,externalAuditRequired,
+    verdict,attackAdvantage,declarationStatus,externalAuditRequired,
     auditStatus:'not-integrated',measuredRuntimeBudget,measurementReady,
     pairedFamilywise,
-    caveat:'This classifier can check declaration completeness and matched declared ceilings, but it cannot authenticate pre-run commitment timing or server-side request logs. A complete positive declaration is exposed only as declaredAttackAdvantage=supported with externalAuditRequired=true; empirical attackAdvantage remains inconclusive until a separate trusted audit integration exists. Even an externally audited bounded failure would not prove arbitrary-program secrecy. Runtime evidence covers sampled median paired ratios; a single observed >2.5x pair vetoes the strict sampled-budget claim.'
+    caveat:'This classifier can check declaration completeness and matched declared ceilings, but it cannot authenticate pre-run commitment timing or server-side request logs. A complete positive declaration is exposed only as declarationStatus=complete with externalAuditRequired=true; empirical attackAdvantage remains inconclusive until a separate trusted audit integration exists. Even an externally audited bounded failure would not prove arbitrary-program secrecy. Runtime evidence covers sampled median paired ratios; a single observed >2.5x pair vetoes the strict sampled-budget claim.'
   };
 }
 
