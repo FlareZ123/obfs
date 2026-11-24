@@ -12,7 +12,7 @@ const cases=[
     body:'JSON.stringify({toJSON:function(){external();return 1;}});'},
   {kind:'json-replacer',observation:'source',expected:'mismatch',
     body:"JSON.stringify({x:1},function(key,value){if(key==='x')external();return value;});"},
-  {kind:'json-reviver',observation:'source',expected:'no-yield',
+  {kind:'json-reviver',observation:'source',expected:'mismatch',
     body:'JSON.parse(jsonText,function(key,value){if(key===\'x\')external();return value;});'},
   {kind:'array-sort',observation:'frame',expected:'mismatch',
     body:'[2,1].sort(function(a,b){external();return a-b;});'},
