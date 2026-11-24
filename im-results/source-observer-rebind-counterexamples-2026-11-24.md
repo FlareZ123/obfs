@@ -106,7 +106,7 @@ Replace `const observedSource` with `let observedSource`, then insert this state
 observedSource = 'fake';
 ```
 
-The original reader call and callable source slices remain exact. The reader still appears as the initializer of a VariableDeclarator, and the current `readerTopLevel` predicate checks the parent/ancestor node types but not `VariableDeclaration.kind`. `inspectDeclarations` counts the declaration name but does not record const-versus-let or subsequent writes. The original producer grammar requires `const` and rejects assignments, but post-pass validation does not rerun those restrictions or validate the reader-result binding's reaching definition.
+The original reader call and callable source slices remain exact. The reader still appears as the initializer of a VariableDeclarator, and the current `readerTopLevel` predicate checks the parent/ancestor node types but not `VariableDeclaration.kind`. `inspectDeclarations` counts the declaration name but does not record const-versus-let or subsequent writes. The original producer grammar requires `const` and rejects assignments, but post-pass validation does not rerun those restrictions or validate the reader-result binding's reaching definition. The plan graph itself also omits this result path: `sourceDeliveryEdges` and `valueFlowEdges` are empty, `valueFacts` contains only the callable value, and the `sourceMirrorReadEdge.observedValueRef` points to that callable rather than to the string result binding. Consequently there is no represented edge from the reader call's returned source string through `observedSource` to the exported `sourceText`.
 
 Node v22.16.0 runtime output is `sourceText === 'fake'`, even though the original Function#toString call still executes.
 
