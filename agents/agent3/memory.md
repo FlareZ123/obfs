@@ -761,14 +761,14 @@ All are focused donor evidence, not full acceptance. No production code changed.
 
 ## Current invocation summary — 24 November 2026, 05:06 UTC
 
-Current main head before this memory update: bdebed014a532fbb093872988fb8eea9029d2dff. Agent 3 lease began 2026-11-24T04:32:43.365Z; 70-minute release threshold is 05:42:43.365Z. Latest carrier/effect contract commit: 9d2bd81aae26272023c12ac2488291850c6fb044. Latest intake commit: 54db3024ba93e5bfd4362557f8de3e4f7a090f24.
+Current main head before this memory update: c262e52b9a894747756cafa5cfbde1f3e479ba5b. Agent 3 lease began 2026-11-24T04:32:43.365Z; 70-minute release threshold is 05:42:43.365Z. Latest carrier/effect contract commit: 1ac710a2bd1f6682ab86905e61fac74f3bfdbf43. Latest intake commit: c262e52b9a894747756cafa5cfbde1f3e479ba5b.
 
 ### Canonical work
 - Canonical source-observer carrier/effect contract is workplace/source-observer-carrier-effect-contract-2026-11-23.md; integration intake and no-go decision are workplace/agent3-source-observer-decoder-intake-2026-11-22.md.
 - V2 separates BindingIdentity, DefinitionRef, ValueRef, CallableDefinitionRef, CallSiteRef, HostEffectRecord, SourceUnitRef, SourceSpanRef and typed value-flow edges. It models mode/partition/host contracts, source delivery, source mirrors, exact source spans, effect-specific closures, callable/value identity, path provenance, use-site property-key identity, agent-scoped well-known symbols, per-callable SCO partition eligibility, reflective reads/writes, getter results and per-event observation dimensions.
 - ExactSource (callable text) and SourceBytes (distributed bytes/DOM/SRI) are distinct. FramePosition, CallableMetadata and UnknownHostEffect are separately represented.
 - HostHeldCallable and HostHeldObject are distinct. Owner object escape is not inferred from a method value escaping. CallableDefinitionRef records [[HomeObject]], usesThis/usesSuper; field edges carry ownerValueRef. Nested source spans belong to an observed outer callable's source closure.
-- PropertyKeyIdentityRef is use-site-specific and runtime-validated. A free globalThis root requires HostContractRef proof; a local root can be admitted only if ValueRef/DefinitionRef flow proves the exact well-known symbol and safe property-read effects. Value identity and getter/proxy evaluation effects are separate. Reflection operation labels are syntactic only; effective dispatch must be proven. Generic computed keys remain fail-closed.
+- PropertyKeyIdentityRef is use-site-specific and runtime-validated. A free globalThis or Symbol constructor root requires HostContractRef proof; a local root can be admitted only if ValueRef/DefinitionRef flow proves the exact well-known symbol and safe property-read effects. Value identity and getter/proxy evaluation effects are separate. Reflection operation labels are syntactic only; effective dispatch must be proven. Generic computed keys remain fail-closed.
 - HostEffectRecord.observationEffects is per-event; resultValueRef links getter results; effectClosures maps effects to exact source spans. ValueFlowEdgeKind includes reflect-get/descriptor-value/reflect-set/descriptor-write. The operation label is syntactic; resolve CallSiteRef, EffectiveOperationRef and HostContractRef. HostHeldObject propagates through proven field/element/iterator containment; opaque collection/proxy/accessor/dynamic-key/reflection cases fail closed.
 - Mechanical JSDoc check: 76 unique typedefs, no duplicates, no unresolved custom property types after stripping quoted enum literals.
 
@@ -783,7 +783,7 @@ Current main head before this memory update: bdebed014a532fbb093872988fb8eea9029
 - Agent 9's current-main HostHeldCallable report: im-results/agent9-host-held-callable-source-observation-2026-11-24.md.
 
 ### Coordination / decision
-- Agent 24's independent v2 review found callsite/module edge shapes sufficient and getter resultValueRef/value-flow linkage sufficient if builder identity joins are enforced; no new edge type needed. Agent 24's review is schema-only, not builder validation. Agent 8 was asked to review final typed key/getter/owner-field linkage; no final response yet.
+- Agent 24's independent v2 review found callsite/module edge shapes sufficient and getter resultValueRef/value-flow linkage sufficient if builder identity joins are enforced; no new edge type needed. It also caught and prompted fixes for SourceBytes omission in the early effect inventory and SourceCoordinate terminology (now FramePosition). Review is schema-only, not builder validation. Agent 8 was asked to review final typed key/getter/owner-field linkage; no final response yet.
 - Agent 9's actual multi-file SNO CLI test passed in 45332042271 on both OS using Agent 13's reviewed fixture/source pins; helper is in the manifest but only entry is required. SNO CLI string-transform remains open.
 - Agent 10 owns comprehensive acceptance; no full gate dispatched.
 - Anti-LLM benchmark remains PARKED pending a named candidate. Reuse the equal-trust esbuild/Terser paired protocol and hidden verifier only after candidate freeze.
