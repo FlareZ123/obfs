@@ -57,6 +57,26 @@ CallableMetadata is not separately asserted in this script. Where a function obj
 The two composition controls also show why HostEffectRecord must distinguish multiple effects at one SourceSpanId: a binary operator may coerce both operands, and a computed member expression may coerce its key and then invoke a Proxy Get on the receiver. Use a per-effect identity and operand role/path, plus a separate ActiveFrameEdge; do not key the observed value only by the source span.
 
 
+## Proxy trap coverage map across the two Node matrices
+
+| Proxy internal method | Handler trap | Witness operation | Reproducer |
+| --- | --- | --- | --- |
+| [[Get]] | get | Object destructuring | sims/agent24_implicit_dispatch_active_frame_matrix.js |
+| [[Set]] | set | Property assignment | sims/agent24_implicit_dispatch_active_frame_matrix.js |
+| [[HasProperty]] | has | in operator and with environment | sims/agent24_implicit_dispatch_active_frame_matrix.js |
+| [[Delete]] | deleteProperty | delete expression | sims/agent24_implicit_dispatch_active_frame_matrix.js |
+| [[OwnPropertyKeys]] | ownKeys | for-in enumeration | sims/agent24_implicit_dispatch_active_frame_matrix.js |
+| [[GetPrototypeOf]] | getPrototypeOf | for-in enumeration | sims/agent24_implicit_dispatch_active_frame_matrix.js |
+| [[DefineOwnProperty]] | defineProperty | Object.defineProperty | sims/agent50-implicit-dispatch-extension.js |
+| [[SetPrototypeOf]] | setPrototypeOf | Object.setPrototypeOf | sims/agent50-implicit-dispatch-extension.js |
+| [[PreventExtensions]] | preventExtensions | Object.preventExtensions | sims/agent50-implicit-dispatch-extension.js |
+| [[IsExtensible]] | isExtensible | Object.isExtensible | sims/agent50-implicit-dispatch-extension.js |
+| [[GetOwnProperty]] | getOwnPropertyDescriptor | Object.getOwnPropertyDescriptor | sims/agent50-implicit-dispatch-extension.js |
+| [[Call]] | apply | Proxy function call | sims/agent50-implicit-dispatch-extension.js |
+| [[Construct]] | construct | Proxy constructor call | sims/agent50-implicit-dispatch-extension.js |
+
+This is complete trap-family coverage across two separate Node/V8 witness scripts, not one combined test execution and not a browser compatibility claim.
+
 ## Limitations
 
 These are Node/V8 22.16.0 runtime witnesses, not compiler regressions or cross-browser claims. Sloppy caller-chain controls establish exact source capture only in the tested sloppy contexts. Stack-based strict-mode controls establish FramePosition, not exact source. Agent 50's seven Proxy tests cover DefineOwnProperty, SetPrototypeOf, PreventExtensions, IsExtensible, GetOwnProperty, Call and Construct. Agent 24's separate sims/agent24_implicit_dispatch_active_frame_matrix.js covers Get, Set, Has, DeleteProperty, OwnKeys and GetPrototypeOf. Together, the two independently validated Node matrices span all 13 standard Proxy traps; this is a coverage inventory, not a single combined test run or browser claim. A Chromium 144 headless attempt timed out before returning DOM for both a data URL and the local test page, so no browser-runtime result is claimed. No production source, integration PR, workflow, release status, or 2.5x performance claim changed.
