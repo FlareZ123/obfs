@@ -492,5 +492,6 @@ module.exports = {
   cloneTopDerivativeProjectedAffine,
   evaluateHybridModel,
   exactDegreeFiveModel,
+  makeRankFiveSource,
   main
 };
