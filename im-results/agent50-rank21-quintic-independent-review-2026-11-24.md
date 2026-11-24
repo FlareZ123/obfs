@@ -83,7 +83,9 @@ The graph algorithm's query wrapper increments its counter at each oracle call, 
 
 The latest focused test covers 2 affine wrappers × 2 sample seeds × 8 targets = 32 matched cases. It verifies exact preimages for both methods, checks the low-rank rank/nullity/sample/orbit bounds, and asserts the aggregate graph query count is lower than the aggregate low-rank count. Run 45339444109 passed on both Ubuntu and Windows at source commit 8f200164c327f5fc94f434791940c7c72dc85075.
 
-The detailed 37.597x ratio above is specifically the first eight-target batch, not the aggregate 32-case sweep. The expanded test logs its 32 receipts and aggregate totals, but the current report does not yet summarize those totals. Recommend updating the report from the sweep output or clearly keeping the first-batch label wherever 37.597x is quoted.
+I independently extended the verifier to reproduce all 32 low-rank runs. It matches the aggregate **32,341,215** low-rank calls, with per-target range **4,011–2,082,224**, sample count range 1–2, orbit range 3,977–2,082,189, and nullity one in all cases. The expanded CI run reports **876,925** graph calls, per-target range **27,377–27,450**. The aggregate ratio is therefore **36.880x** in favor of graph inversion. At least one low-rank run (4,011 calls) is cheaper than every graph run; graph is not uniformly better per target.
+
+The detailed **37.597x** ratio in the first table is specifically the first eight-target / first-wrapper / first-sample batch. It must not be confused with the aggregate 32-case ratio **36.880x**. The independent verifier now covers both the first-batch receipts and the 32-case low-rank sweep (latest commit 3d148a9f6407f357ae481d5d8196ae606f86cd17).
 
 The low-rank comparison is the Las Vegas API with explicit rankBound=21 and maxRankBound=21. The default maximum remains 16; the higher cap is opt-in. The deterministic low-rank API remains separately capped at 16. The rank-21 experiment uses a deterministic sample callback with a 96-sample cap; the first batch needs two samples per target. These are attacker-side oracle-query counts, not obfuscator CPU runtime.
 
