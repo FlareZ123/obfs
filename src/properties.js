@@ -1286,7 +1286,7 @@ function singleUseFactoryObject(ast,bindings,expression) {
  * @param {string} source
  * @param {AstNode} ast
  * @param {{seed:string,sourceUnitRef?:string,parserContractId?:string,sourceObservationPlan?:import('./source-observation-plan').SourceObservationPlan,protectedSourceRanges?:import('./source-edit-map').MappedSourceRange[]}} options
- * @returns {{code:string,objects:number,properties:number,editMap?:Object}}
+ * @returns {{code:string,objects:number,properties:number,editMap?:import('./source-edit-map').SourceEditMap}}
  */
 function renameLocalProperties(source, ast, options) {
   if(Reflect.get(options,'sourceObserverCoverageComplete')!==undefined) {
@@ -1311,7 +1311,7 @@ function renameLocalProperties(source, ast, options) {
   } else if(protectedSourceRanges.length) {
     throw new TypeError('Protected source ranges require a validated SourceObservationPlan');
   }
-  /** @param {import('./ast').Edit[]} sourceEdits @returns {{code:string,editMap?:Object}} */
+  /** @param {import('./ast').Edit[]} sourceEdits @returns {{code:string,editMap?:import('./source-edit-map').SourceEditMap}} */
   function finish(sourceEdits) {
     if(hasMapContext) {
       const mapped=applyEditsWithMap(source,sourceEdits,
