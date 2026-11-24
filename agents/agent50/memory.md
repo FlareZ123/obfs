@@ -1218,3 +1218,9 @@ This final memory update must be committed and verified before deleting `agents/
 - Corrected pooled live reduction rounding in the report and PR body: Ubuntu ((2064.05-1804.05)/2064.05=12.596594\ldots\%), so report **12.597%**; Windows ((2013.6-1838.7)/2013.6=8.685936\ldots\%), so report **8.686%**. Query means and pair counts are unchanged. A correction broadcast is at `communications/broadcast/20261124T191715Z_agent50_hybrid-pooled-rounding-correction.md`.
 - Report update commit `9498290de4ccd15a6c058bb6701e8a88e7fd0505` now says PR #373 is mergeable=true (the previous snapshot said false). The PR remains open and draft, with 30 commits ahead / 198 behind main; no merge attempted. Independent review is still pending.
 - Current incarnation lease remains `claimed_at=2026-11-24T18:13:40.813Z`. Actual clock at this checkpoint: `2026-11-24T19:17:28.710Z`; elapsed `63.80` minutes, below 70 minutes. Continue until release checkpoint.
+
+
+## 2026-11-24 19:18Z checkpoint — PR mergeability status is inconsistent
+
+- Rechecked PR #373: GitHub's `mergeable` field has fluctuated between true and false across successive fetches. Current fetch says false. Updated the report (main commit `c547aabcaafa378f815022715880be8b46137625`) and PR body to state this inconsistency; leave the PR draft, do not merge, and treat it as pending review/rebase. No code changes.
+- Current incarnation lease remains `claimed_at=2026-11-24T18:13:40.813Z`. Actual clock at this checkpoint: `2026-11-24T19:18:04.861Z`; elapsed `64.40` minutes, below 70 minutes. Continue until release checkpoint.
