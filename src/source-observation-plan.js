@@ -421,7 +421,7 @@ function buildDirectFunctionSourcePlan(source,path,hostContract) {
   const effectId='effect:'+sourceUnitRef+':'+readerCall.start+':source-mirror-read';
   const mirrorId='mirror:'+callableDefinitionId;
   const hostIntrinsic=Object.freeze({
-    kind:'verified-host-intrinsic',
+    kind:'unknown',
     callableDefinitionRef:null,
     hostIntrinsicId:'Function.prototype.toString',
     overrideCallableDefinitionRef:null,
@@ -541,15 +541,15 @@ function buildDirectFunctionSourcePlan(source,path,hostContract) {
     operationSpan:readerSpanId,
     callSiteRef:callSiteId,
     callerActivationRef:null,
-    abstractOperation:'Function.prototype.toString',
+    abstractOperation:'Function.prototype.toString under the declared pristine-intrinsics premise',
     observationEffects:Object.freeze(['ExactSource']),
     conversionHint:null,
     proxyTrapName:null,
     interfaceIdentity:'Function',
     receiverRef:null,
-    receiverProvenance:'native-global',
-    receiverLookupRoute:'native-inherited',
-    effectiveDispatchStatus:'verified-native-intrinsic',
+    receiverProvenance:'unknown',
+    receiverLookupRoute:'unknown',
+    effectiveDispatchStatus:'unknown-or-mutable',
     effectiveOperationRef:hostIntrinsic,
     conversionTarget:null,
     operandRole:'this',
