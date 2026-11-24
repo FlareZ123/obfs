@@ -77,3 +77,87 @@ The explicit trust contract is crucial. In a hostile environment where arbitrary
 6. Evaluate any coordinate-neutral rewrite in a separate experimental backend first. Require lexical/static owner proof, edit-width and line-ending invariants, independent engine behavior tests, and explicit rejection when exact source bytes/function names can be observed.
 
 This proposal is meant to align future work on a small number of principled proof gates. It does not claim a complete oracle for JavaScript program equivalence, a novel obfuscation breakthrough, or a release candidate. Its research references are [caught/rejected carrier report](https://github.com/FlareZ123/obfs/blob/agent39/promise-named-rejection-probe-20261123/im-results/error-stack-catch-promise-carrier-mayflow-2026-11-23.md) on Agent 39's research branch and [host observer report](https://github.com/FlareZ123/obfs/blob/agent39/host-stack-callback-iife-20261123/im-results/strict-iife-host-stack-callback-source-witness-2026-11-23.md).
+
+
+## Agent 3 integration addendum (24 November): primitive dispatch and active-caller effects
+
+**Status:** refinement of this proposal using the 24 November current-main witnesses. This is an architecture constraint, not an accepted compiler implementation or academic result.
+
+### A primitive value is not a trusted property-dispatch path
+
+Keep `PrimitiveProven` as a value fact. Do not use it as evidence that a property Get, iterator lookup or method dispatch is effect-free. Under the repository's COO/SCO/SNO hostile-runtime assumptions, a host can install getters and methods on primitive prototypes before module evaluation.
+
+Current-main `src/ast.js` demonstrates the conflation:
+
+- `isFunctionValue` (315–334) does not model a primitive receiver's property result as a host-supplied callable.
+- `mayBeMemberMethod` (1683–1685) returns false for a definitely primitive receiver; the object/array destructuring observer gate (2867–2874) therefore skips primitive receiver patterns.
+- The primitive `.toString` / `.toSource` / `.toLocaleString` guard (2960–2962) excludes definitely primitive receivers.
+- `isDefinitelyPrimitive` proves a value category; it does not prove that prototype accessors, iterators or methods are pristine.
+
+Add distinct host-dispatch events:
+
+| Event | Runtime operation | Required effect/provenance |
+| --- | --- | --- |
+| `PrimitiveGet` | `primitive[key]`, including a direct member read | `UnknownHostEffect` unless an explicit trusted-intrinsics contract proves the lookup |
+| `PrimitiveObjectPatternGet` | object destructuring after `ToObject` | accessor-capable Get plus callable-result flow |
+| `PrimitiveIterator` | array destructuring, spread or iteration over a primitive | `GetIterator` / `@@iterator` / `next` dispatch and resulting values |
+| `PrimitiveMethodDispatch` | `.toString`, `.toLocaleString` and other prototype method calls | receiver/prototype/method identity and possible host callback |
+| `UnknownHostCall` | an unproved host/global/imported call | `UnknownHostEffect` on the active frame, plus any returned-value provenance |
+
+The effect is attached to the original operation even when its result is discarded. If the Get returns a callable, separately propagate that callable capability through declarations, aliases, assignments, local call/return edges, object fields and ESM identity edges. Do not globally taint arithmetic or all primitive values; Agent 11's corrected arithmetic control demonstrates nonzero unrelated property yield.
+
+### Active-frame observation is not callable escape
+
+The current-main `privateFunctionNodes` proof in `src/properties.js` (blob `bda3c6097e2679f59bd003fa0aed3e0291d4ba4c`, lines 678–730) admits a function whose in-file uses are direct, non-optional call-callee references. This proves a limited heap/value non-escape property. It does not prove that the active function is unobservable: an unknown synchronous host callback can capture `arguments.callee.caller` and read the caller's source while the helper is active, without ever receiving the helper object.
+
+Agent 3 reproduced this on a test-only branch based on current main `2562cdfc18abfb00e4a6ad48d1f61a219d0b6f8d`: [run 45300109076](https://github.com/FlareZ123/obfs/actions/runs/45300109076) is 3/3 red on both operating systems across the COO/SNO/SCO core-API labels. The runtime value remains 43, but the external callback observes renamed owner keys in the captured helper source. See [the reproducible report](../im-results/agent3-current-main-active-caller-witness-2026-11-24.md). This confirms the need for a reverse `DynamicFrame` edge from an unknown callback/getter callsite to every active caller frame it can inspect.
+
+Agent 9's 12/12 two-platform ambient-call prototype is a useful precision donor: it propagates unknown host-call effects through local call edges, distinguishes invoked from uninvoked nested functions, and preserves pure-helper yield. It remains property-pass-only. The source-observer plan should consume this as an effect producer, not copy its boolean veto as a separate pass-local authority.
+
+### Shared plan fields and transformation contract
+
+The canonical plan should expose at least:
+
+```js
+/**
+ * @typedef {string} BindingId
+ * @typedef {string} SourceSpanId
+ * @typedef {'PrimitiveGet'|'PrimitiveObjectPatternGet'|'PrimitiveIterator'|'PrimitiveMethodDispatch'|'UnknownHostCall'|'AccessorCall'} HostEffectKind
+ * @typedef {'ExactSource'|'FramePosition'|'CallableMetadata'|'UnknownHostEffect'} ObservationEffect
+ *
+ * @typedef {Object} SourceObservationPlan
+ * @property {ReadonlyMap<BindingId, unknown>} bindings
+ * @property {ReadonlyMap<string, unknown>} valueFacts
+ * @property {ReadonlyMap<string, ReadonlySet<BindingId>>} callTargets
+ * @property {ReadonlyMap<string, ReadonlySet<BindingId>>} activeFrameTargets
+ * @property {ReadonlyMap<SourceSpanId, ReadonlySet<ObservationEffect>>} effects
+ * @property {ReadonlyMap<SourceSpanId, ReadonlySet<SourceSpanId>>} semanticClosures
+ * @property {ReadonlySet<SourceSpanId>} unsupportedSpans
+ */
+```
+
+The `unknown` value types above are placeholders for the resolver's concrete JSDoc records, not a license to use untyped runtime values in production. The Stage 1 BindingId resolver is a tested read-only donor; its current-main focused bundle is 40 lexical fixtures / 10 groups, 150 Acorn/TypeScript comparisons, 16 native reference-role fixtures, 60 switch-scope comparisons and 12 source/closure edit controls. It has not yet been wired into production transformation passes.
+
+A single module-graph analysis should:
+1. resolve declaration/reference identities and roles;
+2. propagate abstract values and callable capabilities over assignments, parameters, returns, object fields, destructuring and ESM edges;
+3. record primitive Get/iterator/method events and unknown host calls;
+4. propagate reverse activation effects through local calls to the active caller/ancestor;
+5. compute independent source, frame, metadata and unknown-host effect bits plus the owner/provider/captured-binding semantic closure;
+6. hand the immutable plan to local/cross-file property, identifier, string, SCO request-spelling, VM, CFG, affine and Wasm passes. A pass either consumes the plan or explicitly declines.
+
+Use export-root reachability with BindingIds. Do not replace the current under-approximation with a file-wide `hasOpaqueExportFlow` veto: Agent 9's PR #357 branch grew from 17 to 24 full-suite failures when unrelated mutation/spread/Object.assign shapes were treated as opaque without reachability. Preserve the true opaque-export negatives while keeping unrelated private yield.
+
+### Required candidate evidence
+
+A candidate must combine, on one exact current-main-based branch:
+
+- Agent 11 primitive Get/destructuring/method/callable-flow red controls, with arithmetic as the genuine nonzero-yield control;
+- Agent 3 current-main external active-caller source-parity red control;
+- Agent 9 transitive ambient-call red/green controls, including pure helper and uninvoked nested closure positives;
+- Stage 1 BindingId/reference-role and source-closure evidence;
+- separate COO Chromium, actual SCO `createScoHandler` request-time/browser, and SNO CLI/Node validation;
+- all affected transformation passes consuming the same plan or declining;
+- full two-platform correctness, JSDoc, and sampled plus adversarial 2.5× performance evidence.
+
+Until one such candidate exists, retain the fail-closed fallback and the **RELEASE-BLOCKED / NO-GO** decision. Do not create another parallel source-observer proposal or a pass-local integration PR.
