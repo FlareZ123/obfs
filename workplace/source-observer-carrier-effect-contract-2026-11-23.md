@@ -116,164 +116,317 @@ Agent 9's 12/12 two-platform ambient-call prototype is a useful precision donor:
 
 ### Shared plan fields and transformation contract
 
-The canonical plan should expose at least:
+The canonical plan should expose at least. The following v2 JSDoc schema supersedes the earlier typedef block; it is the single authoritative proposed contract. It resolves the review's duplicate dispatch type, missing value-flow graph, unqualified call-target summary, disconnected source mirrors and mode/trust ambiguity.
 
 ```js
 /**
- * @typedef {'server'|'client'|'shared-build'} ExecutionPartition
+ * Runtime partitions are mode-specific. Build-time artifacts are not runtime
+ * source units and must not be represented as a third execution partition.
+ *
+ * @typedef {'coo'|'sco'|'sno'} ObfuscationMode
+ * @typedef {'server'|'client'} RuntimeExecutionPartition
+ * @typedef {RuntimeExecutionPartition} ExecutionPartition
+ * @typedef {'attacker-controlled'|'obfuscator-controlled'|'declared-trusted'|'unknown'} RuntimeControl
+ *
+ * @typedef {Object} ThreatModelRef
+ * @property {string} threatModelId
+ * @property {ObfuscationMode} mode
+ * @property {RuntimeExecutionPartition} executionPartition
+ * @property {RuntimeControl} runtimeControl
+ * @property {string} assumptionsVersion
+ * @property {string|null} trustEvidenceId
+ *
  * @typedef {Object} SourceUnitRef
- * @property {string} sourceUnitId - runtime module/script instance identity, not merely a path
- * @property {string|null} resolvedURL - actual browser/loader-resolved module URL when applicable
- * @property {string|null} resolutionContextId - import-map/loader resolution generation
- * @property {string} sourceGeneration - exact source bytes plus parser version/options
- * @property {string|null} realmGroupId - shared realm for classic-script groups
- * @property {'module'|'script'|'commonjs'} sourceType
- * @property {number|null} executionOrder - required when classic-script order matters
- * @property {ExecutionPartition} executionPartition - server, client or shared build
- * @property {string|null} runtimeContractId - host/runtime contract for this execution partition
- * @property {string|null} requestVariantGeneration - SCO request-specific emitted variant; null otherwise
+ * @property {string} sourceUnitId - runtime module/script instance, not a path alone
+ * @property {ObfuscationMode} mode
+ * @property {RuntimeExecutionPartition} executionPartition
+ * @property {string} sourceGeneration - exact bytes plus parser version/options
+ * @property {string|null} resolvedURL
+ * @property {string|null} resolutionContextId
+ * @property {string|null} realmGroupId - shared classic-script global environment
+ * @property {'module'|'script'|'commonjs'|'unknown'} sourceType
+ * @property {number|null} executionOrder
+ * @property {string} threatModelRefId
+ * @property {string|null} runtimeContractId
+ * @property {string|null} requestVariantGeneration - SCO response-specific generation
+ * @property {string|null} buildArtifactId - provenance only; not a runtime partition
  *
  * @typedef {Object} BindingRef
- * @property {SourceUnitRef} sourceUnit
- * @property {number} localBindingId - resolver ID unique only within one Program
+ * @property {SourceUnitRefKey} sourceUnitRef
+ * @property {number} localBindingId - unique only inside one parsed Program
  *
  * @typedef {Object} RealmBindingRef
  * @property {string} realmGroupId
- * @property {SourceUnitRef} declarationSourceUnit
+ * @property {SourceUnitRefKey} declarationSourceUnitRef
  * @property {number} declarationLocalBindingId
  *
  * @typedef {BindingRef|RealmBindingRef} BindingIdentity
  *
  * @typedef {Object} DefinitionRef
- * @property {BindingIdentity} binding
- * @property {string} definitionSpanId
- * @property {'function-declaration'|'var-initializer'|'lexical-initializer'|'assignment'|'parameter'|'import'|'unknown'} kind
+ * @property {string} definitionId
+ * @property {BindingRefKey} bindingRef
+ * @property {SourceSpanId} definitionSpanId
+ * @property {'function-declaration'|'var-initializer'|'lexical-initializer'|'assignment'|'parameter'|'import'|'catch-binding'|'destructuring'|'unknown'} kind
  * @property {number} sourceOrder
- * @property {string} controlFlowPointId - reaching-definition point; source order alone is insufficient
+ * @property {string} controlFlowPointId - includes hoisting and CFG reaching-definition state
+ * @property {ReadonlyArray<string>} branchGuardIds
  *
  * @typedef {Object} CallableDefinitionRef
  * @property {string} callableDefinitionId
- * @property {SourceUnitRef} sourceUnit
- * @property {string} sourceSpanId
- * @property {DefinitionRefKey|null} lexicalDefinition - when the callable has a lexical binding
- * @property {DefinitionRefKey|null} ownerDefinition - owner object/class definition for property-defined callables
- * @property {string|null} propertyKeyIdentity - canonical key including static/private/instance distinction
+ * @property {SourceUnitRefKey} sourceUnitRef
+ * @property {SourceSpanId} sourceSpanId
+ * @property {DefinitionRefKey|null} lexicalDefinitionRef
+ * @property {DefinitionRefKey|null} ownerDefinitionRef
+ * @property {string|null} propertyKeyIdentity
  * @property {'function-declaration'|'function-expression'|'object-method'|'object-accessor'|'class-method'|'class-accessor'|'class-constructor'|'class-field'|'anonymous-expression'|'imported-callable'|'unknown'} kind
  *
  * @typedef {Object} ActivationRef
  * @property {string} activationId
  * @property {'function'|'script-or-module'|'class-static-block'|'eval'} kind
- * @property {SourceUnitRef} sourceUnit
- * @property {string} activationSpanId
- * @property {CallableDefinitionRefKey|null} callableDefinition - null for non-function execution frames
+ * @property {SourceUnitRefKey} sourceUnitRef
+ * @property {SourceSpanId} activationSpanId
+ * @property {CallableDefinitionRefKey|null} callableDefinitionRef
+ * @property {'strict'|'sloppy'|'unknown'} strictness
  *
  * @typedef {Object} HostContractRef
  * @property {string} hostContractId
- * @property {ExecutionPartition} executionPartition
+ * @property {ObfuscationMode} mode
+ * @property {RuntimeExecutionPartition} executionPartition
+ * @property {string} threatModelRefId
  * @property {string} runtimeFamily
  * @property {string} runtimeVersion
  * @property {string|null} realmId
  * @property {string|null} intrinsicSnapshotId
  * @property {string|null} loaderPreloadContractId
  * @property {string|null} deploymentManifestId
- * @property {string|null} pristineIntrinsicsPremise - explicit auditable premise, never inferred from global spelling
+ * @property {string|null} pristineIntrinsicsPremise - explicit and auditable, never inferred from spelling
+ * @property {string} contractVersion
  *
- * @typedef {string} BindingRefKey - canonical serialization of BindingRef or RealmBindingRef
- * @typedef {string} DefinitionRefKey - canonical serialization of BindingRefKey + definition identity
- * @typedef {string} CallableDefinitionRefKey - canonical serialization of function-object definition identity
+ * @typedef {string} BindingRefKey
+ * @typedef {string} RealmBindingRefKey
+ * @typedef {string} DefinitionRefKey
+ * @typedef {string} CallableDefinitionRefKey
  * @typedef {string} ActivationRefKey
- * @typedef {string} SourceSpanId - canonical serialization of SourceUnitRef + start/end offsets
- * @typedef {string} HostEffectId - unique identity for one effect, even when spans are shared
+ * @typedef {string} SourceSpanId - source-unit/generation-qualified UTF-16 span
+ * @typedef {string} HostEffectId
+ * @typedef {string} HostContractRefKey
  * @typedef {string} SourceUnitRefKey
+ * @typedef {string} ModuleResolutionEdgeKey
+ * @typedef {string} SourceDeliveryEdgeKey
  * @typedef {string} SourceMirrorRefKey
+ * @typedef {string} SourceMirrorReadEdgeKey
  * @typedef {string} ReceiverRefKey
+ * @typedef {string} ValueRefKey
+ * @typedef {string} ValueFlowEdgeKey
+ * @typedef {string} CallSiteRefKey
+ *
+ * @typedef {Object} ModuleResolutionEdge
+ * @property {string} importOccurrenceId
+ * @property {SourceUnitRefKey} importerSourceUnitRef
+ * @property {SourceSpanId} importSiteSpanId
+ * @property {string} specifier
+ * @property {SourceUnitRefKey|null} targetSourceUnitRef
+ * @property {string} resolutionContextId
+ * @property {string|null} resolvedURL
+ * @property {'resolved'|'external'|'unknown'|'rejected'} resolutionStatus
+ *
+ * @typedef {Object} SourceDeliveryEdge
+ * @property {string} deliveryId
+ * @property {SourceUnitRefKey} serverSourceUnitRef
+ * @property {SourceUnitRefKey} clientSourceUnitRef
+ * @property {string} requestIdentity
+ * @property {string} responseIdentity
+ * @property {string} requestVariantGeneration
+ * @property {string|null} sourceBytesDigest
+ * @property {'module'|'asset'|'integrity-token'|'other'} deliveryKind
+ *
  * @typedef {'native-global'|'native-property'|'alias'|'proxy'|'userland'|'unknown'} ReceiverProvenance
- * @typedef {'native-inherited'|'native-accessor'|'captured-native'|'own-data'|'own-accessor'|'prototype-patched'|'proxy-forwarded-native'|'userland'|'unknown'} DispatchProvenance
+ * @typedef {'native-inherited'|'native-accessor'|'captured-native'|'own-data'|'own-accessor'|'prototype-patched'|'proxy-forwarded-native'|'userland'|'unknown'} ReceiverLookupRoute
+ * @typedef {ReceiverLookupRoute} DispatchProvenance - compatibility alias for lookup route only
+ * @typedef {'local-definition'|'verified-native-intrinsic'|'host-overridden'|'unknown-or-mutable'} EffectiveDispatchStatus
+ *
+ * @typedef {Object} EffectiveOperationRef
+ * @property {'local-callable'|'verified-host-intrinsic'|'host-override'|'unknown'} kind
+ * @property {CallableDefinitionRefKey|null} callableDefinitionRef
+ * @property {string|null} hostIntrinsicId
+ * @property {CallableDefinitionRefKey|null} overrideCallableDefinitionRef
+ * @property {HostContractRefKey|null} hostContractRef
+ *
  * @typedef {Object} ReceiverRef
  * @property {ReceiverRefKey} receiverRef
- * @property {RealmBindingRefKey|null} originBindingRef
+ * @property {BindingRefKey|null} originBindingRef
  * @property {string|null} hostInterfaceIdentity
  * @property {string|null} realmId
  * @property {ReceiverProvenance} provenance
  * @property {ReceiverRefKey|null} aliasOf
  * @property {ReceiverRefKey|null} proxyTarget
- * @typedef {string} ValueRefKey
- * @typedef {Object} SourceMirrorRef
- * @property {SourceUnitRefKey} sourceUnit
- * @property {'inline-script-text'|'external-module-response'|'blob-module-bytes'|'function-source'|'dom-document-source'|'sri-pinned-bytes'|'loader-response'|'other'} mirrorKind
- * @property {'inline'|'external-url'|'blob-url'|'data-url'|'loader-response'|'unknown'} embeddingKind
- * @property {string|null} embeddingIdentity - script element identity, resolved URL, Blob URL or loader key
- * @property {string|null} readerOperation - outerHTML, XMLSerializer.serializeToString, fetch(import.meta.url), etc.
- * @property {string|null} hostContractId
- * @typedef {'get'|'set'|'has'|'deleteProperty'|'ownKeys'|'getOwnPropertyDescriptor'|'getPrototypeOf'|'defineProperty'|'setPrototypeOf'|'isExtensible'|'preventExtensions'|'apply'|'construct'} ProxyInternalMethod
- * @typedef {'local-definition'|'verified-native-intrinsic'|'host-overridden'|'unknown-or-mutable'} DispatchProvenance
- * @typedef {'PrimitiveGet'|'PrimitiveObjectPatternGet'|'PrimitiveIterator'|'IteratorDispatch'|'PrimitiveMethodDispatch'|'UnknownHostCall'|'UnknownHostArgumentEscape'|'AccessorCall'|'ProxyInternalMethod'|'ProxyHasProperty'|'ProxyOwnKeys'|'ProxyGetOwnProperty'|'ProxyGet'|'ProxySet'|'ProxyDelete'|'CustomHasInstance'|'ObjectCopyDispatch'|'WithBindingLookup'|'ToPrimitiveDispatch'|'ToPropertyKeyDispatch'|'PromiseResolveThenableGet'|'PromiseThenableJob'|'PromiseHandlerDispatch'|'IntrinsicCallbackDispatch'|'WebIDLStringConversion'|'WebIDLNamedPropertySet'|'WebIDLAttributeSet'|'DOMSourceSerialization'|'DOMSourceRead'|'SourceMirrorRead'|'SRIIntegrityPin'|'BrowserImportMapResolution'} HostEffectKind
- * @typedef {'Primitive'|'Callable'|'HostHeldCallable'|'HostOpaque'|'Unknown'} ValueKind
- * @typedef {'trigger'|'observed'} HostEffectValueRole
+ *
+ * @typedef {'Primitive'|'Callable'|'ErrorLike'|'PlainRecord'|'HostObject'|'PathLike'|'IteratorLike'|'PromiseLike'|'Unknown'} ValueCategory
+ * @typedef {ValueCategory} ValueKind - compatibility alias; not a complete value fact
+ * @typedef {'proven'|'may'|'unknown'} ValueProofStatus
+ * @typedef {'HostHeldCallable'|'Escaped'|'SourceObservable'|'CallableMetadataObservable'|'SameSourcePath'|'UnknownPath'} ValueCapability
+ *
+ * @typedef {Object} ValueRef
+ * @property {ValueRefKey} valueRef
+ * @property {SourceUnitRefKey} sourceUnitRef
+ * @property {SourceSpanId|null} originSpanId
+ * @property {DefinitionRefKey|null} originDefinitionRef
+ *
+ * @typedef {Object} ValueFact
+ * @property {ReadonlyArray<ValueCategory>} categoryPossibilities - product/join, not one exclusive tag
+ * @property {ValueProofStatus} proofStatus
+ * @property {ReadonlyArray<DefinitionRefKey>} originDefinitionRefs
+ * @property {ReadonlyArray<SourceUnitRefKey>} originSourceUnitRefs
+ * @property {ReadonlyArray<ValueCapability>} capabilities
+ *
+ * @typedef {'assignment'|'alias'|'phi'|'actual-to-formal'|'return-to-call-result'|'field-write'|'field-read'|'destructuring'|'import'|'export'|'throw-catch'|'promise-fulfillment'|'promise-rejection'|'iterator-yield'|'coercion-result'|'host-argument'|'host-return'|'closure-capture'} ValueFlowEdgeKind
+ *
+ * @typedef {Object} ValueFlowEdge
+ * @property {ValueFlowEdgeKey} edgeId
+ * @property {ValueRefKey} fromValueRef
+ * @property {ValueRefKey} toValueRef
+ * @property {ValueFlowEdgeKind} kind
+ * @property {SourceSpanId} sourceSpanId
+ * @property {CallSiteRefKey|null} callSiteRef
+ * @property {string|null} controlFlowPointId
+ * @property {number|null} argumentIndex
+ * @property {string|null} propertyKeyIdentity
+ * @property {string|null} operandPath
+ *
+ * @typedef {'call'|'construct'|'tag'|'optional-call'|'implicit'|'unknown'} InvocationKind
+ * @typedef {'resolved'|'ambiguous'|'external'|'mutable'|'unknown'} CallTargetResolutionStatus
+ *
+ * @typedef {Object} CallSiteRef
+ * @property {CallSiteRefKey} callSiteId
+ * @property {SourceUnitRefKey} sourceUnitRef
+ * @property {SourceSpanId} sourceSpanId
+ * @property {ActivationRefKey|null} callerActivationRef
+ * @property {InvocationKind} invocationKind
+ * @property {ValueRefKey|null} calleeValueRef
+ * @property {BindingRefKey|null} calleeBindingRef
+ * @property {ReadonlyArray<CallableDefinitionRefKey>} targetCallableDefinitionRefs
+ * @property {CallTargetResolutionStatus} targetResolutionStatus
+ * @property {string|null} controlFlowPointId
+ * @property {ReadonlyArray<string>} branchGuardIds
+ *
+ * @typedef {string} ProxyInternalMethod
+ * @typedef {'get'|'set'|'has'|'deleteProperty'|'ownKeys'|'getOwnPropertyDescriptor'|'getPrototypeOf'|'defineProperty'|'setPrototypeOf'|'isExtensible'|'preventExtensions'|'apply'|'construct'} ProxyTrapName
+ * @typedef {'default'|'number'|'string'|null} ConversionHint
  * @typedef {'synchronous'|'deferred'|'unknown'|null} CallbackTiming
  * @typedef {'explicit-argument'|'object-provided-method'|'internal-callback'|'unknown'|null} CallbackRole
+ * @typedef {'trigger'|'observed'} HostEffectValueRole
  * @typedef {'ExactSource'|'SourceBytes'|'FramePosition'|'CallableMetadata'|'UnknownHostEffect'} ObservationEffect
+ *
+ * @typedef {'PrimitiveGet'|'PrimitiveObjectPatternGet'|'IteratorDispatch'|'PrimitiveMethodDispatch'|'UnknownHostCall'|'UnknownHostArgumentEscape'|'AccessorCall'|'ProxyInternalMethod'|'CustomHasInstance'|'ObjectCopyDispatch'|'WithBindingLookup'|'ToPrimitiveDispatch'|'ToPropertyKeyDispatch'|'PromiseResolveThenableGet'|'PromiseThenableJob'|'PromiseHandlerDispatch'|'IntrinsicCallbackDispatch'|'WebIDLStringConversion'|'WebIDLNamedPropertySet'|'WebIDLAttributeSet'|'DOMSourceSerialization'|'DOMSourceRead'|'SourceMirrorRead'|'SRIIntegrityPin'|'BrowserImportMapResolution'} HostEffectKind
  *
  * @typedef {Object} HostEffectRecord
  * @property {HostEffectId} effectId
- * @property {HostEffectId|null} causedByEffectId - causal parent for nested/deferred effects
+ * @property {HostEffectId|null} causedByEffectId
  * @property {HostEffectKind} kind
  * @property {SourceSpanId} operationSpan
- * @property {string|null} abstractOperation - ToPrimitive, ToPropertyKey, PromiseResolve.GetThen, etc.
- * @property {'default'|'number'|'string'|null} conversionHint
- * @property {ProxyInternalMethod|null} proxyInternalMethod
+ * @property {CallSiteRefKey|null} callSiteRef
+ * @property {ActivationRefKey|null} callerActivationRef
+ * @property {string|null} abstractOperation
+ * @property {ConversionHint} conversionHint
+ * @property {ProxyTrapName|null} proxyTrapName - required when kind is ProxyInternalMethod
  * @property {string|null} interfaceIdentity
- * @property {string|null} receiverIdentity
  * @property {ReceiverRefKey|null} receiverRef
  * @property {ReceiverProvenance} receiverProvenance
- * @property {string|null} effectiveOperationIdentity
- * @property {string|null} conversionTarget - DOMString, USVString, ByteString, etc.
+ * @property {ReceiverLookupRoute} receiverLookupRoute
+ * @property {EffectiveDispatchStatus} effectiveDispatchStatus
+ * @property {EffectiveOperationRef|null} effectiveOperationRef
+ * @property {string|null} conversionTarget
  * @property {string|null} operandRole
  * @property {number|null} argumentIndex
- * @property {string|null} operandPath - nested object/array/iterator path
- * @property {DispatchProvenance} dispatchProvenance
- * @property {string|null} hostContractId
- * @property {CallbackRole} callbackRole - explicit callback argument vs object-provided method
- * @property {CallbackTiming} callbackTiming - synchronous dispatch vs deferred job
+ * @property {string|null} operandPath
+ * @property {HostContractRefKey|null} hostContractRef
+ * @property {CallbackRole} callbackRole
+ * @property {CallbackTiming} callbackTiming
  *
  * @typedef {Object} HostEffectValueEdge
  * @property {HostEffectId} effectId
- * @property {HostEffectValueRole} role - triggering value vs value actually observed/serialized
+ * @property {HostEffectValueRole} role - trigger or actually observed value
  * @property {ValueRefKey} valueRef
+ * @property {CallSiteRefKey|null} callSiteRef
  * @property {string|null} operandRole
  * @property {number|null} argumentIndex
  * @property {string|null} operandPath
  *
- * @typedef {Object} ActiveFrameEdge - reverse DynamicFrame edge; not heap/call-target flow
+ * @typedef {Object} ActiveFrameEdge - reverse DynamicFrame edge, not value/heap flow
  * @property {HostEffectId} effectId
  * @property {ActivationRefKey} activationRef
- * @property {ReadonlySet<ObservationEffect>} effects
+ * @property {ReadonlyArray<ObservationEffect>} effects
  * @typedef {ActiveFrameEdge} DynamicFrameEdge
  *
+ * @typedef {Object} SourceMirrorRef
+ * @property {SourceMirrorRefKey} sourceMirrorRef
+ * @property {SourceUnitRefKey} sourceUnitRef
+ * @property {'inline-script-text'|'external-module-response'|'blob-module-bytes'|'function-source'|'dom-document-source'|'sri-pinned-bytes'|'loader-response'|'other'} mirrorKind
+ * @property {'inline'|'external-url'|'blob-url'|'data-url'|'loader-response'|'unknown'} embeddingKind
+ * @property {SourceUnitRefKey|null} embeddingSourceUnitRef
+ * @property {string|null} embeddingIdentity
+ * @property {string|null} readerOperation
+ * @property {HostContractRefKey|null} hostContractRef
+ * @property {CallableDefinitionRefKey|null} callableDefinitionRef - required for function-source mirrors
+ * @property {SourceSpanId|null} callableSourceSpanId
+ *
+ * @typedef {Object} SourceMirrorReadEdge
+ * @property {SourceMirrorReadEdgeKey} edgeId
+ * @property {HostEffectId} effectId
+ * @property {SourceMirrorRefKey} sourceMirrorRef
+ * @property {SourceSpanId} readerSpanId
+ * @property {SourceUnitRefKey|null} observedSourceUnitRef
+ * @property {CallableDefinitionRefKey|null} observedCallableDefinitionRef
+ * @property {ValueRefKey|null} observedValueRef
+ * @property {ObservationEffect} observationEffect
+ *
  * @typedef {Object} SourceObservationPlan
- * @property {ReadonlyMap<BindingRefKey, unknown>} bindings
+ * @property {string} planId
+ * @property {string} planGeneration
+ * @property {ReadonlyMap<SourceUnitRefKey, SourceUnitRef>} sourceUnits
+ * @property {ReadonlyMap<ModuleResolutionEdgeKey, ModuleResolutionEdge>} moduleResolutionEdges
+ * @property {ReadonlyMap<SourceDeliveryEdgeKey, SourceDeliveryEdge>} sourceDeliveryEdges
+ * @property {ReadonlyMap<BindingRefKey, BindingIdentity>} bindings
  * @property {ReadonlyMap<DefinitionRefKey, DefinitionRef>} definitions
  * @property {ReadonlyMap<CallableDefinitionRefKey, CallableDefinitionRef>} callableDefinitions
  * @property {ReadonlyMap<ActivationRefKey, ActivationRef>} activations
- * @property {ReadonlyMap<ValueRefKey, ValueKind>} valueFacts
- * @property {ReadonlyMap<SourceSpanId, ReadonlySet<CallableDefinitionRefKey>>} hostArgumentEdges - compatibility projection only; not the per-effect authority
- * @property {ReadonlyMap<SourceSpanId, ReadonlySet<DefinitionRefKey>>} reachingDefinitions
- * @property {ReadonlyMap<CallableDefinitionRefKey, ReadonlySet<CallableDefinitionRefKey>>} callTargets
+ * @property {ReadonlyMap<ValueRefKey, ValueRef>} values
+ * @property {ReadonlyMap<ValueRefKey, ValueFact>} valueFacts
+ * @property {ReadonlyMap<ValueFlowEdgeKey, ValueFlowEdge>} valueFlowEdges
+ * @property {ReadonlyMap<CallSiteRefKey, CallSiteRef>} callSites
+ * @property {ReadonlyMap<CallableDefinitionRefKey, ReadonlySet<CallableDefinitionRefKey>>} callTargets - derived compatibility summary only
+ * @property {ReadonlyMap<SourceSpanId, ReadonlySet<CallableDefinitionRefKey>>} hostArgumentEdges - derived compatibility projection only
  * @property {ReadonlyMap<HostEffectId, HostEffectRecord>} hostEffects
- * @property {ReadonlyMap<HostEffectId, ReadonlyArray<HostEffectValueEdge>>} valueEdges - separate trigger and observed-value edges
- * @property {ReadonlyMap<HostEffectId, ReadonlyArray<DynamicFrameEdge>>} activeFrameEdges - reverse dynamic-stack edges to function and non-function activation frames; distinct from value/call-target edges
- * @property {ReadonlyMap<string, HostContractRef>} hostContracts
- * @property {string|null} deploymentManifestId - HTML/loader/import-map/SRI/source-mirror manifest generation
- * @property {ReadonlyMap<SourceUnitRefKey, SourceUnitRefKey>} resolvedModuleGraph
- * @property {ReadonlyMap<SourceMirrorRefKey, SourceMirrorRef>} sourceMirrors - explicit source embedding/mirror provenance, not only a source-unit pointer
- * @property {ReadonlyMap<ReceiverRefKey, ReceiverRef>} receiverRefs - receiver origin, alias, realm and proxy-target identity
+ * @property {ReadonlyMap<HostEffectId, ReadonlyArray<HostEffectValueEdge>>} valueEdges
+ * @property {ReadonlyMap<HostEffectId, ReadonlyArray<ActiveFrameEdge>>} activeFrameEdges
+ * @property {ReadonlyMap<HostContractRefKey, HostContractRef>} hostContracts
+ * @property {string|null} deploymentManifestId
+ * @property {ReadonlyMap<SourceMirrorRefKey, SourceMirrorRef>} sourceMirrors
+ * @property {ReadonlyMap<SourceMirrorReadEdgeKey, SourceMirrorReadEdge>} sourceMirrorReadEdges
+ * @property {ReadonlyMap<ReceiverRefKey, ReceiverRef>} receiverRefs
  * @property {ReadonlyMap<SourceSpanId, ReadonlySet<ObservationEffect>>} effects
  * @property {ReadonlyMap<SourceSpanId, ReadonlySet<SourceSpanId>>} semanticClosures
  * @property {ReadonlySet<SourceSpanId>} unsupportedSpans
  */
 ```
 
-The `unknown` value types above are placeholders for the resolver's concrete JSDoc records, not a license to use untyped runtime values in production. The Stage 1 BindingId resolver is a tested read-only donor; its current-main focused bundle is 40 lexical fixtures / 10 groups, 150 Acorn/TypeScript comparisons, 16 native reference-role fixtures, 60 switch-scope comparisons and 12 source/closure edit controls. It has not yet been wired into production transformation passes.
+The schema separates five identities that must never be collapsed: BindingRef is lexical storage; DefinitionRef is a reaching write; ValueRef is an abstract runtime value; CallSiteRef is one invocation occurrence; HostEffectRecord is one implicit or explicit operation. A BindingId alone is never a graph-global identity. A function value may carry the HostHeldCallable capability while remaining a Callable category; this capability is not a mutually exclusive ValueKind. A host argument that is inspected but never invoked creates an observed-value edge and HostHeldCallable capability. A no-argument callback that inspects the active caller creates a separate ActiveFrameEdge. An unknown call's returned value is represented by ValueFlowEdge, not either of those edges.
+
+Mode/trust defaults are fixed by the threat model: COO/client, SCO/client and SNO/server are attacker-controlled; SCO/server is obfuscator-controlled. A declared-trusted premise is admissible only when an explicit, versioned HostContractRef supports it. A known runtime family/version or unshadowed global spelling is not such proof. Build artifacts are provenance, not a third runtime execution partition.
+
+ModuleResolutionEdge is per import occurrence; SourceDeliveryEdge represents the SCO server-to-client boundary and request-specific generation; SourceMirrorReadEdge connects an actual reader effect to the exact function/source mirror it observes. Function-source mirrors carry CallableDefinitionRef and SourceSpanId. The old callTargets, hostArgumentEdges and any source-unit adjacency map are derived compatibility projections, never the authoritative graph.
+
+Dispatch is split into receiver origin, member lookup route and effective operation status. ReceiverLookupRoute records inherited/own/captured/proxy/userland lookup; EffectiveDispatchStatus records local, verified native, overridden or unknown behavior; EffectiveOperationRef identifies the actual local callable or versioned host intrinsic. The old DispatchProvenance name is only a compatibility alias for ReceiverLookupRoute and must not be used for effective-operation status.
+
+The canonical event taxonomy uses one ProxyInternalMethod event with the exact one of 13 trap names in proxyTrapName. IteratorDispatch covers iteration for all receiver categories; PrimitiveIterator is not a separate event. IntrinsicCallbackDispatch is allowed only when the effective operation is verified under the relevant HostContractRef; a host override is not a native intrinsic merely because it has the same spelling. ToPrimitive/ToPropertyKey, PromiseResolve.GetThen, deferred thenable jobs and Promise handler dispatch remain distinct operations.
+
+ObservationEffect has four positive dimensions: ExactSource (callable source text), SourceBytes (distributed source-unit bytes/mirrors), FramePosition (observable coordinates), and CallableMetadata (name/length/identity metadata). UnknownHostEffect is an epistemic fallback, not a fifth positive observation. A proven ExactSource closure is callable-span scoped; SourceBytes closes over a source unit only when its mirror/URL provenance establishes that reader; FramePosition closes over coordinate-affecting edits; CallableMetadata closes over exposed metadata. These effects are independent.
+
+Runtime immutability is a separate implementation obligation: JSDoc ReadonlyMap/ReadonlySet and Object.freeze(Map) do not prevent Map/Set mutation. Keep backing maps/sets private behind closure or WeakMap lookup methods, expose only frozen records/arrays or immutable snapshots, and prevent input aliases or consumers from mutating plan state. Build a fresh plan for each SCO requestVariantGeneration; never share mutable backing state across concurrent requests.
+
+This is an architecture contract, not a production implementation or accepted security theorem. The current compiler has not wired this plan into any transform consumer. The fail-closed fallback remains mandatory until a single candidate demonstrates soundness and useful per-callable yield.
+
+The Stage 1 BindingId resolver is a tested read-only donor; its current-main focused bundle is 40 lexical fixtures / 10 groups, 150 Acorn/TypeScript comparisons, 16 native reference-role fixtures, 60 switch-scope comparisons and 12 source/closure edit controls. It has not yet been wired into production transformation passes.
 
 A single module-graph analysis should:
 1. resolve declaration/reference identities and roles;
