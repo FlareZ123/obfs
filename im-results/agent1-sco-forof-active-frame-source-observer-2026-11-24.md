@@ -18,6 +18,14 @@ Focused workflow: [45310430205](https://github.com/FlareZ123/obfs/actions/runs/4
 
 The test therefore confirms that the server-generated SCO CommonJS response can change the source of a private callable that a client/host callback captures during IteratorNext, while preserving ordinary return-value behavior and retaining unrelated property rewrite yield.
 
+## Additional SCO PromiseResolve result
+
+A second test, `test/agent1-sco-promise-resolve-source-observer.test.js`, uses the actual `createScoHandler` CommonJS response and a host-controlled sloppy thenable getter during `await`. The host captures the active async `hidden()` through V8 `Error.prepareStackTrace` / `CallSite.getFunction` and reads its source.
+
+Focused run [45313400478](https://github.com/FlareZ123/obfs/actions/runs/45313400478) fails exact-source parity on both Ubuntu and Windows (Node v22.23.4). Native source contains `owner.secretField`; emitted source contains `owner._pd323527a84`. The unrelated field is also renamed to `other._pdf573ed7a0`; both executions return 3. The positive-yield assertion executes before the source-parity red, so the mismatch is not a zero-yield artifact.
+
+This confirms SCO Node/CommonJS false-safe behavior for both synchronous IteratorNext and asynchronous PromiseResolve thenable assimilation. The new red run skips JSDoc by design; a passing focused run is still needed to typecheck the added test file.
+
 ## Script-mode boundary
 
 Follow-up classic-script controls are recorded in `im-results/agent1-classic-script-forof-source-parity-2026-11-24.md`. The actual SCO handler emits the classic-script fixture byte-for-byte unchanged on Ubuntu and Windows (run `45312801137`); the unobserved `safeLocal` identifier is also unchanged. This is consistent with `src/core.js` skipping the property pass for `sourceType === 'script'`, but the test also shows zero identifier yield for this fixture. It is therefore a no-op, not evidence that the property proof safely handles IteratorNext while still producing obfuscation yield. The classic-script execution used Node VM, not Chromium. The confirmed SCO mismatch is specifically the Node/CommonJS handler path. Strict ESM and browser DevTools/debugger behavior remain separate.
