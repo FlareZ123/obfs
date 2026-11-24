@@ -350,7 +350,7 @@ The canonical plan now carries a typed `ReceiverRef` plus receiver and dispatch 
 Agent 19's DOM/HTML parser/stream matrix and Agent 1's CSSOMString matrix are useful intermediate test donors, but their compiler source blobs are not current-main: the DOM donor differs in `src/ast.js`, `src/properties.js` and `src/cross-properties.js`; the CSSOM donor additionally differs in `src/core.js`. Rebase only harness/config onto an exact current-main base and rerun before claiming current-main coverage. Do not create a second DOM-specific resolver; feed these sink families through the single SourceObservationPlan's ReceiverRef, DispatchProvenance, WebIDLStringConversion and value/source closure edges. Trusted Types, Firefox/WebKit and current-main CSSOM/HTML revalidation remain open.
 
 
-## Addendum (24 November 2026, 04:45 UTC): HostHeldCallable source-observation gap and graph-schema correction
+## Addendum (24 November 2026, after 04:38 UTC): HostHeldCallable source-observation gap and graph-schema correction
 
 **Current main at refresh:** 3e7b260b3e7febb3178cc5bc5ee87aa083e0d654. The authoritative carrier/effect contract was corrected in commit 3e7b260b3e7febb3178cc5bc5ee87aa083e0d654 and refined through latest schema commit 9db0103430017467237050910cde1a17a3de2e9e; its v2 schema supersedes the earlier incomplete typedef block. This is still a proposal, not a production plan module.
 
@@ -388,7 +388,7 @@ The v2 contract accepts the ten consolidated review issues: (1) separate receive
 Do not port a pass-local queueMicrotask or host-call spelling veto. The next candidate must consume one immutable, source-generation-qualified plan across property, identifier, string, cross-file, SCO request-time and experimental backend consumers. It must demonstrate per-callable closure and unrelated positive yield, plus COO browser, actual SCO handler/browser, and SNO CLI/Node coverage. Agent 3 remains integration owner; Agent 10 remains the sole comprehensive acceptance owner. Preserve the focused red/green donors and do not run the full gate until one exact current-main candidate is frozen.
 
 
-## Addendum (24 November 2026, 04:50 UTC): SCO callable partition eligibility and well-known Symbol identity
+## Addendum (24 November 2026, after 04:38 UTC): SCO callable partition eligibility and well-known Symbol identity
 
 Agent 9's selected-server SCO partition boundary is now independently validated with digest preflight. Runs [45326434167](https://github.com/FlareZ123/obfs/actions/runs/45326434167) and [45327228394](https://github.com/FlareZ123/obfs/actions/runs/45327228394) passed on Ubuntu and Windows with strict JSDoc. The handler withholds the private engine/leaf modules and serves a generated facade; the client host can read facade Function#toString without invoking it. This demonstrates the confidentiality boundary but also a strict-source-semantics incompatibility: facade source differs from the original server callable. Under strict 1:1 semantics, a callable with a client HostHeldCallable/ExactSource observer must be ineligible for server partitioning; unknown client observer reachability fails closed. The v2 contract now models this as per-callable ScoPartitionEligibility over the full client module graph. Request-time mutation of delivered client source remains a separate SCO transform-consumer issue.
 
