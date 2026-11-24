@@ -44,6 +44,21 @@ A source-paired coordinate control ran the same function shape in two fresh VM c
 
 The deferred Promise handler control intentionally runs after `hiddenPromiseThen` has returned and does not inherit that caller frame. This does not establish that a Promise implementation cannot inspect a callback argument; host-held callable escape remains a separate edge.
 
+
+
+## Current-main COO/SNO compiler differential
+
+A focused diagnostic test-only run now checks these callback paths through the actual current-main `obfuscateFiles` property pipeline. Test file: `test/agent3-native-intrinsic-callback-dispatch-transform.test.js`; branch commit: `be3351d7d94d5079ecb87131b1bbefa495af18d0`. The production inputs are unchanged source blobs:
+- `src/ast.js`: `c227e6e604635a42663af745fd0cfb194b215a67`
+- `src/properties.js`: `bda3c6097e2679f59bd003fa0aed3e0291d4ba4c`
+- `src/core.js`: `8d33996821650de540b87502baff00a9e7ea99c7`
+
+Focused manual-validation run [45315861729](https://github.com/FlareZ123/obfs/actions/runs/45315861729) completed successfully on Ubuntu and Windows (Node 22.23.4). All **16 diagnostic controls** passed (8 callback operations × COO/SNO). Each control requires positive property rewrite yield, renaming of the unrelated `plain()` field, unchanged returned value, and a changed observation:
+- JSON replacer/reviver: exact `hidden()` source differs after owner-key rewriting;
+- JSON `toJSON`, Array sort, String replace, Array map, Map forEach and Array.from mapFn: the observed active `hidden()` frame column differs after the preceding owner-key rewrite.
+
+Both OS also passed strict project JSDoc, strict external JSDoc and the paired/complete-suite runtime-budget evaluator JSDoc. This is current-main Node/CommonJS COO/SNO evidence for these eight callback paths; it is not a browser or SCO result, and it is not a full suite or performance-budget acceptance run. The test asserts the diagnostic mismatch on purpose; it is a red-first regression candidate, not a release test that should remain green after a fix.
+
 ## Integration implication
 
 The shared plan needs a distinct `IntrinsicCallbackDispatch` (or equivalently structured event) for a verified native intrinsic that invokes user code. A record should identify the effective intrinsic/method, receiver, callback argument or object-provided method, callback position, synchronous/deferred timing, dispatch provenance and the relevant host contract. It should create:
@@ -56,7 +71,7 @@ Do not treat a familiar spelling such as `JSON.stringify`, `Array.prototype.map`
 ## Limitations
 
 - Node/V8 v22.16.0 only; no browser or other engine result.
-- No current-main obfuscator differential was run. The manual 63→41 pair demonstrates a coordinate channel, not a compiler regression.
+- A focused current-main COO/SNO differential is recorded above. No browser or SCO differential, broad full-suite acceptance or performance-budget result was run.
 - Exact source was established only for the two JSON replacer/reviver sloppy caller-chain cases.
 - The other synchronous cases establish stack name/position only in this harness; `CallSite.getFunction()` was false.
 - Promise.then is an asynchronous no-active-frame control; callback argument inspection is not tested here.
