@@ -424,3 +424,11 @@ These controls require two independent proofs: (1) the actual key value and use-
 
 Agent 9 additionally exercised the actual SNO CLI for one CommonJS entry: invoke bin/sno.js with root/out/entry/seed, execute emitted sno-entry.cjs under a Node preload whose queueMicrotask observer reads callback source without invoking it. The default identifier transform changes hidden(inputValue) source while stdout remains done. [Run 45328981265](https://github.com/FlareZ123/obfs/actions/runs/45328981265) passed on Ubuntu and Windows with strict project/external/paired-budget JSDoc. Eight implementation blobs at witness commit 44c3d2b279638960ed52d7ab8064296352994ca3 match current main. This closes the focused single-entry SNO CLI/default-identifier gap; SNO string encoding has only the launcher-API witness 45328512061, and full CLI/package/multi-file SNO remains open.
 
+
+
+## Addendum (24 November 2026, after 04:52 UTC): actual SCO browser-handler witness
+
+Agent 1/Agent 9's updated evidence now exercises the real SCO server-delivery path in Chromium. createScoHandler serves entry.mjs and helper.mjs; the entry imports a factory returning private hidden and passes it to a page-owned queueMicrotask override. Chromium records Function#toString without invoking the callback; the native control sees the original parameter spelling while the SCO-delivered module exposes a changed spelling and loads successfully. [Run 45329160079](https://github.com/FlareZ123/obfs/actions/runs/45329160079) succeeded with Chromium on Ubuntu; Windows browser execution is intentionally skipped because Chromium is provisioned only on the Ubuntu runner. Both OS jobs passed strict project/external/paired-budget JSDoc. Six relevant compiler blobs at witness commit 4e87e451192f51235b47f9fb740c62bf7b49b2d8 (ast, properties, identifiers, strings, core, SCO) match current main.
+
+The three mode boundaries now have focused runtime witnesses: COO Chromium host override 45325672865; actual SCO createScoHandler Chromium delivery 45329160079; actual SNO bin/sno.js single-entry CLI 45328981265. This does not close the full multi-file SNO launcher/package path, SNO CLI string-transform path, or the complete 2.5x performance/hostile-runtime acceptance. The SNO multi-file callback path remains the next requested test-only extension.
+
