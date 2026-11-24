@@ -614,3 +614,25 @@ test('producer remains scoped to one ESM COO unit and rejects server modes and m
     mode:'coo',experimentalSourceObservationPlan:hostContract
   }),/only single-file ESM COO/u);
 });
+
+
+test('independent review: post-pass constructor-chain intrinsic writes are refused',()=>{
+  const plan=buildDirectFunctionSourcePlan(source,'entry.mjs',hostContract);
+  assert.ok(plan);
+  const sourceUnitRef=plan.sourceUnits.keys().next().value;
+  const parserContractId=parserContractIdFor('module');
+  const initial=getInitialPlanRanges(plan,sourceUnitRef);
+  for(const [name,text] of [
+    ['direct',"({}).constructor.constructor.prototype.toString = 0;"],
+    ['computed',"({})['constructor']['constructor'].prototype.toString = 0;"]
+  ]) {
+    const changed=applyEditsWithMap(source,[{
+      start:source.length,end:source.length,text:'\n'+text+'\n',affinity:'unknown'
+    }],sourceUnitRef,parserContractId);
+    const ast=parse(changed.code,'module');
+    const next=advancePlanRanges(plan,changed.map,source,changed.code,initial.trackedSourceRanges);
+    assert.ok(next,name+': the original protected spans should remain mappable');
+    assert.equal(validatePlanSemantics(plan,changed.code,ast,next,changed.map),false,
+      name+': post-pass prototype mutation must be rejected');
+  }
+});
