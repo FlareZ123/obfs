@@ -518,6 +518,8 @@ function proveLocalObject(ast, rootName, bindings, importedIdentityFunctions=new
   // Unknown indexes, mutation, reflection and all holder escapes retain
   // original keys.
   const holderIdentifierUses=identifierUses;
+  /** @type {Set<string>} */
+  const privateCarrierAliases=new Set();
   /** @type {Map<string,{indices:Set<number>}>} */
   const privateOwnerTuples=new Map();
   /** @type {Set<AstNode>} */
@@ -562,10 +564,32 @@ function proveLocalObject(ast, rootName, bindings, importedIdentityFunctions=new
         parent.computed&&parent.property.type==='Literal'&&
         typeof parent.property.value==='number'&&indices.has(parent.property.value);
       const receiver=read?parents.get(parent):null;
-      if(!ancestors.includes(scope)||!read||
-         receiver?.type!=='VariableDeclarator'||receiver.init!==parent||
-         receiver.id.type!=='Identifier'||bindings.get(receiver.id.name)!==1||
-         !declarationSet.has(receiver)){
+      let destructured=false;
+      if(parent?.type==='VariableDeclarator'&&key==='init'&&parent.init===entry.node&&
+         parent.id.type==='ArrayPattern'&&
+         parents.get(parent)?.type==='VariableDeclaration'&&
+         parents.get(parent)?.kind==='const'&&declarationSet.has(parent)){
+        const pattern=parent.id;
+        let safePattern=pattern.elements.length<=elements.length;
+        let selectedOwner=false;
+        for(let slot=0;safePattern&&slot<pattern.elements.length;slot++){
+          const element=pattern.elements[slot];
+          if(element===null)continue;
+          if(element.type!=='Identifier'||bindings.get(element.name)!==1){
+            safePattern=false;
+            break;
+          }
+          if(indices.has(slot)){
+            privateCarrierAliases.add(element.name);
+            selectedOwner=true;
+          }
+        }
+        destructured=safePattern&&selectedOwner;
+      }
+      if(!ancestors.includes(scope)||(!read&&!destructured)||
+         read&&(receiver?.type!=='VariableDeclarator'||receiver.init!==parent||
+           receiver.id.type!=='Identifier'||bindings.get(receiver.id.name)!==1||
+           !declarationSet.has(receiver))){
         valid=false;
         break;
       }
@@ -638,10 +662,35 @@ function proveLocalObject(ast, rootName, bindings, importedIdentityFunctions=new
       const read=parent?.type==='MemberExpression'&&key==='object'&&!parent.optional&&
         propertyName!==null&&ownedKeys.has(propertyName);
       const receiver=read?parents.get(parent):null;
-      if(!ancestors.includes(scope)||!read||
-         receiver?.type!=='VariableDeclarator'||receiver.init!==parent||
-         receiver.id.type!=='Identifier'||bindings.get(receiver.id.name)!==1||
-         !declarationSet.has(receiver)){
+      let destructured=false;
+      if(parent?.type==='VariableDeclarator'&&key==='init'&&parent.init===entry.node&&
+         parent.id.type==='ObjectPattern'&&
+         parents.get(parent)?.type==='VariableDeclaration'&&
+         parents.get(parent)?.kind==='const'&&declarationSet.has(parent)){
+        const pattern=parent.id;
+        const selectedKeys=new Set();
+        let safePattern=pattern.properties.length>0;
+        for(const property of pattern.properties){
+          if(property.type!=='Property'||property.kind!=='init'||property.computed||
+             property.method||property.shorthand||property.value.type!=='Identifier'){
+            safePattern=false;
+            break;
+          }
+          const keyName=staticName(property.key);
+          if(keyName===null||!ownedKeys.has(keyName)||selectedKeys.has(keyName)||
+             bindings.get(property.value.name)!==1){
+            safePattern=false;
+            break;
+          }
+          selectedKeys.add(keyName);
+          privateCarrierAliases.add(property.value.name);
+        }
+        destructured=safePattern&&selectedKeys.size>0;
+      }
+      if(!ancestors.includes(scope)||(!read&&!destructured)||
+         read&&(receiver?.type!=='VariableDeclarator'||receiver.init!==parent||
+           receiver.id.type!=='Identifier'||bindings.get(receiver.id.name)!==1||
+           !declarationSet.has(receiver))){
         safe=false;
         break;
       }
@@ -744,7 +793,7 @@ function proveLocalObject(ast, rootName, bindings, importedIdentityFunctions=new
     if(privateValue)privateFunctionNodes.add(binding.node);
   }
 
-  const aliases = new Set([rootName]);
+  const aliases = new Set([rootName,...privateCarrierAliases]);
   /**
    * Return the only alias fact needed to resolve an expression. A null result
    * is already proved from this root through a private carrier or captured
@@ -787,7 +836,7 @@ function proveLocalObject(ast, rootName, bindings, importedIdentityFunctions=new
   /** @type {Map<string,{target:string,remaining:Set<string>}[]>} */
   const aliasWatchers=new Map();
   /** @type {string[]} */
-  const pending=[rootName];
+  const pending=[...aliases];
   /** @param {string} name @returns {boolean} */
   function addAlias(name) {
     if(aliases.has(name))return false;
