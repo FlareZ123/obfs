@@ -727,3 +727,32 @@ A host member spelling is never sufficient to create a Web IDL sink. The shared 
 `ReceiverRef` preserves the originating realm binding, host interface, realm, alias relation and Proxy target. The `HostEffectRecord` carries both a stable receiver ref and the effective operation identity/dispatch state, with `HostContractRef` proving the native interface/method/accessor premise. For example, a captured `Storage.prototype.setItem` alias remains `captured-native` even after the prototype is patched; an own `setItem` override is `own-data` or `own-accessor`; a same-named userland object is `userland`; a Proxy that forwards with the genuine target as receiver is `proxy-forwarded-native`. A Proxy that stores the function reference is not a native Storage conversion.
 
 The same lattice applies to DOM setters, CSSOM setters, Window.name, Storage named properties and method sinks. The lattice is evidence, not a name heuristic: unresolved receiver or dispatch state remains `unknown` and takes the conservative fallback.
+
+
+### Actual current-main SCO request-time Storage result
+
+Agent 19 has now closed the single-file actual-handler gap with a real Chromium request-time witness: [report](../im-results/agent19-sco-create-handler-storage-source-2026-11-23.md), [focused run 45276781187](https://github.com/FlareZ123/obfs/actions/runs/45276781187). The actual `createScoHandler` route served two distinct allowed-Host variants (200/200) and rejected a disallowed Host (403; routing only, not authentication). The browser executed each exact response beside the native ESM source.
+
+The witness covers:
+- a function passed to native Storage.setItem argument 0 (key) and argument 1 (value);
+- a captured `Storage.prototype.setItem` alias invoked through `Reflect.apply`;
+- a same-named userland `setItem` that retains the function reference and preserves private renaming.
+
+Native Storage readback exposed the original `Function#toString` source; both per-request SCO variants exposed different rewritten source. Numeric result 29, marker runtime value and unrelated helper result 7 were preserved. The userland control returned 11 and retained its private rewrite. The handler measured `observesFunctionSource(parse(source,'module')) === false`; its single-file group bypasses the group-level interfile observer, then the request-time literal pass and identifier/property transforms mutate the source.
+
+All relevant implementation blobs in the Agent 19 SCO branch match current main: `src/ast.js` `c227e6e604635a42663af745fd0cfb194b215a67`, `src/core.js` `8d33996821650de540b87502baff00a9e7ea99c7`, `src/sco.js` `c8f98b553172426559b21abaf0dc9a4fc3ea068e`, `src/properties.js` `bda3c6097e2679f59bd003fa0aed3e0291d4ba4c`, `src/identifiers.js` `c7e2ed1469381c5bc6dc42cef9a6ca8bfa347f0f`, `src/cross-properties.js` `7298df722d65f545dcb7b55c81cb6b8e101ce6b7`, and `src/strings.js` `df489cf25a8aaeb87d90e6dc1b7eb66476da8dd6`. Thus this is current-main actual SCO handler evidence for one single-file ESM case.
+
+This extends Storage evidence from same-file COO Chromium to actual SCO request-time Chromium. It does **not** establish SNO Storage, multi-file SCO, Storage named-property assignment, all own/prototype overrides or all call/apply/bind variants. The earlier statement that no SCO Storage result existed is superseded; Window.name remains COO-only in the current evidence set.
+
+
+## Additional DOM/HTML/CSSOM sink donors: current-main status must be revalidated
+
+Agent 19's `workplace/dom-source-observation-capability-graph.md` and its intermediate matrices provide a valuable sink/receiver donor: DOM Web IDL property setters, `insertAdjacentHTML` argument 1, DOMParser/Range parser methods, 23 modern HTML parsing/streaming methods, writer aliases/pipeTo, Document.write/writeln yield cost, and CSSOMString setters. Agent 1's CSSOM donor adds HTML Element.style, SVGElement.style and CSSStyleRule.style receivers, direct/computed/bound/Reflect.apply/detached/aliased calls, cross-file ESM, and ordinary userland/primitive positives.
+
+These donors must not become a second resolver or be represented as current-main validation without source re-pinning:
+- Agent 19 DOM/HTML matrix branch has `src/ast.js` `eea89ceb890cf190deb714751158a055c6cb2224`, `src/properties.js` `5748e5b27146fe8a0b2937b0ad6b4bc4382ebe6f`, and `src/cross-properties.js` `adb626c7533ac08cc51823b10bdbd9b09d966149`; current main is respectively `c227e6e604635a42663af745fd0cfb194b215a67`, `bda3c6097e2679f59bd003fa0aed3e0291d4ba4c`, and `7298df722d65f545dcb7b55c81cb6b8e101ce6b7`.
+- Agent 1 CSSOM branch has `src/ast.js` `8f902c171c30fcc12d87204b1857f7ca39d46d3f`, `src/core.js` `a2b689b00050653ebc506b3d1be1d014bad38412`, `src/properties.js` `5748e5b27146fe8a0b2937b0ad6b4bc4382ebe6f`, and `src/cross-properties.js` `e011e81e60df08cd8c169120c0532448cb8d8cbf`, all different from current main.
+
+The old `observesFunctionSource` implementation differs from current main by caller/callee source-observer checks; `src/properties.js` has added direct-invoked-arrow/source-privacy logic; `src/cross-properties.js` has added static string-selector metadata. These differences can affect both detection and positive yield. Rebase only the test harnesses/configuration onto one exact current-main base and rerun before candidate acceptance. The current plan should consume these sink families through the same `HostEffectRecord`/`ReceiverRef`/`DispatchProvenance`/value-closure graph, not through a parallel DOM-specific resolver.
+
+For CSSOM, use `WebIDLStringConversion` with interface `CSSStyleDeclaration`, conversion target `CSSOMString`, argument index 1, proven style receiver and effective `setProperty` identity. For HTML parser APIs, distinguish attribute setters, method argument positions, TrustedHTML/DOMString unions, and asynchronous stream writer value flow. Preserve the primitive/literal and same-named userland positives. Trusted Types CSP/default-policy behavior, Firefox/WebKit, and current-main revalidation remain open.
