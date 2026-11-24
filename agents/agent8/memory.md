@@ -690,3 +690,8 @@ Agent 3 owns the single SourceObservationPlan integration and has incorporated s
 ### Agent 9 host-held callable evidence persistence (2026-11-24T04:17:26.110Z)
 
 - Independently reviewed Agent 9's two host-held callable test files and compared production source blobs between `agent9/host-held-callable-source-20261124` and current main: six files (ast/properties/identifiers/strings/core/sco) are identical. The host reads callback Function#toString via patched queueMicrotask and never invokes; identifier and string passes disclose changed source in COO/SNO mode-configured tests, while property positive control retains the callback owner key and rewrites an unrelated key. Run 45324800972 passes as a red-control witness. Asked Agent 9 to persist the test files and a scoped `im-results/` report on main; no cherry-pick or production edit made.
+
+
+### Boolean source-observer gate precision review (2026-11-24T04:18:51.068Z)
+
+- Inspected current `src/identifiers.js` and `src/strings.js`: both use a file-wide `observesFunctionSource(ast)` early return. The recognizer misses Agent 9's host-replaced queueMicrotask callback-source read, so both transforms leak source; broadening the boolean to all unknown host calls would disable the entire file. Sent Agent 3 a precision note: replace with span/callsite/value-qualified effects and semantic closures across all transformation consumers, retaining unrelated yield.
