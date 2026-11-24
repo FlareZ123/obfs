@@ -59,7 +59,7 @@ const entry={
   ].join('\n')
 };
 
-for(const mode of /** @type {const} */ (['coo','sno'])){
+for(const mode of /** @type {const} */ (['coo','sco','sno'])){
   test(mode+' cross-file red control: imported factory return leaks private callback parameter source',async()=>{
     const helper={
       path:'helper.mjs',sourceType:'module',
