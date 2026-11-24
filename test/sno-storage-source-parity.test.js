@@ -18,17 +18,17 @@ const supportsExperimentalWebStorage=nodeMajor>22 ||
  * Run one CommonJS program with Node's opt-in native Web Storage implementation.
  * @param {string} entry
  * @param {string} storageFile
- * @returns {{nativeDispatch:boolean,stored?:string|null,keySource?:string|null,valueSource?:string|null,propertyValue?:string|null,length?:number,value:number,independent:number}}
+ * @param {string} [preloadFile]
+ * @returns {{nativeDispatch?:boolean,stored?:string|null,keySource?:string|null,valueSource?:string|null,propertyValue?:string|null,length?:number,methodCalls?:number,value:number,independent:number}}
  */
-function runWithWebStorage(entry,storageFile) {
-  const child=spawnSync(process.execPath,[
-    '--experimental-webstorage',
-    '--localstorage-file='+storageFile,
-    entry
-  ],{encoding:'utf8',timeout:15000});
+function runWithWebStorage(entry,storageFile,preloadFile) {
+  const args=['--experimental-webstorage','--localstorage-file='+storageFile];
+  if(preloadFile)args.push('--require',preloadFile);
+  args.push(entry);
+  const child=spawnSync(process.execPath,args,{encoding:'utf8',timeout:15000});
   assert.equal(child.error,undefined,String(child.error??''));
   assert.equal(child.status,0,child.stderr);
-  return /** @type {{nativeDispatch:boolean,stored?:string|null,keySource?:string|null,valueSource?:string|null,propertyValue?:string|null,length?:number,value:number,independent:number}} */(
+  return /** @type {{nativeDispatch?:boolean,stored?:string|null,keySource?:string|null,valueSource?:string|null,propertyValue?:string|null,length?:number,methodCalls?:number,value:number,independent:number}} */(
     JSON.parse(child.stdout)
   );
 }
@@ -216,6 +216,7 @@ test('SNO Node Web Storage named-property setter exposes callable source indepen
     'localStorage.snoNamedSource=inspect;',
     'const result={stored:localStorage.getItem("snoNamedSource"),',
     '  propertyValue:localStorage.snoNamedSource,length:localStorage.length,',
+    '  methodCalls:globalThis.__setItemCalls,',
     '  value:inspect(),independent:independent()};',
     'process.stdout.write(JSON.stringify(result));'
   ].join('\n');
@@ -240,12 +241,19 @@ test('SNO Node Web Storage named-property setter exposes callable source indepen
   const root=await fs.mkdtemp(path.join(os.tmpdir(),'obfs-sno-webstorage-named-'));
   try {
     const packages=await writeSnoPackages(root,source,protectedCode);
-    const native=runWithWebStorage(packages.nativeLauncher,packages.nativeStorage);
-    const emitted=runWithWebStorage(packages.protectedLauncher,packages.protectedStorage);
+    const preloadFile=path.join(root,'preload.cjs');
+    await atomicWrite(preloadFile,[
+      'globalThis.__setItemCalls=0;',
+      'Storage.prototype.setItem=function(){globalThis.__setItemCalls++;};'
+    ].join('\n'));
+    const native=runWithWebStorage(packages.nativeLauncher,packages.nativeStorage,preloadFile);
+    const emitted=runWithWebStorage(packages.protectedLauncher,packages.protectedStorage,preloadFile);
     assert.equal(native.stored,native.propertyValue);
     assert.equal(emitted.stored,emitted.propertyValue);
     assert.equal(native.length,1);
     assert.equal(emitted.length,1);
+    assert.equal(native.methodCalls,0,'named setter must bypass patched Storage.prototype.setItem');
+    assert.equal(emitted.methodCalls,0,'named setter must bypass patched Storage.prototype.setItem');
     assert.ok(native.stored?.includes('privateLocal'));
     assert.ok(emitted.stored && !emitted.stored.includes('privateLocal'));
     assert.notEqual(native.stored,emitted.stored);
