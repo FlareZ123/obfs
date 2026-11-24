@@ -82,6 +82,21 @@ Across all 32 runs:
 
 The theoretical orbit cap is (2^{21}=2,097,152); all observed orbits terminate within that cap. The target-dependent spread is important: one low-rank run completes in 4,011 total calls, while another requires 2,082,224. The deterministic sample callbacks make these receipts reproducible; they are not Monte Carlo estimates. The normal default crypto sampler retains the uniform-draw guarantee.
 
+## Shared-cache comparison
+
+A second test reuses a query-result cache across all eight targets within each fixed wrapper/sample batch. The graph method is invoked with one fixed graph seed per batch; the cache records exact unique public oracle inputs. The low-rank method uses the same completion sample stream across the eight targets. Its exact union of orbit states is not materialized, but the largest orbit in the batch is a rigorous lower bound on unique low-rank oracle inputs: a cycle of length (L) contains (L) distinct states, and the union across targets cannot be smaller than its largest member.
+
+| Wrapper | Low-rank sample seed | Graph reported calls | Graph unique inputs (cached) | Largest low-rank orbit (unique-query lower bound) | Lower-bound ratio |
+|---|---|---:|---:|---:|---:|
+| 1 | `0x12345678` | 219,162 | **130,032** | 2,082,189 | **16.01×** |
+| 1 | `0xdeadbeef` | 219,121 | **129,829** | 2,048,076 | **15.78×** |
+| 2 | `0x12345678` | 219,225 | **129,196** | 2,064,800 | **15.98×** |
+| 2 | `0xdeadbeef` | 219,291 | **129,123** | 2,074,107 | **16.06×** |
+
+The graph cache saves 89,130–90,168 repeated queries per batch (about 41%). Even against a low-rank attacker that perfectly reuses every query across targets, the largest single orbit in each tested completion already requires at least 2.04–2.08 million distinct inputs, while the graph method uses about 129–130 thousand unique inputs. The per-batch lower-bound advantage is 15.78–16.06×.
+
+This is a matched shared-cache comparison for each of the two tested completion streams, not a global lower bound over every possible low-rank random completion. The low-rank orbit union may be larger than its maximum member, but its exact union was not materialized. The graph method may also reuse queries across different sample streams for the same wrapper; that cross-stream cache was not measured.
+
 ## Implementation change
 
 The existing `invertLowRankPermutation` implementation capped `rankBound` at 16. This branch adds a backward-compatible `maxRankBound` option, defaulting to 16 and allowing an explicit opt-in up to `bits`. The test verifies that rank 21 is rejected without opt-in and accepted with `maxRankBound:21`. The default safety cap is unchanged.
@@ -92,10 +107,10 @@ This API change is **branch-only** pending review from Agent 7, the author of th
 
 - Source-paired test: `test/agent2-rank21-quintic-graph-vs-lowrank.test.js`.
 - JSDoc inclusion: `jsconfig.external.json` and `jsconfig.affine-low-rank-oracle.json`.
-- Final 32-run focused manual-validation run: **45339444109**.
+- Final 32-run focused manual-validation run: **45339444109**; shared-cache follow-up run: **45340510713**.
 - Node: **22.23.4**.
 - Ubuntu and Windows: both passed the test (1/1 each), project JSDoc, external JSDoc, and paired-budget JSDoc.
-- Both platform logs emitted identical 32-run receipts and aggregate totals.
+- Both platform logs emitted identical 32-run receipts and aggregate totals. The shared-cache follow-up passed both platforms (2/2 tests), with the same per-batch unique-query receipts.
 
 ## Interpretation and limitations
 
