@@ -1,0 +1,29 @@
+name: Manual SNO multi-file HostHeldCallable regression
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  host-held-multifile:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install declared dependencies
+        run: npm install --no-package-lock --ignore-scripts
+      - name: Execute actual multi-file SNO CLI source-observation witness
+        run: node --test test/agent1-sno-multifile-host-held-cli.test.js
+      - name: Strict project JSDoc
+        run: npm run typecheck
+      - name: Strict external research JSDoc
+        run: npm run typecheck:external
