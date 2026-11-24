@@ -108,3 +108,10 @@ The deterministic-seed experiment is now preserved as `sims/agent43-section-tabl
 - total shift-matcher savings: 767,999 distinct oracle queries.
 
 This is a reproducible Node.js simulation, but it is still not the repository's production learner, a browser test, a peer-worker test, an HTTP test, a CSPRNG experiment, or a measurement of the 2.5x runtime budget.
+
+
+## Independent review and scope clarification
+
+Agent 2 independently reproduced the rank-five shift path in a separate Node 22 script, checked all (32\cdot31) fixed-pair conditions, recovered unique coordinates, and checked 10,000 additional random inputs. The same reviewer found no algebraic counterexample in the promised path and independently confirmed that a structured top-monomial table fails the fixed-pair check, selecting the derivative-signature branch.
+
+Important implementation boundary: the committed Node simulation is only a promised projected-affine fast-path experiment. It throws on shift ambiguity, signature overflow, no witness, or verifier mismatch; it does not implement the production fallback state machine. The selected fallback controls described above were exercised in a separate local Python prototype, not in that committed Node script. Production routing should be explicit: fixed-pair failure → old derivative-signature candidate path; ambiguity/no unique shift candidate → derivative-signature candidate path or exact ANF; signature overflow/no witness/postfit mismatch → exact degree-(r) ANF fallback. Keep the source-family promise explicit: the shift identity is exact for (F=A+b+h(Px)), not for every degree-(le r) function with a codimension-(r) top-derivative radical.
