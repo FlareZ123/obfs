@@ -101,7 +101,7 @@ test('mutable aliases and reassigned function bindings are not trusted call edge
 
 test('classic-script global function declarations are not treated as immutable lexical call targets',()=>{
   const globalMutation=analyze(
-    'function helper(){return 1;}globalThis.helper=getExternal;function caller(){helper();}',
+    'function helper(){return 1;}globalThis.helper=getExternal;const caller=()=>helper();',
     'script'
   );
   assert.equal(named(globalMutation,'caller')[0].ambient,true);
