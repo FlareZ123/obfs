@@ -20,14 +20,15 @@ const source=[
  * exported method through the same Function#toString surface available to
  * an external module.
  * @param {string} code
+ * @param {string} [importer]
  * @returns {Promise<{methodSource:string,value:number}>}
  */
-async function inspectExportedInstance(code){
+async function inspectExportedInstance(code,importer='import {reader} from "./reader.mjs";'){
   const root=await fs.mkdtemp(path.join(os.tmpdir(),'obfs-private-instance-'));
   try{
     await atomicWrite(path.join(root,'reader.mjs'),code);
     await atomicWrite(path.join(root,'entry.mjs'),[
-      'import {reader} from "./reader.mjs";',
+      importer,
       'process.stdout.write(JSON.stringify({methodSource:reader.read.toString(),value:reader.read()}));'
     ].join('\n'));
     const child=spawnSync(process.execPath,[path.join(root,'entry.mjs')],{
@@ -60,5 +61,62 @@ for(const mode of /** @type {Array<'coo'|'sno'|'sco'>} */ (['coo','sno','sco']))
       mode+': the exported method must preserve its computed result');
     assert.equal(emitted.methodSource,native.methodSource,
       mode+': Function#toString must remain byte-identical');
+  });
+}
+
+
+const exportAliasShapes=[
+  {
+    label:'named export specifier',
+    code:[
+      'const owner={privateField:7};',
+      'class Reader{read(){return owner.privateField;}}',
+      'const reader=new Reader();',
+      'export {reader};'
+    ].join('\n'),
+    importer:'import {reader} from "./reader.mjs";'
+  },
+  {
+    label:'default export',
+    code:[
+      'const owner={privateField:7};',
+      'class Reader{read(){return owner.privateField;}}',
+      'const reader=new Reader();',
+      'export default reader;'
+    ].join('\n'),
+    importer:'import reader from "./reader.mjs";'
+  },
+  {
+    label:'renamed export alias',
+    code:[
+      'const owner={privateField:7};',
+      'class Reader{read(){return owner.privateField;}}',
+      'const reader=new Reader();',
+      'const publicReader=reader;',
+      'export {publicReader as reader};'
+    ].join('\n'),
+    importer:'import {reader} from "./reader.mjs";'
+  }
+];
+
+for(const mode of /** @type {Array<'coo'|'sno'|'sco'>} */ (['coo','sno','sco'])){
+  test(mode+' indirect export forms must also refuse private class-instance proof',async()=>{
+    for(const shape of exportAliasShapes){
+      const native=await inspectExportedInstance(shape.code,shape.importer);
+      const transformed=obfuscateFiles([{
+        path:'reader.mjs',sourceType:'module',code:shape.code
+      }],{
+        mode,seed:'private-class-export-alias/'+mode+'/'+shape.label,
+        properties:true,identifiers:false,strings:false
+      });
+      const output=transformed.files.find(file=>file.path==='reader.mjs');
+      assert.ok(output,shape.label+': module must remain present in '+mode);
+      assert.equal(output.metrics.properties,0,
+        mode+'/'+shape.label+': exported instance must not qualify as private');
+      const emitted=await inspectExportedInstance(String(output.code),shape.importer);
+      assert.equal(emitted.value,native.value,mode+'/'+shape.label+': behavior parity');
+      assert.equal(emitted.methodSource,native.methodSource,
+        mode+'/'+shape.label+': Function#toString parity');
+    }
   });
 }
