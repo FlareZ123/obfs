@@ -42,7 +42,7 @@ A second robustness sweep uses eight distinct affine wrappers, the same 16 sampl
 | 32 | 128 | 1,024 | 1,018/1,024 | 124/128 | 2,342,073 |
 | 48 | 128 | 1,024 | 1,024/1,024 | 128/128 | 3,488,944 |
 
-The 48-sample setting is the better tested operating point for this fixture: it verified all 1,024 targets over eight wrappers and 16 sample seeds. This is empirical evidence, not a universal sample-complexity guarantee. It should not be generalized to other source families without new validation.
+The 48-sample setting is the better tested operating point for this fixture: it verified all 1,024 targets over eight wrappers and 16 sample seeds. This is empirical evidence, not a universal sample-complexity guarantee. It should not be generalized to other source families without new validation. On the four batches matched to the current-main graph baseline (the first two wrappers and first two sample seeds), 48-sample differential learning used 109,002 cached queries versus 448,438 unique graph inputs, a 4.11× unique-query difference; versus Agent 37's stronger-budget branch graph baseline of 518,180 unique inputs, the difference is 4.75×.
 
 The observed non-monotonicity across individual seeds is consistent with the learner's current selection rule: it chooses the first nullspace-basis vector with nonzero first derivative. Increasing the sample count changes the sampled annihilator space and its returned basis, so the chosen candidate can change. This is a plausible explanation, not a proved characterization of every failure.
 
