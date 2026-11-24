@@ -9,6 +9,8 @@ const SAMPLE_COUNT=31;
 const WARMUP_COUNT=6;
 const CPU_BATCH_SIZE=512;
 const BUDGET_RATIO=2.5;
+/** @type {((previousValue?:{user:number,system:number})=>{user:number,system:number})|undefined} */
+const threadCpuUsage=Reflect.get(process,'threadCpuUsage');
 
 /** @param {number[]} values @returns {number} */
 function median(values) {
@@ -69,16 +71,22 @@ async function importOnce(code,workload,side,index) {
  * @param {string} workload
  * @param {string} side
  * @param {number} index
- * @returns {Promise<{cpuMs:number,exports:Record<string,unknown>}>}
+ * @returns {Promise<{cpuMs:number,threadCpuMs:number|null,exports:Record<string,unknown>}>}
  */
 async function importCpuBatch(code,workload,side,index) {
   const urls=Array.from({length:CPU_BATCH_SIZE},(_,offset)=>
     dataUrl(code,workload,side,index*CPU_BATCH_SIZE+offset));
   const cpuStart=process.cpuUsage();
+  const threadCpuStart=threadCpuUsage?.call(process);
   let namespace;
   for(const url of urls)namespace=await import(url);
   const cpu=process.cpuUsage(cpuStart);
-  return {cpuMs:(cpu.user+cpu.system)/1000/CPU_BATCH_SIZE,exports:namespace};
+  const threadCpu=threadCpuStart?threadCpuUsage?.call(process,threadCpuStart):null;
+  return {
+    cpuMs:(cpu.user+cpu.system)/1000/CPU_BATCH_SIZE,
+    threadCpuMs:threadCpu?(threadCpu.user+threadCpu.system)/1000/CPU_BATCH_SIZE:null,
+    exports:namespace
+  };
 }
 
 /**
@@ -128,6 +136,8 @@ async function measureWorkload(source,workload,extraStrings) {
   const obfuscatedSamples=[];
   const baselineCpuSamples=[];
   const obfuscatedCpuSamples=[];
+  const baselineThreadCpuSamples=[];
+  const obfuscatedThreadCpuSamples=[];
   for(let index=0;index<SAMPLE_COUNT;index++) {
     let baseline,transformed;
     if(index%2===0) {
@@ -151,6 +161,8 @@ async function measureWorkload(source,workload,extraStrings) {
     verify(baselineCpu,transformedCpu);
     baselineCpuSamples.push(baselineCpu.cpuMs);
     obfuscatedCpuSamples.push(transformedCpu.cpuMs);
+    baselineThreadCpuSamples.push(baselineCpu.threadCpuMs);
+    obfuscatedThreadCpuSamples.push(transformedCpu.threadCpuMs);
   }
   const pairRatios=obfuscatedSamples.map((value,index)=>value/baselineSamples[index]);
   const baselineMedianMs=median(baselineSamples);
@@ -160,6 +172,8 @@ async function measureWorkload(source,workload,extraStrings) {
   const placeboRightSamples=[];
   const placeboLeftCpuSamples=[];
   const placeboRightCpuSamples=[];
+  const placeboLeftThreadCpuSamples=[];
+  const placeboRightThreadCpuSamples=[];
   for(let index=0;index<SAMPLE_COUNT;index++) {
     let left,right;
     if(index%2===0) {
@@ -183,6 +197,8 @@ async function measureWorkload(source,workload,extraStrings) {
     verify(leftCpu,rightCpu);
     placeboLeftCpuSamples.push(leftCpu.cpuMs);
     placeboRightCpuSamples.push(rightCpu.cpuMs);
+    placeboLeftThreadCpuSamples.push(leftCpu.threadCpuMs);
+    placeboRightThreadCpuSamples.push(rightCpu.threadCpuMs);
   }
   const placeboPairRatios=placeboRightSamples.map((value,index)=>
     value/placeboLeftSamples[index]);
@@ -199,10 +215,13 @@ async function measureWorkload(source,workload,extraStrings) {
     sampleCount:SAMPLE_COUNT,
     warmupCount:WARMUP_COUNT,
     cpuBatchSize:CPU_BATCH_SIZE,
+    threadCpuAvailable:Boolean(threadCpuUsage),
     baselineSamplesMs:baselineSamples,
     obfuscatedSamplesMs:obfuscatedSamples,
     baselineCpuSamplesMs:baselineCpuSamples,
     obfuscatedCpuSamplesMs:obfuscatedCpuSamples,
+    baselineThreadCpuSamplesMs:baselineThreadCpuSamples,
+    obfuscatedThreadCpuSamplesMs:obfuscatedThreadCpuSamples,
     pairRatios,
     medianPairRatio:median(pairRatios),
     maxPairRatio:Math.max(...pairRatios),
@@ -215,6 +234,8 @@ async function measureWorkload(source,workload,extraStrings) {
     placeboRightSamplesMs:placeboRightSamples,
     placeboLeftCpuSamplesMs:placeboLeftCpuSamples,
     placeboRightCpuSamplesMs:placeboRightCpuSamples,
+    placeboLeftThreadCpuSamplesMs:placeboLeftThreadCpuSamples,
+    placeboRightThreadCpuSamplesMs:placeboRightThreadCpuSamples,
     placeboPairRatios,
     placeboMaxPairRatio:Math.max(...placeboPairRatios),
     placeboStrictBreachCount:placeboPairRatios.filter(value=>value>BUDGET_RATIO).length,
