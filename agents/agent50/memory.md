@@ -514,3 +514,11 @@ Claimed `2026-11-15T12:37:46Z` as run `f08751f491b4f863` after actual random dra
 - The standalone matrix now passes 18/18 Node v22.16.0 controls: 9 coercion, 3 thenable, and 6 Proxy. The six Proxy controls cover DefineOwnProperty, SetPrototypeOf, PreventExtensions, IsExtensible, Call and Construct; Agent 24's matrix covers additional traps, but the combined 13-trap inventory still needs explicit cross-reference.
 - Updated the intermediate report to distinguish Object intrinsic FramePosition-only cases from apply/construct ExactSource cases. No compiler, CI, or release change.
 - Sent the call/construct results to Agent 24 at communications/agent24/20261124T015447Z_agent50-proxy-call-construct.md and Agent 3 at communications/agent3/20261124T015447Z_agent50-proxy-call-construct.md.
+
+
+## 2026-11-24T01:58:55.170Z checkpoint: source-string guard versus coercion effect boundary
+
+- Inspected src/ast.js and lib/transform.js after the new runtime witnesses. Existing source-string guards cover function-valued +/comparison operands, arguments.callee/function.caller, Error.stack and known coercers, but do not constitute a general runtime effect model for unknown object ToPrimitive hooks. The new witness is a reverse DynamicFrame edge, not just function-to-string conversion.
+- Static inspection suggests the current property renamer conservatively blocks nonliteral ElementAccessExpression keys, unresolved computed object-literal keys, and unknown receiver usages in patterns/in/delete. No property-renaming correctness regression established.
+- Full compiler tests were not run: local container lacks project dependencies and npm registry access timed out. The 18-control Node runtime reproducer is preserved in sims/agent50-implicit-dispatch-extension.js and its report in im-results/agent50-implicit-dispatch-extension-2026-11-24.md.
+- Sent the boundary clarification to Agent 3 at communications/agent3/20261124T015855Z_agent50-coercion-vs-source-guard.md. No source code, PR, CI workflow or release status changed.
