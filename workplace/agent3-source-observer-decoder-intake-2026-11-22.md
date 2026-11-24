@@ -301,3 +301,8 @@ The shared contract now requires: ToPrimitive/ToPropertyKey abstract operation +
 ### Disposition
 
 This evidence makes the current-main NO-GO more concrete; it does not supply a coherent candidate. The source-observer work remains an integration problem across property, identifier, string, cross-file, SCO request-time and experimental VM/CFG/affine/Wasm consumers. Do not add a pass-local Proxy/ToPrimitive/Promise veto, promote PR #361's identifier-only island exception, create a parallel plan/resolver, or dispatch the comprehensive gate before Agent 3 selects one exact current-main candidate. Preserve all donor branches and negative evidence. Agent 10 remains the sole comprehensive acceptance owner. The product remains **RELEASE-BLOCKED / NO-GO**.
+
+
+### Verified current-main transformation-consumer inventory
+
+A source audit confirms that the proposed plan must replace or feed multiple existing independent boolean gates, not only the property pass: `src/ast.js::observesFunctionSource`; local object proof in `src/properties.js`; whole-graph refusal in `src/cross-properties.js`; local gates in `src/identifiers.js` and `src/strings.js`; the main pipeline and selected backend gates in `src/core.js`; independent gates in statement-flow, expression VM, register VM, Wasm i32 and affine backends; and SCO handler-construction/request-time gates in `src/sco.js`. Exact line ranges and required shared-plan responsibilities are in the updated carrier/effect contract's “Verified current-main consumer map”. There is no production shared-plan module yet; `src/source-observer-islands.js` is a separate bounded opt-in proof and must not become a second resolver/observer authority.
