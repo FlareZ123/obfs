@@ -77,3 +77,35 @@ The current implementation is a test-only whitespace insertion helper keyed by u
 ## Next work
 
 Extend the test to three or more callsites, include an expansion between two shrinkages, and test callsites on different lines. Then derive an AST-node-based position map that can be applied after all transforms and code generation, while ensuring padding does not change tokenization or semantics.
+
+## Four-callsite mixed-edit and UTF-16 extension
+
+The focused harness was extended on the same test-only branch to close the next bounded position-mapping witness:
+
+- Source commit: 59b959d516886a1e94b7febe12e4b5a584527873.
+- Successful focused run: https://github.com/FlareZ123/obfs/actions/runs/45344447616.
+- Ubuntu: the Chromium differential executed and passed.
+- Windows: the focused browser test was skipped by the existing explicit platform guard; project, external and paired-budget JSDoc checks passed.
+- The comprehensive node22 job was skipped because this was a focused-test dispatch.
+- Node: v22.23.4.
+
+The fixture contains four callback callsites: three on one line and a fourth on a separate line. An astral Unicode character precedes each marker. The first owner key shrinks, a short tinyKey expands between the first and second callsites, and a third long key shrinks before the third callsite. A fourth long key on the next line provides a separate line-local case. Four owner keys plus an unrelated positive-control property are all renamed (properties=5), and native/emitted application results remain 3.
+
+The exact source-derived UTF-16 column deltas matched the Chromium runtime frame-column deltas at all four callsites:
+
+| Callsite | Source position (line, zero-based column) | Emitted position | Source/runtime delta |
+|---|---:|---:|---:|
+| 1 | (3, 59) | (3, 50) | 9 |
+| 2 | (3, 194) | (3, 192) | 2 |
+| 3 | (3, 312) | (3, 294) | 18 |
+| 4 | (4, 66) | (4, 51) | 15 |
+
+The signed incremental corrections were **[+9, -7, +16, +15]**:
+- insert nine spaces before callsite 1;
+- remove seven spaces from the reserved whitespace immediately before callsite 2, compensating for the short-key expansion after the first insertion;
+- insert sixteen spaces before callsite 3;
+- insert fifteen spaces before callsite 4 on its separate line.
+
+After correction, all four static line/column positions exactly matched the original UTF-16 positions, and four independent Chromium executions confirmed that every padded runtime frame line and column matched its native counterpart. The machine record was: sourceDeltas=[9,2,18,15], runtimeDeltas=[9,2,18,15], incrementalPads=[9,-7,16,15], properties=5, allRuntimePositionsRestored=true.
+
+This is a stronger bounded witness than the earlier two-callsite test: it exercises cumulative corrections across three same-line callsites, a shrink→expansion→shrink sequence, a different-line callsite, astral Unicode, and a negative correction that consumes only an explicitly reserved whitespace run. It still uses unique marker strings and a fixture-specific whitespace reserve. It is **not** a production AST-aware callsite identity or position map, and does not establish correctness for arbitrary formatting, CRLF, inserted newlines/prologues, multiple engines, or general generated-code expansion. FramePosition remains a distinct map obligation from ExactSource span relocation.
