@@ -58,7 +58,7 @@ function mayAppearInFailedOperand(node,ancestors) {
  * @param {string} source
  * @param {AstNode} ast
  * @param {{seed:string, minimumLength?:number, reservedNames?:Set<string>, reservedSources?:string[], fixedArity?:boolean, sourceUnitRef?:string, parserContractId?:string, sourceObservationPlan?:import('./source-observation-plan').SourceObservationPlan, protectedSourceRanges?:import('./source-edit-map').MappedSourceRange[]}} options
- * @returns {{code:string,count:number,editMap?:Object}}
+ * @returns {{code:string,count:number,editMap?:import('./source-edit-map').SourceEditMap}}
  */
 function encodeStrings(source, ast, options) {
   if(Reflect.get(options,'sourceObserverCoverageComplete')!==undefined) {
@@ -119,7 +119,7 @@ function encodeStrings(source, ast, options) {
   walk(ast, (node, parent, key, ancestors) => {
     if (node.type !== 'Literal' || typeof node.value !== 'string' ||
         node.value.length < minimumLength || !parent) return;
-    if (protectedSourceSpans.some(span=>
+    if (protectedSourceRanges.some(span=>
         node.start<span.endOffset&&node.end>span.startOffset)) return;
     if (parent.type === 'ExpressionStatement' && parent.directive) return;
     if (hasEagerDependencies && ancestors.some(ancestor => ancestor.type === 'FunctionDeclaration')) return;
