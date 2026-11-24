@@ -2767,14 +2767,16 @@ function renameCrossFileProperties(files,seed) {
           let hasDynamic=false;
           walk(importer.ast,node=>{if(node.type==='ImportExpression')hasDynamic=true;});
           if (hasDynamic) {failed=true;break;}
-          // A reader imported without the candidate state, or alongside two
-          // separately proved state bindings, has insufficient call ownership
-          // evidence. Refuse rather than treating the reader as a free alias.
-          if(readerAliases.size && importedAliases.length!==1) {failed=true;break;}
+          // Every owner alias collected here is an exact named import of the
+          // same (exporterName, exportName) pair. ESM gives those specifiers
+          // one live binding even when local names differ. Prove each local
+          // spelling independently, then union only those proof facts for
+          // validating imported-reader call arguments.
+          if(readerAliases.size && importedAliases.length===0) {failed=true;break;}
           const consumerIndices=new Map([...readerAliases].map(([name,exported])=>
             [name,/** @type {{member:AstNode,property:string,argIndex:number}} */ (readers.get(exported)).argIndex]));
-          /** @type {NonNullable<ReturnType<typeof proveLocalObject>>|null} */
-          let readerProof=null;
+          /** @type {{aliases:Set<string>,forwardedCalls:Set<AstNode>}} */
+          const readerProof={aliases:new Set(),forwardedCalls:new Set()};
           for(const alias of importedAliases) {
             if(importer.bindings.get(alias)!==1) {failed=true;break;}
             // Source-observation safety can use every independently proven imported
@@ -2786,7 +2788,10 @@ function renameCrossFileProperties(files,seed) {
               allowDirectReflection);
             if(!proof) {failed=true;break;}
             users.push({file:importerName,source:/** @type {string} */ (importer.file.code),proof});
-            if(readerAliases.size)readerProof=proof;
+            if(readerAliases.size){
+              for(const name of proof.aliases)readerProof.aliases.add(name);
+              for(const call of proof.forwardedCalls)readerProof.forwardedCalls.add(call);
+            }
           }
           if(failed)break;
           if(readerAliases.size) {
@@ -2799,8 +2804,8 @@ function renameCrossFileProperties(files,seed) {
               const readInfo=exportedReader ? readers.get(exportedReader) : null;
               const input=readInfo ? parent?.arguments?.[readInfo.argIndex] : null;
               const provenInput=Boolean(input &&
-                (input.type==='Identifier' && readerProof?.aliases.has(input.name) ||
-                 input.type==='CallExpression' && readerProof?.forwardedCalls.has(input)));
+                (input.type==='Identifier' && readerProof.aliases.has(input.name) ||
+                 input.type==='CallExpression' && readerProof.forwardedCalls.has(input)));
               if(parent?.type==='CallExpression' && key==='callee' && !parent.optional &&
                   node===parent.callee && provenInput) {
                 if(exportedReader)usedReaders.add(exportedReader);
