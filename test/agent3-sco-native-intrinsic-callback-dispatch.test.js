@@ -86,7 +86,7 @@ function observe(code,observationKind) {
 for(const scenario of cases) {
   test('SCO native intrinsic callback classification: '+scenario.kind+' ('+scenario.expected+')',async()=>{
     const source=[
-      "const jsonText=`{"x":1}`;",
+      'const jsonText=\'{"x":1}\';',
       "const inputText='a';",
       "const entries=[['x',1]];",
       'const other={unrelatedField:2};',
