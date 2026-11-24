@@ -347,6 +347,19 @@ function summarizeAmbientCallEffects(ast,sourceType) {
 
   /** @type {Map<number,AstNode>} */
   const constInitializersByBinding=new Map();
+  /** @type {Map<number,AstNode>} */
+  const classNodeByBinding=new Map();
+  walkAst(ast,node=>{
+    if(node.type==='ClassDeclaration'&&node.id?.type==='Identifier') {
+      const id=declarationByNode.get(node.id)?.bindingId??null;
+      if(id!==null)classNodeByBinding.set(id,node);
+    }
+    if(node.type==='VariableDeclarator'&&node.id.type==='Identifier'&&
+       node.init?.type==='ClassExpression') {
+      const id=declarationByNode.get(node.id)?.bindingId??null;
+      if(id!==null)classNodeByBinding.set(id,node.init);
+    }
+  });
   for(const [bindingId,rows] of declarationsByBinding) {
     if(rows.length!==1)continue;
     const declarator=parentByNode.get(rows[0].node);
@@ -372,16 +385,32 @@ function summarizeAmbientCallEffects(ast,sourceType) {
     return initializer;
   }
 
+  /** @param {AstNode} classNode @returns {AstNode[]} */
+  function classMethodFunctions(classNode) {
+    if(!['ClassDeclaration','ClassExpression'].includes(classNode.type))return [];
+    return classNode.body.body.flatMap((/** @type {AstNode} */ element)=>{
+      if(element.type==='MethodDefinition'&&element.value)return [element.value];
+      if(element.type==='PropertyDefinition'&&
+         ['FunctionExpression','ArrowFunctionExpression'].includes(element.value?.type))
+        return [element.value];
+      return [];
+    });
+  }
+
   /** @param {AstNode} value @param {Set<number>} [seen] @returns {AstNode[]} */
   function callableNodesForValue(value,seen=new Set()) {
     if(['FunctionDeclaration','FunctionExpression','ArrowFunctionExpression'].includes(value.type))
       return [value];
+    if(['ClassDeclaration','ClassExpression'].includes(value.type))
+      return classMethodFunctions(value);
     if(value.type==='Identifier') {
       const reference=resolved.at(value.start);
       if(reference?.resolution.kind!=='local')return [];
       const bindingId=reference.resolution.bindingId;
       const direct=resolveFunctionNode(bindingId);
       if(direct)return [direct];
+      const classNode=classNodeByBinding.get(bindingId);
+      if(classNode)return classMethodFunctions(classNode);
       if(seen.has(bindingId))return [];
       const initializer=constInitializersByBinding.get(bindingId);
       if(!initializer)return [];
@@ -407,6 +436,16 @@ function summarizeAmbientCallEffects(ast,sourceType) {
       return callableNodesForValue(value.expressions[value.expressions.length-1],seen);
     if(value.type==='AssignmentExpression')return callableNodesForValue(value.right,seen);
     if(value.type==='ChainExpression')return callableNodesForValue(value.expression,seen);
+    if(value.type==='NewExpression') {
+      if(value.callee.type==='Identifier') {
+        const reference=resolved.at(value.callee.start);
+        if(reference?.resolution.kind==='local') {
+          const classNode=classNodeByBinding.get(reference.resolution.bindingId);
+          if(classNode)return classMethodFunctions(classNode);
+        }
+      }
+      return [];
+    }
     if(value.type==='MemberExpression') {
       let root=value.object;
       while(root.type==='MemberExpression')root=root.object;
