@@ -697,3 +697,39 @@ A local exact 128-state census of the random-reanchor secant matrix for the fixe
 - Review requests sent to Agents 37, 50, and 7 for the rank-two and rank-21 graph comparisons. Agent 50 has responded to the rank-two case and supplied sensitivity; check for new replies from Agents 37/7 and for Agent 50's rank-21 review.
 - Keep all of this in `im-results/`; no `results/README.md` promotion, no release-status change, and no new PR.
 - Next: vary input/output wrapper seeds and low-rank sample seeds on the rank-21 source; test additional high-rank affine-flag sources to see whether the 37.6x advantage persists. Recheck the rankBound opt-in with Agent 7 before any main-branch integration.
+
+
+## 2026-11-24 checkpoint: 32-run rank-21 sweep and wrapped 2n review
+
+### Expanded high-rank comparison
+
+The rank-21 test was expanded to 32 runs: eight hidden targets, two independent two-sided affine wrappers, and two deterministic low-rank completion sample streams.
+
+- Final focused CI run **45339444109** passed on Ubuntu and Windows, Node 22.23.4. The test (1/1 each), project JSDoc, external JSDoc and paired-budget JSDoc all passed.
+- Aggregate graph calls: **876,925**.
+- Aggregate rank-21 low-rank orbit calls: **32,341,215**.
+- Aggregate ratio: **36.8803×** fewer calls for the graph method.
+- Graph per-target calls: **27,377–27,450**.
+- Low-rank per-target calls: **4,011–2,082,224**. Thus graph is not better for every individual target; its aggregate advantage comes from long low-rank orbits on most cases.
+- Group totals:
+  - wrapper 0 / sample `0x12345678`: graph 219,173; low-rank 8,240,277;
+  - wrapper 0 / sample `0xdeadbeef`: graph 219,130; low-rank 8,579,161;
+  - wrapper 1 / sample `0x12345678`: graph 219,288; low-rank 8,348,939;
+  - wrapper 1 / sample `0xdeadbeef`: graph 219,334; low-rank 7,172,838.
+- All 32 low-rank runs have nullity 1; sampling calls are 1 or 2. The largest orbit is 2,082,189 against the (2^{21}) cap.
+- Final report `im-results/agent2-rank21-quintic-graph-vs-lowrank-2026-11-24.md` replaces the earlier 8-target-only pilot summary. The earlier run 45338876011 is superseded by final 32-run run 45339444109.
+- The source is one degree-five triangular family with 21 independent leading monomials on seven coordinates, plus lower-degree terms; it is a permutation with affine flag, output-displacement rank21, joint top-derivative radical codim7. This is a source-specific result, not universal.
+- The rank-21 `maxRankBound` API opt-in remains only on Agent 2's research branch, default cap16 unchanged, pending Agent 7 review. Review requests sent to Agents 7, 37 and 50; no responses from 7/37 yet.
+
+### Independent review of reanchoring bound
+
+- Agent 50 independently reviewed Agent 20's conditional 2n proof and found no proof gap. Its addendum supplies a wrapped 32-bit nonzero-anchor witness with non-identity lower-unitriangular Lin, arbitrary invertible Lout, nonzero offsets, and eight exact targets recovered in 45–51 distinct calls each (378 total), below the 64-query cap. The arbitrary-Lin counterexample remains outside the hidden-B premise.
+- Agent 20's own 2n proof is sound under its stated premise; I sent a detailed review in `communications/agent20/20261124T0618Z_agent2-review-2n-reanchor-proof.md`.
+- Agent 20 corrected the reanchor comparison denominator: the 101-call receipt is one target only; no eight-target reanchor batch exists. Do not compare 101 to the 304-call eight-target low-rank batch as equal-sized populations.
+
+### Next actions
+
+1. Wait for Agent 7's review of `maxRankBound` and Agent 37/50's review of the 32-run rank-21 graph result.
+2. If further work is useful, vary the rank-21 source family itself (not just wrappers/targets), or add a higher-rank source with different support geometry. Do not promote a single synthetic family to a general graph-method claim.
+3. Preserve the rank-two versus rank-21 contrast; it is the key finding that the best attack depends on output-displacement rank and orbit structure.
+4. Keep the work in `im-results/`; no PR, no results promotion, no release-status change.
