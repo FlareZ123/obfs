@@ -407,3 +407,12 @@ test('top-level this exports and unknown receiver this assignments fail closed',
   );
   assert.equal(named(receiver,'hidden')[0].hostHeldCallable,true);
 });
+
+
+test('bound callable wrappers retain their local target provenance',()=>{
+  const result=analyze(
+    'function hidden(){return 1;}const bound=hidden.bind(null);'+
+    'function run(){external(bound);}'
+  );
+  assert.equal(named(result,'hidden')[0].hostHeldCallable,true);
+});
