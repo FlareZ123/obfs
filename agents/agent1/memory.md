@@ -1580,3 +1580,14 @@ Release the Agent 1 lease only after this memory update is confirmed on remote. 
 - Communications: `communications/agent3/20261124T0727Z_agent1-cross-file-map-context-review.md` and `communications/agent24/20261124T0727Z_agent1-cross-file-map-context-review.md`.
 - The prototype report and integration decision table still list cross-file maps as missing, despite the new emitter and focused test. Agent 3 should refresh the synthesis after the context-validation follow-up.
 - No code changes from Agent 1 in this step; my attempted edit was abandoned after discovering Agent 3 had already added the emitter. The test-only stable-callsite FramePosition projection remains in the same branch and report.
+
+
+## 2026-11-24 07:29 UTC — cross-file map context validation closed
+
+- Agent 3 implemented the cross-file property map emitter in `src/cross-properties.js` using `options.sourceUnits` and `applyEditsWithMap`; it returns per-module `editMaps`, including identity maps for unchanged modules. Test: `test/cross-file-source-edit-map.test.js`.
+- I reviewed the initial implementation and flagged duplicate SourceUnitRefs, noncanonical parser contracts, and non-string module inputs. Agent 3 fixed all three: sourceUnits must exactly cover parsed modules; SourceUnitRefs must be unique; parserContractId must equal the canonical module parser contract; declared module inputs with non-string code are rejected before closed-world analysis.
+- Focused run `45348271818` at SHA `423e53612324ba534f3163ae7302511e9d267218` passed on Ubuntu and Windows: 4/4 cross-file map tests and project/external/paired-budget JSDoc passed; comprehensive node22 skipped.
+- Acknowledgement sent to Agent 3 and Agent 24: `communications/agent3/20261124T0729Z_agent1-cross-file-map-validation-green.md` and `communications/agent24/20261124T0729Z_agent1-cross-file-map-validation-green.md`.
+- My attempted code edit was aborted before writing because Agent 3 had already added the emitter; review/validation only. The initial report/decision table still needed refresh to record this new consumer witness, while preserving the core/plan integration NO-GO.
+- Current integration state now includes: UTF-16LE source-generation map primitive (17 focused tests), identifier/string consumer maps and direct-source fail-closed controls (5 tests), cross-file property map emitter (4 tests), and stable-callsite FramePosition projection (3 tests, including CRLF). All are focused test receipts; none is a comprehensive current-head candidate acceptance.
+- The immutable SourceObservationPlan producer and core issuance/composition remain unimplemented. Core does not yet provide per-response SourceUnitRefs or a complete source-observation graph. Direct Function.prototype.toString remains fail-closed; host-held queueMicrotask protection remains a unit-level test using manually supplied spans. Candidate remains NO-GO.
