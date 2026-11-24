@@ -59,6 +59,33 @@ Focused manual-validation run [45315861729](https://github.com/FlareZ123/obfs/ac
 
 Both OS also passed strict project JSDoc, strict external JSDoc and the paired/complete-suite runtime-budget evaluator JSDoc. This is current-main Node/CommonJS COO/SNO evidence for these eight callback paths; it is not a browser or SCO result, and it is not a full suite or performance-budget acceptance run. The test asserts the diagnostic mismatch on purpose; it is a red-first regression candidate, not a release test that should remain green after a fix.
 
+
+
+## Actual SCO handler differential
+
+A second focused test-only fixture uses the real `createScoHandler` HTTP response and then executes that response in a VM with a host-supplied observer callback. Test: `test/agent3-sco-native-intrinsic-callback-dispatch.test.js`. It uses a statically known primitive JSON input so the separate JSON.parse input-coercion guard does not create an unrelated unknown-value refusal.
+
+Focused manual-validation run [45317205047](https://github.com/FlareZ123/obfs/actions/runs/45317205047) completed successfully on Ubuntu and Windows (Node 22.23.4); all 8 classification controls passed. Every case requires:
+- actual HTTP-generated SCO response;
+- owner property and unrelated `plain()` positive-control property both rewritten;
+- native and emitted return values equal;
+- a source/position classification against the callback observer.
+
+| SCO operation | Result in this fixture | Evidence |
+| --- | --- | --- |
+| JSON.stringify replacer | **Exact-source mismatch** | captured `hidden()` source loses `owner.longPrivatePropertyName` |
+| JSON.parse reviver | **Exact-source mismatch** | captured `hidden()` source loses `owner.longPrivatePropertyName` |
+| Array.sort comparator | **FramePosition mismatch** | active frame column changes |
+| Array.map callback | **FramePosition mismatch** | active frame column changes |
+| Array.from mapFn | **FramePosition mismatch** | active frame column changes |
+| JSON.stringify `toJSON` | Frame column stable | no mismatch in the measured coordinate |
+| String.replace callback | Frame column stable | no mismatch in the measured coordinate |
+| Map.forEach callback | Frame column stable | no mismatch in the measured coordinate |
+
+The three stable controls still undergo both owner and unrelated property rewrites and preserve values. They establish only that the measured active-frame column did not change in these particular variants; they do **not** prove exact-source, function-name, other-coordinate, or cross-engine safety. The initial broad hypothesis that every callback path would produce a frame mismatch was falsified; the final classification is deliberately per-operation.
+
+The SCO fixture is CommonJS and uses the actual handler response. It is not browser evidence. Combined with the COO/SNO differential above, this gives current-main Node/CommonJS evidence in all three modes for the five failing callback paths; no claim is made that all eight paths fail in every mode.
+
 ## Integration implication
 
 The shared plan needs a distinct `IntrinsicCallbackDispatch` (or equivalently structured event) for a verified native intrinsic that invokes user code. A record should identify the effective intrinsic/method, receiver, callback argument or object-provided method, callback position, synchronous/deferred timing, dispatch provenance and the relevant host contract. It should create:
@@ -71,7 +98,7 @@ Do not treat a familiar spelling such as `JSON.stringify`, `Array.prototype.map`
 ## Limitations
 
 - Node/V8 v22.16.0 only; no browser or other engine result.
-- A focused current-main COO/SNO differential is recorded above. No browser or SCO differential, broad full-suite acceptance or performance-budget result was run.
+- Focused current-main COO/SNO and actual SCO handler differentials are recorded above. No browser differential, broad full-suite acceptance or performance-budget result was run.
 - Exact source was established only for the two JSON replacer/reviver sloppy caller-chain cases.
 - The other synchronous cases establish stack name/position only in this harness; `CallSite.getFunction()` was false.
 - Promise.then is an asynchronous no-active-frame control; callback argument inspection is not tested here.
