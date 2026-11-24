@@ -3,7 +3,7 @@
 const {test}=require('node:test');
 const assert=require('node:assert/strict');
 const vm=require('node:vm');
-const {parse,walk}=require('../src/ast');
+const {parse,walk,observesFunctionSource}=require('../src/ast');
 const {renameLocalProperties}=require('../src/properties');
 const {renameLocalIdentifiers}=require('../src/identifiers');
 const {encodeStrings}=require('../src/strings');
@@ -134,6 +134,92 @@ test('SNO host-held callback source survives mapped identifier edits and string 
     queueMicrotask(callback){observedUnprotected=callback.toString();}
   });
   assert.notEqual(observedUnprotected,originalCallbackSource);
+});
+
+
+test('direct Function.prototype.toString observer gets selective yield only with complete protected coverage',()=>{
+  const source=[
+    'const outsideObject={veryLongPrivateKey:1};',
+    'const outsideValue=outsideObject.veryLongPrivateKey;',
+    'const aVeryLongUnusedBindingName=1;',
+    "const callback=()=>{const innerObject={privateInsideCallback:2};return 'inside-callback-literal'+innerObject.privateInsideCallback;};",
+    'globalThis.observedCallbackSource=Function.prototype.toString.call(callback);',
+    'queueMicrotask(callback);',
+    "const unrelated='top-level-literal';"
+  ].join('\\n');
+  const ast=parse(source,'module');
+  assert.equal(observesFunctionSource(ast),true,
+    'fixture must exercise the direct in-source observer gate');
+  const originalCallback=findCallback(ast);
+  const originalCallbackSource=source.slice(originalCallback.start,originalCallback.end);
+  const originalSpan=sourceSpan(source,UNIT,originalCallback.start,originalCallback.end,
+    sourceGenerationOf(source,PARSER));
+
+  const blockedProperties=renameLocalProperties(source,ast,{
+    seed:'direct-observer-blocked-properties',sourceUnitRef:UNIT,parserContractId:PARSER,
+    protectedSourceSpans:[originalSpan]
+  });
+  const blockedIdentifiers=renameLocalIdentifiers(source,ast,{
+    seed:'direct-observer-blocked-identifiers',sourceType:'module',
+    sourceUnitRef:UNIT,parserContractId:PARSER,protectedSourceSpans:[originalSpan]
+  });
+  const blockedStrings=encodeStrings(source,ast,{
+    seed:'direct-observer-blocked-strings',sourceUnitRef:UNIT,parserContractId:PARSER,
+    protectedSourceSpans:[originalSpan]
+  });
+  assert.equal(blockedProperties.objects,0);
+  assert.equal(blockedIdentifiers.bindings,0);
+  assert.equal(blockedStrings.count,0,
+    'without a complete plan, all three passes must retain the conservative whole-file gate');
+
+  const propertyRenamed=renameLocalProperties(source,ast,{
+    seed:'direct-observer-covered-properties',sourceUnitRef:UNIT,parserContractId:PARSER,
+    protectedSourceSpans:[originalSpan],sourceObserverCoverageComplete:true
+  });
+  assert.equal(propertyRenamed.objects,1);
+  assert.equal(propertyRenamed.properties,1);
+  assert.ok(propertyRenamed.editMap);
+  const propertyRange=mapSourceSpan(propertyRenamed.editMap,originalSpan,source,propertyRenamed.code);
+  assert.ok(propertyRange);
+  const propertyAst=parse(propertyRenamed.code,'module');
+  const propertyCallback=findCallback(propertyAst);
+  assert.equal(propertyRenamed.code.slice(propertyRange.startOffset,propertyRange.endOffset),
+    originalCallbackSource);
+  const propertySpan=sourceSpan(propertyRenamed.code,UNIT,propertyCallback.start,propertyCallback.end,
+    sourceGenerationOf(propertyRenamed.code,PARSER));
+
+  const renamed=renameLocalIdentifiers(propertyRenamed.code,propertyAst,{
+    seed:'direct-observer-covered-identifiers',sourceType:'module',
+    sourceUnitRef:UNIT,parserContractId:PARSER,protectedSourceSpans:[propertySpan],
+    sourceObserverCoverageComplete:true
+  });
+  assert.ok(renamed.bindings>0);
+  const identifierRange=mapSourceSpan(renamed.editMap,propertySpan,propertyRenamed.code,renamed.code);
+  assert.ok(identifierRange);
+  const renamedAst=parse(renamed.code,'module');
+  const renamedCallback=findCallback(renamedAst);
+  assert.equal(renamed.code.slice(identifierRange.startOffset,identifierRange.endOffset),
+    originalCallbackSource);
+  const renamedSpan=sourceSpan(renamed.code,UNIT,renamedCallback.start,renamedCallback.end,
+    sourceGenerationOf(renamed.code,PARSER));
+
+  const encoded=encodeStrings(renamed.code,renamedAst,{
+    seed:'direct-observer-covered-strings',sourceUnitRef:UNIT,parserContractId:PARSER,
+    protectedSourceSpans:[renamedSpan],sourceObserverCoverageComplete:true
+  });
+  assert.equal(encoded.count,1);
+  assert.ok(encoded.editMap);
+  const finalRange=mapSourceSpan(encoded.editMap,renamedSpan,renamed.code,encoded.code);
+  assert.ok(finalRange);
+  assert.equal(encoded.code.slice(finalRange.startOffset,finalRange.endOffset),
+    originalCallbackSource);
+  assert.ok(encoded.code.includes("'inside-callback-literal'"));
+  assert.ok(!encoded.code.includes("'top-level-literal'"));
+
+  const context={queueMicrotask(callback){context.hostCallbackSource=callback.toString();}};
+  vm.runInNewContext(encoded.code,context);
+  assert.equal(context.observedCallbackSource,originalCallbackSource);
+  assert.equal(context.hostCallbackSource,originalCallbackSource);
 });
 
 test('string consumer fails closed on stale protected source generations',()=>{
