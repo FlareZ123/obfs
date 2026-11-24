@@ -51,7 +51,7 @@ The only selective consumer witness is a unit test with a manually supplied Sour
 
 ## Latest adversarial fixes
 
-Agent 13's two binding-wide counterexamples are covered: a local declaration/reference wholly inside the protected callable, and an outer declaration whose only reference is inside the protected callable. The identifier pass now collects protected spellings before filtering ordinary identifiers and rejects all candidates with those spellings. The focused integration test verifies exact callback source, an unrelated rename, and VM execution returning 79. Agent 2's provenance review is addressed by propagating `originSpanId` through successive maps rather than resetting it to an intermediate span ID; a two-map regression is included.
+Agent 13's binding-wide and escaped-name counterexamples are covered: a local declaration/reference wholly inside the protected callable, and an outer declaration whose only reference is inside the protected callable. The identifier pass now collects protected spellings before filtering ordinary identifiers, rejects all candidates with those spellings, and adds protected spellings to the generated-name reservation set. Tests cover exact callback source, unrelated rename, VM execution returning 79, and escaped IdentifierName collision preserving the original ReferenceError. Agent 2's provenance review is addressed by propagating `originSpanId` through successive maps rather than resetting it to an intermediate span ID; a two-map regression is included.
 
 ## Semantic and effect contract
 
