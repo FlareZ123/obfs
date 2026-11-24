@@ -535,6 +535,26 @@ function summarizeAmbientCallEffects(ast,sourceType) {
     return [];
   }
 
+  /** @param {AstNode} value @param {Set<number>} [seen] @returns {boolean} */
+  function isDefinitelyObjectExpression(value,seen=new Set()) {
+    if(['ObjectExpression','ArrayExpression','FunctionDeclaration','FunctionExpression',
+        'ArrowFunctionExpression','ClassDeclaration','ClassExpression','NewExpression'].includes(value.type))
+      return true;
+    if(value.type==='Literal')return Boolean(value.regex);
+    if(value.type==='Identifier') {
+      const reference=resolved.at(value.start);
+      if(reference?.resolution.kind!=='local')return false;
+      const bindingId=reference.resolution.bindingId;
+      if(seen.has(bindingId))return false;
+      const values=bindingValueExpressions.get(bindingId)??[];
+      if(!values.length)return false;
+      const next=new Set(seen);
+      next.add(bindingId);
+      return values.every(candidate=>isDefinitelyObjectExpression(candidate,next));
+    }
+    return false;
+  }
+
   /** @type {Map<AstNode,Set<number>>} */
   const nodeBindingIds=new Map();
   for(const fn of allFunctionNodes)nodeBindingIds.set(fn,new Set());
@@ -707,6 +727,11 @@ function summarizeAmbientCallEffects(ast,sourceType) {
   const COERCIVE_ASSIGNMENT_OPERATORS=new Set([
     '+=','-=','*=','/=','%=','**=','<<=','>>=','>>>=','&=','|=','^='
   ]);
+  /** @param {AstNode} node @returns {boolean} */
+  function binaryMayCoerce(node) {
+    return !(['==','!='].includes(node.operator)&&
+      isDefinitelyObjectExpression(node.left)&&isDefinitelyObjectExpression(node.right));
+  }
   walkAst(ast,node=>{
     if(node.type==='CallExpression'||node.type==='NewExpression') {
       let knownLocalTarget=null;
@@ -742,7 +767,7 @@ function summarizeAmbientCallEffects(ast,sourceType) {
         markCallableValuesHeld(node.left,'callable-coercion-observer',node.start,node.end);
     } else if(node.type==='BinaryExpression'&&node.operator==='instanceof') {
       markCallableValuesHeld(node.right,'callable-coercion-observer',node.start,node.end);
-    } else if(node.type==='BinaryExpression'&&COERCIVE_BINARY_OPERATORS.has(node.operator)) {
+    } else if(node.type==='BinaryExpression'&&COERCIVE_BINARY_OPERATORS.has(node.operator)&&binaryMayCoerce(node)) {
       if(!isDefinitelyPrimitive(node.left))
         markCallableValuesHeld(node.left,'callable-coercion-observer',node.start,node.end);
       if(!isDefinitelyPrimitive(node.right))
@@ -846,7 +871,7 @@ function summarizeAmbientCallEffects(ast,sourceType) {
         addReason(fn,{kind:'to-primitive',start:node.start,end:node.end});
       } else if(node.type==='BinaryExpression'&&
                 ['+','-','*','/','%','**','==','!=','<','>','<=','>=','|','&','^','<<','>>','>>>'].includes(node.operator)&&
-                (!isDefinitelyPrimitive(node.left)||
+                binaryMayCoerce(node)&&(!isDefinitelyPrimitive(node.left)||
                  !isDefinitelyPrimitive(node.right))) {
         addReason(fn,{kind:'to-primitive',start:node.start,end:node.end});
       } else if(node.type==='UnaryExpression'&&['+','-','~'].includes(node.operator)&&
