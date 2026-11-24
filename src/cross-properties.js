@@ -2703,7 +2703,22 @@ function renameCrossFileProperties(files,seed) {
           const readerAliases=new Map();
           for(const statement of importer.ast.body) {
             if(statement.type==='ImportDeclaration') {
-              const origin=resolveImport(importerName,statement.source.value);
+              const source=statement.source.type==='Literal'&&typeof statement.source.value==='string' ?
+                statement.source.value : '';
+              const origin=source ? resolveImport(importerName,source) : null;
+              const baseOrigin=source ? resolveImport(importerName,source.split(/[?#]/,1)[0]) : null;
+              // A query/fragment changes the ESM module URL and therefore its
+              // module instance. If it points at this source file, its imported
+              // bindings cannot be folded into the ordinary request's proof.
+              if(statement.specifiers.length>0&&baseOrigin===exporterName&&origin!==exporterName){
+                failed=true;
+                break;
+              }
+              if(statement.specifiers.length>0&&origin===exporterName&&
+                 ((statement.attributes?.length??0)>0||(statement.assertions?.length??0)>0)){
+                failed=true;
+                break;
+              }
               if(acyclicImports && origin && origin!==exporterName) {
                 // Every dependency has completed evaluation before an
                 // acyclic importer's body runs, so reading this immutable
@@ -2728,10 +2743,6 @@ function renameCrossFileProperties(files,seed) {
               }
             }
             if (statement.type==='ImportDeclaration' && resolveImport(importerName,statement.source.value)===exporterName) {
-              // Import attributes can change host module interpretation. The
-              // local graph proves ordinary JavaScript ESM requests only.
-              if((statement.attributes?.length??0)>0||
-                 (statement.assertions?.length??0)>0){failed=true;break;}
               for(const spec of statement.specifiers) {
                 if (spec.type==='ImportNamespaceSpecifier') {failed=true;break;}
                 if(spec.type!=='ImportSpecifier')continue;
