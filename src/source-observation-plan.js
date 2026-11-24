@@ -1324,8 +1324,16 @@ function validatePlanSemantics(plan,source,ast,trackedSourceRanges) {
         'ClassDeclaration','ClassExpression'].includes(node.type))functionLikeCount++;
   });
   const bindingNames=collectBindingNames(ast);
-  const stringBindingPreserved=
-    bindingNames.has('String')===meta.originalStringBindingPresent;
+  let stringDecoderCallCount=0;
+  walk(ast,(node,parent,key,ancestors)=>{
+    if(node.type==='Identifier'&&node.name==='String'&&
+       isDirectStringFromCharCodeReference({name:'String',node,parent,ancestors})) {
+      stringDecoderCallCount++;
+    }
+  });
+  const stringBindingSafe=
+    (meta.originalStringBindingPresent||!bindingNames.has('String'))&&
+    !(bindingNames.has('String')&&stringDecoderCallCount>0);
   let unsupportedModuleSyntax=false;
   walk(ast,node=>{
     if(node.type==='ImportDeclaration'||node.type==='ImportExpression'||
@@ -1338,7 +1346,7 @@ function validatePlanSemantics(plan,source,ast,trackedSourceRanges) {
     reference.name==='Function'||
     (reference.name==='String'&&isDirectStringFromCharCodeReference(reference)));
   const noAmbientShadow=!bindingNames.has('Function')&&
-    identifierCounts.get('Function')===1&&stringBindingPreserved&&
+    identifierCounts.get('Function')===1&&stringBindingSafe&&
     !unsupportedModuleSyntax&&noUnapprovedFreeRoots;
   const uniqueClosedReader=directReaderCount===1&&functionLikeCount===1&&
     identifierCounts.get(meta.callableName)===2&&
