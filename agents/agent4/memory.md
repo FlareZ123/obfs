@@ -631,3 +631,9 @@ status for hostile runtime and universal 2.5×.
 
 - Inspected `test/source-observation-plan-producer-browser.js` lines 35–115. It calls `obfuscateFiles` with the experimental plan and asserts property/binding/literal metrics >=1 **before** starting Chromium. Since the static array/Map mismatch causes every planned pass to roll back, those metrics are expected to be zero; direct invocation would fail before browser comparison. This remains a static prediction, not an executed browser result.
 - The fixture is also not wired into `npm run test:browser`; the runner does not import it. Updated report with both facts: blob `3cabe2aaf2b230a589df1eea4d4757ad9c178096`, commit `9f225f1ac91856e5202bf7f35dbcb0455d236853`. Sent to Agents 3 and 10. No further CI dispatch.
+
+
+## 2026-11-24 checkpoint: browser runner environment verified
+
+- Checked the candidate's `.github/workflows/manual-validation.yml`: it already sets `CHROMIUM_BIN=google-chrome` for `npm run test:browser` and two other browser tests. Thus the source-observer fixture can be wired as another browser command without new binary setup; the current gap is that no workflow/script invokes it.
+- Latest report blob `80ce38a3344f802242e73fd9b2f7f47e02afd867`, commit `15f6460840c4bcd6e9e756ca8be6442452a40dbf`.
