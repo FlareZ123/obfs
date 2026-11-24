@@ -373,11 +373,10 @@ function collectOwnedConstantKeys(ast,rootName,bindings,scopes) {
  * @param {Map<string,string>} [importedSourceKeys] Verified string imports used only to detect source observation; this may include keys unrelated to the owner's fields.
  * @param {Set<string>} [importedPrimitives] Verified immutable primitive results from the exact ESM graph.
  * @param {boolean} [allowDirectReflection] Allow a closed-world caller to rewrite a narrowly proved direct reflective key.
- * @param {boolean} [allowCoveredSourceObserver] Only a complete source-observation plan may authorize localized source edits.
  * @returns {{aliases:Set<string>,members:AstNode[],memberNames:Map<AstNode,string>,patterns:AstNode[],patternNames:Map<AstNode,string>,inChecks:AstNode[],reflections:{call:AstNode,key:AstNode,property:string}[],forwardedCalls:Set<AstNode>}|null}
  */
-function proveLocalObject(ast, rootName, bindings, importedIdentityFunctions=new Map(), importedConsumers=new Map(), importedConstantKeys=new Map(), importedSourceKeys=importedConstantKeys, importedPrimitives=new Set(), allowDirectReflection=false, allowCoveredSourceObserver=false) {
-  if(!allowCoveredSourceObserver&&observesFunctionSource(ast,importedSourceKeys,new Set(),new Set(),importedPrimitives)) return null;
+function proveLocalObject(ast, rootName, bindings, importedIdentityFunctions=new Map(), importedConsumers=new Map(), importedConstantKeys=new Map(), importedSourceKeys=importedConstantKeys, importedPrimitives=new Set(), allowDirectReflection=false) {
+  if(observesFunctionSource(ast,importedSourceKeys,new Set(),new Set(),importedPrimitives)) return null;
   /** @type {Map<string,{node:AstNode,params:AstNode[],forwardIndex:number,returnsRoot?:boolean,external?:boolean,consumerIndex?:number}>} */
   const functions = new Map();
   const {calls,declarationSet,identifiers,identifierUses,parents,dynamicScope,
@@ -1283,10 +1282,13 @@ function singleUseFactoryObject(ast,bindings,expression) {
  * A conservative proof failure leaves the complete file unchanged for that object.
  * @param {string} source
  * @param {AstNode} ast
- * @param {{seed:string,sourceUnitRef?:string,parserContractId?:string,protectedSourceSpans?:Array<{spanId:string,sourceUnitRef:string,sourceGeneration:string,startOffset:number,endOffset:number,coordinateUnit:'utf16-code-unit',astNodeType:string|null}>,sourceObserverCoverageComplete?:boolean}} options
+ * @param {{seed:string,sourceUnitRef?:string,parserContractId?:string,protectedSourceSpans?:Array<{spanId:string,sourceUnitRef:string,sourceGeneration:string,startOffset:number,endOffset:number,coordinateUnit:'utf16-code-unit',astNodeType:string|null}>}} options
  * @returns {{code:string,objects:number,properties:number,editMap?:Object}}
  */
 function renameLocalProperties(source, ast, options) {
+  if(options.sourceObserverCoverageComplete!==undefined) {
+    throw new TypeError('Raw source-observer coverage booleans are unsupported; use a validated plan');
+  }
   const hasMapContext=options.sourceUnitRef!==undefined||options.parserContractId!==undefined;
   if(hasMapContext&&
      (typeof options.sourceUnitRef!=='string'||options.sourceUnitRef.length===0||
@@ -1297,10 +1299,6 @@ function renameLocalProperties(source, ast, options) {
   if(!Array.isArray(protectedSourceSpans))throw new TypeError('protectedSourceSpans must be an array');
   if(protectedSourceSpans.length&&!hasMapContext) {
     throw new TypeError('protectedSourceSpans require a source-unit and parser generation');
-  }
-  const sourceObserverCoverageComplete=options.sourceObserverCoverageComplete===true;
-  if(sourceObserverCoverageComplete&&!protectedSourceSpans.length) {
-    throw new TypeError('Source-observer coverage requires protected source spans');
   }
   if(protectedSourceSpans.length) {
     const generation=sourceGenerationOf(source,/** @type {string} */ (options.parserContractId));
@@ -1356,7 +1354,7 @@ function renameLocalProperties(source, ast, options) {
   let objects = 0;
   let properties = 0;
   for (const candidate of candidates) {
-    const proof = proveLocalObject(ast,candidate.name,bindings,new Map(),new Map(),new Map(),new Map(),new Set(),false,sourceObserverCoverageComplete);
+    const proof = proveLocalObject(ast,candidate.name,bindings);
     if (!proof || (!proof.members.length && !proof.patterns.length && !proof.inChecks.length)) continue;
     // An unowned field may invoke an inherited getter with this=object. That
     // getter can enumerate own keys, making otherwise private renaming visible.
