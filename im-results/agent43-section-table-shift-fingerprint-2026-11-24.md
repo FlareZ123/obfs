@@ -115,3 +115,17 @@ This is a reproducible Node.js simulation, but it is still not the repository's 
 Agent 2 independently reproduced the rank-five shift path in a separate Node 22 script, checked all (32\cdot31) fixed-pair conditions, recovered unique coordinates, and checked 10,000 additional random inputs. The same reviewer found no algebraic counterexample in the promised path and independently confirmed that a structured top-monomial table fails the fixed-pair check, selecting the derivative-signature branch.
 
 Important implementation boundary: the committed Node simulation is only a promised projected-affine fast-path experiment. It throws on shift ambiguity, signature overflow, no witness, or verifier mismatch; it does not implement the production fallback state machine. The selected fallback controls described above were exercised in a separate local Python prototype, not in that committed Node script. Production routing should be explicit: fixed-pair failure → old derivative-signature candidate path; ambiguity/no unique shift candidate → derivative-signature candidate path or exact ANF; signature overflow/no witness/postfit mismatch → exact degree-(r) ANF fallback. Keep the source-family promise explicit: the shift identity is exact for (F=A+b+h(Px)), not for every degree-(le r) function with a codimension-(r) top-derivative radical.
+
+
+## PR #373 finite positive-matrix cross-check
+
+I also replayed the exact rank-five positive-source SHA seed schedule from `sims/rankfive-top-derivative-projected-affine-hybrid-peer.js` for (n=5,6,7,8), eight cases each. The fixed-pair check passed 32/32; eager-signature, lazy-signature, and shift-matched models all matched the oracle over the complete finite domains (3,840 input checks). Mean query counts (eager signature / lazy signature / shift) were:
+
+| (n) | Eager | Lazy signature | Shift |
+|---:|---:|---:|---:|
+| 5 | 32 | 32 | 32 |
+| 6 | 64 | 64 | 64 |
+| 7 | 128 | 128 | 128 |
+| 8 | 253.875 | 253.625 | 245.625 |
+
+The small savings here are expected because the six-cube and signature queries nearly saturate these tiny input domains. This is a local Python replay of the PR's source/witness/verifier seed schedule, not execution of the PR branch itself or live HTTP validation.
