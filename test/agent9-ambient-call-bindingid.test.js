@@ -491,3 +491,13 @@ test('arguments.callee is treated as the active callable value',()=>{
   const result=analyze('function caller(){external(arguments.callee);}');
   assert.equal(named(result,'caller')[0].hostHeldCallable,true);
 });
+
+
+test('with object environments retain local callable values',()=>{
+  const result=analyze(
+    'function hidden(){return 1;}function caller(){'+
+    'with({callback:hidden}){external(callback);}}'
+  );
+  assert.equal(named(result,'hidden')[0].hostHeldCallable,true);
+  assert.equal(named(result,'caller')[0].ambient,true);
+});
