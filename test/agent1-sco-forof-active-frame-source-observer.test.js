@@ -74,9 +74,9 @@ test('SCO response preserves a private callable observed through host IteratorNe
   const after=observe(variant);
   assert.equal(after.value,before.value,
     'The SCO response must preserve ordinary return-value behavior');
-  assert.ok(!variant.includes('unrelatedField'),
-    'The unrelated plain() owner field is the positive rewrite-yield control');
   assert.deepEqual(after,before,
     'A host-supplied iterator callback can capture hidden() source in the SCO client: '+
     JSON.stringify({before,after,variant}));
+  assert.ok(!variant.includes('unrelatedField'),
+    'The unrelated plain() owner field is the positive rewrite-yield control: '+variant);
 });
