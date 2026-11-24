@@ -221,7 +221,7 @@ const nestedStaticBlockFunctionReader=[
   '  }',
   '}',
   'module.exports=Outer;'
-].join('\\n');
+].join('\n');
 
 for(const mode of /** @type {Array<'coo'|'sno'|'sco'>} */ (['coo','sno','sco'])){
   test(mode+' nested function reader in an outer static block must preserve outer class source',()=>{
