@@ -40,3 +40,8 @@ A local Node v22.16.0 reproduction of the same stack shape also reported the cal
 - No full suite, cross-mode acceptance, SCO/SNO/browser hostile matrix, hot-function/session CPU qualification, or tamper-resistance proof is implied.
 
 **Decision:** retain as intermediate evidence; do not promote to results/ or remove RELEASE-BLOCKED / NO-GO.
+## Same-line column-shift guard
+
+A second test-only addition in `test/source-observation-plan-producer.test.js` inserts a comment prefix before the reader declaration on the same line. The edit map preserves all tracked source spans exactly, and the reader call's line remains unchanged while its `call` token column moves by the prefix length. `validatePlanSemantics` rejects the mapped pass. This isolates the column comparison from the existing string-decoder test, which primarily adds lines.
+
+Focused run `45444911312` passed on Node v22.23.4 Ubuntu and Windows; strict project/external JSDoc also passed. This is direct-validator coverage only, not `acceptPlannedPass`/core transaction acceptance. The added test is on this test-only branch and has not been merged into Agent 3's candidate.
