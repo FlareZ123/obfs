@@ -151,6 +151,34 @@ function runDenseRegression() {
   return { queries: cache.size, coefficients: recovered.size, holdouts: 100 };
 }
 
+function runPrefilledCacheRegression() {
+  const { oracle } = makeSparseDegreeFiveSource();
+  const cache = new Map();
+  const basisPoints = Array.from({ length: 10 }, (_, i) => i);
+  const outsidePoints = [];
+  for (let i = 0; outsidePoints.length < 5; i++) {
+    const candidate = word('width32-precache-outside/' + i);
+    if (popcount32(candidate) > 5) outsidePoints.push(candidate);
+  }
+  for (const point of [...basisPoints, ...outsidePoints]) cache.set(point >>> 0, oracle(point));
+  const initialSize = cache.size;
+  const ask = input => {
+    const x = input >>> 0;
+    if (!cache.has(x)) cache.set(x, oracle(x));
+    return cache.get(x);
+  };
+  const model = exactDegreeFiveModel(ask, 32);
+  const incrementalQueries = cache.size - initialSize;
+  assert.equal(initialSize, 15);
+  assert.equal(cache.size, 242830);
+  assert.equal(incrementalQueries, 242815);
+  for (let i = 0; i < 100; i++) {
+    const input = word('width32-precache-holdout/' + i);
+    assert.equal(evaluateHybridModel(model, input), oracle(input));
+  }
+  return { initial_cached: initialSize, prefilled_in_basis: basisPoints.length, prefilled_outside_basis: outsidePoints.length, total_distinct_queries: cache.size, incremental_fallback_queries: incrementalQueries, holdouts: 100 };
+}
+
 function main() {
   const n = 32;
   const { terms, oracle } = makeSparseDegreeFiveSource();
@@ -180,6 +208,7 @@ function main() {
     assert.equal(evaluateHybridModel(model, input), oracle(input));
   }
   const dense = runDenseRegression();
+  const precached = runPrefilledCacheRegression();
 
   console.log(JSON.stringify({
     node: process.version,
@@ -194,6 +223,7 @@ function main() {
     edge_probes: probes.length,
     random_holdouts: 10000,
     dense_regression: dense,
+    prefilled_cache_regression: precached,
     result: 'all coefficients and evaluations matched'
   }, null, 2));
 }
