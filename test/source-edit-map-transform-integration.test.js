@@ -53,7 +53,8 @@ test('SNO host-held callback source survives mapped identifier edits and string 
     seed:'source-map-integration-properties',
     sourceUnitRef:UNIT,
     parserContractId:PARSER,
-    protectedSourceSpans:[originalSpan]
+    protectedSourceSpans:[originalSpan],
+    sourceObserverCoverageComplete:true // fixture's manual plan covers its only observer
   });
   assert.equal(propertyRenamed.objects,1,'only the object outside the observed callable should be renamed');
   assert.equal(propertyRenamed.properties,1);
