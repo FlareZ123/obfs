@@ -338,3 +338,24 @@ test('top-level source observation also marks an escaped class method held',()=>
   assert.ok(result.summaries.some(summary=>
     summary.hostHeldCallable&&summary.node.type==='FunctionExpression'));
 });
+
+
+test('ESM exported declarations and specifiers are externally reachable',()=>{
+  const declaration=analyze('export function hidden(){return 1;}','module');
+  assert.equal(named(declaration,'hidden')[0].externallyReachable,true);
+  const specifier=analyze('function hidden(){return 1;}export {hidden};','module');
+  assert.equal(named(specifier,'hidden')[0].externallyReachable,true);
+  const variable=analyze('export const hidden=()=>1;','module');
+  assert.equal(named(variable,'hidden')[0].externallyReachable,true);
+});
+
+test('CommonJS export assignments expose direct and aggregated callables',()=>{
+  const direct=analyze('function hidden(){return 1;}module.exports=hidden;');
+  assert.equal(named(direct,'hidden')[0].externallyReachable,true);
+  const aggregate=analyze(
+    'function hidden(){return 1;}module.exports={callback:hidden};'
+  );
+  assert.equal(named(aggregate,'hidden')[0].externallyReachable,true);
+  const alias=analyze('function hidden(){return 1;}exports.callback=hidden;');
+  assert.equal(named(alias,'hidden')[0].externallyReachable,true);
+});
