@@ -141,6 +141,13 @@ jobs:
         env:
           OBFS_FOCUSED_TEST: ${{ inputs.focused_test }}
         run: node sims/focused-test-dispatch.js
+      - name: Persist pinned direct-validator output
+        if: ${{ inputs.focused_test == 'test/source-observer-rebind-candidate-report.test.js' && !cancelled() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: source-observer-rebind-c243152-${{ runner.os }}
+          path: direct-validator-run.json
+          if-no-files-found: error
       - name: Strict project JSDoc
         run: npm run typecheck
       - name: Strict external JSDoc for focused runner
