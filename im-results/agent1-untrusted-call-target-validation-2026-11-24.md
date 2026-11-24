@@ -50,4 +50,4 @@ The first case requires lexical binding identity. The second requires stable cal
 
 ## Evidence boundary
 
-This run is pinned to the experimental branch only. It does not demonstrate a new current-main defect and does not authorize merging the prototype. The test file was added to the existing Agent 1 experimental branch; no production source or mainline candidate was changed.
+The SCO-labelled cases call obfuscateFiles({mode:'sco'}) directly. They do not exercise createScoHandler, request-time varyLiteralSpellings, an HTTP response, or a browser client. This run is pinned to the experimental branch only. It does not demonstrate a new current-main defect and does not authorize merging the prototype. The test file was added to the existing Agent 1 experimental branch; no production source or mainline candidate was changed.
