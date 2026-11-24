@@ -187,6 +187,13 @@ The canonical plan should expose at least:
  * @typedef {string} SourceUnitRefKey
  * @typedef {string} SourceMirrorRefKey
  * @typedef {string} ValueRefKey
+ * @typedef {Object} SourceMirrorRef
+ * @property {SourceUnitRefKey} sourceUnit
+ * @property {'inline-script-text'|'external-module-response'|'blob-module-bytes'|'function-source'|'dom-document-source'|'sri-pinned-bytes'|'loader-response'|'other'} mirrorKind
+ * @property {'inline'|'external-url'|'blob-url'|'data-url'|'loader-response'|'unknown'} embeddingKind
+ * @property {string|null} embeddingIdentity - script element identity, resolved URL, Blob URL or loader key
+ * @property {string|null} readerOperation - outerHTML, XMLSerializer.serializeToString, fetch(import.meta.url), etc.
+ * @property {string|null} hostContractId
  * @typedef {'get'|'set'|'has'|'deleteProperty'|'ownKeys'|'getOwnPropertyDescriptor'|'getPrototypeOf'|'defineProperty'|'setPrototypeOf'|'isExtensible'|'preventExtensions'|'apply'|'construct'} ProxyInternalMethod
  * @typedef {'local-definition'|'verified-native-intrinsic'|'host-overridden'|'unknown-or-mutable'} DispatchProvenance
  * @typedef {'PrimitiveGet'|'PrimitiveObjectPatternGet'|'PrimitiveIterator'|'IteratorDispatch'|'PrimitiveMethodDispatch'|'UnknownHostCall'|'UnknownHostArgumentEscape'|'AccessorCall'|'ProxyInternalMethod'|'ProxyHasProperty'|'ProxyOwnKeys'|'ProxyGetOwnProperty'|'ProxyGet'|'ProxySet'|'ProxyDelete'|'CustomHasInstance'|'ObjectCopyDispatch'|'WithBindingLookup'|'ToPrimitiveDispatch'|'ToPropertyKeyDispatch'|'PromiseResolveThenableGet'|'PromiseThenableJob'|'PromiseHandlerDispatch'|'IntrinsicCallbackDispatch'|'WebIDLStringConversion'|'WebIDLNamedPropertySet'|'WebIDLAttributeSet'|'DOMSourceSerialization'|'DOMSourceRead'|'SourceMirrorRead'|'SRIIntegrityPin'|'BrowserImportMapResolution'} HostEffectKind
@@ -245,7 +252,7 @@ The canonical plan should expose at least:
  * @property {ReadonlyMap<string, HostContractRef>} hostContracts
  * @property {string|null} deploymentManifestId - HTML/loader/import-map/SRI/source-mirror manifest generation
  * @property {ReadonlyMap<SourceUnitRefKey, SourceUnitRefKey>} resolvedModuleGraph
- * @property {ReadonlyMap<SourceMirrorRefKey, SourceUnitRefKey>} sourceMirrors - host HTML/DOM copies mapped to source units
+ * @property {ReadonlyMap<SourceMirrorRefKey, SourceMirrorRef>} sourceMirrors - explicit source embedding/mirror provenance, not only a source-unit pointer
  * @property {ReadonlyMap<SourceSpanId, ReadonlySet<ObservationEffect>>} effects
  * @property {ReadonlyMap<SourceSpanId, ReadonlySet<SourceSpanId>>} semanticClosures
  * @property {ReadonlySet<SourceSpanId>} unsupportedSpans
@@ -672,3 +679,25 @@ Examples:
 - A custom `Symbol.toPrimitive` on an object passed to Storage or Window.name can produce both a WebIDLStringConversion event and a nested ToPrimitiveDispatch, with its own trigger value and DynamicFrame edges.
 
 Use `causedByEffectId` only for actual nested/deferred causality, not as a substitute for source-unit/operand identity. It allows the plan to represent (for example) a PromiseResolve thenable getter followed by a deferred thenable job, or a Web IDL conversion that invokes user-defined coercion. Multiple sibling effects may still share one operation span without a parent-child relation.
+
+
+## SourceBytes and embedding/reader provenance: browser witness
+
+Agent 43's reproducible Chromium probe `sims/browser-dom-blob-source-parity.js` (current-main file blob `b1c4f1631f8b76d1f14c631ec15211a70b808f63`; final harness commit `ca137356713babb6cff4d63feb838f9181e2f4db`) establishes a separate browser source-bytes channel. It is a manual native-vs-shortened-source probe, **not** an obfuscator compiler differential:
+
+- Inline module bytes appear in `document.documentElement.outerHTML` and `XMLSerializer.serializeToString(document)`; the same module served as a Blob module does not appear in those DOM serializations.
+- A Blob ESM module can still read its own bytes using `fetch(import.meta.url)`; an aliased `fetch` plus `Response.prototype.text.call` also reads the source.
+- `document.title` is a negative reader control.
+- A separate Blob ESM `Error.stack` control exposes a changed source column after shortening a preceding property; this is SourceCoordinate, not SourceBytes.
+
+Agent 1's scanner audit reports that current `observesDistributedSource` has broad reader names such as `fetch`, XMLHttpRequest, FileReader and CacheStorage, but no explicit `outerHTML`, `XMLSerializer`, `serializeToString`, `documentElement`, `import.meta` or `currentScript` handling. Do not respond with a blanket `fetch` name veto: it would also catch unrelated JSON API fetches and sacrifice yield.
+
+The `SourceMirrorRef` in the plan must therefore record:
+- the exact SourceUnitRef being mirrored;
+- embedding kind (inline script, external URL, Blob URL, data URL, loader response);
+- embedding identity (script element, resolved URL, Blob URL, loader key);
+- the concrete reader operation and host contract.
+
+A SourceBytes effect closes over the whole source unit only when the provenance proves the relevant mirror/URL is readable. DOM serialization exposes inline embedding text, not arbitrary external/Blob bytes. `fetch(import.meta.url)` is a source-byte read for the module's own resolved URL, including Blob URL; an unrelated fetch is not. Keep SourceBytes, ExactSource, and FramePosition as distinct effects.
+
+Required future acceptance pair: same transformed module as inline script vs external/Blob ESM; compare outerHTML/XMLSerializer and fetch(import.meta.url) native/emitted bytes; include aliased fetch, document.title negative, and an unrelated JSON API fetch positive-yield control. This is browser runtime evidence only; no current-main transform regression is claimed by this probe.
