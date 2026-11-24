@@ -4,7 +4,7 @@ const {resolveLexicalReferences}=require('./agent1-lexical-reference-resolver');
 
 /** @typedef {import('../src/ast').AstNode} AstNode */
 /** @typedef {'module'|'script'|'commonjs'} SourceType */
-/** @typedef {{kind:'unknown-call'|'unresolved-local-call'|'new-expression'|'tagged-template'|'await'|'yield'|'dynamic-import'|'transitive-local-call'|'with-binding-lookup'|'implicit-iterator'|'implicit-object-enumeration'|'implicit-proxy-has'|'implicit-instanceof'|'implicit-delete'|'implicit-destructuring'|'implicit-spread'|'to-primitive'|'to-property-key'|'promise-thenable-assimilation'|'host-held-callable'|'classic-script-global-lexical'|'unknown-member-access',start:number,end:number,targetStart?:number,effect?:'DynamicFrame'|'HostHeldCallable'|'ExternalReachability'}} AmbientCallReason */
+/** @typedef {{kind:'unknown-call'|'unresolved-local-call'|'new-expression'|'tagged-template'|'await'|'yield'|'dynamic-import'|'transitive-local-call'|'with-binding-lookup'|'implicit-iterator'|'implicit-object-enumeration'|'implicit-proxy-has'|'implicit-instanceof'|'implicit-delete'|'implicit-destructuring'|'implicit-spread'|'to-primitive'|'to-property-key'|'promise-thenable-assimilation'|'host-held-callable'|'unresolved-callable-argument-flow'|'classic-script-global-lexical'|'unknown-member-access',start:number,end:number,targetStart?:number,effect?:'DynamicFrame'|'HostHeldCallable'|'ExternalReachability'}} AmbientCallReason */
 /** @typedef {{node:AstNode,start:number,end:number,bindingIds:number[],bindingNames:string[],ambient:boolean,dynamicFrame:boolean,hostHeldCallable:boolean,externallyReachable:boolean,safe:boolean,reasons:AmbientCallReason[]}} AmbientCallSummary */
 
 /**
@@ -114,10 +114,12 @@ function staticPropertyKey(property,computed) {
  * identifier aliases. Every other call target is ambient/unknown.
  *
  * This summary is deliberately narrower than a complete host-effect model:
- * ordinary member getters/Proxy Get/Set, primitive prototype reads, Web IDL,
- * cross-file imported function bodies, parameter/return/aggregate value flow,
- * and error-stack observation remain unresolved. It is not transform
- * authorization; safe means only that no modeled effect was found.
+ * unknown member reads/writes are rejected except for proven non-escaping
+ * primitive own-data records. Web IDL, cross-file imported function bodies,
+ * return/aggregate value flow, and error-stack observation remain unresolved.
+ * Callable arguments crossing any call boundary are conservatively marked
+ * HostHeldCallable because parameter escape is not analyzed. It is not
+ * transform authorization; safe means only that no modeled effect was found.
  *
  * @param {AstNode} ast
  * @param {SourceType} sourceType
@@ -415,10 +417,11 @@ function summarizeAmbientCallEffects(ast,sourceType) {
     return null;
   }
 
-  // An unknown host call can retain and stringify a callable argument without
-  // invoking it. This value-escape effect is distinct from DynamicFrame.
-  // This first cut follows direct identifiers, const aliases and inline
-  // function arguments; aggregate/return/parameter flows remain Unknown.
+  // A host call can retain and stringify a callable argument without invoking
+  // it. A local call may forward the value through an unanalyzed parameter,
+  // so this first cut conservatively treats every call boundary as a possible
+  // escape. Direct identifiers, const aliases and inline function arguments
+  // are followed; aggregate/return flows remain Unknown.
   walkAst(ast,node=>{
     if(node.type==='CallExpression'||node.type==='NewExpression') {
       let knownLocalTarget=null;
@@ -427,11 +430,12 @@ function summarizeAmbientCallEffects(ast,sourceType) {
         if(reference?.resolution.kind==='local')
           knownLocalTarget=resolveFunctionNode(reference.resolution.bindingId);
       }
-      if(!knownLocalTarget) {
-        for(const argument of node.arguments) {
-          const target=callableForArgument(argument);
-          if(target)addReason(target,{kind:'host-held-callable',start:node.start,end:node.end},'HostHeldCallable');
-        }
+      for(const argument of node.arguments) {
+        const target=callableForArgument(argument);
+        if(target)addReason(target,{
+          kind:knownLocalTarget?'unresolved-callable-argument-flow':'host-held-callable',
+          start:node.start,end:node.end
+        },'HostHeldCallable');
       }
     } else if(node.type==='TaggedTemplateExpression') {
       for(const expression of node.quasi.expressions) {
