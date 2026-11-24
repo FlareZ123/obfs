@@ -4,11 +4,19 @@ const assert=require('node:assert/strict');
 const test=require('node:test');
 const {main}=require('../sims/source-observer-runtime-budget');
 const {pairedBudgetBound}=require('../sims/paired-budget-bound');
+const {familywiseBudgetBounds}=require('../sims/familywise-budget-bound');
 
 test('COO source-observer startup reports paired 2.5x budget bounds',async()=>{
   /** @type {{platform:string,workloads:Array<{workload:string,baselineSamplesMs:number[],obfuscatedSamplesMs:number[],ratio:number}>}} */
   const report=/** @type {unknown} */ (await main());
   assert.equal(report.workloads.length,2);
+  const familywise=familywiseBudgetBounds(report.workloads.map(workload=>({
+    native:workload.baselineSamplesMs,candidate:workload.obfuscatedSamplesMs
+  })),{threshold:2.5,confidence:0.95});
+  process.stdout.write('SOURCE_OBSERVER_FAMILYWISE_BUDGET '+JSON.stringify({
+    platform:report.platform,workloadNames:report.workloads.map(workload=>workload.workload),
+    ...familywise
+  })+'\n');
   for(const workload of report.workloads) {
     const bound=pairedBudgetBound(workload.baselineSamplesMs,workload.obfuscatedSamplesMs,{
       threshold:2.5,confidence:0.95
