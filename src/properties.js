@@ -605,7 +605,6 @@ function proveLocalObject(ast, rootName, bindings, importedIdentityFunctions=new
         if(destructured){
           for(const name of patternAliases)holderAliases.add(name);
           for(const binding of patternAliasBindings)holderAliasBindings.add(binding);
-          for(const [name,aliasScope] of holderAliasScopes)scopes.set(name,aliasScope);
         }
       }
       if(!ancestors.includes(scope)||(!read&&!destructured)||
@@ -729,7 +728,6 @@ function proveLocalObject(ast, rootName, bindings, importedIdentityFunctions=new
         if(destructured){
           for(const name of patternAliases)holderAliases.add(name);
           for(const binding of patternAliasBindings)holderAliasBindings.add(binding);
-          for(const [name,aliasScope] of holderAliasScopes)scopes.set(name,aliasScope);
         }
       }
       if(!ancestors.includes(scope)||(!read&&!destructured)||
