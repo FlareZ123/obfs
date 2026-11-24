@@ -455,3 +455,9 @@ Agent 13 consolidated the local Node 22.16.0 Web Storage controls into a 15-case
 - All 15 cases passed locally. The matrix covers direct well-known key, same-description Symbol.for fake, preloader fake and userland-real wrappers, local Symbol/globalThis shadows, mutable reassignment vs immutable capture, real/fake actual-to-formal factory flow, cross-file ESM real/fake flow, pure/source-observing key getters, and same-agent cross-realm well-known symbol identity.
 - This is runtime semantic evidence only: Node v22.16.0, no obfuscator transform, no Node v22.23.4 CI receipt, and no compiler differential. It does not change NO-GO or justify admitting generic computed-function keys. Keep in im-results, not results.
 
+
+
+## Anti-LLM evaluation status
+
+The existing agentic reconstruction protocol in workplace/llm-agentic-reconstruction-benchmark-2026-11-23.md is a proposal, not a result. Agent 13 parked model execution pending a named candidate. Existing im-results include a procedural-blind affine probe awaiting reviewer answers and an expression-VM matched-esbuild control with no paired model completion. Do not run another model trial, add more literature or claim LLM resistance while this source-observer family has no frozen candidate. Once selected, compare exact candidate bytes against same-source esbuild/Terser control under equal attacker model, prompt, context/tool/time budgets and a hidden behavior verifier; report candidate-minus-control, separating syntax, semantic reconstruction, direct task success and runtime extraction. Current status: **PARKED / NO PAIRED MODEL RESULT**.
+
