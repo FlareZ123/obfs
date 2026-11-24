@@ -203,10 +203,10 @@ test('producer rejects aliases, extra readers, unknown syntax and unversioned ho
 
 
 test('MappedSourceRange composes directly through the next generation without re-minting SourceSpanRef',()=>{
-  const input='const emoji = "😀";\nfunction observed() { return 29; }\\nexport const marker = 1;';
+  const input='const emoji = "😀";\nfunction observed() { return 29; }\nexport const marker = 1;';
   const unit='unit:direct-map-composition';
   const start=input.indexOf('function observed');
-  const end=input.indexOf('\\n',start);
+  const end=input.indexOf('\n',start);
   const originalSpan=Object.freeze({
     spanId:'span:original:function-observed',
     sourceUnitRef:unit,
@@ -232,12 +232,12 @@ test('MappedSourceRange composes directly through the next generation without re
   assert.equal(insertedAtEnd.code.slice(endMapped.startOffset,endMapped.endOffset),
     input.slice(originalSpan.startOffset,originalSpan.endOffset));
   const first=applyEditsWithMap(input,[{
-    start:0,end:0,text:'// first prologue\\n',affinity:'before-node'
+    start:0,end:0,text:'// first prologue\n',affinity:'before-node'
   }],unit,parserContractIdFor('module'));
   const firstRange=mapSourceSpan(first.map,originalSpan,input,first.code);
   assert.ok(firstRange);
   const second=applyEditsWithMap(first.code,[{
-    start:0,end:0,text:'// second prologue\\n',affinity:'before-node'
+    start:0,end:0,text:'// second prologue\n',affinity:'before-node'
   }],unit,parserContractIdFor('module'));
   const secondRange=mapMappedSourceRange(second.map,firstRange,first.code,second.code);
   assert.ok(secondRange,'the second mapper must accept the first MappedSourceRange directly');
