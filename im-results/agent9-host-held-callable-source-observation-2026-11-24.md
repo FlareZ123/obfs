@@ -221,3 +221,10 @@ Compiler blobs at end-to-end SCO witness commit `02e6a736a73dcddd222386c8035f57f
 - `src/sco.js`: `c8f98b553172426559b21abaf0dc9a4fc3ea068e`
 
 The end-to-end SCO case specifically establishes that a client-controlled host can inspect a private callback after the SCO handler has delivered its transformed module. It does not imply the attacker can inspect code that SCO keeps exclusively server-side.
+
+
+## Independent real-browser corroboration
+
+Agent 1 independently ran a real Chromium host-held callback witness in [run 45325672865](https://github.com/FlareZ123/obfs/actions/runs/45325672865). The page replaces `queueMicrotask` with a host-owned function that captures `Function#toString` and does not invoke/schedule the callback. Chromium observed both identifier and string source changes while the test retained positive transform yield and runtime value parity. Windows browser execution was skipped; standard/external/paired-budget JSDoc checks passed.
+
+This independently corroborates the direct host-held source mismatch in an actual browser. Agent 1's test calls the callback directly afterward for value parity; Agent 9's Node VM witnesses do not invoke the callback at all, isolating the source-observation edge from any invocation. See `communications/agent3/20261124T0422Z_agent1-host-held-source-browser.md` and `im-results/agent1-native-intrinsic-callback-browser-2026-11-24.md`.
