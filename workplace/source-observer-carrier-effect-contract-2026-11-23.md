@@ -177,7 +177,7 @@ The canonical plan should expose at least the following. The v2 JSDoc schema sup
  * @property {SourceSpanId} sourceSpanId
  * @property {DefinitionRefKey|null} lexicalDefinitionRef
  * @property {DefinitionRefKey|null} ownerDefinitionRef
- * @property {string|null} propertyKeyIdentity
+ * @property {PropertyKeyIdentityRefKey|null} propertyKeyIdentity
  * @property {'function-declaration'|'function-expression'|'object-method'|'object-accessor'|'class-method'|'class-accessor'|'class-constructor'|'class-field'|'anonymous-expression'|'imported-callable'|'unknown'} kind
  *
  * @typedef {Object} ActivationRef
@@ -315,6 +315,11 @@ The canonical plan should expose at least the following. The v2 JSDoc schema sup
  * @typedef {Object} PropertyKeyIdentityRef
  * @property {PropertyKeyIdentityRefKey} identityRef
  * @property {PropertyKeyIdentityKind} kind
+ * @property {ValueRefKey|null} sourceValueRef - value of the computed-key expression before ToPropertyKey
+ * @property {SourceSpanId} useSiteSpanId
+ * @property {string} controlFlowPointId - use-site reaching-definition point, not declaration-wide alias state
+ * @property {ReadonlyArray<DefinitionRefKey>} reachingDefinitionRefs
+ * @property {ReadonlyArray<string>} branchGuardIds
  * @property {string|null} stringValue - canonical property key string for string/number cases
  * @property {number|null} numericValue
  * @property {WellKnownSymbolRefKey|null} wellKnownSymbolRef
@@ -495,6 +500,8 @@ The canonical event taxonomy uses one ProxyInternalMethod event with the exact o
 ObservationEffect has four positive dimensions: ExactSource (callable source text), SourceBytes (distributed source-unit bytes/mirrors), FramePosition (observable coordinates), and CallableMetadata (name/length/identity metadata). UnknownHostEffect is an epistemic fallback, not a fifth positive observation. A proven ExactSource closure is callable-span scoped; SourceBytes closes over a source unit only when its mirror/URL provenance establishes that reader; FramePosition closes over coordinate-affecting edits; CallableMetadata closes over exposed metadata. These effects are independent.
 
 SCO selected-server partitioning is a separate placement decision, not a source-transform effect. Compute ScoPartitionEligibility per callable over the full client module graph: a client HostHeldCallable/ExactSource observer makes the callable ineligible under strict 1:1 source semantics; unknown client observer reachability is unknown and fails closed; absence of a client source observer can leave the server-private partition eligible. The generated facade may protect private server bytes, but its Function#toString source differs from the original server callable. Do not claim both strict source parity and server-only confidentiality for that observable callable. Request-time mutation of delivered client code and selected-server partition eligibility are distinct SCO boundaries.
+
+PropertyKeyIdentityRef is use-site-specific. The computed MemberExpression key span, sourceValueRef, controlFlowPointId, branchGuardIds and reachingDefinitionRefs must identify the value that actually reaches that exact use. Do not infer the key from a declaration's initial value or a spelling-keyed alias set. For example, after `let key = Symbol.toPrimitive; key = Symbol.for('fake'); inspect[key] = hook`, the use-site key is fake; after `let key = Symbol.toPrimitive; const captured = key; key = Symbol.for('fake'); inspect[captured] = hook`, the use-site key remains the captured well-known symbol. CallableDefinitionRef, ValueFlowEdge and HostEffectRecord must all refer to the same PropertyKeyIdentityRefKey so the own hook, computed property write and ToPrimitiveDispatch join on one identity.
 
 A property-key identity is not a bare string or a constructor spelling. PropertyKeyIdentityRef distinguishes static strings, number-to-string keys, well-known symbols, unique symbols and unknown keys, and carries exact value/provenance. For @@toPrimitive, the proof target is the actual well-known symbol value used at the computed property access. Its identity domain is the ECMAScript agent, not an individual realm; source realm is provenance only. A cross-realm intrinsic or userland wrapper exposing the exact agent-wide well-known symbol may be proven, while a fake Symbol.for value, mutable alias, shadowed Symbol binding or unknown preload remains Unknown unless the value graph or a mode-specific HostContractRef proves the actual key.
 
