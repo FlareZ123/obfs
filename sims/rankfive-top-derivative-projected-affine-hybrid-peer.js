@@ -498,8 +498,8 @@ function main() {
     () => 0
   );
   assert.equal(rankSixFallback.diagnostics.fallbackUsed,true);
-  assert.ok(['signature-outside-codimension-five-span','verification-mismatch']
-    .includes(rankSixFallback.diagnostics.fallbackReason));
+  assert.ok(rankSixFallback.diagnostics.fallbackReason === 'signature-outside-codimension-five-span' ||
+    rankSixFallback.diagnostics.fallbackReason === 'verification-mismatch');
   assert.equal(rankSixFallback.model.kind,'anf');
   for (let input = 0; input < 256; input++) {
     assert.equal(evaluateHybridModel(rankSixFallback.model,input),rankSix(input));
