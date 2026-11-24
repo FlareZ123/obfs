@@ -44,7 +44,8 @@ function sourceFor(scenario){
     scenario.body,
     'return owner.longPrivatePropertyName;}',
     'function plain(){return other.unrelatedField;}',
-    'function publicReader(external){return hidden(external)+plain();}'
+    'function publicReader(external){return hidden(external)+plain();}',
+    'module.exports=publicReader;'
   ].join('');
 }
 
@@ -57,6 +58,7 @@ function pageFor(observation,scriptPath){
   return '<!doctype html><meta charset="utf-8">'+
     '<pre id="result"></pre><pre id="failure"></pre>'+
     '<script>'+
+    'window.module={exports:{}};'+
     'window.__observation={source:null,frame:null,column:null,error:null};'+
     'window.__kind='+JSON.stringify(observation)+';'+
     'function external(){try{'+
@@ -75,7 +77,7 @@ function pageFor(observation,scriptPath){
     '</script>'+
     '<script src="'+scriptPath+'"></script>'+
     '<script>try{'+
-      'var value=publicReader(external);'+
+      'var value=module.exports(external);'+
       'var seen=window.__observation;'+
       'var result={value:value,source:seen.source,frame:seen.frame,column:seen.column,error:seen.error};'+
       'document.getElementById("result").textContent=btoa(JSON.stringify(result));'+
@@ -102,20 +104,24 @@ async function observe(origin,pagePath){
 async function main(){
   /** @type {Map<string,{body:string,type:string}>} */
   const resources=new Map();
+  /** @type {Map<string,number>} */
+  const metrics=new Map();
   /** @type {Array<{kind:string,mode:string,properties:number,native:Observation,compiled:Observation}>} */
   const results=[];
 
   for(const scenario of scenarios){
     const source=sourceFor(scenario);
     const output=obfuscateFiles([{
-      path:'entry.js',sourceType:'script',code:source
+      path:'entry.js',sourceType:'commonjs',code:source
     }],{
       mode:'coo',seed:'agent1-native-callback-browser/'+scenario.kind,
       identifiers:false,strings:false,properties:true
     });
     assert.equal(output.files.length,1);
-    const emitted=output.files[0].code;
-    assert.equal(typeof emitted,'string');
+    const emittedValue=output.files[0].code;
+    assert.equal(typeof emittedValue,'string');
+    const emitted=/** @type {string} */(emittedValue);
+    metrics.set(scenario.kind,output.files[0].metrics.properties);
     assert.ok(output.files[0].metrics.properties>=1,
       scenario.kind+' must retain nonzero private-property rewrite yield');
     assert.ok(!emitted.includes('unrelatedField'),
@@ -149,7 +155,7 @@ async function main(){
   });
   await new Promise((resolve,reject)=>{
     server.once('error',reject);
-    server.listen(0,'127.0.0.1',resolve);
+    server.listen(0,'127.0.0.1',()=>resolve(undefined));
   });
 
   try{
@@ -185,21 +191,22 @@ async function main(){
           scenario.kind+' should expose changed active-frame coordinates after private-key rewriting');
       }
 
+      const properties=metrics.get(scenario.kind)??0;
       results.push({
         kind:scenario.kind,mode:'coo',
-        properties:output.files[0].metrics.properties,
+        properties,
         native:before,compiled:after
       });
       process.stdout.write('CHROMIUM_INTRINSIC_CALLBACK '+JSON.stringify({
         kind:scenario.kind,observation:scenario.observation,
-        properties:output.files[0].metrics.properties,
+        properties,
         nativeValue:before.value,compiledValue:after.value,
         nativeColumn:before.column,compiledColumn:after.column,
         sourceChanged:before.source!==after.source
       })+'\n');
     }
   }finally{
-    await new Promise((resolve,reject)=>server.close(error=>error?reject(error):resolve()));
+    await new Promise((resolve,reject)=>server.close(error=>error?reject(error):resolve(undefined)));
   }
 
   assert.equal(results.length,scenarios.length);
