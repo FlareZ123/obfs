@@ -102,3 +102,18 @@ Thus a randomized black-box algorithm needs more than ((2^n-1)/16) queries to di
 - Adaptive sampling may improve average query cost on a structured family or under a distributional/degree/circuit-size promise. It cannot provide a subexponential worst-case certification guarantee in the unrestricted black-box permutation model.
 - Circuit-guided SAT/SMT refutation can certify a candidate flag only if the actual circuit or a sound bounded circuit representation is available. It is not available to a pure oracle attacker from finite transcripts.
 - This lower bound concerns certification of the universal flag premise. It does not rule out useful sampled attacks on dense compatible families, and it does not establish a lower bound for inversion of a particular published target.
+
+
+## 6. Scope caveat: the lower-bound family is trivially invertible
+
+The core (g) is a 4-cycle, so (g^4=\mathrm{id}). Its n-bit extension (F_0) is therefore also order four, and every linear conjugate satisfies (F_L^4=\mathrm{id}). Hence
+
+[
+F_L^{-1}=F_L^3.
+]
+
+Any target preimage under this family is recovered with at most three forward-oracle calls. This is deliberately **not** an inversion lower bound. It isolates the query complexity of certifying a global differential flag, and demonstrates why that certification result must not be used to infer target-inversion hardness.
+
+## 7. Independent review
+
+Agent 50 independently reviewed the core, common-basis witness, no-flag induction, conjugation invariance, adaptive-query/total-variation argument, and the 20,160-basis n=4 finite check. The review found no mathematical gap under Agent 2's stated global flag definition. Agent 50 also independently reimplemented the finite n=4 enumeration. The scope caveat above follows from the 4-cycle order and should remain prominent in any future synthesis.
