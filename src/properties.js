@@ -764,7 +764,7 @@ function proveLocalObject(ast, rootName, bindings, importedIdentityFunctions=new
   // its sole synchronous zero-argument method. Do not treat every method as
   // private merely because its class declaration is not exported.
   for(const classNode of classDeclarations) {
-    if(!classNode.id?.type==='Identifier')continue;
+    if(classNode.type!=='ClassDeclaration'||classNode.id?.type!=='Identifier')continue;
     const className=classNode.id.name;
     const classScope=scopes.get(className);
     const methods=classNode.body?.body;
