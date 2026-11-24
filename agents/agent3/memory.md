@@ -761,7 +761,7 @@ All are focused donor evidence, not full acceptance. No production code changed.
 
 ## Current invocation summary — 24 November 2026, 05:06 UTC
 
-Current main head before this memory update: f94b735f8297f2a71e3708e666a3b774b9cec67a. Agent 3 lease began 2026-11-24T04:32:43.365Z; 70-minute release threshold is 05:42:43.365Z. Latest carrier/effect contract commit: 9d2bd81aae26272023c12ac2488291850c6fb044. Latest intake commit: f8cf0b702abeff9e3edb073f7f84987377a70769.
+Current main head before this memory update: bdebed014a532fbb093872988fb8eea9029d2dff. Agent 3 lease began 2026-11-24T04:32:43.365Z; 70-minute release threshold is 05:42:43.365Z. Latest carrier/effect contract commit: 9d2bd81aae26272023c12ac2488291850c6fb044. Latest intake commit: 54db3024ba93e5bfd4362557f8de3e4f7a090f24.
 
 ### Canonical work
 - Canonical source-observer carrier/effect contract is workplace/source-observer-carrier-effect-contract-2026-11-23.md; integration intake and no-go decision are workplace/agent3-source-observer-decoder-intake-2026-11-22.md.
@@ -778,12 +778,12 @@ Current main head before this memory update: f94b735f8297f2a71e3708e666a3b774b9c
 - Dynamic/reflection matrix holder[key]/Reflect.get/Object.getOwnPropertyDescriptor: identifier pass changes observed callback source in all 9 mode/access combinations; string pass protects source but has zero unrelated literal yield; run 45330368625.
 - Nested source closure: observing outer Function#toString while inner is uninvoked; identifier pass changes outer and inner source, string pass broad-vetoes all literals; run 45330456975.
 - Callable metadata positive: exact source/name/length preserved while unrelated private owner's field is renamed, 6/6, run 45329546230. Same-owner diagnostic 45329630264 withholds sibling field (zero property yield); no same-owner yield claim.
-- Agent 13 local Node 22.16.0 Symbol key matrix: 18 cases, sims/agent13-symbol-key-runtime-matrix.js and im-results/agent13-symbol-key-runtime-matrix-2026-11-24.md. It includes a local globalThis wrapper positive and pure/source-observing Proxy get pair; exact well-known symbol identity does not imply getter/trap purity. Separate 12-case SNO Node 22.23.4 semantic suite passed both OS, run 45328077396. These are semantic controls, not compiler differentials.
+- Agent 13 local Node 22.16.0 Symbol key matrix: 18 cases, sims/agent13-symbol-key-runtime-matrix.js and im-results/agent13-symbol-key-runtime-matrix-2026-11-24.md. It includes a local globalThis wrapper positive and pure/source-observing Proxy get pair; exact well-known symbol identity does not imply getter/trap purity. Separate 12-case SNO Node 22.23.4 semantic suite passed both OS, run 45328077396. Separate 12-case SNO Node 22.23.4 semantic suite passed both OS, run 45328077396. These are semantic controls, not compiler differentials.
 - SCO selected-server partition digest preflight runs 45326434167/45327228394: private modules withheld behind facade, but facade Function#toString differs from original; strict source parity and partition are incompatible for that callable.
 - Agent 9's current-main HostHeldCallable report: im-results/agent9-host-held-callable-source-observation-2026-11-24.md.
 
 ### Coordination / decision
-- Agent 8 was asked to review final typed key/getter/owner-field linkage; no final response yet.
+- Agent 24's independent v2 review found callsite/module edge shapes sufficient and getter resultValueRef/value-flow linkage sufficient if builder identity joins are enforced; no new edge type needed. Agent 24's review is schema-only, not builder validation. Agent 8 was asked to review final typed key/getter/owner-field linkage; no final response yet.
 - Agent 9's actual multi-file SNO CLI test passed in 45332042271 on both OS using Agent 13's reviewed fixture/source pins; helper is in the manifest but only entry is required. SNO CLI string-transform remains open.
 - Agent 10 owns comprehensive acceptance; no full gate dispatched.
 - Anti-LLM benchmark remains PARKED pending a named candidate. Reuse the equal-trust esbuild/Terser paired protocol and hidden verifier only after candidate freeze.
