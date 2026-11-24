@@ -381,6 +381,9 @@ function summarizeAmbientCallEffects(ast,sourceType) {
     if(node.type==='FunctionDeclaration'&&node.id?.type==='Identifier') {
       const id=declarationByNode.get(node.id)?.bindingId??null;
       if(id!==null)addBindingValueExpression(id,node);
+    } else if(node.type==='ClassDeclaration'&&node.id?.type==='Identifier') {
+      const id=declarationByNode.get(node.id)?.bindingId??null;
+      if(id!==null)addBindingValueExpression(id,node);
     } else if(node.type==='VariableDeclarator'&&node.id.type==='Identifier'&&node.init) {
       const id=declarationByNode.get(node.id)?.bindingId??null;
       if(id!==null)addBindingValueExpression(id,node.init);
@@ -466,7 +469,7 @@ function summarizeAmbientCallEffects(ast,sourceType) {
       const bindingId=reference.resolution.bindingId;
       const direct=resolveFunctionNode(bindingId);
       if(direct)return [direct];
-      const classNode=classNodeByBinding.get(bindingId);
+      const classNode=writtenBindings.has(bindingId)?null:classNodeByBinding.get(bindingId);
       if(classNode)return classMethodFunctions(classNode);
       if(seen.has(bindingId))return [];
       const next=new Set(seen);
@@ -502,8 +505,11 @@ function summarizeAmbientCallEffects(ast,sourceType) {
       if(value.callee.type==='Identifier') {
         const reference=resolved.at(value.callee.start);
         if(reference?.resolution.kind==='local') {
-          const classNode=classNodeByBinding.get(reference.resolution.bindingId);
+          const bindingId=reference.resolution.bindingId;
+          const classNode=writtenBindings.has(bindingId)?null:classNodeByBinding.get(bindingId);
           if(classNode)return classMethodFunctions(classNode);
+          const values=bindingValueExpressions.get(bindingId)??[];
+          return [...new Set(values.flatMap(candidate=>callableNodesForValue(candidate,seen)))];
         }
       }
       return [];
