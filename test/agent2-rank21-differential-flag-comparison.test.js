@@ -312,6 +312,7 @@ test('48-sample differential flags remain exact across eight affine wrappers',()
   };
   /** @type {Array<Object>} */
   const summaries=[];
+  let matched48Queries=0;
   for(const samplesPerStage of [32,48]){
     let verifiedTargets=0,totalQueries=0,fullBatches=0,unsupportedBatches=0;
     /** @type {Array<Object>} */
@@ -327,7 +328,8 @@ test('48-sample differential flags remain exact across eight affine wrappers',()
         const hidden=(applyLinear(inputColumns,input)^wrapper.inputBias)>>>0;
         return (applyLinear(outputColumns,rank21Triangular(hidden,terms))^wrapper.outputBias)>>>0;
       };
-      for(const sampleSeed of sampleSeeds){
+      for(let sampleIndex=0;sampleIndex<sampleSeeds.length;sampleIndex++){
+        const sampleSeed=sampleSeeds[sampleIndex];
         const learned=learnFlag(oracle,{
           bits:32,samplesPerStage,sampleSeed,maxQueries:1000000
         });
@@ -355,6 +357,7 @@ test('48-sample differential flags remain exact across eight affine wrappers',()
         }
         const queries=learned.queries();
         totalQueries+=queries;
+        if(samplesPerStage===48&&wrapperIndex<2&&sampleIndex<2)matched48Queries+=queries;
         if(batchVerified===hiddenTargets.length)fullBatches++;
         else failures.push({
           wrapperIndex,
@@ -379,8 +382,12 @@ test('48-sample differential flags remain exact across eight affine wrappers',()
       failures
     });
   }
+  assert.equal(matched48Queries,109002);
   process.stdout.write('OBFS_RANK21_DIFFERENTIAL_FLAG_EIGHT_WRAPPER_SWEEP '+JSON.stringify({
     source:'rank-21-displacement-degree-five-triangular-permutation',
+    matched48DifferentialQueries:matched48Queries,
+    matchedCurrentMainGraphUniqueCalls:448438,
+    matched48ToGraphUniqueRatio:448438/matched48Queries,
     wrappers:wrappers.length,
     sampleSeeds:sampleSeeds.length,
     targetsPerBatch:hiddenTargets.length,
