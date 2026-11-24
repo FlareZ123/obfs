@@ -88,5 +88,5 @@ This result does not contradict Agent 9's nine-case dynamic/reflection matrix in
 
 This is a **red-control witness** for current behavior, not an acceptance test for the desired obfuscator. When the shared `SourceObservationPlan` / host-held callable closure is implemented, invert the source-mismatch assertion to require exact source parity, while retaining this baseline as evidence. Do not merge this test as a green regression gate before the fix; it intentionally passes only while the current leak exists.
 
-Scope is one-file and two-file CommonJS SNO CLI, Node 22.23.4 on Linux and Windows. It does not establish multi-file SNO parity, package/CLI acceptance, browser behavior, SCO behavior, CallableMetadata coverage, performance budget, or a release candidate. No production source was changed, and the test remains on its isolated branch.
+Scope is one-file and two-file CommonJS SNO CLI, Node 22.23.4 on Linux and Windows. It does not establish general multi-file SNO parity beyond the tested helper/entry shape, package/CLI acceptance, browser behavior, SCO behavior, CallableMetadata coverage, performance budget, or a release candidate. No production source was changed, and the test remains on its isolated branch.
 
