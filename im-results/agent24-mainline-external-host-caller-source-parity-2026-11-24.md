@@ -82,3 +82,36 @@ For any function whose source is considered protected, an unknown synchronous ex
 5. Re-run source parity for Node CommonJS, browser script/ESM host callbacks, and all three modes, then run the full suite and budget gates separately.
 
 **Disposition:** current mainline's local private-function property proof is not source-parity-safe under arbitrary external synchronous callbacks. Keep the relevant modes / callable shapes release-blocked until the host-observer boundary is explicit and tested. Do not claim the finite direct-`Function#toString` COO plan alone closes this separate ambient-caller path.
+
+
+## Transitive local-call-chain reproduction
+
+A second exact-mainline test extends the same witness through a local helper call:
+
+```js
+function invokeExternal(){getExternal();}
+function hidden(){
+  const owner={secretField:41,otherField:2};
+  invokeExternal();
+  return owner.secretField+owner.otherField;
+}
+function publicReader(){return hidden();}
+module.exports=publicReader;
+```
+
+The host callback uses `arguments.callee.caller.caller` to capture `hidden` from inside `invokeExternal`. The function binding for `hidden` is still used only as a direct call from `publicReader`; `invokeExternal` is still used only as a direct call from `hidden`.
+
+- Test-only branch head: `351fee5833706394006ffdc48cf378207954e4c8`
+- Base-to-branch diff: exactly three added test files, no production source changes.
+- Test: `test/agent24-mainline-transitive-host-caller-source-witness.test.js`
+- Run: [45434662338](https://github.com/FlareZ123/obfs/actions/runs/45434662338), Ubuntu and Windows Node 22.23.4.
+- All three modes fail the exact `hidden` source comparison on both OS; the preceding numeric result equality passes.
+- Emitted source: `function hidden(){const owner={"_pa847e3216b":41,"_p5e30c0aa30":2};invokeExternal();return owner._pa847e3216b+owner._p5e30c0aa30;}`
+
+This proves the ambient caller/stack effect must propagate through the active local call chain: the unknown external call occurs in `invokeExternal`, but the observed function is its caller `hidden`. A rule that vetoes only the immediate function containing the unresolved call is insufficient; the effect reaches every active ancestor frame that the host can retrieve.
+
+## Code-level admission seam
+
+At the tested mainline base, `src/properties.js:683-730` builds `privateFunctionNodes` by checking that each callable binding is uniquely bound and all non-declaration uses are direct non-optional `CallExpression` callees. It does not inspect calls/effects inside the callable body or propagate host-observer effects to caller frames. The local owner proof later refuses root uses inside functions absent from this set. `src/ast.js:216+` provides the explicit source-reader detector, but the host callback and its `arguments.callee.caller[.caller]` read are outside the compiled AST.
+
+A minimal future effect proof needs at least a transitive `mayObserveCallerOrStack` summary: unknown external/host calls, imported unknown calls, callback parameters, dynamic member dispatch, and recognized implicit host dispatches taint their active caller frames. Local calls require effect propagation; a per-function direct-use count is not enough. The existing Agent 1 IteratorNext/ToPrimitive/PromiseResolve witnesses add implicit-dispatch sources to the same effect graph.
