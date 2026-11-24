@@ -557,6 +557,120 @@ function isDirectStringFromCharCodeReference(reference) {
 }
 
 /**
+ * @param {AstNode} node
+ * @param {Array<{start:number,end:number}>} ranges
+ * @returns {boolean}
+ */
+function isInsideRanges(node,ranges) {
+  return ranges.some(range=>node.start>=range.start&&node.end<=range.end);
+}
+
+/**
+ * Locate the exact compiler-generated string decoder regions using edit-map
+ * provenance, then derive the only local arrays/call targets the decoder may
+ * use. Provenance marks ranges; the AST checks below still validate their use.
+ * @param {AstNode} ast
+ * @param {import('./source-edit-map').SourceEditMap|undefined} editMap
+ * @returns {{valid:boolean,prologueRanges:Array<{start:number,end:number}>,replacementRanges:Array<{start:number,end:number}>,decoderArrayNames:Set<string>,decoderLocalNames:Set<string>,helperName:string|null,helperLength:number}}
+ */
+function collectStringDecoderContext(ast,editMap) {
+  const segments=editMap?.segments??[];
+  const allowedOrigins=new Set([
+    'strings-decoder-prologue','strings-decoder-replacement'
+  ]);
+  const validOrigins=segments.every(segment=>
+    segment.syntheticOriginId===null||allowedOrigins.has(segment.syntheticOriginId));
+  const prologueRanges=segments.filter(segment=>
+    segment.kind==='inserted'&&segment.syntheticOriginId==='strings-decoder-prologue')
+    .map(segment=>({start:segment.toStart,end:segment.toEnd}));
+  const replacementRanges=segments.filter(segment=>
+    segment.kind==='replaced'&&segment.syntheticOriginId==='strings-decoder-replacement')
+    .map(segment=>({start:segment.toStart,end:segment.toEnd}));
+  const decoderArrayNames=new Set();
+  const decoderLocalNames=new Set();
+  if(!validOrigins||prologueRanges.length>1||
+     (prologueRanges.length===0)!==(replacementRanges.length===0)) {
+    return {valid:false,prologueRanges,replacementRanges,decoderArrayNames,
+      decoderLocalNames,helperName:null,helperLength:0};
+  }
+  if(prologueRanges.length===0) {
+    return {valid:true,prologueRanges,replacementRanges,decoderArrayNames,
+      decoderLocalNames,helperName:null,helperLength:0};
+  }
+  /** @type {Array<{name:string,length:number}>} */
+  const helperCandidates=[];
+  walk(ast,node=>{
+    if(node.type!=='VariableDeclarator'||node.id?.type!=='Identifier'||
+       node.init?.type!=='ArrayExpression'||!isInsideRanges(node,prologueRanges))return;
+    if(node.init.elements.length>0&&node.init.elements.every(element=>
+      element?.type==='Literal'&&typeof element.value==='string')) {
+      helperCandidates.push({name:node.id.name,length:node.init.elements.length});
+    }
+  });
+  if(helperCandidates.length!==1) {
+    return {valid:false,prologueRanges,replacementRanges,decoderArrayNames,
+      decoderLocalNames,helperName:null,helperLength:0};
+  }
+  const helperName=helperCandidates[0].name;
+  const helperLength=helperCandidates[0].length;
+  walk(ast,node=>{
+    if(node.type!=='VariableDeclarator'||node.id?.type!=='Identifier'||
+       !isInsideRanges(node,prologueRanges)||!node.id.name.startsWith(helperName))return;
+    decoderLocalNames.add(node.id.name);
+    if(node.init?.type==='ArrayExpression')decoderArrayNames.add(node.id.name);
+  });
+  if(!decoderArrayNames.has(helperName)) {
+    return {valid:false,prologueRanges,replacementRanges,decoderArrayNames,
+      decoderLocalNames,helperName,helperLength};
+  }
+  let loopCount=0,unsupportedLoop=false;
+  walk(ast,node=>{
+    if(['ForStatement','ForInStatement','ForOfStatement','WhileStatement',
+        'DoWhileStatement'].includes(node.type)) {
+      if(!isInsideRanges(node,prologueRanges)||node.type!=='ForStatement') {
+        unsupportedLoop=true;
+      } else loopCount++;
+    }
+  });
+  const valid=loopCount>=1&&loopCount<=2&&!unsupportedLoop;
+  return {valid,prologueRanges,replacementRanges,decoderArrayNames,
+    decoderLocalNames,helperName,helperLength};
+}
+
+/**
+ * @param {AstNode} node
+ * @returns {string|null}
+ */
+function staticMemberPropertyName(node) {
+  if(node.type!=='MemberExpression')return null;
+  if(!node.computed&&node.property?.type==='Identifier')return node.property.name;
+  if(node.computed&&node.property?.type==='Literal'&&
+     typeof node.property.value==='string')return node.property.value;
+  if(node.computed&&node.property?.type==='TemplateLiteral'&&
+     node.property.expressions.length===0) {
+    return node.property.quasis[0]?.value?.cooked??null;
+  }
+  return null;
+}
+
+/**
+ * @param {AstNode} call
+ * @param {AstNode|null} currentReader
+ * @param {ReturnType<typeof collectStringDecoderContext>} decoder
+ * @returns {boolean}
+ */
+function isAllowedPlanCall(call,currentReader,decoder) {
+  if(call===currentReader)return true;
+  if(call.type!=='CallExpression'||!isInsideRanges(call,decoder.prologueRanges))return false;
+  const callee=call.callee;
+  if(callee?.type!=='MemberExpression'||callee.computed||
+     callee.property?.type!=='Identifier'||callee.object?.type!=='Identifier')return false;
+  if(callee.object.name==='String'&&callee.property.name==='fromCharCode')return true;
+  return decoder.decoderLocalNames.has(callee.object.name)&&
+    callee.property.name==='charCodeAt';
+}
+
+/**
  * Build a finite plan for one direct Function.prototype.toString.call(fn)
  * observation in a closed, single-file ESM COO input. The caller must provide
  * an explicit, versioned host premise for pristine Function intrinsics and, when string encoding is enabled, String.fromCharCode. This
