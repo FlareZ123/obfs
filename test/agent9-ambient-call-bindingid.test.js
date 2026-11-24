@@ -144,3 +144,84 @@ test('constructors, tags, await, yield and dynamic imports remain ambient',()=>{
   const imported=analyze('async function caller(){await import("opaque-package");}');
   assert.equal(named(imported,'caller')[0].ambient,true);
 });
+
+
+test('same-ID var initializer invalidates a function-declaration call target',()=>{
+  const result=analyze(
+    'function outer(callback){function helper(){return 1;}var helper=callback;'+
+    'return function caller(){return helper();}}'
+  );
+  assert.equal(named(result,'caller')[0].ambient,true);
+});
+
+test('mutable let function-expression declarators are not fixed call targets',()=>{
+  const result=analyze(
+    'let helper=function helper(){return 1;};'+
+    'function caller(){return helper();}'
+  );
+  assert.equal(named(result,'caller')[0].ambient,true);
+});
+
+test('top-level classic-script lexical callables are externally reachable',()=>{
+  const result=analyze(
+    'const helper=()=>1;const caller=()=>helper();',
+    'script'
+  );
+  const helper=named(result,'helper')[0];
+  const caller=named(result,'caller')[0];
+  assert.equal(helper.externallyReachable,true);
+  assert.equal(caller.externallyReachable,true);
+  assert.ok(!result.safeBindingIds.includes(helper.bindingIds[0]));
+  assert.ok(!result.safeBindingIds.includes(caller.bindingIds[0]));
+});
+
+test('classic-script later writes make mutable top-level function targets unknown',()=>{
+  const source='let helper=()=>1;const caller=()=>helper();';
+  const result=analyze(source,'script');
+  assert.equal(named(result,'caller')[0].ambient,true);
+  const observation={caller:null};
+  const external=Function('observation',
+    'return function external(){observation.caller=arguments.callee.caller;}'
+  )(observation);
+  /** @type {{getExternal:()=>void}} */
+  const context={getExternal:external};
+  vm.createContext(context);
+  vm.runInContext(source,context);
+  vm.runInContext('helper=getExternal;',context);
+  vm.runInContext('caller();',context);
+  assert.equal(typeof observation.caller,'function');
+  assert.match(Function.prototype.toString.call(observation.caller),/caller/);
+});
+
+test('WithStatement is an implicit ambient host-dispatch effect',()=>{
+  const result=analyze('function hidden(){with({}){missing;}}');
+  assert.equal(named(result,'hidden')[0].ambient,true);
+});
+
+test('unknown host arguments create HostHeldCallable separately from DynamicFrame',()=>{
+  const result=analyze(
+    'function hidden(){return 1;}function run(){external(hidden);}'
+  );
+  const hidden=named(result,'hidden')[0];
+  const run=named(result,'run')[0];
+  assert.equal(run.ambient,true);
+  assert.equal(hidden.ambient,false);
+  assert.equal(hidden.hostHeldCallable,true);
+});
+
+test('implicit iterator, Proxy and destructuring protocols are ambient effects',()=>{
+  const cases=[
+    'function caller(value){for(const item of value){};}',
+    'function caller(value){for(const key in value){};}',
+    'function caller(value,key){return key in value;}',
+    'function caller(value,ctor){return value instanceof ctor;}',
+    'function caller(value,key){delete value[key];}',
+    'function caller(value){const {x}=value;return x;}',
+    'function caller(value){const [x]=value;return x;}',
+    'function caller(value){return {...value};}'
+  ];
+  for(const source of cases) {
+    const result=analyze(source);
+    assert.equal(named(result,'caller')[0].ambient,true,source);
+  }
+});
