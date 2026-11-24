@@ -115,11 +115,13 @@ function staticPropertyKey(property,computed) {
  *
  * This summary is deliberately narrower than a complete host-effect model:
  * unknown member reads/writes are rejected except for proven non-escaping
- * primitive own-data records. Web IDL, cross-file imported function bodies,
- * return/aggregate value flow, and error-stack observation remain unresolved.
- * Callable arguments crossing any call boundary are conservatively marked
- * HostHeldCallable because parameter escape is not analyzed. It is not
- * transform authorization; safe means only that no modeled effect was found.
+ * primitive own-data records. Web IDL, cross-file imported bodies, dynamic
+ * call results, deep/proxy-mediated values, and error-stack observation remain
+ * unresolved. Simple const object/array aliases, direct return values and
+ * local class-instance method values are followed conservatively. Callable
+ * arguments crossing any call boundary are marked HostHeldCallable because
+ * parameter escape is not analyzed. This is not transform authorization;
+ * safe means only that no modeled effect was found.
  *
  * @param {AstNode} ast
  * @param {SourceType} sourceType
