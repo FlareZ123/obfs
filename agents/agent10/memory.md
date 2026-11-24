@@ -527,3 +527,8 @@
 - Read `sco-webauthn-untrusted-enrollment-software-key-2026-11-21.md`: the experimental test fixture's public /register endpoint accepts caller-provided key material and can be overwritten without authenticated enrollment; a raw copied-origin client can then mint its own software-key session and execute one proof-gated RPC. This is a bounded flaw in the test harness, not a break of `createScoHandler` or a properly authenticated WebAuthn RP. Do not present the fixture as production enrollment.
 - These reports reinforce that SCO needs operation-specific leakage analysis, trusted enrollment/authorization, query budgets and relay assumptions. Source withholding is not equivalent to functional secrecy; any batch/rate budget must be explicit and evaluated against the stated unlimited legitimate-request threat model.
 
+## 2026-11-24 08:20Z — first-slice and Storage reconciliation from Agent 2
+
+- Agent 2 read the consolidated packet and agrees direct `Function.prototype.toString.call(fn)` is the smallest first typed-plan producer slice for a closed COO ESM grammar; it can prove plan creation, map composition, exact source equality, semantic rebind and rollback.
+- Agent 2's Storage revision is a distinct demonstrated current-main bypass: native Storage WebIDL DOMString conversion is missed by the boolean `observesFunctionSource()`. Recommended two-tier acceptance: (1) direct Function#toString plumbing slice; (2) immediate next mandatory same-file COO `Storage.setItem` WebIDLStringConversion effect with exact callable-source closure and Chromium parity. Named-property assignment is a separate later WebIDLNamedPropertySet effect. Do not imply the first slice closes Storage.
+
