@@ -2,7 +2,7 @@
 
 const {createHash} = require('node:crypto');
 const {walk,applyEdits,observesFunctionSource,sourceSpelledErrorOperand} = require('./ast');
-const {applyEditsWithMap} = require('./source-edit-map');
+const {applyEditsWithMap,sourceGenerationOf} = require('./source-edit-map');
 const {collectBindings} = require('./properties');
 
 /** @typedef {import('./ast').AstNode} AstNode */
@@ -38,7 +38,7 @@ function classifyIdentifier(node,parent,key) {
 /**
  * @param {string} source
  * @param {AstNode} ast
- * @param {{seed:string,sourceType:'script'|'module'|'commonjs',sourceUnitRef?:string,parserContractId?:string}} options
+ * @param {{seed:string,sourceType:'script'|'module'|'commonjs',sourceUnitRef?:string,parserContractId?:string,protectedSourceSpans?:Array<{spanId:string,sourceUnitRef:string,sourceGeneration:string,startOffset:number,endOffset:number,coordinateUnit:'utf16-code-unit',astNodeType:string|null}>}} options
  * @returns {{code:string,bindings:number,editMap?:Object}}
  */
 function renameLocalIdentifiers(source,ast,options) {
@@ -47,6 +47,23 @@ function renameLocalIdentifiers(source,ast,options) {
      (typeof options.sourceUnitRef!=='string'||options.sourceUnitRef.length===0||
       typeof options.parserContractId!=='string'||options.parserContractId.length===0)) {
     throw new TypeError('sourceUnitRef and parserContractId must be supplied together');
+  }
+  const protectedSourceSpans=options.protectedSourceSpans??[];
+  if(!Array.isArray(protectedSourceSpans))throw new TypeError('protectedSourceSpans must be an array');
+  if(protectedSourceSpans.length&&!hasMapContext) {
+    throw new TypeError('protectedSourceSpans require a source-unit and parser generation');
+  }
+  if(protectedSourceSpans.length) {
+    const generation=sourceGenerationOf(source,/** @type {string} */ (options.parserContractId));
+    for(const span of protectedSourceSpans) {
+      if(!span||typeof span.spanId!=='string'||span.spanId.length===0||
+         span.sourceUnitRef!==options.sourceUnitRef||span.sourceGeneration!==generation||
+         span.coordinateUnit!=='utf16-code-unit'||
+         !Number.isInteger(span.startOffset)||!Number.isInteger(span.endOffset)||
+         span.startOffset<0||span.endOffset<span.startOffset||span.endOffset>source.length) {
+        throw new TypeError('Identifier renamer received a stale or foreign protected source span');
+      }
+    }
   }
   /** @param {import('./ast').Edit[]} edits @param {number} bindings @returns {{code:string,bindings:number,editMap?:Object}} */
   function finish(edits,bindings) {
@@ -112,7 +129,10 @@ function renameLocalIdentifiers(source,ast,options) {
   }
   let dynamic=false;
   walk(ast,(node,parent,key,ancestors)=>{
-    if (node.type==='Identifier') identifiers.push({node,parent,key,ancestors});
+    if (node.type==='Identifier'&&!protectedSourceSpans.some(span=>
+        node.start<span.endOffset&&node.end>span.startOffset)) {
+      identifiers.push({node,parent,key,ancestors});
+    }
     const errorOperand=sourceSpelledErrorOperand(node);
     // Object spread accepts nullish sources and does not perform iteration.
     // Keep the existing proven-non-null object-pattern optimization too.
