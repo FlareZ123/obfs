@@ -56,10 +56,13 @@ function sourceFor(scenario){
 
 
 /**
- * Prototype-only source-column preservation: widen the generated owner key
- * to the original key's UTF-16 width without restoring its original spelling.
+ * Prototype-only source-column preservation: pad before a stable call-site
+ * marker to restore its original line-relative column without restoring the
+ * original property spelling.
+ * @param {string} source
  * @param {string} code
- * @returns {{code:string,generated:string,padded:string,delta:number}}
+ * @param {string} marker
+ * @returns {{code:string,delta:number,sourceColumn:number,emittedColumn:number}}
  */
 function padBeforeMarkerToOriginalColumn(source,code,marker){
   const sourceIndex=source.indexOf(marker);
@@ -245,7 +248,7 @@ async function main(){
       type:'text/html; charset=utf-8'
     });
     if(scenario.kind==='array-map'){
-      const padding=padBeforeMarkerToOriginalColumn(source,emitted,scenario.body);
+      const padding=padBeforeMarkerToOriginalColumn(source,emitted,'hidden(external)+plain()');
       cjsPadding.set(scenario.kind,padding);
       resources.set(base+'/padded.js',{body:padding.code,type:'text/javascript; charset=utf-8'});
       resources.set(base+'/padded.html',{
@@ -292,7 +295,7 @@ async function main(){
       type:'text/html; charset=utf-8'
     });
     if(scenario.kind==='array-map'){
-      const padding=padBeforeMarkerToOriginalColumn(moduleSource,moduleCode,scenario.body);
+      const padding=padBeforeMarkerToOriginalColumn(moduleSource,moduleCode,'hidden(external)+plain()');
       esmPadding.set(scenario.kind,padding);
       resources.set(base+'/module-padded.mjs',{
         body:padding.code,type:'text/javascript; charset=utf-8'
