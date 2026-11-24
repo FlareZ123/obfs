@@ -709,7 +709,22 @@ function proveLocalObject(ast, rootName, bindings, importedIdentityFunctions=new
   // even when its body does not return an identity or a simple parameter read.
   // Conversely, a value stored, returned, exported, or passed elsewhere can
   // expose its original body through Function#toString.
-  const privateFunctionNodes=new Set(directInvokedArrows);
+  /**
+   * A nested callable's source is textually embedded in its enclosing class
+   * source. Do not mark it source-private merely because all lexical uses are
+   * direct calls: an exported class exposes static-block and field source.
+   * @param {AstNode} node
+   * @returns {boolean}
+   */
+  function nestedInClassSource(node) {
+    for(let ancestor=parents.get(node);ancestor;ancestor=parents.get(ancestor)){
+      if(ancestor.type==='ClassDeclaration'||ancestor.type==='ClassExpression')return true;
+    }
+    return false;
+  }
+  const privateFunctionNodes=new Set(
+    [...directInvokedArrows].filter(node=>!nestedInClassSource(node))
+  );
   /** @type {{name:string,node:AstNode,decl:AstNode}[]} */
   const callableBindings=[];
   for(const node of functionDeclarations) {
@@ -725,6 +740,7 @@ function proveLocalObject(ast, rootName, bindings, importedIdentityFunctions=new
       callableBindings.push({name:declarator.id.name,node:value,decl:declarator.id});
   }
   for(const binding of callableBindings) {
+    if(nestedInClassSource(binding.node))continue;
     const scope=scopes.get(binding.name);
     if(!scope)continue;
     // A named FunctionExpression has an extra lexical self-binding that the
