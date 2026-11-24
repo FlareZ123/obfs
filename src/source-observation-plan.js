@@ -849,6 +849,31 @@ function validatePlanSemantics(plan,source,ast,trackedSourceRanges) {
     !rebound.counts.has('Function');
 }
 
+/**
+ * Validate a candidate pass transaction without mutating caller state. A
+ * null result means the caller must retain its original code, AST and ranges.
+ *
+ * @param {SourceObservationPlan} plan
+ * @param {import('./source-edit-map').SourceEditMap} editMap
+ * @param {string} sourceBefore
+ * @param {string} sourceAfter
+ * @param {AstNode} astAfter
+ * @param {Map<string,import('./source-edit-map').MappedSourceRange>} trackedRanges
+ * @returns {{ast:AstNode,trackedRanges:Map<string,import('./source-edit-map').MappedSourceRange>,protectedSourceRanges:Array<Object>}|null}
+ */
+function acceptPlannedPass(plan,editMap,sourceBefore,sourceAfter,astAfter,trackedRanges) {
+  if(!isValidatedSourceObservationPlan(plan)||!editMap||
+     typeof sourceBefore!=='string'||typeof sourceAfter!=='string'||
+     !astAfter||!(trackedRanges instanceof Map))return null;
+  const nextRanges=advancePlanRanges(plan,editMap,sourceBefore,sourceAfter,trackedRanges);
+  if(!nextRanges||!validatePlanSemantics(plan,sourceAfter,astAfter,nextRanges))return null;
+  return Object.freeze({
+    ast:astAfter,
+    trackedRanges:nextRanges,
+    protectedSourceRanges:protectedRangesFromTracked(plan,nextRanges)
+  });
+}
+
 module.exports={
   buildDirectFunctionSourcePlan,
   isValidatedSourceObservationPlan,
@@ -856,5 +881,6 @@ module.exports={
   protectedRangesFromTracked,
   validatePlanConsumerInput,
   advancePlanRanges,
-  validatePlanSemantics
+  validatePlanSemantics,
+  acceptPlannedPass
 };
