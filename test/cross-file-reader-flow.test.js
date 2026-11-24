@@ -478,3 +478,41 @@ test('relayed identity owner result reflected by opaque consumer refuses rewrite
       'console.log(Object.keys(pass(state)));'}
   ],0);
 });
+
+
+test('duplicate ESM import aliases of one owner binding can share an imported reader',async()=>{
+  await check(exposed+reader,
+    'import {state as left,state as right,peek} from "./state.mjs";'+
+    'console.log(peek(left),peek(right));',1);
+});
+
+test('separate ESM imports of one owner binding preserve shared reader identity',async()=>{
+  await check(exposed+reader,
+    'import {state as left,peek} from "./state.mjs";'+
+    'import {state as right} from "./state.mjs";'+
+    'console.log(peek(left),peek(right));',1);
+});
+
+test('one private record can carry the same imported owner to distinct readers',async()=>{
+  await check(exposed+reader,
+    'import {state,peek} from "./state.mjs";'+
+    'const carrier={first:state,second:state};'+
+    'const left=carrier.first;const right=carrier.second;'+
+    'const local=value=>value.secretField;'+
+    'console.log(peek(left),local(right));',1);
+});
+
+test('one private array can carry the same imported owner at distinct indexes',async()=>{
+  await check(exposed+reader,
+    'import {state,peek} from "./state.mjs";'+
+    'const carrier=[state,state,7];'+
+    'const left=carrier[0];const right=carrier[1];'+
+    'const local=value=>value.secretField;'+
+    'console.log(peek(left),local(right));',1);
+});
+
+test('duplicate owner import aliases do not admit a foreign reader argument',async()=>{
+  await check(exposed+reader,
+    'import {state as left,state as right,peek} from "./state.mjs";'+
+    'console.log(peek(left),peek(right),peek({secretField:99}));',0);
+});
