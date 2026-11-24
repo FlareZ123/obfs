@@ -516,3 +516,40 @@ test('duplicate owner import aliases do not admit a foreign reader argument',asy
     'import {state as left,state as right,peek} from "./state.mjs";'+
     'console.log(peek(left),peek(right),peek({secretField:99}));',0);
 });
+
+
+test('private record destructuring can forward one owner to distinct imported and local readers',async()=>{
+  await check(exposed+reader,
+    'import {state,peek} from "./state.mjs";'+
+    'const carrier={first:state,second:state};'+
+    'const {first:left,second:right}=carrier;'+
+    'const local=value=>value.secretField;'+
+    'console.log(peek(left),local(right));',1);
+});
+
+test('private array destructuring can forward one owner to distinct imported and local readers',async()=>{
+  await check(exposed+reader,
+    'import {state,peek} from "./state.mjs";'+
+    'const carrier=[state,state,7];'+
+    'const [left,right]=carrier;'+
+    'const local=value=>value.secretField;'+
+    'console.log(peek(left),local(right));',1);
+});
+
+test('private record destructuring refuses owner capture through rest',async()=>{
+  await check(exposed+reader,
+    'import {state,peek} from "./state.mjs";'+
+    'const carrier={first:state,second:state};'+
+    'const {first:left,...rest}=carrier;'+
+    'const local=value=>value.secretField;'+
+    'console.log(peek(left),local(rest.second));',0);
+});
+
+test('private array destructuring refuses owner capture through rest',async()=>{
+  await check(exposed+reader,
+    'import {state,peek} from "./state.mjs";'+
+    'const carrier=[state,state,7];'+
+    'const [left,...rest]=carrier;'+
+    'const local=value=>value.secretField;'+
+    'console.log(peek(left),local(rest[0]));',0);
+});
