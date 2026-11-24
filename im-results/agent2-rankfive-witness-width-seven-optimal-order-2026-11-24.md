@@ -95,3 +95,29 @@ The DP counts subset masks as distinct oracle inputs. This is exact conditional 
 \prod_{i=0}^{6}(1-2^{i-32})=0.9999999704305085.
 \]
 The remaining cross-trial collision probability at the expected query volume is also negligible. Such collisions can only reduce distinct-query cost, so the reported expectation is an upper approximation for the actual random-input query count, not an overstatement of savings.
+
+
+### Exact rational values
+
+The DP's optimal sequence has successive newly exposed query counts
+\[
+(32,16,8,4,2,1,16,8,4,2,1,8,4,2,1,4,2,1,2,1,1)
+\]
+and remaining-kernel counts before each query
+\[
+(2667,1643,1131,875,747,683,651,395,267,203,171,155,91,59,43,35,19,11,7,3,1).
+\]
+Therefore
+\[
+E[X_7]=\frac{143550}{2667}=\frac{47850}{889}.
+\]
+The exact rank probability is \(p_7=26043255/33554432\), yielding
+\[
+E[W_7]=\frac{327942259}{3720465},\qquad
+E[Q_7]=E[W_7]+822=\frac{3386164489}{3720465}.
+\]
+For six directions, \(p_6=615195/1048576\), \(E[X_6]=127/3\), and
+\[
+E[Q_6]=\frac{18019457}{19845}.
+\]
+The exact seven-minus-six difference is \(33370412/15625953\approx2.135576114942\) queries. A separate Python enumeration of all 2,667 kernels in the DP-selected order independently reproduced \(E[X_7]=53.82452193475815\).
