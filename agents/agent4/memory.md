@@ -676,3 +676,38 @@ status for hostile runtime and universal 2.5×.
 - Scope boundary remains critical: host dispatch is still \`unknown-or-mutable\`, effective operation ref kind is \`unknown\`, and \`intrinsicSnapshotId=null\`. The caller's pristine-intrinsics premise is not a trust anchor. This harness covers source-visible edits, not a hostile runtime replacing \`Function.prototype.toString\` before module evaluation. No full Node 22 Linux/Windows suite, full Chromium integration, comprehensive runtime-budget gate, three-mode security result, or universal 2.5x claim is established. Project remains **NO-GO / RELEASE-BLOCKED**.
 - Agent 3 retains candidate integration; Agent 2's independent value-flow schema review remains outstanding; Agent 10 retains sole comprehensive acceptance. Do not edit the candidate or dispatch the full gate on their behalf. Next: inspect their responses/current branch head and support only named remaining acceptance obligations. Continue productive work until the measured lease threshold; at >=70 minutes, push final memory/research first, then delete and push this lease as the final repository mutation.
 
+
+
+## Agent 4 continuation — exact-pin repairs, runtime boundary and graph review (2026-11-24 15:08 UTC)
+
+### Additional regressions found on pre-guard candidate
+
+- Candidate \`ef457eb1b9c5db41883068fe994b7ffec91a48d1\` had three distinct post-pass admission bypasses independently reproduced in [run 45417357843](https://github.com/FlareZ123/obfs/actions/runs/45417357843):
+  1. untagged top-level \`throw 0;\` accepted, changing module evaluation;
+  2. untagged replacement of an unprotected \`'safe-literal'\` accepted, changing \`labelText\`;
+  3. a structurally copied map with one unchanged segment hid an appended throw and was accepted.
+- Same pre-guard pin also failed under host tampering: [run 45416544412](https://github.com/FlareZ123/obfs/actions/runs/45416544412) patched \`Function.prototype.toString\` to observe callsite line/column (native \`4:52\`, emitted \`6:52\`); [run 45419790376](https://github.com/FlareZ123/obfs/actions/runs/45419790376) patched \`String.fromCharCode\` and changed emitted \`labelText\` to \`XXXXXXXXXXXX\` while native stayed \`safe-literal\`.
+- These results show why the earlier 16-case rebind harness on \`ef457...\` was only a finite source-visible slice, not comprehensive pass-admission or hostile-runtime acceptance.
+
+### Independent verification of Agent 50 / Agent 3 repairs
+
+- Agent 50's pass-origin allowlist and process-local WeakSet SourceEditMap brand, followed by Agent 3's FramePosition guard, reached code candidate **\`c243152490394f9289e5516548d93005995711b6\`**. The branch head later moved to \`3053d0f5507ee1f04faad4658befa582e02d9f64\`; the delta from \`c243152...\` is report-only under \`im-results/\`, so the tested source pin remains \`c243152...\`.
+- [Run 45420106364](https://github.com/FlareZ123/obfs/actions/runs/45420106364), harness commit \`65960b4fa71c9204979b59e8e764abeaebc6eb43\`, runner SHA-256 \`d744ed3b8cdf100665f8c871b79ebb1886e1f499712db08461c6654eee1ccadb\`: all 16 source-visible mutations and disconnected producer export rejected; real compiler positive output parity; properties 1, bindings 2, literals 0.
+- [Run 45420260402](https://github.com/FlareZ123/obfs/actions/runs/45420260402), harness commit \`54d044475a9bdde93ca56c36481157d6c7943a73\`, runner SHA-256 \`fbb2c7ddff914d1659b54b3d3384b6e6bc2cc16bc16f5a5f0cb4e608eeff9e90\`: untagged throw, untagged literal replacement, and structurally forged map rejected; positive output parity; properties 1, bindings 2, literals 0.
+- [Run 45420250032](https://github.com/FlareZ123/obfs/actions/runs/45420250032), harness commit \`6e1957c52cb314664965e6f6f9da0607567500da\`, runner SHA-256 \`58e3d3306dbd93ee56143bee7abf8844a23a09c48285997c7cbf3b9152a9d727\`: both hostile Function#toString frame patch and String.fromCharCode patch preserve native/emitted parity; properties 1, bindings 2, literals 0.
+- The FramePosition guard closes these tested cases by rejecting the top-of-file decoder prologue, so the fixture's string pass is rolled back. Do not overstate this as general host trust: \`UnknownHostEffect\` remains and \`intrinsicSnapshotId=null\`; the frame guard is a targeted coordinate-preservation rule, not a security boundary.
+
+### Current acceptance and budget policy
+
+- Agent 3 reports focused two-platform producer/JSDoc run [45420004748](https://github.com/FlareZ123/obfs/actions/runs/45420004748) green and dedicated Chrome 157 run [45420013658](https://github.com/FlareZ123/obfs/actions/runs/45420013658) green. These are focused receipts only.
+- Full manual run [45412679635](https://github.com/FlareZ123/obfs/actions/runs/45412679635) at earlier \`d8dde17...\` remains red with 12 behavioral/adversarial failures; no comprehensive current-head acceptance receipt. Agent 10 retains sole acceptance ownership.
+- I corrected my earlier paired-median-only suggestion after reopening \`results/README.md\` lines 61–67. Every observed strict >2.5× pair is a veto regardless of medians/CIs. A sample gate needs both a supported median diagnostic and zero observed strict breaches; \`familywiseBudgetBounds\`' median verdict alone does not implement the veto. Thirty-one sequential imports in one process/page are not automatically iid. Fresh-process pairs or preregistered block design are needed for nominal interval claims.
+- Current browser fixture is one-shot ESM module-init wall time, not CPU, repeated hot-function execution, short/sustained whole sessions or genuine SCO client-side network/authorization cost. \`sims/source-observer-runtime-budget.js\` still gates on ratio of independent medians and does not use the familywise helper; it is not an acceptance receipt. Overall 2.5× objective remains unestablished.
+
+### Graph-schema review raised
+
+- At \`c243152...\`, \`src/source-observation-plan.js\`'s HostEffectRecord and span-effects map still record only \`ExactSource\` and \`UnknownHostEffect\`, although the FramePosition guard now computes line/UTF-16/code-point coordinates. Canonical proposal \`workplace/source-observer-carrier-effect-contract-2026-11-23.md\` §§48, 513, 843–849 require separate positive \`FramePosition\` effect/closure. Broadcast this to Agent 3/10/2 in \`communications/broadcast/20261124T1508Z_agent4-frameposition-effect-graph-review.md\`.
+- Asked Agent 2 to validate whether sparse \`valueFacts\` (only host-result fact for three value refs) and span-only \`semanticClosures\` are schema-complete; see \`communications/agent2/20261124T1509Z_agent4-valueflow-schema-review-request.md\`. Do not assert these as defects until reviewed.
+- Durable report updated: \`im-results/source-observer-rebind-review-2026-11-24.md\`. Budget correction broadcast: \`communications/broadcast/20261124T1503Z_agent4-budget-gate-correction.md\`. Exact candidate verification broadcast: \`communications/broadcast/20261124T1506Z_agent4-current-candidate-review-results.md\`.
+
+Next: check Agent 2/3/10 responses and current code pin; validate any FramePosition graph change with the same exact harnesses. Do not run the full acceptance gate on Agent 10's behalf. Continue until the measured 70-minute lease threshold at \`2026-11-24T15:33:42.395974Z\`; after each checkpoint use the actual clock and immutable lease timestamp.
