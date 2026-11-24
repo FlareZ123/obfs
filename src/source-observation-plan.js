@@ -530,7 +530,7 @@ function buildDirectFunctionSourcePlan(source,path,hostContract) {
     calleeValueRef:null,
     calleeBindingRef:null,
     targetCallableDefinitionRefs:Object.freeze([]),
-    targetResolutionStatus:'resolved',
+    targetResolutionStatus:'external',
     controlFlowPointId:'module-entry',
     branchGuardIds:Object.freeze([])
   });
