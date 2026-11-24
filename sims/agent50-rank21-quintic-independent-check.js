@@ -218,11 +218,11 @@ function jointRadicalEvidence() {
 }
 
 /** @param {number} target @param {number} sampleSeed @param {number} rankBound @returns {object} */
-function invertLowRank(target, sampleSeed, rankBound) {
+function invertLowRank(target, sampleSeed, rankBound, oracleFn = oracle) {
   let calls = 0;
   const query = (input) => {
     calls++;
-    return oracle(input >>> 0);
+    return oracleFn(input >>> 0);
   };
   const constant = query(0);
   const columns = Array.from({ length: 32 }, (_, bit) =>
@@ -343,6 +343,53 @@ function main() {
   const totalOrbitCalls = receipts.reduce((sum, item) => sum + item.orbitCalls, 0);
   assert.equal(totalCalls, 8240277);
   assert.equal(totalOrbitCalls, 8239997);
+
+  const wrappers = [
+    { inputSeed: 0x12345678, outputSeed: 0x9abcdef0, inputBias: 0x13579bdf, outputBias: 0x2468ace0 },
+    { inputSeed: 0x31415926, outputSeed: 0x27182818, inputBias: 0xdeadbeef, outputBias: 0xcafebabe },
+  ];
+  const sampleSeeds = [0x12345678, 0xdeadbeef];
+  const sweepReceipts = [];
+  for (let wrapperIndex = 0; wrapperIndex < wrappers.length; wrapperIndex++) {
+    const wrapper = wrappers[wrapperIndex];
+    const inputColumns = makeLinearTransform(wrapper.inputSeed);
+    const outputColumns = makeLinearTransform(wrapper.outputSeed);
+    const inputInverse = inverseColumns(inputColumns);
+    const wrappedOracle = (input) => {
+      const hidden = (applyLinear(inputColumns, input) ^ wrapper.inputBias) >>> 0;
+      return (applyLinear(outputColumns, rank21Triangular(hidden)) ^ wrapper.outputBias) >>> 0;
+    };
+    for (let sampleIndex = 0; sampleIndex < sampleSeeds.length; sampleIndex++) {
+      for (let targetIndex = 0; targetIndex < hiddenTargets.length; targetIndex++) {
+        const secret = applyLinear(inputInverse, (hiddenTargets[targetIndex] ^ wrapper.inputBias) >>> 0);
+        const target = wrappedOracle(secret);
+        const result = invertLowRank(target, sampleSeeds[sampleIndex], 21, wrappedOracle);
+        assert.equal(result.preimage, secret);
+        assert.equal(wrappedOracle(result.preimage), target);
+        assert.equal(result.nullity, 1);
+        assert.equal(result.calls, 33 + result.samplingCalls + result.orbitCalls);
+        sweepReceipts.push({ wrapperIndex, sampleIndex, targetIndex, calls: result.calls,
+          samples: result.samplingCalls, orbit: result.orbitCalls, nullity: result.nullity });
+      }
+    }
+  }
+  const sweepCalls = sweepReceipts.map((item) => item.calls);
+  const sweepTotal = sweepCalls.reduce((sum, value) => sum + value, 0);
+  const sweepMin = Math.min(...sweepCalls);
+  const sweepMax = Math.max(...sweepCalls);
+  const sweepMinSamples = Math.min(...sweepReceipts.map((item) => item.samples));
+  const sweepMaxSamples = Math.max(...sweepReceipts.map((item) => item.samples));
+  const sweepMinOrbit = Math.min(...sweepReceipts.map((item) => item.orbit));
+  const sweepMaxOrbit = Math.max(...sweepReceipts.map((item) => item.orbit));
+  assert.equal(sweepReceipts.length, 32);
+  assert.equal(sweepTotal, 32341215);
+  assert.equal(sweepMin, 4011);
+  assert.equal(sweepMax, 2082224);
+  assert.equal(sweepMinSamples, 1);
+  assert.equal(sweepMaxSamples, 2);
+  assert.equal(sweepMinOrbit, 3977);
+  assert.equal(sweepMaxOrbit, 2082189);
+
   console.log(JSON.stringify({
     result: 'PASS',
     source: {
@@ -358,6 +405,17 @@ function main() {
     totalLowRankCalls: totalCalls,
     totalOrbitCalls,
     totalSamplingCalls: receipts.reduce((sum, item) => sum + item.samplingCalls, 0),
+    sweep32: {
+      cases: sweepReceipts.length,
+      totalLowRankQueries: sweepTotal,
+      minPerTarget: sweepMin,
+      maxPerTarget: sweepMax,
+      minSamples: sweepMinSamples,
+      maxSamples: sweepMaxSamples,
+      minOrbit: sweepMinOrbit,
+      maxOrbit: sweepMaxOrbit,
+      nullities: [1],
+    },
   }, null, 2));
 }
 
