@@ -125,7 +125,7 @@ const report = {
  * @returns {Promise<object>}
  */
 async function fetchResponseReaderWitness() {
-  const output = '\\uFEFFconst value=1;\\r\\n';
+  const output = '\uFEFFconst value=1;\r\n';
   const server = http.createServer((request, response) => {
     response.writeHead(200, {'content-type': 'text/javascript; charset=utf-8'});
     response.end(output);
@@ -139,7 +139,7 @@ async function fetchResponseReaderWitness() {
     const text = await response.text();
     const expected = Buffer.from(output, 'utf8');
     assert.ok(raw.equals(expected));
-    assert.equal(text.startsWith('\\uFEFF'), false);
+    assert.equal(text.startsWith('\uFEFF'), false);
     return {
       contentType: response.headers.get('content-type'),
       rawResponseHex: raw.toString('hex'),
@@ -148,7 +148,7 @@ async function fetchResponseReaderWitness() {
       rawResponseEqualsUtf8Output: raw.equals(expected),
       rawFirstCodePoint: raw.toString('utf8').codePointAt(0)?.toString(16),
       responseTextFirstCodePoint: text.codePointAt(0)?.toString(16),
-      responseTextStripsBom: !text.startsWith('\\uFEFF')
+      responseTextStripsBom: !text.startsWith('\uFEFF')
     };
   } finally {
     await new Promise(resolve => server.close(resolve));
