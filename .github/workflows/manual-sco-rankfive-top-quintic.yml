@@ -21,6 +21,8 @@ jobs:
           node-version: '22'
       - name: Install declared dependencies
         run: npm install --no-package-lock --ignore-scripts
+      - name: Strict-check the focused SCO oracle simulator and imported learner
+        run: npx tsc -p jsconfig.sco-oracles.json
       - name: Run existing projected-affine HTTP baseline on the frozen source
         shell: bash
         run: node sims/sco-rankfive-arbitrary-table-real-http.js | tee sco-rankfive-baseline-output.txt

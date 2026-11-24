@@ -9,6 +9,7 @@ const {evaluateClone}=require('./rankfive-top-quintic-functional-clone-peer');
 
 /** @typedef {{origin:string,method:string,credential:string}} Access */
 /** @typedef {{bits:number,lower:Array<[number,number]>,top:Array<[number,number]>}} QuinticModel */
+/** @typedef {QuinticModel & {degree:number,queries:number,quotientRank:number,fastQueries:number,verificationQueries:number,verificationSamples:number,verificationCap:number,verificationDelta:number,falseAcceptanceBound:number,verificationPassed:boolean,fallbackUsed:boolean,fallbackReason:string|null,exactByInterpolation:boolean}} ValidatedModel */
 /** @typedef {{degree:number,quotientRank:number,fastQueries:number,verificationQueries:number,verificationSamples:number,verificationCap:number,verificationDelta:number,falseAcceptanceBound:number,verificationPassed:boolean,fallbackUsed:boolean,fallbackReason:string|null,exactByInterpolation:boolean,witnessDrawCount:number,verifyDrawCount:number}} LearnerDiagnostics */
 
 const MASKS=[0xc7639c15,0x32e67ad1,0xe5ab17c2,0x4692ed7f,0x1fa37cc9];
@@ -43,7 +44,7 @@ function verifySourcePromise(source){
   assert.equal(maskRank,5,'the five parity projections must be independent');
   assert.notEqual(tableTopCoefficient,0,'the arbitrary table must have a nonzero fifth-degree coefficient');
   for(let index=0;index<MASKS.length;index++){
-    const literal='const OBFS_PRIVATE_MASK'+index+' = 0x'+MASKS[index].toString(16)+';';
+    const literal='const OBFS_PRIVATE_MASK'+index+'=0x'+MASKS[index].toString(16)+';';
     assert.ok(source.includes(literal),'the source mask differs from the preregistered mask');
   }
   return {
@@ -92,11 +93,11 @@ async function cloneTopQuinticFromHttp(access,witnessDraws,verifyDraws){
       return verifyDraws[verifyIndex++];
     };
     try{
-      const model=cloneTopQuinticValidated(input=>{
+      const model=/** @type {ValidatedModel} */ (cloneTopQuinticValidated(input=>{
         const key=input>>>0;
         if(!seen.has(key))throw new NeedQuery(key);
         return /** @type {number} */ (seen.get(key));
-      },32,drawWitness,drawVerify,1e-10);
+      },32,drawWitness,drawVerify,1e-10));
       assert.equal(model.queries,seen.size,'learner cache and authenticated query cache differ');
       assert.ok(model.queries<=44836||model.fallbackUsed,
         'fast path exceeded the preregistered 44,836 distinct-query cap');
@@ -148,7 +149,7 @@ async function cloneTopQuinticFromHttp(access,witnessDraws,verifyDraws){
       assert.equal(data.ok,true);
       assert.ok(typeof data.value==='number'&&Number.isInteger(data.value)&&
         data.value>=0&&data.value<2**32,'Private RPC output is not a uint32');
-      const value=data.value;
+      const value=/** @type {number} */ (data.value);
       seen.set(input,value);
       transcript.update(JSON.stringify([input,value])+'\n');
     }
