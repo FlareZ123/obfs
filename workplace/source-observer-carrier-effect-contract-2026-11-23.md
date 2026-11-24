@@ -116,7 +116,7 @@ Agent 9's 12/12 two-platform ambient-call prototype is a useful precision donor:
 
 ### Shared plan fields and transformation contract
 
-The canonical plan should expose at least. The following v2 JSDoc schema supersedes the earlier typedef block; it is the single authoritative proposed contract. It resolves the review's duplicate dispatch type, missing value-flow graph, unqualified call-target summary, disconnected source mirrors and mode/trust ambiguity.
+The canonical plan should expose at least the following. The v2 JSDoc schema supersedes the earlier typedef block; it is the single authoritative proposed contract. It resolves the review's duplicate dispatch type, missing value-flow graph, unqualified call-target summary, disconnected source mirrors and mode/trust ambiguity.
 
 ```js
 /**
@@ -146,8 +146,8 @@ The canonical plan should expose at least. The following v2 JSDoc schema superse
  * @property {string|null} realmGroupId - shared classic-script global environment
  * @property {'module'|'script'|'commonjs'|'unknown'} sourceType
  * @property {number|null} executionOrder
- * @property {string} threatModelRefId
- * @property {string|null} runtimeContractId
+ * @property {ThreatModelRefKey} threatModelRefId
+ * @property {HostContractRefKey|null} runtimeContractId
  * @property {string|null} requestVariantGeneration - SCO response-specific generation
  * @property {string|null} buildArtifactId - provenance only; not a runtime partition
  *
@@ -192,7 +192,7 @@ The canonical plan should expose at least. The following v2 JSDoc schema superse
  * @property {string} hostContractId
  * @property {ObfuscationMode} mode
  * @property {RuntimeExecutionPartition} executionPartition
- * @property {string} threatModelRefId
+ * @property {ThreatModelRefKey} threatModelRefId
  * @property {string} runtimeFamily
  * @property {string} runtimeVersion
  * @property {string|null} realmId
@@ -210,6 +210,7 @@ The canonical plan should expose at least. The following v2 JSDoc schema superse
  * @typedef {string} SourceSpanId - source-unit/generation-qualified UTF-16 span
  * @typedef {string} HostEffectId
  * @typedef {string} HostContractRefKey
+ * @typedef {string} ThreatModelRefKey
  * @typedef {string} SourceUnitRefKey
  * @typedef {string} ModuleResolutionEdgeKey
  * @typedef {string} SourceDeliveryEdgeKey
@@ -309,8 +310,8 @@ The canonical plan should expose at least. The following v2 JSDoc schema superse
  * @property {string|null} controlFlowPointId
  * @property {ReadonlyArray<string>} branchGuardIds
  *
- * @typedef {string} ProxyInternalMethod
- * @typedef {'get'|'set'|'has'|'deleteProperty'|'ownKeys'|'getOwnPropertyDescriptor'|'getPrototypeOf'|'defineProperty'|'setPrototypeOf'|'isExtensible'|'preventExtensions'|'apply'|'construct'} ProxyTrapName
+ * @typedef {'get'|'set'|'has'|'deleteProperty'|'ownKeys'|'getOwnPropertyDescriptor'|'getPrototypeOf'|'defineProperty'|'setPrototypeOf'|'isExtensible'|'preventExtensions'|'apply'|'construct'} ProxyInternalMethod
+ * @typedef {ProxyInternalMethod} ProxyTrapName - compatibility alias
  * @typedef {'default'|'number'|'string'|null} ConversionHint
  * @typedef {'synchronous'|'deferred'|'unknown'|null} CallbackTiming
  * @typedef {'explicit-argument'|'object-provided-method'|'internal-callback'|'unknown'|null} CallbackRole
@@ -328,7 +329,7 @@ The canonical plan should expose at least. The following v2 JSDoc schema superse
  * @property {ActivationRefKey|null} callerActivationRef
  * @property {string|null} abstractOperation
  * @property {ConversionHint} conversionHint
- * @property {ProxyTrapName|null} proxyTrapName - required when kind is ProxyInternalMethod
+ * @property {ProxyInternalMethod|null} proxyTrapName - required when kind is ProxyInternalMethod
  * @property {string|null} interfaceIdentity
  * @property {ReceiverRefKey|null} receiverRef
  * @property {ReceiverProvenance} receiverProvenance
@@ -366,6 +367,7 @@ The canonical plan should expose at least. The following v2 JSDoc schema superse
  * @property {SourceUnitRefKey|null} embeddingSourceUnitRef
  * @property {string|null} embeddingIdentity
  * @property {string|null} readerOperation
+ * @property {EffectiveOperationRef|null} readerOperationRef
  * @property {HostContractRefKey|null} hostContractRef
  * @property {CallableDefinitionRefKey|null} callableDefinitionRef - required for function-source mirrors
  * @property {SourceSpanId|null} callableSourceSpanId
@@ -384,6 +386,7 @@ The canonical plan should expose at least. The following v2 JSDoc schema superse
  * @property {string} planId
  * @property {string} planGeneration
  * @property {ReadonlyMap<SourceUnitRefKey, SourceUnitRef>} sourceUnits
+ * @property {ReadonlyMap<ThreatModelRefKey, ThreatModelRef>} threatModels
  * @property {ReadonlyMap<ModuleResolutionEdgeKey, ModuleResolutionEdge>} moduleResolutionEdges
  * @property {ReadonlyMap<SourceDeliveryEdgeKey, SourceDeliveryEdge>} sourceDeliveryEdges
  * @property {ReadonlyMap<BindingRefKey, BindingIdentity>} bindings
