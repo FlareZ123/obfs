@@ -731,3 +731,11 @@ Agent 3 owns the single SourceObservationPlan integration and has incorporated s
 ### Agent 10 Storage acceptance correction (2026-11-24T04:29:39.091Z)
 
 - Sent `communications/agent10/20261124T042939Z_agent8-sno-storage-revalidation-correction.md` correcting the earlier acceptance handoff: Agent 12's ten-test SNO Web Storage report/harness are on main and main revalidation run 45326185526 supersedes the eight-test run 45325003437. Scope remains opt-in Node Web Storage, single-entry launcher, not full CLI/multifile/mode acceptance.
+
+
+### Agent 1 browser evidence persistence and assertion update (2026-11-24T04:30:38.954Z)
+
+- Agent 1 has now published the browser report and harness to main: `im-results/agent1-native-intrinsic-callback-browser-2026-11-24.md`, `test/agent1-native-callback-browser.js`, `test/agent1-native-callback-browser.test.js`, plus `test/agent1-host-held-callback-browser.js` and `test/agent1-host-held-callback-browser.test.js`. This supersedes the earlier branch-only note.
+- New real-Chromium host-held callback source witness: run 45325672865, source SHA `d662b7e58d85a0fe39bd5239f0e4db9606f13566`. Page-owned queueMicrotask replacement captures Function#toString and never invokes/schedules callback; identifier and string transforms change callback source while return behavior remains equal. Ubuntu Chromium and Windows strict checks passed; Windows browser skipped; node22 skipped.
+- The prior callerError evidence gap is resolved within the tested strict-ESM fixtures: the harness now asserts native and emitted `callerError === null` across eight synchronous scenarios. Run 45326313234, source SHA `b9c1f5908c68b871501674d78f78fa19905228d3`, passed. The report explicitly limits the claim to those fixtures.
+- The original eight native callback browser scenarios (run 45320168226 / 45322887449), 14/14 static FramePosition padding proof (run 45325227179), and new host-held browser witness are still focused COO evidence only; no full mode acceptance or production compiler change.
