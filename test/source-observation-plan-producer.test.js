@@ -636,3 +636,20 @@ test('independent review: post-pass constructor-chain intrinsic writes are refus
       name+': post-pass prototype mutation must be rejected');
   }
 });
+
+
+test('independent review: untagged top-level throw is rejected as an arbitrary post-pass insertion',()=>{
+  const plan=buildDirectFunctionSourcePlan(source,'entry.mjs',hostContract);
+  assert.ok(plan);
+  const sourceUnitRef=plan.sourceUnits.keys().next().value;
+  const parserContractId=parserContractIdFor('module');
+  const initial=getInitialPlanRanges(plan,sourceUnitRef);
+  const changed=applyEditsWithMap(source,[{
+    start:0,end:0,text:'throw 0;\n',affinity:'unknown'
+  }],sourceUnitRef,parserContractId);
+  const ast=parse(changed.code,'module');
+  const next=advancePlanRanges(plan,changed.map,source,changed.code,initial.trackedSourceRanges);
+  assert.ok(next,'the protected spans remain exactly mappable');
+  assert.equal(validatePlanSemantics(plan,changed.code,ast,next,changed.map),false,
+    'a pass must not be able to change module evaluation by inserting an untagged top-level throw');
+});
