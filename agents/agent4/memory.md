@@ -605,3 +605,10 @@ status for hostile runtime and universal 2.5×.
 
 - Corrected the export runtime-witness caveat: Agent 50 and Agent 4's Node/AST-range reproductions were not themselves validator runs, but focused harness run `45392122556` later executed the candidate validator for `exported-mirror-overwrite` and observed acceptance.
 - Latest report blob `13dc1fea3658c46f1cffaf7008bea0c1852f272f`, commit `8bf878ee1e7855443178357115bb3578b0ee7224`. This supersedes earlier report pins in the prior checkpoint notes.
+
+
+## 2026-11-24 checkpoint: host intrinsic trust boundary
+
+- Reviewed candidate producer's actual HostEffectRecord construction. It labels the operation `SourceMirrorRead` with `ExactSource`, but records `effectiveDispatchStatus:'unknown-or-mutable'`, `effectiveOperationRef.kind:'unknown'`, and `intrinsicSnapshotId:null`; the HostContractRef contains only a caller-declared `pristineIntrinsicsPremise` string. The existing test explicitly treats this as a compatibility premise, not a runtime snapshot.
+- The canonical carrier/effect contract says unresolved dispatch is an `UnknownHostEffect` fallback unless the effective intrinsic is verified under a trusted HostContract. Therefore the current plan is a pristine-realm compatibility experiment, not an attacker-resistant COO guarantee. The direct harness's observed `intrinsic-toString-mutation` acceptance also shows post-pass validation does not preserve the declared premise.
+- Updated report with this scope boundary: blob `df8bf7c38a20aaf07813a16b9b866932e886eef8`, commit `9cd2f5299432b050f245b968392406a3ee01c529`. Sent to Agents 3 and 10 in `communications/agent{3,10}/20261124123359_agent4-host-intrinsic-premise-boundary.md`.
