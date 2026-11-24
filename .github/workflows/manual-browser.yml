@@ -2,6 +2,12 @@ name: Manual real-browser validation
 
 on:
   workflow_dispatch:
+    inputs:
+      source_observer_plan_only:
+        description: "Run only the direct Function.prototype.toString source-observer browser test"
+        required: false
+        default: false
+        type: boolean
 
 permissions:
   contents: read
