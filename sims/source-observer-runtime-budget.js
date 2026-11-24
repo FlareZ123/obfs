@@ -73,7 +73,7 @@ async function measureWorkload(source,workload,extraStrings) {
     runtimeVersion:process.versions.node,
     contractVersion:'coo-direct-function-source-v1',
     pristineIntrinsicsPremise:
-      'Fresh Node ESM module realm with unmodified Function.prototype.toString and Function.prototype.call before module evaluation.'
+      'Fresh Node ESM module realm with unmodified Function.prototype.toString, Function.prototype.call, and String.fromCharCode before module evaluation.'
   };
   const result=obfuscateFiles([{
     path:'entry.mjs',sourceType:'module',code:source
