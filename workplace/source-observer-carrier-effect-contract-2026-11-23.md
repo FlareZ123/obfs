@@ -148,7 +148,7 @@ The canonical plan should expose at least:
  * @typedef {string} BindingRefKey - canonical serialization of BindingRef or RealmBindingRef
  * @typedef {string} DefinitionRefKey - canonical serialization of BindingRefKey + definition identity
  * @typedef {string} SourceSpanId - canonical serialization of SourceUnitRef + start/end offsets
- * @typedef {'PrimitiveGet'|'PrimitiveObjectPatternGet'|'PrimitiveIterator'|'IteratorDispatch'|'PrimitiveMethodDispatch'|'UnknownHostCall'|'UnknownHostArgumentEscape'|'AccessorCall'|'ProxyInternalMethod'|'ProxyHasProperty'|'ProxyOwnKeys'|'ProxyGetOwnProperty'|'ObjectCopyDispatch'|'WithBindingLookup'|'PromiseHandlerDispatch'|'WebIDLStringConversion'|'WebIDLNamedPropertySet'|'WebIDLAttributeSet'} HostEffectKind
+ * @typedef {'PrimitiveGet'|'PrimitiveObjectPatternGet'|'PrimitiveIterator'|'IteratorDispatch'|'PrimitiveMethodDispatch'|'UnknownHostCall'|'UnknownHostArgumentEscape'|'AccessorCall'|'ProxyInternalMethod'|'ProxyHasProperty'|'ProxyOwnKeys'|'ProxyGetOwnProperty'|'ProxyGet'|'ProxyDelete'|'CustomHasInstance'|'ObjectCopyDispatch'|'WithBindingLookup'|'PromiseHandlerDispatch'|'WebIDLStringConversion'|'WebIDLNamedPropertySet'|'WebIDLAttributeSet'} HostEffectKind
  * @typedef {'Primitive'|'Callable'|'HostHeldCallable'|'HostOpaque'|'Unknown'} ValueKind
  * @typedef {Object} HostEffectRecord
  * @property {HostEffectKind} kind
@@ -265,6 +265,23 @@ The 12/12 focused greens do not establish completeness. Agent 24 reviewed `workp
 3. **`WithStatement` Proxy `has` trap:** the executable walker skips nested function bodies and does not classify `WithStatement` itself as ambient. Proxy `has` can execute a host callback during identifier resolution without any explicit CallExpression.
 
 These are false-safes in the research donor, not demonstrated current-main regressions. Do not port the 12/12 prototype as-is. Its next red-first controls must include all three boundaries, in addition to the current-main external active-caller witness. Duplicate function declarations are already marked ambiguous by the donor; preserve that behavior.
+
+### Complete implicit-protocol operation inventory
+
+Agent 24's Node 22.16.0 [seven-operation active-frame matrix](../im-results/agent24-implicit-dispatch-active-frame-matrix-2026-11-24.md) confirms exact caller-source capture from each of these constructs, with no CallExpression in the analyzed function body:
+
+| Construct | Required event |
+| --- | --- |
+| `for...of` / `for await...of` | `IteratorDispatch` (`GetIterator`, `@@iterator`, `next`, async iterator and close/return) |
+| `'x' in proxy` | `ProxyHasProperty` |
+| `for...in` | `ProxyOwnKeys` and `ProxyGetOwnProperty` |
+| `value instanceof C` with custom `Symbol.hasInstance` | `CustomHasInstance` |
+| `delete value.x` on Proxy | `ProxyDelete` / `[[Delete]]` |
+| object destructuring | `ProxyGet` / `AccessorCall` |
+| array destructuring | `IteratorDispatch` |
+| `with (proxy) { identifier }` | `WithBindingLookup` / `ProxyHasProperty` |
+
+`ProxyInternalMethod` is a conservative catch-all and explicitly includes `[[HasProperty]]`, `[[OwnPropertyKeys]]`, `[[GetOwnProperty]]`, `[[Get]]` and `[[Delete]]`; `CustomHasInstance` remains a distinct user-method dispatch. Object spread/rest uses `ObjectCopyDispatch` with the relevant own-key/descriptor/get operations. All events can create reverse DynamicFrame effects as well as value/callback effects.
 
 ### Promise handler dispatch requires a host trust premise
 
