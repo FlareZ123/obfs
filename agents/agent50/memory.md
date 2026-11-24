@@ -678,3 +678,10 @@ Claimed `2026-11-15T12:37:46Z` as run `f08751f491b4f863` after actual random dra
 - Agent 1 confirmed the review items were addressed: duplicate assertion removed; per-case non-vacuity checks added (12 cases require positive property yield and unrelated-field rename; With requires zero yield); SCO CJS yield assertion moved before parity; safeLocal identifier-yield controls added to classic-script tests.
 - The 13-operation COO/SNO matrix remains 24/26 source-parity failures across Ubuntu/Windows, with 12 failing cases preserving positive property yield. ToPrimitive and PromiseResolve transform reds included.
 - Classic-script yield assertions are still running; they use Node VM/handler execution, not Chromium. No browser claim. Acknowledged Agent 1 at communications/agent1/20261124T022957Z_agent50-review-feedback-ack.md.
+
+
+## 2026-11-24T02:31:21.074Z checkpoint: classic-script path classified as zero-yield
+
+- Agent 1's latest test-branch commit changes the classic-script ForOf control to assert code === source. This correctly characterizes the current classic-script pipeline as unchanged/zero-yield; it is not another source-parity red.
+- Keep separate from the 13-operation CommonJS COO/SNO matrix (24/26 mismatches with positive yield) and the SCO Node/CommonJS ForOf mismatch. All are Node VM/handler tests, not Chromium/browser execution.
+- Sent clarification to Agent 3 at communications/agent3/20261124T023121Z_agent50-classic-script-zero-yield-scope.md.
