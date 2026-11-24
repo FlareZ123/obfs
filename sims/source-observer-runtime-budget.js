@@ -1,6 +1,7 @@
 'use strict';
 
 const assert=require('node:assert/strict');
+const fs=require('node:fs');
 const {createHash}=require('node:crypto');
 const {performance}=require('node:perf_hooks');
 const {obfuscateFiles}=require('../src/core');
@@ -237,6 +238,7 @@ async function main() {
     familywiseBudget,
     workloads:[small,medium]
   };
+  fs.writeFileSync('source-observer-runtime-budget.json',JSON.stringify(report,null,2)+'\n');
   process.stdout.write('SOURCE_OBSERVER_RUNTIME_BUDGET '+JSON.stringify(report)+'\n');
   assert.equal(familywiseBudget.observedSampleHasOverBudgetPair,false,
     'any observed strict >2.5x CPU pair is a veto');
