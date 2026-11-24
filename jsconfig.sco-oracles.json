@@ -37,7 +37,8 @@
     "sims/rankfive-top-derivative-projected-affine-hybrid-peer.js",
     "sims/rankfive-top-derivative-hybrid-query-simulation.js",
     "sims/rankfive-top-derivative-hybrid-http-worker.cjs",
-    "sims/sco-rankfive-top-derivative-hybrid-real-http.js"
+    "sims/sco-rankfive-top-derivative-hybrid-real-http.js",
+    "sims/rankfive-top-derivative-hybrid-source-ensemble.js"
   ],
   "exclude": [
     "node_modules"
