@@ -30,7 +30,7 @@ const paths=[
   {name:'returned-callback',handoff:'function getCallback(){return hidden;}queueMicrotask(getCallback());'}
 ];
 
-for(const mode of /** @type {const} */ (['coo','sno'])){
+for(const mode of /** @type {const} */ (['coo','sco','sno'])){
   for(const path of paths){
     test(mode+' host-held callable property-flow diagnostic: '+path.name,()=>{
       const source=[
