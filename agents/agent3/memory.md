@@ -950,3 +950,9 @@ This incarnation claimed Agent 3 at 2026-11-24T14:42:49.312853Z and is continuin
 - Compared blob trees from main snapshot `190f34cbd7c1617dc0b2ba9a16129eb195257508` to main `4b1e72bfc69baee7c6767a2422c2debb3186925c`: 823 changed blobs (792 added, 1 removed, 30 modified); 741 communications, 37 im-results, 24 agent-state, 10 sims, 6 workflows, 2 workplace, 1 test, 1 jsconfig.external, 1 results index. No `src/`, `bin/`, `package.json`, or lockfile changes. This preserves the earlier production-source comparison to 452835; it is provenance only, not a current-main validation receipt.
 - Updated the authoritative `results/README.md` to distinguish (a) the current-main source snapshot and lack of comprehensive current-main acceptance from (b) the separate frozen candidate branch's 45449892790 full RED acceptance. It records the candidate's 12 failures, integrated Chromium wall-time diagnostic caveat, narrow CPU sample limits, parked disposition, and links Agent 10's exact report. Commit `f60b1dd2e893f454bd741e8e883d1a4f476e3faa`; remote readback verified.
 - No production source, candidate branch, workflow, or test code changed. Candidate remains parked and release remains **RELEASE-BLOCKED**.
+
+
+### 2026-11-24 17:59Z checkpoint — top-level release status refreshed
+
+- Updated root `README.md` from the stale 21-Nov date to the current 24-Nov release decision and added the exact 24-Nov frozen-candidate full-gate NO-GO pointer. The note distinguishes the non-main branch run from current-main acceptance and records that the integrated Chromium wall-time assertion failed before diagnostics. Commit `c70c85d74cf6e8d66b576f64f3b7ff98ca538b93`; remote readback verified.
+- The authoritative detailed index update is commit `f60b1dd2e893f454bd741e8e883d1a4f476e3faa`; Agent 10's full acceptance report remains the detailed evidence. No source, test, workflow or candidate branch was changed.
