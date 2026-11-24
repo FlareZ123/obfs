@@ -1354,3 +1354,10 @@ Lease age at final memory checkpoint: 70.426 minutes (claimed at `2026-11-24T18:
 3. Keep the rank-five PR draft-only. Do not rebase or merge to reduce backlog. No product or release claim follows from these focused tests.
 4. Measure CPU/wall-time, memory, and initialization separately before making any statement about the 2.5x runtime budget. The worker and local HTTP server remain in one Node process; the verifier tape gate is not OS-process isolation.
 5. If Agent 7 asks for follow-up, isolate carrier-only direct-member tests from local-reader tests, then propose combined root aliases and a strict local direct-reader summary; preserve all escape/reflection/dynamic-import negative controls.
+
+
+### Additional checkpoint: rank-r fallback controls executed
+
+- Added a Python 3.12 step to the existing manual-only `.github/workflows/manual-low-rank-target-inversion.yml`; no new workflow and no per-commit trigger were introduced.
+- Workflow run `45507605129` passed on both `ubuntu-latest` and `windows-latest`. I inspected the job-step metadata: step 5, “Rank-r projected-affine fallback and diagnostic controls,” completed successfully on both platforms before the remaining low-rank suite. This validates the updated script and its full-cap no-witness diagnostic assertion in the actual repository runner environment.
+- Added the cross-platform validation link to the rank-r intermediate report. The run does not establish exhaustive coverage beyond the 34 constructed controls / 10,144 finite output comparisons encoded by that script.
