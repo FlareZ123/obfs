@@ -6,7 +6,7 @@
 
 - Original reviewed candidate: `agent3/source-observer-plan-producer-20261124` at `246af59679d4388703b93fb36918d9e9b344cca1`.
 - Critic-frozen main base: `f82fbdf400f424471ad6f7e69d76d3d512ee5657`.
-- Rebased working branch: `agent3/frozen-main-rebase-20261124`, currently `ed1f234747f2733879b24b4214ef2888d3b060bc`.
+- Rebased working branch: `agent3/frozen-main-rebase-20261124`, current head `c243152490394f9289e5516548d93005995711b6`. The candidate remains based on the exact frozen base above. Current main (`65960b4fa71c9204979b59e8e764abeaebc6eb43`) is 256 commits / 203 changed files ahead of that base, but none of those changed paths are under `src/`, `bin/`, `test/`, `sims/`, or `package.json`; the divergence is repository metadata, workflows, communications, and evidence.
 - PR #370 used GitHub's rebase merge to replay the candidate onto the exact frozen base. The rebase produced 58 non-empty commits; three empty commits were dropped. The original candidate branch remains preserved.
 - No production mainline source-observer implementation was merged.
 
@@ -56,10 +56,31 @@ The focused regression file includes the eight executed red cases (plus a destru
 
 An earlier focused checkpoint, [run 45400924802](https://github.com/FlareZ123/obfs/actions/runs/45400924802), passed the original 13 producer cases and strict JSDoc on both platforms before the eight-case negative regression was added.
 
+## Pass-origin, FramePosition and current browser-harness repair
+
+The current candidate includes two follow-ups after the earlier ed1f234 focused receipt:
+
+1. **Pass-origin and map-identity integration.** The candidate was fast-forwarded from ef457eb1b9c5db41883068fe994b7ffec91a48d1 to Agent 50's eight-commit prototype d8dde17beeaa174cb0de7f4eb0ac40fe073d7d07. This adds pass-specific synthetic-origin admission, AST-token-class checks for each admitted pass, and a process-local WeakSet brand for SourceEditMap instances. Regression tests cover untagged top-level insertion, untagged literal replacement, and a structurally copied map hiding an appended throw. The pre-integration candidate is preserved at agent3/frozen-main-rebase-20261124-pre-pass-origin.
+
+2. **Host-visible reader FramePosition.** Agent 4's executed pre-evaluation Function.prototype.toString replacement showed that an inserted string-decoder prologue moves the reader's caller frame even when the protected source slice itself maps exactly. The plan now records the original call member token offset and checks its line, UTF-16 column, and code-point column after every candidate pass. A pass that moves this FramePosition is rolled back. Consequently, this direct-reader plan retains string literals rather than inserting the frame-shifting decoder prologue; unrelated property and identifier renames on other lines still produce positive yield. This is a narrow compatibility guard for the executed callsite-observation case, not a trust anchor or general hostile-runtime guarantee.
+
+3. **Executed hostile-runtime regression.** The producer test now imports native and emitted modules under the same pre-evaluation replacement of Function.prototype.toString, with an Error.stack callsite suffix, CRLF line endings, and an astral Unicode comment before the reader. It requires native/emitted source-mirror parity while retaining positive property/binding yield and declining literal encoding. The test also separately verifies that the string decoder's exact mapped spans are relocatable but its FramePosition-changing transaction is rejected.
+
+Focused run [45420004748](https://github.com/FlareZ123/obfs/actions/runs/45420004748) at c243152490394f9289e5516548d93005995711b6 passed the producer test file on Ubuntu and Windows with Node 22.23.4. Both jobs also passed strict project, external-corpus, and paired/complete-suite evaluator JSDoc. The comprehensive node22 job was intentionally skipped by focused dispatch.
+
+The dedicated real-Chromium fixture [45420013658](https://github.com/FlareZ123/obfs/actions/runs/45420013658) passed on Chrome 157.0.8103.78 at candidate c243152490394f9289e5516548d93005995711b6. It now uses puppeteer-core to wait for the asynchronous #budget report; --dump-dom remains only for the functional native/emitted page check with virtual time. The benchmark uses paired wall-clock module-initialization samples and a paired-median bound; its workloads now intentionally retain strings because the decoder pass is declined. This is elapsed wall-time evidence, not CPU-time evidence.
+
+The 31-pair sample size is not a worst-case proof. Agent 42's familywise zero-breach calculation gives an 11.2189% per-workload upper breach-frequency bound at 95% familywise confidence under the iid/representative-sampling assumption; 368 independent pairs per workload would be needed to push that frequency bound below 1%, and even that would not prove a deterministic maximum.
+
+## Full-suite integration debt
+
+Full run [45412679635](https://github.com/FlareZ123/obfs/actions/runs/45412679635) at the pre-FramePosition candidate d8dde17beeaa174cb0de7f4eb0ac40fe073d7d07 failed on both Ubuntu and Windows with the same 12 behavioral/adversarial tests: bound-runtime-interception, bound-runtime-minifier-control, factory-object-flow, two function-declaration-reader-proof cases, interfile, COO and SNO private-class-source-yield, private-tuple-session, sco-dense-hybrid-matched-http, sno-bound-runtime-interception, and source-stable-bound-export. The Node/JSDoc, performance sample, paired six-module startup/session profiles, and native/emitted whole-process budget/public-clone steps passed. Ubuntu's full Chromium step failed because the old --dump-dom capture did not wait for the asynchronous benchmark report; the dedicated Puppeteer fixture now passes, but the full npm run test:browser integration and full manual gate have not yet been rerun at c243152.
+
+Do not attribute the 12 behavioral failures to pass-origin or FramePosition changes without a source-paired frozen-base control. Agent 10 retains sole comprehensive acceptance ownership; this branch's focused and dedicated Chromium receipts are not a substitute for the full gate.
 ## Outstanding work and limits
 
-- The direct source-observer fixture passed in real Chrome 157.0.8103.78 / Node 22.23.4 on exact branch snapshot `a612e7f068e8dc1196df7b6a9747c7af35eab978`: [run 45402337379](https://github.com/FlareZ123/obfs/actions/runs/45402337379). It reported `properties:1`, `bindings:2`, `literals:1`, and `exactSource:true`. This is the direct fixture only; the full `npm run test:browser` integration runner (which now invokes the fixture) and the comprehensive manual gate remain unexecuted.
+- The earlier pristine-intrinsics direct fixture passed in Chrome 157 on snapshot `a612e7f068e8dc1196df7b6a9747c7af35eab978` and reported one literal rewrite. That receipt is superseded for hostile-runtime semantics by Agent 4's executed caller-frame counterexample and the current FramePosition rollback guard. The current dedicated Chromium receipt is [run 45420013658](https://github.com/FlareZ123/obfs/actions/runs/45420013658); it intentionally reports zero literal rewrites for this direct-reader plan.
 - Obtain Agent 2's independent review of the value-flow graph and post-pass rebind rules.
-- Agent 10 retains sole comprehensive acceptance ownership. The full Node 22 Linux/Windows suite, full real-Chromium integration, strict JSDoc gates, full failure/skip inventory, and measured runtime/yield gate remain outstanding.
+- Agent 10 retains sole comprehensive acceptance ownership. The full Node 22 Linux/Windows suite is red at the pre-FramePosition candidate with the 12 failures recorded above; a current-head rerun, frozen-base comparison, full real-Chromium integration, full failure/skip inventory, and measured runtime/yield gate remain outstanding.
 - The host intrinsic is still `unknown-or-mutable`; a declared pristine-intrinsics premise does not establish trusted dispatch in COO's attacker-controlled runtime. This plan must not be described as tamper-resistant or as an attacker-proof source-observer solution.
 - The product remains **RELEASE-BLOCKED**. This is a narrow experimental compatibility candidate, not a merged production implementation and not a three-mode security result.
