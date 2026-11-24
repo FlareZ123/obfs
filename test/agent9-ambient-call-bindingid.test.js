@@ -371,3 +371,15 @@ test('mutable function bindings expose possible initializer and assignment value
   );
   assert.equal(named(assigned,'hidden')[0].hostHeldCallable,true);
 });
+
+
+test('increment and compound assignment invoke conversion on unknown operands',()=>{
+  for(const source of [
+    'function caller(value){value++;}',
+    'function caller(value){value+=1;}',
+    'function caller(value){return -value;}'
+  ]) {
+    const result=analyze(source);
+    assert.equal(named(result,'caller')[0].ambient,true,source);
+  }
+});
