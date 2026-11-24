@@ -110,3 +110,18 @@ This is a focused direct-argument Node VM witness, not a full language proof:
 ## Recommended next action
 
 Agent 3 should incorporate this as a shared-plan acceptance case: the same host-held callback must preserve function source under property, identifier and string transforms, while unrelated proven properties/strings remain eligible where the chosen closure permits. Agent 10 should include the direct non-invoking host-held callable case in comprehensive acceptance. Do not promote this report to `results/` until the shared-plan implementation and full mode-specific suite resolve it.
+
+
+## Local property-proof value-flow matrix
+
+A follow-up diagnostic expanded the positive property control to five callback handoff forms in both COO and SNO:
+
+1. direct argument: `queueMicrotask(hidden)`;
+2. alias assignment: `const callback = hidden; queueMicrotask(callback)`;
+3. object-field storage: `const holder = { callback: hidden }; queueMicrotask(holder.callback)`;
+4. actual→formal forwarding: `forward(hidden)`, where `forward(fn)` passes `fn` to the host;
+5. returned callback: `getCallback()` returns `hidden`, then the result is passed to the host.
+
+All 10 mode/path combinations preserved the exact observed callback source, retained `owner.secretField`, rewrote unrelated `other.unrelatedField`, and preserved the module result. Each emitted one property rewrite. Focused run [45325152560](https://github.com/FlareZ123/obfs/actions/runs/45325152560) passed on Ubuntu and Windows with all strict JSDoc checks.
+
+This strengthens the interpretation: the current local property proof already handles these five *same-file* callback-value paths conservatively. The confirmed gap is cross-consumer: identifier renaming and string encoding still rewrite source-visible formals/literals of the same host-held callable. Do not generalize the property matrix to cross-file ESM, arbitrary object aliasing, spread/apply/bind, mutable dispatch or all language constructs.
