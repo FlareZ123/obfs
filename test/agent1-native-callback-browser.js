@@ -9,7 +9,7 @@ const {obfuscateFiles}=require('../src');
 const runBrowser=promisify(execFile);
 
 /** @typedef {{kind:string,observation:'source'|'frame',body:string}} Scenario */
-/** @typedef {{value:number,source:string|null,frame:string|null,column:number|null,error:string|null}} Observation */
+/** @typedef {{value:number,source:string|null,frame:string|null,column:number|null,error:string|null,callerError:string|null}} Observation */
 
 /** @type {Scenario[]} */
 const scenarios=[
@@ -49,6 +49,24 @@ function sourceFor(scenario){
   ].join('');
 }
 
+
+/**
+ * Build an ESM fixture. Its application functions are strict by language
+ * semantics, unlike the CommonJS fixture above.
+ * @param {Scenario} scenario
+ * @returns {string}
+ */
+function moduleSourceFor(scenario){
+  return [
+    'const other={unrelatedField:2};',
+    'function hidden(external){const owner={longPrivatePropertyName:1};',
+    scenario.body,
+    'return owner.longPrivatePropertyName;}',
+    'function plain(){return other.unrelatedField;}',
+    'export function publicReader(external){return hidden(external)+plain();}'
+  ].join('');
+}
+
 /**
  * @param {string} observation
  * @param {string} scriptPath
@@ -59,7 +77,7 @@ function pageFor(observation,scriptPath){
     '<pre id="result"></pre><pre id="failure"></pre>'+
     '<script>'+
     'window.module={exports:{}};'+
-    'window.__observation={source:null,frame:null,column:null,error:null};'+
+    'window.__observation={source:null,frame:null,column:null,error:null,callerError:null};'+
     'window.__kind='+JSON.stringify(observation)+';'+
     'function external(){try{'+
       'if(window.__kind==="source"){'+
@@ -79,7 +97,36 @@ function pageFor(observation,scriptPath){
     '<script>try{'+
       'var value=module.exports(external);'+
       'var seen=window.__observation;'+
-      'var result={value:value,source:seen.source,frame:seen.frame,column:seen.column,error:seen.error};'+
+      'var result={value:value,source:seen.source,frame:seen.frame,column:seen.column,error:seen.error,callerError:seen.callerError};'+
+      'document.getElementById("result").textContent=btoa(JSON.stringify(result));'+
+    '}catch(error){document.getElementById("failure").textContent=String(error&&error.stack||error);}</script>';
+}
+
+
+/**
+ * @param {string} modulePath
+ * @returns {string}
+ */
+function modulePageFor(modulePath){
+  return '<!doctype html><meta charset="utf-8">'+
+    '<pre id="result"></pre><pre id="failure"></pre>'+
+    '<script>'+
+    'window.__observation={source:null,frame:null,column:null,error:null,callerError:null};'+
+    'function external(){try{'+
+      'var captured=arguments.callee.caller&&arguments.callee.caller.caller;'+
+      'window.__observation.source=captured?Function.prototype.toString.call(captured):null;'+
+    '}catch(error){window.__observation.callerError=String(error&&error.message||error);}'+
+    'var stack=String(new Error("host callback").stack||"");'+
+    'var lines=stack.split("\\n");'+
+    'var frame=lines.find(function(line){return /\\bhidden\\b/.test(line);})||null;'+
+    'window.__observation.frame=frame;'+
+    'var match=frame&&frame.match(/:(\\d+):(\\d+)\\)?$/);'+
+    'window.__observation.column=match?Number(match[2]):null;}'+
+    '</script>'+
+    '<script type="module">import {publicReader} from "'+modulePath+'";try{'+
+      'var value=publicReader(external);'+
+      'var seen=window.__observation;'+
+      'var result={value:value,source:seen.source,frame:seen.frame,column:seen.column,error:seen.error,callerError:seen.callerError};'+
       'document.getElementById("result").textContent=btoa(JSON.stringify(result));'+
     '}catch(error){document.getElementById("failure").textContent=String(error&&error.stack||error);}</script>';
 }
@@ -106,6 +153,8 @@ async function main(){
   const resources=new Map();
   /** @type {Map<string,number>} */
   const metrics=new Map();
+  /** @type {Map<string,number>} */
+  const moduleMetrics=new Map();
   /** @type {Array<{kind:string,mode:string,properties:number,native:Observation,compiled:Observation}>} */
   const results=[];
 
@@ -138,6 +187,39 @@ async function main(){
     });
     resources.set(base+'/compiled.html',{
       body:pageFor(scenario.observation,base+'/compiled.js'),
+      type:'text/html; charset=utf-8'
+    });
+    const moduleSource=moduleSourceFor(scenario);
+    const moduleOutput=obfuscateFiles([{
+      path:'entry.mjs',sourceType:'module',code:moduleSource
+    }],{
+      mode:'coo',closedWorld:true,
+      seed:'agent1-native-callback-browser-esm/'+scenario.kind,
+      identifiers:false,strings:false,properties:true
+    });
+    assert.equal(moduleOutput.files.length,1);
+    const moduleCodeValue=moduleOutput.files[0].code;
+    assert.equal(typeof moduleCodeValue,'string');
+    const moduleCode=/** @type {string} */(moduleCodeValue);
+    moduleMetrics.set(scenario.kind,moduleOutput.files[0].metrics.properties);
+    assert.ok(moduleOutput.files[0].metrics.properties>=1,
+      scenario.kind+' ESM must retain nonzero private-property rewrite yield');
+    assert.ok(!moduleCode.includes('unrelatedField'),
+      scenario.kind+' ESM must rename the unrelated plain() positive control');
+    assert.ok(!moduleCode.includes('longPrivatePropertyName'),
+      scenario.kind+' ESM must rename the observed owner property');
+    resources.set(base+'/module-native.mjs',{
+      body:moduleSource,type:'text/javascript; charset=utf-8'
+    });
+    resources.set(base+'/module-compiled.mjs',{
+      body:moduleCode,type:'text/javascript; charset=utf-8'
+    });
+    resources.set(base+'/module-native.html',{
+      body:modulePageFor(base+'/module-native.mjs'),
+      type:'text/html; charset=utf-8'
+    });
+    resources.set(base+'/module-compiled.html',{
+      body:modulePageFor(base+'/module-compiled.mjs'),
       type:'text/html; charset=utf-8'
     });
   }
@@ -205,6 +287,46 @@ async function main(){
         sourceChanged:before.source!==after.source
       })+'\n');
     }
+
+    /** @type {Array<{kind:string,properties:number,native:Observation,compiled:Observation}>} */
+    const moduleResults=[];
+    for(const scenario of scenarios){
+      const base='/'+scenario.kind;
+      const before=await observe(origin,base+'/module-native.html');
+      const after=await observe(origin,base+'/module-compiled.html');
+      assert.equal(before.value,3,scenario.kind+' ESM native return value');
+      assert.equal(after.value,before.value,scenario.kind+' ESM native/emitted return parity');
+      assert.equal(before.error,null,scenario.kind+' ESM native observer must not throw');
+      assert.equal(after.error,null,scenario.kind+' ESM emitted observer must not throw');
+      assert.equal(before.source,null,
+        scenario.kind+' strict ESM callback must not expose hidden() through sloppy caller-chain source');
+      assert.equal(after.source,null,
+        scenario.kind+' emitted strict ESM callback must not expose hidden() through sloppy caller-chain source');
+      assert.ok(before.frame&&before.frame.includes('hidden'),
+        scenario.kind+' strict ESM native Chromium stack must expose the active hidden() frame');
+      assert.ok(after.frame&&after.frame.includes('hidden'),
+        scenario.kind+' strict ESM emitted Chromium stack must expose the active hidden() frame');
+      assert.ok(Number.isInteger(before.column),scenario.kind+' strict ESM native frame column');
+      assert.ok(Number.isInteger(after.column),scenario.kind+' strict ESM emitted frame column');
+      assert.notEqual(after.column,before.column,
+        scenario.kind+' strict ESM should expose changed active-frame coordinates after private-key rewriting');
+      const properties=moduleMetrics.get(scenario.kind)??0;
+      moduleResults.push({kind:scenario.kind,properties,native:before,compiled:after});
+      process.stdout.write('CHROMIUM_INTRINSIC_CALLBACK_ESM '+JSON.stringify({
+        kind:scenario.kind,properties,
+        nativeValue:before.value,compiledValue:after.value,
+        nativeColumn:before.column,compiledColumn:after.column,
+        sourceUnavailable:before.source===null&&after.source===null,
+        callerError:before.callerError
+      })+'\n');
+    }
+    process.stdout.write('CHROMIUM_INTRINSIC_CALLBACK_ESM_SUMMARY '+JSON.stringify({
+      scenarios:moduleResults.length,
+      strictSourceUnavailable:moduleResults.every(item=>item.native.source===null&&item.compiled.source===null),
+      framePosition:moduleResults.every(item=>item.native.frame!==null&&item.compiled.frame!==null&&item.native.column!==item.compiled.column),
+      positiveYield:moduleResults.every(item=>item.properties>=1),
+      nativeParity:moduleResults.every(item=>item.native.value===item.compiled.value)
+    })+'\n');
   }finally{
     await new Promise((resolve,reject)=>server.close(error=>error?reject(error):resolve(undefined)));
   }
