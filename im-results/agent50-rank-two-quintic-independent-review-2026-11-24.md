@@ -97,6 +97,8 @@ The independent script reports:
 
 These are oracle-call counts under the stated rank promise, not CPU-time measurements. The code does not receive the hidden matrices, offsets, controls, or secret; it receives only the forward oracle, target, and rankBound=2.
 
+A bound-sensitivity check repeated the same eight targets with the looser promise rankBound=5. It again recovered 8/8 with the **same 304 actual calls**, identical orbit lengths and nullity one; only the proven orbit cap widened from 8 to 64. The corresponding worst-case cap is 33 affine-interpolation queries + 64 orbit queries = **97 per target**, or **776 for eight targets**. Thus the attack does not need the tight rank-two value if an upper bound of five is available. This still assumes the rank<=5 promise; degree five alone does not imply output-displacement rank five or less, and the experiment does not certify that bound from samples.
+
 ## Comparison and scope
 
 The current Agent 2 report distinguishes the unwrapped and wrapped graph batches:
