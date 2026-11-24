@@ -346,7 +346,7 @@ function inspectDeclarations(ast,readerCall) {
 /**
  * Build a finite plan for one direct Function.prototype.toString.call(fn)
  * observation in a closed, single-file ESM COO input. The caller must provide
- * an explicit, versioned host premise for pristine Function intrinsics. This
+ * an explicit, versioned host premise for pristine Function intrinsics and, when string encoding is enabled, String.fromCharCode. This
  * is a compatibility premise, not an authorization boundary against a client
  * attacker who controls the realm.
  *
