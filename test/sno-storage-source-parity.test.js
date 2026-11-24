@@ -7,6 +7,7 @@ const os=require('node:os');
 const path=require('node:path');
 const {spawnSync}=require('node:child_process');
 const {obfuscateFiles}=require('../src');
+const {parse,observesFunctionSource}=require('../src/ast');
 const {atomicWrite}=require('../src/atomic');
 
 const [nodeMajor,nodeMinor]=process.versions.node.split('.').map(Number);
@@ -17,7 +18,7 @@ const supportsExperimentalWebStorage=nodeMajor>22 ||
  * Run one CommonJS program with Node's opt-in native Web Storage implementation.
  * @param {string} entry
  * @param {string} storageFile
- * @returns {{stored:string|null,value:number,independent:number}}
+ * @returns {{nativeDispatch:boolean,stored:string|null,value:number,independent:number}}
  */
 function runWithWebStorage(entry,storageFile) {
   const child=spawnSync(process.execPath,[
@@ -27,7 +28,7 @@ function runWithWebStorage(entry,storageFile) {
   ],{encoding:'utf8',timeout:15000});
   assert.equal(child.error,undefined,String(child.error??''));
   assert.equal(child.status,0,child.stderr);
-  return /** @type {{stored:string|null,value:number,independent:number}} */(
+  return /** @type {{nativeDispatch:boolean,stored:string|null,value:number,independent:number}} */(
     JSON.parse(child.stdout)
   );
 }
@@ -40,12 +41,16 @@ test('SNO Node Web Storage exposes changed callable source through native DOMStr
     "'use strict';",
     'function inspect(){const privateLocal=29;return privateLocal;}',
     'function independent(){const independentLocal=7;return independentLocal;}',
+    'if(localStorage.setItem!==Storage.prototype.setItem)throw new Error("expected native inherited Storage.setItem");',
     'localStorage.clear();',
     'localStorage.setItem("sno-source-observation",inspect);',
-    'const result={stored:localStorage.getItem("sno-source-observation"),',
+    'const result={nativeDispatch:localStorage.setItem===Storage.prototype.setItem,',
+    '  stored:localStorage.getItem("sno-source-observation"),',
     '  value:inspect(),independent:independent()};',
     'process.stdout.write(JSON.stringify(result));'
   ].join('\n');
+  assert.equal(observesFunctionSource(parse(source,'commonjs')),false,
+    'the current AST observer does not classify this native Storage conversion');
   const transformed=obfuscateFiles([{
     path:'entry.cjs',sourceType:'commonjs',code:source
   }],{
@@ -76,6 +81,8 @@ test('SNO Node Web Storage exposes changed callable source through native DOMStr
     const native=runWithWebStorage(nativePath,nativeStorage);
     const emitted=runWithWebStorage(protectedPath,protectedStorage);
 
+    assert.equal(native.nativeDispatch,true);
+    assert.equal(emitted.nativeDispatch,true);
     assert.equal(native.value,29);
     assert.equal(emitted.value,29);
     assert.equal(native.independent,7);
@@ -92,6 +99,7 @@ test('SNO Node Web Storage exposes changed callable source through native DOMStr
       host:'Node --experimental-webstorage',
       nativeStored:native.stored,
       emittedStored:emitted.stored,
+      nativeDispatch:native.nativeDispatch,
       nativeValue:native.value,
       emittedValue:emitted.value,
       independent:native.independent,
