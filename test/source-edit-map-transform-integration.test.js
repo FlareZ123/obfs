@@ -12,8 +12,8 @@ const {parserContractIdFor,mapSourceSpan,sourceGenerationOf}=require('../src/sou
 const UNIT='unit:sno:entry-module:instance-1';
 const PARSER=parserContractIdFor('module');
 
-/** @param {string} sourceUnitRef @param {number} start @param {number} end @param {string} generation */
-function sourceSpan(sourceUnitRef,start,end,generation,originSpanId) {
+/** @param {string} sourceUnitRef @param {number} start @param {number} end @param {string} generation @param {string} [originSpanId] @param {string} [astNodeType] */
+function sourceSpan(sourceUnitRef,start,end,generation,originSpanId,astNodeType='ArrowFunctionExpression') {
   const spanId=sourceUnitRef+':'+generation+':'+start+':'+end;
   return {
     spanId,originSpanId:originSpanId??spanId,
