@@ -115,3 +115,52 @@ for(const mode of /** @type {const} */ (['coo','sno','sco'])) {
       'An uninvoked nested callback must not disable the parent helper property proof');
   });
 }
+
+
+/**
+ * Observe the caller's caller from an external sloppy host callback.
+ * @param {string} code
+ * @returns {{value:unknown,source:string}}
+ */
+function observeAncestor(code) {
+  const receiver={ancestor:null};
+  const getExternal=Function('receiver',
+    'return function externalCaller(){receiver.ancestor=arguments.callee.caller.caller;}'
+  )(receiver);
+  /** @type {{module:{exports:unknown},getExternal:()=>void}} */
+  const context={module:{exports:null},getExternal};
+  vm.runInNewContext(code,context,{timeout:2500});
+  const exported=/** @type {()=>unknown} */(context.module.exports);
+  const value=exported();
+  const ancestor=receiver.ancestor;
+  assert.equal(typeof ancestor,'function',
+    'The external callback must capture the active caller ancestor');
+  return {value,source:Function.prototype.toString.call(ancestor)};
+}
+
+const transitiveSource='function localHelper(){getExternal();}'+
+  'function hidden(){'+
+  'const owner={secretField:41,otherField:2};'+
+  'localHelper();'+
+  'return owner.secretField+owner.otherField;'+
+  '}'+
+  'function publicReader(){return hidden();}'+
+  'module.exports=publicReader;';
+
+for(const mode of /** @type {const} */ (['coo','sno','sco'])) {
+  test(mode+' unknown callback in local helper taints active caller ancestor',()=>{
+    const before=observeAncestor(transitiveSource);
+    const output=obfuscateFiles([{
+      path:'entry.cjs',sourceType:'commonjs',code:transitiveSource
+    }],{
+      mode,seed:'transitive-ambient-host-caller-source-witness',
+      identifiers:false,strings:false,properties:true
+    }).files[0];
+    const after=observeAncestor(String(output.code));
+    assert.equal(after.value,before.value,'The runtime result must remain unchanged');
+    assert.equal(after.source,before.source,
+      'A host stack observer can read the active caller ancestor through a local helper');
+    assert.equal(output.metrics.properties,0,
+      'Ambient source visibility must propagate through local call edges');
+  });
+}
