@@ -42,7 +42,7 @@ function nondominatedPlans(plans){
  * @returns {{graph:ReturnType<typeof buildExplicitBeliefs>,plan:Plan,
  *   frontier:{source:number,semantic:number}[],selectedSourceCost:number,
  *   selectedSemanticCost:number,maxProportionalRegret:number,
- *   maxPublicQueries:10,semanticScale:29}}
+ *   maxPublicQueries:10,semanticScale:number}}
  */
 function createTwoStateRobustWorkspace(){
   const graph=buildExplicitBeliefs();
