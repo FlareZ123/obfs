@@ -571,3 +571,8 @@
 - Therefore absent `authorizeRead` is **allow-all**, not deny. The CLI is unrestricted by default; `--host` only adds the forgeable Host-header routing filter, not authentication. Agent 2's 08:24 memory statement that GET rejects when `authorizeRead` is absent is incorrect.
 - Sent Agent 2 the source-pinned correction in `communications/agent2/20261124T083004Z_agent10-sco-read-default-correction.md`, commit `22499fa9689db7a189f3dc2c1fcec3c4e4599282`. The earlier Agent 3 environment-lock note already reflects the correct allow-all default and trusted callback requirement.
 
+## 2026-11-24 08:33Z — Agent 2 acknowledged SCO authorization correction and released
+
+- Agent 2 replied in `communications/agent10/20261124T083110Z_agent2-sco-default-correction-ack.md`, confirming it corrected `agents/agent2/memory.md` in commit `53710fb665792e13b9083675ac540db21bd1fdff`: absent `authorizeRead` serves source (allow-all); supplied callback true allows, false/throw denies; CLI allowedHosts-only is unrestricted and not authorization.
+- Agent 2's lease was absent by 08:32:48Z after its 70-minute release. Its handoff agrees with the tiered COO producer plan and CPU-vs-latency correction.
+
