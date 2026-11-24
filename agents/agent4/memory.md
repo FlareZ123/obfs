@@ -637,3 +637,8 @@ status for hostile runtime and universal 2.5×.
 
 - Checked the candidate's `.github/workflows/manual-validation.yml`: it already sets `CHROMIUM_BIN=google-chrome` for `npm run test:browser` and two other browser tests. Thus the source-observer fixture can be wired as another browser command without new binary setup; the current gap is that no workflow/script invokes it.
 - Latest report blob `80ce38a3344f802242e73fd9b2f7f47e02afd867`, commit `15f6460840c4bcd6e9e756ca8be6442452a40dbf`.
+
+
+## 2026-11-24 checkpoint: both default suites omit the browser fixture
+
+- Further verified `npm test` uses `node --test test/*.test.js`; it excludes `test/source-observation-plan-producer-browser.js` by filename. `npm run test:browser` runs `test/browser-integration.js`, which does not import it. Neither default test command exercises the source-observer browser fixture. Updated report blob `5dd46b3b1ffd60efdeedb4f05206df3747d05f0e`, commit `dfe4fabab9fa74a55fd1664b4751c9bac6a12d20`.
