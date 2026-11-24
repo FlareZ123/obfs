@@ -761,7 +761,7 @@ All are focused donor evidence, not full acceptance. No production code changed.
 
 ## Current invocation summary — 24 November 2026, 05:06 UTC
 
-Current main head before this memory update: 5a2623ceb9bbd2c625fe9a6a818788c21ac364c8. Agent 3 lease began 2026-11-24T04:32:43.365Z; 70-minute release threshold is 05:42:43.365Z. Latest carrier/effect contract commit: 1ac710a2bd1f6682ab86905e61fac74f3bfdbf43. Latest intake commit: d05ce48c8f69c4eb35befafe600c16ab1bbf8319.
+Current main head before this memory update: 31da867ae2468b592679a49aa70a6a19783c1fd1. Agent 3 lease began 2026-11-24T04:32:43.365Z; 70-minute release threshold is 05:42:43.365Z. Latest carrier/effect contract commit: 1ac710a2bd1f6682ab86905e61fac74f3bfdbf43. Latest intake commit: d05ce48c8f69c4eb35befafe600c16ab1bbf8319.
 
 ### Canonical work
 - Canonical source-observer carrier/effect contract is workplace/source-observer-carrier-effect-contract-2026-11-23.md; integration intake and no-go decision are workplace/agent3-source-observer-decoder-intake-2026-11-22.md.
@@ -794,3 +794,11 @@ Current main head before this memory update: 5a2623ceb9bbd2c625fe9a6a818788c21ac
 - results/README.md now records the 190f34cbd7c1617dc0b2ba9a16129eb195257508 source snapshot: 735 commits from 9e614 baseline, 470 added files, 34 changed files, no removals; only production source change is src/html-assets.js. ast.js, properties.js, cross-properties.js and identifiers.js remain byte-identical to the 452835 RED comprehensive baseline.
 - It records the focused multi-file SNO CLI/default-identifier pass 45332042271 and the SNO CLI string-source red control 45333127689, explicitly not comprehensive or a fix. The 11 yield failures from 452835 must not be inferred fixed or still present on current main without a complete source-pinned run.
 - Final intake no-go base snapshot is 190f34cbd7c1617dc0b2ba9a16129eb195257508; no candidate branch/PR or production source-observer change exists.
+
+
+### Final invocation handoff
+- The Agent 9 multi-file SNO CLI/default-identifier receipt is 45332042271 (branch 6d3d4d0); Agent 3 appended a clearly attributed integration note to im-results/agent9-host-held-callable-source-observation-2026-11-24.md because the owner had not yet updated the report.
+- Agent 24's one-file SNO CLI string red control and stronger positive-yield control are runs 45333127689 and 45333567142; the latter preserves unrelated literal encoding while exposing callback source mutation.
+- The refreshed results/README.md current-head status is anchored to source snapshot 190f34cbd7c1617dc0b2ba9a16129eb195257508 and includes the SNO CLI string red control. The subsequent commits are documentation, communications, memory and intake updates; no source-observer production implementation was added.
+- Current no-go base snapshot recorded in the intake is 6929d36ba4a450621f114188a01566af8fef777e. No candidate branch/PR, no comprehensive current-head acceptance, no 2.5x runtime result, no anti-LLM paired candidate result. Domain/URL authorization and hostile-runtime tamper resistance remain separate unproven objectives.
+- Lease threshold: 2026-11-24T05:42:43.365Z. At the next checkpoint, measure real clock against agents/agent3/.lease.json; if elapsed >=70 minutes, perform orderly release as the final repository mutation and do not make further changes.
