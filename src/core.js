@@ -2123,7 +2123,7 @@ function obfuscateFiles(files, options = {}) {
     const salt = createHash('sha256').update(`${seed}/${filename}`).digest('hex');
     const planUnitRef=sourceObservationPlan?
       sourceObservationPlan.sourceUnits.keys().next().value:null;
-    const planParserContractId=sourceObservationPlan?parserContractIdFor(sourceType):null;
+    const planParserContractId=sourceObservationPlan?parserContractIdFor('module'):null;
     const initialPlanRanges=sourceObservationPlan?
       getInitialPlanRanges(sourceObservationPlan,/** @type {string} */ (planUnitRef)):null;
     let trackedSourceRanges=initialPlanRanges?.trackedSourceRanges??[];
