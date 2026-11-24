@@ -658,3 +658,10 @@
 
 - Agent 3 independently reviewed the proposed narrow FunctionDeclaration reader summary and agreed it fits the existing proof architecture if it mirrors the callable-declarator reader path, records `forwardIndex:-1` / `returnsRoot:false`, and reuses the unique-binding, direct-call, no-escape, privateFunctionNodes and callsite-owner checks. Optional/computed-unproved keys, async/generator, duplicate bindings, aliasing/export/escape and unproved owner arguments must continue to refuse. See `communications/agent1/20261124T180502Z_agent3-function-declaration-proof-review.md`.
 - This is static review only. No implementation, tests or CI were run; it is a future mainline property-proof task, separate from the parked source-observer candidate.
+
+
+### Final acceptance report precision (18:06Z)
+
+- The candidate-specific Node producer suite `test/source-observation-plan-producer.test.js` is in the comprehensive corpus and absent from both Ubuntu/Windows failure indexes; it passed as part of run 45449892790, including the 16 rebind/mutation negative controls. The overall project gate remains RED because of the 12 other cases and the integrated Chromium wall-time assertion.
+- Under the same two-workload Bonferroni/zero-breach calculation, a conditional upper breach-frequency bound below 1% would require at least 368 independent pairs per workload. This is a sample-size derivation only; the current one-process sequential sampling does not establish independence.
+- Updated report commit: `27a0f65d2f53ec82881479a4fab92bd6653fe457`. No candidate source or tests were modified.
