@@ -161,6 +161,8 @@ The rank-five JavaScript implementation is separately integrated in [draft PR #3
 
 The updated fallback-control script was executed as part of the existing manual-only [low-rank target-inversion workflow](https://github.com/FlareZ123/obfs/actions/runs/45507605129). Both matrix jobs passed: Ubuntu and Windows. The workflow ran the script under Python 3.12 using the new step “Rank-r projected-affine fallback and diagnostic controls.” This validates the script, the full-cap no-witness diagnostic assertion, and its 34 constructed controls on both operating systems; it does not establish coverage of all degree-r functions or all higher ranks.
 
+The separate monomial greedy-offset-cover reproduction was added as step 6 of the same manual workflow. In run [45510035379](https://github.com/FlareZ123/obfs/actions/runs/45510035379), step 6 completed successfully on both Ubuntu and Windows; the rest of the large manual workflow was still running when this note was written. The script verifies all 465 two-element offset supports and all 31 possible 30-offset sets for the structured monomial table.
+
 ## Limitations and next work
 
 - This is a mathematical generalization and deterministic Python reference simulation, not a JavaScript implementation or live HTTP result for ranks other than five. The fallback-control suite is also Python-only.
