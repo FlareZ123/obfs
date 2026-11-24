@@ -285,3 +285,30 @@ test('callable values crossing local calls remain unresolved without parameter f
     r.kind==='unresolved-callable-argument-flow'));
   assert.equal(named(result,'run')[0].ambient,false);
 });
+
+
+test('callable values escaping through const aggregates, aliases, returns and member paths are held',()=>{
+  const aggregate=analyze(
+    'function hidden(){return 1;}const box={callback:hidden};const alias=box;'+
+    'function run(){external(alias);}'
+  );
+  assert.equal(named(aggregate,'hidden')[0].hostHeldCallable,true);
+  const returned=analyze(
+    'function hidden(){return 1;}function get(){return {callback:hidden};}'
+  );
+  assert.equal(named(returned,'hidden')[0].hostHeldCallable,true);
+  const member=analyze(
+    'function hidden(){return 1;}const box={callback:hidden};'+
+    'function run(){external(box.callback);}'
+  );
+  assert.equal(named(member,'hidden')[0].hostHeldCallable,true);
+});
+
+test('an escaping class instance exposes its local method callables',()=>{
+  const result=analyze(
+    'class Reader{read(){return 1;}}const instance=new Reader();'+
+    'function run(){external(instance.read);}'
+  );
+  assert.ok(result.summaries.some(summary=>
+    summary.hostHeldCallable&&summary.node.type==='FunctionExpression'));
+});
