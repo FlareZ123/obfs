@@ -2784,31 +2784,28 @@ function renameCrossFileProperties(files,seed) {
           if (hasDynamic) {failed=true;break;}
           // Every owner alias collected here is an exact named import of the
           // same (exporterName, exportName) pair. ESM gives those specifiers
-          // one live binding even when local names differ. Prove each local
-          // spelling independently, then union only those proof facts for
-          // validating imported-reader call arguments.
+          // one live binding even when local names differ. Prove the complete
+          // binding set together so shared carrier slots and multi-call local
+          // readers are analyzed as one object identity.
           if(readerAliases.size && importedAliases.length===0) {failed=true;break;}
           const consumerIndices=new Map([...readerAliases].map(([name,exported])=>
             [name,/** @type {{member:AstNode,property:string,argIndex:number}} */ (readers.get(exported)).argIndex]));
-          /** @type {{aliases:Set<string>,forwardedCalls:Set<AstNode>}} */
-          const readerProof={aliases:new Set(),forwardedCalls:new Set()};
-          for(const alias of importedAliases) {
-            if(importer.bindings.get(alias)!==1) {failed=true;break;}
-            // Source-observation safety can use every independently proven imported
-            // string. Object-field rewriting remains limited to keys that
-            // were initialized before the owner and match its own fields.
-            const proof=proveLocalObject(importer.ast,alias,importer.bindings,
+          /** @type {ReturnType<typeof proveLocalObject>} */
+          let readerProof=null;
+          if(importedAliases.length){
+            if(importedAliases.some(alias=>importer.bindings.get(alias)!==1)){failed=true;break;}
+            const primary=/** @type {string} */ (importedAliases[0]);
+            const additional=importedAliases.slice(1);
+            // Source-observation safety can use every proven imported string.
+            // Object-field rewriting remains limited to keys initialized
+            // before the owner and matching its own fields.
+            const proof=proveLocalObject(importer.ast,primary,importer.bindings,
               importedIdentities.get(importerName),consumerIndices,importedKeys,
               verifiedStrings.get(importerName),verifiedPrimitives.get(importerName),
-              allowDirectReflection);
-            if(!proof) {
-              failed=true;break;
-            }
+              allowDirectReflection,additional);
+            if(!proof){failed=true;break;}
             users.push({file:importerName,source:/** @type {string} */ (importer.file.code),proof});
-            if(readerAliases.size){
-              for(const name of proof.aliases)readerProof.aliases.add(name);
-              for(const call of proof.forwardedCalls)readerProof.forwardedCalls.add(call);
-            }
+            readerProof=proof;
           }
           if(failed)break;
           if(readerAliases.size) {
@@ -2820,9 +2817,9 @@ function renameCrossFileProperties(files,seed) {
               const exportedReader=readerAliases.get(node.name);
               const readInfo=exportedReader ? readers.get(exportedReader) : null;
               const input=readInfo ? parent?.arguments?.[readInfo.argIndex] : null;
-              const provenInput=Boolean(input &&
-                (input.type==='Identifier' && readerProof.aliases.has(input.name) ||
-                 input.type==='CallExpression' && readerProof.forwardedCalls.has(input)));
+              const provenInput=Boolean(input&&readerProof&&
+                (input.type==='Identifier'&&readerProof.aliases.has(input.name)||
+                 input.type==='CallExpression'&&readerProof.forwardedCalls.has(input)));
               if(parent?.type==='CallExpression' && key==='callee' && !parent.optional &&
                   node===parent.callee && provenInput) {
                 if(exportedReader)usedReaders.add(exportedReader);
