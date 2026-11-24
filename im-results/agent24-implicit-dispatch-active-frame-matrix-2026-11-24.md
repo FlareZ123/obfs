@@ -131,3 +131,44 @@ The previously reported `with` witness adds Proxy `[[HasProperty]]` during objec
 - A positive proof may admit a construct only when its receiver/protocol/intrinsics are independently proven inert under the selected mode's threat model. Do not assume client-side intrinsics are pristine in COO.
 
 This matrix does not prove a defect in the lexical BindingId resolver. It identifies effect classes that a consumer must not infer absent from lexical call-graph edges. It also does not prove that every use of these constructs is hostile; the safe first cut is conservative Unknown unless the relevant dispatch is modeled.
+
+
+## 6. Additional Proxy internal-method controls
+
+Two further Node 22.16.0 cases extend the active-frame matrix.
+
+### Proxy `[[Set]]` from ordinary property assignment
+
+```js
+const observation = { ancestor: null };
+const getExternal = Function('observation',
+  'return function external(){observation.ancestor=arguments.callee.caller.caller;}'
+)(observation);
+const set = Function('getExternal',
+  'return function set(target,key,value,receiver){getExternal();return true;}'
+)(getExternal);
+function hidden(value) { value.x = 1; }
+hidden(new Proxy({}, { set }));
+console.log(Function.prototype.toString.call(observation.ancestor));
+```
+
+Observed source: `function hidden(value) { value.x = 1; }`. The `[[Set]]` trap runs without a CallExpression in `hidden`.
+
+### Proxy `[[GetPrototypeOf]]` during `for...in`
+
+```js
+const observation = { ancestor: null };
+const getExternal = Function('observation',
+  'return function external(){observation.ancestor=arguments.callee.caller.caller;}'
+)(observation);
+const getPrototypeOf = Function('getExternal',
+  'return function getPrototypeOf(target){getExternal();return null;}'
+)(getExternal);
+function hidden(value) { for (const key in value) {} }
+hidden(new Proxy({}, { getPrototypeOf }));
+console.log(Function.prototype.toString.call(observation.ancestor));
+```
+
+Observed source: `function hidden(value) { for (const key in value) {} }`. The enumeration operation reaches the Proxy `[[GetPrototypeOf]]` trap in addition to `[[OwnPropertyKeys]]` / `[[GetOwnProperty]]`.
+
+The operation-to-effect table above should therefore include `ProxySet` and `ProxyGetPrototypeOf`, or explicitly state that the generic `ProxyInternalMethod` event covers these internal methods. `AccessorCall` should include both getter and setter invocation.
