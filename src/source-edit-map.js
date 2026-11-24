@@ -26,7 +26,8 @@ const {applyEdits} = require('./ast');
  * A positional map between two exact generations of one source unit.
  * It does not prove binding, call-target, value-flow, or host-effect preservation.
  * @typedef {Object} SourceEditMap
- * @property {string} sourceUnitRef
+ * @property {string} sourceUnitRef Opaque SourceUnitRefKey, not a path-only identity.
+ * @property {string} parserContractId Parser version and exact parse-option identity.
  * @property {string} fromGeneration
  * @property {string} toGeneration
  * @property {'utf16-code-unit'} coordinateUnit
@@ -43,14 +44,20 @@ const {applyEdits} = require('./ast');
  */
 
 /**
- * SHA-256 identity of exact UTF-8 source text. AST offsets remain UTF-16
- * code units; the digest is only the generation identity.
+ * SHA-256 identity of exact UTF-8 source bytes plus the parser contract.
+ * The parser contract must identify parser version, source type and options.
+ * AST offsets remain UTF-16 code units; the digest is not an offset unit.
  * @param {string} source
+ * @param {string} parserContractId
  * @returns {string}
  */
-function sourceGenerationOf(source) {
+function sourceGenerationOf(source,parserContractId) {
   if(typeof source!=='string')throw new TypeError('source must be a string');
-  return createHash('sha256').update(source,'utf8').digest('hex');
+  if(typeof parserContractId!=='string'||parserContractId.length===0) {
+    throw new TypeError('parserContractId must be a non-empty string');
+  }
+  return createHash('sha256').update(parserContractId,'utf8').update('\0')
+    .update(source,'utf8').digest('hex');
 }
 
 /**
@@ -61,14 +68,18 @@ function sourceGenerationOf(source) {
  *
  * @param {string} source
  * @param {SourceEdit[]} edits
- * @param {string} sourceUnitRef Stable source-unit key, normally the normalized file path.
+ * @param {string} sourceUnitRef Opaque SourceUnitRefKey for this module instance/response.
+ * @param {string} parserContractId Parser version, source type and parse options.
  * @returns {{code:string,map:SourceEditMap}}
  */
-function applyEditsWithMap(source,edits,sourceUnitRef) {
+function applyEditsWithMap(source,edits,sourceUnitRef,parserContractId) {
   if(typeof source!=='string')throw new TypeError('source must be a string');
   if(!Array.isArray(edits))throw new TypeError('edits must be an array');
   if(typeof sourceUnitRef!=='string'||sourceUnitRef.length===0) {
     throw new TypeError('sourceUnitRef must be a non-empty string');
+  }
+  if(typeof parserContractId!=='string'||parserContractId.length===0) {
+    throw new TypeError('parserContractId must be a non-empty string');
   }
   const normalized=edits.map((edit,ordinal)=>{
     if(!edit||typeof edit!=='object')throw new TypeError('edit must be an object');
@@ -176,8 +187,9 @@ function applyEditsWithMap(source,edits,sourceUnitRef) {
     Object.freeze({...segment})));
   const map=Object.freeze({
     sourceUnitRef,
-    fromGeneration:sourceGenerationOf(source),
-    toGeneration:sourceGenerationOf(code),
+    parserContractId,
+    fromGeneration:sourceGenerationOf(source,parserContractId),
+    toGeneration:sourceGenerationOf(code,parserContractId),
     coordinateUnit:'utf16-code-unit',
     fromLength:source.length,
     toLength:code.length,
@@ -204,8 +216,8 @@ function mapSourceSpan(map,span,sourceBefore,sourceAfter) {
      typeof sourceBefore!=='string'||typeof sourceAfter!=='string')return null;
   if(span.sourceUnitRef!==map.sourceUnitRef||
      span.sourceGeneration!==map.fromGeneration||
-     sourceGenerationOf(sourceBefore)!==map.fromGeneration||
-     sourceGenerationOf(sourceAfter)!==map.toGeneration||
+     sourceGenerationOf(sourceBefore,map.parserContractId)!==map.fromGeneration||
+     sourceGenerationOf(sourceAfter,map.parserContractId)!==map.toGeneration||
      sourceBefore.length!==map.fromLength||sourceAfter.length!==map.toLength||
      !Number.isInteger(span.start)||!Number.isInteger(span.end)||
      span.start<0||span.end<span.start||span.end>sourceBefore.length)return null;
