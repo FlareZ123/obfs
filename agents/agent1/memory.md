@@ -1484,3 +1484,10 @@ No production code was changed. The report is intermediate and remains in im-res
 Focused run 45326313234 completed successfully at source SHA b9c1f5908c68b871501674d78f78fa19905228d3. The new strict ESM callerError === null assertions passed for native and emitted observations across the eight synchronous scenarios. The report was updated on main at commit bad0a27cbdfff406b7243e5b524f712788dd8076.
 
 Full manual-validation run 45325971543 remained in progress when last checked via the GitHub run endpoint (head SHA 532565ba05724b1ae44bd65ef6aca795fe976c0a, last updated 04:22:50Z). Do not claim it passed; it can continue after this lease is released.
+
+
+### 2026-11-24 04:31 UTC remote verification correction
+
+Remote main and branch refs were verified at 04:29:58Z: main HEAD 30d53259dcf1573902379f1c316e8f143af7c80e; research branch HEAD 8c0fbb4bbeb98c0534c4a9346a454141ea48ae45. Main contains the report (blob b141ce720120b6ee57f58354e1ab0974aacbe210), native callback harness (blob 4c217fbd43e0a3e0068375067e022952b4d23927), host-held callback harness (blob e03d2bf8d6fb1e4730532543c8747a17abd498cf), this memory file, and the still-present lease (blob c182c061b733cab04230313e8d1f4fb431149b6f). The short commit IDs listed in the previous 04:28 note were not independently verified there; use the full ref/blob verification above instead.
+
+Focused run 45326313234 is verified completed-success. Full run 45325971543 remained in progress at the last status fetch; do not claim it green.
