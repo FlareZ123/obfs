@@ -80,6 +80,28 @@ def private_source(table: list[int]) -> str:
     return "\n".join(lines)
 
 
+def check_exact_second_difference_zeros(table: list[int]) -> int:
+    """For every q,delta!=0, the only nonzero u with D_u D_delta H(q)=0 is u=delta."""
+    checks = 0
+    for q in range(SIZE):
+        for delta in range(1, SIZE):
+            for u in range(1, SIZE):
+                if u == delta:
+                    continue
+                value = (
+                    table[q]
+                    ^ table[q ^ delta]
+                    ^ table[q ^ u]
+                    ^ table[q ^ u ^ delta]
+                )
+                checks += 1
+                if value == 0:
+                    raise AssertionError(
+                        f"extra second-difference zero: q={q}, delta={delta}, u={u}"
+                    )
+    return checks
+
+
 def fixed_pair_failures(table: list[int]) -> tuple[int, int]:
     """Check all ordered independent (u,v), all q, and all nonzero delta."""
     pair_count = 0
@@ -122,7 +144,9 @@ def main() -> None:
     source_sha256 = hashlib.sha256(source.encode("utf-8")).hexdigest()
     assert source_sha256 == "2b6a7b2cb348cd716e636e8e2da0817d4721a95f98bd45bbd90ffd8a5b366a9d"
 
+    exact_zero_checks = check_exact_second_difference_zeros(table)
     pair_count, tested_constraints = fixed_pair_failures(table)
+    assert exact_zero_checks == SIZE * (SIZE - 1) * (SIZE - 2)
     assert pair_count == 930
     assert tested_constraints == 930 * SIZE * (SIZE - 1)
     print(json.dumps({
@@ -131,6 +155,8 @@ def main() -> None:
         "table_top_coefficient": f"0x{top:08x}",
         "source_sha256": source_sha256,
         "source_length": len(source),
+        "nontrivial_second_difference_checks": exact_zero_checks,
+        "only_nonzero_zero_offset_is_delta": True,
         "ordered_independent_offset_pairs": pair_count,
         "basepoint_shift_constraints_checked": tested_constraints,
         "fixed_pair_violations": 0,
