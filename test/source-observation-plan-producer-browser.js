@@ -52,6 +52,7 @@ function benchmarkPage(workloads) {
   return '<!doctype html><html><head><meta charset="utf-8"></head><body>'+
     '<script type="module">const workloads='+JSON.stringify(workloads)+';'+
     'const median=values=>{const sorted=[...values].sort((a,b)=>a-b);return sorted[Math.floor(sorted.length/2)];};'+
+    'const clockResolutionMs=(()=>{let previous=performance.now();let minimum=Infinity;for(let index=0;index<2048;index++){const current=performance.now();const delta=current-previous;if(delta>0&&delta<minimum)minimum=delta;previous=current;}return minimum;})();'+
     'const load=async code=>{const url=URL.createObjectURL(new Blob([code],{type:"text/javascript"}));'+
     'const start=performance.now();const namespace=await import(url);const elapsedMs=performance.now()-start;'+
     'URL.revokeObjectURL(url);const snapshot=Object.fromEntries(Object.keys(namespace).sort().map(key=>[key,namespace[key]]));'+
@@ -79,10 +80,11 @@ function benchmarkPage(workloads) {
     'baselineSamplesMs,obfuscatedSamplesMs,pairRatios,medianPairRatio:median(pairRatios),maxPairRatio:Math.max(...pairRatios),'+
     'strictBreachCount:strictBreachSamples.length,strictBreachSamples,baselineMedianMs,obfuscatedMedianMs,ratio,'+
     'placeboLeftSamplesMs,placeboRightSamplesMs,placeboPairRatios,placeboMaxPairRatio:Math.max(...placeboPairRatios),'+
-    'placeboStrictBreachCount:placeboPairRatios.filter(value=>value>2.5).length,budgetRatio:2.5,passesBudget:ratio<=2.5});}return reports;};'+
-    'main().then(reports=>{const pre=document.createElement("pre");pre.id="budget";pre.textContent=btoa(JSON.stringify(reports));'+
-    'document.body.appendChild(pre);}).catch(error=>{const pre=document.createElement("pre");pre.id="budget-failure";'+
-    'pre.textContent=String(error.stack||error);document.body.appendChild(pre);});</script></body></html>';
+    'placeboStrictBreachCount:placeboPairRatios.filter(value=>value>2.5).length,clockResolutionMs,clockResolutionValid:clockResolutionMs>0&&clockResolutionMs<1,'+
+    'budgetRatio:2.5,passesBudget:ratio<=2.5&&strictBreachSamples.length===0&&placeboPairRatios.every(value=>value<=2.5)&&clockResolutionMs>0&&clockResolutionMs<1});}return reports;};'+
+    'try{const reports=await main();const pre=document.createElement("pre");pre.id="budget";pre.textContent=btoa(JSON.stringify(reports));'+
+    'document.body.appendChild(pre);}catch(error){const pre=document.createElement("pre");pre.id="budget-failure";'+
+    'pre.textContent=String(error.stack||error);document.body.appendChild(pre);}</script></body></html>';
 }
 
 /**
@@ -164,7 +166,7 @@ async function main() {
     for(const target of ['native','emitted']) {
       const {stdout}=await run(executable,[
         '--headless','--no-sandbox','--disable-gpu','--disable-dev-shm-usage',
-        '--no-first-run','--virtual-time-budget=10000','--dump-dom',
+        '--no-first-run','--dump-dom',
         origin+'/'+target+'/index.html'
       ],{encoding:'utf8',timeout:45000,maxBuffer:4*1024*1024});
       const encoded=stdout.match(/<pre id="result">([A-Za-z0-9+/=]+)<\/pre>/u)?.[1];
@@ -180,7 +182,7 @@ async function main() {
     });
     const {stdout:benchmarkOutput}=await run(executable,[
       '--headless','--no-sandbox','--disable-gpu','--disable-dev-shm-usage',
-      '--no-first-run','--virtual-time-budget=30000','--dump-dom',
+      '--no-first-run','--dump-dom',
       origin+'/benchmark/index.html'
     ],{encoding:'utf8',timeout:60000,maxBuffer:8*1024*1024});
     const encodedBudget=benchmarkOutput.match(/<pre id="budget">([A-Za-z0-9+/=]+)<\/pre>/u)?.[1];
