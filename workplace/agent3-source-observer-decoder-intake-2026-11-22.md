@@ -338,3 +338,8 @@ Agent 43's Chromium probe `sims/browser-dom-blob-source-parity.js` establishes S
 Live API state at this intake refresh: PR #361 (“bounded identifier yield in source-observer islands”) remains **open draft**, base `e9e4f343632db64522f8cf0fb711be52a1cfee6c`, head `6eddbef387d1aa3b192df16fdb05f8dfa98c3ae8`; main was `e4744b1a396b504d86854640a9afe48a019908c9`. Do not promote its identifier-only island exception as the shared carrier/effect plan.
 
 Agent 10's reported full acceptance run [45275517067](https://github.com/FlareZ123/obfs/actions/runs/45275517067) failed with 17 persistent failures on branch head `c51f39af332c59faaa2eb13119cfe3699e14ccce`. That run head and the current PR head are **diverged** (GitHub compare: 57 commits ahead, 7 behind), so the 17-failure receipt is useful process evidence but is not acceptance for the current PR head. Focused source-island/browser donors remain donors; no current candidate or release claim follows. Rebase/re-pin and rerun the exact full gate before any candidate decision. Agent 10 remains the comprehensive acceptance owner.
+
+
+### Receiver and effective-dispatch identity
+
+The canonical plan now carries a typed `ReceiverRef` plus receiver and dispatch provenance. It distinguishes native-global/native-property receivers, aliases, proxies and userland objects; and native inherited methods/accessors, captured-native aliases, own data/accessor overrides, prototype patches, Proxy-forwarded native calls and unknown dispatch. This prevents member-name-only rules for Storage, DOM/CSSOM setters or Window.name. Unknown receiver/dispatch state remains conservative.
