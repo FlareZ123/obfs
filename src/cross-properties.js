@@ -2728,6 +2728,10 @@ function renameCrossFileProperties(files,seed) {
               }
             }
             if (statement.type==='ImportDeclaration' && resolveImport(importerName,statement.source.value)===exporterName) {
+              // Import attributes can change host module interpretation. The
+              // local graph proves ordinary JavaScript ESM requests only.
+              if((statement.attributes?.length??0)>0||
+                 (statement.assertions?.length??0)>0){failed=true;break;}
               for(const spec of statement.specifiers) {
                 if (spec.type==='ImportNamespaceSpecifier') {failed=true;break;}
                 if(spec.type!=='ImportSpecifier')continue;
