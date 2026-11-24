@@ -45,10 +45,22 @@ Workflow [45465220379](https://github.com/FlareZ123/obfs/actions/runs/4546522037
 
 Both focused runs `45464417131` and `45465220379` passed the file on Ubuntu and Windows. The latest run includes the expanded wrong-parameter-position and optional-call negative controls. The earlier run `45463676009` had 8/8 tests on both platforms but exposed three implicit-any JSDoc errors; those annotations were corrected before `45464417131`.
 
-## Scope and remaining work
+## Broader validation and remaining work
 
-This is a focused proof-coverage result, not comprehensive repository acceptance, a general source-observer theorem, or a security/performance claim. The workflow's comprehensive `node22` job was skipped because this was a focused dispatch. The patch is not merged into `main`.
+A broader manual-validation run [45465798510](https://github.com/FlareZ123/obfs/actions/runs/45465798510) was then run against the synchronized PR branch head. It completed with 10 failures on both operating systems; none was in `test/function-declaration-reader-proof.test.js`. Test totals were 5,370 on each OS: Windows 5,326 passed / 10 failed / 34 skipped; Ubuntu 5,335 passed / 10 failed / 25 skipped. The same remaining failures were:
+
+- `bound-runtime-interception.test.js` — hostile bind interception expected two rewrites;
+- `bound-runtime-minifier-control.test.js` — minified ESM bind interception expected two rewrites;
+- `factory-object-flow.test.js` — two-file factory expected one rewrite;
+- `interfile.test.js` — four-file ESM graph expected one cross-file rewrite;
+- `private-class-source-yield.test.js` — two cases expect a class-method owner rewrite;
+- `private-tuple-session.test.js` — private tuple session expected two rewrites;
+- `sco-dense-hybrid-matched-http.test.js` — selective SCO input rejected by its current const/environment admission rule;
+- `sno-bound-runtime-interception.test.js` — bound private target expected two rewrites;
+- `source-stable-bound-export.test.js` — bound public export expected two private-key rewrites.
+
+Both platforms passed the project, external-corpus, affine-oracle, and paired-budget JSDoc checks. Benchmarks and paired session profiles also completed: sampled interprocedural local-reader ratios were 0.992x (Windows) and 1.005x (Ubuntu); all reported session/profile ratios were below 1.04x and output equality held. These are bounded workload measurements, not a universal 2.5x guarantee for all applications. Ubuntu's Chromium integration, 64-case verified-record browser check, and six-case ESM-observation browser check passed. The full workflow remains red because of the ten listed repository-level acceptance failures; it does not establish full repository acceptance.
 
 The independent `test/interfile.test.js` red remains a separate classification issue: its exported `internal()` function directly contains `state.secretValue` in its source, while the test expects the key to be rewritten. Under the repository's source-preservation treatment of exported callables, that expectation appears incompatible with the current contract. A useful follow-up is to make the exported wrapper call a private exact member reader, while adding a separate negative test requiring refusal when the exported function directly contains the member spelling. This report does not alter that test.
 
-The frozen source-observer candidate remains parked/NO-GO; this branch is a separate narrow mainline proof-coverage improvement.
+This is a focused proof-coverage result, not a general source-observer theorem, nor a security/performance claim. The patch is not merged into `main`. The frozen source-observer candidate remains parked/NO-GO; this branch is a separate narrow mainline proof-coverage improvement.
