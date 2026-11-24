@@ -121,6 +121,7 @@ test('SNO CLI preserves one-entry launch while a host observes a helper callback
       requireFactoryAndQueue:"const helper=require('./helper.cjs');const callback=helper.getCallback();queueMicrotask(callback);",
       requireFactoryOnly:"const helper=require('./helper.cjs');const callback=helper.getCallback();",
       processJsonOutput:"process.stdout.write(JSON.stringify({result:3,safeResult:13,invocationCount:1}));",
+      processJsonPlusNewline:"process.stdout.write(JSON.stringify({result:3,safeResult:13,invocationCount:1})+'\\n');",
       callbackInvokeOnly:"const helper=require('./helper.cjs');const callback=helper.getCallback();callback(2);",
       helperSafeCallOnly:"const helper=require('./helper.cjs');helper.safe(3);",
       helperGetCountOnly:"const helper=require('./helper.cjs');helper.getInvocationCount();",
