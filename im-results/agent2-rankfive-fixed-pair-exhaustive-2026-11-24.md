@@ -33,6 +33,8 @@ It then independently enumerates every ordered pair u,v of distinct nonzero vect
 
 **Exhaustive counts:** 992 derivative-value checks (32 basepoints × 31 nonzero deltas), 29,760 nontrivial second-difference triples, plus 930 ordered independent offset pairs × 32 basepoints × 31 nonzero shifts = 922,560 fixed-pair constraints; all passed.
 
+Under an iid-uniform 32-bit table model, each nontrivial second difference XORs four distinct independent table words and is zero with probability 2^-32. A union bound over 29,760 triples gives a failure probability at most 29,760/2^32 ≈ 6.93×10^-6. This explains why the SHA-derived table is likely to have the property, but is only a random-table heuristic; the exhaustive checks above establish it for the frozen table itself.
+
 ## Why this covers every anchor basis
 
 For any quotient-basis anchors a0,...,a4, the first two projected anchor vectors u=P(a0) and v=P(a1) are distinct nonzero vectors in F2^5, hence independent. Conversely, every ordered independent pair can be extended to a full basis. The enumeration therefore covers the first-two-coordinate pair of every possible invertible anchor-coordinate transformation.
