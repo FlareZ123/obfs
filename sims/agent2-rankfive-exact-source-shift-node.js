@@ -166,11 +166,18 @@ function learn(replicate, strategy) {
   return { queries: cache.size, witnessTrials, witness, anchors };
 }
 
-function main() {
+async function main() {
   const sourceHash = createHash('sha256').update(sourceString()).digest('hex');
   if (sourceHash !== EXPECTED_SOURCE_SHA256) throw new Error(`source hash mismatch: ${sourceHash}`);
   const top = TABLE.reduce((acc, value) => (acc ^ value) >>> 0, 0);
   if (top !== 0xb1f2257d) throw new Error(`top coefficient mismatch: ${top.toString(16)}`);
+  const sourceModule = await import('data:text/javascript;base64,' + Buffer.from(sourceString()).toString('base64'));
+  const drawSourceCheck = shaStream('rank5-exact-source-equivalence');
+  for (let i = 0; i < 10000; i++) {
+    const x = drawSourceCheck();
+    const exact = await sourceModule.protectedGenericFive(x);
+    if (exact !== oracle(x)) throw new Error(`source/oracle mismatch at ${x >>> 0}`);
+  }
   const signature = [];
   const shift = [];
   for (let replicate = 0; replicate < REPLICATES; replicate++) {
@@ -202,4 +209,7 @@ function main() {
     note: 'Node deterministic SHA-counter replay; not CSPRNG, production learner, or HTTP evidence'
   }, null, 2));
 }
-main();
+main().catch(error => {
+  console.error(error);
+  process.exitCode = 1;
+});
