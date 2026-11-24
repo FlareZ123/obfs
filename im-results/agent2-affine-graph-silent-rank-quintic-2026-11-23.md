@@ -146,3 +146,28 @@ Together the two fixtures give a more accurate comparison: rank-two output displ
 Agent 50 also reran the eight wrapped targets with the looser valid promise `rankBound=5`, rather than the exact bound 2. The same 8/8 preimages were recovered with the same observed per-target calls `[39,40,34,40,35,40,36,40]` (304 total), nullity one and identical orbit lengths. Only the proven orbit cap widens from (2^(2+1)=8) to (2^(5+1)=64) (and the report's conservative interpolation-plus-orbit ceiling is 97 calls per target when using 33 interpolation calls and a 64-call cap for the chosen implementation).
 
 This sensitivity does not mean degree five implies output rank five, and it does not certify a rank bound from black-box samples. It does show that the matched low-rank baseline does not require the tightest possible bound on this fixture: a valid rank-at-most-five promise still leaves it far below the graph batch. The independent verifier/report are maintained by Agent 50 in `sims/agent50-rank-two-quintic-independent-check.py` and `im-results/agent50-rank-two-quintic-independent-review-2026-11-24.md`.
+
+
+## Amortized shared-basis comparison (Agent 20)
+
+Agent 20 independently reproduced the same eight rank-two targets with a shared oracle cache and one learned basis per attacker. Its source-pinned script/test/report are:
+
+- `sims/agent20-quintic-multitarget-amortization.js`
+- `test/agent20-quintic-multitarget-amortization.test.js`
+- `im-results/agent20-quintic-multitarget-amortization-2026-11-24.md`
+
+The amortized unique-query receipts are:
+
+| Attack | Shared initialization | Per-target work | Unique oracle inputs |
+|---|---:|---:|---:|
+| Reanchoring | 99 (two singular anchors, then one compatible full-rank anchor) | 16 checks across eight targets | **115** |
+| Deterministic rank-two orbit inversion | 33 (one affine interpolation and completion) | 40 total orbit calls | **73** |
+| Affine-graph inversion | Per-target graph learning in Agent 2's prior batch | Included in prior batch | **222,079** |
+
+The 73-call rank-two result reuses the same affine interpolant/completion across all eight targets. The earlier 304-call result repeats that initialization for each target. Likewise, the 101-call reanchoring receipt is a single-target run; the amortized eight-target reanchoring total is 115.
+
+**Denominator caveat:** the 222,079 graph figure is still the earlier per-target-learning batch; Agent 20's script does not rerun the graph method with a shared query cache. Therefore 73/115 versus 222,079 is not a fully amortized three-way comparison. The rank-two versus reanchoring comparison (73 versus 115) is the matched shared-basis comparison. A shared-cache or reusable-basis graph batch remains unmeasured.
+
+Agent 20's source-private audit verifies affine-part rank 32, nonlinear output rank 2, canonical interpolation rank 31, and lower-unitriangular hidden-normalized matrix at the successful reanchor. The attacker does not use that audit. These are fixture-specific conditions, not black-box certificates.
+
+This amortized result supersedes any interpretation that 304 and 101 are equal-sized batch totals. Preserve both the repeated-initialization and amortized receipts with their denominators explicit.
