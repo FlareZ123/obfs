@@ -29,7 +29,7 @@ e0.
 
 **Result:** zero violations.
 
-**Exhaustive counts:** 930 ordered independent offset pairs × 32 basepoints × 31 nonzero shifts = 922,560 checked constraints; all passed.
+**Exhaustive counts:** 29,760 nontrivial second-difference triples, plus 930 ordered independent offset pairs × 32 basepoints × 31 nonzero shifts = 922,560 fixed-pair constraints; all passed.
 
 ## Why this covers every anchor basis
 
