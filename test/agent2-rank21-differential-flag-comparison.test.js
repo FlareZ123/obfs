@@ -129,6 +129,7 @@ test('sampled differential-flag learner versus graph inversion on the same rank-
     0x67aa29ff,0x628acbfe,0xfe1940fd,0xc1ece67b,
     0x3e411777,0x37fff36f,0xbd72765f,0x8721e5bf
   ];
+  /** @type {Record<number,{verified:number,queries:number,fullBatches:number}>} */
   const expected={
     16:{verified:244,queries:298574,fullBatches:26},
     24:{verified:253,queries:441936,fullBatches:31},
