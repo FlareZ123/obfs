@@ -2020,7 +2020,10 @@ function renameCrossFileProperties(files,seed,options={}) {
     '.webp','.ico','.woff','.woff2','.ttf','.otf']);
   if (files.some(file => {
     const type=file.sourceType ?? (file.path.endsWith('.mjs') ? 'module' : 'script');
-    return type!=='module' && !(type==='asset' &&
+    // A declared module with non-string source cannot be parsed into the
+    // closed-world graph; never silently omit it from proof or map coverage.
+    if(type==='module')return typeof file.code!=='string';
+    return !(type==='asset' &&
       inertAssetExtensions.has(path.posix.extname(file.path).toLowerCase()));
   })) {
     return {files,objects:0,properties:0};
