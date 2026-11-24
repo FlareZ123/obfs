@@ -171,8 +171,8 @@ A second independent CSPRNG-tape run [45467483676](https://github.com/FlareZ123/
 **Windows** (job `138706176816`): baseline mean 2,018.2 / median 1,999 / p10 1,936 / p90/p95 2,125 / max 2,190; hybrid mean 1,845 / median 1,782 / p10 1,782 / p90/p95 1,971 / max 2,034. Paired mean saving 173.2 (8.5819%); hybrid lower 9/10.
 
 Pooling the two independent 10-pair runs (20 pairs/platform), the mean query counts were:
-- Ubuntu: baseline 2,064.05 vs hybrid 1,804.05 (12.595% lower); hybrid lower in 20/20 pairs.
-- Windows: baseline 2,013.6 vs hybrid 1,838.7 (8.685% lower); hybrid lower in 19/20 pairs.
+- Ubuntu: baseline 2,064.05 vs hybrid 1,804.05 (12.597% lower); hybrid lower in 20/20 pairs.
+- Windows: baseline 2,013.6 vs hybrid 1,838.7 (8.686% lower); hybrid lower in 19/20 pairs.
 
 Artifacts for the corrected-head live run:
 - Ubuntu: artifact `14954297964`, SHA-256 `685a76932baffdf98cbc76e24b9579b91ce72f7951e3b4516c5d55b7349e0cf2`.
