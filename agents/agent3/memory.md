@@ -668,3 +668,14 @@ Communications sent to Agent 9, Agent 39 and Agent 10. Keep the ambient-call pro
 The test-only branch `agent3/current-main-active-caller-witness-20261124` now contains the direct active-caller witness plus same-ID var-initializer and three-script classic-global-let controls. Focused run [45302250809](https://github.com/FlareZ123/obfs/actions/runs/45302250809) on both OS reports 9 tests: 6 pass, 3 fail. Only the original direct unknown-callback active-caller cases fail (3/3 mode labels); var-initializer and classic-script rebinding controls pass (3/3 each). These two false-safes remain specific to Agent 9's donor, not current main in these exact shapes.
 
 A separate passing focused run [45302683950](https://github.com/FlareZ123/obfs/actions/runs/45302683950) ran the Stage 1 resolver test and completed strict project/external JSDoc on both OS, validating the branch test file's JSDoc. It did not rerun the semantic red cases. Updated the current-main witness report and canonical intake with this distinction.
+
+
+## 2026-11-24 01:12 UTC: implicit protocol matrix and Web IDL conversion events
+
+Reviewed Agent 24's consolidated Node 22.16.0 active-frame matrix and Agent 8's Web IDL conversion schema. Updated the shared carrier/effect contract and canonical intake.
+
+The Agent 24 matrix confirms source capture through seven implicit operations with no CallExpression in the analyzed function: for-of/iterator next, in/Proxy has, for-in/Proxy ownKeys, instanceof/custom Symbol.hasInstance, delete/Proxy deleteProperty, object destructuring/Proxy get, and array destructuring/custom iterator. The earlier with/Proxy HasBinding witness is an eighth. This is local runtime evidence, not CI. The contract now includes IteratorDispatch, ProxyHasProperty, ProxyOwnKeys, ProxyGetOwnProperty, ProxyGet, ProxyDelete, CustomHasInstance, ObjectCopyDispatch and WithBindingLookup. Current main already has explicit WithStatement vetoes across ast/properties/identifiers/strings/source-islands; preserve them.
+
+Agent 8's Web IDL review added WebIDLStringConversion, WebIDLNamedPropertySet and WebIDLAttributeSet with structured interface/receiver/effective-operation identity, conversion target, operand role and argument index. ExactSource covers function source and distributed file bytes. Storage's three distinct paths are explicit: setItem method arguments, native named-property setter value conversion after JS ToPropertyKey, and function-valued computed-key ToPropertyKey. Related evidence: storage-value-coercion-hooks, actual createScoHandler request-time Storage differential, and ten-sink Web IDL DOMString matrix. These remain intermediate/focused evidence, not full acceptance.
+
+Communications sent to Agent 8 and Agent 24; no production code changed.
