@@ -4,7 +4,7 @@
 
 ## Scope
 
-This independently reproduces the fixed-target experiment in `sims/reanchor-arbitrary-basis-monte-carlo.py` using a local port of its core helpers: `random_triangular_oracle`, `random_ordered_basis`, `reanchor_oracle_trial`, and `fixed_target_success_monte_carlo`. The five-function RNG stream was preserved across three process batches (2+2+1 functions) by saving/restoring the exact Python `random.Random` state. This is not a verbatim execution of the full committed CLI file; the full CLI attempt did not complete within the available local command window. Treat this as independent reproduction of the fixed-target loop, not a replacement for an end-to-end run of the committed script.
+The reproduction loaded the exact committed source file `sims/reanchor-arbitrary-basis-monte-carlo.py` at SHA `871468f4c1ac3489465b760cdefbb96b1d259449` with `runpy.run_path`, then called its unmodified `random_triangular_oracle`, `random_ordered_basis`, and `reanchor_oracle_trial` helpers. The `fixed_target_success_monte_carlo` loop was mirrored while preserving one exact Python `random.Random` state across three process batches (2+2+1 functions) by saving/restoring that state. The full CLI invocation itself timed out at the local command limit, so this is an exact-helper reproduction of the fixed-target loop, not a completed verbatim CLI run.
 
 Configuration:
 - width: 20
