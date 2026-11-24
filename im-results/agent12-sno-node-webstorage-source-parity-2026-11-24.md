@@ -22,10 +22,10 @@ This is an opt-in Node runtime contract. It is not evidence that \`localStorage\
 - Test: \`test/sno-storage-source-parity.test.js\`
 - Strict external JSDoc inclusion: \`jsconfig.external.json\`
 - Research branch: \`agent12/sno-storage-source-parity-20261124\`
-- Final witness commit: \`721a54901aa8b92cd22afe4a4bc97b986f30d2f3\`
-- Focused two-platform validation: [run 45325003437](https://github.com/FlareZ123/obfs/actions/runs/45325003437)
+- Final witness commit: \`0c87a8e03e31dbe4b4752767670c81b9155518c8\`
+- Focused two-platform validation: [run 45325734992](https://github.com/FlareZ123/obfs/actions/runs/45325734992)
 
-The focused run passed on Ubuntu and Windows, including all eight focused tests and:
+The focused run passed on Ubuntu and Windows, including all ten focused tests and:
 
 - strict project JSDoc;
 - strict external JSDoc (including this test file);
@@ -103,6 +103,18 @@ An own \`toString\` hook captures \`Function.prototype.toString.call(this)\` int
 
 The scanner returns true and performs zero binding rewrites. This proves that a primitive conversion result does not imply the hook had no source-observation side effect.
 
+### 9. Shadowed \`Symbol\` spelling: negative control for well-known-symbol resolution
+
+A local \`const Symbol = {toPrimitive:'toPrimitive'}\` makes \`inspect[Symbol.toPrimitive]\` an ordinary string-keyed property, not the well-known \`@@toPrimitive\` symbol. Storage therefore uses inherited Function stringification and exposes the original source.
+
+The scanner conservatively returns true, performs zero rewrites, and native/emitted source remains equal. This is a regression control: a future \`Symbol.toPrimitive\` precision rule must not treat a shadowed local \`Symbol\` as the realm intrinsic.
+
+### 10. Immutable \`Symbol.toPrimitive\` alias: conservative refusal
+
+A fixture captures \`const toPrimitiveKey = Symbol.toPrimitive\` and assigns the pure hook through \`inspect[toPrimitiveKey]\`. The hook returns a primitive and does not inspect source, but the current scanner still returns true and performs zero rewrites.
+
+This is a second precision gap: the existing well-known-symbol alias set does not include \`toPrimitive\`. The SNO witness records both the direct and immutable-alias forms so a future resolver can improve them without regressing the shadowed-\`Symbol\` negative control.
+
 ## Test-harness correction
 
 An intermediate test revision put a potentially uncaught \`throw new Error(...)\` inside the obfuscated source to assert native method identity. That correctly activated the existing uncaught-diagnostic/source-coordinate observer in \`src/ast.js:2627-2631\`, so the scanner returned true. It was a harness-induced conservative refusal, not evidence about Storage conversion.
@@ -133,6 +145,8 @@ The SNO host profile should be a versioned host contract for Node Web Storage wi
 
 A callable source effect is present only when the actual conversion path reaches native Function stringification or a hook reads source as a side effect. A primitive string, a locally proved pure own \`toString\`, and a bound function's native-code marker are source-text positives. A custom hook returning a primitive is positive only when its body and dispatch are proved not to observe callable source or active frames. Unknown/mutable hooks remain \`UnknownHostEffect\`.
 
+For \`Symbol.toPrimitive\`, a future precision path must resolve the exact \`Symbol\` reference to the unshadowed realm intrinsic or a proved immutable alias. Current \`isSymbolConstructor\` is name-based; it must not be reused as a binding proof. Keep the shadowed-\`Symbol\` fixture as a negative control. Analyze the hook body before omitting \`ExactSource\`.
+
 For named-property assignment, keep ECMAScript \`ToPropertyKey\` on the property key separate from Web IDL conversion of the assigned value. The preloader test shows that replacing \`Storage.prototype.setItem\` does not intercept the named-property setter.
 
-**Conclusion:** SNO now has focused, cross-platform evidence for explicit Storage conversion in both argument positions, a captured native alias, the distinct named-property setter under a patched-method preloader, primitive and own-hook positives, bound-callable source behavior, and source-observing hook negatives. The repository-wide verdict remains **NO-GO / RELEASE-BLOCKED** pending the shared effect graph, broader mode-specific acceptance, and adversarial performance evidence.
+**Conclusion:** SNO now has focused, cross-platform evidence for explicit Storage conversion in both argument positions, a captured native alias, the distinct named-property setter under a patched-method preloader, primitive and own-hook positives, bound-callable source behavior, source-observing hook negatives, and direct/aliased/shadowed Symbol controls. The repository-wide verdict remains **NO-GO / RELEASE-BLOCKED** pending the shared effect graph, broader mode-specific acceptance, and adversarial performance evidence.
