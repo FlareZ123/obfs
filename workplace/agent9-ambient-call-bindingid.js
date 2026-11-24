@@ -353,6 +353,27 @@ function summarizeAmbientCallEffects(ast,sourceType) {
 
   /** @type {Map<number,AstNode>} */
   const constInitializersByBinding=new Map();
+  /** @type {Map<number,AstNode[]>} */
+  const bindingValueExpressions=new Map();
+  /** @param {number} bindingId @param {AstNode} value @returns {void} */
+  function addBindingValueExpression(bindingId,value) {
+    const values=bindingValueExpressions.get(bindingId)??[];
+    values.push(value);
+    bindingValueExpressions.set(bindingId,values);
+  }
+  walkAst(ast,node=>{
+    if(node.type==='FunctionDeclaration'&&node.id?.type==='Identifier') {
+      const id=declarationByNode.get(node.id)?.bindingId??null;
+      if(id!==null)addBindingValueExpression(id,node);
+    } else if(node.type==='VariableDeclarator'&&node.id.type==='Identifier'&&node.init) {
+      const id=declarationByNode.get(node.id)?.bindingId??null;
+      if(id!==null)addBindingValueExpression(id,node.init);
+    } else if(node.type==='AssignmentExpression'&&node.left.type==='Identifier') {
+      const reference=resolved.at(node.left.start);
+      if(reference?.resolution.kind==='local')
+        addBindingValueExpression(reference.resolution.bindingId,node.right);
+    }
+  });
   /** @type {Map<number,AstNode>} */
   const classNodeByBinding=new Map();
   walkAst(ast,node=>{
@@ -432,11 +453,13 @@ function summarizeAmbientCallEffects(ast,sourceType) {
       const classNode=classNodeByBinding.get(bindingId);
       if(classNode)return classMethodFunctions(classNode);
       if(seen.has(bindingId))return [];
-      const initializer=constInitializersByBinding.get(bindingId);
-      if(!initializer)return [];
       const next=new Set(seen);
       next.add(bindingId);
-      return callableNodesForValue(initializer,next);
+      const values=bindingValueExpressions.get(bindingId)??[];
+      if(values.length)
+        return [...new Set(values.flatMap(candidate=>callableNodesForValue(candidate,next)))];
+      const initializer=constInitializersByBinding.get(bindingId);
+      return initializer?callableNodesForValue(initializer,next):[];
     }
     if(value.type==='SpreadElement')return callableNodesForValue(value.argument,seen);
     if(value.type==='ArrayExpression')
