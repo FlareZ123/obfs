@@ -239,3 +239,47 @@ for(const mode of /** @type {Array<'coo'|'sno'|'sco'>} */ (['coo','sno','sco']))
     assert.equal(emitted.source,native.source);
   });
 }
+
+
+const nestedStaticBlockArrowReader=[
+  'class Outer{',
+  '  static{',
+  '    const owner={secretField:7};',
+  '    const read=(ownerAlpha)=>ownerAlpha.secretField;',
+  '    this.observed=read(owner);',
+  '  }',
+  '}',
+  'module.exports=Outer;'
+].join('\\n');
+
+const nestedStaticBlockDirectArrowReader=[
+  'class Outer{',
+  '  static{',
+  '    const owner={secretField:7};',
+  '    this.observed=(()=>owner.secretField)();',
+  '  }',
+  '}',
+  'module.exports=Outer;'
+].join('\\n');
+
+for(const mode of /** @type {Array<'coo'|'sno'|'sco'>} */ (['coo','sno','sco'])){
+  for(const [label,code] of [
+    ['nested arrow binding',nestedStaticBlockArrowReader],
+    ['direct invoked arrow',nestedStaticBlockDirectArrowReader]
+  ]){
+    test(mode+' '+label+' inside an outer static block must preserve outer class source',()=>{
+      const native=runOuterClassSource(code);
+      const transformed=obfuscateFiles([{
+        path:'entry.cjs',sourceType:'commonjs',code
+      }],{
+        mode,seed:'nested-static-block-arrow-reader/'+mode+'/'+label,
+        strings:false,identifiers:false
+      }).files[0];
+      assert.equal(transformed.metrics.properties,0,
+        mode+': '+label+' source is embedded in Outer.toString()');
+      const emitted=runOuterClassSource(String(transformed.code));
+      assert.equal(emitted.value,native.value);
+      assert.equal(emitted.source,native.source);
+    });
+  }
+}
