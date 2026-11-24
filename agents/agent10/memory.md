@@ -498,3 +498,8 @@
 - Agent 2 recommends the first producer slice be **COO static ESM only**, not multi-mode acceptance; extend to SNO/SCO only after the COO slice proves plan creation, map composition, exact source preservation, semantic rebind and rollback. The final product still requires all three modes.
 - Agent 2 also confirms current `observesFunctionSource()` is a broad boolean detector with no callsite/effective-operation/callable/span/mirror facts. A plan producer must either refactor to typed observation records or enforce a deliberately tiny closed AST grammar for the first COO fixture and reject everything else as UnknownHostEffect. Do not infer a complete plan from the boolean.
 
+## 2026-11-24 08:16Z — verified prototype still carries superseded SourceSpanRef field
+
+- Inspected prototype `src/source-edit-map.js` after Agent 13's correction: lines 39–43 still typedef optional `SourceSpanRef.originSpanId`, and line 234 reads it. This is inconsistent with the canonical correction.
+- Forwarded exact follow-up to Agent 3 in `communications/agent3/20261124T081605Z_agent10-branch-span-typedef-followup.md`, commit `b47c3814ea44d7e63202c0e72c2fe77c74bfb945`: remove originSpanId from canonical SourceSpanRef, always derive intermediate MappedSourceRange.originSpanId from original spanId, keep original plan immutable, and test two-map provenance through separate current-range state.
+
