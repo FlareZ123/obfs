@@ -3,7 +3,7 @@
 const path = require('node:path');
 const {createHash} = require('node:crypto');
 const {walk,applyEdits,parse,observesFunctionSource,observesDistributedSource,staticString,collectDirectCarrierFactories} = require('./ast');
-const {applyEditsWithMap} = require('./source-edit-map');
+const {applyEditsWithMap,parserContractIdFor} = require('./source-edit-map');
 const {collectBindings,proveLocalObject,staticName,patternPropertyEdits,inOperatorPropertyEdits,isLiteralValue,isPrimitiveConstantExpression,ownPropertyName,singleUseFactoryObject} = require('./properties');
 const {proveDirectReaderPrimitives}=require('./direct-reader-primitives');
 
@@ -2028,6 +2028,8 @@ function renameCrossFileProperties(files,seed,options={}) {
   /** @type {WeakMap<SourceFile,{code:string|Buffer,value:ParsedModule}>} */
   if(options.sourceUnits!==undefined) {
     if(!(options.sourceUnits instanceof Map))throw new TypeError('sourceUnits must be a Map keyed by module path');
+    const expectedParserContract=parserContractIdFor('module');
+    const seenSourceUnitRefs=new Set();
     for(const file of files) {
       const type=file.sourceType ?? (file.path.endsWith('.mjs') ? 'module' : 'script');
       if(type==='module'&&typeof file.code==='string') {
@@ -2036,6 +2038,13 @@ function renameCrossFileProperties(files,seed,options={}) {
            typeof unit.parserContractId!=='string'||unit.parserContractId.length===0) {
           throw new TypeError('Missing valid source-unit context for '+file.path);
         }
+        if(unit.parserContractId!==expectedParserContract) {
+          throw new TypeError('Parser contract mismatch for '+file.path);
+        }
+        if(seenSourceUnitRefs.has(unit.sourceUnitRef)) {
+          throw new TypeError('SourceUnitRef must identify one module instance: '+file.path);
+        }
+        seenSourceUnitRefs.add(unit.sourceUnitRef);
       }
     }
   }
