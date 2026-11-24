@@ -8,7 +8,7 @@ const os=require('node:os');
 const path=require('node:path');
 const {spawnSync}=require('node:child_process');
 const {pathToFileURL}=require('node:url');
-const {partitionScoSelectedAsyncExports,createScoSelectedHandler}=require('../src');
+const {partitionScoSelectedAsyncExports,verifyScoPrivateSourceDigests,createScoSelectedHandler}=require('../src');
 const {atomicWrite}=require('../src/atomic');
 
 test('selected SCO private callable remains server-only while client host observes only its facade',{
@@ -40,6 +40,7 @@ test('selected SCO private callable remains server-only while client host observ
     await atomicWrite(path.join(root,'mixed.mjs'),mixed);
     await atomicWrite(path.join(root,engine.path),engine.code);
     await atomicWrite(path.join(root,leaf.path),leaf.code);
+    await verifyScoPrivateSourceDigests(partition,root);
     const native=await import(pathToFileURL(path.join(root,'mixed.mjs')).href);
     server=http.createServer(createScoSelectedHandler(partition,native,{
       authorizeRead:()=>true,
