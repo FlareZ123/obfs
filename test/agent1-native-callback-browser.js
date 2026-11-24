@@ -8,7 +8,7 @@ const {obfuscateFiles}=require('../src');
 
 const runBrowser=promisify(execFile);
 
-/** @typedef {{kind:string,observation:'source'|'frame',body:string,deferred?:boolean}} Scenario */
+/** @typedef {{kind:string,observation:'source'|'frame',body:string,deferred?:boolean,patchedMap?:boolean}} Scenario */
 /** @typedef {{value:number,source:string|null,frame:string|null,column:number|null,error:string|null,callerError:string|null}} Observation */
 
 /** @type {Scenario[]} */
@@ -30,7 +30,9 @@ const scenarios=[
   {kind:'array-from-map',observation:'frame',
     body:'Array.from([1],function(value){external();return value;});'},
   {kind:'promise-then-deferred',observation:'frame',deferred:true,
-    body:'Promise.resolve(1).then(function(value){external();return value;});'}
+    body:'Promise.resolve(1).then(function(value){external();return value;});'},
+  {kind:'array-map-host-overridden-source',observation:'source',patchedMap:true,
+    body:'[1].map(function(value){return owner.longPrivatePropertyName;});'}
 ];
 
 /**
@@ -72,12 +74,17 @@ function moduleSourceFor(scenario){
 /**
  * @param {string} observation
  * @param {string} scriptPath
+ * @param {boolean} [patchedMap]
  * @returns {string}
  */
-function pageFor(observation,scriptPath){
+function pageFor(observation,scriptPath,patchedMap=false){
+  const patch=patchedMap?
+    'var nativeMap=Array.prototype.map;Array.prototype.map=function(callback,thisArg){'+
+      'window.__observation.source=Function.prototype.toString.call(callback);'+
+      'return nativeMap.call(this,callback,thisArg);};': '';
   return '<!doctype html><meta charset="utf-8">'+
     '<pre id="result"></pre><pre id="failure"></pre>'+
-    '<script>'+
+    '<script>'+patch+
     'window.module={exports:{}};'+
     'window.__observation={source:null,frame:null,column:null,error:null,callerError:null};'+
     'window.__kind='+JSON.stringify(observation)+';'+
@@ -109,12 +116,17 @@ function pageFor(observation,scriptPath){
 
 /**
  * @param {string} modulePath
+ * @param {boolean} [patchedMap]
  * @returns {string}
  */
-function modulePageFor(modulePath){
+function modulePageFor(modulePath,patchedMap=false){
+  const patch=patchedMap?
+    'var nativeMap=Array.prototype.map;Array.prototype.map=function(callback,thisArg){'+
+      'window.__observation.source=Function.prototype.toString.call(callback);'+
+      'return nativeMap.call(this,callback,thisArg);};': '';
   return '<!doctype html><meta charset="utf-8">'+
     '<pre id="result"></pre><pre id="failure"></pre>'+
-    '<script>'+
+    '<script>'+patch+
     'window.__observation={source:null,frame:null,column:null,error:null,callerError:null};'+
     'function external(){try{'+
       'var captured=arguments.callee.caller&&arguments.callee.caller.caller;'+
@@ -188,11 +200,11 @@ async function main(){
     resources.set(base+'/native.js',{body:source,type:'text/javascript; charset=utf-8'});
     resources.set(base+'/compiled.js',{body:emitted,type:'text/javascript; charset=utf-8'});
     resources.set(base+'/native.html',{
-      body:pageFor(scenario.observation,base+'/native.js'),
+      body:pageFor(scenario.observation,base+'/native.js',scenario.patchedMap??false),
       type:'text/html; charset=utf-8'
     });
     resources.set(base+'/compiled.html',{
-      body:pageFor(scenario.observation,base+'/compiled.js'),
+      body:pageFor(scenario.observation,base+'/compiled.js',scenario.patchedMap??false),
       type:'text/html; charset=utf-8'
     });
     const moduleSource=moduleSourceFor(scenario);
@@ -221,11 +233,11 @@ async function main(){
       body:moduleCode,type:'text/javascript; charset=utf-8'
     });
     resources.set(base+'/module-native.html',{
-      body:modulePageFor(base+'/module-native.mjs'),
+      body:modulePageFor(base+'/module-native.mjs',scenario.patchedMap??false),
       type:'text/html; charset=utf-8'
     });
     resources.set(base+'/module-compiled.html',{
-      body:modulePageFor(base+'/module-compiled.mjs'),
+      body:modulePageFor(base+'/module-compiled.mjs',scenario.patchedMap??false),
       type:'text/html; charset=utf-8'
     });
   }
@@ -267,7 +279,7 @@ async function main(){
         assert.equal(after.column,null,scenario.kind+' deferred emitted column');
       }else if(scenario.observation==='source'){
         assert.ok(before.source&&before.source.includes('owner.longPrivatePropertyName'),
-          scenario.kind+' Chromium callback must expose the original hidden() source');
+          scenario.kind+(scenario.patchedMap?' host override must expose the original callback source':' Chromium callback must expose the original hidden() source'));
         assert.ok(after.source,scenario.kind+' Chromium callback must retain a source observation');
         assert.notEqual(after.source,before.source,
           scenario.kind+' should expose changed hidden() source after private-key rewriting');
@@ -299,7 +311,7 @@ async function main(){
       })+'\n');
     }
 
-    /** @type {Array<{kind:string,properties:number,deferred:boolean,native:Observation,compiled:Observation}>} */
+    /** @type {Array<{kind:string,properties:number,deferred:boolean,patchedMap:boolean,native:Observation,compiled:Observation}>} */
     const moduleResults=[];
     for(const scenario of scenarios){
       const base='/'+scenario.kind;
@@ -309,11 +321,22 @@ async function main(){
       assert.equal(after.value,before.value,scenario.kind+' ESM native/emitted return parity');
       assert.equal(before.error,null,scenario.kind+' ESM native observer must not throw');
       assert.equal(after.error,null,scenario.kind+' ESM emitted observer must not throw');
-      assert.equal(before.source,null,
-        scenario.kind+' strict ESM callback must not expose hidden() through sloppy caller-chain source');
-      assert.equal(after.source,null,
-        scenario.kind+' emitted strict ESM callback must not expose hidden() through sloppy caller-chain source');
-      if(scenario.deferred){
+      if(!scenario.patchedMap){
+        assert.equal(before.source,null,
+          scenario.kind+' strict ESM callback must not expose hidden() through sloppy caller-chain source');
+        assert.equal(after.source,null,
+          scenario.kind+' emitted strict ESM callback must not expose hidden() through sloppy caller-chain source');
+      }
+      if(scenario.patchedMap){
+        assert.ok(before.source&&before.source.includes('owner.longPrivatePropertyName'),
+          scenario.kind+' strict ESM host override must expose the original callback source');
+        assert.ok(after.source&&!after.source.includes('longPrivatePropertyName'),
+          scenario.kind+' strict ESM host override must expose rewritten callback source');
+        assert.notEqual(after.source,before.source,
+          scenario.kind+' strict ESM host override callback source should change');
+        assert.equal(before.frame,null,scenario.kind+' host override source capture should not require an active-frame edge');
+        assert.equal(after.frame,null,scenario.kind+' emitted host override source capture should not require an active-frame edge');
+      }else if(scenario.deferred){
         assert.equal(before.frame,null,scenario.kind+' strict ESM must not retain the returned hidden() frame');
         assert.equal(after.frame,null,scenario.kind+' strict ESM emitted callback must not retain the returned hidden() frame');
         assert.equal(before.column,null,scenario.kind+' strict ESM deferred native column');
@@ -329,7 +352,7 @@ async function main(){
           scenario.kind+' strict ESM should expose changed active-frame coordinates after private-key rewriting');
       }
       const properties=moduleMetrics.get(scenario.kind)??0;
-      moduleResults.push({kind:scenario.kind,properties,deferred:scenario.deferred??false,native:before,compiled:after});
+      moduleResults.push({kind:scenario.kind,properties,deferred:scenario.deferred??false,patchedMap:scenario.patchedMap??false,native:before,compiled:after});
       process.stdout.write('CHROMIUM_INTRINSIC_CALLBACK_ESM '+JSON.stringify({
         kind:scenario.kind,properties,
         nativeValue:before.value,compiledValue:after.value,
@@ -340,7 +363,8 @@ async function main(){
     }
     process.stdout.write('CHROMIUM_INTRINSIC_CALLBACK_ESM_SUMMARY '+JSON.stringify({
       scenarios:moduleResults.length,
-      strictSourceUnavailable:moduleResults.every(item=>item.native.source===null&&item.compiled.source===null),
+      strictSourceUnavailable:moduleResults.filter(item=>!item.patchedMap).every(item=>item.native.source===null&&item.compiled.source===null),
+      hostOverrideSourceObserved:moduleResults.filter(item=>item.patchedMap).every(item=>item.native.source!==null&&item.compiled.source!==null&&item.native.source!==item.compiled.source),
       framePosition:moduleResults.every(item=>item.deferred?(item.native.frame===null&&item.compiled.frame===null):(item.native.frame!==null&&item.compiled.frame!==null&&item.native.column!==item.compiled.column)),
       deferredNoReturnedFrame:moduleResults.filter(item=>item.deferred).every(item=>item.native.frame===null&&item.compiled.frame===null),
       positiveYield:moduleResults.every(item=>item.properties>=1),
