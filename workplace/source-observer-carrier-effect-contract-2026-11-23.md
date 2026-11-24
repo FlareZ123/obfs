@@ -683,7 +683,7 @@ Use `causedByEffectId` only for actual nested/deferred causality, not as a subst
 
 ## SourceBytes and embedding/reader provenance: browser witness
 
-Agent 43's reproducible Chromium probe `sims/browser-dom-blob-source-parity.js` (current-main file blob `b1c4f1631f8b76d1f14c631ec15211a70b808f63`; final harness commit `ca137356713babb6cff4d63feb838f9181e2f4db`) establishes a separate browser source-bytes channel. It is a manual native-vs-shortened-source probe, **not** an obfuscator compiler differential:
+Agent 43's reproducible Chromium probe `sims/browser-dom-blob-source-parity.js` (current-main file blob `b1c4f1631f8b76d1f14c631ec15211a70b808f63`; final harness commit `ca137356713babb6cff4d63feb838f9181e2f4db`) establishes a separate browser source-bytes channel. It is a manual native-vs-shortened-source probe, **not** an obfuscator compiler differential: The focused Chromium probe itself passed all 18 observations in [manual-browser run 45159146125](https://github.com/FlareZ123/obfs/actions/runs/45159146125) on commit `ca137356713babb6cff4d63feb838f9181e2f4db`; the overall workflow failed later at the unrelated `test/bound-runtime-interception-browser.js:52` assertion (`0 !== 2`). Do not report the overall workflow as green or attribute that failure to SourceBytes.
 
 - Inline module bytes appear in `document.documentElement.outerHTML` and `XMLSerializer.serializeToString(document)`; the same module served as a Blob module does not appear in those DOM serializations.
 - A Blob ESM module can still read its own bytes using `fetch(import.meta.url)`; an aliased `fetch` plus `Response.prototype.text.call` also reads the source.
