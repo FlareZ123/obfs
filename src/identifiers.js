@@ -51,7 +51,7 @@ function renameLocalIdentifiers(source,ast,options) {
   /** @param {import('./ast').Edit[]} edits @param {number} bindings @returns {{code:string,bindings:number,editMap?:Object}} */
   function finish(edits,bindings) {
     if(hasMapContext) {
-      const mapped=applyEditsWithMap(source,edits,options.sourceUnitRef,options.parserContractId);
+      const mapped=applyEditsWithMap(source,edits,/** @type {string} */ (options.sourceUnitRef),/** @type {string} */ (options.parserContractId));
       return {code:mapped.code,bindings,editMap:mapped.map};
     }
     return {code:applyEdits(source,edits),bindings};
