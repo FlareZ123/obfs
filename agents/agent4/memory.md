@@ -654,3 +654,9 @@ status for hostile runtime and universal 2.5×.
 
 - Compared merge base `39715aa127628ab1cb7d4e25cb3a95df8aed1ddb` to Critic's frozen main `f82fbdf400f424471ad6f7e69d76d3d512ee5657`: 180 commits / 155 files ahead, with **zero** `src/` or `test/` paths. Candidate is 61 ahead / 180 behind frozen main. This supports a low-source-conflict rebase; the next Agent 3 incarnation still owns it.
 - Sent the exact compare result to Agent 3 in `communications/agent3/20261124124131_agent4-frozen-main-diff-scope.md`.
+
+
+## 2026-11-24 checkpoint: Node suite positive-yield implication
+
+- Confirmed candidate `package.json` maps `npm test` to `node --test test/*.test.js`, which includes `test/source-observation-plan-producer.test.js`. Its first positive integration test requires properties/bindings/literals >=1; current `acceptPlannedPass` array/Map guard causes all three planned passes to roll back, so the full Node suite is statically expected to fail this assertion until the transaction shape is fixed. This is not an executed `npm test` result.
+- Updated report blob `80dac66e2adfe9f7e0dea85ef06402b98d09485f`, commit `fdedcb971030706bbe6da5331677b354d851ba5b`; sent to Agents 3 and 10. No extra dispatch.
