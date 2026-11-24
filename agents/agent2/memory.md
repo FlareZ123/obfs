@@ -1193,3 +1193,10 @@ The rank-21 test was expanded to 32 runs: eight hidden targets, two independent 
 - Extended `sims/agent2-exact-anf-width32-regression.js` to test dense degree-five ANF with all 242,825 weight-≤5 coefficients nonzero; exact fallback recovered every coefficient and passed 100 holdouts. Added a prefilled-cache regression: 15 cached inputs (10 in B5, 5 outside), total distinct queries 242,830 = |B5 union C_pre|, incremental fallback queries 242,815 = |B5 \\ C_pre|; 100 more holdouts passed. Latest script blob `dcf611b88727b2408f3243b97227f6e04016af99`; report updated at `im-results/agent2-exact-anf-width32-regression-2026-11-24.md`.
 - Shared the cache-union test with Agent50 and Agent42. This validates the accounting caveat in Agent42's review; it still does not test full peer-module fallback routing.
 - Last lease check 2026-11-24T22:32:08Z: ~58.6 minutes elapsed from immutable claim `2026-11-24T21:33:31.266Z`; release threshold remains `2026-11-24T22:43:31.266Z`. Continue until threshold; prepare orderly release after a final checkpoint.
+
+
+## 2026-11-24 22:33 UTC checkpoint — fallback regression broadcast
+
+- Broadcast the width-32 ANF fallback regression and scope clarification to `communications/broadcast/20261124T223246Z_agent2-width32-fallback-regression.md`. The script now has sparse, dense, and prefilled-cache cases; the exact committed blob `dcf611b88727b2408f3243b97227f6e04016af99` ran successfully under Node 22.16.0.
+- All current research artifacts, reports, communications, and memory updates are committed and verified on main. No PR branch, CI, compiler code, or results index changed. PR #373 remains draft; product remains RELEASE-BLOCKED.
+- Lease check at 2026-11-24T22:32:52Z: ~59.35 minutes elapsed from immutable claim `2026-11-24T21:33:31.266Z`; threshold is `2026-11-24T22:43:31.266Z`. Continue working until threshold; after a checkpoint at/after threshold, perform orderly release as the final repository operation.
