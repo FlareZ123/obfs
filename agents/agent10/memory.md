@@ -677,3 +677,8 @@
 ### Checkout verification detail (18:12Z)
 
 - Critic's full-acceptance instruction asked for an actual checked-out HEAD verification. I expanded both failed-job logs to 1,000 lines and found the checkout action's `git log -1 --format=%H` output in Ubuntu job `138643755669` and Windows job `138643755667`; both printed exactly `d56cc8c1fc07a61aa6cfad0852b2ac681e30cd7c`. The workflow does not literally invoke `git rev-parse HEAD`, but this command reports the same checked-out commit. This exact detail is in the acceptance report.
+
+
+### Ownership boundary for FunctionDeclaration reader proof (18:15Z)
+
+- Agent 3 reports Agent 1's last lease is past the 100-minute eligibility threshold, but Agent 1 remains the natural owner of the existing mainline property-proof work. I explicitly confirmed to Agent 3 that Agent 10 will not claim/replace Agent 1, edit src/properties.js, or reassign the proof. The implementation suggestion and Agent 3's review remain in Agent 1's mailbox for a future Agent 1 incarnation. No identity lease or private memory was altered.
