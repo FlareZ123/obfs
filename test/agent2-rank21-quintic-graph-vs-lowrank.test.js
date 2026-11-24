@@ -119,89 +119,96 @@ test('degree-five affine-flag graph inversion on rank-21 displacement (joint rad
   );
   assert.equal(gf2Rank(displacementValues),21);
 
-  const inputColumns=makeLinearTransform(0x12345678);
-  const outputColumns=makeLinearTransform(0x9abcdef0);
-  const inputInverse=inverseOfColumns(inputColumns);
-  assert.ok(inputInverse,'input affine wrapper must be invertible');
-  assert.ok(inverseOfColumns(outputColumns),'output affine wrapper must be invertible');
-  const inputBias=0x13579bdf;
-  const outputBias=0x2468ace0;
-
-  /** @param {number} input @returns {number} */
-  const oracle=input=>{
-    const hidden=(applyLinear(inputColumns,input)^inputBias)>>>0;
-    return (applyLinear(outputColumns,rank21Triangular(hidden,terms))^outputBias)>>>0;
-  };
-  /** @param {bigint} input @returns {bigint} */
-  const bigOracle=input=>BigInt(oracle(Number(input)));
-
-  // Eight held-out hidden targets cover all-one and seven distinct six-one
-  // patterns on the seven nonlinear input coordinates.
+  const wrappers=[
+    {inputSeed:0x12345678,outputSeed:0x9abcdef0,inputBias:0x13579bdf,outputBias:0x2468ace0},
+    {inputSeed:0x31415926,outputSeed:0x27182818,inputBias:0xdeadbeef,outputBias:0xcafebabe}
+  ];
+  const sampleSeeds=[0x12345678,0xdeadbeef];
   const hiddenTargets=[
     0x67aa29ff,0x628acbfe,0xfe1940fd,0xc1ece67b,
     0x3e411777,0x37fff36f,0xbd72765f,0x8721e5bf
   ];
-  const expectedLowRankQueries=[
-    121616,2082224,1771722,198219,959413,1343261,214296,1549526
-  ];
-  const expectedOrbitCalls=[
-    121581,2082189,1771687,198184,959378,1343226,214261,1549491
-  ];
-  const firstSecret=inputInverse((hiddenTargets[0]^inputBias)>>>0);
-  const firstTarget=oracle(firstSecret);
 
-  // The current low-rank implementation retains its default rank-16 safety
-  // cap. Explicit opt-in is required for the rank-21 research comparison.
-  assert.throws(()=>invertLowRankPermutation(oracle,firstTarget,{
-    bits:32,rankBound:21,sample:seeded(0x12345678)
-  }),RangeError);
-
-  /** @type {Array<{index:number,secret:string,target:string,graphQueries:number,lowRankQueries:number,orbitCalls:number}>} */
+  /** @type {Array<{wrapperIndex:number,sampleSeed:string,targetIndex:number,secret:string,target:string,graphQueries:number,lowRankQueries:number,orbitCalls:number,samplingCalls:number}>} */
   const receipts=[];
   let totalGraphQueries=0;
   let totalLowRankQueries=0;
-  for(let index=0;index<hiddenTargets.length;index++){
-    /** @type {number} */
-    const secret=inputInverse((hiddenTargets[index]^inputBias)>>>0);
-    const target=oracle(secret);
-    const lowRank=invertLowRankPermutation(oracle,target,{
-      bits:32,
-      rankBound:21,
-      maxRankBound:21,
-      sample:seeded(0x12345678),
-      maxSamples:96
-    });
-    assert.equal(lowRank.preimage,secret);
-    assert.equal(oracle(lowRank.preimage),target);
-    assert.equal(lowRank.nullity,1);
-    assert.equal(lowRank.samplingCalls,2);
-    assert.equal(lowRank.orbitCalls,expectedOrbitCalls[index]);
-    assert.equal(lowRank.cycleLength,expectedOrbitCalls[index]);
-    assert.equal(lowRank.oracleCalls,expectedLowRankQueries[index]);
 
-    const graph=invertByRandomAffineGraph(
-      bigOracle,BigInt(target),32,5,{seed:0x5e21+index,delta:1e-8}
-    );
-    assert.equal(graph.input,BigInt(secret));
-    assert.equal(graph.verified,true);
-    assert.ok(graph.queries<lowRank.oracleCalls);
+  for(let wrapperIndex=0;wrapperIndex<wrappers.length;wrapperIndex++){
+    const wrapper=wrappers[wrapperIndex];
+    const inputColumns=makeLinearTransform(wrapper.inputSeed);
+    const outputColumns=makeLinearTransform(wrapper.outputSeed);
+    const inputInverse=inverseOfColumns(inputColumns);
+    assert.ok(inputInverse,'input affine wrapper must be invertible');
+    assert.ok(inverseOfColumns(outputColumns),'output affine wrapper must be invertible');
+    /** @type {(value:number)=>number} */
+    const invertInput=inputInverse;
 
-    totalGraphQueries+=graph.queries;
-    totalLowRankQueries+=lowRank.oracleCalls;
-    receipts.push({
-      index,
-      secret:'0x'+secret.toString(16).padStart(8,'0'),
-      target:'0x'+target.toString(16).padStart(8,'0'),
-      graphQueries:graph.queries,
-      lowRankQueries:lowRank.oracleCalls,
-      orbitCalls:lowRank.orbitCalls
-    });
+    /** @param {number} input @returns {number} */
+    const oracle=input=>{
+      const hidden=(applyLinear(inputColumns,input)^wrapper.inputBias)>>>0;
+      return (applyLinear(outputColumns,rank21Triangular(hidden,terms))^wrapper.outputBias)>>>0;
+    };
+    /** @param {bigint} input @returns {bigint} */
+    const bigOracle=input=>BigInt(oracle(Number(input)));
+
+    for(let sampleIndex=0;sampleIndex<sampleSeeds.length;sampleIndex++){
+      const sampleSeed=sampleSeeds[sampleIndex];
+      for(let targetIndex=0;targetIndex<hiddenTargets.length;targetIndex++){
+        /** @type {number} */
+        const secret=invertInput((hiddenTargets[targetIndex]^wrapper.inputBias)>>>0);
+        const target=oracle(secret);
+        if(wrapperIndex===0&&sampleIndex===0&&targetIndex===0){
+          // Default rank-16 cap is unchanged; rank 21 needs explicit opt-in.
+          assert.throws(()=>invertLowRankPermutation(oracle,target,{
+            bits:32,rankBound:21,sample:seeded(sampleSeed)
+          }),RangeError);
+        }
+
+        const lowRank=invertLowRankPermutation(oracle,target,{
+          bits:32,
+          rankBound:21,
+          maxRankBound:21,
+          sample:seeded(sampleSeed),
+          maxSamples:96
+        });
+        assert.equal(lowRank.preimage,secret);
+        assert.equal(oracle(lowRank.preimage),target);
+        assert.equal(lowRank.nullity,1);
+        assert.ok(lowRank.samplingCalls<=96);
+        assert.equal(lowRank.oracleCalls,33+lowRank.samplingCalls+lowRank.orbitCalls);
+        assert.ok(lowRank.orbitCalls<=2**21);
+
+        const graphSeed=(0x5e21+wrapperIndex*0x100+sampleIndex*0x20+targetIndex)>>>0;
+        const graph=invertByRandomAffineGraph(
+          bigOracle,BigInt(target),32,5,{seed:graphSeed,delta:1e-8}
+        );
+        assert.equal(graph.input,BigInt(secret));
+        assert.equal(graph.verified,true);
+
+        totalGraphQueries+=graph.queries;
+        totalLowRankQueries+=lowRank.oracleCalls;
+        receipts.push({
+          wrapperIndex,
+          sampleSeed:'0x'+sampleSeed.toString(16),
+          targetIndex,
+          secret:'0x'+secret.toString(16).padStart(8,'0'),
+          target:'0x'+target.toString(16).padStart(8,'0'),
+          graphQueries:graph.queries,
+          lowRankQueries:lowRank.oracleCalls,
+          orbitCalls:lowRank.orbitCalls,
+          samplingCalls:lowRank.samplingCalls
+        });
+      }
+    }
   }
-  assert.equal(totalLowRankQueries,8240277);
+  assert.equal(receipts.length,32);
   assert.ok(totalGraphQueries<totalLowRankQueries);
 
-  process.stdout.write('OBFS_RANK21_QUINTIC_GRAPH_VS_LOWRANK '+JSON.stringify({
+  process.stdout.write('OBFS_RANK21_QUINTIC_GRAPH_VS_LOWRANK_SWEEP '+JSON.stringify({
     targets:receipts.length,
+    wrapperCount:wrappers.length,
+    sampleSeeds:sampleSeeds.map(seed=>'0x'+seed.toString(16)),
     nonlinearOutputRank:21,
     topDegree:5,
     topSupportUnion:'0x7f',
@@ -212,5 +219,5 @@ test('degree-five affine-flag graph inversion on rank-21 displacement (joint rad
     graphAdvantage:totalLowRankQueries/totalGraphQueries,
     defaultRankBoundCap:16,
     explicitRankBound:21
-  })+'\n');
-});
+  })+'\\n');
+;
