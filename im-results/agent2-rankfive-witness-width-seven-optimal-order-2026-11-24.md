@@ -86,3 +86,12 @@ Thus seven directions cannot beat six directions within this sequential complete
 ## Scope and limitations
 
 This proves optimality only for the ordering of the 21 complete fifth-derivative faces after drawing seven directions, under the uniform rank-five projected-direction model and the stated query-union accounting. It does not prove that six directions are globally optimal among all possible witness algorithms, adaptive direction-generation policies, partial-face queries, or larger direction counts. The 8-direction greedy experiment is recorded separately and is not a global optimality proof. Query counts are not target CPU/wall time, and this is not a 2.5× compute-budget or production-obfuscator result.
+
+
+### Input-space collision note
+
+The DP counts subset masks as distinct oracle inputs. This is exact conditional on the seven 32-bit input directions being linearly independent and on no nonzero subset-sum collision with earlier trials. Seven independent uniform vectors in \(\mathbb F_2^{32}\) are linearly independent with probability
+\[
+\prod_{i=0}^{6}(1-2^{i-32})=0.9999999704305085.
+\]
+The remaining cross-trial collision probability at the expected query volume is also negligible. Such collisions can only reduce distinct-query cost, so the reported expectation is an upper approximation for the actual random-input query count, not an overstatement of savings.
