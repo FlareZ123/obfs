@@ -55,13 +55,10 @@ for(const mode of /** @type {Array<'coo'|'sno'|'sco'>} */ (['coo','sno','sco']))
       mode+': an exported instance is not a private class instance');
     assert.ok(output.code.includes('read(){return owner.privateField;}'),
       mode+': preserve the method body spelling for external source observers');
-
-    if(mode!=='sco'){
-      const emitted=await inspectExportedInstance(String(output.code));
-      assert.equal(emitted.value,native.value,
-        mode+': the exported method must preserve its computed result');
-      assert.equal(emitted.methodSource,native.methodSource,
-        mode+': Function#toString must remain byte-identical');
-    }
+    const emitted=await inspectExportedInstance(String(output.code));
+    assert.equal(emitted.value,native.value,
+      mode+': the exported method must preserve its computed result');
+    assert.equal(emitted.methodSource,native.methodSource,
+      mode+': Function#toString must remain byte-identical');
   });
 }
