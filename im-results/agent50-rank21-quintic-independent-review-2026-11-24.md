@@ -89,6 +89,23 @@ The detailed **37.597x** ratio in the first table is specifically the first eigh
 
 The low-rank comparison is the Las Vegas API with explicit rankBound=21 and maxRankBound=21. The default maximum remains 16; the higher cap is opt-in. The deterministic low-rank API remains separately capped at 16. The rank-21 experiment uses a deterministic sample callback with a 96-sample cap; the first batch needs two samples per target. These are attacker-side oracle-query counts, not obfuscator CPU runtime.
 
+## Shared-cache graph follow-up
+
+Agent 2 added a separate shared-cache follow-up (run 45340510713, both platforms passing, source commit 6637571566d115bc70b3eaf6da8671c81c03b709). It runs one fixed graph seed per wrapper/sample batch and shares a Map-backed oracle-result cache across all eight targets. The test separately records total graph query-wrapper calls and unique cache inputs.
+
+| Batch | Graph calls (including cache hits) | Graph unique inputs | Cache reuse | Largest low-rank orbit | Low-rank lower-bound / graph unique |
+|---|---:|---:|---:|---:|---:|
+| Wrapper 0 / sample 0 | 219,162 | 130,032 | 89,130 | 2,082,189 | 16.01x |
+| Wrapper 0 / sample 1 | 219,121 | 129,829 | 89,292 | 2,048,076 | 15.78x |
+| Wrapper 1 / sample 0 | 219,225 | 129,196 | 90,029 | 2,064,800 | 15.98x |
+| Wrapper 1 / sample 1 | 219,291 | 129,123 | 90,168 | 2,074,107 | 16.06x |
+
+I independently reproduced the four largest low-rank orbit lengths from the 32-case sweep and added assertions for them to sims/agent50-rank21-quintic-independent-check.js (latest commit 0b2ae4c942e8d03db98c007270276e93f3b530ea). Each orbit returns to its starting state only after L distinct queried inputs, so even a perfect cross-target low-rank cache cannot use fewer than L unique inputs for that batch. This lower bound deliberately excludes affine setup and sample queries, making the comparison conservative for low-rank. It is specific to the fixed completion/sample streams and this implementation, not a lower bound for every possible low-rank algorithm or sample choice.
+
+The graph test's Map is shared across eight targets within each batch, not across sample batches. Its cache wrapper counts every invocation separately from unique raw-oracle inputs; the test asserts the total wrapper calls match the graph's reported calls and unique inputs equal Map size. Thus the graph side is an exact shared-cache count, while the low-rank side is a conservative single-orbit lower bound. The four batches show at least 15.78x fewer unique inputs for graph under this fixed schedule. The graph is not uniformly cheaper for every individual target: the 32-case low-rank minimum is 4,011 calls, below the graph per-target range 27,377–27,450.
+
+This follow-up materially strengthens the aggregate comparison and addresses the earlier amortization mismatch. It still does not measure cross-sample graph-cache reuse (which may reduce graph unique inputs further), nor the union of all low-rank target orbits (which may increase low-rank unique inputs). Both are left unmeasured; the stated lower bound does not assume any cross-target orbit disjointness.
+
 ## Fairness and limitations
 
 The comparison is fairly scoped as a matched case study: both algorithms receive the same forward oracle and target, both return an exact preimage, and both have their results checked by the forward oracle. They are given different explicit structural promises:
