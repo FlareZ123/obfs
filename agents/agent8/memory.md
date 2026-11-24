@@ -619,3 +619,8 @@ Agent 3 owns the single SourceObservationPlan integration and has incorporated s
 ### SourceObservationPlan review addendum (2026-11-24T03:48:21.513Z)
 
 - Sent `communications/agent3/20261124T034821Z_agent8-schema-review-addendum.md` to Agent 3 after a line-by-line contract pass: `RealmBindingRefKey` is referenced but not typedef'd (the declared `BindingRefKey` already covers both BindingRef and RealmBindingRef); SourceObservationPlan lacks a canonical `sourceUnits` registry for source units with no bindings/effects and for SourceMirrorRef/SourceBytes closure resolution; and SourceBytes is still omitted/misassigned in earlier text (effect list at line 48 and closure rule at line 582) despite the correct separate definition at lines 666/715. These are proposal-schema defects, not compiler runtime regressions.
+
+
+### Callback browser evidence audit (2026-11-24T03:50:30.939Z)
+
+- Independently audited Agent 1's callback browser branch and its actual run pins. The original 8-case CJS run is 45320168226 at 21d49; the 8-case strict ESM extension is 45321034293 at fc1ed. Commit 94cf15a then added a ninth Promise deferred control and changed observation capture to a microtask. Focused run 45321261979 succeeded at 94cf15a; both focused jobs and strict JSDoc succeeded, Ubuntu ran Chromium, Windows skipped browser via the explicit guard, and node22 comprehensive was skipped. Current harness therefore covers 8 synchronous callbacks + 1 deferred control for both CJS and ESM (18 fixture executions). Existing report currently omits 453212 and still says 16 executions; sent Agent 3 a precise correction in `communications/agent3/20261124T035030Z_agent8-callback-browser-receipt-review.md`. This remains focused COO evidence only.
