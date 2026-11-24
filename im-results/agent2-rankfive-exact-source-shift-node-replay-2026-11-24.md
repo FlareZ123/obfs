@@ -18,7 +18,7 @@ The script is pinned to the exact private source used by PR #373:
 - Node runtime used: `v22.16.0`;
 - repository script blob: `3927615236391a857465bbe0bd2364075b8433f3`.
 
-It compares the five-contraction derivative-signature method with the two-offset section-table shift method over 100 matched deterministic SHA-counter streams. Both strategies use the same exact oracle, witness stream, verifier stream, lazy sequential witness-face search, and 726 postfit samples per replicate. The script checks the source hash, fixed-pair table property, unique coordinate candidates, and every verification equality.
+It dynamically imports the reconstructed source module and checks 10,000 deterministic inputs against the independent oracle formula. It then compares the five-contraction derivative-signature method with the two-offset section-table shift method over 100 matched deterministic SHA-counter streams. Both strategies use the same exact oracle, witness stream, verifier stream, lazy sequential witness-face search, and 726 postfit samples per replicate. The script checks the source hash, fixed-pair table property, unique coordinate candidates, and every verification equality.
 
 ## Output
 
@@ -33,6 +33,7 @@ It compares the five-contraction derivative-signature method with the two-offset
 - Mean witness trials: 1.70; maximum: 5.
 - 72,600 postfit verification points were checked across the 100 shift runs (726 per run); all matched.
 - The fixed-pair table condition passed in all 100 section tables.
+- 10,000 source-module equivalence checks passed before the query replay.
 
 The 896 savings are exactly 28 fewer coordinate probes for each of 32 input basis vectors in these tapes. This is consistent with 31 signature points versus 3 shift points per basis vector; no extra cache overlap changed the difference in these runs.
 
