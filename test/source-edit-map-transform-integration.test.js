@@ -34,6 +34,18 @@ function findCallback(ast) {
   return found;
 }
 
+
+/** @param {import('../src/ast').AstNode} ast @param {string} name */
+function findNamedFunction(ast,name) {
+  /** @type {import('../src/ast').AstNode|null} */
+  let found=null;
+  walk(ast,node=>{
+    if(node.type==='FunctionDeclaration'&&node.id?.name===name)found=node;
+  });
+  if(!found)throw new Error('named function declaration not found: '+name);
+  return found;
+}
+
 test('SNO host-held callback source survives mapped identifier edits and string prologue while unrelated literal encodes',()=>{
   const source=[
     'const aVeryLongUnusedBindingName=1;',
@@ -94,6 +106,51 @@ test('SNO host-held callback source survives mapped identifier edits and string 
     queueMicrotask(callback){observedSource=callback.toString();}
   });
   assert.equal(observedSource,originalCallbackSource);
+});
+
+
+test('identifier protection is binding-wide across declarations and references',()=>{
+  const fixtures=[
+    {
+      source:[
+        'const unrelatedVeryLongBindingName=1;',
+        'function callback(){const privateLocal=79;return privateLocal;}',
+        'queueMicrotask(callback);'
+      ].join('\n'),
+      protectedName:'privateLocal'
+    },
+    {
+      source:[
+        'const privateOuter=79;',
+        'const unrelatedVeryLongBindingName=1;',
+        'function callback(){return privateOuter;}',
+        'queueMicrotask(callback);'
+      ].join('\n'),
+      protectedName:'privateOuter'
+    }
+  ];
+  for(const fixture of fixtures) {
+    const ast=parse(fixture.source,'module');
+    const callback=findNamedFunction(ast,'callback');
+    const originalCallbackSource=fixture.source.slice(callback.start,callback.end);
+    const span=sourceSpan(UNIT,callback.start,callback.end,
+      sourceGenerationOf(fixture.source,PARSER));
+    const renamed=renameLocalIdentifiers(fixture.source,ast,{
+      seed:'protected-binding-wide-'+fixture.protectedName,
+      sourceType:'module',sourceUnitRef:UNIT,parserContractId:PARSER,
+      protectedSourceSpans:[span]
+    });
+    assert.ok(renamed.bindings>0,'unrelated binding should still be renamed');
+    assert.ok(!renamed.code.includes('unrelatedVeryLongBindingName'));
+    assert.ok(renamed.code.includes(fixture.protectedName),
+      'a declaration or reference inside the protected closure must block the entire spelling');
+    const range=mapSourceSpan(renamed.editMap,span,fixture.source,renamed.code);
+    assert.ok(range);
+    assert.equal(renamed.code.slice(range.startOffset,range.endOffset),originalCallbackSource);
+    const context={queueMicrotask(callback){context.result=callback();}};
+    vm.runInNewContext(renamed.code,context);
+    assert.equal(context.result,79,'the partially renamed binding must remain executable');
+  }
 });
 
 test('local property pass maps unrelated object edits and declines edits inside a protected span',()=>{
