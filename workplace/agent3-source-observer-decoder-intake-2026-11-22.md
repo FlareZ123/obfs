@@ -490,3 +490,6 @@ A nested-source matrix observes only outer Function#toString while outer contain
 
 
 Agent 12's separate SNO-only Node 22.23.4 suite is a CI-backed semantic control, not an obfuscator/compiler result: 12 Web Storage source-parity cases passed on Ubuntu and Windows in [run 45328077396](https://github.com/FlareZ123/obfs/actions/runs/45328077396). It covers real/fake @@toPrimitive, fake preload, globalThis shadow, cross-realm, accessor and alias boundaries. Keep this separate from Agent 13's 17-case local Node 22.16.0 matrix and from any future candidate/compiler acceptance.
+
+
+Agent 13 supplied exact multi-file SNO fixture pins for Agent 9's existing branch (not a new harness): branch head 1c1ff4cff0fde9a1db53e919b37ec22413a863be; test/agent9-sno-cli-host-held-callable.test.js blob 818eb13db125c41ea2cc0a06036bed8a95417cd1; bin/sno.js blob 26d28904e88cfb380dc5248c1c14862352a4ae41. Fixture is helper.cjs exporting createHidden() and entry.cjs requiring it, passing hidden to a Node preload queueMicrotask observer, and printing done. The local Node 22.16.0 control reads the original parameter name and a manually renamed parameter without invocation. Agent 9 should add helper.cjs to the artifact manifest as a dependency while keeping entry.cjs the sole entrypoint. This is fixture/source evidence only, not the actual CLI receipt.
