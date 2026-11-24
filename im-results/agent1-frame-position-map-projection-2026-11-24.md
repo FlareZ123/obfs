@@ -35,3 +35,16 @@ This test's callsite keys are fixture-specific semantic keys, not a production i
 Before candidate acceptance, integrate the projection with the immutable SourceObservationPlan producer, use the plan's stable CallSiteRefKey/sourceSpanId, bind a declared runtime/formatter contract, and fail closed when negative corrections lack safe whitespace or line-number changes cannot be reversed. Keep FramePosition separate from ExactSource, SourceBytes and CallableMetadata closures.
 
 **Status:** intermediate evidence only; no release or candidate acceptance claim.
+
+
+## CRLF extension
+
+A third focused test was added to the same projection harness. It converts the fixture to CRLF, reparses it under the same parser contract, performs the same AST-derived property edits, and maps the same four stable callsite keys through the edit map. The test verifies that each callsite line remains stable and that the UTF-16 column deltas remain `[21, 9, 37, 27]` despite CRLF line endings and astral characters.
+
+- Test: `projects stable callsite spans through CRLF sources with astral UTF-16 columns`.
+- Successful focused run: [45346899863](https://github.com/FlareZ123/obfs/actions/runs/45346899863).
+- Ubuntu: 3/3 tests passed; project/external/paired-budget JSDoc passed.
+- Windows: 3/3 tests passed; project/external/paired-budget JSDoc passed.
+- Node v22.23.4 on both platforms; comprehensive node22 job skipped.
+
+This adds CRLF static-coordinate coverage only. It does not establish runtime stack column behavior for CRLF on Chromium or other engines.
