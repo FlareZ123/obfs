@@ -786,3 +786,28 @@ Sent targeted follow-ups to Agents 8, 9, 13 and 10. Agent 8 was asked to review 
 ### Decision
 
 Still **NO-GO / RELEASE-BLOCKED**. No production compiler source changed, no candidate PR opened, and no comprehensive gate dispatched. Do not turn this schema work into another parallel resolver. Next priority is to close any remaining v2 review contradictions, then decide whether one minimal current-main candidate can consume the shared plan across all relevant source-mutating consumers. Preserve per-callable precision: protect hidden while keeping safe eligible.
+
+
+## 2026-11-24 04:51 UTC checkpoint — callable syntax/SNO launcher and key-access effects
+
+Current main before this checkpoint: 00e123ad5fe04e701676ee7c683cc87332913ce3. Latest canonical contract commit: f4ee98ed84fae591630647340f1314780e576e88. Latest canonical intake commit: 00e123ad5fe04e701676ee7c683cc87332913ce3.
+
+### New focused evidence
+
+- Agent 9's HostHeldCallable red matrix now covers seven callable forms (declaration, expression, arrow, object method, class method, async, generator) × COO/SCO/SNO × identifier/string consumers: 42/42 source-mismatch controls, run 45328404113, both OS, strict JSDoc.
+- Actual single-entry SNO launcher path is now covered in run 45328512061: createSnoLauncher produces sno-entry.cjs, verifies artifact manifest, requires one CommonJS entry; Node preload host observer reads queueMicrotask callback source without invocation; identifier/string variants mutate source while stdout remains done. The eight implementation blobs (ast/properties/identifiers/strings/core/sno/cli/bin-sno) match current main at the witness. This closes the focused single-entry SNO launcher/direct-callback gap only; full CLI/package, multi-file SNO and complete hostile-runtime coverage remain open.
+- Agent 13's cross-file ESM SymbolCtor real/fake pair follows actual-to-formal, field-read, immutable key capture, computed own-property write, return-to-call-result and Storage ToPrimitive. Local Node 22.16.0 only, no compiler/CI receipt.
+- Agent 13's pure-vs-source-observing getter pair shows that a userland getter can return the correct agent-wide well-known symbol while separately calling Function#toString on the eventual callable before returning. Value identity does not imply access-effect safety. Local Node 22.16.0 only.
+- Agent 13's mutable-key vs const-captured-alias pair establishes use-site reaching-definition semantics: mutable reassignment to fake Symbol.for is negative; a separate const capture retains the real well-known symbol. Local Node 22.16.0 only.
+
+### Contract changes
+
+- Latest v2 schema now includes PropertyKeyIdentityRef kind-specific runtime invariants, use-site span/CFG/reaching-definition/branch-guard identity, and one typed key reference shared by CallableDefinitionRef, ValueFlowEdge and HostEffectRecord.
+- HostEffectRecord.resultValueRef links a getter/host operation's result to the ValueFact/WellKnownSymbolRef that feeds the later computed key.
+- Contract explicitly separates value identity from evaluation effects: SymbolCtor.toPrimitive read uses the string key "toPrimitive", a field-read ValueFlowEdge and the actual receiver/lookup/effective getter. AccessorCall/ProxyInternalMethod may independently produce ExactSource even when the returned symbol is correct. Userland-wrapper provenance does not prove purity.
+- SourceBytes and ExactSource are distinct throughout the overview and browser/SRI sections: Function#toString is ExactSource; loader/DOM/SRI distributed bytes are SourceBytes. UnknownHostEffect remains a fallback.
+- Intake records cross-file symbol flow, getter effects, callable syntax matrix and actual SNO launcher.
+
+### Decision / open boundaries
+
+Still **NO-GO / RELEASE-BLOCKED**. No production compiler source changed, no candidate PR opened, no comprehensive gate dispatched. Generic computed-key admission remains fail-closed. Actual SCO browser-handler coverage remains open. Full SNO CLI/package and multi-file SNO remain open despite the single-entry launcher witness. Need Agent 8/9 review of the final typed key/effect linkage before any candidate selection. Preserve per-callable precision and unrelated safe-yield.
