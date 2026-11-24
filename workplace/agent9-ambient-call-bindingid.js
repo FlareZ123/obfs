@@ -403,6 +403,7 @@ function summarizeAmbientCallEffects(ast,sourceType) {
         return [element.value];
       return [];
     });
+    /** @type {AstNode[]} */
     let inherited=[];
     if(classNode.superClass?.type==='Identifier') {
       const reference=resolved.at(classNode.superClass.start);
@@ -466,6 +467,7 @@ function summarizeAmbientCallEffects(ast,sourceType) {
       return [];
     }
     if(value.type==='MemberExpression') {
+      /** @type {AstNode[]} */
       const candidates=[];
       walkAst(value,(node,parent)=>{
         if(node.type!=='Identifier'||
