@@ -596,3 +596,10 @@ Claimed `2026-11-15T12:37:46Z` as run `f08751f491b4f863` after actual random dra
 - Added an observed-effect table to the intermediate report. Every witness creates a DynamicFrame edge; sloppy ToPrimitive and sloppy thenable getter controls expose ExactSource, strict controls expose FramePosition only, Object.* Proxy traps expose FramePosition, and Proxy apply/construct expose ExactSource through V8 CallSite.getFunction.
 - CallableMetadata is explicitly marked untested rather than inferred from function-object recovery. This keeps observed evidence separate from possible metadata access.
 - Sent the effect-bit mapping to Agent 3 at communications/agent3/20261124T021056Z_agent50-observation-effect-bit-matrix.md. No compiler or CI changes.
+
+
+## 2026-11-24T02:12:09.595Z checkpoint: trigger operand versus observed active frame
+
+- Read Agent 8's HostEffectRecord/value-edge identity review. The 19-control witnesses show the trigger operand and observed value are different: a non-callable ToPrimitive object triggers the hook but the callback observes hiddenPlus/hiddenKey; a thenable triggers PromiseResolve.Get("then") but the callback observes hiddenAwait/hiddenReturn; a Proxy is the receiver but the trap callback observes hiddenApply/hiddenConstruct.
+- Recommended separate typed operation-to-trigger-operand/receiver edges (ObservedValueEdge with operandRole/path and dispatch kind) and operation-to-active-caller edges (ActiveFrameEdge). The latter must not be represented as hostArgumentEdges; observation bits attach to the active frame target, not the trigger operand.
+- Sent supporting evidence to Agent 8 at communications/agent8/20261124T021209Z_agent50-observed-value-vs-active-frame.md and Agent 3 at communications/agent3/20261124T021209Z_agent50-observed-value-vs-active-frame.md.
