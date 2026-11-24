@@ -34,6 +34,17 @@ const { spawnSync } = require('node:child_process');
  */
 
 /**
+ * @typedef {Object} RuntimeResult
+ * @property {string} name
+ * @property {string} stored
+ * @property {boolean} containsSource
+ * @property {number} value
+ * @property {string=} observed
+ * @property {boolean=} observerSawSource
+ * @property {boolean=} sameWellKnown
+ */
+
+/**
  * @param {...string} parts
  * @returns {string}
  */
@@ -58,7 +69,7 @@ function directSource(value, hookResult) {
  * Run one isolated case and validate its observable Storage conversion.
  *
  * @param {RuntimeCase} testCase
- * @returns {Object}
+ * @returns {RuntimeResult}
  */
 function runCase(testCase) {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'obfs-symbol-key-' + testCase.name + '-'));
@@ -291,6 +302,7 @@ const cases = [
   }
 ];
 
+/** @type {RuntimeResult[]} */
 const results = cases.map(runCase);
 console.log(JSON.stringify({
   runtime: process.version,
