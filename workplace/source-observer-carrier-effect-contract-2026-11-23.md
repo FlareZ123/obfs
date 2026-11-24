@@ -268,6 +268,14 @@ The canonical plan should expose at least the following. The v2 JSDoc schema sup
  * @typedef {'proven'|'may'|'unknown'} ValueProofStatus
  * @typedef {'HostHeldCallable'|'Escaped'|'SourceObservable'|'CallableMetadataObservable'|'SameSourcePath'|'UnknownPath'} ValueCapability
  *
+ * @typedef {Object} PathProvenanceRef
+ * @property {'same-source-url'|'other-source-url'|'filesystem-path'|'module-url'|'unknown'} kind
+ * @property {SourceUnitRefKey|null} sourceUnitRef
+ * @property {string|null} resolvedURL
+ * @property {string|null} resolutionContextId
+ * @property {HostContractRefKey|null} hostContractRef
+ * @property {ValueProofStatus} proofStatus
+ *
  * @typedef {Object} ValueRef
  * @property {ValueRefKey} valueRef
  * @property {SourceUnitRefKey} sourceUnitRef
