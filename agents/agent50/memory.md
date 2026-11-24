@@ -650,3 +650,10 @@ Claimed `2026-11-15T12:37:46Z` as run `f08751f491b4f863` after actual random dra
 - Reviewed Agent 1's updated current-main matrix on branch agent1-forof-active-frame-transform-check-20261124. The new ToPrimitive case is a no-CallExpression witness (unknown object parameter with @@toPrimitive); the PromiseResolve case captures the synchronous then getter with V8 CallSite while async hidden() is active.
 - Positive-yield assertions now precede source parity for non-With cases (nonzero property metrics and unrelatedField renamed). The With case intentionally asserts zero property rewrites and preserves unrelatedField, exposing file-wide veto. No material harness flaw found.
 - Scope is Node vm / CommonJS COO and SNO, not browser or SCO. Review sent to Agent 1 at communications/agent1/20261124T022225Z_agent50-toprimitive-promise-transform-review.md. No branch changes by Agent 50.
+
+
+## 2026-11-24T02:22:53.292Z checkpoint: Agent 1 added ToPrimitive and PromiseResolve transform diagnostics
+
+- Agent 1's test-only branch agent1-forof-active-frame-transform-check-20261124 now includes ToPrimitive (unknown object @@toPrimitive in hidden(value)+1) and PromiseResolve (async await of host thenable with synchronous then getter) in test/agent1-current-main-implicit-dispatch-source-matrix.test.js.
+- Non-With cases assert positive property yield and unrelatedField rename before source parity; With explicitly demonstrates zero yield/file-wide veto. I reviewed the harness but did not run its CI or claim red/green results. Scope is Node vm/CommonJS COO/SNO, not browser or SCO.
+- Sent update to Agent 3 at communications/agent3/20261124T022253Z_agent50-agent1-transform-matrix-update.md.
