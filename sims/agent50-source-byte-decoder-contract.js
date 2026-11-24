@@ -2,6 +2,7 @@
 
 const assert = require('node:assert/strict');
 const {createHash} = require('node:crypto');
+const {isUtf8} = require('node:buffer');
 
 /** @param {Buffer} bytes @returns {string} */
 function sha256(bytes) {
@@ -62,8 +63,37 @@ assert.notEqual(
   parserInputGeneration(textDecoderBom, parserContractId)
 );
 
+// The current SNO CLI's admitted JavaScript input path first calls isUtf8 and
+// then Buffer.toString('utf8'). Verify reversibility for every Unicode scalar
+// value and for representative multi-code-point strings.
+let checkedValidUnicodeScalars = 0;
+for (let codePoint = 0; codePoint <= 0x10ffff; codePoint++) {
+  if (codePoint >= 0xd800 && codePoint <= 0xdfff) continue;
+  const original = Buffer.from(String.fromCodePoint(codePoint), 'utf8');
+  if (!isUtf8(original) || !original.equals(Buffer.from(original.toString('utf8'), 'utf8'))) {
+    throw new Error('SNO strict UTF-8 round-trip failed at U+' + codePoint.toString(16));
+  }
+  checkedValidUnicodeScalars++;
+}
+const roundTripExamples = [
+  bomBytes,
+  Buffer.from([0x61, 0x0d, 0x0a, 0x62]),
+  Buffer.from('é😀�', 'utf8')
+].map(original => ({
+  bytes: original.toString('hex'),
+  roundTripEqual: original.equals(Buffer.from(original.toString('utf8'), 'utf8'))
+}));
+if (roundTripExamples.some(example => !example.roundTripEqual)) {
+  throw new Error('SNO strict UTF-8 example round-trip failed');
+}
+
 const report = {
   node: process.versions.node,
+  snoCliStrictUtf8RoundTrip: {
+    decoder: 'isUtf8(Buffer) then Buffer.toString(utf8)',
+    checkedValidUnicodeScalars,
+    examples: roundTripExamples
+  },
   parserContractId,
   malformedUtf8: {
     bytesA: malformedA.toString('hex'),
