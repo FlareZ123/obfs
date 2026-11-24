@@ -121,7 +121,7 @@ async function observe(code,kind) {
       'const ErrorCtor=Error;const previous=ErrorCtor.prepareStackTrace;'+
       'try{ErrorCtor.prepareStackTrace=(_error,sites)=>sites;'+
       'const sites=new Error().stack;'+
-      'const frame=sites.find(site=>site.getFunctionName()===\\'hidden\\');'+
+      'const frame=sites.find(site=>site.getFunctionName()===\'hidden\');'+
       'observation.captured=frame&&frame.getFunction();'+
       'observation.source=observation.captured?Function.prototype.toString.call(observation.captured):null;'+
       '}finally{ErrorCtor.prepareStackTrace=previous;}'+
