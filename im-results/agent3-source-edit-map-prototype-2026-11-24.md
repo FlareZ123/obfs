@@ -15,7 +15,7 @@ The map chain is a separate pipeline proof. Each pass maps a protected original 
 Current-main-based branch: `agent3/source-edit-map-20261124`  
 Base main SHA: `3d148a9f6407f357ae481d5d8196ae606f86cd17`  
 Initial implementation/test head: `741b42bf8459b6d3d505ee2bd6b83019380f3843`  
-Current implementation/test head: `f2df04a89201f91659dd2b7aab24b530d0854326`  
+Current implementation/test head: `24a1b331978414930b86782573a4571c380f1c7e`  
 Documentation head before this update: `348410f145fc465725d191bf0204dd41a01d9711`
 
 Files:
@@ -40,9 +40,9 @@ The parser contract identifier supplied by the caller must include the actual pa
 
 ## Validation
 
-Latest focused map run [45345729557](https://github.com/FlareZ123/obfs/actions/runs/45345729557) and transform-consumer run [45345735003](https://github.com/FlareZ123/obfs/actions/runs/45345735003) passed on Ubuntu and Windows, Node 22.23.4:
+Latest focused map run [45345729557](https://github.com/FlareZ123/obfs/actions/runs/45345729557) and corrected transform-consumer run [45347217581](https://github.com/FlareZ123/obfs/actions/runs/45347217581) passed on Ubuntu and Windows, Node 22.23.4:
 - 17 focused map tests passed, including parser-contract identity, lone high/low surrogate separation, response-scoped SourceUnitRef isolation, zero-width replacement/deletion boundaries, and 10,000 deterministic span checks;
-- 2 transform integration tests passed, including the hostile-host `queueMicrotask`/`Function#toString` capture and the unprotected red control;
+- 5 transform integration tests passed: protected host-held callback through identifier/string edits, local-property span filtering, host-only unprotected red control, direct `Function.prototype.toString` fail-closed behavior, and stale-generation rejection;
 - project JSDoc, external JSDoc and paired/complete-suite budget evaluator JSDoc passed.
 
 Both focused workflows intentionally skipped the comprehensive `node22` job. This is not a full-suite or release acceptance receipt.
@@ -53,7 +53,9 @@ The prototype reuses and extends Agent 1's existing `sims/utf16-edit-map-referen
 
 ## First real consumer slice
 
-`renameLocalIdentifiers` now optionally emits a generation-qualified map and skips identifiers overlapping validated protected SourceSpanRefs. `encodeStrings` now optionally emits a map including its generated decoder prologue and skips string literals overlapping validated protected spans. Both validate source-unit and parser-generation identity before accepting the spans. A transform-level test builds a callback span, maps it through identifier rewriting, reparses/rebuilds the current span, then protects it through string encoding while still encoding an unrelated top-level literal. A sandboxed hostile `queueMicrotask` reads `Function#toString` and sees the exact original callback source. The red control omits the protected span and proves the host observes mutated callback source. This is a real two-pass consumer witness, but the plan is manually supplied in the test; the canonical plan producer and core wiring remain absent.
+`renameLocalProperties`, `renameLocalIdentifiers` and `encodeStrings` now optionally emit generation-qualified maps and accept validated protected spans. Local properties decline the entire candidate object when any key/read/pattern edit intersects a protected span; identifiers skip overlapping nodes; strings skip overlapping literals and include the decoder prologue in their map. All three retain their existing whole-file `observesFunctionSource` veto. A protected span does not authorize bypass: the prototype's temporary raw `sourceObserverCoverageComplete` boolean was rejected after review and is now explicitly refused by all three APIs. Direct `Function.prototype.toString` remains fail-closed until a validated plan/proof exists.
+
+A transform-level test manually supplies a span for a host-held `queueMicrotask` callback (a host observer invisible to source-only heuristics), maps it through identifier rewriting and string encoding, reparses/rebuilds the current span, and verifies the hostile host sees the exact original callback source while an unrelated top-level literal encodes. Its no-span red control proves observable mutation. A separate local-property test proves edits outside a protected span while declining edits inside; a direct in-source `Function.prototype.toString` test proves all passes remain fail-closed and raw boolean overrides are rejected. The canonical plan producer and core wiring remain absent.
 
 The UTF-16LE generation is the identity of the parser's actual JS string input plus parser contract. If a SourceBytes effect needs original file-byte identity, SourceUnitRef must additionally bind the raw-byte digest and decoder contract; this map does not reconstruct raw input bytes from an already-decoded string.
 
