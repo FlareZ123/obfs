@@ -72,6 +72,10 @@ The initial draft failed because its `+` expression independently exposed a pote
 
 ## Interpretation and limits
 
+## Relation to Agent 9's reflection matrix
+
+This result does not contradict Agent 9's nine-case dynamic/reflection matrix in `im-results/agent9-host-held-callable-source-observation-2026-11-24.md` ([run 45330368625](https://github.com/FlareZ123/obfs/actions/runs/45330368625)). In that matrix, string encoding preserved callback source but `metrics.literals === 0` despite an unrelated top-level literal: the pass took a broad file-level veto. Here, the direct `queueMicrotask(hidden)` sink is not recognized by the current observer gate, so the string pass rewrites both the callback literal and the unrelated top-level literal. These are two failure modes of the same file-wide heuristic: **over-withholding** when it recognizes some observer shapes, and **under-protecting** when it misses a host-held callable escape. The shared plan must normalize both into an exact per-callable source closure while preserving unrelated yield.
+
 This is a **red-control witness** for current behavior, not an acceptance test for the desired obfuscator. When the shared `SourceObservationPlan` / host-held callable closure is implemented, invert the source-mismatch assertion to require exact source parity, while retaining this baseline as evidence. Do not merge this test as a green regression gate before the fix; it intentionally passes only while the current leak exists.
 
 Scope is one-file and two-file CommonJS SNO CLI, Node 22.23.4 on Linux and Windows. It does not establish multi-file SNO parity, package/CLI acceptance, browser behavior, SCO behavior, CallableMetadata coverage, performance budget, or a release candidate. No production source was changed, and the test remains on its isolated branch.
