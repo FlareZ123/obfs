@@ -84,7 +84,7 @@ The theoretical orbit cap is (2^{21}=2,097,152); all observed orbits terminate w
 
 ## Shared-cache comparison
 
-A second test reuses a query-result cache across all eight targets within each fixed wrapper/sample batch. The graph method is invoked with one fixed graph seed per batch; the cache records exact unique public oracle inputs. The low-rank method uses the same completion sample stream across the eight targets. Its exact union of orbit states is not materialized, but the largest orbit in the batch is a rigorous lower bound on unique low-rank oracle inputs: a cycle of length (L) contains (L) distinct states, and the union across targets cannot be smaller than its largest member.
+A second test reuses a query-result cache across all eight targets within each fixed wrapper/sample batch. The graph method is invoked with one fixed graph seed per batch; the cache records exact unique public oracle inputs. The low-rank method replays the same seeded completion sequence from its beginning for each target. Its exact union of orbit states is not materialized, but the largest orbit in the batch is a rigorous lower bound on unique low-rank oracle inputs: a cycle of length (L) contains (L) distinct states, and the union across targets cannot be smaller than its largest member.
 
 | Wrapper | Low-rank sample seed | Graph reported calls | Graph unique inputs (cached) | Largest low-rank orbit (unique-query lower bound) | Lower-bound ratio |
 |---|---|---:|---:|---:|---:|
