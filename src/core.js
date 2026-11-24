@@ -22,7 +22,7 @@ const {hasPinnedLocalJavaScriptIntegrity}=require('./html-assets');
 const {assertReviewedOpaqueAssets}=require('./reviewed-assets');
 const {proveSourceObserverIslands}=require('./source-observer-islands');
 const {canonicalAllowedHosts}=require('./hosts');
-const {buildDirectFunctionSourcePlan,isValidatedSourceObservationPlan,getInitialPlanRanges,protectedRangesFromTracked,advancePlanRanges,validatePlanSemantics}=require('./source-observation-plan');
+const {buildDirectFunctionSourcePlan,isValidatedSourceObservationPlan,getInitialPlanRanges,protectedRangesFromTracked,advancePlanRanges,validatePlanSemantics,acceptPlannedPass}=require('./source-observation-plan');
 
 /** @typedef {'coo'|'sco'|'sno'} ObfuscationMode */
 /** @typedef {'module'|'script'|'commonjs'|'asset'} SourceType */
@@ -2141,15 +2141,15 @@ function obfuscateFiles(files, options = {}) {
      */
     function acceptPlanPass(result,sourceBefore) {
       if(!sourceObservationPlan||!result.editMap)return false;
-      const nextRanges=advancePlanRanges(sourceObservationPlan,result.editMap,
-        sourceBefore,result.code,trackedSourceRanges);
-      if(!nextRanges)return false;
-      const nextAst=parse(result.code,'module');
-      if(!validatePlanSemantics(sourceObservationPlan,result.code,nextAst,nextRanges))return false;
-      trackedSourceRanges=nextRanges;
-      protectedSourceRanges=protectedRangesFromTracked(sourceObservationPlan,trackedSourceRanges);
+      let nextAst;
+      try {nextAst=parse(result.code,'module');} catch {return false;}
+      const accepted=acceptPlannedPass(sourceObservationPlan,result.editMap,
+        sourceBefore,result.code,nextAst,trackedSourceRanges);
+      if(!accepted)return false;
+      trackedSourceRanges=accepted.trackedRanges;
+      protectedSourceRanges=accepted.protectedSourceRanges;
       code=result.code;
-      ast=nextAst;
+      ast=accepted.ast;
       return true;
     }
     const vmNames=selectedFunctionNames.get('Register VM')?.get(filename)??[];
