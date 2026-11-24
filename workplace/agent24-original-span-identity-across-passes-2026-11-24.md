@@ -24,7 +24,7 @@ The v2 contract mentions either retaining the plan against original spans or pro
 
 Every transform consumer must be able to prove that the current AST node it is about to mutate corresponds to the exact original `SourceSpanId` in the plan. It must never compare offsets across source generations without a validated mapping. If the mapping is absent, overlapping, stale or ambiguous, the consumer declines the affected edit.
 
-**Coordinate unit must be explicit.** The current Acorn/JavaScript-string pipeline and `applyEdits` use JavaScript string offsets (`source.length` / `slice`), i.e. UTF-16 code units, while `sourceGeneration` is described in terms of exact bytes. Do not let a byte offset from a UTF-8/Wasm-side pass be compared directly with an Acorn span. Specify the canonical coordinate unit on `SourceSpanRef`/the edit map (for this pipeline, `utf16-code-unit`) and define any byte↔UTF-16 conversion at the source-unit boundary.
+**Coordinate unit is already explicit in the canonical schema.** The current `SourceSpanRef` typedef defines `startOffset` / `endOffset` as UTF-16 code-unit offsets and includes `coordinateUnit: 'utf16-code-unit'`. There is no schema gap here. The edit-map implementation must honor this unit and define any byte↔UTF-16 conversion at source-unit boundaries; retain the astral-character acceptance case as an implementation conformance test.
 
 ## Viable implementation strategies
 
