@@ -54,7 +54,7 @@ function renameLocalIdentifiers(source,ast,options) {
       const mapped=applyEditsWithMap(source,edits,options.sourceUnitRef,options.parserContractId);
       return {code:mapped.code,bindings,editMap:mapped.map};
     }
-    return finish(edits,bindings);
+    return {code:applyEdits(source,edits),bindings};
   }
   if(observesFunctionSource(ast)) return finish([],0);
   const counts=collectBindings(ast);
@@ -232,7 +232,7 @@ function renameLocalIdentifiers(source,ast,options) {
     bindings++;
     edits.push(...local);
   }
-  return {code:applyEdits(source,edits),bindings};
+  return finish(edits,bindings);
 }
 
 module.exports={renameLocalIdentifiers};
