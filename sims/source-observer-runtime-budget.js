@@ -73,7 +73,7 @@ async function measureWorkload(source,workload,extraStrings) {
     runtimeVersion:process.versions.node,
     contractVersion:'coo-direct-function-source-v1',
     pristineIntrinsicsPremise:
-      'Fresh Node ESM module realm with unmodified Function.prototype.toString, Function.prototype.call, and String.fromCharCode before module evaluation.'
+      'Fresh ESM module instance in the same unmodified Node realm, with unmodified Function.prototype.toString, Function.prototype.call, and String.fromCharCode.'
   };
   const result=obfuscateFiles([{
     path:'entry.mjs',sourceType:'module',code:source
@@ -116,9 +116,30 @@ async function measureWorkload(source,workload,extraStrings) {
     baselineSamples.push(baseline.elapsedMs);
     obfuscatedSamples.push(transformed.elapsedMs);
   }
+  const pairRatios=obfuscatedSamples.map((value,index)=>value/baselineSamples[index]);
   const baselineMedianMs=median(baselineSamples);
   const obfuscatedMedianMs=median(obfuscatedSamples);
   const ratio=obfuscatedMedianMs/baselineMedianMs;
+  const placeboLeftSamples=[];
+  const placeboRightSamples=[];
+  for(let index=0;index<SAMPLE_COUNT;index++) {
+    let left,right;
+    if(index%2===0) {
+      left=await importOnce(source,workload,'placebo-left',index);
+      right=await importOnce(source,workload,'placebo-right',index);
+    } else {
+      right=await importOnce(source,workload,'placebo-right',index);
+      left=await importOnce(source,workload,'placebo-left',index);
+    }
+    verify(left,right);
+    placeboLeftSamples.push(left.elapsedMs);
+    placeboRightSamples.push(right.elapsedMs);
+  }
+  const placeboPairRatios=placeboRightSamples.map((value,index)=>
+    value/placeboLeftSamples[index]);
+  const strictBreachSamples=pairRatios
+    .map((value,index)=>({sample:index,ratio:value}))
+    .filter(sample=>sample.ratio>BUDGET_RATIO);
   return {
     workload,
     extraStrings,
@@ -130,9 +151,19 @@ async function measureWorkload(source,workload,extraStrings) {
     warmupCount:WARMUP_COUNT,
     baselineSamplesMs:baselineSamples,
     obfuscatedSamplesMs:obfuscatedSamples,
+    pairRatios,
+    medianPairRatio:median(pairRatios),
+    maxPairRatio:Math.max(...pairRatios),
+    strictBreachCount:strictBreachSamples.length,
+    strictBreachSamples,
     baselineMedianMs,
     obfuscatedMedianMs,
     ratio,
+    placeboLeftSamplesMs:placeboLeftSamples,
+    placeboRightSamplesMs:placeboRightSamples,
+    placeboPairRatios,
+    placeboMaxPairRatio:Math.max(...placeboPairRatios),
+    placeboStrictBreachCount:placeboPairRatios.filter(value=>value>BUDGET_RATIO).length,
     budgetRatio:BUDGET_RATIO,
     passesBudget:ratio<=BUDGET_RATIO,
     metrics:emitted.metrics
@@ -148,7 +179,7 @@ async function main() {
     node:process.version,
     platform:process.platform,
     architecture:process.arch,
-    budgetRule:'COO initialization is not exempt; median module-evaluation ratio must be <= 2.5x',
+    budgetRule:'COO initialization is not exempt; median module-evaluation ratio must be <= 2.5x; every strict per-pair breach is reported separately and placebo does not erase it.',
     workloads:[small,medium]
   };
   process.stdout.write('SOURCE_OBSERVER_RUNTIME_BUDGET '+JSON.stringify(report)+'\n');
