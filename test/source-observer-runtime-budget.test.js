@@ -7,7 +7,7 @@ const {pairedBudgetBound}=require('../sims/paired-budget-bound');
 const {familywiseBudgetBounds}=require('../sims/familywise-budget-bound');
 
 test('current COO source-observer startup reports median and strict budget evidence',async()=>{
-  /** @type {{platform:string,cpuBatchSize:number,workloads:Array<{workload:string,baselineSamplesMs:number[],obfuscatedSamplesMs:number[],baselineCpuSamplesMs:number[],obfuscatedCpuSamplesMs:number[],placeboLeftSamplesMs:number[],placeboRightSamplesMs:number[],placeboLeftCpuSamplesMs:number[],placeboRightCpuSamplesMs:number[],strictBreachCount:number,strictBreachSamples:Array<{sample:number,ratio:number}>}>}} */
+  /** @type {{platform:string,cpuBatchSize:number,threadCpuAvailable:boolean,workloads:Array<{workload:string,baselineSamplesMs:number[],obfuscatedSamplesMs:number[],baselineCpuSamplesMs:number[],obfuscatedCpuSamplesMs:number[],placeboLeftSamplesMs:number[],placeboRightSamplesMs:number[],placeboLeftCpuSamplesMs:number[],placeboRightCpuSamplesMs:number[],baselineThreadCpuSamplesMs:Array<number|null>,obfuscatedThreadCpuSamplesMs:Array<number|null>,placeboLeftThreadCpuSamplesMs:Array<number|null>,placeboRightThreadCpuSamplesMs:Array<number|null>,strictBreachCount:number,strictBreachSamples:Array<{sample:number,ratio:number}>}>}} */
   const report=/** @type {unknown} */ (await main());
   assert.equal(report.workloads.length,2);
   const workloads=report.workloads.map(workload=>({
@@ -27,12 +27,24 @@ test('current COO source-observer startup reports median and strict budget evide
     candidateMax:Math.max(...workload.obfuscatedCpuSamplesMs)
   }));
   process.stdout.write('SOURCE_OBSERVER_CPU_RAW_DIAGNOSTICS '+JSON.stringify({
-    platform:report.platform,cpuBatchSize:report.cpuBatchSize,workloads:cpuDiagnostics
+    platform:report.platform,cpuBatchSize:report.cpuBatchSize,threadCpuAvailable:report.threadCpuAvailable,workloads:cpuDiagnostics
   })+'\n');
   const cpuValid=report.workloads.every(workload=>
     [...workload.baselineCpuSamplesMs,...workload.obfuscatedCpuSamplesMs].every(value=>Number.isFinite(value)&&value>0));
   const cpuPlaceboValid=report.workloads.every(workload=>
     [...workload.placeboLeftCpuSamplesMs,...workload.placeboRightCpuSamplesMs].every(value=>Number.isFinite(value)&&value>0));
+  const threadCpuValid=report.threadCpuAvailable&&report.workloads.every(workload=>
+    [...workload.baselineThreadCpuSamplesMs,...workload.obfuscatedThreadCpuSamplesMs]
+      .every(value=>typeof value==='number'&&Number.isFinite(value)&&value>0));
+  const threadCpuPlaceboValid=report.threadCpuAvailable&&report.workloads.every(workload=>
+    [...workload.placeboLeftThreadCpuSamplesMs,...workload.placeboRightThreadCpuSamplesMs]
+      .every(value=>typeof value==='number'&&Number.isFinite(value)&&value>0));
+  const threadCpuFamilywise=threadCpuValid?familywiseBudgetBounds(report.workloads.map(workload=>({
+    native:workload.baselineThreadCpuSamplesMs,candidate:workload.obfuscatedThreadCpuSamplesMs
+  })),{threshold:2.5,confidence:0.95}):null;
+  const threadCpuPlaceboFamilywise=threadCpuPlaceboValid?familywiseBudgetBounds(report.workloads.map(workload=>({
+    native:workload.placeboLeftThreadCpuSamplesMs,candidate:workload.placeboRightThreadCpuSamplesMs
+  })),{threshold:2.5,confidence:0.95}):null;
   const cpuFamilywise=cpuValid?familywiseBudgetBounds(report.workloads.map(workload=>({
     native:workload.baselineCpuSamplesMs,candidate:workload.obfuscatedCpuSamplesMs
   })),{threshold:2.5,confidence:0.95}):null;
@@ -50,7 +62,10 @@ test('current COO source-observer startup reports median and strict budget evide
     placeboFamilywise,
     cpuValid,cpuFamilywise,
     cpuStrictObservedVerdict:cpuFamilywise?(cpuFamilywise.observedSampleHasOverBudgetPair?'sample-exceeded':'sample-clean'):'inconclusive',
-    cpuPlaceboValid,cpuPlaceboFamilywise
+    cpuPlaceboValid,cpuPlaceboFamilywise,
+    threadCpuValid,threadCpuFamilywise,
+    threadCpuStrictObservedVerdict:threadCpuFamilywise?(threadCpuFamilywise.observedSampleHasOverBudgetPair?'sample-exceeded':'sample-clean'):'inconclusive',
+    threadCpuPlaceboValid,threadCpuPlaceboFamilywise
   })+'\n');
   assert.ok(familywise.rows.every(row=>row.samplePairs===31));
   assert.ok(placeboFamilywise.rows.every(row=>row.samplePairs===31));
@@ -63,6 +78,13 @@ test('current COO source-observer startup reports median and strict budget evide
       {threshold:2.5,confidence:0.95}):null;
     const cpuRatios=cpuValidForWorkload?
       workload.obfuscatedCpuSamplesMs.map((value,index)=>value/workload.baselineCpuSamplesMs[index]):[];
+    const threadCpuValidForWorkload=[...workload.baselineThreadCpuSamplesMs,...workload.obfuscatedThreadCpuSamplesMs]
+      .every(value=>typeof value==='number'&&Number.isFinite(value)&&value>0);
+    const threadCpuBound=threadCpuValidForWorkload?pairedBudgetBound(
+      workload.baselineThreadCpuSamplesMs,workload.obfuscatedThreadCpuSamplesMs,
+      {threshold:2.5,confidence:0.95}):null;
+    const threadCpuRatios=threadCpuValidForWorkload?
+      workload.obfuscatedThreadCpuSamplesMs.map((value,index)=>value/workload.baselineThreadCpuSamplesMs[index]):[];
     process.stdout.write('SOURCE_OBSERVER_CURRENT_PAIRED_BOUND '+JSON.stringify({
       platform:report.platform,workload:workload.workload,...bound,
       simStrictBreachCount:workload.strictBreachCount,
@@ -72,7 +94,12 @@ test('current COO source-observer startup reports median and strict budget evide
       cpuValidForWorkload,
       cpuMedianPairedRatio:cpuBound?.medianOfPairedRatios??null,
       cpuMaxPairedRatio:cpuValidForWorkload?Math.max(...cpuRatios):null,
-      cpuFamilywiseObservedPairsWithinBudget:cpuFamilywise?.rows[index]?.observedPairsWithinBudget??null
+      threadCpuValidForWorkload,
+      threadCpuBound,
+      threadCpuStrictBreachCount:threadCpuValidForWorkload?threadCpuRatios.filter(value=>value>2.5).length:null,
+      threadCpuMaxPairedRatio:threadCpuValidForWorkload?Math.max(...threadCpuRatios):null,
+      cpuFamilywiseObservedPairsWithinBudget:cpuFamilywise?.rows[index]?.observedPairsWithinBudget??null,
+      threadCpuFamilywiseObservedPairsWithinBudget:threadCpuFamilywise?.rows[index]?.observedPairsWithinBudget??null
     })+'\n');
   }
 });
