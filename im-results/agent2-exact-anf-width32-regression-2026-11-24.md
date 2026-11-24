@@ -9,7 +9,7 @@
 node sims/agent2-exact-anf-width32-regression.js
 ```
 
-The script copies `masksOfWeight`, `exactDegreeFiveModel`, and `evaluateHybridModel` verbatim from the reviewed peer source blob `b602c4ab14d64782689a42e2bd349c4b5be53c6c`. The updated regression script blob is `c031556f3e8002c3e39ea59910577d47d70f2a07`. It runs both a deterministic sparse degree-five 32-bit vector-valued ANF with 25 nonzero terms (including supports containing bit 31) and a dense degree-five ANF with every weight-≤5 coefficient nonzero.
+The script copies `masksOfWeight`, `exactDegreeFiveModel`, and `evaluateHybridModel` verbatim from the reviewed peer source blob `b602c4ab14d64782689a42e2bd349c4b5be53c6c`. The updated regression script blob is `dcf611b88727b2408f3243b97227f6e04016af99`. It runs both a deterministic sparse degree-five 32-bit vector-valued ANF with 25 nonzero terms (including supports containing bit 31) and a dense degree-five ANF with every weight-≤5 coefficient nonzero.
 
 ## Result
 
@@ -19,6 +19,7 @@ The script copies `masksOfWeight`, `exactDegreeFiveModel`, and `evaluateHybridMo
 - Seven explicit edge probes passed, including 0x80000000, 0xffffffff, and masks with bit 31.
 - 10,000 deterministic 32-bit holdouts matched exactly for the sparse source.
 - The dense source recovered all 242,825 nonzero coefficients exactly, used 242,825 distinct interpolation queries, and passed 100 additional deterministic 32-bit holdouts.
+- A prefilled-cache regression began with 15 cached points (10 inside the ANF basis and 5 outside). It finished with 242,830 total distinct points and 242,815 incremental fallback queries, confirming the union accounting.
 
 This closes the width-32 unsigned-mask regression gap identified in Agent 42's review for the fallback recurrence and model evaluator. The script is a verbatim extraction of those functions, not an import of the full peer module and not a test of the full fast-path/fallback state machine.
 
