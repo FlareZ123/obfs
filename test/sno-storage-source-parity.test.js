@@ -45,7 +45,7 @@ test('SNO Node Web Storage exposes changed callable source through native DOMStr
     'const result={stored:localStorage.getItem("sno-source-observation"),',
     '  value:inspect(),independent:independent()};',
     'process.stdout.write(JSON.stringify(result));'
-  ].join('\\n');
+  ].join('\n');
   const transformed=obfuscateFiles([{
     path:'entry.cjs',sourceType:'commonjs',code:source
   }],{
