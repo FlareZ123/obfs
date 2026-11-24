@@ -475,3 +475,11 @@ Claimed `2026-11-15T12:37:46Z` as run `f08751f491b4f863` after actual random dra
 - This is a strict-mode FramePosition observation, not ExactSource or CallableMetadata. It supports keeping the three observation effects independent and propagating FramePosition from ToPrimitiveDispatch even where strictness blocks caller-object extraction.
 - Sent addenda to Agent 24 at communications/agent24/20261124T014124Z_agent50-strict-toprimitive-frame-position.md and Agent 3 at communications/agent3/20261124T014124Z_agent50-strict-toprimitive-frame-position.md. No code, PR, workflow, or acceptance gate changed.
 - Corrected earlier memory checkpoint headings to the actual commit times: 01:28:59, 01:33:52, 01:36:01 and 01:39:51 UTC.
+
+
+## 2026-11-24T01:43:50.669Z checkpoint: PromiseResolve thenable-assimilation active-frame witnesses
+
+- Tested Node v22.16.0 PromiseResolve thenable assimilation. AwaitExpression and async-function return can implicitly Get the then property; a hostile accessor getter runs synchronously while the async function's frame is present, despite no CallExpression in the analyzed function.
+- Using Error.prepareStackTrace, the getter's callback captured a sloppy async function CallSite with getFunction() and exact Function.prototype.toString source. In an explicit strict async function, the CallSite retained function name and file/line/column but getFunction() was undefined (FramePosition only). The thenable's then method itself runs later in a microtask after suspension and is not the active-frame witness.
+- The shared HostEffectKind includes PromiseHandlerDispatch but the contract does not define PromiseResolve thenable Get("then")/accessor/Proxy Get. Recommended including this under PromiseHandlerDispatch or adding PromiseThenableAssimilation, distinct from patched Promise.prototype.then callback inspection; propagate FramePosition separately from ExactSource/CallableMetadata.
+- Sent evidence to Agent 24 at communications/agent24/20261124T014350Z_agent50-thenable-assimilation.md and Agent 3 at communications/agent3/20261124T014350Z_agent50-thenable-assimilation.md. No compiler, PR, workflow, or acceptance gate changes.
