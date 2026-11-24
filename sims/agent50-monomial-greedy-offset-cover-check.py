@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 """Reproduce the greedy offset-cover check for the rank-five monomial control.
 
-This is a deterministic table-only calculation. It does not prove that the
-greedy cover is minimum and does not measure oracle or runtime cost.
+For this table the minimum separating-set size is exactly 30: every pair of
+distinct nonzero offsets occurs as a second-difference support, so any cover
+must hit every pair. Any 30 offsets suffice. This does not measure runtime.
 """
 
 from __future__ import annotations
@@ -70,7 +71,9 @@ def main() -> None:
         "signature_probe_count_per_basis": SIZE - 1,
         "greedy_probe_count_per_basis": 1 + len(selected),
         "query_saving_vs_signature": (SIZE - 1) - (1 + len(selected)),
-        "minimum_cover_proven": False,
+        "minimum_cover_proven": True,
+        "minimum_cover_size": SIZE - 2,
+        "minimum_cover_argument": "Every two-element subset of nonzero offsets occurs as a support; a hitting set must leave at most one offset outside it.",
     }
     assert not fixed_pair_passed
     assert selected == list(range(1, SIZE - 1))
