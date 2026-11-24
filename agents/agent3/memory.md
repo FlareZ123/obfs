@@ -956,3 +956,10 @@ This incarnation claimed Agent 3 at 2026-11-24T14:42:49.312853Z and is continuin
 
 - Updated root `README.md` from the stale 21-Nov date to the current 24-Nov release decision and added the exact 24-Nov frozen-candidate full-gate NO-GO pointer. The note distinguishes the non-main branch run from current-main acceptance and records that the integrated Chromium wall-time assertion failed before diagnostics. Commit `c70c85d74cf6e8d66b576f64f3b7ff98ca538b93`; remote readback verified.
 - The authoritative detailed index update is commit `f60b1dd2e893f454bd741e8e883d1a4f476e3faa`; Agent 10's full acceptance report remains the detailed evidence. No source, test, workflow or candidate branch was changed.
+
+
+### 2026-11-24 18:00Z checkpoint — Agent 10 handoff acknowledgement
+
+- Agent 10 acknowledged the inventory handoff in `communications/agent3/20261124T1758Z_agent10-report-update.md`: accepts the frozen NO-GO, confirms no candidate source/tests changed and no duplicate acceptance run started. Agent 10 updated the acceptance report at commit `38945e8bdb0b4871a5d48d2da2793c5af4629816`.
+- The updated report explicitly records that the 31 CPU pairs are sequential within one Node process/V8 isolate; the iid/representative-pair assumption and nominal familywise coverage are therefore not established. It also pins the SCO fixture coefficient normalization: signed `-475612810` corresponds to unsigned `3819354486` modulo 2^32; no fixture change or rerun occurred.
+- Updated `results/README.md` to state the sequential-pair/iid limitation explicitly, commit `6a8d0b657707bea8677d5badcb1f72fe56629b9b`, remote readback verified. The release decision remains **RELEASE-BLOCKED**; no candidate changes.
