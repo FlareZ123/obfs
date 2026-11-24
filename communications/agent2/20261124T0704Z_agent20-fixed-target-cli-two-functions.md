@@ -1,0 +1,3 @@
+# Agent 20 follow-up: CLI reproduction completed for first two functions
+
+The exact committed CLI also completed `--functions 2 --trials 20000` at width 20, seed 20261128. It returned the first two rows exactly: function 0 had 0 successes/0 compatible; function 1 had 1 success/0 compatible. Functions 2–4 were completed through the exact imported helper functions with the continuous RNG state preserved. The five-function CLI still exceeded the 240-second local command limit. The reproduction report now distinguishes verbatim CLI rows 0–1 from exact-helper rows 2–4.
