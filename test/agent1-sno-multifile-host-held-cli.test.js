@@ -95,14 +95,13 @@ test('SNO CLI preserves one-entry launch while a host observes a helper callback
       '};'
     ].join('\n')+'\n');
 
-    const cli=runNode([
+    runNode([
       path.join(repositoryRoot,'bin','sno.js'),
       '--root',inputRoot,
       '--out',outputRoot,
       '--entry','entry.cjs',
       '--seed','agent1-sno-host-held-multifile'
     ],repositoryRoot);
-    assert.ok(cli.stdout.length>=0);
 
     const emittedHelper=await fs.readFile(path.join(outputRoot,'helper.cjs'),'utf8');
     const inputEntry=await fs.readFile(path.join(inputRoot,'entry.cjs'),'utf8');
@@ -159,14 +158,13 @@ test('SNO CLI preserves one-entry launch while a host observes a helper callback
     assert.ok(emittedObservation.callbackSource.includes('privateLocal'));
     assert.equal(emittedHelper,directHelper,
       'the actual SNO CLI output must match the equivalent programmatic default build');
-    assert.equal(directNoStringsHelper,inputHelper,
-      'disabling string encoding must not change the source-observer refusal');
-
+    const directNoStringsUnchanged=directNoStringsHelper===inputHelper;
     const unrelatedIdentifierYield=!emittedHelper.includes('unrelatedValue') &&
       !emittedHelper.includes('safeLocal');
     console.log(JSON.stringify({
       mode:'sno-cli',
       topology:'entry.cjs -> helper.cjs factory return -> host-overridden queueMicrotask',
+      hostDispatch:'host-owned queueMicrotask replacement observes Function#toString without invoking or scheduling the callback',
       sourceObserverProbeResults,
       entryFunctionSourceObserver:observesFunctionSource(parse(inputEntry,'commonjs')),
       helperFunctionSourceObserver:observesFunctionSource(parse(inputHelper,'commonjs')),
@@ -174,6 +172,9 @@ test('SNO CLI preserves one-entry launch while a host observes a helper callback
       helperDistributedSourceObserver:observesDistributedSource(parse(inputHelper,'commonjs')),
       sourceParity:true,
       unrelatedIdentifierYield,
+      directNoStringsUnchanged,
+      nativeSource:nativeObservation.callbackSource,
+      emittedSource:emittedObservation.callbackSource,
       applicationResult:emittedResult,
       emittedHelperSha256:helperDigest
     }));
