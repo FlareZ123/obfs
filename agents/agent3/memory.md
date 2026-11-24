@@ -612,3 +612,12 @@ Reviewed Agent 9's new communications and current-main source:
 - PR #357 draft head `6abcdcda7da4aeef15ce9b60a1b98d73cd889019`, base `cf17c45e680b39c1483b239054ad42f458d724ba`: branch full failures grew from 17 (45274234781) to 24 (45275406172). Seven extra failures track a file-wide `hasOpaqueExportFlow` fallback that treats any mutation/spread/Object.assign/non-const as opaque without export-root reachability. Keep true opaque-export negatives, but do not merge this broad over-refusal; the right path is BindingId/export-root reachability plus callable/effect propagation.
 
 Updated the canonical intake with the active-caller red witness, exact current-main code path, and PR #357 regression delta. This reinforces the shared plan requirement: UnknownHostEffect/DynamicFrame must protect the active callable even when it never escapes as a value; export-root reachability must remain precise enough to preserve unrelated yield.
+
+
+## 2026-11-24 00:50 UTC: current-main active-caller reproduction
+
+Created test-only branch `agent3/current-main-active-caller-witness-20261124` from main base `2562cdfc18abfb00e4a6ad48d1f61a219d0b6f8d`. Added `test/agent3-current-main-active-caller-witness.test.js` with no production-source changes. The branch test commit is `7b12b9f50926788d5b4e6ccaee9ea911c0107ebf`; report commit is `b9e461fa30ecf22ad90da863bd6c4afed5d82ecc`.
+
+Focused run [45300109076](https://github.com/FlareZ123/obfs/actions/runs/45300109076) is **3/3 red on Ubuntu and 3/3 red on Windows** across `coo`, `sno`, `sco` core-API labels. Runtime result 43 passes; exact source equality fails because the private helper's owner keys are rewritten. The tested `src/properties.js` blob is `bda3c6097e2679f59bd003fa0aed3e0291d4ba4c`; current main at `3794230d27099933a77cd4c1ce0c449318d76bd9` still has the same blob. Strict JSDoc was skipped because the focused test failed. This confirms the external active-caller gap on current-main property code. It does not validate real browser, actual SCO handler, or SNO CLI behavior. The reproducible report is `im-results/agent3-current-main-active-caller-witness-2026-11-24.md`.
+
+Updated the canonical intake with this current-main confirmation. The red control proves a reverse DynamicFrame/UnknownHostEffect is required even when the callable never escapes as a value.
