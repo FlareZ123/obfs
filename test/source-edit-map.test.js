@@ -180,8 +180,8 @@ test('canonical parser contracts distinguish script, module and CommonJS options
 });
 
 test('lossless UTF-16 generation digests distinguish lone high and low surrogates',()=>{
-  const high='const a="\\uD800";';
-  const low='const a="\\uDC00";';
+  const high='const a="'+String.fromCharCode(0xD800)+'";';
+  const low='const a="'+String.fromCharCode(0xDC00)+'";';
   assert.doesNotThrow(()=>require('../src/ast').parse(high,'module'));
   assert.doesNotThrow(()=>require('../src/ast').parse(low,'module'));
   assert.notEqual(Buffer.from(high,'utf16le').toString('hex'),
@@ -190,7 +190,7 @@ test('lossless UTF-16 generation digests distinguish lone high and low surrogate
 
   const unit='unit:surrogate-response:1';
   const map=applyEditsWithMap(high,[
-    {start:0,end:0,text:'// prefix\\n',affinity:'before-node'}
+    {start:0,end:0,text:'// prefix'+String.fromCharCode(10),affinity:'before-node'}
   ],unit,PARSER);
   const lowSpan=span(unit,low,0,low.length);
   assert.equal(mapSourceSpan(map.map,lowSpan,low,map.code),null,
