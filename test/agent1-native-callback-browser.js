@@ -168,6 +168,40 @@ function pageFor(observation,scriptPath,patchedMap=false){
 
 
 /**
+ * Observe one of two same-line Array.map callsites. The non-target callback
+ * still runs, but only the selected callback captures the active hidden frame.
+ * @param {string} scriptPath
+ * @param {number} targetIndex
+ * @returns {string}
+ */
+function multiPageFor(scriptPath,targetIndex){
+  return '<!doctype html><meta charset="utf-8">'+
+    '<pre id="result"></pre><pre id="failure"></pre>'+
+    '<script>window.module={exports:{}};'+
+    'window.__target='+targetIndex+';window.__count=0;'+
+    'window.__observation={source:null,frame:null,column:null,error:null,callerError:null};'+
+    'function external(){try{'+
+      'window.__count+=1;if(window.__count!==window.__target)return;'+
+      'var stack=String(new Error("host callback").stack||"");'+
+      'var lines=stack.split("\\n");'+
+      'var frame=lines.find(function(line){return /\\bhidden\\b/.test(line);})||null;'+
+      'window.__observation.frame=frame;'+
+      'var match=frame&&frame.match(/:(\\d+):(\\d+)\\)?$/);'+
+      'window.__observation.column=match?Number(match[2]):null;'+
+    '}catch(error){window.__observation.error=String(error&&error.message||error);}}'+
+    '</script>'+
+    '<script src="'+scriptPath+'"></script>'+
+    '<script>try{'+
+      'var value=module.exports(external);'+
+      'Promise.resolve().then(function(){'+
+        'var seen=window.__observation;'+
+        'var result={value:value,source:seen.source,frame:seen.frame,column:seen.column,error:seen.error,callerError:seen.callerError};'+
+        'document.getElementById("result").textContent=btoa(JSON.stringify(result));'+
+      '});'+
+    '}catch(error){document.getElementById("failure").textContent=String(error&&error.stack||error);}</script>';
+}
+
+/**
  * @param {string} modulePath
  * @param {boolean} [patchedMap]
  * @returns {string}
@@ -489,6 +523,132 @@ async function main(){
         callerError:before.callerError
       })+'\n');
     }
+    const multiSource=[
+      'const other={unrelatedField:2};',
+      'function hidden(external){const owner={longPrivatePropertyName:1};',
+      '[1].map(function(value){external();return value;});',
+      'const owner2={anotherLongPrivatePropertyName:0};',
+      '[2].map(function(value){external();return value;});',
+      'return owner.longPrivatePropertyName+owner2.anotherLongPrivatePropertyName;}',
+      'function plain(){return other.unrelatedField;}',
+      'function publicReader(external){return hidden(external)+plain();}',
+      'module.exports=publicReader;'
+    ].join('');
+    const multiOutput=obfuscateFiles([{
+      path:'multi-callsite.cjs',sourceType:'commonjs',code:multiSource
+    }],{
+      mode:'coo',closedWorld:true,
+      seed:'agent1-native-callback-browser-multicallsite',
+      identifiers:false,strings:false,properties:true
+    });
+    assert.equal(multiOutput.files.length,1);
+    const multiCodeValue=multiOutput.files[0].code;
+    assert.equal(typeof multiCodeValue,'string');
+    const multiCompiled=/** @type {string} */(multiCodeValue);
+    const multiProperties=multiOutput.files[0].metrics.properties;
+    assert.ok(multiProperties>=3,'multi-callsite fixture must rename both private keys and unrelated positive control');
+    assert.ok(!multiCompiled.includes('longPrivatePropertyName'));
+    assert.ok(!multiCompiled.includes('anotherLongPrivatePropertyName'));
+    assert.ok(!multiCompiled.includes('unrelatedField'));
+    resources.set('/multi-callsite/native.js',{
+      body:multiSource,type:'text/javascript; charset=utf-8'
+    });
+    resources.set('/multi-callsite/compiled.js',{
+      body:multiCompiled,type:'text/javascript; charset=utf-8'
+    });
+    for(const target of [1,2]){
+      resources.set('/multi-callsite/native-'+target+'.html',{
+        body:multiPageFor('/multi-callsite/native.js',target),
+        type:'text/html; charset=utf-8'
+      });
+      resources.set('/multi-callsite/compiled-'+target+'.html',{
+        body:multiPageFor('/multi-callsite/compiled.js',target),
+        type:'text/html; charset=utf-8'
+      });
+    }
+    const nativeFirst=await observe(origin,'/multi-callsite/native-1.html');
+    const compiledFirst=await observe(origin,'/multi-callsite/compiled-1.html');
+    const nativeSecond=await observe(origin,'/multi-callsite/native-2.html');
+    const compiledSecond=await observe(origin,'/multi-callsite/compiled-2.html');
+    /** @type {Array<[string,Observation]>} */
+    const multiObservations=[
+      ['native first',nativeFirst],['compiled first',compiledFirst],
+      ['native second',nativeSecond],['compiled second',compiledSecond]
+    ];
+    for(const [label,observation] of multiObservations){
+      assert.equal(observation.value,3,'multi-callsite '+label+' result');
+      assert.equal(observation.error,null,'multi-callsite '+label+' observer');
+      assert.ok(observation.frame&&observation.frame.includes('hidden'),'multi-callsite '+label+' hidden frame');
+      assert.ok(Number.isInteger(observation.column),'multi-callsite '+label+' frame column');
+    }
+    const nativeFirstColumn=/** @type {number} */(nativeFirst.column);
+    const compiledFirstColumn=/** @type {number} */(compiledFirst.column);
+    const nativeSecondColumn=/** @type {number} */(nativeSecond.column);
+    const compiledSecondColumn=/** @type {number} */(compiledSecond.column);
+    assert.notEqual(nativeFirstColumn,nativeSecondColumn,
+      'two same-line callsites must expose distinct native columns');
+    const multiMarkers=['[1].map(','[2].map('];
+    const sourceDeltas=multiMarkers.map(marker=>
+      columnDeltaBeforeMarker(multiSource,multiCompiled,marker)
+    );
+    const runtimeDeltas=[
+      nativeFirstColumn-compiledFirstColumn,
+      nativeSecondColumn-compiledSecondColumn
+    ];
+    assert.deepEqual(sourceDeltas,runtimeDeltas,
+      'each source-derived marker delta must match its observed runtime frame delta');
+    assert.ok(sourceDeltas[0]>0,'first callsite must have a positive source delta');
+    assert.ok(sourceDeltas[1]>sourceDeltas[0],
+      'second callsite must include the cumulative shrink from both private property rewrites');
+    const incrementalPads=[
+      sourceDeltas[0],
+      sourceDeltas[1]-sourceDeltas[0]
+    ];
+    assert.ok(incrementalPads.every(delta=>delta>0),
+      'both same-line callsites must require positive incremental padding');
+    let multiPadded=multiCompiled;
+    multiPadded=padBeforeMarkerByDelta(multiPadded,multiMarkers[0],incrementalPads[0]);
+    multiPadded=padBeforeMarkerByDelta(multiPadded,multiMarkers[1],incrementalPads[1]);
+    assert.equal(columnDeltaBeforeMarker(multiSource,multiPadded,multiMarkers[0]),0,
+      'incremental first padding must restore first static source column');
+    assert.equal(columnDeltaBeforeMarker(multiSource,multiPadded,multiMarkers[1]),0,
+      'incremental second padding must restore second static source column');
+    resources.set('/multi-callsite/padded.js',{
+      body:multiPadded,type:'text/javascript; charset=utf-8'
+    });
+    for(const target of [1,2]){
+      resources.set('/multi-callsite/padded-'+target+'.html',{
+        body:multiPageFor('/multi-callsite/padded.js',target),
+        type:'text/html; charset=utf-8'
+      });
+    }
+    const paddedFirst=await observe(origin,'/multi-callsite/padded-1.html');
+    const paddedSecond=await observe(origin,'/multi-callsite/padded-2.html');
+    assert.equal(paddedFirst.value,nativeFirst.value);
+    assert.equal(paddedSecond.value,nativeSecond.value);
+    assert.equal(paddedFirst.column,nativeFirst.column,
+      'incremental padding must restore the first native frame column');
+    assert.equal(paddedSecond.column,nativeSecond.column,
+      'incremental padding must restore the second native frame column');
+    paddingResults.push({
+      mode:'commonjs',kind:'multi-callsite-first',
+      delta:sourceDeltas[0],runtimeDelta:runtimeDeltas[0],
+      nativeColumn:nativeFirstColumn,compiledColumn:compiledFirstColumn,
+      paddedColumn:/** @type {number} */(paddedFirst.column)
+    });
+    paddingResults.push({
+      mode:'commonjs',kind:'multi-callsite-second',
+      delta:sourceDeltas[1],runtimeDelta:runtimeDeltas[1],
+      nativeColumn:nativeSecondColumn,compiledColumn:compiledSecondColumn,
+      paddedColumn:/** @type {number} */(paddedSecond.column)
+    });
+    process.stdout.write('CHROMIUM_MULTI_CALLSITE_PADDING '+JSON.stringify({
+      sourceDeltas,runtimeDeltas,incrementalPads,
+      nativeColumns:[nativeFirstColumn,nativeSecondColumn],
+      compiledColumns:[compiledFirstColumn,compiledSecondColumn],
+      paddedColumns:[paddedFirst.column,paddedSecond.column],
+      properties:multiProperties
+    })+'\\n');
     process.stdout.write('CHROMIUM_INTRINSIC_CALLBACK_ESM_SUMMARY '+JSON.stringify({
       scenarios:moduleResults.length,
       strictSourceUnavailable:moduleResults.filter(item=>!item.patchedMap).every(item=>item.native.source===null&&item.compiled.source===null),
@@ -512,7 +672,8 @@ async function main(){
     deferredNoReturnedFrame:results.filter(item=>item.deferred).every(item=>item.native.frame===null&&item.compiled.frame===null),
     positiveYield:results.every(item=>item.properties>=1),
     nativeParity:results.every(item=>item.native.value===item.compiled.value),
-    positionPaddingPreserved:paddingResults.filter(item=>item.mode==='commonjs').length===6&&paddingResults.filter(item=>item.mode==='commonjs').every(item=>item.paddedColumn===item.nativeColumn)
+    positionPaddingPreserved:paddingResults.filter(item=>item.mode==='commonjs').length===8&&paddingResults.filter(item=>item.mode==='commonjs').every(item=>item.paddedColumn===item.nativeColumn),
+    multiCallsitePadding:paddingResults.filter(item=>item.kind.startsWith('multi-callsite')).length===2&&paddingResults.filter(item=>item.kind.startsWith('multi-callsite')).every(item=>item.paddedColumn===item.nativeColumn)
   })+'\n');
 }
 
