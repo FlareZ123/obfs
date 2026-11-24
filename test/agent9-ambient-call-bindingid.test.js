@@ -510,3 +510,17 @@ test('debugger statements expose the active frame and lexical callable values',(
   assert.equal(named(result,'caller')[0].ambient,true);
   assert.equal(named(result,'hidden')[0].hostHeldCallable,true);
 });
+
+
+test('CommonJS Annex-B block function declarations are not fixed call targets',()=>{
+  const inside=analyze(
+    'function caller(){if(true){function helper(){return 1;}helper();}}',
+    'commonjs'
+  );
+  assert.equal(named(inside,'caller')[0].ambient,true);
+  const outside=analyze(
+    'function caller(){if(true){function helper(){return 1;}}return helper();}',
+    'commonjs'
+  );
+  assert.equal(named(outside,'caller')[0].ambient,true);
+});
