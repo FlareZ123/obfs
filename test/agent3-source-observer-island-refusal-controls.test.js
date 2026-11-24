@@ -39,7 +39,7 @@ test('selected exported primitive reader rejects an unknown host callback in its
 test('importer rejects passing an isolated callable to an unknown host callback',()=>{
   const files=[
     moduleFile('watched.mjs',
-      'const value=17;export function watched(){return value;}'),
+      'const record={privateField:17};const value=record.privateField;export function watched(){return value;}'),
     moduleFile('entry.mjs',
       'import {watched} from "./watched.mjs";getExternal(watched);console.log(watched.toString());')
   ];
