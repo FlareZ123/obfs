@@ -224,52 +224,87 @@ test('degree-five affine-flag graph inversion on rank-21 displacement (joint rad
 });
 
 
-test('rank-21 graph learning can reuse a shared oracle cache across targets',()=>{
+test('rank-21 graph learning can reuse a shared oracle cache across target batches',()=>{
   const terms=makeRank21Terms(0x5eed21);
-  const wrapper={inputSeed:0x12345678,outputSeed:0x9abcdef0,
-    inputBias:0x13579bdf,outputBias:0x2468ace0};
-  const inputColumns=makeLinearTransform(wrapper.inputSeed);
-  const outputColumns=makeLinearTransform(wrapper.outputSeed);
-  const inputInverse=inverseOfColumns(inputColumns);
-  assert.ok(inputInverse);
-  /** @type {(value:number)=>number} */
-  const invertInput=inputInverse;
-  /** @param {number} input @returns {number} */
-  const oracle=input=>{
-    const hidden=(applyLinear(inputColumns,input)^wrapper.inputBias)>>>0;
-    return (applyLinear(outputColumns,rank21Triangular(hidden,terms))^wrapper.outputBias)>>>0;
-  };
+  const wrappers=[
+    {inputSeed:0x12345678,outputSeed:0x9abcdef0,inputBias:0x13579bdf,outputBias:0x2468ace0},
+    {inputSeed:0x31415926,outputSeed:0x27182818,inputBias:0xdeadbeef,outputBias:0xcafebabe}
+  ];
+  const sampleSeeds=[0x12345678,0xdeadbeef];
   const hiddenTargets=[
     0x67aa29ff,0x628acbfe,0xfe1940fd,0xc1ece67b,
     0x3e411777,0x37fff36f,0xbd72765f,0x8721e5bf
   ];
-  const cache=new Map();
-  let totalCalls=0,totalReportedQueries=0;
-  /** @param {bigint} input @returns {bigint} */
-  const cachedBigOracle=input=>{
-    const key=Number(input)>>>0;
-    totalCalls++;
-    if(!cache.has(key))cache.set(key,BigInt(oracle(key)));
-    return /** @type {bigint} */ (cache.get(key));
-  };
-  for(let index=0;index<hiddenTargets.length;index++){
-    /** @type {number} */
-    const secret=invertInput((hiddenTargets[index]^wrapper.inputBias)>>>0);
-    const target=oracle(secret);
-    const graph=invertByRandomAffineGraph(
-      cachedBigOracle,BigInt(target),32,5,{seed:0x5e21,delta:1e-8}
-    );
-    assert.equal(graph.input,BigInt(secret));
-    assert.equal(graph.verified,true);
-    totalReportedQueries+=graph.queries;
+  // The largest low-rank orbit in each matching wrapper/sample batch. A
+  // single cycle already requires at least this many distinct oracle inputs,
+  // even if every other target's orbit overlaps perfectly.
+  const maxLowRankOrbitLowerBounds=[
+    [2082189,2048076],
+    [2064800,2074107]
+  ];
+  /** @type {Array<{wrapperIndex:number,sampleSeed:string,reportedCalls:number,uniqueCalls:number,cacheSavings:number,lowRankUniqueLowerBound:number}>} */
+  const receipts=[];
+  let totalReportedCalls=0,totalUniqueCalls=0;
+  for(let wrapperIndex=0;wrapperIndex<wrappers.length;wrapperIndex++){
+    const wrapper=wrappers[wrapperIndex];
+    const inputColumns=makeLinearTransform(wrapper.inputSeed);
+    const outputColumns=makeLinearTransform(wrapper.outputSeed);
+    const inputInverse=inverseOfColumns(inputColumns);
+    assert.ok(inputInverse);
+    /** @type {(value:number)=>number} */
+    const invertInput=inputInverse;
+    /** @param {number} input @returns {number} */
+    const oracle=input=>{
+      const hidden=(applyLinear(inputColumns,input)^wrapper.inputBias)>>>0;
+      return (applyLinear(outputColumns,rank21Triangular(hidden,terms))^wrapper.outputBias)>>>0;
+    };
+    for(let sampleIndex=0;sampleIndex<sampleSeeds.length;sampleIndex++){
+      const sampleSeed=sampleSeeds[sampleIndex];
+      const cache=new Map();
+      let totalCalls=0,reportedCalls=0;
+      /** @param {bigint} input @returns {bigint} */
+      const cachedBigOracle=input=>{
+        const key=Number(input)>>>0;
+        totalCalls++;
+        if(!cache.has(key))cache.set(key,BigInt(oracle(key)));
+        return /** @type {bigint} */ (cache.get(key));
+      };
+      const graphSeed=(0x5e21+wrapperIndex*0x100+sampleIndex*0x20)>>>0;
+      for(let targetIndex=0;targetIndex<hiddenTargets.length;targetIndex++){
+        /** @type {number} */
+        const secret=invertInput((hiddenTargets[targetIndex]^wrapper.inputBias)>>>0);
+        const target=oracle(secret);
+        const graph=invertByRandomAffineGraph(
+          cachedBigOracle,BigInt(target),32,5,{seed:graphSeed,delta:1e-8}
+        );
+        assert.equal(graph.input,BigInt(secret));
+        assert.equal(graph.verified,true);
+        reportedCalls+=graph.queries;
+      }
+      const uniqueCalls=cache.size;
+      const lowRankLowerBound=maxLowRankOrbitLowerBounds[wrapperIndex][sampleIndex];
+      assert.equal(totalCalls,reportedCalls);
+      assert.ok(uniqueCalls<reportedCalls);
+      assert.ok(uniqueCalls<lowRankLowerBound);
+      totalReportedCalls+=reportedCalls;
+      totalUniqueCalls+=uniqueCalls;
+      receipts.push({
+        wrapperIndex,
+        sampleSeed:'0x'+sampleSeed.toString(16),
+        reportedCalls,
+        uniqueCalls,
+        cacheSavings:reportedCalls-uniqueCalls,
+        lowRankUniqueLowerBound:lowRankLowerBound
+      });
+    }
   }
-  assert.equal(totalCalls,totalReportedQueries);
-  assert.ok(cache.size<=totalReportedQueries);
-  process.stdout.write('OBFS_RANK21_GRAPH_SHARED_CACHE '+JSON.stringify({
-    targets:hiddenTargets.length,
-    sharedGraphSeed:'0x5e21',
-    reportedOracleCalls:totalReportedQueries,
-    uniqueOracleQueries:cache.size,
-    cacheSavings:totalReportedQueries-cache.size
-  })+'\n');
+  process.stdout.write('OBFS_RANK21_GRAPH_SHARED_CACHE_SWEEP '+JSON.stringify({
+    targetsPerBatch:hiddenTargets.length,
+    wrapperCount:wrappers.length,
+    sampleSeeds:sampleSeeds.map(seed=>'0x'+seed.toString(16)),
+    receipts,
+    totalReportedCalls,
+    totalUniqueCalls,
+    totalCacheSavings:totalReportedCalls-totalUniqueCalls
+  })+'\\n');
 });
