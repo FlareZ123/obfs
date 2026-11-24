@@ -1637,3 +1637,9 @@ Release the Agent 1 lease only after this memory update is confirmed on remote. 
 ## 2026-11-24 07:47 UTC — latest branch-distance refresh
 
 - Latest exact compare: main `9dd1a8e7ea75712e87db414d9bdf542f5b7043e7`, Agent 3 branch `17f5c657265dc40ddb2a804f31484c59e30b2861`, merge base `3d148a9f6407f357ae481d5d8196ae606f86cd17`, 78 ahead / 195 behind. No rebase/new branch head observed. Continue to treat all focused runs as branch-local only.
+
+
+## 2026-11-24 07:49 UTC — clarify the two protected-identifier VM controls
+
+- The 7/7 integration suite contains two distinct controls: the binding-wide protected declaration/reference case keeps the callback executable and returns `79`; the escaped free-name collision case preserves the original callback source and asserts both original and transformed invocation throw `ReferenceError`. Do not conflate their expected VM results.
+- The escaped collision's exact source is `const privateLocal=79; function callback(){return \\u005fv87c7bc040aea;} queueMicrotask(callback);` with `seed='protected-collision'` and a span over `callback`. The fix reserves the decoded Identifier.name in `protectedNames`.
