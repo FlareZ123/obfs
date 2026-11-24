@@ -126,6 +126,13 @@ test('canonical source spans remain immutable and mapped ranges carry provenance
   const sourceUnitRef=plan.sourceUnits.keys().next().value;
   assert.equal(typeof sourceUnitRef,'string');
   const parserContractId=parserContractIdFor('module');
+  const effect=plan.hostEffects.values().next().value;
+  assert.equal(effect.effectiveDispatchStatus,'unknown-or-mutable');
+  assert.equal(effect.effectiveOperationRef.kind,'unknown');
+  assert.equal(effect.receiverProvenance,'unknown');
+  assert.equal(effect.receiverLookupRoute,'unknown');
+  assert.equal(plan.hostContracts.values().next().value.intrinsicSnapshotId,null,
+    'a declared premise is not a runtime intrinsic snapshot');
   const spans=[...plan.sourceSpans.values()];
   const callableSpan=spans.find(span=>span.astNodeType==='FunctionDeclaration');
   assert.ok(callableSpan);
