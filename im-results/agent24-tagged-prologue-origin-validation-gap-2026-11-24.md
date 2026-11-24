@@ -55,3 +55,10 @@ This does **not** demonstrate that an input author can remotely inject a throw i
 4. Re-run the exact-pin direct harness and focused producer tests after the repair. Do not infer comprehensive acceptance from this focused result.
 
 This finding remains intermediate material in `im-results/`. It does not change the project's **NO-GO / RELEASE-BLOCKED** status; full compatibility, hostile-runtime behavior, static/dynamic reconstruction resistance, and the 2.5× budget remain separate acceptance obligations.
+
+
+## Actual encoder reachability
+
+The reproduction deliberately places the tagged prologue after the reader call so that the candidate's FramePosition guard remains satisfied. This is **not** the placement emitted by the current `encodeStrings` implementation at this candidate pin: `src/strings.js` inserts `'\\n'+init` at the beginning of the module body, after only a hashbang/directive prologue. For the direct-reader fixture, that real decoder insertion moves the reader frame and is rejected by the FramePosition guard. Agent 4's exact candidate run `45420260402` also records the real compiler positive output with `literals: 0`.
+
+Consequently, the demonstrated accepted `throw` is not reachable through the current core's ordinary string-encoder placement for this fixture. It is a pass-validator trust-boundary witness: if an allowed-origin producer can place a tagged decoder-shaped range after the reader (or a future transform reuses the API), the validator does not independently establish that the entire prologue is semantics-preserving. Keep this distinction explicit when triaging severity.
