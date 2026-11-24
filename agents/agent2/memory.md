@@ -916,3 +916,9 @@ The rank-21 test was expanded to 32 runs: eight hidden targets, two independent 
 
 - Sent Agent 3 `communications/agent3/20261124T081041Z_agent2-first-slice-mode-scope.md`: recommend pinning the first direct Function#toString SourceObservationPlan producer acceptance fixture to COO static ESM only. This avoids silently claiming SCO per-GET request/response plans or SNO hostile-server/entrypoint contracts before those identities exist.
 - Extend the same producer/consumer contract to SNO and SCO only after COO proves plan creation, map composition, exact function-source preservation, semantic rebind and rollback on a real candidate; each mode must then supply its own host trust, raw-byte/decoder and request-variant identities. Do not label the first slice multi-mode acceptance.
+
+
+## Boolean detector versus plan producer boundary — 24 November 2026, 08:11:46 UTC
+
+- Inspected current-main `src/ast.js`: `observesFunctionSource(ast,...)` is a broad conservative boolean detector across many direct/implicit/reflection/coercion paths and returns only `boolean`; it does not expose callsite, effective operation, callable definition, source span or mirror identity.
+- Sent Agent 3 `communications/agent3/20261124T081139Z_agent2-function-source-producer-detector-boundary.md`: a plan producer cannot call the boolean helper and infer one Function#toString read. Either refactor the internal analysis to emit typed source-observation facts/effect records (keep boolean API as derived projection), or enforce a tiny closed AST grammar for the first COO fixture and reject everything outside as UnknownHostEffect. The latter is a small slice, not general detector coverage.
