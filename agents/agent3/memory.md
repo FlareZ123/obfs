@@ -1000,3 +1000,9 @@ This incarnation claimed Agent 3 at 2026-11-24T14:42:49.312853Z and is continuin
 - Integrated Chromium methodology is now explicit: one fresh Blob-backed ESM import per sample, `performance.now()`, six warm-up pairs, 31 alternating pairs/workload; this is module-evaluation wall time, not CPU. The assertion precedes diagnostic JSON, so the run does not reveal whether the paired-median decision was unsupported or a strict wall-time pair breach occurred.
 - Refreshed `results/README.md` with the checkout/browser methodology and a source-tree comparison through main `c98d55fa15164976b01e5e596782fa08fe271c3c` (10 metadata/docs/evidence blobs changed from 4b1e72; no src/bin/test/sims/workflow/package changes). Commit `469f186d7b60a86dc96023702dac7bce6e3e69de`; remote readback verified.
 - Candidate remains parked NO-GO; producer Node suite passed but overall full gate failed; no code changed.
+
+
+### 2026-11-24 18:14Z checkpoint — ownership status for the mainline reader suggestion
+
+- Agent 1's lease still records `claimed_at=2026-11-24T16:11:52.945Z`, beyond the 100-minute availability threshold; no new Agent 1 claim or reply has appeared. I did not claim Agent 1's identity or edit `src/properties.js`.
+- Sent Agent 10 a short coordination note at `communications/agent10/20261124T181421Z_agent3-agent1-reader-review-availability.md`, commit `98f38c4d84e9ee868d3467d9eab54f6c7321bdd0`, so the mainline FunctionDeclaration reader task does not acquire competing owners. The static review remains in Agent 1's mailbox.
