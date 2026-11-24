@@ -31,7 +31,7 @@ const scenarios=[
     body:'Array.from([1],function(value){external();return value;});'},
   {kind:'promise-then-deferred',observation:'frame',deferred:true,
     body:'Promise.resolve(1).then(function(value){external();return value;});'},
-  {kind:'array-map-host-overridden-source',observation:'source',patchedMap:true,
+  {kind:'array-map-host-overridden-source-control',observation:'source',patchedMap:true,
     body:'[1].map(function(value){return owner.longPrivatePropertyName;});'}
 ];
 
@@ -193,8 +193,13 @@ async function main(){
       scenario.kind+' must retain nonzero private-property rewrite yield');
     assert.ok(!emitted.includes('unrelatedField'),
       scenario.kind+' must rename the unrelated plain() positive control');
-    assert.ok(!emitted.includes('longPrivatePropertyName'),
-      scenario.kind+' must rename the observed owner property');
+    if(scenario.patchedMap){
+      assert.ok(emitted.includes('longPrivatePropertyName'),
+        scenario.kind+' must conservatively retain the callback-observed owner property');
+    }else{
+      assert.ok(!emitted.includes('longPrivatePropertyName'),
+        scenario.kind+' must rename the observed owner property');
+    }
 
     const base='/'+scenario.kind;
     resources.set(base+'/native.js',{body:source,type:'text/javascript; charset=utf-8'});
@@ -224,8 +229,13 @@ async function main(){
       scenario.kind+' ESM must retain nonzero private-property rewrite yield');
     assert.ok(!moduleCode.includes('unrelatedField'),
       scenario.kind+' ESM must rename the unrelated plain() positive control');
-    assert.ok(!moduleCode.includes('longPrivatePropertyName'),
-      scenario.kind+' ESM must rename the observed owner property');
+    if(scenario.patchedMap){
+      assert.ok(moduleCode.includes('longPrivatePropertyName'),
+        scenario.kind+' ESM must conservatively retain the callback-observed owner property');
+    }else{
+      assert.ok(!moduleCode.includes('longPrivatePropertyName'),
+        scenario.kind+' ESM must rename the observed owner property');
+    }
     resources.set(base+'/module-native.mjs',{
       body:moduleSource,type:'text/javascript; charset=utf-8'
     });
@@ -281,10 +291,17 @@ async function main(){
         assert.ok(before.source&&before.source.includes('owner.longPrivatePropertyName'),
           scenario.kind+(scenario.patchedMap?' host override must expose the original callback source':' Chromium callback must expose the original hidden() source'));
         assert.ok(after.source,scenario.kind+' Chromium callback must retain a source observation');
-        assert.notEqual(after.source,before.source,
-          scenario.kind+' should expose changed hidden() source after private-key rewriting');
-        assert.ok(!after.source.includes('longPrivatePropertyName'),
-          scenario.kind+' emitted source should not retain the original private key');
+        if(scenario.patchedMap){
+          assert.equal(after.source,before.source,
+            scenario.kind+' host override should observe unchanged callback source when owner key is retained');
+          assert.ok(after.source.includes('longPrivatePropertyName'),
+            scenario.kind+' host override should continue to observe the retained owner key');
+        }else{
+          assert.notEqual(after.source,before.source,
+            scenario.kind+' should expose changed hidden() source after private-key rewriting');
+          assert.ok(!after.source.includes('longPrivatePropertyName'),
+            scenario.kind+' emitted source should not retain the original private key');
+        }
       }else{
         assert.ok(before.frame&&before.frame.includes('hidden'),
           scenario.kind+' native Chromium stack must expose the active hidden() frame');
@@ -330,10 +347,10 @@ async function main(){
       if(scenario.patchedMap){
         assert.ok(before.source&&before.source.includes('owner.longPrivatePropertyName'),
           scenario.kind+' strict ESM host override must expose the original callback source');
-        assert.ok(after.source&&!after.source.includes('longPrivatePropertyName'),
-          scenario.kind+' strict ESM host override must expose rewritten callback source');
-        assert.notEqual(after.source,before.source,
-          scenario.kind+' strict ESM host override callback source should change');
+        assert.ok(after.source&&after.source.includes('longPrivatePropertyName'),
+          scenario.kind+' strict ESM host override must retain the callback-observed owner key');
+        assert.equal(after.source,before.source,
+          scenario.kind+' strict ESM host override should observe unchanged callback source when owner key is retained');
         assert.equal(before.frame,null,scenario.kind+' host override source capture should not require an active-frame edge');
         assert.equal(after.frame,null,scenario.kind+' emitted host override source capture should not require an active-frame edge');
       }else if(scenario.deferred){
@@ -364,7 +381,7 @@ async function main(){
     process.stdout.write('CHROMIUM_INTRINSIC_CALLBACK_ESM_SUMMARY '+JSON.stringify({
       scenarios:moduleResults.length,
       strictSourceUnavailable:moduleResults.filter(item=>!item.patchedMap).every(item=>item.native.source===null&&item.compiled.source===null),
-      hostOverrideSourceObserved:moduleResults.filter(item=>item.patchedMap).every(item=>item.native.source!==null&&item.compiled.source!==null&&item.native.source!==item.compiled.source),
+      hostOverrideSourcePreserved:moduleResults.filter(item=>item.patchedMap).every(item=>item.native.source!==null&&item.compiled.source===item.native.source&&item.native.source.includes('longPrivatePropertyName')),
       framePosition:moduleResults.filter(item=>!item.patchedMap&&!item.deferred).every(item=>item.native.frame!==null&&item.compiled.frame!==null&&item.native.column!==item.compiled.column),
       deferredNoReturnedFrame:moduleResults.filter(item=>item.deferred).every(item=>item.native.frame===null&&item.compiled.frame===null),
       positiveYield:moduleResults.every(item=>item.properties>=1),
@@ -378,7 +395,7 @@ async function main(){
   process.stdout.write('CHROMIUM_INTRINSIC_CALLBACK_SUMMARY '+JSON.stringify({
     node:process.version,scenarios:results.length,
     exactSource:results.filter(item=>item.native.source!==null&&!item.patchedMap).length,
-    hostOverrideSourceObserved:results.filter(item=>item.patchedMap).every(item=>item.native.source!==null&&item.compiled.source!==null&&item.native.source!==item.compiled.source),
+    hostOverrideSourcePreserved:results.filter(item=>item.patchedMap).every(item=>item.native.source!==null&&item.compiled.source===item.native.source&&item.native.source.includes('longPrivatePropertyName')),
     framePosition:results.filter(item=>item.native.frame!==null).length,
     deferredNoReturnedFrame:results.filter(item=>item.deferred).every(item=>item.native.frame===null&&item.compiled.frame===null),
     positiveYield:results.every(item=>item.properties>=1),
