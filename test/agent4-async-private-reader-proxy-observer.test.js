@@ -10,17 +10,17 @@ const {obfuscateFiles}=require('../src');
 const {atomicWrite}=require('../src/atomic');
 
 /**
- * Execute an ESM module with a hostile thenable. Node's V8 stack API exposes
- * the active strict function objects through CallSite.getFunction().
+ * Execute a CommonJS module with a hostile thenable. In non-strict CommonJS,
+ * V8 CallSite.getFunction() exposes the active private function objects.
  * @param {string} source
  * @returns {Promise<{seen:{name:string,source:string|null}[],same:boolean}>}
  */
 async function inspectThenableReader(source){
   const root=await fs.mkdtemp(path.join(os.tmpdir(),'obfs-async-reader-observer-'));
   try{
-    await atomicWrite(path.join(root,'reader.mjs'),source);
-    await atomicWrite(path.join(root,'entry.mjs'),[
-      'import {run} from "./reader.mjs";',
+    await atomicWrite(path.join(root,'reader.cjs'),source);
+    await atomicWrite(path.join(root,'entry.cjs'),[
+      'const {run}=require("./reader.cjs");',
       'Error.prepareStackTrace=(_error,sites)=>sites;',
       'const seen=[];',
       'const thenable=new Proxy({}, {',
@@ -41,7 +41,7 @@ async function inspectThenableReader(source){
       '});',
       'run(thenable).then(value=>process.stdout.write(JSON.stringify({seen,same:value===thenable})));'
     ].join('\n'));
-    const child=spawnSync(process.execPath,[path.join(root,'entry.mjs')],{
+    const child=spawnSync(process.execPath,[path.join(root,'entry.cjs')],{
       cwd:root,encoding:'utf8',timeout:15000
     });
     assert.equal(child.status,0,child.stderr||child.error?.message);
@@ -58,7 +58,8 @@ test('private async reader cannot expose its function source through implicit th
     '  async function read(){return owner.privateField;}',
     '  return read();',
     '}',
-    'export function run(input){return outer(input);}'
+    'function run(input){return outer(input);}',
+    'module.exports={run};'
   ].join('\n');
   const native=await inspectThenableReader(source);
   assert.ok(native.seen.some(item=>item.name==='read'&&item.source?.includes('owner.privateField')),
@@ -71,12 +72,12 @@ test('private async reader cannot expose its function source through implicit th
   for(const mode of /** @type {const} */ (['coo','sno','sco'])){
     try{
       const transformed=obfuscateFiles([{
-        path:'reader.mjs',sourceType:'module',code:source
+        path:'reader.cjs',sourceType:'commonjs',code:source
       }],{
         mode,seed:'agent4-async-reader-thenable/'+mode,
         properties:true,identifiers:false,strings:false
       });
-      const output=transformed.files.find(file=>file.path==='reader.mjs');
+      const output=transformed.files.find(file=>file.path==='reader.cjs');
       assert.ok(output);
       const emitted=await inspectThenableReader(String(output.code));
       observations.push({mode,properties:output.metrics.properties,seen:emitted.seen,same:emitted.same});
