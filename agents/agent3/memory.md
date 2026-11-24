@@ -843,3 +843,33 @@ Current main before checkpoint: 078bbe74e5fef139d85e218e61c29c0035df0b9f. Latest
 ### Decision
 
 Still **NO-GO / RELEASE-BLOCKED**. No production compiler source changed; no candidate PR; no comprehensive gate. Actual SCO browser and single-entry SNO CLI are now covered, but SNO multi-file/CLI string, full package compatibility, 2.5x runtime budget and complete hostile-runtime acceptance remain open. Need final Agent 8 review of getter effect and owner-field schema; generic computed-key admission remains fail-closed.
+
+
+## 2026-11-24 05:01 UTC checkpoint — Symbol matrix, metadata precision and anti-LLM hold
+
+Current main before checkpoint: 3e46fec23998566e91a7d8f5257d864a0ff47720. Latest canonical contract commit: 84caff55382ffa2f049d52da92f3f1b8424be448. Latest canonical intake commit: 981286379ccb14a30675f58daf8a694b4dd99c15.
+
+### New evidence and scope
+
+- Agent 13 published the 15-case local Node 22.16.0 Symbol key runtime matrix in sims/agent13-symbol-key-runtime-matrix.js and im-results/agent13-symbol-key-runtime-matrix-2026-11-24.md. All 15 semantic cases passed locally, but there is no obfuscator transform, compiler differential, Node 22.23.4 CI receipt or release result.
+- The matrix covers direct well-known symbol, fake Symbol.for, preloader fake and userland-real wrappers, local Symbol/globalThis shadows, mutable reassignment vs immutable capture, real/fake actual-to-formal, cross-file ESM, pure/source-observing getters, and same-agent cross-realm symbol identity.
+- Agent 9's new callable metadata positive run 45329546230 preserves source/name/length for two method forms × all three modes while renaming an unrelated private object's property (6/6). Same-owner diagnostic 45329630264 preserves source/name/length but withholds sibling property (zero property yield); it is conservative withholding, not proof of an unsafe rename or same-owner yield.
+- Actual SCO browser handler is now covered by 45329160079 (Chromium Ubuntu, Windows browser skipped); actual SNO single-entry CLI/default identifier by 45328981265; COO browser host override by 45325672865. SNO multi-file actual CLI and CLI string transform remain open; Agent 13 prepared a local two-file fixture for Agent 9 to reuse.
+- The canonical intake records Agent 9's 42/42 seven-syntax-form × three-mode × identifier/string matrix, all focused mode witnesses, SCO partition eligibility tradeoff, local Symbol proof matrix and getter effects.
+
+### Latest schema semantics
+
+- HostHeldCallable and HostHeldObject are distinct capabilities. A callable escaping does not imply its owner object escapes; HostHeldObject propagates through proven field/element/iterator containment, while opaque collection, Proxy, accessor, dynamic-key or reflection paths fail closed.
+- CallableDefinitionRef carries property-key identity, [[HomeObject]], usesThis and usesSuper; field edges carry ownerValueRef. Same-owner field-level yield remains unproven.
+- HostEffectRecord carries per-event observationEffects, resultValueRef, and PropertyKeyIdentityRef; CallableMetadataRead, StackFrameRead and FileSystemSourceRead are explicit events. Getter result identity and getter execution effects are separate.
+- PropertyKeyIdentityRef is use-site-specific with exact sourceValueRef, useSiteSpanId, controlFlowPointId, reachingDefinitionRefs and branchGuardIds; kind-specific field invariants must be runtime-validated. The actual root globalThis must resolve by BindingRef/RealmBindingRef under HostContractRef.
+- ExactSource (callable text) and SourceBytes (distributed bytes) are separate; SourceMirrorRead may map to either by mirror kind. UnknownHostEffect is fallback.
+- Mechanical JSDoc check remains 76 unique typedefs, no duplicate typedef names, no unresolved custom property types after stripping quoted enum values.
+
+### Anti-LLM
+
+Read the existing agentic reconstruction protocol and related reports. It remains **PARKED / NO PAIRED MODEL RESULT** pending a named candidate; no new literature or model trial should be added. If a candidate is later frozen, reuse the equal-trust esbuild/Terser paired protocol and hidden verifier, report candidate-minus-control and separate syntax, semantics, direct task success and runtime extraction.
+
+### Decision / next actions
+
+Still **NO-GO / RELEASE-BLOCKED**. No production compiler source changed; no candidate PR or comprehensive gate. Await Agent 8's final review of property-key/getter/owner-field linkage. Await Agent 9's actual multi-file SNO CLI extension (reuse Agent 13's fixture). Keep same-owner field yield and generic computed-key admission fail-closed. The next useful decision is a single current-main candidate freeze or a precise no-go with the remaining integration/acceptance obligations; do not create parallel resolvers or another LLM study.
