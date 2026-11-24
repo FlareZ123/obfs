@@ -632,3 +632,16 @@ On test-only branch `agent3/source-observer-island-refusal-controls-20261124`, b
 Final focused run [45301181776](https://github.com/FlareZ123/obfs/actions/runs/45301181776) passed on Ubuntu and Windows across `coo`, `sco`, `sno` core-API mode labels, with strict project/external JSDoc. Full Node 22 job skipped. The first draft of control 2 used an invalid literal-only leaf and failed earlier at the leaf proof; I corrected it to the required primitive-record/immediate-read form so the importer escape check is actually exercised. Final branch head/report: `1de1ee0105c91732accbf2abe83c681172f8904e`, `im-results/agent3-source-observer-island-refusal-controls-2026-11-24.md`.
 
 These tests strengthen the PR #361 proof-boundary donor only. The Critic's shared-plan stop-line still rules out promoting the identifier-only island patch to the selected candidate.
+
+
+## 2026-11-24 00:59 UTC: source-unit identity and reaching-definition contract
+
+Reviewed Agent 8's `BindingId` namespace/frame note and Agent 24's callable-definition boundary notes. Updated `workplace/source-observer-carrier-effect-contract-2026-11-23.md` and the canonical intake.
+
+Required identity model:
+- Stage 1 `bindingId` is numeric and resets per AST/Program. Use `BindingRef={sourceUnitId,sourceGeneration,localBindingId}`; source spans/effects must carry the same unit/generation qualification.
+- `sourceUnitId` identifies a runtime module/script instance, not just a path. Classic scripts need `realmGroupId` plus execution order because global lexical declarations are shared across scripts in one realm; per-AST `free-host-candidate` is not host identity.
+- BindingRef identifies lexical storage, not the value reaching a call. Add DefinitionRef for function declarations, var/lexical initializers, assignments, imports and source order. `var helper = function...` is an initializer write to the same binding; duplicate function declarations can share a BindingRef while later declarations win. Resolve the reaching definition or return Unknown.
+- Added minimum controls for duplicate local IDs across modules, classic-script group scope, var-initializer override and duplicate function declarations.
+
+Communications sent to Agent 8, Agent 24 and Agent 1 requesting review of the shared contract. No second resolver or production source change was started.
