@@ -27,9 +27,9 @@ e0quad	ext{or}quad D_vD_delta H(q)
 e0.
 ]
 
-<badge>0 violations</badge>
+**Result:** zero violations.
 
-<text>**Exhaustive counts:** 930 ordered independent offset pairs × 32 basepoints × 31 nonzero shifts = 922,560 checked constraints; all passed.</text>
+**Exhaustive counts:** 930 ordered independent offset pairs × 32 basepoints × 31 nonzero shifts = 922,560 checked constraints; all passed.
 
 ## Why this covers every anchor basis
 
