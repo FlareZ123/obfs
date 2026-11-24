@@ -602,7 +602,6 @@ function proveLocalObject(ast, rootName, bindings, importedIdentityFunctions=new
           }
         }
         destructured=safePattern&&selectedOwner;
-        if(process.env.OBFS_DEBUG_CARRIER==='1')console.error('tuple-pattern',rootName,holder,{safePattern,selectedOwner,pattern:pattern.type,kind:parents.get(parent)?.kind,ancestors:ancestors.map(x=>x.type)});
         if(destructured){
           for(const name of patternAliases)holderAliases.add(name);
           for(const binding of patternAliasBindings)holderAliasBindings.add(binding);
@@ -617,7 +616,6 @@ function proveLocalObject(ast, rootName, bindings, importedIdentityFunctions=new
         break;
       }
     }
-    if(process.env.OBFS_DEBUG_CARRIER==='1')console.error('tuple-result',rootName,holder,{valid,holderAliases:[...holderAliases]});
     if(valid){
       privateOwnerTuples.set(holder,{indices});
       for(const index of indices)
@@ -728,7 +726,6 @@ function proveLocalObject(ast, rootName, bindings, importedIdentityFunctions=new
           holderAliasScopes.set(property.value.name,patternScope);
         }
         destructured=safePattern&&selectedKeys.size>0;
-        if(process.env.OBFS_DEBUG_CARRIER==='1')console.error('record-pattern',rootName,holder,{safePattern,selectedKeys:[...selectedKeys],pattern:pattern.type,kind:parents.get(parent)?.kind,ancestors:ancestors.map(x=>x.type)});
         if(destructured){
           for(const name of patternAliases)holderAliases.add(name);
           for(const binding of patternAliasBindings)holderAliasBindings.add(binding);
@@ -743,7 +740,6 @@ function proveLocalObject(ast, rootName, bindings, importedIdentityFunctions=new
         break;
       }
     }
-    if(process.env.OBFS_DEBUG_CARRIER==='1')console.error('record-result',rootName,holder,{safe,holderAliases:[...holderAliases]});
     if(safe){
       privateOwnerRecords.set(holder,ownedKeys);
       for(const value of ownedValues)privateRecordLiteralValues.add(value);
@@ -846,7 +842,6 @@ function proveLocalObject(ast, rootName, bindings, importedIdentityFunctions=new
   }
 
   const aliases = new Set([rootName,...privateCarrierAliases]);
-  if(process.env.OBFS_DEBUG_CARRIER==='1')console.error('carrier-aliases',rootName,[...privateCarrierAliases],privateCarrierAliasBindings.size);
   /**
    * Return the only alias fact needed to resolve an expression. A null result
    * is already proved from this root through a private carrier or captured
@@ -1046,7 +1041,6 @@ function proveLocalObject(ast, rootName, bindings, importedIdentityFunctions=new
   const aliasUses=[...aliases].flatMap(name=>identifierUses.get(name)??[]);
   aliasUses.sort((a,b)=>a.order-b.order);
   for (const {node,parent,key,ancestors} of aliasUses) {
-    if(process.env.OBFS_DEBUG_CARRIER==='1')console.error('alias-use',node.name,parent?.type,key,privateCarrierAliasBindings.has(node));
     // Accepted private-carrier destructuring contributes its targets as
     // owner aliases, but the target Identifier itself is a binding token,
     // not an executable reference to the owner.
@@ -1138,7 +1132,6 @@ function proveLocalObject(ast, rootName, bindings, importedIdentityFunctions=new
     if (parent.type === 'CallExpression' && key === 'arguments' && parent.callee.type === 'Identifier') {
       const fn = functions.get(parent.callee.name);
       const index = parent.arguments.indexOf(node);
-      if(process.env.OBFS_DEBUG_CARRIER==='1')console.error('alias-call',node.name,parent.callee.name,index,fn&&{external:fn.external,consumerIndex:fn.consumerIndex,forwardIndex:fn.forwardIndex,params:fn.params.map(p=>p.name)},[...importedConsumers]);
       if (fn?.external && (index===fn.forwardIndex || index===fn.consumerIndex)) continue;
       if (fn && index >= 0 && fn.params[index]?.type === 'Identifier' && aliases.has(fn.params[index].name)) continue;
       return null;
@@ -1152,10 +1145,8 @@ function proveLocalObject(ast, rootName, bindings, importedIdentityFunctions=new
     if (parent.type === 'ArrowFunctionExpression' && key === 'body' &&
         [...functions.values()].some(fn=>
           fn.node===parent && (fn.forwardIndex>=0 || fn.returnsRoot))) continue;
-    if(process.env.OBFS_DEBUG_CARRIER==='1')console.error('alias-use-reject',node.name,parent?.type,key);
     return null;
   }
-  if(process.env.OBFS_DEBUG_CARRIER==='1')console.error('alias-use-complete',[...aliases]);
   // `arguments[0]` aliases parameters invisibly to name-based reference analysis.
   if (identifierUses.has('arguments') &&
       [...functions.values()].some(fn => fn.params.some((/** @type {AstNode} */ p) => p.type === 'Identifier' && aliases.has(p.name)))) return null;
