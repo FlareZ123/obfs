@@ -6,7 +6,7 @@ on:
       candidate_sha:
         description: Exact repaired candidate commit to benchmark
         required: true
-        default: "d2d8c18b83c738f9835a4fa886a0ee3a70bc1256"
+        default: "0417abb68e3bfe09ed0f80e5e175b057b23e8cca"
         type: string
 
 permissions:
@@ -18,7 +18,11 @@ concurrency:
 
 jobs:
   node-budget:
-    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
     timeout-minutes: 10
     steps:
       - name: Checkout exact repaired candidate
