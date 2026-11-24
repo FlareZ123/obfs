@@ -349,7 +349,7 @@ The canonical plan should expose at least the following. The v2 JSDoc schema sup
  * @property {ReadonlyArray<PathProvenanceRef>} pathProvenance - distinct from ordinary ValueCategory
  * @property {ReadonlyArray<ValueCapability>} capabilities
  *
- * @typedef {'assignment'|'alias'|'phi'|'actual-to-formal'|'return-to-call-result'|'field-write'|'field-read'|'destructuring'|'import'|'export'|'throw-catch'|'promise-fulfillment'|'promise-rejection'|'iterator-yield'|'coercion-result'|'host-argument'|'host-return'|'closure-capture'} ValueFlowEdgeKind
+ * @typedef {'assignment'|'alias'|'phi'|'actual-to-formal'|'return-to-call-result'|'field-write'|'field-read'|'reflect-get'|'descriptor-value'|'reflect-set'|'descriptor-write'|'destructuring'|'import'|'export'|'throw-catch'|'promise-fulfillment'|'promise-rejection'|'iterator-yield'|'coercion-result'|'host-argument'|'host-return'|'closure-capture'} ValueFlowEdgeKind
  *
  * @typedef {Object} ValueFlowEdge
  * @property {ValueFlowEdgeKey} edgeId
@@ -361,7 +361,9 @@ The canonical plan should expose at least the following. The v2 JSDoc schema sup
  * @property {string|null} controlFlowPointId
  * @property {ReadonlyArray<string>} branchGuardIds
  * @property {CallableDefinitionRefKey|null} targetCallableDefinitionRef - target-specific actual/formal or return edge
- * @property {ValueRefKey|null} ownerValueRef - object identity for field read/write edges
+ * @property {ValueRefKey|null} ownerValueRef - object identity for field read/write/reflection edges
+ * @property {ValueRefKey|null} receiverValueRef - distinct Reflect.get/Reflect.set receiver argument
+ * @property {'Reflect.get'|'Reflect.set'|'Object.getOwnPropertyDescriptor'|'Object.defineProperty'|null} reflectionOperation
  * @property {number|null} argumentIndex
  * @property {PropertyKeyIdentityRefKey|null} propertyKeyIdentity
  * @property {string|null} operandPath
@@ -527,6 +529,8 @@ A property-key identity is not a bare string or a constructor spelling. Property
 Well-known Symbol identity is carried by the actual symbol value, not by the Symbol constructor reference or realm alone. In particular, Symbol.toPrimitive is shared across realms in one ECMAScript agent. A userland wrapper that exposes the exact well-known symbol value may be safe when its value provenance is proven; a fake Symbol.for value, local shadow, mutable alias or unknown preloader remains unknown. sourceRealmId is provenance, while symbolIdentityDomainId is the identity domain.
 
 HostHeldCallable propagation is a monotone fixed-point over the typed value graph: seed at the exact host-controlled callsite/argument; propagate through assignment/alias/phi, object-field write/read, actual-to-formal, return-to-call-result, import/export, closure capture and only explicitly modeled spread/apply/bind edges; resolve the exact CallableDefinitionRef set; then attach ExactSource to each callable's exact source span and populate effectClosures. If an outer callable is observed, nested source text inside its Function#toString span is part of the closure. Do not create an ActiveFrameEdge unless the callback is actually invoked while that frame remains visible. Every source-mutating consumer must use the same immutable closure.
+
+The value-flow graph must model computed member reads, Reflect.get results and Object.getOwnPropertyDescriptor(...).value as distinct field-read/reflect-get/descriptor-value edges keyed by exact receiver/owner, PropertyKeyIdentityRef, callsite and CFG point. Reflect.set/Object.defineProperty writes use corresponding typed write edges. If the receiver is an accessor or Proxy, attach the separate AccessorCall/ProxyInternalMethod HostEffectRecord and its resultValueRef; reflection is not merely a global veto and not a reason to let identifier and string consumers diverge. The fixed-point must also include every nested source span contained by an observed outer callable; edits to a nested declaration or parameter change the outer Function#toString result even when the nested function is never invoked.
 
 Runtime immutability is a separate implementation obligation: JSDoc ReadonlyMap/ReadonlySet and Object.freeze(Map) do not prevent Map/Set mutation. Keep backing maps/sets private behind closure or WeakMap lookup methods, expose only frozen records/arrays or immutable snapshots, and prevent input aliases or consumers from mutating plan state. Build a fresh plan for each SCO requestVariantGeneration; never share mutable backing state across concurrent requests.
 
