@@ -1,33 +1,33 @@
-# SNO Node Web Storage source-parity witness
+# SNO Node Web Storage source-parity witnesses
 
-**Status:** Reproducible intermediate counterexample; test-only branch; no production compiler change.
+**Status:** Reproducible intermediate counterexamples; test-only branch; no production compiler change.
 
 ## Question
 
-Does the current single-file SNO transform preserve the observable source of a callable passed to Node's native Web Storage implementation, and can a primitive value still retain unrelated rename yield?
+Does the current single-file SNO transform preserve callable source exposed by Node's native Web Storage methods and legacy named-property setter, and can primitive inputs retain unrelated rewrite yield?
 
-## Host contract and method identity
+## Host contract and execution
 
-The witness runs Node **22.23.4** with both opt-in flags:
+The witnesses run Node **22.23.4** with:
 
 - \`--experimental-webstorage\`
 - \`--localstorage-file=<temporary file>\`
 
-It asserts that \`localStorage.setItem === Storage.prototype.setItem\` in both native and transformed processes. This isolates the inherited native Storage method rather than a same-named userland wrapper.
+The test builds original and transformed one-entry packages using the real \`createSnoLauncher\` hash-checking bootloader, then executes each \`sno-entry.cjs\`. The transformed entry is produced by \`obfuscateFiles(..., {mode:'sno'})\`.
 
-This is an opt-in Node runtime contract. It is not evidence that \`localStorage\` or \`Storage\` exists in default Node startup, nor that Node implements the browser's Storage named-property setter.
+This is an opt-in Node runtime contract. It is not evidence that \`localStorage\` or \`Storage\` exists in default Node startup.
 
 ## Reproduction
 
 - Test: \`test/sno-storage-source-parity.test.js\`
 - Strict external JSDoc inclusion: \`jsconfig.external.json\`
 - Research branch: \`agent12/sno-storage-source-parity-20261124\`
-- Final test/config commit: \`40fe825f4310548d0c440dcf2a27e600d75619f6\`
-- Focused two-platform validation: [run 45323625111](https://github.com/FlareZ123/obfs/actions/runs/45323625111)
+- Final source pin: \`10a89096bcb0272752a57ef2c85441c606f24197\`
+- Focused two-platform validation: [run 45324535207](https://github.com/FlareZ123/obfs/actions/runs/45324535207)
 
 The focused run passed on Ubuntu and Windows, including:
 
-- the two focused SNO tests;
+- all three focused SNO tests;
 - strict project JSDoc;
 - strict external JSDoc (including this test file);
 - strict paired/complete-suite runtime-budget evaluator JSDoc.
@@ -36,69 +36,76 @@ No production compiler source was modified.
 
 ## Findings
 
-### Function-valued DOMString input: source parity failure
+### 1. Explicit \`Storage.setItem\`: function in both DOMString positions
 
-The test explicitly asserts:
+The first fixture resolves \`const storage = globalThis.localStorage\`, captures \`Storage.prototype.setItem\`, and asserts that \`storage.setItem === nativeSetItem\`.
 
-- \`observesFunctionSource(parse(source, 'commonjs')) === false\`;
-- the effective method is native inherited \`Storage.prototype.setItem\`;
-- SNO performs identifier rewrites;
-- ordinary results remain equal;
-- the stored function source differs.
+It then:
+- calls \`storage.setItem(inspect, 'sno-key-position')\`, passing the function as argument 0;
+- calls \`Reflect.apply(nativeSetItem, storage, ['sno-value-position', inspect])\`, passing it as argument 1 through a captured native alias.
 
-Node 22.23.4 produced:
+The test asserts \`observesFunctionSource(parse(source, 'commonjs')) === false\`. SNO performs five binding rewrites.
+
+Native and emitted executions both return 29 from \`inspect()\` and 7 from the unrelated helper. The native key and value strings both contain:
 
 \`\`\`text
-nativeStored:
 function inspect(){const privateLocal=29;return privateLocal;}
+\`\`\`
 
-emittedStored:
+The emitted key and value strings both contain:
+
+\`\`\`text
 function inspect(){const _vea855b3f3af5=29;return _vea855b3f3af5;}
 \`\`\`
 
-Both executions returned 29 from \`inspect()\` and 7 from the unrelated helper. The SNO output renamed four bindings. The native Storage conversion therefore exposes the changed callable source while ordinary return-value behavior remains equal.
+The inherited native method identity is verified in both executions. The changed function source is therefore visible through both DOMString conversion positions, including the captured-native \`Reflect.apply\` route.
 
-### Primitive DOMString input: positive control
+### 2. Primitive DOMString input: positive control
 
-A separate source passes the primitive string \`"literal"\` to native \`localStorage.setItem\`. The scanner returns false, the stored value remains exactly \`"literal"\`, the unrelated helper returns 7, and three bindings are renamed.
+A separate fixture passes the primitive string \`"literal"\` to native \`localStorage.setItem\`. The scanner returns false, the stored value remains exactly \`"literal"\`, the unrelated helper returns 7, and three bindings are renamed.
 
 This guards against replacing the missed native conversion with a blanket \`.setItem\` refusal.
 
+### 3. Node Storage legacy named-property setter: distinct native route
+
+A third fixture performs \`localStorage.snoNamedSource = inspect\`, then reads both \`localStorage.getItem('snoNamedSource')\` and \`localStorage.snoNamedSource\`.
+
+Before the entrypoint runs, a \`--require\` preloader replaces \`Storage.prototype.setItem\` with a function that throws. Both original and SNO executions still complete, each stores the function source, and each reports Storage length 1. The named-property setter therefore bypasses the patched JavaScript \`setItem\` method while still performing its own value conversion.
+
+The scanner returns false for the source. SNO renames three bindings; ordinary function results remain 41 and the unrelated helper remains 9. The native stored source contains \`privateLocal\`; the emitted stored source contains the renamed binding.
+
+This is direct Node evidence that \`storage[key] = value\` is not a JavaScript call to \`storage.setItem\`.
+
 ## Test-harness correction
 
-An intermediate test revision put a potentially uncaught \`throw new Error(...)\` inside the source to assert native method identity. That correctly activated the existing uncaught-diagnostic/source-coordinate observer in \`src/ast.js\`, so the scanner returned true. It was a harness-induced conservative refusal, not evidence about Storage conversion.
+An intermediate test revision put a potentially uncaught \`throw new Error(...)\` inside the obfuscated source to assert native method identity. That correctly activated the existing uncaught-diagnostic/source-coordinate observer in \`src/ast.js:2627-2631\`, so the scanner returned true. It was a harness-induced conservative refusal, not evidence about Storage conversion.
 
-The final fixture instead reports a non-throwing \`nativeDispatch\` boolean and asserts it in the parent test. The final source-observer assertion is false and the source mismatch reproduces on both operating systems.
+The final fixtures report receiver identity as a non-throwing boolean and assert it in the parent harness. The named-setter method-bypass control puts its throwing trap in an external preloader, not in the obfuscated source.
 
 ## Interpretation and limitations
 
-This establishes one SNO **compatibility** counterexample for Node 22.23.4 with opt-in Web Storage. It does not establish a security theorem: the SNO threat model grants the server owner access to the runtime, filesystem and memory.
+These are SNO **compatibility** counterexamples for Node 22.23.4 with opt-in Web Storage. They are not security theorems: the SNO threat model grants the server owner access to the runtime, filesystem and memory.
 
-The test exercises the core \`obfuscateFiles(..., {mode:'sno'})\` single-file transform and directly executes its emitted code. It does not test the complete \`bin/sno.js\` package/manifest launcher. It does not cover:
+The test exercises the SNO core transform and the actual \`createSnoLauncher\` single-entry hash-checking bootloader. It does not exercise the complete \`bin/sno.js\` CLI's input-tree traversal/preflight or a multi-file package. It does not cover:
 
-- browser Storage named-property assignment;
-- Node named-property setter semantics;
 - \`sessionStorage\`;
-- captured-native aliases, \`.call/.apply/.bind\`, or Proxy-forwarded receivers in SNO;
-- pre-module host patching;
-- multi-file SNO package execution;
-- SCO request-time execution or COO browser execution.
+- own \`toString\`, own \`Symbol.toPrimitive\`, bound-function or patched \`Function.prototype.toString\` value hooks in SNO;
+- all proxy receiver/forwarding variants;
+- browser engines or SCO request-time execution;
+- full-suite compatibility or the 2.5× runtime budget.
 
-Existing browser-side Storage reports cover several of those distinct paths, but they do not substitute for this SNO host result.
+Existing browser Storage reports cover several value-hook, browser named-setter, COO and SCO cases, but they do not substitute for these SNO host results.
 
 ## Effect-model consequence
 
-The SNO host profile should be a versioned host contract for Node Web Storage with the required feature flag. The shared plan should emit a \`WebIDLStringConversion\` effect for each relevant DOMString argument, with:
+The SNO host profile should be a versioned host contract for Node Web Storage with the required feature flag. The shared plan should distinguish:
 
-- source-qualified receiver identity and \`Storage\` interface identity;
-- effective native/userland operation identity and dispatch provenance;
-- \`conversionTarget: 'DOMString'\`;
-- argument index and operand role (\`key\` versus \`value\`);
-- trigger-value and observed-value edges;
-- a nested \`ToPrimitiveDispatch\` when the input is an object/function.
+- \`WebIDLStringConversion\` for each explicit \`Storage.setItem\` argument, with argument index, key/value role, receiver and effective native/userland operation;
+- \`WebIDLNamedPropertySet\` for legacy named-property assignment, independently of the JavaScript \`setItem\` property;
+- nested \`ToPrimitiveDispatch\` for object/function values, including the effective \`@@toPrimitive\`, \`toString\` and \`valueOf\` hooks.
 
-A callable source effect is present only when the conversion path reaches native Function stringification. A primitive string is a no-source-observation positive. A locally proved own \`toString\` returning a primitive can also be a positive; unresolved \`@@toPrimitive\`, receiver, or prototype dispatch remains \`UnknownHostEffect\`.
+A callable source effect is present only when the actual conversion path reaches native Function stringification. A primitive string is a no-source-observation positive. A custom hook returning a primitive is positive only when its body and dispatch are proved not to observe callable source or active frames; merely observing a primitive return is insufficient. Unknown/mutable hooks remain \`UnknownHostEffect\`.
 
-Do not infer native dispatch from the spelling \`.setItem\`. Browser \`storage[key] = value\` is a separate \`WebIDLNamedPropertySet\` route: ECMAScript converts the key first, and the native named setter converts the assigned value. It does not look up the JavaScript \`storage.setItem\` property.
+For named-property assignment, keep ECMAScript \`ToPropertyKey\` on the property key separate from Web IDL conversion of the assigned value. The preloader test shows that replacing \`Storage.prototype.setItem\` does not intercept the named-property setter.
 
-**Conclusion:** SNO now has a focused, cross-platform Node Storage source-parity witness. The repository-wide verdict remains **NO-GO / RELEASE-BLOCKED** pending the shared effect graph, broader mode-specific acceptance, and adversarial performance evidence.
+**Conclusion:** SNO now has focused, cross-platform evidence for explicit Storage method conversion in both argument positions, a captured native alias, primitive positive yield, and the distinct named-property setter under a patched-method preloader. The repository-wide verdict remains **NO-GO / RELEASE-BLOCKED** pending the shared effect graph, broader mode-specific acceptance, and adversarial performance evidence.
