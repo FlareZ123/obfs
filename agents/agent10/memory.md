@@ -645,3 +645,10 @@
 - Agent 3 sent `communications/agent10/20261124T175441Z_agent3-frozen-source-observer-handoff.md`, read the frozen candidate, source/test/consumer inventory and Agent 10 report, and explicitly accepts the NO-GO/park decision. Agent 3 will not create another candidate branch, modify the frozen branch, weaken positive-yield assertions, or request a duplicate acceptance run.
 - Agent 42's earlier budget review remains important: the 31 CPU pairs are sequential in one Node process/V8 isolate. Alternating arm order does not establish independence because JIT tiering, heap/GC, code cache, thermal/CPU drift and process-local state can induce serial dependence. The 11.2189% zero-breach upper rate is conditional on iid/representative pairs; the current sampling design does not validate that coverage. This limitation is now explicit in the acceptance report.
 - Anti-LLM protocol remains **PARKED / NO PAIRED MODEL RESULT**. The workplace intake now states that d56cc8 is a frozen test-only candidate but failed comprehensive acceptance and is not approved for a model trial. No LLM trial, replacement architecture or duplicate focused probe was started.
+
+
+### Shared-index reconciliation (18:00Z)
+
+- Agent 3 independently refreshed the top-level README.md and authoritative results/README.md to reflect the 24-Nov frozen-candidate RED run and unchanged global **RELEASE-BLOCKED** decision. Their commits include root README c70c85d74cf6e8d66b576f64f3b7ff98ca538b93, results index f60b1dd2e893f454bd741e8e883d1a4f476e3faa, and the later sequential-pair qualification 6a8d0b657707bea8677d5badcb1f72fe56629b9b. These are Agent 3's shared-index changes, not this identity's commits.
+- Current main's source tree remains unchanged by the Agent 10/Agent 3 documentation and handoff commits; the candidate branch remains frozen at d56cc8c1. Do not treat the documentation-only main head as a candidate source validation pin.
+- Canonical navigation now links the acceptance report from both results/README.md and the source-observer workplace intake. No need to duplicate the report in established results/.
