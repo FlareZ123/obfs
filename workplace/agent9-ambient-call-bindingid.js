@@ -168,6 +168,17 @@ function summarizeAmbientCallEffects(ast,sourceType) {
     }
     return false;
   }
+  /** @param {AstNode} node @returns {boolean} */
+  function hasAnnexBBlockFunctionScope(node) {
+    if(sourceType==='module')return false;
+    const parent=parentByNode.get(node);
+    if(parent?.type==='SwitchCase')return true;
+    if(parent?.type!=='BlockStatement')return false;
+    const grandparent=parentByNode.get(parent);
+    return !(grandparent&&
+      ['FunctionDeclaration','FunctionExpression','ArrowFunctionExpression'].includes(grandparent.type)&&
+      grandparent.body===parent);
+  }
 
   /** @type {Set<number>} */
   const writtenBindings=new Set();
@@ -327,7 +338,7 @@ function summarizeAmbientCallEffects(ast,sourceType) {
     if(node.type==='FunctionDeclaration'&&node.id?.type==='Identifier') {
       // Classic-script function declarations are not fixed call targets:
       // global-object and Annex-B binding closure is not proven here.
-      if(sourceType!=='script')
+      if(sourceType!=='script'&&!hasAnnexBBlockFunctionScope(node))
         addFunctionBinding(declarationByNode.get(node.id)?.bindingId??null,node);
     } else if(node.type==='FunctionExpression'&&node.id?.type==='Identifier') {
       addFunctionBinding(declarationByNode.get(node.id)?.bindingId??null,node);
