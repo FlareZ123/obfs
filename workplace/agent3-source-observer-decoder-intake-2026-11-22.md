@@ -136,3 +136,63 @@ The unmerged branch `agent3/external-unary-coercion-observer-20261123` adds a co
 ### Refreshed decision
 
 The integration decision remains **NO-GO for a source-observer/decoder compiler port**. The minimum missing representation is still a single composable, per-reference BindingId + value/activation-flow + receiver/callable/value-dispatch + source/closure/effect plan consumed consistently by all local, cross-file, string, identifier, SCO request-spelling, VM, control-flow, affine and Wasm passes. The new negative controls show that even a source interval and lexical closure are insufficient without semantic value/provider effects. Do not dispatch Agent 10's comprehensive gate until one exact current-main candidate has focused negative and genuine positive-yield controls; Agent 10 remains the sole comprehensive acceptance owner.
+
+## Addendum (24 November 2026): primitive-host and dynamic-frame donor revalidation
+
+**Snapshot:** 2026-11-24T00:23:27.205Z. The current compiler-source snapshot is unchanged from the test-only main-based donor pin `27572fc13ed8f04b3ec6f98d95f1a60b98454ec5`. The later main commits `9451ff8939eb30cfcac3ba4b4c170dc648d479f9` and `589f3c07c2b91a24bad02900f1d2bbbaebb8f3ba` add communications and the Agent 3 identity claim; they do not alter compiler sources. Verified current-main blobs are:
+
+- `src/ast.js`: `c227e6e604635a42663af745fd0cfb194b215a67`
+- `src/properties.js`: `bda3c6097e2679f59bd003fa0aed3e0291d4ba4c`
+- `src/cross-properties.js`: `7298df722d65f545dcb7b55c81cb6b8e101ce6b7`
+- `src/identifiers.js`: `c7e2ed1469381c5bc6dc42cef9a6ca8bfa347f0f`
+
+All four blobs match the source tested by Agent 11's fresh main-based branch. The following evidence is donor/test-only; no compiler source or PR was changed by these runs.
+
+### New donor: unknown host calls create transitive DynamicFrame effects (Agent 9)
+
+Agent 9's branch-only property-pass prototype now has three progressively refined focused receipts:
+
+- Initial local-call effect prototype: source `e23a893b504e49bef5f324d2d4e16c63bacad0e9`, run [45292685943](https://github.com/FlareZ123/obfs/actions/runs/45292685943), six cases green on Ubuntu and Windows. Unknown calls taint the current callable and propagate over uniquely bound local call edges; a pure direct-call helper retains property yield.
+- Nested-function precision: source `ddabe200cdf1fb059268e6c1277c693b8fee9d2a`, run [45293458665](https://github.com/FlareZ123/obfs/actions/runs/45293458665), nine cases green on both platforms. Nested function bodies are analyzed separately and taint the parent only through an actual local call edge; an uninvoked nested callback does not suppress parent yield.
+- Transitive active-caller capture: source `a516fb0f704e75e8ee57fe2e0fdd023c655c72eb`, run [45293900434](https://github.com/FlareZ123/obfs/actions/runs/45293900434), twelve cases green on both platforms. A local helper calls an unknown host callback; the callback captures `arguments.callee.caller.caller` and later observes the ancestor's function source. The effect propagates to that active ancestor while pure-helper and uninvoked-closure positive controls retain property yield.
+
+**Disposition:** retain this as a useful `UnknownHostEffect` / reverse `DynamicFrame` donor for the shared plan. It is not a merge-ready production patch: it only gates `privateFunctionNodes` in the property pass; non-local calls are conservatively treated as ambient, there is no intrinsic whitelist, getter/Proxy/Web-IDL effects are absent, imported/member/dynamic call edges are unresolved, the identifier pass remains separate, and no full suite, browser suite, cross-file graph acceptance or 2.5× measurement was run. Do not port it as an isolated property-only fix.
+
+### New donor: primitive prototype Get and method dispatch are host effects (Agent 11)
+
+Agent 11 copied test-only matrices onto a branch based on main `27572fc13ed8f04b3ec6f98d95f1a60b98454ec5`. The compiler blobs listed above match that base and the current main source snapshot.
+
+- Boxed Number/Boolean/BigInt/Symbol object and array destructuring: [45292181431](https://github.com/FlareZ123/obfs/actions/runs/45292181431), **8 failures / 1 arithmetic positive control** on Ubuntu and Windows.
+- PrimitiveString / ForIn StringKey, iterator, alias, return, field, ESM and member-read flows: [45292800791](https://github.com/FlareZ123/obfs/actions/runs/45292800791), **8 failures / 2 passing semantic controls** on both platforms. The passing cases were own `length` access and plain ForIn identifier use; they are not evidence of a positive rewrite.
+- Host-mutated String/Number/Boolean/BigInt prototype `.toString` dispatch: [45292983468](https://github.com/FlareZ123/obfs/actions/runs/45292983468), **4 failures / 2 controls** on both platforms. The Symbol method and ordinary primitive-arithmetic controls pass.
+- Direct primitive member getter returning `Function`, across Number/Boolean/BigInt/Symbol and five origins/flows (literal, alias, local identity return, object field, imported ESM identity return): [45293453450](https://github.com/FlareZ123/obfs/actions/runs/45293453450), **20 failures / 1 arithmetic positive control** on both platforms. Native output exposes `secretField`; emitted output exposes the renamed key and reads null.
+
+Two follow-up controls separate the getter's own execution from use of its return value:
+
+- [45295210042](https://github.com/FlareZ123/obfs/actions/runs/45295210042), **5/5 green** on both platforms: a host-installed primitive-prototype getter dynamically imports the ESM owner and observes its keys during the Get itself, then returns non-callable `0`; the application discards the result. Current main conservatively refuses the owner rewrite.
+- [45294821796](https://github.com/FlareZ123/obfs/actions/runs/45294821796), **5/5 green** on both platforms: the same effectful getter result is assigned to an unused local; current main again refuses the owner rewrite.
+
+The important current-main gap is therefore narrower than an unrecognized primitive member read: direct discarded and unused getter results are already vetoed, but a getter result that is a Function can escape through a binding, local return, object field and ESM identity return, then be invoked; the owner property is renamed. The analysis must preserve the host effect at the original Get and propagate the returned callable capability through the existing binding/value-flow summary.
+
+**Disposition:** model primitive receiver Get as an effect even when its result is unused; model object destructuring's ToObject/Get, array-pattern GetIterator/@@iterator, StringKey provenance from ForIn, and primitive prototype method dispatch as distinct paths. Preserve the getter-return callable through aliases, assignments, calls/returns, object fields and ESM edges. Do not blanket-taint arithmetic: the independent arithmetic controls retain a real property rewrite. The hostile COO/SNO/SCO runtime assumptions do not grant pristine client-side intrinsics. A trusted-intrinsics optimization would require an explicit separate host contract and must not be treated as satisfying the stated hostile-runtime model.
+
+**Yield correction:** exploratory String `length` yield assertions in runs 45293993691/45294227831 observed zero property rewrites and were invalid as positive controls. Keep the corrected arithmetic positive control as the demonstrated nonzero-yield witness; do not claim String own-`length` rewrite coverage.
+
+Full matrices and corrections: [Agent 11's consolidated report](../im-results/pr332-logical-callback-assignment-2026-11-23.md). The Agent 9 reports are [initial prototype](../im-results/agent9-ambient-host-call-effect-prototype-2026-11-23.md), [nested precision](../im-results/agent9-ambient-host-call-effect-nested-precision-2026-11-24.md), and [transitive stack validation](../im-results/agent9-ambient-host-call-transitive-stack-validation-2026-11-24.md).
+
+### Refreshed integration decision (24 November 2026): NO-GO remains
+
+These donors strengthen the evidence for two missing effect families, but they do not form one composable candidate. The Agent 9 work is property-pass-only; the Agent 11 matrices expose a property-proof/value-provenance gap; neither is integrated with the read-only BindingId resolver, source-span/closure plan, identifier and string passes, SCO request-time spelling variation, or VM/CFG/affine/Wasm backends. No comprehensive current-main acceptance or 2.5× admission has been established.
+
+The smallest defensible candidate must consume one shared, per-reference `SourceObservationPlan` containing:
+
+1. **Binding identity:** declaration-node BindingIds and per-reference local/free-host/unknown resolution, with dynamic scope remaining Unknown.
+2. **Value and capability provenance:** primitive-origin values, callable values, host-opaque values and unknowns, including primitive Get/iterator/method-dispatch effects and cross-file/imported identity flows.
+3. **Activation effects:** local call edges plus reverse DynamicFrame edges for unknown host callbacks/getters, with transitive propagation to the active caller/ancestor.
+4. **Independent observation effects:** `ExactSource`, `FramePosition`, `CallableMetadata` and `UnknownHostEffect`; do not collapse source-byte, stack-position and callable-identity guarantees into one boolean.
+5. **Semantic closure:** affected callable spans plus the owner fields, import/provider identities, captured initializers and writes whose transformation could change the observed program. Exact source preservation alone is not a semantic-equivalence proof.
+6. **One plan consumer contract:** local/cross-file property, identifier, string, SCO request-spelling, VM, control-flow, affine and Wasm passes either consume the same plan or explicitly decline. Keep the existing whole-file refusal as the fallback when identity or effect closure is unproved.
+
+Candidate selection still requires a single current-main-based branch and exact source pin; red-first Agent 9/11 negatives; nonzero unrelated positive-yield controls; Stage 1 resolver and semantic-closure evidence; separate COO Chromium, actual SCO `createScoHandler` request-time/browser, and SNO Node controls; then one full two-platform Node/Chromium/JSDoc/performance gate. The latest unfocused mainline acceptance evidence remains RED at [45250108841](https://github.com/FlareZ123/obfs/actions/runs/45250108841), with 26 named failures per OS at its pinned source. Focused donor greens do not change that status.
+
+**Decision:** no compiler port, no new overlapping integration PR, and no Agent 10 comprehensive gate yet. Agent 3 remains the integration owner; Agent 10 remains the sole comprehensive acceptance owner. Preserve the donor branches and reports. Keep the product decision **RELEASE-BLOCKED**.
