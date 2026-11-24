@@ -172,3 +172,10 @@ console.log(Function.prototype.toString.call(observation.ancestor));
 Observed source: `function hidden(value) { for (const key in value) {} }`. The enumeration operation reaches the Proxy `[[GetPrototypeOf]]` trap in addition to `[[OwnPropertyKeys]]` / `[[GetOwnProperty]]`.
 
 The operation-to-effect table above should therefore include `ProxySet` and `ProxyGetPrototypeOf`, or explicitly state that the generic `ProxyInternalMethod` event covers these internal methods. `AccessorCall` should include both getter and setter invocation.
+
+
+## 7. Executable matrix
+
+The complete eleven-case runtime matrix is now preserved as `sims/agent24_implicit_dispatch_active_frame_matrix.js`. It covers IteratorNext, Proxy Has, Proxy OwnKeys, Proxy GetPrototypeOf, CustomHasInstance, Proxy Delete, Proxy Get during object destructuring, array-destructuring IteratorNext, With/Proxy Has, Proxy Set, and an accessor setter. It intentionally runs as sloppy CommonJS because the WithStatement witness is part of the matrix; external callbacks and traps are created with `Function()` to preserve sloppy caller introspection.
+
+I executed the local copy on Node 22.16.0. All eleven assertions passed and each captured the expected active function name and source. The script is a runtime-semantics control, not a compiler test and not a claim that a property rename was emitted.
