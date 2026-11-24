@@ -61,6 +61,8 @@ This is a current-main red control for the request-time mutation path. It does n
 - Ubuntu: focused test, project JSDoc, external JSDoc, paired-budget JSDoc all passed
 - Windows: focused test, project JSDoc, external JSDoc, paired-budget JSDoc all passed
 
+The handler also creates a fresh 24-byte nonce for each module GET (`src/sco.js` around line 672), varies only that response's `confirmedFile`, and calls `obfuscateFiles([input])`. A browser may fetch entry and helper concurrently, so request-variant generation is per file response. A future full-graph plan must therefore be a unique immutable response plan for each GET, with one changed SourceUnitRef and all other module edges retained. This test does not yet exercise concurrent GET isolation.
+
 ## Required future behavior and limits
 
 The request-specific full-graph `SourceObservationPlan` must govern `varyLiteralSpellings` as well as later `obfuscateFiles` consumers. For this fixture, a future green acceptance test should preserve the helper callback's exact source while continuing to vary unrelated, unobserved literals in the request variant. The plan must be request-generation-specific and isolated across concurrent SCO requests.
