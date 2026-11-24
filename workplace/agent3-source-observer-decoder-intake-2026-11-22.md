@@ -352,7 +352,7 @@ Agent 19's DOM/HTML parser/stream matrix and Agent 1's CSSOMString matrix are us
 
 ## Addendum (24 November 2026, after 04:38 UTC): HostHeldCallable source-observation gap and graph-schema correction
 
-**Current main at refresh:** 3e7b260b3e7febb3178cc5bc5ee87aa083e0d654. The authoritative carrier/effect contract was corrected in commit 3e7b260b3e7febb3178cc5bc5ee87aa083e0d654 and refined through latest schema commit 589a38ed955f4aea703c59030d497672ba282867; its v2 schema supersedes the earlier incomplete typedef block. This is still a proposal, not a production plan module.
+**Current main at refresh:** 3e7b260b3e7febb3178cc5bc5ee87aa083e0d654. The authoritative carrier/effect contract was corrected in commit 3e7b260b3e7febb3178cc5bc5ee87aa083e0d654 and refined through latest schema commit 527f8fb3252fecc46f02cc4662ae793c6ed86e97; its v2 schema supersedes the earlier incomplete typedef block. This is still a proposal, not a production plan module.
 
 ### Current-main HostHeldCallable evidence
 
@@ -437,3 +437,11 @@ The three mode boundaries now have focused runtime witnesses: COO Chromium host 
 Agent 13 also added a distinct local globalThis-root shadow negative (local Node 22.16.0 Web Storage only; no compiler/CI receipt). Unshadowed globalThis.Symbol.toPrimitive installs the actual hook; with a local const globalThis object whose Symbol.toPrimitive is the string "toPrimitive", Storage ignores the hook and exposes original function source. Exact fixture: communications/agent12/20261124T0447Z_agent13-globalThis-shadow-control.md. The v2 contract now requires the root globalThis BindingRef/RealmBindingRef to resolve to the actual host global under the mode-specific HostContractRef; spelling alone is not intrinsic proof. Keep this separate from the local Symbol shadow negative.
 
 The contract self-audit also made observation dimensions explicit on each HostEffectRecord: observationEffects is the per-event effect set, while the span-keyed plan.effects map is derived. SourceMirrorRead may produce ExactSource for a function-source mirror or SourceBytes for a distributed source mirror; FileSystemSourceRead, CallableMetadataRead and StackFrameRead have explicit event kinds. UnknownHostEffect remains the fallback when the actual operation/observation cannot be proven.
+
+
+## Addendum (24 November 2026, after 04:56 UTC): callable metadata and owner-field precision
+
+Agent 9 added host-held object/class method controls that read Function#toString, name and length without invoking the method. Across two method forms × COO/SCO/SNO, all six cases preserve exact source, name "callback" and length 1 while renaming an unrelated private object's property. [Run 45329546230](https://github.com/FlareZ123/obfs/actions/runs/45329546230) passed on Ubuntu and Windows with strict JSDoc. This validates a CallableMetadata + ExactSource closure with unrelated-owner yield.
+
+The same-owner diagnostic [45329630264](https://github.com/FlareZ123/obfs/actions/runs/45329630264) preserves source/name/length but leaves holder.unrelatedField unchanged and reports zero property yield. Only the function value is passed to the host; the holder object is not. This is a conservative owner-level veto, not an unsafe rename and not yet a proven missed opportunity. The separate-owner positive does not establish same-owner safety. The contract now distinguishes HostHeldCallable from HostHeldObject, records ownerValueRef and PropertyKeyIdentityRef on field edges, and adds CallableDefinitionRef [[HomeObject]]/this/super facts. Same-owner field yield stays fail-closed until reflection, getters/setters, dynamic keys, binding, this/super and value escape are proven.
+
