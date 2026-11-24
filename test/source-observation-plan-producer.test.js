@@ -1,0 +1,136 @@
+'use strict';
+
+const {test}=require('node:test');
+const assert=require('node:assert/strict');
+const {obfuscateFiles}=require('../src/core');
+const {parserContractIdFor}=require('../src/ast');
+const {
+  buildDirectFunctionSourcePlan,
+  getInitialPlanRanges,
+  validatePlanConsumerInput
+}=require('../src/source-observation-plan');
+
+/** @typedef {import('../src/core').SourceFile} SourceFile */
+
+const source=[
+  '// UTF-16 coordinate prefix 😀',
+  'const privateRecord = { privateField: 7 };',
+  'function observed() { return 29; }',
+  'const observedSource = Function.prototype.toString.call(observed);',
+  "const label = 'safe-literal';",
+  'export const result = privateRecord.privateField;',
+  'export const sourceText = observedSource;',
+  'export const labelText = label;'
+].join('\n');
+
+const hostContract={
+  runtimeFamily:'Node.js / V8',
+  runtimeVersion:process.versions.node,
+  contractVersion:'coo-direct-function-source-v1',
+  pristineIntrinsicsPremise:
+    'Fresh test realm with unmodified Function.prototype.toString and Function.prototype.call; this is a declared compatibility premise, not an attacker-resistant guarantee.'
+};
+
+/** @param {string} code @returns {SourceFile} */
+function entry(code) {
+  return {path:'entry.mjs',sourceType:'module',code};
+}
+
+/** @param {string} code @returns {Promise<Record<string,unknown>>} */
+async function importDataModule(code) {
+  const url='data:text/javascript;base64,'+Buffer.from(code,'utf8').toString('base64');
+  return /** @type {Promise<Record<string,unknown>>} */ (import(url));
+}
+
+test('direct Function#toString plan preserves exact callable source while unrelated local passes yield',async()=>{
+  const native=await importDataModule(source);
+  const result=obfuscateFiles([entry(source)],{
+    mode:'coo',
+    seed:'direct-source-plan-positive',
+    strings:true,
+    experimentalSourceObservationPlan:hostContract
+  });
+  const emitted=result.files[0];
+  assert.ok(emitted&&typeof emitted.code==='string');
+  assert.notEqual(emitted.code,source);
+  assert.ok(emitted.metrics.properties>=1,'unrelated private object field must be renamed');
+  assert.ok(emitted.metrics.bindings>=1,'unrelated lexical bindings must be renamed');
+  assert.ok(emitted.metrics.literals>=1,'unrelated string literal must be encoded');
+  assert.equal(result.crossFile.properties,0,'single-file plan does not enable cross-file renaming');
+  assert.doesNotMatch(emitted.code,/privateField/u);
+  assert.doesNotMatch(emitted.code,/'safe-literal'/u);
+  assert.ok(emitted.code.includes('function observed() { return 29; }'),
+    'the observed callable source span must remain byte-for-byte present');
+  const compiled=await importDataModule(emitted.code);
+  assert.equal(compiled.sourceText,native.sourceText);
+  assert.equal(compiled.result,native.result);
+  assert.equal(compiled.labelText,native.labelText);
+  assert.equal(compiled.sourceText,'function observed() { return 29; }');
+});
+
+test('without an explicit plan the existing broad observer veto remains unchanged',()=>{
+  const result=obfuscateFiles([entry(source)],{
+    mode:'coo',seed:'direct-source-plan-default',strings:true
+  });
+  assert.equal(result.files[0].code,source);
+  assert.equal(result.files[0].metrics.properties,0);
+  assert.equal(result.files[0].metrics.bindings,0);
+  assert.equal(result.files[0].metrics.literals,0);
+});
+
+test('canonical source spans remain immutable and mapped ranges carry provenance separately',()=>{
+  const plan=buildDirectFunctionSourcePlan(source,'entry.mjs',hostContract);
+  assert.ok(plan);
+  const sourceUnitRef=plan.sourceUnits.keys().next().value;
+  assert.equal(typeof sourceUnitRef,'string');
+  const parserContractId=parserContractIdFor('module');
+  const spans=[...plan.sourceSpans.values()];
+  const callableSpan=spans.find(span=>span.astNodeType==='FunctionDeclaration');
+  assert.ok(callableSpan);
+  assert.equal(Object.isFrozen(callableSpan),true);
+  assert.equal(Object.hasOwn(callableSpan,'originSpanId'),false,
+    'canonical SourceSpanRef identity remains the original span ID');
+  const ranges=getInitialPlanRanges(plan,sourceUnitRef);
+  assert.equal(ranges.trackedSourceRanges.length,2);
+  assert.equal(ranges.protectedSourceRanges.length,1);
+  assert.equal(ranges.protectedSourceRanges[0].originSpanId,callableSpan.spanId,
+    'only the separate MappedSourceRange carries original-span provenance');
+  validatePlanConsumerInput(plan,source,sourceUnitRef,parserContractId,
+    ranges.protectedSourceRanges);
+  assert.throws(()=>validatePlanConsumerInput(plan,source,sourceUnitRef,parserContractId,[]),
+    /incomplete protected source coverage/u);
+});
+
+test('producer rejects aliases, extra readers, unknown syntax and unversioned host premises',()=>{
+  const alias=source.replace(
+    'Function.prototype.toString.call(observed)',
+    'Function.prototype.toString.call.bind(Function.prototype.toString)(observed)'
+  );
+  const secondReader=source.replace(
+    'export const sourceText = observedSource;',
+    'const secondSource = Function.prototype.toString.call(observed); export const sourceText = observedSource;'
+  );
+  const unknownSyntax=source.replace(
+    'function observed() { return 29; }',
+    'function observed() { return Math.max(29, 1); }'
+  );
+  assert.equal(buildDirectFunctionSourcePlan(alias,'entry.mjs',hostContract),null);
+  assert.equal(buildDirectFunctionSourcePlan(secondReader,'entry.mjs',hostContract),null);
+  assert.equal(buildDirectFunctionSourcePlan(unknownSyntax,'entry.mjs',hostContract),null);
+  assert.equal(buildDirectFunctionSourcePlan(source,'entry.mjs',null),null);
+  assert.throws(()=>obfuscateFiles([entry(alias)],{
+    mode:'coo',experimentalSourceObservationPlan:hostContract
+  }),/outside the closed direct Function\.prototype\.toString\.call producer grammar/u);
+});
+
+test('producer remains scoped to one ESM COO unit and rejects server modes and multi-file inputs',()=>{
+  assert.throws(()=>obfuscateFiles([entry(source)],{
+    mode:'sno',experimentalSourceObservationPlan:hostContract
+  }),/only single-file ESM COO/u);
+  assert.throws(()=>obfuscateFiles([
+    entry(source),
+    {path:'second.mjs',sourceType:'module',code:'export const value=1;'}
+  ],{
+    mode:'coo',experimentalSourceObservationPlan:hostContract
+  }),/only single-file ESM COO/u);
+});
