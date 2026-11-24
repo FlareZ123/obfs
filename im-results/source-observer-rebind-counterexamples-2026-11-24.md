@@ -135,6 +135,8 @@ The required result-flow representation is:
 4. A `ValueFlowEdge(kind='export')` connects the `observedSource` value to exported `sourceText`.
 5. The reader-result declaration and export declaration spans/definitions participate in semantic closure and rebind validation.
 
+At the reviewed candidate snapshot, this is missing graph material, not merely a missing final predicate: `sourceSpans` contains only the callable and reader-call spans; `bindings`, `definitions`, `values` and `valueFacts` each contain only the callable; `HostEffectRecord.resultValueRef` is `null`; `valueFlowEdges` is empty; `effectClosures` protects only the callable span; and `semanticClosures` contains only the callable self-closure. The reader-result declaration and exported binding therefore have no represented identity for the rebind validator to preserve. Adding only an edge without the corresponding binding/definition/value/span nodes would still leave the graph incomplete.
+
 Do **not** encode an ordinary ESM export with `SourceDeliveryEdge`; that edge is reserved for SCO server-to-client publication. For this COO fixture, `sourceDeliveryEdges` should remain empty.
 
 The two new harness acceptance outcomes remain **predictions** until the script is run against the exact candidate checkout. The harness deliberately does not claim that its copied static predicates were executed locally.
