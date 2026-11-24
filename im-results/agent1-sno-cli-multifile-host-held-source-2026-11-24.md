@@ -72,7 +72,7 @@ The processJsonPlusNewline probe is a separate conservative source-observer fals
 
 ## Source identity
 
-At the final test commit, the production blobs for ast, properties, identifiers, strings, core, CLI, SNO and the SNO binary were independently compared with current main and matched byte-for-byte. No production compiler source was changed.
+At the final test commit, the production blobs for ast, properties, identifiers, strings, core, CLI, SNO and the SNO binary were independently compared with current main commit fb4dc52311dec569d0fda5f7b748304194353fbe and matched byte-for-byte. No production compiler source was changed.
 
 ## Additional repository repair
 
