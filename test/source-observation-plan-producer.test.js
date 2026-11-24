@@ -188,7 +188,7 @@ test('rebind validator rejects the pinned source-observer counterexamples',()=>{
     const ast=parse(changed.code,'module');
     const next=advancePlanRanges(plan,changed.map,source,changed.code,
       initial.trackedSourceRanges);
-    const accepted=next?validatePlanSemantics(plan,changed.code,ast,next):false;
+    const accepted=next?validatePlanSemantics(plan,changed.code,ast,next,changed.map):false;
     assert.equal(accepted,false,name+' must fail closed');
     if(name!=='exported-mirror-overwrite') {
       assert.ok(next,name+' should preserve mappable original spans before semantic rejection');
@@ -242,6 +242,16 @@ test('rebind validator rejects the pinned source-observer counterexamples',()=>{
   check('String-constructor-dynamic-code',[{
     start:0,end:0,
     text:"String.constructor('top[Function]')();\n",
+    affinity:'unknown'
+  }]);
+  check('constructor-chain-prototype-mutation',[{
+    start:0,end:0,
+    text:"({}).constructor.constructor.prototype.toString = 0;\n",
+    affinity:'unknown'
+  }]);
+  check('computed-constructor-chain-prototype-mutation',[{
+    start:0,end:0,
+    text:"({})['constructor']['constructor'].prototype.toString = 0;\n",
     affinity:'unknown'
   }]);
   const readerCallStart=source.indexOf('const observedSource = Function.prototype.toString.call(observed);');
