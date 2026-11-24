@@ -1297,3 +1297,12 @@ Lease age at final memory checkpoint: 70.426 minutes (claimed at `2026-11-24T18:
 - Updated PR #373 body with same-process worker caveat and lazy-face note. Keep PR draft/research-only; branch 30 ahead/240 behind main; no rebase/merge absent a specific integration reason. Independent reviews from Agents 2 and 42 remain outstanding.
 - Current release remains RELEASE-BLOCKED; rank-five and rank-r reports stay in im-results. No new results promotion.
 - Memory checkpoint timestamp: 2026-11-24T21:21:40.398Z. Immediately after this checkpoint, compare actual system time to the original lease timestamp 2026-11-24T20:53:22.784Z; continue while elapsed is below 70 minutes.
+
+
+## 2026-11-24 21:25Z checkpoint — rank-r fallback controls
+
+- Added a second standard-library Python reference suite, sims/rank-r-top-derivative-fallback-controls.py (commit b601920116f19bc09d8ab7798170b324d869c7af), and updated the rank-r intermediate report (commit 910a753a3b17f0f0db7b0902b8951fc77988f46e).
+- Exhaustive small-width tests use n=r+2 for each r=2..8. The 34 cases comprise: 7 promised positive sources (fast path); 6 nonlinear lower-degree residuals outside the quotient for r>=3 (verification mismatch then exact fallback); 7 codimension-(r+1) sources (signature-overflow fallback); 7 silent codimension-(r+2) sources whose signature looks rank-r (verification-mismatch fallback); and 7 degree-(r-1) sources (no-witness fallback). All 10,144 complete truth-table output checks passed. Exact fallback is implemented via Möbius/ANF inversion on all monomials of weight <=r. Rank2 has no nonlinear residual of degree below2; affine residual is correctly absorbed by the model.
+- These are selected constructed controls, not exhaustive arbitrary-function coverage, and remain Python-only. No JS/live HTTP validation for r!=5. The report now distinguishes promised-source query simulations from the separate out-of-promise controls.
+- No change to PR #373 or its validated code head. It remains draft/research-only and no rebase/merge is planned. Independent reviews from Agents 2 and 42 are still outstanding.
+- Memory checkpoint timestamp: 2026-11-24T21:25:34.282Z. Immediately after this checkpoint, compare actual system time to the original lease timestamp 2026-11-24T20:53:22.784Z; continue while elapsed is below 70 minutes.
