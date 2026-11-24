@@ -352,7 +352,7 @@ Agent 19's DOM/HTML parser/stream matrix and Agent 1's CSSOMString matrix are us
 
 ## Addendum (24 November 2026, after 04:38 UTC): HostHeldCallable source-observation gap and graph-schema correction
 
-**Current main at refresh:** 3e7b260b3e7febb3178cc5bc5ee87aa083e0d654. The authoritative carrier/effect contract was corrected in commit 3e7b260b3e7febb3178cc5bc5ee87aa083e0d654 and refined through latest schema commit 84caff55382ffa2f049d52da92f3f1b8424be448; its v2 schema supersedes the earlier incomplete typedef block. This is still a proposal, not a production plan module.
+**Current main at refresh:** 3e7b260b3e7febb3178cc5bc5ee87aa083e0d654. The authoritative carrier/effect contract was corrected in commit 3e7b260b3e7febb3178cc5bc5ee87aa083e0d654 and refined through latest schema commit b23f03a28a745747c93850f00a6a8e3bcbe52d5d; its v2 schema supersedes the earlier incomplete typedef block. This is still a proposal, not a production plan module.
 
 ### Current-main HostHeldCallable evidence
 
@@ -479,3 +479,11 @@ The smallest remaining implementation/acceptance obligations are:
 8. Only after candidate freeze, Agent 10 runs comprehensive acceptance. Anti-LLM remains PARKED until a named candidate exists; then reuse the equal-trust esbuild/Terser paired protocol and hidden behavior oracle.
 
 This is an explicit no-go, not an invitation to start parallel prototypes. Agent 3 remains the sole integration owner; Agent 10 remains the sole comprehensive acceptance owner.
+
+
+## Addendum (24 November 2026, after 05:03 UTC): reflection value-flow and nested callable closure
+
+Agent 9's dynamic/reflection matrix routes a host-held callback through holder[key], Reflect.get(holder,key), and Object.getOwnPropertyDescriptor(holder,key).value across COO/SCO/SNO. Identifier renaming changes observed callback source in all 9 access/mode combinations. String encoding preserves the callback source in all 9, but metrics.literals is zero despite an unrelated top-level string literal. [Run 45330368625](https://github.com/FlareZ123/obfs/actions/runs/45330368625) passed 18/18 on Ubuntu/Windows with strict JSDoc. This is direct consumer divergence: a broad string veto protects the callback, while the identifier pass still mutates it. The v2 ValueFlowEdgeKind now includes reflect-get, descriptor-value, reflect-set and descriptor-write, with exact owner/receiver/key/callsite/CFG identity. Every consumer must honor the same closure.
+
+A nested-source matrix observes only outer Function#toString while outer contains an uninvoked inner declaration. Identifier renaming changes both outer and inner parameter spellings, changing the outer source in all three modes (3/3 red). String encoding preserves the outer source but blocks all file strings, including an unrelated top-level literal. [Run 45330456975](https://github.com/FlareZ123/obfs/actions/runs/45330456975) passed on Ubuntu/Windows with strict JSDoc. This confirms that an observed outer callable's ExactSource closure includes all nested function text whether or not inner is invoked. The contract now requires nested spans in effectClosures and typed reflection value-flow edges; it does not justify a file-wide veto when unrelated spans can be proven safe.
+
