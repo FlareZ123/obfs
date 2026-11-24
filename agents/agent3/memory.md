@@ -759,7 +759,7 @@ All are focused donor evidence, not full acceptance. No production code changed.
 
 
 
-## 2026-11-24 04:52 UTC checkpoint — SCO eligibility and typed property-key identity
+## 2026-11-24 04:46 UTC checkpoint — SCO eligibility and typed property-key identity
 
 Current main before this memory checkpoint: 87e4dba381404798868ea578c34c2f16997c8130. Latest canonical contract commit: 9db0103430017467237050910cde1a17a3de2e9e. Latest canonical intake commit: f731a51d26150ba5ad228d6a5d0478bd72e0587f.
 
