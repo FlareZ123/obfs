@@ -6,13 +6,13 @@
 
 ## Scope and execution status
 
-The four runtime-effect fixtures below were executed under **Node v22.16.0**. They demonstrate the behavioral consequences of changing source outside the two original tracked spans.
+The five runtime-effect fixtures below were executed under **Node v22.16.0**. They demonstrate the behavioral consequences of changing source outside the two original tracked spans.
 
 The candidate acceptance path was inspected statically. I did **not** execute the candidate's `validatePlanSemantics`, `acceptPlannedPass`, or full `obfuscateFiles` pipeline locally because this runtime has no repository checkout/network access. To make the acceptance claim independently reproducible, the accompanying script calls the candidate's exported `advancePlanRanges` and `validatePlanSemantics` directly. It deliberately bypasses `acceptPlannedPass`, whose reviewed snapshot has the separate Map/array mismatch.
 
 - Harness: [`source-observer-rebind-counterexamples-2026-11-24.js`](./source-observer-rebind-counterexamples-2026-11-24.js)
-- Harness blob SHA: `0f5e47ca7950a8c57fe9f8fd3275be4d5f741a04`
-- Harness commit: `02e0fa09fdc8b00b7688f4e13ba29f36a17d17f2`
+- Harness blob SHA: `0cbfb1c7066767b14024b3c96d793ed8d1dbef4a`
+- Harness commit: `9adda7268d507461497eec281527ecd9df33604c`
 
 To run the direct validator harness, from a checkout of the reviewed candidate branch, copy the harness from main into a temporary file and run it with the candidate checkout as the current working directory:
 
@@ -85,23 +85,36 @@ The original callable and reader slices are unchanged and still syntactically di
 
 ## Observed Node v22.16.0 runtime output
 
-The four behavioral fixtures were executed in separate data-URL module imports. Exact output:
+The five behavioral fixtures were executed in separate data-URL module imports. Exact output:
 
 ```text
 export-prefix: {"keys":["labelText","observed","result","sourceText"],"sourceText":"function observed() { return 29; }"}
 imported-Function-shadow: {"sourceText":"fake-host-source"}
 appended-reader: {"sourceText":"function observed() { return 29; }","leaked":"function secret() { return 99; }"}
+mutable-reader-binding: {"sourceText":"fake"}
 intrinsic-mutation: {"sourceText":"tampered"}
 ```
 
 These are runtime behavior observations, not proof that any currently enabled property/identifier/string pass emits one of these edits.
+
+### 5. Change the reader-result binding to mutable and overwrite it before export
+
+Replace `const observedSource` with `let observedSource`, then insert this statement before the existing `export const sourceText = observedSource;`:
+
+```js
+observedSource = 'fake';
+```
+
+The original reader call and callable source slices remain exact. The reader still appears as the initializer of a VariableDeclarator, and the current `readerTopLevel` predicate checks the parent/ancestor node types but not `VariableDeclaration.kind`. `inspectDeclarations` counts the declaration name but does not record const-versus-let or subsequent writes. The original producer grammar requires `const` and rejects assignments, but post-pass validation does not rerun those restrictions or validate the reader-result binding's reaching definition.
+
+Node v22.16.0 runtime output is `sourceText === 'fake'`, even though the original Function#toString call still executes.
 
 ## Candidate code path under review
 
 At the reviewed branch SHA:
 - `src/source-observation-plan.js:147–153`: `isDirectFunctionSourceCall` checks AST spelling, not the lexical binding of `Function`.
 - `src/source-observation-plan.js:327–345`: `inspectDeclarations` counts FunctionDeclaration and VariableDeclarator bindings, but omits imports and classes.
-- `src/source-observation-plan.js:798–860`: `validatePlanSemantics` checks the original mapped source slices and reader/callable relation, but does not revalidate the original source-reader inventory, global `Function` resolution, or pristine-intrinsic premise.
+- `src/source-observation-plan.js:798–860`: `validatePlanSemantics` checks the original mapped source slices and reader/callable relation, but does not revalidate the original source-reader inventory, global `Function` resolution, pristine-intrinsic premise, or the reader-result declaration's `const` kind/reaching writes.
 - `src/source-observation-plan.js:887 onward`: `acceptPlannedPass` declares a Map input but forwards it to `advancePlanRanges`, which iterates range objects from an array; the reviewed core supplies an array, which the Map guard rejects. This separate issue prevents the normal transaction helper from reaching the semantic validator on the reviewed snapshot.
 
 ## Interpretation
