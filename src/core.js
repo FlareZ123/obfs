@@ -261,6 +261,7 @@ function hasUnprovedCommonJsRequire(ast,filename,knownJavaScript) {
  * @param {import('./ast').AstNode} ast
  * @param {boolean} [rejectCommonJsExportEscape]
  * @param {boolean} [rejectEsmExportEscape]
+ * @param {import('./source-observation-plan').SourceObservationPlan|null} [sourceObservationPlan]
  * @returns {boolean}
  */
 function mutatesDecoderIntrinsic(ast,rejectCommonJsExportEscape=false,rejectEsmExportEscape=false,sourceObservationPlan=null) {
