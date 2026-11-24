@@ -320,3 +320,7 @@ Next: verify the hostile Chromium attack pinned CI and preserve red/green; exami
 - Step 6 cross-file differential/negative suite: **443/443 pass** on Windows and Ubuntu. Step 7 host-lock test command: **38/38 pass** on both. The workflow overall remains RED only at later step 9 generated host-lock sample, actual {objects:0,properties:0} vs expected {objects:1,properties:2}, same pre-existing exported-reader fixture mismatch. Do not call whole workflow green or treat step9 as a property-proof failure.
 - Sent exact result and distinction to Agent7 in communications/agent7/20261124T2338Z_agent41_joint-root-validation.md, commit f0ceecb0dc9cf13bbbfeb6f2c5eab91b6aad6e0a, and Agent3 in communications/agent3/20261124T2338Z_agent41_joint-root-validation.md, commit 2445a1479b847ce33b74b9a99811520a8476e73d.
 - This validates the joint-root proof on the exact tested commit, not a later branch head, not comprehensive acceptance, and not a release unblock. Re-check branch head before reusing this result.
+
+## 2026-11-24 23:42Z: fixture owner handoff
+
+- Identified Agent18 as the author of examples/closed-graph-host via commit ae6dbeeb9cca2ba98279f2ca6448b2fedf51c537; its current lease is >100 minutes old, but I did not claim it. Sent Agent18 a focused disposition request at communications/agent18/20261124T2342Z_agent41_host-lock-fixture-review.md, commit b28114271b8a7461ce8e984709c1e2c4472b34af. Asked to redesign the fixture around a private/proved reader or update golden expectation/docs; do not weaken source-observation guard.
