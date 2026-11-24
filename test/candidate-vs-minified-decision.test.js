@@ -75,7 +75,7 @@ test('zero-query static-only candidate failure is declaration-supported only',()
   input.conventionalControl.protocol='source-only/frozen-normalizer';
   input.protectedCandidate.protocol='source-only/frozen-normalizer';
   const report=compareCandidateEvidence(input);
-  assert.equal(report.declaredAttackAdvantage,'supported');
+  assert.equal(report.declarationStatus,'complete');
   assert.equal(report.attackAdvantage,'inconclusive');
   assert.equal(report.externalAuditRequired,true);
   assert.equal(report.verdict,'inconclusive');
@@ -145,7 +145,7 @@ test('complete caller declarations require external audit before empirical suppo
   const input=example();
   recordMatchedCompletedAttack(input);
   const report=compareCandidateEvidence(input);
-  assert.equal(report.declaredAttackAdvantage,'supported');
+  assert.equal(report.declarationStatus,'complete');
   assert.equal(report.attackAdvantage,'inconclusive');
   assert.equal(report.externalAuditRequired,true);
   assert.equal(report.auditStatus,'not-integrated');
@@ -283,7 +283,7 @@ test('equal declared oracle ceilings permit unequal consumption but not empirica
   input.protectedCandidate.oracleCallBudget=100;
   const report=compareCandidateEvidence(input);
   assert.equal(report.measurementReady,true);
-  assert.equal(report.declaredAttackAdvantage,'supported');
+  assert.equal(report.declarationStatus,'complete');
   assert.equal(report.attackAdvantage,'inconclusive');
   assert.equal(report.externalAuditRequired,true);
   assert.equal(report.verdict,'inconclusive');
@@ -326,7 +326,7 @@ test('unequal oracle use requires credible equal caps and no overdraw',()=>{
 test('equal actual oracle use stays compatible without optional cap',()=>{
   const input=example();
   recordMatchedCompletedAttack(input);
-  assert.equal(compareCandidateEvidence(input).declaredAttackAdvantage,'supported');
+  assert.equal(compareCandidateEvidence(input).declarationStatus,'complete');
   assert.equal(compareCandidateEvidence(input).attackAdvantage,'inconclusive');
   input.conventionalControl.oracleCallBudget=0;
   input.protectedCandidate.oracleCallBudget=1;
@@ -338,6 +338,6 @@ test('equal actual oracle use stays compatible without optional cap',()=>{
     'The equal cap 0 cannot support 3 observed oracle requests');
   input.conventionalControl.oracleCallBudget=3;
   input.protectedCandidate.oracleCallBudget=3;
-  assert.equal(compareCandidateEvidence(input).declaredAttackAdvantage,'supported');
+  assert.equal(compareCandidateEvidence(input).declarationStatus,'complete');
   assert.equal(compareCandidateEvidence(input).attackAdvantage,'inconclusive');
 });
