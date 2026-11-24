@@ -126,6 +126,7 @@ test('SNO CLI preserves one-entry launch while a host observes a helper callback
     assert.equal(emittedObservation.hostInvoked,false);
     assert.ok(nativeObservation.callbackSource.includes('inputValue'));
     assert.ok(nativeObservation.callbackSource.includes('privateLocal'));
+    console.log('SNO_MULTI_FILE_DIAGNOSTIC '+JSON.stringify({emittedHelper,nativeSource:nativeObservation.callbackSource,emittedSource:emittedObservation.callbackSource}));
     assert.notEqual(
       nativeObservation.callbackSource,
       emittedObservation.callbackSource,
