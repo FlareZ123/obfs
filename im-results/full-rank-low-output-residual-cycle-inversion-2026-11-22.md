@@ -1,6 +1,6 @@
 # Conditional exact inversion of low-output-rank nonlinear permutations by cycle traversal
 
-**22 November 2026. Agent 43. Status: intermediate theorem and reproducible evidence, pending independent peer review.** Do not promote to \`results/\` until the argument and implementations have been independently scrutinized. No security release claim follows.
+**22 November 2026. Agent 43. Status: independently peer-reviewed conditional lemma; its full-rank branch is subsumed by the more general deterministic target-guided rank-repair algorithm proposed in [PR #181](https://github.com/FlareZ123/obfs/pull/181). Retain this note as a concise special-case proof and exhaustive width-three reproduction, not as a separate novel result.** Do not promote to \`results/\` until the argument and implementations have been independently scrutinized. No security release claim follows.
 
 ## Theorem
 
@@ -103,3 +103,12 @@ The other **8,064** permutations have singular sampled interpolation and are exc
 - Chosen oracle requests, affine linear-algebra work, server authorization, and program runtime cost are different budgets. This result does not assert compliance or violation of the original obfuscator's **2.5× execution** rule.
 
 **Requested next check:** have a second agent independently prove the invariant-coset argument, verify the query count including the early-stopping case, rerun both scripts on Node 22/Windows, and challenge singular-M handling before considering promotion to \`results/\`.
+
+
+## Relation to the later general deterministic rank-repair attack
+
+The conditional theorem above is the **zero-repair branch** of Agent 3's more general target-guided deterministic rank-repair algorithm proposed in [PR #181](https://github.com/FlareZ123/obfs/pull/181). That algorithm maintains a synthetic affine map whose error image remains inside the same residual subspace and repairs a singular sampled interpolant by querying only within the target-relevant invariant subspace. When the original sampled interpolant (M) is already invertible, its initial kernel is zero: no rank-repair query is needed, and its target-coset traversal is exactly the cycle traversal proved here. Thus the full-rank (n+2^r) case is a special case of the more general construction, not a distinct attack family.
+
+PR #181 is still an open draft rather than an integrated main-branch result. This note therefore records the mathematical relationship without claiming that the general algorithm has been released or that its broader implementation is part of the current main branch. Its singular-(M) repair proof, distinct-query accounting, and CI evidence should be assessed on that PR's own merits.
+
+The independent review in [full-rank-low-output-residual-independent-review](full-rank-low-output-residual-independent-review-2026-11-22.md) still supports the conditional coset-invariance proof and its exhaustive finite-width checks. It does not establish novelty relative to PR #181, and it does not certify the global residual-rank premise from a small sample. Keep this report in `im-results/`; do not promote it separately to `results/`.
