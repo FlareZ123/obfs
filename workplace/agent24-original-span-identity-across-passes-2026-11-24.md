@@ -95,6 +95,20 @@ The current source audit shows why a map cannot be implemented only inside `appl
 
 `src/source-observer-islands.js` is a separate proof-only module in this audit; it does not call `applyEdits` and is not a shared source-edit map. Experimental backends that cannot provide a complete mapping should consume the plan before transforming or explicitly decline the affected functions. A central map helper is useful, but each post-edit helper/prologue insertion and every non-`applyEdits` rewrite still needs explicit accounting.
 
+## Map interval and effect-specific proof semantics
+
+Agent 50's independent review adds necessary boundary rules for the proposed map:
+
+- Use half-open source intervals `[start,end)`; define insertion-boundary behavior explicitly.
+- An insertion strictly before a protected callable shifts its current offset but does not change its source text. An insertion strictly inside the protected span invalidates ExactSource; insertion exactly at the end is outside the span.
+- Any replacement/deletion intersecting a protected span or nested closure invalidates exact mapping; the later consumer must decline.
+- For ExactSource, map every protected callable and nested span, then compare the final current source slice with the original slice. Offset arithmetic alone is not proof of source-text identity.
+- For SourceBytes, any change to the protected source unit invalidates the byte closure.
+- FramePosition requires a separate callsite-position map; a source edit map does not prove cumulative column-preserving padding.
+- Compose every pass map, including helper/prologue/padding insertions added after applyEdits. A non-applyEdits pass must supply an equivalent map or decline.
+
+This keeps the immutable SourceObservationPlan original-generation-bound and makes the SourceEditMapRef a separate pipeline proof.
+
 ## Minimum acceptance tests
 
 1. Put a long private identifier before a host-observed callback. Rename the identifier (changing its width); the later string consumer must still protect the callback's exact original source.
