@@ -45,7 +45,7 @@ g++ -O3 -std=c++20 sims/agent2-rankfive-witness-order-dp.cpp -o /tmp/rank7dp
 /tmp/rank7dp
 ~~~
 
-The run used about 747 MiB maximum resident memory and completed in about 0.55 seconds on the local runtime used for this check.
+The run used about 730 MiB maximum resident memory (747,136 KiB) and completed in about 0.55 seconds on the local runtime used for this check.
 
 The globally optimal face order, written as complementary pairs T, is:
 \[
