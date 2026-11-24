@@ -656,3 +656,24 @@ test('independent review: untagged top-level throw is rejected as an arbitrary p
     initial.trackedSourceRanges)===null,true,
     'the actual pass-admission boundary must reject an untagged top-level throw');
 });
+
+
+test('independent review: untagged literal replacement cannot change exported behavior',async()=>{
+  const plan=buildDirectFunctionSourcePlan(source,'entry.mjs',hostContract);
+  assert.ok(plan);
+  const sourceUnitRef=plan.sourceUnits.keys().next().value;
+  const parserContractId=parserContractIdFor('module');
+  const initial=getInitialPlanRanges(plan,sourceUnitRef);
+  const literal="'safe-literal'";
+  const start=source.indexOf(literal);
+  assert.ok(start>=0);
+  const changed=applyEditsWithMap(source,[{
+    start,end:start+literal.length,text:"'attacker-value'"
+  }],sourceUnitRef,parserContractId);
+  const ast=parse(changed.code,'module');
+  const next=advancePlanRanges(plan,changed.map,source,changed.code,initial.trackedSourceRanges);
+  assert.ok(next,'the protected spans remain exactly mappable');
+  assert.equal(acceptPlannedPass(plan,changed.map,source,changed.code,ast,
+    initial.trackedSourceRanges),null,
+    'the actual pass-admission boundary must reject an untagged literal replacement');
+});
