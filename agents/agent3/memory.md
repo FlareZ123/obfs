@@ -757,3 +757,32 @@ All are focused donor evidence, not full acceptance. No production code changed.
 4. Preserve unrelated safe-callable/owner yield. Do not replace the current file-wide observer with a blanket host-call/queueMicrotask spelling veto.
 5. Do not dispatch Agent 10's comprehensive gate until the candidate is frozen with source pin, donors, focused red/green, positive controls and a strict 2.5x evaluation plan.
 
+
+
+## 2026-11-24 04:52 UTC checkpoint — SCO eligibility and typed property-key identity
+
+Current main before this memory checkpoint: 87e4dba381404798868ea578c34c2f16997c8130. Latest canonical contract commit: 9db0103430017467237050910cde1a17a3de2e9e. Latest canonical intake commit: f731a51d26150ba5ad228d6a5d0478bd72e0587f.
+
+### Schema refinements after initial v2
+
+- Added exact callable identities to ValueFact, pathProvenance, per-edge ownerValueRef/targetCallableDefinitionRef/branchGuardIds, SourceSpanRef and effectClosures.
+- Added WellKnownSymbolRef with agent-scoped symbolIdentityDomainId, exact symbolValueIdentity, wellKnownName, sourceRealmId as provenance, provenance kind, proof status and HostContractRef.
+- Added PropertyKeyIdentityRef for static strings, number-to-string, well-known symbols, unique symbols and unknown keys; it is carried through ValueFact, ValueFlowEdge, HostEffectRecord and a plan-level registry. The actual key value, not Symbol constructor identity or realm alone, is the proof target.
+- Added per-callable ScoPartitionEligibility over the full client module graph. A client HostHeldCallable/ExactSource observer makes a server-private facade ineligible under strict 1:1 source semantics; unknown client observer reachability fails closed.
+- Corrected stale contract text that conflated ExactSource with SourceBytes. ExactSource is callable source text; SourceBytes is distributed source-unit bytes/mirrors; UnknownHostEffect is a fallback, not a positive fifth effect.
+- Ran a mechanical schema sanity check on the v2 JSDoc block: 76 typedefs at that checkpoint, no duplicate typedef names and no unresolved custom property-type references. Enum tokens in WellKnownSymbolRef were false positives in the simple capitalized-token scan.
+
+### New evidence incorporated
+
+- Agent 9's fixed-point HostHeldCallable note: seed at exact host-controlled callsite/argument; propagate through modeled value-flow edges; resolve exact CallableDefinitionRefs; protect complete Function#toString source spans including nested source/comments/whitespace; do not create ActiveFrame when host only reads source without invocation.
+- Agent 9's SCO selected-server partition boundary: [45326434167](https://github.com/FlareZ123/obfs/actions/runs/45326434167) and digest-preflight [45327228394](https://github.com/FlareZ123/obfs/actions/runs/45327228394) passed on Ubuntu/Windows with strict JSDoc. Private engine/leaf routes are withheld; client sees a generated facade; its Function#toString differs from original server function. This is a confidentiality/source-semantics tradeoff, not source parity. Request-time createScoHandler mutation and selected-server placement are separate.
+- Agent 13's Symbol.toPrimitive refinement is local Node 22.16.0 semantic evidence only, not a CI/compiler result: a userland wrapper can expose the exact well-known symbol; a fake Symbol.for key cannot; the identity is shared across realms within one ECMAScript agent. Agent 13 also requires mode-scoped HostContract trust: hostile COO/client, SCO/client and SNO/server cannot infer pristine Symbol from runtime version or spelling; SCO/server is the obfuscator-controlled partition.
+- Latest intake addendum records these boundaries and the remaining SNO CLI/launcher and actual SCO browser-handler gaps.
+
+### Communications
+
+Sent targeted follow-ups to Agents 8, 9, 13 and 10. Agent 8 was asked to review remaining v2 consistency after fixing stale SourceBytes wording; Agent 13 was asked to validate property-key identity flow; Agent 9 was asked to check closure/partition edges; Agent 10 was asked to include the selected-partition tradeoff as a separate SCO acceptance dimension. Broadcast and mailbox files are committed; verify replies before deciding further changes.
+
+### Decision
+
+Still **NO-GO / RELEASE-BLOCKED**. No production compiler source changed, no candidate PR opened, and no comprehensive gate dispatched. Do not turn this schema work into another parallel resolver. Next priority is to close any remaining v2 review contradictions, then decide whether one minimal current-main candidate can consume the shared plan across all relevant source-mutating consumers. Preserve per-callable precision: protect hidden while keeping safe eligible.
