@@ -14,10 +14,10 @@ function shaWord(text) {
 }
 function shaStream(label) {
   let counter = 0;
-  return () => shaWord(\`\${label}/\${counter++}\`);
+  return () => shaWord(`${label}/${counter++}`);
 }
 function privateTable() {
-  const values = Array.from({ length: SIZE }, (_, i) => shaWord(\`private-table-rank5/\${i}\`));
+  const values = Array.from({ length: SIZE }, (_, i) => shaWord(`private-table-rank5/${i}`));
   values[31] = (values[31] ^ 0x9765c3af) >>> 0;
   return values;
 }
@@ -40,8 +40,8 @@ function oracle(input) {
 }
 function sourceString() {
   return [
-    ...MASKS.map((mask, i) => \`const OBFS_PRIVATE_MASK\${i}=0x\${mask.toString(16)};\`),
-    ...TABLE.map((value, i) => \`const OBFS_PRIVATE_T\${i}=\${value};\`),
+    ...MASKS.map((mask, i) => `const OBFS_PRIVATE_MASK${i}=0x${mask.toString(16)};`),
+    ...TABLE.map((value, i) => `const OBFS_PRIVATE_T${i}=${value};`),
     'const OBFS_PRIVATE_OFFSET=0x5a9bc7e1;',
     'function obfsPrivateParity(x){',
     '  x^=x>>>16;x^=x>>>8;x^=x>>>4;x^=x>>>2;x^=x>>>1;',
@@ -58,7 +58,7 @@ function sourceString() {
     '  const affine=((x<<5)|(x>>>27))^((x<<13)|(x>>>19));',
     '  let nonlinear=0;',
     '  switch(index){',
-    ...TABLE.map((_, i) => \`    case \${i}: nonlinear=OBFS_PRIVATE_T\${i};break;\`),
+    ...TABLE.map((_, i) => `    case ${i}: nonlinear=OBFS_PRIVATE_T${i};break;`),
     '  }',
     '  return (affine^OBFS_PRIVATE_OFFSET^nonlinear)>>>0;',
     '}',
@@ -83,8 +83,8 @@ function fixedPairPasses(section) {
   return true;
 }
 function learn(replicate, strategy) {
-  const drawWitness = shaStream(\`rank5-exact-witness/\${replicate}\`);
-  const drawVerify = shaStream(\`rank5-exact-verify/\${replicate}\`);
+  const drawWitness = shaStream(`rank5-exact-witness/${replicate}`);
+  const drawVerify = shaStream(`rank5-exact-verify/${replicate}`);
   const cache = new Map();
   const ask = input => {
     const x = input >>> 0;
@@ -143,7 +143,7 @@ function learn(replicate, strategy) {
         const l2 = (f2 ^ section[q ^ 2]) >>> 0;
         if (l0 === l1 && l0 === l2) candidates.push({ q, correction: l0 });
       }
-      if (candidates.length !== 1) throw new Error(\`shift ambiguity: bit \${bit}, \${candidates.length} candidates\`);
+      if (candidates.length !== 1) throw new Error(`shift ambiguity: bit ${bit}, ${candidates.length} candidates`);
       coordinates.push(candidates[0].q);
       corrections.push(candidates[0].correction);
     }
@@ -168,9 +168,9 @@ function learn(replicate, strategy) {
 
 function main() {
   const sourceHash = createHash('sha256').update(sourceString()).digest('hex');
-  if (sourceHash !== EXPECTED_SOURCE_SHA256) throw new Error(\`source hash mismatch: \${sourceHash}\`);
+  if (sourceHash !== EXPECTED_SOURCE_SHA256) throw new Error(`source hash mismatch: ${sourceHash}`);
   const top = TABLE.reduce((acc, value) => (acc ^ value) >>> 0, 0);
-  if (top !== 0xb1f2257d) throw new Error(\`top coefficient mismatch: \${top.toString(16)}\`);
+  if (top !== 0xb1f2257d) throw new Error(`top coefficient mismatch: ${top.toString(16)}`);
   const signature = [];
   const shift = [];
   for (let replicate = 0; replicate < REPLICATES; replicate++) {
@@ -182,11 +182,11 @@ function main() {
   const sigQueries = signature.map(x => x.queries);
   const shiftQueries = shift.map(x => x.queries);
   const witnessTrials = signature.map(x => x.witnessTrials);
-  if (!savings.every(x => x === 896)) throw new Error(\`unexpected savings: \${[...new Set(savings)]}\`);
+  if (!savings.every(x => x === 896)) throw new Error(`unexpected savings: ${[...new Set(savings)]}`);
   console.log(JSON.stringify({
     node: process.version,
     source_sha256: sourceHash,
-    top_coefficient: \`0x\${top.toString(16).padStart(8, '0')}\`,
+    top_coefficient: `0x${top.toString(16).padStart(8, '0')}`,
     replicates: REPLICATES,
     verifier_samples: VERIFY_SAMPLES,
     signature_mean_distinct_queries: mean(sigQueries),
