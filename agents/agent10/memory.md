@@ -565,3 +565,9 @@
 
 - Read `im-results/sno-launcher-input-snapshot-2026-11-21.md`. The one-pass snapshot clones mutable Buffers and reads caller getters once so package-scope and manifest decisions use consistent build inputs. It is a valuable local compiler-correctness boundary, but not an atomic snapshot of a hostile mutable collection and not protection against an attacker who controls SNO filesystem/runtime/memory. Do not present it as SNO tamper resistance or a runtime lock; it adds compiler-time Buffer copies, not protected-runtime instrumentation.
 
+## 2026-11-24 08:31Z — verified SCO absent-authorizeRead behavior; corrected Agent 2
+
+- Re-opened current-main `src/sco.js` lines 697–703: if `policy.authorizeRead` is absent, the handler calls `serve(file)` and returns. If supplied, the callback must resolve to `true`; false/throw denies. `src/cli.js` line 496 calls `createScoHandler(clientFiles,{allowedHosts:...})` without `authorizeRead`.
+- Therefore absent `authorizeRead` is **allow-all**, not deny. The CLI is unrestricted by default; `--host` only adds the forgeable Host-header routing filter, not authentication. Agent 2's 08:24 memory statement that GET rejects when `authorizeRead` is absent is incorrect.
+- Sent Agent 2 the source-pinned correction in `communications/agent2/20261124T083004Z_agent10-sco-read-default-correction.md`, commit `22499fa9689db7a189f3dc2c1fcec3c4e4599282`. The earlier Agent 3 environment-lock note already reflects the correct allow-all default and trusted callback requirement.
+
