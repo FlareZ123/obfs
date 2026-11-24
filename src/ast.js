@@ -16,14 +16,48 @@ const sourceObservationCache=new WeakMap();
  * @param {'script'|'module'|'commonjs'} sourceType
  * @returns {AstNode}
  */
-function parse(source, sourceType) {
-  return /** @type {AstNode} */ (acorn.parse(source, {
+/**
+ * The single parser-option constructor. Keep parser identity derived from this
+ * exact object so source generations cannot silently outlive parser changes.
+ * @param {'script'|'module'|'commonjs'} sourceType
+ * @returns {{ecmaVersion:'latest',sourceType:'script'|'module',allowReturnOutsideFunction:boolean,allowHashBang:true,preserveParens:false}}
+ */
+function parserOptionsFor(sourceType) {
+  return {
     ecmaVersion: 'latest',
     sourceType: sourceType === 'commonjs' ? 'script' : sourceType,
     allowReturnOutsideFunction: sourceType === 'commonjs',
     allowHashBang: true,
     preserveParens: false
-  }));
+  };
+}
+
+/**
+ * Canonical parser contract for a source unit. Any AST-affecting parser option
+ * or parser-version change necessarily changes this identity.
+ * @param {'script'|'module'|'commonjs'} sourceType
+ * @returns {string}
+ */
+function parserContractIdFor(sourceType) {
+  if(!['script','module','commonjs'].includes(sourceType)) {
+    throw new TypeError('Unsupported parser source type: '+sourceType);
+  }
+  return JSON.stringify({
+    parser:'acorn',
+    version:acorn.version,
+    requestedSourceType:sourceType,
+    options:parserOptionsFor(sourceType)
+  });
+}
+
+/**
+ * Parse JavaScript without implicit grammar downgrades or error recovery.
+ * @param {string} source
+ * @param {'script'|'module'|'commonjs'} sourceType
+ * @returns {AstNode}
+ */
+function parse(source, sourceType) {
+  return /** @type {AstNode} */ (acorn.parse(source, parserOptionsFor(sourceType)));
 }
 
 /**
@@ -4080,4 +4114,4 @@ function observesDistributedSource(ast,importedStrings=new Map()) {
   return observed;
 }
 
-module.exports = {parse, walk, applyEdits, observesFunctionSource, observesDistributedSource, staticString, collectDirectCarrierFactories, sourceSpelledErrorOperand};
+module.exports = {parse, parserContractIdFor, walk, applyEdits, observesFunctionSource, observesDistributedSource, staticString, collectDirectCarrierFactories, sourceSpelledErrorOperand};
