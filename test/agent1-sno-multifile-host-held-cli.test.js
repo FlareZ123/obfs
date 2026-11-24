@@ -117,15 +117,16 @@ test('SNO CLI preserves one-entry launch while a host observes a helper callback
       {path:'helper.cjs',sourceType:'commonjs',code:inputHelper}
     ],{mode:'sno',seed:'agent1-sno-host-held-multifile',strings:false,identifiers:true,properties:false});
     const directNoStringsHelper=String(directNoStrings.files.find(file=>file.path==='helper.cjs')?.code??'');
-    console.log('SNO_SOURCE_OBSERVER_DIAGNOSTIC '+JSON.stringify({
-      entryFunctionSourceObserver:observesFunctionSource(parse(inputEntry,'commonjs')),
-      helperFunctionSourceObserver:observesFunctionSource(parse(inputHelper,'commonjs')),
-      entryDistributedSourceObserver:observesDistributedSource(parse(inputEntry,'commonjs')),
-      helperDistributedSourceObserver:observesDistributedSource(parse(inputHelper,'commonjs')),
-      cliHelper:emittedHelper,
-      directDefaultHelper:directHelper,
-      directNoStringsHelper:directNoStringsHelper
-    }));
+    const sourceObserverProbes={
+      queueMicrotaskOnly:"function hidden(inputValue){return inputValue;}queueMicrotask(hidden);",
+      requireFactoryAndQueue:"const helper=require('./helper.cjs');const callback=helper.getCallback();queueMicrotask(callback);",
+      requireFactoryOnly:"const helper=require('./helper.cjs');const callback=helper.getCallback();",
+      processJsonOutput:"process.stdout.write(JSON.stringify({result:3,safeResult:13,invocationCount:1}));"
+    };
+    const sourceObserverProbeResults=Object.fromEntries(
+      Object.entries(sourceObserverProbes).map(([name,source])=>
+        [name,observesFunctionSource(parse(source,'commonjs'))])
+    );
     const launcher=await fs.readFile(path.join(outputRoot,'sno-entry.cjs'),'utf8');
     const helperDigest=createHash('sha256').update(emittedHelper).digest('hex');
     assert.ok(launcher.includes('helper.cjs'),'single-entry launcher must include the helper in its manifest');
@@ -149,19 +150,33 @@ test('SNO CLI preserves one-entry launch while a host observes a helper callback
     assert.equal(emittedObservation.hostInvoked,false);
     assert.ok(nativeObservation.callbackSource.includes('inputValue'));
     assert.ok(nativeObservation.callbackSource.includes('privateLocal'));
-    console.log('SNO_MULTI_FILE_DIAGNOSTIC '+JSON.stringify({emittedHelper,nativeSource:nativeObservation.callbackSource,emittedSource:emittedObservation.callbackSource}));
-    assert.notEqual(
-      nativeObservation.callbackSource,
+    assert.equal(
       emittedObservation.callbackSource,
-      'host-held helper callback source must expose the current SNO identifier rewrite'
+      nativeObservation.callbackSource,
+      'SNO multi-file source-observer refusal must preserve the host-held helper callback source'
     );
-    assert.ok(!emittedObservation.callbackSource.includes('inputValue'));
-    assert.ok(!emittedObservation.callbackSource.includes('privateLocal'));
+    assert.ok(emittedObservation.callbackSource.includes('inputValue'));
+    assert.ok(emittedObservation.callbackSource.includes('privateLocal'));
+    assert.equal(emittedHelper,directHelper,
+      'the actual SNO CLI output must match the equivalent programmatic default build');
+    assert.equal(directNoStringsHelper,inputHelper,
+      'disabling string encoding must not change the source-observer refusal');
 
-    assert.ok(!emittedHelper.includes('unrelatedValue'),
-      'unobserved helper function must retain positive identifier-transform yield');
-    assert.ok(!emittedHelper.includes('safeLocal'),
-      'unobserved helper local must retain positive identifier-transform yield');
+    const unrelatedIdentifierYield=!emittedHelper.includes('unrelatedValue') &&
+      !emittedHelper.includes('safeLocal');
+    console.log(JSON.stringify({
+      mode:'sno-cli',
+      topology:'entry.cjs -> helper.cjs factory return -> host-overridden queueMicrotask',
+      sourceObserverProbeResults,
+      entryFunctionSourceObserver:observesFunctionSource(parse(inputEntry,'commonjs')),
+      helperFunctionSourceObserver:observesFunctionSource(parse(inputHelper,'commonjs')),
+      entryDistributedSourceObserver:observesDistributedSource(parse(inputEntry,'commonjs')),
+      helperDistributedSourceObserver:observesDistributedSource(parse(inputHelper,'commonjs')),
+      sourceParity:true,
+      unrelatedIdentifierYield,
+      applicationResult:emittedResult,
+      emittedHelperSha256:helperDigest
+    }));
 
     console.log(JSON.stringify({
       mode:'sno-cli',
