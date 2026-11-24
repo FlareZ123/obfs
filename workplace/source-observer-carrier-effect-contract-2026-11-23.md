@@ -227,6 +227,7 @@ The canonical plan should expose at least the following. The v2 JSDoc schema sup
  * @typedef {string} SourceMirrorRefKey
  * @typedef {string} SourceMirrorReadEdgeKey
  * @typedef {string} WellKnownSymbolRefKey
+ * @typedef {string} PropertyKeyIdentityRefKey
  * @typedef {string} ReceiverRefKey
  * @typedef {string} ValueRefKey
  * @typedef {string} ValueFlowEdgeKey
@@ -310,6 +311,18 @@ The canonical plan should expose at least the following. The v2 JSDoc schema sup
  * @property {HostContractRefKey|null} hostContractRef
  * @property {ValueProofStatus} proofStatus
  *
+ * @typedef {'static-string'|'number-to-string'|'well-known-symbol'|'unique-symbol'|'unknown'} PropertyKeyIdentityKind
+ * @typedef {Object} PropertyKeyIdentityRef
+ * @property {PropertyKeyIdentityRefKey} identityRef
+ * @property {PropertyKeyIdentityKind} kind
+ * @property {string|null} stringValue - canonical property key string for string/number cases
+ * @property {number|null} numericValue
+ * @property {WellKnownSymbolRefKey|null} wellKnownSymbolRef
+ * @property {string|null} symbolIdentityDomainId
+ * @property {string|null} symbolValueIdentity
+ * @property {ValueProofStatus} proofStatus
+ * @property {HostContractRefKey|null} hostContractRef
+ *
  * @typedef {Object} ValueRef
  * @property {ValueRefKey} valueRef
  * @property {SourceUnitRefKey} sourceUnitRef
@@ -322,6 +335,7 @@ The canonical plan should expose at least the following. The v2 JSDoc schema sup
  * @property {ReadonlyArray<DefinitionRefKey>} originDefinitionRefs
  * @property {ReadonlyArray<CallableDefinitionRefKey>} callableDefinitionRefs - exact callable identities when category includes Callable
  * @property {ReadonlyArray<WellKnownSymbolRefKey>} wellKnownSymbolRefs - exact well-known symbol values carried by this value
+ * @property {ReadonlyArray<PropertyKeyIdentityRefKey>} propertyKeyIdentityRefs
  * @property {ReadonlyArray<SourceUnitRefKey>} originSourceUnitRefs
  * @property {ReadonlyArray<PathProvenanceRef>} pathProvenance - distinct from ordinary ValueCategory
  * @property {ReadonlyArray<ValueCapability>} capabilities
@@ -340,7 +354,7 @@ The canonical plan should expose at least the following. The v2 JSDoc schema sup
  * @property {CallableDefinitionRefKey|null} targetCallableDefinitionRef - target-specific actual/formal or return edge
  * @property {ValueRefKey|null} ownerValueRef - object identity for field read/write edges
  * @property {number|null} argumentIndex
- * @property {string|null} propertyKeyIdentity
+ * @property {PropertyKeyIdentityRefKey|null} propertyKeyIdentity
  * @property {string|null} operandPath
  *
  * @typedef {'call'|'construct'|'tag'|'optional-call'|'implicit'|'unknown'} InvocationKind
@@ -389,6 +403,7 @@ The canonical plan should expose at least the following. The v2 JSDoc schema sup
  * @property {string|null} operandRole
  * @property {number|null} argumentIndex
  * @property {string|null} operandPath
+ * @property {PropertyKeyIdentityRefKey|null} propertyKeyIdentityRef
  * @property {HostContractRefKey|null} hostContractRef
  * @property {CallbackRole} callbackRole
  * @property {CallbackTiming} callbackTiming
@@ -441,6 +456,7 @@ The canonical plan should expose at least the following. The v2 JSDoc schema sup
  * @property {ReadonlyMap<SourceDeliveryEdgeKey, SourceDeliveryEdge>} sourceDeliveryEdges
  * @property {ReadonlyMap<CallableDefinitionRefKey, ScoPartitionEligibility>} scoPartitionEligibility
  * @property {ReadonlyMap<WellKnownSymbolRefKey, WellKnownSymbolRef>} wellKnownSymbols
+ * @property {ReadonlyMap<PropertyKeyIdentityRefKey, PropertyKeyIdentityRef>} propertyKeyIdentities
  * @property {ReadonlyMap<BindingIdentityRefKey, BindingIdentity>} bindings
  * @property {ReadonlyMap<DefinitionRefKey, DefinitionRef>} definitions
  * @property {ReadonlyMap<CallableDefinitionRefKey, CallableDefinitionRef>} callableDefinitions
@@ -479,6 +495,8 @@ The canonical event taxonomy uses one ProxyInternalMethod event with the exact o
 ObservationEffect has four positive dimensions: ExactSource (callable source text), SourceBytes (distributed source-unit bytes/mirrors), FramePosition (observable coordinates), and CallableMetadata (name/length/identity metadata). UnknownHostEffect is an epistemic fallback, not a fifth positive observation. A proven ExactSource closure is callable-span scoped; SourceBytes closes over a source unit only when its mirror/URL provenance establishes that reader; FramePosition closes over coordinate-affecting edits; CallableMetadata closes over exposed metadata. These effects are independent.
 
 SCO selected-server partitioning is a separate placement decision, not a source-transform effect. Compute ScoPartitionEligibility per callable over the full client module graph: a client HostHeldCallable/ExactSource observer makes the callable ineligible under strict 1:1 source semantics; unknown client observer reachability is unknown and fails closed; absence of a client source observer can leave the server-private partition eligible. The generated facade may protect private server bytes, but its Function#toString source differs from the original server callable. Do not claim both strict source parity and server-only confidentiality for that observable callable. Request-time mutation of delivered client code and selected-server partition eligibility are distinct SCO boundaries.
+
+A property-key identity is not a bare string or a constructor spelling. PropertyKeyIdentityRef distinguishes static strings, number-to-string keys, well-known symbols, unique symbols and unknown keys, and carries exact value/provenance. For @@toPrimitive, the proof target is the actual well-known symbol value used at the computed property access. Its identity domain is the ECMAScript agent, not an individual realm; source realm is provenance only. A cross-realm intrinsic or userland wrapper exposing the exact agent-wide well-known symbol may be proven, while a fake Symbol.for value, mutable alias, shadowed Symbol binding or unknown preload remains Unknown unless the value graph or a mode-specific HostContractRef proves the actual key.
 
 Well-known Symbol identity is carried by the actual symbol value, not by the Symbol constructor reference or realm alone. In particular, Symbol.toPrimitive is shared across realms in one ECMAScript agent. A userland wrapper that exposes the exact well-known symbol value may be safe when its value provenance is proven; a fake Symbol.for value, local shadow, mutable alias or unknown preloader remains unknown. sourceRealmId is provenance, while symbolIdentityDomainId is the identity domain.
 
@@ -635,9 +653,9 @@ The existing `PrimitiveIterator` label is too narrow for all iterator and object
 
 Add distinct event producers or conservatively map them to `UnknownHostEffect`. The current main already has explicit `WithStatement` vetoes in `src/ast.js`, `src/properties.js`, `src/identifiers.js`, `src/strings.js` and `src/source-observer-islands.js`; preserve those fail-closed checks. Agent 9's BindingId donor does not preserve the With veto and is false-safe for a Proxy `has` trap.
 
-### ExactSource is the shared source-byte/source-text effect
+### ExactSource and SourceBytes are separate effect dimensions
 
-Keep the four-bit `ObservationEffect` union. Explicitly define `ExactSource` to cover both callable source text (`Function#toString`, selected diagnostics) and distributed file bytes/serialization (loader, inspector, browser transfer, SRI). Split a separate file-byte bit only if implementation closures differ materially; do not silently omit existing distributed-source gates.
+Keep four positive `ObservationEffect` dimensions: `ExactSource`, `SourceBytes`, `FramePosition` and `CallableMetadata`; `UnknownHostEffect` is the conservative epistemic fallback, not a fifth positive observation. `ExactSource` covers callable source text (`Function#toString` and selected diagnostics). `SourceBytes` covers distributed file bytes/serialization (loader, inspector, browser transfer, DOM mirrors and SRI). Their edit closures differ materially: callable-span closure versus provenance-proven whole-source-unit closure. Do not merge them or silently omit distributed-source gates.
 
 ### Callsite identity
 
@@ -658,7 +676,7 @@ Replacing `Storage.prototype.setItem` or defining an own `localStorage.setItem` 
 
 The same structured conversion event should cover `Window.name` attribute assignment and bounded `Headers` / `URLSearchParams` constructor/method paths. It should also cover native DOM/CSSOM sinks from the ten-sink matrix: `CSSStyleDeclaration.setProperty`, `Element.setAttribute`, `CSS.escape`, `Element.id`, `Element.textContent`, `Document.createTextNode`, `Document.createComment`, `Element.insertAdjacentText`, `Element.append` and `Element.replaceChildren`. These are native Web IDL conversions, not a denylist of method names.
 
-The four-bit `ObservationEffect` remains separate from the host-effect event: a Web IDL conversion may produce `ExactSource` when a callable is stringified, `UnknownHostEffect` when user conversion hooks execute, or neither when the conversion is proven inert. Keep the callable/receiver/value closure and native descriptor identity in the plan.
+The four positive `ObservationEffect` dimensions remain separate from the host-effect event, with `UnknownHostEffect` as fallback: a Web IDL conversion may produce `ExactSource` when a callable is stringified, `SourceBytes` only when a distributed source mirror is read, `UnknownHostEffect` when user conversion hooks execute, or neither when the conversion is proven inert. Keep the callable/receiver/value closure and native descriptor identity in the plan.
 
 
 ## Agent 8 deployment-boundary review for source-observer islands (24 November)
@@ -794,7 +812,8 @@ Each operation span may emit multiple HostEffectIds. Both operands of a binary o
 
 The effect bits also imply different edit closures:
 
-- **ExactSource:** close over the exact callable source span for Function source observation, or the entire source unit when distributed bytes/serialization/SRI are observed. Include all edits to captured syntax that changes the callable's emitted source, not only the owner's property key.
+- **ExactSource:** close over the exact callable source span for Function source observation. Include all edits inside that callable's emitted source, including nested source and captured syntax text, not only the owner's property key.
+- **SourceBytes:** close over the entire source unit only when provenance proves that distributed bytes, DOM/loader mirrors or SRI-pinned bytes are readable.
 - **FramePosition:** close over every edit that can change the observed frame/callsite coordinates under the declared runtime/formatter contract. A width-preserving edit is admissible only with a separately validated coordinate invariant; it does not satisfy ExactSource.
 - **CallableMetadata:** close over edits to function names, lengths, descriptors and identity-bearing metadata that the selected host API exposes. Do not infer this bit from source-text observation.
 - **UnknownHostEffect:** if receiver, dispatch provenance, trigger/observed value or active-frame set is unresolved, refuse the affected semantic closure (or the entire declared group when closure cannot be bounded).
