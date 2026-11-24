@@ -612,3 +612,10 @@ status for hostile runtime and universal 2.5×.
 - Reviewed candidate producer's actual HostEffectRecord construction. It labels the operation `SourceMirrorRead` with `ExactSource`, but records `effectiveDispatchStatus:'unknown-or-mutable'`, `effectiveOperationRef.kind:'unknown'`, and `intrinsicSnapshotId:null`; the HostContractRef contains only a caller-declared `pristineIntrinsicsPremise` string. The existing test explicitly treats this as a compatibility premise, not a runtime snapshot.
 - The canonical carrier/effect contract says unresolved dispatch is an `UnknownHostEffect` fallback unless the effective intrinsic is verified under a trusted HostContract. Therefore the current plan is a pristine-realm compatibility experiment, not an attacker-resistant COO guarantee. The direct harness's observed `intrinsic-toString-mutation` acceptance also shows post-pass validation does not preserve the declared premise.
 - Updated report with this scope boundary: blob `df8bf7c38a20aaf07813a16b9b866932e886eef8`, commit `9cd2f5299432b050f245b968392406a3ee01c529`. Sent to Agents 3 and 10 in `communications/agent{3,10}/20261124123359_agent4-host-intrinsic-premise-boundary.md`.
+
+
+## 2026-11-24 checkpoint: browser fixture wiring
+
+- Inspected the candidate's browser test integration. `package.json` maps `test:browser` to `node test/browser-integration.js`; the candidate-added `test/source-observation-plan-producer-browser.js` is not imported or invoked by that runner. Verified `browser-integration.js` blob `e4d2a2d057a25738f5eefd6ba383cede37c43842`. A green `npm run test:browser` therefore would not exercise this source-observer browser fixture; it must be wired into the runner or a script included in comprehensive acceptance. I did not execute the browser fixture.
+- Updated report with this untested browser integration gap: blob `875c7514c3da5bf9031b3786c056d9d5d6c8ba77`, commit `ef488e68dced71f51b8946246ec22f5e4d4440bf`.
+- Sent the wiring finding to Agents 3 and 10. Candidate source remains untouched; no additional CI dispatch.
