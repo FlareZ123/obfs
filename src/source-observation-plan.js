@@ -1,0 +1,732 @@
+'use strict';
+
+const {createHash} = require('node:crypto');
+const {parse,walk,observesFunctionSource,parserContractIdFor} = require('./ast');
+const {sourceGenerationOf,mapMappedSourceRange} = require('./source-edit-map');
+
+/** @typedef {import('./ast').AstNode} AstNode */
+/** @typedef {import('./source-edit-map').MappedSourceRange} MappedSourceRange */
+
+/**
+ * @typedef {Object} SourceSpanRef
+ * @property {string} spanId
+ * @property {string} sourceUnitRef
+ * @property {string} sourceGeneration
+ * @property {number} startOffset
+ * @property {number} endOffset
+ * @property {'utf16-code-unit'} coordinateUnit
+ * @property {string|null} astNodeType
+ *
+ * @typedef {Object} SourceObservationPlan
+ * @property {string} planId
+ * @property {string} planGeneration
+ * @property {ReadonlyMap<string,Object>} sourceUnits
+ * @property {ReadonlyMap<string,SourceSpanRef>} sourceSpans
+ * @property {ReadonlyMap<string,Object>} threatModels
+ * @property {ReadonlyMap<string,Object>} moduleResolutionEdges
+ * @property {ReadonlyMap<string,Object>} sourceDeliveryEdges
+ * @property {ReadonlyMap<string,Object>} scoPartitionEligibility
+ * @property {ReadonlyMap<string,Object>} wellKnownSymbols
+ * @property {ReadonlyMap<string,Object>} propertyKeyIdentities
+ * @property {ReadonlyMap<string,Object>} bindings
+ * @property {ReadonlyMap<string,Object>} definitions
+ * @property {ReadonlyMap<string,Object>} callableDefinitions
+ * @property {ReadonlyMap<string,Object>} activations
+ * @property {ReadonlyMap<string,Object>} values
+ * @property {ReadonlyMap<string,Object>} valueFacts
+ * @property {ReadonlyMap<string,Object>} valueFlowEdges
+ * @property {ReadonlyMap<string,Object>} callSites
+ * @property {ReadonlyMap<string,ReadonlySet<string>>} callTargets
+ * @property {ReadonlyMap<string,ReadonlySet<string>>} hostArgumentEdges
+ * @property {ReadonlyMap<string,Object>} hostEffects
+ * @property {ReadonlyMap<string,ReadonlyArray<Object>>} valueEdges
+ * @property {ReadonlyMap<string,ReadonlyArray<Object>>} activeFrameEdges
+ * @property {ReadonlyMap<string,ReadonlySet<string>>} effectClosures
+ * @property {ReadonlyMap<string,Object>} hostContracts
+ * @property {string|null} deploymentManifestId
+ * @property {ReadonlyMap<string,Object>} sourceMirrors
+ * @property {ReadonlyMap<string,Object>} sourceMirrorReadEdges
+ * @property {ReadonlyMap<string,Object>} receiverRefs
+ * @property {ReadonlyMap<string,ReadonlySet<string>>} effects
+ * @property {ReadonlyMap<string,ReadonlySet<string>>} semanticClosures
+ * @property {ReadonlySet<string>} unsupportedSpans
+ */
+
+/** @type {WeakSet<object>} */
+const validatedPlans=new WeakSet();
+/** @type {WeakMap<object,{source:string,path:string,sourceUnitRef:string,parserContractId:string,callableName:string,callableSpanId:string,readerSpanId:string,effectId:string}>} */
+const planMetadata=new WeakMap();
+
+/**
+ * A read-only Map facade. The backing Map is not exposed to consumers.
+ * @template K,V
+ * @param {Iterable<[K,V]>} entries
+ * @returns {ReadonlyMap<K,V>}
+ */
+function readonlyMap(entries) {
+  const backing=new Map(entries);
+  const view={
+    get size(){return backing.size;},
+    get(key){return backing.get(key);},
+    has(key){return backing.has(key);},
+    entries(){return backing.entries();},
+    keys(){return backing.keys();},
+    values(){return backing.values();},
+    forEach(callback,thisArg){backing.forEach((value,key)=>callback.call(thisArg,value,key,view));},
+    [Symbol.iterator](){return backing[Symbol.iterator]();}
+  };
+  return Object.freeze(view);
+}
+
+/**
+ * A read-only Set facade. The backing Set is not exposed to consumers.
+ * @template T
+ * @param {Iterable<T>} values
+ * @returns {ReadonlySet<T>}
+ */
+function readonlySet(values) {
+  const backing=new Set(values);
+  const view={
+    get size(){return backing.size;},
+    has(value){return backing.has(value);},
+    entries(){return backing.entries();},
+    keys(){return backing.keys();},
+    values(){return backing.values();},
+    forEach(callback,thisArg){backing.forEach(value=>callback.call(thisArg,value,value,view));},
+    [Symbol.iterator](){return backing[Symbol.iterator]();}
+  };
+  return Object.freeze(view);
+}
+
+/** @param {AstNode|null|undefined} node @param {string} name */
+function isIdentifier(node,name) {
+  return Boolean(node&&node.type==='Identifier'&&node.name===name);
+}
+
+/**
+ * @param {AstNode|null|undefined} node
+ * @param {string} property
+ * @param {(object:AstNode)=>boolean} objectPredicate
+ * @returns {boolean}
+ */
+function isMember(node,property,objectPredicate) {
+  return Boolean(node&&node.type==='MemberExpression'&&!node.computed&&!node.optional&&
+    isIdentifier(node.property,property)&&objectPredicate(node.object));
+}
+
+/**
+ * The only admitted reader in the first producer slice. It deliberately does
+ * not accept receiver methods, aliases, Reflect.apply, bound functions, or
+ * other equivalent-looking spellings.
+ * @param {AstNode} node
+ * @returns {boolean}
+ */
+function isDirectFunctionSourceCall(node) {
+  return node.type==='CallExpression'&&!node.optional&&node.arguments.length===1&&
+    node.arguments[0]?.type==='Identifier'&&
+    isMember(node.callee,'call',toStringMethod=>
+      isMember(toStringMethod,'toString',prototype=>
+        isMember(prototype,'prototype',value=>isIdentifier(value,'Function'))));
+}
+
+/**
+ * The first producer accepts a deliberately small ESM grammar. Unknown syntax
+ * is not approximated: it is rejected so the broad detector cannot hide a
+ * second observer behind an unsupported construct.
+ * @param {AstNode} node
+ * @param {AstNode} readerCall
+ * @returns {boolean}
+ */
+function isAllowedExpression(node,readerCall) {
+  if(node.type==='Literal') {
+    return node.value===null||['string','number','boolean'].includes(typeof node.value);
+  }
+  if(node.type==='Identifier')return true;
+  if(node.type==='ObjectExpression') {
+    const names=new Set();
+    return node.properties.every(property=>{
+      if(property.type!=='Property'||property.computed||property.method||
+         property.shorthand||property.kind!=='init')return false;
+      const key=property.key.type==='Identifier'?property.key.name:
+        property.key.type==='Literal'&&typeof property.key.value==='string'?
+          property.key.value:null;
+      if(key===null||names.has(key)||property.value.type!=='Literal')return false;
+      names.add(key);
+      return property.value.value===null||
+        ['string','number','boolean'].includes(typeof property.value.value);
+    });
+  }
+  if(node.type==='MemberExpression') {
+    return !node.computed&&!node.optional&&node.property.type==='Identifier'&&
+      (node.object.type==='Identifier'||node.object.type==='MemberExpression')&&
+      isAllowedExpression(node.object,readerCall);
+  }
+  return node===readerCall&&isDirectFunctionSourceCall(node);
+}
+
+/**
+ * @param {AstNode} ast
+ * @param {AstNode} readerCall
+ * @returns {boolean}
+ */
+function isAllowedProgram(ast,readerCall) {
+  if(ast.type!=='Program'||ast.sourceType!=='module')return false;
+  const functionNodes=[];
+  let valid=true;
+  for(const statement of ast.body) {
+    const node=statement.type==='ExportNamedDeclaration'?
+      statement.declaration:statement;
+    if(statement.type==='ExportNamedDeclaration'&&
+       (statement.source||statement.specifiers.length||!statement.declaration))return false;
+    if(!node)return false;
+    if(node.type==='FunctionDeclaration') {
+      functionNodes.push(node);
+      if(!node.id||node.id.type!=='Identifier'||node.async||node.generator||
+         node.params.length!==0||node.body.type!=='BlockStatement'||
+         node.body.body.length!==1||node.body.body[0].type!=='ReturnStatement'||
+         !node.body.body[0].argument||
+         !isAllowedExpression(node.body.body[0].argument,readerCall))valid=false;
+      continue;
+    }
+    if(node.type==='VariableDeclaration') {
+      if(node.kind!=='const'||!node.declarations.length)return false;
+      for(const declaration of node.declarations) {
+        if(declaration.id.type!=='Identifier'||!declaration.init||
+           !isAllowedExpression(declaration.init,readerCall))valid=false;
+      }
+      continue;
+    }
+    return false;
+  }
+  if(!valid||functionNodes.length!==1)return false;
+  let callCount=0;
+  walk(ast,node=>{
+    if(node.type==='CallExpression') {
+      callCount++;
+      if(node!==readerCall||!isDirectFunctionSourceCall(node))valid=false;
+    }
+    if(node.type==='NewExpression'||node.type==='ImportExpression'||
+       node.type==='WithStatement'||node.type==='AssignmentExpression'||
+       node.type==='UpdateExpression'||node.type==='AwaitExpression'||
+       node.type==='YieldExpression'||node.type==='ClassDeclaration'||
+       node.type==='ClassExpression'||node.type==='TryStatement'||
+       node.type==='ThrowStatement')valid=false;
+    if(node.type==='MemberExpression'&&(node.computed||node.optional))valid=false;
+    if(node.type==='Property'&&(node.computed||node.method||node.shorthand||
+       node.kind!=='init'))valid=false;
+    if(node.type==='VariableDeclaration'&&node.kind!=='const')valid=false;
+  });
+  return valid&&callCount===1;
+}
+
+/**
+ * @param {AstNode} ast
+ * @param {AstNode} readerCall
+ * @returns {{counts:Map<string,number>,readerParent:AstNode|null,readerKey:string|null,readerAncestors:AstNode[]}}
+ */
+function inspectDeclarations(ast,readerCall) {
+  const counts=new Map();
+  let readerParent=null,readerKey=null,readerAncestors=[];
+  walk(ast,(node,parent,key,ancestors)=>{
+    if(node.type==='FunctionDeclaration'&&node.id?.type==='Identifier') {
+      counts.set(node.id.name,(counts.get(node.id.name)??0)+1);
+    }
+    if(node.type==='VariableDeclarator'&&node.id?.type==='Identifier') {
+      counts.set(node.id.name,(counts.get(node.id.name)??0)+1);
+    }
+    if(node===readerCall) {
+      readerParent=parent;
+      readerKey=key;
+      readerAncestors=ancestors;
+    }
+  });
+  return {counts,readerParent,readerKey,readerAncestors};
+}
+
+/**
+ * Remove the one admitted reader from a detached AST and ask the broad
+ * observer detector whether any other known source observer remains.
+ * @param {AstNode} ast
+ * @param {AstNode} readerCall
+ * @returns {boolean}
+ */
+function hasOtherSourceObserver(ast,readerCall) {
+  const copy=JSON.parse(JSON.stringify(ast));
+  let replaced=false;
+  walk(copy,(node,parent,key)=>{
+    if(replaced||node.type!=='CallExpression'||
+       node.start!==readerCall.start||node.end!==readerCall.end)return;
+    if(!parent||key===null)return;
+    const replacement={type:'Literal',start:node.start,end:node.end,value:0,raw:'0'};
+    const value=parent[key];
+    if(Array.isArray(value)) {
+      const index=value.indexOf(node);
+      if(index<0)return;
+      value[index]=replacement;
+    } else {
+      parent[key]=replacement;
+    }
+    replaced=true;
+  });
+  return !replaced||observesFunctionSource(copy);
+}
+
+/**
+ * Build a finite plan for one direct Function.prototype.toString.call(fn)
+ * observation in a closed, single-file ESM COO input. The caller must provide
+ * an explicit, versioned host premise for pristine Function intrinsics. This
+ * is a compatibility premise, not an authorization boundary against a client
+ * attacker who controls the realm.
+ *
+ * @param {string} source
+ * @param {string} path
+ * @param {{runtimeFamily:string,runtimeVersion:string,contractVersion:string,pristineIntrinsicsPremise:string}} hostContract
+ * @returns {SourceObservationPlan|null}
+ */
+function buildDirectFunctionSourcePlan(source,path,hostContract) {
+  if(typeof source!=='string'||typeof path!=='string'||path.length===0||
+     !hostContract||typeof hostContract.runtimeFamily!=='string'||
+     hostContract.runtimeFamily.length===0||
+     typeof hostContract.runtimeVersion!=='string'||hostContract.runtimeVersion.length===0||
+     typeof hostContract.contractVersion!=='string'||hostContract.contractVersion.length===0||
+     typeof hostContract.pristineIntrinsicsPremise!=='string'||
+     hostContract.pristineIntrinsicsPremise.length===0)return null;
+  const parserContractId=parserContractIdFor('module');
+  let ast;
+  try {ast=parse(source,'module');} catch {return null;}
+  /** @type {AstNode[]} */
+  const calls=[];
+  walk(ast,node=>{if(node.type==='CallExpression')calls.push(node);});
+  if(calls.length!==1||!isDirectFunctionSourceCall(calls[0]))return null;
+  const readerCall=calls[0];
+  const {counts,readerParent,readerKey,readerAncestors}=inspectDeclarations(ast,readerCall);
+  if(!readerParent||readerParent.type!=='VariableDeclarator'||
+     readerKey!=='init'||readerParent.init!==readerCall||
+     readerAncestors.some(ancestor=>ancestor.type==='FunctionDeclaration'))return null;
+  const callableName=readerCall.arguments[0].name;
+  const functionNodes=[];
+  walk(ast,node=>{
+    if(node.type==='FunctionDeclaration')functionNodes.push(node);
+  });
+  if(functionNodes.length!==1||functionNodes[0].id.name!==callableName||
+     counts.get(callableName)!==1||counts.has('Function')||
+     !isAllowedProgram(ast,readerCall)||!observesFunctionSource(ast)||
+     hasOtherSourceObserver(ast,readerCall))return null;
+
+  // Every free identifier must be the single declared global intrinsic
+  // Function used by the admitted reader. No imports, ambient callbacks,
+  // computed property access, or host-owned objects are admitted.
+  let freeReference=false;
+  walk(ast,(node,parent,key,ancestors)=>{
+    if(node.type!=='Identifier'||!parent)return;
+    if(parent.type==='MemberExpression'&&key==='property'&&!parent.computed||
+       parent.type==='Property'&&key==='key'&&!parent.computed||
+       parent.type==='VariableDeclarator'&&key==='id'||
+       parent.type==='FunctionDeclaration'&&key==='id')return;
+    if(node.name==='Function'&&ancestors.includes(readerCall))return;
+    if(!counts.has(node.name))freeReference=true;
+  });
+  if(freeReference)return null;
+
+  const callableNode=functionNodes[0];
+  const sourceGeneration=sourceGenerationOf(source,parserContractId);
+  const sourceUnitRef='unit:coo:client:'+path+':'+sourceGeneration;
+  const threatModelId='threat:coo-client-attacker-v1';
+  const hostContractId='host:coo:'+hostContract.runtimeFamily+':'+
+    hostContract.runtimeVersion+':'+hostContract.contractVersion+':'+
+    createHash('sha256').update(hostContract.pristineIntrinsicsPremise).digest('hex').slice(0,16);
+  const callableSpanId='span:'+sourceUnitRef+':'+callableNode.start+':'+
+    callableNode.end+':FunctionDeclaration';
+  const readerSpanId='span:'+sourceUnitRef+':'+readerCall.start+':'+
+    readerCall.end+':CallExpression';
+  const callableDefinitionId='callable:'+sourceUnitRef+':'+callableName;
+  const bindingId='binding:'+sourceUnitRef+':'+callableName;
+  const definitionId='definition:'+sourceUnitRef+':'+callableName;
+  const valueRef='value:'+sourceUnitRef+':'+callableName;
+  const callSiteId='callsite:'+sourceUnitRef+':'+readerCall.start+':'+readerCall.end;
+  const effectId='effect:'+sourceUnitRef+':'+readerCall.start+':source-mirror-read';
+  const mirrorId='mirror:'+callableDefinitionId;
+  const hostIntrinsic=Object.freeze({
+    kind:'verified-host-intrinsic',
+    callableDefinitionRef:null,
+    hostIntrinsicId:'Function.prototype.toString',
+    overrideCallableDefinitionRef:null,
+    hostContractRef:hostContractId
+  });
+  const sourceUnit=Object.freeze({
+    sourceUnitId:sourceUnitRef,
+    mode:'coo',
+    executionPartition:'client',
+    sourceGeneration,
+    resolvedURL:null,
+    resolutionContextId:null,
+    realmGroupId:null,
+    sourceType:'module',
+    executionOrder:0,
+    threatModelRefId:threatModelId,
+    runtimeContractId:hostContractId,
+    requestVariantGeneration:null,
+    buildArtifactId:null
+  });
+  const threatModel=Object.freeze({
+    threatModelId,
+    mode:'coo',
+    executionPartition:'client',
+    runtimeControl:'attacker-controlled',
+    assumptionsVersion:'coo-client-attacker-v1',
+    trustEvidenceId:null
+  });
+  const contract=Object.freeze({
+    hostContractId,
+    mode:'coo',
+    executionPartition:'client',
+    threatModelRefId:threatModelId,
+    runtimeFamily:hostContract.runtimeFamily,
+    runtimeVersion:hostContract.runtimeVersion,
+    realmId:null,
+    intrinsicSnapshotId:null,
+    loaderPreloadContractId:null,
+    deploymentManifestId:null,
+    pristineIntrinsicsPremise:hostContract.pristineIntrinsicsPremise,
+    contractVersion:hostContract.contractVersion
+  });
+  const callableSpan=Object.freeze({
+    spanId:callableSpanId,
+    sourceUnitRef,
+    sourceGeneration,
+    startOffset:callableNode.start,
+    endOffset:callableNode.end,
+    coordinateUnit:'utf16-code-unit',
+    astNodeType:'FunctionDeclaration'
+  });
+  const readerSpan=Object.freeze({
+    spanId:readerSpanId,
+    sourceUnitRef,
+    sourceGeneration,
+    startOffset:readerCall.start,
+    endOffset:readerCall.end,
+    coordinateUnit:'utf16-code-unit',
+    astNodeType:'CallExpression'
+  });
+  const binding=Object.freeze({sourceUnitRef,localBindingId:callableNode.start});
+  const definition=Object.freeze({
+    definitionId,
+    bindingRef:bindingId,
+    definitionSpanId:callableSpanId,
+    kind:'function-declaration',
+    sourceOrder:callableNode.start,
+    controlFlowPointId:'module-entry',
+    branchGuardIds:Object.freeze([])
+  });
+  const callable=Object.freeze({
+    callableDefinitionId,
+    sourceUnitRef,
+    sourceSpanId:callableSpanId,
+    lexicalDefinitionRef:definitionId,
+    ownerDefinitionRef:null,
+    propertyKeyIdentity:null,
+    homeObjectValueRef:null,
+    usesThis:false,
+    usesSuper:false,
+    kind:'function-declaration'
+  });
+  const value=Object.freeze({
+    valueRef,
+    sourceUnitRef,
+    originSpanId:callableSpanId,
+    originDefinitionRef:definitionId
+  });
+  const valueFact=Object.freeze({
+    categoryPossibilities:Object.freeze(['Callable']),
+    proofStatus:'proven',
+    originDefinitionRefs:Object.freeze([definitionId]),
+    callableDefinitionRefs:Object.freeze([callableDefinitionId]),
+    wellKnownSymbolRefs:Object.freeze([]),
+    propertyKeyIdentityRefs:Object.freeze([]),
+    originSourceUnitRefs:Object.freeze([sourceUnitRef]),
+    pathProvenance:Object.freeze([]),
+    capabilities:Object.freeze(['SourceObservable'])
+  });
+  const callSite=Object.freeze({
+    callSiteId,
+    sourceUnitRef,
+    sourceSpanId:readerSpanId,
+    callerActivationRef:null,
+    invocationKind:'call',
+    calleeValueRef:null,
+    calleeBindingRef:null,
+    targetCallableDefinitionRefs:Object.freeze([]),
+    targetResolutionStatus:'resolved',
+    controlFlowPointId:'module-entry',
+    branchGuardIds:Object.freeze([])
+  });
+  const hostEffect=Object.freeze({
+    effectId,
+    causedByEffectId:null,
+    kind:'SourceMirrorRead',
+    operationSpan:readerSpanId,
+    callSiteRef:callSiteId,
+    callerActivationRef:null,
+    abstractOperation:'Function.prototype.toString',
+    observationEffects:Object.freeze(['ExactSource']),
+    conversionHint:null,
+    proxyTrapName:null,
+    interfaceIdentity:'Function',
+    receiverRef:null,
+    receiverProvenance:'native-global',
+    receiverLookupRoute:'native-inherited',
+    effectiveDispatchStatus:'verified-native-intrinsic',
+    effectiveOperationRef:hostIntrinsic,
+    conversionTarget:null,
+    operandRole:'this',
+    argumentIndex:0,
+    operandPath:null,
+    propertyKeyIdentityRef:null,
+    resultValueRef:null,
+    hostContractRef:hostContractId,
+    callbackRole:null,
+    callbackTiming:null
+  });
+  const valueEdge=Object.freeze({
+    effectId,
+    role:'observed',
+    valueRef,
+    callSiteRef:callSiteId,
+    operandRole:'this',
+    argumentIndex:0,
+    operandPath:null
+  });
+  const mirror=Object.freeze({
+    sourceMirrorRef:mirrorId,
+    sourceUnitRef,
+    mirrorKind:'function-source',
+    embeddingKind:'unknown',
+    embeddingSourceUnitRef:null,
+    embeddingIdentity:null,
+    readerOperation:'Function.prototype.toString',
+    readerOperationRef:hostIntrinsic,
+    hostContractRef:hostContractId,
+    callableDefinitionRef:callableDefinitionId,
+    callableSourceSpanId:callableSpanId
+  });
+  const mirrorRead=Object.freeze({
+    edgeId:'mirror-read:'+effectId,
+    effectId,
+    sourceMirrorRef:mirrorId,
+    readerSpanId,
+    observedSourceUnitRef:sourceUnitRef,
+    observedCallableDefinitionRef:callableDefinitionId,
+    observedValueRef:valueRef,
+    observationEffect:'ExactSource'
+  });
+  const planPayload=sourceUnitRef+'|'+hostContractId+'|'+readerSpanId+'|'+callableSpanId;
+  const planGeneration=createHash('sha256').update(planPayload).digest('hex');
+  const plan={
+    planId:'plan:'+planGeneration,
+    planGeneration,
+    sourceUnits:readonlyMap([[sourceUnitRef,sourceUnit]]),
+    sourceSpans:readonlyMap([[callableSpanId,callableSpan],[readerSpanId,readerSpan]]),
+    threatModels:readonlyMap([[threatModelId,threatModel]]),
+    moduleResolutionEdges:readonlyMap([]),
+    sourceDeliveryEdges:readonlyMap([]),
+    scoPartitionEligibility:readonlyMap([]),
+    wellKnownSymbols:readonlyMap([]),
+    propertyKeyIdentities:readonlyMap([]),
+    bindings:readonlyMap([[bindingId,binding]]),
+    definitions:readonlyMap([[definitionId,definition]]),
+    callableDefinitions:readonlyMap([[callableDefinitionId,callable]]),
+    activations:readonlyMap([]),
+    values:readonlyMap([[valueRef,value]]),
+    valueFacts:readonlyMap([[valueRef,valueFact]]),
+    valueFlowEdges:readonlyMap([]),
+    callSites:readonlyMap([[callSiteId,callSite]]),
+    callTargets:readonlyMap([]),
+    hostArgumentEdges:readonlyMap([[readerSpanId,readonlySet([callableDefinitionId])]]),
+    hostEffects:readonlyMap([[effectId,hostEffect]]),
+    valueEdges:readonlyMap([[effectId,Object.freeze([valueEdge])]]),
+    activeFrameEdges:readonlyMap([[effectId,Object.freeze([])]]),
+    effectClosures:readonlyMap([[effectId,readonlySet([callableSpanId])]]),
+    hostContracts:readonlyMap([[hostContractId,contract]]),
+    deploymentManifestId:null,
+    sourceMirrors:readonlyMap([[mirrorId,mirror]]),
+    sourceMirrorReadEdges:readonlyMap([[mirrorRead.edgeId,mirrorRead]]),
+    receiverRefs:readonlyMap([]),
+    effects:readonlyMap([[callableSpanId,readonlySet(['ExactSource'])]]),
+    semanticClosures:readonlyMap([[callableSpanId,readonlySet([callableSpanId])]]),
+    unsupportedSpans:readonlySet([])
+  };
+  Object.freeze(plan);
+  validatedPlans.add(plan);
+  planMetadata.set(plan,{
+    source,
+    path,
+    sourceUnitRef,
+    parserContractId,
+    callableName,
+    callableSpanId,
+    readerSpanId,
+    effectId
+  });
+  return /** @type {SourceObservationPlan} */ (plan);
+}
+
+/**
+ * @param {unknown} plan
+ * @returns {plan is SourceObservationPlan}
+ */
+function isValidatedSourceObservationPlan(plan) {
+  return Boolean(plan&&typeof plan==='object'&&validatedPlans.has(plan));
+}
+
+/**
+ * Return initial current-generation ranges. SourceSpanRef objects in the plan
+ * are never mutated or re-minted; MappedSourceRange is separate pass state.
+ * @param {SourceObservationPlan} plan
+ * @param {string} sourceUnitRef
+ * @returns {{protectedSourceRanges:MappedSourceRange[],trackedSourceRanges:MappedSourceRange[]}}
+ */
+function getInitialPlanRanges(plan,sourceUnitRef) {
+  if(!isValidatedSourceObservationPlan(plan))throw new TypeError('Unvalidated SourceObservationPlan');
+  const meta=planMetadata.get(plan);
+  if(!meta||meta.sourceUnitRef!==sourceUnitRef)throw new TypeError('SourceObservationPlan source unit mismatch');
+  const trackedSourceRanges=[...plan.sourceSpans.values()].map(span=>Object.freeze({
+    sourceUnitRef:span.sourceUnitRef,
+    sourceGeneration:span.sourceGeneration,
+    originSpanId:span.spanId,
+    startOffset:span.startOffset,
+    endOffset:span.endOffset,
+    coordinateUnit:span.coordinateUnit
+  }));
+  const protectedIds=new Set();
+  for(const closure of plan.effectClosures.values())for(const spanId of closure)protectedIds.add(spanId);
+  const protectedSourceRanges=trackedSourceRanges.filter(range=>protectedIds.has(range.originSpanId));
+  return {
+    protectedSourceRanges:Object.freeze(protectedSourceRanges),
+    trackedSourceRanges:Object.freeze(trackedSourceRanges)
+  };
+}
+
+/**
+ * @param {SourceObservationPlan} plan
+ * @param {MappedSourceRange[]} trackedSourceRanges
+ * @returns {MappedSourceRange[]}
+ */
+function protectedRangesFromTracked(plan,trackedSourceRanges) {
+  if(!isValidatedSourceObservationPlan(plan))throw new TypeError('Unvalidated SourceObservationPlan');
+  const protectedIds=new Set();
+  for(const closure of plan.effectClosures.values())for(const spanId of closure)protectedIds.add(spanId);
+  return Object.freeze(trackedSourceRanges.filter(range=>protectedIds.has(range.originSpanId)));
+}
+
+/**
+ * Validate the producer capability and current-generation protected ranges
+ * before a transform consumer may bypass its broad whole-file observer veto.
+ *
+ * @param {SourceObservationPlan} plan
+ * @param {string} source
+ * @param {string} sourceUnitRef
+ * @param {string} parserContractId
+ * @param {MappedSourceRange[]} protectedSourceRanges
+ * @returns {true}
+ */
+function validatePlanConsumerInput(plan,source,sourceUnitRef,parserContractId,protectedSourceRanges) {
+  if(!isValidatedSourceObservationPlan(plan))throw new TypeError('Unvalidated SourceObservationPlan');
+  const meta=planMetadata.get(plan);
+  if(!meta||meta.sourceUnitRef!==sourceUnitRef||meta.parserContractId!==parserContractId) {
+    throw new TypeError('SourceObservationPlan unit/parser contract mismatch');
+  }
+  const generation=sourceGenerationOf(source,parserContractId);
+  const expected=new Set();
+  for(const closure of plan.effectClosures.values())for(const spanId of closure)expected.add(spanId);
+  const actual=new Set();
+  for(const range of protectedSourceRanges) {
+    if(!range||typeof range.originSpanId!=='string'||!expected.has(range.originSpanId)||
+       actual.has(range.originSpanId)||range.sourceUnitRef!==sourceUnitRef||
+       range.sourceGeneration!==generation||range.coordinateUnit!=='utf16-code-unit'||
+       !Number.isInteger(range.startOffset)||!Number.isInteger(range.endOffset)||
+       range.startOffset<0||range.endOffset<range.startOffset||range.endOffset>source.length) {
+      throw new TypeError('Transform received a stale, foreign, or incomplete protected source range');
+    }
+    actual.add(range.originSpanId);
+  }
+  if(actual.size!==expected.size)throw new TypeError('Transform received incomplete protected source coverage');
+  return true;
+}
+
+/**
+ * Advance all original-span associations through one exact pass map.
+ * A null result means the pass changed or ambiguously mapped a tracked span.
+ *
+ * @param {SourceObservationPlan} plan
+ * @param {Object} editMap
+ * @param {string} sourceBefore
+ * @param {string} sourceAfter
+ * @param {MappedSourceRange[]} trackedSourceRanges
+ * @returns {MappedSourceRange[]|null}
+ */
+function advancePlanRanges(plan,editMap,sourceBefore,sourceAfter,trackedSourceRanges) {
+  if(!isValidatedSourceObservationPlan(plan))throw new TypeError('Unvalidated SourceObservationPlan');
+  const next=[];
+  for(const range of trackedSourceRanges) {
+    const mapped=mapMappedSourceRange(editMap,range,sourceBefore,sourceAfter);
+    if(!mapped)return null;
+    next.push(mapped);
+  }
+  return Object.freeze(next);
+}
+
+/**
+ * Reparse/rebind acceptance for the finite first slice. Exact source slices
+ * and the direct reader-to-callable relation must still match the original
+ * immutable plan after every pass.
+ *
+ * @param {SourceObservationPlan} plan
+ * @param {string} source
+ * @param {AstNode} ast
+ * @param {MappedSourceRange[]} trackedSourceRanges
+ * @returns {boolean}
+ */
+function validatePlanSemantics(plan,source,ast,trackedSourceRanges) {
+  if(!isValidatedSourceObservationPlan(plan))return false;
+  const meta=planMetadata.get(plan);
+  if(!meta||sourceGenerationOf(source,meta.parserContractId)!==
+      trackedSourceRanges[0]?.sourceGeneration&&
+      sourceGenerationOf(source,meta.parserContractId)!==
+      trackedSourceRanges[1]?.sourceGeneration)return false;
+  const byId=new Map(trackedSourceRanges.map(range=>[range.originSpanId,range]));
+  if(byId.size!==plan.sourceSpans.size)return false;
+  for(const [spanId,span] of plan.sourceSpans) {
+    const range=byId.get(spanId);
+    if(!range||range.sourceUnitRef!==meta.sourceUnitRef||
+       range.sourceGeneration!==sourceGenerationOf(source,meta.parserContractId)||
+       source.slice(range.startOffset,range.endOffset)!==
+         meta.source.slice(span.startOffset,span.endOffset))return false;
+    let matched=false;
+    walk(ast,node=>{
+      if(node.start===range.startOffset&&node.end===range.endOffset&&
+         node.type===span.astNodeType)matched=true;
+    });
+    if(!matched)return false;
+  }
+  const callableRange=byId.get(meta.callableSpanId);
+  const readerRange=byId.get(meta.readerSpanId);
+  let callableMatches=0,readerMatches=0;
+  walk(ast,node=>{
+    if(node.type==='FunctionDeclaration'&&node.start===callableRange?.startOffset&&
+       node.end===callableRange?.endOffset&&node.id?.name===meta.callableName)callableMatches++;
+    if(node.type==='CallExpression'&&node.start===readerRange?.startOffset&&
+       node.end===readerRange?.endOffset&&isDirectFunctionSourceCall(node)&&
+       node.arguments[0]?.name===meta.callableName)readerMatches++;
+  });
+  return callableMatches===1&&readerMatches===1;
+}
+
+module.exports={
+  buildDirectFunctionSourcePlan,
+  isValidatedSourceObservationPlan,
+  getInitialPlanRanges,
+  protectedRangesFromTracked,
+  validatePlanConsumerInput,
+  advancePlanRanges,
+  validatePlanSemantics
+};
