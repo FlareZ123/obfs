@@ -650,6 +650,9 @@ test('independent review: untagged top-level throw is rejected as an arbitrary p
   const ast=parse(changed.code,'module');
   const next=advancePlanRanges(plan,changed.map,source,changed.code,initial.trackedSourceRanges);
   assert.ok(next,'the protected spans remain exactly mappable');
-  assert.equal(validatePlanSemantics(plan,changed.code,ast,next,changed.map),false,
-    'a pass must not be able to change module evaluation by inserting an untagged top-level throw');
+  assert.equal(validatePlanSemantics(plan,changed.code,ast,next,changed.map),true,
+    'the structural rebind validator alone does not prove arbitrary statement semantics');
+  assert.equal(acceptPlannedPass(plan,changed.map,source,changed.code,ast,
+    initial.trackedSourceRanges)===null,true,
+    'the actual pass-admission boundary must reject an untagged top-level throw');
 });
