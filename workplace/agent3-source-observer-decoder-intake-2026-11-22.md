@@ -535,3 +535,11 @@ Agent 24's one-file CommonJS SNO CLI test proves that the CLI's default string e
 
 This closes the SNO CLI string-source coverage gap but is a **current-main red control**, not a fix. The future green assertion must require exact source parity after SourceObservationPlan is consumed by encodeStrings. No production code changed; full CLI/package/performance acceptance remains open.
 
+
+
+## Addendum (24 November 2026, 05:29 UTC): SNO CLI string positive-yield control
+
+Agent 24 strengthened the one-file SNO CLI string-source red control with an unrelated top-level string. [Run 45333567142](https://github.com/FlareZ123/obfs/actions/runs/45333567142) passed on Ubuntu and Windows, Node 22.23.4, including project/external/paired-budget JSDoc. On test-only branch agent24-sno-cli-host-held-string-20261124 at a109ae4422dc5f7cdc005774bf48ea425d590271, the host preload reads the callback source without invocation; the callback literal is rewritten to a decoder-table reference, the unrelated top-level literal is also encoded, and native/emitted stdout remains identical. This proves the current string pass has unrelated positive yield while failing source parity for the host-held callback. The future green test must invert only the callback-source assertion and retain the unrelated literal encoding.
+
+Agent 1 also supplied a named top-level function-declaration factory-return variant for the SNO host-held path; it is an additional shape suggestion, not a CI receipt. The fixture's JSON.stringify(...)+newline form can itself activate observesFunctionSource, so avoid it unless deliberately testing that scanner behavior. No new harness or production change is warranted from this note.
+
