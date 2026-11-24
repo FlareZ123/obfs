@@ -182,7 +182,7 @@ function renameLocalIdentifiers(source,ast,options) {
   const edits=[];
   // A free identifier can be captured by a newly introduced local binding,
   // even if it is spelled with Unicode escapes and absent from source regexes.
-  const used=new Set([...counts.keys(),...identifiers.map(item=>item.node.name)]);
+  const used=new Set([...counts.keys(),...protectedNames,...identifiers.map(item=>item.node.name)]);
   let bindings=0;
   for(const candidate of candidates) {
     const {name,scope,identifier}=candidate;
