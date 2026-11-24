@@ -24,6 +24,19 @@ function makeHostArgs(kind,external) {
       )(external);
       return [iterable];
     }
+    case 'to-primitive': {
+      const toPrimitive=/** @type {(hint:string)=>number} */(Function('external',
+        'return function toPrimitive(hint){external();return 1;}'
+      )(external));
+      return [{[Symbol.toPrimitive]:toPrimitive}];
+    }
+    case 'promise-resolve': {
+      const thenable=Object.defineProperty({},'then',{
+        configurable:true,
+        get(){external();return resolve=>resolve();}
+      });
+      return [thenable];
+    }
     case 'in': {
       const has=/** @type {ProxyHandler<object>['has']} */(Function('external',
         'return function has(target,key){external();return false;}'
@@ -91,27 +104,48 @@ function makeHostArgs(kind,external) {
 /**
  * Execute a generated module with a host-controlled value and capture the
  * active hidden() function from the external callback.
+ * PromiseResolve uses V8 CallSite function capture because async frames need
+ * a separate observation channel.
  * @param {string} code
  * @param {string} kind
- * @returns {{value:unknown,source:string}}
+ * @returns {Promise<{value:unknown,source:string}>}
  */
-function observe(code,kind) {
-  /** @type {{captured:unknown}} */
-  const observation={captured:null};
-  const external=/** @type {(...args:unknown[])=>void} */(Function('observation',
-    'return function external(){observation.captured=arguments.callee.caller.caller;}'
-  )(observation));
+async function observe(code,kind) {
+  /** @type {{captured:unknown,source:string|null}} */
+  const observation={captured:null,source:null};
+  /** @type {(...args:unknown[])=>void} */
+  let external;
+  if(kind==='promise-resolve') {
+    external=/** @type {(...args:unknown[])=>void} */(Function('observation',
+      'return function external(){'+
+      'const ErrorCtor=Error;const previous=ErrorCtor.prepareStackTrace;'+
+      'try{ErrorCtor.prepareStackTrace=(_error,sites)=>sites;'+
+      'const sites=new Error().stack;'+
+      'const frame=sites.find(site=>site.getFunctionName()===\\'hidden\\');'+
+      'observation.captured=frame&&frame.getFunction();'+
+      'observation.source=observation.captured?Function.prototype.toString.call(observation.captured):null;'+
+      '}finally{ErrorCtor.prepareStackTrace=previous;}'+
+      '}'
+    )(observation));
+  } else {
+    external=/** @type {(...args:unknown[])=>void} */(Function('observation',
+      'return function external(){'+
+      'observation.captured=arguments.callee.caller.caller;'+
+      'observation.source=observation.captured?Function.prototype.toString.call(observation.captured):null;'+
+      '}'
+    )(observation));
+  }
   const args=makeHostArgs(kind,external);
   /** @type {{module:{exports:unknown}}} */
   const context={module:{exports:null}};
   vm.runInNewContext(code,context,{timeout:2500});
   assert.equal(typeof context.module.exports,'function');
   const reader=/** @type {(...args:unknown[])=>unknown} */(context.module.exports);
-  const value=reader(...args);
+  const value=await reader(...args);
   assert.equal(typeof observation.captured,'function',kind+' must capture hidden()');
-  return {value,source:Function.prototype.toString.call(observation.captured)};
+  const source=observation.source||Function.prototype.toString.call(observation.captured);
+  return {value,source};
 }
-
 /**
  * @param {'coo'|'sno'} mode
  * @param {string} code
@@ -137,22 +171,26 @@ const cases=[
   {kind:'array-destructure',body:'const [x]=value;'},
   {kind:'with',body:'with(value){x;}'},
   {kind:'proxy-set',body:'value.x=1;'},
-  {kind:'accessor-setter',body:'value.x=1;'}
+  {kind:'accessor-setter',body:'value.x=1;'},
+  {kind:'to-primitive',body:'const sum=value+1;return owner.secretField+sum;'},
+  {kind:'promise-resolve',body:'await value;return owner.secretField;',async:true}
 ];
-
 for(const mode of /** @type {const} */(['coo','sno'])) {
   for(const scenario of cases) {
-    test(mode+' diagnostic current-main source observation: '+scenario.kind,()=>{
+    test(mode+' diagnostic current-main source observation: '+scenario.kind,async()=>{
+      const hiddenPrefix=scenario.async?'async function hidden(value,aux){':'function hidden(value,aux){';
+      const readerPrefix=scenario.async?'async function publicReader(value,aux){':'function publicReader(value,aux){';
+      const readerBody=scenario.async?'return await hidden(value,aux)+plain();':'return hidden(value,aux)+plain();';
       const source=
         'const owner={secretField:1};'+
         'const other={unrelatedField:2};'+
-        'function hidden(value,aux){'+scenario.body+'return owner.secretField;}'+
+        hiddenPrefix+scenario.body+
         'function plain(){return other.unrelatedField;}'+
-        'function publicReader(value,aux){return hidden(value,aux)+plain();}'+
+        readerPrefix+readerBody+
         'module.exports=publicReader;';
-      const before=observe(source,scenario.kind);
+      const before=await observe(source,scenario.kind);
       const output=compile(mode,source);
-      const after=observe(String(output.code),scenario.kind);
+      const after=await observe(String(output.code),scenario.kind);
       assert.equal(after.value,before.value,scenario.kind+' must preserve returned value');
       assert.ok(before.source.includes('owner.secretField'),scenario.kind+' native source must contain the owner key');
       const result={
@@ -163,7 +201,6 @@ for(const mode of /** @type {const} */(['coo','sno'])) {
         unrelatedKeyStillSpelled:String(output.code).includes('unrelatedField'),
         nativeSource:before.source,emittedSource:after.source
       };
-      console.log('IMPLICIT_DISPATCH_RESULT '+JSON.stringify(result));
       if(scenario.kind==='with') {
         assert.equal(output.metrics.properties,0,
           'The With control preserves source by refusing file-wide property yield: '+JSON.stringify(result));
