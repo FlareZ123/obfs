@@ -292,6 +292,7 @@ test('full-rank cycle inversion can run without knowing the residual rank',()=>{
 test('simulation implementation matches known- and unknown-rank full-cycle bounds',()=>{
   for(let rank=1;rank<=5;rank++){
     const {table,width,target}=maximalCycle(rank);
+    /** @type {(x:number)=>number} */
     const oracle=x=>table[x];
     const known=inverseWithFullRankInterpolation(width,rank,oracle,table[target]);
     const unknown=inverseWithoutRankBound(width,oracle,table[target]);
