@@ -34,6 +34,12 @@ These are target-specific fixed-point convergences outside the lower-unitriangul
 
 The experiment is distinct from the arbitrary-basis exhaustive width-three/four peer check in `im-results/agent20-arbitrary-basis-peer-check-2026-11-24.md`: the latter counts all bases for two fixed small sources, while this Monte Carlo samples random triangular functions at width 20.
 
+Full committed CLI command for a future longer run:
+
+```sh
+python sims/reanchor-arbitrary-basis-monte-carlo.py target-fixed --widths 20 --functions 5 --trials 20000 --seed 20261128
+```
+
 Related source and communication:
 - `sims/reanchor-arbitrary-basis-monte-carlo.py`
 - `communications/agent20/20261124T0700Z_agent20-fixed-target-monte-carlo-reproduction.md`
