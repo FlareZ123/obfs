@@ -61,29 +61,23 @@ function sourceFor(scenario){
  * @param {string} code
  * @returns {{code:string,generated:string,padded:string,delta:number}}
  */
-function padOwnerKeyToOriginalWidth(code){
-  const match=code.match(/owner\s*=\s*\{\s*(?:"([^"]+)"|'([^']+)'|([A-Za-z_$][\w$]*))\s*:\s*1\s*\}/u);
-  assert.ok(match,'expected a generated owner key in emitted code: '+code.slice(Math.max(0,code.indexOf('owner')-20),code.indexOf('owner')+180));
-  const generated=match[1]??match[2]??match[3]??'';
-  assert.ok(generated.length>0,'generated owner key must be nonempty');
-  const original='longPrivatePropertyName';
-  const delta=original.length-generated.length;
-  assert.ok(delta>=0,'generated key must not exceed the original key width');
-  if(delta===0)return {code,generated,padded:generated,delta};
-  const candidates=[
-    generated+'_'.repeat(delta),
-    generated+'$'.repeat(delta),
-    generated+'Z'.repeat(delta)
-  ];
-  const padded=candidates.find(candidate=>!code.includes(candidate));
-  assert.ok(padded,'could not find a collision-free same-width generated key');
-  assert.match(generated,/^[A-Za-z_$][\w$]*$/u);
-  const escaped=generated;
-  const pattern=new RegExp('(?<![A-Za-z0-9_$])'+escaped+'(?![A-Za-z0-9_$])','gu');
-  const paddedCode=code.replace(pattern,padded);
-  assert.notEqual(paddedCode,code,'generated property references must be padded');
-  assert.ok(!paddedCode.includes(original),'padding must not restore the original property name');
-  return {code:paddedCode,generated,padded,delta};
+function padBeforeMarkerToOriginalColumn(source,code,marker){
+  const sourceIndex=source.indexOf(marker);
+  const emittedIndex=code.indexOf(marker);
+  assert.ok(sourceIndex>=0&&source.lastIndexOf(marker)===sourceIndex,
+    'original callback marker must occur exactly once');
+  assert.ok(emittedIndex>=0&&code.lastIndexOf(marker)===emittedIndex,
+    'emitted callback marker must occur exactly once');
+  const sourceLineStart=source.lastIndexOf('\n',sourceIndex-1)+1;
+  const emittedLineStart=code.lastIndexOf('\n',emittedIndex-1)+1;
+  const sourceColumn=sourceIndex-sourceLineStart;
+  const emittedColumn=emittedIndex-emittedLineStart;
+  const delta=sourceColumn-emittedColumn;
+  assert.ok(delta>=0,'emitted callback marker must not be left of its original column');
+  const paddedCode=code.slice(0,emittedIndex)+' '.repeat(delta)+code.slice(emittedIndex);
+  assert.ok(!paddedCode.includes('longPrivatePropertyName'),
+    'column padding must not restore the original property spelling');
+  return {code:paddedCode,delta,sourceColumn,emittedColumn};
 }
 
 /**
@@ -205,11 +199,11 @@ async function main(){
   const metrics=new Map();
   /** @type {Map<string,number>} */
   const moduleMetrics=new Map();
-  /** @type {Map<string,{code:string,generated:string,padded:string,delta:number}>} */
+  /** @type {Map<string,{code:string,delta:number,sourceColumn:number,emittedColumn:number}>} */
   const cjsPadding=new Map();
   /** @type {Map<string,{code:string,generated:string,padded:string,delta:number}>} */
   const esmPadding=new Map();
-  /** @type {Array<{mode:string,delta:number,nativeColumn:number|null,compiledColumn:number|null,paddedColumn:number|null,generated:string,padded:string}>} */
+  /** @type {Array<{mode:string,delta:number,nativeColumn:number|null,compiledColumn:number|null,paddedColumn:number|null,sourceColumn:number,emittedColumn:number}>} */
   const paddingResults=[];
   /** @type {Array<{kind:string,mode:string,properties:number,deferred:boolean,patchedMap:boolean,native:Observation,compiled:Observation}>} */
   const results=[];
@@ -251,7 +245,7 @@ async function main(){
       type:'text/html; charset=utf-8'
     });
     if(scenario.kind==='array-map'){
-      const padding=padOwnerKeyToOriginalWidth(emitted);
+      const padding=padBeforeMarkerToOriginalColumn(source,emitted,scenario.body);
       cjsPadding.set(scenario.kind,padding);
       resources.set(base+'/padded.js',{body:padding.code,type:'text/javascript; charset=utf-8'});
       resources.set(base+'/padded.html',{
@@ -298,7 +292,7 @@ async function main(){
       type:'text/html; charset=utf-8'
     });
     if(scenario.kind==='array-map'){
-      const padding=padOwnerKeyToOriginalWidth(moduleCode);
+      const padding=padBeforeMarkerToOriginalColumn(moduleSource,moduleCode,scenario.body);
       esmPadding.set(scenario.kind,padding);
       resources.set(base+'/module-padded.mjs',{
         body:padding.code,type:'text/javascript; charset=utf-8'
@@ -380,12 +374,12 @@ async function main(){
         paddingResults.push({
           mode:'commonjs',delta:padding.delta,
           nativeColumn:before.column,compiledColumn:after.column,paddedColumn:padded.column,
-          generated:padding.generated,padded:padding.padded
+          sourceColumn:padding.sourceColumn,emittedColumn:padding.emittedColumn
         });
         process.stdout.write('CHROMIUM_FRAME_PADDING '+JSON.stringify({
           mode:'commonjs',delta:padding.delta,
           nativeColumn:before.column,compiledColumn:after.column,paddedColumn:padded.column,
-          generated:padding.generated,padded:padding.padded
+          sourceColumn:padding.sourceColumn,emittedColumn:padding.emittedColumn
         })+'\n');
       }
       const properties=metrics.get(scenario.kind)??0;
