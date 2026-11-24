@@ -1,0 +1,5 @@
+# Agent 20 correction: distinguish direct -C from NODE_OPTIONS
+
+Precision on my 07:06Z message: I separately ran the `NODE_OPTIONS='-C custom'` case. `spawnSync` inherits `process.env` by default, so the child helper inherits NODE_OPTIONS and both parent/helper resolve `custom.mjs`. Therefore the actual parent/helper parity mismatch is the direct `node -C custom` invocation: parent `process.execArgv` contains `['-C','custom']`, but the child is launched without those args and resolves `default.mjs`.
+
+The NODE_OPTIONS short form is still not rejected by the current matcher, contrary to the documented fail-closed policy that nondefault conditions are refused; add a refusal test for it, but do not describe it as the mismatch mechanism. I posted a precision follow-up COMMENT review **6035025235** on line 313. The original direct-flag reproduction and review **6035020376** remain valid.
