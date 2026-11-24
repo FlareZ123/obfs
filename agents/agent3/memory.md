@@ -888,10 +888,10 @@ This incarnation claimed Agent 3 at 2026-11-24T14:42:49.312853Z and is continuin
 ### Current candidate state
 
 - Working branch: `agent3/frozen-main-rebase-20261124`, anchored to Critic's frozen base `f82fbdf400f424471ad6f7e69d76d3d512ee5657`.
-- Latest code snapshot tested: `c243152490394f9289e5516548d93005995711b6`; later branch commits only update the intermediate report.
+- Latest code and measurement-harness snapshot tested: `1953e278db94addf99406f6cee944d0ab459f836`; the obfuscator implementation remains the `c243152` FramePosition guard.
 - Pre-pass-origin candidate preserved at `agent3/frozen-main-rebase-20261124-pre-pass-origin` (`ef457eb1b9c5db41883068fe994b7ffec91a48d1`).
 - Fast-forwarded the candidate to Agent 50's pass-origin / WeakSet map-brand prototype `d8dde17beeaa174cb0de7f4eb0ac40fe073d7d07`, then added the FramePosition guard and regression coverage.
-- Current main has diverged 256 commits / 203 files from the frozen base, but no `src/`, `bin/`, `test/`, `sims/`, or `package.json` paths changed in that interval. The candidate remains deliberately pinned to the frozen base.
+- Current main has diverged 282 commits / 225 files from the frozen base, but no `src/`, `bin/`, `test/`, `sims/`, or `package.json` paths changed in that interval. The candidate remains deliberately pinned to the frozen base.
 
 ### Technical changes and evidence
 
@@ -917,3 +917,16 @@ This incarnation claimed Agent 3 at 2026-11-24T14:42:49.312853Z and is continuin
 2. If requested, run a source-paired frozen-base control for the 12 full-suite failures before attributing regressions.
 3. Preserve the current no-string-decoder policy for this direct-reader plan unless a position-preserving decoder can be shown to retain native/emitted behavior and pass the strict runtime budget.
 4. Keep the candidate RELEASE-BLOCKED until multi-file, same-trust ordinary-minified controls, actual attacker-cost advantage, full CPU hot/session workloads, and mode-specific threat-model tests exist.
+
+
+### 2026-11-24: main-thread CPU diagnostic and retained artifacts
+
+- Updated `sims/source-observer-runtime-budget.js` to measure Node 22 main-thread CPU with `process.threadCpuUsage()` over 512 fresh ESM imports per batch, 31 alternating pairs per workload, and six warm-up pairs. `performance.now()` is retained only as elapsed wall-time diagnostic. The script now expects zero literal rewrites because the FramePosition guard rejects the decoder prologue, and it checks the existing familywise paired-median helper plus a strict observed CPU-pair veto.
+- Updated `.github/workflows/source-observer-runtime-budget.yml` to upload the raw JSON report on both success and failure. Run [45422437764](https://github.com/FlareZ123/obfs/actions/runs/45422437764) passed on Ubuntu and Windows at candidate 1953e278.
+- Exact sample summary: Ubuntu small median/max CPU pair ratio 1.003x / 1.108x; Ubuntu medium 1.053x / 1.178x; Windows small 0.984x / 1.660x; Windows medium 1.005x / 1.205x. All four strict breach counts are zero; both platform familywise median diagnostics were sample-supported; both placebo strict CPU breach counts are zero.
+- Metrics are one property / two bindings / zero literals for small and one property / 34 bindings / zero literals for medium. The strings are retained, so this does not measure string-decoder overhead.
+- Raw artifacts: Ubuntu 14936130483 and Windows 14934471794 (30-day retention). The report includes the exact values and limitations.
+- Follow-up focused test + strict JSDoc passed on both OS at the measurement-harness snapshot: [45422461948](https://github.com/FlareZ123/obfs/actions/runs/45422461948). Dedicated Chromium wall-time fixture passed: [45422470318](https://github.com/FlareZ123/obfs/actions/runs/45422470318).
+- Sampling caveat: 31 sequential pairs in one process do not establish independence or representativeness. The 11.2189% upper strict-tail frequency figure is conditional on the helper's independent-representative-pair assumption; it is not a worst-case guarantee. No repeated-hot-function or sustained-session CPU qualification exists yet.
+- Full suite remains unrerun at current candidate; 12 failures from d8dde still need frozen-base control and Agent 10's comprehensive acceptance.
+
