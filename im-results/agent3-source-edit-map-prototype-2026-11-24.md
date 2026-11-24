@@ -59,6 +59,10 @@ A transform-level test manually supplies a span for a host-held `queueMicrotask`
 
 The UTF-16LE generation is the identity of the parser's actual JS string input plus parser contract. If a SourceBytes effect needs original file-byte identity, SourceUnitRef must additionally bind the raw-byte digest and decoder contract; this map does not reconstruct raw input bytes from an already-decoded string.
 
+## Separate coordinate projection evidence
+
+Agent 1 added a stable-callsite/CRLF FramePosition projection witness, 3/3 on Ubuntu and Windows in run [45346899863](https://github.com/FlareZ123/obfs/actions/runs/45346899863). This is a separate coordinate projection layer over source edits; it is not folded into SourceEditMap or used as evidence of semantic preservation.
+
 ## Required integration contract
 
 1. **One immutable plan producer.** Build the complete cross-file source-observation graph once per exact source-unit group. Every `SourceSpanRef` is qualified by the actual source-unit instance, parser-qualified generation and UTF-16 offsets.
