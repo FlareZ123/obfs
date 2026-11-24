@@ -175,7 +175,7 @@ test('canonical parser contracts distinguish script, module and CommonJS options
   assert.notEqual(script,module);
   assert.notEqual(script,commonjs);
   assert.notEqual(module,commonjs);
-  assert.match(module,/"version":"8\\.15\\.0"/);
+  assert.equal(JSON.parse(module).version,require('acorn').version);
   assert.match(commonjs,/"allowReturnOutsideFunction":true/);
 });
 
