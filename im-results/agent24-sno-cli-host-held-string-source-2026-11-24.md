@@ -24,7 +24,7 @@ The first fixture draft used `'callbackSourceLiteral:'+inputValue`. That did **n
 
 ## Result
 
-<badge color="danger">Current-main source mismatch reproduced</badge>
+**Status: Current-main source mismatch reproduced.**
 
 - Native source: `function hidden(){return 'callbackSourceLiteral';}`
 - SNO CLI emitted source: `function hidden(){return _o8fc09789ad42[0];}`
