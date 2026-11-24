@@ -79,6 +79,44 @@ test('without an explicit plan the existing broad observer veto remains unchange
   assert.equal(result.files[0].metrics.literals,0);
 });
 
+
+test('module-local String binding cannot be captured by the inserted decoder prologue',async()=>{
+  const shadowSource=[
+    '// module-local String shadow',
+    'const privateRecord = { privateField: 7 };',
+    'function observed() { return 29; }',
+    'const observedSource = Function.prototype.toString.call(observed);',
+    "const String = 'shadowed';",
+    "const label = 'safe-literal';",
+    'export const result = privateRecord.privateField;',
+    'export const sourceText = observedSource;',
+    'export const labelText = label;',
+    'export const shadowValue = String;'
+  ].join('\\n');
+  const native=await importDataModule(shadowSource);
+  const result=obfuscateFiles([entry(shadowSource)],{
+    mode:'coo',seed:'direct-source-plan-string-shadow',strings:true,
+    experimentalSourceObservationPlan:hostContract
+  });
+  const emitted=result.files[0];
+  assert.ok(emitted&&typeof emitted.code==='string');
+  assert.ok(emitted.metrics.properties>=1);
+  assert.ok(emitted.metrics.bindings>=1);
+  if(emitted.metrics.literals===0) {
+    assert.doesNotMatch(emitted.code,/fromCharCode/u,
+      'when the String binding remains, the encoder must decline before inserting its prologue');
+  } else {
+    assert.doesNotMatch(emitted.code,/\\b(?:const|let|var)\\s+String\\s*=/u,
+      'if string encoding proceeds, the local String binding must have been safely renamed');
+  }
+  const compiled=await importDataModule(emitted.code);
+  assert.equal(compiled.result,native.result);
+  assert.equal(compiled.sourceText,native.sourceText);
+  assert.equal(compiled.labelText,native.labelText);
+  assert.equal(compiled.shadowValue,native.shadowValue);
+  assert.equal(compiled.sourceText,'function observed() { return 29; }');
+});
+
 test('canonical source spans remain immutable and mapped ranges carry provenance separately',()=>{
   const plan=buildDirectFunctionSourcePlan(source,'entry.mjs',hostContract);
   assert.ok(plan);
