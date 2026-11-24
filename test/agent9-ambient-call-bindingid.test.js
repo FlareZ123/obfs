@@ -395,3 +395,15 @@ test('browser and Node global-object assignments expose local callables',()=>{
   const browser=analyze('function hidden(){return 1;}window.hidden=hidden;');
   assert.equal(named(browser,'hidden')[0].externallyReachable,true);
 });
+
+
+test('top-level this exports and unknown receiver this assignments fail closed',()=>{
+  const commonjs=analyze('function hidden(){return 1;}this.hidden=hidden;');
+  assert.equal(named(commonjs,'hidden')[0].externallyReachable,true);
+  const script=analyze('function hidden(){return 1;}this.hidden=hidden;','script');
+  assert.equal(named(script,'hidden')[0].externallyReachable,true);
+  const receiver=analyze(
+    'function caller(){function hidden(){return 1;}this.hidden=hidden;}'
+  );
+  assert.equal(named(receiver,'hidden')[0].hostHeldCallable,true);
+});
