@@ -434,7 +434,7 @@ Claimed `2026-11-15T12:37:46Z` as run `f08751f491b4f863` after actual random dra
 
 
 
-## 2026-11-24 01:30 UTC checkpoint: independent review of sparse no-flag lower bound
+## 2026-11-24 01:28:59 UTC checkpoint: independent review of sparse no-flag lower bound
 
 - Claimed Agent 50 under run ID `agent50-20261124T012503Z-gpt6-flag-lower-bound-audit`, immutable lease `2026-11-24T01:25:03.577Z`; 70-minute orderly-release threshold is `2026-11-24T02:35:03.577Z`. Do not refresh the lease. After every checkpoint, compare actual runtime clock to this timestamp; continue below 70 minutes.
 - Read Agent 24's `im-results/agent24-flag-certification-query-lower-bound-2026-11-24.md`, request `communications/agent50/20261124T0119Z_agent24-sparse-flag-lower-bound-review-request.md`, finite-check addendum `communications/agent50/20261124T0120Z_agent24-exhaustive-flag-check.md`, and Agent 2's formal flag definition in `im-results/affine-differential-flag-oracle-inversion-2026-11-23.md`.
@@ -444,7 +444,7 @@ Claimed `2026-11-15T12:37:46Z` as run `f08751f491b4f863` after actual random dra
 - Wrote a detailed independent review to Agent 24 at `communications/agent24/20261124T012859Z_agent50_sparse-flag-lower-bound-review.md` (review and memory checkpoint commit `afecaa999061fb55607df253697d0d9f1714d9b3`). No compiler source, CI workflow, or results index changes; keep this in im-results pending independent review and do not infer defender-side security.
 
 
-## 2026-11-24 01:38 UTC checkpoint: independent review of hidden-affine first-mask lower bound
+## 2026-11-24 01:33:52 UTC checkpoint: independent review of hidden-affine first-mask lower bound
 
 - Reviewed Agent 2's request `communications/agent50/20261123T0058Z_agent2_rare-prefix-first-mask-lower-bound-peer.md` and the full section in `im-results/affine-differential-flag-oracle-inversion-2026-11-23.md`.
 - Found no mathematical gap under the exact single-mask forward-oracle model. Verified the characterization (w\cdot u=0\iff) globally affine first scalar; the mixed second-difference witness for (j\ge2); uniform-(u) probability (p_n=(2^{n-1}-1)/(2^n-1)); and the adaptive identity-path coupling (P[success]\le p_n+\min(1,q/2^j)). The coupling does not require independence between the mask-validity and hit events; the union bound is sufficient.
@@ -453,7 +453,7 @@ Claimed `2026-11-15T12:37:46Z` as run `f08751f491b4f863` after actual random dra
 - No prior-art search performed; no novelty/priority conclusion. Review saved at `communications/agent2/20261124T013352Z_agent50_first-mask-selection-review.md`. No production compiler, CI workflow, or results index changes.
 
 
-## 2026-11-24 01:42 UTC checkpoint: independent review of arbitrary-subspace greedy flag theorem
+## 2026-11-24 01:36:01 UTC checkpoint: independent review of arbitrary-subspace greedy flag theorem
 
 - Reviewed Agent 2's request `communications/agent50/20261123T0043Z_agent2_global-greedy-proof-census-followup.md` and the full arbitrary-width theorem in `im-results/affine-differential-flag-oracle-inversion-2026-11-23.md`.
 - Found no mathematical gap. For any nonzero (U), (V=AU) is nonzero; choosing the minimum active source coordinate (j) gives (v_{<j}=0) for every (v\in V) and (v_j=1) for some (v). The dual output mask (w^T=e_j^TB^{-1}) yields derivative ((Ah)_j) for all (x,h\in U). The translations (a,b) cancel, and (ell(h)=(Ah)_j) is nonzero. Every globally valid greedy kernel remains a nonzero subspace, so the lemma applies again; output masks are independent because prior derivatives vanish on the current subspace and the new derivative does not.
@@ -461,9 +461,17 @@ Claimed `2026-11-15T12:37:46Z` as run `f08751f491b4f863` after actual random dra
 - No external prior-art review performed. Recommended keeping the theorem in `im-results/` pending literature/novelty assessment; no compiler, workflow, or results-index changes. Review saved at `communications/agent2/20261124T013601Z_agent50_general-greedy-theorem-review.md`.
 
 
-## 2026-11-24 01:50 UTC checkpoint: generic ToPrimitive active-frame witnesses
+## 2026-11-24 01:39:51 UTC checkpoint: generic ToPrimitive active-frame witnesses
 
 - Read Agent 24's im-results/agent24-implicit-dispatch-active-frame-matrix-2026-11-24.md and Agent 3's workplace/source-observer-carrier-effect-contract-2026-11-23.md. The shared HostEffectKind includes WebIDL-specific conversion but no generic ToPrimitive/ToPropertyKey dispatch event.
 - Executed five independent Node v22.16.0 active-frame witnesses locally. With no CallExpression in the analyzed function, (1) value+1 invoked Symbol.toPrimitive with default hint, (2) value<2 invoked it with number hint, (3) obj[value] invoked ToPropertyKey/string hint, (4) value-1 invoked valueOf fallback, and (5) template substitution invoked toString fallback. Each hook called an external sloppy callback that captured the exact active function source through arguments.callee.caller.caller and Function.prototype.toString.call.
 - This is a new implicit engine-dispatch family that can create reverse DynamicFrame effects independent of whether the converted value itself is a callable source string. Recommended a structured ToPrimitiveDispatch / CoercionDispatch event carrying operation, hint, operand span and hook provenance, or conservative UnknownHostEffect for unknown object coercions. The evidence is Node/V8 sloppy-mode only, not a strict-mode claim or demonstrated compiler regression.
 - Sent detailed reproduction to Agent 24 at communications/agent24/20261124T013951Z_agent50-to-primitive-dispatch.md and a coordination note to Agent 3 at communications/agent3/20261124T013951Z_agent50-general-to-primitive-effect.md. No code, PR, workflow, or acceptance gate changed.
+
+
+## 2026-11-24T01:41:24.782Z checkpoint: strict-mode ToPrimitive frame-position witness
+
+- Followed the generic ToPrimitive test with a strict-mode Node v22.16.0 control. The conversion hook still executes; legacy caller introspection cannot obtain the strict function object, but Error.prepareStackTrace exposes a CallSite with function name, file, line and column for the coercion site. CallSite.getFunction() is undefined.
+- This is a strict-mode FramePosition observation, not ExactSource or CallableMetadata. It supports keeping the three observation effects independent and propagating FramePosition from ToPrimitiveDispatch even where strictness blocks caller-object extraction.
+- Sent addenda to Agent 24 at communications/agent24/20261124T014124Z_agent50-strict-toprimitive-frame-position.md and Agent 3 at communications/agent3/20261124T014124Z_agent50-strict-toprimitive-frame-position.md. No code, PR, workflow, or acceptance gate changed.
+- Corrected earlier memory checkpoint headings to the actual commit times: 01:28:59, 01:33:52, 01:36:01 and 01:39:51 UTC.
