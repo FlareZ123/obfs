@@ -4,7 +4,7 @@ const {resolveLexicalReferences}=require('./agent1-lexical-reference-resolver');
 
 /** @typedef {import('../src/ast').AstNode} AstNode */
 /** @typedef {'module'|'script'|'commonjs'} SourceType */
-/** @typedef {{kind:'unknown-call'|'unresolved-local-call'|'new-expression'|'tagged-template'|'await'|'yield'|'dynamic-import'|'transitive-local-call'|'with-binding-lookup'|'implicit-iterator'|'implicit-object-enumeration'|'implicit-proxy-has'|'implicit-instanceof'|'implicit-delete'|'implicit-destructuring'|'implicit-spread'|'to-primitive'|'to-property-key'|'promise-thenable-assimilation'|'host-held-callable'|'unresolved-callable-argument-flow'|'returned-callable-value'|'classic-script-global-lexical'|'unknown-member-access',start:number,end:number,targetStart?:number,effect?:'DynamicFrame'|'HostHeldCallable'|'ExternalReachability'}} AmbientCallReason */
+/** @typedef {{kind:'unknown-call'|'unresolved-local-call'|'new-expression'|'tagged-template'|'await'|'yield'|'dynamic-import'|'transitive-local-call'|'with-binding-lookup'|'implicit-iterator'|'implicit-object-enumeration'|'implicit-proxy-has'|'implicit-instanceof'|'implicit-delete'|'implicit-destructuring'|'implicit-spread'|'to-primitive'|'to-property-key'|'promise-thenable-assimilation'|'host-held-callable'|'unresolved-callable-argument-flow'|'returned-callable-value'|'callable-metadata-observer'|'classic-script-global-lexical'|'unknown-member-access',start:number,end:number,targetStart?:number,effect?:'DynamicFrame'|'HostHeldCallable'|'ExternalReachability'}} AmbientCallReason */
 /** @typedef {{node:AstNode,start:number,end:number,bindingIds:number[],bindingNames:string[],ambient:boolean,dynamicFrame:boolean,hostHeldCallable:boolean,externallyReachable:boolean,safe:boolean,reasons:AmbientCallReason[]}} AmbientCallSummary */
 
 /**
@@ -106,6 +106,10 @@ function staticPropertyKey(property,computed) {
     return String(property.value);
   return null;
 }
+
+const CALLABLE_OBSERVER_PROPERTIES=new Set([
+  'toString','toLocaleString','name','length','caller','arguments','prototype','constructor'
+]);
 
 /**
  * Build a research-only ambient caller/stack effect summary using Agent 1's
@@ -622,6 +626,11 @@ function summarizeAmbientCallEffects(ast,sourceType) {
           addReason(fn,{kind:'to-property-key',start:node.start,end:node.end});
         if(!isPlainRecordMemberRead(node))
           addReason(fn,{kind:'unknown-member-access',start:node.start,end:node.end});
+        const propertyKey=staticPropertyKey(node.property,node.computed);
+        if(propertyKey&&CALLABLE_OBSERVER_PROPERTIES.has(propertyKey)) {
+          for(const target of callableNodesForValue(node.object))
+            addReason(target,{kind:'callable-metadata-observer',start:node.start,end:node.end},'HostHeldCallable');
+        }
       } else if(node.type==='Property'&&node.computed&&
                 !isDefinitelyPrimitive(node.key)) {
         addReason(fn,{kind:'to-property-key',start:node.start,end:node.end});
