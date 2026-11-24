@@ -42,3 +42,33 @@ The 896 savings are exactly 28 fewer coordinate probes for each of 32 input basi
 This is a standalone Node 22 implementation of the mathematics against the exact frozen source, stronger than a Python-only replay and more source-specific than the random-table ensemble. It supports the expected query reduction for the promised projected-affine source.
 
 It is **not** the PR #373 peer learner, not a worker-isolation test, not the SCO HTTP harness, and not a CSPRNG experiment. Relative to the full degree-≤5 ANF interpolation basis of 242,825 points, the mean 908.28-query shift replay is about 267.3× fewer distinct queries; the 2,497 lazy fast-path cap is about 97.2× below that basis size. This is a specialized-versus-general comparison, not a like-for-like baseline under identical source promises. All sources are in-promise; the script does not exercise no-witness, shift-ambiguity, signature-overflow, verifier-mismatch, or exact-ANF fallback paths. It does not measure target runtime/CPU, browser/COO/SNO behavior, or the 2.5× budget. Keep this in `im-results/`; no merge or release conclusion follows.
+
+
+## Expected query count for the lazy fixed-pair shift path
+
+For six independent uniform directions projected into the five-dimensional quotient, one witness trial succeeds when the six projected directions span rank five:
+
+\[
+p=\prod_{i=0}^{4}(1-2^{i-6})=0.586695671081543.
+\]
+
+Conditional on success, the unique nonzero dependency vector is uniform over the 63 nonzero words of \(\mathbb F_2^6\). The first nonzero coordinate has position 0 through 5 with counts \(32,16,8,4,2,1\). The sequential face-union query costs are respectively \(32,48,56,60,62,63\), so the successful-trial conditional mean is
+
+\[
+E[X]=\frac{32\cdot32+16\cdot48+8\cdot56+4\cdot60+2\cdot62+63}{63}
+=42\tfrac13.
+\]
+
+Let \(K\) be the number of failed trials before success. It is geometric with \(E[K]=(1-p)/p=0.7044611871\). A failed trial costs 63 vertices initially and at most 62 new vertices thereafter because the zero input is cached. The successful trial also reuses zero after any preceding failure. Thus the expected distinct witness queries, ignoring negligible collisions between independently sampled direction sets, are
+
+\[
+E[W]=E[X]+62E[K]=86.0099269337.
+\]
+
+The shift coordinate stage uses at most \(3n=96\) distinct probes at \(n=32\), and the RM verifier uses 726 independent samples. Ignoring negligible cache collisions with these probes and samples gives the idealized expected total
+
+\[
+E[Q]\approx86.0099269337+96+726=908.0099269337.
+\]
+
+This predicts the scale of the 100-replicate Node shift mean (908.28) and the final-head live HTTP means reported by Agent 50 (920.8 Ubuntu / 891.4 Windows; 906.1 pooled across 20 independent CSPRNG runs). The HTTP figures are small-sample descriptive means, not matched-pair inference: baseline and hybrid use separate tapes. The expectation is conditional on the exact frozen table passing the fixed-pair check and on uniform independent directions; it is not a CPU/runtime estimate or a 2.5x result. The 27-trial cap leaves a rank-five witness-miss probability of only \(4.3580153939\times10^{-11}\), so truncation has negligible effect on this fast-path expectation.
