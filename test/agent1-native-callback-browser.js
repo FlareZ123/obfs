@@ -39,12 +39,13 @@ const scenarios=[
  */
 function sourceFor(scenario){
   return [
-    'function publicReader(external){const other={unrelatedField:2};',
+    'const other={unrelatedField:2};',
     'function hidden(external){const owner={longPrivatePropertyName:1};',
     scenario.body,
     'return owner.longPrivatePropertyName;}',
     'function plain(){return other.unrelatedField;}',
-    'return hidden(external)+plain();}'
+    'function publicReader(external){return hidden(external)+plain();}',
+    'module.exports=publicReader;'
   ].join('');
 }
 
@@ -57,6 +58,7 @@ function pageFor(observation,scriptPath){
   return '<!doctype html><meta charset="utf-8">'+
     '<pre id="result"></pre><pre id="failure"></pre>'+
     '<script>'+
+    'window.module={exports:{}};'+
     'window.__observation={source:null,frame:null,column:null,error:null};'+
     'window.__kind='+JSON.stringify(observation)+';'+
     'function external(){try{'+
@@ -75,7 +77,7 @@ function pageFor(observation,scriptPath){
     '</script>'+
     '<script src="'+scriptPath+'"></script>'+
     '<script>try{'+
-      'var value=publicReader(external);'+
+      'var value=module.exports(external);'+
       'var seen=window.__observation;'+
       'var result={value:value,source:seen.source,frame:seen.frame,column:seen.column,error:seen.error};'+
       'document.getElementById("result").textContent=btoa(JSON.stringify(result));'+
@@ -110,9 +112,9 @@ async function main(){
   for(const scenario of scenarios){
     const source=sourceFor(scenario);
     const output=obfuscateFiles([{
-      path:'entry.js',sourceType:'script',code:source
+      path:'entry.js',sourceType:'commonjs',code:source
     }],{
-      mode:'coo',closedWorld:true,seed:'agent1-native-callback-browser/'+scenario.kind,
+      mode:'coo',seed:'agent1-native-callback-browser/'+scenario.kind,
       identifiers:false,strings:false,properties:true
     });
     assert.equal(output.files.length,1);
