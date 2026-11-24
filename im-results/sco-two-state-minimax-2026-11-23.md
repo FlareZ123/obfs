@@ -77,6 +77,10 @@ The live test asserts the two seeds and both policies (bounded-nine: 7/9 calls; 
 
 The earlier run 45277775735 was **RED** overall because strict JSDoc step 53 failed on both platforms at `sims/sco-step-only-two-state-robust.js(105,60)` with TS2322 (`number` not assignable to literal `29`); the full project typecheck step was skipped. Agent 14 applied the mechanical JSDoc widening in branch commit `a4ee7443aad9741b2f9fbe30c724f79dfe9cb534` and dispatched the existing workflow again. The rerun [45408156868](https://github.com/FlareZ123/obfs/actions/runs/45408156868) completed **success on both Ubuntu and Windows**, all 57 steps, including strict `jsconfig.sco-oracles.json` and the full project typecheck. The current PR head differs from the tested code SHA only by report-only documentation commits; no executable code changed after the successful run. The protected application still has no additional runtime compute bound measured here.
 
+### Integration status relative to current main
+
+The green run above validates the exact PR branch source and its workflow/configuration, **not integration with current main**. At the time of this report update, GitHub compare of current main `3115643c9986d5d598f44f7562f46720b0b2a7fd` against PR head `75a2f678f99b93a735508376a4860f2c9048420a` reports merge base `ba5a8f42fe08a1cbb518928d6b08ed27e4b58190`, 23 commits ahead and **1,807 commits behind**. The branch includes its own `.github/workflows/manual-sco-oracle.yml` and `jsconfig.sco-oracles.json`, both of which differ from current main; the PR diff also changes the live RPC fixture. Therefore this is a reproducible, full-green branch-local research result, but it is **not merge-ready** and does not prove current-main integration. Before any merge, rebase/port the new two-state scripts and tests onto current main without overwriting newer workflow/config changes, then rerun the appropriate current-main workflow.
+
 
 ## Independent, source-labelled minimax and expected-cost calculation
 
