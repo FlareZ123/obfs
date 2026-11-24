@@ -173,7 +173,7 @@ async function main(){
   const metrics=new Map();
   /** @type {Map<string,number>} */
   const moduleMetrics=new Map();
-  /** @type {Array<{kind:string,mode:string,properties:number,deferred:boolean,native:Observation,compiled:Observation}>} */
+  /** @type {Array<{kind:string,mode:string,properties:number,deferred:boolean,patchedMap:boolean,native:Observation,compiled:Observation}>} */
   const results=[];
 
   for(const scenario of scenarios){
@@ -299,7 +299,7 @@ async function main(){
       const properties=metrics.get(scenario.kind)??0;
       results.push({
         kind:scenario.kind,mode:'coo',deferred:scenario.deferred??false,
-        properties,
+        patchedMap:scenario.patchedMap??false,properties,
         native:before,compiled:after
       });
       process.stdout.write('CHROMIUM_INTRINSIC_CALLBACK '+JSON.stringify({
@@ -365,7 +365,7 @@ async function main(){
       scenarios:moduleResults.length,
       strictSourceUnavailable:moduleResults.filter(item=>!item.patchedMap).every(item=>item.native.source===null&&item.compiled.source===null),
       hostOverrideSourceObserved:moduleResults.filter(item=>item.patchedMap).every(item=>item.native.source!==null&&item.compiled.source!==null&&item.native.source!==item.compiled.source),
-      framePosition:moduleResults.every(item=>item.deferred?(item.native.frame===null&&item.compiled.frame===null):(item.native.frame!==null&&item.compiled.frame!==null&&item.native.column!==item.compiled.column)),
+      framePosition:moduleResults.filter(item=>!item.patchedMap&&!item.deferred).every(item=>item.native.frame!==null&&item.compiled.frame!==null&&item.native.column!==item.compiled.column),
       deferredNoReturnedFrame:moduleResults.filter(item=>item.deferred).every(item=>item.native.frame===null&&item.compiled.frame===null),
       positiveYield:moduleResults.every(item=>item.properties>=1),
       nativeParity:moduleResults.every(item=>item.native.value===item.compiled.value)
@@ -377,7 +377,8 @@ async function main(){
   assert.equal(results.length,scenarios.length);
   process.stdout.write('CHROMIUM_INTRINSIC_CALLBACK_SUMMARY '+JSON.stringify({
     node:process.version,scenarios:results.length,
-    exactSource:results.filter(item=>item.native.source!==null).length,
+    exactSource:results.filter(item=>item.native.source!==null&&!item.patchedMap).length,
+    hostOverrideSourceObserved:results.filter(item=>item.patchedMap).every(item=>item.native.source!==null&&item.compiled.source!==null&&item.native.source!==item.compiled.source),
     framePosition:results.filter(item=>item.native.frame!==null).length,
     deferredNoReturnedFrame:results.filter(item=>item.deferred).every(item=>item.native.frame===null&&item.compiled.frame===null),
     positiveYield:results.every(item=>item.properties>=1),
