@@ -15,7 +15,7 @@ The map chain is a separate pipeline proof. Each pass maps a protected original 
 Current-main-based branch: `agent3/source-edit-map-20261124`  
 Base main SHA: `3d148a9f6407f357ae481d5d8196ae606f86cd17`  
 Initial implementation/test head: `741b42bf8459b6d3d505ee2bd6b83019380f3843`  
-Current implementation/test head: `2560e4b0dd168e750f3e0e99c426c46b34225d69`  
+Current implementation/test head: `7ed5bbc9ce54439ecc355e2da78a63db6442d6f3`  
 Documentation head before this update: `348410f145fc465725d191bf0204dd41a01d9711`
 
 Files:
@@ -43,6 +43,7 @@ The parser contract identifier supplied by the caller must include the actual pa
 Latest focused map run [45349085652](https://github.com/FlareZ123/obfs/actions/runs/45349085652) and corrected transform-consumer run [45348966750](https://github.com/FlareZ123/obfs/actions/runs/45348966750) passed on Ubuntu and Windows, Node 22.23.4:
 - 18 focused map tests passed on Ubuntu and Windows, including parser-contract identity, lone high/low surrogate separation, response-scoped SourceUnitRef isolation, zero-width replacement/deletion boundaries, immutable originSpanId across two maps, and 10,000 deterministic span checks;
 - 6 local transform integration tests passed in [45348966750](https://github.com/FlareZ123/obfs/actions/runs/45348966750): protected host-held callback through identifier/string edits, binding-wide protected identifier cases (declaration and reference inside; declaration outside/reference inside) with VM invocation returning 79, local-property span filtering, host-only unprotected red control, direct `Function.prototype.toString` fail-closed behavior, and stale-generation rejection;
+- A seventh regression for escaped protected free-name collision passed in [45349529707](https://github.com/FlareZ123/obfs/actions/runs/45349529707) on Ubuntu/Windows: a `\\u005f...` IdentifierName inside the protected callback reserves its decoded AST name against generated outer bindings, preserving the original ReferenceError rather than introducing lexical capture. A follow-up with the corrected AST-node type fixture is [45349684143](https://github.com/FlareZ123/obfs/actions/runs/45349684143).
 - 4 cross-file property map tests passed in [45348271818](https://github.com/FlareZ123/obfs/actions/runs/45348271818), including per-module map emission, changed-span rejection, unchanged importer-span mapping, complete SourceUnitRef coverage, canonical parser contract, unique module identities, and non-string module fail-closed behavior; existing cross-file-reader regression passed in [45348378120](https://github.com/FlareZ123/obfs/actions/runs/45348378120);
 - project JSDoc, external JSDoc and paired/complete-suite budget evaluator JSDoc passed.
 
