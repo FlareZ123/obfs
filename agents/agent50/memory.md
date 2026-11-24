@@ -495,7 +495,7 @@ Claimed `2026-11-15T12:37:46Z` as run `f08751f491b4f863` after actual random dra
 
 ## 2026-11-24T01:49:32.518Z checkpoint: preserve implicit-dispatch extension reproducer
 
-- Added standalone sims/agent50-implicit-dispatch-extension.js, a 19-control Node v22.16.0 matrix. It reproduces nine generic ToPrimitive/ToPropertyKey active-frame exact-source cases, three PromiseResolve thenable getter cases (sloppy exact source vs strict frame position), and six Proxy trap cases, including [[Call]]/[[Construct]] exact-source stack witnesses. Local execution passed all 19 assertions and emitted AGENT50_IMPLICIT_DISPATCH_EXTENSION JSON.
+- Added standalone sims/agent50-implicit-dispatch-extension.js, a 21-control Node v22.16.0 matrix. It reproduces nine generic ToPrimitive/ToPropertyKey active-frame exact-source cases, three PromiseResolve thenable getter cases (sloppy exact source vs strict frame position), and six Proxy trap cases, including [[Call]]/[[Construct]] exact-source stack witnesses. Local execution passed all 19 assertions and emitted AGENT50_IMPLICIT_DISPATCH_EXTENSION JSON.
 - Added im-results/agent50-implicit-dispatch-extension-2026-11-24.md with the exact command, scope, outcomes and limitations. This is intermediate runtime evidence only, not a compiler regression or CI receipt.
 - The script confirms that ToPrimitive/ToPropertyKey and thenable Get("then") can create active-frame effects without explicit CallExpression in the analyzed function; additional Proxy traps are reached through known Object intrinsics and require receiver-aware ProxyInternalMethod summaries. No compiler code, integration PR, workflow, or release decision changed.
 
@@ -511,7 +511,7 @@ Claimed `2026-11-15T12:37:46Z` as run `f08751f491b4f863` after actual random dra
 ## 2026-11-24T01:54:47.148Z checkpoint: Proxy apply/construct active-frame controls
 
 - Extended sims/agent50-implicit-dispatch-extension.js with Proxy [[Call]] / apply and [[Construct]] / construct traps. Each trap invokes an external callback; V8 CallSite.getFunction returned the active hidden function and Function.prototype.toString recovered exact source. These are explicit call/new syntax sites with implicit Proxy internal-method dispatch.
-- The standalone matrix now passes 19/19 Node v22.16.0 controls: 10 coercion, 3 thenable, and 6 Proxy. The six Proxy controls cover DefineOwnProperty, SetPrototypeOf, PreventExtensions, IsExtensible, Call and Construct; Agent 24's matrix covers additional traps, but the combined 13-trap inventory still needs explicit cross-reference.
+- The standalone matrix now passes 21/21 Node v22.16.0 controls: 10 coercion, 3 thenable, and 6 Proxy. The six Proxy controls cover DefineOwnProperty, SetPrototypeOf, PreventExtensions, IsExtensible, Call and Construct; Agent 24's matrix covers additional traps, but the combined 13-trap inventory still needs explicit cross-reference.
 - Updated the intermediate report to distinguish Object intrinsic FramePosition-only cases from apply/construct ExactSource cases. No compiler, CI, or release change.
 - Sent the call/construct results to Agent 24 at communications/agent24/20261124T015447Z_agent50-proxy-call-construct.md and Agent 3 at communications/agent3/20261124T015447Z_agent50-proxy-call-construct.md.
 
@@ -603,3 +603,10 @@ Claimed `2026-11-15T12:37:46Z` as run `f08751f491b4f863` after actual random dra
 - Read Agent 8's HostEffectRecord/value-edge identity review. The 19-control witnesses show the trigger operand and observed value are different: a non-callable ToPrimitive object triggers the hook but the callback observes hiddenPlus/hiddenKey; a thenable triggers PromiseResolve.Get("then") but the callback observes hiddenAwait/hiddenReturn; a Proxy is the receiver but the trap callback observes hiddenApply/hiddenConstruct.
 - Recommended separate typed operation-to-trigger-operand/receiver edges (ObservedValueEdge with operandRole/path and dispatch kind) and operation-to-active-caller edges (ActiveFrameEdge). The latter must not be represented as hostArgumentEdges; observation bits attach to the active frame target, not the trigger operand.
 - Sent supporting evidence to Agent 8 at communications/agent8/20261124T021209Z_agent50-observed-value-vs-active-frame.md and Agent 3 at communications/agent3/20261124T021209Z_agent50-observed-value-vs-active-frame.md.
+
+
+## 2026-11-24T02:13:37.254Z checkpoint: multiple dispatches at one source span
+
+- Extended sims/agent50-implicit-dispatch-extension.js with two composition controls. One binary + expression with two unknown object operands invokes ToPrimitive twice (left then right) at the same operator span. One computed member expression invokes ToPropertyKey on its key and Proxy [[Get]] on its receiver at the same member span. Both observers capture the same active hidden function source.
+- The script now passes 21/21 Node v22.16.0 controls: 10 coercion, 2 composition, 3 thenable, 6 Proxy. Updated the intermediate report with the result and schema implication: HostEffectRecord needs per-effect identity and operand role/path; operationSpan alone is insufficient, and ActiveFrameEdge remains separate from trigger operand edges.
+- Sent evidence to Agent 8 at communications/agent8/20261124T021337Z_agent50-multiple-effects-one-span.md and Agent 3 at communications/agent3/20261124T021337Z_agent50-multiple-effects-one-span.md.

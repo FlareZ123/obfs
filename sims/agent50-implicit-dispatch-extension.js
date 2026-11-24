@@ -48,6 +48,38 @@ function makeStackCapture() {
   return { observation, external };
 }
 
+/** @returns {{events:Array<{label:string,functionName:string|null,source:string|null}>, external:Function}} */
+function makeMultiCallerCapture() {
+  const events = [];
+  const external = Function('events',
+    'return function external(label){' +
+    'const caller=arguments.callee.caller;' +
+    'const active=caller&&caller.caller;' +
+    'events.push({label,functionName:active?active.name:null,' +
+    'source:active?Function.prototype.toString.call(active):null});' +
+    '}')(events);
+  return { events, external };
+}
+
+/**
+ * @param {string} label
+ * @param {(external:Function)=>unknown[]} makeArgs
+ * @param {(...args:unknown[])=>unknown} hidden
+ * @param {string[]} expectedLabels
+ * @param {string} expectedFragment
+ * @returns {{label:string,dispatchCount:number,observerLabels:string[]}}
+ */
+function runMultiCallerCase(label, makeArgs, hidden, expectedLabels, expectedFragment) {
+  const { events, external } = makeMultiCallerCapture();
+  hidden(...makeArgs(external));
+  assert.deepEqual(events.map(event => event.label), expectedLabels, label + ': dispatch order');
+  for (const event of events) {
+    assert.equal(event.functionName, hidden.name, label + ': active function');
+    assert.ok(event.source && event.source.includes(expectedFragment), label + ': exact source');
+  }
+  return { label, dispatchCount: events.length, observerLabels: events.map(event => event.label) };
+}
+
 /**
  * @param {string} label
  * @param {(external:Function)=>object} makeValue
@@ -187,6 +219,8 @@ function runProxyCallableCase(label, trapName, hidden, target, returnsObject) {
 }
 
 function hiddenPlus(value) { return value + 1; }
+function hiddenAddTwo(left, right) { return left + right; }
+function hiddenGetProxy(proxy, key) { return proxy[key]; }
 function hiddenRel(value) { return value < 2; }
 function hiddenKey(value) { const obj = { x: 1 }; return obj[value]; }
 function hiddenPatternKey(key) { const source = { x: 1 }; const { [key]: value } = source; return value; }
@@ -246,6 +280,27 @@ async function main() {
     }), hiddenPlusStrict)
   ];
 
+  const composition = [
+    runMultiCallerCase('two-ToPrimitive-operands-one-addition-span', external => {
+      const makeOperand = label => ({
+        [Symbol.toPrimitive]: function toPrimitive() { external(label); return label === 'left' ? 1 : 2; }
+      });
+      return [makeOperand('left'), makeOperand('right')];
+    }, hiddenAddTwo, ['left', 'right'], 'return left + right'),
+    runMultiCallerCase('ToPropertyKey-plus-ProxyGet-one-member-span', external => {
+      const key = {
+        [Symbol.toPrimitive]: function toPrimitive() { external('key'); return 'x'; }
+      };
+      const handler = {
+        get: function get(target, property, receiver) {
+          external('proxy-get');
+          return Reflect.get(target, property, receiver);
+        }
+      };
+      return [new Proxy({ x: 1 }, handler), key];
+    }, hiddenGetProxy, ['key', 'proxy-get'], 'return proxy[key]')
+  ];
+
   const thenable = [
     await runThenableCase('await-sloppy-then-getter', hiddenAwaitSloppy, true),
     await runThenableCase('await-strict-then-getter', hiddenAwaitStrict, false),
@@ -264,9 +319,10 @@ async function main() {
   const result = {
     node: process.version,
     coercion,
+    composition,
     thenable,
     proxy,
-    totals: { coercion: coercion.length, thenable: thenable.length, proxy: proxy.length }
+    totals: { coercion: coercion.length, composition: composition.length, thenable: thenable.length, proxy: proxy.length }
   };
   process.stdout.write('AGENT50_IMPLICIT_DISPATCH_EXTENSION ' + JSON.stringify(result) + '\n');
 }

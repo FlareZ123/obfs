@@ -24,9 +24,10 @@ The script has no third-party dependencies. It emits one JSON line prefixed with
 
 ## Results
 
-**Node 22.16.0 local run: 19/19 controls passed.**
+**Node 22.16.0 local run: 21/21 controls passed.**
 
 - **10 ToPrimitive / ToPropertyKey controls:** value + 1 / @@toPrimitive default hint; value < 2 / @@toPrimitive number hint; computed member key / ToPropertyKey string hint; computed ObjectPattern key; computed ObjectExpression key; left operand of in; computed delete key; numeric valueOf fallback; string toString fallback. Nine sloppy-mode analyzed functions have no CallExpression for the conversion and the hook's external callback captured exact function source. A tenth explicit strict-mode + case still exposed FramePosition through Error.prepareStackTrace but not the function object/source. The four added key contexts prove the same ToPropertyKey hook runs in object destructuring, object-literal construction, in, and delete syntax.
+- **2 composition controls:** two object operands to one + expression dispatch ToPrimitive twice (left then right) at the same operator span; one computed member expression dispatches ToPropertyKey on the key and Proxy [[Get]] on the receiver at the same member span. Both callbacks capture the same active function source. These controls demonstrate why operation-span identity alone is insufficient: each effect needs its own operand role / effect identity.
 - **3 thenable controls:** await in sloppy async function, await in explicit strict async function, and async return. The thenable's then getter runs while the async frame is present. Sloppy cases expose a CallSite function object and exact source; strict case exposes function name and file/line/column but no function object.
 - **6 Proxy controls:** Object.defineProperty / [[DefineOwnProperty]], Object.setPrototypeOf / [[SetPrototypeOf]], Object.preventExtensions / [[PreventExtensions]], Object.isExtensible / [[IsExtensible]], Proxy [[Call]] / apply, and Proxy [[Construct]] / construct. The four Object intrinsic traps expose FramePosition; apply/construct additionally expose the active function object and exact source through V8 CallSite.getFunction. The preventExtensions trap runs before the engine throws an invariant TypeError.
 
@@ -52,6 +53,9 @@ Recommended contract coverage:
 | Proxy apply / construct (2 controls) | Yes: trap callback runs under analyzed function | Yes: active frame in CallSite | Yes: CallSite.getFunction() and Function.prototype.toString |
 
 CallableMetadata is not separately asserted in this script. Where a function object is recovered, metadata may be observable, but that requires its own explicit control. The table records only directly observed source/position effects and the active-frame edge.
+
+The two composition controls also show why HostEffectRecord must distinguish multiple effects at one SourceSpanId: a binary operator may coerce both operands, and a computed member expression may coerce its key and then invoke a Proxy Get on the receiver. Use a per-effect identity and operand role/path, plus a separate ActiveFrameEdge; do not key the observed value only by the source span.
+
 
 ## Limitations
 
