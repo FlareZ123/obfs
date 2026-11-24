@@ -176,6 +176,19 @@ const cases = [
     expectSource: true
   },
   {
+    name: 'local-globalThis-real-wrapper', entryFile: 'entry.cjs', expectedValue: 157,
+    entrySource: lines(
+      "const realSymbol=Symbol;",
+      "const globalThis={Symbol:{toPrimitive:realSymbol.toPrimitive}};",
+      "function inspect(){const privateLocal=157;return privateLocal;}",
+      "inspect[globalThis.Symbol.toPrimitive]=function(hint){return hint==='string'?'local-globalThis-wrapper-hook':'wrong';};",
+      "localStorage.setItem('probe',inspect);",
+      "const stored=localStorage.getItem('probe');",
+      "console.log(JSON.stringify({stored,value:inspect()}));"
+    ),
+    expectedStored: 'local-globalThis-wrapper-hook', expectSource: false
+  },
+  {
     name: 'globalThis-real-root', entryFile: 'entry.cjs', expectedValue: 33,
     entrySource: lines(
       "function inspect(){const privateLocal=33;return privateLocal;}",
