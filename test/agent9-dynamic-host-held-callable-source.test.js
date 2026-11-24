@@ -61,14 +61,14 @@ for(const mode of /** @type {const} */ (['coo','sco','sno'])){
       }));
     });
 
-    test(mode+' dynamic/reflection red control: string transform changes host-held callback source through '+item.name,()=>{
+    test(mode+' dynamic/reflection positive: string pass conservatively preserves source and skips literals through '+item.name,()=>{
       const source=[
         "function hidden(inputValue){return inputValue+'callbackSourceLiteral';}",
         'const holder={callback:hidden};',
         "const key='callback';",
         'queueMicrotask('+item.read+');',
         "module.exports='unrelatedLiteral'.length;"
-      ].join('\n');
+      ].join('\\n');
       const native=observe(source);
       const compiled=obfuscateFiles([{
         path:'entry.cjs',sourceType:'commonjs',code:source
@@ -76,6 +76,16 @@ for(const mode of /** @type {const} */ (['coo','sco','sno'])){
         mode,seed:'agent9-dynamic-host-held-string-'+mode+'-'+item.name,
         identifiers:false,strings:true,properties:false
       });
+      const emitted=observe(String(compiled.files[0].code));
+      assert.equal(compiled.files[0].metrics.literals,0);
+      assert.equal(emitted.source,native.source);
+      assert.equal(emitted.value,native.value);
+      assert.equal(emitted.invoked,false);
+      console.log('AGENT9_DYNAMIC_HOST_HELD_STRING '+JSON.stringify({
+        mode,access:item.name,literals:compiled.files[0].metrics.literals,
+        native:native.source,emitted:emitted.source,sourceEqual:emitted.source===native.source
+      }));
+    });
       const emitted=observe(String(compiled.files[0].code));
       assert.ok(compiled.files[0].metrics.literals>=1);
       assert.notEqual(emitted.source,native.source);
