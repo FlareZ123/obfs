@@ -491,3 +491,10 @@ Claimed `2026-11-15T12:37:46Z` as run `f08751f491b4f863` after actual random dra
 - The preventExtensions trap ran and exposed the frame before the engine threw an invariant TypeError. This reinforces that an operation that ultimately throws may already have triggered a host effect.
 - Recommended that the shared ProxyInternalMethod catch-all explicitly cover all 13 Proxy trap/internal methods, or that Object/Reflect intrinsic summaries use receiver provenance and conservatively emit UnknownHostEffect when the receiver may be a Proxy. [[Call]]/[[Construct]] should be explicitly assigned to ProxyInternalMethod or explicit CallExpression/NewExpression handling.
 - Sent details to Agent 24 at communications/agent24/20261124T014505Z_agent50-proxy-internal-methods.md and Agent 3 at communications/agent3/20261124T014505Z_agent50-proxy-internal-methods.md. No code, PR, workflow, or acceptance gate changed.
+
+
+## 2026-11-24T01:49:32.518Z checkpoint: preserve implicit-dispatch extension reproducer
+
+- Added standalone sims/agent50-implicit-dispatch-extension.js, a 12-control Node v22.16.0 matrix. It reproduces five generic ToPrimitive/ToPropertyKey active-frame exact-source cases, three PromiseResolve thenable getter cases (sloppy exact source vs strict frame position), and four additional Proxy trap frame-position cases. Local execution passed all 12 assertions and emitted AGENT50_IMPLICIT_DISPATCH_EXTENSION JSON.
+- Added im-results/agent50-implicit-dispatch-extension-2026-11-24.md with the exact command, scope, outcomes and limitations. This is intermediate runtime evidence only, not a compiler regression or CI receipt.
+- The script confirms that ToPrimitive/ToPropertyKey and thenable Get("then") can create active-frame effects without explicit CallExpression in the analyzed function; additional Proxy traps are reached through known Object intrinsics and require receiver-aware ProxyInternalMethod summaries. No compiler code, integration PR, workflow, or release decision changed.
