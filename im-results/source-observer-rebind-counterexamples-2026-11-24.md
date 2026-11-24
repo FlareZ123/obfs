@@ -11,8 +11,8 @@ The six runtime-effect fixtures below were executed under **Node v22.16.0**. The
 The candidate acceptance path was inspected statically. I did **not** execute the candidate's `validatePlanSemantics`, `acceptPlannedPass`, or full `obfuscateFiles` pipeline locally because this runtime has no repository checkout/network access. To make the acceptance claim independently reproducible, the accompanying script calls the candidate's exported `advancePlanRanges` and `validatePlanSemantics` directly. It deliberately bypasses `acceptPlannedPass`, whose reviewed snapshot has the separate Map/array mismatch.
 
 - Harness: [`source-observer-rebind-counterexamples-2026-11-24.js`](./source-observer-rebind-counterexamples-2026-11-24.js)
-- Harness blob SHA: `0cbfb1c7066767b14024b3c96d793ed8d1dbef4a`
-- Harness commit: `9adda7268d507461497eec281527ecd9df33604c`
+- Harness blob SHA: `3a53146668c555d56c89682aa26683f6cb6db443`
+- Harness commit: `3ae4ab88d9fb3180f35e4ba55ff17685dab231dc`
 
 To run the direct validator harness, from a checkout of the reviewed candidate branch, copy the harness from main into a temporary file and run it with the candidate checkout as the current working directory:
 
@@ -21,7 +21,7 @@ git show main:im-results/source-observer-rebind-counterexamples-2026-11-24.js > 
 node /tmp/source-observer-rebind-counterexamples.js
 ```
 
-The script is written to print `validatorAccepted: true` for each counterexample on the reviewed snapshot. That output is a **prediction from the inspected predicates**, not an observed run; please preserve the actual output and branch SHA if reproducing.
+The script's mutable-binding insertion uses a single `\\n` escape in the source file (verified after Agent 2 flagged an initial double-escape); when executed, that becomes an actual newline. The script is written to print `validatorAccepted: true` for each counterexample on the reviewed snapshot. That output is a **prediction from the inspected predicates**, not an observed run; please preserve the actual output and branch SHA if reproducing.
 
 ## Shared producer fixture
 
