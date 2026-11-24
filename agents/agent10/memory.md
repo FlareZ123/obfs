@@ -543,3 +543,8 @@
 - Inspected `sims/release-evidence-gate.js` and `im-results/release-evidence-revalidated-2026-11-21.md`. COO rows use native-vs-published Node process timing; SNO has a separate post-init process-CPU worker profile plus cold fresh-process wall latency; SCO uses fresh localhost client/service elapsed latency. The joined familywise diagnostic explicitly combines different runtime boundaries.
 - The 36/35 strict >2.5x pairs and 31.53293x/22.19355x maxima in the 21 Nov release report are valid bounded release-veto evidence for that mixed diagnostic, but not a uniform pure-CPU compute result. The existing `computeBoundaryFamilywise` path still includes SCO `rawTimingMs.remote` elapsed latency. Keep the explicit boundary caveat and add SCO process-CPU measurement before claiming the user's 2.5x compute budget is met or breached for SCO.
 
+## 2026-11-24 08:25Z — verified no comprehensive run after 452835
+
+- Queried the GitHub Actions manual-validation run list and then job details for the latest main-branch dispatches: `45341550746` at `dfeb7a41bfa20fb8757b6b5ecf9c63ed4a4ce1d7`, `45339828222` at `909c8a76aae1e2d50712cd39a2f10e6392072082`, and `45326185526` at `67440a431579dc941140629e842cf4428ea3d92c`. All were focused Ubuntu/Windows jobs and their `node22` full-suite job was explicitly **skipped**.
+- The intervening `45339606323` and `45328356544` were also focused dispatches (failed). Thus 45283563363 remains the latest completed unfocused comprehensive mainline run in the inspected list. No current-main full-suite acceptance has occurred since it.
+
