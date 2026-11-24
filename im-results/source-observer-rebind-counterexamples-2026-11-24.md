@@ -6,13 +6,13 @@
 
 ## Scope and execution status
 
-The six runtime-effect fixtures below were executed under **Node v22.16.0**. They demonstrate the behavioral consequences of changing source outside the two original tracked spans.
+The six runtime-effect fixtures originally documented below were executed under **Node v22.16.0**. Agent 50 additionally executed the exact exported-mirror overwrite fixture described in section 6 under Node v22.16.0 with TypeScript 5.8.3. These observations demonstrate the behavioral consequences of changing source outside the two original tracked spans.
 
 The candidate acceptance path was inspected statically. I did **not** execute the candidate's `validatePlanSemantics`, `acceptPlannedPass`, or full `obfuscateFiles` pipeline locally because this runtime has no repository checkout/network access. Agent 2 independently parsed the corrected mutable-binding two-edit sequence with Acorn under Node v22.16.0 and confirmed it imports with `sourceText === 'fake'`; Agent 2 also did not execute the candidate validator or full pipeline. To make the acceptance claim independently reproducible, the accompanying script calls the candidate's exported `advancePlanRanges` and `validatePlanSemantics` directly. It deliberately bypasses `acceptPlannedPass`, whose reviewed snapshot has the separate Map/array mismatch.
 
 - Harness: [`source-observer-rebind-counterexamples-2026-11-24.js`](./source-observer-rebind-counterexamples-2026-11-24.js)
-- Harness blob SHA: `3a53146668c555d56c89682aa26683f6cb6db443`
-- Harness commit: `3ae4ab88d9fb3180f35e4ba55ff17685dab231dc`
+- Harness blob SHA: `46ed5ee7d87882066ccdf0f4a4a4af855708eba7`
+- Harness commit: `05ebf5f20d296879b2d8ea5b61be8ef99ef318a5`
 
 To run the direct validator harness, from a checkout of the reviewed candidate branch, copy the harness from main into a temporary file and run it with the candidate checkout as the current working directory:
 
@@ -21,7 +21,7 @@ git show main:im-results/source-observer-rebind-counterexamples-2026-11-24.js > 
 node /tmp/source-observer-rebind-counterexamples.js
 ```
 
-The script's mutable-binding insertion uses a single `\\n` escape in the source file (verified after Agent 2 flagged an initial double-escape); when executed, that becomes an actual newline. The script is written to print `validatorAccepted: true` for each counterexample on the reviewed snapshot. That output is a **prediction from the inspected predicates**, not an observed run; please preserve the actual output and branch SHA if reproducing.
+The script's mutable-binding insertion uses a single `\\n` escape in the source file (verified after Agent 2 flagged an initial double-escape); when executed, that becomes an actual newline. The script is written to print `planAccepted: true` for the producer-level disconnected-export control and `validatorAccepted: true` for each post-plan counterexample on the reviewed snapshot. Those acceptance values are **predictions from the inspected predicates**, not observed harness output; please preserve the actual output and branch SHA if reproducing.
 
 ## Shared producer fixture
 
@@ -38,7 +38,7 @@ export const labelText = label;
 
 The producer accepts this as a finite direct-reader plan. It records two source spans: the callable declaration and the direct reader call.
 
-## Five post-plan edits
+## Six post-plan edits
 
 ### 1. Export the formerly private callable
 
@@ -110,14 +110,44 @@ The original reader call and callable source slices remain exact. The reader sti
 
 Node v22.16.0 runtime output is `sourceText === 'fake'`, even though the original Function#toString call still executes.
 
+### 6. Disconnect the exported mirror without changing the reader result
+
+Replace only the exported initializer:
+
+```js
+export const sourceText = 'fake';
+```
+
+This is deliberately separate from the mutable-binding case. The `observedSource` declaration remains `const`, no overwrite is introduced, and the original `Function.prototype.toString.call(observed)` reader still executes. Only the export's initializer changes from the reader-result binding to an unrelated primitive literal. The callable and reader spans remain exactly `[74,108)` and `[132,174)`; the exported value changes to `fake`.
+
+Agent 50 executed this exact eight-line fixture under Node v22.16.0 with TypeScript 5.8.3. The native fixture produced `result=7`, `sourceText="function observed() { return 29; }"`, and `labelText="safe-literal"`; the changed fixture preserved `result=7` and `labelText="safe-literal"` but produced `sourceText="fake"`. This is an observed runtime/AST-span witness. Agent 50 did **not** execute the candidate validator or compiler for it.
+
+The accompanying harness now has two separate checks:
+
+- `producer-disconnected-export` calls `buildDirectFunctionSourcePlan` on the disconnected source and predicts that the producer still returns a plan. The current producer classifies the literal export as `primitive` but does not require the exported value to receive the reader result. This is a **producer-level** positive/negative obligation: retain a linked reader-result → const binding → exported value positive, and refuse the disconnected literal export.
+- `exported-mirror-overwrite` replaces only the export declaration in an already planned source and predicts that `validatePlanSemantics` accepts it because both tracked spans remain unchanged. This is a **post-plan rebind** obligation, distinct from the mutable-binding/reaching-write case.
+
+The required result-flow representation is:
+
+1. `SourceMirrorReadEdge.observedValueRef` continues to identify the callable input.
+2. `HostEffectRecord.resultValueRef` identifies the distinct string value returned by the source-reading host effect.
+3. A `ValueFlowEdge(kind='assignment')` connects that result value to the `observedSource` binding/value.
+4. A `ValueFlowEdge(kind='export')` connects the `observedSource` value to exported `sourceText`.
+5. The reader-result declaration and export declaration spans/definitions participate in semantic closure and rebind validation.
+
+Do **not** encode an ordinary ESM export with `SourceDeliveryEdge`; that edge is reserved for SCO server-to-client publication. For this COO fixture, `sourceDeliveryEdges` should remain empty.
+
+The two new harness acceptance outcomes remain **predictions** until the script is run against the exact candidate checkout. The harness deliberately does not claim that its copied static predicates were executed locally.
+
 ## Candidate code path under review
 
 At the reviewed branch SHA:
 - `src/source-observation-plan.js:147–153`: `isDirectFunctionSourceCall` checks AST spelling, not the lexical binding of `Function`.
+- `src/source-observation-plan.js` producer path: `buildBindingKinds` marks the direct reader result and unrelated primitive exports as `primitive`; `isAllowedProgram` requires exported values to be primitive but does not require the `sourceText` export to derive from the reader result.
 - `src/source-observation-plan.js:327–345`: `inspectDeclarations` counts FunctionDeclaration and VariableDeclarator bindings, but omits imports and classes.
 - `src/source-observation-plan.js:798–860`: `validatePlanSemantics` checks the original mapped source slices and reader/callable relation, but does not revalidate the original source-reader inventory, global `Function` resolution, pristine-intrinsic premise, or the reader-result declaration's `const` kind/reaching writes.
 - `src/source-observation-plan.js:887 onward`: `acceptPlannedPass` declares a Map input but forwards it to `advancePlanRanges`, which iterates range objects from an array; the reviewed core supplies an array, which the Map guard rejects. This separate issue prevents the normal transaction helper from reaching the semantic validator on the reviewed snapshot.
 
 ## Interpretation
 
-The synthetic cases establish gaps in the current post-pass validator's stated source-observer contract if arbitrary source edits are admitted. They do **not** establish that the current three enabled transforms emit such edits. Agent 24 and Agent 50 should decide whether to close these gaps in the validator, or explicitly narrow the helper contract and prove each enabled pass preserves the omitted binding/effect/cardinality invariants. No candidate branch was changed and no CI was dispatched by Agent 4.
+The synthetic cases establish gaps in the current producer/rebind contract if unrelated exports or arbitrary source edits are admitted. They do **not** establish that the current three enabled transforms emit such edits. The producer must prove that the reader result actually reaches the declared export; post-plan rebind must preserve that same result-flow path. Agent 24 and Agent 50 should decide whether to close these gaps in the canonical graph/validator, or explicitly narrow the helper contract and prove each enabled pass preserves the omitted binding/effect/cardinality invariants. No candidate branch was changed and no CI was dispatched by Agent 4.
