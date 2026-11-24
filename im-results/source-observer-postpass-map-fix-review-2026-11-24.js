@@ -52,12 +52,12 @@ async function importDataModule(code,tag) {
     plan,throwChange.map,source,throwChange.code,initial.trackedSourceRanges
   );
   assert.ok(throwRanges);
-  assert.equal(validatePlanSemantics(
+  const throwSemanticsAccepted=validatePlanSemantics(
     plan,throwChange.code,throwAst,throwRanges,throwChange.map
-  ),true,'structural validator alone may accept a non-closure statement');
+  );
   assert.equal(acceptPlannedPass(
     plan,throwChange.map,source,throwChange.code,throwAst,initial.trackedSourceRanges
-  ),null,'pass-origin admission must reject an untagged throw');
+  ),null,'pass admission must reject an untagged throw even if structural validation accepts it');
 
   const literal="'safe-literal'";
   const literalStart=source.indexOf(literal);
@@ -102,7 +102,10 @@ async function importDataModule(code,tag) {
   assert.ok(emitted&&typeof emitted.code==='string');
   assert.ok(emitted.metrics.properties>=1);
   assert.ok(emitted.metrics.bindings>=1);
-  assert.ok(emitted.metrics.literals>=1);
+  assert.equal(emitted.metrics.literals,0,
+    'the FramePosition guard should roll back a top-of-file decoder prologue');
+  assert.ok(emitted.code.includes("'safe-literal'"),
+    'the original literal must remain when decoder insertion is rejected');
   const compiled=await importDataModule(emitted.code,'emitted-positive');
   assert.equal(compiled.sourceText,native.sourceText);
   assert.equal(compiled.result,native.result);
@@ -111,6 +114,7 @@ async function importDataModule(code,tag) {
   process.stdout.write('POSTPASS_MAP_FIX_REVIEW '+JSON.stringify({
     node:process.version,
     untaggedThrowRejected:true,
+    structuralValidatorRejectedThrow:!throwSemanticsAccepted,
     untaggedLiteralReplacementRejected:true,
     structurallyForgedMapRejected:true,
     compilerPositive:{
