@@ -41,7 +41,7 @@ The section table is H(t)=A(s(t))+b+h(Mt), where M is the invertible coordinate 
 
 ## Implication and limits
 
-For this exact source, once a nonzero rank-five witness is found, the three-probe shift matcher is guaranteed to recover each standard-basis quotient coordinate uniquely under the projected-affine promise. The random-table union bound is not needed for this source-specific conclusion.
+For this exact source, once a nonzero rank-five witness is found, the three-probe shift matcher is guaranteed to recover each standard-basis quotient coordinate uniquely under the projected-affine promise. The random-table union bound is not needed for this source-specific conclusion. Within this translated-table matching scheme, three probes per basis vector are minimal: with only one nonzero offset u, the false shift delta=u always gives D_u D_delta H(q)=0, so q and q+u cannot be distinguished.
 
 This supports a conditional fast-path cap of 2,497 queries with lazy witness faces and 726 verification samples, or 2,524 with the current eager six-cube witness prefetch. The current PR #373 learner does not yet implement the shift matcher; these are prospective caps, not observed HTTP counts. A no-witness event still requires fallback, and out-of-promise sources still require the independent RM verifier and exact ANF fallback.
 
