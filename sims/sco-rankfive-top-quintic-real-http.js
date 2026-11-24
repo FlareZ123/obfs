@@ -3,6 +3,8 @@
 const assert=require('node:assert/strict');
 const {createHash,randomBytes}=require('node:crypto');
 const fs=require('node:fs');
+const path=require('node:path');
+const {Worker}=require('node:worker_threads');
 const {privateSource,executeArm}=require('./sco-rankfive-arbitrary-table-real-http');
 const {cloneTopQuinticValidated}=require('./rankfive-top-quintic-validated-peer');
 const {evaluateClone}=require('./rankfive-top-quintic-functional-clone-peer');
@@ -55,23 +57,9 @@ function verifySourcePromise(source){
   };
 }
 
-class NeedQuery extends Error{
-  /** @param {number} input */
-  constructor(input){
-    super('The top-quintic learner requested one missing HTTP oracle value');
-    this.input=input>>>0;
-  }
-}
-
-/** @returns {number} */
-function secureWord(){
-  return randomBytes(4).readUInt32BE(0);
-}
-
 /**
- * Drive the synchronous validated learner over the same real HTTP endpoint
- * using a persistent response cache and two independent replayable random
- * tapes. Tape indices reset after each missing-query restart.
+ * Run the synchronous learner in a worker so the main thread can service each
+ * oracle query asynchronously without restarting and replaying the full model.
  *
  * @param {Access} access
  * @param {number[]} witnessDraws
@@ -79,82 +67,84 @@ function secureWord(){
  * @returns {Promise<{model:unknown,queries:number,transcriptSha256:string,diagnostics:LearnerDiagnostics}>}
  */
 async function cloneTopQuinticFromHttp(access,witnessDraws,verifyDraws){
+  const sharedBuffer=new SharedArrayBuffer(Int32Array.BYTES_PER_ELEMENT*2);
+  const shared=new Int32Array(sharedBuffer);
+  const worker=new Worker(path.join(__dirname,'rankfive-top-quintic-http-worker.cjs'),{
+    workerData:{sharedBuffer,witnessDraws,verifyDraws}
+  });
   /** @type {Map<number,number>} */
   const seen=new Map();
   const transcript=createHash('sha256');
-  for(;;){
-    let witnessIndex=0;
-    let verifyIndex=0;
-    const drawWitness=()=>{
-      if(witnessIndex===witnessDraws.length)witnessDraws.push(secureWord());
-      return witnessDraws[witnessIndex++];
-    };
-    const drawVerify=()=>{
-      if(verifyIndex===verifyDraws.length)verifyDraws.push(secureWord());
-      return verifyDraws[verifyIndex++];
-    };
-    try{
-      const model=/** @type {ValidatedModel} */ (cloneTopQuinticValidated(input=>{
-        const key=input>>>0;
-        if(!seen.has(key))throw new NeedQuery(key);
-        return /** @type {number} */ (seen.get(key));
-      },32,drawWitness,drawVerify,1e-10));
-      assert.equal(model.queries,seen.size,'learner cache and authenticated query cache differ');
-      assert.ok(model.queries<=44836||model.fallbackUsed,
-        'fast path exceeded the preregistered 44,836 distinct-query cap');
-      if(!model.fallbackUsed){
-        assert.equal(model.degree,5);
-        assert.equal(model.quotientRank,5);
-        assert.equal(model.verificationPassed,true);
-        assert.equal(model.verificationSamples,726);
-        assert.ok(model.falseAcceptanceBound<=1e-10);
-      }else{
-        assert.equal(model.exactByInterpolation,true);
+  return await new Promise((resolve,reject)=>{
+    let settled=false;
+    /** @type {unknown} */
+    let failure=null;
+    worker.on('message',async message=>{
+      if(message.type==='query'){
+        try{
+          const input=message.input>>>0;
+          assert.equal(message.sequence,seen.size,'worker query sequence is not monotonic');
+          assert.ok(!seen.has(input),'worker requested a duplicate input despite its local cache');
+          const response=await fetch(access.origin+'/obfs/rpc',{
+            method:'POST',
+            headers:{
+              'content-type':'application/json',
+              'x-demo-session':access.credential
+            },
+            body:JSON.stringify({method:access.method,args:[input]})
+          });
+          assert.equal(response.status,200,'Legitimate forward query rejected');
+          /** @type {{ok?:boolean,value?:unknown}} */
+          const data=await response.json();
+          assert.equal(data.ok,true);
+          assert.ok(typeof data.value==='number'&&Number.isInteger(data.value)&&
+            data.value>=0&&data.value<2**32,'Private RPC output is not a uint32');
+          const value=/** @type {number} */ (data.value);
+          seen.set(input,value);
+          transcript.update(JSON.stringify([input,value])+'\n');
+          Atomics.store(shared,1,value|0);
+          Atomics.store(shared,0,1);
+          Atomics.notify(shared,0);
+        }catch(error){
+          failure=error;
+          Atomics.store(shared,0,2);
+          Atomics.notify(shared,0);
+        }
+      }else if(message.type==='result'){
+        if(settled)return;
+        settled=true;
+        try{
+          assert.equal(message.queryCount,seen.size);
+          assert.equal(message.model.queries,seen.size);
+          resolve({
+            model:message.model,
+            queries:seen.size,
+            transcriptSha256:transcript.digest('hex'),
+            diagnostics:message.diagnostics
+          });
+        }catch(error){
+          reject(error);
+        }finally{
+          worker.terminate().catch(()=>{});
+        }
+      }else if(message.type==='error'){
+        if(settled)return;
+        settled=true;
+        worker.terminate().catch(()=>{});
+        reject(failure??new Error(message.message));
       }
-      const diagnostics={
-        degree:model.degree,
-        quotientRank:model.quotientRank??0,
-        fastQueries:model.fastQueries,
-        verificationQueries:model.verificationQueries,
-        verificationSamples:model.verificationSamples,
-        verificationCap:model.verificationCap,
-        verificationDelta:model.verificationDelta,
-        falseAcceptanceBound:model.falseAcceptanceBound,
-        verificationPassed:model.verificationPassed,
-        fallbackUsed:model.fallbackUsed,
-        fallbackReason:model.fallbackReason??null,
-        exactByInterpolation:model.exactByInterpolation,
-        witnessDrawCount:witnessDraws.length,
-        verifyDrawCount:verifyDraws.length
-      };
-      return {
-        model,
-        queries:seen.size,
-        transcriptSha256:transcript.digest('hex'),
-        diagnostics
-      };
-    }catch(error){
-      if(!(error instanceof NeedQuery))throw error;
-      const input=error.input;
-      const response=await fetch(access.origin+'/obfs/rpc',{
-        method:'POST',
-        headers:{
-          'content-type':'application/json',
-          'x-demo-session':access.credential
-        },
-        body:JSON.stringify({method:access.method,args:[input]})
-      });
-      assert.equal(response.status,200,'Legitimate forward query rejected');
-      /** @type {{ok?:boolean,value?:unknown}} */
-      const data=await response.json();
-      assert.equal(data.ok,true);
-      assert.ok(typeof data.value==='number'&&Number.isInteger(data.value)&&
-        data.value>=0&&data.value<2**32,'Private RPC output is not a uint32');
-      const value=/** @type {number} */ (data.value);
-      seen.set(input,value);
-      transcript.update(JSON.stringify([input,value])+'\n');
-    }
-  }
+    });
+    worker.on('error',error=>{
+      if(settled)return;
+      settled=true;
+      reject(error);
+    });
+    worker.on('exit',code=>{
+      if(settled)return;
+      settled=true;
+      reject(failure??new Error('Top-quintic worker exited before returning a result (code '+code+')'));
+    });
+  });
 }
 
 /** @returns {Promise<object>} */
@@ -162,9 +152,9 @@ async function compare(){
   const source=privateSource();
   const sourcePromise=verifySourcePromise(source);
   /** @type {number[]} */
-  const witnessDraws=[];
+  const witnessDraws=Array.from({length:162},secureWord);
   /** @type {number[]} */
-  const verifyDraws=[];
+  const verifyDraws=Array.from({length:726},secureWord);
   /** @type {(access:Access,_unusedDraws:number[])=>Promise<{model:unknown,queries:number,transcriptSha256:string,diagnostics:LearnerDiagnostics}>} */
   const cloneRunner=(access,_unusedDraws)=>
     cloneTopQuinticFromHttp(access,witnessDraws,verifyDraws);
@@ -196,6 +186,8 @@ async function compare(){
   assert.ok(native.learnerDiagnostics);
   assert.deepEqual(sco.learnerDiagnostics,native.learnerDiagnostics);
   const diagnostics=/** @type {LearnerDiagnostics} */ (sco.learnerDiagnostics);
+  const usedWitnessDraws=witnessDraws.slice(0,diagnostics.witnessDrawCount);
+  const usedVerifyDraws=verifyDraws.slice(0,diagnostics.verifyDrawCount);
   const fastPathSuccess=!diagnostics.fallbackUsed&&diagnostics.degree===5&&
     diagnostics.quotientRank===5&&diagnostics.verificationPassed===true&&
     diagnostics.verificationSamples===726&&diagnostics.falseAcceptanceBound<=1e-10&&
@@ -214,10 +206,10 @@ async function compare(){
       verificationSamples:726,
       verifiedFastQueryCap:44836,
       capReductionPercent:(1-44836/72688)*100,
-      witnessDrawCount:witnessDraws.length,
-      verifyDrawCount:verifyDraws.length,
-      witnessTapeSha256:createHash('sha256').update(JSON.stringify(witnessDraws)).digest('hex'),
-      verifyTapeSha256:createHash('sha256').update(JSON.stringify(verifyDraws)).digest('hex'),
+      witnessDrawCount:usedWitnessDraws.length,
+      verifyDrawCount:usedVerifyDraws.length,
+      witnessTapeSha256:createHash('sha256').update(JSON.stringify(usedWitnessDraws)).digest('hex'),
+      verifyTapeSha256:createHash('sha256').update(JSON.stringify(usedVerifyDraws)).digest('hex'),
       falseAcceptanceBound:diagnostics.falseAcceptanceBound
     },
     fastPathSuccess,
@@ -225,7 +217,7 @@ async function compare(){
     sco,
     native,
     matchedTranscripts:true,
-    drawTapes:{witness:witnessDraws,verify:verifyDraws}
+    drawTapes:{witness:usedWitnessDraws,verify:usedVerifyDraws}
   };
   fs.writeFileSync('sco-rankfive-top-quintic-output.json',JSON.stringify(output,null,2)+'\n');
   process.stdout.write('SCO_NATIVE_TOP_QUINTIC_RANK5 '+JSON.stringify(output)+'\n');
