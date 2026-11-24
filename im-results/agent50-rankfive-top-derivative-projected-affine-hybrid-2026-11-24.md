@@ -199,7 +199,7 @@ The implementation and focused workflows are preserved on branch `agent50/rankfi
 - `.github/workflows/manual-rankfive-top-derivative-hybrid-peer.yml`
 - `.github/workflows/manual-sco-rankfive-top-derivative-hybrid-http.yml`
 
-The branch compares to main as 30 commits ahead and 198 behind, with 13 changed files. Draft PR [#373](https://github.com/FlareZ123/obfs/pull/373) is open; GitHub currently reports mergeability as false after the latest head update. Review/rebase the shared baseline-script and JSDoc-config diffs before merging; do not blindly merge a stale branch.
+The branch compares to main as 30 commits ahead and 198 behind, with 13 changed files. Draft PR [#373](https://github.com/FlareZ123/obfs/pull/373) is open; GitHub currently reports mergeability as true, although the branch remains 30 commits ahead and 198 behind main; keep the PR draft pending independent review. Review/rebase the shared baseline-script and JSDoc-config diffs before merging; do not blindly merge a stale branch.
 
 ## Limitations and next work
 
