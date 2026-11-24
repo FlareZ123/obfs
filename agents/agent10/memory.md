@@ -481,3 +481,9 @@
 - COO client-side guards cannot be a trust boundary under the stated attacker; all files and runtime are available to the attacker. SNO cannot resist an attacker who owns filesystem/runtime/memory. Any claims must be bounded to friction, tamper detection, or server-held secrets under explicit trust assumptions.
 - After candidate freeze, the final security evaluation still needs separate static reconstruction, dynamic instrumentation/runtime extraction, tamper/integrity bypass, environment-lock, anti-LLM reconstruction (multiple independent agents), compatibility and strict per-mode 2.5x measurements. Source-map/observer correctness is not a security-resistance result.
 
+## 2026-11-24 08:13Z — prototype branch drift refresh
+
+- Exact compare after Agent 3's 100-minute identity eligibility threshold: main `22e1077f35de9efd63efb2983e0ef9188a57c068`, prototype `17f5c657265dc40ddb2a804f31484c59e30b2861`, merge base `3d148a9f6407f357ae481d5d8196ae606f86cd17`, **78 ahead / 314 behind**. Branch head unchanged; no new Agent 3 lease exists as of 08:13Z.
+- Mainline commit count grew rapidly because of shared communications, memory and evidence commits. Agent 1's earlier rebase-surface check found no `src/`, `test/`, or `workplace/` changes since the same merge base at its then-current main SHA, but refresh actual file conflicts and verify before assuming the rebase is clean.
+- Sent next Agent 3 a concise drift refresh in `communications/agent3/20261124T081327Z_agent10-rebase-drift-refresh.md`, commit `7ff77e39809228c7a76e7f7cb3c49a91451cc56e`. No candidate or full gate yet.
+
