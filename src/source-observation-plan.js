@@ -875,25 +875,25 @@ function buildDirectFunctionSourcePlan(source,path,hostContract) {
     scoPartitionEligibility:emptyObjectMap(),
     wellKnownSymbols:emptyObjectMap(),
     propertyKeyIdentities:emptyObjectMap(),
-    bindings:readonlyMap([
+    bindings:readonlyMap(/** @type {Array<[string,Object]>} */ ([
       [bindingId,binding],[readerBindingId,readerBinding],[exportBindingId,exportBinding]
-    ]),
-    definitions:readonlyMap([
+    ])),
+    definitions:readonlyMap(/** @type {Array<[string,Object]>} */ ([
       [definitionId,definition],[readerDefinitionId,readerDefinition],[exportDefinitionId,exportDefinition]
-    ]),
+    ])),
     callableDefinitions:readonlyMap([[callableDefinitionId,callable]]),
     activations:emptyObjectMap(),
-    values:readonlyMap([
+    values:readonlyMap(/** @type {Array<[string,Object]>} */ ([
       [valueRef,value],[resultValueRef,resultValue],
       [readerValueRef,readerValue],[exportValueRef,exportValue]
-    ]),
-    valueFacts:readonlyMap([
+    ])),
+    valueFacts:readonlyMap(/** @type {Array<[string,Object]>} */ ([
       [valueRef,valueFact],[resultValueRef,resultValueFact],
       [readerValueRef,readerValueFact],[exportValueRef,exportValueFact]
-    ]),
-    valueFlowEdges:readonlyMap([
+    ])),
+    valueFlowEdges:readonlyMap(/** @type {Array<[string,Object]>} */ ([
       [assignmentFlowEdge.edgeId,assignmentFlowEdge],[exportFlowEdge.edgeId,exportFlowEdge]
-    ]),
+    ])),
     callSites:readonlyMap([[callSiteId,callSite]]),
     callTargets:emptyStringSetMap(),
     hostArgumentEdges:readonlyMap([[readerSpanId,readonlySet([callableDefinitionId])]]),
@@ -1095,81 +1095,80 @@ function validatePlanSemantics(plan,source,ast,trackedSourceRanges) {
   const readerRange=byId.get(meta.readerSpanId);
   const readerResultRange=byId.get(meta.readerResultSpanId);
   const exportMirrorRange=byId.get(meta.exportMirrorSpanId);
-  let callableMatches=0,readerMatches=0,readerResultMatches=0,exportMirrorMatches=0;
-  let callableTopLevel=false;
-  /** @type {AstNode|null} */
-  let currentReader=null;
-  /** @type {AstNode|null} */
-  let readerResultNode=null;
-  /** @type {AstNode|null} */
-  let readerResultDeclaration=null;
-  /** @type {AstNode[]} */
-  let readerResultAncestors=[];
-  /** @type {AstNode|null} */
-  let exportMirrorNode=null;
-  /** @type {AstNode|null} */
-  let exportMirrorDeclaration=null;
-  /** @type {AstNode[]} */
-  let exportMirrorAncestors=[];
+  const found={
+    callableMatches:0,
+    readerMatches:0,
+    readerResultMatches:0,
+    exportMirrorMatches:0,
+    callableTopLevel:false,
+    /** @type {AstNode|null} */ currentReader:null,
+    /** @type {AstNode|null} */ readerResultNode:null,
+    /** @type {AstNode|null} */ readerResultDeclaration:null,
+    /** @type {AstNode[]} */ readerResultAncestors:[],
+    /** @type {AstNode|null} */ exportMirrorNode:null,
+    /** @type {AstNode|null} */ exportMirrorDeclaration:null,
+    /** @type {AstNode[]} */ exportMirrorAncestors:[]
+  };
   walk(ast,(node,parent,key,ancestors)=>{
     if(node.type==='FunctionDeclaration'&&node.start===callableRange?.startOffset&&
        node.end===callableRange?.endOffset&&node.id?.name===meta.callableName) {
-      callableMatches++;
-      callableTopLevel=ancestors.length===1&&ancestors[0].type==='Program';
+      found.callableMatches++;
+      found.callableTopLevel=ancestors.length===1&&ancestors[0].type==='Program';
     }
     if(node.type==='CallExpression'&&node.start===readerRange?.startOffset&&
        node.end===readerRange?.endOffset&&isDirectFunctionSourceCall(node)&&
        node.arguments[0]?.name===meta.callableName) {
-      readerMatches++;
-      currentReader=node;
+      found.readerMatches++;
+      found.currentReader=node;
     }
     if(node.type==='VariableDeclarator'&&
        node.start===readerResultRange?.startOffset&&
        node.end===readerResultRange?.endOffset) {
-      readerResultMatches++;
-      readerResultNode=node;
-      readerResultDeclaration=parent;
-      readerResultAncestors=ancestors;
+      found.readerResultMatches++;
+      found.readerResultNode=node;
+      found.readerResultDeclaration=parent;
+      found.readerResultAncestors=ancestors;
     }
     if(node.type==='VariableDeclarator'&&
        node.start===exportMirrorRange?.startOffset&&
        node.end===exportMirrorRange?.endOffset) {
-      exportMirrorMatches++;
-      exportMirrorNode=node;
-      exportMirrorDeclaration=parent;
-      exportMirrorAncestors=ancestors;
+      found.exportMirrorMatches++;
+      found.exportMirrorNode=node;
+      found.exportMirrorDeclaration=parent;
+      found.exportMirrorAncestors=ancestors;
     }
   });
-  if(callableMatches!==1||readerMatches!==1||readerResultMatches!==1||
-     exportMirrorMatches!==1||!callableTopLevel||!currentReader||
-     !readerResultNode||!exportMirrorNode)return false;
+  if(found.callableMatches!==1||found.readerMatches!==1||
+     found.readerResultMatches!==1||found.exportMirrorMatches!==1||
+     !found.callableTopLevel||!found.currentReader||
+     !found.readerResultNode||!found.exportMirrorNode)return false;
 
-  const readerResultTopLevel=readerResultDeclaration?.type==='VariableDeclaration'&&
-    readerResultDeclaration.kind==='const'&&
-    readerResultDeclaration.declarations.length===1&&
-    readerResultAncestors.length===2&&
-    readerResultAncestors[0].type==='Program'&&
-    readerResultAncestors[1]===readerResultDeclaration;
-  const exportStatement=exportMirrorAncestors.find(ancestor=>
+  const readerResultTopLevel=found.readerResultDeclaration?.type==='VariableDeclaration'&&
+    found.readerResultDeclaration.kind==='const'&&
+    found.readerResultDeclaration.declarations.length===1&&
+    found.readerResultAncestors.length===2&&
+    found.readerResultAncestors[0].type==='Program'&&
+    found.readerResultAncestors[1]===found.readerResultDeclaration;
+  const exportStatement=found.exportMirrorAncestors.find(ancestor=>
     ancestor.type==='ExportNamedDeclaration');
-  const exportMirrorTopLevel=exportMirrorDeclaration?.type==='VariableDeclaration'&&
-    exportMirrorDeclaration.kind==='const'&&
-    exportMirrorDeclaration.declarations.length===1&&
-    exportMirrorAncestors.length===3&&
-    exportMirrorAncestors[0].type==='Program'&&
-    exportMirrorAncestors[1]===exportStatement&&
-    exportMirrorAncestors[2]===exportMirrorDeclaration&&
-    exportStatement?.declaration===exportMirrorDeclaration&&
+  const exportMirrorTopLevel=found.exportMirrorDeclaration?.type==='VariableDeclaration'&&
+    found.exportMirrorDeclaration.kind==='const'&&
+    found.exportMirrorDeclaration.declarations.length===1&&
+    found.exportMirrorAncestors.length===3&&
+    found.exportMirrorAncestors[0].type==='Program'&&
+    found.exportMirrorAncestors[1]===exportStatement&&
+    found.exportMirrorAncestors[2]===found.exportMirrorDeclaration&&
+    exportStatement?.declaration===found.exportMirrorDeclaration&&
     !exportStatement.source&&exportStatement.specifiers.length===0;
-  const rebound=inspectDeclarations(ast,currentReader);
-  const readerTopLevel=rebound.readerParent===readerResultNode&&
-    rebound.readerKey==='init'&&readerResultNode.init===currentReader&&
-    readerResultNode.id?.type==='Identifier'&&
-    readerResultNode.id.name===meta.readerBindingName&&readerResultTopLevel;
-  const exportFlowPreserved=exportMirrorNode.id?.type==='Identifier'&&
-    exportMirrorNode.id.name===meta.exportBindingName&&
-    exportMirrorNode.init?.type==='Identifier'&&
-    exportMirrorNode.init.name===meta.readerBindingName&&exportMirrorTopLevel;
+  const rebound=inspectDeclarations(ast,found.currentReader);
+  const readerTopLevel=rebound.readerParent===found.readerResultNode&&
+    rebound.readerKey==='init'&&found.readerResultNode.init===found.currentReader&&
+    found.readerResultNode.id?.type==='Identifier'&&
+    found.readerResultNode.id.name===meta.readerBindingName&&readerResultTopLevel;
+  const exportFlowPreserved=found.exportMirrorNode.id?.type==='Identifier'&&
+    found.exportMirrorNode.id.name===meta.exportBindingName&&
+    found.exportMirrorNode.init?.type==='Identifier'&&
+    found.exportMirrorNode.init.name===meta.readerBindingName&&exportMirrorTopLevel;
 
   const identifierCounts=new Map();
   let directReaderCount=0,functionLikeCount=0;
