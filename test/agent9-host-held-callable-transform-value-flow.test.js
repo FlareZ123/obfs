@@ -30,7 +30,7 @@ const handoffs=[
   {name:'returned-callback',code:'function getCallback(){return hidden;}queueMicrotask(getCallback());'}
 ];
 
-for(const mode of /** @type {const} */ (['coo','sno'])){
+for(const mode of /** @type {const} */ (['coo','sco','sno'])){
   for(const handoff of handoffs){
     test(mode+' red control: identifier rewrite leaks host-held callback source via '+handoff.name,()=>{
       const source=[
