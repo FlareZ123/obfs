@@ -59,6 +59,8 @@ npm run typecheck:external
 
 The self-contained simulator fixes the affine wrappers, biases, target set, anchor stream, and query caches. It separately labels the source-private compatibility audit and counts only unique attacker oracle inputs. The test asserts the per-target work and totals.
 
+Cross-platform validation passed in the existing manual workflow: run `45339828222`, source SHA `909c8a76aae1e2d50712cd39a2f10e6392072082`. The focused regression test passed on Ubuntu and Windows; project and external strict JSDoc checks passed on both.
+
 Supporting evidence:
 - `sims/agent20-quintic-multitarget-amortization.js` — independent amortized reanchor/rank-two implementation.
 - `test/agent20-quintic-multitarget-amortization.test.js` — regression receipt.
