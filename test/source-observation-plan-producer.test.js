@@ -173,6 +173,75 @@ test('canonical source spans remain immutable and mapped ranges carry provenance
     /incomplete protected source coverage/u);
 });
 
+test('rebind validator rejects the pinned source-observer counterexamples',()=>{
+  const plan=buildDirectFunctionSourcePlan(source,'entry.mjs',hostContract);
+  assert.ok(plan);
+  const sourceUnitRef=plan.sourceUnits.keys().next().value;
+  const parserContractId=parserContractIdFor('module');
+  const initial=getInitialPlanRanges(plan,sourceUnitRef);
+  const callable=[...plan.sourceSpans.values()].find(span=>
+    span.astNodeType==='FunctionDeclaration');
+  assert.ok(callable);
+
+  const check=(name,edits)=>{
+    const changed=applyEditsWithMap(source,edits,sourceUnitRef,parserContractId);
+    const ast=parse(changed.code,'module');
+    const next=advancePlanRanges(plan,changed.map,source,changed.code,
+      initial.trackedSourceRanges);
+    const accepted=next?validatePlanSemantics(plan,changed.code,ast,next):false;
+    assert.equal(accepted,false,name+' must fail closed');
+    if(name!=='exported-mirror-overwrite') {
+      assert.ok(next,name+' should preserve mappable original spans before semantic rejection');
+    }
+  };
+
+  check('export-prefix',[{
+    start:callable.startOffset,end:callable.startOffset,
+    text:'export ',affinity:'before-node'
+  }]);
+  check('class-Function-shadow',[{
+    start:0,end:0,text:'class Function {}\n',affinity:'unknown'
+  }]);
+  check('import-Function-shadow',[{
+    start:0,end:0,text:"import Function from './fake-function.mjs';\n",affinity:'unknown'
+  }]);
+  check('appended-second-reader',[{
+    start:source.length,end:source.length,
+    text:'\nfunction secret() { return 99; }\n'+
+      'export const leaked = Function.prototype.toString.call(secret);',
+    affinity:'unknown'
+  }]);
+  check('intrinsic-toString-mutation',[{
+    start:0,end:0,
+    text:"Function.prototype.toString = function () { return 'tampered'; };\n",
+    affinity:'unknown'
+  }]);
+  check('destructured-Function-shadow',[{
+    start:0,end:0,
+    text:'const {Function} = {Function: function () { return 1; }};\n',
+    affinity:'unknown'
+  }]);
+  const readerDeclarationStart=source.indexOf('const observedSource');
+  const sourceTextExportStart=source.indexOf('export const sourceText = observedSource;');
+  assert.ok(readerDeclarationStart>=0&&sourceTextExportStart>=0);
+  check('mutable-reader-binding',[
+    {
+      start:readerDeclarationStart,end:readerDeclarationStart+'const'.length,
+      text:'let',affinity:'unknown'
+    },
+    {
+      start:sourceTextExportStart,end:sourceTextExportStart,
+      text:"observedSource = 'fake';\n",affinity:'unknown'
+    }
+  ]);
+  check('exported-mirror-overwrite',[{
+    start:sourceTextExportStart,
+    end:sourceTextExportStart+'export const sourceText = observedSource;'.length,
+    text:"export const sourceText = 'fake';",
+    affinity:'unknown'
+  }]);
+});
+
 test('source-plan transaction accepts mapped-range arrays and rejects Map impostors',()=>{
   const plan=buildDirectFunctionSourcePlan(source,'entry.mjs',hostContract);
   assert.ok(plan);
