@@ -17,12 +17,28 @@ test('current COO source-observer startup reports median and strict budget evide
   const placeboFamilywise=familywiseBudgetBounds(report.workloads.map(workload=>({
     native:workload.placeboLeftSamplesMs,candidate:workload.placeboRightSamplesMs
   })),{threshold:2.5,confidence:0.95});
-  const cpuFamilywise=familywiseBudgetBounds(report.workloads.map(workload=>({
+  const cpuDiagnostics=report.workloads.map(workload=>({
+    name:workload.workload,
+    nativeZero:workload.baselineCpuSamplesMs.filter(value=>value<=0||!Number.isFinite(value)).length,
+    candidateZero:workload.obfuscatedCpuSamplesMs.filter(value=>value<=0||!Number.isFinite(value)).length,
+    nativeMin:Math.min(...workload.baselineCpuSamplesMs),
+    candidateMin:Math.min(...workload.obfuscatedCpuSamplesMs),
+    nativeMax:Math.max(...workload.baselineCpuSamplesMs),
+    candidateMax:Math.max(...workload.obfuscatedCpuSamplesMs)
+  }));
+  process.stdout.write('SOURCE_OBSERVER_CPU_RAW_DIAGNOSTICS '+JSON.stringify({
+    platform:report.platform,cpuBatchSize:report.cpuBatchSize,workloads:cpuDiagnostics
+  })+'\n');
+  const cpuValid=report.workloads.every(workload=>
+    [...workload.baselineCpuSamplesMs,...workload.obfuscatedCpuSamplesMs].every(value=>Number.isFinite(value)&&value>0));
+  const cpuPlaceboValid=report.workloads.every(workload=>
+    [...workload.placeboLeftCpuSamplesMs,...workload.placeboRightCpuSamplesMs].every(value=>Number.isFinite(value)&&value>0));
+  const cpuFamilywise=cpuValid?familywiseBudgetBounds(report.workloads.map(workload=>({
     native:workload.baselineCpuSamplesMs,candidate:workload.obfuscatedCpuSamplesMs
-  })),{threshold:2.5,confidence:0.95});
-  const cpuPlaceboFamilywise=familywiseBudgetBounds(report.workloads.map(workload=>({
+  })),{threshold:2.5,confidence:0.95}):null;
+  const cpuPlaceboFamilywise=cpuPlaceboValid?familywiseBudgetBounds(report.workloads.map(workload=>({
     native:workload.placeboLeftCpuSamplesMs,candidate:workload.placeboRightCpuSamplesMs
-  })),{threshold:2.5,confidence:0.95});
+  })),{threshold:2.5,confidence:0.95}):null;
   process.stdout.write('SOURCE_OBSERVER_CURRENT_FAMILYWISE_BUDGET '+JSON.stringify({
     platform:report.platform,cpuBatchSize:report.cpuBatchSize,
     workloads:report.workloads.map(workload=>({
@@ -32,27 +48,30 @@ test('current COO source-observer startup reports median and strict budget evide
     medianFamilywise:familywise,
     strictObservedVerdict:familywise.observedSampleHasOverBudgetPair?'sample-exceeded':'sample-clean',
     placeboFamilywise,
-    cpuFamilywise,
-    cpuStrictObservedVerdict:cpuFamilywise.observedSampleHasOverBudgetPair?'sample-exceeded':'sample-clean',
-    cpuPlaceboFamilywise
+    cpuValid,cpuFamilywise,
+    cpuStrictObservedVerdict:cpuFamilywise?(cpuFamilywise.observedSampleHasOverBudgetPair?'sample-exceeded':'sample-clean'):'inconclusive',
+    cpuPlaceboValid,cpuPlaceboFamilywise
   })+'\n');
   assert.ok(familywise.rows.every(row=>row.samplePairs===31));
   assert.ok(placeboFamilywise.rows.every(row=>row.samplePairs===31));
   for(const [index,workload] of report.workloads.entries()) {
     const bound=pairedBudgetBound(workload.baselineSamplesMs,workload.obfuscatedSamplesMs,
       {threshold:2.5,confidence:0.95});
-    const cpuBound=pairedBudgetBound(workload.baselineCpuSamplesMs,workload.obfuscatedCpuSamplesMs,
-      {threshold:2.5,confidence:0.95});
-    const cpuRatios=workload.obfuscatedCpuSamplesMs.map((value,index)=>value/workload.baselineCpuSamplesMs[index]);
+    const cpuValidForWorkload=[...workload.baselineCpuSamplesMs,...workload.obfuscatedCpuSamplesMs]
+      .every(value=>Number.isFinite(value)&&value>0);
+    const cpuBound=cpuValidForWorkload?pairedBudgetBound(workload.baselineCpuSamplesMs,workload.obfuscatedCpuSamplesMs,
+      {threshold:2.5,confidence:0.95}):null;
+    const cpuRatios=cpuValidForWorkload?
+      workload.obfuscatedCpuSamplesMs.map((value,index)=>value/workload.baselineCpuSamplesMs[index]):[];
     process.stdout.write('SOURCE_OBSERVER_CURRENT_PAIRED_BOUND '+JSON.stringify({
       platform:report.platform,workload:workload.workload,...bound,
       simStrictBreachCount:workload.strictBreachCount,
       familywiseObservedPairsWithinBudget:familywise.rows[index].observedPairsWithinBudget,
       cpuBound,
-      cpuStrictBreachCount:cpuRatios.filter(value=>value>2.5).length,
+      cpuStrictBreachCount:cpuValidForWorkload?cpuRatios.filter(value=>value>2.5).length:null,
       cpuMedianPairedRatio:cpuBound.medianOfPairedRatios,
-      cpuMaxPairedRatio:Math.max(...cpuRatios),
-      cpuFamilywiseObservedPairsWithinBudget:cpuFamilywise.rows[index].observedPairsWithinBudget
+      cpuMaxPairedRatio:cpuValidForWorkload?Math.max(...cpuRatios):null,
+      cpuFamilywiseObservedPairsWithinBudget:cpuFamilywise?.rows[index]?.observedPairsWithinBudget??null
     })+'\n');
   }
 });
