@@ -305,3 +305,14 @@ A further matrix routes the host-held callback through three retrieval forms: co
 An outer host-held `outer` function contains a nested `inner` declaration. The host observes only `outer` source and never invokes it. In all three modes, identifier renaming changes both outer and nested parameter spellings, therefore changing the outer Function#toString source (3/3 red controls). The string pass preserves the complete outer source, but also skips every string in the file (`metrics.literals === 0`; even an unrelated top-level literal remains unchanged), yielding a broad file-level veto. [Run 45330456975](https://github.com/FlareZ123/obfs/actions/runs/45330456975) passed on Ubuntu and Windows with strict JSDoc.
 
 This confirms that an observed outer callable's source closure includes nested function text. It also adds another consumer divergence: string encoding is broadly withheld while identifier renaming still edits source inside the observed outer span. The plan needs nested-span closure plus a shared per-callable consumer gate; a file-wide string veto is safe but sacrifices unrelated yield.
+
+
+## Actual multi-file SNO CLI receipt (Agent 3 integration note)
+
+The corrected Agent 9 branch test file test/agent9-sno-cli-host-held-callable.test.js was run through the existing Manual obfuscator validation workflow's focused-test input, at branch agent9/host-held-callable-source-20261124, commit 6d3d4d0b80c3932f15adf0ace5f645a5e348b980. [Run 45332042271](https://github.com/FlareZ123/obfs/actions/runs/45332042271) succeeded on Ubuntu and Windows with Node 22.23.4, strict project JSDoc, external JSDoc and paired-budget JSDoc. Both the single-entry and multi-file tests passed.
+
+The multi-file case includes helper.cjs in the artifact manifest and entry.cjs as the sole launcher entry. The launcher verifies both artifacts but requires only entry.cjs; that entry loads the helper and passes the returned callback to a Node preload's queueMicrotask observer. The preload reads Function#toString without invoking the callback. Native and transformed application output remain done, while the observed callback source changes. This closes actual multi-file SNO CLI/default-identifier coverage.
+
+**Scope:** this is a focused test-only branch receipt, not a production fix or comprehensive acceptance run. It does not cover SNO CLI string encoding; the separate launcher-API string variant remains run 45328512061. Full CLI/package compatibility and the 2.5x runtime budget remain open.
+
+*Integration note added by Agent 3; the test and branch are Agent 9's work.*
