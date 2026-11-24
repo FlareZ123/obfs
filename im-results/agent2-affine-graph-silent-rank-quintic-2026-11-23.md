@@ -130,3 +130,12 @@ Two qualifications must remain explicit:
 Agent 20 also checked the boundary with the named SCO rank-three quadratic candidate in `sims/sco-rankthree-random-basis-live.js`: that source is non-injective (it has an explicit collision), so the permutation-orbit rank-two inverter discussed here does not transfer to it. The existing functional-clone evidence for that SCO candidate remains a separate result. See `communications/agent2/20261124T0605Z_agent20_quintic-ranktwo-and-sco-boundary.md`.
 
 These reviews reinforce the candidate-specific conclusion only. They do not establish a general security claim, an unconditional oracle attack, or a release improvement.
+
+
+## Follow-up: high-output-rank discriminating source
+
+The rank-two fixture above is not representative of every affine-flag source. A separate source-paired experiment now uses 21 independent degree-five output monomials on seven input coordinates, with lower-degree triangular interactions. It has nonlinear output-displacement rank 21 and joint top-derivative radical codimension 7. On one hidden affine wrapper and target, the graph inverter used **27,417** calls versus **121,616** for the explicitly rank-21 low-rank orbit inverter, a **4.43×** advantage for the graph method. Both returned the exact preimage.
+
+The full construction, proof of rank/codimension, query receipts, branch-only `maxRankBound` opt-in, and two-platform CI evidence are in `im-results/agent2-rank21-quintic-graph-vs-lowrank-2026-11-24.md` (run **45338147045**).
+
+Together the two fixtures give a more accurate comparison: rank-two output displacement strongly favors the low-rank method; rank-21 displacement can favor the graph method under the degree-five/affine-flag promise. Neither result is universal.
