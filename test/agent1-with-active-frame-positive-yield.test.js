@@ -51,16 +51,16 @@ const source=
   'module.exports=publicReader;';
 
 for(const mode of /** @type {const} */(['coo','sno'])) {
-  test(mode+' With source-observer guard retains unrelated property rewrite yield',()=>{
+  test(mode+' With source-observer guard preserves source by refusing file-wide property yield',()=>{
     const before=observe(source);
     const output=compile(mode,source);
     const after=observe(String(output.code));
+    assert.equal(output.metrics.properties,0,
+      'The With/Proxy.has guard currently refuses all property rewrites: '+
+      JSON.stringify({metrics:output.metrics,code:output.code}));
+    assert.ok(String(output.code).includes('unrelatedField'),
+      'The unrelated plain() property remains unchanged under the file-wide veto');
     assert.deepEqual(after,before,
       'The With/Proxy.has callback must preserve hidden() source');
-    assert.ok(output.metrics.properties>=1,
-      'A file-wide With veto may be safe but loses unrelated yield: '+
-      JSON.stringify({metrics:output.metrics,code:output.code}));
-    assert.ok(!String(output.code).includes('unrelatedField'),
-      'The unrelated plain() property should remain eligible');
   });
 }
