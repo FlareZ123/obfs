@@ -28,9 +28,15 @@ jobs:
       - name: Run finite truth-table and adversarial fallback controls
         shell: bash
         run: set -o pipefail; node sims/rankfive-top-derivative-projected-affine-hybrid-peer.js | tee rankfive-top-derivative-hybrid-peer-output.txt
+      - name: Run 1,000-source-paired query-count simulation
+        shell: bash
+        run: node sims/rankfive-top-derivative-hybrid-query-simulation.js | tee rankfive-top-derivative-hybrid-query-simulation.txt
       - name: Preserve peer output
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: rankfive-top-derivative-hybrid-peer-${{ matrix.os }}
-          path: rankfive-top-derivative-hybrid-peer-output.txt
+          path: |
+            rankfive-top-derivative-hybrid-peer-output.txt
+            rankfive-top-derivative-hybrid-query-simulation.txt
+            rankfive-top-derivative-hybrid-query-simulation.json
