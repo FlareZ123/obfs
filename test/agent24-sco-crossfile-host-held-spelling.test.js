@@ -21,14 +21,16 @@ async function receive(source) {
   const server=http.createServer(createScoHandler(source,{closedWorld:true}));
   await new Promise((resolve,reject)=>{
     server.once('error',reject);
-    server.listen(0,'127.0.0.1',resolve);
+    server.listen({port:0,host:'127.0.0.1'},()=>resolve(undefined));
   });
   try {
+    /** @type {import('node:net').AddressInfo|null} */
     const address=server.address();
     assert.ok(address && typeof address==='object');
     /** @type {CommonJsFile[]} */
     const output=[];
     for(const file of source) {
+      /** @type {Response} */
       const response=await fetch('http://127.0.0.1:'+address.port+'/obfs/'+file.path);
       assert.equal(response.status,200,file.path);
       output.push({...file,code:await response.text()});
