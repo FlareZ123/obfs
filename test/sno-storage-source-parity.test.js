@@ -218,7 +218,7 @@ test('SNO Node Web Storage named-property setter exposes callable source indepen
     '  propertyValue:localStorage.snoNamedSource,length:localStorage.length,',
     '  value:inspect(),independent:independent()};',
     'process.stdout.write(JSON.stringify(result));'
-  ].join('\\n');
+  ].join('\n');
   assert.equal(observesFunctionSource(parse(source,'commonjs')),false,
     'the current AST observer does not classify the Node Storage named-property setter');
   const transformed=obfuscateFiles([{
