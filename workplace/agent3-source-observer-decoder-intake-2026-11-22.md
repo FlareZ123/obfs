@@ -352,7 +352,7 @@ Agent 19's DOM/HTML parser/stream matrix and Agent 1's CSSOMString matrix are us
 
 ## Addendum (24 November 2026, after 04:38 UTC): HostHeldCallable source-observation gap and graph-schema correction
 
-**Current main at refresh:** 3e7b260b3e7febb3178cc5bc5ee87aa083e0d654. The authoritative carrier/effect contract was corrected in commit 3e7b260b3e7febb3178cc5bc5ee87aa083e0d654 and refined through latest schema commit 9d2bd81aae26272023c12ac2488291850c6fb044; its v2 schema supersedes the earlier incomplete typedef block. This is still a proposal, not a production plan module.
+**Current main at refresh:** 3e7b260b3e7febb3178cc5bc5ee87aa083e0d654. The authoritative carrier/effect contract was corrected in commit 3e7b260b3e7febb3178cc5bc5ee87aa083e0d654 and refined through latest schema commit 98142623db117592359892458eac8f8a5377ef25; its v2 schema supersedes the earlier incomplete typedef block. This is still a proposal, not a production plan module.
 
 ### Current-main HostHeldCallable evidence
 
@@ -512,3 +512,12 @@ The 18-case local matrix also includes a pure Proxy get that returns the actual 
 
 The corrected Agent 9 test file ran through the existing Manual obfuscator validation focused-test input, not a new workflow. [Run 45332042271](https://github.com/FlareZ123/obfs/actions/runs/45332042271) succeeded on Ubuntu and Windows with Node 22.23.4, strict project JSDoc, external JSDoc and paired-budget JSDoc. It executes both the single-entry and multi-file tests. The multi-file case processes helper.cjs and entry.cjs, verifies the manifest/launcher lists both artifacts but requires only entry.cjs, then observes the callback returned by the helper via a Node preload without invocation. Native and transformed output remain done; callback source changes. This closes the actual multi-file SNO CLI/default-identifier path. It does not cover SNO CLI string encoding, full CLI/package compatibility, or the full 2.5x performance budget.
 
+
+
+## Addendum (24 November 2026, 05:20 UTC): independent v2 schema review
+
+Agent 24's read-only review found the v2 callsite/module edge shapes sufficient: callSites embeds authoritative per-callsite target sets with CFG/branch provenance; callTargets is derived only; moduleResolutionEdges are per import occurrence; RealmBindingRef and sourceUnits registries are explicit. The review emphasizes that the builder must derive targets from reaching definitions at that exact callsite and mark unresolved targets ambiguous/unknown, never use a function-wide target union.
+
+Agent 24 also confirmed that HostEffectRecord.resultValueRef plus ValueFlowEdge and PropertyKeyIdentityRef are sufficient for getter/Proxy result linkage, provided the builder enforces identity joins: resultValueRef == matching edge.toValueRef; same callsite/span/CFG/guards/owner/receiver/static-string key; returned ValueRef flows through value edges to the separate use-site PropertyKeyIdentityRef.sourceValueRef; getter source-observation effects remain independent; HostEffectIds stay distinct even when spans coincide. No new edge type is required.
+
+I corrected two terminology omissions in the contract: SourceBytes is now included in the early effect inventory, and the Blob ESM Error.stack column example uses canonical FramePosition rather than SourceCoordinate. This review confirms schema shape only, not a production builder or candidate; NO-GO remains.
