@@ -4,7 +4,7 @@ const {resolveLexicalReferences}=require('./agent1-lexical-reference-resolver');
 
 /** @typedef {import('../src/ast').AstNode} AstNode */
 /** @typedef {'module'|'script'|'commonjs'} SourceType */
-/** @typedef {{kind:'unknown-call'|'unresolved-local-call'|'new-expression'|'tagged-template'|'await'|'yield'|'dynamic-import'|'transitive-local-call'|'with-binding-lookup'|'implicit-iterator'|'implicit-object-enumeration'|'implicit-proxy-has'|'implicit-instanceof'|'implicit-delete'|'implicit-destructuring'|'implicit-spread'|'to-primitive'|'to-property-key'|'promise-thenable-assimilation'|'host-held-callable'|'unresolved-callable-argument-flow'|'returned-callable-value'|'callable-metadata-observer'|'callable-coercion-observer'|'direct-eval-local-scope'|'classic-script-global-lexical'|'module-exported-callable'|'host-global-exported-callable'|'unknown-this-callable-escape'|'unknown-member-access',start:number,end:number,targetStart?:number,effect?:'DynamicFrame'|'HostHeldCallable'|'ExternalReachability'}} AmbientCallReason */
+/** @typedef {{kind:'unknown-call'|'unresolved-local-call'|'new-expression'|'tagged-template'|'await'|'yield'|'dynamic-import'|'transitive-local-call'|'with-binding-lookup'|'implicit-iterator'|'implicit-object-enumeration'|'implicit-proxy-has'|'implicit-instanceof'|'implicit-delete'|'implicit-destructuring'|'implicit-spread'|'to-primitive'|'to-property-key'|'promise-thenable-assimilation'|'host-held-callable'|'unresolved-callable-argument-flow'|'returned-callable-value'|'callable-metadata-observer'|'callable-coercion-observer'|'direct-eval-local-scope'|'debugger-local-scope'|'debugger-inspection'|'classic-script-global-lexical'|'module-exported-callable'|'host-global-exported-callable'|'unknown-this-callable-escape'|'unknown-member-access',start:number,end:number,targetStart?:number,effect?:'DynamicFrame'|'HostHeldCallable'|'ExternalReachability'}} AmbientCallReason */
 /** @typedef {{node:AstNode,start:number,end:number,bindingIds:number[],bindingNames:string[],ambient:boolean,dynamicFrame:boolean,hostHeldCallable:boolean,externallyReachable:boolean,safe:boolean,reasons:AmbientCallReason[]}} AmbientCallSummary */
 
 /**
@@ -816,6 +816,9 @@ function summarizeAmbientCallEffects(ast,sourceType) {
         markCallableValuesHeld(parent.init,'host-held-callable',node.start,node.end);
       else if(parent?.type==='AssignmentExpression')
         markCallableValuesHeld(parent.right,'host-held-callable',node.start,node.end);
+    } else if(node.type==='DebuggerStatement') {
+      for(const target of allFunctionNodes)
+        addReason(target,{kind:'debugger-local-scope',start:node.start,end:node.end},'HostHeldCallable');
     }
   });
 
@@ -823,6 +826,8 @@ function summarizeAmbientCallEffects(ast,sourceType) {
     /** @type {Array<{target:AstNode,start:number,end:number}>} */
     const edges=[];
     walkExecutableFunctionBody(fn,node=>{
+      if(node.type==='DebuggerStatement')
+        addReason(fn,{kind:'debugger-inspection',start:node.start,end:node.end});
       if(node.type==='ReturnStatement'&&node.argument) {
         for(const target of callableNodesForValue(node.argument))
           addReason(target,{kind:'returned-callable-value',start:node.start,end:node.end},'HostHeldCallable');
