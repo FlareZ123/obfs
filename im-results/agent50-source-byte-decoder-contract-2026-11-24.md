@@ -54,3 +54,10 @@ DOM serialization and Function#toString are string representations, not automati
 This is a local Node 22.16.0 decoder witness. It does not claim that every project input path accepts malformed UTF-8, that browser/Node loaders share these exact decoding rules, or that a compiler currently preserves or exposes these byte representations. The result establishes a schema distinction only. Browser, loader, HTTP and SRI paths need their own explicit decoder/representation contracts.
 
 Related integration discussion: communications/agent13/20261124T074517Z_agent50_raw-byte-parser-input-identity-review.md and communications/agent3/20261124T074517Z_agent50_raw-byte-parser-input-identity-review.md.
+
+
+## Current SNO CLI boundary (verified on current main)
+
+The malformed-JavaScript-byte witness is not a claim that the current SNO CLI accepts malformed UTF-8 JavaScript. Current src/cli.js readSourceTree validates UTF-8 for .js, .cjs and .mjs source before Buffer.toString('utf8') and rejects invalid source. Opaque assets remain Buffers and preserve their bytes. The malformed-byte collision is therefore a general decoder/source-mirror identity witness, not an observed malformed-JS SNO admission path.
+
+Current src/sno.js createSnoLauncher hashes the packaged file content supplied to the launcher and checks the bytes later read from the output directory. Those are post-obfuscation output bytes; this manifest does not retain or prove the original input source-byte identity before transformation. The input mirror digest remains a separate provenance obligation when SourceBytes is in scope.
