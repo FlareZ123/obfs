@@ -19,6 +19,7 @@ The matrix does **not** run the obfuscator, compare native and compiler-emitted 
 | preloader-userland-real-key | `preloader-real-wrapper-hook` | No | A userland global Symbol wrapper exposing the actual well-known value remains valid |
 | local-symbol-shadow | Original function source | Yes | Local Symbol object yields an ordinary string key |
 | local-globalThis-shadow | Original function source | Yes | Local globalThis root yields an ordinary string key |
+| local-globalThis-real-wrapper | `local-globalThis-wrapper-hook` | No | A local root is safe when its value flow exposes the actual well-known symbol |
 | globalThis-real-root | `globalThis-real-hook` | No | Unshadowed host globalThis.Symbol.toPrimitive invokes hook |
 | mutable-key-reassigned-fake | Original function source | Yes | Mutable alias reassigned to Symbol.for before computed-key use is not @@toPrimitive |
 | captured-key-survives-source-reassignment | `captured-real-hook` | No | Immutable capture preserves the original well-known symbol after another binding is reassigned |
@@ -32,12 +33,12 @@ The matrix does **not** run the obfuscator, compare native and compiler-emitted 
 | source-observing-proxy-key-get | `source-proxy-hook` | No | Proxy get trap captures Function#toString source before returning the actual symbol |
 | cross-realm-well-known-symbol | `cross-realm-hook` | No | Node vm realm's Symbol constructor exposes the same well-known symbol in the same ECMAScript agent |
 
-All 17 cases passed. The script also asserts the expected numeric return value for each function. In the source-observing-getter case, “source in stored string” is false because Storage stores the hook's primitive result; the separate `observed` field confirms the getter captured the original function source.
+All 18 cases passed. The script also asserts the expected numeric return value for each function. In the source-observing-getter case, “source in stored string” is false because Storage stores the hook's primitive result; the separate `observed` field confirms the getter captured the original function source.
 
 ## Main implications
 
 1. **Prove value identity, not spelling or description.** A same-description `Symbol.for('Symbol.toPrimitive')` is not the well-known `@@toPrimitive` value. A userland wrapper can be safe if it exposes the actual well-known symbol and the value provenance is proved.
-2. **Resolve both lexical roots.** A local `Symbol` or local `globalThis` shadow can make the same source spelling evaluate to a string or unrelated symbol key.
+2. **Resolve both lexical roots and track value provenance.** A local `Symbol` or local `globalThis` shadow can produce a string or unrelated symbol key, but a local userland wrapper can still be safe when its value flow proves the exact well-known symbol.
 3. **Use-site reaching definitions matter.** A mutable key binding reassigned before use is different from an immutable capture made before reassignment.
 4. **Follow interprocedural and cross-file value flow.** The exact argument value must flow through actual-to-formal, property read, key capture, own-property write, function return and Storage sink.
 5. **Separate key identity from key-access effects.** A getter or Proxy get trap can return the correct well-known symbol and still observe the function source before the hook is installed. The pure getter/proxy positives and source-observing getter/proxy negatives show that AccessorCall and ProxyInternalMethod effects must be analyzed independently.
