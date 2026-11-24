@@ -677,3 +677,27 @@ test('independent review: untagged literal replacement cannot change exported be
     initial.trackedSourceRanges,['strings-decoder-replacement']),null,
     'the actual pass-admission boundary must reject an untagged literal replacement');
 });
+
+
+test('independent review: a structurally forged map cannot hide an appended throw',()=>{
+  const plan=buildDirectFunctionSourcePlan(source,'entry.mjs',hostContract);
+  assert.ok(plan);
+  const sourceUnitRef=plan.sourceUnits.keys().next().value;
+  const parserContractId=parserContractIdFor('module');
+  const initial=getInitialPlanRanges(plan,sourceUnitRef);
+  const changed=applyEditsWithMap(source,[{
+    start:source.length,end:source.length,text:'\nthrow 0;\n',affinity:'unknown'
+  }],sourceUnitRef,parserContractId);
+  const forged=Object.freeze({
+    ...changed.map,
+    segments:Object.freeze([Object.freeze({
+      fromStart:0,fromEnd:source.length,toStart:0,toEnd:source.length,
+      kind:'unchanged',affinity:null,syntheticOriginId:null
+    })])
+  });
+  const ast=parse(changed.code,'module');
+  const accepted=acceptPlannedPass(plan,forged,source,changed.code,ast,
+    initial.trackedSourceRanges);
+  assert.equal(accepted===null,true,
+    'a copied structural map must not hide inserted code outside protected spans');
+});

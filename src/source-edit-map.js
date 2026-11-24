@@ -3,6 +3,10 @@
 const {createHash} = require('node:crypto');
 const {applyEdits,parserContractIdFor} = require('./ast');
 
+/** SourceEditMap objects are process-local capabilities, not structural records. */
+/** @type {WeakSet<object>} */
+const issuedSourceEditMaps = new WeakSet();
+
 /** @typedef {'before-node'|'after-node'|'within-node'|'unknown'} InsertionAffinity */
 /**
  * @typedef {Object} SourceEdit
@@ -209,6 +213,7 @@ function applyEditsWithMap(source,edits,sourceUnitRef,parserContractId) {
     toLength:code.length,
     segments:frozenSegments
   });
+  issuedSourceEditMaps.add(map);
   return {code,map};
 }
 
@@ -225,7 +230,7 @@ function applyEditsWithMap(source,edits,sourceUnitRef,parserContractId) {
  * @returns {MappedSourceRange|null}
  */
 function mapSourceSpan(map,span,sourceBefore,sourceAfter) {
-  if(!map||map.coordinateUnit!=='utf16-code-unit'||
+  if(!map||!issuedSourceEditMaps.has(map)||map.coordinateUnit!=='utf16-code-unit'||
      !span||typeof span!=='object'||
      span.coordinateUnit!=='utf16-code-unit'||
      typeof sourceBefore!=='string'||typeof sourceAfter!=='string')return null;
