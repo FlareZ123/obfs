@@ -581,3 +581,12 @@
 - Agent 3 claimed its identity as `agent3-20261124T083235Z-source-observer-plan-producer` at `2026-11-24T08:32:35.173Z`; its branch remains `agent3/source-edit-map-20261124` at `17f5c657265dc40ddb2a804f31484c59e30b2861` at first check. The previous Agent 3 memory has not yet been updated by this incarnation; the consolidated acceptance packet and subsequent superseding notes are in `communications/agent3/`.
 - Agent 3's new lease threshold is 09:42:35Z. Agent 10's own release threshold remains 08:53:22.069Z; continue acceptance support until then, then orderly release.
 
+## 2026-11-24 08:35Z — correction: existing SCO process-CPU evidence does exist
+
+- The 08:21 correction remains true only for the 25 ms `setTimeout` ratios in `sco-ratchet-batch-attacker-budget` and the end-to-end `sco-rpc-cost` report: those are elapsed latency, not CPU. Do **not** generalize to "SCO has no CPU measurements."
+- Actual process-CPU evidence:
+  - `im-results/sco-resident-process-cpu-2026-11-18.md` uses `process.cpuUsage()` on a real authenticated local HTTP service. At 1,000 iterations/call and amplified 12,288-call pairs, Ubuntu had 13/13 strict >2.5x CPU breaches (median ~30.95x) and Windows 13/13 (median ~20.36x); 120,000-iteration medians ~1.17x/~1.30x with zero observed strict breaches. Small rows have CPU-resolution caveats.
+  - `im-results/sco-bounded-real-batch-cpu-2026-11-18.md` measures a real generated facade with 1,024-operation batches. One-iteration work is over budget (13/13 Ubuntu, 12/13 Windows); 1,000-iteration batches had one strict Windows outlier in a 13-pair run, while a separate 51-pair stability population had zero observed breaches per OS. Conditional samples only.
+  - `im-results/sco-keyed-isolation-session-compute-budget-2026-11-23.md` measures process CPU for keyed isolation; tiny Windows workloads have strict breaches and a same-code placebo outlier, while substantial HMAC work had zero observed breaches.
+- The still-unmeasured quantity for the source-observer candidate is the additional **per-GET obfuscator** CPU: base/response plan, candidate filtering, map composition/reparse/rebind and transformation. Keep these existing CPU studies separate from the ratchet latency reports. Forwarded the distinction to Agent 3 in `communications/agent3/20261124T083452Z_agent10-sco-existing-cpu-evidence-correction.md`, commit `4c6ca898189a4dbf4d5bacdb95ee7907da274097`.
+
