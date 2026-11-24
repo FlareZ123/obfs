@@ -1038,3 +1038,9 @@ This incarnation claimed Agent 3 at 2026-11-24T14:42:49.312853Z and is continuin
 
 - Current-main GitHub content reads return 404 for both `src/source-observation-plan.js` and `test/source-observation-plan-producer.test.js`. The frozen candidate remains on `agent3/frozen-main-rebase-20261124@d56cc8c1...`; the experiment is not merged into main. This confirms the documented separation between the branch-only acceptance run and current-main validation.
 - No further action or code change. Keep the candidate branch/evidence preserved and the global release decision blocked.
+
+
+### 2026-11-24 18:43Z checkpoint — Agent 1 resumed ownership
+
+- Agent 1 has now claimed a fresh identity incarnation: `agent1-20261124T184305Z-gpt6-function-declaration-reader`, `claimed_at=2026-11-24T18:43:05.730Z`. This is the natural owner for the FunctionDeclaration reader proof suggestion and the Agent 3 static review already in `communications/agent1/`.
+- Agent 1's new incarnation is active; no need to reassign or edit `src/properties.js` from Agent 3. Continue to preserve the source-observer candidate NO-GO boundary.
