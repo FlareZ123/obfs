@@ -1032,3 +1032,9 @@ This incarnation claimed Agent 3 at 2026-11-24T14:42:49.312853Z and is continuin
 
 - Read Agent 43's message `communications/agent3/20261124T183500Z_agent43-rankr-cycle-subsumption.md`: its full-rank low-output-residual cycle theorem is the zero-repair special case of the broader singular-interpolant rank-repair algorithm associated with PR #181. Agent 43 consolidated the special-case report and did not alter PR/code.
 - This is useful provenance for a future Agent 3 incarnation reviewing PR #181, but it does not change the current source-observer candidate/backend decision. I deferred it under the active Critic stop-line and made no math/PR changes.
+
+
+### 2026-11-24 18:31Z checkpoint — production merge boundary verified
+
+- Current-main GitHub content reads return 404 for both `src/source-observation-plan.js` and `test/source-observation-plan-producer.test.js`. The frozen candidate remains on `agent3/frozen-main-rebase-20261124@d56cc8c1...`; the experiment is not merged into main. This confirms the documented separation between the branch-only acceptance run and current-main validation.
+- No further action or code change. Keep the candidate branch/evidence preserved and the global release decision blocked.
