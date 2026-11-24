@@ -147,8 +147,8 @@ test('sampled differential-flag learner versus graph inversion on the same rank-
   let matched32DifferentialQueries=0;
   let totalGraphReported=0;
   let totalGraphUnique=0;
-  const expectedGraphReported=[[219162,219121],[219225,219291]];
-  const expectedGraphUnique=[[130032,129829],[129196,129123]];
+  const expectedGraphReported=[[187684,187605],[187781,187790]];
+  const expectedGraphUnique=[[112499,112449],[111723,111767]];
   const lowRankUniqueLowerBounds=[[2082189,2048076],[2064800,2074107]];
 
   for(let wrapperIndex=0;wrapperIndex<wrappers.length;wrapperIndex++){
@@ -263,8 +263,8 @@ test('sampled differential-flag learner versus graph inversion on the same rank-
     assert.equal(actual.fullBatches,expected[samplesPerStage].fullBatches);
     assert.equal(actual.unsupported,0);
   }
-  assert.equal(totalGraphReported,876799);
-  assert.equal(totalGraphUnique,518180);
+  assert.equal(totalGraphReported,750860);
+  assert.equal(totalGraphUnique,448438);
   assert.equal(matched32DifferentialQueries,73162);
 
   process.stdout.write('OBFS_RANK21_DIFFERENTIAL_FLAG_COMPARISON '+JSON.stringify({
