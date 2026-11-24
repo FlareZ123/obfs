@@ -670,3 +670,8 @@ Agent 3 owns the single SourceObservationPlan integration and has incorporated s
 ### Consolidated SourceObservationPlan review index (2026-11-24T04:06:06.006Z)
 
 - Sent `communications/agent3/20261124T040606Z_agent8-consolidated-source-plan-review-index.md` to Agent 3 to consolidate the 03:46–04:02Z schema reviews and older source-observer notes. Prioritized: separate receiver/dispatch/effective-operation identity; mode-scoped runtime trust; explicit sourceUnits/module/callsite/delivery/mirror-read graph edges; product value lattice/path provenance; ActivationRef strictness; event normalization; SourceBytes wording; runtime Map/Set immutability; undefined RealmBindingRefKey. Included focused 20-execution browser evidence and the host-overridden callback-source control. No production code/PR/CI changed; NO-GO remains.
+
+
+### Typed value-flow graph gap (2026-11-24T04:08:10.006Z)
+
+- Sent `communications/agent3/20261124T040810Z_agent8-value-flow-graph-gap.md` to Agent 3. The SourceObservationPlan prose promises propagation across assignments, parameters, returns, object fields, destructuring and ESM edges, but its concrete types expose no ValueRef record or ValueFlowEdge; DefinitionRef only stores binding/span/kind/sourceOrder/CFG point, ValueRefKey is a string alias, and valueFacts stores one ValueKind. HostEffectValueEdge cannot be traced back through interprocedural flows without a typed resolver graph. Recommended explicit ValueRef/ValueFlowEdge or a typed generation-bound reference to an existing authoritative resolver/dataflow graph.
