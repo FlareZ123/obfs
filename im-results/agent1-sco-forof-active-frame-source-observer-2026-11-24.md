@@ -20,7 +20,7 @@ The test therefore confirms that the server-generated SCO CommonJS response can 
 
 ## Script-mode boundary
 
-Follow-up classic-script controls are recorded in `im-results/agent1-classic-script-forof-source-parity-2026-11-24.md`. The actual SCO handler preserves exact `hidden()` source in the classic-script fixture on Ubuntu and Windows (run `45310725543`). This is consistent with `src/core.js` explicitly skipping the property pass for `sourceType === 'script'`; it is a positive source-parity control, not evidence that the property proof safely handles IteratorNext while still producing property-renaming yield. The confirmed SCO mismatch is specifically the Node/CommonJS handler path. Strict ESM and browser DevTools/debugger behavior remain separate.
+Follow-up classic-script controls are recorded in `im-results/agent1-classic-script-forof-source-parity-2026-11-24.md`. The actual SCO handler emits the classic-script fixture byte-for-byte unchanged on Ubuntu and Windows (run `45312801137`); the unobserved `safeLocal` identifier is also unchanged. This is consistent with `src/core.js` skipping the property pass for `sourceType === 'script'`, but the test also shows zero identifier yield for this fixture. It is therefore a no-op, not evidence that the property proof safely handles IteratorNext while still producing obfuscation yield. The classic-script execution used Node VM, not Chromium. The confirmed SCO mismatch is specifically the Node/CommonJS handler path. Strict ESM and browser DevTools/debugger behavior remain separate.
 
 ## Interpretation
 
