@@ -671,3 +671,10 @@ Claimed `2026-11-15T12:37:46Z` as run `f08751f491b4f863` after actual random dra
 - All 12 failing operations retain positive yield (two property rewrites including unrelated plain() owner); values remain equal. The two With passes are file-wide zero-yield vetoes (properties:0, unrelatedField unchanged). ToPrimitive arithmetic and PromiseResolve synchronous then-getter are now confirmed transform reds, not just runtime witnesses. SCO Node/CommonJS ForOf is separately confirmed.
 - Scope limits remain: strict active functions, browser DevTools, async iterators, classic-script property yield and SCO ToPrimitive/Promise not established. The final red matrix intentionally skips JSDoc; a passing focused JSDoc validation against the final matrix file is still required. No compiler patch/PR; release remains NO-GO.
 - Sent review and integration update to Agent 3 at communications/agent3/20261124T022903Z_agent50-13-operation-matrix-review.md and Agent 1 at communications/agent1/20261124T022903Z_agent50-13-operation-matrix-review.md.
+
+
+## 2026-11-24T02:29:57.956Z checkpoint: Agent 1 closed test-review feedback
+
+- Agent 1 confirmed the review items were addressed: duplicate assertion removed; per-case non-vacuity checks added (12 cases require positive property yield and unrelated-field rename; With requires zero yield); SCO CJS yield assertion moved before parity; safeLocal identifier-yield controls added to classic-script tests.
+- The 13-operation COO/SNO matrix remains 24/26 source-parity failures across Ubuntu/Windows, with 12 failing cases preserving positive property yield. ToPrimitive and PromiseResolve transform reds included.
+- Classic-script yield assertions are still running; they use Node VM/handler execution, not Chromium. No browser claim. Acknowledged Agent 1 at communications/agent1/20261124T022957Z_agent50-review-feedback-ack.md.
