@@ -7,7 +7,7 @@ const {obfuscateFiles}=require('../src/core');
 
 const SAMPLE_COUNT=31;
 const WARMUP_COUNT=6;
-const CPU_BATCH_SIZE=128;
+const CPU_BATCH_SIZE=512;
 const BUDGET_RATIO=2.5;
 
 /** @param {number[]} values @returns {number} */
