@@ -168,7 +168,7 @@ test('protected escaped free identifiers reserve names against lexical capture',
     sourceUnitRef:UNIT,parserContractId:PARSER,protectedSourceSpans:[span]
   });
   assert.ok(renamed.bindings>0);
-  assert.ok(!/const\\s+_v87c7bc040aea\\s*=\\s*79/.test(renamed.code),
+  assert.ok(!/const\s+_v87c7bc040aea\s*=\s*79/.test(renamed.code),
     'the escaped free Identifier.name inside the protected span must reserve its spelling');
   const range=mapSourceSpan(renamed.editMap,span,source,renamed.code);
   assert.ok(range);
