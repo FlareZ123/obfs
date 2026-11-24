@@ -570,10 +570,12 @@ async function main(){
     const compiledFirst=await observe(origin,'/multi-callsite/compiled-1.html');
     const nativeSecond=await observe(origin,'/multi-callsite/native-2.html');
     const compiledSecond=await observe(origin,'/multi-callsite/compiled-2.html');
-    for(const [label,observation] of [
+    /** @type {Array<[string,Observation]>} */
+    const multiObservations=[
       ['native first',nativeFirst],['compiled first',compiledFirst],
       ['native second',nativeSecond],['compiled second',compiledSecond]
-    ]){
+    ];
+    for(const [label,observation] of multiObservations){
       assert.equal(observation.value,3,'multi-callsite '+label+' result');
       assert.equal(observation.error,null,'multi-callsite '+label+' observer');
       assert.ok(observation.frame&&observation.frame.includes('hidden'),'multi-callsite '+label+' hidden frame');
