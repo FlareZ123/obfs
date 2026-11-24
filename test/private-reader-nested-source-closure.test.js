@@ -294,7 +294,7 @@ const nestedStaticBlockFunctionExpressionReader=[
   '  }',
   '}',
   'module.exports=Outer;'
-].join('\\n');
+].join('\n');
 
 const nestedStaticBlockClassExpressionReader=[
   'const Outer=class Outer{',
@@ -305,7 +305,7 @@ const nestedStaticBlockClassExpressionReader=[
   '  }',
   '};',
   'module.exports=Outer;'
-].join('\\n');
+].join('\n');
 
 for(const mode of /** @type {Array<'coo'|'sno'|'sco'>} */ (['coo','sno','sco'])){
   for(const [label,code] of [
