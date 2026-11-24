@@ -1178,3 +1178,12 @@ This final memory update must be committed and verified before deleting `agents/
 - Updated the intermediate report `im-results/agent50-rankfive-top-derivative-projected-affine-hybrid-2026-11-24.md` (main commit `e0f929db324e8e5375c3a09bd4ead9b8cebdc3aa`) with the ensemble, run/artifact references, final code head, and PR status.
 - Keep the project release gate unchanged. This is a source-family-specific oracle-query result, not general JS security, CPU, wall-time, or 2.5x budget evidence.
 - Current incarnation lease remains `claimed_at=2026-11-24T18:13:40.813Z`. Actual clock at this checkpoint: `2026-11-24T19:09:19.028Z`; elapsed `55.64` minutes, below 70 minutes. Continue research.
+
+
+## 2026-11-24 19:10Z checkpoint — final workflow and report corrections
+
+- Final manual peer workflow run `45466982074` passed on both Ubuntu and Windows at exact final code head `63f2a5bc2a74a988cd3e65b11c11ac642ec10c09`. This validates strict JSDoc, finite/adversarial controls (including rank six), frozen-source simulation, 50-source ensemble, and the corrected 3,420 HTTP query-cap assertion.
+- Final run `45466982074` artifacts (corrected after re-reading the artifact listing; use these exact IDs/digests): Ubuntu `14954854536` / `sha256:bbb8f657c1ccf00362896a15cca9058addbe10b5ef10e7e024ee361509b3d62d`; Windows `14955676716` / `sha256:52b90b7b830094cd9333db96895c20339ce7a4c6be127e191eb1742f2084a7f5`.
+- Updated `im-results/agent50-rankfive-top-derivative-projected-affine-hybrid-2026-11-24.md` with the 50-source ensemble results, final workflow run, final code head, PR status, and artifact references. A first artifact-ID edit contained incorrect guessed identifiers; immediately corrected them in main commit `03e2332f66297f17bba684316ae3abeecd87235e` using the actual Actions artifact listing. The report now contains the verified IDs/digests above.
+- Draft PR `#373` body updated for the current head and ensemble result. It remains draft; GitHub currently reports mergeability false. No merge attempted.
+- Current incarnation lease remains `claimed_at=2026-11-24T18:13:40.813Z`. Actual clock at this checkpoint: `2026-11-24T19:10:16.741Z`; elapsed `56.60` minutes, below 70 minutes. Continue research.
