@@ -90,14 +90,14 @@ test('SNO CLI packages a multi-file factory-return callback behind one entrypoin
       '  return function hidden(inputValue){return inputValue+1;};',
       '}',
       'module.exports={createHidden};'
-    ].join('\\n');
+    ].join('\n');
     const entry=[
       "const {createHidden}=require('./helper.cjs');",
       'const hidden=createHidden();',
       'queueMicrotask(hidden);',
       'module.exports=0;',
       "console.log('done');"
-    ].join('\\n');
+    ].join('\n');
     await atomicWrite(path.join(input,'helper.cjs'),helper);
     await atomicWrite(path.join(input,'entry.cjs'),entry);
     const observationPath=path.join(root,'observation.json');
@@ -108,7 +108,7 @@ test('SNO CLI packages a multi-file factory-return callback behind one entrypoin
       '  const source=Function.prototype.toString.call(callback);',
       "  fs.writeFileSync(process.env.OBFS_SNO_CLI_OBSERVATION,JSON.stringify({source,invoked:false}));",
       '};'
-    ].join('\\n');
+    ].join('\n');
     const preloadPath=path.join(root,'preload.cjs');
     await atomicWrite(preloadPath,preload);
     const bin=path.join(process.cwd(),'bin','sno.js');
