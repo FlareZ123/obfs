@@ -347,7 +347,8 @@
     "sims/typescript-binding-reference.js",
     "test/typescript-binding-reference.test.js",
     "test/agent39-error-carrier-positive-yield.test.js",
-    "test/agent2-random-affine-graph-quintic-silent-rank.test.js"
+    "test/agent2-random-affine-graph-quintic-silent-rank.test.js",
+    "test/agent2-rank21-quintic-graph-vs-lowrank.test.js"
   ],
   "exclude": [
     "node_modules"
