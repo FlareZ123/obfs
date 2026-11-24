@@ -99,6 +99,8 @@ def hybrid_with_fallback(oracle, n, r, draw_witness, draw_verify):
     cap = math.ceil(math.log(DELTA) / math.log1p(-p))
     witness, anchors, trials = 0, None, 0
     for trial in range(cap):
+        # Count every attempted witness trial, including the no-witness fallback.
+        trials = trial + 1
         directions = [draw_witness() & mask for _ in range(r + 1)]
         for subset in range(1 << (r + 1)):
             point = 0
@@ -248,6 +250,12 @@ def main():
             lower_degree, n, r, forced_draws(directions), sha_draw(0x84000000 + r)
         )
         assert result["fallback"] and result["reason"] == "no-witness"
+        expected_trials = math.ceil(
+            math.log(DELTA) / math.log1p(-math.prod(
+                1 - 2 ** (i - (r + 1)) for i in range(r)
+            ))
+        )
+        assert result["witness_trials"] == expected_trials
         for x in range(1 << n):
             assert result["model"](x) == lower_degree(x)
             full_domain_checks += 1
