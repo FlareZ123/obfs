@@ -155,6 +155,19 @@ function summarizeAmbientCallEffects(ast,sourceType) {
     if(['FunctionDeclaration','FunctionExpression','ArrowFunctionExpression'].includes(node.type))
       allFunctionNodes.add(node);
   });
+  /** @param {AstNode} node @returns {boolean} */
+  function isWithinFunctionOrClass(node) {
+    let current=node;
+    while(parentByNode.has(current)) {
+      const parent=parentByNode.get(current);
+      if(!parent)break;
+      if(['FunctionDeclaration','FunctionExpression','ArrowFunctionExpression',
+          'ClassDeclaration','ClassExpression','MethodDefinition','PropertyDefinition','StaticBlock'].includes(parent.type))
+        return true;
+      current=parent;
+    }
+    return false;
+  }
 
   /** @type {Set<number>} */
   const writtenBindings=new Set();
@@ -264,13 +277,16 @@ function summarizeAmbientCallEffects(ast,sourceType) {
   const externallyReachableFunctions=new Set();
   if(sourceType==='script') {
     walkAst(ast,(node,parent)=>{
-      if(node.type==='FunctionDeclaration'&&node.id?.type==='Identifier'&&parent===ast) {
+      if(node.type==='FunctionDeclaration'&&node.id?.type==='Identifier'&&
+         !isWithinFunctionOrClass(node)) {
         externallyReachableFunctions.add(node);
         const id=declarationByNode.get(node.id)?.bindingId??null;
         if(id!==null)topLevelScriptBindings.add(id);
       }
-      if(node.type==='VariableDeclarator'&&parent?.type==='VariableDeclaration'&&
-         parentByNode.get(parent)===ast&&node.id.type==='Identifier') {
+      const globalScriptVariable=node.type==='VariableDeclarator'&&
+        parent?.type==='VariableDeclaration'&&node.id.type==='Identifier'&&
+        (parentByNode.get(parent)===ast||(parent.kind==='var'&&!isWithinFunctionOrClass(node)));
+      if(globalScriptVariable) {
         const id=declarationByNode.get(node.id)?.bindingId??null;
         if(id!==null) {
           topLevelScriptBindings.add(id);
@@ -309,9 +325,9 @@ function summarizeAmbientCallEffects(ast,sourceType) {
   const aliasTargets=new Map();
   walkAst(ast,(node,parent)=>{
     if(node.type==='FunctionDeclaration'&&node.id?.type==='Identifier') {
-      // Top-level classic-script declarations are globally reachable; other
-      // script declaration/Annex-B cases remain outside this single-AST donor.
-      if(sourceType!=='script'||parent!==ast)
+      // Classic-script function declarations are not fixed call targets:
+      // global-object and Annex-B binding closure is not proven here.
+      if(sourceType!=='script')
         addFunctionBinding(declarationByNode.get(node.id)?.bindingId??null,node);
     } else if(node.type==='FunctionExpression'&&node.id?.type==='Identifier') {
       addFunctionBinding(declarationByNode.get(node.id)?.bindingId??null,node);
@@ -532,13 +548,15 @@ function summarizeAmbientCallEffects(ast,sourceType) {
   }
   if(sourceType==='script') {
     walkAst(ast,(node,parent)=>{
-      if(node.type==='FunctionDeclaration'&&node.id?.type==='Identifier'&&parent===ast) {
+      if(node.type==='FunctionDeclaration'&&node.id?.type==='Identifier'&&
+         !isWithinFunctionOrClass(node)) {
         const id=declarationByNode.get(node.id)?.bindingId??null;
         if(id!==null)nodeBindingIds.get(node)?.add(id);
       }
-      if(node.type==='VariableDeclarator'&&parent?.type==='VariableDeclaration'&&
-         parentByNode.get(parent)===ast&&node.id.type==='Identifier'&&node.init&&
-         ['FunctionExpression','ArrowFunctionExpression'].includes(node.init.type)) {
+      const globalScriptVariable=node.type==='VariableDeclarator'&&
+        parent?.type==='VariableDeclaration'&&node.id.type==='Identifier'&&node.init&&
+        (parentByNode.get(parent)===ast||(parent.kind==='var'&&!isWithinFunctionOrClass(node)));
+      if(globalScriptVariable) {
         const id=declarationByNode.get(node.id)?.bindingId??null;
         if(id!==null)nodeBindingIds.get(node.init)?.add(id);
       }
