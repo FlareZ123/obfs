@@ -52,13 +52,16 @@ function dataUrl(code,workload,side,index) {
  * @param {string} workload
  * @param {string} side
  * @param {number} index
- * @returns {Promise<{elapsedMs:number,exports:Record<string,unknown>}>}
+ * @returns {Promise<{elapsedMs:number,cpuMs:number,exports:Record<string,unknown>}>}
  */
 async function importOnce(code,workload,side,index) {
   const url=dataUrl(code,workload,side,index);
+  const cpuStart=process.cpuUsage();
   const start=performance.now();
   const namespace=await import(url);
-  return {elapsedMs:performance.now()-start,exports:namespace};
+  const elapsedMs=performance.now()-start;
+  const cpu=process.cpuUsage(cpuStart);
+  return {elapsedMs,cpuMs:(cpu.user+cpu.system)/1000,exports:namespace};
 }
 
 /**
@@ -103,6 +106,8 @@ async function measureWorkload(source,workload,extraStrings) {
 
   const baselineSamples=[];
   const obfuscatedSamples=[];
+  const baselineCpuSamples=[];
+  const obfuscatedCpuSamples=[];
   for(let index=0;index<SAMPLE_COUNT;index++) {
     let baseline,transformed;
     if(index%2===0) {
@@ -115,6 +120,8 @@ async function measureWorkload(source,workload,extraStrings) {
     verify(baseline,transformed);
     baselineSamples.push(baseline.elapsedMs);
     obfuscatedSamples.push(transformed.elapsedMs);
+    baselineCpuSamples.push(baseline.cpuMs);
+    obfuscatedCpuSamples.push(transformed.cpuMs);
   }
   const pairRatios=obfuscatedSamples.map((value,index)=>value/baselineSamples[index]);
   const baselineMedianMs=median(baselineSamples);
@@ -122,6 +129,8 @@ async function measureWorkload(source,workload,extraStrings) {
   const ratio=obfuscatedMedianMs/baselineMedianMs;
   const placeboLeftSamples=[];
   const placeboRightSamples=[];
+  const placeboLeftCpuSamples=[];
+  const placeboRightCpuSamples=[];
   for(let index=0;index<SAMPLE_COUNT;index++) {
     let left,right;
     if(index%2===0) {
@@ -134,6 +143,8 @@ async function measureWorkload(source,workload,extraStrings) {
     verify(left,right);
     placeboLeftSamples.push(left.elapsedMs);
     placeboRightSamples.push(right.elapsedMs);
+    placeboLeftCpuSamples.push(left.cpuMs);
+    placeboRightCpuSamples.push(right.cpuMs);
   }
   const placeboPairRatios=placeboRightSamples.map((value,index)=>
     value/placeboLeftSamples[index]);
@@ -151,6 +162,8 @@ async function measureWorkload(source,workload,extraStrings) {
     warmupCount:WARMUP_COUNT,
     baselineSamplesMs:baselineSamples,
     obfuscatedSamplesMs:obfuscatedSamples,
+    baselineCpuSamplesMs:baselineCpuSamples,
+    obfuscatedCpuSamplesMs:obfuscatedCpuSamples,
     pairRatios,
     medianPairRatio:median(pairRatios),
     maxPairRatio:Math.max(...pairRatios),
@@ -161,6 +174,8 @@ async function measureWorkload(source,workload,extraStrings) {
     ratio,
     placeboLeftSamplesMs:placeboLeftSamples,
     placeboRightSamplesMs:placeboRightSamples,
+    placeboLeftCpuSamplesMs:placeboLeftCpuSamples,
+    placeboRightCpuSamplesMs:placeboRightCpuSamples,
     placeboPairRatios,
     placeboMaxPairRatio:Math.max(...placeboPairRatios),
     placeboStrictBreachCount:placeboPairRatios.filter(value=>value>BUDGET_RATIO).length,
