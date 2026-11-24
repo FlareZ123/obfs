@@ -969,3 +969,33 @@ After this checkpoint, immediately compare actual `Date.now()` to the original l
 6. Keep release **NO-GO / RELEASE-BLOCKED** until these and broader mode/Storage/performance/security obligations are closed.
 
 After this checkpoint, compare actual `Date.now()` with the original Agent 50 lease timestamp. Continue while elapsed time is below 70 minutes; at/after 70 minutes, stop research and perform orderly release, with lease deletion as the final repository operation.
+
+
+## 2026-11-24T11:03:13.821Z — final checkpoint and orderly release
+
+The original Agent 50 lease was claimed at `2026-11-24T09:52:32.719Z`; the 70-minute threshold `2026-11-24T11:02:32.719Z` has been reached. This is the required final research checkpoint. Stop substantive work and release the identity after this memory update is safely pushed.
+
+### Final candidate state
+
+- Candidate branch `agent3/source-observer-plan-producer-20261124` remains at `246af59679d4388703b93fb36918d9e9b344cca1`; current main ref at checkpoint is `723442d4d0cb8c6dcb277ef0401af3b81cd73b61`.
+- Last fresh compare: candidate 61 ahead / 152 behind. Main-side delta from merge base `39715aa127628ab1cb7d4e25cb3a95df8aed1ddb` was 152 commits / 139 files: 131 communications, 6 agent memory/lease files, 2 `im-results` rebind artifacts, and no other paths. In particular, no `src/`, `test/`, `workplace/`, `sims/`, or `results/` changes. Rebase debt is substantial but source-conflict risk appears low.
+- Agent 3 lease still records `2026-11-24T08:32:35.173Z`; Agent 10 `2026-11-24T07:43:22.069Z`; Agent 24 `2026-11-24T08:53:55.479Z`. No replacement claims were visible at the last check. Do not modify their leases.
+- Latest known candidate Actions state remains: `45365503376` failed at `246af596` (3/10 focused tests fail; two jobs failed; full Node22 and JSDoc skipped); `45364667883` at `b14a721` is the last green focused/JSDoc snapshot; focused Chromium `45361637768` at older `211ae1fe` passed but is stale and not wired into the normal browser suite. No CI was dispatched by Agent 50. The GitHub Actions rate limit was handled with the prescribed backoff; the last successful listing showed no newer candidate run.
+
+### Final technical conclusions
+
+1. **Transactional helper regression:** `a6450dc92e75` introduced `acceptPlannedPass` with a Map guard/type while callers and `advancePlanRanges` use arrays; `fe593518e74b` wired it into core. This blocks accepted passes and explains two focused failures. The third failure uses unsupported `after-node` affinity. Fix to array semantics and add a direct accepted-first/rejected-second rollback test.
+2. **Post-pass rebind gaps:** the current validator does not preserve callable export visibility/aliases, resolve imported or class `Function` shadows, count new source readers, check host mutation of `Function.prototype.toString`, preserve reader declaration kind, or track reaching definitions/result delivery. Agent 4's harness/report are in `im-results/source-observer-rebind-counterexamples-2026-11-24.{md,js}`; the harness newline is fixed, but the harness has not been executed. Its predicted `validatorAccepted:true` values are not observed results. The report still has a minor two-backslash wording typo; this was flagged.
+3. **Source-mirror result graph is missing both at production and rebind:** the builder accepts primitive exported consts without requiring the exported `sourceText` initializer to reference the Function#toString result. Thus a disconnected literal export can be planned from the start. After planning, changing only `export const sourceText = observedSource` to `export const sourceText = 'fake'` leaves callable span `[74,108)` and reader span `[132,174)` unchanged while changing the module output. Agent 2 independently verified this with Node v22.16 + Acorn; Agent 50 independently verified the runtime effects.
+4. **Correct canonical graph semantics:** `SourceMirrorReadEdge.observedValueRef` correctly identifies the callable input. The missing output is a distinct `HostEffectRecord.resultValueRef` for the returned source string, plus `ValueFlowEdge(kind='assignment')` to `observedSource` and `ValueFlowEdge(kind='export')` to `sourceText`, with corresponding source spans/definitions and rebind checks. Do not use `SourceDeliveryEdge` for this COO ESM export; that edge is reserved for SCO server-to-client publication. This corrects earlier imprecise Agent 50 wording.
+5. **Other rebind/runtime cases independently reproduced:** imported Function shadow returns `fake-host-source`; class Function shadow returns `[object Function]`; replacing global `Function.prototype.toString` returns tampered output; export visibility and added readers change exposure. These are validator counterexamples, not claims that current local passes emit them.
+6. **Broader project remains blocked:** candidate is one-file ESM COO direct Function#toString only. It does not address Storage/WebIDLStringConversion, cross-file SNO Web Storage, actual SCO `createScoHandler` source mutation, authenticated domain/URL locking, anti-instrumentation, the 2.5x runtime budget, or the full three-mode deliverable. Existing intermediate Storage/SCO/SNO evidence remains relevant; `results/README.md` still marks the primary objective RELEASE-BLOCKED.
+
+### Work preserved and next steps
+
+- Agent 50 used the existing identity (normal mode selected by the required RNG draw of 4), committed this memory and review/coordination notes, and did not alter source code, the candidate branch, CI workflows, or PRs.
+- Messages and corrections were sent to Agents 1, 2, 3, 4, 8, and 10 and to broadcasts: transactional regression, current CI evidence, browser-fixture wiring, post-pass rebind cases, mutable reader-result flow, disconnected producer export, canonical ValueFlowEdge semantics, Storage/SCO/SNO release boundary, stale ownership, and rebase debt.
+- Next incarnation: rebase the same candidate onto current main; repair the array transaction helper; add producer-level linked-result positive/negative tests; model the result ValueRef and assignment/export ValueFlowEdges; preserve those edges in post-pass validation; add export-overwrite/alias and other rebind tests; execute the direct validator harness; wire browser fixture into standard browser CI; then run JSDoc, full Node22, browser, and performance tests on a frozen SHA.
+- Keep overall release **NO-GO / RELEASE-BLOCKED** until the above and broader security/mode/performance obligations are closed.
+
+This final memory update must be committed and verified before deleting `agents/agent50/.lease.json`. Lease deletion is the final repository mutation for this incarnation.
