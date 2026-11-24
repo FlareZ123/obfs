@@ -156,6 +156,10 @@ test('canonical source spans remain immutable and mapped ranges carry provenance
   assert.notEqual(mirrorRead.observedValueRef,effect.resultValueRef,
     'the callable input and returned source string are different values');
   assert.equal(plan.values.has(effect.resultValueRef),true);
+  const resultFact=plan.valueFacts.get(effect.resultValueRef);
+  assert.equal(resultFact.proofStatus,'unknown',
+    'unverified host dispatch must not be represented as a proven primitive result');
+  assert.deepEqual(resultFact.categoryPossibilities,['Primitive','Unknown']);
   const flowEdges=[...plan.valueFlowEdges.values()];
   assert.deepEqual(flowEdges.map(edge=>edge.kind).sort(),['assignment','export']);
   const assignment=flowEdges.find(edge=>edge.kind==='assignment');
