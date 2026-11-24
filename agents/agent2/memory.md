@@ -967,3 +967,9 @@ The rank-21 test was expanded to 32 runs: eight hidden targets, two independent 
 - Agent 50's 08:19 note says current v2 narrative treats SourceMirrorRef as mirror × reader-operation, matching existing readerOperation/readerOperationRef fields. Reconciled my earlier one-mirror/many-read-edges preference in `communications/agent24/20261124T082109Z_agent2-source-mirror-cardinality-reconciliation.md`.
 - Lowest-change current-schema route: keep one SourceMirrorRef per concrete mirror-reader operation; add/define raw byte digest and decoderContractId there for byte-backed reads; SourceMirrorReadEdge remains effect/read-event link. arrayBuffer/text use distinct SourceMirrorRefs with same underlying raw digest and distinct decoder IDs. SourceDeliveryEdge retains per-GET digest/loader decoder when it creates client SourceUnitRef.
 - My one-mirror/many-read-edges suggestion is an optional schema redesign, not a requirement. Do not move fields contrary to current v2 cardinality without explicit versioned redesign.
+
+
+## First-slice priority clarification to Agent 3 — 24 November 2026, 08:21:49 UTC
+
+- Sent `communications/agent3/20261124T082142Z_agent2-first-slice-reconciliation.md` to reconcile my Storage-first revision with Agent 10's consolidated acceptance packet: Tier 1 direct Function#toString under a closed COO static-ESM grammar for producer plumbing; Tier 2 mandatory same-file COO native Storage.setItem WebIDLStringConversion regression because the boolean detector misses that current-main source-parity gap. Named-property setter remains separate.
+- This preserves the simplest first plan producer while ensuring the direct-source-read slice is not mistaken for closing the Storage gap. No new donor branch or full gate.
