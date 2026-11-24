@@ -512,13 +512,13 @@ function proveLocalObject(ast, rootName, bindings, importedIdentityFunctions=new
     }
     return constantKeys.get(name)??null;
   }
-  // An unescaped, fixed-size private tuple can carry the owner through a
-  // known slot. Other slots must contain inert primitive literals, so
-  // constructing the tuple cannot invoke code that observes the owner.
-  // Every holder use must read that same slot into a local binding. Unknown
-  // indexes, mutation, reflection and all holder escapes retain original keys.
+  // A bounded private tuple can carry the same owner through one or more
+  // exact indexes. Every other slot must be an inert primitive literal, and
+  // every holder use must read one of those indexes into a local const.
+  // Unknown indexes, mutation, reflection and all holder escapes retain
+  // original keys.
   const holderIdentifierUses=identifierUses;
-  /** @type {Map<string,{index:number}>} */
+  /** @type {Map<string,{indices:Set<number>}>} */
   const privateOwnerTuples=new Map();
   /** @type {Set<AstNode>} */
   const privateArrayLiteralElements=new Set();
@@ -531,11 +531,22 @@ function proveLocalObject(ast, rootName, bindings, importedIdentityFunctions=new
        decl.init?.type!=='ArrayExpression'||decl.init.elements.length<1||
        decl.init.elements.length>8)continue;
     const elements=/** @type {(AstNode|null)[]} */(decl.init.elements);
-    const index=elements.findIndex(element=>
-      element?.type==='Identifier'&&element.name===rootName);
-    if(index<0||elements.some((element,slot)=>slot===index?false:
-      !element||element.type!=='Literal'||
-      !(element.value===null||['string','number','boolean','bigint'].includes(typeof element.value))))continue;
+    /** @type {Set<number>} */
+    const indices=new Set();
+    let inert=true;
+    for(let slot=0;slot<elements.length;slot++){
+      const element=elements[slot];
+      if(element?.type==='Identifier'&&element.name===rootName){
+        indices.add(slot);
+        continue;
+      }
+      if(!element||element.type!=='Literal'||
+         !(element.value===null||['string','number','boolean','bigint'].includes(typeof element.value))){
+        inert=false;
+        break;
+      }
+    }
+    if(!indices.size||!inert)continue;
     const holder=decl.id.name;
     const scope=scopes.get(holder);
     if(!scope||scope!==scopes.get(rootName))continue;
@@ -548,7 +559,8 @@ function proveLocalObject(ast, rootName, bindings, importedIdentityFunctions=new
          (parent?.type==='MethodDefinition'||parent?.type==='PropertyDefinition')&&
            key==='key'&&!parent.computed)continue;
       const read=parent?.type==='MemberExpression'&&key==='object'&&!parent.optional&&
-        parent.computed&&parent.property.type==='Literal'&&parent.property.value===index;
+        parent.computed&&parent.property.type==='Literal'&&
+        typeof parent.property.value==='number'&&indices.has(parent.property.value);
       const receiver=read?parents.get(parent):null;
       if(!ancestors.includes(scope)||!read||
          receiver?.type!=='VariableDeclarator'||receiver.init!==parent||
@@ -559,15 +571,16 @@ function proveLocalObject(ast, rootName, bindings, importedIdentityFunctions=new
       }
     }
     if(valid){
-      privateOwnerTuples.set(holder,{index});
-      privateArrayLiteralElements.add(/** @type {AstNode} */(elements[index]));
+      privateOwnerTuples.set(holder,{indices});
+      for(const index of indices)
+        privateArrayLiteralElements.add(/** @type {AstNode} */(elements[index]));
     }
   }
-  // A private record with one owner-valued field can forward that owner
-  // through static property reads. Inert companion fields cannot observe the
-  // owner during record creation. The record and its selected member must
-  // remain private; any escape, mutation or reflection suspends the proof.
-  /** @type {Map<string,string>} */
+  // A bounded private record can carry the same owner through one or more
+  // exact own data fields. All companion values must be inert primitives,
+  // and every holder use must read one of those fields into a local const.
+  // Mutation, reflection and all holder escapes retain original keys.
+  /** @type {Map<string,Set<string>>} */
   const privateOwnerRecords=new Map();
   /** @type {Set<AstNode>} */
   const privateRecordLiteralValues=new Set();
@@ -581,10 +594,10 @@ function proveLocalObject(ast, rootName, bindings, importedIdentityFunctions=new
        decl.init.properties.length<1||decl.init.properties.length>8)continue;
     const fields=/** @type {AstNode[]} */ (decl.init.properties);
     const names=new Set();
-    /** @type {AstNode|null} */
-    let ownedValue=null;
-    /** @type {string|null} */
-    let ownedKey=null;
+    /** @type {Set<string>} */
+    const ownedKeys=new Set();
+    /** @type {AstNode[]} */
+    const ownedValues=[];
     let safe=true;
     for(const field of fields){
       if(field.type!=='Property'||field.kind!=='init'||field.computed||
@@ -600,9 +613,8 @@ function proveLocalObject(ast, rootName, bindings, importedIdentityFunctions=new
       }
       names.add(name);
       if(field.value.type==='Identifier'&&field.value.name===rootName){
-        if(ownedValue!==null){safe=false;break;}
-        ownedValue=field.value;
-        ownedKey=name;
+        ownedKeys.add(name);
+        ownedValues.push(field.value);
       }else if(field.value.type!=='Literal'||
           !(field.value.value===null||
             ['string','number','boolean','bigint'].includes(typeof field.value.value))){
@@ -610,7 +622,7 @@ function proveLocalObject(ast, rootName, bindings, importedIdentityFunctions=new
         break;
       }
     }
-    if(!safe||!ownedValue||ownedKey===null)continue;
+    if(!safe||!ownedKeys.size)continue;
     const holder=decl.id.name;
     const scope=scopes.get(holder);
     if(!scope||scope!==scopes.get(rootName))continue;
@@ -621,8 +633,10 @@ function proveLocalObject(ast, rootName, bindings, importedIdentityFunctions=new
          parent?.type==='MemberExpression'&&key==='property'&&!parent.computed||
          (parent?.type==='MethodDefinition'||parent?.type==='PropertyDefinition')&&
            key==='key'&&!parent.computed)continue;
+      const propertyName=parent?.type==='MemberExpression' ?
+        (parent.computed?staticString(parent.property):staticName(parent.property)) : null;
       const read=parent?.type==='MemberExpression'&&key==='object'&&!parent.optional&&
-        (parent.computed?staticString(parent.property):staticName(parent.property))===ownedKey;
+        propertyName!==null&&ownedKeys.has(propertyName);
       const receiver=read?parents.get(parent):null;
       if(!ancestors.includes(scope)||!read||
          receiver?.type!=='VariableDeclarator'||receiver.init!==parent||
@@ -633,8 +647,8 @@ function proveLocalObject(ast, rootName, bindings, importedIdentityFunctions=new
       }
     }
     if(safe){
-      privateOwnerRecords.set(holder,ownedKey);
-      privateRecordLiteralValues.add(ownedValue);
+      privateOwnerRecords.set(holder,ownedKeys);
+      for(const value of ownedValues)privateRecordLiteralValues.add(value);
     }
   }
   /** @type {Set<string>} */
@@ -743,12 +757,13 @@ function proveLocalObject(ast, rootName, bindings, importedIdentityFunctions=new
     if(expression.type==='Identifier')return expression.name;
     if(expression.type==='MemberExpression'&&!expression.optional&&
        expression.computed&&expression.object.type==='Identifier'&&
-       expression.property.type==='Literal'&&
-       expression.property.value===privateOwnerTuples.get(expression.object.name)?.index)return null;
+       expression.property.type==='Literal'&&typeof expression.property.value==='number'&&
+       privateOwnerTuples.get(expression.object.name)?.indices.has(expression.property.value))return null;
     if(expression.type==='MemberExpression'&&!expression.optional&&
-       expression.object.type==='Identifier'&&
-       (expression.computed?staticString(expression.property):staticName(expression.property))===
-         privateOwnerRecords.get(expression.object.name))return null;
+       expression.object.type==='Identifier'){
+      const key=expression.computed?staticString(expression.property):staticName(expression.property);
+      if(key!==null&&privateOwnerRecords.get(expression.object.name)?.has(key))return null;
+    }
     if(expression.type==='CallExpression'&&expression.callee.type==='Identifier'){
       const fn=functions.get(expression.callee.name);
       if(!fn)return false;
