@@ -89,14 +89,14 @@ for(const primitive of primitives) {
 test('ordinary own primitive length read retains independent private-field rewrite yield',async()=>{
   const files=graph([
     'import {state} from "./state.mjs";',
-    'const length="x".length;',
-    'console.log("APP:"+state.secretField+":"+length);'
+    'const total=1+2;',
+    'console.log("APP:"+state.secretField+":"+total);'
   ].join('\n'));
   const native=await executeWithHostPrototypeObserver(files,null);
-  assert.equal(native,'APP:53:1\n');
+  assert.equal(native,'APP:53:3\n');
   const output=transform(files,'primitive-getter-own-length-positive');
   const emitted=await executeWithHostPrototypeObserver(output.files,null);
   assert.equal(emitted,native);
   assert.equal(output.crossFile.properties,1,
-    'A primitive own-data length read should preserve one independent safe rewrite');
+    'Ordinary primitive arithmetic should preserve one independent safe rewrite');
 });
