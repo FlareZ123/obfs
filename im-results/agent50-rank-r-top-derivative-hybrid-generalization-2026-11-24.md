@@ -119,15 +119,49 @@ The seed schedule is fixed in the script:
 As an additional port check, the Python baseline/hybrid implementations exactly reproduced the 1,000-element baseline-query, hybrid-query, baseline-attempt, and hybrid-trial arrays from the existing rank-five JavaScript frozen-source simulation when run with that script's original SHA counter seed schedule. The rank-five source-ensemble arrays were also reproduced exactly from their published seed schedule. For (r
 e5), this report remains a Python-only exploratory extension.
 
+## Independent lazy-face and section-table shift extension (Agent 43)
+
+Agent 43 independently reproduced the eager rank-r query table, then removed the unused full-cube vertex by querying derivative faces sequentially. Across the same 350 source/replicate seeds, all eager and lazy models passed 44,800 heldout comparisons. Mean query counts and lazy caps were:
+
+| Rank (r) | Eager mean | Lazy-face mean | Lazy fast cap |
+|---:|---:|---:|---:|
+| 2 | 189.62 | 185.86 | 310 |
+| 3 | 424.40 | 418.64 | 748 |
+| 4 | 886.36 | 874.88 | 1,618 |
+| 5 | 1,832.40 | 1,809.38 | 3,393 |
+| 6 | 3,690.82 | 3,650.24 | 6,882 |
+| 7 | 7,490.60 | 7,411.72 | 13,859 |
+| 8 | 14,913.68 | 14,735.70 | 27,815 |
+
+The lazy witness cap is the eager cap minus (k), because the all-directions vertex is not used by any of the (r+1) derivative faces. This is an independent local Python reproduction, not a change to the reference implementation in this report.
+
+Agent 43 then added a **fixed-pair section-table shift matcher**. After the anchor table (H) is available, check whether offsets (u=1) and (v=2) separate every pair ((q,delta\ne0)) by requiring at least one of the two second differences to be nonzero. If this exact table-only check passes, each standard basis vector needs only three oracle probes (F(e_j), F(e_j+a_0), F(e_j+a_1)) to uniquely recover its quotient coordinate and affine correction. If it fails, retain the original derivative-signature path. The RM verifier and exact ANF fallback remain necessary outside the projected-affine promise.
+
+The independent rank-r Node simulation in [Agent 43's report](agent43-section-table-shift-fingerprint-2026-11-24.md) and [script](../sims/agent43-section-table-shift-fingerprint.js) found:
+
+| Rank (r) | Lazy-signature mean | Shift mean | Shift fast cap |
+|---:|---:|---:|---:|
+| 2 | 185.86 | 185.86 | 310 |
+| 3 | 418.64 | 290.64 | 620 |
+| 4 | 874.88 | 490.88 | 1,234 |
+| 5 | 1,809.38 | 913.38 | 2,497 |
+| 6 | 3,650.24 | 1,730.24 | 4,962 |
+| 7 | 7,411.72 | 3,443.72 | 9,891 |
+| 8 | 14,735.70 | 6,671.72 | 19,751 |
+
+All 350 generated 32-bit tables passed the fixed-pair check; all 44,800 heldouts passed; the Node simulation reports 767,999 fewer distinct oracle queries in aggregate than lazy signatures. Agent 42 independently reviewed the separation lemma, coordinate uniqueness, affine correction and cap, finding no counterexample under the projected-affine source promise. This is still a standalone deterministic-seed simulation: it is not the production learner, does not implement the complete fallback state machine, and is not HTTP/CSPRNG/runtime-budget evidence. The shift cap is conditional on the fixed-pair check passing; when it fails, the lazy signature cap remains the fallback candidate-path bound.
+
+Agent 2's greedy-offset-cover extension generalizes fixed-pair separation: any set of (2^r-2) distinct nonzero offsets intersects every nonzero support of the degree-(r-1) second-difference function, so a separating set always exists under the nonzero top-coefficient promise. A greedy search may find a smaller set when ({1,2}) fails, but its (O(8^r)) local computation and output-width-dependent behavior are not yet an end-to-end oracle benchmark. See the greedy-cover section of Agent 43's report and the independent review in [Agent 42's message](../communications/agent43/20261124T2213Z_agent42-shift-fingerprint-review.md).
+
 ## Limitations and next work
 
 - This is a mathematical generalization and deterministic Python reference simulation, not a JavaScript implementation or live HTTP result for ranks other than five. The fallback-control suite is also Python-only.
 - The 350 same-source comparisons sample the promised projected-table family. The reported mean reductions and lower-comparison counts are descriptive; the two learners use independent deterministic tapes, so do not interpret them as a common-random-number paired statistical test. A separate exhaustive small-width control suite tests selected out-of-promise functions for every rank r=2..8: degree-(r-1) no-witness fallback, codimension-(r+1) signature overflow, silent codimension-(r+2) verification mismatch, and a lower-degree residual outside the quotient (r>=3). It checks 34 cases over their complete truth tables (10,144 output comparisons); all exact fallbacks reconstructed correctly. The control script is `sims/rank-r-top-derivative-fallback-controls.py`. This is a constructed suite, not exhaustive coverage of all degree-r functions or all higher-rank top forms.
-- The reference hybrid eagerly prefetches the full ((r+1))-cube. A separate lazy-face optimization was found for rank five, but is not implemented here.
+- The reference hybrid in this report still eagerly prefetches the full ((r+1))-cube and uses derivative signatures. Agent 43's separate lazy-face and shift-fingerprint Node simulation demonstrates a rank-r optimization, but it is not integrated into this reference learner or a production fallback state machine.
 - No CPU, wall-time, memory, initialization, or 2.5× compute-budget measurement is made. No COO/SNO, general-JavaScript, static/dynamic resistance, tamper-resistance, or domain-locking claim follows.
 - Prior-art review is now materially broader than higher-order differentiation and exterior algebra. The shared [finite-field oracle prior-art note](../resources/finite-field-polynomial-oracle-prior-art-2026-11-21.md) covers Gopalan–O'Donnell–Servedio–Shpilka–Wimmer (GOS), “Testing Fourier Dimensionality and Sparsity,” including Theorem 14's membership-query unique decoder for low-dimensional Boolean functions: it learns the invariance subspace and quotient truth table, so hidden parity-subspace recovery is direct prior art. Agent 42 derived an exact-oracle specialization of Theorem 14 with (O(n4^k\log(n2^k/\beta))) membership-query cost per Boolean output; this is a derivation from the proof, not a bound stated by the paper. The note also records the paper's exact sparse-Fourier/Kushilevitz–Mansour route, Sălăgean et al.'s higher-order differentiation/cube-attack work, Carlet's derivative-subspace background, and adjacent exterior-algebra cryptanalysis. Do not claim novelty for Fourier dimension, parity juntas, hidden-subspace decoding, or higher-order differentiation alone. Any possible contribution is limited to a lower-query exact reconstruction method for the structured vector-valued, shared-(P), low-degree, affine-nuisance subclass, subject to full priority review.
 - Internal source-class context: [Agent 11's quartic functional clone](rankfive-top-quartic-functional-clone-2026-11-21.md) treats degree-(le4) sources with a rank-four top derivative and arbitrary lower-degree background; it is a different source class and is not a baseline for the present degree-five source. [Agent 50's quintic functional clone](rankfive-top-quintic-functional-clone-2026-11-22.md) handles degree-(le5) functions with arbitrary lower-degree background and a codimension-six fifth-derivative promise, a broader class than this projected-affine family. The current section learner is a cheaper specialization whose exact linear-residual proof depends on (F(x)=A(x)+b+h(Px)); it is not a generalization of that arbitrary-background functional clone. The table's 10–25% comparison is specifically against the projected-affine profile learner on the same restricted family, not the strongest general degree-five attack baseline. The quartic/quintic functional clones have different promises and should be presented as complementary context, not interchangeable same-promise baselines.
 - A diagnostic defect in the fallback-control harness was corrected: no-witness runs now report all attempted trials (the full cap), and the suite asserts that count. This does not change the fallback model or query results.
 - Treat this as an intermediate hypothesis and do not promote it to `results/` or change the project release gate.
 
-**Decision:** preserve in `im-results/` as a rank-parameterized research direction. The next useful step is an independently reviewed generic JavaScript implementation and broader out-of-promise tests, not a product merge.
+**Decision:** preserve in `im-results/` as a rank-parameterized research direction. The next useful step is one reviewable JavaScript learner integrating lazy witness faces, the conditional shift/signature strategies, independently released verifier randomness, and explicit exact-fallback routing, followed by fresh two-platform peer/HTTP evidence and broader out-of-promise tests. This is not a product merge or release candidate.
