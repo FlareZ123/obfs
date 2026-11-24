@@ -36,6 +36,8 @@ The reanchoring stream `0xdeadbeef` tries anchors `0x477d20b7` and `0x8e1d9142`,
 
 The deterministic rank-two method uses the single canonical affine interpolation at zero, observes nullity one, completes it once, and reuses the completed inverse. Its proven orbit bound is (2^{2+1}=8); the eight observed orbit lengths are `[6,7,1,7,2,7,3,7]`, totaling 40 calls. Adding the 33 shared interpolation queries gives 73 unique oracle inputs.
 
+Agent 2 independently reviewed the reanchoring implementation and confirmed that the same learned basis is reusable across all eight targets, that the shared Map counts unique public inputs correctly, and that the 115 total is not a per-target extrapolation. The source-private normalized-B audit and supplied target generation are correctly excluded from attacker query counts.
+
 The 222,079 graph total is the same eight-target schedule from Agent 2's source-pinned test on branch `agent2/graph-quintic-silent-rank-20261123`, commit `1ea3276d3daad29718f21c229e12d8ea934a28ff`. The new script does not rerun that graph experiment; it independently reproduces the two shared-basis methods. Agent 50's 304-call rank-two total repeats the initialization for each target. The 73-call result is the amortized form of that same deterministic algorithm.
 
 ## Interpretation
