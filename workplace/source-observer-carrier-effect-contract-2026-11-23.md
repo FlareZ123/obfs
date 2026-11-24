@@ -148,8 +148,17 @@ The canonical plan should expose at least:
  * @typedef {string} BindingRefKey - canonical serialization of BindingRef or RealmBindingRef
  * @typedef {string} DefinitionRefKey - canonical serialization of BindingRefKey + definition identity
  * @typedef {string} SourceSpanId - canonical serialization of SourceUnitRef + start/end offsets
- * @typedef {'PrimitiveGet'|'PrimitiveObjectPatternGet'|'PrimitiveIterator'|'IteratorDispatch'|'PrimitiveMethodDispatch'|'UnknownHostCall'|'UnknownHostArgumentEscape'|'AccessorCall'|'ProxyInternalMethod'|'ProxyHasProperty'|'ProxyOwnKeys'|'ProxyGetOwnProperty'|'ObjectCopyDispatch'|'WithBindingLookup'|'PromiseHandlerDispatch'} HostEffectKind
+ * @typedef {'PrimitiveGet'|'PrimitiveObjectPatternGet'|'PrimitiveIterator'|'IteratorDispatch'|'PrimitiveMethodDispatch'|'UnknownHostCall'|'UnknownHostArgumentEscape'|'AccessorCall'|'ProxyInternalMethod'|'ProxyHasProperty'|'ProxyOwnKeys'|'ProxyGetOwnProperty'|'ObjectCopyDispatch'|'WithBindingLookup'|'PromiseHandlerDispatch'|'WebIDLStringConversion'|'WebIDLNamedPropertySet'|'WebIDLAttributeSet'} HostEffectKind
  * @typedef {'Primitive'|'Callable'|'HostHeldCallable'|'HostOpaque'|'Unknown'} ValueKind
+ * @typedef {Object} HostEffectRecord
+ * @property {HostEffectKind} kind
+ * @property {SourceSpanId} operationSpan
+ * @property {string|null} interfaceIdentity
+ * @property {string|null} receiverIdentity
+ * @property {string|null} effectiveOperationIdentity
+ * @property {string|null} conversionTarget - DOMString, USVString, ByteString, etc.
+ * @property {'method-argument'|'named-property-setter-value'|'attribute-setter-value'|'computed-property-key'|null} operandRole
+ * @property {number|null} argumentIndex
  * @typedef {'ExactSource'|'FramePosition'|'CallableMetadata'|'UnknownHostEffect'} ObservationEffect
  *
  * @typedef {Object} SourceObservationPlan
@@ -160,6 +169,7 @@ The canonical plan should expose at least:
  * @property {ReadonlyMap<SourceSpanId, ReadonlySet<DefinitionRefKey>>} reachingDefinitions - runtime definitions that can reach this callsite
  * @property {ReadonlyMap<DefinitionRefKey, ReadonlySet<DefinitionRefKey>>} callTargets
  * @property {ReadonlyMap<DefinitionRefKey, ReadonlySet<DefinitionRefKey>>} activeFrameTargets
+ * @property {ReadonlyMap<SourceSpanId, ReadonlyArray<HostEffectRecord>>} hostEffects
  * @property {ReadonlyMap<SourceSpanId, ReadonlySet<ObservationEffect>>} effects
  * @property {ReadonlyMap<SourceSpanId, ReadonlySet<SourceSpanId>>} semanticClosures
  * @property {ReadonlySet<SourceSpanId>} unsupportedSpans
@@ -303,3 +313,20 @@ Keep the four-bit `ObservationEffect` union. Explicitly define `ExactSource` to 
 ### Callsite identity
 
 The `hostArgumentEdges` map is keyed by qualified `SourceSpanId` (or a dedicated `CallSiteRef`), never an unqualified string. Source spans, callsites, BindingRefs, DefinitionRefs and effect closures all carry source-unit and generation identity.
+
+
+## Agent 8 Web IDL conversion refinement (24 November)
+
+Web IDL string conversion is an explicit host-effect producer, not a generic JavaScript method-name rule. Add `WebIDLStringConversion`, `WebIDLNamedPropertySet` and `WebIDLAttributeSet` events (or one structured conversion event with equivalent operation metadata). A record must retain interface/receiver identity, effective method or descriptor provenance, conversion target (`DOMString`, `USVString`, `ByteString`, etc.), operation form, operand position and argument index. When the converted value is a function, native ECMAScript string conversion can expose exact function source; when it is an object, ToPrimitive may invoke user hooks. Do not assume every Web IDL conversion is source-observing; prove the value and effective operation.
+
+Keep the Storage routes distinct:
+
+1. `storage.setItem(key, value)` is an explicit method call; both arguments undergo DOMString conversion, subject to the actual method identity/override.
+2. `storage[key] = value` first applies ECMAScript `ToPropertyKey` to `key`, then the Storage legacy named-property setter converts only `value` to DOMString. This does not look up or invoke the JS-visible `storage.setItem` property.
+3. A function-valued computed key has its own `ToPropertyKey` conversion before the named setter; analyze it independently from the assigned value's DOMString conversion.
+
+Replacing `Storage.prototype.setItem` or defining an own `localStorage.setItem` can intercept explicit method calls while the native named-property setter still runs and stringifies the assigned value. This is why a method-name-only `.setItem` veto is unsound. The current test evidence includes the [Storage value-conversion matrix](../im-results/storage-value-coercion-hooks-2026-11-23.md), the [three-path Storage source report](../im-results/agent19-sco-create-handler-storage-source-2026-11-23.md), and the [ten-sink Web IDL capability matrix](../im-results/webidl-domstring-source-capability-matrix-2026-11-23.md).
+
+The same structured conversion event should cover `Window.name` attribute assignment and bounded `Headers` / `URLSearchParams` constructor/method paths. It should also cover native DOM/CSSOM sinks from the ten-sink matrix: `CSSStyleDeclaration.setProperty`, `Element.setAttribute`, `CSS.escape`, `Element.id`, `Element.textContent`, `Document.createTextNode`, `Document.createComment`, `Element.insertAdjacentText`, `Element.append` and `Element.replaceChildren`. These are native Web IDL conversions, not a denylist of method names.
+
+The four-bit `ObservationEffect` remains separate from the host-effect event: a Web IDL conversion may produce `ExactSource` when a callable is stringified, `UnknownHostEffect` when user conversion hooks execute, or neither when the conversion is proven inert. Keep the callable/receiver/value closure and native descriptor identity in the plan.
