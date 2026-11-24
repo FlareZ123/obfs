@@ -724,7 +724,12 @@ function summarizeAmbientCallEffects(ast,sourceType) {
                  !isDefinitelyPrimitive(node.right))) {
         addReason(fn,{kind:'to-primitive',start:node.start,end:node.end});
       } else if(node.type==='UnaryExpression'&&['+','-','~'].includes(node.operator)&&
-                !definitelyPrimitiveExpression(node.argument)) {
+                !isDefinitelyPrimitive(node.argument)) {
+        addReason(fn,{kind:'to-primitive',start:node.start,end:node.end});
+      } else if(node.type==='UpdateExpression'&&!isDefinitelyPrimitive(node.argument)) {
+        addReason(fn,{kind:'to-primitive',start:node.start,end:node.end});
+      } else if(node.type==='AssignmentExpression'&&node.operator!=='='&&
+                !isDefinitelyPrimitive(node.left)) {
         addReason(fn,{kind:'to-primitive',start:node.start,end:node.end});
       } else if(node.type==='ReturnStatement'&&fn.async&&node.argument&&
                 !isDefinitelyPrimitive(node.argument)) {
