@@ -365,11 +365,12 @@
     "sims/reanchor-dense-compatibility-screen.js",
     "test/reanchor-dense-compatibility-screen.test.js",
     "sims/sco-four-shear-reanchor-matched-http.js",
-    "test/sco-four-shear-reanchor-matched-http.test.js"
+    "test/sco-four-shear-reanchor-matched-http.test.js",
     "test/agent1-native-callback-browser.js",
     "test/agent1-native-callback-browser.test.js",
     "test/agent1-host-held-callback-browser.test.js",
     "test/agent1-host-held-callback-browser.js",
+    "test/agent1-sno-multifile-host-held-cli.test.js"
   ],
   "exclude": [
     "node_modules"
