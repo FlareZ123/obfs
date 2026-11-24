@@ -100,9 +100,10 @@ function definitelyPrimitiveExpression(node) {
  * identifier aliases. Every other call target is ambient/unknown.
  *
  * This summary is deliberately narrower than a complete host-effect model:
- * it does not analyze property getters, Proxy traps, Web IDL, primitive
- * prototype reads, cross-file imported function bodies, or error-stack
- * observation. It is not transform authorization.
+ * ordinary member getters/Proxy Get/Set, primitive prototype reads, Web IDL,
+ * cross-file imported function bodies, parameter/return/aggregate value flow,
+ * and error-stack observation remain unresolved. It is not transform
+ * authorization; safe means only that no modeled effect was found.
  *
  * @param {AstNode} ast
  * @param {SourceType} sourceType
@@ -370,7 +371,8 @@ function summarizeAmbientCallEffects(ast,sourceType) {
         addReason(fn,{kind:'new-expression',start:node.start,end:node.end});
       } else if(node.type==='TaggedTemplateExpression') {
         addReason(fn,{kind:'tagged-template',start:node.start,end:node.end});
-      } else if(node.type==='AwaitExpression') {
+      } else if(node.type==='AwaitExpression'&&
+                !definitelyPrimitiveExpression(node.argument)) {
         addReason(fn,{kind:'await',start:node.start,end:node.end});
       } else if(node.type==='YieldExpression') {
         addReason(fn,{kind:'yield',start:node.start,end:node.end});
@@ -404,7 +406,7 @@ function summarizeAmbientCallEffects(ast,sourceType) {
                   !definitelyPrimitiveExpression(expression))) {
         addReason(fn,{kind:'to-primitive',start:node.start,end:node.end});
       } else if(node.type==='BinaryExpression'&&
-                !['in','instanceof'].includes(node.operator)&&
+                ['+','-','*','/','%','**','==','!=','<','>','<=','>=','|','&','^','<<','>>','>>>'].includes(node.operator)&&
                 (!definitelyPrimitiveExpression(node.left)||
                  !definitelyPrimitiveExpression(node.right))) {
         addReason(fn,{kind:'to-primitive',start:node.start,end:node.end});
