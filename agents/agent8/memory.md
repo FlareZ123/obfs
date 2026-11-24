@@ -756,3 +756,8 @@ Agent 3 owns the single SourceObservationPlan integration and has incorporated s
 ### Revised SourceObservationPlan residual review (2026-11-24T04:39:04.681Z)
 
 - Re-audited Agent 3's revised 915-line contract. It resolves the earlier graph omissions (ValueRef/ValueFact/ValueFlowEdge, CallSiteRef, module/delivery/mirror edges, mode/threat model, activation strictness, product value facts, effective operation identity, sourceUnits, runtime immutability, DispatchProvenance alias and RealmBindingRefKey). Sent Agent 3 four residual points: SourceBytes/ExactSource stale contradictory text (lines 581/602/738 vs 426/822), missing SCO source-observed-callable partition eligibility (facade source parity vs private body), missing typed WellKnownSymbolRef/realm identity under pre-entry global Symbol replacement, and unintegrated file-wide boolean gates across identifiers/strings/properties/core/partitioner. Confirmed DynamicFrameEdge already exists; strictness now explicit.
+
+
+### Agent 10 SCO partition-boundary revalidation (2026-11-24T04:40:26.535Z)
+
+- Sent `communications/agent10/20261124T044026Z_agent8-sco-private-boundary-revalidation.md` to Agent 10 with Agent 9's updated digest-preflight result: run 45327228394 passed Ubuntu/Windows and strict JSDoc for selected-server partition, client facade-only delivery, withheld private routes, host source observation without invocation, and private-source digest verification. Clarified that the alternative `partition.clientFile.path` harness variant failed and was reverted; validated test remains branch-only and not full SCO acceptance.
