@@ -4,7 +4,7 @@ const {resolveLexicalReferences}=require('./agent1-lexical-reference-resolver');
 
 /** @typedef {import('../src/ast').AstNode} AstNode */
 /** @typedef {'module'|'script'|'commonjs'} SourceType */
-/** @typedef {{kind:'unknown-call'|'unresolved-local-call'|'new-expression'|'tagged-template'|'await'|'yield'|'dynamic-import'|'transitive-local-call'|'with-binding-lookup'|'implicit-iterator'|'implicit-object-enumeration'|'implicit-proxy-has'|'implicit-instanceof'|'implicit-delete'|'implicit-destructuring'|'implicit-spread'|'to-primitive'|'to-property-key'|'promise-thenable-assimilation'|'host-held-callable'|'classic-script-global-lexical',start:number,end:number,targetStart?:number,effect?:'DynamicFrame'|'HostHeldCallable'|'ExternalReachability'}} AmbientCallReason */
+/** @typedef {{kind:'unknown-call'|'unresolved-local-call'|'new-expression'|'tagged-template'|'await'|'yield'|'dynamic-import'|'transitive-local-call'|'with-binding-lookup'|'implicit-iterator'|'implicit-object-enumeration'|'implicit-proxy-has'|'implicit-instanceof'|'implicit-delete'|'implicit-destructuring'|'implicit-spread'|'to-primitive'|'to-property-key'|'promise-thenable-assimilation'|'host-held-callable'|'classic-script-global-lexical'|'unknown-member-access',start:number,end:number,targetStart?:number,effect?:'DynamicFrame'|'HostHeldCallable'|'ExternalReachability'}} AmbientCallReason */
 /** @typedef {{node:AstNode,start:number,end:number,bindingIds:number[],bindingNames:string[],ambient:boolean,dynamicFrame:boolean,hostHeldCallable:boolean,externallyReachable:boolean,safe:boolean,reasons:AmbientCallReason[]}} AmbientCallSummary */
 
 /**
@@ -94,6 +94,20 @@ function definitelyPrimitiveExpression(node) {
 }
 
 /**
+ * Return a statically known key for an ordinary object/member property.
+ * @param {AstNode} property
+ * @param {boolean} computed
+ * @returns {string|null}
+ */
+function staticPropertyKey(property,computed) {
+  if(!computed&&property.type==='Identifier')return property.name;
+  if(property.type==='Literal'&&
+     (typeof property.value==='string'||typeof property.value==='number'))
+    return String(property.value);
+  return null;
+}
+
+/**
  * Build a research-only ambient caller/stack effect summary using Agent 1's
  * read-only lexical BindingIds. It recognizes only direct local function
  * declarations, const-bound function expressions, and immutable const
@@ -141,6 +155,83 @@ function summarizeAmbientCallEffects(ast,sourceType) {
        ['write','read-write'].includes(reference.role)) {
       writtenBindings.add(reference.resolution.bindingId);
     }
+  }
+
+  // Only a fresh, non-escaping const object literal with primitive own data
+  // fields can make a member read locally inert. Every other member read/write
+  // remains an unknown getter/Proxy/host effect.
+  /** @type {Map<number,Set<string>>} */
+  const plainRecordProperties=new Map();
+  for(const [bindingId,rows] of declarationsByBinding) {
+    if(rows.length!==1||rows[0].kind!=='const'||writtenBindings.has(bindingId))continue;
+    const declarator=parentByNode.get(rows[0].node);
+    const declaration=declarator&&parentByNode.get(declarator);
+    if(declarator?.type!=='VariableDeclarator'||declaration?.type!=='VariableDeclaration'||
+       declaration.kind!=='const'||parentByNode.get(declaration)===ast||
+       declarator.init?.type!=='ObjectExpression')continue;
+    const keys=new Set();
+    let valid=true;
+    for(const property of declarator.init.properties) {
+      if(property.type!=='Property'||property.kind!=='init'||property.method||property.computed||
+         !definitelyPrimitiveExpression(property.value)) {
+        valid=false;
+        break;
+      }
+      const key=staticPropertyKey(property.key,false);
+      if(key===null||key==='__proto__') {
+        valid=false;
+        break;
+      }
+      keys.add(key);
+    }
+    if(!valid||keys.size===0)continue;
+    for(const reference of resolved.references) {
+      if(reference.resolution.kind!=='local'||reference.resolution.bindingId!==bindingId)continue;
+      const member=parentByNode.get(reference.node);
+      if(reference.role!=='read'||member?.type!=='MemberExpression'||
+         member.object!==reference.node||member.optional) {
+        valid=false;
+        break;
+      }
+      const key=staticPropertyKey(member.property,member.computed);
+      const use=parentByNode.get(member);
+      if(key===null||!keys.has(key)||
+         (use?.type==='CallExpression'&&use.callee===member)||
+         (use?.type==='NewExpression'&&use.callee===member)||
+         (use?.type==='TaggedTemplateExpression'&&use.tag===member)||
+         (use?.type==='AssignmentExpression'&&use.left===member)||
+         (use?.type==='UpdateExpression'&&use.argument===member)||
+         (use?.type==='UnaryExpression'&&use.operator==='delete'&&use.argument===member)||
+         (use?.type==='ForInStatement'&&use.left===member)||
+         (use?.type==='ForOfStatement'&&use.left===member)) {
+        valid=false;
+        break;
+      }
+    }
+    if(valid)plainRecordProperties.set(bindingId,keys);
+  }
+
+  /** @param {AstNode} node @returns {boolean} */
+  function isPlainRecordMemberRead(node) {
+    if(node.type!=='MemberExpression'||node.optional||node.object.type!=='Identifier')return false;
+    const reference=resolved.at(node.object.start);
+    if(reference?.resolution.kind!=='local')return false;
+    const keys=plainRecordProperties.get(reference.resolution.bindingId);
+    const key=staticPropertyKey(node.property,node.computed);
+    if(!keys||key===null||!keys.has(key))return false;
+    const use=parentByNode.get(node);
+    return !((use?.type==='CallExpression'&&use.callee===node)||
+      (use?.type==='NewExpression'&&use.callee===node)||
+      (use?.type==='TaggedTemplateExpression'&&use.tag===node)||
+      (use?.type==='AssignmentExpression'&&use.left===node)||
+      (use?.type==='UpdateExpression'&&use.argument===node)||
+      (use?.type==='UnaryExpression'&&use.operator==='delete'&&use.argument===node)||
+      (use?.type==='ForInStatement'&&use.left===node)||
+      (use?.type==='ForOfStatement'&&use.left===node));
+  }
+  /** @param {AstNode|null|undefined} node @returns {boolean} */
+  function isDefinitelyPrimitive(node) {
+    return definitelyPrimitiveExpression(node)||Boolean(node&&isPlainRecordMemberRead(node));
   }
 
   // A VariableDeclarator initializer is a runtime binding write even though
@@ -372,7 +463,7 @@ function summarizeAmbientCallEffects(ast,sourceType) {
       } else if(node.type==='TaggedTemplateExpression') {
         addReason(fn,{kind:'tagged-template',start:node.start,end:node.end});
       } else if(node.type==='AwaitExpression'&&
-                !definitelyPrimitiveExpression(node.argument)) {
+                !isDefinitelyPrimitive(node.argument)) {
         addReason(fn,{kind:'await',start:node.start,end:node.end});
       } else if(node.type==='YieldExpression') {
         addReason(fn,{kind:'yield',start:node.start,end:node.end});
@@ -395,26 +486,28 @@ function summarizeAmbientCallEffects(ast,sourceType) {
       } else if(node.type==='UnaryExpression'&&node.operator==='delete'&&
                 node.argument.type==='MemberExpression') {
         addReason(fn,{kind:'implicit-delete',start:node.start,end:node.end});
-      } else if(node.type==='MemberExpression'&&node.computed&&
-                !definitelyPrimitiveExpression(node.property)) {
-        addReason(fn,{kind:'to-property-key',start:node.start,end:node.end});
+      } else if(node.type==='MemberExpression') {
+        if(node.computed&&!isDefinitelyPrimitive(node.property))
+          addReason(fn,{kind:'to-property-key',start:node.start,end:node.end});
+        if(!isPlainRecordMemberRead(node))
+          addReason(fn,{kind:'unknown-member-access',start:node.start,end:node.end});
       } else if(node.type==='Property'&&node.computed&&
-                !definitelyPrimitiveExpression(node.key)) {
+                !isDefinitelyPrimitive(node.key)) {
         addReason(fn,{kind:'to-property-key',start:node.start,end:node.end});
       } else if(node.type==='TemplateLiteral'&&
                 node.expressions.some((/** @type {AstNode} */ expression)=>
-                  !definitelyPrimitiveExpression(expression))) {
+                  !isDefinitelyPrimitive(expression))) {
         addReason(fn,{kind:'to-primitive',start:node.start,end:node.end});
       } else if(node.type==='BinaryExpression'&&
                 ['+','-','*','/','%','**','==','!=','<','>','<=','>=','|','&','^','<<','>>','>>>'].includes(node.operator)&&
-                (!definitelyPrimitiveExpression(node.left)||
-                 !definitelyPrimitiveExpression(node.right))) {
+                (!isDefinitelyPrimitive(node.left)||
+                 !isDefinitelyPrimitive(node.right))) {
         addReason(fn,{kind:'to-primitive',start:node.start,end:node.end});
       } else if(node.type==='UnaryExpression'&&['+','-','~'].includes(node.operator)&&
                 !definitelyPrimitiveExpression(node.argument)) {
         addReason(fn,{kind:'to-primitive',start:node.start,end:node.end});
       } else if(node.type==='ReturnStatement'&&fn.async&&node.argument&&
-                !definitelyPrimitiveExpression(node.argument)) {
+                !isDefinitelyPrimitive(node.argument)) {
         addReason(fn,{kind:'promise-thenable-assimilation',start:node.start,end:node.end});
       }
     });
