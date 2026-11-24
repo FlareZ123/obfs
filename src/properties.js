@@ -720,6 +720,7 @@ function proveLocalObject(ast, rootName, bindings, importedIdentityFunctions=new
     const scope=scopes.get(name);
     if(!scope)return false;
     let scopeContainsMember=false;
+    /** @type {AstNode|null} */
     let cursor=member;
     while(cursor) {
       if(cursor===scope){scopeContainsMember=true;break;}
@@ -787,6 +788,7 @@ function proveLocalObject(ast, rootName, bindings, importedIdentityFunctions=new
          !isNonReferenceIdentifier(candidate,parent,key)) {
         const scope=scopes.get(candidate.name);
         let inScope=false;
+        /** @type {AstNode|null} */
         let cursor=candidate;
         while(scope&&cursor) {
           if(cursor===scope){inScope=true;break;}
