@@ -283,3 +283,48 @@ for(const mode of /** @type {Array<'coo'|'sno'|'sco'>} */ (['coo','sno','sco']))
     });
   }
 }
+
+
+const nestedStaticBlockFunctionExpressionReader=[
+  'class Outer{',
+  '  static{',
+  '    const owner={secretField:7};',
+  '    const read=function(ownerAlpha){return ownerAlpha.secretField;};',
+  '    this.observed=read(owner);',
+  '  }',
+  '}',
+  'module.exports=Outer;'
+].join('\\n');
+
+const nestedStaticBlockClassExpressionReader=[
+  'const Outer=class Outer{',
+  '  static{',
+  '    const owner={secretField:7};',
+  '    function read(ownerAlpha){return ownerAlpha.secretField;}',
+  '    this.observed=read(owner);',
+  '  }',
+  '};',
+  'module.exports=Outer;'
+].join('\\n');
+
+for(const mode of /** @type {Array<'coo'|'sno'|'sco'>} */ (['coo','sno','sco'])){
+  for(const [label,code] of [
+    ['nested function expression',nestedStaticBlockFunctionExpressionReader],
+    ['outer class expression',nestedStaticBlockClassExpressionReader]
+  ]){
+    test(mode+' '+label+' inside class source must preserve outer class source',()=>{
+      const native=runOuterClassSource(code);
+      const transformed=obfuscateFiles([{
+        path:'entry.cjs',sourceType:'commonjs',code
+      }],{
+        mode,seed:'nested-class-expression-source/'+mode+'/'+label,
+        strings:false,identifiers:false
+      }).files[0];
+      assert.equal(transformed.metrics.properties,0,
+        mode+': '+label+' source is embedded in Outer.toString()');
+      const emitted=runOuterClassSource(String(transformed.code));
+      assert.equal(emitted.value,native.value);
+      assert.equal(emitted.source,native.source);
+    });
+  }
+}
