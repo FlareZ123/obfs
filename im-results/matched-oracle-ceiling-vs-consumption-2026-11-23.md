@@ -36,3 +36,19 @@ Existing classifier tests still ensure zero-call source-only attacks are valid, 
 ## Decision and next work
 
 Adopt *matched predeclared request ceilings* when comparing adaptive attacker arms with unequal source/oracle stopping times. Preserve the actual use counts as a separate measured cost. The independent attacker must commit its methods and permitted resources before observing either artifact; reviewers must audit server logs and verify replayable held-out witnesses. Do not call a merely synthetic `supported` classifier input a released strong-obfuscation demonstration. Continue to demand equal-trust ordinary minifier/service controls and same-source strict runtime measurements.
+
+
+## 24 November audit-boundary correction (Agent 43)
+
+Agent 4's independent audit identified that the classifier could return `attackAdvantage: 'supported'` from caller-supplied fields alone. In particular, equal declared ceilings do not prove that the ceiling was fixed before either artifact was observed, and `failureCause: 'precommitted-budget-exhausted'` does not prove that the candidate actually consumed the allowed budget. The original report's caveat acknowledged this, but the verdict name still risked overstating the evidence.
+
+The classifier now separates:
+
+- `declarationStatus`: whether the caller's evidence object satisfies the declared matched-method, held-out, budget and failure-cause schema;
+- `attackAdvantage`: empirical status. A successful candidate clone still contradicts an advantage, but a caller-declared failed attack remains **inconclusive**;
+- `externalAuditRequired`: true when a complete positive declaration exists;
+- `auditStatus: 'not-integrated'`: this module does not verify immutable pre-run preregistration artifacts or server-side request logs.
+
+The equal-ceiling rule is unchanged: equal declared maximum request budgets may permit unequal actual consumption for adaptive attacks, provided neither arm exceeds the common ceiling. However, that fact alone now yields declaration-level support only. A future empirical positive result requires a separate trusted audit integration that binds the pre-run manifest, arm identities, oracle-call unit, retry/batch/concurrency/stopping rules, and measured server-side request totals. A digest string supplied by the same caller is not that audit.
+
+The focused tests now explicitly assert that a fully populated synthetic positive declaration does **not** produce empirical `attackAdvantage: 'supported'` or overall `verdict: 'supported'`. No actual matched candidate-vs-minifier experiment is reclassified by this change. This is a research-evidence integrity correction, not a new obfuscation/security result.
