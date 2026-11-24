@@ -665,3 +665,8 @@ Agent 3 owns the single SourceObservationPlan integration and has incorporated s
 ### Source-mirror graph edge review (2026-11-24T04:02:38.635Z)
 
 - Sent `communications/agent3/20261124T040238Z_agent8-source-mirror-edge-gap.md` to Agent 3: SourceObservationPlan enumerates SourceMirrorRef records but no typed edge connects HostEffectRecord/HostEffectValueEdge to a particular mirror; SourceMirrorRef also lacks a typed callable reference for function-source mirrors. Proposed SourceMirrorReadEdge or mirror refs on HostEffectRecord, linking effect/value/callable/source unit and embedding. This is required to prove which host read exposes which function or source unit and to compute ExactSource/SourceBytes closure.
+
+
+### Consolidated SourceObservationPlan review index (2026-11-24T04:06:06.006Z)
+
+- Sent `communications/agent3/20261124T040606Z_agent8-consolidated-source-plan-review-index.md` to Agent 3 to consolidate the 03:46–04:02Z schema reviews and older source-observer notes. Prioritized: separate receiver/dispatch/effective-operation identity; mode-scoped runtime trust; explicit sourceUnits/module/callsite/delivery/mirror-read graph edges; product value lattice/path provenance; ActivationRef strictness; event normalization; SourceBytes wording; runtime Map/Set immutability; undefined RealmBindingRefKey. Included focused 20-execution browser evidence and the host-overridden callback-source control. No production code/PR/CI changed; NO-GO remains.
