@@ -476,3 +476,34 @@ test('SNO Node Web Storage shadowed Symbol spelling is not a well-known coercion
   assert.equal(pair.emitted.independent,23);
   console.log(JSON.stringify({mode:'sno',case:'shadowed-Symbol-not-well-known',observer:pair.observes,bindings:pair.bindings,sourceParity:true}));
 });
+
+
+test('SNO Node Web Storage immutable Symbol.toPrimitive alias remains conservatively refused',{
+  skip:!supportsExperimentalWebStorage,
+  timeout:30000
+},async()=>{
+  const source=[
+    "'use strict';",
+    'const toPrimitiveKey=Symbol.toPrimitive;',
+    'function inspect(){const privateLocal=71;return privateLocal;}',
+    'function independent(){const independentLocal=29;return independentLocal;}',
+    'inspect[toPrimitiveKey]=function(hint){return hint==="string"?"alias-symbol-string":"wrong";};',
+    'localStorage.clear();',
+    'localStorage.setItem("alias-symbol",inspect);',
+    'const result={stored:localStorage.getItem("alias-symbol"),',
+    '  value:inspect(),independent:independent()};',
+    'process.stdout.write(JSON.stringify(result));'
+  ].join('\n');
+  const pair=await runSnoDifferential(source,'sno-node-webstorage-symbol-alias','obfs-sno-symbol-alias-');
+  assert.equal(pair.observes,true,
+    'the current symbol-key alias resolver does not prove @@toPrimitive');
+  assert.equal(pair.bindings,0);
+  assert.ok(pair.protectedCode.includes('privateLocal'));
+  assert.equal(pair.native.stored,'alias-symbol-string');
+  assert.equal(pair.emitted.stored,'alias-symbol-string');
+  assert.equal(pair.native.value,71);
+  assert.equal(pair.emitted.value,71);
+  assert.equal(pair.native.independent,29);
+  assert.equal(pair.emitted.independent,29);
+  console.log(JSON.stringify({mode:'sno',case:'immutable-Symbol.toPrimitive-alias',observer:pair.observes,bindings:pair.bindings,stored:pair.emitted.stored,conservativeRefusal:true}));
+});
