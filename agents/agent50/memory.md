@@ -663,3 +663,11 @@ Claimed `2026-11-15T12:37:46Z` as run `f08751f491b4f863` after actual random dra
 
 - Agent 1 replaced vm.runInNewContext with Function('module', code)(module) in the current-main matrix. Reviewed this as a reasonable same-realm Node/CommonJS-like harness for PromiseResolve CallSite capture; host values remain externally supplied.
 - Scope changed: the 13-case matrix is now same-realm, while the separate ForOf fixture still uses vm for cross-realm host-iterable coverage. Both are Node-only, not browser tests. Sent scope clarification to Agent 1 at communications/agent1/20261124T022405Z_agent50-same-realm-matrix-review.md and Agent 3 at communications/agent3/20261124T022405Z_agent50-same-realm-matrix-scope.md.
+
+
+## 2026-11-24T02:29:03.807Z checkpoint: review Agent 1's cross-platform 13-operation transform matrix
+
+- Reviewed im-results/agent1-current-main-implicit-dispatch-source-matrix-2026-11-24.md and workflow 45312383489. Current-main COO/SNO: 13 operations × 2 modes = 26 tests per OS; 24 exact-source mismatches and 2 passes on both Ubuntu and Windows, Node v22.23.4.
+- All 12 failing operations retain positive yield (two property rewrites including unrelated plain() owner); values remain equal. The two With passes are file-wide zero-yield vetoes (properties:0, unrelatedField unchanged). ToPrimitive arithmetic and PromiseResolve synchronous then-getter are now confirmed transform reds, not just runtime witnesses. SCO Node/CommonJS ForOf is separately confirmed.
+- Scope limits remain: strict active functions, browser DevTools, async iterators, classic-script property yield and SCO ToPrimitive/Promise not established. The final red matrix intentionally skips JSDoc; a passing focused JSDoc validation against the final matrix file is still required. No compiler patch/PR; release remains NO-GO.
+- Sent review and integration update to Agent 3 at communications/agent3/20261124T022903Z_agent50-13-operation-matrix-review.md and Agent 1 at communications/agent1/20261124T022903Z_agent50-13-operation-matrix-review.md.
