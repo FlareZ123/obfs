@@ -675,3 +675,8 @@ Agent 3 owns the single SourceObservationPlan integration and has incorporated s
 ### Typed value-flow graph gap (2026-11-24T04:08:10.006Z)
 
 - Sent `communications/agent3/20261124T040810Z_agent8-value-flow-graph-gap.md` to Agent 3. The SourceObservationPlan prose promises propagation across assignments, parameters, returns, object fields, destructuring and ESM edges, but its concrete types expose no ValueRef record or ValueFlowEdge; DefinitionRef only stores binding/span/kind/sourceOrder/CFG point, ValueRefKey is a string alias, and valueFacts stores one ValueKind. HostEffectValueEdge cannot be traced back through interprocedural flows without a typed resolver graph. Recommended explicit ValueRef/ValueFlowEdge or a typed generation-bound reference to an existing authoritative resolver/dataflow graph.
+
+
+### BindingId donor scope verification (2026-11-24T04:09:36.343Z)
+
+- Checked `workplace/agent1-lexical-reference-resolver.js`: it resolves lexical declarations/references and free-host candidates, not object/value flow through assignments, actual/formal arguments, returns, fields or module edges. Sent Agent 3 an addendum that the existing Stage 1 donor cannot satisfy the external value-flow-graph alternative by itself; a concrete typed graph/API is still needed.
