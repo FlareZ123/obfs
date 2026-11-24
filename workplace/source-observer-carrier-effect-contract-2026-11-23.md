@@ -189,9 +189,11 @@ The canonical plan should expose at least:
  * @typedef {string} ValueRefKey
  * @typedef {'get'|'set'|'has'|'deleteProperty'|'ownKeys'|'getOwnPropertyDescriptor'|'getPrototypeOf'|'defineProperty'|'setPrototypeOf'|'isExtensible'|'preventExtensions'|'apply'|'construct'} ProxyInternalMethod
  * @typedef {'local-definition'|'verified-native-intrinsic'|'host-overridden'|'unknown-or-mutable'} DispatchProvenance
- * @typedef {'PrimitiveGet'|'PrimitiveObjectPatternGet'|'PrimitiveIterator'|'IteratorDispatch'|'PrimitiveMethodDispatch'|'UnknownHostCall'|'UnknownHostArgumentEscape'|'AccessorCall'|'ProxyInternalMethod'|'ProxyHasProperty'|'ProxyOwnKeys'|'ProxyGetOwnProperty'|'ProxyGet'|'ProxySet'|'ProxyDelete'|'CustomHasInstance'|'ObjectCopyDispatch'|'WithBindingLookup'|'ToPrimitiveDispatch'|'ToPropertyKeyDispatch'|'PromiseResolveThenableGet'|'PromiseThenableJob'|'PromiseHandlerDispatch'|'WebIDLStringConversion'|'WebIDLNamedPropertySet'|'WebIDLAttributeSet'|'DOMSourceSerialization'|'DOMSourceRead'|'SourceMirrorRead'|'SRIIntegrityPin'|'BrowserImportMapResolution'} HostEffectKind
+ * @typedef {'PrimitiveGet'|'PrimitiveObjectPatternGet'|'PrimitiveIterator'|'IteratorDispatch'|'PrimitiveMethodDispatch'|'UnknownHostCall'|'UnknownHostArgumentEscape'|'AccessorCall'|'ProxyInternalMethod'|'ProxyHasProperty'|'ProxyOwnKeys'|'ProxyGetOwnProperty'|'ProxyGet'|'ProxySet'|'ProxyDelete'|'CustomHasInstance'|'ObjectCopyDispatch'|'WithBindingLookup'|'ToPrimitiveDispatch'|'ToPropertyKeyDispatch'|'PromiseResolveThenableGet'|'PromiseThenableJob'|'PromiseHandlerDispatch'|'IntrinsicCallbackDispatch'|'WebIDLStringConversion'|'WebIDLNamedPropertySet'|'WebIDLAttributeSet'|'DOMSourceSerialization'|'DOMSourceRead'|'SourceMirrorRead'|'SRIIntegrityPin'|'BrowserImportMapResolution'} HostEffectKind
  * @typedef {'Primitive'|'Callable'|'HostHeldCallable'|'HostOpaque'|'Unknown'} ValueKind
  * @typedef {'trigger'|'observed'} HostEffectValueRole
+ * @typedef {'synchronous'|'deferred'|'unknown'|null} CallbackTiming
+ * @typedef {'explicit-argument'|'object-provided-method'|'internal-callback'|'unknown'|null} CallbackRole
  * @typedef {'ExactSource'|'FramePosition'|'CallableMetadata'|'UnknownHostEffect'} ObservationEffect
  *
  * @typedef {Object} HostEffectRecord
@@ -210,6 +212,8 @@ The canonical plan should expose at least:
  * @property {string|null} operandPath - nested object/array/iterator path
  * @property {DispatchProvenance} dispatchProvenance
  * @property {string|null} hostContractId
+ * @property {CallbackRole} callbackRole - explicit callback argument vs object-provided method
+ * @property {CallbackTiming} callbackTiming - synchronous dispatch vs deferred job
  *
  * @typedef {Object} HostEffectValueEdge
  * @property {HostEffectId} effectId
@@ -558,3 +562,35 @@ The effect bits also imply different edit closures:
 - **UnknownHostEffect:** if receiver, dispatch provenance, trigger/observed value or active-frame set is unresolved, refuse the affected semantic closure (or the entire declared group when closure cannot be bounded).
 
 The operation's source span, the active activation span, the observed callable/source unit and the trigger operand must all retain source-unit/generation qualification. The same HostEffectId must not be reused across source generations or SCO request variants.
+
+
+## Agent 3 native intrinsic callback-dispatch evidence (24 November 2026)
+
+The new intermediate donor is on branch [`agent3/intrinsic-callback-dispatch-probe-20261124`](https://github.com/FlareZ123/obfs/tree/agent3/intrinsic-callback-dispatch-probe-20261124). It adds a Node 22.16.0 runtime probe and a focused current-main compiler differential; no production code was changed.
+
+### Runtime witness
+
+The runtime script/report cover eight synchronous native callback paths plus one deferred Promise control:
+- JSON.stringify `toJSON`, replacer; JSON.parse reviver;
+- Array sort comparator, String replace callback, Array map callback, Map forEach callback and Array.from mapFn;
+- Promise.then handler as a deferred no-active-frame control.
+
+All eight synchronous paths expose the active hidden frame name/line/column through V8 CallSite metadata. In this harness `CallSite.getFunction()` is false for those frames. JSON replacer and reviver additionally reach the active sloppy `hidden()` function through the caller chain and retrieve its exact `Function.prototype.toString` source, including `owner.secretField`. The `toJSON` caller chain stops at the object method even though the hidden frame remains visible in stack metadata. Do not generalize exact-source capture to the other callbacks.
+
+A manual same-line source pair shortening `longPrivatePropertyName` to `x` preserves the return value but changes the observed callback frame column 63→41. This is a Node/V8 coordinate witness.
+
+### Current-main COO/SNO differential
+
+Focused manual-validation run [45315861729](https://github.com/FlareZ123/obfs/actions/runs/45315861729) completed successfully on Ubuntu and Windows, Node 22.23.4. The test-only branch checks eight operations × COO/SNO (16 diagnostic controls). Every control asserts:
+- positive property rewrite yield;
+- unrelated `plain()` field renamed;
+- ordinary return value preserved;
+- exact hidden source differs for JSON replacer/reviver, or active hidden-frame column differs for the other six synchronous callback paths.
+
+The unchanged production blobs are `src/ast.js` `c227e6e604635a42663af745fd0cfb194b215a67`, `src/properties.js` `bda3c6097e2679f59bd003fa0aed3e0291d4ba4c`, and `src/core.js` `8d33996821650de540b87502baff00a9e7ea99c7`. Strict project JSDoc, external JSDoc and paired-budget evaluator JSDoc passed on both OS. This establishes additional current-main Node/CommonJS COO/SNO source-observation mismatches, not browser/SCO behavior or full-suite/performance acceptance.
+
+### Plan consequence
+
+Add `IntrinsicCallbackDispatch` as a distinct event producer for verified native built-ins that invoke user code. The event must identify the effective intrinsic, receiver, callback identity and role (explicit argument vs object-provided method), callback timing, dispatch provenance and host contract. It contributes an observed-value edge for the callback/method and an active-frame edge only while the original activation is actually visible. JSON replacer/reviver establish ExactSource in this sloppy Node witness; the other synchronous callbacks establish FramePosition only. A deferred Promise.then callback does not inherit the completed caller frame, though its callback argument remains a separate HostHeldCallable edge.
+
+A familiar spelling is not native identity: a patched JSON/Array/String/Map/Promise method is unknown or mutable unless the mode-specific HostContractRef verifies the effective operation. A verified native intrinsic is not necessarily callback-free. Keep this evidence as an intermediate donor; it does not select a compiler candidate or alter the NO-GO / RELEASE-BLOCKED decision.
