@@ -1030,6 +1030,7 @@ function proveLocalObject(ast, rootName, bindings, importedIdentityFunctions=new
   const aliasUses=[...aliases].flatMap(name=>identifierUses.get(name)??[]);
   aliasUses.sort((a,b)=>a.order-b.order);
   for (const {node,parent,key,ancestors} of aliasUses) {
+    if(process.env.OBFS_DEBUG_CARRIER==='1')console.error('alias-use',node.name,parent?.type,key,privateCarrierAliasBindings.has(node));
     // Accepted private-carrier destructuring contributes its targets as
     // owner aliases, but the target Identifier itself is a binding token,
     // not an executable reference to the owner.
@@ -1134,8 +1135,10 @@ function proveLocalObject(ast, rootName, bindings, importedIdentityFunctions=new
     if (parent.type === 'ArrowFunctionExpression' && key === 'body' &&
         [...functions.values()].some(fn=>
           fn.node===parent && (fn.forwardIndex>=0 || fn.returnsRoot))) continue;
+    if(process.env.OBFS_DEBUG_CARRIER==='1')console.error('alias-use-reject',node.name,parent?.type,key);
     return null;
   }
+  if(process.env.OBFS_DEBUG_CARRIER==='1')console.error('alias-use-complete',[...aliases]);
   // `arguments[0]` aliases parameters invisibly to name-based reference analysis.
   if (identifierUses.has('arguments') &&
       [...functions.values()].some(fn => fn.params.some((/** @type {AstNode} */ p) => p.type === 'Identifier' && aliases.has(p.name)))) return null;
