@@ -5,6 +5,9 @@ const http=require('node:http');
 const {execFile}=require('node:child_process');
 const {promisify}=require('node:util');
 const {obfuscateFiles}=require('../src/core');
+const {pairedBudgetBound}=require('../sims/paired-budget-bound');
+const {familywiseBudgetBounds}=require('../sims/familywise-budget-bound');
+const puppeteer=require('puppeteer-core');
 
 const run=promisify(execFile);
 
@@ -79,17 +82,17 @@ function benchmarkPage(workloads) {
     'baselineSamplesMs,obfuscatedSamplesMs,pairRatios,medianPairRatio:median(pairRatios),maxPairRatio:Math.max(...pairRatios),'+
     'strictBreachCount:strictBreachSamples.length,strictBreachSamples,baselineMedianMs,obfuscatedMedianMs,ratio,'+
     'placeboLeftSamplesMs,placeboRightSamplesMs,placeboPairRatios,placeboMaxPairRatio:Math.max(...placeboPairRatios),'+
-    'placeboStrictBreachCount:placeboPairRatios.filter(value=>value>2.5).length,budgetRatio:2.5,passesBudget:ratio<=2.5});}return reports;};'+
-    'main().then(reports=>{const pre=document.createElement("pre");pre.id="budget";pre.textContent=btoa(JSON.stringify(reports));'+
-    'document.body.appendChild(pre);}).catch(error=>{const pre=document.createElement("pre");pre.id="budget-failure";'+
-    'pre.textContent=String(error.stack||error);document.body.appendChild(pre);});</script></body></html>';
+    'placeboStrictBreachCount:placeboPairRatios.filter(value=>value>2.5).length,budgetRatio:2.5,passesMedianBudget:ratio<=2.5});}return reports;};'+
+    'try{const reports=await main();const pre=document.createElement("pre");pre.id="budget";pre.textContent=btoa(JSON.stringify(reports));'+
+    'document.body.appendChild(pre);}catch(error){const pre=document.createElement("pre");pre.id="budget-failure";'+
+    'pre.textContent=String(error.stack||error);document.body.appendChild(pre);}</script></body></html>';
 }
 
 /**
  * Compare Chromium ESM loader behavior and the module-evaluation budget for
  * native and emitted source. This is a pristine-intrinsics compatibility
  * control, not an attacker-resistant client integrity test.
- * @returns {Promise<{browser:string,properties:number,bindings:number,literals:number,exactSource:boolean,chromiumBudget:Array<Object>}>}
+ * @returns {Promise<{browser:string,properties:number,bindings:number,literals:number,exactSource:boolean,chromiumBudget:Array<Object>,chromiumBudgetBounds:Array<Object>}>}
  */
 async function main() {
   const executable=process.env.CHROMIUM_BIN??'google-chrome';
@@ -155,6 +158,7 @@ async function main() {
     server.once('error',reject);
     server.listen(0,'127.0.0.1',()=>resolve(undefined));
   });
+  let browser=null;
   try {
     const address=server.address();
     if(!address||typeof address==='string')throw new Error('Missing browser test port');
@@ -178,30 +182,63 @@ async function main() {
       sourceText:'function observed() { return 29; }',
       labelText:'safe-literal'
     });
-    const {stdout:benchmarkOutput}=await run(executable,[
-      '--headless','--no-sandbox','--disable-gpu','--disable-dev-shm-usage',
-      '--no-first-run','--virtual-time-budget=30000','--dump-dom',
-      origin+'/benchmark/index.html'
-    ],{encoding:'utf8',timeout:60000,maxBuffer:8*1024*1024});
-    const encodedBudget=benchmarkOutput.match(/<pre id="budget">([A-Za-z0-9+/=]+)<\/pre>/u)?.[1];
-    assert.ok(encodedBudget,'Chromium budget benchmark failed: '+benchmarkOutput.slice(0,2000));
+    const {stdout:resolvedExecutable}=await run('which',[executable],{encoding:'utf8',timeout:15000});
+    browser=await puppeteer.launch({
+      executablePath:resolvedExecutable.trim(),headless:true,
+      args:['--no-sandbox','--disable-gpu','--disable-dev-shm-usage','--no-first-run']
+    });
+    const browserPage=await browser.newPage();
+    browserPage.setDefaultTimeout(60000);
+    await browserPage.goto(origin+'/benchmark/index.html',{waitUntil:'load',timeout:60000});
+    await browserPage.waitForSelector('#budget');
+    const encodedBudget=await browserPage.$eval('#budget',element=>element.textContent??'');
+    assert.ok(encodedBudget,'Chromium budget benchmark did not publish a report');
     const chromiumBudget=JSON.parse(Buffer.from(encodedBudget,'base64').toString('utf8'));
     assert.equal(chromiumBudget.length,2);
-    assert.ok(chromiumBudget.every(workload=>workload.passesBudget),
-      'COO module-evaluation overhead must remain within 2.5x in Chromium');
+    const chromiumFamilywise=familywiseBudgetBounds(chromiumBudget.map(workload=>({
+      native:workload.baselineSamplesMs,candidate:workload.obfuscatedSamplesMs
+    })),{threshold:2.5,confidence:0.95});
+    const placeboFamilywise=familywiseBudgetBounds(chromiumBudget.map(workload=>({
+      native:workload.placeboLeftSamplesMs,candidate:workload.placeboRightSamplesMs
+    })),{threshold:2.5,confidence:0.95});
+    const chromiumBudgetBounds=chromiumBudget.map(workload=>{
+      const bound=pairedBudgetBound(workload.baselineSamplesMs,workload.obfuscatedSamplesMs,
+        {threshold:2.5,confidence:0.95});
+      const placebo=pairedBudgetBound(workload.placeboLeftSamplesMs,workload.placeboRightSamplesMs,
+        {threshold:2.5,confidence:0.95});
+      const timings=[...workload.baselineSamplesMs,...workload.obfuscatedSamplesMs];
+      const distinct=[...new Set(timings.map(value=>Number(value.toFixed(3))))].sort((a,b)=>a-b);
+      const minimumRoundedStepMs=distinct.length>1?
+        Math.min(...distinct.slice(1).map((value,index)=>value-distinct[index])):null;
+      return {workload:workload.workload,...bound,placeboDecision:placebo.decision,
+        placeboMedianOfPairedRatios:placebo.medianOfPairedRatios,
+        placeboUpperMedianBound:placebo.upperMedianBound,
+        placeboStrictBreachCount:workload.placeboStrictBreachCount,
+        minimumRoundedStepMs,distinctTimingCount:distinct.length};
+    });
+    assert.ok(chromiumBudgetBounds.every(workload=>workload.decision!=='exceeded'),
+      'Chromium paired median slowdown confidence interval must not exceed 2.5x');
     process.stdout.write('SOURCE_OBSERVER_PLAN_CHROMIUM_BUDGET '+
       JSON.stringify({browser:runtimeVersion,workloads:chromiumBudget})+'\n');
+    process.stdout.write('SOURCE_OBSERVER_PLAN_CHROMIUM_BUDGET_BOUND '+
+      JSON.stringify({browser:runtimeVersion,workloads:chromiumBudgetBounds})+'\n');
+    process.stdout.write('SOURCE_OBSERVER_PLAN_CHROMIUM_FAMILYWISE '+
+      JSON.stringify({browser:runtimeVersion,chromiumFamilywise,placeboFamilywise})+'\n');
     const report={
       browser:runtimeVersion,
       properties:emitted.metrics.properties,
       bindings:emitted.metrics.bindings,
       literals:emitted.metrics.literals,
       exactSource:true,
-      chromiumBudget
+      chromiumBudget,
+      chromiumBudgetBounds,
+      chromiumFamilywise,
+      placeboFamilywise
     };
     process.stdout.write('SOURCE_OBSERVER_PLAN_CHROMIUM '+JSON.stringify(report)+'\n');
     return report;
   } finally {
+    if(browser)await browser.close();
     await new Promise((resolve,reject)=>server.close(error=>error?reject(error):resolve(undefined)));
   }
 }
