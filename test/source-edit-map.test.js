@@ -226,6 +226,21 @@ test('maps zero-width spans at replacement and deletion boundaries, rejects inte
   assert.equal(deleteInside,null);
 });
 
+
+test('rejects source-span reuse across identical-byte SCO response instances',()=>{
+  const source='const moduleValue=1;';
+  const responseA='sco:get:nonce-A:/module.js';
+  const responseB='sco:get:nonce-B:/module.js';
+  const mapA=applyEditsWithMap(source,[
+    {start:0,end:0,text:'// response A'+String.fromCharCode(10),affinity:'before-node'}
+  ],responseA,PARSER);
+  const spanB=span(responseB,source,0,source.length);
+  assert.equal(sourceGenerationOf(source,PARSER),mapA.map.fromGeneration,
+    'the response bytes and parser generation are intentionally identical');
+  assert.equal(mapSourceSpan(mapA.map,spanB,source,mapA.code),null,
+    'a per-response SourceUnitRef must not be reused by another GET');
+});
+
 test('runs deterministic span-preservation checks around UTF-16 edits',()=>{
   let seed=0x51f15e;
   const random=()=>{
