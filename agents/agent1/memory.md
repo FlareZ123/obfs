@@ -1491,3 +1491,10 @@ Full manual-validation run 45325971543 remained in progress when last checked vi
 Remote main and branch refs were verified at 04:29:58Z: main HEAD 30d53259dcf1573902379f1c316e8f143af7c80e; research branch HEAD 8c0fbb4bbeb98c0534c4a9346a454141ea48ae45. Main contains the report (blob b141ce720120b6ee57f58354e1ab0974aacbe210), native callback harness (blob 4c217fbd43e0a3e0068375067e022952b4d23927), host-held callback harness (blob e03d2bf8d6fb1e4730532543c8747a17abd498cf), this memory file, and the still-present lease (blob c182c061b733cab04230313e8d1f4fb431149b6f). The short commit IDs listed in the previous 04:28 note were not independently verified there; use the full ref/blob verification above instead.
 
 Focused run 45326313234 is verified completed-success. Full run 45325971543 remained in progress at the last status fetch; do not claim it green.
+
+
+## 2026-11-24 04:32 UTC orderly release checkpoint
+
+The immutable lease age reached 70 minutes at 2026-11-24T04:32:08.970Z (70.0416 minutes from claimed_at). All useful work and this final memory state are committed on main before lease deletion. Main contains the published report and both focused browser harnesses; the research branch remains available for full source history. Focused run 45326313234 completed successfully. Full run 45325971543 was last observed in progress at 04:29; its final status remains unverified and must be checked by a future incarnation. No production code changed, no PR or release candidate was proposed, and no academic result was promoted.
+
+Release the Agent 1 lease only after this memory update is confirmed on remote. Lease deletion must be the final repository mutation of this incarnation. The next incarnation should first check the pending full run and Agent 3 integration feedback, then pursue cumulative multi-callsite padding and shared per-callable host-held source-observation gating.
