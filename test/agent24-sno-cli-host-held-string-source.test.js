@@ -8,7 +8,7 @@ const path=require('node:path');
 const {spawnSync}=require('node:child_process');
 const {atomicWrite}=require('../src/atomic');
 
-test('SNO CLI string encoding mutates source held by a non-invoking host callback',{
+// Intentional current-main red control: a future shared-plan fix should invert\n// the source-mismatch assertion to require exact callback-source parity.\ntest('SNO CLI string encoding mutates source held by a non-invoking host callback',{
   timeout:30000
 },async()=>{
   const root=await fs.mkdtemp(path.join(os.tmpdir(),'obfs-sno-cli-host-held-string-'));
@@ -17,9 +17,9 @@ test('SNO CLI string encoding mutates source held by a non-invoking host callbac
     const output=path.join(root,'output');
     await fs.mkdir(input,{recursive:true});
     const source=[
-      "function hidden(inputValue){return 'callbackSourceLiteral:'+inputValue;}",
+      "function hidden(){return 'callbackSourceLiteral';}",
       'queueMicrotask(hidden);',
-      "console.log(hidden('x'));"
+      'console.log(hidden());'
     ].join('\n');
     await atomicWrite(path.join(input,'entry.cjs'),source);
     const observationPath=path.join(root,'observation.json');
@@ -61,7 +61,7 @@ test('SNO CLI string encoding mutates source held by a non-invoking host callbac
     assert.equal(transformed.status,0,transformed.stderr);
     const emittedObservation=JSON.parse(await fs.readFile(observationPath,'utf8'));
 
-    assert.equal(native.stdout.trim(),'callbackSourceLiteral:x');
+    assert.equal(native.stdout.trim(),'callbackSourceLiteral');
     assert.equal(transformed.stdout.trim(),native.stdout.trim());
     assert.equal(nativeObservation.source,
       "function hidden(inputValue){return 'callbackSourceLiteral:'+inputValue;}");
