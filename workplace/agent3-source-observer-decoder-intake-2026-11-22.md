@@ -461,3 +461,21 @@ Agent 13 consolidated the local Node 22.16.0 Web Storage controls into a 15-case
 
 The existing agentic reconstruction protocol in workplace/llm-agentic-reconstruction-benchmark-2026-11-23.md is a proposal, not a result. Agent 13 parked model execution pending a named candidate. Existing im-results include a procedural-blind affine probe awaiting reviewer answers and an expression-VM matched-esbuild control with no paired model completion. Do not run another model trial, add more literature or claim LLM resistance while this source-observer family has no frozen candidate. Once selected, compare exact candidate bytes against same-source esbuild/Terser control under equal attacker model, prompt, context/tool/time budgets and a hidden behavior verifier; report candidate-minus-control, separating syntax, semantic reconstruction, direct task success and runtime extraction. Current status: **PARKED / NO PAIRED MODEL RESULT**.
 
+
+
+## Candidate freeze decision (24 November 2026, current-main snapshot)
+
+**Current main base SHA:** 0fd3930aad3488b8da32c3916fadc53f056ad5ce. The production blobs for ast, properties, identifiers, strings, core, SCO, SNO, CLI and bin/sno are unchanged from the source pins recorded above. **No candidate branch, production implementation or PR has been selected.** The authoritative decision remains **NO-GO / RELEASE-BLOCKED**.
+
+The smallest remaining implementation/acceptance obligations are:
+
+1. Build one immutable SourceObservationPlan from the full input source group and resolved module graph. Reuse the existing lexical/module identity work; do not introduce a second binding resolver. The producer must create source-generation-qualified spans, per-callsite targets, value facts/flows and effect-specific closures.
+2. Implement HostHeldCallable/HostHeldObject propagation through aliases, object fields, actual-to-formal calls, returns, closure captures and cross-file imports. Resolve exact callable identities and protect complete source/metadata closures. A callback passed to a hostile host is protected even when the host only reads Function#toString and never invokes it.
+3. Convert current observer checks into producers for the shared plan, retaining UnknownHostEffect fallback where precise proof is unavailable. Do not let individual passes invent their own observer booleans or source-span resolvers.
+4. Make every source-mutating consumer consume the same plan or fail closed: local/cross-file property renaming, identifier renaming, string encoding, symbolization, experimental VM/CFG/Wasm/affine backends, SCO request-time mutation and SNO CLI/launcher. Preserve unrelated safe-function and separate-owner yield; keep same-owner field edits conservative until proven.
+5. Complete the focused mode matrix: existing 42/42 callable syntax red controls, cross-file ESM factory return, COO Chromium, actual SCO Chromium handler and actual single-entry SNO CLI. Remaining focused gaps are multi-file actual SNO CLI and SNO CLI string transform. Windows SCO browser is intentionally skipped because Chromium is only provisioned on Ubuntu.
+6. Integrate PropertyKeyIdentityRef/WellKnownSymbolRef only after the full use-site reaching-definition, actual globalThis root, interprocedural actual-to-formal, getter/Proxy effect and HostContract proofs are implemented. The 15-case Node semantic matrix is not a compiler result; generic computed keys remain fail-closed.
+7. Run the full behavior-preservation suite and the strict 2.5x runtime budget on the frozen candidate. Measure initialization separately and deduct it only for SCO server initialization and SNO server initialization as specified by the primary objective; do not deduct client initialization.
+8. Only after candidate freeze, Agent 10 runs comprehensive acceptance. Anti-LLM remains PARKED until a named candidate exists; then reuse the equal-trust esbuild/Terser paired protocol and hidden behavior oracle.
+
+This is an explicit no-go, not an invitation to start parallel prototypes. Agent 3 remains the sole integration owner; Agent 10 remains the sole comprehensive acceptance owner.
