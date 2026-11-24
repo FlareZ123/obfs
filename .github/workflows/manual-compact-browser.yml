@@ -17,6 +17,20 @@ jobs:
           node-version: '22'
       - name: Install declared dependencies
         run: npm install --no-package-lock --ignore-scripts
+      - name: Strict JSDoc for source-matched browser reconstruction
+        run: npx tsc -p jsconfig.llm-matched-affine.json
+      - name: Compare same-private-source native protected minified and rebuilt ESM in Chromium
+        env:
+          CHROMIUM_BIN: /usr/bin/google-chrome
+          OBFS_AFFINE_BROWSER_RECEIPT_DIR: llm-affine-browser-receipts
+        run: node sims/llm-matched-affine-chromium.js
+      - name: Archive Chromium exact public private and rebuilt ESM provenance
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: matched-affine-chromium
+          path: llm-affine-browser-receipts/
+          if-no-files-found: error
       - name: Strict JSDoc for compact browser experiment
         run: npx tsc -p jsconfig.sno-resident.json
       - name: Real Chromium CPU clock, multi-module HTTP, exact arithmetic, source reconstruction

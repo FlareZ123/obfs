@@ -8,7 +8,11 @@ permissions:
 
 jobs:
   sample:
-    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
@@ -17,6 +21,30 @@ jobs:
           node-version: '22'
       - name: Install dependencies
         run: npm install --no-package-lock --ignore-scripts
+      - name: Matched same-source challenge and randomized control parity
+        env:
+          OBFS_AFFINE_RECEIPT_DIR: llm-affine-receipts
+        run: node --test test/llm-matched-affine-challenge.test.js test/llm-matched-affine-static-attack.test.js
+      - name: Archive exact matched public and private source receipts after grading
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: matched-affine-${{ runner.os }}
+          path: llm-affine-receipts/
+          if-no-files-found: error
+      - name: Strict JSDoc for matched challenge verifier
+        run: npx tsc -p jsconfig.llm-matched-affine.json
+      - name: Measure paired native/minified/obfuscated resident CPU from same new private source
+        env:
+          OBFS_AFFINE_CPU_RECEIPT_DIR: llm-affine-cpu-receipts
+        run: node sims/llm-matched-affine-cpu-control.js
+      - name: Archive exact paired CPU and source provenance
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: matched-affine-cpu-${{ runner.os }}
+          path: llm-affine-cpu-receipts/
+          if-no-files-found: error
       - name: Generate actual output and verify behavior
         shell: bash
         run: |
@@ -84,7 +112,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: obfs-output-sample
+          name: obfs-output-sample-${{ runner.os }}
           path: |
             obfs-output-sample/
             examples/register-vm/before.cjs
