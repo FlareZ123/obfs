@@ -282,3 +282,108 @@ test('sampled differential-flag learner versus graph inversion on the same rank-
     differentialReceipts
   })+'\n');
 });
+
+
+test('48-sample differential flags remain exact across eight affine wrappers',()=>{
+  const terms=makeRank21Terms(0x5eed21);
+  const wrappers=[
+    {inputSeed:0x12345678,outputSeed:0x9abcdef0,inputBias:0x13579bdf,outputBias:0x2468ace0},
+    {inputSeed:0x31415926,outputSeed:0x27182818,inputBias:0xdeadbeef,outputBias:0xcafebabe},
+    {inputSeed:0x0badc0de,outputSeed:0xfaceb00c,inputBias:0xabcdef01,outputBias:0x87654321},
+    {inputSeed:0x11223344,outputSeed:0x55667788,inputBias:0x99aabbcc,outputBias:0xddeeff00},
+    {inputSeed:0xdeadbeef,outputSeed:0x31415926,inputBias:0x27182818,outputBias:0x10293847},
+    {inputSeed:0x5eed1234,outputSeed:0x0f1e2d3c,inputBias:0x12345678,outputBias:0x9abcdef0},
+    {inputSeed:0xc001d00d,outputSeed:0x1badb002,inputBias:0xdecafbad,outputBias:0x0badc0de},
+    {inputSeed:0x2468ace0,outputSeed:0x13579bdf,inputBias:0xfaceb00c,outputBias:0xcafebabe}
+  ];
+  const sampleSeeds=[
+    0x12345678,0xdeadbeef,0x5eed1234,0x0badc0de,
+    0x13579bdf,0x2468ace0,0xabcdef01,0x31415926,
+    0x27182818,0x87654321,0x0f1e2d3c,0xc001d00d,
+    0xfaceb00c,0x1badb002,0xdecafbad,0x10293847
+  ];
+  const hiddenTargets=[
+    0x67aa29ff,0x628acbfe,0xfe1940fd,0xc1ece67b,
+    0x3e411777,0x37fff36f,0xbd72765f,0x8721e5bf
+  ];
+  const expected={
+    32:{verified:1018,queries:2342073,fullBatches:124},
+    48:{verified:1024,queries:3488944,fullBatches:128}
+  };
+  /** @type {Array<Object>} */
+  const summaries=[];
+  for(const samplesPerStage of [32,48]){
+    let verifiedTargets=0,totalQueries=0,fullBatches=0,unsupportedBatches=0;
+    /** @type {Array<Object>} */
+    const failures=[];
+    for(let wrapperIndex=0;wrapperIndex<wrappers.length;wrapperIndex++){
+      const wrapper=wrappers[wrapperIndex];
+      const inputColumns=makeLinearTransform(wrapper.inputSeed);
+      const outputColumns=makeLinearTransform(wrapper.outputSeed);
+      const inputInverse=inverseOfColumns(inputColumns);
+      assert.ok(inputInverse);
+      /** @param {number} input @returns {number} */
+      const oracle=input=>{
+        const hidden=(applyLinear(inputColumns,input)^wrapper.inputBias)>>>0;
+        return (applyLinear(outputColumns,rank21Triangular(hidden,terms))^wrapper.outputBias)>>>0;
+      };
+      for(const sampleSeed of sampleSeeds){
+        const learned=learnFlag(oracle,{
+          bits:32,samplesPerStage,sampleSeed,maxQueries:1000000
+        });
+        if(learned.status!=='calibrated'){
+          unsupportedBatches++;
+          failures.push({
+            wrapperIndex,
+            sampleSeed:'0x'+sampleSeed.toString(16),
+            unsupportedAt:learned.stage
+          });
+          totalQueries+=learned.queries;
+          continue;
+        }
+        let batchVerified=0;
+        for(let targetIndex=0;targetIndex<hiddenTargets.length;targetIndex++){
+          const secret=inputInverse((hiddenTargets[targetIndex]^wrapper.inputBias)>>>0);
+          const target=oracle(secret);
+          const inverse=learned.invert(target);
+          assert.equal(inverse.verified,oracle(inverse.input)===target);
+          if(inverse.verified){
+            assert.equal(inverse.input,secret);
+            verifiedTargets++;
+            batchVerified++;
+          }
+        }
+        const queries=learned.queries();
+        totalQueries+=queries;
+        if(batchVerified===hiddenTargets.length)fullBatches++;
+        else failures.push({
+          wrapperIndex,
+          sampleSeed:'0x'+sampleSeed.toString(16),
+          verifiedTargets:batchVerified
+        });
+      }
+    }
+    assert.equal(unsupportedBatches,0);
+    assert.equal(verifiedTargets,expected[samplesPerStage].verified);
+    assert.equal(totalQueries,expected[samplesPerStage].queries);
+    assert.equal(fullBatches,expected[samplesPerStage].fullBatches);
+    summaries.push({
+      samplesPerStage,
+      batches:wrappers.length*sampleSeeds.length,
+      targets:wrappers.length*sampleSeeds.length*hiddenTargets.length,
+      verifiedTargets,
+      fullBatches,
+      unsupportedBatches,
+      totalQueries,
+      meanQueriesPerBatch:totalQueries/(wrappers.length*sampleSeeds.length),
+      failures
+    });
+  }
+  process.stdout.write('OBFS_RANK21_DIFFERENTIAL_FLAG_EIGHT_WRAPPER_SWEEP '+JSON.stringify({
+    source:'rank-21-displacement-degree-five-triangular-permutation',
+    wrappers:wrappers.length,
+    sampleSeeds:sampleSeeds.length,
+    targetsPerBatch:hiddenTargets.length,
+    summaries
+  })+'\n');
+});
