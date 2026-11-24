@@ -184,6 +184,20 @@ The current-main observations are: (a) the discarded/unused getter fixtures pres
 
 Full matrices and corrections: [Agent 11's consolidated report](../im-results/pr332-logical-callback-assignment-2026-11-23.md). The Agent 9 reports are [initial prototype](../im-results/agent9-ambient-host-call-effect-prototype-2026-11-23.md), [nested precision](../im-results/agent9-ambient-host-call-effect-nested-precision-2026-11-24.md), and [transitive stack validation](../im-results/agent9-ambient-host-call-transitive-stack-validation-2026-11-24.md).
 
+### New donor: external host callback observes an active private caller (Agent 9)
+
+Agent 9's isolated red witness is stronger than a syntactic `caller`/stack scan. At source pin `bf637b047e1d86dec658851d405cbe84365f5d6b`, [run 45289188566](https://github.com/FlareZ123/obfs/actions/runs/45289188566) fails 3/3 mode cases on both Ubuntu and Windows. Test: `test/agent9-private-property-external-caller-source-witness.test.js`; report: [external host-caller private-property source gap](../im-results/agent9-external-host-caller-private-property-source-gap-2026-11-23.md).
+
+The input AST contains only a directly called hidden helper, a local object owner, and a free `getExternal()` call. The host harness injects a sloppy `Function`-created callback, captures `arguments.callee.caller`, and reads `Function.prototype.toString` from that captured active function after the helper returns. No caller, stack or toString observer appears in the input AST. Native and emitted programs both return 43, but the callback observes `owner.secretField/otherField` natively and renamed keys in emitted source.
+
+**Current-main proof gap:** `src/properties.js` at blob `bda3c6097e2679f59bd003fa0aed3e0291d4ba4c` marks a callable private when its lexical uses are direct, non-optional `CallExpression.callee` references (`privateFunctionNodes`, lines 678–730). The alias-use proof then permits property spellings inside those private function bodies (lines 940–945). This models heap/value escape, but not a reverse activation edge: a free unknown host callback can observe the active caller without receiving the function object. A correct plan must attach `UnknownHostEffect` / `DynamicFrame` to the active callable and propagate it to its source/owner closure; requiring the callable to escape as a value is insufficient.
+
+### Donor regression: PR #357's file-wide opaque-export fallback over-refuses (Agent 9)
+
+Draft PR [#357](https://github.com/FlareZ123/obfs/pull/357), head `6abcdcda7da4aeef15ce9b60a1b98d73cd889019` on base `cf17c45e680b39c1483b239054ad42f458d724ba`, is not a merge candidate. Agent 9 compared its branch full runs: 17 failures at 45274234781 grew to 24 at 45275406172. The seven additional failures correlate with a file-wide `hasExportSyntax && hasOpaqueExportFlow` refusal that treats any non-export assignment, update, non-const declaration, object spread or `Object.assign` as opaque without proving reachability from an exported callable. It suppresses unrelated private yield for JSON/copy/action/public-sample shapes.
+
+Retain the four real opaque-export-flow negatives (mutable exported alias, exported object-property mutation, spread of callable-bearing object, Object.assign into exported object). The correct direction is export-root reachability with BindingIds and value-flow, not a file-wide mutation heuristic. PR #357 remains draft and its 24-failure branch gate is not acceptance. Full audit: [Agent 9 exported-callable source-yield audit](../im-results/agent9-exported-callable-source-yield-audit-2026-11-23.md).
+
 ### New donor: PR #361 bounded source-observer-island identifier yield (Agent 10)
 
 PR [#361](https://github.com/FlareZ123/obfs/pull/361), draft head `6eddbef387d1aa3b192df16fdb05f8dfa98c3ae8` on base `e9e4f343632db64522f8cf0fb711be52a1cfee6c`, adds an opt-in identifier-yield exception to the existing `experimentalSourceObserverIslands` mechanism. It changes `src/core.js` and `src/identifiers.js`, plus focused/browser tests. The PR is still draft and GitHub reports `mergeable:false`.
