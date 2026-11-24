@@ -94,7 +94,7 @@ test('ordinary primitive arithmetic retains independent private-field rewrite yi
   ].join('\n'));
   const native=await executeWithHostPrototypeObserver(files,null);
   assert.equal(native,'[53,3]\n');
-  const output=transform(files,'primitive-getter-arithmetic-positive');
+  const output=transform(files,'boxed-primitive-arithmetic-positive');
   const emitted=await executeWithHostPrototypeObserver(output.files,null);
   assert.equal(emitted,native);
   assert.equal(output.crossFile.properties,1,
