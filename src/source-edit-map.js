@@ -1,7 +1,7 @@
 'use strict';
 
 const {createHash} = require('node:crypto');
-const {applyEdits} = require('./ast');
+const {applyEdits,parserContractIdFor} = require('./ast');
 
 /** @typedef {'before-node'|'within-node'|'unknown'} InsertionAffinity */
 /**
@@ -40,6 +40,7 @@ const {applyEdits} = require('./ast');
  * @property {string} spanId
  * @property {string} sourceUnitRef
  * @property {string} sourceGeneration
+ * @property {string} originSpanId Original SourceSpanId carried only as an association.
  * @property {number} startOffset
  * @property {number} endOffset
  * @property {'utf16-code-unit'} coordinateUnit
@@ -57,9 +58,9 @@ const {applyEdits} = require('./ast');
  */
 
 /**
- * SHA-256 identity of exact UTF-8 source bytes plus the parser contract.
- * The parser contract must identify parser version, source type and options.
- * AST offsets remain UTF-16 code units; the digest is not an offset unit.
+ * SHA-256 identity of exact JavaScript UTF-16 code units plus the parser
+ * contract. This is lossless for the parser's actual string input, including
+ * isolated surrogates. Raw file bytes/decoder identity remain separate.
  * @param {string} source
  * @param {string} parserContractId
  * @returns {string}
@@ -70,7 +71,7 @@ function sourceGenerationOf(source,parserContractId) {
     throw new TypeError('parserContractId must be a non-empty string');
   }
   return createHash('sha256').update(parserContractId,'utf8').update('\0')
-    .update(source,'utf8').digest('hex');
+    .update(source,'utf16le').digest('hex');
 }
 
 /**
@@ -294,10 +295,11 @@ function mapSourceSpan(map,span,sourceBefore,sourceAfter) {
   return Object.freeze({
     sourceUnitRef:span.sourceUnitRef,
     sourceGeneration:map.toGeneration,
+    originSpanId:span.spanId,
     startOffset:start,
     endOffset:end,
     coordinateUnit:'utf16-code-unit'
   });
 }
 
-module.exports={sourceGenerationOf,applyEditsWithMap,mapSourceSpan};
+module.exports={parserContractIdFor,sourceGenerationOf,applyEditsWithMap,mapSourceSpan};
