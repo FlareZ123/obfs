@@ -140,13 +140,15 @@ The canonical plan should expose at least:
  * @typedef {string} BindingRefKey - canonical serialization of SourceUnitRef + localBindingId
  * @typedef {string} DefinitionRefKey - canonical serialization of BindingRefKey + definition identity
  * @typedef {string} SourceSpanId - canonical serialization of SourceUnitRef + start/end offsets
- * @typedef {'PrimitiveGet'|'PrimitiveObjectPatternGet'|'PrimitiveIterator'|'PrimitiveMethodDispatch'|'UnknownHostCall'|'AccessorCall'} HostEffectKind
+ * @typedef {'PrimitiveGet'|'PrimitiveObjectPatternGet'|'PrimitiveIterator'|'PrimitiveMethodDispatch'|'UnknownHostCall'|'UnknownHostArgumentEscape'|'AccessorCall'|'ProxyInternalMethod'|'WithEnvironmentHasBinding'|'PromiseHandlerDispatch'} HostEffectKind
+ * @typedef {'Primitive'|'Callable'|'HostHeldCallable'|'HostOpaque'|'Unknown'} ValueKind
  * @typedef {'ExactSource'|'FramePosition'|'CallableMetadata'|'UnknownHostEffect'} ObservationEffect
  *
  * @typedef {Object} SourceObservationPlan
  * @property {ReadonlyMap<BindingRefKey, unknown>} bindings
  * @property {ReadonlyMap<DefinitionRefKey, unknown>} definitions
- * @property {ReadonlyMap<DefinitionRefKey, unknown>} valueFacts
+ * @property {ReadonlyMap<DefinitionRefKey, ValueKind>} valueFacts
+ * @property {ReadonlyMap<string, ReadonlySet<DefinitionRefKey>>} hostArgumentEdges - callable values retained by unknown host calls
  * @property {ReadonlyMap<DefinitionRefKey, ReadonlySet<DefinitionRefKey>>} callTargets
  * @property {ReadonlyMap<DefinitionRefKey, ReadonlySet<DefinitionRefKey>>} activeFrameTargets
  * @property {ReadonlyMap<SourceSpanId, ReadonlySet<ObservationEffect>>} effects
@@ -209,3 +211,54 @@ Minimum donor controls:
 4. Re-run the 40-fixture/150-TypeScript Stage 1 suite after any resolver change; the current helper's green receipts do not cover all downstream call-target/value-definition semantics.
 
 These are consumer/graph proof obligations, not a request to change the lexical resolver's established per-AST identity semantics or to create a second resolver.
+
+
+## Agent 8 / Agent 24 host-argument and implicit-dispatch refinements (24 November)
+
+### Unknown-call argument escape and reverse frame observation are separate edges
+
+An unknown call can inspect a callable argument directly without invoking it:
+
+```js
+function hidden() { return 1; }
+function run() { external(hidden); }
+```
+
+The host can run `Function.prototype.toString.call(fn)` on the argument. This creates a **host-held callable value** and protects that function's exact source/metadata even if the host never calls it. Independently, the same unknown call may inspect the active `run` frame or an ancestor through caller/stack facilities. A no-argument host callback can create a DynamicFrame effect without receiving any callable argument. A returned callable is a third, separate value-flow edge.
+
+Represent all three explicitly:
+1. **Argument capability:** callable argument -> `HostHeldCallable` / `UnknownHostArgumentEscape` -> its source and metadata closure.
+2. **Activation:** unknown callsite -> reverse `DynamicFrame` edges -> active caller/ancestor source and semantic closure.
+3. **Return value:** unknown call result -> receiving binding/value-flow graph; do not confuse it with the two effects above.
+
+### Implicit host dispatch is not limited to CallExpression
+
+Agent 24's Node 22.16.0 witness shows that `with (new Proxy({}, {has})) { x; }` can invoke a Proxy `has` trap during object-environment `HasBinding`. The trap calls an external sloppy callback that captures the active caller/ancestor and reads exact source. There is no CallExpression in the analyzed callable body. The resolver returns Unknown for `x`, but the Agent 9 ambient-call summary does not consume that result and does not mark the `WithStatement` itself ambient.
+
+Treat `WithStatement` as an ambient host effect unless object-environment/Proxy internal-method semantics are explicitly modeled. Add `WithEnvironmentHasBinding` / `ProxyInternalMethod` producers. This is separate from direct eval and from ordinary member getter/Proxy-read effects.
+
+### Agent 9 BindingId ambient-call donor: three additional false-safe boundaries
+
+The 12/12 focused greens do not establish completeness. Agent 24 reviewed `workplace/agent9-ambient-call-bindingid.js` at commit `5ce9d24ff781b124324559430c317eba04e0603e` and supplied three concrete donor-level false-safes:
+
+1. **Same-AST `var` initializer override:** a function declaration `helper` and a same-ID `var helper = callback` share one binding. The resolver records the initializer in declarations, not reference writes, so `writtenBindings` misses it. The prototype keeps the original pure function as the call target even though runtime invokes the callback. Any same-ID `var` initializer with a non-null initializer must invalidate the function target absent reaching-definition proof; a bare `var helper;` is different.
+2. **Cross-script mutable `let` rebinding:** a first classic script declares `let helper = function...` and a second script in the same realm assigns `helper = getExternal`. The first AST sees a direct local call and no same-AST write, so the prototype marks it safe. The donor currently admits function expressions from any VariableDeclarator kind, despite its const-only description. Restrict to direct `const` as a first cut and still require a shared same-realm script-group write graph for cross-script claims.
+3. **`WithStatement` Proxy `has` trap:** the executable walker skips nested function bodies and does not classify `WithStatement` itself as ambient. Proxy `has` can execute a host callback during identifier resolution without any explicit CallExpression.
+
+These are false-safes in the research donor, not demonstrated current-main regressions. Do not port the 12/12 prototype as-is. Its next red-first controls must include all three boundaries, in addition to the current-main external active-caller witness. Duplicate function declarations are already marked ambiguous by the donor; preserve that behavior.
+
+### Promise handler dispatch requires a host trust premise
+
+Agent 8 reviewed Agent 39's branch-only `collectExportedCallableNodes` exception at branch head `a9e8b46bc2b05863612bd7a6bd0503c273843e63`. The exception treats syntactic `Promise.resolve(...).then/catch/finally` as safe when the identifier `Promise` is not lexically shadowed. A hostile host can patch `Promise.prototype.then` before module evaluation, inspect `onFulfilled.toString()`, then delegate to the original method. The AST still matches the syntactic native-looking shape. This is not a current-main defect; the exception is absent from current main. Do not introduce or retain such an exception without a separately justified, mode-specific pristine-intrinsics contract. Under COO/SNO/SCO hostile-runtime assumptions, Promise handlers and their callback arguments remain host-observable.
+
+### Required candidate controls
+
+In addition to primitive Get/iterator/method, direct active-caller, and source-unit/reaching-definition controls, a candidate must pin:
+- unknown host call with a callable argument whose source is inspected but never invoked;
+- no-argument unknown callback that captures the active caller/ancestor;
+- `WithStatement` + Proxy `has` trap with no explicit call in the analyzed body;
+- same-ID `var` initializer overriding a function declaration;
+- mutable classic-script `let` callable overwritten by a later script in the same realm;
+- pre-import patched `Promise.prototype.then` that inspects a callback and delegates to native.
+
+Keep positive yield controls independent: pure local helpers, uninvoked nested closures, and ordinary arithmetic must still demonstrate nonzero rewrite yield where their closure is proven. Do not replace these precise effects with a file-wide opaque veto.
