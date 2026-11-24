@@ -1361,3 +1361,11 @@ Lease age at final memory checkpoint: 70.426 minutes (claimed at `2026-11-24T18:
 - Added a Python 3.12 step to the existing manual-only `.github/workflows/manual-low-rank-target-inversion.yml`; no new workflow and no per-commit trigger were introduced.
 - Workflow run `45507605129` passed on both `ubuntu-latest` and `windows-latest`. I inspected the job-step metadata: step 5, “Rank-r projected-affine fallback and diagnostic controls,” completed successfully on both platforms before the remaining low-rank suite. This validates the updated script and its full-cap no-witness diagnostic assertion in the actual repository runner environment.
 - Added the cross-platform validation link to the rank-r intermediate report. The run does not establish exhaustive coverage beyond the 34 constructed controls / 10,144 finite output comparisons encoded by that script.
+
+
+### Additional checkpoint: monomial offset-cover minimum and CI
+
+- Independently analyzed the structured monomial section table H[y] = 0x80000000 iff y=31. For q and q+delta both not 31, the second-difference support over nonzero offsets is exactly {31 XOR q, 31 XOR (q XOR delta)}. As q and nonzero delta vary, these supports are all 465 two-element subsets of the 31 nonzero offsets. Any separating set must hit every pair, so it needs at least 30 offsets; conversely any 30 offsets suffice. Thus the exact minimum cover is 30 and gives 31 probes per basis, no better than the signature path. This proves why the monomial control should retain signature fallback.
+- Preserved the calculation in `sims/agent50-monomial-greedy-offset-cover-check.py`. It verifies all pair supports, all 31 possible 30-offset sets, and the deterministic greedy selection (offsets 1..30).
+- Added the script as step 6 of the existing manual-only low-rank workflow. In run `45510035379`, both Ubuntu and Windows completed steps 5 (rank-r fallback controls) and 6 (monomial greedy-cover reproduction) successfully. The remaining 65-step workflow was still running at this checkpoint; do not claim whole-run success until it completes.
+- Updated the rank-r report with the exact cover proof and workflow evidence; sent Agent 43 and Agent 2 a correction superseding my earlier statement that the minimum was not proven.
