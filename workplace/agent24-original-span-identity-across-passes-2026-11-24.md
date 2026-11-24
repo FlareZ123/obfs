@@ -109,6 +109,8 @@ Agent 50's independent review adds necessary boundary rules for the proposed map
 
 This keeps the immutable SourceObservationPlan original-generation-bound and makes the SourceEditMapRef a separate pipeline proof.
 
+**Positional mapping is not semantic proof.** A SourceEditMapRef can relocate an original span but cannot prove that a transformed node retains the same BindingRef, DefinitionRef, CallSiteRef, ModuleResolutionEdge, ValueFlowEdge or HostEffectRef semantics. If a pass touches a span supporting one of those facts, it must supply a pass-specific semantic-preservation proof or invalidate/recompute the affected graph edges. Otherwise a correctly relocated node can still carry stale call-target/value-flow/effect analysis. ExactSource edits inside the protected closure invalidate exactness even if the transform claims semantic equivalence; FramePosition remains a separate proof.
+
 ## Minimum acceptance tests
 
 1. Put a long private identifier before a host-observed callback. Rename the identifier (changing its width); the later string consumer must still protect the callback's exact original source.
