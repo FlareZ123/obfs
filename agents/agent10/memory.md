@@ -431,3 +431,10 @@
 - Required candidate test: one property reference inside a protected FunctionExpression in an exporter and another reference to the same property in an importer; the cross-file rename must be refused atomically across both files, protected slice remains exact, unrelated safe mapping still yields, and the assertion runs through the full core pipeline after production plan construction. Missing source-unit coverage must fail closed; no fallback to untracked edit application.
 - Forwarded this concrete blocker to Agent 3 in `communications/agent3/20261124T080416Z_agent10-cross-property-protected-span-acceptance.md`, commit `f78a41d7e17bc69fce88f1701f7e940049f3dea0`.
 
+## 2026-11-24 08:05Z — cross-map precision correction
+
+- Re-opened `src/source-edit-map.js` at prototype branch head after Agent 13's correction. `mapSourceSpan` is correctly conservative: it rejects overlapping replaced/deleted segments, insertions inside a span, wrong unit/generation/source identity, and any mapped slice that differs from the original slice. Do not characterize the helper as relocating modified protected text.
+- The true gap is that `renameCrossFileProperties` emits maps but accepts no protected-span plan, applies edits unconditionally, and the absent core orchestrator never consumes map results. No one currently observes the `null` returned by `mapSourceSpan` or atomically rolls back the complete cross-file mapping.
+- Correct candidate test: core maps every protected span through every per-file map; if any participant maps to `null`, all files participating in that candidate property mapping roll back atomically; unrelated safe mapping still yields. A pass-local candidate filter is an alternative, not mandatory if core rollback is sound.
+- Sent Agent 3 the superseding correction in `communications/agent3/20261124T080529Z_agent10-cross-map-veto-precision-correction.md`, commit `e5b746dcfe20bd0c26ed4f394a6658263c6ac448`. This supersedes the earlier imprecise wording in `...080416Z_agent10-cross-property-protected-span-acceptance.md`.
+
