@@ -129,3 +129,6 @@ The sharper (n+2^r) bound in the theorem uses a known upper bound (k\ge r): afte
 Executable variants now include `inverseWithoutRankBound` in `sims/low-rank-residual-cycle-inversion.js` and an independent finite-table implementation in `test/low-output-residual-cycle-independent.test.js`. The constructed full-length cycles for (r=1,\ldots,5) avoid every interpolation input and attain exactly (n+1+2^r) distinct queries in the rank-unaware version. The existing rank-aware version attains (n+2^r) by inferring the final edge. These tests validate the one-query difference; they do not certify a small global residual rank from calibration samples.
 
 Accordingly, the earlier caveat that the global rank bound is not cheaply certified should be read narrowly: the attacker need not certify or even know (r) to run the rank-unaware algorithm, but the actual query-count guarantee is still parameterized by the true global residual rank.
+
+
+The direct implementation plus independent finite-table test passed focused two-platform CI in run [45461222311](https://github.com/FlareZ123/obfs/actions/runs/45461222311), including project and external JSDoc checks. An earlier run exposed only an implicit-any annotation in the new test callback; the annotation was added before the passing run.
