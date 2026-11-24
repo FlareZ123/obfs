@@ -111,3 +111,71 @@ test('SNO Node Web Storage exposes changed callable source through native DOMStr
     await fs.rm(root,{recursive:true,force:true});
   }
 });
+
+test('SNO Node Web Storage primitive DOMString value retains unrelated identifier yield',{
+  skip:!supportsExperimentalWebStorage,
+  timeout:30000
+},async()=>{
+  const source=[
+    "'use strict';",
+    'function independent(){const independentLocal=7;return independentLocal;}',
+    'const nativeDispatch=localStorage.setItem===Storage.prototype.setItem;',
+    'localStorage.clear();',
+    'localStorage.setItem("sno-primitive-value","literal");',
+    'const result={nativeDispatch,stored:localStorage.getItem("sno-primitive-value"),',
+    '  value:independent(),independent:independent()};',
+    'process.stdout.write(JSON.stringify(result));'
+  ].join('\\n');
+  assert.equal(observesFunctionSource(parse(source,'commonjs')),false,
+    'a primitive Storage value is not a callable-source observation');
+  const transformed=obfuscateFiles([{
+    path:'entry.cjs',sourceType:'commonjs',code:source
+  }],{
+    mode:'sno',
+    seed:'sno-node-webstorage-primitive-positive',
+    strings:false,
+    identifiers:true,
+    properties:false
+  });
+  const file=transformed.files[0];
+  assert.ok(file,'expected one transformed SNO entry');
+  const protectedCode=String(file.code);
+  assert.ok(file.metrics.bindings>=1,'expected unrelated identifier-transform yield');
+  assert.ok(!protectedCode.includes('independentLocal'),'expected unrelated helper rewrite');
+
+  const root=await fs.mkdtemp(path.join(os.tmpdir(),'obfs-sno-webstorage-primitive-'));
+  try {
+    const nativePath=path.join(root,'native.cjs');
+    const protectedPath=path.join(root,'protected.cjs');
+    const nativeStorage=path.join(root,'native-storage.db');
+    const protectedStorage=path.join(root,'protected-storage.db');
+    await atomicWrite(nativePath,source);
+    await atomicWrite(protectedPath,protectedCode);
+    await fs.writeFile(nativeStorage,'');
+    await fs.writeFile(protectedStorage,'');
+
+    const native=runWithWebStorage(nativePath,nativeStorage);
+    const emitted=runWithWebStorage(protectedPath,protectedStorage);
+    assert.equal(native.nativeDispatch,true);
+    assert.equal(emitted.nativeDispatch,true);
+    assert.equal(native.stored,'literal');
+    assert.equal(emitted.stored,'literal');
+    assert.equal(native.value,7);
+    assert.equal(emitted.value,7);
+    assert.equal(native.independent,7);
+    assert.equal(emitted.independent,7);
+    console.log(JSON.stringify({
+      mode:'sno',
+      node:process.versions.node,
+      host:'Node --experimental-webstorage',
+      nativeDispatch:native.nativeDispatch,
+      stored:native.stored,
+      nativeValue:native.value,
+      emittedValue:emitted.value,
+      renamedBindings:file.metrics.bindings,
+      primitiveParity:true
+    }));
+  } finally {
+    await fs.rm(root,{recursive:true,force:true});
+  }
+});
