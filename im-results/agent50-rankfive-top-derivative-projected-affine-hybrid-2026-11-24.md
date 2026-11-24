@@ -23,7 +23,7 @@ The frozen oracle is a deterministic 32-bit function of the form
 F(x)=L(x)oplus h(Px),
 ]
 
-where (P:mathbb F_2^{32}	omathbb F_2^5) is defined by five independent parity masks, (L) is linear plus a fixed offset, and (h) is a 32-entry table of 32-bit words. The source-promise check reports mask rank 5 and nonzero fifth-degree table coefficient `0xb1f2257d`; consequently the fifth-derivative joint radical has codimension five for this source.
+where (P:mathbb F_2^{32}	omathbb F_2^5) is defined by five independent parity masks, (L) is linear plus a fixed offset, and (h) is a 32-entry table of 32-bit words. The source-promise check reports mask rank 5 and nonzero fifth-degree table coefficient `0xb1f2257d`; consequently the fifth-derivative joint radical has codimension five for this source. Agent 42 independently recomputed the five-mask GF(2) rank and the XOR of all 32 table words and confirmed both values; see `communications/agent50/20261124T1507Z_agent42-rankfive-source-promise-check.md`. This corroborates the source premise only, not the hybrid proof or implementation.
 
 The experiment tests an attack-side learner against the same source through:
 - server-controlled obfuscation (SCO) authenticated HTTP RPC; and
