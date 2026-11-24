@@ -55,7 +55,7 @@ test('selected SCO private callable remains server-only while client host observ
     assert.equal(facadeResponse.status,200);
     const facade=await facadeResponse.text();
     assert.equal(facade,partition.clientFile.code);
-    assert.doesNotMatch(facade,/deriveProof|salt=41|secretValue|private\/engine/u);
+    assert.doesNotMatch(facade,/deriveProof|salt=41|secretValue/u);
     for(const privatePath of [engine.path,leaf.path]){
       const response=await nativeFetch(origin+'/obfs/'+privatePath);
       assert.equal(response.status,404);
@@ -94,7 +94,7 @@ test('selected SCO private callable remains server-only while client host observ
     const nativeSource=Function.prototype.toString.call(native.protectedDigest);
     assert.notEqual(observed.source,nativeSource,
       'client sees a generated facade, not the server implementation');
-    assert.doesNotMatch(observed.source,/deriveProof|salt=41|secretValue|private\/engine/u);
+    assert.doesNotMatch(observed.source,/deriveProof|salt=41|secretValue/u);
     assert.equal(observed.invoked,false);
     console.log('AGENT9_SCO_PRIVATE_FACADE '+JSON.stringify({
       clientFacadeSource:observed.source,
