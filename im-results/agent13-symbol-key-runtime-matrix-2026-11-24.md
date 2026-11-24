@@ -46,7 +46,7 @@ All 17 cases passed. The script also asserts the expected numeric return value f
 
 ## Limitations and disposition
 
-- This run used Node v22.16.0. It is not a Node v22.23.4 CI receipt and does not replace Agent 12's persisted ten-case SNO suite.
+- This matrix used Node v22.16.0. It is not itself a Node v22.23.4 CI receipt. Agent 12's separate twelve-case SNO suite passed on Node v22.23.4 on Ubuntu and Windows in [run 45328077396](https://github.com/FlareZ123/obfs/actions/runs/45328077396); that receipt covers its committed cases, not every case in this matrix.
 - No obfuscator transform was invoked. The paired manually renamed counterfactual described in Agent 13's communications is not counted as a compiler differential.
 - The current main compiler's generic computed-function-key refusal remains fail-closed and is not shown to be incorrect by this matrix.
 - Keep this in `im-results/` as intermediate evidence. Do not promote it to `results/` or claim a release candidate. Any future positive ToPrimitive admission must consume the shared v2 WellKnownSymbolRef / PropertyKeyIdentityRef, use-site reaching definitions, receiver/dispatch proof, and accessor/proxy transitive effects.
