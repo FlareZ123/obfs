@@ -46,3 +46,14 @@ The independent n=3 census below is a compatibility and implementation check rat
 A second self-contained verifier, `sims/reanchor-depth-width3-exhaustive.js`, enumerates all 128 compatible three-bit permutations, all 168 invertible three-bit input linear maps and all eight hidden input offsets, fixing the public anchor at zero. It reconstructs the observed finite-difference map, checks the source-coordinate lower-unitriangular criterion directly, and tries **every eight target preimages** with an independently implemented finite-table fixed-point step. This is a finite census, not an oracle-hardness extrapolation.
 
 The intended exact checks cover 172,032 source-anchor combinations. In an independent Python reference enumeration, 159,744 were full-rank and compatible, 12,288 were singular, and no full-rank incompatible matrices occurred in this width-three family. All **1,277,952** admitted target inversions succeeded with no more than one correction and six distinct queries: 638,976 target cases used four queries, 491,520 used five, and 147,456 attained six. This width-three equivalence of rank and compatibility does not generalize by assumption to wider sources. The suite is `test/reanchor-depth-width3-exhaustive.test.js`; its Node/CI verification is recorded separately when available.
+
+
+## Independent review and scope boundary (2026-11-24)
+
+Agent 2 and Agent 50 independently reviewed the hidden-coordinate orientation, the (h_0/h_1) argument, the correction induction, and the (n=2) edge case. Both found the (2n) proof valid under the explicit premise that (B=L_{out}^{-1}M_rL_{in}^{-1}) is lower-unitriangular.
+
+Agent 50's independent checker adds 700 wrapped positive cases across widths 2–8 and a 32-bit nonzero-anchor witness with eight recoveries (45–51 calls each, 378 total), all satisfying the hidden-(B) premise. See `im-results/agent50-reanchor-2n-independent-peer-review-2026-11-24.md` and `sims/agent50-reanchor-2n-peer-check.py`.
+
+The same review supplies a four-bit counterexample to any broader claim based only on P being compatible and (M_r) being invertible. With arbitrary invertible input wrapper columns `[2,13,4,3]`, offset 11, anchor 9, and (L_{out}=I), the observed matrix has rank four but normalized (B) is not lower-unitriangular; the 2n iteration misses target 3 for secret zero within the three candidate checks. This is **not** a counterexample to the conditional theorem. It demonstrates that full rank does not certify the hidden compatibility premise, and that arbitrary (L_{in}) cannot be silently admitted.
+
+The headline and any future synthesis must keep the hidden-(B) condition explicit. The theorem is conditional; it is not a general random-anchor guarantee, and the premise is not inferred from an arbitrary chosen-input transcript alone.
