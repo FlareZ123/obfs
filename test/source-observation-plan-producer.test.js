@@ -3,7 +3,10 @@
 const {test}=require('node:test');
 const assert=require('node:assert/strict');
 const {obfuscateFiles}=require('../src/core');
-const {parserContractIdFor}=require('../src/ast');
+const {parserContractIdFor,parse}=require('../src/ast');
+const {renameLocalIdentifiers}=require('../src/identifiers');
+const {renameLocalProperties}=require('../src/properties');
+const {encodeStrings}=require('../src/strings');
 const {applyEditsWithMap,mapSourceSpan,mapMappedSourceRange,sourceGenerationOf}=require('../src/source-edit-map');
 const {
   buildDirectFunctionSourcePlan,
@@ -153,9 +156,36 @@ test('producer rejects aliases, extra readers, unknown syntax and unversioned ho
     'function observed() { return 29; }',
     'function observed() { return Math.max(29, 1); }'
   );
+  const getterObject=source.replace(
+    'const privateRecord = { privateField: 7 };',
+    'const privateRecord = { get privateField() { return 7; } };'
+  );
+  const exportedObject=source.replace(
+    'const privateRecord = { privateField: 7 };',
+    'export const privateRecord = { privateField: 7 };'
+  );
+  const objectAliasEscape=source.replace(
+    'const privateRecord = { privateField: 7 };',
+    'const privateRecord = { privateField: 7 }; const alias = privateRecord; export const leaked = alias;'
+  );
+  const inheritedRead=source.replace('privateRecord.privateField','privateRecord.toString');
+  const shadowedFunction=source.replace(
+    'const privateRecord = { privateField: 7 };',
+    'const Function = 1; const privateRecord = { privateField: 7 };'
+  );
+  const exportedCallable=source.replace(
+    'function observed() { return 29; }',
+    'export function observed() { return 29; }'
+  );
   assert.equal(buildDirectFunctionSourcePlan(alias,'entry.mjs',hostContract),null);
   assert.equal(buildDirectFunctionSourcePlan(secondReader,'entry.mjs',hostContract),null);
   assert.equal(buildDirectFunctionSourcePlan(unknownSyntax,'entry.mjs',hostContract),null);
+  assert.equal(buildDirectFunctionSourcePlan(getterObject,'entry.mjs',hostContract),null);
+  assert.equal(buildDirectFunctionSourcePlan(exportedObject,'entry.mjs',hostContract),null);
+  assert.equal(buildDirectFunctionSourcePlan(objectAliasEscape,'entry.mjs',hostContract),null);
+  assert.equal(buildDirectFunctionSourcePlan(inheritedRead,'entry.mjs',hostContract),null);
+  assert.equal(buildDirectFunctionSourcePlan(shadowedFunction,'entry.mjs',hostContract),null);
+  assert.equal(buildDirectFunctionSourcePlan(exportedCallable,'entry.mjs',hostContract),null);
   assert.equal(buildDirectFunctionSourcePlan(source,'entry.mjs',null),null);
   assert.throws(()=>obfuscateFiles([entry(alias)],{
     mode:'coo',experimentalSourceObservationPlan:hostContract
@@ -200,6 +230,33 @@ test('MappedSourceRange composes directly through the next generation without re
   }],unit,parserContractIdFor('module'));
   assert.equal(mapMappedSourceRange(damaged.map,secondRange,second.code,damaged.code),null,
     'a later edit intersecting the exact source closure must invalidate the range');
+});
+
+
+test('raw spans and structurally copied plans cannot bypass observer vetoes',()=>{
+  const plan=buildDirectFunctionSourcePlan(source,'entry.mjs',hostContract);
+  assert.ok(plan);
+  const sourceUnitRef=plan.sourceUnits.keys().next().value;
+  const parserContractId=parserContractIdFor('module');
+  const ranges=getInitialPlanRanges(plan,sourceUnitRef);
+  const ast=parse(source,'module');
+  const fakePlan={...plan};
+  assert.throws(()=>renameLocalIdentifiers(source,ast,{
+    seed:'forged-plan',sourceType:'module',sourceUnitRef,parserContractId,
+    sourceObservationPlan:fakePlan,protectedSourceRanges:ranges.protectedSourceRanges
+  }),/Unvalidated SourceObservationPlan/u);
+  assert.throws(()=>renameLocalIdentifiers(source,ast,{
+    seed:'raw-span',sourceType:'module',sourceUnitRef,parserContractId,
+    protectedSourceSpans:[...plan.sourceSpans.values()]
+  }),/Raw protectedSourceSpans/u);
+  assert.throws(()=>renameLocalProperties(source,ast,{
+    seed:'raw-span',sourceUnitRef,parserContractId,
+    protectedSourceSpans:[...plan.sourceSpans.values()]
+  }),/Raw protectedSourceSpans/u);
+  assert.throws(()=>encodeStrings(source,ast,{
+    seed:'raw-span',sourceUnitRef,parserContractId,
+    protectedSourceSpans:[...plan.sourceSpans.values()]
+  }),/Raw protectedSourceSpans/u);
 });
 
 test('producer remains scoped to one ESM COO unit and rejects server modes and multi-file inputs',()=>{
