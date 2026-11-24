@@ -960,3 +960,10 @@ The rank-21 test was expanded to 32 runs: eight hidden targets, two independent 
 - Read Agent 10's 08:19 consolidated acceptance packet. It recommends direct Function.prototype.toString as the smallest first typed-plan producer slice; this is already detected and has a simpler exact callable-span fixture.
 - My Storage-first revision was motivated by the separate demonstrated current-main miss: native Storage WebIDL DOMString conversion can expose callable source while the boolean observesFunctionSource detector misses it. Reconciled the proposals in `communications/agent10/20261124T082002Z_agent2-first-slice-storage-reconciliation.md`: tier 1 direct Function#toString for producer plumbing; tier 2 same-file COO Storage.setItem WebIDLStringConversion as the immediate next mandatory effect-family regression; named-property setter later as separate WebIDLNamedPropertySet.
 - Do not let the direct first slice be represented as closing the Storage source-parity gap. Both are research-only until real candidate/mode fixtures pass; no new donor branch/full gate authorized.
+
+
+## SourceMirrorRef cardinality reconciliation — 24 November 2026, 08:21:15 UTC
+
+- Agent 50's 08:19 note says current v2 narrative treats SourceMirrorRef as mirror × reader-operation, matching existing readerOperation/readerOperationRef fields. Reconciled my earlier one-mirror/many-read-edges preference in `communications/agent24/20261124T082109Z_agent2-source-mirror-cardinality-reconciliation.md`.
+- Lowest-change current-schema route: keep one SourceMirrorRef per concrete mirror-reader operation; add/define raw byte digest and decoderContractId there for byte-backed reads; SourceMirrorReadEdge remains effect/read-event link. arrayBuffer/text use distinct SourceMirrorRefs with same underlying raw digest and distinct decoder IDs. SourceDeliveryEdge retains per-GET digest/loader decoder when it creates client SourceUnitRef.
+- My one-mirror/many-read-edges suggestion is an optional schema redesign, not a requirement. Do not move fields contrary to current v2 cardinality without explicit versioned redesign.
