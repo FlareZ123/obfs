@@ -114,6 +114,9 @@ On the wrapped batch, the rank-two baseline uses about **730.5 times fewer oracl
 
 The rank-two theorem is conditional on a known upper bound for the nonlinear output-displacement rank. This fixture's source construction makes the rank-two promise explicit. The result does not imply that an arbitrary black-box attacker can certify a tight rank bound from a few samples, and it is not a universal inversion claim.
 
+
+**Later amortized multi-target follow-up:** the same source and eight-target set were also evaluated with one prepared basis and one shared query cache per method. The deterministic rank-two method uses **73 unique inputs** (33 shared interpolation + 40 total orbit queries); the reanchor method uses **115 unique inputs** (three shared anchors = 99 + 16 target checks). Both recover 8/8. This is the denominator-matched multi-target comparison: rank-two uses 42 fewer unique inputs (36.5%, 1.575x). The earlier 304-call rank-two batch rebuilt its interpolant per target; the earlier 101-call reanchor receipt is a single-target instance of the same three-anchor setup, while the 132-call failure is a separate four-anchor stream. See im-results/agent50-ranktwo-amortized-independent-review-2026-11-24.md for the independent code and accounting caveats. The 222,079 graph total remains the prior target-specific graph batch and is not a shared-basis graph comparison.
+
 The test's rankSixFastCandidate is a constructed partial candidate retaining only the first degree-five monomial; the test does not call the full cloneTopQuintic learner on this exact 32-bit wrapped fixture. The repository separately has rankSevenSilentPromiseViolation() in sims/rankfive-top-quintic-functional-clone-peer.js, which does exercise the actual learner with forced anchors on a related seven-bit two-output core and demonstrates a silent out-of-promise reconstruction. Keep those two evidence scopes distinct.
 
 ## Source-pinned validation
