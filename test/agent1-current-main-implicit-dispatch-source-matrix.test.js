@@ -33,10 +33,10 @@ function makeHostArgs(kind,external) {
       return [{[Symbol.toPrimitive]:toPrimitive}];
     }
     case 'promise-resolve': {
-      const thenable=Object.defineProperty({},'then',{
-        configurable:true,
-        get(){external();return resolve=>resolve();}
-      });
+      const getThen=Function('external',
+        'return function getThen(){external();return resolve=>resolve();}'
+      )(external);
+      const thenable=Object.defineProperty({},'then',{configurable:true,get:getThen});
       return [thenable];
     }
     case 'in': {
