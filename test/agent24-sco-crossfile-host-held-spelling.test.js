@@ -110,3 +110,77 @@ test('SCO request spelling variation mutates cross-file host-held callback sourc
     callbackInvoked:emitted.invoked
   }));
 });
+
+
+/**
+ * Fetch one entry response and two independent helper responses concurrently.
+ * @param {CommonJsFile[]} source
+ * @returns {Promise<{first:CommonJsFile[],second:CommonJsFile[]}>}
+ */
+async function receiveTwoHelperVariants(source) {
+  const server=http.createServer(createScoHandler(source,{closedWorld:true}));
+  await new Promise((resolve,reject)=>{
+    server.once('error',reject);
+    server.listen({port:0,host:'127.0.0.1'},()=>resolve(undefined));
+  });
+  try {
+    const address=server.address();
+    if(!address||typeof address==='string')throw new Error('Expected TCP server address');
+    const base='http://127.0.0.1:'+address.port+'/obfs/';
+    const [entryResponse,helperResponseA,helperResponseB]=await Promise.all([
+      fetch(base+'entry.cjs'),
+      fetch(base+'helper.cjs'),
+      fetch(base+'helper.cjs')
+    ]);
+    assert.equal(entryResponse.status,200);
+    assert.equal(helperResponseA.status,200);
+    assert.equal(helperResponseB.status,200);
+    const [entryCode,helperCodeA,helperCodeB]=await Promise.all([
+      entryResponse.text(),helperResponseA.text(),helperResponseB.text()
+    ]);
+    assert.notEqual(helperCodeA,helperCodeB,
+      'each helper GET should receive an independent request-specific spelling variant');
+    const helper=source.find(file=>file.path==='helper.cjs');
+    const entry=source.find(file=>file.path==='entry.cjs');
+    assert.ok(helper&&entry);
+    return {
+      first:[{...helper,code:helperCodeA},{...entry,code:entryCode}],
+      second:[{...helper,code:helperCodeB},{...entry,code:entryCode}]
+    };
+  }finally {
+    await new Promise((resolve,reject)=>server.close(error=>error?reject(error):resolve(undefined)));
+  }
+}
+
+test('SCO concurrent helper GETs create independent host-held callback source variants',{
+  timeout:30000
+},async()=>{
+  /** @type {CommonJsFile[]} */
+  const files=[
+    {path:'helper.cjs',sourceType:'commonjs',code:
+      "function createHidden(){return function hidden(){globalThis.result='helperCallbackSourceLiteral';return globalThis.result;};}"+
+      'module.exports={createHidden};'},
+    {path:'entry.cjs',sourceType:'commonjs',code:
+      "const {createHidden}=require('./helper.cjs');"+
+      'const hidden=createHidden();queueMicrotask(hidden);console.log(hidden());'}
+  ];
+  const native=await execute(files);
+  const variants=await receiveTwoHelperVariants(files);
+  const first=await execute(variants.first);
+  const second=await execute(variants.second);
+  assert.equal(first.stdout,native.stdout);
+  assert.equal(second.stdout,native.stdout);
+  assert.notEqual(first.source,native.source);
+  assert.notEqual(second.source,native.source);
+  assert.notEqual(first.source,second.source);
+  assert.ok(!first.source.includes("'helperCallbackSourceLiteral'"));
+  assert.ok(!second.source.includes("'helperCallbackSourceLiteral'"));
+  assert.equal(first.invoked,false);
+  assert.equal(second.invoked,false);
+  console.log('AGENT24_SCO_PER_RESPONSE_VARIANTS '+JSON.stringify({
+    native:native.source,
+    first:first.source,
+    second:second.source,
+    callbackInvoked:false
+  }));
+});
