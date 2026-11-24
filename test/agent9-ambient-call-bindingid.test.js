@@ -477,3 +477,11 @@ test('logical assignment does not invent a ToPrimitive effect',()=>{
   const result=analyze('function caller(value){value ||= 1;}');
   assert.equal(named(result,'caller')[0].ambient,false);
 });
+
+
+test('object identity equality does not invoke ToPrimitive',()=>{
+  const result=analyze(
+    'function caller(){const left={};const right={};return left==right;}'
+  );
+  assert.equal(named(result,'caller')[0].ambient,false);
+});
