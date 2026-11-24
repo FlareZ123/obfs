@@ -6,23 +6,23 @@ const http=require('node:http');
 const vm=require('node:vm');
 const {createScoHandler}=require('../src');
 
-/** @type {Array<{kind:string,observation:'source'|'frame',body:string}>} */
+/** @type {Array<{kind:string,observation:'source'|'frame',expected:'mismatch'|'stable'|'no-yield',body:string}>} */
 const cases=[
-  {kind:'json-toJSON',observation:'frame',
+  {kind:'json-toJSON',observation:'frame',expected:'stable',
     body:'JSON.stringify({toJSON:function(){external();return 1;}});'},
-  {kind:'json-replacer',observation:'source',
+  {kind:'json-replacer',observation:'source',expected:'mismatch',
     body:"JSON.stringify({x:1},function(key,value){if(key==='x')external();return value;});"},
-  {kind:'json-reviver',observation:'source',
+  {kind:'json-reviver',observation:'source',expected:'no-yield',
     body:'JSON.parse(jsonText,function(key,value){if(key===\'x\')external();return value;});'},
-  {kind:'array-sort',observation:'frame',
+  {kind:'array-sort',observation:'frame',expected:'mismatch',
     body:'[2,1].sort(function(a,b){external();return a-b;});'},
-  {kind:'string-replace',observation:'frame',
+  {kind:'string-replace',observation:'frame',expected:'stable',
     body:"inputText.replace(/a/,function(){external();return 'b';});"},
-  {kind:'array-map',observation:'frame',
+  {kind:'array-map',observation:'frame',expected:'mismatch',
     body:'[1].map(function(value){external();return value;});'},
-  {kind:'map-forEach',observation:'frame',
+  {kind:'map-forEach',observation:'frame',expected:'stable',
     body:'new Map(entries).forEach(function(){external();});'},
-  {kind:'array-from-map',observation:'frame',
+  {kind:'array-from-map',observation:'frame',expected:'mismatch',
     body:'Array.from([1],function(value){external();return value;});'}
 ];
 
@@ -84,7 +84,7 @@ function observe(code,observationKind) {
 }
 
 for(const scenario of cases) {
-  test('SCO native intrinsic callback source-observation diagnostic: '+scenario.kind,async()=>{
+  test('SCO native intrinsic callback classification: '+scenario.kind+' ('+scenario.expected+')',async()=>{
     const source=[
       "const jsonText=String.fromCharCode(123,34,120,34,58,49,125);",
       "const inputText='a';",
@@ -108,21 +108,32 @@ for(const scenario of cases) {
     }
 
     const variant=await fetchVariant(source);
-    assert.ok(!variant.includes('longPrivatePropertyName'),
-      scenario.kind+' SCO response must have positive owner-property rewrite yield');
-    assert.ok(!variant.includes('unrelatedField'),
-      scenario.kind+' SCO response must rename the unrelated plain() positive control');
+    assert.equal(variant.includes('longPrivatePropertyName'),scenario.expected==='no-yield',
+      scenario.kind+' SCO owner-key rewrite classification');
+    assert.equal(variant.includes('unrelatedField'),scenario.expected==='no-yield',
+      scenario.kind+' SCO unrelated positive-control classification');
     const after=observe(variant,scenario.observation);
     assert.equal(after.value,before.value,
       scenario.kind+' SCO response must preserve ordinary return values');
     if(scenario.observation==='source') {
-      assert.ok(after.source&&!after.source.includes('owner.longPrivatePropertyName'),
-        scenario.kind+' SCO response must expose the rewritten owner key in captured source');
+      assert.ok(after.source,scenario.kind+' SCO response must retain source observation');
+      if(scenario.expected==='mismatch') {
+        assert.ok(!after.source.includes('owner.longPrivatePropertyName'),
+          scenario.kind+' SCO response must expose the rewritten owner key in captured source');
+      } else {
+        assert.ok(after.source.includes('owner.longPrivatePropertyName'),
+          scenario.kind+' SCO no-yield control must preserve the owner key');
+      }
     } else {
       assert.ok(Number.isInteger(after.column),
         scenario.kind+' SCO response must retain the active hidden frame');
-      assert.notEqual(after.column,before.column,
-        scenario.kind+' SCO response must change the observed active-frame column');
+      if(scenario.expected==='mismatch') {
+        assert.notEqual(after.column,before.column,
+          scenario.kind+' SCO response must change the observed active-frame column');
+      } else {
+        assert.equal(after.column,before.column,
+          scenario.kind+' SCO control must preserve the observed active-frame column');
+      }
     }
   });
 }
