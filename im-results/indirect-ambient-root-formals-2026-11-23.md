@@ -74,3 +74,21 @@ At patch `f6ca2c20efcd3e1e52c66aa1fce5c1186628b121`, independent Windows and Ubu
 ## Boundaries
 
 The host preloader and dynamic import are declared attack conditions, rather than proof of a compromised build system or arbitrary runtime. The result does not mean the attacker obtains values which were otherwise secret. The current candidate rejects unproved native-reflection formals while preserving the narrowly established private literal call case; static source recovery, online SCO relaying, deliberate runtime modification, and strict >2.5× profile counterexamples remain outside this regression's scope. A narrower producer/alias/effect proof with retained positive yield is a future replacement candidate.
+
+
+## 24 November 2026: current-main replay and bounded indirect-member donor
+
+A test-only branch was created from current main snapshot `7d39d54bd1c0a9004cf2f389a23b94b40999b23b`. The production `src/cross-properties.js` blob at that base was `7298df722d65f545dcb7b55c81cb6b8e101ce6b7`. No compiler source was changed in the red-only commit `8eb431fc129f1307d6e07eb8cd290727fef587f4`.
+
+The exact test `test/ambient-indirect-root-formal.test.js` was extended with three native-versus-emitted Node ESM cases. Focused run [45302378670](https://github.com/FlareZ123/obfs/actions/runs/45302378670) failed on **both Ubuntu and Windows**: 17/20 tests passed and the three new cases failed with actual emitted observations:
+- sequence alias `const host=(0,globalThis); const cap=host.Reflect`: `["_pe75039b4a453"]`;
+- computed member `(0,globalThis)["Reflect"]`: `["_p3dc51f6c1c48"]`;
+- local function returning `globalThis`, then `.Reflect`: `["_pfb49e4201a6c"]`.
+
+Each native execution observed `["secretField"]`. The mismatch is a real host-observed ESM property-name difference, not a yield assertion.
+
+A donor-only bounded source guard was then applied to the same main-derived branch at `750f246fc736589e8d05f31a595420341b5dae68`. It propagates a *name-based* possible-global-root set through sequence, conditional/logical, static array-index, direct local alias and simple local-return expressions, then refuses cross-file property rewriting on unproved `Reflect`/`Object`/computed member reads. Focused [45302684310](https://github.com/FlareZ123/obfs/actions/runs/45302684310) passed **20/20** on both OS, plus project JSDoc, external JSDoc and paired-budget JSDoc. This is a bounded reproduction of the earlier PR #338 repair on a newer main-derived base, not a complete alias/effect proof.
+
+An expanded donor probe at `886b96c284e261bb32c3e9afc060ff16ef3f588a` seeded all recognized roots (`globalThis`, `window`, `self`, `global`) and added host-root positives plus a non-host shadowing control. [45302979098](https://github.com/FlareZ123/obfs/actions/runs/45302979098) passed **23/24** tests on both OS. The three new `global`/`window`/`self` cases passed, but the shadowed-local positive failed: a top-level `const globalThis={Reflect:{...}}` is an ordinary lexical object, yet the name-only seed treated it as the actual host global and suppressed an otherwise valid private ESM property rewrite. The job stopped at the behavioral test, so JSDoc was not rerun for this expanded source.
+
+**Disposition:** do not merge or present this guard as the source-observer solution. The red witness is a current-main-derived donor for Agent 3's canonical integration. The false-refusal demonstrates why root aliases must be attached to lexical BindingIds/scopes and source-value/effect summaries rather than a file-wide set of identifier spellings. The old and new PR #338 work should remain evidence-only until Agent 3 selects a single current-main candidate under the collective NO-GO stop-line. No security, extraction-resistance, or runtime-budget claim follows.
