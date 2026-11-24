@@ -248,7 +248,7 @@ async function main(){
       type:'text/html; charset=utf-8'
     });
     if(scenario.kind==='array-map'){
-      const padding=padBeforeMarkerToOriginalColumn(source,emitted,'hidden(external)+plain()');
+      const padding=padBeforeMarkerToOriginalColumn(source,emitted,'external();');
       cjsPadding.set(scenario.kind,padding);
       resources.set(base+'/padded.js',{body:padding.code,type:'text/javascript; charset=utf-8'});
       resources.set(base+'/padded.html',{
@@ -295,7 +295,7 @@ async function main(){
       type:'text/html; charset=utf-8'
     });
     if(scenario.kind==='array-map'){
-      const padding=padBeforeMarkerToOriginalColumn(moduleSource,moduleCode,'hidden(external)+plain()');
+      const padding=padBeforeMarkerToOriginalColumn(moduleSource,moduleCode,'external();');
       esmPadding.set(scenario.kind,padding);
       resources.set(base+'/module-padded.mjs',{
         body:padding.code,type:'text/javascript; charset=utf-8'
