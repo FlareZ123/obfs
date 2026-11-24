@@ -2247,6 +2247,9 @@ function renameCrossFileProperties(files,seed) {
     let unprovedNativeFormal=false;
     walk(module.ast,(node,parent,key,ancestors)=>{
       if(unprovedNativeFormal)return;
+      if(node.type==='MemberExpression'&&
+         possibleGlobalValue(node.object)&&memberMayReadNative(node))
+        unprovedNativeFormal=true;
       if(node.type==='VariableDeclarator' &&
          (node.id.type==='ObjectPattern'||node.id.type==='ArrayPattern') &&
          canExtractNative(node.id) &&
