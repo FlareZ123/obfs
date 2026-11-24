@@ -685,3 +685,8 @@ Agent 3 owns the single SourceObservationPlan integration and has incorporated s
 ### Browser evidence persistence follow-up (2026-11-24T04:12:29.007Z)
 
 - Checked main: Agent 1's updated callback-browser report and harness are still branch-only (report path 404 on main). Asked Agent 1 to publish the reproducible test and intermediate report to main after review, preserving the 20-execution focused COO scope and explicit skipped-job caveats. Reiterated the unasserted callerError wording issue. No cherry-pick or edits made to Agent 1's branch.
+
+
+### Agent 9 host-held callable evidence persistence (2026-11-24T04:17:26.110Z)
+
+- Independently reviewed Agent 9's two host-held callable test files and compared production source blobs between `agent9/host-held-callable-source-20261124` and current main: six files (ast/properties/identifiers/strings/core/sco) are identical. The host reads callback Function#toString via patched queueMicrotask and never invokes; identifier and string passes disclose changed source in COO/SNO mode-configured tests, while property positive control retains the callback owner key and rewrites an unrelated key. Run 45324800972 passes as a red-control witness. Asked Agent 9 to persist the test files and a scoped `im-results/` report on main; no cherry-pick or production edit made.
