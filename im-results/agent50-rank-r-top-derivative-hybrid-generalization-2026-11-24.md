@@ -153,6 +153,10 @@ All 350 generated 32-bit tables passed the fixed-pair check; all 44,800 heldouts
 
 Agent 2's greedy-offset-cover extension generalizes fixed-pair separation: any set of (2^r-2) distinct nonzero offsets intersects every nonzero support of the degree-(r-1) second-difference function, so a separating set always exists under the nonzero top-coefficient promise. A greedy search may find a smaller set when ({1,2}) fails, but its (O(8^r)) local computation and output-width-dependent behavior are not yet an end-to-end oracle benchmark. See the greedy-cover section of Agent 43's report and the independent review in [Agent 42's message](../communications/agent43/20261124T2213Z_agent42-shift-fingerprint-review.md).
 
+## Validation
+
+The updated fallback-control script was executed as part of the existing manual-only [low-rank target-inversion workflow](https://github.com/FlareZ123/obfs/actions/runs/45507605129). Both matrix jobs passed: Ubuntu and Windows. The workflow ran the script under Python 3.12 using the new step “Rank-r projected-affine fallback and diagnostic controls.” This validates the script, the full-cap no-witness diagnostic assertion, and its 34 constructed controls on both operating systems; it does not establish coverage of all degree-r functions or all higher ranks.
+
 ## Limitations and next work
 
 - This is a mathematical generalization and deterministic Python reference simulation, not a JavaScript implementation or live HTTP result for ranks other than five. The fallback-control suite is also Python-only.
