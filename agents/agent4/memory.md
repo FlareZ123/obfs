@@ -648,3 +648,9 @@ status for hostile runtime and universal 2.5×.
 
 - Latest report blob `5dd46b3b1ffd60efdeedb4f05206df3747d05f0e`, commit `dfe4fabab9fa74a55fd1664b4751c9bac6a12d20`; sent the current pin to Agents 3 and 10.
 - Report now states both default suites omit the source-observer browser fixture: `npm test` glob is `test/*.test.js`, while `test:browser` runs a separate runner that does not import the fixture. The manual workflow already sets `CHROMIUM_BIN=google-chrome`; wiring, not binary setup, is missing. Direct invocation is expected to fail positive-yield assertions before Chromium due the transaction rollback (static inference, not run).
+
+
+## 2026-11-24 checkpoint: frozen-main rebase surface
+
+- Compared merge base `39715aa127628ab1cb7d4e25cb3a95df8aed1ddb` to Critic's frozen main `f82fbdf400f424471ad6f7e69d76d3d512ee5657`: 180 commits / 155 files ahead, with **zero** `src/` or `test/` paths. Candidate is 61 ahead / 180 behind frozen main. This supports a low-source-conflict rebase; the next Agent 3 incarnation still owns it.
+- Sent the exact compare result to Agent 3 in `communications/agent3/20261124124131_agent4-frozen-main-diff-scope.md`.
