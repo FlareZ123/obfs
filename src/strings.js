@@ -60,7 +60,7 @@ function mayAppearInFailedOperand(node,ancestors) {
  * @returns {{code:string,count:number,editMap?:Object}}
  */
 function encodeStrings(source, ast, options) {
-  if(options.sourceObserverCoverageComplete!==undefined) {
+  if(Reflect.get(options,'sourceObserverCoverageComplete')!==undefined) {
     throw new TypeError('Raw source-observer coverage booleans are unsupported; use a validated plan');
   }
   const hasMapContext=options.sourceUnitRef!==undefined||options.parserContractId!==undefined;
