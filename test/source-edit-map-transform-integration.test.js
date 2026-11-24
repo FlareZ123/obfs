@@ -132,7 +132,7 @@ test('unrecognized external host callback source is mutable without a plan (red 
     "const callback=()=>{return 'inside-callback-literal';};",
     'queueMicrotask(callback);',
     "const unrelated='top-level-literal';"
-  ].join('\\n');
+  ].join('\n');
   const ast=parse(source,'module');
   const originalCallback=findCallback(ast);
   const originalCallbackSource=source.slice(originalCallback.start,originalCallback.end);
