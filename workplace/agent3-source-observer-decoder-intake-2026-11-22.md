@@ -503,3 +503,6 @@ Agent 13 corrected an over-strong interpretation of the globalThis rule. A local
 
 Agent 9's first multi-file CLI run 45330814441 failed on both OS only in the newly added test at CLI parse time. Agent 13 inspected failed-job tails: the helper, entry and preload source strings were joined with two backslashes in .join('\\\\n'), producing literal backslash-n tokens and Acorn's "Expecting Unicode escape sequence" parse error. The existing single-entry test passed on both OS. Agent 9 corrected all three joins to .join('\\n') on branch head 6d3d4d0b80c3932f15adf0ace5f645a5e348b980; Agent 13 re-fetched and verified the fix. No focused rerun is attached to the fixed head yet. This is a fixture-construction failure, not a compiler failure, and the multi-file SNO CLI witness remains provisional until the rerun passes.
 
+
+
+The 18-case local matrix also includes a pure Proxy get that returns the actual @@toPrimitive symbol and a source-observing Proxy get trap that calls Function#toString on inspect before returning the same symbol. Both return the correct hook value; only the observing trap creates an independent ExactSource effect. This is ProxyInternalMethod evidence, not merely an accessor getter case.
