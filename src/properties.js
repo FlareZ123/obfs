@@ -596,6 +596,7 @@ function proveLocalObject(ast, rootName, bindings, importedIdentityFunctions=new
           }
         }
         destructured=safePattern&&selectedOwner;
+        if(process.env.OBFS_DEBUG_CARRIER==='1')console.error('tuple-pattern',rootName,holder,{safePattern,selectedOwner,pattern:pattern.type,kind:parents.get(parent)?.kind,ancestors:ancestors.map(x=>x.type)});
         if(destructured){
           for(const name of patternAliases)holderAliases.add(name);
           for(const binding of patternAliasBindings)holderAliasBindings.add(binding);
@@ -609,6 +610,7 @@ function proveLocalObject(ast, rootName, bindings, importedIdentityFunctions=new
         break;
       }
     }
+    if(process.env.OBFS_DEBUG_CARRIER==='1')console.error('tuple-result',rootName,holder,{valid,holderAliases:[...holderAliases]});
     if(valid){
       privateOwnerTuples.set(holder,{indices});
       for(const index of indices)
@@ -712,6 +714,7 @@ function proveLocalObject(ast, rootName, bindings, importedIdentityFunctions=new
           patternAliasBindings.add(property.value);
         }
         destructured=safePattern&&selectedKeys.size>0;
+        if(process.env.OBFS_DEBUG_CARRIER==='1')console.error('record-pattern',rootName,holder,{safePattern,selectedKeys:[...selectedKeys],pattern:pattern.type,kind:parents.get(parent)?.kind,ancestors:ancestors.map(x=>x.type)});
         if(destructured){
           for(const name of patternAliases)holderAliases.add(name);
           for(const binding of patternAliasBindings)holderAliasBindings.add(binding);
@@ -725,6 +728,7 @@ function proveLocalObject(ast, rootName, bindings, importedIdentityFunctions=new
         break;
       }
     }
+    if(process.env.OBFS_DEBUG_CARRIER==='1')console.error('record-result',rootName,holder,{safe,holderAliases:[...holderAliases]});
     if(safe){
       privateOwnerRecords.set(holder,ownedKeys);
       for(const value of ownedValues)privateRecordLiteralValues.add(value);
@@ -826,6 +830,7 @@ function proveLocalObject(ast, rootName, bindings, importedIdentityFunctions=new
   }
 
   const aliases = new Set([rootName,...privateCarrierAliases]);
+  if(process.env.OBFS_DEBUG_CARRIER==='1')console.error('carrier-aliases',rootName,[...privateCarrierAliases],privateCarrierAliasBindings.size);
   /**
    * Return the only alias fact needed to resolve an expression. A null result
    * is already proved from this root through a private carrier or captured
