@@ -6,7 +6,7 @@
 
 ## Scope and execution status
 
-The five runtime-effect fixtures below were executed under **Node v22.16.0**. They demonstrate the behavioral consequences of changing source outside the two original tracked spans.
+The six runtime-effect fixtures below were executed under **Node v22.16.0**. They demonstrate the behavioral consequences of changing source outside the two original tracked spans.
 
 The candidate acceptance path was inspected statically. I did **not** execute the candidate's `validatePlanSemantics`, `acceptPlannedPass`, or full `obfuscateFiles` pipeline locally because this runtime has no repository checkout/network access. To make the acceptance claim independently reproducible, the accompanying script calls the candidate's exported `advancePlanRanges` and `validatePlanSemantics` directly. It deliberately bypasses `acceptPlannedPass`, whose reviewed snapshot has the separate Map/array mismatch.
 
@@ -38,7 +38,7 @@ export const labelText = label;
 
 The producer accepts this as a finite direct-reader plan. It records two source spans: the callable declaration and the direct reader call.
 
-## Four post-plan edits
+## Five post-plan edits
 
 ### 1. Export the formerly private callable
 
@@ -85,10 +85,11 @@ The original callable and reader slices are unchanged and still syntactically di
 
 ## Observed Node v22.16.0 runtime output
 
-The five behavioral fixtures were executed in separate data-URL module imports. Exact output:
+The six behavioral fixtures were executed in separate data-URL module imports. Exact output:
 
 ```text
 export-prefix: {"keys":["labelText","observed","result","sourceText"],"sourceText":"function observed() { return 29; }"}
+class-Function-shadow: {"sourceText":"[object Function]"}
 imported-Function-shadow: {"sourceText":"fake-host-source"}
 appended-reader: {"sourceText":"function observed() { return 29; }","leaked":"function secret() { return 99; }"}
 mutable-reader-binding: {"sourceText":"fake"}
