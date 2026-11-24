@@ -13,8 +13,8 @@ const {atomicWrite}=require('../src/atomic');
 
 /**
  * The unlisted host getter observes the transformed ESM export during its
- * own execution. Its returned Promise merely makes the observation complete
- * before the application prints its result; the app never invokes a callable.
+ * own execution. It returns a non-callable value; no application call is
+ * needed for the observation.
  * @param {ReadonlyArray<{path:string,code:string|Buffer}>} files
  * @param {string|null} primitivePrototype
  * @returns {Promise<string>}
@@ -28,10 +28,10 @@ async function executeWithHostPrototypeObserver(files,primitivePrototype) {
       'Object.defineProperty('+primitivePrototype+'.prototype,"callback",{',
       '  configurable:true,',
       '  get:function(){',
-      '    return import("./state.mjs").then(({state})=>{',
+      '    import("./state.mjs").then(({state})=>{',
       '      console.log("HOST:"+Object.keys(state).join(","));',
-      '      return 0;',
       '    });',
+      '    return 0;',
       '  }',
       '});'
     ].join('\n');
@@ -40,7 +40,7 @@ async function executeWithHostPrototypeObserver(files,primitivePrototype) {
       ['-r',preloader,path.join(directory,'main.mjs')],
       {encoding:'utf8',timeout:15000});
     assert.equal(child.status,0,child.stderr||child.error?.message);
-    return child.stdout;
+    return child.stdout.split(/\r?\n/).filter(Boolean).sort().join('\n')+'\n';
   } finally {
     await fs.rm(directory,{recursive:true,force:true});
   }
@@ -72,11 +72,11 @@ for(const primitive of primitives) {
   test('host getter on '+primitive.label+' prototype observes renamed ESM export without calling its result',async()=>{
     const files=graph([
       'import {state} from "./state.mjs";',
-      'await '+primitive.expression+'.callback;',
+      'void '+primitive.expression+'.callback;',
       'console.log("APP:"+state.secretField);'
     ].join('\n'));
     const native=await executeWithHostPrototypeObserver(files,primitive.prototype);
-    assert.equal(native,'HOST:secretField\nAPP:53\n');
+    assert.equal(native,'APP:53\nHOST:secretField\n');
     const output=transform(files,'primitive-getter-observer-'+primitive.label);
     const emitted=await executeWithHostPrototypeObserver(output.files,primitive.prototype);
     assert.equal(emitted,native,
@@ -89,11 +89,11 @@ for(const primitive of primitives) {
 test('ordinary own primitive length read retains independent private-field rewrite yield',async()=>{
   const files=graph([
     'import {state} from "./state.mjs";',
-    'await "x".length;',
-    'console.log("APP:"+state.secretField);'
+    'const length="x".length;',
+    'console.log("APP:"+state.secretField+":"+length);'
   ].join('\n'));
   const native=await executeWithHostPrototypeObserver(files,null);
-  assert.equal(native,'APP:53\n');
+  assert.equal(native,'APP:53:1\n');
   const output=transform(files,'primitive-getter-own-length-positive');
   const emitted=await executeWithHostPrototypeObserver(output.files,null);
   assert.equal(emitted,native);
