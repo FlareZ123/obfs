@@ -325,7 +325,7 @@ test('source-plan consumers reject copied mapped ranges with forged offsets',()=
     "function observed() { return 'source-visible-literal'; }",
     'const observedSource = Function.prototype.toString.call(observed);',
     'export const sourceText = observedSource;'
-  ].join('\\n');
+  ].join('\n');
   const plan=buildDirectFunctionSourcePlan(stringCallableSource,'entry.mjs',hostContract);
   assert.ok(plan);
   const sourceUnitRef=plan.sourceUnits.keys().next().value;
