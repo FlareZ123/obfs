@@ -365,7 +365,7 @@ async function main(){
       if(scenario.marker&&Number.isInteger(before.column)&&Number.isInteger(after.column)){
         const compiledResource=resources.get(base+'/compiled.js');
         assert.ok(compiledResource);
-        const delta=columnDeltaBeforeMarker(source,compiledResource.body,scenario.marker);
+        const delta=columnDeltaBeforeMarker(sourceFor(scenario),compiledResource.body,scenario.marker);
         const runtimeDelta=(before.column??0)-(after.column??0);
         assert.ok(delta>0,scenario.kind+' source-marker CJS column delta should be positive');
         assert.equal(delta,runtimeDelta,scenario.kind+' source-marker delta must match observed CJS frame delta');
@@ -445,7 +445,7 @@ async function main(){
       if(scenario.marker&&Number.isInteger(before.column)&&Number.isInteger(after.column)){
         const compiledResource=resources.get(base+'/module-compiled.mjs');
         assert.ok(compiledResource);
-        const delta=columnDeltaBeforeMarker(moduleSource,compiledResource.body,scenario.marker);
+        const delta=columnDeltaBeforeMarker(moduleSourceFor(scenario),compiledResource.body,scenario.marker);
         const runtimeDelta=(before.column??0)-(after.column??0);
         assert.ok(delta>0,scenario.kind+' source-marker ESM column delta should be positive');
         assert.equal(delta,runtimeDelta,scenario.kind+' source-marker delta must match observed ESM frame delta');
