@@ -2,6 +2,7 @@
 
 const {createHash} = require('node:crypto');
 const {walk, applyEdits, observesFunctionSource, sourceSpelledErrorOperand} = require('./ast');
+const {applyEditsWithMap,sourceGenerationOf} = require('./source-edit-map');
 const {collectBindings} = require('./properties');
 
 /** @typedef {import('./ast').AstNode} AstNode */
@@ -55,14 +56,45 @@ function mayAppearInFailedOperand(node,ancestors) {
  * All JS UTF-16 code units are retained, including isolated surrogates.
  * @param {string} source
  * @param {AstNode} ast
- * @param {{seed:string, minimumLength?:number, reservedNames?:Set<string>, reservedSources?:string[], fixedArity?:boolean}} options
- * @returns {{code:string, count:number}}
+ * @param {{seed:string, minimumLength?:number, reservedNames?:Set<string>, reservedSources?:string[], fixedArity?:boolean, sourceUnitRef?:string, parserContractId?:string, protectedSourceSpans?:Array<{spanId:string,sourceUnitRef:string,sourceGeneration:string,startOffset:number,endOffset:number,coordinateUnit:'utf16-code-unit',astNodeType:string|null}>}} options
+ * @returns {{code:string,count:number,editMap?:Object}}
  */
 function encodeStrings(source, ast, options) {
-  if(observesFunctionSource(ast)) return {code:source,count:0};
+  const hasMapContext=options.sourceUnitRef!==undefined||options.parserContractId!==undefined;
+  if(hasMapContext&&
+     (typeof options.sourceUnitRef!=='string'||options.sourceUnitRef.length===0||
+      typeof options.parserContractId!=='string'||options.parserContractId.length===0)) {
+    throw new TypeError('sourceUnitRef and parserContractId must be supplied together');
+  }
+  const protectedSourceSpans=options.protectedSourceSpans??[];
+  if(!Array.isArray(protectedSourceSpans))throw new TypeError('protectedSourceSpans must be an array');
+  if(protectedSourceSpans.length&&!hasMapContext) {
+    throw new TypeError('protectedSourceSpans require a source-unit and parser generation');
+  }
+  if(protectedSourceSpans.length) {
+    const generation=sourceGenerationOf(source,options.parserContractId);
+    for(const span of protectedSourceSpans) {
+      if(!span||typeof span.spanId!=='string'||span.spanId.length===0||
+         span.sourceUnitRef!==options.sourceUnitRef||span.sourceGeneration!==generation||
+         span.coordinateUnit!=='utf16-code-unit'||
+         !Number.isInteger(span.startOffset)||!Number.isInteger(span.endOffset)||
+         span.startOffset<0||span.endOffset<span.startOffset||span.endOffset>source.length) {
+        throw new TypeError('String encoder received a stale or foreign protected source span');
+      }
+    }
+  }
+  /** @returns {{code:string,count:number,editMap?:Object}} */
+  function noOp() {
+    if(hasMapContext) {
+      const mapped=applyEditsWithMap(source,[],options.sourceUnitRef,options.parserContractId);
+      return {code:source,count:0,editMap:mapped.map};
+    }
+    return {code:source,count:0};
+  }
+  if(observesFunctionSource(ast)) return noOp();
   // The decoder uses the ambient String intrinsic. A file-level or nested
   // lexical binding with this name can shadow it, including before TDZ init.
-  if (collectBindings(ast).has('String')) return {code:source,count:0};
+  if (collectBindings(ast).has('String')) return noOp();
   const values = new Map();
   /** @type {{start:number,end:number,text:string}[]} */
   const edits = [];
@@ -87,6 +119,8 @@ function encodeStrings(source, ast, options) {
   walk(ast, (node, parent, key, ancestors) => {
     if (node.type !== 'Literal' || typeof node.value !== 'string' ||
         node.value.length < minimumLength || !parent) return;
+    if (protectedSourceSpans.some(span=>
+        node.start<span.endOffset&&node.end>span.startOffset)) return;
     if (parent.type === 'ExpressionStatement' && parent.directive) return;
     if (hasEagerDependencies && ancestors.some(ancestor => ancestor.type === 'FunctionDeclaration')) return;
     if (opaqueWithScope && ancestors.some(ancestor => sourceBodies.has(ancestor.type))) return;
@@ -108,7 +142,7 @@ function encodeStrings(source, ast, options) {
     if (!values.has(value)) values.set(value, values.size);
     edits.push({start:node.start,end:node.end,text:`${helper}[${values.get(value)}]`});
   });
-  if (!edits.length) return {code:source,count:0};
+  if (!edits.length) return noOp();
   options.reservedNames?.add(helper);
 
   const key = (parseInt(createHash('sha256').update(options.seed).digest('hex').slice(0, 4), 16) % 65535) + 1;
@@ -156,6 +190,14 @@ function encodeStrings(source, ast, options) {
   for (const statement of ast.body) {
     if (statement.type === 'ExpressionStatement' && statement.directive) offset = statement.end;
     else break;
+  }
+  if(hasMapContext) {
+    const mapped=applyEditsWithMap(source,[
+      ...edits,
+      {start:offset,end:offset,text:'\n'+init,
+        affinity:'before-node',syntheticOriginId:'strings-decoder-prologue'}
+    ],options.sourceUnitRef,options.parserContractId);
+    return {code:mapped.code,count:edits.length,editMap:mapped.map};
   }
   const transformed = applyEdits(source, edits);
   // The prefix remains untouched: literal replacements never overlap a directive.
