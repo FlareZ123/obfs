@@ -201,6 +201,55 @@ function multiPageFor(scriptPath,targetIndex){
     '}catch(error){document.getElementById("failure").textContent=String(error&&error.stack||error);}</script>';
 }
 
+
+/**
+ * Return a marker's 1-based line and 0-based UTF-16 column.
+ * @param {string} source
+ * @param {string} marker
+ * @returns {{line:number,column:number}}
+ */
+function lineColumnBeforeMarker(source,marker){
+  const index=source.indexOf(marker);
+  assert.ok(index>=0&&source.lastIndexOf(marker)===index,
+    'position marker must occur exactly once');
+  const lineStart=source.lastIndexOf('\n',index-1)+1;
+  return {line:source.slice(0,lineStart).split('\n').length,column:index-lineStart};
+}
+
+/**
+ * Parse the 1-based line and column from a captured Chromium stack frame.
+ * @param {Observation} observation
+ * @returns {{line:number,column:number}}
+ */
+function frameLineColumn(observation){
+  assert.ok(observation.frame,'a frame must be present');
+  const match=observation.frame.match(/:(\d+):(\d+)\)?$/);
+  assert.ok(match,'frame must contain a line and column');
+  return {line:Number(match[1]),column:Number(match[2])};
+}
+
+/**
+ * Apply a signed correction before a unique marker. Negative corrections
+ * consume only an immediately preceding whitespace reserve.
+ * @param {string} code
+ * @param {string} marker
+ * @param {number} delta
+ * @returns {string}
+ */
+function applySignedWhitespaceCorrection(code,marker,delta){
+  const index=code.indexOf(marker);
+  assert.ok(index>=0&&code.lastIndexOf(marker)===index,
+    'correction marker must occur exactly once');
+  assert.ok(Number.isInteger(delta),'correction must be an integer');
+  if(delta>=0)return code.slice(0,index)+' '.repeat(delta)+code.slice(index);
+  const remove=-delta;
+  let start=index;
+  while(start>0&&code[start-1]===' '&&index-start<remove)start-=1;
+  assert.equal(index-start,remove,
+    'negative correction must fit in the designated whitespace reserve');
+  return code.slice(0,start)+code.slice(index);
+}
+
 /**
  * @param {string} modulePath
  * @param {boolean} [patchedMap]
@@ -649,6 +698,144 @@ async function main(){
       paddedColumns:[paddedFirst.column,paddedSecond.column],
       properties:multiProperties
     })+'\\n');
+
+    // Four-callsite frame-position witness: three callsites share a line,
+    // a short-key expansion sits between two shrinkages, and a fourth site
+    // is on another line. Astral characters before every marker exercise
+    // JavaScript/Acorn UTF-16 columns rather than UTF-8 byte offsets.
+    const mixedSource=[
+      'const other={unrelatedField:2};',
+      'function hidden(external){',
+      "const owner={longPrivatePropertyName:1};const astral1='😀';[1].map(function(value){external();return value;});const owner2={tinyKey:0};const astral2='😀';"+' '.repeat(40)+"[2].map(function(value){external();return value;});const owner3={anotherLongPrivatePropertyName:0};const astral3='😀';[3].map(function(value){external();return value;});",
+      "const owner4={fourthLongPrivatePropertyName:0};const astral4='😀';[4].map(function(value){external();return value;});",
+      'return owner.longPrivatePropertyName+owner2.tinyKey+owner3.anotherLongPrivatePropertyName+owner4.fourthLongPrivatePropertyName;}',
+      'function plain(){return other.unrelatedField;}',
+      'function publicReader(external){return hidden(external)+plain();}',
+      'module.exports=publicReader;'
+    ].join('\n');
+    const mixedOutput=obfuscateFiles([{
+      path:'multi-mixed-callsite.cjs',sourceType:'commonjs',code:mixedSource
+    }],{
+      mode:'coo',closedWorld:true,
+      seed:'agent1-native-callback-browser-mixed-callsite',
+      identifiers:false,strings:false,properties:true
+    });
+    assert.equal(mixedOutput.files.length,1);
+    const mixedCodeValue=mixedOutput.files[0].code;
+    assert.equal(typeof mixedCodeValue,'string');
+    const mixedCompiled=/** @type {string} */(mixedCodeValue);
+    const mixedProperties=mixedOutput.files[0].metrics.properties;
+    assert.ok(mixedProperties>=5,
+      'mixed fixture must rewrite four owner keys and the unrelated positive control');
+    for(const originalKey of [
+      'longPrivatePropertyName','tinyKey',
+      'anotherLongPrivatePropertyName','fourthLongPrivatePropertyName',
+      'unrelatedField'
+    ]){
+      assert.ok(!mixedCompiled.includes(originalKey),
+        'mixed fixture must rewrite '+originalKey);
+    }
+    resources.set('/multi-mixed/native.js',{
+      body:mixedSource,type:'text/javascript; charset=utf-8'
+    });
+    resources.set('/multi-mixed/compiled.js',{
+      body:mixedCompiled,type:'text/javascript; charset=utf-8'
+    });
+    const mixedMarkers=['[1].map(','[2].map(','[3].map(','[4].map('];
+    const mixedSourcePositions=mixedMarkers.map(marker=>
+      lineColumnBeforeMarker(mixedSource,marker));
+    const mixedCompiledPositions=mixedMarkers.map(marker=>
+      lineColumnBeforeMarker(mixedCompiled,marker));
+    assert.deepEqual(mixedSourcePositions.map(position=>position.line),
+      mixedCompiledPositions.map(position=>position.line),
+      'property-only edits must preserve each callsite line');
+    assert.equal(mixedSourcePositions[0].line,mixedSourcePositions[1].line);
+    assert.equal(mixedSourcePositions[1].line,mixedSourcePositions[2].line);
+    assert.notEqual(mixedSourcePositions[2].line,mixedSourcePositions[3].line,
+      'fourth callsite must exercise a distinct source line');
+    const mixedSourceDeltas=mixedMarkers.map((marker,index)=>
+      mixedSourcePositions[index].column-mixedCompiledPositions[index].column);
+    const mixedRuntimeDeltas=[];
+    const mixedNativePositions=[];
+    const mixedCompiledPositionsRuntime=[];
+    for(let target=1;target<=4;target++){
+      resources.set('/multi-mixed/native-'+target+'.html',{
+        body:multiPageFor('/multi-mixed/native.js',target),
+        type:'text/html; charset=utf-8'
+      });
+      resources.set('/multi-mixed/compiled-'+target+'.html',{
+        body:multiPageFor('/multi-mixed/compiled.js',target),
+        type:'text/html; charset=utf-8'
+      });
+      const nativeObservation=await observe(origin,'/multi-mixed/native-'+target+'.html');
+      const compiledObservation=await observe(origin,'/multi-mixed/compiled-'+target+'.html');
+      assert.equal(nativeObservation.value,3,'mixed callsite native result '+target);
+      assert.equal(compiledObservation.value,nativeObservation.value,
+        'mixed callsite emitted result '+target);
+      assert.equal(nativeObservation.error,null,'mixed callsite native observer '+target);
+      assert.equal(compiledObservation.error,null,'mixed callsite emitted observer '+target);
+      const nativePosition=frameLineColumn(nativeObservation);
+      const compiledPosition=frameLineColumn(compiledObservation);
+      assert.equal(nativePosition.line,mixedSourcePositions[target-1].line,
+        'native stack line must identify source callsite '+target);
+      assert.equal(compiledPosition.line,nativePosition.line,
+        'emitted stack line must remain stable for callsite '+target);
+      mixedNativePositions.push(nativePosition);
+      mixedCompiledPositionsRuntime.push(compiledPosition);
+      mixedRuntimeDeltas.push(nativePosition.column-compiledPosition.column);
+    }
+    assert.deepEqual(mixedSourceDeltas,mixedRuntimeDeltas,
+      'UTF-16 source-column deltas must match all four Chromium runtime deltas');
+    assert.ok(mixedSourceDeltas[0]>0,'first long-key shrink must move callsite one');
+    assert.ok(mixedSourceDeltas[1]<mixedSourceDeltas[0],
+      'short-key expansion between shrinkages must reduce the second cumulative delta');
+    assert.ok(mixedSourceDeltas[2]>mixedSourceDeltas[1],
+      'third long-key shrink must increase the third cumulative delta');
+    assert.ok(mixedSourceDeltas[3]>0,
+      'fourth callsite on another line must retain its own positive column delta');
+    const mixedIncrementalPads=[
+      mixedSourceDeltas[0],
+      mixedSourceDeltas[1]-mixedSourceDeltas[0],
+      mixedSourceDeltas[2]-mixedSourceDeltas[1],
+      mixedSourceDeltas[3]
+    ];
+    assert.ok(mixedIncrementalPads[0]>0&&mixedIncrementalPads[1]<0&&
+      mixedIncrementalPads[2]>0&&mixedIncrementalPads[3]>0,
+      'signed corrections must insert, remove, then insert padding across the mixed edits');
+    let mixedPadded=mixedCompiled;
+    for(let index=0;index<mixedMarkers.length;index++){
+      mixedPadded=applySignedWhitespaceCorrection(
+        mixedPadded,mixedMarkers[index],mixedIncrementalPads[index]);
+    }
+    const mixedPaddedPositions=mixedMarkers.map(marker=>
+      lineColumnBeforeMarker(mixedPadded,marker));
+    assert.deepEqual(mixedPaddedPositions,mixedSourcePositions,
+      'signed per-callsite corrections must restore every UTF-16 source line/column');
+    resources.set('/multi-mixed/padded.js',{
+      body:mixedPadded,type:'text/javascript; charset=utf-8'
+    });
+    for(let target=1;target<=4;target++){
+      resources.set('/multi-mixed/padded-'+target+'.html',{
+        body:multiPageFor('/multi-mixed/padded.js',target),
+        type:'text/html; charset=utf-8'
+      });
+      const paddedObservation=await observe(origin,'/multi-mixed/padded-'+target+'.html');
+      assert.equal(paddedObservation.value,3,'mixed padded result '+target);
+      const paddedPosition=frameLineColumn(paddedObservation);
+      assert.deepEqual(paddedPosition,mixedNativePositions[target-1],
+        'mixed padded runtime frame position must match native callsite '+target);
+    }
+    process.stdout.write('CHROMIUM_MULTI_CALLSITE_MIXED_PADDING '+JSON.stringify({
+      sourceDeltas:mixedSourceDeltas,
+      runtimeDeltas:mixedRuntimeDeltas,
+      incrementalPads:mixedIncrementalPads,
+      sourcePositions:mixedSourcePositions,
+      emittedPositions:mixedCompiledPositions,
+      paddedPositions:mixedPaddedPositions,
+      properties:mixedProperties,
+      allRuntimePositionsRestored:true
+    })+'\n');
+
     process.stdout.write('CHROMIUM_INTRINSIC_CALLBACK_ESM_SUMMARY '+JSON.stringify({
       scenarios:moduleResults.length,
       strictSourceUnavailable:moduleResults.filter(item=>!item.patchedMap).every(item=>item.native.source===null&&item.compiled.source===null),
