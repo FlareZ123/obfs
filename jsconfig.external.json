@@ -47,6 +47,7 @@
     "test/source-stable-bound-export.test.js",
     "test/bound-runtime-interception.test.js",
     "test/sno-bound-runtime-interception.test.js",
+    "test/sno-storage-source-parity.test.js",
     "test/bound-runtime-minifier-control.test.js",
     "test/bound-runtime-interception-browser.js",
     "test/cjs-wrapper-source-observer.test.js",
