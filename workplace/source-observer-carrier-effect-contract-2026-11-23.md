@@ -186,6 +186,17 @@ The canonical plan should expose at least:
  * @typedef {string} HostEffectId - unique identity for one effect, even when spans are shared
  * @typedef {string} SourceUnitRefKey
  * @typedef {string} SourceMirrorRefKey
+ * @typedef {string} ReceiverRefKey
+ * @typedef {'native-global'|'native-property'|'alias'|'proxy'|'userland'|'unknown'} ReceiverProvenance
+ * @typedef {'native-inherited'|'native-accessor'|'captured-native'|'own-data'|'own-accessor'|'prototype-patched'|'proxy-forwarded-native'|'userland'|'unknown'} DispatchProvenance
+ * @typedef {Object} ReceiverRef
+ * @property {ReceiverRefKey} receiverRef
+ * @property {RealmBindingRefKey|null} originBindingRef
+ * @property {string|null} hostInterfaceIdentity
+ * @property {string|null} realmId
+ * @property {ReceiverProvenance} provenance
+ * @property {ReceiverRefKey|null} aliasOf
+ * @property {ReceiverRefKey|null} proxyTarget
  * @typedef {string} ValueRefKey
  * @typedef {Object} SourceMirrorRef
  * @property {SourceUnitRefKey} sourceUnit
@@ -213,6 +224,8 @@ The canonical plan should expose at least:
  * @property {ProxyInternalMethod|null} proxyInternalMethod
  * @property {string|null} interfaceIdentity
  * @property {string|null} receiverIdentity
+ * @property {ReceiverRefKey|null} receiverRef
+ * @property {ReceiverProvenance} receiverProvenance
  * @property {string|null} effectiveOperationIdentity
  * @property {string|null} conversionTarget - DOMString, USVString, ByteString, etc.
  * @property {string|null} operandRole
@@ -253,6 +266,7 @@ The canonical plan should expose at least:
  * @property {string|null} deploymentManifestId - HTML/loader/import-map/SRI/source-mirror manifest generation
  * @property {ReadonlyMap<SourceUnitRefKey, SourceUnitRefKey>} resolvedModuleGraph
  * @property {ReadonlyMap<SourceMirrorRefKey, SourceMirrorRef>} sourceMirrors - explicit source embedding/mirror provenance, not only a source-unit pointer
+ * @property {ReadonlyMap<ReceiverRefKey, ReceiverRef>} receiverRefs - receiver origin, alias, realm and proxy-target identity
  * @property {ReadonlyMap<SourceSpanId, ReadonlySet<ObservationEffect>>} effects
  * @property {ReadonlyMap<SourceSpanId, ReadonlySet<SourceSpanId>>} semanticClosures
  * @property {ReadonlySet<SourceSpanId>} unsupportedSpans
@@ -701,3 +715,15 @@ The `SourceMirrorRef` in the plan must therefore record:
 A SourceBytes effect closes over the whole source unit only when the provenance proves the relevant mirror/URL is readable. DOM serialization exposes inline embedding text, not arbitrary external/Blob bytes. `fetch(import.meta.url)` is a source-byte read for the module's own resolved URL, including Blob URL; an unrelated fetch is not. Keep SourceBytes, ExactSource, and FramePosition as distinct effects.
 
 Required future acceptance pair: same transformed module as inline script vs external/Blob ESM; compare outerHTML/XMLSerializer and fetch(import.meta.url) native/emitted bytes; include aliased fetch, document.title negative, and an unrelated JSON API fetch positive-yield control. This is browser runtime evidence only; no current-main transform regression is claimed by this probe.
+
+
+### Receiver and effective-dispatch provenance lattice
+
+A host member spelling is never sufficient to create a Web IDL sink. The shared plan records receiver identity separately from effective callable/accessor dispatch:
+
+- `ReceiverProvenance`: `native-global`, `native-property`, `alias`, `proxy`, `userland`, or `unknown`.
+- `DispatchProvenance`: `native-inherited`, `native-accessor`, `captured-native`, `own-data`, `own-accessor`, `prototype-patched`, `proxy-forwarded-native`, `userland`, or `unknown`.
+
+`ReceiverRef` preserves the originating realm binding, host interface, realm, alias relation and Proxy target. The `HostEffectRecord` carries both a stable receiver ref and the effective operation identity/dispatch state, with `HostContractRef` proving the native interface/method/accessor premise. For example, a captured `Storage.prototype.setItem` alias remains `captured-native` even after the prototype is patched; an own `setItem` override is `own-data` or `own-accessor`; a same-named userland object is `userland`; a Proxy that forwards with the genuine target as receiver is `proxy-forwarded-native`. A Proxy that stores the function reference is not a native Storage conversion.
+
+The same lattice applies to DOM setters, CSSOM setters, Window.name, Storage named properties and method sinks. The lattice is evidence, not a name heuristic: unresolved receiver or dispatch state remains `unknown` and takes the conservative fallback.
