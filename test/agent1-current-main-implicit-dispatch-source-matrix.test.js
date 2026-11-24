@@ -184,9 +184,9 @@ for(const mode of /** @type {const} */(['coo','sno'])) {
       const source=
         'const owner={secretField:1};'+
         'const other={unrelatedField:2};'+
-        hiddenPrefix+scenario.body+
+        hiddenPrefix+scenario.body+'}'+
         'function plain(){return other.unrelatedField;}'+
-        readerPrefix+readerBody+
+        readerPrefix+readerBody+'}'+
         'module.exports=publicReader;';
       const before=await observe(source,scenario.kind);
       const output=compile(mode,source);
