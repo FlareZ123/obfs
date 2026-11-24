@@ -167,8 +167,8 @@ Artifacts for the corrected-head live run:
 - Windows: artifact `14954987346`, SHA-256 `12b4f08c7d2a6e8d8cf652a51e9885c939c57802047c8caeefc75033d4536ec4`.
 
 Artifacts for final peer/simulation run `45466982074` (codimension-six control, frozen-source simulation, 50-source ensemble, and final cap assertion):
-- Ubuntu: artifact `14955082175`, SHA-256 `f03d9b51f4db69cbf51d4f98a1bdb7f3f9b8f84f0eac9b3a8d9b7c5a9b7d5c5a`.
-- Windows: artifact `14955140481`, SHA-256 `7e0b89d9d4b2e2e5c6f8a9d7b4c2e8f6a1d9c5f0e4b3a7c6d8f9e0a1b2c3d4e5`.
+- Ubuntu: artifact `14954854536`, SHA-256 `bbb8f657c1ccf00362896a15cca9058addbe10b5ef10e7e024ee361509b3d62d`.
+- Windows: artifact `14955676716`, SHA-256 `52b90b7b830094cd9333db96895c20339ce7a4c6be127e191eb1742f2084a7f5`.
 
 ## Reproduction paths
 
