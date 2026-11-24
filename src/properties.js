@@ -783,7 +783,11 @@ function proveLocalObject(ast, rootName, bindings, importedIdentityFunctions=new
     if(active.has(functionNode))return true;
     active.add(functionNode);
     let opaque=false;
-    walk(functionNode,(candidate,parent,key)=>{
+    walk(functionNode,(candidate,parent,key,ancestors)=>{
+      if(ancestors.some(ancestor=>ancestor!==functionNode&&
+        (ancestor.type==='FunctionDeclaration'||
+         ancestor.type==='FunctionExpression'||
+         ancestor.type==='ArrowFunctionExpression')))return;
       if(candidate.type==='Identifier'&&
          !isNonReferenceIdentifier(candidate,parent,key)) {
         const scope=scopes.get(candidate.name);
