@@ -21,6 +21,8 @@ The function summary now records `memberReaderIndex` only for a synchronous, non
 
 When an owner alias appears beneath an otherwise source-observable callable, the proof permits that use only if it is an argument at the exact reader parameter index of a direct, non-optional call to a local reader whose function value is proven private/direct-call-only. Imported consumers, escaped functions, identity forwarders, side-effectful readers, and other argument positions do not receive this exception. Existing alias resolution and own-key checks still decide whether the owner and property are actually eligible.
 
+A second conservative proof admits a class method's `FunctionExpression` into `privateFunctionNodes) only when its enclosing `ClassDeclaration` has one synchronous, non-generator, non-static, non-accessor, zero-argument method with a single static member return of the tracked owner; the class is local and non-exported; exactly one `const` instance is created in the same lexical scope; and every instance use is a direct, non-optional, zero-argument call of that exact method. Classes with inheritance/additional methods, exported class bindings, multiple instances, extracted methods, escaping instances, optional calls, and source-observation paths fail closed. This addresses the existing direct-use class fixture without treating arbitrary methods as private.
+
 ## Tests
 
 The focused regression file now verifies:
@@ -32,7 +34,9 @@ The focused regression file now verifies:
 - refusal for an identity forwarder;
 - refusal when the owner is passed at a non-reader parameter position;
 - refusal for optional calls;
-- existing duplicate-formal, unproved external-owner, escaped-reader, and source-observed-reader refusals.
+- existing duplicate-formal, unproved external-owner, escaped-reader, and source-observed-reader refusals;
+- direct-use private class methods in COO/SNO;
+- refusal when the class, instance, or method escapes, when the method is extracted/observed, or when it is invoked optionally.
 
 ## Validation
 
