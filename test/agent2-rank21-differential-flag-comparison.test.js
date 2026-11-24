@@ -117,22 +117,38 @@ test('sampled differential-flag learner versus graph inversion on the same rank-
     {inputSeed:0x12345678,outputSeed:0x9abcdef0,inputBias:0x13579bdf,outputBias:0x2468ace0},
     {inputSeed:0x31415926,outputSeed:0x27182818,inputBias:0xdeadbeef,outputBias:0xcafebabe}
   ];
-  const sampleSeeds=[0x12345678,0xdeadbeef];
+  // The first two seeds match the graph/low-rank shared-cache comparison.
+  const sampleSeeds=[
+    0x12345678,0xdeadbeef,0x5eed1234,0x0badc0de,
+    0x13579bdf,0x2468ace0,0xabcdef01,0x31415926,
+    0x27182818,0x87654321,0x0f1e2d3c,0xc001d00d,
+    0xfaceb00c,0x1badb002,0xdecafbad,0x10293847
+  ];
+  const sampleSizes=[16,24,32];
   const hiddenTargets=[
     0x67aa29ff,0x628acbfe,0xfe1940fd,0xc1ece67b,
     0x3e411777,0x37fff36f,0xbd72765f,0x8721e5bf
   ];
-  const maxLowRankOrbitLowerBounds=[
-    [2082189,2048076],
-    [2064800,2074107]
-  ];
-
+  const expected={
+    16:{verified:244,queries:298574,fullBatches:26},
+    24:{verified:253,queries:441936,fullBatches:31},
+    32:{verified:256,queries:585296,fullBatches:32}
+  };
+  /** @type {Map<number,{verified:number,queries:number,fullBatches:number,unsupported:number,batches:number}>} */
+  const totals=new Map();
+  for(const samples of sampleSizes){
+    totals.set(samples,{verified:0,queries:0,fullBatches:0,unsupported:0,batches:0});
+  }
   /** @type {Array<Object>} */
-  const receipts=[];
-  let totalDifferentialQueries=0;
-  let totalDifferentialVerified=0;
+  const differentialReceipts=[];
+  /** @type {Array<Object>} */
+  const graphReceipts=[];
+  let matched32DifferentialQueries=0;
   let totalGraphReported=0;
   let totalGraphUnique=0;
+  const expectedGraphReported=[[219162,219121],[219225,219291]];
+  const expectedGraphUnique=[[130032,129829],[129196,129123]];
+  const lowRankUniqueLowerBounds=[[2082189,2048076],[2064800,2074107]];
 
   for(let wrapperIndex=0;wrapperIndex<wrappers.length;wrapperIndex++){
     const wrapper=wrappers[wrapperIndex];
@@ -147,104 +163,121 @@ test('sampled differential-flag learner versus graph inversion on the same rank-
       const hidden=(applyLinear(inputColumns,input)^wrapper.inputBias)>>>0;
       return (applyLinear(outputColumns,rank21Triangular(hidden,terms))^wrapper.outputBias)>>>0;
     };
-    /** @param {bigint} input @returns {bigint} */
-    const bigOracle=input=>BigInt(oracle(Number(input)));
 
     for(let sampleIndex=0;sampleIndex<sampleSeeds.length;sampleIndex++){
       const sampleSeed=sampleSeeds[sampleIndex];
-      const learned=learnFlag(oracle,{
-        bits:32,samplesPerStage:16,sampleSeed,maxQueries:1000000
-      });
-      const differentialStatus=learned.status;
-      const trainingQueries=differentialStatus==='calibrated'?
-        learned.trainingQueries:learned.queries;
-      let verifiedTargets=0;
-      let differentialNewQueries=0;
-      /** @type {Array<Object>} */
-      const targetReceipts=[];
-
-      const graphCache=new Map();
-      let graphReportedCalls=0;
-      let graphTotalCalls=0;
-      /** @param {bigint} input @returns {bigint} */
-      const cachedBigOracle=input=>{
-        const key=Number(input)>>>0;
-        graphTotalCalls++;
-        if(!graphCache.has(key))graphCache.set(key,BigInt(oracle(key)));
-        return /** @type {bigint} */ (graphCache.get(key));
-      };
-      const graphSeed=(0x5e21+wrapperIndex*0x100+sampleIndex*0x20)>>>0;
-
-      for(let targetIndex=0;targetIndex<hiddenTargets.length;targetIndex++){
-        const secret=inputInverse((hiddenTargets[targetIndex]^wrapper.inputBias)>>>0);
-        const target=oracle(secret);
-        let differential=null;
-        if(differentialStatus==='calibrated'){
-          differential=learned.invert(target);
-          assert.equal(differential.verified,oracle(differential.input)===target,
-            'the learner verification bit must equal an independent oracle check');
-          if(differential.verified){
-            assert.equal(differential.input,secret);
-            verifiedTargets++;
+      for(const samplesPerStage of sampleSizes){
+        const learned=learnFlag(oracle,{
+          bits:32,samplesPerStage,sampleSeed,maxQueries:1000000
+        });
+        const calibrated=learned.status==='calibrated';
+        const receipt=totals.get(samplesPerStage);
+        assert.ok(receipt);
+        receipt.batches++;
+        const trainingQueries=calibrated?learned.trainingQueries:learned.queries;
+        let verifiedTargets=0;
+        /** @type {number[]} */
+        const failedTargets=[];
+        if(calibrated){
+          for(let targetIndex=0;targetIndex<hiddenTargets.length;targetIndex++){
+            const secret=inputInverse((hiddenTargets[targetIndex]^wrapper.inputBias)>>>0);
+            const target=oracle(secret);
+            const inverse=learned.invert(target);
+            assert.equal(inverse.verified,oracle(inverse.input)===target,
+              'the learner verification bit must equal an independent oracle check');
+            if(inverse.verified){
+              assert.equal(inverse.input,secret);
+              verifiedTargets++;
+            }else failedTargets.push(targetIndex);
           }
-          differentialNewQueries+=differential.newQueries;
+        }else{
+          for(let targetIndex=0;targetIndex<hiddenTargets.length;targetIndex++)
+            failedTargets.push(targetIndex);
+          receipt.unsupported++;
         }
-
-        const graph=invertByRandomAffineGraph(
-          cachedBigOracle,BigInt(target),32,5,{seed:graphSeed,delta:1e-8}
-        );
-        assert.equal(graph.input,BigInt(secret));
-        assert.equal(graph.verified,true);
-        graphReportedCalls+=graph.queries;
-
-        targetReceipts.push({
-          targetIndex,
-          secret:'0x'+secret.toString(16).padStart(8,'0'),
-          target:'0x'+target.toString(16).padStart(8,'0'),
-          differentialVerified:differential?.verified??false,
-          differentialNewQueries:differential?.newQueries??0,
-          graphQueries:graph.queries
+        const queries=calibrated?learned.queries():learned.queries;
+        receipt.verified+=verifiedTargets;
+        receipt.queries+=queries;
+        if(verifiedTargets===hiddenTargets.length)receipt.fullBatches++;
+        if(samplesPerStage===32&&sampleIndex<2)
+          matched32DifferentialQueries+=queries;
+        differentialReceipts.push({
+          wrapperIndex,
+          sampleSeed:'0x'+sampleSeed.toString(16),
+          samplesPerStage,
+          status:learned.status,
+          trainingQueries,
+          totalQueries:queries,
+          verifiedTargets,
+          failedTargets
         });
       }
 
-      const differentialQueries=differentialStatus==='calibrated'?
-        learned.queries():learned.queries;
-      const graphUnique=graphCache.size;
-      assert.equal(graphTotalCalls,graphReportedCalls);
-      totalDifferentialQueries+=differentialQueries;
-      totalDifferentialVerified+=verifiedTargets;
-      totalGraphReported+=graphReportedCalls;
-      totalGraphUnique+=graphUnique;
-      receipts.push({
-        wrapperIndex,
-        sampleSeed:'0x'+sampleSeed.toString(16),
-        differentialStatus,
-        trainingQueries,
-        differentialNewQueries,
-        differentialQueries,
-        verifiedTargets,
-        graphReportedCalls,
-        graphUnique,
-        graphCacheSavings:graphReportedCalls-graphUnique,
-        lowRankUniqueLowerBound:maxLowRankOrbitLowerBounds[wrapperIndex][sampleIndex],
-        targetReceipts
-      });
+      // Reproduce the exact shared-cache graph baseline for the two original
+      // completion seeds; this is a separate, matched eight-target batch.
+      if(sampleIndex<2){
+        const cache=new Map();
+        let totalCalls=0,reportedCalls=0;
+        /** @param {bigint} input @returns {bigint} */
+        const cachedBigOracle=input=>{
+          const key=Number(input)>>>0;
+          totalCalls++;
+          if(!cache.has(key))cache.set(key,BigInt(oracle(key)));
+          return /** @type {bigint} */ (cache.get(key));
+        };
+        const graphSeed=(0x5e21+wrapperIndex*0x100+sampleIndex*0x20)>>>0;
+        for(let targetIndex=0;targetIndex<hiddenTargets.length;targetIndex++){
+          const secret=inputInverse((hiddenTargets[targetIndex]^wrapper.inputBias)>>>0);
+          const target=oracle(secret);
+          const graph=invertByRandomAffineGraph(
+            cachedBigOracle,BigInt(target),32,5,{seed:graphSeed,delta:1e-8}
+          );
+          assert.equal(graph.input,BigInt(secret));
+          assert.equal(graph.verified,true);
+          reportedCalls+=graph.queries;
+        }
+        const uniqueCalls=cache.size;
+        assert.equal(totalCalls,reportedCalls);
+        assert.equal(reportedCalls,expectedGraphReported[wrapperIndex][sampleIndex]);
+        assert.equal(uniqueCalls,expectedGraphUnique[wrapperIndex][sampleIndex]);
+        totalGraphReported+=reportedCalls;
+        totalGraphUnique+=uniqueCalls;
+        graphReceipts.push({
+          wrapperIndex,
+          sampleSeed:'0x'+sampleSeed.toString(16),
+          reportedCalls,
+          uniqueCalls,
+          lowRankUniqueLowerBound:lowRankUniqueLowerBounds[wrapperIndex][sampleIndex]
+        });
+      }
     }
   }
+
+  for(const samplesPerStage of sampleSizes){
+    const actual=totals.get(samplesPerStage);
+    assert.ok(actual);
+    assert.equal(actual.batches,wrappers.length*sampleSeeds.length);
+    assert.equal(actual.verified,expected[samplesPerStage].verified);
+    assert.equal(actual.queries,expected[samplesPerStage].queries);
+    assert.equal(actual.fullBatches,expected[samplesPerStage].fullBatches);
+    assert.equal(actual.unsupported,0);
+  }
+  assert.equal(totalGraphReported,876799);
+  assert.equal(totalGraphUnique,518180);
+  assert.equal(matched32DifferentialQueries,73162);
 
   process.stdout.write('OBFS_RANK21_DIFFERENTIAL_FLAG_COMPARISON '+JSON.stringify({
     source:'rank-21-displacement-degree-five-triangular-permutation',
     wrappers:wrappers.length,
     targetsPerBatch:hiddenTargets.length,
     sampleSeeds:sampleSeeds.map(seed=>'0x'+seed.toString(16)),
-    learnerSamplesPerStage:16,
-    nonlinearOutputRank:21,
-    topDegree:5,
-    totalDifferentialQueries,
-    totalDifferentialVerified,
-    totalGraphReported,
-    totalGraphUnique,
-    differentialToGraphUniqueRatio:totalDifferentialQueries/totalGraphUnique,
-    receipts
+    learnerSampleSizes:sampleSizes,
+    learnerSummaries:Object.fromEntries([...totals.entries()].map(([samples,value])=>[samples,value])),
+    matched32SampleDifferentialQueries:matched32DifferentialQueries,
+    matchedGraphReportedCalls:totalGraphReported,
+    matchedGraphUniqueCalls:totalGraphUnique,
+    matchedDifferentialToGraphUniqueRatio:matched32DifferentialQueries/totalGraphUnique,
+    graphReceipts,
+    differentialReceipts
   })+'\n');
 });
