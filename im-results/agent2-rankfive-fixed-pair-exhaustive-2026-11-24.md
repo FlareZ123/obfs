@@ -19,6 +19,8 @@ It reconstructs the table and source string directly from the frozen `privateSou
 - the table's full XOR/top quintic coefficient is `0xb1f2257d`;
 - the reconstructed source string has SHA-256 `2b6a7b2cb348cd716e636e8e2da0817d4721a95f98bd45bbd90ffd8a5b366a9d`, length 3,487 bytes.
 
+It also checks differential uniformity directly: for each nonzero delta, the 32 derivative values H(q) XOR H(q+delta) contain exactly 16 distinct 32-bit words, each occurring twice. This is differential uniformity 2 for the vectorial function H:F2^5 -> F2^32, the smallest possible value when output dimension is at least input dimension. Carlet's terminology reserves “APN” for equal input/output dimensions, so this report uses “differentially 2-uniform.” See Claude Carlet, *Boolean Functions for Cryptography and Coding Theory*, §3.4.1, pp.157–160: https://www.math.univ-paris13.fr/~carlet/book-fcts-Bool-vect-crypt-codes.pdf .
+
 It first checks the stronger property directly: for every basepoint q, every nonzero shift delta, and every offset u other than 0 or delta, the second difference
 
 `H(q) XOR H(q+delta) XOR H(q+u) XOR H(q+u+delta)`
@@ -29,7 +31,7 @@ It then independently enumerates every ordered pair u,v of distinct nonzero vect
 
 **Result:** zero violations.
 
-**Exhaustive counts:** 29,760 nontrivial second-difference triples, plus 930 ordered independent offset pairs × 32 basepoints × 31 nonzero shifts = 922,560 fixed-pair constraints; all passed.
+**Exhaustive counts:** 992 derivative-value checks (32 basepoints × 31 nonzero deltas), 29,760 nontrivial second-difference triples, plus 930 ordered independent offset pairs × 32 basepoints × 31 nonzero shifts = 922,560 fixed-pair constraints; all passed.
 
 ## Why this covers every anchor basis
 
