@@ -199,15 +199,15 @@ async function main() {
         {threshold:2.5,confidence:0.95});
       const placebo=pairedBudgetBound(workload.placeboLeftSamplesMs,workload.placeboRightSamplesMs,
         {threshold:2.5,confidence:0.95});
-      const timings=[...workload.baselineSamplesMs,...workload.obfuscatedSamplesMs].sort((a,b)=>a-b);
-      const distinct=[...new Set(timings)];
-      const minObservedStepMs=distinct.length>1?
+      const timings=[...workload.baselineSamplesMs,...workload.obfuscatedSamplesMs];
+      const distinct=[...new Set(timings.map(value=>Number(value.toFixed(3))))].sort((a,b)=>a-b);
+      const minimumRoundedStepMs=distinct.length>1?
         Math.min(...distinct.slice(1).map((value,index)=>value-distinct[index])):null;
       return {workload:workload.workload,...bound,placeboDecision:placebo.decision,
         placeboMedianOfPairedRatios:placebo.medianOfPairedRatios,
         placeboUpperMedianBound:placebo.upperMedianBound,
         placeboStrictBreachCount:workload.placeboStrictBreachCount,
-        minObservedStepMs,distinctTimingCount:distinct.length};
+        minimumRoundedStepMs,distinctTimingCount:distinct.length};
     });
     assert.ok(chromiumBudgetBounds.every(workload=>workload.decision!=='exceeded'),
       'Chromium paired median slowdown confidence interval must not exceed 2.5x');
