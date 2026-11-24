@@ -602,7 +602,7 @@ function collectStringDecoderContext(ast,editMap) {
   walk(ast,node=>{
     if(node.type!=='VariableDeclarator'||node.id?.type!=='Identifier'||
        node.init?.type!=='ArrayExpression'||!isInsideRanges(node,prologueRanges))return;
-    if(node.init.elements.length>0&&node.init.elements.every(element=>
+    if(node.init.elements.length>0&&node.init.elements.every(/** @param {AstNode|null} element */ element=>
       element?.type==='Literal'&&typeof element.value==='string')) {
       helperCandidates.push({name:node.id.name,length:node.init.elements.length});
     }
