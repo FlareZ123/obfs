@@ -53,7 +53,7 @@ async function main() {
       runtimeVersion,
       contractVersion:'coo-direct-function-source-v1',
       pristineIntrinsicsPremise:
-        'Fresh page module realm with unmodified Function.prototype.toString and Function.prototype.call before module evaluation.'
+        'Fresh page module realm with unmodified Function.prototype.toString, Function.prototype.call, and String.fromCharCode before module evaluation.'
     }
   });
   const emitted=result.files[0];
