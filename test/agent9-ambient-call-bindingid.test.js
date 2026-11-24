@@ -460,3 +460,14 @@ test('direct eval prevents certification of functions in its lexical environment
   );
   assert.equal(named(result,'hidden')[0].hostHeldCallable,true);
 });
+
+
+test('reassigned class constructor bindings retain all possible method sources',()=>{
+  const result=analyze(
+    'class Reader{read(){return 1;}}class Other{other(){return 2;}}'+
+    'let Current=Reader;Current=Other;const instance=new Current();'+
+    'function run(){external(instance);}'
+  );
+  assert.ok(result.summaries.filter(summary=>
+    summary.hostHeldCallable&&summary.node.type==='FunctionExpression').length>=2);
+});
