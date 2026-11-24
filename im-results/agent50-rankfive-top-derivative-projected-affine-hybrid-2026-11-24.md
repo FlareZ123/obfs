@@ -13,7 +13,7 @@ A generic top-quintic ANF learner correctly reconstructed the frozen source, but
 
 This follow-up removes the unnecessary complete lower-ANF basis for the source family under test. It uses a nonzero fifth derivative to recover the rank-five quotient coordinates, queries a section table, fits a linear correction, and verifies the resulting degree-five candidate. The new method passed strict JSDoc, exhaustive small-width tests, adversarial fallback controls, and live SCO/native HTTP comparisons on Ubuntu and Windows.
 
-The live 10-replicate comparisons on the corrected code head observed an 8.79%–12.77% mean query reduction against the existing projected-affine learner. A separate 1,000-replicate deterministic JavaScript simulation observed an 11.26% mean reduction. These are source-family-specific query-count results; they do not establish general JavaScript deobfuscation resistance, CPU performance, or compliance with the 2.5x compute budget.
+Two independent 10-replicate CSPRNG-tape live runs on the corrected and final code heads observed pooled mean reductions of 12.597% (Ubuntu, hybrid lower in 20/20 pairs) and 8.686% (Windows, 19/20). A separate 1,000-replicate deterministic JavaScript simulation observed an 11.26% mean reduction. These are source-family-specific query-count results; they do not establish general JavaScript deobfuscation resistance, CPU performance, or compliance with the 2.5x compute budget.
 
 ## Source and threat-model scope
 
@@ -186,7 +186,7 @@ Artifacts for final peer/simulation run `45466982074` (codimension-six control, 
 
 ## Reproduction paths
 
-The implementation and focused workflows are preserved on branch `agent50/rankfive-top-quintic-http-20261124` at `7839d07a27722b806195e50574d33608648ac26a` (not merged into main at report time). The live HTTP comparison itself ran at `5bdfe02f1bdbdbbfefdbe68f6f555675879ac45d`; the subsequent branch commit adds only the codimension-six peer control and does not change the learner or HTTP adapter:
+The implementation and focused workflows are preserved on branch `agent50/rankfive-top-quintic-http-20261124` at final code head `63f2a5bc2a74a988cd3e65b11c11ac642ec10c09` (draft PR #373; no product merge). The first live HTTP run used `5bdfe02f1bdbdbbfefdbe68f6f555675879ac45d`; the second final-head run used `63f2a5bc2a74a988cd3e65b11c11ac642ec10c09`. Between these pins, the learner algorithm was unchanged; later commits added the codimension-six control, 50-source ensemble, and corrected the HTTP cap assertion:
 
 - `sims/rankfive-top-derivative-projected-affine-hybrid-peer.js`
 - `sims/rankfive-top-derivative-hybrid-query-simulation.js`
@@ -199,7 +199,7 @@ The implementation and focused workflows are preserved on branch `agent50/rankfi
 - `.github/workflows/manual-rankfive-top-derivative-hybrid-peer.yml`
 - `.github/workflows/manual-sco-rankfive-top-derivative-hybrid-http.yml`
 
-The branch compares to main as 30 commits ahead and 198 behind, with 13 changed files. Draft PR [#373](https://github.com/FlareZ123/obfs/pull/373) is open; GitHub's mergeability field has fluctuated between true and false across fetches; the branch remains 30 commits ahead and 198 behind main. Treat the draft as pending review/rebase; no merge was attempted. Review/rebase the shared baseline-script and JSDoc-config diffs before merging; do not blindly merge a stale branch.
+At the current review checkpoint, the branch is 30 commits ahead and 240 behind main, with 13 changed files. Draft PR [#373](https://github.com/FlareZ123/obfs/pull/373) remains open and draft; GitHub's mergeability field has fluctuated. Following the Critic's integration guidance, do not rebase or merge merely to reduce the PR backlog; any future merge needs a specific integration reason and independent review of the baseline-script/JSDoc-config seams.
 
 ## Limitations and next work
 
@@ -207,7 +207,7 @@ The branch compares to main as 30 commits ahead and 198 behind, with 13 changed 
 - The fast path assumes a nonzero fifth derivative with a codimension-five quotient. The verifier/fallback protects correctness under the fixed degree-at-most-five contract; it does not extend the method to arbitrary degree or arbitrary JS side effects.
 - The experiment measures oracle queries only. It does not measure CPU, wall-clock target runtime, initialization deductions, memory, or the 2.5x compute budget.
 - Only SCO/native HTTP behavior was tested. No conclusion is drawn for COO, SNO, static deobfuscation, dynamic instrumentation, domain locking, or tamper resistance.
-- The source is known to the trusted test harness; the attacker-side learner only receives oracle responses. This is a source-family experiment, not evidence that an unknown production program satisfies the promise.
-- Obtain independent mathematical/code review (requests sent to Agents 2 and 42), test codimension-six and higher-rank adversarial sources, compare more random rank-five tables, and separately measure CPU if the algorithm is ever used in a release-budget evaluation.
+- The source is known to the trusted test harness; the attacker-side learner worker receives only oracle responses and random tapes, not the source string. It runs as a worker thread in the same Node process as the local test server, however, so this is not an OS-process isolation boundary or evidence against a malicious same-process client using process-level inspection. This is a query-reconstruction experiment, not evidence that an unknown production program satisfies the promise.
+- Independent proof/harness reviews have been requested from Agents 2 and 42; no response had been received at this checkpoint. This incarnation downloaded and independently checked all four live HTTP artifacts: it recomputed the frozen source hash, mask rank and top coefficient, reproduced all 40/40 hybrid query counts from the archived witness/verifier tapes, and matched 40,960 offline heldouts. A Python-only lazy witness-face prototype (not in the measured JS implementation) removed the unused full six-direction vertex and stopped after the first nonzero 5-face. On all 40 archived live tapes it preserved the exact models and 40,960 offline heldouts while saving 825 total oracle queries (20.625 per replicate). A corresponding lazy JS implementation would have a fast-path cap of 63 + 62(27-1) + 31*32 + 726 = 3,393, but requires fresh peer/HTTP validation; the reported code still uses eager prefetch and the validated 3,420 cap. Continue adversarial source tests and keep CPU measurement separate.
 
 **Decision:** preserve as intermediate evidence in `im-results/`. Do not promote to `results/`, do not change the project's release gate, and do not claim strong protection or 2.5x compliance from these query-count results.
