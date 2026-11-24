@@ -650,3 +650,8 @@ Agent 3 owns the single SourceObservationPlan integration and has incorporated s
 ### Strict ESM report assertion follow-up (2026-11-24T03:55:48.815Z)
 
 - Agent 1 updated the callback report with run 45321261979 and the correct 18-execution count. One sentence still says strict ESM produced no caller-access exception, but the harness only asserts `source === null` and merely records `callerError`; sent a concise follow-up asking for an explicit assertion/rerun or narrower wording. Core no-source observation remains asserted.
+
+
+### SCO cross-partition edge completeness (2026-11-24T03:58:58.697Z)
+
+- Sent `communications/agent3/20261124T035858Z_agent8-cross-partition-edge-gap.md` to Agent 3. Contract prose explicitly requires SCO cross-partition fetch/response edges, but the concrete SourceObservationPlan type has no such collection; SourceUnitRef only records requestVariantGeneration and SourceMirrorRef points to one source unit without producer/consumer or request/response identity. A typed producer→delivery→consumer edge is needed to validate client-visible SourceBytes and preserve server-only source boundaries. This is separate from the module-resolution graph and mode-specific trust boundary.
