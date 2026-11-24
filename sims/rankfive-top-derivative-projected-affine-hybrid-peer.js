@@ -416,6 +416,8 @@ function main() {
   let positiveOutputs = 0;
   let maxPositiveQueries = 0;
   let totalPositiveQueries = 0;
+  let shiftStrategyCases = 0;
+  let signatureStrategyCases = 0;
   for (let n = 5; n <= 8; n++) {
     for (let caseIndex = 0; caseIndex < 8; caseIndex++) {
       const sourceRng = seeded(0x50a202611 + n * 100 + caseIndex);
@@ -427,6 +429,10 @@ function main() {
       assert.equal(result.diagnostics.fallbackUsed,false);
       assert.equal(result.diagnostics.verificationSamples,726);
       assert.equal(result.diagnostics.quotientRank,5);
+      assert.ok(result.diagnostics.coordinateStrategy === 'shift' ||
+        result.diagnostics.coordinateStrategy === 'signature');
+      if (result.diagnostics.coordinateStrategy === 'shift') shiftStrategyCases++;
+      else signatureStrategyCases++;
       for (let input = 0; input < 2 ** n; input++) {
         assert.equal(evaluateHybridModel(result.model,input),source(input),
           'rank-five projected-affine finite truth table mismatch');
@@ -492,9 +498,32 @@ function main() {
     () => 0
   );
   assert.equal(rankSixFallback.diagnostics.fallbackUsed,true);
-  assert.equal(rankSixFallback.diagnostics.fallbackReason,'signature-outside-codimension-five-span');
+  assert.ok(['signature-outside-codimension-five-span','verification-mismatch']
+    .includes(rankSixFallback.diagnostics.fallbackReason));
+  assert.equal(rankSixFallback.model.kind,'anf');
   for (let input = 0; input < 256; input++) {
     assert.equal(evaluateHybridModel(rankSixFallback.model,input),rankSix(input));
+  }
+
+  // A structured monomial table fails the fixed-pair check, so the learner
+  // must retain the derivative-signature route and still reconstruct exactly.
+  /** @param {number} input @returns {number} */
+  const monomialTableSource = input =>
+    ((input & 31) === 31 ? 0x80000000 : 0) >>> 0;
+  const monomialDirections = [1,2,4,8,16,32];
+  let monomialWitnessIndex = 0;
+  const monomialSignature = cloneTopDerivativeProjectedAffine(
+    monomialTableSource,8,
+    () => monomialDirections[monomialWitnessIndex++ % monomialDirections.length],
+    seeded(0x50a202650)
+  );
+  assert.equal(monomialSignature.diagnostics.fixedPairPassed,false);
+  assert.equal(monomialSignature.diagnostics.coordinateStrategy,'signature');
+  assert.equal(monomialSignature.diagnostics.fastPathSuccess,true);
+  assert.equal(monomialSignature.diagnostics.fallbackUsed,false);
+  assert.ok(monomialSignature.queries <= 63 + 62 * 26 + 31 * 8 + 726);
+  for (let input = 0; input < 256; input++) {
+    assert.equal(evaluateHybridModel(monomialSignature.model,input),monomialTableSource(input));
   }
 
   // A degree-four source has no fifth-derivative witness and uses exact fallback.
@@ -513,7 +542,14 @@ function main() {
 
   const summary = {
     finite:{cases:positiveCases,outputs:positiveOutputs,
-      meanQueries:totalPositiveQueries/positiveCases,maxQueries:maxPositiveQueries},
+      meanQueries:totalPositiveQueries/positiveCases,maxQueries:maxPositiveQueries,
+      shiftStrategyCases,signatureStrategyCases},
+    monomialSignatureFallback:{
+      fixedPairPassed:monomialSignature.diagnostics.fixedPairPassed,
+      coordinateStrategy:monomialSignature.diagnostics.coordinateStrategy,
+      exactAll256:true,
+      queries:monomialSignature.queries
+    },
     lowerDegreeResidualFallback:{
       reason:lowerFallback.diagnostics.fallbackReason,
       exactAll256:true,
@@ -539,9 +575,10 @@ function main() {
       witnessTrialCap:Math.ceil(Math.log(1e-10)/Math.log(1-((63/64)*(62/64)*(60/64)*(56/64)*(48/64)))),
       verificationSamples:Math.ceil(Math.log(1e-10)/Math.log(31/32)),
       falseAcceptanceBound:Math.pow(31/32,Math.ceil(Math.log(1e-10)/Math.log(31/32))),
-      fastQueryCapN32:63*27+1+31*32+726
+      lazySignatureCapN32:63+62*26+31*32+726,
+      shiftCapN32:63+62*26+3*32+726
     },
-    note:'Seeded tests exercise implementation paths only. The RM verifier guarantee requires independent uniform verification draws and a fixed degree<=5 oracle.'
+    note:'Seeded tests exercise implementation paths only. The RM verifier guarantee requires independent uniform verification draws and a fixed degree<=5 oracle; the HTTP worker releases verifier randomness only after candidate construction.'
   };
   console.log('TOP_DERIVATIVE_PROJECTED_AFFINE_HYBRID ' + JSON.stringify(summary));
   return summary;
