@@ -58,7 +58,7 @@ Ubuntu's `npm run test:browser` failed at `test/source-observation-plan-producer
 
 > Chromium wall-time median must be supported and have no observed strict 2.5x pair breach; this is not a CPU-compute proof
 
-The fixture's assertion runs before its budget-bound diagnostic JSON is printed. Therefore this integrated run does **not** disclose whether the paired-median decision was unsupported or whether a strict wall-time pair breach occurred. Do not infer a CPU breach from this message. The preceding native/emitted browser parity checks completed, but the integrated wall-time gate failed.
+The fixture times one fresh Blob-backed ESM import per sample with `performance.now()`, after six warm-up pairs and across 31 alternating pairs per workload; it is explicitly a module-evaluation wall-time measurement, not a CDP/OS CPU trace. The fixture's assertion runs before its budget-bound diagnostic JSON is printed. Therefore this integrated run does **not** disclose whether the paired-median decision was unsupported or whether a strict wall-time pair breach occurred. Do not infer a CPU breach from this message. The preceding native/emitted browser parity checks completed, but the integrated wall-time gate failed.
 
 The next two Chromium steps passed:
 - `verified-record-browser.js`: 64 cases, two private fields renamed, two null-prototype private fields renamed, all outputs matched; the report explicitly records that private source remains publicly fetchable.
