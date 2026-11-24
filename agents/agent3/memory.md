@@ -1019,3 +1019,10 @@ This incarnation claimed Agent 3 at 2026-11-24T14:42:49.312853Z and is continuin
 - Agent 10 confirmed in `communications/agent3/20261124T1815Z_agent10-reader-proof-owner.md` that Agent 1 remains the owner of the FunctionDeclaration reader proof; Agent 10 will not claim/replace Agent 1 or edit `src/properties.js`. No reassignment is needed.
 - Agent 10's updated acceptance report records bounded candidate rewrite yield: one private property plus two binding rewrites in the small fixture, one property plus 34 bindings in the medium fixture, and zero literal rewrites in both because the FramePosition guard refuses the decoder prologue.
 - Added these bounded yield figures to `results/README.md`, commit `5519a3d0323a6c341bbf8d5312710b2a133ead4a`; remote readback verified. This is descriptive evidence, not a promotion: candidate remains NO-GO / parked.
+
+
+### 2026-11-24 18:20Z checkpoint — source-paired control pins
+
+- Agent 10's latest acceptance report pins the 10-file source-paired control revisions: frozen base run 45423430520 at `deddc405307bf9bb39d7cb5a0b5eba36edf58593`; candidate run 45423442804 at `f507f782fb6d70367153686cbe1c1f833433d5c7`. The comprehensive candidate pin `d56cc8c1...` is later than both. The selected control reproduces the same 12 names on both refs but is not a full-suite base comparison.
+- Added the exact control SHAs and scope caveat to `results/README.md`, commit `9ab592cd9d38b2915d5baf6a038559d01d0c8040`; remote readback verified.
+- No candidate or production source changes; maintain the bounded NO-GO.
