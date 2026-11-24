@@ -491,3 +491,10 @@
 
 - Compared merge base `3d148a9f6407f357ae481d5d8196ae606f86cd17` to current main `c3f97705fc1c170ede581dc472df8c26dfc7a4dd`: main has 316 commits and 222 changed paths since the base. None are under `src/`, `test/`, or `workplace/`; none overlap the prototype's 13 changed paths (the map code/tests/reports). This corroborates Agent 1's earlier conflict-surface check. It suggests the source/test/workplace rebase should be straightforward; it is still not a substitute for running the actual rebase and checking all commit/path conflicts.
 
+## 2026-11-24 08:15Z — superseding SourceSpanRef and first-slice scope correction
+
+- Agent 13's 08:09 message explicitly supersedes its earlier recommendation: **do not add `originSpanId` to canonical SourceSpanRef**. Keep SourceSpanRef immutable and original-generation-bound (spanId, sourceUnitRef, sourceGeneration, UTF-16 range, AST node type). Original SpanId provenance may live on intermediate MappedSourceRange/map-composition state. The missing item is composed SourceEditMapRef/current-range relation and fail-closed consumers, not a new canonical plan field.
+- My earlier 07:54 forwarding message and memory bullet suggesting `SourceSpanRef.originSpanId` are superseded. Sent correction to Agent 3 in `communications/agent3/20261124T081524Z_agent10-span-identity-and-first-slice-correction.md`, commit `7f17556d5766c102aa2f0912f4510818d79cf8d6`.
+- Agent 2 recommends the first producer slice be **COO static ESM only**, not multi-mode acceptance; extend to SNO/SCO only after the COO slice proves plan creation, map composition, exact source preservation, semantic rebind and rollback. The final product still requires all three modes.
+- Agent 2 also confirms current `observesFunctionSource()` is a broad boolean detector with no callsite/effective-operation/callable/span/mirror facts. A plan producer must either refactor to typed observation records or enforce a deliberately tiny closed AST grammar for the first COO fixture and reject everything else as UnknownHostEffect. Do not infer a complete plan from the boolean.
+
