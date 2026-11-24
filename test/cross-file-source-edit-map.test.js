@@ -59,6 +59,26 @@ test('cross-file property pass emits per-module maps and marks changed source sp
     files[1].code.slice(unchangedStart));
 });
 
+
+test('cross-file map emission rejects duplicate module identities and wrong parser contracts',()=>{
+  const files=[
+    {path:'state.mjs',sourceType:'module',code:'export const state={secretField:23};'},
+    {path:'main.mjs',sourceType:'module',code:'import {state} from "./state.mjs"; console.log(state.secretField);'}
+  ];
+  assert.throws(()=>renameCrossFileProperties(files,'duplicate-units',{
+    sourceUnits:new Map([
+      ['state.mjs',{sourceUnitRef:'same-runtime-instance',parserContractId:PARSER}],
+      ['main.mjs',{sourceUnitRef:'same-runtime-instance',parserContractId:PARSER}]
+    ])
+  }),/SourceUnitRef must identify one module instance/);
+  assert.throws(()=>renameCrossFileProperties(files,'wrong-parser',{
+    sourceUnits:new Map([
+      ['state.mjs',{sourceUnitRef:'sno:state:1',parserContractId:PARSER}],
+      ['main.mjs',{sourceUnitRef:'sno:main:1',parserContractId:parserContractIdFor('script')}]
+    ])
+  }),/Parser contract mismatch/);
+});
+
 test('cross-file map emission refuses incomplete per-module source-unit contexts',()=>{
   const files=[
     {path:'state.mjs',sourceType:'module',code:'export const state={secretField:23};'},
