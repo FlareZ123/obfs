@@ -371,6 +371,7 @@
     "test/agent1-host-held-callback-browser.test.js",
     "test/agent1-host-held-callback-browser.js",
     "test/agent24-sno-cli-host-held-string-source.test.js",
+    "test/agent24-sco-crossfile-host-held-spelling.test.js",
   ],
   "exclude": [
     "node_modules"
