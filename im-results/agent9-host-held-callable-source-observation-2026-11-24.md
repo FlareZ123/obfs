@@ -145,3 +145,42 @@ The same result occurred for direct, alias, object-field, parameter-forward and 
 The source blobs for `src/ast.js`, `src/properties.js`, `src/identifiers.js`, `src/strings.js`, `src/core.js` and `src/sco.js` at witness commit `55cedfa8521659dda9ed6d7181860453fcc66eb3` were again independently compared with current `main` and were identical. No compiler source was changed on the test branch.
 
 Combined interpretation: the existing local property proof preserves source across these same five same-file paths (10/10 COO/SNO property controls in run 45325152560), while identifier and string passes rewrite the same callback source (20/20 COO/SNO red controls in run 45325337541). The gap is a transformation-consumer integration defect. It is not established that cross-file ESM, dynamic imports, every call form, or SCO has the same behavior.
+
+
+## Cross-file ESM factory-return witness
+
+A separate two-module reproduction puts the private callback definition in `helper.mjs`:
+
+```js
+function hidden(inputValue){return inputValue+1;}
+export function getCallback(){return hidden;}
+```
+
+The entry module imports `getCallback`, arms a host-provided `queueMicrotask` source observer, and passes `getCallback()` to it. The host reads `Function#toString` and never invokes the returned callback.
+
+In both COO and SNO, the imported factory-return path leaks the private callback source:
+- identifier transform: `inputValue` becomes a generated parameter;
+- string transform: `'callbackSourceLiteral'` becomes a generated decoder lookup.
+
+Focused run [45325587955](https://github.com/FlareZ123/obfs/actions/runs/45325587955) passed four red controls across COO/SNO on Ubuntu and Windows with strict JSDoc. Compiler blobs at witness commit `de6867c28d9d2efee7b86e2b7fc6cd37175d3ee9` for ast, properties, identifiers, strings, core and SCO were again identical to current main.
+
+This is direct evidence that the host-held callable value flow crosses an ESM import/export boundary and a factory return before the host observes the callable. It does not yet cover arbitrary module cycles, dynamic import, namespace objects or import-map resolution.
+
+## Per-callable precision diagnostic
+
+The diagnostic in `test/agent9-host-held-callable-precision.test.js` places two functions in one file:
+
+- `hidden`, whose source is observed by the host-held callback;
+- `safe`, which is never passed to the host.
+
+Current COO and SNO behavior transforms **both** functions:
+- identifier mode renames both `inputValue` and `safeValue`;
+- string mode encodes both `callbackSourceLiteral` and `unrelatedLiteral`.
+
+Focused run [45325642684](https://github.com/FlareZ123/obfs/actions/runs/45325642684) passed on Ubuntu and Windows with strict JSDoc because it asserts this current behavior. The diagnostic prints both native and emitted function source.
+
+The desired future acceptance is different: `hidden` source must remain byte-for-byte identical, while `safe` remains eligible for identifier/string transformation. A file-wide boolean gate cannot express that. Broadening `observesFunctionSource` to every unknown host call would fix the false-negative by disabling transformations for `safe` too; leaving the current predicate narrow mutates `hidden`. This is the concrete precision requirement for per-callable semantic closures.
+
+## Consolidated boundary
+
+Across direct, alias, object-field, actual→formal, return and cross-file factory-return paths, the current-main implementation demonstrates source-observation leaks in identifier/string consumers in COO and SNO. The local property proof is safer for the five same-file handoff paths tested, but that does not establish cross-file property safety. No SCO host-held callback claim is made.
