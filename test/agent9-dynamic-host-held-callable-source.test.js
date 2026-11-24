@@ -20,18 +20,9 @@ function observe(source){
 }
 
 const access=[
-  {
-    name:'computed-property',
-    read:'holder[key]'
-  },
-  {
-    name:'reflect-get',
-    read:'Reflect.get(holder,key)'
-  },
-  {
-    name:'property-descriptor-value',
-    read:'Object.getOwnPropertyDescriptor(holder,key).value'
-  }
+  {name:'computed-property',read:'holder[key]'},
+  {name:'reflect-get',read:'Reflect.get(holder,key)'},
+  {name:'property-descriptor-value',read:'Object.getOwnPropertyDescriptor(holder,key).value'}
 ];
 
 for(const mode of /** @type {const} */ (['coo','sco','sno'])){
@@ -68,7 +59,7 @@ for(const mode of /** @type {const} */ (['coo','sco','sno'])){
         "const key='callback';",
         'queueMicrotask('+item.read+');',
         "module.exports='unrelatedLiteral'.length;"
-      ].join('\\n');
+      ].join('\n');
       const native=observe(source);
       const compiled=obfuscateFiles([{
         path:'entry.cjs',sourceType:'commonjs',code:source
@@ -84,15 +75,6 @@ for(const mode of /** @type {const} */ (['coo','sco','sno'])){
       console.log('AGENT9_DYNAMIC_HOST_HELD_STRING '+JSON.stringify({
         mode,access:item.name,literals:compiled.files[0].metrics.literals,
         native:native.source,emitted:emitted.source,sourceEqual:emitted.source===native.source
-      }));
-    });
-      const emitted=observe(String(compiled.files[0].code));
-      assert.ok(compiled.files[0].metrics.literals>=1);
-      assert.notEqual(emitted.source,native.source);
-      assert.equal(emitted.value,native.value);
-      assert.equal(emitted.invoked,false);
-      console.log('AGENT9_DYNAMIC_HOST_HELD_STRING '+JSON.stringify({
-        mode,access:item.name,native:native.source,emitted:emitted.source
       }));
     });
   }
