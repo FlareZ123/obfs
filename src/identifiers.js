@@ -38,10 +38,13 @@ function classifyIdentifier(node,parent,key) {
 /**
  * @param {string} source
  * @param {AstNode} ast
- * @param {{seed:string,sourceType:'script'|'module'|'commonjs',sourceUnitRef?:string,parserContractId?:string,protectedSourceSpans?:Array<{spanId:string,sourceUnitRef:string,sourceGeneration:string,startOffset:number,endOffset:number,coordinateUnit:'utf16-code-unit',astNodeType:string|null}>,sourceObserverCoverageComplete?:boolean}} options
+ * @param {{seed:string,sourceType:'script'|'module'|'commonjs',sourceUnitRef?:string,parserContractId?:string,protectedSourceSpans?:Array<{spanId:string,sourceUnitRef:string,sourceGeneration:string,startOffset:number,endOffset:number,coordinateUnit:'utf16-code-unit',astNodeType:string|null}>}} options
  * @returns {{code:string,bindings:number,editMap?:Object}}
  */
 function renameLocalIdentifiers(source,ast,options) {
+  if(options.sourceObserverCoverageComplete!==undefined) {
+    throw new TypeError('Raw source-observer coverage booleans are unsupported; use a validated plan');
+  }
   const hasMapContext=options.sourceUnitRef!==undefined||options.parserContractId!==undefined;
   if(hasMapContext&&
      (typeof options.sourceUnitRef!=='string'||options.sourceUnitRef.length===0||
@@ -52,10 +55,6 @@ function renameLocalIdentifiers(source,ast,options) {
   if(!Array.isArray(protectedSourceSpans))throw new TypeError('protectedSourceSpans must be an array');
   if(protectedSourceSpans.length&&!hasMapContext) {
     throw new TypeError('protectedSourceSpans require a source-unit and parser generation');
-  }
-  const sourceObserverCoverageComplete=options.sourceObserverCoverageComplete===true;
-  if(sourceObserverCoverageComplete&&!protectedSourceSpans.length) {
-    throw new TypeError('Source-observer coverage requires protected source spans');
   }
   if(protectedSourceSpans.length) {
     const generation=sourceGenerationOf(source,/** @type {string} */ (options.parserContractId));
@@ -77,7 +76,7 @@ function renameLocalIdentifiers(source,ast,options) {
     }
     return {code:applyEdits(source,edits),bindings};
   }
-  if(observesFunctionSource(ast)&&!sourceObserverCoverageComplete) return finish([],0);
+  if(observesFunctionSource(ast)) return finish([],0);
   const counts=collectBindings(ast);
   /** @type {{identifier:AstNode,name:string,scope:AstNode}[]} */
   const candidates=[];
