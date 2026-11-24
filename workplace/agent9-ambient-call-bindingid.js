@@ -4,7 +4,7 @@ const {resolveLexicalReferences}=require('./agent1-lexical-reference-resolver');
 
 /** @typedef {import('../src/ast').AstNode} AstNode */
 /** @typedef {'module'|'script'|'commonjs'} SourceType */
-/** @typedef {{kind:'unknown-call'|'unresolved-local-call'|'new-expression'|'tagged-template'|'await'|'yield'|'dynamic-import'|'transitive-local-call'|'with-binding-lookup'|'implicit-iterator'|'implicit-object-enumeration'|'implicit-proxy-has'|'implicit-instanceof'|'implicit-delete'|'implicit-destructuring'|'implicit-spread'|'to-primitive'|'to-property-key'|'promise-thenable-assimilation'|'host-held-callable'|'unresolved-callable-argument-flow'|'returned-callable-value'|'callable-metadata-observer'|'classic-script-global-lexical'|'module-exported-callable'|'host-global-exported-callable'|'unknown-this-callable-escape'|'unknown-member-access',start:number,end:number,targetStart?:number,effect?:'DynamicFrame'|'HostHeldCallable'|'ExternalReachability'}} AmbientCallReason */
+/** @typedef {{kind:'unknown-call'|'unresolved-local-call'|'new-expression'|'tagged-template'|'await'|'yield'|'dynamic-import'|'transitive-local-call'|'with-binding-lookup'|'implicit-iterator'|'implicit-object-enumeration'|'implicit-proxy-has'|'implicit-instanceof'|'implicit-delete'|'implicit-destructuring'|'implicit-spread'|'to-primitive'|'to-property-key'|'promise-thenable-assimilation'|'host-held-callable'|'unresolved-callable-argument-flow'|'returned-callable-value'|'callable-metadata-observer'|'callable-coercion-observer'|'direct-eval-local-scope'|'classic-script-global-lexical'|'module-exported-callable'|'host-global-exported-callable'|'unknown-this-callable-escape'|'unknown-member-access',start:number,end:number,targetStart?:number,effect?:'DynamicFrame'|'HostHeldCallable'|'ExternalReachability'}} AmbientCallReason */
 /** @typedef {{node:AstNode,start:number,end:number,bindingIds:number[],bindingNames:string[],ambient:boolean,dynamicFrame:boolean,hostHeldCallable:boolean,externallyReachable:boolean,safe:boolean,reasons:AmbientCallReason[]}} AmbientCallSummary */
 
 /**
@@ -108,7 +108,7 @@ function staticPropertyKey(property,computed) {
 }
 
 const CALLABLE_OBSERVER_PROPERTIES=new Set([
-  'toString','toLocaleString','name','length','caller','arguments','prototype','constructor'
+  'toString','toLocaleString','valueOf','join','name','length','caller','arguments','prototype','constructor'
 ]);
 
 /**
@@ -587,6 +587,13 @@ function summarizeAmbientCallEffects(ast,sourceType) {
     else if(effect==='HostHeldCallable')hostHeldFunctions.add(fn);
   }
 
+  /** @param {AstNode|null|undefined} value @param {string} kind @param {number} start @param {number} end @returns {void} */
+  function markCallableValuesHeld(value,kind,start,end) {
+    if(!value)return;
+    for(const target of callableNodesForValue(value))
+      addReason(target,{kind,start,end},'HostHeldCallable');
+  }
+
   const HOST_GLOBAL_ROOT_NAMES=new Set(['globalThis','window','self','global']);
 
   /** @param {AstNode} left @returns {boolean} */
@@ -685,11 +692,12 @@ function summarizeAmbientCallEffects(ast,sourceType) {
   for(const fn of externallyReachableFunctions)
     addReason(fn,{kind:'classic-script-global-lexical',start:fn.start,end:fn.end},'ExternalReachability');
 
-  // A host call can retain and stringify a callable argument without invoking
-  // it. A local call may forward the value through an unanalyzed parameter,
-  // so every call boundary is conservatively treated as a possible escape.
-  // Direct values, const aliases, object/array aggregates and simple return
-  // expressions are followed; dynamic member/call results remain Unknown.
+  // Callable values may escape through host calls, return values, wrappers,
+  // coercion hooks, thenable assimilation, and reflection. Keep these value
+  // edges separate from DynamicFrame propagation.
+  const COERCIVE_BINARY_OPERATORS=new Set([
+    '+','-','*','/','%','**','==','!=','<','>','<=','>=','|','&','^','<<','>>','>>>'
+  ]);
   walkAst(ast,node=>{
     if(node.type==='CallExpression'||node.type==='NewExpression') {
       let knownLocalTarget=null;
@@ -697,25 +705,67 @@ function summarizeAmbientCallEffects(ast,sourceType) {
         const reference=resolved.at(node.callee.start);
         if(reference?.resolution.kind==='local')
           knownLocalTarget=resolveFunctionNode(reference.resolution.bindingId);
+        else if(node.callee.name==='eval') {
+          for(const target of allFunctionNodes)
+            addReason(target,{kind:'direct-eval-local-scope',start:node.start,end:node.end},'HostHeldCallable');
+        }
       }
-      for(const argument of node.arguments) {
+      for(const argument of node.arguments)
         for(const target of callableNodesForValue(argument))
           addReason(target,{
             kind:knownLocalTarget?'unresolved-callable-argument-flow':'host-held-callable',
             start:node.start,end:node.end
           },'HostHeldCallable');
-      }
     } else if(node.type==='TaggedTemplateExpression') {
-      for(const expression of node.quasi.expressions) {
-        for(const target of callableNodesForValue(expression))
-          addReason(target,{kind:'host-held-callable',start:node.start,end:node.end},'HostHeldCallable');
-      }
+      for(const expression of node.quasi.expressions)
+        markCallableValuesHeld(expression,'host-held-callable',node.start,node.end);
     } else if(node.type==='MemberExpression') {
       const propertyKey=staticPropertyKey(node.property,node.computed);
-      if(propertyKey&&CALLABLE_OBSERVER_PROPERTIES.has(propertyKey)) {
-        for(const target of callableNodesForValue(node.object))
-          addReason(target,{kind:'callable-metadata-observer',start:node.start,end:node.end},'HostHeldCallable');
-      }
+      if(propertyKey&&CALLABLE_OBSERVER_PROPERTIES.has(propertyKey))
+        markCallableValuesHeld(node.object,'callable-metadata-observer',node.start,node.end);
+      if(node.computed&&!isDefinitelyPrimitive(node.property))
+        markCallableValuesHeld(node.property,'callable-coercion-observer',node.start,node.end);
+    } else if((node.type==='Property'||node.type==='MethodDefinition'||node.type==='PropertyDefinition')&&
+              node.computed&&!isDefinitelyPrimitive(node.key)) {
+      markCallableValuesHeld(node.key,'callable-coercion-observer',node.start,node.end);
+    } else if(node.type==='BinaryExpression'&&node.operator==='in') {
+      if(!isDefinitelyPrimitive(node.left))
+        markCallableValuesHeld(node.left,'callable-coercion-observer',node.start,node.end);
+    } else if(node.type==='BinaryExpression'&&node.operator==='instanceof') {
+      markCallableValuesHeld(node.right,'callable-coercion-observer',node.start,node.end);
+    } else if(node.type==='BinaryExpression'&&COERCIVE_BINARY_OPERATORS.has(node.operator)) {
+      if(!isDefinitelyPrimitive(node.left))
+        markCallableValuesHeld(node.left,'callable-coercion-observer',node.start,node.end);
+      if(!isDefinitelyPrimitive(node.right))
+        markCallableValuesHeld(node.right,'callable-coercion-observer',node.start,node.end);
+    } else if(node.type==='TemplateLiteral') {
+      for(const expression of node.expressions)
+        if(!isDefinitelyPrimitive(expression))
+          markCallableValuesHeld(expression,'callable-coercion-observer',node.start,node.end);
+    } else if(node.type==='UnaryExpression'&&['+','-','~'].includes(node.operator)&&
+              !isDefinitelyPrimitive(node.argument)) {
+      markCallableValuesHeld(node.argument,'callable-coercion-observer',node.start,node.end);
+    } else if(node.type==='UpdateExpression'&&!isDefinitelyPrimitive(node.argument)) {
+      markCallableValuesHeld(node.argument,'callable-coercion-observer',node.start,node.end);
+    } else if(node.type==='AssignmentExpression'&&node.operator!=='=') {
+      if(!isDefinitelyPrimitive(node.left))
+        markCallableValuesHeld(node.left,'callable-coercion-observer',node.start,node.end);
+      if(!isDefinitelyPrimitive(node.right))
+        markCallableValuesHeld(node.right,'callable-coercion-observer',node.start,node.end);
+    } else if(node.type==='AwaitExpression'&&node.argument&&!isDefinitelyPrimitive(node.argument)) {
+      markCallableValuesHeld(node.argument,'callable-coercion-observer',node.start,node.end);
+    } else if(node.type==='YieldExpression'&&node.argument) {
+      markCallableValuesHeld(node.argument,'returned-callable-value',node.start,node.end);
+    } else if(node.type==='ReturnStatement'&&node.argument) {
+      markCallableValuesHeld(node.argument,'returned-callable-value',node.start,node.end);
+    } else if(node.type==='ForOfStatement') {
+      markCallableValuesHeld(node.right,'host-held-callable',node.start,node.end);
+    } else if(node.type==='ObjectPattern'||node.type==='ArrayPattern') {
+      const parent=parentByNode.get(node);
+      if(parent?.type==='VariableDeclarator'&&parent.init)
+        markCallableValuesHeld(parent.init,'host-held-callable',node.start,node.end);
+      else if(parent?.type==='AssignmentExpression')
+        markCallableValuesHeld(parent.right,'host-held-callable',node.start,node.end);
     }
   });
 
