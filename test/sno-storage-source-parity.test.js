@@ -19,7 +19,7 @@ const supportsExperimentalWebStorage=nodeMajor>22 ||
  * @param {string} entry
  * @param {string} storageFile
  * @param {string} [preloadFile]
- * @returns {{nativeDispatch?:boolean,stored?:string|null,keySource?:string|null,valueSource?:string|null,propertyValue?:string|null,length?:number,value:number,independent:number}}
+ * @returns {{nativeDispatch?:boolean,stored?:string|null,keySource?:string|null,valueSource?:string|null,propertyValue?:string|null,length?:number,observed?:string|null,value:number,independent:number}}
  */
 function runWithWebStorage(entry,storageFile,preloadFile) {
   const args=['--experimental-webstorage','--localstorage-file='+storageFile];
@@ -28,7 +28,7 @@ function runWithWebStorage(entry,storageFile,preloadFile) {
   const child=spawnSync(process.execPath,args,{encoding:'utf8',timeout:15000});
   assert.equal(child.error,undefined,String(child.error??''));
   assert.equal(child.status,0,child.stderr);
-  return /** @type {{nativeDispatch?:boolean,stored?:string|null,keySource?:string|null,valueSource?:string|null,propertyValue?:string|null,length?:number,value:number,independent:number}} */(
+  return /** @type {{nativeDispatch?:boolean,stored?:string|null,keySource?:string|null,valueSource?:string|null,propertyValue?:string|null,length?:number,observed?:string|null,value:number,independent:number}} */(
     JSON.parse(child.stdout)
   );
 }
@@ -59,6 +59,35 @@ async function writeSnoPackages(root,source,protectedCode) {
   await fs.writeFile(nativeStorage,'');
   await fs.writeFile(protectedStorage,'');
   return {nativeLauncher,protectedLauncher,nativeStorage,protectedStorage};
+}
+
+
+/**
+ * Compile and run a source pair through the one-entry SNO launcher.
+ * @param {string} source
+ * @param {string} seed
+ * @param {string} tempPrefix
+ * @returns {Promise<{native:ReturnType<typeof runWithWebStorage>,emitted:ReturnType<typeof runWithWebStorage>,protectedCode:string,bindings:number,observes:boolean}>}
+ */
+async function runSnoDifferential(source,seed,tempPrefix) {
+  const observes=observesFunctionSource(parse(source,'commonjs'));
+  const transformed=obfuscateFiles([{
+    path:'entry.cjs',sourceType:'commonjs',code:source
+  }],{
+    mode:'sno',seed,strings:false,identifiers:true,properties:false
+  });
+  const file=transformed.files[0];
+  assert.ok(file,'expected one transformed SNO entry');
+  const protectedCode=String(file.code);
+  const root=await fs.mkdtemp(path.join(os.tmpdir(),tempPrefix));
+  try {
+    const packages=await writeSnoPackages(root,source,protectedCode);
+    const native=runWithWebStorage(packages.nativeLauncher,packages.nativeStorage);
+    const emitted=runWithWebStorage(packages.protectedLauncher,packages.protectedStorage);
+    return {native,emitted,protectedCode,bindings:file.metrics.bindings,observes};
+  } finally {
+    await fs.rm(root,{recursive:true,force:true});
+  }
 }
 
 test('SNO Node Web Storage exposes changed callable source through native DOMString conversion',{
@@ -272,4 +301,147 @@ test('SNO Node Web Storage named-property setter exposes callable source indepen
   } finally {
     await fs.rm(root,{recursive:true,force:true});
   }
+});
+
+
+test('SNO Node Web Storage own toString returning a primitive preserves rewrite yield',{
+  skip:!supportsExperimentalWebStorage,
+  timeout:30000
+},async()=>{
+  const source=[
+    "'use strict';",
+    'function inspect(){const privateLocal=43;return privateLocal;}',
+    'function independent(){const independentLocal=7;return independentLocal;}',
+    'inspect.toString=function(){return this===inspect?"own-string":"wrong";};',
+    'localStorage.clear();',
+    'localStorage.setItem("own-string",inspect);',
+    'const result={stored:localStorage.getItem("own-string"),value:inspect(),independent:independent()};',
+    'process.stdout.write(JSON.stringify(result));'
+  ].join('\n');
+  const pair=await runSnoDifferential(source,'sno-node-webstorage-own-tostring','obfs-sno-own-tostring-');
+  assert.equal(pair.observes,false);
+  assert.ok(pair.bindings>=2);
+  assert.ok(!pair.protectedCode.includes('privateLocal'));
+  assert.ok(!pair.protectedCode.includes('independentLocal'));
+  assert.equal(pair.native.stored,'own-string');
+  assert.equal(pair.emitted.stored,'own-string');
+  assert.equal(pair.native.value,43);
+  assert.equal(pair.emitted.value,43);
+  assert.equal(pair.native.independent,7);
+  assert.equal(pair.emitted.independent,7);
+  console.log(JSON.stringify({mode:'sno',case:'own-toString-primitive',observer:pair.observes,bindings:pair.bindings,stored:pair.emitted.stored,parity:true}));
+});
+
+test('SNO Node Web Storage own Symbol.toPrimitive remains conservatively refused',{
+  skip:!supportsExperimentalWebStorage,
+  timeout:30000
+},async()=>{
+  const source=[
+    "'use strict';",
+    'function inspect(){const privateLocal=47;return privateLocal;}',
+    'function independent(){const independentLocal=11;return independentLocal;}',
+    'inspect[Symbol.toPrimitive]=function(hint){return this===inspect&&hint==="string"?"symbol-string":"wrong";};',
+    'localStorage.clear();',
+    'localStorage.setItem("own-symbol",inspect);',
+    'const result={stored:localStorage.getItem("own-symbol"),value:inspect(),independent:independent()};',
+    'process.stdout.write(JSON.stringify(result));'
+  ].join('\n');
+  const pair=await runSnoDifferential(source,'sno-node-webstorage-own-symbol','obfs-sno-own-symbol-');
+  assert.equal(pair.observes,true);
+  assert.equal(pair.bindings,0);
+  assert.ok(pair.protectedCode.includes('privateLocal'));
+  assert.equal(pair.native.stored,'symbol-string');
+  assert.equal(pair.emitted.stored,'symbol-string');
+  assert.equal(pair.native.value,47);
+  assert.equal(pair.emitted.value,47);
+  assert.equal(pair.native.independent,11);
+  assert.equal(pair.emitted.independent,11);
+  console.log(JSON.stringify({mode:'sno',case:'own-Symbol.toPrimitive',observer:pair.observes,bindings:pair.bindings,stored:pair.emitted.stored,conservativeRefusal:true}));
+});
+
+test('SNO Node Web Storage bound callable conversion does not expose target source',{
+  skip:!supportsExperimentalWebStorage,
+  timeout:30000
+},async()=>{
+  const source=[
+    "'use strict';",
+    'function inspect(){const privateLocal=53;return privateLocal;}',
+    'function independent(){const independentLocal=13;return independentLocal;}',
+    'const bound=inspect.bind(null);',
+    'localStorage.clear();',
+    'localStorage.setItem("bound",bound);',
+    'const result={stored:localStorage.getItem("bound"),value:bound(),independent:independent()};',
+    'process.stdout.write(JSON.stringify(result));'
+  ].join('\n');
+  const pair=await runSnoDifferential(source,'sno-node-webstorage-bound-function','obfs-sno-bound-function-');
+  assert.equal(pair.observes,false);
+  assert.ok(pair.bindings>=2);
+  assert.ok(!pair.protectedCode.includes('privateLocal'));
+  assert.ok(!pair.protectedCode.includes('independentLocal'));
+  assert.ok(pair.native.stored?.includes('[native code]'));
+  assert.equal(pair.native.stored,pair.emitted.stored);
+  assert.equal(pair.native.value,53);
+  assert.equal(pair.emitted.value,53);
+  assert.equal(pair.native.independent,13);
+  assert.equal(pair.emitted.independent,13);
+  console.log(JSON.stringify({mode:'sno',case:'bound-function',observer:pair.observes,bindings:pair.bindings,stored:pair.emitted.stored,parity:true}));
+});
+
+test('SNO Node Web Storage patched Function.prototype.toString preserves native source',{
+  skip:!supportsExperimentalWebStorage,
+  timeout:30000
+},async()=>{
+  const source=[
+    "'use strict';",
+    'const nativeToString=Function.prototype.toString;',
+    'Function.prototype.toString=function(){return nativeToString.call(this);};',
+    'function inspect(){const privateLocal=59;return privateLocal;}',
+    'function independent(){const independentLocal=17;return independentLocal;}',
+    'localStorage.clear();',
+    'localStorage.setItem("patched",inspect);',
+    'const result={stored:localStorage.getItem("patched"),value:inspect(),independent:independent()};',
+    'process.stdout.write(JSON.stringify(result));'
+  ].join('\n');
+  const pair=await runSnoDifferential(source,'sno-node-webstorage-patched-function-tostring','obfs-sno-patched-tostring-');
+  assert.equal(pair.observes,true);
+  assert.equal(pair.bindings,0);
+  assert.ok(pair.protectedCode.includes('privateLocal'));
+  assert.ok(pair.native.stored?.includes('privateLocal'));
+  assert.equal(pair.native.stored,pair.emitted.stored);
+  assert.equal(pair.native.value,59);
+  assert.equal(pair.emitted.value,59);
+  assert.equal(pair.native.independent,17);
+  assert.equal(pair.emitted.independent,17);
+  console.log(JSON.stringify({mode:'sno',case:'patched-Function.prototype.toString',observer:pair.observes,bindings:pair.bindings,sourceParity:true}));
+});
+
+test('SNO Node Web Storage hook that reads native source then returns a primitive remains source-observing',{
+  skip:!supportsExperimentalWebStorage,
+  timeout:30000
+},async()=>{
+  const source=[
+    "'use strict';",
+    'const nativeToString=Function.prototype.toString;',
+    'function inspect(){const privateLocal=61;return privateLocal;}',
+    'function independent(){const independentLocal=19;return independentLocal;}',
+    'inspect.toString=function(){globalThis.__snoObservedSource=nativeToString.call(this);return "discarded";};',
+    'localStorage.clear();',
+    'localStorage.setItem("hook",inspect);',
+    'const result={stored:localStorage.getItem("hook"),observed:globalThis.__snoObservedSource,',
+    '  value:inspect(),independent:independent()};',
+    'process.stdout.write(JSON.stringify(result));'
+  ].join('\n');
+  const pair=await runSnoDifferential(source,'sno-node-webstorage-hook-observes-source','obfs-sno-hook-observes-');
+  assert.equal(pair.observes,true);
+  assert.equal(pair.bindings,0);
+  assert.ok(pair.protectedCode.includes('privateLocal'));
+  assert.equal(pair.native.stored,'discarded');
+  assert.equal(pair.emitted.stored,'discarded');
+  assert.ok(pair.native.observed?.includes('privateLocal'));
+  assert.equal(pair.native.observed,pair.emitted.observed);
+  assert.equal(pair.native.value,61);
+  assert.equal(pair.emitted.value,61);
+  assert.equal(pair.native.independent,19);
+  assert.equal(pair.emitted.independent,19);
+  console.log(JSON.stringify({mode:'sno',case:'hook-reads-source-then-returns-primitive',observer:pair.observes,bindings:pair.bindings,stored:pair.emitted.stored,observedSource:pair.emitted.observed,sourceParity:true}));
 });
