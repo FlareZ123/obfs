@@ -573,6 +573,16 @@ function summarizeAmbientCallEffects(ast,sourceType) {
     if(left.type!=='MemberExpression')return false;
     let root=left;
     while(root.type==='MemberExpression')root=root.object;
+    if(root.type==='ThisExpression') {
+      if(sourceType!=='script'&&sourceType!=='commonjs')return false;
+      let ancestor=root;
+      while(parentByNode.has(ancestor)) {
+        ancestor=parentByNode.get(ancestor);
+        if(['FunctionDeclaration','FunctionExpression','ClassDeclaration','ClassExpression',
+            'MethodDefinition','PropertyDefinition','StaticBlock'].includes(ancestor.type))return false;
+      }
+      return true;
+    }
     if(root.type!=='Identifier')return false;
     const reference=resolved.at(root.start);
     if(reference?.resolution.kind==='local') {
