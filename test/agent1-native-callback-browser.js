@@ -423,6 +423,10 @@ async function main(){
           scenario.kind+' strict ESM callback must not expose hidden() through sloppy caller-chain source');
         assert.equal(after.source,null,
           scenario.kind+' emitted strict ESM callback must not expose hidden() through sloppy caller-chain source');
+        assert.equal(before.callerError,null,
+          scenario.kind+' strict ESM native caller-chain probe must not throw');
+        assert.equal(after.callerError,null,
+          scenario.kind+' strict ESM emitted caller-chain probe must not throw');
       }
       if(scenario.patchedMap){
         assert.ok(before.source&&before.source.includes('owner.longPrivatePropertyName'),
