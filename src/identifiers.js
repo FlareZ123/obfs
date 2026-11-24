@@ -40,7 +40,7 @@ function classifyIdentifier(node,parent,key) {
  * @param {string} source
  * @param {AstNode} ast
  * @param {{seed:string,sourceType:'script'|'module'|'commonjs',sourceUnitRef?:string,parserContractId?:string,sourceObservationPlan?:import('./source-observation-plan').SourceObservationPlan,protectedSourceRanges?:import('./source-edit-map').MappedSourceRange[]}} options
- * @returns {{code:string,bindings:number,editMap?:Object}}
+ * @returns {{code:string,bindings:number,editMap?:import('./source-edit-map').SourceEditMap}}
  */
 function renameLocalIdentifiers(source,ast,options) {
   if(Reflect.get(options,'sourceObserverCoverageComplete')!==undefined) {
@@ -65,7 +65,7 @@ function renameLocalIdentifiers(source,ast,options) {
   } else if(protectedSourceRanges.length) {
     throw new TypeError('Protected source ranges require a validated SourceObservationPlan');
   }
-  /** @param {import('./ast').Edit[]} edits @param {number} bindings @returns {{code:string,bindings:number,editMap?:Object}} */
+  /** @param {import('./ast').Edit[]} edits @param {number} bindings @returns {{code:string,bindings:number,editMap?:import('./source-edit-map').SourceEditMap}} */
   function finish(edits,bindings) {
     if(hasMapContext) {
       const mapped=applyEditsWithMap(source,edits,/** @type {string} */ (options.sourceUnitRef),/** @type {string} */ (options.parserContractId));
