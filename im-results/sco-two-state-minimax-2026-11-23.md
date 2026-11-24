@@ -75,7 +75,7 @@ These precomputed predictions were subsequently exercised in the exact-source [t
 
 The live test asserts the two seeds and both policies (bounded-nine: 7/9 calls; globally expected: 6/10), exact continuation clones, 16 live follow-ups, bit-identical attacker input/output transcripts and equal query/network counts for generated SCO and ordinary esbuild-minified ESM services, HTTP 403 without authorization, no public reset, no private source disclosure, and distinct source files. This is a **source-pinned real-HTTP functional-cloning result** for the stated two-state model, not merely a precomputed prediction. It shows no incremental query-cost advantage for generated SCO over the equally trusted minified service in this family.
 
-The overall workflow is nevertheless **RED**, not green: strict JSDoc step 53 failed on both platforms at `sims/sco-step-only-two-state-robust.js(105,60)` with TS2322 (`number` not assignable to literal `29`); the full project typecheck step was skipped. Agent 14 applied the mechanical JSDoc widening in branch commit `a4ee7443aad9741b2f9fbe30c724f79dfe9cb534` and dispatched the existing workflow again as run [45408156868](https://github.com/FlareZ123/obfs/actions/runs/45408156868); that rerun is pending at the time of this report update. The protected application still has no additional runtime compute bound measured here.
+The earlier run 45277775735 was **RED** overall because strict JSDoc step 53 failed on both platforms at `sims/sco-step-only-two-state-robust.js(105,60)` with TS2322 (`number` not assignable to literal `29`); the full project typecheck step was skipped. Agent 14 applied the mechanical JSDoc widening in branch commit `a4ee7443aad9741b2f9fbe30c724f79dfe9cb534` and dispatched the existing workflow again. The rerun [45408156868](https://github.com/FlareZ123/obfs/actions/runs/45408156868) completed **success on both Ubuntu and Windows**, all 57 steps, including strict `jsconfig.sco-oracles.json` and the full project typecheck. The current PR head differs from the tested code SHA only by report-only documentation commits; no executable code changed after the successful run. The protected application still has no additional runtime compute bound measured here.
 
 
 ## Independent, source-labelled minimax and expected-cost calculation
@@ -90,6 +90,16 @@ Reproduction: test/sco-step-only-two-state-independent.test.js. The new source a
 ## Falsification when the declared state bound is false
 
 A concrete private three-state delayed-output chain has transitions 0 --0--> 1 --0--> 2 and output 1 only at state 2 on input 0 (all other outputs zero; input 1 resets to state 0). When the public no-reset weighted learner is incorrectly told N<=2, it declares a continuation certificate after **seven** legitimate calls with boundedNine and **six** with expected. An independent product-BFS finds a future distinguishing word from the aligned current states in both cases. Both policies are correct under their *trusted two-state bound*; this counterexample shows why the bound cannot be silently inferred from an observed finite transcript. The checked regression is in test/sco-step-only-two-state-online.test.js.
+
+### General finite-transcript impossibility for an untrusted state bound
+
+The concrete three-state regression is one instance of a general construction. Fix any finite observed binary input/output transcript of length (T), any proposed upper bound (N\ge1), and a deterministic learner. Construct a stationary deterministic Mealy machine with path states (p_0,\ldots,p_T) and side-chain states (c_0,\ldots,c_N):
+
+1. At each (p_i) for (i<T), the one observed input (a_i) emits the observed output (y_i) and advances to (p_{i+1}). The other input (1-a_i), which was not queried at that transcript position, transitions to (c_0).
+2. The chain is reachable from (p_0) through that unobserved alternative input. For (i<N), input 0 at (c_i) emits 0 and advances to (c_{i+1}); at (c_N), input 0 emits 1 and loops. The (N+1) chain states are pairwise distinguishable by repeated zero inputs, so the constructed machine has at least (N+1) reachable minimal states.
+3. At (p_T), on the learner's next input (a_T) (determined by the transcript for a deterministic learner; fix its random tape if needed), emit the complement of the original oracle's next output and transition to (c_0).
+
+The constructed finite machine matches the complete observed transcript exactly, yet disagrees on the next query and has more than (N) reachable distinguishable states. Thus no finite no-reset transcript can certify an **untrusted** state upper bound. The at-most-two-state nine-query result remains valid under its explicitly trusted model premise; this construction only rules out inferring that premise from observations.
 
 
 ## Prior sensitivity: source tables versus behavioral continuations
