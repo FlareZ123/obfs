@@ -186,6 +186,7 @@ function buildObjectShapes(ast) {
  * second observer behind an unsupported construct.
  * @param {AstNode} node
  * @param {AstNode} readerCall
+ * @param {Map<string,Set<string>>} objectShapes
  * @returns {boolean}
  */
 function isAllowedExpression(node,readerCall,objectShapes) {
@@ -219,6 +220,7 @@ function isAllowedExpression(node,readerCall,objectShapes) {
 /**
  * @param {AstNode} ast
  * @param {AstNode} readerCall
+ * @param {Map<string,Set<string>>} objectShapes
  * @returns {boolean}
  */
 function isAllowedProgram(ast,readerCall,objectShapes) {
