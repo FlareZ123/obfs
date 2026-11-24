@@ -125,3 +125,23 @@ A follow-up diagnostic expanded the positive property control to five callback h
 All 10 mode/path combinations preserved the exact observed callback source, retained `owner.secretField`, rewrote unrelated `other.unrelatedField`, and preserved the module result. Each emitted one property rewrite. Focused run [45325152560](https://github.com/FlareZ123/obfs/actions/runs/45325152560) passed on Ubuntu and Windows with all strict JSDoc checks.
 
 This strengthens the interpretation: the current local property proof already handles these five *same-file* callback-value paths conservatively. The confirmed gap is cross-consumer: identifier renaming and string encoding still rewrite source-visible formals/literals of the same host-held callable. Do not generalize the property matrix to cross-file ESM, arbitrary object aliasing, spread/apply/bind, mutable dispatch or all language constructs.
+
+
+## Callable source closure across five value-flow paths
+
+The red-control suite was extended across the same five handoff paths used by the positive property matrix: direct argument, alias assignment, object-field storage, actual→formal forwarding, and returned callback. For each path it separately tested identifier renaming and string encoding in both COO and SNO: 20 combinations total.
+
+All 20 combinations exposed changed callback source while preserving the module's executable result and never invoking the callback. Focused run [45325337541](https://github.com/FlareZ123/obfs/actions/runs/45325337541) passed 20/20 red controls on Ubuntu and Windows; project, external and paired-budget JSDoc checks passed.
+
+Representative exact outputs:
+
+| Consumer | Native callback source | Emitted callback source |
+|---|---|---|
+| Identifier | `function hidden(inputValue){return owner.secretField+inputValue;}` | `function hidden(_v2902a13e7f90){return owner.secretField+_v2902a13e7f90;}` |
+| String | `function hidden(){return 'callbackSourceLiteral';}` | `function hidden(){return _o86f34a47b5cd[0];}` |
+
+The same result occurred for direct, alias, object-field, parameter-forward and returned-callback paths in both modes. The exact generated identifiers/decoder names vary with the deterministic per-case seed.
+
+The source blobs for `src/ast.js`, `src/properties.js`, `src/identifiers.js`, `src/strings.js`, `src/core.js` and `src/sco.js` at witness commit `55cedfa8521659dda9ed6d7181860453fcc66eb3` were again independently compared with current `main` and were identical. No compiler source was changed on the test branch.
+
+Combined interpretation: the existing local property proof preserves source across these same five same-file paths (10/10 COO/SNO property controls in run 45325152560), while identifier and string passes rewrite the same callback source (20/20 COO/SNO red controls in run 45325337541). The gap is a transformation-consumer integration defect. It is not established that cross-file ESM, dynamic imports, every call form, or SCO has the same behavior.
