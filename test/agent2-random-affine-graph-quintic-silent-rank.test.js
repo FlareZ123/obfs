@@ -145,6 +145,11 @@ test('corrected affine-graph inversion recovers the 32-bit silent-rank quintic p
 test('affine-graph inversion survives hidden two-sided affine wrappers with a singular canonical reanchor',()=>{
   const inputColumns=makeLinearTransform(0x12345678);
   const outputColumns=makeLinearTransform(0x9abcdef0);
+  // The nonlinear output displacement is spanned by Lout(e7), Lout(e8).
+  // Invertibility of Lout makes these two directions independent.
+  assert.notEqual(outputColumns[7],0);
+  assert.notEqual(outputColumns[8],0);
+  assert.notEqual(outputColumns[7],outputColumns[8]);
   const inputBias=0x13579bdf;
   const outputBias=0x2468ace0;
   /** @param {number} input @returns {number} */
@@ -205,6 +210,8 @@ test('affine-graph inversion survives hidden two-sided affine wrappers with a si
       wrappedOracleNumber,target,{bits:32,rankBound:2}
     );
     assert.equal(lowRankResult.preimage,secret);
+    assert.equal(wrappedOracleNumber(lowRankResult.preimage),target,
+      'independent exact source-forward verification for the rank-two attacker');
     assert.equal(lowRankResult.nullity,1);
     assert.equal(lowRankResult.cycleLength<=8,true);
     assert.equal(lowRankResult.provenOrbitUpperBound,8);
