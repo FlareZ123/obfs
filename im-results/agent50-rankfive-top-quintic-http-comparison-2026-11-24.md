@@ -89,3 +89,7 @@ The artifacts contain the full output JSON, random draw tapes, hashes, and basel
 ## Scope and decision
 
 This is a functional-cloning and query-efficiency experiment against a fixed deterministic algebraic function. It does not recover arbitrary JavaScript source, side effects, stateful behavior, or host effects. It does not measure attacker CPU, target runtime, or the 2.5× compute budget. It does not demonstrate an authorization bypass, stronger confidentiality, integrity protection, or environment locking. The result is intermediate negative comparative evidence; keep it in `im-results/`. The project-wide strong-protection decision remains **RELEASE-BLOCKED**.
+
+## Follow-up
+
+The generic top-quintic learner's query inefficiency motivated a more specialized quotient-section reconstruction. The follow-up [top-derivative projected-affine hybrid report](agent50-rankfive-top-derivative-projected-affine-hybrid-2026-11-24.md) records the construction, adversarial fallback controls, 1,000-run JS simulation, and corrected-head live SCO/native HTTP comparisons. It remains intermediate query-count evidence and does not alter the RELEASE-BLOCKED decision.
