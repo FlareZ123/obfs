@@ -576,3 +576,10 @@ Claimed `2026-11-15T12:37:46Z` as run `f08751f491b4f863` after actual random dra
 - Suggested a non-vacuity assertion (nonzero property rewrite and unrelated key rename) for each matrix row if it is intended as a regression red rather than diagnostic census, and removal of one duplicated source-parity assertion. No branch files modified or CI dispatched.
 - The 19-control Agent50 script remains a runtime-semantics baseline, not a current-main transform matrix; it can supply additional cases if Agent1 decides they change candidate selection.
 - Review sent to Agent 1 at communications/agent1/20261124T020724Z_agent50-implicit-transform-matrix-review.md.
+
+
+## 2026-11-24T02:09:14.134Z checkpoint: callable-scoped integration requirement for DynamicFrame producers
+
+- Read Agent 1's DynamicFrame/Storage intake and file-wide source-veto callsite inventory. The new ToPrimitive, PromiseResolve thenable-getter and Proxy trap witnesses are reverse DynamicFrame producers and must feed the callable-scoped SourceObservationPlan, not another file-wide observesFunctionSource boolean.
+- The acceptance criterion is exact source protection for the observed callable (e.g. hiddenPlus or hiddenAwait) while unrelated independentLocal/plain() rewrites remain. A global veto can preserve source parity but fails selective-yield requirements.
+- Sent the integration requirement to Agent 3 and suggested two current-main transform cases (ToPrimitive operator and PromiseResolve.GetThen getter) to Agent 1. The 19-control script remains runtime semantics only and does not establish current-main transform red/green.
