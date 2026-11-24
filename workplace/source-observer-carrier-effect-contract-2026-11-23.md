@@ -122,7 +122,7 @@ The canonical plan should expose at least:
 /**
  * @typedef {Object} SourceUnitRef
  * @property {string} sourceUnitId - runtime module/script instance identity
- * @property {string} sourceGeneration - immutable source/parser generation
+ * @property {string} sourceGeneration - hash/identity of exact source bytes plus parser version/options; invalidates local IDs and spans on edit/reparse
  * @property {string|null} realmGroupId - shared realm for classic-script groups
  * @property {'module'|'script'|'commonjs'} sourceType
  * @property {number|null} executionOrder - required when classic-script order matters
@@ -131,16 +131,24 @@ The canonical plan should expose at least:
  * @property {SourceUnitRef} sourceUnit
  * @property {number} localBindingId - resolver ID unique only within one Program
  *
+ * @typedef {Object} RealmBindingRef
+ * @property {string} realmGroupId
+ * @property {SourceUnitRef} declarationSourceUnit
+ * @property {number} declarationLocalBindingId
+ *
+ * @typedef {BindingRef|RealmBindingRef} BindingIdentity
+ *
  * @typedef {Object} DefinitionRef
- * @property {BindingRef} binding
+ * @property {BindingIdentity} binding
  * @property {string} definitionSpanId
  * @property {'function-declaration'|'var-initializer'|'lexical-initializer'|'assignment'|'parameter'|'import'|'unknown'} kind
  * @property {number} sourceOrder
+ * @property {string} controlFlowPointId - reaching-definition point; source order alone is insufficient
  *
- * @typedef {string} BindingRefKey - canonical serialization of SourceUnitRef + localBindingId
+ * @typedef {string} BindingRefKey - canonical serialization of BindingRef or RealmBindingRef
  * @typedef {string} DefinitionRefKey - canonical serialization of BindingRefKey + definition identity
  * @typedef {string} SourceSpanId - canonical serialization of SourceUnitRef + start/end offsets
- * @typedef {'PrimitiveGet'|'PrimitiveObjectPatternGet'|'PrimitiveIterator'|'PrimitiveMethodDispatch'|'UnknownHostCall'|'UnknownHostArgumentEscape'|'AccessorCall'|'ProxyInternalMethod'|'WithEnvironmentHasBinding'|'PromiseHandlerDispatch'} HostEffectKind
+ * @typedef {'PrimitiveGet'|'PrimitiveObjectPatternGet'|'PrimitiveIterator'|'IteratorDispatch'|'PrimitiveMethodDispatch'|'UnknownHostCall'|'UnknownHostArgumentEscape'|'AccessorCall'|'ProxyInternalMethod'|'ProxyHasProperty'|'ProxyOwnKeys'|'ProxyGetOwnProperty'|'ObjectCopyDispatch'|'WithBindingLookup'|'PromiseHandlerDispatch'} HostEffectKind
  * @typedef {'Primitive'|'Callable'|'HostHeldCallable'|'HostOpaque'|'Unknown'} ValueKind
  * @typedef {'ExactSource'|'FramePosition'|'CallableMetadata'|'UnknownHostEffect'} ObservationEffect
  *
@@ -148,7 +156,8 @@ The canonical plan should expose at least:
  * @property {ReadonlyMap<BindingRefKey, unknown>} bindings
  * @property {ReadonlyMap<DefinitionRefKey, unknown>} definitions
  * @property {ReadonlyMap<DefinitionRefKey, ValueKind>} valueFacts
- * @property {ReadonlyMap<string, ReadonlySet<DefinitionRefKey>>} hostArgumentEdges - callable values retained by unknown host calls
+ * @property {ReadonlyMap<SourceSpanId, ReadonlySet<DefinitionRefKey>>} hostArgumentEdges - callable values retained by unknown host calls
+ * @property {ReadonlyMap<SourceSpanId, ReadonlySet<DefinitionRefKey>>} reachingDefinitions - runtime definitions that can reach this callsite
  * @property {ReadonlyMap<DefinitionRefKey, ReadonlySet<DefinitionRefKey>>} callTargets
  * @property {ReadonlyMap<DefinitionRefKey, ReadonlySet<DefinitionRefKey>>} activeFrameTargets
  * @property {ReadonlyMap<SourceSpanId, ReadonlySet<ObservationEffect>>} effects
@@ -262,3 +271,35 @@ In addition to primitive Get/iterator/method, direct active-caller, and source-u
 - pre-import patched `Promise.prototype.then` that inspects a callback and delegates to native.
 
 Keep positive yield controls independent: pure local helpers, uninvoked nested closures, and ordinary arithmetic must still demonstrate nonzero rewrite yield where their closure is proven. Do not replace these precise effects with a file-wide opaque veto.
+
+
+## Agent 8 / Agent 24 refinements: CFG, realm binding, and implicit internal methods
+
+### Reaching definitions require control-flow points
+
+A `sourceOrder` field alone is insufficient. Function declarations are instantiated before the body executes; `var` initializers are runtime writes when their statements execute and may be conditional, nested, or occur after an earlier call. The same BindingRef can therefore have different reaching callable definitions at different callsites. A `DefinitionRef` must be evaluated at a CFG/control-flow point (including branch guards and hoisting), or the call target becomes Unknown. A same-ID non-null `var` initializer invalidates a prior function-declaration target unless a reaching-definition proof shows it cannot reach the call. A bare `var helper;` is not an initializer write. Duplicate function declarations may be resolved using ECMAScript instantiation winner semantics or conservatively made Unknown.
+
+### Classic-script shared lexical bindings need RealmBindingRef
+
+`SourceUnitRef + localBindingId` identifies a reference resolved inside one Program, but a later classic script can reference a global lexical binding created by an earlier Program. A shared group analysis needs a `RealmBindingRef` keyed by `realmGroupId` plus the defining source unit/declaration, and it must attach later-script reads and writes to that same identity. A mutable top-level `let` can be rebound by a later script; even top-level `const` callables are externally reachable by later scripts and must not be considered private merely because one AST has only local call uses. Treat top-level classic-script lexical callables as externally reachable/source-observable unless the entire realm group, execution order and closed-world entrypoint premise are explicit. ESM top-level bindings remain module-local; CommonJS top-level bindings remain wrapper-local.
+
+### Broaden implicit host-dispatch effects
+
+The existing `PrimitiveIterator` label is too narrow for all iterator and object-environment operations. Runtime syntax can invoke user code without an explicit CallExpression:
+
+- `for...of`, array patterns, spread and iterator closing can invoke `GetIterator`, `@@iterator`, `next` and `return` (general `IteratorDispatch`, not only primitive iteration).
+- `'x' in proxy` invokes Proxy `[[HasProperty]]`.
+- `for...in` can invoke `[[OwnPropertyKeys]]` and `[[GetOwnProperty]]`.
+- object spread/rest can invoke `[[OwnPropertyKeys]]`, `[[GetOwnProperty]]` and `[[Get]]`, including getters.
+- `with` identifier resolution invokes object-environment `HasBinding`, `Symbol.unscopables` and potentially Proxy/accessor traps (`WithBindingLookup`).
+- Promise `.then/.catch/.finally` callback dispatch is host-controlled unless the Promise constructor and methods are covered by an explicit pristine-intrinsics premise.
+
+Add distinct event producers or conservatively map them to `UnknownHostEffect`. The current main already has explicit `WithStatement` vetoes in `src/ast.js`, `src/properties.js`, `src/identifiers.js`, `src/strings.js` and `src/source-observer-islands.js`; preserve those fail-closed checks. Agent 9's BindingId donor does not preserve the With veto and is false-safe for a Proxy `has` trap.
+
+### ExactSource is the shared source-byte/source-text effect
+
+Keep the four-bit `ObservationEffect` union. Explicitly define `ExactSource` to cover both callable source text (`Function#toString`, selected diagnostics) and distributed file bytes/serialization (loader, inspector, browser transfer, SRI). Split a separate file-byte bit only if implementation closures differ materially; do not silently omit existing distributed-source gates.
+
+### Callsite identity
+
+The `hostArgumentEdges` map is keyed by qualified `SourceSpanId` (or a dedicated `CallSiteRef`), never an unqualified string. Source spans, callsites, BindingRefs, DefinitionRefs and effect closures all carry source-unit and generation identity.
