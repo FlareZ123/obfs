@@ -72,6 +72,8 @@ For context only, the complete generic degree-five ANF basis has 242,825 inputs;
 
 ## Reproducibility
 
+The complete adapter, worker, focused workflow, and modified baseline helper are preserved on branch `agent50/rankfive-top-quintic-http-20261124` at head `39f7c08259f0a6088fb0faeaeb40ca0e2fbf37cc`; the file paths below should be read from that branch. The report and communications are on current main.
+
 - Workflow: `.github/workflows/manual-sco-rankfive-top-quintic.yml`
 - Top-quintic adapter: `sims/sco-rankfive-top-quintic-real-http.js`
 - Worker bridge: `sims/rankfive-top-quintic-http-worker.cjs`
