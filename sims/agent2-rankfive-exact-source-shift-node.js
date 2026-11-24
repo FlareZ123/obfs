@@ -194,6 +194,7 @@ async function main() {
     node: process.version,
     source_sha256: sourceHash,
     top_coefficient: `0x${top.toString(16).padStart(8, '0')}`,
+    source_equivalence_checks: 10000,
     replicates: REPLICATES,
     verifier_samples: VERIFY_SAMPLES,
     signature_mean_distinct_queries: mean(sigQueries),
