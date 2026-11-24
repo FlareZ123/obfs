@@ -2,7 +2,7 @@
 
 This repository is an experimental, conservative JavaScript obfuscator targeting Node.js 22+ and modern browsers. It offers three operational modes. The current version is a reproducible starting implementation; its security and performance guarantees are limited to the conditions described here.
 
-**Current release decision (21 November 2026): RELEASE-BLOCKED for
+**Current release decision (24 November 2026): RELEASE-BLOCKED for
 the primary strong-protection objective.** The repository offers functional,
 tested COO/SNO/SCO modes, but source reconstruction, runtime extraction,
 authorized SCO relaying and strict 2.5× compute-limit counterexamples prevent
@@ -15,6 +15,15 @@ passed its evidence harness on Ubuntu and Windows at
 reconstructing a selected COO math module, bypassing scoped SNO integrity,
 relaying same-account SCO outputs, and observing strict >2.5× compute pairs.
 These are bounded negative findings, not a full correctness integration.
+
+A separate 24 November full `manual-validation.yml` run for the frozen, non-main
+source-observer candidate [45449892790](https://github.com/FlareZ123/obfs/actions/runs/45449892790)
+at `d56cc8c1fc07a61aa6cfad0852b2ac681e30cd7c` was RED on Ubuntu and Windows,
+with 12 behavioral/adversarial failures on each platform. Its integrated
+Chromium wall-time budget assertion also failed before emitting diagnostics.
+The narrow candidate is parked and was not merged into main; this is not a
+current-main acceptance receipt. See the [exact acceptance report](im-results/agent10-source-observer-comprehensive-acceptance-2026-11-24.md)
+and the [current evidence and three-mode decision index](results/README.md).
 A source-pinned **full correctness** integration,
 [21 November run 44937061584](https://github.com/FlareZ123/obfs/actions/runs/44937061584)
 at `77f9e0e4b6c84e5b42ec8a2ac39396a401159c7d`, passed its documented
