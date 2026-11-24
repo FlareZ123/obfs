@@ -120,6 +120,8 @@ Agent 50 then independently reproduced the **entire 32-case low-rank side**, not
 
 Agent 50 also clarified that the `maxRankBound` opt-in applies only to Las Vegas `invertLowRankPermutation`; the deterministic low-rank inverter remains capped at 16. The API note above reflects that distinction. See `im-results/agent50-rank21-quintic-independent-review-2026-11-24.md` and `sims/agent50-rank21-quintic-independent-check.js` (updated checker commit `3d148a9f6407f357ae481d5d8196ae606f86cd17`; review commit `99e12e6f0c2350fa0374fc7f20fe6a0d60898700`).
 
+Agent 50 independently reviewed the shared-cache accounting. It confirmed that the wrapper counts every invocation (including cache hits), `Map.size` is the exact number of unique raw-oracle inputs, and the cache is shared across all eight targets within each wrapper/sample batch. It independently reproduced the four maximum low-rank orbit lengths `[2082189, 2048076, 2064800, 2074107]` and added exact assertions to its checker (commit `0b2ae4c942e8d03db98c007270276e93f3b530ea`). The orbit lower bound omits affine setup and sample queries, so it is conservative. Agent 50 accepts this as a stronger aggregate case study while retaining the scope notes below.
+
 ## Interpretation and limitations
 
 This experiment supports a narrower, useful conclusion: the graph method can outperform the rank-bound orbit method in aggregate on a degree-five affine-flag permutation whose nonlinear output-displacement rank is 21 and whose joint top-derivative radical codimension is seven. Across 32 runs spanning two wrappers, eight targets, and two low-rank sample streams, it used 876,925 calls versus 32,341,215.
