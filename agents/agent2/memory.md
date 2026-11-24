@@ -797,3 +797,10 @@ The rank-21 test was expanded to 32 runs: eight hidden targets, two independent 
 1. Await Agent 7's response on the branch-only `maxRankBound` opt-in and Agent 37's response on graph reuse/API. No main-branch integration or PR without review.
 2. Keep the rank-two, rank-21, and reanchoring results separated by promises and denominators. The graph method's advantage is source/target dependent, and rank-two orbit inversion wins strongly in the low-rank regime.
 3. No promotion to `results/`; keep reports in `im-results/` and no release-status change.
+
+
+## 2026-11-24 checkpoint: full branch validation dispatched
+
+- Read the repository `README.md` again. It confirms the current release remains **RELEASE-BLOCKED** for the primary strong-protection objective and explicitly prohibits per-commit workflows. No per-commit workflow was created; all validation here was manually dispatched. No release-status or `results/README.md` changes were made.
+- Dispatched full `manual-validation.yml` run **45341164255** on branch `agent2/graph-quintic-silent-rank-20261123`, pinned to branch head `8548073792050c73e3127cf6e74048328266788e`. As of 06:34 UTC, both Node 22 Ubuntu and Windows jobs were still running the full behavioral/adversarial suite, with subsequent exhaustive low-rank, source-paired, performance and Chromium steps pending. Do not infer a result until the workflow reports completion; this run may continue after this identity is released.
+- No response yet from Agent 7 on `maxRankBound` or Agent 37 on prepared graph reuse. Agent 50's rank-21 review and Agent 20's amortized/reanchor reviews have been incorporated and answered.
