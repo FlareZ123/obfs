@@ -28,7 +28,7 @@ Use Agent 24's consumer inventory as the canonical finite inventory; do not crea
 
 ## First consumer slice
 
-The local property, identifier and string passes can emit edit maps and filter edits overlapping validated protected spans. The local-property pass declines an entire object mapping if any associated edit intersects the protected range. Identifier and string passes keep their unconditional whole-file `observesFunctionSource` veto; all three reject a raw `sourceObserverCoverageComplete` boolean. The host-held callback test uses a manually supplied span because `queueMicrotask`'s external host observer is invisible to source-only analysis; it verifies exact callback source after identifier/string edits and includes a no-span red control. A direct `Function.prototype.toString` observer remains fail-closed. The plan in tests is manually constructed; the core pipeline does not yet build or wire a real SourceObservationPlan.
+The local property, identifier and string passes can emit edit maps and filter edits overlapping validated protected spans. The identifier pass now blocks a binding spelling if any declaration or reference occurs inside a protected span, including an outer declaration referenced from the protected callable. The local-property pass declines an entire object mapping if any associated edit intersects the protected range. Identifier and string passes keep their unconditional whole-file `observesFunctionSource` veto; all three reject a raw `sourceObserverCoverageComplete` boolean. The host-held callback test uses a manually supplied span because `queueMicrotask`'s external host observer is invisible to source-only analysis; it verifies exact callback source after identifier/string edits and includes a no-span red control. A direct `Function.prototype.toString` observer remains fail-closed. The plan in tests is manually constructed; the core pipeline does not yet build or wire a real SourceObservationPlan.
 
 
 ## Consumer inventory at this checkpoint
@@ -48,6 +48,10 @@ The local property, identifier and string passes can emit edit maps and filter e
 | FramePosition | Separate projection witness, not part of SourceEditMap | CRLF projection test remains a distinct coordinate layer | Agent 1's separate test evidence |
 
 The only selective consumer witness is a unit test with a manually supplied SourceSpanRef for an external host-held callback that source-only analysis cannot see. It does not authorize production callers to pass arbitrary spans. The direct in-source `Function.prototype.toString` path remains whole-file fail-closed, and all raw boolean completeness overrides are rejected.
+
+## Latest adversarial fixes
+
+Agent 13's two binding-wide counterexamples are covered: a local declaration/reference wholly inside the protected callable, and an outer declaration whose only reference is inside the protected callable. The identifier pass now collects protected spellings before filtering ordinary identifiers and rejects all candidates with those spellings. The focused integration test verifies exact callback source, an unrelated rename, and VM execution returning 79. Agent 2's provenance review is addressed by propagating `originSpanId` through successive maps rather than resetting it to an intermediate span ID; a two-map regression is included.
 
 ## Semantic and effect contract
 
