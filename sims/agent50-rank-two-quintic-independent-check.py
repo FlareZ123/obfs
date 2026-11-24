@@ -228,19 +228,26 @@ def main():
     expected_calls = [39, 40, 34, 40, 35, 40, 36, 40]
     expected_orbits = [6, 7, 1, 7, 2, 7, 3, 7]
     receipts = []
+    loose_bound_receipts = []
     for index, secret in enumerate(secrets):
         target = oracle(secret)
         result = invert_rank_r(oracle, target, rank_bound=2)
-        assert result["preimage"] == secret
+        loose = invert_rank_r(oracle, target, rank_bound=5)
+        assert result["preimage"] == secret == loose["preimage"]
         assert oracle(result["preimage"]) == target
-        assert result["nullity"] == 1 and result["orbit_bound"] == 8
-        assert result["oracle_calls"] == expected_calls[index]
-        assert result["orbit_calls"] == expected_orbits[index]
+        assert result["nullity"] == loose["nullity"] == 1
+        assert result["orbit_bound"] == 8 and loose["orbit_bound"] == 64
+        assert result["oracle_calls"] == loose["oracle_calls"] == expected_calls[index]
+        assert result["orbit_calls"] == loose["orbit_calls"] == expected_orbits[index]
         receipts.append({
             "secret": f"0x{secret:08x}", "target": f"0x{target:08x}",
             "preimage": f"0x{result['preimage']:08x}",
             "calls": result["oracle_calls"], "nullity": result["nullity"],
             "orbit_calls": result["orbit_calls"],
+        })
+        loose_bound_receipts.append({
+            "calls": loose["oracle_calls"], "nullity": loose["nullity"],
+            "orbit_calls": loose["orbit_calls"], "orbit_bound": loose["orbit_bound"],
         })
 
     print(json.dumps({
@@ -251,7 +258,9 @@ def main():
         "affine_decomposition_checks": len(checked),
         "target_recoveries": len(receipts),
         "total_rank_two_oracle_calls": sum(x["calls"] for x in receipts),
+        "rank_bound_5_worst_case_query_cap_eight_targets": 8 * (BITS + 1 + 64),
         "receipts": receipts,
+        "rank_bound_5_receipts": loose_bound_receipts,
         "scope": "independent finite/algebraic fixture check; not an arbitrary-JavaScript security result",
     }, indent=2))
 
