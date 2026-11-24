@@ -1,0 +1,40 @@
+name: Manual SCO rank-five top-derivative hybrid HTTP comparison
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  compare:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install declared dependencies
+        run: npm install --no-package-lock --ignore-scripts
+      - name: Check hybrid HTTP worker and adapter syntax
+        run: |
+          node --check sims/rankfive-top-derivative-hybrid-http-worker.cjs
+          node --check sims/sco-rankfive-top-derivative-hybrid-real-http.js
+      - name: Strict-check focused SCO oracle and hybrid JSDoc
+        run: npx tsc -p jsconfig.sco-oracles.json
+      - name: Run ten paired live SCO/native HTTP comparisons
+        shell: bash
+        run: set -o pipefail; node sims/sco-rankfive-top-derivative-hybrid-real-http.js | tee sco-rankfive-top-derivative-hybrid-http-output.txt
+      - name: Preserve full HTTP evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: sco-rankfive-top-derivative-hybrid-http-${{ matrix.os }}
+          path: |
+            sco-rankfive-top-derivative-hybrid-output.json
+            sco-rankfive-top-derivative-hybrid-http-output.txt
