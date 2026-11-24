@@ -73,7 +73,7 @@ const exportAliasShapes=[
       'class Reader{read(){return owner.privateField;}}',
       'const reader=new Reader();',
       'export {reader};'
-    ].join('\n'),
+    ].join('\\n'),
     importer:'import {reader} from "./reader.mjs";'
   },
   {
@@ -83,7 +83,7 @@ const exportAliasShapes=[
       'class Reader{read(){return owner.privateField;}}',
       'const reader=new Reader();',
       'export default reader;'
-    ].join('\n'),
+    ].join('\\n'),
     importer:'import reader from "./reader.mjs";'
   },
   {
@@ -94,8 +94,61 @@ const exportAliasShapes=[
       'const reader=new Reader();',
       'const publicReader=reader;',
       'export {publicReader as reader};'
-    ].join('\n'),
+    ].join('\\n'),
     importer:'import {reader} from "./reader.mjs";'
+  },
+  {
+    label:'object container export',
+    code:[
+      'const owner={privateField:7};',
+      'class Reader{read(){return owner.privateField;}}',
+      'const reader=new Reader();',
+      'export const bundle={reader};'
+    ].join('\\n'),
+    importer:'import {bundle} from "./reader.mjs";\\nconst reader=bundle.reader;'
+  },
+  {
+    label:'method extraction export',
+    code:[
+      'const owner={privateField:7};',
+      'class Reader{read(){return owner.privateField;}}',
+      'const reader=new Reader();',
+      'const method=reader.read;',
+      'export {method};'
+    ].join('\\n'),
+    importer:'import {method} from "./reader.mjs";\\nconst reader={read:method};'
+  },
+  {
+    label:'bound method export',
+    code:[
+      'const owner={privateField:7};',
+      'class Reader{read(){return owner.privateField;}}',
+      'const reader=new Reader();',
+      'const bound=reader.read.bind(reader);',
+      'export {bound};'
+    ].join('\\n'),
+    importer:'import {bound} from "./reader.mjs";\\nconst reader={read:bound};'
+  },
+  {
+    label:'prototype reflection export',
+    code:[
+      'const owner={privateField:7};',
+      'class Reader{read(){return owner.privateField;}}',
+      'const reader=new Reader();',
+      'export const prototype=Object.getPrototypeOf(reader);'
+    ].join('\\n'),
+    importer:'import {prototype} from "./reader.mjs";\\nconst reader={read:prototype.read};'
+  },
+  {
+    label:'global assignment',
+    code:[
+      'const owner={privateField:7};',
+      'class Reader{read(){return owner.privateField;}}',
+      'const reader=new Reader();',
+      'globalThis.reader=reader;',
+      'export {};'
+    ].join('\\n'),
+    importer:'import "./reader.mjs";\\nconst reader=globalThis.reader;'
   }
 ];
 
