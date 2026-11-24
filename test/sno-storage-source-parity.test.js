@@ -18,7 +18,7 @@ const supportsExperimentalWebStorage=nodeMajor>22 ||
  * Run one CommonJS program with Node's opt-in native Web Storage implementation.
  * @param {string} entry
  * @param {string} storageFile
- * @returns {{nativeDispatch:boolean,stored:string|null,value:number,independent:number}}
+ * @returns {{nativeDispatch:boolean,stored?:string|null,keySource?:string|null,valueSource?:string|null,value:number,independent:number}}
  */
 function runWithWebStorage(entry,storageFile) {
   const child=spawnSync(process.execPath,[
@@ -28,7 +28,7 @@ function runWithWebStorage(entry,storageFile) {
   ],{encoding:'utf8',timeout:15000});
   assert.equal(child.error,undefined,String(child.error??''));
   assert.equal(child.status,0,child.stderr);
-  return /** @type {{nativeDispatch:boolean,stored:string|null,value:number,independent:number}} */(
+  return /** @type {{nativeDispatch:boolean,stored?:string|null,keySource?:string|null,valueSource?:string|null,value:number,independent:number}} */(
     JSON.parse(child.stdout)
   );
 }
@@ -69,11 +69,15 @@ test('SNO Node Web Storage exposes changed callable source through native DOMStr
     "'use strict';",
     'function inspect(){const privateLocal=29;return privateLocal;}',
     'function independent(){const independentLocal=7;return independentLocal;}',
-    'const nativeDispatch=localStorage.setItem===Storage.prototype.setItem;',
-    'localStorage.clear();',
-    'localStorage.setItem("sno-source-observation",inspect);',
+    'const storage=globalThis.localStorage;',
+    'const nativeSetItem=Storage.prototype.setItem;',
+    'const nativeDispatch=storage.setItem===nativeSetItem;',
+    'storage.clear();',
+    'storage.setItem(inspect,"sno-key-position");',
+    'Reflect.apply(nativeSetItem,storage,["sno-value-position",inspect]);',
     'const result={nativeDispatch,',
-    '  stored:localStorage.getItem("sno-source-observation"),',
+    '  keySource:storage.key(0),',
+    '  valueSource:storage.getItem("sno-value-position"),',
     '  value:inspect(),independent:independent()};',
     'process.stdout.write(JSON.stringify(result));'
   ].join('\n');
@@ -107,18 +111,25 @@ test('SNO Node Web Storage exposes changed callable source through native DOMStr
     assert.equal(emitted.value,29);
     assert.equal(native.independent,7);
     assert.equal(emitted.independent,7);
-    assert.ok(native.stored?.includes('privateLocal'),'native Storage should retain original callable source');
-    assert.ok(emitted.stored && !emitted.stored.includes('privateLocal'),
-      'native Storage should expose the transformed callable source');
-    assert.notEqual(native.stored,emitted.stored,
+    assert.ok(native.keySource?.includes('privateLocal'),'native Storage key conversion should retain original callable source');
+    assert.ok(native.valueSource?.includes('privateLocal'),'native Storage value conversion should retain original callable source');
+    assert.ok(emitted.keySource && !emitted.keySource.includes('privateLocal'),
+      'captured native Storage key conversion should expose transformed callable source');
+    assert.ok(emitted.valueSource && !emitted.valueSource.includes('privateLocal'),
+      'native Storage value conversion should expose transformed callable source');
+    assert.equal(native.keySource,native.valueSource);
+    assert.equal(emitted.keySource,emitted.valueSource);
+    assert.notEqual(native.keySource,emitted.keySource,
       'SNO identifier edits must not silently change native Storage DOMString output');
 
     console.log(JSON.stringify({
       mode:'sno',
       node:process.versions.node,
       host:'Node --experimental-webstorage',
-      nativeStored:native.stored,
-      emittedStored:emitted.stored,
+      nativeKeySource:native.keySource,
+      emittedKeySource:emitted.keySource,
+      nativeValueSource:native.valueSource,
+      emittedValueSource:emitted.valueSource,
       nativeDispatch:native.nativeDispatch,
       nativeValue:native.value,
       emittedValue:emitted.value,
