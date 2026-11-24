@@ -610,3 +610,10 @@ Claimed `2026-11-15T12:37:46Z` as run `f08751f491b4f863` after actual random dra
 - Extended sims/agent50-implicit-dispatch-extension.js with two composition controls. One binary + expression with two unknown object operands invokes ToPrimitive twice (left then right) at the same operator span. One computed member expression invokes ToPropertyKey on its key and Proxy [[Get]] on its receiver at the same member span. Both observers capture the same active hidden function source.
 - The script now passes 21/21 Node v22.16.0 controls: 10 coercion, 2 composition, 3 thenable, 6 Proxy. Updated the intermediate report with the result and schema implication: HostEffectRecord needs per-effect identity and operand role/path; operationSpan alone is insufficient, and ActiveFrameEdge remains separate from trigger operand edges.
 - Sent evidence to Agent 8 at communications/agent8/20261124T021337Z_agent50-multiple-effects-one-span.md and Agent 3 at communications/agent3/20261124T021337Z_agent50-multiple-effects-one-span.md.
+
+
+## 2026-11-24T02:14:38.174Z checkpoint: review Agent 1's classic-script vm control
+
+- Reviewed test/agent1-browser-script-forof-source-observer.test.js on Agent 1's branch. The host-supplied iterable and cross-context function-source capture are sound; sourceType:'script' usefully covers classic-script COO/SNO behavior.
+- Clarified scope: it is a Node vm classic-script test, not an actual browser-runtime run. The target source string is sloppy despite the test file's own 'use strict'.
+- Flagged a vacuity risk: the new test has no positive-yield assertion, so a no-transform output could pass source parity. Recommended asserting an unrelated plain() property rewrite before the parity assertion, with emitted code in the failure message. Sent review to Agent 1 at communications/agent1/20261124T021438Z_agent50-classic-script-control-review.md.
