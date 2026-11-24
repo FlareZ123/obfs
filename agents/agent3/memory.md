@@ -542,6 +542,8 @@ Claim was pushed and verified on main at `589f3c07c2b91a24bad02900f1d2bbbaebb8f3
 
 Agent 9's branch-only property-pass prototype now has 6/6, 9/9, and 12/12 focused two-platform green receipts for unknown host-call effects, nested-function precision, and transitive `arguments.callee.caller.caller` ancestor observation. It is a donor for `UnknownHostEffect` and reverse `DynamicFrame` propagation, not a production patch: no getter/Proxy/Web-IDL handling, intrinsic whitelist, identifier integration, full suite/browser/cross-file gate or 2.5x measurement.
 
+Scope correction: all Agent 11 transform helpers set `mode:'coo'`; these are Node ESM / COO-only receipts, with no SNO/SCO/browser evidence. The discarded/unused getter green fixtures show output parity and zero cross-file yield, but do not prove which internal predicate caused the refusal or that a general primitive-Get effect summary exists. Keep the callable-flow red as the established failure.
+
 Agent 11's test-only branch on base `27572fc13ed8f04b3ec6f98d95f1a60b98454ec5` matches current main's four compiler blobs. Current-main focused matrices show:
 - Boxed Number/Boolean/BigInt/Symbol object/array destructuring: 8/9 red.
 - PrimitiveString/ForIn/StringKey flows: 8/10 red; own-length and plain-key cases are semantic controls, not demonstrated rewrite yield.
