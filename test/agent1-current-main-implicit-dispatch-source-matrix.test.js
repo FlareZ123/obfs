@@ -32,6 +32,15 @@ function makeHostArgs(kind,external) {
       )(external));
       return [{[Symbol.toPrimitive]:toPrimitive}];
     }
+    case 'for-await-of': {
+      const next=Function('external',
+        'return function next(){external();return Promise.resolve({done:true});}'
+      )(external);
+      const asyncIterator=Function('next',
+        'return function asyncIterator(){return {next};}'
+      )(next);
+      return [{[Symbol.asyncIterator]:asyncIterator}];
+    }
     case 'promise-resolve': {
       const getThen=Function('external',
         'return function getThen(){external();return resolve=>resolve();}'
@@ -117,7 +126,7 @@ async function observe(code,kind) {
   const observation={captured:null,source:null,stackNames:[]};
   /** @type {(...args:unknown[])=>void} */
   let external;
-  if(kind==='promise-resolve') {
+  if(kind==='promise-resolve'||kind==='for-await-of') {
     external=/** @type {(...args:unknown[])=>void} */(Function('observation',
       'return function external(){'+
       'const ErrorCtor=Error;const previous=ErrorCtor.prepareStackTrace;'+
@@ -183,7 +192,8 @@ const cases=[
   {kind:'proxy-set',body:'value.x=1;'},
   {kind:'accessor-setter',body:'value.x=1;'},
   {kind:'to-primitive',body:'const sum=value+1;return owner.secretField+sum;'},
-  {kind:'promise-resolve',body:'await value;return owner.secretField;',async:true}
+  {kind:'promise-resolve',body:'await value;return owner.secretField;',async:true},
+  {kind:'for-await-of',body:'for await(const item of value){}',async:true}
 ];
 for(const mode of /** @type {const} */(['coo','sno'])) {
   for(const scenario of cases) {
