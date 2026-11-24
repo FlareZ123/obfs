@@ -437,18 +437,103 @@ function isNonReferenceIdentifier(node,parent,key) {
 }
 
 /**
- * Collect unbound identifier references without treating property names,
- * labels, imported names, or lexical binding positions as host roots.
+ * Collect unbound identifier references using lexical scope resolution.
+ * This prevents a binding in a nested catch/loop/block from hiding a host
+ * global referenced outside that binding's scope.
  * @param {AstNode} ast
- * @param {Set<string>} bindingNames
  * @returns {Array<{name:string,node:AstNode,parent:AstNode|null,ancestors:AstNode[]}>}
  */
-function collectFreeIdentifierReferences(ast,bindingNames) {
+function collectFreeIdentifierReferences(ast) {
+  const scopeTypes=new Set([
+    'Program','BlockStatement','FunctionDeclaration','FunctionExpression',
+    'ArrowFunctionExpression','CatchClause','ForStatement','ForInStatement',
+    'ForOfStatement','SwitchStatement','StaticBlock','ClassExpression'
+  ]);
+  /** @param {AstNode} node @returns {boolean} */
+  const isScope=node=>scopeTypes.has(node.type);
+  /** @type {WeakMap<AstNode,AstNode[]>} */
+  const ancestorsByNode=new WeakMap();
+  /** @type {AstNode[]} */
+  const scopeNodes=[];
+  walk(ast,(node,parent,key,ancestors)=>{
+    ancestorsByNode.set(node,ancestors);
+    if(isScope(node))scopeNodes.push(node);
+  });
+  /** @param {AstNode[]} ancestors @returns {AstNode|null} */
+  function nearestScope(ancestors) {
+    for(let index=ancestors.length-1;index>=0;index--) {
+      if(isScope(ancestors[index]))return ancestors[index];
+    }
+    return null;
+  }
+  /** @param {AstNode[]} ancestors @returns {AstNode|null} */
+  function nearestFunctionScope(ancestors) {
+    for(let index=ancestors.length-1;index>=0;index--) {
+      const candidate=ancestors[index];
+      if(['Program','FunctionDeclaration','FunctionExpression',
+          'ArrowFunctionExpression'].includes(candidate.type))return candidate;
+    }
+    return ast;
+  }
+  /** @type {Map<AstNode,AstNode|null>} */
+  const scopeParents=new Map();
+  /** @type {Map<AstNode,Set<string>>} */
+  const scopeBindings=new Map();
+  for(const scope of scopeNodes) {
+    const ancestors=ancestorsByNode.get(scope)??[];
+    scopeParents.set(scope,nearestScope(ancestors));
+    scopeBindings.set(scope,new Set());
+  }
+  /**
+   * @param {AstNode|null} scope
+   * @param {AstNode|null|undefined} pattern
+   */
+  function addPattern(scope,pattern) {
+    if(!scope||!pattern)return;
+    const names=new Set();
+    collectBindingPatternNames(pattern,names);
+    const bindings=scopeBindings.get(scope);
+    if(bindings)for(const name of names)bindings.add(name);
+  }
+  walk(ast,(node,parent,key,ancestors)=>{
+    if(node.type==='VariableDeclarator') {
+      const kind=parent?.type==='VariableDeclaration'?parent.kind:'const';
+      const target=kind==='var'?nearestFunctionScope(ancestors):
+        (nearestScope(ancestors)??ast);
+      addPattern(target,node.id);
+    }
+    if(node.type==='FunctionDeclaration'&&node.id) {
+      addPattern(nearestScope(ancestors)??ast,node.id);
+    }
+    if(node.type==='FunctionExpression'&&node.id)addPattern(node,node.id);
+    if(node.type==='ClassDeclaration'&&node.id) {
+      addPattern(nearestScope(ancestors)??ast,node.id);
+    }
+    if(node.type==='ClassExpression'&&node.id)addPattern(node,node.id);
+    if(['FunctionDeclaration','FunctionExpression','ArrowFunctionExpression'].includes(node.type)) {
+      for(const parameter of node.params)addPattern(node,parameter);
+    }
+    if(node.type==='CatchClause')addPattern(node,node.param);
+    if(node.type==='ImportDeclaration') {
+      for(const specifier of node.specifiers)addPattern(ast,specifier.local);
+    }
+  });
+  /** @param {string} name @param {AstNode|null} scope @returns {boolean} */
+  function isBound(name,scope) {
+    let current=scope;
+    while(current) {
+      if(scopeBindings.get(current)?.has(name))return true;
+      current=scopeParents.get(current)??null;
+    }
+    return false;
+  }
+  /** @type {Array<{name:string,node:AstNode,parent:AstNode|null,ancestors:AstNode[]}>} */
   const references=[];
   walk(ast,(node,parent,key,ancestors)=>{
-    if(node.type!=='Identifier'||bindingNames.has(node.name)||
-       isNonReferenceIdentifier(node,parent,key))return;
-    references.push({name:node.name,node,parent,ancestors});
+    if(node.type!=='Identifier'||isNonReferenceIdentifier(node,parent,key))return;
+    if(!isBound(node.name,nearestScope(ancestors)??ast)) {
+      references.push({name:node.name,node,parent,ancestors});
+    }
   });
   return references;
 }
@@ -1248,7 +1333,7 @@ function validatePlanSemantics(plan,source,ast,trackedSourceRanges) {
     if(node.type==='ExportNamedDeclaration'&&
        (node.source||node.specifiers.length>0))unsupportedModuleSyntax=true;
   });
-  const freeReferences=collectFreeIdentifierReferences(ast,bindingNames);
+  const freeReferences=collectFreeIdentifierReferences(ast);
   const noUnapprovedFreeRoots=freeReferences.every(reference=>
     reference.name==='Function'||
     (reference.name==='String'&&isDirectStringFromCharCodeReference(reference)));
