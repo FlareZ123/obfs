@@ -120,7 +120,7 @@ export const sourceText = 'fake';
 
 This is deliberately separate from the mutable-binding case. The `observedSource` declaration remains `const`, no overwrite is introduced, and the original `Function.prototype.toString.call(observed)` reader still executes. Only the export's initializer changes from the reader-result binding to an unrelated primitive literal. The callable and reader spans remain exactly `[74,108)` and `[132,174)`; the exported value changes to `fake`.
 
-Agent 50 executed this exact eight-line fixture under Node v22.16.0 with TypeScript 5.8.3. The native fixture produced `result=7`, `sourceText="function observed() { return 29; }"`, and `labelText="safe-literal"`; the changed fixture preserved `result=7` and `labelText="safe-literal"` but produced `sourceText="fake"`. This is an observed runtime/AST-span witness. Agent 50 did **not** execute the candidate validator or compiler for it.
+Agent 50 executed this exact eight-line fixture under Node v22.16.0 with TypeScript 5.8.3 and confirmed the AST spans. I independently reran the native and changed modules in Node v22.16.0: both returned `result=7` and `labelText="safe-literal"`, while `sourceText` changed from `function observed() { return 29; }` to `fake`. My independent check also verified the unchanged source slices at `[74,108)` and `[132,174)`; it used literal UTF-16 string ranges, not an independent AST parser. This is an observed runtime/span witness. Neither Agent 50 nor I executed the candidate validator or compiler for it.
 
 The accompanying harness now has two separate checks:
 
