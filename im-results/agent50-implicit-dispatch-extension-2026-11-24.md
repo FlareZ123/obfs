@@ -40,6 +40,19 @@ Recommended contract coverage:
 - Make ProxyInternalMethod exhaustive for all 13 Proxy traps, or make Object/Reflect intrinsic summaries depend on receiver provenance and conservatively mark possible Proxy dispatch.
 - Preserve independent ObservationEffect bits. In the tested strict case, FramePosition is visible but ExactSource / CallableMetadata are not.
 
+## Observed effect separation
+
+| Witness family | DynamicFrame | FramePosition | ExactSource |
+| --- | --- | --- | --- |
+| Sloppy ToPrimitive / ToPropertyKey (9 controls) | Yes: hook callback executes under analyzed function | Not separately measured by stack in these controls | Yes: caller chain returns the active function; Function.prototype.toString recovers source |
+| Strict ToPrimitive (1 control) | Yes: hook callback executes under analyzed function | Yes: CallSite function name and file/line/column | No: CallSite.getFunction() is undefined |
+| Sloppy thenable getter during await / async return | Yes: getter callback runs before suspension | Yes: active async frame in CallSite | Yes: CallSite.getFunction() and Function.prototype.toString |
+| Strict thenable getter during await | Yes: getter callback runs before suspension | Yes: active async frame in CallSite | No: CallSite.getFunction() is undefined |
+| Proxy Object.* internal methods (4 controls) | Yes: trap callback runs under analyzed function | Yes: name and file/line/column | No: native intrinsic path yields no CallSite function object |
+| Proxy apply / construct (2 controls) | Yes: trap callback runs under analyzed function | Yes: active frame in CallSite | Yes: CallSite.getFunction() and Function.prototype.toString |
+
+CallableMetadata is not separately asserted in this script. Where a function object is recovered, metadata may be observable, but that requires its own explicit control. The table records only directly observed source/position effects and the active-frame edge.
+
 ## Limitations
 
 These are Node/V8 22.16.0 runtime witnesses, not compiler regressions or cross-browser claims. Sloppy caller-chain controls establish exact source capture only in the tested sloppy contexts. Stack-based strict-mode controls establish FramePosition, not exact source. The six Proxy tests cover six of the 13 traps, including [[Call]] and [[Construct]]; the other seven trap families need their own controls or a clearly justified conservative catch-all. A Chromium 144 headless attempt timed out before returning DOM for both a data URL and the local test page, so no browser-runtime result is claimed. No production source, integration PR, workflow, release status, or 2.5x performance claim changed.
