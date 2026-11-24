@@ -5,7 +5,7 @@
 **Owner:** Agent 50  
 **Frozen source SHA-256:** `2b6a7b2cb348cd716e636e8e2da0817d4721a95f98bd45bbd90ffd8a5b366a9d`  
 **Code branch:** `agent50/rankfive-top-quintic-http-20261124`  
-**Code head:** `5bdfe02f1bdbdbbfefdbe68f6f555675879ac45d`
+**Code head:** `7839d07a27722b806195e50574d33608648ac26a`
 
 ## Executive summary
 
@@ -99,7 +99,7 @@ Manual workflow run [45464855159](https://github.com/FlareZ123/obfs/actions/runs
 - 3,840 exhaustive truth-table outputs matched;
 - a lower-degree residual outside the recovered quotient triggered verification fallback and exact reconstruction of all 256 width-eight inputs;
 - the silent rank-seven control triggered verification fallback and exact reconstruction of all 128 width-seven inputs;
-- a degree-four/no-witness control used exact fallback and reconstructed all 128 inputs;
+- a degree-four/no-witness control used exact fallback and reconstructed all 128 inputs;\n- a codimension-six top-derivative control rejected the rank-five signature model and exactly reconstructed all 256 width-eight inputs;
 - strict JSDoc and syntax checks passed.
 
 ### Reproducible 1,000-replicate JavaScript simulation
@@ -151,13 +151,13 @@ Artifacts for the corrected-head live run:
 - Ubuntu: artifact `14954297964`, SHA-256 `685a76932baffdf98cbc76e24b9579b91ce72f7951e3b4516c5d55b7349e0cf2`.
 - Windows: artifact `14954987346`, SHA-256 `12b4f08c7d2a6e8d8cf652a51e9885c939c57802047c8caeefc75033d4536ec4`.
 
-Artifacts for the corrected-head peer/simulation run:
-- Ubuntu: artifact `14954697273`, SHA-256 `cf7504c276ee47c38611e2c0b6879f54373cb56f1ee98a9272f88994261fc1cb`.
-- Windows: artifact `14955097004`, SHA-256 `2e1b7f5cb020e73e1d7bd31fca6dd81dc33a2c3939bd4c0c67acf6dffc8cb398`.
+Artifacts for the final peer/simulation run (including the codimension-six control):
+- Ubuntu: artifact `14954847770`, SHA-256 `fb52f4698f327c887b0f51ae140792e1008db4295208bfeefdf312b772510566`.
+- Windows: artifact `14954603228`, SHA-256 `8d36683860b4e7c8cf3360608ab43a59d0c2f831ca071fe9c1e06b941e56317e`.
 
 ## Reproduction paths
 
-The implementation and focused workflows are preserved on branch `agent50/rankfive-top-quintic-http-20261124` at `5bdfe02f1bdbdbbfefdbe68f6f555675879ac45d` (not merged into main at report time):
+The implementation and focused workflows are preserved on branch `agent50/rankfive-top-quintic-http-20261124` at `7839d07a27722b806195e50574d33608648ac26a` (not merged into main at report time). The live HTTP comparison itself ran at `5bdfe02f1bdbdbbfefdbe68f6f555675879ac45d`; the subsequent branch commit adds only the codimension-six peer control and does not change the learner or HTTP adapter:
 
 - `sims/rankfive-top-derivative-projected-affine-hybrid-peer.js`
 - `sims/rankfive-top-derivative-hybrid-query-simulation.js`
@@ -169,7 +169,7 @@ The implementation and focused workflows are preserved on branch `agent50/rankfi
 - `.github/workflows/manual-rankfive-top-derivative-hybrid-peer.yml`
 - `.github/workflows/manual-sco-rankfive-top-derivative-hybrid-http.yml`
 
-The branch compares to main as 23 commits ahead and 187 behind, with 12 changed files. Review the shared baseline-script and JSDoc-config diffs before merging; do not blindly merge a stale branch.
+The branch compares to main as 24 commits ahead and 193 behind, with 12 changed files. Review the shared baseline-script and JSDoc-config diffs before merging; do not blindly merge a stale branch.
 
 ## Limitations and next work
 
