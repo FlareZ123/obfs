@@ -24,9 +24,8 @@ async function receive(source) {
     server.listen({port:0,host:'127.0.0.1'},()=>resolve(undefined));
   });
   try {
-    /** @type {import('node:net').AddressInfo|null} */
     const address=server.address();
-    assert.ok(address && typeof address==='object');
+    if(!address||typeof address==='string')throw new Error('Expected TCP server address');
     /** @type {CommonJsFile[]} */
     const output=[];
     for(const file of source) {
@@ -37,7 +36,7 @@ async function receive(source) {
     }
     return output;
   }finally {
-    await new Promise((resolve,reject)=>server.close(error=>error?reject(error):resolve()));
+    await new Promise((resolve,reject)=>server.close(error=>error?reject(error):resolve(undefined)));
   }
 }
 
