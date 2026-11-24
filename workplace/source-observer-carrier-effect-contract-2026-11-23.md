@@ -210,6 +210,15 @@ The canonical plan should expose at least the following. The v2 JSDoc schema sup
  * @typedef {string} ActivationRefKey
  * @typedef {string} SourceSpanId - source-unit/generation-qualified UTF-16 span
  * @typedef {string} HostEffectId
+ *
+ * @typedef {Object} SourceSpanRef
+ * @property {SourceSpanId} spanId
+ * @property {SourceUnitRefKey} sourceUnitRef
+ * @property {string} sourceGeneration
+ * @property {number} startOffset - UTF-16 code-unit offset
+ * @property {number} endOffset - UTF-16 code-unit offset
+ * @property {'utf16-code-unit'} coordinateUnit
+ * @property {string|null} astNodeType
  * @typedef {string} HostContractRefKey
  * @typedef {string} ThreatModelRefKey
  * @typedef {string} SourceUnitRefKey
@@ -400,6 +409,7 @@ The canonical plan should expose at least the following. The v2 JSDoc schema sup
  * @property {string} planId
  * @property {string} planGeneration
  * @property {ReadonlyMap<SourceUnitRefKey, SourceUnitRef>} sourceUnits
+ * @property {ReadonlyMap<SourceSpanId, SourceSpanRef>} sourceSpans
  * @property {ReadonlyMap<ThreatModelRefKey, ThreatModelRef>} threatModels
  * @property {ReadonlyMap<ModuleResolutionEdgeKey, ModuleResolutionEdge>} moduleResolutionEdges
  * @property {ReadonlyMap<SourceDeliveryEdgeKey, SourceDeliveryEdge>} sourceDeliveryEdges
@@ -416,6 +426,7 @@ The canonical plan should expose at least the following. The v2 JSDoc schema sup
  * @property {ReadonlyMap<HostEffectId, HostEffectRecord>} hostEffects
  * @property {ReadonlyMap<HostEffectId, ReadonlyArray<HostEffectValueEdge>>} valueEdges
  * @property {ReadonlyMap<HostEffectId, ReadonlyArray<ActiveFrameEdge>>} activeFrameEdges
+ * @property {ReadonlyMap<HostEffectId, ReadonlySet<SourceSpanId>>} effectClosures - exact affected spans for each observation effect
  * @property {ReadonlyMap<HostContractRefKey, HostContractRef>} hostContracts
  * @property {string|null} deploymentManifestId
  * @property {ReadonlyMap<SourceMirrorRefKey, SourceMirrorRef>} sourceMirrors
@@ -427,7 +438,7 @@ The canonical plan should expose at least the following. The v2 JSDoc schema sup
  */
 ```
 
-The schema separates five identities that must never be collapsed: BindingRef is lexical storage; DefinitionRef is a reaching write; ValueRef is an abstract runtime value; CallSiteRef is one invocation occurrence; HostEffectRecord is one implicit or explicit operation. ValueFact carries the exact possible CallableDefinitionRef identities and a separate path-provenance product so source URL/path reads can distinguish same-source, other-source and unknown paths. A BindingId alone is never a graph-global identity. A function value may carry the HostHeldCallable capability while remaining a Callable category; this capability is not a mutually exclusive ValueKind. A host argument that is inspected but never invoked creates an observed-value edge and HostHeldCallable capability. A no-argument callback that inspects the active caller creates a separate ActiveFrameEdge. An unknown call's returned value is represented by ValueFlowEdge, not either of those edges.
+The schema separates five identities that must never be collapsed: BindingRef is lexical storage; DefinitionRef is a reaching write; ValueRef is an abstract runtime value; CallSiteRef is one invocation occurrence; HostEffectRecord is one implicit or explicit operation. SourceSpanRef is the generation-qualified UTF-16 coordinate record behind every SourceSpanId, and effectClosures maps each HostEffectId to the exact spans it protects; the span-keyed effects and semanticClosures maps are derived consumer projections. ValueFact carries the exact possible CallableDefinitionRef identities and a separate path-provenance product so source URL/path reads can distinguish same-source, other-source and unknown paths. A BindingId alone is never a graph-global identity. A function value may carry the HostHeldCallable capability while remaining a Callable category; this capability is not a mutually exclusive ValueKind. A host argument that is inspected but never invoked creates an observed-value edge and HostHeldCallable capability. A no-argument callback that inspects the active caller creates a separate ActiveFrameEdge. An unknown call's returned value is represented by ValueFlowEdge, not either of those edges.
 
 Mode/trust defaults are fixed by the threat model: COO/client, SCO/client and SNO/server are attacker-controlled; SCO/server is obfuscator-controlled. A declared-trusted premise is admissible only when an explicit, versioned HostContractRef supports it. A known runtime family/version or unshadowed global spelling is not such proof. Build artifacts are provenance, not a third runtime execution partition.
 
