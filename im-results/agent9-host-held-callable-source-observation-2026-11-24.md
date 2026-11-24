@@ -239,3 +239,25 @@ Focused run [45326434167](https://github.com/FlareZ123/obfs/actions/runs/4532643
 This demonstrates the intended confidentiality boundary: the client sees a generated facade, not the server implementation or private dependency bodies. It also demonstrates a compatibility tradeoff: `Function#toString` of the facade differs from the original server function. If 1:1 source-observation semantics are required, the compiler must refuse to partition a callable whose source is observable by client code/host, or explicitly define this as an unsupported semantic change. Hiding the implementation and preserving its exact source text are mutually incompatible when the source itself is observable; sending the original source would defeat the server-only confidentiality boundary.
 
 A follow-up version adds `verifyScoPrivateSourceDigests` before loading the private graph and removes an over-restrictive assertion about private path metadata. This validated version passed on Ubuntu and Windows with strict JSDoc in [run 45327228394](https://github.com/FlareZ123/obfs/actions/runs/45327228394). The exact test content is restored at branch commit `77594c998b026e09138dd9213a3da586bfd021ae`. A separate experiment that wrote the facade at its canonical path failed in the test harness and was reverted; it is not evidence against the partitioner.
+
+
+## Callable syntax coverage and real SNO launcher
+
+The source-mutation red controls now cover seven callable syntax forms in each of COO, SCO and SNO, for both identifier and string consumers (42 combinations): function declaration, function expression, arrow function, object method, class method, async function and generator function. All 42 tests observed changed callback source while preserving runtime values and never invoking the callback. [Run 45328404113](https://github.com/FlareZ123/obfs/actions/runs/45328404113) passed on Ubuntu and Windows with strict project/external/paired-budget JSDoc.
+
+SNO was also exercised through its actual one-entry launcher path, not only `obfuscateFiles({mode:'sno'})` in a VM. The test compiles a single CommonJS `entry.cjs`, creates the bootloader with `createSnoLauncher`, then launches `sno-entry.cjs` under Node with a host-controlled `queueMicrotask` override. The launcher verifies the artifact manifest and `require()`s the obfuscated entry. In separate identifier and string cases, the host observes changed callback source; stdout remains `done`; the callback is never invoked. [Run 45328512061](https://github.com/FlareZ123/obfs/actions/runs/45328512061) passed on Ubuntu and Windows with all strict JSDoc checks.
+
+The eight relevant implementation blobs at SNO launcher witness commit `0564d862a66afc77f818e57803b2bf4cab09bf04` were independently verified identical to current main:
+
+| File | Blob SHA |
+|---|---|
+| `src/ast.js` | `c227e6e604635a42663af745fd0cfb194b215a67` |
+| `src/properties.js` | `bda3c6097e2679f59bd003fa0aed3e0291d4ba4c` |
+| `src/identifiers.js` | `c7e2ed1469381c5bc6dc42cef9a6ca8bfa347f0f` |
+| `src/strings.js` | `df489cf25a8aaeb87d90e6dc1b7eb66476da8dd6` |
+| `src/core.js` | `8d33996821650de540b87502baff00a9e7ea99c7` |
+| `src/sno.js` | `74bac83442ac11e57bf46e822385f408ba527399` |
+| `src/cli.js` | `587398dbd070a809be92098f9df678ec7e5c23d2` |
+| `bin/sno.js` | `26d28904e88cfb380dc5248c1c14862352a4ae41` |
+
+This closes the focused SNO launcher/entrypoint gap for a single CommonJS entry and direct host-held callback. It does not establish full CLI/package compatibility, multi-file SNO loader behavior, or the complete SNO hostile-runtime threat model.
