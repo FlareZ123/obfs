@@ -704,6 +704,9 @@ function summarizeAmbientCallEffects(ast,sourceType) {
   const COERCIVE_BINARY_OPERATORS=new Set([
     '+','-','*','/','%','**','==','!=','<','>','<=','>=','|','&','^','<<','>>','>>>'
   ]);
+  const COERCIVE_ASSIGNMENT_OPERATORS=new Set([
+    '+=','-=','*=','/=','%=','**=','<<=','>>=','>>>=','&=','|=','^='
+  ]);
   walkAst(ast,node=>{
     if(node.type==='CallExpression'||node.type==='NewExpression') {
       let knownLocalTarget=null;
@@ -753,7 +756,7 @@ function summarizeAmbientCallEffects(ast,sourceType) {
       markCallableValuesHeld(node.argument,'callable-coercion-observer',node.start,node.end);
     } else if(node.type==='UpdateExpression'&&!isDefinitelyPrimitive(node.argument)) {
       markCallableValuesHeld(node.argument,'callable-coercion-observer',node.start,node.end);
-    } else if(node.type==='AssignmentExpression'&&node.operator!=='=') {
+    } else if(node.type==='AssignmentExpression'&&COERCIVE_ASSIGNMENT_OPERATORS.has(node.operator)) {
       if(!isDefinitelyPrimitive(node.left))
         markCallableValuesHeld(node.left,'callable-coercion-observer',node.start,node.end);
       if(!isDefinitelyPrimitive(node.right))
@@ -851,7 +854,7 @@ function summarizeAmbientCallEffects(ast,sourceType) {
         addReason(fn,{kind:'to-primitive',start:node.start,end:node.end});
       } else if(node.type==='UpdateExpression'&&!isDefinitelyPrimitive(node.argument)) {
         addReason(fn,{kind:'to-primitive',start:node.start,end:node.end});
-      } else if(node.type==='AssignmentExpression'&&node.operator!=='='&&
+      } else if(node.type==='AssignmentExpression'&&COERCIVE_ASSIGNMENT_OPERATORS.has(node.operator)&&
                 !isDefinitelyPrimitive(node.left)) {
         addReason(fn,{kind:'to-primitive',start:node.start,end:node.end});
       } else if(node.type==='ReturnStatement'&&fn.async&&node.argument&&
