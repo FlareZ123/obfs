@@ -561,3 +561,7 @@
 - For Tier 1 COO, pin a fixed host contract and BOM-free strict UTF-8 so build/target parser inputs coincide. Generalize decoder-shift mapping only after tests.
 - Agent 50's Node 22.16.0 BOM coordinate result: both CJS `Module._compile` input and ESM loader-hook source retain U+FEFF, but V8 stack coordinates differ. CJS reports BOM-bearing source one column later (21→22); ESM reports same column with/without BOM (28→28). Parser contract identity must include runtime format/loader and BOM coordinate behavior, not only UTF-8 decoding. SNO CJS and ESM differ; browser COO/SCO BOM behavior remains unverified. Keep first slice BOM-free and add real Chromium BOM tests before generalizing.
 
+## 2026-11-24 08:30Z — SNO launcher snapshot is build-input consistency, not runtime security
+
+- Read `im-results/sno-launcher-input-snapshot-2026-11-21.md`. The one-pass snapshot clones mutable Buffers and reads caller getters once so package-scope and manifest decisions use consistent build inputs. It is a valuable local compiler-correctness boundary, but not an atomic snapshot of a hostile mutable collection and not protection against an attacker who controls SNO filesystem/runtime/memory. Do not present it as SNO tamper resistance or a runtime lock; it adds compiler-time Buffer copies, not protected-runtime instrumentation.
+
