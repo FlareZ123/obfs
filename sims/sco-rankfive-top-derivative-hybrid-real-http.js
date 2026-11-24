@@ -14,6 +14,12 @@ const {evaluateHybridModel}=require('./rankfive-top-derivative-projected-affine-
 /** @typedef {{fastPathSuccess:boolean,witnessTrials:number,witnessDrawCount:number,witnessProbability:number,witnessFailureBound:number,quotientRank:number|null,fastQueries:number,verificationQueries:number,verificationSamples:number,verificationCap:number,verificationDelta:number,falseAcceptanceBound:number,verificationPassed:boolean,fallbackUsed:boolean,fallbackReason:string|null,fallbackQueries:number,exactByInterpolation:boolean,verifyDrawCount?:number}} HybridDiagnostics */
 /** @typedef {(model:unknown,input:number)=>number} ModelEvaluator */
 /** @typedef {{model:HybridModel,queries:number,transcriptSha256:string,diagnostics:HybridDiagnostics}} CloneResult */
+/** @typedef {{
+  replicate:number,
+  baseline:{scoQueries:number,nativeQueries:number,transcriptSha256:string,drawCount:number,drawTapeSha256:string,draws:number[]},
+  hybrid:{scoQueries:number,nativeQueries:number,transcriptSha256:string,diagnostics:HybridDiagnostics,witnessDrawTapeSha256:string,verifyDrawTapeSha256:string,witnessDraws:number[],verifyDraws:number[]},
+  queriesSaved:number
+}} ReplicateRecord */
 
 class NeedHttpQuery extends Error {
   /** @param {number} input */
@@ -146,7 +152,7 @@ async function compare(){
   const replicates=10;
   const source=privateSource();
   const sourcePromise=verifySourcePromise(source);
-  /** @type {Array<object>} */
+  /** @type {ReplicateRecord[]} */
   const records=[];
   for(let replicate=0;replicate<replicates;replicate++){
     /** @type {number[]} */
@@ -268,8 +274,8 @@ async function compare(){
     records
   };
   fs.writeFileSync('sco-rankfive-top-derivative-hybrid-output.json',JSON.stringify(output,null,2)+'\n');
-  const compact={...output};
-  delete compact.records;
+  const {records:unusedRecords,...compact}=output;
+  void unusedRecords;
   console.log('SCO_NATIVE_TOP_DERIVATIVE_HYBRID '+JSON.stringify(compact));
   return output;
 }
