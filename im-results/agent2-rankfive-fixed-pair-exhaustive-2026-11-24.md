@@ -37,7 +37,7 @@ It then independently enumerates every ordered pair u,v of distinct nonzero vect
 
 For any quotient-basis anchors a0,...,a4, the first two projected anchor vectors u=P(a0) and v=P(a1) are distinct nonzero vectors in F2^5, hence independent. Conversely, every ordered independent pair can be extended to a full basis. The enumeration therefore covers the first-two-coordinate pair of every possible invertible anchor-coordinate transformation.
 
-The section table is H(t)=A(s(t))+b+h(Mt), where M is the invertible coordinate map induced by the anchors. The affine term A(s(t))+b vanishes under second differences, so the checked property for h(Mt) is exactly the property used by the shift matcher. Thus, for this frozen source table, the fixed pair {1,2} passes regardless of which valid witness anchors are selected.
+The section table is H(t)=A(s(t))+b+h(Mt), where M is the invertible coordinate map induced by the anchors. The affine term A(s(t))+b vanishes under second differences, so the checked property for h(Mt) is exactly the property used by the shift matcher. Differential uniformity 2 means that, for fixed nonzero delta, D_delta H(q+u)=D_delta H(q) only when u is 0 or delta. If both distinct nonzero offsets u and v failed to separate, both would have to equal delta, which is impossible. Thus, for this frozen source table, the fixed pair {1,2} passes regardless of which valid witness anchors are selected.
 
 ## Implication and limits
 
