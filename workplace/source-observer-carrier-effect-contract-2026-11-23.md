@@ -387,7 +387,7 @@ The canonical plan should expose at least the following. The v2 JSDoc schema sup
  * @typedef {'trigger'|'observed'} HostEffectValueRole
  * @typedef {'ExactSource'|'SourceBytes'|'FramePosition'|'CallableMetadata'|'UnknownHostEffect'} ObservationEffect
  *
- * @typedef {'PrimitiveGet'|'PrimitiveObjectPatternGet'|'IteratorDispatch'|'PrimitiveMethodDispatch'|'UnknownHostCall'|'UnknownHostArgumentEscape'|'AccessorCall'|'ProxyInternalMethod'|'CustomHasInstance'|'ObjectCopyDispatch'|'WithBindingLookup'|'ToPrimitiveDispatch'|'ToPropertyKeyDispatch'|'PromiseResolveThenableGet'|'PromiseThenableJob'|'PromiseHandlerDispatch'|'IntrinsicCallbackDispatch'|'WebIDLStringConversion'|'WebIDLNamedPropertySet'|'WebIDLAttributeSet'|'DOMSourceSerialization'|'DOMSourceRead'|'SourceMirrorRead'|'SRIIntegrityPin'|'BrowserImportMapResolution'} HostEffectKind
+ * @typedef {'PrimitiveGet'|'PrimitiveObjectPatternGet'|'IteratorDispatch'|'PrimitiveMethodDispatch'|'UnknownHostCall'|'UnknownHostArgumentEscape'|'AccessorCall'|'ProxyInternalMethod'|'CustomHasInstance'|'ObjectCopyDispatch'|'WithBindingLookup'|'ToPrimitiveDispatch'|'ToPropertyKeyDispatch'|'PromiseResolveThenableGet'|'PromiseThenableJob'|'PromiseHandlerDispatch'|'IntrinsicCallbackDispatch'|'WebIDLStringConversion'|'WebIDLNamedPropertySet'|'WebIDLAttributeSet'|'DOMSourceSerialization'|'DOMSourceRead'|'FileSystemSourceRead'|'SourceMirrorRead'|'CallableMetadataRead'|'StackFrameRead'|'SRIIntegrityPin'|'BrowserImportMapResolution'} HostEffectKind
  *
  * @typedef {Object} HostEffectRecord
  * @property {HostEffectId} effectId
@@ -397,6 +397,7 @@ The canonical plan should expose at least the following. The v2 JSDoc schema sup
  * @property {CallSiteRefKey|null} callSiteRef
  * @property {ActivationRefKey|null} callerActivationRef
  * @property {string|null} abstractOperation
+ * @property {ReadonlyArray<ObservationEffect>} observationEffects - event-specific dimensions; UnknownHostEffect is fallback
  * @property {ConversionHint} conversionHint
  * @property {ProxyInternalMethod|null} proxyTrapName - required when kind is ProxyInternalMethod
  * @property {string|null} interfaceIdentity
@@ -483,7 +484,7 @@ The canonical plan should expose at least the following. The v2 JSDoc schema sup
  * @property {ReadonlyMap<SourceMirrorRefKey, SourceMirrorRef>} sourceMirrors
  * @property {ReadonlyMap<SourceMirrorReadEdgeKey, SourceMirrorReadEdge>} sourceMirrorReadEdges
  * @property {ReadonlyMap<ReceiverRefKey, ReceiverRef>} receiverRefs
- * @property {ReadonlyMap<SourceSpanId, ReadonlySet<ObservationEffect>>} effects
+ * @property {ReadonlyMap<SourceSpanId, ReadonlySet<ObservationEffect>>} effects - derived summary of event and edge observationEffects
  * @property {ReadonlyMap<SourceSpanId, ReadonlySet<SourceSpanId>>} semanticClosures
  * @property {ReadonlySet<SourceSpanId>} unsupportedSpans
  */
@@ -496,6 +497,8 @@ Mode/trust defaults are fixed by the threat model: COO/client, SCO/client and SN
 ModuleResolutionEdge is per import occurrence; SourceDeliveryEdge represents the SCO server-to-client boundary and request-specific generation; SourceMirrorReadEdge connects an actual reader effect to the exact function/source mirror it observes. Function-source mirrors carry CallableDefinitionRef and SourceSpanId. The old callTargets, hostArgumentEdges and any source-unit adjacency map are derived compatibility projections, never the authoritative graph.
 
 Dispatch is split into receiver origin, member lookup route and effective operation status. ReceiverLookupRoute records inherited/own/captured/proxy/userland lookup; EffectiveDispatchStatus records local, verified native, overridden or unknown behavior; EffectiveOperationRef identifies the actual local callable or versioned host intrinsic. The old DispatchProvenance name is only a compatibility alias for ReceiverLookupRoute and must not be used for effective-operation status.
+
+HostEffectRecord.observationEffects records the dimensions produced by that specific event. A function-source mirror read is SourceMirrorRead with ExactSource; filesystem, DOM, loader or SRI byte reads are SourceBytes; CallableMetadataRead is CallableMetadata; StackFrameRead is FramePosition. The plan-level effects map is only a derived span-keyed summary. UnknownHostEffect remains an explicit fallback when dispatch or observation behavior cannot be proven.
 
 The canonical event taxonomy uses one ProxyInternalMethod event with the exact one of 13 trap names in proxyTrapName. IteratorDispatch covers iteration for all receiver categories; PrimitiveIterator is not a separate event. IntrinsicCallbackDispatch is allowed only when the effective operation is verified under the relevant HostContractRef; a host override is not a native intrinsic merely because it has the same spelling. ToPrimitive/ToPropertyKey, PromiseResolve.GetThen, deferred thenable jobs and Promise handler dispatch remain distinct operations.
 
