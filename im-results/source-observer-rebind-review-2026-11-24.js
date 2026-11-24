@@ -176,7 +176,7 @@ check('mutable-reader-binding',[{
   start:sourceTextExportStart,end:sourceTextExportStart,
   text:"observedSource = 'fake';\n",affinity:'unknown',
   syntheticOriginId:'review-reader-overwrite'
-}],false);
+}],true);
 
 const disconnectedSource = source.replace(
   sourceTextExport,"export const sourceText = 'fake';"
