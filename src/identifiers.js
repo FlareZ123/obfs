@@ -2,6 +2,7 @@
 
 const {createHash} = require('node:crypto');
 const {walk,applyEdits,observesFunctionSource,sourceSpelledErrorOperand} = require('./ast');
+const {applyEditsWithMap} = require('./source-edit-map');
 const {collectBindings} = require('./properties');
 
 /** @typedef {import('./ast').AstNode} AstNode */
@@ -37,11 +38,25 @@ function classifyIdentifier(node,parent,key) {
 /**
  * @param {string} source
  * @param {AstNode} ast
- * @param {{seed:string,sourceType:'script'|'module'|'commonjs'}} options
- * @returns {{code:string,bindings:number}}
+ * @param {{seed:string,sourceType:'script'|'module'|'commonjs',sourceUnitRef?:string,parserContractId?:string}} options
+ * @returns {{code:string,bindings:number,editMap?:Object}}
  */
 function renameLocalIdentifiers(source,ast,options) {
-  if(observesFunctionSource(ast)) return {code:source,bindings:0};
+  const hasMapContext=options.sourceUnitRef!==undefined||options.parserContractId!==undefined;
+  if(hasMapContext&&
+     (typeof options.sourceUnitRef!=='string'||options.sourceUnitRef.length===0||
+      typeof options.parserContractId!=='string'||options.parserContractId.length===0)) {
+    throw new TypeError('sourceUnitRef and parserContractId must be supplied together');
+  }
+  /** @param {import('./ast').Edit[]} edits @param {number} bindings @returns {{code:string,bindings:number,editMap?:Object}} */
+  function finish(edits,bindings) {
+    if(hasMapContext) {
+      const mapped=applyEditsWithMap(source,edits,options.sourceUnitRef,options.parserContractId);
+      return {code:mapped.code,bindings,editMap:mapped.map};
+    }
+    return finish(edits,bindings);
+  }
+  if(observesFunctionSource(ast)) return finish([],0);
   const counts=collectBindings(ast);
   /** @type {{identifier:AstNode,name:string,scope:AstNode}[]} */
   const candidates=[];
@@ -134,7 +149,7 @@ function renameLocalIdentifiers(source,ast,options) {
       }
     }
   });
-  if (dynamic) return {code:source,bindings:0};
+  if (dynamic) return finish([],0);
   /** @type {import('./ast').Edit[]} */
   const edits=[];
   // A free identifier can be captured by a newly introduced local binding,
