@@ -597,6 +597,7 @@ test('SNO Node Web Storage cross-file factory return exposes helper callable sou
   ].join('\n');
   assert.equal(observesFunctionSource(parse(entrySource,'commonjs')),false);
   assert.equal(observesFunctionSource(parse(helperSource,'commonjs')),false);
+  /** @type {{path:string,sourceType:'commonjs',code:string}[]} */
   const inputFiles=[
     {path:'entry.cjs',sourceType:'commonjs',code:entrySource},
     {path:'helper.cjs',sourceType:'commonjs',code:helperSource}
