@@ -6,6 +6,8 @@ const {invertByRandomAffineGraph,binomialSum}=
   require('../sims/random-affine-graph-flag-inversion');
 const {invertByReanchoring}=
   require('../sims/random-affine-anchor-compatible-inversion');
+const {invertLowRankDeterministic}=
+  require('../sims/affine-low-rank-oracle');
 const {inverseOfColumns}=
   require('../sims/sparse-triangular-fixedpoint-inversion');
 const {makeLinearTransform,applyLinear}=
@@ -83,6 +85,28 @@ test('corrected affine-graph inversion recovers the 32-bit silent-rank quintic p
       'independent exact source-forward verification');
     assert.equal(result.stages.length,32);
     assert.ok(result.stages.every(stage=>stage.reason==='affine-relation'));
+
+    // The same source has nonlinear output displacement rank two after
+    // affine wrapping. Compare the existing exact rank-r attacker as a
+    // stronger matched baseline, not merely against complete ANF cloning.
+    const lowRankResult=invertLowRankDeterministic(
+      wrappedOracleNumber,target,{bits:32,rankBound:2}
+    );
+    assert.equal(lowRankResult.preimage,secret);
+    assert.equal(lowRankResult.nullity,1);
+    assert.equal(lowRankResult.cycleLength<=8,true);
+    assert.equal(lowRankResult.provenOrbitUpperBound,8);
+    assert.equal(lowRankResult.oracleCalls,expectedLowRankQueries[index]);
+    totalLowRankQueries+=lowRankResult.oracleCalls;
+    lowRankReceipts.push({
+      secret:'0x'+secret.toString(16).padStart(8,'0'),
+      target:'0x'+target.toString(16).padStart(8,'0'),
+      preimage:'0x'+lowRankResult.preimage.toString(16).padStart(8,'0'),
+      queries:lowRankResult.oracleCalls,
+      nullity:lowRankResult.nullity,
+      cycleLength:lowRankResult.cycleLength
+    });
+
     totalGraphQueries+=result.queries;
     receipts.push({
       secret:'0x'+secret.toString(16).padStart(8,'0'),
@@ -97,6 +121,8 @@ test('corrected affine-graph inversion recovers the 32-bit silent-rank quintic p
   const exactCloneQueries=binomialSum(32,5);
   assert.equal(exactCloneQueries,242825);
   assert.ok(totalGraphQueries<exactCloneQueries);
+  assert.equal(totalLowRankQueries,304);
+  assert.ok(totalLowRankQueries<totalGraphQueries);
 
   // A ninth distinct B-active target crosses the one-time full-clone cost
   // for this fixed source/seed schedule; this pins the observed break-even.
@@ -168,7 +194,11 @@ test('affine-graph inversion survives hidden two-sided affine wrappers with a si
   ];
   /** @type {Array<{secret:string,hidden:string,target:string,queries:number}>} */
   const receipts=[];
+  /** @type {Array<{secret:string,target:string,preimage:string,queries:number,nullity:number,cycleLength:number}>} */
+  const lowRankReceipts=[];
   let totalGraphQueries=0;
+  let totalLowRankQueries=0;
+  const expectedLowRankQueries=[39,40,34,40,35,40,36,40];
   for(let index=0;index<secrets.length;index++){
     const secret=secrets[index]>>>0;
     const hidden=(applyLinear(inputColumns,secret)^inputBias)>>>0;
@@ -256,6 +286,7 @@ test('affine-graph inversion survives hidden two-sided affine wrappers with a si
     jointTopDerivativeRadicalCodimension:7,
     affineFlag:true,
     targets:receipts.length,receipts,totalGraphQueries,exactCloneQueries,
+    lowRankBaseline:{rankBound:2,receipts:lowRankReceipts,totalLowRankQueries},
     canonicalAnchorReanchor:'rank-deficient',
     randomReanchorSuccess:{
       anchor:'0x'+randomReanchor.anchor.toString(16).padStart(8,'0'),
