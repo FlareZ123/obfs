@@ -23,6 +23,12 @@ test('four-file ESM dataflow preserves named imports, nested calls and external 
     assert.equal(output.crossFile.properties,2);
     const entry=output.files.find(f=>f.path==='index.mjs');
     assert.match(entry.code,/globalThis\.window\.api\.bridge/);
+    const stateModule=output.files.find(f=>f.path==='state.mjs');
+    assert.ok(stateModule);
+    const originalInternal=inputs[0].code.match(/export function internal\(\)\{[^}]*\}/)?.[0];
+    const emittedInternal=stateModule.code.match(/export function internal\(\)\{[^}]*\}/)?.[0];
+    assert.equal(emittedInternal,originalInternal,
+      'the exported wrapper source must remain byte-identical while its private reader is transformed');
     for(const file of output.files)await atomicWrite(path.join(root,file.path),file.code);
     const entryUrl=new URL('file://'+path.join(root,'index.mjs')).href;
     const command=`globalThis.window={api:{bridge:10}};import(${JSON.stringify(entryUrl)}).then(x=>console.log(x.value));`;
