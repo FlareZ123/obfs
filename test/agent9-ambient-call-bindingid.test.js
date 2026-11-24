@@ -501,3 +501,12 @@ test('with object environments retain local callable values',()=>{
   assert.equal(named(result,'hidden')[0].hostHeldCallable,true);
   assert.equal(named(result,'caller')[0].ambient,true);
 });
+
+
+test('debugger statements expose the active frame and lexical callable values',()=>{
+  const result=analyze(
+    'function hidden(){return 1;}function caller(){debugger;}'
+  );
+  assert.equal(named(result,'caller')[0].ambient,true);
+  assert.equal(named(result,'hidden')[0].hostHeldCallable,true);
+});
