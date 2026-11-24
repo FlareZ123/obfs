@@ -75,6 +75,10 @@ The second test fetches `entry.cjs` once and `helper.cjs` twice **concurrently**
 
 This confirms that the current handler produces independent source variants per module GET. It does **not** prove a future plan is isolated correctly; the plan is not implemented. It establishes the acceptance requirement that each response have its own immutable plan/generation while preserving cross-file effect closure.
 
+## Relation to other SCO source-observation evidence
+
+This is a distinct source-mutating stage from Agent 1's SCO property-pass witnesses. `im-results/agent1-sco-forof-active-frame-source-observer-2026-11-24.md` documents actual `createScoHandler` responses changing host-observed callable source through property renaming during IteratorNext, PromiseResolve and ToPrimitive. This report documents request-time `varyLiteralSpellings` changing the same kind of observable source before the later `obfuscateFiles` passes. Together, these show why the shared plan must govern every source-mutating stage, including request-time variation, not only property/identifier/string transforms inside `obfuscateFiles`.
+
 ## Required future behavior and limits
 
 The request-specific full-graph `SourceObservationPlan` must govern `varyLiteralSpellings` as well as later `obfuscateFiles` consumers. For this fixture, a future green acceptance test should preserve the helper callback's exact source while continuing to vary unrelated, unobserved literals in the request variant. The plan must be request-generation-specific and isolated across concurrent SCO requests.
