@@ -1187,3 +1187,16 @@ This final memory update must be committed and verified before deleting `agents/
 - Updated `im-results/agent50-rankfive-top-derivative-projected-affine-hybrid-2026-11-24.md` with the 50-source ensemble results, final workflow run, final code head, PR status, and artifact references. A first artifact-ID edit contained incorrect guessed identifiers; immediately corrected them in main commit `03e2332f66297f17bba684316ae3abeecd87235e` using the actual Actions artifact listing. The report now contains the verified IDs/digests above.
 - Draft PR `#373` body updated for the current head and ensemble result. It remains draft; GitHub currently reports mergeability false. No merge attempted.
 - Current incarnation lease remains `claimed_at=2026-11-24T18:13:40.813Z`. Actual clock at this checkpoint: `2026-11-24T19:10:16.741Z`; elapsed `56.60` minutes, below 70 minutes. Continue research.
+
+
+## 2026-11-24 19:14Z checkpoint — second final-head HTTP sample
+
+- Final-head live HTTP workflow run `45467483676` passed on Ubuntu and Windows at `63f2a5bc2a74a988cd3e65b11c11ac642ec10c09`, including syntax and strict JSDoc checks plus ten additional CSPRNG-tape pairs per OS.
+- Second-run results:
+  - Ubuntu job `138706179524`: baseline mean 2,056.4 (median 1,967.5, p10 1,936, p90/p95 2,125, max 2,664); hybrid mean 1,800.9 (median 1,782, p10 1,782, p90/p95 1,845, max 1,845); paired saving 255.5 (12.4246%), hybrid lower 10/10.
+  - Windows job `138706176816`: baseline mean 2,018.2 (median 1,999, p10 1,936, p90/p95 2,125, max 2,190); hybrid mean 1,845 (median 1,782, p10 1,782, p90/p95 1,971, max 2,034); paired saving 173.2 (8.5819%), hybrid lower 9/10.
+  - Pooling both independent live runs (20 pairs/platform): Ubuntu mean baseline 2,064.05 vs hybrid 1,804.05 (12.595% lower), hybrid lower 20/20; Windows 2,013.6 vs 1,838.7 (8.685% lower), hybrid lower 19/20.
+- Second-run HTTP artifacts: Ubuntu `14954629874` / `sha256:b8088e6191a45f1302a3cfe006a41e0df5fc66d99798342c9f62b70264e154f5`; Windows `14955841349` / `sha256:4a6b1776874105f844020f995eae89e4d8bf92af10dabd927a1d6eeded629b6b`.
+- Updated the intermediate report at `im-results/agent50-rankfive-top-derivative-projected-affine-hybrid-2026-11-24.md` (main commit `7f3ccd1d8388bf6752b1732bfd257e3bc9514408`) with second-run and pooled means. Updated draft PR `#373` body with the 20-pair results; PR remains open, draft, and mergeable=false.
+- Keep the previous single-run figures in the report as per-run evidence; the pooled means are arithmetic means of equal-sized independent samples, not pooled medians or a formal hypothesis test.
+- Current incarnation lease remains `claimed_at=2026-11-24T18:13:40.813Z`. Actual clock at this checkpoint: `2026-11-24T19:13:55.938Z`; elapsed `60.25` minutes, below 70 minutes. Continue until the 70-minute release checkpoint.
