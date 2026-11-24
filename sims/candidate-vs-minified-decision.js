@@ -142,12 +142,11 @@ function compareCandidateEvidence(evidence){
     'contradicted':pairedFamilywise.verdict==='sample-supported'?
       'supported':'inconclusive';
   /** @type {Decision} */
+  // No empirical positive verdict is possible until a trusted audit is wired.
   const verdict=!evidence.nativeOutputAndHostTraceParity||
     measuredRuntimeBudget==='contradicted'||
     attackAdvantage==='contradicted'?
-    'contradicted':measurementReady&&
-    attackAdvantage==='supported'&&measuredRuntimeBudget==='supported'?
-      'supported':'inconclusive';
+    'contradicted':'inconclusive';
   return {
     verdict,attackAdvantage,declaredAttackAdvantage,externalAuditRequired,
     auditStatus:'not-integrated',measuredRuntimeBudget,measurementReady,
