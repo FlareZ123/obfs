@@ -112,7 +112,7 @@ async function main(){
     const output=obfuscateFiles([{
       path:'entry.js',sourceType:'script',code:source
     }],{
-      mode:'coo',seed:'agent1-native-callback-browser/'+scenario.kind,
+      mode:'coo',closedWorld:true,seed:'agent1-native-callback-browser/'+scenario.kind,
       identifiers:false,strings:false,properties:true
     });
     assert.equal(output.files.length,1);
