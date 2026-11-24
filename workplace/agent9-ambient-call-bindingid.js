@@ -385,16 +385,29 @@ function summarizeAmbientCallEffects(ast,sourceType) {
     return initializer;
   }
 
-  /** @param {AstNode} classNode @returns {AstNode[]} */
-  function classMethodFunctions(classNode) {
-    if(!['ClassDeclaration','ClassExpression'].includes(classNode.type))return [];
-    return classNode.body.body.flatMap((/** @type {AstNode} */ element)=>{
+  /** @param {AstNode} classNode @param {Set<AstNode>} [seen] @returns {AstNode[]} */
+  function classMethodFunctions(classNode,seen=new Set()) {
+    if(!['ClassDeclaration','ClassExpression'].includes(classNode.type)||seen.has(classNode))return [];
+    const next=new Set(seen);
+    next.add(classNode);
+    const own=classNode.body.body.flatMap((/** @type {AstNode} */ element)=>{
       if(element.type==='MethodDefinition'&&element.value)return [element.value];
       if(element.type==='PropertyDefinition'&&
          ['FunctionExpression','ArrowFunctionExpression'].includes(element.value?.type))
         return [element.value];
       return [];
     });
+    let inherited=[];
+    if(classNode.superClass?.type==='Identifier') {
+      const reference=resolved.at(classNode.superClass.start);
+      if(reference?.resolution.kind==='local') {
+        const parentClass=classNodeByBinding.get(reference.resolution.bindingId);
+        if(parentClass)inherited=classMethodFunctions(parentClass,next);
+      }
+    } else if(['ClassExpression','ClassDeclaration'].includes(classNode.superClass?.type)) {
+      inherited=classMethodFunctions(classNode.superClass,next);
+    }
+    return [...new Set([...own,...inherited])];
   }
 
   /** @param {AstNode} value @param {Set<number>} [seen] @returns {AstNode[]} */
@@ -447,16 +460,21 @@ function summarizeAmbientCallEffects(ast,sourceType) {
       return [];
     }
     if(value.type==='MemberExpression') {
-      let root=value.object;
-      while(root.type==='MemberExpression')root=root.object;
-      if(root.type==='Identifier') {
-        const reference=resolved.at(root.start);
-        if(reference?.resolution.kind==='local') {
-          const initializer=initializerForBinding(reference.resolution.bindingId);
-          if(initializer&&['ObjectExpression','ArrayExpression','NewExpression','ClassExpression'].includes(initializer.type))
-            return callableNodesForValue(initializer,seen);
-        }
-      }
+      const candidates=[];
+      walkAst(value,(node,parent)=>{
+        if(node.type!=='Identifier'||
+           (parent?.type==='MemberExpression'&&parent.property===node&&!parent.computed)||
+           (parent?.type==='CallExpression'&&parent.callee===node))return;
+        const reference=resolved.at(node.start);
+        if(reference?.resolution.kind!=='local')return;
+        const bindingId=reference.resolution.bindingId;
+        const classNode=classNodeByBinding.get(bindingId);
+        if(classNode)candidates.push(...classMethodFunctions(classNode));
+        const initializer=initializerForBinding(bindingId);
+        if(initializer&&['ObjectExpression','ArrayExpression','NewExpression','ClassExpression'].includes(initializer.type))
+          candidates.push(...callableNodesForValue(initializer,seen));
+      });
+      return [...new Set(candidates)];
     }
     return [];
   }
