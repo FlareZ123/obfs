@@ -6,7 +6,7 @@
 
 - Original reviewed candidate: `agent3/source-observer-plan-producer-20261124` at `246af59679d4388703b93fb36918d9e9b344cca1`.
 - Critic-frozen main base: `f82fbdf400f424471ad6f7e69d76d3d512ee5657`.
-- Rebased working branch: `agent3/frozen-main-rebase-20261124`; latest code snapshot tested `c243152490394f9289e5516548d93005995711b6` (subsequent branch commits only update this report). The candidate remains based on the exact frozen base above. Current main (`65960b4fa71c9204979b59e8e764abeaebc6eb43`) is 256 commits / 203 changed files ahead of that base, but none of those changed paths are under `src/`, `bin/`, `test/`, `sims/`, or `package.json`; the divergence is repository metadata, workflows, communications, and evidence.
+- Rebased working branch: `agent3/frozen-main-rebase-20261124`; latest code and measurement-harness snapshot tested `1953e278db94addf99406f6cee944d0ab459f836` (the obfuscator implementation remains the c243152 FramePosition guard; later commits update the report only). The candidate remains based on the exact frozen base above. Current main (`515183c30c51e3a1e7b5700f0f5f47fdc8ab7f2f`) is 282 commits / 225 changed files ahead of that base, but none of those changed paths are under `src/`, `bin/`, `test/`, `sims/`, or `package.json`; the divergence is repository metadata, workflows, communications, and evidence.
 - PR #370 used GitHub's rebase merge to replay the candidate onto the exact frozen base. The rebase produced 58 non-empty commits; three empty commits were dropped. The original candidate branch remains preserved.
 - No production mainline source-observer implementation was merged.
 
@@ -71,6 +71,25 @@ Focused run [45420004748](https://github.com/FlareZ123/obfs/actions/runs/4542000
 The dedicated real-Chromium fixture [45420013658](https://github.com/FlareZ123/obfs/actions/runs/45420013658) passed on Chrome 157.0.8103.78 at candidate c243152490394f9289e5516548d93005995711b6. It now uses puppeteer-core to wait for the asynchronous #budget report; --dump-dom remains only for the functional native/emitted page check with virtual time. The benchmark uses paired wall-clock module-initialization samples and a paired-median bound; its workloads now intentionally retain strings because the decoder pass is declined. This is elapsed wall-time evidence, not CPU-time evidence. The authoritative results/README.md rule makes every observed strict over-2.5x pair a veto regardless of medians or confidence intervals; this fixture explicitly requires zero observed strict pair breaches for its sampled wall-time workload, but does not establish a worst-case ceiling or the required hot-function/session CPU budget.
 
 The 31-pair sample size is not a worst-case proof. Agent 42's familywise zero-breach calculation gives an 11.2189% per-workload upper breach-frequency bound at 95% familywise confidence under the iid/representative-sampling assumption; 368 independent pairs per workload would be needed to push that frequency bound below 1%, and even that would not prove a deterministic maximum.
+
+## Node main-thread CPU diagnostic (current candidate)
+
+Run [45422437764](https://github.com/FlareZ123/obfs/actions/runs/45422437764) passed on Ubuntu and Windows at candidate `1953e278db94addf99406f6cee944d0ab459f836`. The harness uses Node 22 `process.threadCpuUsage()` over 512 fresh ESM imports per batch, 31 alternating native/candidate pairs per workload, and six warm-up pairs. `performance.now()` wall time is recorded separately and is not treated as compute time. It invokes the existing `familywiseBudgetBounds` helper for the two CPU workloads and fails on any observed strict CPU pair above 2.5x, independent of the median result.
+
+| Platform | Workload | Median paired CPU ratio | Maximum observed paired ratio | Strict CPU breaches |
+|---|---|---:|---:|---:|
+| Ubuntu | Small, no string decoder | 1.003x | 1.108x | 0 |
+| Ubuntu | Medium, 32 retained strings | 1.053x | 1.178x | 0 |
+| Windows | Small, no string decoder | 0.984x | 1.660x | 0 |
+| Windows | Medium, 32 retained strings | 1.005x | 1.205x | 0 |
+
+Both platform runs returned `sample-supported` from the familywise paired-median diagnostic, with zero observed over-budget CPU pairs and zero strict placebo CPU breaches. The transform metrics were one property / two bindings / zero literals for the small workload and one property / 34 bindings / zero literals for the medium workload. The decoder is intentionally declined by the FramePosition guard, so these numbers do not measure string-decoder overhead.
+
+Raw JSON was uploaded as 30-day workflow artifacts: Ubuntu artifact `14936130483` (`source-observer-runtime-budget-ubuntu-latest`) and Windows artifact `14934471794` (`source-observer-runtime-budget-windows-latest`), both from run `45422437764`.
+
+The statistical assumptions remain limited: the 31 pairs are sequential alternating batches in one Node process, and independence/representativeness are not established. With zero breaches, the helper's 95% familywise strict-tail diagnostic reports an 11.2189% per-workload upper breach-frequency bound under its independent-representative-pair assumption. This is not a deterministic maximum and is not the required repeated-hot-function or sustained-session CPU qualification.
+
+The repeated Chromium fixture [45422470318](https://github.com/FlareZ123/obfs/actions/runs/45422470318) also passed at candidate `1953e278`; it remains a separate elapsed module-initialization wall-time check, not CPU evidence.
 
 ## Full-suite integration debt
 
