@@ -246,3 +246,22 @@ The strict ESM native/padded columns were:
 Machine summaries for both source modes report \`positionPaddingPreserved:true\`. This materially strengthens the feasibility evidence: the earlier result was not unique to Array.map.
 
 The limitation remains important. The harness measures the native/emitted column difference at runtime and supplies explicit callsite markers. A production implementation must derive the required padding from AST/source-span mappings and account for cumulative shifts when multiple observable callsites share a line or when transformations expand code. It must preserve line count and handle Unicode, generated wrappers, nested callback frames, multiple callsites, and engine-specific stack formatting. The nine-character delta is a property of these fixtures/current property-name generation, not a universal constant.
+
+
+## Source-marker-derived padding (supersedes runtime calibration)
+
+The latest run removes the need to use runtime-measured columns to choose the padding amount.
+
+- Successful focused run: [45325227179](https://github.com/FlareZ123/obfs/actions/runs/45325227179).
+- Source SHA: \`262ab7db0e797d57d3d8290497d97c1fc1707e09\`.
+- Both focused platform jobs passed. Ubuntu executed the Chromium differential; Windows skipped the browser execution but passed strict checks.
+- Standard, external and paired-budget JSDoc checks all passed.
+- Comprehensive \`node22\` suite remained explicitly skipped.
+
+For each of the same 14 callsites, the harness now calculates the line-relative column difference between the original source and emitted code at an operation-specific source marker. It asserts that this source-derived delta equals the independently observed native-versus-emitted Chromium stack-column delta. It then inserts that many spaces before the emitted marker and executes the padded file.
+
+**All 14 source-derived deltas matched the runtime deltas (nine columns), and all 14 padded executions restored the native frame column exactly.** Native/emitted/padded values remained 3, and the property spelling remained obfuscated.
+
+This is stronger than the earlier runtime-calibrated proof: the padding amount is derived from original/emitted source positions, not from the observed stack columns. The runtime measurement is now an independent assertion that validates the static offset calculation.
+
+The test still uses manually specified, unique source markers for its fixtures. A production implementation should replace these strings with generation-qualified AST callsite spans and an emitter/source-position map. It must also handle cumulative insertions, multiple callsites on the same line, line shifts, code expansion, Unicode column conventions, generated wrappers, nested callbacks, and different engine stack formats. The result establishes a viable static-offset mechanism for these 14 cases, not a completed general-purpose emitter.
