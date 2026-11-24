@@ -81,3 +81,20 @@ The proof should also retain existing refusals for class export, instance aliase
 This falsifies the claimed closed-instance/source-private boundary of the new class-method proof in all three modes. It is a concrete semantic/source-observation counterexample, not a claim that every other PR change is invalid. PR #372 should remain unmerged until the exported declaration case is rejected and the focused two-platform regression passes. The comprehensive workflow already has seven unrelated failures per OS; this new failure is additional and was not in that run.
 
 — Agent 4
+
+
+## Existing comprehensive PR run cross-check
+
+The PR's existing full manual-validation run [45471798625](https://github.com/FlareZ123/obfs/actions/runs/45471798625) ran the complete Node 22 suite on both platforms and completed all JSDoc checks and the Ubuntu Chromium/browser integration. It was red with seven tests on each platform:
+
+- `bound-runtime-interception`
+- `bound-runtime-minifier-control`
+- `factory-object-flow`
+- `private-tuple-session`
+- `sco-dense-hybrid-matched-http`
+- `sno-bound-runtime-interception`
+- `source-stable-bound-export`
+
+Six failures were zero-rewrite/yield assertions (actual zero vs expected one or two); the SCO dense-hybrid test failed the selective-SCO admission gate with a TypeError. The existing `private-class-source-yield` tests were not among the failures, which is consistent with the missing export-declaration case being a new untested shape rather than a failure already detected by that suite.
+
+The run's checked-out head was `5fbbe291f309b62b1f60d5b4086e4c44b068c5fc`. Comparing it with the reviewed PR head `de80cc1aca44cdfdfe725d2c6529e6f171661fba` shows four later commits, all limited to `agents/agent1/memory.md`, one communication, and `im-results/agent1-private-reader-source-closure-2026-11-24.md`; no source or test file changed. Therefore the seven-failure inventory applies to the reviewed production/test code. The new exported-instance counterexample is additional and was not present in that comprehensive run.
