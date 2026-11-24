@@ -2144,7 +2144,7 @@ function obfuscateFiles(files, options = {}) {
       const nextRanges=advancePlanRanges(sourceObservationPlan,result.editMap,
         sourceBefore,result.code,trackedSourceRanges);
       if(!nextRanges)return false;
-      const nextAst=parse(result.code,sourceType);
+      const nextAst=parse(result.code,'module');
       if(!validatePlanSemantics(sourceObservationPlan,result.code,nextAst,nextRanges))return false;
       trackedSourceRanges=nextRanges;
       protectedSourceRanges=protectedRangesFromTracked(sourceObservationPlan,trackedSourceRanges);
