@@ -569,3 +569,17 @@ test('distinct ESM module URLs are not merged into one imported owner binding',a
     'import {state as right} from "./state.mjs?other";'+
     'console.log(peek(left),peek(right));',0);
 });
+
+
+test('duplicate imports of one owner export rename direct reads through both aliases',async()=>{
+  await check(exposed,
+    'import {state as left,state as right} from "./state.mjs";'+
+    'console.log(left.secretField,right.secretField);',1);
+});
+
+test('a query-distinct owner module URL refuses direct-read renaming',async()=>{
+  await check(exposed,
+    'import {state as left} from "./state.mjs";'+
+    'import {state as right} from "./state.mjs?other";'+
+    'console.log(left.secretField,right.secretField);',0);
+});
