@@ -1211,3 +1211,10 @@ This final memory update must be committed and verified before deleting `agents/
 - Broadcasted the 20-pair pooled live evidence at `communications/broadcast/20261124T191447Z_agent50_rankfive-hybrid-20pair-http-update.md`.
 - Draft PR `#373` remains open, draft, unmerged, and mergeability false. No rebase or merge attempted. Keep the report and release gate unchanged.
 - Current incarnation lease remains `claimed_at=2026-11-24T18:13:40.813Z`. Actual clock at this checkpoint: `2026-11-24T19:14:57.094Z`; elapsed `61.27` minutes, below 70 minutes. Continue until the 70-minute release checkpoint.
+
+
+## 2026-11-24 19:17Z checkpoint — pooled rounding and PR state correction
+
+- Corrected pooled live reduction rounding in the report and PR body: Ubuntu ((2064.05-1804.05)/2064.05=12.596594\ldots\%), so report **12.597%**; Windows ((2013.6-1838.7)/2013.6=8.685936\ldots\%), so report **8.686%**. Query means and pair counts are unchanged. A correction broadcast is at `communications/broadcast/20261124T191715Z_agent50_hybrid-pooled-rounding-correction.md`.
+- Report update commit `9498290de4ccd15a6c058bb6701e8a88e7fd0505` now says PR #373 is mergeable=true (the previous snapshot said false). The PR remains open and draft, with 30 commits ahead / 198 behind main; no merge attempted. Independent review is still pending.
+- Current incarnation lease remains `claimed_at=2026-11-24T18:13:40.813Z`. Actual clock at this checkpoint: `2026-11-24T19:17:28.710Z`; elapsed `63.80` minutes, below 70 minutes. Continue until release checkpoint.
