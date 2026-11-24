@@ -32,9 +32,29 @@ function makeSource(extraStrings) {
 
 const source=makeSource(0);
 
+const hostileSource=source.replace(
+  'const observedSource = Function.prototype.toString.call(observed);',
+  'const observedSource = /* 😀 */ Function.prototype.toString.call(observed);'
+).replace(/\n/gu,'\r\n');
+
 /** @returns {string} */
 function page() {
   return '<!doctype html><html><head><meta charset="utf-8"></head><body>'+
+    '<script type="module">try{const mod=await import("./entry.mjs");'+
+    'const pre=document.createElement("pre");pre.id="result";'+
+    'pre.textContent=btoa(JSON.stringify({result:mod.result,sourceText:mod.sourceText,labelText:mod.labelText}));'+
+    'document.body.appendChild(pre);}catch(error){const pre=document.createElement("pre");'+
+    'pre.id="failure";pre.textContent=String(error.stack||error);document.body.appendChild(pre);}</script>'+
+    '</body></html>';
+}
+
+/** @returns {string} */
+function hostilePage() {
+  return '<!doctype html><html><head><meta charset="utf-8"></head><body>'+
+    '<script>const native=Function.prototype.toString;Function.prototype.toString=function(){'+
+    'const frame=(new Error().stack??"").split("\\n").find(line=>line.includes("/entry.mjs"))??"";'+
+    'const match=frame.match(/:(\\d+):(\\d+)\\)?$/u);'+
+    'return native.call(this)+"|callsite="+(match?match[1]+":"+match[2]:"missing-callsite");};</script>'+
     '<script type="module">try{const mod=await import("./entry.mjs");'+
     'const pre=document.createElement("pre");pre.id="result";'+
     'pre.textContent=btoa(JSON.stringify({result:mod.result,sourceText:mod.sourceText,labelText:mod.labelText}));'+
@@ -93,7 +113,7 @@ function benchmarkPage(workloads) {
  * Compare Chromium ESM loader behavior and the module-evaluation budget for
  * native and emitted source. This is a pristine-intrinsics compatibility
  * control, not an attacker-resistant client integrity test.
- * @returns {Promise<{browser:string,properties:number,bindings:number,literals:number,exactSource:boolean,chromiumBudget:Array<Object>,chromiumBudgetBounds:Array<Object>}>}
+ * @returns {Promise<{browser:string,properties:number,bindings:number,literals:number,exactSource:boolean,hostileFrameParity:boolean,hostileCallsite:string,chromiumBudget:Array<Object>,chromiumBudgetBounds:Array<Object>}>}
  */
 async function main() {
   const executable=process.env.CHROMIUM_BIN??'google-chrome';
@@ -125,6 +145,29 @@ async function main() {
   assert.ok(emitted.code.includes("'safe-literal'"));
   assert.ok(emitted.code.includes('function observed() { return 29; }'));
 
+  const hostileHostContract={
+    runtimeFamily:'Chromium',
+    runtimeVersion,
+    contractVersion:'coo-direct-function-source-hostile-frame-v1',
+    pristineIntrinsicsPremise:
+      'The page deliberately replaces Function.prototype.toString before module evaluation; effective dispatch is unverified.'
+  };
+  const hostileResult=obfuscateFiles([{
+    path:'entry.mjs',sourceType:'module',code:hostileSource
+  }],{
+    ...options,
+    seed:'direct-source-plan-chromium-hostile-frame',
+    experimentalSourceObservationPlan:hostileHostContract
+  });
+  const hostileEmitted=hostileResult.files[0];
+  assert.ok(hostileEmitted&&typeof hostileEmitted.code==='string');
+  assert.ok(hostileEmitted.metrics.properties>=1);
+  assert.ok(hostileEmitted.metrics.bindings>=1);
+  assert.equal(hostileEmitted.metrics.literals,0,
+    'the hostile stack-observed reader must reject the frame-shifting decoder');
+  assert.ok(hostileEmitted.code.includes("'safe-literal'"));
+  assert.ok(hostileEmitted.code.includes('function observed() { return 29; }'));
+
   const mediumSource=makeSource(32);
   const mediumResult=obfuscateFiles([{
     path:'entry.mjs',sourceType:'module',code:mediumSource
@@ -142,6 +185,10 @@ async function main() {
     ['/native/entry.mjs',source],
     ['/emitted/index.html',page()],
     ['/emitted/entry.mjs',emitted.code],
+    ['/hostile-native/index.html',hostilePage()],
+    ['/hostile-native/entry.mjs',hostileSource],
+    ['/hostile-emitted/index.html',hostilePage()],
+    ['/hostile-emitted/entry.mjs',hostileEmitted.code],
     ['/benchmark/index.html',benchmarkPage([
       {label:'small-observer-plan-no-string-decoder',nativeCode:source,emittedCode:emitted.code},
       {label:'medium-observer-plan-32-retained-strings',nativeCode:mediumSource,emittedCode:mediumEmitted.code}
@@ -186,6 +233,31 @@ async function main() {
       sourceText:'function observed() { return 29; }',
       labelText:'safe-literal'
     });
+
+    /** @type {{result:number,sourceText:string,labelText:string}|undefined} */
+    let hostileBaseline;
+    for(const target of ['hostile-native','hostile-emitted']) {
+      const {stdout}=await run(executable,[
+        '--headless','--no-sandbox','--disable-gpu','--disable-dev-shm-usage',
+        '--no-first-run','--virtual-time-budget=10000','--dump-dom',
+        origin+'/'+target+'/index.html'
+      ],{encoding:'utf8',timeout:45000,maxBuffer:4*1024*1024});
+      const encoded=stdout.match(/<pre id="result">([A-Za-z0-9+/=]+)<\\/pre>/u)?.[1];
+      assert.ok(encoded,target+' hostile Chromium failed: '+stdout.slice(0,1500));
+      const value=JSON.parse(Buffer.from(encoded,'base64').toString('utf8'));
+      if(target==='hostile-native')hostileBaseline=value;
+      else assert.deepEqual(value,hostileBaseline,
+        'Hostile Chromium Function#toString callsite differs between native and emitted modules');
+    }
+    assert.ok(hostileBaseline);
+    assert.equal(hostileBaseline.result,7);
+    assert.equal(hostileBaseline.labelText,'safe-literal');
+    const readerLine=hostileSource.split(/\\r?\\n/u)[3];
+    const expectedColumn=readerLine.indexOf('call')+1;
+    assert.equal(hostileBaseline.sourceText,
+      'function observed() { return 29; }|callsite=4:'+expectedColumn,
+      'Chromium V8 should report the Function.prototype.toString call property token position');
+
     const {stdout:resolvedExecutable}=await run('which',[executable],{encoding:'utf8',timeout:15000});
     browser=await puppeteer.launch({
       executablePath:resolvedExecutable.trim(),headless:true,
@@ -231,6 +303,8 @@ async function main() {
       bindings:emitted.metrics.bindings,
       literals:emitted.metrics.literals,
       exactSource:true,
+      hostileFrameParity:true,
+      hostileCallsite:hostileBaseline.sourceText,
       chromiumBudget,
       chromiumBudgetBounds
     };
