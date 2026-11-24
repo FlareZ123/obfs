@@ -202,6 +202,47 @@ function inverseWithFullRankInterpolation(n, r, oracle, target) {
   return {secret:point,queries:calls.size,cycleSteps:size-1};
 }
 
+/**
+ * Invert y=F(secret) with a full-rank sampled affine interpolant without
+ * knowing the global residual rank. Follow the induced permutation cycle
+ * until it closes; the actual residual rank bounds its length by 2^r.
+ *
+ * @param {number} n
+ * @param {Permutation} oracle
+ * @param {number} target
+ * @returns {{secret:number,queries:number,cycleSteps:number}|null}
+ */
+function inverseWithoutRankBound(n, oracle, target) {
+  /** @type {Map<number,number>} */
+  const calls = new Map();
+  /** @param {number} x @returns {number} */
+  const query = x => {
+    const key = x >>> 0;
+    if (!calls.has(key)) calls.set(key, oracle(key));
+    return /** @type {number} */ (calls.get(key));
+  };
+  const c = query(0);
+  const columns = Array.from({length:n}, (_, i) =>
+    (query((1 << i) >>> 0) ^ c) >>> 0);
+  const inverse = invert(columns);
+  if (!inverse) return null;
+  const z = apply(inverse, (target ^ c) >>> 0);
+  let point = z;
+  let cycleSteps = 0;
+  const visited = new Set([z]);
+  for (;;) {
+    const next = apply(inverse, (query(point) ^ c) >>> 0);
+    cycleSteps++;
+    if (next === z)
+      return {secret:point,queries:calls.size,cycleSteps};
+    // Under the permutation promise, the orbit of z cannot enter a
+    // different cycle. This guard prevents an invalid oracle from looping.
+    if (visited.has(next)) return null;
+    visited.add(next);
+    point = next;
+  }
+}
+
 /** @returns {void} */
 function main() {
   /** @type {Array<{
@@ -255,4 +296,4 @@ function main() {
 
 if (require.main === module) main();
 module.exports = {random,apply,invert,randomInvertible,hiddenShear,hiddenFiberPermutation,
-  inverseWithFullRankInterpolation,main};
+  inverseWithFullRankInterpolation,inverseWithoutRankBound,main};
