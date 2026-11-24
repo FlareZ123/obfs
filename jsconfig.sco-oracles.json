@@ -34,7 +34,8 @@
     "test/sco-step-only-smt.test.js",
     "sims/sco-rankfive-top-quintic-real-http.js",
     "sims/rankfive-top-quintic-http-worker.cjs",
-    "sims/rankfive-top-derivative-projected-affine-hybrid-peer.js"
+    "sims/rankfive-top-derivative-projected-affine-hybrid-peer.js",
+    "sims/rankfive-top-derivative-hybrid-query-simulation.js"
   ],
   "exclude": [
     "node_modules"
