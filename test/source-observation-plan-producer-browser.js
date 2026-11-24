@@ -181,8 +181,9 @@ async function main() {
       sourceText:'function observed() { return 29; }',
       labelText:'safe-literal'
     });
+    const {stdout:resolvedExecutable}=await run('which',[executable],{encoding:'utf8',timeout:15000});
     browser=await puppeteer.launch({
-      executablePath:executable,headless:true,
+      executablePath:resolvedExecutable.trim(),headless:true,
       args:['--no-sandbox','--disable-gpu','--disable-dev-shm-usage','--no-first-run']
     });
     const browserPage=await browser.newPage();
