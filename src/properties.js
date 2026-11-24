@@ -806,6 +806,15 @@ function proveLocalObject(ast, rootName, bindings, importedIdentityFunctions=new
        bindings.get(instanceDeclarator.id.name)!==1||
        scopes.get(instanceDeclarator.id.name)!==classScope)continue;
 
+    // The declaration itself can be the export surface even though the
+    // instance binding has no ordinary Identifier use in the module body.
+    // Do not classify an exported instance's prototype method as private:
+    // another module can inspect that method with Function#toString.
+    const instanceDeclarationUse=(identifierUses.get(instanceDeclarator.id.name)??[])
+      .find(use=>use.node===instanceDeclarator.id);
+    if(!instanceDeclarationUse||
+       instanceDeclarationUse.ancestors.some(ancestor=>/^Export/.test(ancestor.type)))continue;
+
     let privateInstance=true;
     for(const use of identifierUses.get(instanceDeclarator.id.name)??[]) {
       if(use.node===instanceDeclarator.id)continue;
