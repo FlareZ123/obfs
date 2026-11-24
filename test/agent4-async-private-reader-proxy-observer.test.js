@@ -53,8 +53,8 @@ async function inspectThenableReader(source){
 
 test('private async reader cannot expose its function source through implicit thenable assimilation',async()=>{
   const source=[
-    'function outer(input){',
-    '  const owner={privateField:input};',
+    'function outer(payload){',
+    '  const owner={privateField:payload};',
     '  async function read(){return owner.privateField;}',
     '  return read();',
     '}',
