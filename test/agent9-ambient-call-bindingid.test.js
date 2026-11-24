@@ -433,3 +433,30 @@ test('classic-script block and Annex-B callable bindings are not fixed local edg
   assert.equal(named(blockVar,'helper')[0].externallyReachable,true);
   assert.equal(named(blockVar,'caller')[0].ambient,true);
 });
+
+test('coercion and implicit stringification expose callable source values',()=>{
+  const binary=analyze(
+    'function hidden(){return 1;}function caller(){return ""+hidden;}'
+  );
+  assert.equal(named(binary,'hidden')[0].hostHeldCallable,true);
+  const computed=analyze(
+    'function hidden(){return 1;}const object={[hidden]:1};'
+  );
+  assert.equal(named(computed,'hidden')[0].hostHeldCallable,true);
+  const template=analyze(
+    'function hidden(){return 1;}function caller(){return `${hidden}`;}'
+  );
+  assert.equal(named(template,'hidden')[0].hostHeldCallable,true);
+  const join=analyze(
+    'function hidden(){return 1;}const values=[hidden];'+
+    'function caller(){return values.join();}'
+  );
+  assert.equal(named(join,'hidden')[0].hostHeldCallable,true);
+});
+
+test('direct eval prevents certification of functions in its lexical environment',()=>{
+  const result=analyze(
+    'function hidden(){return 1;}function caller(){eval("hidden.toString()");}'
+  );
+  assert.equal(named(result,'hidden')[0].hostHeldCallable,true);
+});
