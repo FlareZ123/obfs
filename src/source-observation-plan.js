@@ -769,7 +769,7 @@ function buildDirectFunctionSourcePlan(source,path,hostContract) {
     callSiteRef:callSiteId,
     callerActivationRef:null,
     abstractOperation:'Function.prototype.toString under the declared pristine-intrinsics premise',
-    observationEffects:Object.freeze(['ExactSource']),
+    observationEffects:Object.freeze(['ExactSource','UnknownHostEffect']),
     conversionHint:null,
     proxyTrapName:null,
     interfaceIdentity:'Function',
