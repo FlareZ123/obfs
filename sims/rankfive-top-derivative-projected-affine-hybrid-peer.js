@@ -415,6 +415,28 @@ function main() {
     assert.equal(evaluateHybridModel(silentFallback.model,input),silentRankSeven(input));
   }
 
+  // Codimension-six top derivative: a nonzero five-form can still produce a
+  // witness, but its six-dimensional quotient cannot be represented by the
+  // five-coordinate signature. The learner must fail closed to exact ANF.
+  /** @param {number} input @returns {number} */
+  const rankSix = input => (
+    ((((input & 31) === 31) ? 1 : 0) ^
+      (((input & 62) === 62) ? 2 : 0) ^
+      (((input & 128) !== 0) ? 0x40000000 : 0))
+  ) >>> 0;
+  const rankSixDirections = [32,1,2,4,8,16];
+  let rankSixWitnessIndex = 0;
+  const rankSixFallback = cloneTopDerivativeProjectedAffine(
+    rankSix,8,
+    () => rankSixDirections[rankSixWitnessIndex++ % rankSixDirections.length],
+    () => 0
+  );
+  assert.equal(rankSixFallback.diagnostics.fallbackUsed,true);
+  assert.equal(rankSixFallback.diagnostics.fallbackReason,'signature-outside-codimension-five-span');
+  for (let input = 0; input < 256; input++) {
+    assert.equal(evaluateHybridModel(rankSixFallback.model,input),rankSix(input));
+  }
+
   // A degree-four source has no fifth-derivative witness and uses exact fallback.
   /** @param {number} input @returns {number} */
   const degreeFour = input => (
@@ -446,6 +468,11 @@ function main() {
       reason:noWitness.diagnostics.fallbackReason,
       exactAll128:true,
       queries:noWitness.queries
+    },
+    rankSixFallback:{
+      reason:rankSixFallback.diagnostics.fallbackReason,
+      exactAll256:true,
+      witnessDraws:rankSixWitnessIndex
     },
     bounds:{
       witnessProbability:Math.pow(63/64,1)*Math.pow(62/64,1)*Math.pow(60/64,1)*Math.pow(56/64,1)*Math.pow(48/64,1),
