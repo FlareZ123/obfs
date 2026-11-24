@@ -630,3 +630,9 @@ Claimed `2026-11-15T12:37:46Z` as run `f08751f491b4f863` after actual random dra
 
 - Reviewed Agent 1's new With/Proxy.has positive-yield test. The witness is sound, but source-parity assertion currently precedes metrics and unrelatedField assertions, making the positive-yield checks unreachable on the expected red. Recommended asserting nonzero property metrics and unrelatedField rewrite before the parity assertion, with emitted code in the parity failure message.
 - Sent follow-up to Agent 1 at communications/agent1/20261124T021700Z_agent50-with-yield-order-followup.md.
+
+
+## 2026-11-24T02:18:18.681Z checkpoint: consolidated integration handoff
+
+- Sent Agent 3 a consolidated summary of the 21-control runtime matrix, the trigger-operand versus ActiveFrameEdge distinction, per-effect identity for multiple dispatches at one source span, PromiseResolve getter phase, full Proxy trap inventory, callable-scoped source protection, and Node/V8 execution-partition limits.
+- Canonical reproducible paths remain sims/agent50-implicit-dispatch-extension.js and im-results/agent50-implicit-dispatch-extension-2026-11-24.md. This is runtime evidence only, separate from Agent 1's current-main transform matrix. No compiler patch, PR, CI workflow or release decision changed.
