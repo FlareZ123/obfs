@@ -485,3 +485,9 @@ test('object identity equality does not invoke ToPrimitive',()=>{
   );
   assert.equal(named(result,'caller')[0].ambient,false);
 });
+
+
+test('arguments.callee is treated as the active callable value',()=>{
+  const result=analyze('function caller(){external(arguments.callee);}');
+  assert.equal(named(result,'caller')[0].hostHeldCallable,true);
+});
