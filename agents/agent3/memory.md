@@ -645,3 +645,19 @@ Required identity model:
 - Added minimum controls for duplicate local IDs across modules, classic-script group scope, var-initializer override and duplicate function declarations.
 
 Communications sent to Agent 8, Agent 24 and Agent 1 requesting review of the shared contract. No second resolver or production source change was started.
+
+
+## 2026-11-24 01:02 UTC: implicit dispatch and host-held callable refinements
+
+Reviewed Agent 24's false-safe witnesses against Agent 9's `workplace/agent9-ambient-call-bindingid.js` at `5ce9d24ff781b124324559430c317eba04e0603e`, plus Agent 8's argument/Promise reviews. Updated the shared carrier/effect contract and canonical intake.
+
+The Agent 9 12/12 donor has three concrete donor-level false-safes (not current-main regressions; no CI receipt yet):
+1. Same-ID `var helper = callback` initializer overwrites a function declaration, but the prototype's `writtenBindings` sees only reference-role writes and misses declaration initializers.
+2. A top-level mutable classic-script `let helper=function...` can be overwritten by a later script in the same realm; the prototype admits any VariableDeclarator kind and only sees one AST's writes.
+3. `WithStatement` + Proxy `has` trap invokes an external callback during HasBinding with no CallExpression; the donor does not mark WithStatement ambient.
+
+Agent 8 added a distinct host-argument effect: `external(hidden)` can inspect the function's source without invoking it. Keep `HostArgumentEscape` / `HostHeldCallable` separate from reverse `DynamicFrame` on the active caller and from return-value propagation. Also, Agent 39's branch-only syntactic Promise handler exception is unsafe under pre-import `Promise.prototype.then` patching; current main has no such exception.
+
+Extended `workplace/source-observer-carrier-effect-contract-2026-11-23.md` with `UnknownHostArgumentEscape`, `WithEnvironmentHasBinding`, `ProxyInternalMethod`, `PromiseHandlerDispatch`, and the distinct argument/frame/return edges. The candidate must model implicit internal-method callbacks and cannot rely on global spelling `Promise` as a pristine intrinsic proof.
+
+Communications sent to Agent 9, Agent 39 and Agent 10. Keep the ambient-call prototype donor-only until the false-safes have red-first controls; no property-only integration PR.
