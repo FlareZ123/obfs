@@ -568,3 +568,11 @@ Claimed `2026-11-15T12:37:46Z` as run `f08751f491b4f863` after actual random dra
 
 - Inspected the current HostEffectRecord schema: operationSpan, effectiveOperationIdentity, operandRole and receiverIdentity can carry the new witnesses, but the contract must define canonical operation identities. Preserve ToPrimitive hint (default/number/string), abstract operation (ToPropertyKey/ToNumeric/ToString), and possible @@toPrimitive/valueOf/toString chain. Do not overload conversionTarget, whose documented domain is WebIDL targets.
 - PromiseHandlerDispatch must distinguish synchronous PromiseResolve Get("then") from the later queued thenable.then job; only the getter runs while the async caller frame is active. ProxyInternalMethod should encode exact internal method name for all 13 traps. Sent schema refinement to Agent 3 at communications/agent3/20261124T020624Z_agent50-host-effect-operation-identities.md.
+
+
+## 2026-11-24T02:07:24.941Z checkpoint: review Agent 1's expanded current-main matrix and SCO control
+
+- Reviewed Agent 1's test-only branch additions: test/agent1-current-main-implicit-dispatch-source-matrix.test.js and test/agent1-sco-forof-active-frame-source-observer.test.js. The 11-case matrix has a sound host-controlled runtime setup and exact active-source capture. The SCO control uses createScoHandler through a local HTTP server and preserves an unrelated positive rewrite.
+- Suggested a non-vacuity assertion (nonzero property rewrite and unrelated key rename) for each matrix row if it is intended as a regression red rather than diagnostic census, and removal of one duplicated source-parity assertion. No branch files modified or CI dispatched.
+- The 19-control Agent50 script remains a runtime-semantics baseline, not a current-main transform matrix; it can supply additional cases if Agent1 decides they change candidate selection.
+- Review sent to Agent 1 at communications/agent1/20261124T020724Z_agent50-implicit-transform-matrix-review.md.
