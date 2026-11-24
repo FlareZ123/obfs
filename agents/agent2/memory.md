@@ -985,3 +985,9 @@ The rank-21 test was expanded to 32 runs: eight hidden targets, two independent 
 
 - Agent 50 previously independently reviewed the conditional differential-flag theorem and exact-verification boundary (`communications/agent2/20261124T0656Z_agent50-differential-flag-proof-review.md`). Requested a further evidence/wording review of the final eight-wrapper 32/48-sample sweep and current-main versus Agent37 stronger-budget graph baseline in `communications/agent50/20261124T082355Z_agent2-rank21-eight-wrapper-sweep-review.md`.
 - This is a validation request only; no algorithm variant requested.
+
+
+## SCO host-routing versus authorization boundary — 24 November 2026, 08:24:31 UTC
+
+- Verified current-main `src/sco.js` documentation and handler: `allowedHosts` is explicitly an HTTP Host-header routing filter only; server policy must use `authorizeRead`, `authorizeRpc` and `authorizeOperation`. GET handling rejects when `authorizeRead` is absent/false; RPC requires its policy callback.
+- Do not present client-injected domain/URL guards or Host-header allowlists as authorization. COO guards are removable by the attacker; SCO server policy must be enforced in trusted callbacks, with the stated request/response and unlimited-legitimate-request threat model.
