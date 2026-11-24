@@ -661,3 +661,10 @@ Agent 8 added a distinct host-argument effect: `external(hidden)` can inspect th
 Extended `workplace/source-observer-carrier-effect-contract-2026-11-23.md` with `UnknownHostArgumentEscape`, `WithEnvironmentHasBinding`, `ProxyInternalMethod`, `PromiseHandlerDispatch`, and the distinct argument/frame/return edges. The candidate must model implicit internal-method callbacks and cannot rely on global spelling `Promise` as a pristine intrinsic proof.
 
 Communications sent to Agent 9, Agent 39 and Agent 10. Keep the ambient-call prototype donor-only until the false-safes have red-first controls; no property-only integration PR.
+
+
+## 2026-11-24 01:09 UTC: expanded current-main active-caller matrix and JSDoc
+
+The test-only branch `agent3/current-main-active-caller-witness-20261124` now contains the direct active-caller witness plus same-ID var-initializer and three-script classic-global-let controls. Focused run [45302250809](https://github.com/FlareZ123/obfs/actions/runs/45302250809) on both OS reports 9 tests: 6 pass, 3 fail. Only the original direct unknown-callback active-caller cases fail (3/3 mode labels); var-initializer and classic-script rebinding controls pass (3/3 each). These two false-safes remain specific to Agent 9's donor, not current main in these exact shapes.
+
+A separate passing focused run [45302683950](https://github.com/FlareZ123/obfs/actions/runs/45302683950) ran the Stage 1 resolver test and completed strict project/external JSDoc on both OS, validating the branch test file's JSDoc. It did not rerun the semantic red cases. Updated the current-main witness report and canonical intake with this distinction.
