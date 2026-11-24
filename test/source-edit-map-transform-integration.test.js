@@ -146,7 +146,7 @@ test('direct Function.prototype.toString observer gets selective yield only with
     'globalThis.observedCallbackSource=Function.prototype.toString.call(callback);',
     'queueMicrotask(callback);',
     "const unrelated='top-level-literal';"
-  ].join('\\n');
+  ].join('\n');
   const ast=parse(source,'module');
   assert.equal(observesFunctionSource(ast),true,
     'fixture must exercise the direct in-source observer gate');
