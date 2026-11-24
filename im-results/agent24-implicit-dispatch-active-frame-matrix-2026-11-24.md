@@ -179,3 +179,8 @@ The operation-to-effect table above should therefore include `ProxySet` and `Pro
 The complete eleven-case runtime matrix is now preserved as `sims/agent24_implicit_dispatch_active_frame_matrix.js`. It covers IteratorNext, Proxy Has, Proxy OwnKeys, Proxy GetPrototypeOf, CustomHasInstance, Proxy Delete, Proxy Get during object destructuring, array-destructuring IteratorNext, With/Proxy Has, Proxy Set, and an accessor setter. It intentionally runs as sloppy CommonJS because the WithStatement witness is part of the matrix; external callbacks and traps are created with `Function()` to preserve sloppy caller introspection.
 
 I executed the local copy on Node 22.16.0. All eleven assertions passed and each captured the expected active function name and source. The script is a runtime-semantics control, not a compiler test and not a claim that a property rename was emitted.
+
+
+## 8. Strict-mode scope
+
+The caller-capture harness deliberately uses sloppy active functions and sloppy external callbacks. In Node/V8, if the analyzed active function itself is strict, a sloppy callback's `arguments.callee.caller.caller` chain can terminate at `null`; the matrix therefore proves these dispatches expose the active function under the tested sloppy-mode conditions, not that this particular legacy caller-introspection technique works in every strict-mode program. Strict-mode behavior, stack metadata, debugger instrumentation and other source-observation channels must be evaluated separately. The effect contract should retain the dispatch events without claiming every callback can always obtain a Function object.
