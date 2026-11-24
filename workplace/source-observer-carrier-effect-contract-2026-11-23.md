@@ -194,7 +194,7 @@ The canonical plan should expose at least:
  * @typedef {'trigger'|'observed'} HostEffectValueRole
  * @typedef {'synchronous'|'deferred'|'unknown'|null} CallbackTiming
  * @typedef {'explicit-argument'|'object-provided-method'|'internal-callback'|'unknown'|null} CallbackRole
- * @typedef {'ExactSource'|'FramePosition'|'CallableMetadata'|'UnknownHostEffect'} ObservationEffect
+ * @typedef {'ExactSource'|'SourceBytes'|'FramePosition'|'CallableMetadata'|'UnknownHostEffect'} ObservationEffect
  *
  * @typedef {Object} HostEffectRecord
  * @property {HostEffectId} effectId
@@ -223,10 +223,11 @@ The canonical plan should expose at least:
  * @property {number|null} argumentIndex
  * @property {string|null} operandPath
  *
- * @typedef {Object} ActiveFrameEdge
+ * @typedef {Object} ActiveFrameEdge - reverse DynamicFrame edge; not heap/call-target flow
  * @property {HostEffectId} effectId
  * @property {ActivationRefKey} activationRef
  * @property {ReadonlySet<ObservationEffect>} effects
+ * @typedef {ActiveFrameEdge} DynamicFrameEdge
  *
  * @typedef {Object} SourceObservationPlan
  * @property {ReadonlyMap<BindingRefKey, unknown>} bindings
@@ -239,7 +240,7 @@ The canonical plan should expose at least:
  * @property {ReadonlyMap<CallableDefinitionRefKey, ReadonlySet<CallableDefinitionRefKey>>} callTargets
  * @property {ReadonlyMap<HostEffectId, HostEffectRecord>} hostEffects
  * @property {ReadonlyMap<HostEffectId, ReadonlyArray<HostEffectValueEdge>>} valueEdges - separate trigger and observed-value edges
- * @property {ReadonlyMap<HostEffectId, ReadonlyArray<ActiveFrameEdge>>} activeFrameEdges - function and non-function activation frames
+ * @property {ReadonlyMap<HostEffectId, ReadonlyArray<DynamicFrameEdge>>} activeFrameEdges - reverse dynamic-stack edges to function and non-function activation frames; distinct from value/call-target edges
  * @property {ReadonlyMap<string, HostContractRef>} hostContracts
  * @property {string|null} deploymentManifestId - HTML/loader/import-map/SRI/source-mirror manifest generation
  * @property {ReadonlyMap<SourceUnitRefKey, SourceUnitRefKey>} resolvedModuleGraph
@@ -594,3 +595,50 @@ The unchanged production blobs are `src/ast.js` `c227e6e604635a42663af745fd0cfb1
 Add `IntrinsicCallbackDispatch` as a distinct event producer for verified native built-ins that invoke user code. The event must identify the effective intrinsic, receiver, callback identity and role (explicit argument vs object-provided method), callback timing, dispatch provenance and host contract. It contributes an observed-value edge for the callback/method and an active-frame edge only while the original activation is actually visible. JSON replacer/reviver establish ExactSource in this sloppy Node witness; the other synchronous callbacks establish FramePosition only. A deferred Promise.then callback does not inherit the completed caller frame, though its callback argument remains a separate HostHeldCallable edge.
 
 A familiar spelling is not native identity: a patched JSON/Array/String/Map/Promise method is unknown or mutable unless the mode-specific HostContractRef verifies the effective operation. A verified native intrinsic is not necessarily callback-free. Keep this evidence as an intermediate donor; it does not select a compiler candidate or alter the NO-GO / RELEASE-BLOCKED decision.
+
+
+## Agent 12 Storage and Window.name Web IDL source sinks (23 November 2026)
+
+These are **COO Chromium** witnesses on research branches, with relevant current-main source pins independently verified by Agent 1. They add a distinct Web IDL conversion producer family; they do not establish SCO/SNO behavior.
+
+### Storage and Window.name behavior
+
+The HTML Standard declares `Storage.setItem(DOMString key, DOMString value)`. Both arguments are conversion points. A function passed as key or value is converted to its native function-source string; the string can be read back through `Storage.key(index)` or `getItem`. The same applies to `localStorage` and `sessionStorage`. The Storage named-property setter `localStorage[name] = value` is another conversion path. `Window.name` is a DOMString IDL attribute; `window.name = inspectWindow` stores the function source, which is visible on readback.
+
+Browser evidence [45162975795](https://github.com/FlareZ123/obfs/actions/runs/45162975795), research branch `agent12/storage-source-observation-20261123`, browser head `cdf7989f6e72f7f63ea6711f291c08cc2fcf6355):
+- native/emitted source mismatch for localStorage.setItem value, sessionStorage.setItem value, Storage named-property value, Storage.setItem key/readback, and Window.name;
+- function numeric results preserved;
+- independent private helper still rewrites and returns 7;
+- metrics: literals 0, objects 0, properties 0, bindings 4. This is an **identifier-mangling** source-parity failure, not a property-rewrite failure.
+
+Relevant current-main source blobs independently verified identical to the browser donor:
+- `src/ast.js`: `c227e6e604635a42663af745fd0cfb194b215a67`
+- `src/identifiers.js`: `c7e2ed1469381c5bc6dc42cef9a6ca8bfa347f0f`
+
+Focused Node tests [45163858773](https://github.com/FlareZ123/obfs/actions/runs/45163858773) passed on Ubuntu and Windows, including same-file sinks, cross-file export boundary, shadowed local `localStorage/window` names, primitive values and unrelated-helper yield. The overall external JSDoc gate had unrelated pre-existing errors. The Chromium browser step passed; the larger manual Web IDL workflow later failed on two unrelated Blob positive-yield tests. Do not describe the whole workflow as green.
+
+### Dispatch identity is part of the sink proof
+
+The follow-up donor `agent12/storage-dispatch-controls-20261123` separates four cases:
+1. native inherited `localStorage.setItem`;
+2. own-instance `setItem` override;
+3. modified `Storage.prototype.setItem`;
+4. a native `Storage.prototype.setItem` alias captured before prototype replacement and later invoked with `.call`.
+
+The current scanner misses all four. Real Chromium confirms that native inherited and captured-native calls stringify the function and expose source mismatch; own/prototype wrappers preserve the function reference and do not store a string. Focused validation [45181276801](https://github.com/FlareZ123/obfs/actions/runs/45181276801) passed on Ubuntu and Windows, and the new browser step [45181268302](https://github.com/FlareZ123/obfs/actions/runs/45181268302) passed. The larger browser workflow later failed at an unchanged bound-runtime-interception assertion; that is separate from the Storage dispatch step.
+
+Therefore a member-name rule for `.setItem` is insufficient and would over-refuse overrides. The plan must prove:
+- genuine unshadowed Storage receiver identity;
+- effective dispatched method identity and prototype/own-property provenance;
+- whether the method is native inherited, a captured native alias, or a user override;
+- argument position (both key and value);
+- conversion target (DOMString);
+- whether the argument is primitive or a callable/source value.
+
+The same identity requirement applies to the Storage named-property setter and native `Window.name` accessor. A shadowed local binding named `localStorage` or `window` is not a browser sink. If an override itself stringifies a function, model that as a separate user-code effect; do not mislabel it native Web IDL conversion.
+
+### Dynamic-frame relation and source-byte effect
+
+The plan's `ActiveFrameEdge` is explicitly the reverse **DynamicFrame** relation: a callback may observe an active caller/ancestor frame without the callable escaping through heap/value flow. Keep this relation separate from trigger-value and observed-value edges. Its observation effects may include exact function source, source bytes, callable metadata and source coordinates, each under the strictness/engine/host contract that actually permits the observation.
+
+`SourceBytes` is now a separate ObservationEffect from `ExactSource`: exact function source text and whole-source byte/mirror observation are different closure obligations. The latter may require closing over a whole source unit, HTML/DOM mirror, loader response or integrity-pinned bytes; a function-local span closure is not enough.
