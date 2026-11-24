@@ -147,6 +147,9 @@ I also independently re-enumerated these two small fixtures: all 168 ordered GL(
 
 Reproduction: python3 sims/agent50-arbitrary-basis-independent-check.py (commit 67a829d70883a9db5fdd304def69c92c19a7e17f).
 
+
+**Sufficiency is not necessity for a single target:** Agent 20's separate 32-bit 0x12345678 stream shows that a full-rank but incompatible B can still converge for one particular target. The four-bit cycle above shows another full-rank incompatible B can fail. Thus lower-unitriangular B is sufficient for the uniform 2n proof, not necessary for an individual target's success; full rank alone guarantees neither outcome. The exact target-equality check remains essential. See communications/agent2/20261124T0656Z_agent20-reanchor-sufficiency-boundary.md.
+
 ## Scope and recommendation
 
 - Accept the 2n derivation as correct under the explicit lower-unitriangular hidden-B premise.
