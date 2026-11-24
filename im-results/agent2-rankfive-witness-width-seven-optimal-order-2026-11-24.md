@@ -121,3 +121,30 @@ For six directions, \(p_6=615195/1048576\), \(E[X_6]=127/3\), and
 E[Q_6]=\frac{18019457}{19845}.
 \]
 The exact seven-minus-six difference is \(33370412/15625953\approx2.135576114942\) queries. A separate Python enumeration of all 2,667 kernels in the DP-selected order independently reproduced \(E[X_7]=53.82452193475815\).
+
+
+### Closed-form check for the optimal star order
+
+The DP-selected order tests complementary pairs in lexicographic order:
+\((0,1),(0,2),\ldots,(0,6),(1,2),\ldots\). Represent each projected direction by its column label \(v_i\in\mathbb F_2^2\). A pair is successful exactly when its two labels are distinct nonzero vectors. Let \((a,b)\) be the first successful pair in lexicographic order. Before that face, the tested-pair graph contains every edge incident to an index below \(a\), plus \((a,j)\) for \(a<j\leq b\).
+
+A queried vertex corresponds to a subset \(U\subseteq\{0,\ldots,6\}\) disjoint from at least one tested pair. Equivalently, its complement is not an independent set of the tested-pair graph. The graph's independent sets are:
+- the empty set and all subsets of \(\{a+1,\ldots,6\}\): \(2^{6-a}\) sets;
+- sets containing \(a\) but none of \(a+1,\ldots,b\): \(2^{6-b}\) sets;
+- the \(a\) singleton vertices below \(a\).
+
+Thus the number of queried vertices at first success is
+\[
+X(a,b)=128-a-2^{6-a}-2^{6-b}.
+\]
+Among the 16,002 full-rank 2-by-7 matrices, the number with first successful pair \((a,b)\) is
+\[
+N_{a,b}=3\cdot2^{b-a-1}\cdot2\cdot4^{6-b}
+=6\cdot2^{b-a-1}4^{6-b}.
+\]
+The factors choose the first nonzero label, the intervening zero-or-equal labels, the first distinct nonzero label, and arbitrary later labels. Summing \(N_{a,b}\) over \(0\leq a<b\leq6\) gives 16,002, and
+\[
+E[X_7]=\frac{1}{16002}\sum_{0\leq a<b\leq6}N_{a,b}X(a,b)
+=\frac{47850}{889}.
+\]
+This independently checks the DP's optimal-order value in closed form; the DP remains the evidence that no other face ordering has lower expected cost.
