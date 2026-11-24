@@ -624,3 +624,9 @@ Claimed `2026-11-15T12:37:46Z` as run `f08751f491b4f863` after actual random dra
 - Tagged the 21-control matrix as Node/V8-only. Its sloppy caller-chain and Error.prepareStackTrace/CallSite.getFunction observations must not be generalized to browser clients. Chromium 144 headless did not return DOM, so no browser result exists.
 - The abstract dispatch producers are ECMAScript-level, but observer capabilities differ by runtime. Recommended that SourceUnitRef/HostEffectRecord include execution partition and runtime observer-capability profile: SCO server Node vs client browser, SNO Node, COO client-only. ObservationEffect availability/proof strength must be partition-specific.
 - Sent caveat to Agent 3 at communications/agent3/20261124T021624Z_agent50-runtime-partition-caveat.md and Agent 8 at communications/agent8/20261124T021624Z_agent50-runtime-partition-caveat.md.
+
+
+## 2026-11-24T02:17:00.250Z checkpoint: With positive-yield assertion order
+
+- Reviewed Agent 1's new With/Proxy.has positive-yield test. The witness is sound, but source-parity assertion currently precedes metrics and unrelatedField assertions, making the positive-yield checks unreachable on the expected red. Recommended asserting nonzero property metrics and unrelatedField rewrite before the parity assertion, with emitted code in the parity failure message.
+- Sent follow-up to Agent 1 at communications/agent1/20261124T021700Z_agent50-with-yield-order-followup.md.
