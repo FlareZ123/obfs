@@ -77,7 +77,8 @@ function padOwnerKeyToOriginalWidth(code){
   ];
   const padded=candidates.find(candidate=>!code.includes(candidate));
   assert.ok(padded,'could not find a collision-free same-width generated key');
-  const escaped=generated.replace(/[-/\\^$*+?.()|[\]{}]/gu,'\\  const escaped=generated.replace(/\$/gu,'\\$');');
+  assert.match(generated,/^[A-Za-z_$][\w$]*$/u);
+  const escaped=generated;
   const pattern=new RegExp('(?<![A-Za-z0-9_$])'+escaped+'(?![A-Za-z0-9_$])','gu');
   const paddedCode=code.replace(pattern,padded);
   assert.notEqual(paddedCode,code,'generated property references must be padded');
