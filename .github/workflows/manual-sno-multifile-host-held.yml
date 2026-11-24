@@ -1,6 +1,6 @@
 name: Manual SNO multi-file HostHeldCallable regression
 
-on:
+"on":
   workflow_dispatch:
     inputs:
       test_suite:
