@@ -22,7 +22,7 @@ jobs:
       - name: Install declared dependencies
         run: npm install --no-package-lock --ignore-scripts
       - name: Check script syntax
-        run: node --check sims/sco-rankfive-arbitrary-table-real-http.js && node --check sims/sco-rankfive-top-quintic-real-http.js
+        run: node --check sims/sco-rankfive-arbitrary-table-real-http.js && node --check sims/sco-rankfive-top-quintic-real-http.js && node --check sims/rankfive-top-quintic-http-worker.cjs
       - name: Strict-check the focused SCO oracle simulator and imported learner
         run: npx tsc -p jsconfig.sco-oracles.json
       - name: Run existing projected-affine HTTP baseline on the frozen source
