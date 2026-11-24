@@ -82,6 +82,9 @@ function renameLocalIdentifiers(source,ast,options) {
   const candidates=[];
   /** @type {{node:AstNode,parent:AstNode|null,key:string|null,ancestors:AstNode[]}[]} */
   const identifiers=[];
+  // Any spelling occurring inside a protected callable blocks every candidate
+  // with that spelling, including declarations outside the protected range.
+  const protectedNames=new Set();
   // Anonymous function/arrow/class expressions receive the assignment target's
   // name through NamedEvaluation. Mangling that binding changes observable
   // .name even when every lexical reference is rewritten correctly.
@@ -132,9 +135,11 @@ function renameLocalIdentifiers(source,ast,options) {
   }
   let dynamic=false;
   walk(ast,(node,parent,key,ancestors)=>{
-    if (node.type==='Identifier'&&!protectedSourceSpans.some(span=>
-        node.start<span.endOffset&&node.end>span.startOffset)) {
-      identifiers.push({node,parent,key,ancestors});
+    if(node.type==='Identifier') {
+      const protectedIdentifier=protectedSourceSpans.some(span=>
+        node.start<span.endOffset&&node.end>span.startOffset);
+      if(protectedIdentifier)protectedNames.add(node.name);
+      else identifiers.push({node,parent,key,ancestors});
     }
     const errorOperand=sourceSpelledErrorOperand(node);
     // Object spread accepts nullish sources and does not perform iteration.
@@ -181,7 +186,8 @@ function renameLocalIdentifiers(source,ast,options) {
   let bindings=0;
   for(const candidate of candidates) {
     const {name,scope,identifier}=candidate;
-    if (counts.get(name)!==1 || inferredNames.has(name) || errorSpellingNames.has(name) ||
+    if (protectedNames.has(name) || counts.get(name)!==1 ||
+        inferredNames.has(name) || errorSpellingNames.has(name) ||
         ['arguments','eval','require','module','exports','globalThis','window'].includes(name)) continue;
     // TDZ ReferenceError messages expose the original binding spelling.
     // Until a control-flow dominance proof exists, reject a candidate when a
