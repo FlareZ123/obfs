@@ -261,3 +261,10 @@ The eight relevant implementation blobs at SNO launcher witness commit `0564d862
 | `bin/sno.js` | `26d28904e88cfb380dc5248c1c14862352a4ae41` |
 
 This closes the focused SNO launcher/entrypoint gap for a single CommonJS entry and direct host-held callback. It does not establish full CLI/package compatibility, multi-file SNO loader behavior, or the complete SNO hostile-runtime threat model.
+
+
+## SNO command-line path (not only launcher API)
+
+The actual `bin/sno.js` CLI was exercised with `--root`, `--out`, `--entry entry.cjs` and a deterministic seed. It emitted the SNO artifact set and `sno-entry.cjs`; the test then ran the generated single-entry launcher under Node with a host-controlled `queueMicrotask` override. The callback source parameter was changed by the default SNO identifier transform; stdout remained `done`; the host did not invoke the callback. [Run 45328981265](https://github.com/FlareZ123/obfs/actions/runs/45328981265) passed on Ubuntu and Windows with strict project/external/paired-budget JSDoc.
+
+At witness commit `44c3d2b279638960ed52d7ab8064296352994ca3`, the implementation blobs for `src/ast.js`, `src/properties.js`, `src/identifiers.js`, `src/strings.js`, `src/core.js`, `src/sno.js`, `src/cli.js` and `bin/sno.js` were independently verified identical to current main. This is focused CLI evidence for one CommonJS entry and the default identifier pass; the explicit string-transform SNO witness remains the launcher API test in run 45328512061.
