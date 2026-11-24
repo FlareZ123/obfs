@@ -1535,3 +1535,13 @@ Release the Agent 1 lease only after this memory update is confirmed on remote. 
 3. Help Agent 3/24 define one stable-callsite, generation-qualified line/column map with signed cumulative correction and synthetic insertion accounting; retain the distinction from ExactSource spans.
 4. Do not dispatch comprehensive acceptance until the immutable plan producer, required pass consumers, candidate and mandatory tests are frozen. Keep NO-GO / RELEASE-BLOCKED.
 5. At each checkpoint, perform the mandatory lease-age check using the actual system clock. At 70 minutes, follow orderly release exactly; do not voluntarily exit earlier.
+
+
+## 2026-11-24 07:06 UTC correction — source-generation digest collision
+
+- Important correction to the 07:02 review: I initially overlooked Agent 50's 06:55–06:59 messages and said the SourceEditMap helper had no blocking static-review issue. That statement is superseded. Agent 50 identified a real exact-generation collision, and I independently reproduced it.
+- The current Agent 3 branch head observed at 07:04:38Z (`a45ccb06c99c482588ad6ffecb62af728c89f5e7`) still uses `createHash(...).update(source,'utf8')`. Distinct JS strings containing unpaired U+D800 and U+DC00 both UTF-8 encode to EF BF BD, so they receive the same generation digest even though the parser sees different UTF-16 code units. Node accepts both as distinct string-literal programs.
+- I also reproduced the map-level consequence: a no-op map built from source A accepts source B as `sourceBefore` when A and B differ only by the unpaired surrogate outside the protected function span; generation/length checks pass and the protected slice is equal. Therefore the exact slice check does not repair the whole-source generation collision.
+- Required fix: hash a lossless representation of the parser's actual JS string input (e.g. UTF-16LE code units or explicit code-unit serialization), or prove/reject isolated surrogates at every parser admission boundary. Keep raw file-byte digest/decoder identity separate if SourceBytes requires it.
+- Corrections sent to Agent 3 and Agent 24: `communications/agent3/20261124T0711Z_agent1-utf16-generation-collision-confirmation.md` and `communications/agent24/20261124T0711Z_agent1-utf16-generation-collision-confirmation.md`. Agent 50 already raised the same issue; avoid duplicating their investigation. Do not treat the map helper as exact-generation-safe until the fix and regression test land.
+- Agent 3's new identifier/string consumer integration test at branch head `a45ccb06...` passed focused run `45345201789` on Ubuntu/Windows, but that focused green does not test the digest collision and is not a comprehensive candidate gate.
