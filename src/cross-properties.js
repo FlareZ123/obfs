@@ -3,6 +3,7 @@
 const path = require('node:path');
 const {createHash} = require('node:crypto');
 const {walk,applyEdits,parse,observesFunctionSource,observesDistributedSource,staticString,collectDirectCarrierFactories} = require('./ast');
+const {applyEditsWithMap} = require('./source-edit-map');
 const {collectBindings,proveLocalObject,staticName,patternPropertyEdits,inOperatorPropertyEdits,isLiteralValue,isPrimitiveConstantExpression,ownPropertyName,singleUseFactoryObject} = require('./properties');
 const {proveDirectReaderPrimitives}=require('./direct-reader-primitives');
 
@@ -2007,9 +2008,10 @@ function isInertEarlierValue(value,ownerStart,primitives) {
  * speculating about the complete JavaScript object graph.
  * @param {SourceFile[]} files
  * @param {string} seed
- * @returns {{files:SourceFile[],objects:number,properties:number}}
+ * @param {{sourceUnits?:Map<string,{sourceUnitRef:string,parserContractId:string}>}} [options]
+ * @returns {{files:SourceFile[],objects:number,properties:number,editMaps?:Map<string,Object>}}
  */
-function renameCrossFileProperties(files,seed) {
+function renameCrossFileProperties(files,seed,options={}) {
   // Mixed executable formats can hide ESM consumers. The closed-world
   // integrator additionally promises that these explicitly declared inert
   // style/image/font assets are served with non-JavaScript MIME types and
@@ -2024,6 +2026,19 @@ function renameCrossFileProperties(files,seed) {
     return {files,objects:0,properties:0};
   }
   /** @type {WeakMap<SourceFile,{code:string|Buffer,value:ParsedModule}>} */
+  if(options.sourceUnits!==undefined) {
+    if(!(options.sourceUnits instanceof Map))throw new TypeError('sourceUnits must be a Map keyed by module path');
+    for(const file of files) {
+      const type=file.sourceType ?? (file.path.endsWith('.mjs') ? 'module' : 'script');
+      if(type==='module'&&typeof file.code==='string') {
+        const unit=options.sourceUnits.get(file.path);
+        if(!unit||typeof unit.sourceUnitRef!=='string'||unit.sourceUnitRef.length===0||
+           typeof unit.parserContractId!=='string'||unit.parserContractId.length===0) {
+          throw new TypeError('Missing valid source-unit context for '+file.path);
+        }
+      }
+    }
+  }
   const parserCache=new WeakMap();
   /** @type {ParseModuleFn} */
   function parseFile(file){
@@ -3081,12 +3096,24 @@ function renameCrossFileProperties(files,seed) {
     properties+=mapping.size;
   }
 
-  return {files:files.map(f => {
-    const edits=allEdits.get(f.path);
-    if(!edits) return f;
-    if(typeof f.code!=='string') throw new TypeError(`Cannot rewrite binary module ${f.path}`);
+  /** @type {Map<string,Object>|undefined} */
+  const editMaps=options.sourceUnits?new Map():undefined;
+  const transformedFiles=files.map(f => {
+    const edits=allEdits.get(f.path)??[];
+    if(typeof f.code!=='string') {
+      if(edits.length)throw new TypeError(`Cannot rewrite binary module ${f.path}`);
+      return f;
+    }
+    const unit=options.sourceUnits?.get(f.path);
+    if(unit) {
+      const mapped=applyEditsWithMap(f.code,edits,unit.sourceUnitRef,unit.parserContractId);
+      editMaps?.set(f.path,mapped.map);
+      return {...f,code:mapped.code};
+    }
+    if(!edits.length)return f;
     return {...f,code:applyEdits(f.code,edits)};
-  }),objects,properties};
+  });
+  return {files:transformedFiles,objects,properties,...(editMaps?{editMaps}:{})};
 }
 
 module.exports={renameCrossFileProperties,collectVerifiedImportedStrings,collectVerifiedImportedPrimitives,collectVerifiedImportedCloneAliases,collectVerifiedImportedUrlStaticAliases,collectImportedFunctionArrays};
