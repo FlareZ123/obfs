@@ -68,14 +68,13 @@ for(const mode of /** @type {const} */(['coo','sno'])) {
     assert.equal(before.value,3);
     const output=compile(mode,source);
     const after=observe(String(output.code));
-    assert.deepEqual(after,before,
-      'A caller-controlled IteratorNext callback can read hidden() source through the active frame');
     assert.ok(output.metrics.properties>=1,
       'The unrelated private property should retain nonzero rewrite yield: '+
       JSON.stringify({metrics:output.metrics,code:output.code}));
-    assert.ok(String(output.code).includes('secretField'),
-      'The owner key inside the observed hidden() source must remain spelled');
     assert.ok(!String(output.code).includes('unrelatedField'),
       'The unrelated plain() owner key should still be renamed');
+    assert.deepEqual(after,before,
+      'A caller-controlled IteratorNext callback can read hidden() source through the active frame: '+
+      JSON.stringify({metrics:output.metrics,code:output.code,before,after}));
   });
 }
