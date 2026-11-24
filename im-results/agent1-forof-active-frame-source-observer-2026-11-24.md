@@ -33,7 +33,7 @@ This is the unverified step in Agent 24's report `im-results/agent24-current-mai
 
 - Confirmed: sloppy CommonJS active-frame capture through synchronous `IteratorNext`, in the current-main COO and SNO property pipelines, on both Ubuntu and Windows.
 - Not established: strict active functions, async iterator legacy caller capture, browser DevTools/debugger channels, classic-script pipeline, SCO request-time `createScoHandler`, or general source-byte observation.
-- The focused test step is intentionally red because it asserts source parity. The workflow therefore skipped its subsequent JSDoc steps; a separate passing focused run is being used to typecheck the test file.
+- The focused test step is intentionally red because it asserts source parity, so that workflow skipped its subsequent JSDoc steps. A separate passing focused run [45308534635](https://github.com/FlareZ123/obfs/actions/runs/45308534635) on the same branch ran `test/property-sloppy-caller-source-observer.test.js` and passed strict project JSDoc, strict external JSDoc and paired-budget JSDoc on both Ubuntu and Windows. This typechecks the new red fixture as part of the project.
 - This is an intermediate correctness result, not an academic result or a production fix. No claim is made that the current-main candidate is otherwise secure or release-ready.
 
 ## Required correction
