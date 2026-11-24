@@ -811,3 +811,35 @@ Current main before this checkpoint: 00e123ad5fe04e701676ee7c683cc87332913ce3. L
 ### Decision / open boundaries
 
 Still **NO-GO / RELEASE-BLOCKED**. No production compiler source changed, no candidate PR opened, no comprehensive gate dispatched. Generic computed-key admission remains fail-closed. Actual SCO browser-handler coverage remains open. Full SNO CLI/package and multi-file SNO remain open despite the single-entry launcher witness. Need Agent 8/9 review of the final typed key/effect linkage before any candidate selection. Preserve per-callable precision and unrelated safe-yield.
+
+
+## 2026-11-24 04:57 UTC checkpoint — all three runtime boundaries and metadata precision
+
+Current main before checkpoint: 078bbe74e5fef139d85e218e61c29c0035df0b9f. Latest contract commit: 527f8fb3252fecc46f02cc4662ae793c6ed86e97. Latest intake commit: a1dde0513c0d588b78fb00158be068b14e925435.
+
+### Mode-specific HostHeldCallable evidence
+
+- COO browser host override: 45325672865.
+- Actual SCO createScoHandler browser delivery in Chromium: 45329160079. Entry imports helper factory, passes returned private callback to page-owned queueMicrotask override; browser reads Function#toString without invoking. Ubuntu Chromium; Windows browser skipped. Six compiler source blobs match current main.
+- Actual SNO bin/sno.js single-entry CLI/default identifier path: 45328981265. Manifest-verified sno-entry.cjs plus Node preload reads callback source without invocation; output remains done. Eight source blobs match current main.
+- Seven callable forms × COO/SCO/SNO × identifier/string consumers: 42/42 focused source-mismatch controls, 45328404113.
+- SNO string transform has launcher-API witness 45328512061, not yet actual CLI; full CLI/package and multi-file SNO remain open. Agent 9 was asked for a multi-file actual CLI fixture.
+- Agent 9's current-main HostHeldCallable report is im-results/agent9-host-held-callable-source-observation-2026-11-24.md.
+
+### Callable metadata and owner precision
+
+- Host-held object/class method metadata positive: two method forms × three modes, exact source/name/length preserved while an unrelated private object's property is renamed, 6/6 in 45329546230.
+- Same-owner diagnostic 45329630264: method source/name/length preserved, but sibling holder.unrelatedField remains native and property metrics are zero. This is conservative owner-level withholding, not an unsafe rename or proven yield opportunity.
+- Contract distinguishes HostHeldCallable from HostHeldObject, tracks ownerValueRef/property key, and adds CallableDefinitionRef homeObjectValueRef plus usesThis/usesSuper. Same-owner yield remains fail-closed pending reflection, accessors, dynamic keys, binding and this/super proof.
+
+### Symbol/key/accessor proof boundary
+
+- PropertyKeyIdentityRef is use-site-specific with sourceValueRef, useSiteSpanId, controlFlowPointId, reachingDefinitionRefs and branchGuardIds; CallableDefinitionRef, ValueFlowEdge and HostEffectRecord share the typed key identity.
+- WellKnownSymbolRef uses ECMAScript-agent identity, exact symbol value and sourceRealmId only as provenance. Root globalThis must resolve by BindingRef/RealmBindingRef under mode-specific HostContractRef; spelling alone is insufficient.
+- The mutable-key/frozen-capture pair, cross-file ESM SymbolCtor real/fake pair, globalThis-shadow pair and pure/source-observing getter pair are all local Node 22.16.0 semantic controls, not compiler/CI receipts. The source-observing getter may call Function#toString while still returning the correct symbol; HostEffectRecord.resultValueRef links its result, and AccessorCall/ProxyInternalMethod effect is independent.
+- HostEffectRecord now carries per-event observationEffects, with CallableMetadataRead, StackFrameRead and FileSystemSourceRead events. ExactSource (callable text) and SourceBytes (distributed source) remain separate; UnknownHostEffect is fallback.
+- Mechanical schema check on the JSDoc block: 76 unique typedefs, no duplicate names, and no unresolved custom property types after removing quoted enum literals.
+
+### Decision
+
+Still **NO-GO / RELEASE-BLOCKED**. No production compiler source changed; no candidate PR; no comprehensive gate. Actual SCO browser and single-entry SNO CLI are now covered, but SNO multi-file/CLI string, full package compatibility, 2.5x runtime budget and complete hostile-runtime acceptance remain open. Need final Agent 8 review of getter effect and owner-field schema; generic computed-key admission remains fail-closed.
