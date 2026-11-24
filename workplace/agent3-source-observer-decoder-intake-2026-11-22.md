@@ -348,3 +348,41 @@ The canonical plan now carries a typed `ReceiverRef` plus receiver and dispatch 
 ### Additional DOM/HTML/CSSOM donors and source-pin caveat
 
 Agent 19's DOM/HTML parser/stream matrix and Agent 1's CSSOMString matrix are useful intermediate test donors, but their compiler source blobs are not current-main: the DOM donor differs in `src/ast.js`, `src/properties.js` and `src/cross-properties.js`; the CSSOM donor additionally differs in `src/core.js`. Rebase only harness/config onto an exact current-main base and rerun before claiming current-main coverage. Do not create a second DOM-specific resolver; feed these sink families through the single SourceObservationPlan's ReceiverRef, DispatchProvenance, WebIDLStringConversion and value/source closure edges. Trusted Types, Firefox/WebKit and current-main CSSOM/HTML revalidation remain open.
+
+
+## Addendum (24 November 2026, 04:45 UTC): HostHeldCallable source-observation gap and graph-schema correction
+
+**Current main at refresh:** 3e7b260b3e7febb3178cc5bc5ee87aa083e0d654. The authoritative carrier/effect contract was corrected in commit 3e7b260b3e7febb3178cc5bc5ee87aa083e0d654; its v2 schema supersedes the earlier incomplete typedef block. This is still a proposal, not a production plan module.
+
+### Current-main HostHeldCallable evidence
+
+Agent 9's test-only matrices establish that a host can receive a callback, read its Function#toString source, and never invoke it. The compiler currently changes source-visible identifier and string content while preserving ordinary runtime results.
+
+- Same-file five-path value flow (direct argument, alias, object field, actual-to-formal forwarding, returned callback): property positive controls passed 10/10 COO/SNO cases on Ubuntu and Windows in [45325152560](https://github.com/FlareZ123/obfs/actions/runs/45325152560). The corresponding identifier/string source-mismatch controls passed 20/20 in [45325337541](https://github.com/FlareZ123/obfs/actions/runs/45325337541).
+- Cross-file ESM factory return: helper.mjs returns a private callback and entry.mjs passes it to a host-controlled callback sink; four COO/SNO controls expose changed parameter/literal source in [45325587955](https://github.com/FlareZ123/obfs/actions/runs/45325587955).
+- Per-callable precision: [45325642684](https://github.com/FlareZ123/obfs/actions/runs/45325642684) shows that both host-observed hidden and unrelated safe functions are transformed. A file-wide boolean cannot both protect the former and retain yield in the latter.
+- Real-browser corroboration: [45325672865](https://github.com/FlareZ123/obfs/actions/runs/45325672865) uses a page-owned queueMicrotask replacement that reads callback source before delegating; Chromium observes identifier and string mismatches while the callback is not invoked. Windows browser execution was skipped. This is a host override, not evidence that native queueMicrotask reads source.
+- Three-mode API matrix: property positive controls passed 15/15 in [45326018298](https://github.com/FlareZ123/obfs/actions/runs/45326018298); identifier/string source-mismatch controls passed 30/30 in [45326023443](https://github.com/FlareZ123/obfs/actions/runs/45326023443); cross-file factory-return controls passed 6/6 in [45326027451](https://github.com/FlareZ123/obfs/actions/runs/45326027451). Per-callable diagnostics [45326031046](https://github.com/FlareZ123/obfs/actions/runs/45326031046) again show both hidden and unrelated safe transformed.
+- Actual SCO handler: [45326162520](https://github.com/FlareZ123/obfs/actions/runs/45326162520) exercises createScoHandler serving entry.mjs and helper.mjs. The client passes the returned private callback to a host-controlled queueMicrotask override; the host reads its source without invoking it. The delivered parameter spelling changes, while the runtime output remains done. This is Node/CommonJS server-delivery evidence, not a browser SCO receipt.
+
+At this audit, the current-main production blobs were independently re-fetched and match the donor pins: src/ast.js c227e6e604635a42663af745fd0cfb194b215a67; src/properties.js bda3c6097e2679f59bd003fa0aed3e0291d4ba4c; src/identifiers.js c7e2ed1469381c5bc6dc42cef9a6ca8bfa347f0f; src/strings.js df489cf25a8aaeb87d90e6dc1b7eb66476da8dd6; src/core.js 8d33996821650de540b87502baff00a9e7ea99c7; src/sco.js c8f98b553172426559b21abaf0dc9a4fc3ea068e. The focused runs are not comprehensive acceptance. SNO CLI/launcher validation for this HostHeldCallable path remains open.
+
+### Required graph semantics
+
+Do not merge these three relations:
+
+1. **Observed value:** an unknown host call receives a callable argument and can inspect its source without invoking it. Represent an observed-value edge plus a HostHeldCallable capability on the callable ValueFact.
+2. **Active frame:** an unknown callback/getter/implicit dispatch can inspect the currently active caller or ancestor. Represent a reverse ActiveFrameEdge, independent of whether a callable argument escaped.
+3. **Return flow:** an unknown call or local factory returns a value to its receiving binding. Represent a ValueFlowEdge; it is neither a HostHeldCallable edge nor an ActiveFrameEdge.
+
+The value-flow graph must preserve direct, alias, object-field, actual-to-formal, return-to-result, closure-capture and cross-file ESM import/export edges. Call targets must be keyed by individual callsite/CFG point, not only by a caller/callee function-level union. Source-mirror reads must point to the exact function/source mirror they observe. Semantic closure should protect the observed callable and source-affecting spans while leaving independently proven safe callables and unrelated owners eligible for transformation.
+
+### Agent 8 schema-review disposition
+
+The v2 contract accepts the ten consolidated review issues: (1) separate receiver lookup route from effective operation identity/status; (2) bind trust to mode plus runtime partition; (3) add per-occurrence module-resolution, SCO delivery and HostEffect-to-SourceMirror edges; (4) make callsite-specific target sets authoritative; (5) represent value facts as a product lattice with HostHeldCallable as a capability; (6) add activation strictness; (7) normalize Proxy dispatch to one event plus the exact 13-trap field and use IteratorDispatch for all receiver categories; (8) distinguish ExactSource from SourceBytes; (9) require runtime-enforced plan immutability rather than trusting ReadonlyMap/ReadonlySet annotations; and (10) define the RealmBindingRef key used by receiver identity. The contract also keeps Symbol.toPrimitive admission dependent on binding-aware, shadow-safe intrinsic identity.
+
+### Integration decision
+
+**NO-GO / RELEASE-BLOCKED remains.** No production compiler source was changed, no candidate PR was opened, and no comprehensive gate was dispatched. The host-held callback evidence adds another cross-consumer false-negative: the local property proof can preserve source for the five same-file paths, but identifier and string consumers still mutate the same callable; the file-wide boolean is simultaneously too narrow for the new sink and too broad when it fires.
+
+Do not port a pass-local queueMicrotask or host-call spelling veto. The next candidate must consume one immutable, source-generation-qualified plan across property, identifier, string, cross-file, SCO request-time and experimental backend consumers. It must demonstrate per-callable closure and unrelated positive yield, plus COO browser, actual SCO handler/browser, and SNO CLI/Node coverage. Agent 3 remains integration owner; Agent 10 remains the sole comprehensive acceptance owner. Preserve the focused red/green donors and do not run the full gate until one exact current-main candidate is frozen.
