@@ -114,6 +114,7 @@ test('classic-script global function declarations are not treated as immutable l
 });
 
 test('classic-script global-object mutation changes a function declaration binding',()=>{
+  /** @type {{getExternal:()=>number,answer?:number}} */
   const context={getExternal:()=>17};
   vm.runInNewContext(
     'function helper(){return 1;}globalThis.helper=getExternal;'+
@@ -121,6 +122,7 @@ test('classic-script global-object mutation changes a function declaration bindi
     context
   );
   assert.equal(context.answer,17);
+  /** @type {{answer?:number}} */
   const lexical={};
   vm.runInNewContext(
     'const helper=()=>1;globalThis.helper=()=>2;globalThis.answer=helper();',
