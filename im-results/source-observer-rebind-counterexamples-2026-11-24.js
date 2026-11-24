@@ -111,11 +111,25 @@ assert.notEqual(disconnectedSource,source);
 const disconnectedPlan=buildDirectFunctionSourcePlan(
   disconnectedSource,'entry.mjs',hostContract
 );
+const linkedEffect=[...plan.hostEffects.values()][0];
+const disconnectedEffect=disconnectedPlan&&[...disconnectedPlan.hostEffects.values()][0];
 console.log('producer-disconnected-export: '+JSON.stringify({
-  planAccepted:Boolean(disconnectedPlan)
+  planAccepted:Boolean(disconnectedPlan),
+  linkedResultValueRef:linkedEffect?.resultValueRef??null,
+  disconnectedResultValueRef:disconnectedEffect?.resultValueRef??null,
+  linkedValueFlowEdgeCount:plan.valueFlowEdges.size,
+  disconnectedValueFlowEdgeCount:disconnectedPlan?.valueFlowEdges.size??null
 }));
 assert.equal(Boolean(disconnectedPlan),true,
-  'current producer unexpectedly linked sourceText to the reader result');
+  'reviewed snapshot no longer reproduces the disconnected-export acceptance prediction');
+assert.equal(linkedEffect?.resultValueRef,null,
+  'reviewed snapshot unexpectedly added the source-read result ValueRef');
+assert.equal(disconnectedEffect?.resultValueRef,null,
+  'reviewed snapshot unexpectedly added the disconnected plan result ValueRef');
+assert.equal(plan.valueFlowEdges.size,0,
+  'reviewed snapshot unexpectedly added linked source-result flow');
+assert.equal(disconnectedPlan?.valueFlowEdges.size,0,
+  'reviewed snapshot unexpectedly added disconnected source-result flow');
 
 // Post-plan control: replacing only the exported initializer leaves both
 // tracked callable/reader spans unchanged but changes the delivered value.
