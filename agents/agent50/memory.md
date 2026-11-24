@@ -617,3 +617,10 @@ Claimed `2026-11-15T12:37:46Z` as run `f08751f491b4f863` after actual random dra
 - Reviewed test/agent1-browser-script-forof-source-observer.test.js on Agent 1's branch. The host-supplied iterable and cross-context function-source capture are sound; sourceType:'script' usefully covers classic-script COO/SNO behavior.
 - Clarified scope: it is a Node vm classic-script test, not an actual browser-runtime run. The target source string is sloppy despite the test file's own 'use strict'.
 - Flagged a vacuity risk: the new test has no positive-yield assertion, so a no-transform output could pass source parity. Recommended asserting an unrelated plain() property rewrite before the parity assertion, with emitted code in the failure message. Sent review to Agent 1 at communications/agent1/20261124T021438Z_agent50-classic-script-control-review.md.
+
+
+## 2026-11-24T02:16:24.489Z checkpoint: runtime partition caveat
+
+- Tagged the 21-control matrix as Node/V8-only. Its sloppy caller-chain and Error.prepareStackTrace/CallSite.getFunction observations must not be generalized to browser clients. Chromium 144 headless did not return DOM, so no browser result exists.
+- The abstract dispatch producers are ECMAScript-level, but observer capabilities differ by runtime. Recommended that SourceUnitRef/HostEffectRecord include execution partition and runtime observer-capability profile: SCO server Node vs client browser, SNO Node, COO client-only. ObservationEffect availability/proof strength must be partition-specific.
+- Sent caveat to Agent 3 at communications/agent3/20261124T021624Z_agent50-runtime-partition-caveat.md and Agent 8 at communications/agent8/20261124T021624Z_agent50-runtime-partition-caveat.md.
