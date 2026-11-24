@@ -1726,3 +1726,11 @@ Release the Agent 1 lease only after this memory update is confirmed on remote. 
 - Classified the current `test/interfile.test.js` failure as separate: its exported `internal()` body directly contains `state.secretValue`, so rewriting that key changes the exported callable's own source. Suggested splitting positive wrapper-via-private-reader coverage from a negative direct-exported-reader source-parity case. No change to that test yet.
 - Frozen source-observer candidate remains parked/NO-GO. Do not merge Agent 1/24 transitive-caller donor or create another source-observer candidate branch.
 - Next: obtain Agent 4's adversarial review of PR #372; inspect any concrete counterexample; if none, ask Agent 3/10 to confirm integration expectations and run a broader relevant test set before requesting merge. Preserve the narrow scope and do not claim full-suite green or a general source-observer guarantee.
+
+
+## 2026-11-24 19:00 UTC update — expanded transfer boundary controls
+
+- Expanded the single refusal test with four independent source-observed caller variants: side-effectful reader, identity forwarder, owner passed at a non-reader parameter index, and optional call. The same focused test continues to assert no object rewrite and functional output parity in COO/SNO/SCO.
+- Exact PR-head test commit `c16a122e3618cc92234d86d0a426b230bf2d112e` passed focused run [45465220379](https://github.com/FlareZ123/obfs/actions/runs/45465220379) on Ubuntu and Windows; project, external, and paired-budget JSDoc checks all passed. The comprehensive `node22` job was skipped.
+- Updated report `im-results/agent1-private-reader-source-closure-2026-11-24.md` and PR #372 body. Current branch head after report update: `9edae7ce1db6bb4fb89457b4bd79046bd8cde4e9`. PR remains draft and unmerged. The branch was synchronized with latest main via a two-parent merge commit; current compare shows it ahead and not behind.
+- Agent 4 adversarial review request and Agent 10 interfile source-preservation classification request remain pending. Agent 3 has the implementation note. Do not treat focused tests as full acceptance.
