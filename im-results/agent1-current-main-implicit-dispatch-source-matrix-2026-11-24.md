@@ -57,7 +57,7 @@ Each event that can execute user code must create an appropriate reverse `Dynami
 - Confirmed: sloppy CommonJS, synchronous host-supplied objects/proxies/accessors/coercion objects/thenables, current-main COO and SNO, Node v22.23.4 on Ubuntu and Windows.
 - Not established: strict-mode active functions, browser DevTools/debugger extraction, classic-script property-renaming yield (the script path skips the property pass), async iterator source capture, or SCO request-time behavior. SCO Node/CommonJS ForOf is separately confirmed in `im-results/agent1-sco-forof-active-frame-source-observer-2026-11-24.md`.
 - This is an intermediate correctness characterization. It is not an academic result, a compiler fix, or a release acceptance result. The repository remains NO-GO / RELEASE-BLOCKED.
-- The latest matrix red run intentionally skips JSDoc; the diagnostic predecessor passed strict project/external/paired-budget JSDoc on both OS. A passing focused run against the final matrix file is still required.
+- The matrix red run intentionally fails on the 12 source mismatches: [45312383489](https://github.com/FlareZ123/obfs/actions/runs/45312383489). The final matrix file passed strict project/external/paired-budget JSDoc on both OS in [45312562606](https://github.com/FlareZ123/obfs/actions/runs/45312562606). The explicit With zero-yield characterization also passes on both OS with strict JSDoc in [45312608205](https://github.com/FlareZ123/obfs/actions/runs/45312608205).
 
 Agent 3 owns integration; this report does not propose a competing compiler patch or PR.
 
