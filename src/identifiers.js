@@ -2,6 +2,7 @@
 
 const {createHash} = require('node:crypto');
 const {walk,applyEdits,observesFunctionSource,sourceSpelledErrorOperand} = require('./ast');
+const {applyEditsWithMap,sourceGenerationOf} = require('./source-edit-map');
 const {collectBindings} = require('./properties');
 
 /** @typedef {import('./ast').AstNode} AstNode */
@@ -37,16 +38,53 @@ function classifyIdentifier(node,parent,key) {
 /**
  * @param {string} source
  * @param {AstNode} ast
- * @param {{seed:string,sourceType:'script'|'module'|'commonjs'}} options
- * @returns {{code:string,bindings:number}}
+ * @param {{seed:string,sourceType:'script'|'module'|'commonjs',sourceUnitRef?:string,parserContractId?:string,protectedSourceSpans?:Array<{spanId:string,sourceUnitRef:string,sourceGeneration:string,startOffset:number,endOffset:number,coordinateUnit:'utf16-code-unit',astNodeType:string|null}>}} options
+ * @returns {{code:string,bindings:number,editMap?:Object}}
  */
 function renameLocalIdentifiers(source,ast,options) {
-  if(observesFunctionSource(ast)) return {code:source,bindings:0};
+  if(Reflect.get(options,'sourceObserverCoverageComplete')!==undefined) {
+    throw new TypeError('Raw source-observer coverage booleans are unsupported; use a validated plan');
+  }
+  const hasMapContext=options.sourceUnitRef!==undefined||options.parserContractId!==undefined;
+  if(hasMapContext&&
+     (typeof options.sourceUnitRef!=='string'||options.sourceUnitRef.length===0||
+      typeof options.parserContractId!=='string'||options.parserContractId.length===0)) {
+    throw new TypeError('sourceUnitRef and parserContractId must be supplied together');
+  }
+  const protectedSourceSpans=options.protectedSourceSpans??[];
+  if(!Array.isArray(protectedSourceSpans))throw new TypeError('protectedSourceSpans must be an array');
+  if(protectedSourceSpans.length&&!hasMapContext) {
+    throw new TypeError('protectedSourceSpans require a source-unit and parser generation');
+  }
+  if(protectedSourceSpans.length) {
+    const generation=sourceGenerationOf(source,/** @type {string} */ (options.parserContractId));
+    for(const span of protectedSourceSpans) {
+      if(!span||typeof span.spanId!=='string'||span.spanId.length===0||
+         span.sourceUnitRef!==options.sourceUnitRef||span.sourceGeneration!==generation||
+         span.coordinateUnit!=='utf16-code-unit'||
+         !Number.isInteger(span.startOffset)||!Number.isInteger(span.endOffset)||
+         span.startOffset<0||span.endOffset<span.startOffset||span.endOffset>source.length) {
+        throw new TypeError('Identifier renamer received a stale or foreign protected source span');
+      }
+    }
+  }
+  /** @param {import('./ast').Edit[]} edits @param {number} bindings @returns {{code:string,bindings:number,editMap?:Object}} */
+  function finish(edits,bindings) {
+    if(hasMapContext) {
+      const mapped=applyEditsWithMap(source,edits,/** @type {string} */ (options.sourceUnitRef),/** @type {string} */ (options.parserContractId));
+      return {code:mapped.code,bindings,editMap:mapped.map};
+    }
+    return {code:applyEdits(source,edits),bindings};
+  }
+  if(observesFunctionSource(ast)) return finish([],0);
   const counts=collectBindings(ast);
   /** @type {{identifier:AstNode,name:string,scope:AstNode}[]} */
   const candidates=[];
   /** @type {{node:AstNode,parent:AstNode|null,key:string|null,ancestors:AstNode[]}[]} */
   const identifiers=[];
+  // Any spelling occurring inside a protected callable blocks every candidate
+  // with that spelling, including declarations outside the protected range.
+  const protectedNames=new Set();
   // Anonymous function/arrow/class expressions receive the assignment target's
   // name through NamedEvaluation. Mangling that binding changes observable
   // .name even when every lexical reference is rewritten correctly.
@@ -97,7 +135,12 @@ function renameLocalIdentifiers(source,ast,options) {
   }
   let dynamic=false;
   walk(ast,(node,parent,key,ancestors)=>{
-    if (node.type==='Identifier') identifiers.push({node,parent,key,ancestors});
+    if(node.type==='Identifier') {
+      const protectedIdentifier=protectedSourceSpans.some(span=>
+        node.start<span.endOffset&&node.end>span.startOffset);
+      if(protectedIdentifier)protectedNames.add(node.name);
+      else identifiers.push({node,parent,key,ancestors});
+    }
     const errorOperand=sourceSpelledErrorOperand(node);
     // Object spread accepts nullish sources and does not perform iteration.
     // Keep the existing proven-non-null object-pattern optimization too.
@@ -134,16 +177,17 @@ function renameLocalIdentifiers(source,ast,options) {
       }
     }
   });
-  if (dynamic) return {code:source,bindings:0};
+  if (dynamic) return finish([],0);
   /** @type {import('./ast').Edit[]} */
   const edits=[];
   // A free identifier can be captured by a newly introduced local binding,
   // even if it is spelled with Unicode escapes and absent from source regexes.
-  const used=new Set([...counts.keys(),...identifiers.map(item=>item.node.name)]);
+  const used=new Set([...counts.keys(),...protectedNames,...identifiers.map(item=>item.node.name)]);
   let bindings=0;
   for(const candidate of candidates) {
     const {name,scope,identifier}=candidate;
-    if (counts.get(name)!==1 || inferredNames.has(name) || errorSpellingNames.has(name) ||
+    if (protectedNames.has(name) || counts.get(name)!==1 ||
+        inferredNames.has(name) || errorSpellingNames.has(name) ||
         ['arguments','eval','require','module','exports','globalThis','window'].includes(name)) continue;
     // TDZ ReferenceError messages expose the original binding spelling.
     // Until a control-flow dominance proof exists, reject a candidate when a
@@ -217,7 +261,7 @@ function renameLocalIdentifiers(source,ast,options) {
     bindings++;
     edits.push(...local);
   }
-  return {code:applyEdits(source,edits),bindings};
+  return finish(edits,bindings);
 }
 
 module.exports={renameLocalIdentifiers};
