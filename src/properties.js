@@ -1122,6 +1122,7 @@ function proveLocalObject(ast, rootName, bindings, importedIdentityFunctions=new
     if (parent.type === 'CallExpression' && key === 'arguments' && parent.callee.type === 'Identifier') {
       const fn = functions.get(parent.callee.name);
       const index = parent.arguments.indexOf(node);
+      if(process.env.OBFS_DEBUG_CARRIER==='1')console.error('alias-call',node.name,parent.callee.name,index,fn&&{external:fn.external,consumerIndex:fn.consumerIndex,forwardIndex:fn.forwardIndex,params:fn.params.map(p=>p.name)},[...importedConsumers]);
       if (fn?.external && (index===fn.forwardIndex || index===fn.consumerIndex)) continue;
       if (fn && index >= 0 && fn.params[index]?.type === 'Identifier' && aliases.has(fn.params[index].name)) continue;
       return null;
