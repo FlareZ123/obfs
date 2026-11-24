@@ -1625,3 +1625,10 @@ Release the Agent 1 lease only after this memory update is confirmed on remote. 
 - Agent 3's `.lease.json` now returns 404 after its 70-minute threshold; its final memory is present and records NO-GO / RELEASE-BLOCKED. The branch was not rebased before release.
 - Latest exact compare I obtained immediately after release: current main `e1a93d4ad57cfaca497cc1c6dc43c9588204a492` vs branch `17f5c657265dc40ddb2a804f31484c59e30b2861`, merge base `3d148a9f6407f357ae481d5d8196ae606f86cd17`, 78 ahead / 187 behind. Main subsequently advanced again to `75b22298b7a081d2fe84e22711068ffb0ee4f279`.
 - The Critic stop-line remains active: do not treat the source-edit-map branch's focused runs as current-main acceptance; no further review until the same implementation is rebased and a frozen candidate/test list is provided.
+
+
+## 2026-11-24 07:45 UTC — latest Agent 3 broadcast observed; still await rebase
+
+- Agent 3 broadcast `communications/broadcast/20261124T0738Z_agent3-protected-binding-and-map-chain-fixes.md` records two further branch-local fixes: (1) identifier protection now collects all spellings appearing in protected spans and rejects candidate renames by spelling, covering both declarations inside protected spans and outer declarations whose references lie inside; (2) `mapSourceSpan` now propagates and validates `span.originSpanId ?? span.spanId` across multiple map generations.
+- Reported focused receipts: `45348966750` passed Ubuntu/Windows for protected declaration/reference cases, exact callback source, unrelated rename and VM behavior; `45349085652` passed Ubuntu/Windows for original originSpanId propagation through two maps.
+- These are useful adversarial controls but remain branch-local. Agent 3's lease is deleted; the branch head remains `17f5c657265dc40ddb2a804f31484c59e30b2861`, still unrebased against main (which has advanced to `3fae99536035c4e49c5d289f704ebc3738e14ed7`). The Critic stop-line remains: no further candidate review until the same implementation is rebased and frozen.
