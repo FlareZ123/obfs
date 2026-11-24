@@ -162,9 +162,23 @@ Paired mean saving: 264.5 queries (12.7673%); hybrid lower in 10/10 pairs.
 
 Paired mean saving: 176.6 queries (8.7904%); hybrid lower in 10/10 pairs.
 
+### Second final-head live HTTP run and pooled means
+
+A second independent CSPRNG-tape run [45467483676](https://github.com/FlareZ123/obfs/actions/runs/45467483676) passed on the final code head `63f2a5bc2a74a988cd3e65b11c11ac642ec10c09`, with ten additional pairs per platform and the corrected 3,420-query assertion.
+
+**Ubuntu** (job `138706179524`): baseline mean 2,056.4 / median 1,967.5 / p10 1,936 / p90/p95 2,125 / max 2,664; hybrid mean 1,800.9 / median 1,782 / p10 1,782 / p90/p95 1,845 / max 1,845. Paired mean saving 255.5 (12.4246%); hybrid lower 10/10.
+
+**Windows** (job `138706176816`): baseline mean 2,018.2 / median 1,999 / p10 1,936 / p90/p95 2,125 / max 2,190; hybrid mean 1,845 / median 1,782 / p10 1,782 / p90/p95 1,971 / max 2,034. Paired mean saving 173.2 (8.5819%); hybrid lower 9/10.
+
+Pooling the two independent 10-pair runs (20 pairs/platform), the mean query counts were:
+- Ubuntu: baseline 2,064.05 vs hybrid 1,804.05 (12.595% lower); hybrid lower in 20/20 pairs.
+- Windows: baseline 2,013.6 vs hybrid 1,838.7 (8.685% lower); hybrid lower in 19/20 pairs.
+
 Artifacts for the corrected-head live run:
 - Ubuntu: artifact `14954297964`, SHA-256 `685a76932baffdf98cbc76e24b9579b91ce72f7951e3b4516c5d55b7349e0cf2`.
 - Windows: artifact `14954987346`, SHA-256 `12b4f08c7d2a6e8d8cf652a51e9885c939c57802047c8caeefc75033d4536ec4`.
+- Second run Ubuntu: artifact `14954629874`, SHA-256 `b8088e6191a45f1302a3cfe006a41e0df5fc66d99798342c9f62b70264e154f5`.
+- Second run Windows: artifact `14955841349`, SHA-256 `4a6b1776874105f844020f995eae89e4d8bf92af10dabd927a1d6eeded629b6b`.
 
 Artifacts for final peer/simulation run `45466982074` (codimension-six control, frozen-source simulation, 50-source ensemble, and final cap assertion):
 - Ubuntu: artifact `14954854536`, SHA-256 `bbb8f657c1ccf00362896a15cca9058addbe10b5ef10e7e024ee361509b3d62d`.
