@@ -93,14 +93,13 @@ A concrete private three-state delayed-output chain has transitions 0 --0--> 1 -
 
 ### General finite-transcript impossibility for an untrusted state bound
 
-The concrete three-state regression is one instance of a general construction. Fix any finite observed binary input/output transcript of length (T), any proposed upper bound (N\ge1), and a deterministic learner. Construct a stationary deterministic Mealy machine with path states (p_0,\ldots,p_T) and side-chain states (c_0,\ldots,c_N):
+The concrete three-state regression is one instance of a general construction. Fix any finite observed binary input/output transcript of length T >= 1, any proposed upper bound N >= 1, and a deterministic learner (or fix the random tape of a randomized learner). Construct a stationary deterministic Mealy machine with path states p_0,...,p_T and side-chain states c_0,...,c_N:
 
-1. At each (p_i) for (i<T), the one observed input (a_i) emits the observed output (y_i) and advances to (p_{i+1}). The other input (1-a_i), which was not queried at that transcript position, transitions to (c_0).
-2. The chain is reachable from (p_0) through that unobserved alternative input. For (i<N), input 0 at (c_i) emits 0 and advances to (c_{i+1}); at (c_N), input 0 emits 1 and loops. The (N+1) chain states are pairwise distinguishable by repeated zero inputs, so the constructed machine has at least (N+1) reachable minimal states.
-3. At (p_T), on the learner's next input (a_T) (determined by the transcript for a deterministic learner; fix its random tape if needed), emit the complement of the original oracle's next output and transition to (c_0).
+1. At each p_i for i < T, the one observed input a_i emits the observed output y_i and advances to p_(i+1). The other input 1-a_i, which was not queried at that transcript position, emits 0 and transitions to c_0.
+2. The chain is reachable from p_0 through that unobserved alternative input. For i < N, input 0 at c_i emits 0 and advances to c_(i+1); at c_N, input 0 emits 1 and loops. At every chain state, input 1 emits 1 and transitions to c_N. The N+1 chain states are pairwise distinguishable by repeated zero inputs: from c_i, the output sequence is 0 repeated N-i times followed by an infinite sequence of 1s. Thus the constructed machine has at least N+1 reachable, behaviorally distinguishable states.
+3. At p_T, on the learner's next input a_T (determined by the transcript for a deterministic learner; fix its random tape if needed), emit the complement of the original oracle's next output and transition to c_0. On the other input, emit 0 and transition to c_0.
 
-The constructed finite machine matches the complete observed transcript exactly, yet disagrees on the next query and has more than (N) reachable distinguishable states. Thus no finite no-reset transcript can certify an **untrusted** state upper bound. The at-most-two-state nine-query result remains valid under its explicitly trusted model premise; this construction only rules out inferring that premise from observations.
-
+The constructed finite machine matches the complete observed transcript exactly, yet disagrees on the next query and has more than N reachable distinguishable states. Thus no finite no-reset transcript can certify an untrusted state upper bound. The at-most-two-state nine-query result remains valid under its explicitly trusted model premise; this construction only rules out inferring that premise from observations.
 
 ## Prior sensitivity: source tables versus behavioral continuations
 
