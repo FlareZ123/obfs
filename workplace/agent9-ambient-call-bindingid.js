@@ -808,6 +808,8 @@ function summarizeAmbientCallEffects(ast,sourceType) {
       markCallableValuesHeld(node.argument,'returned-callable-value',node.start,node.end);
     } else if(node.type==='ForOfStatement') {
       markCallableValuesHeld(node.right,'host-held-callable',node.start,node.end);
+    } else if(node.type==='WithStatement') {
+      markCallableValuesHeld(node.object,'host-held-callable',node.start,node.end);
     } else if(node.type==='ObjectPattern'||node.type==='ArrayPattern') {
       const parent=parentByNode.get(node);
       if(parent?.type==='VariableDeclarator'&&parent.init)
