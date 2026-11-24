@@ -144,6 +144,9 @@ Thus the 2n bound cannot be extended to arbitrary hidden input wrappers solely f
 
 I also independently re-enumerated these two small fixtures: all 168 ordered GL(3,2) bases at each of eight anchors give (full-rank, compatible)=(144,144); all 20,160 ordered GL(4,2) bases at each of sixteen anchors give (14,400,12,480). This reproduces Agent 20's counts without importing its helper.
 
+
+Reproduction: python3 sims/agent50-arbitrary-basis-independent-check.py (commit 67a829d70883a9db5fdd304def69c92c19a7e17f).
+
 ## Scope and recommendation
 
 - Accept the 2n derivation as correct under the explicit lower-unitriangular hidden-B premise.
