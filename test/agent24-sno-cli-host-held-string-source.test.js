@@ -64,7 +64,7 @@ const {atomicWrite}=require('../src/atomic');
     assert.equal(native.stdout.trim(),'callbackSourceLiteral');
     assert.equal(transformed.stdout.trim(),native.stdout.trim());
     assert.equal(nativeObservation.source,
-      "function hidden(inputValue){return 'callbackSourceLiteral:'+inputValue;}");
+      "function hidden(){return 'callbackSourceLiteral';}");
     assert.ok(nativeObservation.source.includes('callbackSourceLiteral'));
     assert.ok(!emittedObservation.source.includes('callbackSourceLiteral'),
       'SNO CLI string encoding must be visible in the host-observed callback source');
