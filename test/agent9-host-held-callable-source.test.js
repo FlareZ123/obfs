@@ -96,7 +96,6 @@ test('unknown host callback argument preserves exact callable source without inv
   assert.equal(transformed.invoked,false);
 });
 
-const vm=require('node:vm');
 
 const commonJsSource=[
   'const owner={secretField:41};',
