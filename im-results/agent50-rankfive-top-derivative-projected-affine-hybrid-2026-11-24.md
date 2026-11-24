@@ -81,6 +81,18 @@ The exact fallback targets fixed degree-at-most-five functions. Its ANF basis si
 
 The verifier false-accept bound is (31/32)^726 = 9.7657468774e-11, assuming a fixed degree-at-most-five oracle and verifier draws independent of witness/training draws.
 
+## Ideal random-table probability model for the fixed pair
+
+For an ideal random table H: GF(2)^r -> GF(2)^w, fix distinct nonzero offsets u and v. The fixed-pair test fails at (q,delta) exactly when the three derivative values D_delta H(q), D_delta H(q+u), and D_delta H(q+v) are equal.
+
+If delta is one of u, v, or u+v, two of the three unordered input pairs coincide, leaving two independent uniform pair-XOR words; the equality probability is 2^(-w). For each of the other 2^r-4 nonzero deltas, all three input pairs are disjoint, so the three pair-XORs are independent uniform words and the equality probability is 2^(-2w). A union bound over all q and nonzero delta gives:
+
+P[fixed-pair test fails] <= 2^r * (3*2^(-w) + (2^r-4)*2^(-2w)).
+
+At r=5 and w=32 this is 2.2351742e-8. The stronger differential-2-uniformity sufficient condition has failure bound 31*120/2^32 = 8.6613e-7, about 39 times looser; the matcher needs only the fixed-pair property, not full differential 2-uniformity.
+
+This is an ideal independent-random-table model, not a theorem about a SHA-256-derived table. The frozen source table is checked exhaustively by the implementation, so no random-table assumption is needed for the reported fixed-table result.
+
 ## Validation
 
 ### Optimized final-head peer and HTTP validation
