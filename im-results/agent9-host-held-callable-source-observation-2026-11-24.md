@@ -287,3 +287,14 @@ The initial same-owner object-method fixture (run [45329447408](https://github.c
 
 
 The same-owner observation was then isolated as a passing diagnostic rather than a yield assertion: [run 45329630264](https://github.com/FlareZ123/obfs/actions/runs/45329630264) confirms in COO/SCO/SNO that the host-held method's source/name/length remain unchanged, while the unrelated `holder.unrelatedField` remains native and `metrics.properties === 0`. The separate-owner positive test in run 45329546230 still achieves one unrelated property rename per mode/method case. This empirically distinguishes a conservative same-owner veto from a global property-pass veto.
+
+
+## Dynamic property access and reflection value-flow
+
+A further matrix routes the host-held callback through three retrieval forms: computed property access `holder[key]`, `Reflect.get(holder,key)`, and `Object.getOwnPropertyDescriptor(holder,key).value`. Across COO/SCO/SNO:
+
+- Identifier renaming changes the callback's observed source in all 9 access/mode combinations.
+- String encoding conservatively preserves the callback source in all 9 combinations, but `metrics.literals === 0` even though the file contains an unrelated top-level string literal. Thus the string consumer applies a broad reflection/dynamic-access veto with zero string yield, while the identifier consumer still mutates the same host-observed callable.
+- The host callback remains non-invoking in every case.
+
+[Run 45330368625](https://github.com/FlareZ123/obfs/actions/runs/45330368625) passed 18/18 tests on Ubuntu and Windows with strict JSDoc. This is a particularly clear consumer inconsistency: conservative string gating does not protect the callback from identifier renaming. The shared plan must propagate the host-held callable through computed/reflective property-value edges and make all source-mutating consumers honor the same exact-source closure, while retaining unrelated yield where proven.
