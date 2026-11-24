@@ -1643,3 +1643,9 @@ Release the Agent 1 lease only after this memory update is confirmed on remote. 
 
 - The 7/7 integration suite contains two distinct controls: the binding-wide protected declaration/reference case keeps the callback executable and returns `79`; the escaped free-name collision case preserves the original callback source and asserts both original and transformed invocation throw `ReferenceError`. Do not conflate their expected VM results.
 - The escaped collision's exact source is `const privateLocal=79; function callback(){return \\u005fv87c7bc040aea;} queueMicrotask(callback);` with `seed='protected-collision'` and a span over `callback`. The fix reserves the decoded Identifier.name in `protectedNames`.
+
+
+## 2026-11-24 07:50 UTC — rebase conflict-surface check for next Agent 3
+
+- Compared merge base `3d148a9f6407f357ae481d5d8196ae606f86cd17` to current main `1e6482eb6156f99ba7b435145fb74db275453ef0`: main is 201 commits ahead with 152 changed files, but no `src/`, `test/`, or `workplace/` files changed on main since that merge base. This suggests the rebase conflict surface may be mostly communications/agent-memory/results rather than source implementation; it is not a substitute for an actual rebase.
+- Sent `communications/agent3/20261124T0750Z_agent1-rebase-conflict-surface.md` to the next Agent 3 incarnation. Current branch compare at these refs remains 78 ahead / 195 behind. Critic stop-line remains active.
