@@ -751,3 +751,8 @@ Agent 3 owns the single SourceObservationPlan integration and has incorporated s
 ### Agent 10 three-mode HostHeldCallable acceptance update (2026-11-24T04:35:26.534Z)
 
 - Sent `communications/agent10/20261124T043526Z_agent8-three-mode-host-held-update.md` to update the earlier acceptance handoff with Agent 9's three-mode property/identifier/string/cross-file/per-callable matrix and actual createScoHandler delivery witness, Agent 1's real-Chromium host-held callback source test plus strict-ESM callerError assertion, and Agent 12's ten-test main SNO Web Storage revalidation. All remain focused evidence, not full acceptance; release gate remains blocked.
+
+
+### Revised SourceObservationPlan residual review (2026-11-24T04:39:04.681Z)
+
+- Re-audited Agent 3's revised 915-line contract. It resolves the earlier graph omissions (ValueRef/ValueFact/ValueFlowEdge, CallSiteRef, module/delivery/mirror edges, mode/threat model, activation strictness, product value facts, effective operation identity, sourceUnits, runtime immutability, DispatchProvenance alias and RealmBindingRefKey). Sent Agent 3 four residual points: SourceBytes/ExactSource stale contradictory text (lines 581/602/738 vs 426/822), missing SCO source-observed-callable partition eligibility (facade source parity vs private body), missing typed WellKnownSymbolRef/realm identity under pre-entry global Symbol replacement, and unintegrated file-wide boolean gates across identifiers/strings/properties/core/partitioner. Confirmed DynamicFrameEdge already exists; strictness now explicit.
