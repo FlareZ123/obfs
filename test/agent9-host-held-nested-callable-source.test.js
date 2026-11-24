@@ -47,7 +47,7 @@ for(const mode of /** @type {const} */ (['coo','sco','sno'])){
     }));
   });
 
-  test(mode+' nested source closure: string mutation inside nested function changes outer host-held source',()=>{
+  test(mode+' nested source closure: preserve nested literal in outer host-held source while encoding unrelated top-level string',()=>{
     const source=[
       'function outer(inputValue){',
       "  function inner(hiddenValue){return 'nestedLiteral'+hiddenValue;}",
@@ -55,7 +55,7 @@ for(const mode of /** @type {const} */ (['coo','sco','sno'])){
       '}',
       'queueMicrotask(outer);',
       "module.exports='unrelatedLiteral'.length;"
-    ].join('\n');
+    ].join('\\n');
     const native=observe(source);
     const compiled=obfuscateFiles([{
       path:'entry.cjs',sourceType:'commonjs',code:source
@@ -63,6 +63,16 @@ for(const mode of /** @type {const} */ (['coo','sco','sno'])){
       mode,seed:'agent9-nested-host-held-string-'+mode,
       identifiers:false,strings:true,properties:false
     });
+    const emitted=observe(String(compiled.files[0].code));
+    assert.equal(emitted.source,native.source);
+    assert.equal(emitted.value,native.value);
+    assert.equal(emitted.invoked,false);
+    assert.ok(compiled.files[0].metrics.literals>=1);
+    console.log('AGENT9_NESTED_HOST_HELD_STRING '+JSON.stringify({
+      mode,literals:compiled.files[0].metrics.literals,
+      native:native.source,emitted:emitted.source,sourceEqual:emitted.source===native.source
+    }));
+  });
     const emitted=observe(String(compiled.files[0].code));
     assert.notEqual(emitted.source,native.source);
     assert.equal(emitted.value,native.value);
