@@ -79,7 +79,8 @@ test('SNO host-held callback source survives mapped identifier edits and string 
     sourceType:'module',
     sourceUnitRef:UNIT,
     parserContractId:PARSER,
-    protectedSourceSpans:[propertySpan]
+    protectedSourceSpans:[propertySpan],
+    sourceObserverCoverageComplete:true
   });
   assert.ok(renamed.bindings>0,'fixture must exercise an identifier rewrite before the callback');
   assert.ok(renamed.editMap,'identifier pass must emit a generation-qualified map');
@@ -103,7 +104,8 @@ test('SNO host-held callback source survives mapped identifier edits and string 
     seed:'source-map-integration-strings',
     sourceUnitRef:UNIT,
     parserContractId:PARSER,
-    protectedSourceSpans:[currentSpan]
+    protectedSourceSpans:[currentSpan],
+    sourceObserverCoverageComplete:true
   });
   assert.equal(encoded.count,1,'only the unrelated top-level string should be encoded');
   assert.ok(encoded.editMap,'string pass must include its decoder prologue in the edit map');
@@ -121,21 +123,29 @@ test('SNO host-held callback source survives mapped identifier edits and string 
   });
   assert.equal(observedSource,originalCallbackSource);
 
-  // Red control: without the protected span, the same encoder mutates the
-  // callback's source and the hostile host can observe that mutation.
-  const unprotected=encodeStrings(renamed.code,renamedAst,{
-    seed:'source-map-integration-unprotected-red-control',
-    sourceUnitRef:UNIT,
-    parserContractId:PARSER
-  });
-  assert.equal(unprotected.count,2);
-  let observedUnprotected=null;
-  vm.runInNewContext(unprotected.code,{
-    queueMicrotask(callback){observedUnprotected=callback.toString();}
-  });
-  assert.notEqual(observedUnprotected,originalCallbackSource);
 });
 
+
+
+test('unrecognized external host callback source is mutable without a plan (red control)',()=>{
+  const source=[
+    "const callback=()=>{return 'inside-callback-literal';};",
+    'queueMicrotask(callback);',
+    "const unrelated='top-level-literal';"
+  ].join('\\n');
+  const ast=parse(source,'module');
+  const originalCallback=findCallback(ast);
+  const originalCallbackSource=source.slice(originalCallback.start,originalCallback.end);
+  const encoded=encodeStrings(source,ast,{seed:'unprotected-host-callback-red-control'});
+  assert.equal(encoded.count,2,
+    'the external queueMicrotask observer is not visible to source-only heuristics');
+  let observedSource=null;
+  vm.runInNewContext(encoded.code,{
+    queueMicrotask(callback){observedSource=callback.toString();}
+  });
+  assert.notEqual(observedSource,originalCallbackSource,
+    'the host can observe changed callback source when no plan protects it');
+});
 
 test('direct Function.prototype.toString observer gets selective yield only with complete protected coverage',()=>{
   const source=[
