@@ -12,7 +12,7 @@ const {createScoHandler}=require('../src');
  * @returns {Promise<string>}
  */
 async function fetchVariant(source) {
-  const handler=createScoHandler([{path:'entry.js',sourceType:'script',code:source}]);
+  const handler=createScoHandler([{path:'entry.cjs',sourceType:'commonjs',code:source}]);
   const server=http.createServer(handler);
   await new Promise((resolve,reject)=>{
     server.once('error',reject);
@@ -21,7 +21,7 @@ async function fetchVariant(source) {
   try {
     const address=server.address();
     assert.ok(address&&typeof address==='object');
-    const response=await fetch('http://127.0.0.1:'+address.port+'/obfs/entry.js');
+    const response=await fetch('http://127.0.0.1:'+address.port+'/obfs/entry.cjs');
     assert.equal(response.status,200);
     return await response.text();
   } finally {
@@ -46,11 +46,11 @@ function observe(code) {
       'next:function next(){external();return {done:true};}'+
     '};'
   )(external);
-  /** @type {{publicReader:unknown,external:unknown,iterable:unknown}} */
-  const context={publicReader:null,external,iterable};
+  /** @type {{module:{exports:unknown},external:unknown,iterable:unknown}} */
+  const context={module:{exports:null},external,iterable};
   vm.runInNewContext(code,context,{timeout:2500});
-  assert.equal(typeof context.publicReader,'function');
-  const reader=/** @type {(value:unknown)=>unknown} */(context.publicReader);
+  assert.equal(typeof context.module.exports,'function');
+  const reader=/** @type {(value:unknown)=>unknown} */(context.module.exports);
   const value=reader(iterable);
   assert.equal(typeof observation.captured,'function',
     'The host callback must capture hidden() through IteratorNext');
@@ -64,7 +64,7 @@ const source=
     'function hidden(iterable){for(const value of iterable){}return owner.secretField;}'+
     'function plain(){return other.unrelatedField;}'+
     'function publicReader(iterable){return hidden(iterable)+plain();}'+
-    'globalThis.publicReader=publicReader;'+
+    'module.exports=publicReader;'+
   '})();';
 
 test('SCO response preserves a private callable observed through host IteratorNext',async()=>{
