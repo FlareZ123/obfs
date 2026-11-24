@@ -449,3 +449,18 @@ The successful job log already emitted the full observer map: `minimal=false`, `
 - Refreshed compare again: current main SHA `6bac2355832ca9a2d2198534a2347b821de6f009`, merge base `3d148a9f6407f357ae481d5d8196ae606f86cd17`, branch remains diverged **78 ahead / 183 behind**. It has not been rebased; all focused receipts remain branch-local. Sent refreshed divergence before any candidate claim.
 - Canonical schema issues remain open: SourceUnitRef.sourceGeneration wording conflates raw bytes and parser-input generation; SourceMirrorRef lacks raw-byte/decoder identity; SourceSpanRef lacks optional originSpanId even though the prototype map chain now carries it. Messages sent to Agent 3, Agent 50 and Agent 24 respectively.
 - Do not ask for another isolated test or change unless it closes a named acceptance obligation. Next useful step is a current-main rebase by Agent 3, then one exact focused rerun preserving the new controls, followed by plan producer/core transactional integration. Strong-protection status remains **NO-GO / RELEASE-BLOCKED**.
+
+
+## 2026-11-24 07:48Z checkpoint — independent schema review and prototype evidence
+
+- Agent 1 independently confirmed the escaped protected-name finding and forwarded it to Agent 50. Agent 1's note confirms run `45349684143` passed 7/7 focused integration tests on Ubuntu and Windows with JSDoc, at exact head `7ed5bbc9ce54439ecc355e2da78a63db6442d6f3`. The test includes the escaped IdentifierName collision and the generated-name reservation fix. This is still prototype-branch evidence only.
+- Agent 3 released its identity after recording final source-map checkpoint. The branch remains unrebased and substantially behind main; last compare was 78 ahead / 183 behind, merge base `3d148a9f6407f357ae481d5d8196ae606f86cd17`. No production plan producer/core map chain/transaction rollback/mode integration was delivered.
+- Agent 50 independently reproduced the malformed-UTF8 byte/parser-input collision and agrees with a per-mirror model:
+  - `SourceUnitRef.sourceGeneration` is parser-input JS UTF-16 code units + canonical parser contract; correct the v2 comment that says exact bytes.
+  - Each byte-backed `SourceMirrorRef` carries its own raw-byte digest and decoder contract; do not put one raw digest on SourceUnitRef because a module instance may have multiple mirrors.
+  - SCO `SourceDeliveryEdge.sourceBytesDigest` remains response-specific and should add decoder identity; response-backed mirrors reference the edge.
+  - Function-source/DOM-serialization mirrors are strings, not raw bytes.
+  - Agent50's full note is in `communications/agent3/20261124T074517Z_agent50_raw-byte-parser-input-identity-review.md`; his reply is in `communications/agent13/20261124T074517Z_agent50_raw-byte-parser-input-identity-review.md`. I agree.
+- SNO CLI nuance: current `src/cli.js` validates JS source buffers with `isUtf8` before decoding; opaque assets remain Buffers. The malformed-UTF8 witness is a general decoder identity example, not a claim that current SNO CLI accepts malformed JS. The SNO launcher hashes packaged output, not original input mirror identity.
+- Consolidated contract feedback to Agent 24: canonical SourceSpanRef still needs optional immutable `originSpanId` and a range-only MappedSourceRange definition; SourceUnitRef parser generation and per-mirror raw-byte/decoder identity must be distinguished. No new RawSourceBytesRef is necessary under Agent50's review.
+- All work remains review/communications only; no production code changed by Agent 13. Current release decision remains **NO-GO / RELEASE-BLOCKED**. Next: await Agent50/Agent24 review, keep branch-local receipts separate from current-main evidence, and continue until the measured 70-minute lease threshold.
