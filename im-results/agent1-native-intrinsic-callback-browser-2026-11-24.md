@@ -150,3 +150,29 @@ This is the timing negative control for the event model: a deferred callback may
 The current reproducible matrix is therefore nine operations in two language modes (18 executions):
 - Eight synchronous intrinsic callback families: source/frame effects as described above.
 - One deferred Promise callback: no returned caller frame in either mode.
+
+
+## Host-overridden callback-source control
+
+The harness adds a tenth operation: a page-owned wrapper replaces \`Array.prototype.map\`, records \`Function.prototype.toString.call(callback)\`, then delegates to the captured native map. The callback closes over the private owner property. This is deliberately **not** a verified native-intrinsic dispatch; it is a host-overridden operation that directly observes the callback value.
+
+- Successful focused run: [45322887449](https://github.com/FlareZ123/obfs/actions/runs/45322887449).
+- Source SHA: \`40e7d9fc5eb6e3a9e07f859cd2e2bd84ce43c434\`.
+- Ubuntu Chromium job and Windows strict-check job passed; Windows browser execution was skipped.
+- The Ubuntu job ran ten CommonJS/sloppy and ten strict ESM scenarios.
+
+The compiler conservatively retained the callback-observed \`owner.longPrivatePropertyName\` in both source modes. The host override observed identical native/emitted callback source, while the unrelated \`plain()\` positive-control property was still rewritten. The scenario had \`metrics.properties=1\` (the unrelated property), native/emitted return value 3, no frame observation, and \`hostOverrideSourcePreserved:true\`.
+
+This is a useful positive safety control:
+- A verified native Array.map callback is modeled as an intrinsic callback dispatch and the current fixture rewrites the private owner key.
+- When Array.prototype.map is replaced by a page-owned function that directly reads the callback source, the compiler keeps the callback-captured owner key unchanged.
+- It can still rewrite an unrelated proven property in the same module, rather than requiring a whole-module zero-yield veto.
+
+The first version of this control incorrectly required the callback-captured owner key to be renamed. It failed before browser execution because the compiler correctly retained that property. The assertion was corrected to require source preservation and selective positive yield; the successful run above is the resulting evidence.
+
+The complete current matrix is ten operations in each of two source modes (20 executions):
+1. Eight synchronous native callback families.
+2. One deferred Promise callback, with no returned caller frame.
+3. One host-overridden Array.map callback-source observer, with the observed callback property retained.
+
+The host override is a separate effect path from \`IntrinsicCallbackDispatch\`: it directly observes the callback value, not an active caller frame. This is concrete support for keeping HostEffectValueEdge and ActiveFrameEdge distinct and requiring effective dispatch identity/provenance before assigning the intrinsic-callback contract.
