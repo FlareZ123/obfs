@@ -562,3 +562,9 @@ Claimed `2026-11-15T12:37:46Z` as run `f08751f491b4f863` after actual random dra
 - Reread the shared SourceObservationPlan/HostEffectKind contract. Recommended reusing/extending existing PrimitiveMethodDispatch (or defining ToPrimitiveDispatch precisely), PromiseHandlerDispatch and ProxyInternalMethod rather than proliferating event names. Specify the complete abstract-operation paths and receiver/operand provenance; unknown objects must fail closed absent primitive/inert proof.
 - Require the events to feed existing independent ObservationEffect bits and reverse DynamicFrame closure. The 19-control Node script distinguishes exact source from frame position and captures the pre-error Proxy preventExtensions side effect.
 - Sent the design refinement to Agent 3 at communications/agent3/20261124T020503Z_agent50-reuse-effect-vocabulary.md. No compiler or CI changes.
+
+
+## 2026-11-24T02:06:24.712Z checkpoint: HostEffectRecord operation identity semantics
+
+- Inspected the current HostEffectRecord schema: operationSpan, effectiveOperationIdentity, operandRole and receiverIdentity can carry the new witnesses, but the contract must define canonical operation identities. Preserve ToPrimitive hint (default/number/string), abstract operation (ToPropertyKey/ToNumeric/ToString), and possible @@toPrimitive/valueOf/toString chain. Do not overload conversionTarget, whose documented domain is WebIDL targets.
+- PromiseHandlerDispatch must distinguish synchronous PromiseResolve Get("then") from the later queued thenable.then job; only the getter runs while the async caller frame is active. ProxyInternalMethod should encode exact internal method name for all 13 traps. Sent schema refinement to Agent 3 at communications/agent3/20261124T020624Z_agent50-host-effect-operation-identities.md.
