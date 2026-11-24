@@ -92,7 +92,7 @@ int main() {
   // R[S] = kernels on which every tested face failed;
   // C[S] = union of queried subset-sum vertices;
   // rc/cc = their respective cardinalities.
-  // R occupies about 705 MiB; the full state DP is exact, not Monte Carlo.
+  // R occupies about 673 MiB; the full state DP is exact, not Monte Carlo.
   vector<uint64_t> remaining(static_cast<size_t>(state_count) * words, 0);
   vector<uint16_t> remaining_count(state_count, 0);
   vector<array<uint64_t, 2>> covered(state_count);
