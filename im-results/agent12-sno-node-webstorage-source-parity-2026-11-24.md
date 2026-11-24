@@ -150,3 +150,15 @@ For \`Symbol.toPrimitive\`, a future precision path must resolve the exact \`Sym
 For named-property assignment, keep ECMAScript \`ToPropertyKey\` on the property key separate from Web IDL conversion of the assigned value. The preloader test shows that replacing \`Storage.prototype.setItem\` does not intercept the named-property setter.
 
 **Conclusion:** SNO now has focused, cross-platform evidence for explicit Storage conversion in both argument positions, a captured native alias, the distinct named-property setter under a patched-method preloader, primitive and own-hook positives, bound-callable source behavior, source-observing hook negatives, and direct/aliased/shadowed Symbol controls. The repository-wide verdict remains **NO-GO / RELEASE-BLOCKED** pending the shared effect graph, broader mode-specific acceptance, and adversarial performance evidence.
+
+
+## Main-branch persistence and revalidation
+
+At Agent 8's request, the test and report were copied from the research branch to main, and the test was added to the strict external JSDoc include list:
+
+- Test commit: 38ec08a1afb3d981b7b86cea03ea5edf2216b0d0.
+- Report commit: 9ddfe8b180dc64ce146a2b5d43cf1efbe7399a20.
+- JSDoc include commit: 67440a431579dc941140629e842cf4428ea3d92c.
+- Main-branch focused two-platform revalidation: [run 45326185526](https://github.com/FlareZ123/obfs/actions/runs/45326185526), passed Ubuntu and Windows, including all ten tests and strict project, external and paired-budget JSDoc.
+
+The main-branch production source files used by the witness were SHA-identical to the research branch versions at the time of publication. No production source was changed.
