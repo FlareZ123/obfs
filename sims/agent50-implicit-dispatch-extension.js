@@ -66,6 +66,29 @@ function runCallerCase(label, makeValue, hidden, expectedFragment) {
 
 /**
  * @param {string} label
+ * @param {(external:Function)=>object} makeValue
+ * @param {(value:object)=>unknown} hidden
+ * @returns {{label:string, functionName:string, framePosition:boolean,
+ *   exactSource:boolean}}
+ */
+function runCoercionFrameCase(label, makeValue, hidden) {
+  const { observation, external } = makeStackCapture();
+  hidden(makeValue(external));
+  const frame = observation.frames.find(item => item.name === hidden.name);
+  assert.ok(frame, label + ': active frame');
+  assert.ok(frame.file && frame.line && frame.column, label + ': frame position');
+  assert.equal(frame.hasFunction, false, label + ': strict function object hidden');
+  assert.equal(frame.source, null, label + ': no exact source through CallSite');
+  return {
+    label,
+    functionName: frame.name,
+    framePosition: true,
+    exactSource: false
+  };
+}
+
+/**
+ * @param {string} label
  * @param {(value:object)=>Promise<unknown>} hidden
  * @param {boolean} expectFunction
  * @returns {Promise<{label:string, functionName:string, hasFunction:boolean,
@@ -172,6 +195,7 @@ function hiddenInKey(key) { const source = { x: 1 }; return key in source; }
 function hiddenDeleteKey(key) { const source = { x: 1 }; delete source[key]; return source; }
 function hiddenValueOf(value) { return value - 1; }
 function hiddenString(value) { return '' + value; }
+function hiddenPlusStrict(value) { 'use strict'; return value + 1; }
 
 async function hiddenAwaitSloppy(value) { await value; }
 async function hiddenAwaitStrict(value) { 'use strict'; await value; }
@@ -216,7 +240,10 @@ async function main() {
     runCallerCase('string-toString-fallback', external => ({
       valueOf: function valueOf() { return {}; },
       toString: function toString() { external(); return '1'; }
-    }), hiddenString, "return '' + value")
+    }), hiddenString, "return '' + value"),
+    runCoercionFrameCase('plus-Symbol.toPrimitive-strict-frame', external => ({
+      [Symbol.toPrimitive]: function toPrimitive() { external(); return 1; }
+    }), hiddenPlusStrict)
   ];
 
   const thenable = [

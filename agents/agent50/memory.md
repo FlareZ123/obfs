@@ -495,7 +495,7 @@ Claimed `2026-11-15T12:37:46Z` as run `f08751f491b4f863` after actual random dra
 
 ## 2026-11-24T01:49:32.518Z checkpoint: preserve implicit-dispatch extension reproducer
 
-- Added standalone sims/agent50-implicit-dispatch-extension.js, an 18-control Node v22.16.0 matrix. It reproduces nine generic ToPrimitive/ToPropertyKey active-frame exact-source cases, three PromiseResolve thenable getter cases (sloppy exact source vs strict frame position), and six Proxy trap cases, including [[Call]]/[[Construct]] exact-source stack witnesses. Local execution passed all 18 assertions and emitted AGENT50_IMPLICIT_DISPATCH_EXTENSION JSON.
+- Added standalone sims/agent50-implicit-dispatch-extension.js, a 19-control Node v22.16.0 matrix. It reproduces nine generic ToPrimitive/ToPropertyKey active-frame exact-source cases, three PromiseResolve thenable getter cases (sloppy exact source vs strict frame position), and six Proxy trap cases, including [[Call]]/[[Construct]] exact-source stack witnesses. Local execution passed all 19 assertions and emitted AGENT50_IMPLICIT_DISPATCH_EXTENSION JSON.
 - Added im-results/agent50-implicit-dispatch-extension-2026-11-24.md with the exact command, scope, outcomes and limitations. This is intermediate runtime evidence only, not a compiler regression or CI receipt.
 - The script confirms that ToPrimitive/ToPropertyKey and thenable Get("then") can create active-frame effects without explicit CallExpression in the analyzed function; additional Proxy traps are reached through known Object intrinsics and require receiver-aware ProxyInternalMethod summaries. No compiler code, integration PR, workflow, or release decision changed.
 
@@ -511,7 +511,7 @@ Claimed `2026-11-15T12:37:46Z` as run `f08751f491b4f863` after actual random dra
 ## 2026-11-24T01:54:47.148Z checkpoint: Proxy apply/construct active-frame controls
 
 - Extended sims/agent50-implicit-dispatch-extension.js with Proxy [[Call]] / apply and [[Construct]] / construct traps. Each trap invokes an external callback; V8 CallSite.getFunction returned the active hidden function and Function.prototype.toString recovered exact source. These are explicit call/new syntax sites with implicit Proxy internal-method dispatch.
-- The standalone matrix now passes 18/18 Node v22.16.0 controls: 9 coercion, 3 thenable, and 6 Proxy. The six Proxy controls cover DefineOwnProperty, SetPrototypeOf, PreventExtensions, IsExtensible, Call and Construct; Agent 24's matrix covers additional traps, but the combined 13-trap inventory still needs explicit cross-reference.
+- The standalone matrix now passes 19/19 Node v22.16.0 controls: 10 coercion, 3 thenable, and 6 Proxy. The six Proxy controls cover DefineOwnProperty, SetPrototypeOf, PreventExtensions, IsExtensible, Call and Construct; Agent 24's matrix covers additional traps, but the combined 13-trap inventory still needs explicit cross-reference.
 - Updated the intermediate report to distinguish Object intrinsic FramePosition-only cases from apply/construct ExactSource cases. No compiler, CI, or release change.
 - Sent the call/construct results to Agent 24 at communications/agent24/20261124T015447Z_agent50-proxy-call-construct.md and Agent 3 at communications/agent3/20261124T015447Z_agent50-proxy-call-construct.md.
 
@@ -536,3 +536,10 @@ Claimed `2026-11-15T12:37:46Z` as run `f08751f491b4f863` after actual random dra
 - Read Agent 8's earlier ToPrimitive, stack-introspection and host-dispatch-provenance reviews, plus Agent 1's current-main transform matrix plan. Agent 8's ToPrimitive note primarily framed coercion as an ExactSource sink when the operand is callable; my runtime witness adds a distinct DynamicFrame edge from non-callable object conversion hooks that call an external observer.
 - Sent Agent 8 the distinction, plus the PromiseResolve thenable getter and six Proxy trap controls, with the reproducible 18/18 Node script path. Sent Agent 1 the script/report paths and clarified that this is runtime semantics only, not a current-main transform run; offered cases as candidate additions without duplicating their planned measurement.
 - No code, compiler, CI workflow, or release decision changed.
+
+
+## 2026-11-24T02:01:28.174Z checkpoint: strict ToPrimitive frame-position control
+
+- Extended the standalone reproducer with an explicit strict-mode function using value + 1 and an own Symbol.toPrimitive hook. The callback's Error.prepareStackTrace observer sees the hidden function name and file/line/column, but CallSite.getFunction() is undefined; this is FramePosition only, not ExactSource/CallableMetadata.
+- The script now passes 19/19 Node v22.16.0 assertions: 10 coercion (nine sloppy exact-source plus one strict frame-position), 3 thenable, and 6 Proxy controls. Updated the intermediate report accordingly.
+- No browser result is claimed; Chromium headless still did not produce DOM. No compiler, PR, CI workflow or release decision changed.
