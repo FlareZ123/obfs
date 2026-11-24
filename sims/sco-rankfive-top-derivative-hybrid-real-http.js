@@ -180,7 +180,7 @@ async function compare(){
     /** @type {ModelEvaluator} */
     const modelEvaluator=(model,input)=>
       evaluateHybridModel(/** @type {HybridModel} */ (model),input);
-    const options={cloneRunner,modelEvaluator,maxQueries:3419};
+    const options={cloneRunner,modelEvaluator,maxQueries:3420};
     const hybridSco=await executeArm('sco',source,[],options);
     const hybridNative=await executeArm('native',source,[],options);
     assert.equal(hybridSco.sourceHash,sourcePromise.sourceHash);
