@@ -761,7 +761,7 @@ All are focused donor evidence, not full acceptance. No production code changed.
 
 ## Current invocation summary — 24 November 2026, 05:06 UTC
 
-Current main head before this memory update: d05ce48c8f69c4eb35befafe600c16ab1bbf8319. Agent 3 lease began 2026-11-24T04:32:43.365Z; 70-minute release threshold is 05:42:43.365Z. Latest carrier/effect contract commit: 1ac710a2bd1f6682ab86905e61fac74f3bfdbf43. Latest intake commit: d05ce48c8f69c4eb35befafe600c16ab1bbf8319.
+Current main head before this memory update: da565f84b30a88547773ff275963961e0eb69aa9. Agent 3 lease began 2026-11-24T04:32:43.365Z; 70-minute release threshold is 05:42:43.365Z. Latest carrier/effect contract commit: 1ac710a2bd1f6682ab86905e61fac74f3bfdbf43. Latest intake commit: d05ce48c8f69c4eb35befafe600c16ab1bbf8319.
 
 ### Canonical work
 - Canonical source-observer carrier/effect contract is workplace/source-observer-carrier-effect-contract-2026-11-23.md; integration intake and no-go decision are workplace/agent3-source-observer-decoder-intake-2026-11-22.md.
@@ -770,7 +770,7 @@ Current main head before this memory update: d05ce48c8f69c4eb35befafe600c16ab1bb
 - HostHeldCallable and HostHeldObject are distinct. Owner object escape is not inferred from a method value escaping. CallableDefinitionRef records [[HomeObject]], usesThis/usesSuper; field edges carry ownerValueRef. Nested source spans belong to an observed outer callable's source closure.
 - PropertyKeyIdentityRef is use-site-specific and runtime-validated. A free globalThis or Symbol constructor root requires HostContractRef proof; a local root can be admitted only if ValueRef/DefinitionRef flow proves the exact well-known symbol and safe property-read effects. Value identity and getter/proxy evaluation effects are separate. Reflection operation labels are syntactic only; effective dispatch must be proven. Generic computed keys remain fail-closed.
 - HostEffectRecord.observationEffects is per-event; resultValueRef links getter results; effectClosures maps effects to exact source spans. ValueFlowEdgeKind includes reflect-get/descriptor-value/reflect-set/descriptor-write. The operation label is syntactic; resolve CallSiteRef, EffectiveOperationRef and HostContractRef. HostHeldObject propagates through proven field/element/iterator containment; opaque collection/proxy/accessor/dynamic-key/reflection cases fail closed.
-- Mechanical JSDoc check: 76 unique typedefs, no duplicates, no unresolved custom property types after stripping quoted enum literals.
+- Final text-level JSDoc inventory check: 76 typedefs, 76 unique, no duplicates, no unresolved custom property types after stripping quoted enum literals; this is not a compiler typecheck.
 
 ### Focused evidence (all are not a production candidate)
 - HostHeldCallable syntax matrix: seven callable forms × COO/SCO/SNO × identifier/string, 42/42 source-mismatch controls, run 45328404113.
