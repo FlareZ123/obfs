@@ -1,4 +1,4 @@
-# Actual multi-file SNO CLI host-held callback: fail-closed group refusal
+# Actual multi-file SNO CLI host-held callback: CommonJS factory-return source leak
 
 **Status:** Intermediate empirical finding; not an established release result.  
 **Owner:** Agent 1  
@@ -7,16 +7,16 @@
 
 ## Summary
 
-A real multi-file SNO CLI build with a CommonJS factory-returned callback preserves the exact source observed by a host-owned queueMicrotask override. This is **not** a successful selective transform: the current group-wide source-observer guard suppresses identifier transformations throughout the file group. An unrelated safe helper function remains completely untransformed.
+The actual multi-file SNO CLI rewrites the source of a private callback returned from a CommonJS helper factory and passed to a host-owned queueMicrotask override. The host reads Function#toString and never invokes or schedules the callback. The application result remains unchanged.
 
-This contrasts with the existing single-file SNO CLI witness, where the host-held callback source is rewritten. The current multi-file behavior is safe but coarse; it demonstrates a zero-yield fallback, not a source leak.
+The unrelated safe helper is also transformed. This is a confirmed cross-file HostHeldCallable source-preservation gap in the actual SNO CLI path, not merely in the programmatic API.
 
 ## Reproduction
 
 - Test: test/agent1-sno-multifile-host-held-cli.test.js
 - Manual-only workflow: .github/workflows/manual-sno-multifile-host-held.yml
-- Pinned run: [45332078165](https://github.com/FlareZ123/obfs/actions/runs/45332078165)
-- Test commit: 37dd4148453aff950ff5680bfa3668348405f8e6
+- Final pinned run: [45333011035](https://github.com/FlareZ123/obfs/actions/runs/45333011035)
+- Test commit: aecd6a3812518e97ba37bf764df7118e40be0c2c
 - Result: both Ubuntu and Windows passed the actual CLI witness, strict project JSDoc, and strict external research JSDoc under Node 22.
 - The workflow is workflow_dispatch only; no push/PR trigger was added.
 
@@ -27,7 +27,7 @@ The fixture creates:
 
 The preload calls Function.prototype.toString.call(callback) and writes the observed source to a file. It does not invoke or schedule the callback. The application then calls the callback directly once, solely to compare native and emitted application results.
 
-The actual CLI is run with --root, --out, --entry entry.cjs, and a deterministic seed. The generated sno-entry.cjs is executed as the single entry point. The test also verifies that the launcher's integrity manifest contains the SHA-256 digest of the emitted helper.cjs.
+The actual CLI is run with --root, --out, --entry entry.cjs, and a deterministic seed. The generated sno-entry.cjs is executed as the single entry point. The test verifies that the launcher's integrity manifest contains the SHA-256 digest of the emitted helper.cjs.
 
 ## Observations
 
@@ -35,55 +35,44 @@ Native and emitted application results are identical:
 
     {"result":3,"safeResult":13,"invocationCount":1}
 
-The host-observed callback source is byte-for-byte identical between native and emitted runs:
+The native host-observed callback source contains the original inputValue and privateLocal identifiers. The emitted callback source differs and no longer contains either original spelling. The test asserts this directly.
 
-    function hidden(inputValue){
-      invocationCount+=1;
-      const privateLocal=inputValue+1;
-      return privateLocal;
-    }
+The emitted helper also no longer contains unrelatedValue or safeLocal. Thus the compiler transforms both the host-observed hidden callback and the unrelated safe function. The current implementation does not preserve a per-callable source closure for the callback.
 
-The source observer diagnostic reports:
-- entry observesFunctionSource: true;
-- helper observesFunctionSource: false;
-- entry observesDistributedSource: false;
-- helper observesDistributedSource: false.
+The programmatic default obfuscateFiles result is byte-identical to the actual CLI helper output. The helper digest is present in the single-entry launcher manifest. Runtime value parity, launcher integrity metadata, and host non-invocation are independently asserted.
 
-The emitted helper still contains the original unrelatedValue parameter and safeLocal local variable. Thus the unrelated safe function receives no identifier-transform yield in this build.
+## Important fixture correction
 
-The programmatic default obfuscateFiles result is byte-identical to the actual CLI helper output. A direct API diagnostic with string encoding disabled also leaves the helper unchanged. This localizes the behavior to the shared source-observer gate rather than a CLI-only launcher discrepancy or string-encoding startup behavior.
+An earlier version of this test appended a newline using string concatenation:
+
+    process.stdout.write(JSON.stringify({result,safeResult,invocationCount})+'\\n');
+
+That caused observesFunctionSource(entry) to return true even though the queueMicrotask-only, CommonJS factory-return-only, and related isolated probes returned false. The core's group-wide remoteSourceObserver guard then withheld transforms from every file, creating a misleading fail-closed result.
+
+The isolated processJsonPlusNewline probe returns true; the actual test now writes JSON without concatenating a newline. This removes that unrelated source-observer trigger while preserving the tested application values. The corrected entry has no positive source-observer result, and the actual host-held callback source is rewritten.
+
+This correction is important: the previous fail-closed interpretation was a fixture artifact and is superseded by the final run 45333011035.
 
 ## Interpretation
 
-src/core.js computes remoteSourceObserver across the prepared group. When the group has multiple files, a positive observesFunctionSource result in any file makes the group-level flag true. Identifier rewriting is guarded by !remoteSourceObserver; string encoding is guarded by the same flag. In this fixture, the entry's source-observer result therefore suppresses transforms in the otherwise non-observing helper.
+The entry passes a callback returned by helper.getCallback() to the host-owned queueMicrotask override. The entry-side observesFunctionSource predicate does not recognize this cross-file CommonJS factory-return flow. The helper's own source-observer predicate is also false. Consequently, the multi-file remoteSourceObserver group gate does not activate, and identifier rewriting proceeds in helper.cjs.
 
-This is a conservative safety result, not a source-observation mismatch. It is also an overbroad refusal: the observed callable and the unrelated safe function do not need the same source-preservation closure.
+The observed callback source changes even though the host never invokes the callback. There is no host ActiveFrame edge. The application's later direct call is a separate ordinary call site and accounts for invocationCount === 1.
 
-The exact minimal AST subexpression responsible for the entry's observesFunctionSource === true result remains unresolved. The test logs focused source-observer probes so a future investigation can isolate it without weakening the current guard.
+This is a concrete reason to propagate HostHeldCallable/SourceObservable facts through CommonJS module resolution, module exports, factory return-to-call-result, local alias, and host-argument edges. The exact source closure of hidden must be consumed by identifier and string transforms; the unrelated safe function should remain eligible for transforms where proven safe.
+
+The processJsonPlusNewline probe is a separate conservative source-observer false positive. It must not be mistaken for evidence that the compiler recognized the host-held callback.
 
 ## Relation to existing evidence
 
 - Agent 9's single-file actual SNO CLI witness (run 45328981265) observes a changed callback parameter spelling.
-- Agent 9's cross-file ESM factory-return tests show identifier/string source changes in the programmatic COO/SNO paths.
-- This test covers a different bounded case: actual multi-file SNO CLI, CommonJS require factory return, one-entry launcher, and helper integrity manifest. Here the group-wide source-observer guard preserves the callback but also suppresses unrelated yield.
+- Agent 9's cross-file ESM factory-return tests show identifier/string source changes in programmatic COO/SNO paths.
+- This test adds actual multi-file SNO CLI coverage for a CommonJS require factory return, one-entry launcher, and helper integrity manifest.
 - The test does not establish that arbitrary CJS module graphs, ESM helpers under a CJS entry, cycles, dynamic imports, or every Node loader configuration behave the same way.
 
 ## Source identity
 
-At the test commit, the following production blobs were compared with current main at 096e0180a814b65d941d46d66cad7f78be647d63; all matched byte-for-byte:
-
-| File | Blob SHA |
-|---|---|
-| src/ast.js | c227e6e604635a42663af745fd0cfb194b215a67 |
-| src/properties.js | bda3c6097e2679f59bd003fa0aed3e0291d4ba4c |
-| src/identifiers.js | c7e2ed1469381c5bc6dc42cef9a6ca8bfa347f0f |
-| src/strings.js | df489cf25a8aaeb87d90e6dc1b7eb66476da8dd6 |
-| src/core.js | 8d33996821650de540b87502baff00a9e7ea99c7 |
-| src/cli.js | 587398dbd070a809be92098f9df678ec7e5c23d2 |
-| src/sno.js | 74bac83442ac11e57bf46e822385f408ba527399 |
-| bin/sno.js | 26d28904e88cfb380dc5248c1c14862352a4ae41 |
-
-No production compiler source was changed.
+At the final test commit, the production blobs for ast, properties, identifiers, strings, core, CLI, SNO and the SNO binary were independently compared with current main and matched byte-for-byte. No production compiler source was changed.
 
 ## Additional repository repair
 
@@ -91,8 +80,8 @@ jsconfig.external.json contained a missing comma between the final existing test
 
 ## Limits and next work
 
-- This is a semantic-compatibility and transform-yield observation, not a confidentiality or integrity guarantee. The SNO threat model grants the attacker access to the Node filesystem, runtime, and memory.
+- This is a semantic-compatibility observation, not a confidentiality or integrity guarantee. The SNO threat model grants the attacker access to the Node filesystem, runtime, and memory.
 - The host override is a controlled Node preload, not a Chromium browser fixture.
-- The application invokes the callback directly once; the host override does not invoke it. There is no host callback invocation frame to represent.
+- The application invokes the callback directly once; the host override does not invoke it. No host callback invocation frame is present.
 - No runtime/compute benchmark was performed; no 2.5× claim follows.
-- The next useful work is to isolate the minimal entry-side source-observer trigger and then replace the group-wide boolean with the shared per-callable source-observation/value-flow closure. The intended acceptance is exact source preservation for hidden while leaving safe eligible for identifier and string transforms where proven safe.
+- Next work should add the CommonJS factory-return case to the shared SourceObservationPlan acceptance matrix and test identifier and string consumers independently, while retaining positive yield for unrelated safe functions.
