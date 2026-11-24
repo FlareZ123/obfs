@@ -1,4 +1,4 @@
-# SNO CLI host-held callable string-source red control
+# SNO CLI host-held callable string-source red controls (single + multi-file)
 
 **Date:** 2026-11-24  
 **Status:** Reproduced on both CI platforms; current-main behavior witness, not a desired-behavior regression gate  
@@ -10,7 +10,7 @@ Does the production SNO CLI's default string-literal encoding alter a function's
 
 ## Fixture and observation
 
-The one-file CommonJS entry is:
+The first test uses a one-file CommonJS entry:
 
 ```js
 function hidden(){return 'callbackSourceLiteral';}
@@ -24,13 +24,33 @@ A Node preload replaces `queueMicrotask` with a host-controlled sink. The sink r
 
 The first fixture draft used `'callbackSourceLiteral:'+inputValue`. That did **not** isolate this issue: the existing `observesFunctionSource` analysis correctly treats a string-concatenation expression with an unknown operand as a possible implicit function-to-source coercion, so the literal remained unchanged. Replacing the body with a direct string-literal return removed that independent source-observation path.
 
+A second test exercises a real two-file SNO CLI source group:
+
+```js
+// helper.cjs
+function createHidden(){return function hidden(){return 'helperCallbackSourceLiteral';};}
+module.exports={createHidden};
+
+// entry.cjs
+const {createHidden}=require('./helper.cjs');
+const hidden=createHidden();
+const unrelated='unrelatedTopLevelLiteral';
+void unrelated;
+queueMicrotask(hidden);
+console.log(hidden());
+```
+
+The callback is created in the helper module, returned through the cross-file factory call, and passed to the host observer in the entry module. The CLI reports `Processed 2 files; mode sno`; both output artifacts are present. Native and emitted stdout remain identical, but the helper-defined callback source changes from `'helperCallbackSourceLiteral'` to a decoder-table reference. The unrelated entry-module literal is also encoded. This exercises the cross-file value-flow path, not merely two independent files.
+
 ## Result
 
 **Status: Current-main source mismatch reproduced.**
 
 - Native source: `function hidden(){return 'callbackSourceLiteral';}`
-- SNO CLI emitted source: `function hidden(){return _o8fc09789ad42[0];}`
-- The unrelated top-level literal `unrelatedTopLevelLiteral` is also encoded in the emitted entry file.
+- Single-file SNO CLI emitted source: `function hidden(){return _o8fc09789ad42[0];}`
+- Cross-file native source: `function hidden(){return 'helperCallbackSourceLiteral';}`
+- Cross-file SNO CLI emitted source: `function hidden(){return _o7bfc322a36d9[0];}`
+- The unrelated top-level literal `unrelatedTopLevelLiteral` is encoded in the emitted entry file in both cases.
 - Native stdout: `callbackSourceLiteral`
 - Emitted stdout: `callbackSourceLiteral`
 - Host callback invoked: `false`
@@ -40,13 +60,13 @@ The value behavior is preserved, but the source spelling is not. This isolates t
 ## Reproduction
 
 - Test-only branch: `agent24-sno-cli-host-held-string-20261124`
-- Current branch head: `a109ae4422dc5f7cdc005774bf48ea425d590271`
-- Test: `test/agent24-sno-cli-host-held-string-source.test.js`
-- Stronger two-platform workflow: [Manual validation run 45333567142](https://github.com/FlareZ123/obfs/actions/runs/45333567142), run #3265
-- Earlier simpler fixture also passed in [run 45333127689](https://github.com/FlareZ123/obfs/actions/runs/45333127689), run #3263
+- Current branch head: `2ed95636817d23910d3d3182b78568d8e6f6ef14`
+- Test: `test/agent24-sno-cli-host-held-string-source.test.js` (two cases: one-file and cross-file)
+- Strongest two-platform workflow: [Manual validation run 45334032803](https://github.com/FlareZ123/obfs/actions/runs/45334032803), run #3266
+- Earlier one-file yield-control run: [45333567142](https://github.com/FlareZ123/obfs/actions/runs/45333567142), run #3265
 - Node: 22.23.4
-- Ubuntu: focused test, project JSDoc, external JSDoc, paired-budget JSDoc all passed in run #3265
-- Windows: focused test, project JSDoc, external JSDoc, paired-budget JSDoc all passed in run #3265
+- Ubuntu: both focused tests, project JSDoc, external JSDoc, paired-budget JSDoc all passed in run #3266
+- Windows: both focused tests, project JSDoc, external JSDoc, paired-budget JSDoc all passed in run #3266
 
 The initial draft failed because its `+` expression independently exposed a potential coercion path; the corrected pure-return fixture passed on both platforms. The earlier missing separator in `jsconfig.external.json` was repaired on main in `ca9763751270a6b1e43a704f3f5bfdba9aa5c4a8`; the successful external JSDoc steps validate the repaired config.
 
@@ -54,5 +74,5 @@ The initial draft failed because its `+` expression independently exposed a pote
 
 This is a **red-control witness** for current behavior, not an acceptance test for the desired obfuscator. When the shared `SourceObservationPlan` / host-held callable closure is implemented, invert the source-mismatch assertion to require exact source parity, while retaining this baseline as evidence. Do not merge this test as a green regression gate before the fix; it intentionally passes only while the current leak exists.
 
-Scope is one-file SNO CLI, Node 22.23.4 on Linux and Windows. It does not establish multi-file SNO parity, package/CLI acceptance, browser behavior, SCO behavior, CallableMetadata coverage, performance budget, or a release candidate. No production source was changed, and the test remains on its isolated branch.
+Scope is one-file and two-file CommonJS SNO CLI, Node 22.23.4 on Linux and Windows. It does not establish multi-file SNO parity, package/CLI acceptance, browser behavior, SCO behavior, CallableMetadata coverage, performance budget, or a release candidate. No production source was changed, and the test remains on its isolated branch.
 
