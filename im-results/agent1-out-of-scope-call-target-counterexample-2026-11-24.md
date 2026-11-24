@@ -88,7 +88,7 @@ This is a lexical-binding false negative, not an implicit-getter case. A unique 
 
 ## Required correction
 
-At minimum, verify that the scope returned by `scopes.get(callee.name)` is an ancestor of the call expression using the parent map. Prefer consuming a lexical resolver's exact binding identity and classifying this call as `free-host-candidate`. The existing read-only resolver prototype distinguishes `local(bindingId)` from `free-host-candidate`, but is not itself production authorization.
+At minimum, verify that the scope returned by `scopes.get(callee.name)` is an ancestor of the call expression using the parent map. Prefer consuming a lexical resolver's exact binding identity. In the current read-only Agent 1 resolver, this arbitrary injected name (`getExternal`) is classified as `unknown` with reason `unproven-free-name` because it is not in the finite HOST_NAMES set; a caller-supplied host-binding contract could classify a specifically declared injected name as `free-host-candidate`. Both unknown and free-host-candidate must fail closed absent a reviewed callable/realm contract. The resolver is not itself production authorization.
 
 Add this exact shape as a red regression before reusing the experimental direct-call guard. Keep the getter/implicit-dispatch red cases separate; fixing lexical target identity does not fix them.
 
