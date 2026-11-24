@@ -453,7 +453,7 @@ function summarizeAmbientCallEffects(ast,sourceType) {
         const reference=resolved.at(root.start);
         if(reference?.resolution.kind==='local') {
           const initializer=initializerForBinding(reference.resolution.bindingId);
-          if(initializer&&['ObjectExpression','ArrayExpression'].includes(initializer.type))
+          if(initializer&&['ObjectExpression','ArrayExpression','NewExpression','ClassExpression'].includes(initializer.type))
             return callableNodesForValue(initializer,seen);
         }
       }
