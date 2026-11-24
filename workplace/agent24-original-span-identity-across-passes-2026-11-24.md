@@ -91,7 +91,7 @@ The current source audit shows why a map cannot be implemented only inside `appl
 | `src/register-vm.js:142` | `applyEdits(source, edits)` | Interpreter helpers are appended afterward. |
 | `src/wasm-i32.js:312–323` | Body edits via `applyEdits` | Wasm initialization code is inserted afterward at the hashbang/directive offset. |
 | `src/affine-native.js:153,301` | `applyEdits(source, edits)` | No helper in these return paths. |
-| `src/sco.js:317,678–686` | Request-time literal spelling edits via `applyEdits`, then a new per-request `obfuscateFiles` call | Each request creates a new source generation; the plan/map must be request-specific and cannot be reused across concurrent requests. |
+| `src/sco.js:317,678–686` | Request-time literal spelling edits via `applyEdits`, then a new per-request `obfuscateFiles` call | Each request creates a new source generation; the plan/map must be request-specific and cannot be reused across concurrent requests. `varyLiteralSpellings` uses the same local observer heuristic; it must consume the full-graph request plan. A two-file CJS host-preload witness shows it mutates a helper-returned callback's source when the observer is outside source and the static group flag remains false (see `im-results/agent24-sco-crossfile-host-held-spelling-2026-11-24.md`, run 45336634434). |
 
 `src/source-observer-islands.js` is a separate proof-only module in this audit; it does not call `applyEdits` and is not a shared source-edit map. Experimental backends that cannot provide a complete mapping should consume the plan before transforming or explicitly decline the affected functions. A central map helper is useful, but each post-edit helper/prologue insertion and every non-`applyEdits` rewrite still needs explicit accounting.
 
