@@ -740,19 +740,28 @@ function validatePlanSemantics(plan,source,ast,trackedSourceRanges) {
   }
   const callableRange=byId.get(meta.callableSpanId);
   const readerRange=byId.get(meta.readerSpanId);
-  let callableMatches=0,readerMatches=0;
+  let callableMatches=0,readerMatches=0,callableTopLevel=false;
   /** @type {AstNode|null} */
   let currentReader=null;
-  walk(ast,node=>{
+  walk(ast,(node,parent,key,ancestors)=>{
     if(node.type==='FunctionDeclaration'&&node.start===callableRange?.startOffset&&
-       node.end===callableRange?.endOffset&&node.id?.name===meta.callableName)callableMatches++;
+       node.end===callableRange?.endOffset&&node.id?.name===meta.callableName) {
+      callableMatches++;
+      callableTopLevel=ancestors.every(ancestor=>
+        ancestor.type==='Program'||ancestor.type==='ExportNamedDeclaration');
+    }
     if(node.type==='CallExpression'&&node.start===readerRange?.startOffset&&
        node.end===readerRange?.endOffset&&isDirectFunctionSourceCall(node)&&
        node.arguments[0]?.name===meta.callableName) {readerMatches++;currentReader=node;}
   });
-  if(callableMatches!==1||readerMatches!==1||!currentReader)return false;
-  return inspectDeclarations(ast,currentReader).counts.get(meta.callableName)===1&&
-    !inspectDeclarations(ast,currentReader).counts.has('Function');
+  if(callableMatches!==1||readerMatches!==1||!callableTopLevel||!currentReader)return false;
+  const rebound=inspectDeclarations(ast,currentReader);
+  const readerTopLevel=rebound.readerParent?.type==='VariableDeclarator'&&
+    rebound.readerKey==='init'&&rebound.readerAncestors.every(ancestor=>
+      ancestor.type==='Program'||ancestor.type==='ExportNamedDeclaration'||
+      ancestor.type==='VariableDeclaration'||ancestor.type==='VariableDeclarator');
+  return readerTopLevel&&rebound.counts.get(meta.callableName)===1&&
+    !rebound.counts.has('Function');
 }
 
 module.exports={
