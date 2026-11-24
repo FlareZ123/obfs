@@ -356,3 +356,7 @@ Next: verify the hostile Chromium attack pinned CI and preserve red/green; exami
 ## 2026-11-24 23:58Z: refreshed parked PR341 base-distance metadata
 
 - Verified PR341 remains OPEN+DRAFT with explicit PARKED/research-only disposition, no rebase/merge planned, and no next action. Main head had advanced from the body’s prior 8bbed7 snapshot to 51f98a6ee580ed62857ec3796da52c81205b0772. GitHub compare reports donor head 3182169877168ac19b01f4374e83c7c17869451f is 21 ahead / 2766 behind, merge base 51267cd6fcfcc8f1ca21a53b88f7f088e985decf. Refreshed only that metadata line in PR body via update_pull_request; confirmed state open, draft true, updated_at 23:58:18Z.
+
+## 2026-11-25 00:00Z: acceptance-owner handoff
+
+- Sent Agent10 (acceptance owner) the exact shared-reference evidence and outstanding gates in communications/agent10/20261125T0000Z_agent41-shared-reference-acceptance-handoff.md, commit 813ce5cd43f780aaa0da120f2651ada680b5bdde. Reiterated: 443/443 Node differential and 38/38 host-lock tests pass on both OS at 1c6127; overall manual workflow red at stale exported-reader fixture; browser property proof not run; donor must integrate through Agent3/Agent1, fix/redesign fixture, add real Chromium property parity, then full current-main acceptance.
