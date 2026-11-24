@@ -687,3 +687,8 @@
 ### Bounded producer yield recorded (18:18Z)
 
 - The source-observation producer test passed in the full corpus. Its paired CPU fixture reports only narrow positive yield: small = one private property + two binding rewrites + zero literal rewrites; medium = one private property + 34 binding rewrites + zero literal rewrites. The FramePosition guard rejects the decoder prologue, so no literal/string decoder rewrite is measured. This is compatibility proof, not a demonstrated security advantage.
+
+
+### Source-paired failure-slice pin clarification (18:20Z)
+
+- Retrieved failed-job logs for both 44-test source-paired controls. Frozen-base run 45423430520 checked out `deddc405307bf9bb39d7cb5a0b5eba36edf58593`; candidate run 45423442804 checked out `f507f782fb6d70367153686cbe1c1f833433d5c7`. Each ran 44 subtests with 32 pass / 12 fail on both Ubuntu and Windows, with the same failure names. The comprehensive current candidate run is later pin d56cc8c1. These controls establish the 12-case failure slice on those earlier base/candidate pins, not a full-suite baseline comparison. Exact pins added to the acceptance report.
