@@ -164,8 +164,17 @@ for(const mode of /** @type {const} */(['coo','sno'])) {
         nativeSource:before.source,emittedSource:after.source
       };
       console.log('IMPLICIT_DISPATCH_RESULT '+JSON.stringify(result));
-      assert.equal(after.source,before.source,
-        'Current-main implicit-dispatch source mismatch: '+JSON.stringify(result));
+      if(scenario.kind==='with') {
+        assert.equal(output.metrics.properties,0,
+          'The With control preserves source by refusing file-wide property yield: '+JSON.stringify(result));
+        assert.ok(String(output.code).includes('unrelatedField'),
+          'The With control should leave the unrelated property unchanged');
+      } else {
+        assert.ok(output.metrics.properties>=1,
+          'Each implicit-dispatch red must retain nonzero property rewrite yield: '+JSON.stringify(result));
+        assert.ok(!String(output.code).includes('unrelatedField'),
+          'Each implicit-dispatch red must rename the unrelated plain() control: '+JSON.stringify(result));
+      }
       assert.equal(after.source,before.source,
         'Current-main implicit-dispatch source mismatch: '+JSON.stringify(result));
     });
