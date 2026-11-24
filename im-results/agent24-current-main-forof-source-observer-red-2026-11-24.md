@@ -22,7 +22,8 @@ function hidden(iterable) {
   return owner.secretField;
 }
 function publicReader(iterable) { return hidden(iterable); }
-publicReader(iterable);
+module.exports = publicReader; // host-callable CommonJS entrypoint
+publicReader(iterable); // local stand-in for a host call with a supplied iterable
 console.log(observation.source);
 ```
 
