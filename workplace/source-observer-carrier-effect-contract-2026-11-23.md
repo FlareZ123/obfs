@@ -509,3 +509,28 @@ The revised typedef block above is the canonical *proposed* schema extension. It
 ### Decision and next evidence boundary
 
 The new evidence strengthens the NO-GO rather than selecting a candidate. Do not port a pass-local ToPrimitive/Proxy/Promise guard or expand the existing With/file-wide veto as a substitute for the graph. No new parallel PR or broad gate is justified. Agent 3 remains the integration owner and Agent 10 the sole comprehensive acceptance owner. The next candidate decision must still identify one exact current-main base, donor set, consumer list, focused red/green and unrelated positive-yield controls, mode-specific COO browser/SCO actual-handler/SNO CLI coverage, then one full immutable two-platform gate and strict 2.5× adversarial performance evidence. Until then preserve the existing fail-closed fallback and keep **NO-GO / RELEASE-BLOCKED**.
+
+
+## Verified current-main consumer map (24 November 2026 source audit)
+
+This map records where the existing boolean/syntactic observer result currently gates transformations. It is a source-code audit of main, not proof that every callsite is semantically complete.
+
+| Consumer | Current gate | Required shared-plan integration |
+| --- | --- | --- |
+| `src/ast.js:216` `observesFunctionSource` | Central syntax recognizer with AST-local cache; it does not represent the new implicit-dispatch active-frame graph. | Retain syntax detectors as effect producers, but emit qualified HostEffectRecords/edges into the same immutable plan. |
+| `src/properties.js:378` `proveLocalObject` | Local object/alias proof returns null when the local AST scanner observes function source. | Consume callable/value/activation effects and close over only affected owner/callable spans where proved. |
+| `src/cross-properties.js:2224` | Any module with a recognized function/distributed-source observer declines the cross-file property graph. | Use source-unit-qualified identities and per-effect cross-file semantic closure; preserve unrelated safe owners. |
+| `src/identifiers.js:44`; `src/strings.js:62` | Each transform independently returns original source when its local AST scanner fires. | Consume the same ExactSource/CallableMetadata/UnknownHostEffect closure; do not invent pass-local observer vocabularies. |
+| `src/core.js:2008-2049, 2094-2248` | Computes `remoteSourceObserver` / `hostLockSourceObserver`; disables cross-file properties, string encoding and identifier renaming; blocks selected VM/CFG/Wasm/affine backends; allows only selected local-property source islands through a separate exception. Classic scripts also skip several transforms. | Build one plan before edits, pass the same source generation to every consumer, and make unsupported spans/closures explicit. The island policy must consume the plan rather than become a second resolver. |
+| `src/statement-flow.js:189`, `src/expression-vm.js:155`, `src/register-vm.js:97`, `src/wasm-i32.js:232`, `src/affine-native.js:117,232` | Each experimental backend independently calls `observesFunctionSource` (plus backend-specific checks). | Each backend must consume the shared plan or explicitly decline selected functions whose source/activation closure is affected. |
+| `src/sco.js:583-590,678-685` | Handler construction computes `interfileSourceObserver`; when recognized it suppresses request-time literal spelling variation and passes `properties:false, identifiers:false` to per-request single-file `obfuscateFiles`. | Bind the plan to server/client partition and request variant generation; include host-provided iterators/coercion/thenables and recompute or invalidate after every request-time edit. |
+
+The current implementation has no `src/source-observation-plan.js` or equivalent shared graph module. `src/source-observer-islands.js` is a separate opt-in ESM grammar/proof with its own import/binding checks; it is a bounded donor, not the shared plan. The existing boolean scanner is therefore consumed at several independent levels, and a local fix in only `properties.js` would not establish consistent behavior across the other passes.
+
+### Pipeline consequence
+
+The plan must be computed from the exact original source units before any backend or rename pass changes offsets. The pipeline must either:
+- keep the immutable plan tied to that generation and let each consumer use its original spans; or
+- produce a validated edit map and invalidate/recompute all affected bindings, callable definitions, host effects, source spans and closures after edits.
+
+SCO requires a fresh request/variant identity because `createScoHandler` performs per-request spelling variation and calls the single-file compiler on the resulting source. Never reuse a mutable plan or an observer allowlist across concurrent requests. This consumer audit narrows the implementation inventory; it does not select a compiler candidate or relax the NO-GO.
