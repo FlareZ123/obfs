@@ -244,6 +244,12 @@ test('MappedSourceRange composes directly through the next generation without re
   assert.equal(secondRange.originSpanId,originalSpan.spanId);
   assert.equal(secondRange.sourceUnitRef,unit);
   assert.equal(secondRange.sourceGeneration,second.map.toGeneration);
+  assert.equal(mapMappedSourceRange(second.map,{
+    ...firstRange,sourceGeneration:'stale-generation'
+  },first.code,second.code),null,'non-adjacent generations must not compose');
+  assert.equal(mapMappedSourceRange(second.map,{
+    ...firstRange,sourceUnitRef:'unit:foreign'
+  },first.code,second.code),null,'foreign source units must not compose');
   assert.equal(second.code.slice(secondRange.startOffset,secondRange.endOffset),
     input.slice(originalSpan.startOffset,originalSpan.endOffset));
   const damaged=applyEditsWithMap(second.code,[{
