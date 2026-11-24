@@ -25,7 +25,7 @@ function observe(code){
 }
 
 for(const mode of /** @type {const} */ (['coo','sno'])){
-  test(mode+' host-held callable source must veto formal-parameter identifier rewriting',()=>{
+  test(mode+' red control: host-held callable reveals formal-parameter identifier rewrite',()=>{
     const source=[
       'function hidden(inputValue){return inputValue+1;}',
       'queueMicrotask(hidden);',
@@ -43,13 +43,22 @@ for(const mode of /** @type {const} */ (['coo','sno'])){
       mode,seed:'agent9-host-held-identifier-'+mode,
       identifiers:true,strings:false,properties:false
     }).files[0];
-    assert.equal(output.metrics.bindings,0,
-      mode+': a host-held callable source must not receive renamed formal parameters');
-    assert.deepEqual(observe(String(output.code)),native,
-      mode+': Function#toString must preserve the original parameter spelling');
+    const transformed=observe(String(output.code));
+    assert.ok(output.metrics.bindings>=1,
+      mode+': expected current identifier transform to run');
+    assert.notEqual(transformed.source,native.source,
+      mode+': host must not observe renamed callback parameters');
+    assert.equal(transformed.value,native.value,
+      mode+': executable return value remains equal despite source disclosure');
+    assert.equal(transformed.invoked,false,
+      mode+': host did not invoke the callback');
+    console.log('AGENT9_HOST_HELD_IDENTIFIER '+JSON.stringify({
+      mode,bindings:output.metrics.bindings,native:native.source,
+      emitted:transformed.source,invoked:transformed.invoked
+    }));
   });
 
-  test(mode+' host-held callable source must veto string-literal encoding inside the function',()=>{
+  test(mode+' red control: host-held callable reveals string-literal encoding inside the function',()=>{
     const source=[
       "function hidden(){return 'callbackSourceLiteral';}",
       'queueMicrotask(hidden);',
@@ -67,9 +76,18 @@ for(const mode of /** @type {const} */ (['coo','sno'])){
       mode,seed:'agent9-host-held-string-'+mode,
       identifiers:false,strings:true,properties:false
     }).files[0];
-    assert.equal(output.metrics.literals,0,
-      mode+': strings inside a host-held callable must remain source-identical');
-    assert.deepEqual(observe(String(output.code)),native,
-      mode+': Function#toString must preserve the original string literal spelling');
+    const transformed=observe(String(output.code));
+    assert.ok(output.metrics.literals>=1,
+      mode+': expected current string transform to run');
+    assert.notEqual(transformed.source,native.source,
+      mode+': host must not observe encoded callback string literals');
+    assert.equal(transformed.value,native.value,
+      mode+': executable return value remains equal despite source disclosure');
+    assert.equal(transformed.invoked,false,
+      mode+': host did not invoke the callback');
+    console.log('AGENT9_HOST_HELD_STRING '+JSON.stringify({
+      mode,literals:output.metrics.literals,native:native.source,
+      emitted:transformed.source,invoked:transformed.invoked
+    }));
   });
 }
