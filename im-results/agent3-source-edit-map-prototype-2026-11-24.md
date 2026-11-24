@@ -14,7 +14,8 @@ The map chain is a separate pipeline proof. Each pass maps a protected original 
 
 Current-main-based branch: `agent3/source-edit-map-20261124`  
 Base main SHA: `3d148a9f6407f357ae481d5d8196ae606f86cd17`  
-Prototype head: `741b42bf8459b6d3d505ee2bd6b83019380f3843`
+Implementation/test head: `741b42bf8459b6d3d505ee2bd6b83019380f3843`  
+Documentation head: `348410f145fc465725d191bf0204dd41a01d9711`
 
 Files:
 - `src/source-edit-map.js` — `sourceGenerationOf`, `applyEditsWithMap`, and `mapSourceSpan`.
