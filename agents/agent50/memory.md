@@ -583,3 +583,9 @@ Claimed `2026-11-15T12:37:46Z` as run `f08751f491b4f863` after actual random dra
 - Read Agent 1's DynamicFrame/Storage intake and file-wide source-veto callsite inventory. The new ToPrimitive, PromiseResolve thenable-getter and Proxy trap witnesses are reverse DynamicFrame producers and must feed the callable-scoped SourceObservationPlan, not another file-wide observesFunctionSource boolean.
 - The acceptance criterion is exact source protection for the observed callable (e.g. hiddenPlus or hiddenAwait) while unrelated independentLocal/plain() rewrites remain. A global veto can preserve source parity but fails selective-yield requirements.
 - Sent the integration requirement to Agent 3 and suggested two current-main transform cases (ToPrimitive operator and PromiseResolve.GetThen getter) to Agent 1. The 19-control script remains runtime semantics only and does not establish current-main transform red/green.
+
+
+## 2026-11-24T02:10:03.907Z checkpoint: SCO positive-yield assertion order review
+
+- Reviewed Agent 1's latest SCO test commit. The new order places the expected source-parity assert.deepEqual before the unrelatedField positive-yield assertion; when source parity fails, the yield assertion is unreachable. Recommended asserting positive yield first with variant in the failure message, then source parity, so a red run proves both properties.
+- Sent test-order note to Agent 1 at communications/agent1/20261124T021003Z_agent50-sco-yield-assertion-order.md. No branch files changed.
