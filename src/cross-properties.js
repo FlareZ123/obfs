@@ -2,6 +2,7 @@
 
 const path = require('node:path');
 const {createHash} = require('node:crypto');
+const {resolveLexicalReferences} = require('../workplace/agent1-lexical-reference-resolver');
 const {walk,applyEdits,parse,observesFunctionSource,observesDistributedSource,staticString,collectDirectCarrierFactories} = require('./ast');
 const {collectBindings,proveLocalObject,staticName,patternPropertyEdits,inOperatorPropertyEdits,isLiteralValue,isPrimitiveConstantExpression,ownPropertyName,singleUseFactoryObject} = require('./properties');
 const {proveDirectReaderPrimitives}=require('./direct-reader-primitives');
@@ -2153,21 +2154,55 @@ function renameCrossFileProperties(files,seed) {
         if(name!==null)knownNames.set(entry.id.name,name);
       }
     }
-    // An indirect expression may still be the global receiver when an
-    // ordinary member read extracts a mutable intrinsic capability.
-    // Track only source-proven possible global values; ordinary records with
-    // a same-named key are outside this admission guard.
-    const possibleGlobalRoots=new Set(['globalThis','window','self','global']);
-    const possibleGlobalReturningCalls=new Set();
+    // Reuse Agent 1's read-only lexical resolver rather than equating a
+    // spelling such as "globalThis" with the ambient global object. Binding
+    // IDs are local to this parsed module; the map never crosses source units.
+    const lexical=resolveLexicalReferences(module.ast,'module');
+    /** @type {WeakMap<AstNode,{kind:'local',name:string,bindingId:number}|{kind:'free-host-candidate',name:string}|{kind:'unknown',name:string,reason:string}>} */
+    const lexicalReferences=new WeakMap();
+    for(const reference of lexical.references)
+      lexicalReferences.set(reference.node,reference.resolution);
+    /** @type {WeakMap<AstNode,number>} */
+    const declarationBindingIds=new WeakMap();
+    for(const declaration of lexical.declarations) {
+      if(typeof declaration.bindingId==='number')
+        declarationBindingIds.set(declaration.node,declaration.bindingId);
+    }
+    const globalRootNames=new Set(['globalThis','window','self','global']);
+    const possibleGlobalBindings=new Set();
+    const possibleGlobalReturningBindings=new Set();
+    const knownLocalFunctionBindings=new Set();
+    walk(module.ast,(node,parent)=>{
+      if(!['FunctionDeclaration','FunctionExpression','ArrowFunctionExpression'].includes(node.type))return;
+      const candidate=node.type==='FunctionDeclaration'?node.id:
+        parent?.type==='VariableDeclarator'&&parent.init===node?parent.id:null;
+      if(candidate?.type==='Identifier') {
+        const bindingId=declarationBindingIds.get(candidate);
+        if(typeof bindingId==='number')knownLocalFunctionBindings.add(bindingId);
+      }
+    });
     /**
      * @param {AstNode|null|undefined} value
      * @returns {boolean}
      */
     function possibleGlobalValue(value) {
       if(!value)return false;
-      if(value.type==='Identifier')return possibleGlobalRoots.has(value.name);
-      if(value.type==='CallExpression'&&value.callee.type==='Identifier'&&
-         possibleGlobalReturningCalls.has(value.callee.name))return true;
+      if(value.type==='Identifier') {
+        const resolution=lexicalReferences.get(value);
+        if(!resolution||resolution.kind==='unknown')return true;
+        if(resolution.kind==='free-host-candidate')
+          return globalRootNames.has(value.name);
+        return possibleGlobalBindings.has(resolution.bindingId);
+      }
+      if(value.type==='CallExpression') {
+        if(value.callee.type!=='Identifier')return true;
+        const resolution=lexicalReferences.get(value.callee);
+        if(!resolution||resolution.kind!=='local')return true;
+        return possibleGlobalReturningBindings.has(resolution.bindingId)||
+          !knownLocalFunctionBindings.has(resolution.bindingId);
+      }
+      if(value.type==='ChainExpression')
+        return possibleGlobalValue(value.expression);
       if(value.type==='SequenceExpression')
         return possibleGlobalValue(value.expressions[value.expressions.length-1]);
       if(value.type==='ConditionalExpression')
@@ -2190,7 +2225,9 @@ function renameCrossFileProperties(files,seed) {
         if(['FunctionDeclaration','FunctionExpression','ArrowFunctionExpression'].includes(node.type)) {
           const candidate=node.type==='FunctionDeclaration'?node.id:
             parent?.type==='VariableDeclarator'&&parent.init===node?parent.id:null;
-          if(candidate?.type==='Identifier'&&!possibleGlobalReturningCalls.has(candidate.name)) {
+          const bindingId=candidate?.type==='Identifier'?
+            declarationBindingIds.get(candidate):undefined;
+          if(typeof bindingId==='number'&&!possibleGlobalReturningBindings.has(bindingId)) {
             let returnsGlobal=node.type==='ArrowFunctionExpression'&&
               node.expression&&possibleGlobalValue(node.body);
             walk(node.body,part=>{
@@ -2198,21 +2235,26 @@ function renameCrossFileProperties(files,seed) {
                 returnsGlobal=true;
             });
             if(returnsGlobal) {
-              possibleGlobalReturningCalls.add(candidate.name);
+              possibleGlobalReturningBindings.add(bindingId);
               rootChanged=true;
             }
           }
         }
-        const binding=node.type==='VariableDeclarator'&&
+        const bindingNode=node.type==='VariableDeclarator'&&
           node.id.type==='Identifier'?node.id:
           node.type==='AssignmentExpression'&&
             node.left.type==='Identifier'?node.left:null;
-        const source=node.type==='VariableDeclarator'?node.init:
+        const value=node.type==='VariableDeclarator'?node.init:
           node.type==='AssignmentExpression'?node.right:null;
-        if(binding&&!possibleGlobalRoots.has(binding.name)&&
-           possibleGlobalValue(source)) {
-          possibleGlobalRoots.add(binding.name);
-          rootChanged=true;
+        if(bindingNode&&possibleGlobalValue(value)) {
+          const bindingId=node.type==='VariableDeclarator'?
+            declarationBindingIds.get(bindingNode):
+            lexicalReferences.get(bindingNode)?.kind==='local'?
+              lexicalReferences.get(bindingNode).bindingId:undefined;
+          if(typeof bindingId==='number'&&!possibleGlobalBindings.has(bindingId)) {
+            possibleGlobalBindings.add(bindingId);
+            rootChanged=true;
+          }
         }
       });
     }while(rootChanged);
