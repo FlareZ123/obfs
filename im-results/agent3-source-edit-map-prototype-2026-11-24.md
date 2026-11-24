@@ -15,7 +15,7 @@ The map chain is a separate pipeline proof. Each pass maps a protected original 
 Current-main-based branch: `agent3/source-edit-map-20261124`  
 Base main SHA: `3d148a9f6407f357ae481d5d8196ae606f86cd17`  
 Initial implementation/test head: `741b42bf8459b6d3d505ee2bd6b83019380f3843`  
-Current implementation/test head: `24a1b331978414930b86782573a4571c380f1c7e`  
+Current implementation/test head: `423e53612324ba534f3163ae7302511e9d267218`  
 Documentation head before this update: `348410f145fc465725d191bf0204dd41a01d9711`
 
 Files:
@@ -42,7 +42,8 @@ The parser contract identifier supplied by the caller must include the actual pa
 
 Latest focused map run [45345729557](https://github.com/FlareZ123/obfs/actions/runs/45345729557) and corrected transform-consumer run [45347217581](https://github.com/FlareZ123/obfs/actions/runs/45347217581) passed on Ubuntu and Windows, Node 22.23.4:
 - 17 focused map tests passed, including parser-contract identity, lone high/low surrogate separation, response-scoped SourceUnitRef isolation, zero-width replacement/deletion boundaries, and 10,000 deterministic span checks;
-- 5 transform integration tests passed: protected host-held callback through identifier/string edits, local-property span filtering, host-only unprotected red control, direct `Function.prototype.toString` fail-closed behavior, and stale-generation rejection;
+- 5 local transform integration tests passed: protected host-held callback through identifier/string edits, local-property span filtering, host-only unprotected red control, direct `Function.prototype.toString` fail-closed behavior, and stale-generation rejection;
+- 4 cross-file property map tests passed in [45348271818](https://github.com/FlareZ123/obfs/actions/runs/45348271818), including per-module map emission, changed-span rejection, unchanged importer-span mapping, complete SourceUnitRef coverage, canonical parser contract, unique module identities, and non-string module fail-closed behavior; existing cross-file-reader regression passed in [45348378120](https://github.com/FlareZ123/obfs/actions/runs/45348378120);
 - project JSDoc, external JSDoc and paired/complete-suite budget evaluator JSDoc passed.
 
 Both focused workflows intentionally skipped the comprehensive `node22` job. This is not a full-suite or release acceptance receipt.
@@ -53,7 +54,7 @@ The prototype reuses and extends Agent 1's existing `sims/utf16-edit-map-referen
 
 ## First real consumer slice
 
-`renameLocalProperties`, `renameLocalIdentifiers` and `encodeStrings` now optionally emit generation-qualified maps and accept validated protected spans. Local properties decline the entire candidate object when any key/read/pattern edit intersects a protected span; identifiers skip overlapping nodes; strings skip overlapping literals and include the decoder prologue in their map. All three retain their existing whole-file `observesFunctionSource` veto. A protected span does not authorize bypass: the prototype's temporary raw `sourceObserverCoverageComplete` boolean was rejected after review and is now explicitly refused by all three APIs. Direct `Function.prototype.toString` remains fail-closed until a validated plan/proof exists.
+`renameLocalProperties`, `renameLocalIdentifiers`, `encodeStrings` and `renameCrossFileProperties` now optionally emit generation-qualified maps and accept validated source-unit context. Local properties decline the entire candidate object when any key/read/pattern edit intersects a protected span; identifiers skip overlapping nodes; strings skip overlapping literals and include the decoder prologue in their map. All local passes retain their existing whole-file `observesFunctionSource` veto. The cross-file property pass emits one map per module only when the caller supplies a complete module-path map with canonical parser contracts and unique SourceUnitRefs; it declines if any declared module source is not a string. It does not itself filter protected spans; `mapSourceSpan` returns null for a span intersecting a cross-file edit, and a future core consumer must roll back the whole pass. A protected span does not authorize bypass: the prototype's temporary raw `sourceObserverCoverageComplete` boolean was rejected after review and is now explicitly refused by all three APIs. Direct `Function.prototype.toString` remains fail-closed until a validated plan/proof exists.
 
 A transform-level test manually supplies a span for a host-held `queueMicrotask` callback (a host observer invisible to source-only heuristics), maps it through identifier rewriting and string encoding, reparses/rebuilds the current span, and verifies the hostile host sees the exact original callback source while an unrelated top-level literal encodes. Its no-span red control proves observable mutation. A separate local-property test proves edits outside a protected span while declining edits inside; a direct in-source `Function.prototype.toString` test proves all passes remain fail-closed and raw boolean overrides are rejected. The canonical plan producer and core wiring remain absent.
 
