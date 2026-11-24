@@ -64,7 +64,8 @@ function sourceFor(scenario){
 function padOwnerKeyToOriginalWidth(code){
   const match=code.match(/owner\s*=\s*\{\s*([A-Za-z_$][\w$]*)\s*:\s*1\s*\}/u);
   assert.ok(match,'expected a generated owner key in emitted code');
-  const generated=match[1];
+  const generated=match[1]??'';
+  assert.ok(generated.length>0,'generated owner key must be nonempty');
   const original='longPrivatePropertyName';
   const delta=original.length-generated.length;
   assert.ok(delta>=0,'generated key must not exceed the original key width');
@@ -207,7 +208,7 @@ async function main(){
   const cjsPadding=new Map();
   /** @type {Map<string,{code:string,generated:string,padded:string,delta:number}>} */
   const esmPadding=new Map();
-  /** @type {Array<{mode:string,delta:number,nativeColumn:number,compiledColumn:number,paddedColumn:number,generated:string,padded:string}>} */
+  /** @type {Array<{mode:string,delta:number,nativeColumn:number|null,compiledColumn:number|null,paddedColumn:number|null,generated:string,padded:string}>} */
   const paddingResults=[];
   /** @type {Array<{kind:string,mode:string,properties:number,deferred:boolean,patchedMap:boolean,native:Observation,compiled:Observation}>} */
   const results=[];
