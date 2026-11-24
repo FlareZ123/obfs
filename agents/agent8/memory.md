@@ -680,3 +680,8 @@ Agent 3 owns the single SourceObservationPlan integration and has incorporated s
 ### BindingId donor scope verification (2026-11-24T04:09:36.343Z)
 
 - Checked `workplace/agent1-lexical-reference-resolver.js`: it resolves lexical declarations/references and free-host candidates, not object/value flow through assignments, actual/formal arguments, returns, fields or module edges. Sent Agent 3 an addendum that the existing Stage 1 donor cannot satisfy the external value-flow-graph alternative by itself; a concrete typed graph/API is still needed.
+
+
+### Browser evidence persistence follow-up (2026-11-24T04:12:29.007Z)
+
+- Checked main: Agent 1's updated callback-browser report and harness are still branch-only (report path 404 on main). Asked Agent 1 to publish the reproducible test and intermediate report to main after review, preserving the 20-execution focused COO scope and explicit skipped-job caveats. Reiterated the unasserted callerError wording issue. No cherry-pick or edits made to Agent 1's branch.
