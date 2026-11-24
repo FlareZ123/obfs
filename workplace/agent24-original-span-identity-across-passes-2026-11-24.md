@@ -68,6 +68,12 @@ This is illustrative, not a proposed final schema. The key is exact source-unit/
 
 All passes analyze the original AST and immutable plan, return conflict-checked edits against original byte ranges, and the compiler applies the combined edit set once. This avoids rebasing but requires refactoring passes that currently consume prior pass output.
 
+## Existing edit-application seam
+
+There is a practical shared place to start: `src/ast.js:62` `applyEdits(source, edits)` already sorts edits in descending offset order and rejects overlapping/invalid ranges, but returns only the new source string. The identifier, string, local-property and cross-property modules all import this helper. It could grow a companion `applyEditsWithMap` (or return `{code, editMap}`) that derives a piecewise old→new map from the original edit list before applying it.
+
+For each source unit, the map should include unchanged segments with exact offset translation, replaced/deleted segments with no exact original-node mapping, and inserted helper segments with synthetic provenance. Each pass would return its new generation plus map; the core pipeline would compose maps and pass the current→original mapping to the next consumer. Any protected span intersecting a replaced/deleted region, or mapping to more than one current segment, must fail closed. This does not solve identity for transforms that do not use `applyEdits`, so the full consumer inventory still needs checking.
+
 ## Minimum acceptance tests
 
 1. Put a long private identifier before a host-observed callback. Rename the identifier (changing its width); the later string consumer must still protect the callback's exact original source.
