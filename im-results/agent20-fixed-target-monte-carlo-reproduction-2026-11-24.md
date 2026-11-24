@@ -4,7 +4,7 @@
 
 ## Scope
 
-The reproduction loaded the exact committed source file `sims/reanchor-arbitrary-basis-monte-carlo.py` at SHA `871468f4c1ac3489465b760cdefbb96b1d259449` with `runpy.run_path`, then called its unmodified `random_triangular_oracle`, `random_ordered_basis`, and `reanchor_oracle_trial` helpers. The `fixed_target_success_monte_carlo` loop was mirrored while preserving one exact Python `random.Random` state across three process batches (2+2+1 functions) by saving/restoring that state. The full CLI invocation itself timed out at the local command limit, so this is an exact-helper reproduction of the fixed-target loop, not a completed verbatim CLI run.
+The reproduction loaded the exact committed source file `sims/reanchor-arbitrary-basis-monte-carlo.py` at SHA `871468f4c1ac3489465b760cdefbb96b1d259449` with `runpy.run_path`, then called its unmodified `random_triangular_oracle`, `random_ordered_basis`, and `reanchor_oracle_trial` helpers. The `fixed_target_success_monte_carlo` loop was mirrored while preserving one exact Python `random.Random` state across three process batches (2+2+1 functions) by saving/restoring that state. The full five-function CLI invocation exceeded the local 240-second command limit. The exact CLI did complete a 10-trial smoke test and a 20,000-trial single-function run; function 0 returned target input 65,602, target output 815,685, zero successes and zero compatible bases, matching the first row below. Functions 1–4 were then executed through the exact imported helpers with the same continuous RNG state. Thus the first row is a verbatim CLI result and the remaining rows are exact-helper executions; the full five-function CLI itself did not complete in one process.
 
 Configuration:
 - width: 20
