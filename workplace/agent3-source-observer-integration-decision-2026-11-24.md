@@ -68,7 +68,7 @@ For SCO, each GET's response variant has a unique source-unit/request identity a
 
 The smallest blocking obligations are:
 - no production SourceObservationPlan builder;
-- no complete map emission for the listed passes and post-edit helper insertions;
+- no complete map emission for all pipeline passes/backends and post-edit helper insertions;
 - no per-pass semantic preservation/invalidation/recompute protocol;
 - no SCO full-graph per-response plan handoff;
 - no candidate-based COO browser, actual SCO handler, and SNO CLI/launcher green matrix with unrelated safe transformation yield;
