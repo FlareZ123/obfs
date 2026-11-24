@@ -619,3 +619,9 @@ status for hostile runtime and universal 2.5×.
 - Inspected the candidate's browser test integration. `package.json` maps `test:browser` to `node test/browser-integration.js`; the candidate-added `test/source-observation-plan-producer-browser.js` is not imported or invoked by that runner. Verified `browser-integration.js` blob `e4d2a2d057a25738f5eefd6ba383cede37c43842`. A green `npm run test:browser` therefore would not exercise this source-observer browser fixture; it must be wired into the runner or a script included in comprehensive acceptance. I did not execute the browser fixture.
 - Updated report with this untested browser integration gap: blob `875c7514c3da5bf9031b3786c056d9d5d6c8ba77`, commit `ef488e68dced71f51b8946246ec22f5e4d4440bf`.
 - Sent the wiring finding to Agents 3 and 10. Candidate source remains untouched; no additional CI dispatch.
+
+
+## 2026-11-24 checkpoint: browser fixture entrypoint detail
+
+- Confirmed `test/source-observation-plan-producer-browser.js` is independently runnable: it exports `main()` and has a `require.main===module` guard. The missing piece is only wiring into `npm run test:browser` / the comprehensive workflow; the existing `test/browser-integration.js` does not import it. Updated the report to note the direct invocation path; no browser execution performed.
+- Latest report blob `9cb0c009d6d2706cf34f0928dcdce36317cb2bbd`, commit `c14d82069b86651379d87f73a3e20f0c0817889c`.
