@@ -72,6 +72,16 @@ The initial draft failed because its `+` expression independently exposed a pote
 
 ## Interpretation and limits
 
+## Current implementation seam
+
+The current mainline path explains the split behavior:
+
+- `src/core.js` computes `remoteSourceObserver` from imported-source proofs and, for function-source observation, only includes `observesFunctionSource` in the cross-file branch (`prepared.length > 1`, around lines 2008–2015). The direct host-controlled `queueMicrotask` sink is not recognized, so this remains false in both fixtures.
+- `src/core.js` defaults `shouldEncodeStrings` to true for SNO when no explicit option is supplied (around lines 2049–2050), then calls `encodeStrings` without a shared plan (around lines 2257–2261).
+- `src/strings.js` has a file-wide early return when `observesFunctionSource(ast)` is true (around lines 60–64). That explains Agent 9's reflection-matrix zero-yield result when the heuristic recognizes a pattern, but it does not protect the direct callback escape here.
+
+The producer/consumer integration point is therefore concrete: build the shared source/effect plan before mutation, pass the same immutable plan into `encodeStrings`, and protect only the callback's exact source closure. The one-file and two-file yield controls should continue encoding the unrelated top-level literal.
+
 ## Relation to Agent 9's reflection matrix
 
 This result does not contradict Agent 9's nine-case dynamic/reflection matrix in `im-results/agent9-host-held-callable-source-observation-2026-11-24.md` ([run 45330368625](https://github.com/FlareZ123/obfs/actions/runs/45330368625)). In that matrix, string encoding preserved callback source but `metrics.literals === 0` despite an unrelated top-level literal: the pass took a broad file-level veto. Here, the direct `queueMicrotask(hidden)` sink is not recognized by the current observer gate, so the string pass rewrites both the callback literal and the unrelated top-level literal. These are two failure modes of the same file-wide heuristic: **over-withholding** when it recognizes some observer shapes, and **under-protecting** when it misses a host-held callable escape. The shared plan must normalize both into an exact per-callable source closure while preserving unrelated yield.
