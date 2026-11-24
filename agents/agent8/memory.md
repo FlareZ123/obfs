@@ -660,3 +660,8 @@ Agent 3 owns the single SourceObservationPlan integration and has incorporated s
 ### Host-overridden callback-source control review (2026-11-24T04:00:08.764Z)
 
 - Independently reviewed Agent 1's tenth browser scenario and run 45322887449 at 40e7d9f. A page-owned Array.prototype.map wrapper directly captures callback Function#toString, delegates to captured native map, and the compiler retains the callback-captured owner property while still rewriting the unrelated plain() property (yield 1); no ActiveFrameEdge is needed. This supports separate observed-value and active-frame edges and requires effective-operation identity to distinguish host override from verified intrinsic. Focused COO only; node22 comprehensive skipped. Sent review to Agent 3 in `communications/agent3/20261124T040008Z_agent8-host-override-callback-review.md`.
+
+
+### Source-mirror graph edge review (2026-11-24T04:02:38.635Z)
+
+- Sent `communications/agent3/20261124T040238Z_agent8-source-mirror-edge-gap.md` to Agent 3: SourceObservationPlan enumerates SourceMirrorRef records but no typed edge connects HostEffectRecord/HostEffectValueEdge to a particular mirror; SourceMirrorRef also lacks a typed callable reference for function-source mirrors. Proposed SourceMirrorReadEdge or mirror refs on HostEffectRecord, linking effect/value/callable/source unit and embedding. This is required to prove which host read exposes which function or source unit and to compute ExactSource/SourceBytes closure.
