@@ -11,7 +11,7 @@ const {evaluateHybridModel}=require('./rankfive-top-derivative-projected-affine-
 
 /** @typedef {{origin:string,method:string,credential:string}} Access */
 /** @typedef {{kind:'projected-affine',bits:number,rank:5,table:number[],coordinates:number[],affineCorrections:number[]}|{kind:'anf',bits:number,lower:Array<[number,number]>,top:Array<[number,number]>,degree:4|5}} HybridModel */
-/** @typedef {{fastPathSuccess:boolean,witnessTrials:number,witnessDrawCount:number,witnessProbability:number,witnessFailureBound:number,quotientRank:number|null,fastQueries:number,verificationQueries:number,verificationSamples:number,verificationCap:number,verificationDelta:number,falseAcceptanceBound:number,verificationPassed:boolean,fallbackUsed:boolean,fallbackReason:string|null,fallbackQueries:number,exactByInterpolation:boolean,verifyDrawCount?:number}} HybridDiagnostics */
+/** @typedef {{fastPathSuccess:boolean,witnessTrials:number,witnessDrawCount:number,witnessProbability:number,witnessFailureBound:number,quotientRank:number|null,coordinateStrategy:'shift'|'signature'|null,fixedPairPassed:boolean|null,fastQueries:number,verificationQueries:number,verificationSamples:number,verificationCap:number,verificationDelta:number,falseAcceptanceBound:number,verificationPassed:boolean,fallbackUsed:boolean,fallbackReason:string|null,fallbackQueries:number,exactByInterpolation:boolean,verifyDrawCount?:number,verifierTapeReleasedAfterCandidate?:boolean}} HybridDiagnostics */
 /** @typedef {(model:unknown,input:number)=>number} ModelEvaluator */
 /** @typedef {{model:HybridModel,queries:number,transcriptSha256:string,diagnostics:HybridDiagnostics}} CloneResult */
 /** @typedef {{
@@ -40,16 +40,20 @@ class NeedHttpQuery extends Error {
  * @returns {Promise<CloneResult>}
  */
 async function cloneHybridFromHttp(access,witnessDraws,verifyDraws){
+  assert.equal(verifyDraws.length,726,'The verifier tape must match the fixed RM sample cap');
   const sharedBuffer=new SharedArrayBuffer(Int32Array.BYTES_PER_ELEMENT*2);
   const shared=new Int32Array(sharedBuffer);
+  const verifyBuffer=new SharedArrayBuffer(Int32Array.BYTES_PER_ELEMENT*(2+verifyDraws.length));
+  const verifyShared=new Int32Array(verifyBuffer);
   const worker=new Worker(pathModule.join(__dirname,'rankfive-top-derivative-hybrid-http-worker.cjs'),{
-    workerData:{sharedBuffer,witnessDraws,verifyDraws}
+    workerData:{sharedBuffer,witnessDraws,verifyBuffer,verifyCount:verifyDraws.length}
   });
   /** @type {Map<number,number>} */
   const seen=new Map();
   const transcript=createHash('sha256');
   return await new Promise((resolve,reject)=>{
     let settled=false;
+    let candidateReadyCount=0;
     /** @type {unknown} */
     let failure=null;
     worker.on('message',async message=>{
@@ -83,10 +87,31 @@ async function cloneHybridFromHttp(access,witnessDraws,verifyDraws){
           Atomics.store(shared,0,2);
           Atomics.notify(shared,0);
         }
+      }else if(message.type==='candidate-ready'){
+        if(settled)return;
+        try{
+          assert.equal(candidateReadyCount,0,'Verifier tape requested more than once');
+          assert.equal(message.queryCount,seen.size,'Candidate-ready query count differs from the completed training transcript');
+          assert.equal(Atomics.load(verifyShared,0),0,'Verifier tape was released before candidate construction');
+          for(let index=0;index<verifyDraws.length;index++){
+            Atomics.store(verifyShared,2+index,verifyDraws[index]>>>0);
+          }
+          Atomics.store(verifyShared,1,verifyDraws.length);
+          Atomics.store(verifyShared,0,1);
+          candidateReadyCount++;
+          Atomics.notify(verifyShared,0);
+        }catch(error){
+          failure=error;
+          Atomics.store(verifyShared,0,2);
+          Atomics.notify(verifyShared,0);
+        }
       }else if(message.type==='result'){
         if(settled)return;
         settled=true;
         try{
+          assert.equal(candidateReadyCount,1,'Verifier tape was not released after a fixed candidate was constructed');
+          assert.equal(Atomics.load(verifyShared,0),1);
+          assert.equal(message.diagnostics.verifierTapeReleasedAfterCandidate,true);
           assert.equal(message.queryCount,seen.size);
           resolve({
             model:message.model,
@@ -180,7 +205,7 @@ async function compare(){
     /** @type {ModelEvaluator} */
     const modelEvaluator=(model,input)=>
       evaluateHybridModel(/** @type {HybridModel} */ (model),input);
-    const options={cloneRunner,modelEvaluator,maxQueries:3420};
+    const options={cloneRunner,modelEvaluator,maxQueries:3393};
     const hybridSco=await executeArm('sco',source,[],options);
     const hybridNative=await executeArm('native',source,[],options);
     assert.equal(hybridSco.sourceHash,sourcePromise.sourceHash);
@@ -207,7 +232,10 @@ async function compare(){
     assert.equal(diagnostics.verificationPassed,true);
     assert.equal(diagnostics.verificationSamples,726);
     assert.ok(diagnostics.falseAcceptanceBound<=1e-10);
-    assert.ok(hybridSco.queries<=3420);
+    assert.equal(diagnostics.coordinateStrategy,'shift');
+    assert.equal(diagnostics.fixedPairPassed,true);
+    assert.equal(diagnostics.verifierTapeReleasedAfterCandidate,true);
+    assert.ok(hybridSco.queries<=2497);
 
     records.push({
       replicate,
