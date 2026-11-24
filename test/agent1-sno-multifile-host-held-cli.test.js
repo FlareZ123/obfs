@@ -120,7 +120,14 @@ test('SNO CLI preserves one-entry launch while a host observes a helper callback
       queueMicrotaskOnly:"function hidden(inputValue){return inputValue;}queueMicrotask(hidden);",
       requireFactoryAndQueue:"const helper=require('./helper.cjs');const callback=helper.getCallback();queueMicrotask(callback);",
       requireFactoryOnly:"const helper=require('./helper.cjs');const callback=helper.getCallback();",
-      processJsonOutput:"process.stdout.write(JSON.stringify({result:3,safeResult:13,invocationCount:1}));"
+      processJsonOutput:"process.stdout.write(JSON.stringify({result:3,safeResult:13,invocationCount:1}));",
+      callbackInvokeOnly:"const helper=require('./helper.cjs');const callback=helper.getCallback();callback(2);",
+      helperSafeCallOnly:"const helper=require('./helper.cjs');helper.safe(3);",
+      helperGetCountOnly:"const helper=require('./helper.cjs');helper.getInvocationCount();",
+      callbackDirectCall:"function hidden(inputValue){return inputValue;}const callback=hidden;callback(2);",
+      callbackPassAndCall:"function hidden(inputValue){return inputValue;}queueMicrotask(hidden);hidden(2);",
+      unknownResultObject:"const helper=require('./helper.cjs');const result=helper.getCallback()(2);const safeResult=helper.safe(3);const invocationCount=helper.getInvocationCount();JSON.stringify({result,safeResult,invocationCount});",
+      factoryResultToStdout:"const helper=require('./helper.cjs');const callback=helper.getCallback();const result=callback(2);process.stdout.write(JSON.stringify({result}));"
     };
     const sourceObserverProbeResults=Object.fromEntries(
       Object.entries(sourceObserverProbes).map(([name,source])=>
