@@ -352,7 +352,7 @@ Agent 19's DOM/HTML parser/stream matrix and Agent 1's CSSOMString matrix are us
 
 ## Addendum (24 November 2026, after 04:38 UTC): HostHeldCallable source-observation gap and graph-schema correction
 
-**Current main at refresh:** 3e7b260b3e7febb3178cc5bc5ee87aa083e0d654. The authoritative carrier/effect contract was corrected in commit 3e7b260b3e7febb3178cc5bc5ee87aa083e0d654 and refined through latest schema commit 98142623db117592359892458eac8f8a5377ef25; its v2 schema supersedes the earlier incomplete typedef block. This is still a proposal, not a production plan module.
+**Current main at refresh:** 3e7b260b3e7febb3178cc5bc5ee87aa083e0d654. The authoritative carrier/effect contract was corrected in commit 3e7b260b3e7febb3178cc5bc5ee87aa083e0d654 and refined through latest schema commit 1ac710a2bd1f6682ab86905e61fac74f3bfdbf43; its v2 schema supersedes the earlier incomplete typedef block. This is still a proposal, not a production plan module.
 
 ### Current-main HostHeldCallable evidence
 
@@ -521,3 +521,5 @@ Agent 24's read-only review found the v2 callsite/module edge shapes sufficient:
 Agent 24 also confirmed that HostEffectRecord.resultValueRef plus ValueFlowEdge and PropertyKeyIdentityRef are sufficient for getter/Proxy result linkage, provided the builder enforces identity joins: resultValueRef == matching edge.toValueRef; same callsite/span/CFG/guards/owner/receiver/static-string key; returned ValueRef flows through value edges to the separate use-site PropertyKeyIdentityRef.sourceValueRef; getter source-observation effects remain independent; HostEffectIds stay distinct even when spans coincide. No new edge type is required.
 
 I corrected two terminology omissions in the contract: SourceBytes is now included in the early effect inventory, and the Blob ESM Error.stack column example uses canonical FramePosition rather than SourceCoordinate. This review confirms schema shape only, not a production builder or candidate; NO-GO remains.
+
+The root provenance rule also applies to the free Symbol constructor used by a local wrapper: it requires HostContractRef proof of the actual host intrinsic. A local Symbol binding must be followed through ValueRef/DefinitionRef and may be accepted only if the property read yields the exact WellKnownSymbolRef with safe access effects.
