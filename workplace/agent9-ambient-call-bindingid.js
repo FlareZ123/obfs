@@ -4,7 +4,7 @@ const {resolveLexicalReferences}=require('./agent1-lexical-reference-resolver');
 
 /** @typedef {import('../src/ast').AstNode} AstNode */
 /** @typedef {'module'|'script'|'commonjs'} SourceType */
-/** @typedef {{kind:'unknown-call'|'unresolved-local-call'|'new-expression'|'tagged-template'|'await'|'yield'|'dynamic-import'|'transitive-local-call'|'with-binding-lookup'|'implicit-iterator'|'implicit-object-enumeration'|'implicit-proxy-has'|'implicit-instanceof'|'implicit-delete'|'implicit-destructuring'|'implicit-spread'|'to-primitive'|'to-property-key'|'promise-thenable-assimilation'|'host-held-callable'|'unresolved-callable-argument-flow'|'classic-script-global-lexical'|'unknown-member-access',start:number,end:number,targetStart?:number,effect?:'DynamicFrame'|'HostHeldCallable'|'ExternalReachability'}} AmbientCallReason */
+/** @typedef {{kind:'unknown-call'|'unresolved-local-call'|'new-expression'|'tagged-template'|'await'|'yield'|'dynamic-import'|'transitive-local-call'|'with-binding-lookup'|'implicit-iterator'|'implicit-object-enumeration'|'implicit-proxy-has'|'implicit-instanceof'|'implicit-delete'|'implicit-destructuring'|'implicit-spread'|'to-primitive'|'to-property-key'|'promise-thenable-assimilation'|'host-held-callable'|'unresolved-callable-argument-flow'|'returned-callable-value'|'classic-script-global-lexical'|'unknown-member-access',start:number,end:number,targetStart?:number,effect?:'DynamicFrame'|'HostHeldCallable'|'ExternalReachability'}} AmbientCallReason */
 /** @typedef {{node:AstNode,start:number,end:number,bindingIds:number[],bindingNames:string[],ambient:boolean,dynamicFrame:boolean,hostHeldCallable:boolean,externallyReachable:boolean,safe:boolean,reasons:AmbientCallReason[]}} AmbientCallSummary */
 
 /**
@@ -345,6 +345,83 @@ function summarizeAmbientCallEffects(ast,sourceType) {
     return resolveFunctionNode(target,next);
   }
 
+  /** @type {Map<number,AstNode>} */
+  const constInitializersByBinding=new Map();
+  for(const [bindingId,rows] of declarationsByBinding) {
+    if(rows.length!==1)continue;
+    const declarator=parentByNode.get(rows[0].node);
+    const declaration=declarator&&parentByNode.get(declarator);
+    if(declarator?.type==='VariableDeclarator'&&declaration?.type==='VariableDeclaration'&&
+       declaration.kind==='const'&&declarator.init)
+      constInitializersByBinding.set(bindingId,declarator.init);
+  }
+
+  /** @param {number} bindingId @param {Set<number>} [seen] @returns {AstNode|null} */
+  function initializerForBinding(bindingId,seen=new Set()) {
+    if(seen.has(bindingId))return null;
+    const initializer=constInitializersByBinding.get(bindingId);
+    if(!initializer)return null;
+    if(initializer.type==='Identifier') {
+      const reference=resolved.at(initializer.start);
+      if(reference?.resolution.kind==='local') {
+        const next=new Set(seen);
+        next.add(bindingId);
+        return initializerForBinding(reference.resolution.bindingId,next);
+      }
+    }
+    return initializer;
+  }
+
+  /** @param {AstNode} value @param {Set<number>} [seen] @returns {AstNode[]} */
+  function callableNodesForValue(value,seen=new Set()) {
+    if(['FunctionDeclaration','FunctionExpression','ArrowFunctionExpression'].includes(value.type))
+      return [value];
+    if(value.type==='Identifier') {
+      const reference=resolved.at(value.start);
+      if(reference?.resolution.kind!=='local')return [];
+      const bindingId=reference.resolution.bindingId;
+      const direct=resolveFunctionNode(bindingId);
+      if(direct)return [direct];
+      if(seen.has(bindingId))return [];
+      const initializer=constInitializersByBinding.get(bindingId);
+      if(!initializer)return [];
+      const next=new Set(seen);
+      next.add(bindingId);
+      return callableNodesForValue(initializer,next);
+    }
+    if(value.type==='SpreadElement')return callableNodesForValue(value.argument,seen);
+    if(value.type==='ArrayExpression')
+      return [...new Set(value.elements.flatMap((/** @type {AstNode|null} */ element)=>
+        element?callableNodesForValue(element,seen):[]))];
+    if(value.type==='ObjectExpression')
+      return [...new Set(value.properties.flatMap((/** @type {AstNode} */ property)=>
+        property.type==='SpreadElement'?callableNodesForValue(property.argument,seen):
+        property.type==='Property'?callableNodesForValue(property.value,seen):[]))];
+    if(value.type==='ConditionalExpression')
+      return [...new Set([...callableNodesForValue(value.consequent,seen),
+        ...callableNodesForValue(value.alternate,seen)])];
+    if(value.type==='LogicalExpression')
+      return [...new Set([...callableNodesForValue(value.left,seen),
+        ...callableNodesForValue(value.right,seen)])];
+    if(value.type==='SequenceExpression'&&value.expressions.length)
+      return callableNodesForValue(value.expressions[value.expressions.length-1],seen);
+    if(value.type==='AssignmentExpression')return callableNodesForValue(value.right,seen);
+    if(value.type==='ChainExpression')return callableNodesForValue(value.expression,seen);
+    if(value.type==='MemberExpression') {
+      let root=value.object;
+      while(root.type==='MemberExpression')root=root.object;
+      if(root.type==='Identifier') {
+        const reference=resolved.at(root.start);
+        if(reference?.resolution.kind==='local') {
+          const initializer=initializerForBinding(reference.resolution.bindingId);
+          if(initializer&&['ObjectExpression','ArrayExpression'].includes(initializer.type))
+            return callableNodesForValue(initializer,seen);
+        }
+      }
+    }
+    return [];
+  }
+
   /** @type {Map<AstNode,Set<number>>} */
   const nodeBindingIds=new Map();
   for(const fn of allFunctionNodes)nodeBindingIds.set(fn,new Set());
@@ -404,24 +481,11 @@ function summarizeAmbientCallEffects(ast,sourceType) {
   for(const fn of externallyReachableFunctions)
     addReason(fn,{kind:'classic-script-global-lexical',start:fn.start,end:fn.end},'ExternalReachability');
 
-  /** @param {AstNode} argument @returns {AstNode|null} */
-  function callableForArgument(argument) {
-    if(['FunctionDeclaration','FunctionExpression','ArrowFunctionExpression'].includes(argument.type))
-      return argument;
-    if(argument.type==='SpreadElement')return callableForArgument(argument.argument);
-    if(argument.type==='Identifier') {
-      const reference=resolved.at(argument.start);
-      if(reference?.resolution.kind==='local')
-        return resolveFunctionNode(reference.resolution.bindingId);
-    }
-    return null;
-  }
-
   // A host call can retain and stringify a callable argument without invoking
   // it. A local call may forward the value through an unanalyzed parameter,
-  // so this first cut conservatively treats every call boundary as a possible
-  // escape. Direct identifiers, const aliases and inline function arguments
-  // are followed; aggregate/return flows remain Unknown.
+  // so every call boundary is conservatively treated as a possible escape.
+  // Direct values, const aliases, object/array aggregates and simple return
+  // expressions are followed; dynamic member/call results remain Unknown.
   walkAst(ast,node=>{
     if(node.type==='CallExpression'||node.type==='NewExpression') {
       let knownLocalTarget=null;
@@ -431,16 +495,16 @@ function summarizeAmbientCallEffects(ast,sourceType) {
           knownLocalTarget=resolveFunctionNode(reference.resolution.bindingId);
       }
       for(const argument of node.arguments) {
-        const target=callableForArgument(argument);
-        if(target)addReason(target,{
-          kind:knownLocalTarget?'unresolved-callable-argument-flow':'host-held-callable',
-          start:node.start,end:node.end
-        },'HostHeldCallable');
+        for(const target of callableNodesForValue(argument))
+          addReason(target,{
+            kind:knownLocalTarget?'unresolved-callable-argument-flow':'host-held-callable',
+            start:node.start,end:node.end
+          },'HostHeldCallable');
       }
     } else if(node.type==='TaggedTemplateExpression') {
       for(const expression of node.quasi.expressions) {
-        const target=callableForArgument(expression);
-        if(target)addReason(target,{kind:'host-held-callable',start:node.start,end:node.end},'HostHeldCallable');
+        for(const target of callableNodesForValue(expression))
+          addReason(target,{kind:'host-held-callable',start:node.start,end:node.end},'HostHeldCallable');
       }
     }
   });
@@ -449,6 +513,10 @@ function summarizeAmbientCallEffects(ast,sourceType) {
     /** @type {Array<{target:AstNode,start:number,end:number}>} */
     const edges=[];
     walkExecutableFunctionBody(fn,node=>{
+      if(node.type==='ReturnStatement'&&node.argument) {
+        for(const target of callableNodesForValue(node.argument))
+          addReason(target,{kind:'returned-callable-value',start:node.start,end:node.end},'HostHeldCallable');
+      }
       if(node.type==='CallExpression') {
         if(!node.optional&&node.callee.type==='Identifier') {
           const reference=resolved.at(node.callee.start);
