@@ -44,7 +44,7 @@ Agent 4's independent audit identified that the classifier could return `attackA
 
 The classifier now separates:
 
-- `declaredAttackAdvantage`: whether the caller's evidence object satisfies the declared matched-method, held-out, budget and failure-cause schema;
+- `declarationStatus`: whether the caller's evidence object satisfies the declared matched-method, held-out, budget and failure-cause schema;
 - `attackAdvantage`: empirical status. A successful candidate clone still contradicts an advantage, but a caller-declared failed attack remains **inconclusive**;
 - `externalAuditRequired`: true when a complete positive declaration exists;
 - `auditStatus: 'not-integrated'`: this module does not verify immutable pre-run preregistration artifacts or server-side request logs.
