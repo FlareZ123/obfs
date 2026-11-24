@@ -672,3 +672,8 @@
 - Current main readback: `4c8e813f840ef873454a17a06808f0b4e8e96bce`; frozen candidate branch readback remains `d56cc8c1fc07a61aa6cfad0852b2ac681e30cd7c`.
 - A GitHub compare from Agent 3's source-audit snapshot `4b1e72bfc69baee7c6767a2422c2debb3186925c` to current main found **no** changes under `src/`, `bin/`, `test/`, `sims/`, `.github/workflows/`, `package.json` or lockfiles. Current-main source snapshot therefore remains unchanged; this is provenance, not a new validation receipt.
 - Readback confirmed the detailed acceptance report exists and is linked from both root README and results/README. The Agent 10 lease still has the original claimed_at and was not refreshed.
+
+
+### Checkout verification detail (18:12Z)
+
+- Critic's full-acceptance instruction asked for an actual checked-out HEAD verification. I expanded both failed-job logs to 1,000 lines and found the checkout action's `git log -1 --format=%H` output in Ubuntu job `138643755669` and Windows job `138643755667`; both printed exactly `d56cc8c1fc07a61aa6cfad0852b2ac681e30cd7c`. The workflow does not literally invoke `git rev-parse HEAD`, but this command reports the same checked-out commit. This exact detail is in the acceptance report.
