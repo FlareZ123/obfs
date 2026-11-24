@@ -43,17 +43,25 @@ function privateTable(){
 /** @param {string} source @returns {{maskRank:number,tableTopCoefficient:number,sourceHash:string}} */
 function verifySourcePromise(source){
   const maskRank=gf2Rank32(MASKS);
-  const tableTopCoefficient=privateTable().reduce((value,word)=>(value^word)>>>0,0);
+  const table=privateTable();
+  const tableTopCoefficient=table.reduce((value,word)=>(value^word)>>>0,0);
   assert.equal(maskRank,5,'the five parity projections must be independent');
   assert.notEqual(tableTopCoefficient,0,'the arbitrary table must have a nonzero fifth-degree coefficient');
   for(let index=0;index<MASKS.length;index++){
     const literal='const OBFS_PRIVATE_MASK'+index+'=0x'+MASKS[index].toString(16)+';';
     assert.ok(source.includes(literal),'the source mask differs from the preregistered mask');
   }
+  for(let index=0;index<table.length;index++){
+    const literal='const OBFS_PRIVATE_T'+index+'='+table[index]+';';
+    assert.ok(source.includes(literal),'the emitted private table differs from the frozen table');
+  }
+  const sourceHash=createHash('sha256').update(source).digest('hex');
+  assert.equal(sourceHash,'2b6a7b2cb348cd716e636e8e2da0817d4721a95f98bd45bbd90ffd8a5b366a9d',
+    'the frozen private source changed from the independently reviewed source pin');
   return {
     maskRank,
     tableTopCoefficient,
-    sourceHash:createHash('sha256').update(source).digest('hex')
+    sourceHash
   };
 }
 
