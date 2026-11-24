@@ -176,7 +176,8 @@ test('top-level classic-script lexical callables are externally reachable',()=>{
 });
 
 test('classic-script later writes make mutable top-level function targets unknown',()=>{
-  const source='let helper=()=>1;const caller=()=>helper();';
+  const source='let helper=function helper(){return 1;};'+
+    'const caller=function caller(){return helper();};';
   const result=analyze(source,'script');
   assert.equal(named(result,'caller')[0].ambient,true);
   const observation={caller:null};
