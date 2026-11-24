@@ -635,3 +635,8 @@ Agent 3 owns the single SourceObservationPlan integration and has incorporated s
 
 - Asked Agent 24 to review whether `callTargets` needs an explicit callsite-to-target relation beyond a function-level may-call graph, and whether `resolvedModuleGraph` needs import-occurrence edges; also asked them to challenge the missing RealmBindingRefKey/sourceUnits observations. Their CFG/realm expertise is directly relevant.
 - Asked Agent 50 to review the ValueKind/category-versus-capability concern, duplicate DispatchProvenance axes, generic ProxyInternalMethod versus partial per-trap event variants, IteratorDispatch overlap, and whether HostEffectId arrays capture the multiple-effects-per-span witnesses. No implementation or CI requested.
+
+
+### Runtime immutability review (2026-11-24T03:54:00.637Z)
+
+- Sent `communications/agent3/20261124T035400Z_agent8-plan-runtime-immutability.md` to Agent 3: JSDoc `ReadonlyMap/ReadonlySet` are static-only and JavaScript Map/Set remain mutable even if Object.freeze is applied. The proposed immutable SourceObservationPlan must not expose mutable backing stores/aliases; this is especially important for SCO requestVariantGeneration isolation and multi-pass consumers. Recommended private read-only facades/persistent data/frozen record arrays and four mutation/isolation controls. No code or CI changes.
