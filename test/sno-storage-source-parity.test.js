@@ -41,10 +41,10 @@ test('SNO Node Web Storage exposes changed callable source through native DOMStr
     "'use strict';",
     'function inspect(){const privateLocal=29;return privateLocal;}',
     'function independent(){const independentLocal=7;return independentLocal;}',
-    'if(localStorage.setItem!==Storage.prototype.setItem)throw new Error("expected native inherited Storage.setItem");',
+    'const nativeDispatch=localStorage.setItem===Storage.prototype.setItem;',
     'localStorage.clear();',
     'localStorage.setItem("sno-source-observation",inspect);',
-    'const result={nativeDispatch:localStorage.setItem===Storage.prototype.setItem,',
+    'const result={nativeDispatch,',
     '  stored:localStorage.getItem("sno-source-observation"),',
     '  value:inspect(),independent:independent()};',
     'process.stdout.write(JSON.stringify(result));'
