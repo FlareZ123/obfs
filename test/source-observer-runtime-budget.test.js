@@ -7,7 +7,7 @@ const {pairedBudgetBound}=require('../sims/paired-budget-bound');
 const {familywiseBudgetBounds}=require('../sims/familywise-budget-bound');
 
 test('current COO source-observer startup reports median and strict budget evidence',async()=>{
-  /** @type {{platform:string,workloads:Array<{workload:string,baselineSamplesMs:number[],obfuscatedSamplesMs:number[],baselineCpuSamplesMs:number[],obfuscatedCpuSamplesMs:number[],placeboLeftSamplesMs:number[],placeboRightSamplesMs:number[],placeboLeftCpuSamplesMs:number[],placeboRightCpuSamplesMs:number[],strictBreachCount:number,strictBreachSamples:Array<{sample:number,ratio:number}>}>}} */
+  /** @type {{platform:string,cpuBatchSize:number,workloads:Array<{workload:string,baselineSamplesMs:number[],obfuscatedSamplesMs:number[],baselineCpuSamplesMs:number[],obfuscatedCpuSamplesMs:number[],placeboLeftSamplesMs:number[],placeboRightSamplesMs:number[],placeboLeftCpuSamplesMs:number[],placeboRightCpuSamplesMs:number[],strictBreachCount:number,strictBreachSamples:Array<{sample:number,ratio:number}>}>}} */
   const report=/** @type {unknown} */ (await main());
   assert.equal(report.workloads.length,2);
   const workloads=report.workloads.map(workload=>({
@@ -24,7 +24,7 @@ test('current COO source-observer startup reports median and strict budget evide
     native:workload.placeboLeftCpuSamplesMs,candidate:workload.placeboRightCpuSamplesMs
   })),{threshold:2.5,confidence:0.95});
   process.stdout.write('SOURCE_OBSERVER_CURRENT_FAMILYWISE_BUDGET '+JSON.stringify({
-    platform:report.platform,
+    platform:report.platform,cpuBatchSize:report.cpuBatchSize,
     workloads:report.workloads.map(workload=>({
       name:workload.workload,strictBreachCount:workload.strictBreachCount,
       strictBreachSamples:workload.strictBreachSamples
