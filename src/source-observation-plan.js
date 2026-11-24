@@ -54,7 +54,7 @@ const {sourceGenerationOf,mapMappedSourceRange} = require('./source-edit-map');
 
 /** @type {WeakSet<object>} */
 const validatedPlans=new WeakSet();
-/** @type {WeakMap<object,{source:string,path:string,sourceUnitRef:string,parserContractId:string,callableName:string,callableSpanId:string,readerSpanId:string,readerBindingName:string,exportBindingName:string,readerResultSpanId:string,exportMirrorSpanId:string,effectId:string}>} */
+/** @type {WeakMap<object,{source:string,path:string,sourceUnitRef:string,parserContractId:string,callableName:string,callableSpanId:string,readerSpanId:string,readerBindingName:string,exportBindingName:string,readerResultSpanId:string,exportMirrorSpanId:string,originalStringBindingPresent:boolean,effectId:string}>} */
 const planMetadata=new WeakMap();
 /** @type {WeakMap<object,SourceObservationPlan>} */
 const planRangeOwners=new WeakMap();
@@ -412,6 +412,63 @@ function countIdentifierOccurrences(ast,name) {
   let count=0;
   walk(ast,node=>{if(node.type==='Identifier'&&node.name===name)count++;});
   return count;
+}
+
+/**
+ * Whether an Identifier is a syntactic name rather than a variable reference.
+ * Binding positions are handled separately by collectBindingNames.
+ * @param {AstNode} node
+ * @param {AstNode|null} parent
+ * @param {string|number|null} key
+ * @returns {boolean}
+ */
+function isNonReferenceIdentifier(node,parent,key) {
+  if(!parent)return false;
+  if(parent.type==='MemberExpression'&&key==='property'&&!parent.computed)return true;
+  if(parent.type==='Property'&&key==='key'&&!parent.computed&&!parent.shorthand)return true;
+  if(['MethodDefinition','PropertyDefinition'].includes(parent.type)&&
+     key==='key'&&!parent.computed)return true;
+  if(parent.type==='LabeledStatement'&&key==='label')return true;
+  if(['BreakStatement','ContinueStatement'].includes(parent.type)&&key==='label')return true;
+  if(parent.type==='MetaProperty')return true;
+  if(parent.type==='ImportSpecifier'&&key==='imported')return true;
+  if(parent.type==='ExportSpecifier'&&key==='exported')return true;
+  return false;
+}
+
+/**
+ * Collect unbound identifier references without treating property names,
+ * labels, imported names, or lexical binding positions as host roots.
+ * @param {AstNode} ast
+ * @param {Set<string>} bindingNames
+ * @returns {Array<{name:string,node:AstNode,parent:AstNode|null,ancestors:AstNode[]}>}
+ */
+function collectFreeIdentifierReferences(ast,bindingNames) {
+  const references=[];
+  walk(ast,(node,parent,key,ancestors)=>{
+    if(node.type!=='Identifier'||bindingNames.has(node.name)||
+       isNonReferenceIdentifier(node,parent,key))return;
+    references.push({name:node.name,node,parent,ancestors});
+  });
+  return references;
+}
+
+/**
+ * String decoding is the only transform in this first slice that introduces a
+ * free host root. Permit only the direct String.fromCharCode call emitted by
+ * the decoder; constructor, computed-property, alias, and call/apply forms are
+ * outside the accepted transform contract.
+ * @param {{name:string,node:AstNode,parent:AstNode|null,ancestors:AstNode[]}} reference
+ * @returns {boolean}
+ */
+function isDirectStringFromCharCodeReference(reference) {
+  const member=reference.parent;
+  const memberParent=reference.ancestors.length>=2?
+    reference.ancestors[reference.ancestors.length-2]:null;
+  return member?.type==='MemberExpression'&&member.object===reference.node&&
+    !member.computed&&member.property?.type==='Identifier'&&
+    member.property.name==='fromCharCode'&&memberParent?.type==='CallExpression'&&
+    memberParent.callee===member;
 }
 
 /**
@@ -933,6 +990,7 @@ function buildDirectFunctionSourcePlan(source,path,hostContract) {
     exportBindingName,
     readerResultSpanId,
     exportMirrorSpanId,
+    originalStringBindingPresent:collectBindingNames(ast).has('String'),
     effectId
   });
   return /** @type {SourceObservationPlan} */ (plan);
@@ -1181,9 +1239,22 @@ function validatePlanSemantics(plan,source,ast,trackedSourceRanges) {
         'ClassDeclaration','ClassExpression'].includes(node.type))functionLikeCount++;
   });
   const bindingNames=collectBindingNames(ast);
-  const noAmbientShadow=bindingNames.has('Function')===false&&
-    identifierCounts.get('Function')===1&&
-    !['globalThis','window','self','global'].some(name=>identifierCounts.has(name));
+  const stringBindingPreserved=
+    bindingNames.has('String')===meta.originalStringBindingPresent;
+  let unsupportedModuleSyntax=false;
+  walk(ast,node=>{
+    if(node.type==='ImportDeclaration'||node.type==='ImportExpression'||
+       node.type==='ExportAllDeclaration')unsupportedModuleSyntax=true;
+    if(node.type==='ExportNamedDeclaration'&&
+       (node.source||node.specifiers.length>0))unsupportedModuleSyntax=true;
+  });
+  const freeReferences=collectFreeIdentifierReferences(ast,bindingNames);
+  const noUnapprovedFreeRoots=freeReferences.every(reference=>
+    reference.name==='Function'||
+    (reference.name==='String'&&isDirectStringFromCharCodeReference(reference)));
+  const noAmbientShadow=!bindingNames.has('Function')&&
+    identifierCounts.get('Function')===1&&stringBindingPreserved&&
+    !unsupportedModuleSyntax&&noUnapprovedFreeRoots;
   const uniqueClosedReader=directReaderCount===1&&functionLikeCount===1&&
     identifierCounts.get(meta.callableName)===2&&
     identifierCounts.get(meta.readerBindingName)===2&&
