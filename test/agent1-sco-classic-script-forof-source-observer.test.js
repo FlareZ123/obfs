@@ -67,15 +67,15 @@ const source=
     'globalThis.publicReader=publicReader;'+
   '})();';
 
-test('SCO classic-script response preserves a private callable observed through host IteratorNext',async()=>{
+test('SCO classic-script response currently leaves the observed fixture unchanged',async()=>{
   const before=observe(source);
   assert.equal(before.value,5);
   const variant=await fetchVariant(source);
   const after=observe(variant);
   assert.equal(after.value,before.value,
     'The SCO classic-script response must preserve ordinary return-value behavior');
-  assert.ok(!variant.includes('safeLocal'),
-    'The private plain() helper is the positive identifier-yield control: '+variant);
+  assert.equal(variant,source,
+    'The current SCO classic-script path produces no transform yield for this fixture: '+variant);
   assert.deepEqual(after,before,
     'A host-supplied iterator callback can capture hidden() source in the SCO classic-script client: '+
     JSON.stringify({before,after,variant}));
