@@ -515,6 +515,20 @@ function summarizeAmbientCallEffects(ast,sourceType) {
       return [];
     }
     if(value.type==='MemberExpression') {
+      const propertyKey=staticPropertyKey(value.property,value.computed);
+      if(value.object.type==='Identifier'&&value.object.name==='arguments'&&propertyKey==='callee') {
+        const reference=resolved.at(value.object.start);
+        if(reference?.resolution.kind==='local'&&
+           !(declarationsByBinding.get(reference.resolution.bindingId)?.length)) {
+          let current=value;
+          while(parentByNode.has(current)) {
+            const parent=parentByNode.get(current);
+            if(!parent)break;
+            if(parent.type==='FunctionDeclaration'||parent.type==='FunctionExpression')return [parent];
+            current=parent;
+          }
+        }
+      }
       /** @type {AstNode[]} */
       const candidates=[];
       walkAst(value,(node,parent)=>{
