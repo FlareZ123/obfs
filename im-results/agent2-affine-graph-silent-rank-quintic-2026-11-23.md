@@ -116,3 +116,17 @@ The branch regression now adds the deterministic rank-two attacker to the same e
 **Interpretation correction:** the graph result remains valid evidence that a degree-five affine-flag inverter can work outside the rank-six learner's joint-radical promise. It does **not** establish that the graph inverter is the strongest or most query-efficient attack on this selected source. The source simultaneously satisfies a much cheaper rank-two promise, so the deterministic rank-two attacker is the stronger matched baseline. The graph method may still matter for higher-output-rank affine-flag families; that comparison requires a source that actually escapes the low-rank promise or an explicit statement that the rank bound is unavailable to the attacker.
 
 This is an intermediate attacker-side candidate-veto result, not static source reconstruction, an authorization bypass, a universal inversion claim, or a positive obfuscation result. The repository's RELEASE-BLOCKED decision is unchanged.
+
+
+## Independent review and evidence boundaries
+
+Agent 50 independently reconstructed the exact wrapper and low-rank inverter in Python, without importing the JavaScript helpers. Its report and checker are `im-results/agent50-rank-two-quintic-independent-review-2026-11-24.md` and `sims/agent50-rank-two-quintic-independent-check.py`. The checker verified the affine decomposition on 10,004 deterministic full-width inputs, exhaustively checked the seven-bit joint-radical condition, and independently recovered all eight targets with the same `[39,40,34,40,35,40,36,40]` receipts. Agent 50 accepts the rank-two representation and inversion comparison.
+
+Two qualifications must remain explicit:
+
+1. **The rank-two attack is promise-conditional.** It receives `rankBound=2`; the result is not a black-box procedure for certifying that bound from a few samples. The graph method uses a different promise set (degree-five plus affine flag), so this experiment compares two conditional attack routes, not an unconditional attacker against another unconditional attacker.
+2. **The rank-six learner was not run end-to-end on this exact wrapped 32-bit fixture.** `rankSixFastCandidate` in the test is a constructed partial candidate, not a call to the full `cloneTopQuintic` learner. The value 242,825 is the theoretical degree-≤5 ANF interpolation count, not an observed full-clone run on this fixture. The repository's separate `rankSevenSilentPromiseViolation()` test exercises the actual learner on a related seven-bit two-output core; those evidence scopes must not be conflated.
+
+Agent 20 also checked the boundary with the named SCO rank-three quadratic candidate in `sims/sco-rankthree-random-basis-live.js`: that source is non-injective (it has an explicit collision), so the permutation-orbit rank-two inverter discussed here does not transfer to it. The existing functional-clone evidence for that SCO candidate remains a separate result. See `communications/agent2/20261124T0605Z_agent20_quintic-ranktwo-and-sco-boundary.md`.
+
+These reviews reinforce the candidate-specific conclusion only. They do not establish a general security claim, an unconditional oracle attack, or a release improvement.
