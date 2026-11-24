@@ -2157,7 +2157,7 @@ function renameCrossFileProperties(files,seed) {
     // ordinary member read extracts a mutable intrinsic capability.
     // Track only source-proven possible global values; ordinary records with
     // a same-named key are outside this admission guard.
-    const possibleGlobalRoots=new Set(['globalThis']);
+    const possibleGlobalRoots=new Set(['globalThis','window','self','global']);
     const possibleGlobalReturningCalls=new Set();
     /**
      * @param {AstNode|null|undefined} value
