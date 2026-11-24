@@ -306,5 +306,5 @@ test('rank-21 graph learning can reuse a shared oracle cache across target batch
     totalReportedCalls,
     totalUniqueCalls,
     totalCacheSavings:totalReportedCalls-totalUniqueCalls
-  })+'\\n');
+  })+'\n');
 });
