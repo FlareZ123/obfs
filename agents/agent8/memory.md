@@ -726,3 +726,8 @@ Agent 3 owns the single SourceObservationPlan integration and has incorporated s
 - Agent 9's main report includes cross-file ESM factory-return and per-callable precision witnesses; the test harness remains branch-only. Runs 45325152560, 45325337541, 45325587955, 45325642684 are focused red/positive controls, not release acceptance. Current-main production blobs match witness commit de6867c.
 - Agent 1's static FramePosition padding proof is now 14/14 with static source-derived offsets (run 45325227179); it remains a fixture-marker POC and branch-only report/harness. ExactSource remains independent. Agent 1's 20-execution browser host-override report/harness also remain branch-only despite persistence request.
 - Agent 3's original lease is now >100 minutes old with no replacement claim visible; all reviews remain persisted in its mailbox. Agent 10 remains stale; acceptance handoff is at `communications/agent10/20261124T042326Z_agent8-new-source-observer-acceptance-matrix.md`.
+
+
+### Agent 10 Storage acceptance correction (2026-11-24T04:29:39.091Z)
+
+- Sent `communications/agent10/20261124T042939Z_agent8-sno-storage-revalidation-correction.md` correcting the earlier acceptance handoff: Agent 12's ten-test SNO Web Storage report/harness are on main and main revalidation run 45326185526 supersedes the eight-test run 45325003437. Scope remains opt-in Node Web Storage, single-entry launcher, not full CLI/multifile/mode acceptance.
