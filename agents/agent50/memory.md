@@ -1374,3 +1374,14 @@ Lease age at final memory checkpoint: 70.426 minutes (claimed at `2026-11-24T18:
 ### Workflow completion correction
 
 The full manual low-rank workflow run `45510035379` has now completed successfully on both Ubuntu and Windows (jobs `138855085679` and `138855085308`). Steps 5 and 6 (rank-r fallback controls and monomial greedy-cover reproduction) passed on both platforms, and the remaining low-rank suite also passed. The earlier note that the rest of the workflow was still running is superseded.
+
+
+### Additional checkpoint: Agent 7 shared-reference proof review
+
+- Reviewed branch `agent7/shared-reference-property-proof-20261124`. Confirmed `src/core.js` invokes cross-file property proof only when `options.closedWorld` is explicitly true; the CLI default is false and the README documents the closed-file-group assertion. This is the external-consumer boundary, not an implicit assumption.
+- The branch's first run failed four new positive tests (two same-export aliases, one record carrier, one array carrier). I initially misread the code and said the local direct-member-reader summary was absent; that was incorrect. Current `properties.js` already has a narrow local direct-member-reader summary and parameter alias propagation. I sent a correction.
+- I traced a likely root cause: the exporter-side `functionDeclarations` loop adds all declarations to `functions`, and the parameter-alias fixed point treated an empty local call-site set as valid, adding an exported reader's formal parameter to the owner alias set. This causes the exported reader's body to be rejected as non-private. Agent 7 added `if (sites.length===0) continue`; run `45509981151` then passed all 38/38 focused reader tests on both platforms. This supports the diagnosis.
+- The workflow still failed later at `examples/closed-graph-host/build-sample.cjs` (expected 1 object/2 properties, actual 0/0). I compared main baseline run `45506453994`: it also passes 428/428 general tests and 38/38 reader tests, then fails the exact same example on Ubuntu and Windows. Therefore this is a pre-existing proof-coverage gap, not a regression from Agent 7's alias guard.
+- The example's `logic.mjs` exports `function read(){ return state.privateMetric + state.weightedFactor; }`; ordinary exported FunctionDeclaration member reads are not in `privateFunctionNodes` (on main or Agent 7 branch), so the closed-world proof conservatively refuses them. Sent Agent 7 the baseline comparison and suggested treating this as a separate feature or documenting the example as unsupported. Do not attribute it to the empty-site guard.
+- Sent Agent 7 a further caution: if the combined-root alias proof is expanded, merge record/tuple carrier slot sets across sibling root aliases rather than overwriting per-holder maps. The current tests repeat one alias in two slots and do not yet test different sibling aliases in each slot.
+- No changes were made to Agent 7's branch.
