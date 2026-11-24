@@ -4,6 +4,7 @@ const {test}=require('node:test');
 const assert=require('node:assert/strict');
 const vm=require('node:vm');
 const {parse,walk}=require('../src/ast');
+const {renameLocalProperties}=require('../src/properties');
 const {renameLocalIdentifiers}=require('../src/identifiers');
 const {encodeStrings}=require('../src/strings');
 const {parserContractIdFor,mapSourceSpan,sourceGenerationOf}=require('../src/source-edit-map');
@@ -35,8 +36,10 @@ function findCallback(ast) {
 
 test('SNO host-held callback source survives mapped identifier edits and string prologue while unrelated literal encodes',()=>{
   const source=[
+    'const outsideObject={veryLongPrivateKey:1};',
+    'const outsideValue=outsideObject.veryLongPrivateKey;',
     'const aVeryLongUnusedBindingName=1;',
-    "const callback=()=>{const privateInsideCallback=2;return 'inside-callback-literal';};",
+    "const callback=()=>{const innerObject={privateInsideCallback:2};return 'inside-callback-literal'+innerObject.privateInsideCallback;};",
     'queueMicrotask(callback);',
     "const unrelated='top-level-literal';"
   ].join('\n');
@@ -46,22 +49,46 @@ test('SNO host-held callback source survives mapped identifier edits and string 
   const originalSpan=sourceSpan(source,UNIT,originalCallback.start,originalCallback.end,
     sourceGenerationOf(source,PARSER));
 
-  const renamed=renameLocalIdentifiers(source,originalAst,{
-    seed:'source-map-integration-identifiers',
-    sourceType:'module',
+  const propertyRenamed=renameLocalProperties(source,originalAst,{
+    seed:'source-map-integration-properties',
     sourceUnitRef:UNIT,
     parserContractId:PARSER,
     protectedSourceSpans:[originalSpan]
   });
+  assert.equal(propertyRenamed.objects,1,'only the object outside the observed callable should be renamed');
+  assert.equal(propertyRenamed.properties,1);
+  assert.ok(propertyRenamed.editMap,'local property pass must emit a generation-qualified map');
+  assert.ok(!propertyRenamed.code.includes('veryLongPrivateKey'));
+  assert.ok(propertyRenamed.code.includes('privateInsideCallback'),
+    'property inside the observed callable must remain unchanged');
+
+  const propertyRange=mapSourceSpan(propertyRenamed.editMap,originalSpan,source,propertyRenamed.code);
+  assert.ok(propertyRange,'callback span must survive unrelated local-property edits');
+  const propertyAst=parse(propertyRenamed.code,'module');
+  const propertyCallback=findCallback(propertyAst);
+  assert.equal(propertyCallback.start,propertyRange.startOffset);
+  assert.equal(propertyCallback.end,propertyRange.endOffset);
+  assert.equal(propertyRenamed.code.slice(propertyRange.startOffset,propertyRange.endOffset),originalCallbackSource);
+
+  // Reparse and rebuild a current-generation SourceSpanRef before each next pass.
+  const propertySpan=sourceSpan(propertyRenamed.code,UNIT,propertyCallback.start,propertyCallback.end,
+    sourceGenerationOf(propertyRenamed.code,PARSER));
+  const renamed=renameLocalIdentifiers(propertyRenamed.code,propertyAst,{
+    seed:'source-map-integration-identifiers',
+    sourceType:'module',
+    sourceUnitRef:UNIT,
+    parserContractId:PARSER,
+    protectedSourceSpans:[propertySpan]
+  });
   assert.ok(renamed.bindings>0,'fixture must exercise an identifier rewrite before the callback');
   assert.ok(renamed.editMap,'identifier pass must emit a generation-qualified map');
-  assert.notEqual(renamed.code,source);
+  assert.notEqual(renamed.code,propertyRenamed.code);
   assert.ok(renamed.code.includes('privateInsideCallback'),
     'identifier inside the observed callable must remain byte-for-byte unchanged');
   assert.ok(!renamed.code.includes('aVeryLongUnusedBindingName'),
     'unrelated identifier outside the callable should still be renamed');
 
-  const relocated=mapSourceSpan(renamed.editMap,originalSpan,source,renamed.code);
+  const relocated=mapSourceSpan(renamed.editMap,propertySpan,propertyRenamed.code,renamed.code);
   assert.ok(relocated,'callback span must survive unrelated identifier edits');
   const renamedAst=parse(renamed.code,'module');
   const renamedCallback=findCallback(renamedAst);
@@ -69,7 +96,6 @@ test('SNO host-held callback source survives mapped identifier edits and string 
   assert.equal(renamedCallback.end,relocated.endOffset);
   assert.equal(renamed.code.slice(relocated.startOffset,relocated.endOffset),originalCallbackSource);
 
-  // Reparse and rebuild a current-generation SourceSpanRef before the next pass.
   const currentSpan=sourceSpan(renamed.code,UNIT,renamedCallback.start,renamedCallback.end,
     sourceGenerationOf(renamed.code,PARSER));
   const encoded=encodeStrings(renamed.code,renamedAst,{
