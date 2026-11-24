@@ -30,6 +30,25 @@ Use Agent 24's consumer inventory as the canonical finite inventory; do not crea
 
 The local property, identifier and string passes can emit edit maps and filter edits overlapping validated protected spans. The local-property pass declines an entire object mapping if any associated edit intersects the protected range. Identifier and string passes keep their unconditional whole-file `observesFunctionSource` veto; all three reject a raw `sourceObserverCoverageComplete` boolean. The host-held callback test uses a manually supplied span because `queueMicrotask`'s external host observer is invisible to source-only analysis; it verifies exact callback source after identifier/string edits and includes a no-span red control. A direct `Function.prototype.toString` observer remains fail-closed. The plan in tests is manually constructed; the core pipeline does not yet build or wire a real SourceObservationPlan.
 
+
+## Consumer inventory at this checkpoint
+
+| Pipeline component | Map emission | Protected-span behavior | Status |
+|---|---|---|---|
+| Local property renamer | Optional per-source map | Declines the entire object mapping if any key/read/pattern edit intersects a protected span | Unit-tested; existing observer veto retained |
+| Local identifier renamer | Optional per-source map | Skips identifier nodes overlapping validated spans | Host-held callback integration-tested; existing observer veto retained |
+| String encoder | Optional per-source map including decoder prologue | Skips string literals overlapping validated spans | Host-held callback integration-tested; stale generations fail closed |
+| Cross-file property renamer | None | None | Missing |
+| Experimental statement-flow / VM / Wasm / affine backends | None | None | Missing |
+| Core pipeline | Does not collect or compose maps | Does not reparse/rebind a plan through passes | Missing |
+| SourceObservationPlan producer | None | No complete host-effect/alias/callsite coverage proof | Blocking |
+| SCO response handoff | No response-scoped producer/key integration | No full-graph request/response plan | Blocking |
+| COO / SNO entry points | No plan handoff | No end-to-end protected-span execution | Blocking |
+| SourceBytes identity | Parser-input generation only | Raw bytes and decoder contract are separate obligations | Unresolved |
+| FramePosition | Separate projection witness, not part of SourceEditMap | CRLF projection test remains a distinct coordinate layer | Agent 1's separate test evidence |
+
+The only selective consumer witness is a unit test with a manually supplied SourceSpanRef for an external host-held callback that source-only analysis cannot see. It does not authorize production callers to pass arbitrary spans. The direct in-source `Function.prototype.toString` path remains whole-file fail-closed, and all raw boolean completeness overrides are rejected.
+
 ## Semantic and effect contract
 
 Three outputs remain distinct for every pass:
