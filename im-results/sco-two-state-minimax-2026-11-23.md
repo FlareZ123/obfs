@@ -28,7 +28,7 @@ The existing chooseSymbol policy in sims/sco-step-only-version-space.js was eval
 
 - sims/sco-step-only-two-state-minimax.js: exact behavioral signatures, reachable-belief graph, backward minimax layers, and independently evaluated existing heuristic; run with Node 22.
 - test/sco-step-only-two-state-minimax.test.js: checks all 132,870 unordered rooted pairs against a separate product-BFS implementation, all computed counts, and the 260-model heuristic census.
-- Local Node **v22.16.0**: both new focused tests passed. These checks were run with a copied matching algorithm for the two existing helper functions in an isolated workspace; full-repository/JSDoc CI and immutable source-pinned verification are still required before promoting this beyond intermediate evidence.
+- Local Node v22.16.0: both initial focused tests passed. The minimax implementation is now source-pinned in run 45408156868: the exact two-state no-reset minimax step 41 passed on both Ubuntu and Windows, and strict JSDoc plus the full project typecheck passed on both. This supersedes the earlier local-only validation status.
 
 This establishes no secrecy or resource bound in a real JavaScript application. It assumes the finite two-state oracle model is true. Machines with more hidden states, nonstationary oracles, unauthorized request paths, memory/clock mutations and multi-user state sharing are outside the proof. It does not improve the global **RELEASE-BLOCKED** decision. More realistic SCO oracle comparisons are documented in im-results/sco-step-only-smt-adaptive-2026-11-23.md and im-results/sco-five-state-step-only-2026-11-23.md.
 
@@ -51,7 +51,7 @@ With C(singleton behavioral type)=0, a finite-horizon recurrence converges to a 
 
 The nine-cap optimization saves **108 / 1,992 = 5.42168675%** of the existing heuristic's total calls without increasing its worst case. Allowing one extra worst-case call saves **216 / 1,992 = 10.84337349%**. These are exact counts for a small synthetic model family under a specified prior, not statistical estimates or a production service benchmark.
 
-Reproduction is in sims/sco-step-only-two-state-expected.js and the third test in test/sco-step-only-two-state-minimax.test.js. The implementation computes the weighted posterior graph, Bellman layers, and full 260-model replay. Local Node v22.16.0 passed all **three** focused tests with these exact metrics; cross-platform and full strict JSDoc results require a separately source-pinned workflow.
+Reproduction is in sims/sco-step-only-two-state-expected.js and the third test in test/sco-step-only-two-state-minimax.test.js. The implementation computes the weighted posterior graph, Bellman layers, and full 260-model replay. Local Node v22.16.0 passed all three focused tests; the source-pinned workflow run 45408156868 also passed the robust public-only clone and minimax checks on both Ubuntu and Windows, with strict JSDoc and full project typecheck green.
 
 
 ## Full public-step learner, exhaustive online differential controls
@@ -60,7 +60,7 @@ The posterior policy is now an executable **asynchronous public-only learner** i
 
 test/sco-step-only-two-state-online.test.js exercises each policy against all **260** original labelled 1- and 2-state oracle tables. A private test harness alone owns the current state and table. Every clone passes an independent product-BFS comparison against the true final private state, covering **all future input words**, with exact totals **1,884** (bounded-nine) and **1,776** (minimum expected) public steps. Invalid output and invalid-policy controls reject. This is a full finite-model verification for the declared binary two-state class, still far narrower than arbitrary protected JavaScript or a live SCO service.
 
-Local Node 22.16.0 executed six focused minimax/weighted/online tests, all passing. Fresh source-pinned Ubuntu/Windows workflow validation for the additional async learner must be considered separately from the earlier two-platform minimax-only success.
+Local Node 22.16.0 executed six focused minimax/weighted/online tests, all passing. The source-pinned run 45408156868 now validates the additional async learner on both Ubuntu and Windows: the all-table online learner, robust cross-prior clone, Pareto frontier, lower-bound certificate, prior sensitivity, independent Bellman, and minimax steps all succeeded. The generated-ESM Chromium step succeeded on Ubuntu and was skipped on Windows; do not describe browser validation as two-platform.
 
 
 ## Authenticated real-SCO matched-service follow-up
@@ -84,7 +84,7 @@ An independently written checker now avoids the first algorithm's signature grou
 
 Exact minimax and integer weighted-cost Bellman iterations on this **uncompressed** graph independently yield **nine** worst-case public queries, **1,884** total calls for the nine-step expected-optimal policy under a uniform source-table prior, and **1,776** globally optimal expected total calls. Every labelled state has a finite minimax rank, and the weighted DP reaches a global fixed point at depth 11. This is a second algorithmic route to the three main cost findings, with its own source enumeration, product BFS, state representation and Bellman recurrence. Local Node 22.16.0 executed both new independent tests successfully.
 
-Reproduction: test/sco-step-only-two-state-independent.test.js. The new source and test are checked under the separate SCO workflow's strict JSDoc gate. Until source-pinned cross-platform validation finishes, the independent result remains local evidence; independent peer review by Agent14 is also requested.
+Reproduction: test/sco-step-only-two-state-independent.test.js. The new source and test passed the source-pinned independent source-labelled Bellman step 40 in run 45408156868 on both Ubuntu and Windows; strict JSDoc and full project typecheck also passed. Agent 14 independently reproduced the two-prior Pareto frontier in a separate JavaScript runtime without importing repository solver code.
 
 
 ## Falsification when the declared state bound is false
@@ -119,7 +119,7 @@ The source-prior-optimal unrestricted policy has **1,104** total queries when te
 
 A second, uncompressed labelled-source posterior solver independently corroborates the uniform-behavior optimal calls by assigning an integer mass of 29 to the 144 singleton classes and mass 1 to each of the 116 source-table variants in four 29-member classes. The 4,429-state exact Bellman calculation yields **31,784** total scaled nine-capped calls and **31,436** scaled unrestricted calls, exactly 29 times 1,096 and 1,084. These are integer counts, with no floating-point posterior approximation.
 
-Reproduction: sims/sco-step-only-two-state-prior-sensitivity.js and test/sco-step-only-two-state-prior-sensitivity.test.js. A local Node 22.16.0 run passed the prior sensitivity test; the new strict JSDoc and cross-platform workflow source pin is pending. This is an attacker-prior comparison, not evidence of protection strength or a target-side 2.5x runtime cost improvement.
+Reproduction: sims/sco-step-only-two-state-prior-sensitivity.js and test/sco-step-only-two-state-prior-sensitivity.test.js. The prior-sensitivity test passed on both Ubuntu and Windows in source-pinned run 45408156868 (step 39), with strict JSDoc and full project typecheck green. This is an attacker-prior comparison, not evidence of protection strength or a target-side 2.5x runtime cost improvement.
 
 
 ## Constructive public-query minimax certificate
@@ -128,7 +128,7 @@ A separate explicit-belief proof checker gives direct witnesses for the nine-que
 
 To test the lower bound without treating a dynamic adversary as a magical oracle, it enumerates **all 256 possible sequences of eight attacker input bits**. A fixed adversary response rule chooses a legal maximum-rank output after each input; every one of the 256 resulting input/output transcripts ends at a nonterminal belief, with **2 to 98** still-compatible labelled original source models. For each entire transcript the checker chooses one **single fixed original machine**, replays all eight steps from initial state zero, and validates every response and final private state. Therefore an adaptive learner cannot guarantee an exact continuation model after eight public steps under these assumptions.
 
-For the upper bound, a rank-decreasing attacker strategy explores every legal output branch and terminates within **nine** steps. The full tree contains 116 terminal output paths and reaches depth nine. The graph contains 4,085 nonterminal and 344 terminal beliefs. Source and test: sims/sco-step-only-two-state-game-certificate.js and test/sco-step-only-two-state-game-certificate.test.js. The local Node 22.16.0 constructive test passed. A source-pinned SCO cross-platform workflow still needs to cover this latest proof-checker version.
+For the upper bound, a rank-decreasing attacker strategy explores every legal output branch and terminates within **nine** steps. The full tree contains 116 terminal output paths and reaches depth nine. The graph contains 4,085 nonterminal and 344 terminal beliefs. Source and test: sims/sco-step-only-two-state-game-certificate.js and test/sco-step-only-two-state-game-certificate.test.js. The constructive eight-query lower-bound and nine-query upper-bound step 38 passed on both Ubuntu and Windows in run 45408156868; strict JSDoc and full project typecheck also passed.
 
 
 ## Additional model-scope controls: session restarts and server mutation
@@ -163,7 +163,7 @@ Under a **ten-query hard cap**, the full nondominated frontier is:
 - (1845, 1089)
 - (1868, 1084)
 
-Increasing the cap from ten to **eleven** does **not** change this initial Pareto frontier. These values are exact and the semantic sums are represented as integer totals scaled by 29 until final reporting. Source and test: sims/sco-step-only-two-state-pareto.js and test/sco-step-only-two-state-pareto.test.js. Local Node 22.16.0 passed both focused tests; latest strict JSDoc Ubuntu/Windows source-pinned validation is pending.
+Increasing the cap from ten to **eleven** does **not** change this initial Pareto frontier. These values are exact and the semantic sums are represented as integer totals scaled by 29 until final reporting. Source and test: sims/sco-step-only-two-state-pareto.js and test/sco-step-only-two-state-pareto.test.js. The exact cross-prior Pareto step 37 passed on both Ubuntu and Windows in run 45408156868, together with strict JSDoc and full project typecheck.
 
 
 ## Executable two-prior robust compromise policy
