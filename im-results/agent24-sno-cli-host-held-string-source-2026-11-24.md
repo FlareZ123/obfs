@@ -60,8 +60,9 @@ The value behavior is preserved, but the source spelling is not. This isolates t
 ## Reproduction
 
 - Test-only branch: `agent24-sno-cli-host-held-string-20261124`
-- Current branch head: `2ed95636817d23910d3d3182b78568d8e6f6ef14`
+- Branch head at SNO run #3266: `2ed95636817d23910d3d3182b78568d8e6f6ef14`
 - Test: `test/agent24-sno-cli-host-held-string-source.test.js` (two cases: one-file and cross-file)
+- The shared test-only branch later advanced to `15ed09df036f22f8e7791fa8d07e57ad8a542030` for separate SCO tests; the SNO test file was unchanged.
 - Strongest two-platform workflow: [Manual validation run 45334032803](https://github.com/FlareZ123/obfs/actions/runs/45334032803), run #3266
 - Earlier one-file yield-control run: [45333567142](https://github.com/FlareZ123/obfs/actions/runs/45333567142), run #3265
 - Node: 22.23.4
