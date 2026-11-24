@@ -122,6 +122,8 @@ The canonical plan should expose at least:
 /**
  * @typedef {Object} SourceUnitRef
  * @property {string} sourceUnitId - runtime module/script instance identity
+ * @property {string|null} resolvedURL - actual browser/loader-resolved module URL when applicable
+ * @property {string|null} resolutionContextId - import-map/loader resolution generation
  * @property {string} sourceGeneration - hash/identity of exact source bytes plus parser version/options; invalidates local IDs and spans on edit/reparse
  * @property {string|null} realmGroupId - shared realm for classic-script groups
  * @property {'module'|'script'|'commonjs'} sourceType
@@ -148,7 +150,7 @@ The canonical plan should expose at least:
  * @typedef {string} BindingRefKey - canonical serialization of BindingRef or RealmBindingRef
  * @typedef {string} DefinitionRefKey - canonical serialization of BindingRefKey + definition identity
  * @typedef {string} SourceSpanId - canonical serialization of SourceUnitRef + start/end offsets
- * @typedef {'PrimitiveGet'|'PrimitiveObjectPatternGet'|'PrimitiveIterator'|'IteratorDispatch'|'PrimitiveMethodDispatch'|'UnknownHostCall'|'UnknownHostArgumentEscape'|'AccessorCall'|'ProxyInternalMethod'|'ProxyHasProperty'|'ProxyOwnKeys'|'ProxyGetOwnProperty'|'ProxyGet'|'ProxyDelete'|'CustomHasInstance'|'ObjectCopyDispatch'|'WithBindingLookup'|'PromiseHandlerDispatch'|'WebIDLStringConversion'|'WebIDLNamedPropertySet'|'WebIDLAttributeSet'} HostEffectKind
+ * @typedef {'PrimitiveGet'|'PrimitiveObjectPatternGet'|'PrimitiveIterator'|'IteratorDispatch'|'PrimitiveMethodDispatch'|'UnknownHostCall'|'UnknownHostArgumentEscape'|'AccessorCall'|'ProxyInternalMethod'|'ProxyHasProperty'|'ProxyOwnKeys'|'ProxyGetOwnProperty'|'ProxyGet'|'ProxyDelete'|'CustomHasInstance'|'ObjectCopyDispatch'|'WithBindingLookup'|'PromiseHandlerDispatch'|'WebIDLStringConversion'|'WebIDLNamedPropertySet'|'WebIDLAttributeSet'|'SRIIntegrityPin'|'BrowserImportMapResolution'} HostEffectKind
  * @typedef {'Primitive'|'Callable'|'HostHeldCallable'|'HostOpaque'|'Unknown'} ValueKind
  * @typedef {Object} HostEffectRecord
  * @property {HostEffectKind} kind
@@ -169,6 +171,8 @@ The canonical plan should expose at least:
  * @property {ReadonlyMap<SourceSpanId, ReadonlySet<DefinitionRefKey>>} reachingDefinitions - runtime definitions that can reach this callsite
  * @property {ReadonlyMap<DefinitionRefKey, ReadonlySet<DefinitionRefKey>>} callTargets
  * @property {ReadonlyMap<DefinitionRefKey, ReadonlySet<DefinitionRefKey>>} activeFrameTargets
+ * @property {string|null} deploymentManifestId - HTML/loader/import-map/SRI manifest generation
+ * @property {ReadonlyMap<string, string>} resolvedModuleGraph - source unit -> actual resolved module instance
  * @property {ReadonlyMap<SourceSpanId, ReadonlyArray<HostEffectRecord>>} hostEffects
  * @property {ReadonlyMap<SourceSpanId, ReadonlySet<ObservationEffect>>} effects
  * @property {ReadonlyMap<SourceSpanId, ReadonlySet<SourceSpanId>>} semanticClosures
@@ -347,3 +351,22 @@ Replacing `Storage.prototype.setItem` or defining an own `localStorage.setItem` 
 The same structured conversion event should cover `Window.name` attribute assignment and bounded `Headers` / `URLSearchParams` constructor/method paths. It should also cover native DOM/CSSOM sinks from the ten-sink matrix: `CSSStyleDeclaration.setProperty`, `Element.setAttribute`, `CSS.escape`, `Element.id`, `Element.textContent`, `Document.createTextNode`, `Document.createComment`, `Element.insertAdjacentText`, `Element.append` and `Element.replaceChildren`. These are native Web IDL conversions, not a denylist of method names.
 
 The four-bit `ObservationEffect` remains separate from the host-effect event: a Web IDL conversion may produce `ExactSource` when a callable is stringified, `UnknownHostEffect` when user conversion hooks execute, or neither when the conversion is proven inert. Keep the callable/receiver/value closure and native descriptor identity in the plan.
+
+
+## Agent 8 deployment-boundary review for source-observer islands (24 November)
+
+The existing island proof is a closed **supplied ESM graph**, not necessarily a closed browser deployment. `proveSourceObserverIslands` rejects every supplied file that is not ESM (`src/source-observer-islands.js:184–195)); therefore it cannot receive the host HTML asset. `core.js` scans `hasPinnedLocalJavaScriptIntegrity(prepared)` before the island proof, but if the HTML is omitted from `prepared`, an SRI attribute in the host page is invisible. The POSIX `resolveKnownImport` path resolver (`source-observer-islands.js:155–159`) also does not consume the browser import-map resolution table. An external import map can therefore make the runtime module graph differ from the path graph the proof sees.
+
+A browser/COO candidate must choose one explicit boundary:
+
+1. include the host HTML and import-map manifest in the input contract, resolve every specifier to its actual browser URL/module instance, and validate that no external SRI pins a selected module; or
+2. require an auditable deployment premise such as `hostHtmlIncludedAndNoSRI` plus a canonical resolved-module map/import-map generation, and refuse browser/COO island use when either is absent.
+
+The existing all-ESM option cannot itself prove the host HTML premise. A Node ESM positive does not imply browser deployment closure. The plan's `SourceUnitRef` therefore includes actual `resolvedURL` and `resolutionContextId`, and the graph includes a deployment manifest identity. `SRIIntegrityPin` is an `ExactSource` producer; `BrowserImportMapResolution` determines module instance identity and closure.
+
+Required browser negatives before any COO claim:
+- host HTML contains SRI for a selected module: default group veto preserves the bytes, and the island option refuses absent an explicit no-SRI manifest;
+- an import map remaps a relative/bare dependency to an unlisted URL/module: the proof refuses rather than resolving only by POSIX path.
+
+This is a deployment-proof limitation, not a demonstrated current-main behavior regression under the existing opt-in caller contract. The Node-only source-island fixture remains a narrower positive. No new PR or compiler patch is proposed.
+
