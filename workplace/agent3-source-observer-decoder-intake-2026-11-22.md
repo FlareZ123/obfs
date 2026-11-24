@@ -352,7 +352,7 @@ Agent 19's DOM/HTML parser/stream matrix and Agent 1's CSSOMString matrix are us
 
 ## Addendum (24 November 2026, after 04:38 UTC): HostHeldCallable source-observation gap and graph-schema correction
 
-**Current main at refresh:** 3e7b260b3e7febb3178cc5bc5ee87aa083e0d654. The authoritative carrier/effect contract was corrected in commit 3e7b260b3e7febb3178cc5bc5ee87aa083e0d654 and refined through latest schema commit 98e2e094f58021b816fe6bf804d226d47d01e889; its v2 schema supersedes the earlier incomplete typedef block. This is still a proposal, not a production plan module.
+**Current main at refresh:** 3e7b260b3e7febb3178cc5bc5ee87aa083e0d654. The authoritative carrier/effect contract was corrected in commit 3e7b260b3e7febb3178cc5bc5ee87aa083e0d654 and refined through latest schema commit 9d2bd81aae26272023c12ac2488291850c6fb044; its v2 schema supersedes the earlier incomplete typedef block. This is still a proposal, not a production plan module.
 
 ### Current-main HostHeldCallable evidence
 
@@ -449,10 +449,10 @@ The same-owner diagnostic [45329630264](https://github.com/FlareZ123/obfs/action
 
 ## Addendum (24 November 2026, after 04:57 UTC): reproducible Symbol key semantic matrix
 
-Agent 13 consolidated the local Node 22.16.0 Web Storage controls into a 17-case isolated child-process matrix:
+Agent 13 consolidated the local Node 22.16.0 Web Storage controls into a 18-case isolated child-process matrix:
 - Reproduction: sims/agent13-symbol-key-runtime-matrix.js
 - Intermediate report: im-results/agent13-symbol-key-runtime-matrix-2026-11-24.md
-- All 17 cases passed locally. The matrix covers direct well-known key, same-description Symbol.for fake, preloader fake and userland-real wrappers, local Symbol/globalThis shadows, mutable reassignment vs immutable capture, real/fake actual-to-formal factory flow, cross-file ESM real/fake flow, pure/source-observing key getters, and same-agent cross-realm well-known symbol identity.
+- All 18 cases passed locally. The matrix covers direct well-known key, same-description Symbol.for fake, preloader fake and userland-real wrappers, local Symbol/globalThis shadows, mutable reassignment vs immutable capture, real/fake actual-to-formal factory flow, cross-file ESM real/fake flow, pure/source-observing key getters, and same-agent cross-realm well-known symbol identity.
 - This is runtime semantic evidence only: Node v22.16.0, no obfuscator transform, no Node v22.23.4 CI receipt, and no compiler differential. It does not change NO-GO or justify admitting generic computed-function keys. Keep in im-results, not results.
 
 
@@ -493,3 +493,7 @@ Agent 12's separate SNO-only Node 22.23.4 suite is a CI-backed semantic control,
 
 
 Agent 13 supplied exact multi-file SNO fixture pins for Agent 9's existing branch (not a new harness): branch head 1c1ff4cff0fde9a1db53e919b37ec22413a863be; test/agent9-sno-cli-host-held-callable.test.js blob 818eb13db125c41ea2cc0a06036bed8a95417cd1; bin/sno.js blob 26d28904e88cfb380dc5248c1c14862352a4ae41. Fixture is helper.cjs exporting createHidden() and entry.cjs requiring it, passing hidden to a Node preload queueMicrotask observer, and printing done. The local Node 22.16.0 control reads the original parameter name and a manually renamed parameter without invocation. Agent 9 should add helper.cjs to the artifact manifest as a dependency while keeping entry.cjs the sole entrypoint. This is fixture/source evidence only, not the actual CLI receipt.
+
+
+Agent 13 corrected an over-strong interpretation of the globalThis rule. A local globalThis wrapper is not automatically rejected: const realSymbol = Symbol; const globalThis = { Symbol: { toPrimitive: realSymbol.toPrimitive } }; can expose the exact agent-wide well-known symbol if the captured free Symbol root is trusted and all property-read/getter/proxy effects are safe. A local globalThis shadow returning a string or fake symbol remains negative. This positive is included in the updated 18-case local Node 22.16.0 matrix. See communications/agent3/20261124T050621Z_agent13-globalThis-wrapper-value-correction.md and 050800Z_agent13-globalThis-root-contract-correction.md. The correct proof is root BindingRef plus value flow, not a blanket host-global-only rule.
+
