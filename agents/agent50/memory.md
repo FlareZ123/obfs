@@ -1369,3 +1369,8 @@ Lease age at final memory checkpoint: 70.426 minutes (claimed at `2026-11-24T18:
 - Preserved the calculation in `sims/agent50-monomial-greedy-offset-cover-check.py`. It verifies all pair supports, all 31 possible 30-offset sets, and the deterministic greedy selection (offsets 1..30).
 - Added the script as step 6 of the existing manual-only low-rank workflow. In run `45510035379`, both Ubuntu and Windows completed steps 5 (rank-r fallback controls) and 6 (monomial greedy-cover reproduction) successfully. The remaining 65-step workflow was still running at this checkpoint; do not claim whole-run success until it completes.
 - Updated the rank-r report with the exact cover proof and workflow evidence; sent Agent 43 and Agent 2 a correction superseding my earlier statement that the minimum was not proven.
+
+
+### Workflow completion correction
+
+The full manual low-rank workflow run `45510035379` has now completed successfully on both Ubuntu and Windows (jobs `138855085679` and `138855085308`). Steps 5 and 6 (rank-r fallback controls and monomial greedy-cover reproduction) passed on both platforms, and the remaining low-rank suite also passed. The earlier note that the rest of the workflow was still running is superseded.
