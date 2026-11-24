@@ -1051,9 +1051,9 @@ function advancePlanRanges(plan,editMap,sourceBefore,sourceAfter,trackedSourceRa
 }
 
 /**
- * Reparse/rebind acceptance for the finite first slice. Exact source slices
- * and the direct reader-to-callable relation must still match the original
- * immutable plan after every pass.
+ * Reparse/rebind acceptance for the finite first slice. Preserve the exact
+ * callable, direct reader, reader-result binding and exported mirror path.
+ * Unknown bindings or added callable/reader syntax fail closed.
  *
  * @param {SourceObservationPlan} plan
  * @param {string} source
@@ -1093,28 +1093,107 @@ function validatePlanSemantics(plan,source,ast,trackedSourceRanges) {
   }
   const callableRange=byId.get(meta.callableSpanId);
   const readerRange=byId.get(meta.readerSpanId);
-  let callableMatches=0,readerMatches=0,callableTopLevel=false;
+  const readerResultRange=byId.get(meta.readerResultSpanId);
+  const exportMirrorRange=byId.get(meta.exportMirrorSpanId);
+  let callableMatches=0,readerMatches=0,readerResultMatches=0,exportMirrorMatches=0;
+  let callableTopLevel=false;
   /** @type {AstNode|null} */
   let currentReader=null;
+  /** @type {AstNode|null} */
+  let readerResultNode=null;
+  /** @type {AstNode|null} */
+  let readerResultDeclaration=null;
+  /** @type {AstNode[]} */
+  let readerResultAncestors=[];
+  /** @type {AstNode|null} */
+  let exportMirrorNode=null;
+  /** @type {AstNode|null} */
+  let exportMirrorDeclaration=null;
+  /** @type {AstNode[]} */
+  let exportMirrorAncestors=[];
   walk(ast,(node,parent,key,ancestors)=>{
     if(node.type==='FunctionDeclaration'&&node.start===callableRange?.startOffset&&
        node.end===callableRange?.endOffset&&node.id?.name===meta.callableName) {
       callableMatches++;
-      callableTopLevel=ancestors.every(ancestor=>
-        ancestor.type==='Program'||ancestor.type==='ExportNamedDeclaration');
+      callableTopLevel=ancestors.length===1&&ancestors[0].type==='Program';
     }
     if(node.type==='CallExpression'&&node.start===readerRange?.startOffset&&
        node.end===readerRange?.endOffset&&isDirectFunctionSourceCall(node)&&
-       node.arguments[0]?.name===meta.callableName) {readerMatches++;currentReader=node;}
+       node.arguments[0]?.name===meta.callableName) {
+      readerMatches++;
+      currentReader=node;
+    }
+    if(node.type==='VariableDeclarator'&&
+       node.start===readerResultRange?.startOffset&&
+       node.end===readerResultRange?.endOffset) {
+      readerResultMatches++;
+      readerResultNode=node;
+      readerResultDeclaration=parent;
+      readerResultAncestors=ancestors;
+    }
+    if(node.type==='VariableDeclarator'&&
+       node.start===exportMirrorRange?.startOffset&&
+       node.end===exportMirrorRange?.endOffset) {
+      exportMirrorMatches++;
+      exportMirrorNode=node;
+      exportMirrorDeclaration=parent;
+      exportMirrorAncestors=ancestors;
+    }
   });
-  if(callableMatches!==1||readerMatches!==1||!callableTopLevel||!currentReader)return false;
+  if(callableMatches!==1||readerMatches!==1||readerResultMatches!==1||
+     exportMirrorMatches!==1||!callableTopLevel||!currentReader||
+     !readerResultNode||!exportMirrorNode)return false;
+
+  const readerResultTopLevel=readerResultDeclaration?.type==='VariableDeclaration'&&
+    readerResultDeclaration.kind==='const'&&
+    readerResultDeclaration.declarations.length===1&&
+    readerResultAncestors.length===2&&
+    readerResultAncestors[0].type==='Program'&&
+    readerResultAncestors[1]===readerResultDeclaration;
+  const exportStatement=exportMirrorAncestors.find(ancestor=>
+    ancestor.type==='ExportNamedDeclaration');
+  const exportMirrorTopLevel=exportMirrorDeclaration?.type==='VariableDeclaration'&&
+    exportMirrorDeclaration.kind==='const'&&
+    exportMirrorDeclaration.declarations.length===1&&
+    exportMirrorAncestors.length===3&&
+    exportMirrorAncestors[0].type==='Program'&&
+    exportMirrorAncestors[1]===exportStatement&&
+    exportMirrorAncestors[2]===exportMirrorDeclaration&&
+    exportStatement?.declaration===exportMirrorDeclaration&&
+    !exportStatement.source&&exportStatement.specifiers.length===0;
   const rebound=inspectDeclarations(ast,currentReader);
-  const readerTopLevel=rebound.readerParent?.type==='VariableDeclarator'&&
-    rebound.readerKey==='init'&&rebound.readerAncestors.every(ancestor=>
-      ancestor.type==='Program'||ancestor.type==='ExportNamedDeclaration'||
-      ancestor.type==='VariableDeclaration'||ancestor.type==='VariableDeclarator');
-  return readerTopLevel&&rebound.counts.get(meta.callableName)===1&&
-    !rebound.counts.has('Function');
+  const readerTopLevel=rebound.readerParent===readerResultNode&&
+    rebound.readerKey==='init'&&readerResultNode.init===currentReader&&
+    readerResultNode.id?.type==='Identifier'&&
+    readerResultNode.id.name===meta.readerBindingName&&readerResultTopLevel;
+  const exportFlowPreserved=exportMirrorNode.id?.type==='Identifier'&&
+    exportMirrorNode.id.name===meta.exportBindingName&&
+    exportMirrorNode.init?.type==='Identifier'&&
+    exportMirrorNode.init.name===meta.readerBindingName&&exportMirrorTopLevel;
+
+  const identifierCounts=new Map();
+  let directReaderCount=0,functionLikeCount=0;
+  walk(ast,node=>{
+    if(node.type==='Identifier') {
+      identifierCounts.set(node.name,(identifierCounts.get(node.name)??0)+1);
+    }
+    if(node.type==='CallExpression'&&isDirectFunctionSourceCall(node))directReaderCount++;
+    if(['FunctionDeclaration','FunctionExpression','ArrowFunctionExpression',
+        'ClassDeclaration','ClassExpression'].includes(node.type))functionLikeCount++;
+  });
+  const bindingNames=collectBindingNames(ast);
+  const noAmbientShadow=bindingNames.has('Function')===false&&
+    identifierCounts.get('Function')===1&&
+    !['globalThis','window','self','global'].some(name=>identifierCounts.has(name));
+  const uniqueClosedReader=directReaderCount===1&&functionLikeCount===1&&
+    identifierCounts.get(meta.callableName)===2&&
+    identifierCounts.get(meta.readerBindingName)===2&&
+    identifierCounts.get(meta.exportBindingName)===1;
+
+  return readerTopLevel&&exportFlowPreserved&&noAmbientShadow&&uniqueClosedReader&&
+    rebound.counts.get(meta.callableName)===1&&
+    rebound.counts.get(meta.readerBindingName)===1&&
+    rebound.counts.get(meta.exportBindingName)===1;
 }
 
 /**
