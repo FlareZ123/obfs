@@ -507,3 +507,36 @@ test('SNO Node Web Storage immutable Symbol.toPrimitive alias remains conservati
   assert.equal(pair.emitted.independent,29);
   console.log(JSON.stringify({mode:'sno',case:'immutable-Symbol.toPrimitive-alias',observer:pair.observes,bindings:pair.bindings,stored:pair.emitted.stored,conservativeRefusal:true}));
 });
+
+
+test('SNO Node sessionStorage native DOMString conversion preserves runtime values but changes callable source',{
+  skip:!supportsExperimentalWebStorage,
+  timeout:30000
+},async()=>{
+  const source=[
+    "'use strict';",
+    'function inspect(){const privateLocal=73;return privateLocal;}',
+    'function independent(){const independentLocal=31;return independentLocal;}',
+    'const nativeDispatch=sessionStorage.setItem===Storage.prototype.setItem;',
+    'sessionStorage.clear();',
+    'sessionStorage.setItem("session-source",inspect);',
+    'const result={nativeDispatch,stored:sessionStorage.getItem("session-source"),',
+    '  value:inspect(),independent:independent()};',
+    'process.stdout.write(JSON.stringify(result));'
+  ].join('\n');
+  const pair=await runSnoDifferential(source,'sno-node-sessionstorage-source','obfs-sno-sessionstorage-');
+  assert.equal(pair.observes,false);
+  assert.ok(pair.bindings>=2);
+  assert.ok(!pair.protectedCode.includes('privateLocal'));
+  assert.ok(!pair.protectedCode.includes('independentLocal'));
+  assert.equal(pair.native.nativeDispatch,true);
+  assert.equal(pair.emitted.nativeDispatch,true);
+  assert.ok(pair.native.stored?.includes('privateLocal'));
+  assert.ok(pair.emitted.stored && !pair.emitted.stored.includes('privateLocal'));
+  assert.notEqual(pair.native.stored,pair.emitted.stored);
+  assert.equal(pair.native.value,73);
+  assert.equal(pair.emitted.value,73);
+  assert.equal(pair.native.independent,31);
+  assert.equal(pair.emitted.independent,31);
+  console.log(JSON.stringify({mode:'sno',case:'sessionStorage-native-setItem',observer:pair.observes,bindings:pair.bindings,nativeDispatch:pair.native.nativeDispatch,sourceParity:false}));
+});
