@@ -585,7 +585,9 @@ function summarizeAmbientCallEffects(ast,sourceType) {
       if(sourceType!=='script'&&sourceType!=='commonjs')return false;
       let ancestor=root;
       while(parentByNode.has(ancestor)) {
-        ancestor=parentByNode.get(ancestor);
+        const parent=parentByNode.get(ancestor);
+        if(!parent)break;
+        ancestor=parent;
         if(['FunctionDeclaration','FunctionExpression','ClassDeclaration','ClassExpression',
             'MethodDefinition','PropertyDefinition','StaticBlock'].includes(ancestor.type))return false;
       }
