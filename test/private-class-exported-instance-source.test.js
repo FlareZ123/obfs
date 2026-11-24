@@ -189,7 +189,7 @@ async function inspectExportedClass(code){
       'import Reader,{result} from "./reader.mjs";',
       'const reader=new Reader();',
       'process.stdout.write(JSON.stringify({classSource:Reader.toString(),methodSource:Reader.prototype.read.toString(),value:reader.read(),result}));'
-    ].join('\\n'));
+    ].join('\n'));
     const child=spawnSync(process.execPath,[path.join(root,'entry.mjs')],{
       cwd:root,encoding:'utf8',timeout:15000
     });
@@ -208,7 +208,7 @@ const exportedClassShapes=[
       'export default class Reader{read(){return owner.privateField;}}',
       'const reader=new Reader();',
       'export const result=reader.read();'
-    ].join('\\n')
+    ].join('\n')
   },
   {
     label:'default export specifier',
@@ -218,7 +218,7 @@ const exportedClassShapes=[
       'const reader=new Reader();',
       'export {Reader as default};',
       'export const result=reader.read();'
-    ].join('\\n')
+    ].join('\n')
   }
 ];
 
