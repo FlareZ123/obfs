@@ -52,7 +52,7 @@ These sources reinforce the conservative novelty boundary: higher-order derivati
 
 ### Differentially 2-uniform tables and the shift matcher (checked 2026-11-24)
 
-The same Carlet monograph, §3.4.1, pp.157–160, defines differential uniformity `delta_F) by the maximum number of solutions to `F(x)+F(x+a)=b` for fixed nonzero a and output b. It notes that this value is even and that when output dimension m is at least input dimension n, the minimum possible value is 2; Carlet reserves the term “APN” for the equal-dimension case. For a (5,32)-table, “differentially 2-uniform” is therefore the precise term, not APN.
+The same Carlet monograph, §3.4.1, pp.157–160, defines differential uniformity `delta_F` by the maximum number of solutions to `F(x)+F(x+a)=b` for fixed nonzero a and output b. It notes that this value is even and that when output dimension m is at least input dimension n, the minimum possible value is 2; Carlet reserves the term “APN” for the equal-dimension case. For a (5,32)-table, “differentially 2-uniform” is therefore the precise term, not APN.
 
 The exact frozen rank-five private table has differential uniformity 2: for every nonzero delta, the derivative values `H(q) XOR H(q+delta)` comprise exactly 16 distinct 32-bit words, each appearing twice. Equivalently, `D_u D_delta H(q)` is nonzero for every q, every delta!=0, and every u outside {0,delta}. This is stronger than the fixed-pair separation property used by the shift matcher and explains why every pair of distinct nonzero offsets separates on this particular table. The property is verified exhaustively in `sims/agent2-rankfive-fixed-pair-exhaustive.py`.
 
