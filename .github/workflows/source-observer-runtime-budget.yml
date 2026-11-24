@@ -1,0 +1,45 @@
+name: Source-observer COO runtime budget
+
+on:
+  workflow_dispatch:
+    inputs:
+      candidate_sha:
+        description: Exact repaired candidate commit to benchmark
+        required: true
+        default: "d2d8c18b83c738f9835a4fa886a0ee3a70bc1256"
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: source-observer-runtime-budget-${{ inputs.candidate_sha }}
+  cancel-in-progress: true
+
+jobs:
+  node-budget:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout exact repaired candidate
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.candidate_sha }}
+          fetch-depth: 1
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22.23.4
+
+      - name: Record runtime and source pin
+        run: |
+          node --version
+          npm --version
+          git rev-parse HEAD
+
+      - name: Install declared dependencies
+        run: npm ci --ignore-scripts --no-audit --no-fund
+
+      - name: Measure paired original/obfuscated ESM evaluation
+        run: node sims/source-observer-runtime-budget.js
