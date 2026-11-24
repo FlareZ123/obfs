@@ -4,7 +4,7 @@ const {resolveLexicalReferences}=require('./agent1-lexical-reference-resolver');
 
 /** @typedef {import('../src/ast').AstNode} AstNode */
 /** @typedef {'module'|'script'|'commonjs'} SourceType */
-/** @typedef {{kind:'unknown-call'|'unresolved-local-call'|'new-expression'|'tagged-template'|'await'|'yield'|'dynamic-import'|'transitive-local-call'|'with-binding-lookup'|'implicit-iterator'|'implicit-object-enumeration'|'implicit-proxy-has'|'implicit-instanceof'|'implicit-delete'|'implicit-destructuring'|'implicit-spread'|'to-primitive'|'to-property-key'|'promise-thenable-assimilation'|'host-held-callable'|'unresolved-callable-argument-flow'|'returned-callable-value'|'callable-metadata-observer'|'classic-script-global-lexical'|'module-exported-callable'|'unknown-member-access',start:number,end:number,targetStart?:number,effect?:'DynamicFrame'|'HostHeldCallable'|'ExternalReachability'}} AmbientCallReason */
+/** @typedef {{kind:'unknown-call'|'unresolved-local-call'|'new-expression'|'tagged-template'|'await'|'yield'|'dynamic-import'|'transitive-local-call'|'with-binding-lookup'|'implicit-iterator'|'implicit-object-enumeration'|'implicit-proxy-has'|'implicit-instanceof'|'implicit-delete'|'implicit-destructuring'|'implicit-spread'|'to-primitive'|'to-property-key'|'promise-thenable-assimilation'|'host-held-callable'|'unresolved-callable-argument-flow'|'returned-callable-value'|'callable-metadata-observer'|'classic-script-global-lexical'|'module-exported-callable'|'host-global-exported-callable'|'unknown-member-access',start:number,end:number,targetStart?:number,effect?:'DynamicFrame'|'HostHeldCallable'|'ExternalReachability'}} AmbientCallReason */
 /** @typedef {{node:AstNode,start:number,end:number,bindingIds:number[],bindingNames:string[],ambient:boolean,dynamicFrame:boolean,hostHeldCallable:boolean,externallyReachable:boolean,safe:boolean,reasons:AmbientCallReason[]}} AmbientCallSummary */
 
 /**
@@ -566,6 +566,24 @@ function summarizeAmbientCallEffects(ast,sourceType) {
     else if(effect==='HostHeldCallable')hostHeldFunctions.add(fn);
   }
 
+  const HOST_GLOBAL_ROOT_NAMES=new Set(['globalThis','window','self','global']);
+
+  /** @param {AstNode} left @returns {boolean} */
+  function isHostGlobalExportTarget(left) {
+    if(left.type!=='MemberExpression')return false;
+    let root=left;
+    while(root.type==='MemberExpression')root=root.object;
+    if(root.type!=='Identifier')return false;
+    const reference=resolved.at(root.start);
+    if(reference?.resolution.kind==='local') {
+      const initializer=initializerForBinding(reference.resolution.bindingId);
+      if(initializer?.type!=='Identifier'||!HOST_GLOBAL_ROOT_NAMES.has(initializer.name))return false;
+      const initializerReference=resolved.at(initializer.start);
+      return initializerReference?.resolution.kind!=='local';
+    }
+    return HOST_GLOBAL_ROOT_NAMES.has(root.name);
+  }
+
   /** @param {AstNode} left @returns {boolean} */
   function isCommonJsExportTarget(left) {
     if(left.type==='Identifier'&&left.name==='exports') {
@@ -612,6 +630,11 @@ function summarizeAmbientCallEffects(ast,sourceType) {
       markExternalCallableValue(node.declaration,node.start,node.end);
     } else if(node.type==='AssignmentExpression'&&isCommonJsExportTarget(node.left)) {
       markExternalCallableValue(node.right,node.start,node.end);
+    } else if(node.type==='AssignmentExpression'&&isHostGlobalExportTarget(node.left)) {
+      for(const target of callableNodesForValue(node.right)) {
+        externallyReachableFunctions.add(target);
+        addReason(target,{kind:'host-global-exported-callable',start:node.start,end:node.end},'ExternalReachability');
+      }
     }
   });
 
