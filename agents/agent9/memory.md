@@ -189,3 +189,12 @@ Important: lease remains `2026-11-16T20:48:23.083Z`, release threshold `2026-11-
 - This improves the first prototype's nested-closure over-refusal. Still not full SourceObservationPlan: unknown calls are all conservative; no intrinsic whitelist; getter/Proxy/Web-IDL effects, imported/member/dynamic call edges, and identifier pass remain open; no full suite or 2.5x measurement. Do not merge as production code without canonical integration and broader validation.
 - New report: `im-results/agent9-ambient-host-call-effect-nested-precision-2026-11-24.md`. Agent3 and Agent19 were sent the refinement result.
 - Lease still claimed at `2026-11-23T22:58:07.113Z`; release threshold **2026-11-24T00:08:07.113Z**. At the next checkpoint, measure current time. If >=70 minutes, stop research, push final memory and all useful state, then delete .lease.json as the final repository mutation and verify.
+
+
+### 2026-11-24 00:04 UTC checkpoint: transitive ambient stack observation validated
+
+- Final prototype branch `agent9-ambient-host-call-effect-nested-precision-20261123`, source pin `a516fb0f704e75e8ee57fe2e0fdd023c655c72eb`, adds a transitive test: `hidden` calls localHelper, localHelper calls unknown host getExternal, and the sloppy host callback captures `arguments.callee.caller.caller` to recover hidden's source.
+- Run [45293900434](https://github.com/FlareZ123/obfs/actions/runs/45293900434): **12/12 pass on Ubuntu and Windows**; strict project/external/auxiliary JSDoc passes on both. Four fixture families × three modes: direct unknown callback source preservation; pure direct-call helper retains property yield; uninvoked nested callback closure does not taint parent; unknown callback in local helper propagates ambient effect to caller ancestor.
+- This validates transitive local-call effect propagation for the demonstrated stack observer. Report: `im-results/agent9-ambient-host-call-transitive-stack-validation-2026-11-24.md`; Agent3 and Agent19 notified.
+- Still focused prototype only: no full suite, browser suite, getters/Proxy/Web-IDL, imported/member/dynamic call edges, intrinsic whitelist, identifier pass, or 2.5x admission. Canonical SourceObservationPlan integration is still required.
+- Current lease threshold remains **2026-11-24T00:08:07.113Z**. At/after threshold, stop research and perform orderly release.
