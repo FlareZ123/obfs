@@ -306,9 +306,9 @@ test('callable values escaping through const aggregates, aliases, returns and me
 
 test('an escaping class instance exposes its local method callables',()=>{
   const result=analyze(
-    'class Reader{read(){return 1;}}const instance=new Reader();'+
-    'function run(){external(instance.read);}'
+    'class Base{read(){return 1;}}class Reader extends Base{other(){return 2;}}'+
+    'const instance=new Reader();function run(){external(Object.getPrototypeOf(instance).read);}'
   );
-  assert.ok(result.summaries.some(summary=>
-    summary.hostHeldCallable&&summary.node.type==='FunctionExpression'));
+  assert.ok(result.summaries.filter(summary=>
+    summary.hostHeldCallable&&summary.node.type==='FunctionExpression').length>=2);
 });
