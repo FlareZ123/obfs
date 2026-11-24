@@ -260,3 +260,16 @@ test('unknown host argument follows a direct const alias to the held callable',(
   assert.equal(named(result,'hidden')[0].hostHeldCallable,true);
   assert.equal(named(result,'run')[0].ambient,true);
 });
+
+
+test('only non-escaping primitive own-data records exempt member-read effects',()=>{
+  const owned=analyze(
+    'function caller(){const owner={secretField:41,otherField:1};'+
+    'return owner.secretField+owner.otherField;}'
+  );
+  assert.equal(named(owned,'caller')[0].ambient,false);
+  const unknown=analyze('function caller(value){return value.secretField;}');
+  assert.equal(named(unknown,'caller')[0].ambient,true);
+  assert.ok(named(unknown,'caller')[0].reasons.some(r=>
+    r.kind==='unknown-member-access'));
+});
