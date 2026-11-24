@@ -179,6 +179,9 @@ The canonical plan should expose at least the following. The v2 JSDoc schema sup
  * @property {DefinitionRefKey|null} lexicalDefinitionRef
  * @property {DefinitionRefKey|null} ownerDefinitionRef
  * @property {PropertyKeyIdentityRefKey|null} propertyKeyIdentity
+ * @property {ValueRefKey|null} homeObjectValueRef - [[HomeObject]] identity for object/class methods
+ * @property {boolean} usesThis
+ * @property {boolean} usesSuper
  * @property {'function-declaration'|'function-expression'|'object-method'|'object-accessor'|'class-method'|'class-accessor'|'class-constructor'|'class-field'|'anonymous-expression'|'imported-callable'|'unknown'} kind
  *
  * @typedef {Object} ActivationRef
@@ -292,7 +295,7 @@ The canonical plan should expose at least the following. The v2 JSDoc schema sup
  * @typedef {'Primitive'|'Callable'|'ErrorLike'|'PlainRecord'|'HostObject'|'PathLike'|'IteratorLike'|'PromiseLike'|'Unknown'} ValueCategory
  * @typedef {ValueCategory} ValueKind - compatibility alias; not a complete value fact
  * @typedef {'proven'|'may'|'unknown'} ValueProofStatus
- * @typedef {'HostHeldCallable'|'Escaped'|'SourceObservable'|'CallableMetadataObservable'|'SameSourcePath'|'UnknownPath'} ValueCapability
+ * @typedef {'HostHeldCallable'|'HostHeldObject'|'Escaped'|'SourceObservable'|'CallableMetadataObservable'|'SameSourcePath'|'UnknownPath'} ValueCapability
  *
  * @typedef {Object} WellKnownSymbolRef
  * @property {WellKnownSymbolRefKey} symbolRef
@@ -497,6 +500,8 @@ Mode/trust defaults are fixed by the threat model: COO/client, SCO/client and SN
 ModuleResolutionEdge is per import occurrence; SourceDeliveryEdge represents the SCO server-to-client boundary and request-specific generation; SourceMirrorReadEdge connects an actual reader effect to the exact function/source mirror it observes. Function-source mirrors carry CallableDefinitionRef and SourceSpanId. The old callTargets, hostArgumentEdges and any source-unit adjacency map are derived compatibility projections, never the authoritative graph.
 
 Dispatch is split into receiver origin, member lookup route and effective operation status. ReceiverLookupRoute records inherited/own/captured/proxy/userland lookup; EffectiveDispatchStatus records local, verified native, overridden or unknown behavior; EffectiveOperationRef identifies the actual local callable or versioned host intrinsic. The old DispatchProvenance name is only a compatibility alias for ReceiverLookupRoute and must not be used for effective-operation status.
+
+A callable value escaping to a host does not imply that its owner object escaped. HostEffectValueEdge must point to the exact observed ValueRef; ValueFact distinguishes HostHeldCallable from HostHeldObject; field-read/write ValueFlowEdges retain ownerValueRef and PropertyKeyIdentityRef; CallableDefinitionRef carries [[HomeObject]] identity and usesThis/usesSuper facts. The source/metadata closure protects the method source and the property key that determines observable name/length. It must not automatically mark every sibling field on the owner object as host-held. Same-owner field renaming remains fail-closed unless [[HomeObject]], this/super, reflection, getters/setters, dynamic keys, binding and value escape are all proven safe. A separate-owner positive is not evidence that same-owner renaming is generally safe.
 
 HostEffectRecord.observationEffects records the dimensions produced by that specific event. A function-source mirror read is SourceMirrorRead with ExactSource; filesystem, DOM, loader or SRI byte reads are SourceBytes; CallableMetadataRead is CallableMetadata; StackFrameRead is FramePosition. The plan-level effects map is only a derived span-keyed summary. UnknownHostEffect remains an explicit fallback when dispatch or observation behavior cannot be proven.
 
