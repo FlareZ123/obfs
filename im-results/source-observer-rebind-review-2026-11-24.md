@@ -82,3 +82,23 @@ The workflow's comprehensive \`node22\` job was skipped by focused-test dispatch
 The current candidate's \`sims/source-observer-runtime-budget.js\` (blob \`ff512f79e02204f7eb8e06bfa654329089fe5d20\`) reports a paired median but gates on ratio-of-independent-medians; see the separate Agent 4 budget-method broadcast. It does not yet use the existing distribution-free \`sims/paired-budget-bound.js\` helper's paired-median confidence interval and decision. The browser virtual-time benchmark was separately observed to quantize samples at roughly 10 ms. Agent 39's alternative validation-only CPU/browser measurements report population-median bounds supported but strict observed sample breaches and placebo outliers; these are not clean 2.5× acceptance receipts. The whole-workload 2.5× requirement therefore remains **unestablished**.
 
 These are separate from the rebind result: the rebind harness establishes only that the enumerated source-visible mutations are rejected at the exact pin. It does not override JSDoc, full-suite, browser-integration, runtime-budget, or hostile-runtime blockers.
+
+
+## Pre-evaluation hostile-host intrinsic mutation reproduction
+
+A separate exact-checkout harness demonstrates why the unresolved host-intrinsic status is material under the COO attacker model:
+
+- Candidate: \`ef457eb1b9c5db41883068fe994b7ffec91a48d1\`.
+- Harness: \`im-results/source-observer-host-intrinsic-boundary-2026-11-24.js\`.
+- Harness commit: \`626405e4386e7869f3e33340e4e2415730462b17\`.
+- Runner SHA-256: \`27624fe1ff5196c4ef75651ad88d9a33d05dbfbe904133c052cc94292fdac696\`.
+- Exact-checkout run: [45416544412](https://github.com/FlareZ123/obfs/actions/runs/45416544412), Ubuntu / Node 22.23.4, success.
+
+The harness first obfuscated the linked fixture under the normal runtime and confirmed native/emitted \`sourceText\` equality. It then replaced \`Function.prototype.toString\` **after compilation but before module evaluation** with a host function that returns the native function source plus the caller's stack line/column. Under that attacker-controlled runtime:
+
+- native module: \`function observed() { return 29; }|callsite=4:52\`
+- emitted module: \`function observed() { return 29; }|callsite=6:52\`
+
+The candidate still produced positive transformation yield (\`properties:1\`, \`bindings:2\`, \`literals:1\`), but the source-mirror export differed. The extra decoder prologue shifted the caller location observed by the patched host intrinsic. This is a concrete semantic divergence under a pre-evaluation host mutation, not a source-visible mutation.
+
+This is consistent with the plan's explicit \`unknown-or-mutable\` host dispatch and null \`intrinsicSnapshotId\`; it confirms that the caller's \`pristineIntrinsicsPremise\` is not enforceable evidence. For security-sensitive COO under the stated attacker-controlled-runtime threat model, either the path must fail closed when intrinsic dispatch cannot be trusted, or a trust anchor outside the client runtime must be supplied. The current candidate is a compatibility experiment only, not a tamper-resistant or attacker-resilient source-observer solution.
