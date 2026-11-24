@@ -54,7 +54,7 @@ const {sourceGenerationOf,mapMappedSourceRange} = require('./source-edit-map');
 
 /** @type {WeakSet<object>} */
 const validatedPlans=new WeakSet();
-/** @type {WeakMap<object,{source:string,path:string,sourceUnitRef:string,parserContractId:string,callableName:string,callableSpanId:string,readerSpanId:string,effectId:string}>} */
+/** @type {WeakMap<object,{source:string,path:string,sourceUnitRef:string,parserContractId:string,callableName:string,callableSpanId:string,readerSpanId:string,readerBindingName:string,exportBindingName:string,readerResultSpanId:string,exportMirrorSpanId:string,effectId:string}>} */
 const planMetadata=new WeakMap();
 /** @type {WeakMap<object,SourceObservationPlan>} */
 const planRangeOwners=new WeakMap();
@@ -346,6 +346,75 @@ function inspectDeclarations(ast,readerCall) {
 }
 
 /**
+ * Collect every binding introduced by an ESTree binding pattern.
+ * @param {AstNode|null|undefined} pattern
+ * @param {Set<string>} names
+ */
+function collectBindingPatternNames(pattern,names) {
+  if(!pattern)return;
+  if(pattern.type==='Identifier') {
+    names.add(pattern.name);
+    return;
+  }
+  if(pattern.type==='RestElement') {
+    collectBindingPatternNames(pattern.argument,names);
+    return;
+  }
+  if(pattern.type==='AssignmentPattern') {
+    collectBindingPatternNames(pattern.left,names);
+    return;
+  }
+  if(pattern.type==='ArrayPattern') {
+    for(const element of pattern.elements)collectBindingPatternNames(element,names);
+    return;
+  }
+  if(pattern.type==='ObjectPattern') {
+    for(const property of pattern.properties) {
+      if(property.type==='RestElement')collectBindingPatternNames(property.argument,names);
+      else if(property.type==='Property')collectBindingPatternNames(property.value,names);
+    }
+  }
+}
+
+/**
+ * Collect lexical bindings conservatively, including classes, imports,
+ * parameters, catch bindings and nested destructuring patterns.
+ * @param {AstNode} ast
+ * @returns {Set<string>}
+ */
+function collectBindingNames(ast) {
+  const names=new Set();
+  walk(ast,node=>{
+    if(node.type==='VariableDeclarator')collectBindingPatternNames(node.id,names);
+    if(['FunctionDeclaration','FunctionExpression','ClassDeclaration','ClassExpression'].includes(node.type)&&
+       node.id?.type==='Identifier')names.add(node.id.name);
+    if(['FunctionDeclaration','FunctionExpression','ArrowFunctionExpression'].includes(node.type)) {
+      for(const parameter of node.params)collectBindingPatternNames(parameter,names);
+    }
+    if(node.type==='ImportDeclaration') {
+      for(const specifier of node.specifiers) {
+        if(specifier.local?.type==='Identifier')names.add(specifier.local.name);
+      }
+    }
+    if(node.type==='CatchClause')collectBindingPatternNames(node.param,names);
+  });
+  return names;
+}
+
+/**
+ * Count all identifier spellings, including declaration and non-reference
+ * positions. The first source-observer slice deliberately uses unique names.
+ * @param {AstNode} ast
+ * @param {string} name
+ * @returns {number}
+ */
+function countIdentifierOccurrences(ast,name) {
+  let count=0;
+  walk(ast,node=>{if(node.type==='Identifier'&&node.name===name)count++;});
+  return count;
+}
+
+/**
  * Build a finite plan for one direct Function.prototype.toString.call(fn)
  * observation in a closed, single-file ESM COO input. The caller must provide
  * an explicit, versioned host premise for pristine Function intrinsics and, when string encoding is enabled, String.fromCharCode. This
@@ -390,8 +459,40 @@ function buildDirectFunctionSourcePlan(source,path,hostContract) {
   const {counts,readerParent,readerKey,readerAncestors}=inspectDeclarations(ast,readerCall);
   if(!readerParent||readerParent.type!=='VariableDeclarator'||
      readerKey!=='init'||readerParent.init!==readerCall||
-     readerAncestors.some(ancestor=>ancestor.type==='FunctionDeclaration'))return null;
+     readerParent.id?.type!=='Identifier'||
+     readerAncestors.some(ancestor=>ancestor.type==='FunctionDeclaration'||
+       ancestor.type==='ExportNamedDeclaration'))return null;
+  const readerDeclaration=readerAncestors.find(ancestor=>ancestor.type==='VariableDeclaration');
+  if(!readerDeclaration||readerDeclaration.kind!=='const'||
+     readerDeclaration.declarations.length!==1)return null;
+  const readerBindingName=readerParent.id.name;
   const callableName=readerCall.arguments[0].name;
+  const exportCandidates=[];
+  for(const statement of ast.body) {
+    if(statement.type!=='ExportNamedDeclaration'||statement.source||
+       statement.specifiers.length||statement.declaration?.type!=='VariableDeclaration')continue;
+    const declaration=statement.declaration;
+    for(const declarator of declaration.declarations) {
+      if(declarator.id?.type==='Identifier'&&declarator.id.name==='sourceText') {
+        exportCandidates.push({statement,declaration,declarator});
+      }
+    }
+  }
+  if(exportCandidates.length!==1)return null;
+  const exportMirror=exportCandidates[0];
+  const exportBindingName='sourceText';
+  if(exportMirror.declaration.kind!=='const'||
+     exportMirror.declaration.declarations.length!==1||
+     exportMirror.declarator.init?.type!=='Identifier'||
+     exportMirror.declarator.init.name!==readerBindingName||
+     readerBindingName===exportBindingName||
+     counts.get(readerBindingName)!==1||
+     counts.get(exportBindingName)!==1||
+     countIdentifierOccurrences(ast,readerBindingName)!==2||
+     countIdentifierOccurrences(ast,exportBindingName)!==1||
+     countIdentifierOccurrences(ast,callableName)!==2||
+     countIdentifierOccurrences(ast,'Function')!==1||
+     collectBindingNames(ast).has('Function'))return null;
   /** @type {AstNode[]} */
   const functionNodes=[];
   walk(ast,node=>{
@@ -435,10 +536,21 @@ function buildDirectFunctionSourcePlan(source,path,hostContract) {
     callableNode.end+':FunctionDeclaration';
   const readerSpanId='span:'+sourceUnitRef+':'+readerCall.start+':'+
     readerCall.end+':CallExpression';
+  const readerResultSpanId='span:'+sourceUnitRef+':'+readerParent.start+':'+
+    readerParent.end+':VariableDeclarator';
+  const exportMirrorSpanId='span:'+sourceUnitRef+':'+exportMirror.declarator.start+':'+
+    exportMirror.declarator.end+':VariableDeclarator';
   const callableDefinitionId='callable:'+sourceUnitRef+':'+callableName;
   const bindingId='binding:'+sourceUnitRef+':'+callableName;
   const definitionId='definition:'+sourceUnitRef+':'+callableName;
+  const readerBindingId='binding:'+sourceUnitRef+':'+readerBindingName;
+  const readerDefinitionId='definition:'+sourceUnitRef+':'+readerBindingName;
+  const exportBindingId='binding:'+sourceUnitRef+':'+exportBindingName;
+  const exportDefinitionId='definition:'+sourceUnitRef+':'+exportBindingName;
   const valueRef='value:'+sourceUnitRef+':'+callableName;
+  const resultValueRef='value:'+sourceUnitRef+':source-mirror-result:'+readerCall.start;
+  const readerValueRef='value:'+sourceUnitRef+':reader-binding:'+readerBindingName;
+  const exportValueRef='value:'+sourceUnitRef+':export:'+exportBindingName;
   const callSiteId='callsite:'+sourceUnitRef+':'+readerCall.start+':'+readerCall.end;
   const effectId='effect:'+sourceUnitRef+':'+readerCall.start+':source-mirror-read';
   const mirrorId='mirror:'+callableDefinitionId;
@@ -504,6 +616,24 @@ function buildDirectFunctionSourcePlan(source,path,hostContract) {
     coordinateUnit:'utf16-code-unit',
     astNodeType:'CallExpression'
   });
+  const readerResultSpan=Object.freeze({
+    spanId:readerResultSpanId,
+    sourceUnitRef,
+    sourceGeneration,
+    startOffset:readerParent.start,
+    endOffset:readerParent.end,
+    coordinateUnit:'utf16-code-unit',
+    astNodeType:'VariableDeclarator'
+  });
+  const exportMirrorSpan=Object.freeze({
+    spanId:exportMirrorSpanId,
+    sourceUnitRef,
+    sourceGeneration,
+    startOffset:exportMirror.declarator.start,
+    endOffset:exportMirror.declarator.end,
+    coordinateUnit:'utf16-code-unit',
+    astNodeType:'VariableDeclarator'
+  });
   const binding=Object.freeze({sourceUnitRef,localBindingId:callableNode.start});
   const definition=Object.freeze({
     definitionId,
@@ -511,6 +641,30 @@ function buildDirectFunctionSourcePlan(source,path,hostContract) {
     definitionSpanId:callableSpanId,
     kind:'function-declaration',
     sourceOrder:callableNode.start,
+    controlFlowPointId:'module-entry',
+    branchGuardIds:Object.freeze([])
+  });
+  const readerBinding=Object.freeze({
+    sourceUnitRef,localBindingId:readerParent.id.start
+  });
+  const readerDefinition=Object.freeze({
+    definitionId:readerDefinitionId,
+    bindingRef:readerBindingId,
+    definitionSpanId:readerResultSpanId,
+    kind:'lexical-initializer',
+    sourceOrder:readerParent.start,
+    controlFlowPointId:'module-entry',
+    branchGuardIds:Object.freeze([])
+  });
+  const exportBinding=Object.freeze({
+    sourceUnitRef,localBindingId:exportMirror.declarator.id.start
+  });
+  const exportDefinition=Object.freeze({
+    definitionId:exportDefinitionId,
+    bindingRef:exportBindingId,
+    definitionSpanId:exportMirrorSpanId,
+    kind:'lexical-initializer',
+    sourceOrder:exportMirror.declarator.start,
     controlFlowPointId:'module-entry',
     branchGuardIds:Object.freeze([])
   });
@@ -542,6 +696,57 @@ function buildDirectFunctionSourcePlan(source,path,hostContract) {
     originSourceUnitRefs:Object.freeze([sourceUnitRef]),
     pathProvenance:Object.freeze([]),
     capabilities:Object.freeze(['SourceObservable'])
+  });
+  const resultValue=Object.freeze({
+    valueRef:resultValueRef,
+    sourceUnitRef,
+    originSpanId:readerSpanId,
+    originDefinitionRef:null
+  });
+  const resultValueFact=Object.freeze({
+    categoryPossibilities:Object.freeze(['Primitive']),
+    proofStatus:'proven',
+    originDefinitionRefs:Object.freeze([]),
+    callableDefinitionRefs:Object.freeze([]),
+    wellKnownSymbolRefs:Object.freeze([]),
+    propertyKeyIdentityRefs:Object.freeze([]),
+    originSourceUnitRefs:Object.freeze([sourceUnitRef]),
+    pathProvenance:Object.freeze([]),
+    capabilities:Object.freeze([])
+  });
+  const readerValue=Object.freeze({
+    valueRef:readerValueRef,
+    sourceUnitRef,
+    originSpanId:readerResultSpanId,
+    originDefinitionRef:readerDefinitionId
+  });
+  const readerValueFact=Object.freeze({
+    categoryPossibilities:Object.freeze(['Primitive']),
+    proofStatus:'proven',
+    originDefinitionRefs:Object.freeze([readerDefinitionId]),
+    callableDefinitionRefs:Object.freeze([]),
+    wellKnownSymbolRefs:Object.freeze([]),
+    propertyKeyIdentityRefs:Object.freeze([]),
+    originSourceUnitRefs:Object.freeze([sourceUnitRef]),
+    pathProvenance:Object.freeze([]),
+    capabilities:Object.freeze([])
+  });
+  const exportValue=Object.freeze({
+    valueRef:exportValueRef,
+    sourceUnitRef,
+    originSpanId:exportMirrorSpanId,
+    originDefinitionRef:exportDefinitionId
+  });
+  const exportValueFact=Object.freeze({
+    categoryPossibilities:Object.freeze(['Primitive']),
+    proofStatus:'proven',
+    originDefinitionRefs:Object.freeze([exportDefinitionId]),
+    callableDefinitionRefs:Object.freeze([]),
+    wellKnownSymbolRefs:Object.freeze([]),
+    propertyKeyIdentityRefs:Object.freeze([]),
+    originSourceUnitRefs:Object.freeze([sourceUnitRef]),
+    pathProvenance:Object.freeze([]),
+    capabilities:Object.freeze([])
   });
   const callSite=Object.freeze({
     callSiteId,
@@ -578,7 +783,7 @@ function buildDirectFunctionSourcePlan(source,path,hostContract) {
     argumentIndex:0,
     operandPath:null,
     propertyKeyIdentityRef:null,
-    resultValueRef:null,
+    resultValueRef,
     hostContractRef:hostContractId,
     callbackRole:null,
     callbackTiming:null
@@ -590,6 +795,40 @@ function buildDirectFunctionSourcePlan(source,path,hostContract) {
     callSiteRef:callSiteId,
     operandRole:'this',
     argumentIndex:0,
+    operandPath:null
+  });
+  const assignmentFlowEdge=Object.freeze({
+    edgeId:'value-flow:'+effectId+':result-assignment',
+    fromValueRef:resultValueRef,
+    toValueRef:readerValueRef,
+    kind:'assignment',
+    sourceSpanId:readerResultSpanId,
+    callSiteRef:null,
+    controlFlowPointId:'module-entry',
+    branchGuardIds:Object.freeze([]),
+    targetCallableDefinitionRef:null,
+    ownerValueRef:null,
+    receiverValueRef:null,
+    reflectionOperation:null,
+    argumentIndex:null,
+    propertyKeyIdentity:null,
+    operandPath:null
+  });
+  const exportFlowEdge=Object.freeze({
+    edgeId:'value-flow:'+effectId+':export',
+    fromValueRef:readerValueRef,
+    toValueRef:exportValueRef,
+    kind:'export',
+    sourceSpanId:exportMirrorSpanId,
+    callSiteRef:null,
+    controlFlowPointId:'module-entry',
+    branchGuardIds:Object.freeze([]),
+    targetCallableDefinitionRef:null,
+    ownerValueRef:null,
+    receiverValueRef:null,
+    reflectionOperation:null,
+    argumentIndex:null,
+    propertyKeyIdentity:null,
     operandPath:null
   });
   const mirror=Object.freeze({
@@ -617,7 +856,8 @@ function buildDirectFunctionSourcePlan(source,path,hostContract) {
   });
   const planPayload=JSON.stringify([
     'source-observation-plan-generation-v1',
-    sourceUnitRef,hostContractId,readerSpanId,callableSpanId
+    sourceUnitRef,hostContractId,readerSpanId,callableSpanId,
+    readerResultSpanId,exportMirrorSpanId
   ]);
   if(typeof planPayload!=='string')return null;
   const planGeneration=createHash('sha256').update(planPayload).digest('hex');
@@ -626,7 +866,8 @@ function buildDirectFunctionSourcePlan(source,path,hostContract) {
     planGeneration,
     sourceUnits:readonlyMap([[sourceUnitRef,sourceUnit]]),
     sourceSpans:readonlyMap(/** @type {Array<[string,SourceSpanRef]>} */ ([
-      [callableSpanId,callableSpan],[readerSpanId,readerSpan]
+      [callableSpanId,callableSpan],[readerSpanId,readerSpan],
+      [readerResultSpanId,readerResultSpan],[exportMirrorSpanId,exportMirrorSpan]
     ])),
     threatModels:readonlyMap([[threatModelId,threatModel]]),
     moduleResolutionEdges:emptyObjectMap(),
@@ -634,27 +875,48 @@ function buildDirectFunctionSourcePlan(source,path,hostContract) {
     scoPartitionEligibility:emptyObjectMap(),
     wellKnownSymbols:emptyObjectMap(),
     propertyKeyIdentities:emptyObjectMap(),
-    bindings:readonlyMap([[bindingId,binding]]),
-    definitions:readonlyMap([[definitionId,definition]]),
+    bindings:readonlyMap([
+      [bindingId,binding],[readerBindingId,readerBinding],[exportBindingId,exportBinding]
+    ]),
+    definitions:readonlyMap([
+      [definitionId,definition],[readerDefinitionId,readerDefinition],[exportDefinitionId,exportDefinition]
+    ]),
     callableDefinitions:readonlyMap([[callableDefinitionId,callable]]),
     activations:emptyObjectMap(),
-    values:readonlyMap([[valueRef,value]]),
-    valueFacts:readonlyMap([[valueRef,valueFact]]),
-    valueFlowEdges:emptyObjectMap(),
+    values:readonlyMap([
+      [valueRef,value],[resultValueRef,resultValue],
+      [readerValueRef,readerValue],[exportValueRef,exportValue]
+    ]),
+    valueFacts:readonlyMap([
+      [valueRef,valueFact],[resultValueRef,resultValueFact],
+      [readerValueRef,readerValueFact],[exportValueRef,exportValueFact]
+    ]),
+    valueFlowEdges:readonlyMap([
+      [assignmentFlowEdge.edgeId,assignmentFlowEdge],[exportFlowEdge.edgeId,exportFlowEdge]
+    ]),
     callSites:readonlyMap([[callSiteId,callSite]]),
     callTargets:emptyStringSetMap(),
     hostArgumentEdges:readonlyMap([[readerSpanId,readonlySet([callableDefinitionId])]]),
     hostEffects:readonlyMap([[effectId,hostEffect]]),
     valueEdges:readonlyMap([[effectId,Object.freeze([valueEdge])]]),
     activeFrameEdges:readonlyMap([[effectId,Object.freeze([])]]),
-    effectClosures:readonlyMap([[effectId,readonlySet([callableSpanId])]]),
+    effectClosures:readonlyMap([[
+      effectId,readonlySet([callableSpanId,readerSpanId,readerResultSpanId,exportMirrorSpanId])
+    ]]),
     hostContracts:readonlyMap([[hostContractId,contract]]),
     deploymentManifestId:null,
     sourceMirrors:readonlyMap([[mirrorId,mirror]]),
     sourceMirrorReadEdges:readonlyMap([[mirrorRead.edgeId,mirrorRead]]),
     receiverRefs:emptyObjectMap(),
-    effects:readonlyMap([[callableSpanId,readonlySet(['ExactSource'])]]),
-    semanticClosures:readonlyMap([[callableSpanId,readonlySet([callableSpanId])]]),
+    effects:readonlyMap([
+      [callableSpanId,readonlySet(['ExactSource','UnknownHostEffect'])],
+      [readerSpanId,readonlySet(['ExactSource','UnknownHostEffect'])],
+      [readerResultSpanId,readonlySet(['ExactSource','UnknownHostEffect'])],
+      [exportMirrorSpanId,readonlySet(['ExactSource','UnknownHostEffect'])]
+    ]),
+    semanticClosures:readonlyMap([[
+      callableSpanId,readonlySet([callableSpanId,readerSpanId,readerResultSpanId,exportMirrorSpanId])
+    ]]),
     unsupportedSpans:readonlySet(/** @type {string[]} */ ([]))
   };
   Object.freeze(plan);
@@ -667,6 +929,10 @@ function buildDirectFunctionSourcePlan(source,path,hostContract) {
     callableName,
     callableSpanId,
     readerSpanId,
+    readerBindingName,
+    exportBindingName,
+    readerResultSpanId,
+    exportMirrorSpanId,
     effectId
   });
   return /** @type {SourceObservationPlan} */ (plan);
