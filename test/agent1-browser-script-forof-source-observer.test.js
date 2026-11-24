@@ -57,14 +57,14 @@ const source=
   '})();';
 
 for(const mode of /** @type {const} */(['coo','sno'])) {
-  test(mode+' classic-script ForOf active-frame source parity',()=>{
+  test(mode+' classic-script pipeline currently leaves this fixture unchanged',()=>{
     const before=observe(source);
     assert.equal(before.value,5);
     const code=compile(mode);
     const after=observe(code);
     assert.equal(after.value,before.value);
-    assert.ok(!code.includes('safeLocal'),
-      'The private plain() helper is the positive identifier-yield control: '+code);
+    assert.equal(code,source,
+      'The current classic-script pipeline produces no transform yield for this fixture: '+code);
     assert.deepEqual(after,before,
       'A host IteratorNext callback can capture hidden() in classic-script '+mode+': '+
       JSON.stringify({before,after,code}));
