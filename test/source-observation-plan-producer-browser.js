@@ -120,7 +120,8 @@ async function main() {
   assert.ok(emitted&&typeof emitted.code==='string');
   assert.ok(emitted.metrics.properties>=1);
   assert.ok(emitted.metrics.bindings>=1);
-  assert.ok(emitted.metrics.literals>=1);
+  assert.equal(emitted.metrics.literals,0,
+    'the string decoder prologue would move the observed reader FramePosition');
   assert.ok(emitted.code.includes('function observed() { return 29; }'));
 
   const mediumSource=makeSource(32);
@@ -131,7 +132,8 @@ async function main() {
   assert.ok(mediumEmitted&&typeof mediumEmitted.code==='string');
   assert.ok(mediumEmitted.metrics.properties>=1);
   assert.ok(mediumEmitted.metrics.bindings>=1);
-  assert.ok(mediumEmitted.metrics.literals>=32);
+  assert.equal(mediumEmitted.metrics.literals,0,
+    'the source-observer plan refuses decoder prologues even for the medium string corpus');
   assert.ok(mediumEmitted.code.includes('function observed() { return 29; }'));
 
   const resources=new Map([
@@ -140,8 +142,8 @@ async function main() {
     ['/emitted/index.html',page()],
     ['/emitted/entry.mjs',emitted.code],
     ['/benchmark/index.html',benchmarkPage([
-      {label:'small-one-literal',nativeCode:source,emittedCode:emitted.code},
-      {label:'medium-32-literals',nativeCode:mediumSource,emittedCode:mediumEmitted.code}
+      {label:'small-observer-plan-no-string-decoder',nativeCode:source,emittedCode:emitted.code},
+      {label:'medium-observer-plan-32-retained-strings',nativeCode:mediumSource,emittedCode:mediumEmitted.code}
     ])]
   ]);
   const server=http.createServer((request,response)=>{
@@ -195,7 +197,7 @@ async function main() {
     const chromiumBudget=JSON.parse(Buffer.from(encodedBudget,'base64').toString('utf8'));
     assert.equal(chromiumBudget.length,2);
     assert.ok(chromiumBudget.every(workload=>workload.passesBudget),
-      'COO module-evaluation overhead must remain within 2.5x in Chromium');
+      'observed Chromium module-evaluation wall-time samples must have no strict 2.5x pair breach; this is not a CPU-compute proof');
     process.stdout.write('SOURCE_OBSERVER_PLAN_CHROMIUM_BUDGET '+
       JSON.stringify({browser:runtimeVersion,workloads:chromiumBudget})+'\n');
     const report={

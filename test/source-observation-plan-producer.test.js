@@ -43,9 +43,10 @@ function entry(code) {
   return {path:'entry.mjs',sourceType:'module',code};
 }
 
-/** @param {string} code @returns {Promise<Record<string,unknown>>} */
-async function importDataModule(code) {
-  const url='data:text/javascript;base64,'+Buffer.from(code,'utf8').toString('base64');
+/** @param {string} code @param {string} [tag] @returns {Promise<Record<string,unknown>>} */
+async function importDataModule(code,tag) {
+  const fragment=tag?'#'+encodeURIComponent(tag):'';
+  const url='data:text/javascript;base64,'+Buffer.from(code,'utf8').toString('base64')+fragment;
   return /** @type {Promise<Record<string,unknown>>} */ (import(url));
 }
 
@@ -62,10 +63,12 @@ test('direct Function#toString plan preserves exact callable source while unrela
   assert.notEqual(emitted.code,source);
   assert.ok(emitted.metrics.properties>=1,'unrelated private object field must be renamed');
   assert.ok(emitted.metrics.bindings>=1,'unrelated lexical bindings must be renamed');
-  assert.ok(emitted.metrics.literals>=1,'unrelated string literal must be encoded');
+  assert.equal(emitted.metrics.literals,0,
+    'the string decoder prologue must roll back because it moves the observed reader FramePosition');
   assert.equal(result.crossFile.properties,0,'single-file plan does not enable cross-file renaming');
   assert.doesNotMatch(emitted.code,/privateField/u);
-  assert.doesNotMatch(emitted.code,/'safe-literal'/u);
+  assert.match(emitted.code,/'safe-literal'/u,
+    'the string literal remains unchanged when its decoder would move the host-visible callsite');
   assert.ok(emitted.code.includes('function observed() { return 29; }'),
     'the observed callable source span must remain byte-for-byte present');
   const compiled=await importDataModule(emitted.code);
@@ -73,6 +76,72 @@ test('direct Function#toString plan preserves exact callable source while unrela
   assert.equal(compiled.result,native.result);
   assert.equal(compiled.labelText,native.labelText);
   assert.equal(compiled.sourceText,'function observed() { return 29; }');
+});
+
+
+test('string decoder prologue is rejected when it changes the reader FramePosition',()=>{
+  const plan=buildDirectFunctionSourcePlan(source,'entry.mjs',hostContract);
+  assert.ok(plan);
+  const sourceUnitRef=plan.sourceUnits.keys().next().value;
+  const parserContractId=parserContractIdFor('module');
+  const initial=getInitialPlanRanges(plan,sourceUnitRef);
+  const encoded=encodeStrings(source,parse(source,'module'),{
+    seed:'frame-position-string-rollback',minimumLength:4,
+    sourceUnitRef,parserContractId,sourceObservationPlan:plan,
+    protectedSourceRanges:initial.protectedSourceRanges
+  });
+  assert.ok(encoded.editMap);
+  assert.ok(encoded.count>0,'the encoder should produce a candidate pass for the test literal');
+  const astAfter=parse(encoded.code,'module');
+  const next=advancePlanRanges(plan,encoded.editMap,source,encoded.code,
+    initial.trackedSourceRanges);
+  assert.ok(next,'the exact source spans remain relocatable despite the prologue');
+  assert.equal(validatePlanSemantics(plan,encoded.code,astAfter,next,encoded.editMap),false,
+    'source-slice preservation does not imply FramePosition preservation');
+  assert.equal(acceptPlannedPass(plan,encoded.editMap,source,encoded.code,astAfter,
+    initial.trackedSourceRanges,['strings-decoder-prologue','strings-decoder-replacement']),null,
+    'the compiler transaction must roll back the frame-shifting decoder pass');
+});
+
+
+test('hostile pre-evaluation toString callsite observer retains native/emitted parity',async()=>{
+  const hostileSource=source.replace(
+    'const observedSource = Function.prototype.toString.call(observed);',
+    'const observedSource = /* 😀 */ Function.prototype.toString.call(observed);'
+  ).replace(/\n/gu,'\r\n');
+  const result=obfuscateFiles([entry(hostileSource)],{
+    mode:'coo',seed:'hostile-frame-position-parity',strings:true,
+    experimentalSourceObservationPlan:hostContract
+  });
+  const emitted=result.files[0];
+  assert.ok(emitted&&typeof emitted.code==='string');
+  assert.ok(emitted.metrics.properties>=1);
+  assert.ok(emitted.metrics.bindings>=1);
+  assert.equal(emitted.metrics.literals,0,
+    'the frame-shifting string decoder must be refused while unrelated renames remain');
+  assert.ok(emitted.code.includes("'safe-literal'"));
+
+  const nativeToString=Function.prototype.toString;
+  Function.prototype.toString=function(){
+    const frame=(new Error().stack??'').split('\n')
+      .find(line=>line.includes('data:text/javascript'))??'';
+    const match=frame.match(/:(\d+):(\d+)\)?$/u);
+    const callsite=match?match[1]+':'+match[2]:'missing-callsite';
+    return nativeToString.call(this)+'|callsite='+callsite;
+  };
+  let native,transformed;
+  try {
+    native=await importDataModule(hostileSource,'hostile-native-frame');
+    transformed=await importDataModule(emitted.code,'hostile-emitted-frame');
+  } finally {
+    Function.prototype.toString=nativeToString;
+  }
+  assert.match(String(native.sourceText),/\|callsite=\d+:\d+$/u,
+    'the hostile intrinsic must expose a real source callsite');
+  assert.equal(transformed.sourceText,native.sourceText,
+    'the transformed module must preserve the callsite observed by the hostile intrinsic');
+  assert.equal(transformed.result,native.result);
+  assert.equal(transformed.labelText,native.labelText);
 });
 
 test('without an explicit plan the existing broad observer veto remains unchanged',()=>{

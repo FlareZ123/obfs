@@ -54,7 +54,7 @@ const {sourceGenerationOf,mapMappedSourceRange} = require('./source-edit-map');
 
 /** @type {WeakSet<object>} */
 const validatedPlans=new WeakSet();
-/** @type {WeakMap<object,{source:string,path:string,sourceUnitRef:string,parserContractId:string,callableName:string,callableSpanId:string,readerSpanId:string,readerBindingName:string,exportBindingName:string,readerResultSpanId:string,exportMirrorSpanId:string,originalStringBindingPresent:boolean,effectId:string}>} */
+/** @type {WeakMap<object,{source:string,path:string,sourceUnitRef:string,parserContractId:string,callableName:string,callableSpanId:string,readerSpanId:string,readerFrameOffset:number,readerBindingName:string,exportBindingName:string,readerResultSpanId:string,exportMirrorSpanId:string,originalStringBindingPresent:boolean,effectId:string}>} */
 const planMetadata=new WeakMap();
 /** @type {WeakMap<object,SourceObservationPlan>} */
 const planRangeOwners=new WeakMap();
@@ -561,6 +561,45 @@ function isDirectStringFromCharCodeReference(reference) {
  * @param {Array<{start:number,end:number}>} ranges
  * @returns {boolean}
  */
+/**
+ * Compute the source FramePosition visible to host stack inspection. Columns
+ * are tracked in both UTF-16 code units and Unicode code points; source maps
+ * preserve slices, not caller line/column positions.
+ * @param {string} source
+ * @param {number} offset
+ * @returns {{line:number,columnUtf16:number,columnCodePoints:number}|null}
+ */
+function framePositionOf(source,offset) {
+  if(typeof source!=='string'||!Number.isInteger(offset)||offset<0||offset>source.length)return null;
+  let line=1,columnUtf16=1,columnCodePoints=1;
+  for(let index=0;index<offset;index++) {
+    const code=source.charCodeAt(index);
+    if(code===0x0d) {
+      if(index+1<offset&&source.charCodeAt(index+1)===0x0a)index++;
+      line++;
+      columnUtf16=1;
+      columnCodePoints=1;
+    } else if(code===0x0a||code===0x2028||code===0x2029) {
+      line++;
+      columnUtf16=1;
+      columnCodePoints=1;
+    } else {
+      columnUtf16++;
+      if(code>=0xdc00&&code<=0xdfff&&index>0) {
+        const previous=source.charCodeAt(index-1);
+        if(previous>=0xd800&&previous<=0xdbff)continue;
+      }
+      columnCodePoints++;
+    }
+  }
+  return {line,columnUtf16,columnCodePoints};
+}
+
+/**
+ * @param {AstNode} node
+ * @param {Array<{start:number,end:number}>} ranges
+ * @returns {boolean}
+ */
 function isInsideRanges(node,ranges) {
   return ranges.some(range=>node.start>=range.start&&node.end<=range.end);
 }
@@ -713,6 +752,7 @@ function buildDirectFunctionSourcePlan(source,path,hostContract) {
   walk(ast,node=>{if(node.type==='CallExpression')calls.push(node);});
   if(calls.length!==1||!isDirectFunctionSourceCall(calls[0]))return null;
   const readerCall=calls[0];
+  const readerFrameOffset=readerCall.callee.property.start;
   const {counts,readerParent,readerKey,readerAncestors}=inspectDeclarations(ast,readerCall);
   if(!readerParent||readerParent.type!=='VariableDeclarator'||
      readerKey!=='init'||readerParent.init!==readerCall||
@@ -1186,6 +1226,7 @@ function buildDirectFunctionSourcePlan(source,path,hostContract) {
     callableName,
     callableSpanId,
     readerSpanId,
+    readerFrameOffset,
     readerBindingName,
     exportBindingName,
     readerResultSpanId,
@@ -1401,6 +1442,18 @@ function validatePlanSemantics(plan,source,ast,trackedSourceRanges,editMap) {
      found.readerResultMatches!==1||found.exportMirrorMatches!==1||
      !found.callableTopLevel||!found.currentReader||
      !found.readerResultNode||!found.exportMirrorNode)return false;
+
+  // A hostile Function.prototype.toString replacement can observe the caller
+  // frame through Error.stack. The protected call text may map exactly while a
+  // prepended decoder prologue still changes its line/column. Preserve the
+  // original callee-property token's FramePosition across every accepted pass.
+  const originalReaderFramePosition=framePositionOf(meta.source,meta.readerFrameOffset);
+  const currentReaderFramePosition=framePositionOf(
+    source,found.currentReader.callee.property.start);
+  if(!originalReaderFramePosition||!currentReaderFramePosition||
+     originalReaderFramePosition.line!==currentReaderFramePosition.line||
+     originalReaderFramePosition.columnUtf16!==currentReaderFramePosition.columnUtf16||
+     originalReaderFramePosition.columnCodePoints!==currentReaderFramePosition.columnCodePoints)return false;
 
   const readerResultTopLevel=found.readerResultDeclaration?.type==='VariableDeclaration'&&
     found.readerResultDeclaration.kind==='const'&&
