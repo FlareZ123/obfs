@@ -18,7 +18,7 @@ const supportsExperimentalWebStorage=nodeMajor>22 ||
  * Run one CommonJS program with Node's opt-in native Web Storage implementation.
  * @param {string} entry
  * @param {string} storageFile
- * @returns {{nativeDispatch:boolean,stored?:string|null,keySource?:string|null,valueSource?:string|null,value:number,independent:number}}
+ * @returns {{nativeDispatch:boolean,stored?:string|null,keySource?:string|null,valueSource?:string|null,propertyValue?:string|null,length?:number,value:number,independent:number}}
  */
 function runWithWebStorage(entry,storageFile) {
   const child=spawnSync(process.execPath,[
@@ -28,7 +28,7 @@ function runWithWebStorage(entry,storageFile) {
   ],{encoding:'utf8',timeout:15000});
   assert.equal(child.error,undefined,String(child.error??''));
   assert.equal(child.status,0,child.stderr);
-  return /** @type {{nativeDispatch:boolean,stored?:string|null,keySource?:string|null,valueSource?:string|null,value:number,independent:number}} */(
+  return /** @type {{nativeDispatch:boolean,stored?:string|null,keySource?:string|null,valueSource?:string|null,propertyValue?:string|null,length?:number,value:number,independent:number}} */(
     JSON.parse(child.stdout)
   );
 }
@@ -197,6 +197,74 @@ test('SNO Node Web Storage primitive DOMString value retains unrelated identifie
       emittedValue:emitted.value,
       renamedBindings:file.metrics.bindings,
       primitiveParity:true
+    }));
+  } finally {
+    await fs.rm(root,{recursive:true,force:true});
+  }
+});
+
+
+test('SNO Node Web Storage named-property setter exposes callable source independently of setItem',{
+  skip:!supportsExperimentalWebStorage,
+  timeout:30000
+},async()=>{
+  const source=[
+    "'use strict';",
+    'function inspect(){const privateLocal=41;return privateLocal;}',
+    'function independent(){const independentLocal=9;return independentLocal;}',
+    'localStorage.clear();',
+    'localStorage.snoNamedSource=inspect;',
+    'const result={stored:localStorage.getItem("snoNamedSource"),',
+    '  propertyValue:localStorage.snoNamedSource,length:localStorage.length,',
+    '  value:inspect(),independent:independent()};',
+    'process.stdout.write(JSON.stringify(result));'
+  ].join('\\n');
+  assert.equal(observesFunctionSource(parse(source,'commonjs')),false,
+    'the current AST observer does not classify the Node Storage named-property setter');
+  const transformed=obfuscateFiles([{
+    path:'entry.cjs',sourceType:'commonjs',code:source
+  }],{
+    mode:'sno',
+    seed:'sno-node-webstorage-named-setter-source',
+    strings:false,
+    identifiers:true,
+    properties:false
+  });
+  const file=transformed.files[0];
+  assert.ok(file,'expected one transformed SNO entry');
+  const protectedCode=String(file.code);
+  assert.ok(file.metrics.bindings>=2,'expected source and unrelated private bindings to be rewritten');
+  assert.ok(!protectedCode.includes('privateLocal'),'expected named-setter source body to be changed');
+  assert.ok(!protectedCode.includes('independentLocal'),'expected unrelated helper rewrite');
+
+  const root=await fs.mkdtemp(path.join(os.tmpdir(),'obfs-sno-webstorage-named-'));
+  try {
+    const packages=await writeSnoPackages(root,source,protectedCode);
+    const native=runWithWebStorage(packages.nativeLauncher,packages.nativeStorage);
+    const emitted=runWithWebStorage(packages.protectedLauncher,packages.protectedStorage);
+    assert.equal(native.stored,native.propertyValue);
+    assert.equal(emitted.stored,emitted.propertyValue);
+    assert.equal(native.length,1);
+    assert.equal(emitted.length,1);
+    assert.ok(native.stored?.includes('privateLocal'));
+    assert.ok(emitted.stored && !emitted.stored.includes('privateLocal'));
+    assert.notEqual(native.stored,emitted.stored);
+    assert.equal(native.value,41);
+    assert.equal(emitted.value,41);
+    assert.equal(native.independent,9);
+    assert.equal(emitted.independent,9);
+    console.log(JSON.stringify({
+      mode:'sno',
+      node:process.versions.node,
+      host:'Node --experimental-webstorage',
+      nativeStored:native.stored,
+      emittedStored:emitted.stored,
+      nativeLength:native.length,
+      emittedLength:emitted.length,
+      nativeValue:native.value,
+      emittedValue:emitted.value,
+      renamedBindings:file.metrics.bindings,
+      namedSetterSourceParity:false
     }));
   } finally {
     await fs.rm(root,{recursive:true,force:true});
