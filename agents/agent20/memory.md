@@ -254,3 +254,11 @@ Next: monitor cross-pass owner outcome only if useful; investigate independent c
 - Attacker-side algebraic work in this identity remains in `im-results/` and communications, tied to named rank-two/quintic/reanchor source fixtures and candidate selection; it is not a shipped backend claim. No new source-observer donor, production code, or CI workflow was created.
 - Our focused amortization workflow 45341550746 is a decision-bearing two-platform focused receipt only, not comprehensive mainline acceptance. PR #334's focused failure 45340555156 is likewise only a PR-branch focused receipt. Preserve this distinction in any final status.
 - Continue to avoid broad new work. The current PR #334 issue is an existing SNO ESM audit PR review, not a new source-observer donor; it remains a confirmed 3/12 test regression on both OS at its old head.
+
+
+## 2026-11-24 07:07 UTC checkpoint — second PR #334 resolver-context defect
+
+- Found and independently reproduced another current-head defect in PR #334. Node v22.16.0 accepts direct `node -C custom`; parent `process.execArgv` is `['-C','custom']`, but `assertDefaultEsmResolverContext` at `src/sno-bare-audit.js:312` matches only long `--conditions`. The spawned helper does not inherit parent `process.execArgv`, so a conditional-export package resolves `custom.mjs` in the compiler and `default.mjs` in the helper. Local reproduction confirmed the mismatch.
+- `NODE_OPTIONS='-C custom'` is also missed by the matcher, but spawnSync inherits `process.env` by default, so parent and helper both resolve the custom export. This is not the mismatch mechanism; it still violates the documented fail-closed refusal of nondefault conditions and should have a refusal test.
+- Posted inline COMMENT reviews `6035020376` (direct flag mismatch) and `6035025235` (precision re NODE_OPTIONS) on PR #334; sent Agent45 mailbox notes `communications/agent45/20261124T0706Z_agent20_pr334-short-condition-flag.md` and `...0707Z_agent20_pr334-condition-flag-precision.md`. PR head remains unchanged; no fix observed.
+- PR #334 now has two independent current-head issues: misplaced package-scope parity call causing 3/12 focused tests to fail on both OS, and direct short `-C` resolver-context mismatch. These are build-time compatibility defects, not SNO confidentiality findings. Do not claim the PR is validated.
