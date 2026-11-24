@@ -101,6 +101,56 @@ function makeSparseDegreeFiveSource() {
   return { terms, oracle };
 }
 
+function popcount32(value) {
+  let x = value >>> 0;
+  x -= (x >>> 1) & 0x55555555;
+  x = (x & 0x33333333) + ((x >>> 2) & 0x33333333);
+  x = (x + (x >>> 4)) & 0x0f0f0f0f;
+  x += x >>> 8;
+  x += x >>> 16;
+  return x & 0x3f;
+}
+function makeDenseDegreeFiveSource() {
+  const coefficients = new Map();
+  for (let weight = 0; weight <= 5; weight++) {
+    for (const support of masksOfWeight(32, weight)) {
+      let coefficient = word('width32-dense-anf/' + support);
+      if (coefficient === 0) coefficient = 1;
+      coefficients.set(support >>> 0, coefficient >>> 0);
+    }
+  }
+  const oracle = input => {
+    const x = input >>> 0;
+    let result = 0;
+    for (let subset = x; ; subset = ((subset - 1) & x)) {
+      if (popcount32(subset) <= 5) result ^= coefficients.get(subset >>> 0) || 0;
+      if (subset === 0) break;
+    }
+    return result >>> 0;
+  };
+  return { coefficients, oracle };
+}
+function runDenseRegression() {
+  const { coefficients, oracle } = makeDenseDegreeFiveSource();
+  const cache = new Map();
+  const ask = input => {
+    const x = input >>> 0;
+    if (!cache.has(x)) cache.set(x, oracle(x));
+    return cache.get(x);
+  };
+  const model = exactDegreeFiveModel(ask, 32);
+  assert.equal(cache.size, 242825);
+  const recovered = new Map([...model.lower, ...model.top].map(([support, coefficient]) => [support >>> 0, coefficient >>> 0]));
+  const expected = new Map([...coefficients].filter(([, coefficient]) => coefficient !== 0));
+  assert.equal(recovered.size, expected.size);
+  for (const [support, coefficient] of expected) assert.equal(recovered.get(support), coefficient);
+  for (let i = 0; i < 100; i++) {
+    const input = word('width32-dense-holdout/' + i);
+    assert.equal(evaluateHybridModel(model, input), oracle(input));
+  }
+  return { queries: cache.size, coefficients: recovered.size, holdouts: 100 };
+}
+
 function main() {
   const n = 32;
   const { terms, oracle } = makeSparseDegreeFiveSource();
@@ -129,6 +179,7 @@ function main() {
     const input = word('width32-anf-test/' + i);
     assert.equal(evaluateHybridModel(model, input), oracle(input));
   }
+  const dense = runDenseRegression();
 
   console.log(JSON.stringify({
     node: process.version,
@@ -142,6 +193,7 @@ function main() {
     expected_interpolation_queries: 242825,
     edge_probes: probes.length,
     random_holdouts: 10000,
+    dense_regression: dense,
     result: 'all coefficients and evaluations matched'
   }, null, 2));
 }
