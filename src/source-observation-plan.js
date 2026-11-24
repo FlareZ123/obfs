@@ -56,6 +56,8 @@ const {sourceGenerationOf,mapMappedSourceRange} = require('./source-edit-map');
 const validatedPlans=new WeakSet();
 /** @type {WeakMap<object,{source:string,path:string,sourceUnitRef:string,parserContractId:string,callableName:string,callableSpanId:string,readerSpanId:string,effectId:string}>} */
 const planMetadata=new WeakMap();
+/** @type {WeakMap<object,SourceObservationPlan>} */
+const planRangeOwners=new WeakMap();
 
 /**
  * A read-only Map facade. The backing Map is not exposed to consumers.
@@ -357,12 +359,26 @@ function inspectDeclarations(ast,readerCall) {
  */
 function buildDirectFunctionSourcePlan(source,path,hostContract) {
   if(typeof source!=='string'||typeof path!=='string'||path.length===0||
-     !hostContract||typeof hostContract.runtimeFamily!=='string'||
-     hostContract.runtimeFamily.length===0||
-     typeof hostContract.runtimeVersion!=='string'||hostContract.runtimeVersion.length===0||
-     typeof hostContract.contractVersion!=='string'||hostContract.contractVersion.length===0||
-     typeof hostContract.pristineIntrinsicsPremise!=='string'||
-     hostContract.pristineIntrinsicsPremise.length===0)return null;
+     !hostContract||typeof hostContract!=='object')return null;
+  /** @type {{runtimeFamily:string,runtimeVersion:string,contractVersion:string,pristineIntrinsicsPremise:string}|null} */
+  let contractSnapshot=null;
+  try {
+    // Snapshot caller-controlled accessors/proxies exactly once.
+    const runtimeFamily=hostContract.runtimeFamily;
+    const runtimeVersion=hostContract.runtimeVersion;
+    const contractVersion=hostContract.contractVersion;
+    const pristineIntrinsicsPremise=hostContract.pristineIntrinsicsPremise;
+    if(typeof runtimeFamily!=='string'||runtimeFamily.length===0||
+       typeof runtimeVersion!=='string'||runtimeVersion.length===0||
+       typeof contractVersion!=='string'||contractVersion.length===0||
+       typeof pristineIntrinsicsPremise!=='string'||pristineIntrinsicsPremise.length===0)return null;
+    contractSnapshot=Object.freeze({
+      runtimeFamily,runtimeVersion,contractVersion,pristineIntrinsicsPremise
+    });
+  } catch {
+    return null;
+  }
+  if(!contractSnapshot)return null;
   const parserContractId=parserContractIdFor('module');
   let ast;
   try {ast=parse(source,'module');} catch {return null;}
@@ -406,9 +422,14 @@ function buildDirectFunctionSourcePlan(source,path,hostContract) {
   const sourceGeneration=sourceGenerationOf(source,parserContractId);
   const sourceUnitRef='unit:coo:client:'+path+':'+sourceGeneration;
   const threatModelId='threat:coo-client-attacker-v1';
-  const hostContractId='host:coo:'+hostContract.runtimeFamily+':'+
-    hostContract.runtimeVersion+':'+hostContract.contractVersion+':'+
-    createHash('sha256').update(hostContract.pristineIntrinsicsPremise).digest('hex').slice(0,16);
+  const hostContractPayload=JSON.stringify([
+    'host-contract-id-v1','coo','client',
+    contractSnapshot.runtimeFamily,
+    contractSnapshot.runtimeVersion,
+    contractSnapshot.contractVersion,
+    contractSnapshot.pristineIntrinsicsPremise
+  ]);
+  const hostContractId='host:coo:'+createHash('sha256').update(hostContractPayload).digest('hex');
   const callableSpanId='span:'+sourceUnitRef+':'+callableNode.start+':'+
     callableNode.end+':FunctionDeclaration';
   const readerSpanId='span:'+sourceUnitRef+':'+readerCall.start+':'+
@@ -455,14 +476,14 @@ function buildDirectFunctionSourcePlan(source,path,hostContract) {
     mode:'coo',
     executionPartition:'client',
     threatModelRefId:threatModelId,
-    runtimeFamily:hostContract.runtimeFamily,
-    runtimeVersion:hostContract.runtimeVersion,
+    runtimeFamily:contractSnapshot.runtimeFamily,
+    runtimeVersion:contractSnapshot.runtimeVersion,
     realmId:null,
     intrinsicSnapshotId:null,
     loaderPreloadContractId:null,
     deploymentManifestId:null,
-    pristineIntrinsicsPremise:hostContract.pristineIntrinsicsPremise,
-    contractVersion:hostContract.contractVersion
+    pristineIntrinsicsPremise:contractSnapshot.pristineIntrinsicsPremise,
+    contractVersion:contractSnapshot.contractVersion
   });
   const callableSpan=Object.freeze({
     spanId:callableSpanId,
@@ -593,7 +614,10 @@ function buildDirectFunctionSourcePlan(source,path,hostContract) {
     observedValueRef:valueRef,
     observationEffect:'ExactSource'
   });
-  const planPayload=sourceUnitRef+'|'+hostContractId+'|'+readerSpanId+'|'+callableSpanId;
+  const planPayload=JSON.stringify([
+    'source-observation-plan-generation-v1',
+    sourceUnitRef,hostContractId,readerSpanId,callableSpanId
+  ]);
   const planGeneration=createHash('sha256').update(planPayload).digest('hex');
   const plan={
     planId:'plan:'+planGeneration,
@@ -665,16 +689,23 @@ function getInitialPlanRanges(plan,sourceUnitRef) {
   if(!isValidatedSourceObservationPlan(plan))throw new TypeError('Unvalidated SourceObservationPlan');
   const meta=planMetadata.get(plan);
   if(!meta||meta.sourceUnitRef!==sourceUnitRef)throw new TypeError('SourceObservationPlan source unit mismatch');
-  const trackedSourceRanges=[...plan.sourceSpans.values()].map(span=>Object.freeze({
-    sourceUnitRef:span.sourceUnitRef,
-    sourceGeneration:span.sourceGeneration,
-    originSpanId:span.spanId,
-    startOffset:span.startOffset,
-    endOffset:span.endOffset,
-    coordinateUnit:span.coordinateUnit
-  }));
+  const trackedSourceRanges=[...plan.sourceSpans.values()].map(span=>{
+    const range=Object.freeze({
+      sourceUnitRef:span.sourceUnitRef,
+      sourceGeneration:span.sourceGeneration,
+      originSpanId:span.spanId,
+      startOffset:span.startOffset,
+      endOffset:span.endOffset,
+      coordinateUnit:span.coordinateUnit
+    });
+    planRangeOwners.set(range,plan);
+    return range;
+  });
   const protectedIds=new Set();
   for(const closure of plan.effectClosures.values())for(const spanId of closure)protectedIds.add(spanId);
+  for(const range of trackedSourceRanges) {
+    if(!range||planRangeOwners.get(range)!==plan)throw new TypeError('Untrusted mapped source range');
+  }
   const protectedSourceRanges=trackedSourceRanges.filter(range=>protectedIds.has(range.originSpanId));
   return {protectedSourceRanges,trackedSourceRanges};
 }
@@ -713,12 +744,13 @@ function validatePlanConsumerInput(plan,source,sourceUnitRef,parserContractId,pr
   for(const closure of plan.effectClosures.values())for(const spanId of closure)expected.add(spanId);
   const actual=new Set();
   for(const range of protectedSourceRanges) {
-    if(!range||typeof range.originSpanId!=='string'||!expected.has(range.originSpanId)||
+    if(!range||typeof range!=='object'||planRangeOwners.get(range)!==plan||
+       typeof range.originSpanId!=='string'||!expected.has(range.originSpanId)||
        actual.has(range.originSpanId)||range.sourceUnitRef!==sourceUnitRef||
        range.sourceGeneration!==generation||range.coordinateUnit!=='utf16-code-unit'||
        !Number.isInteger(range.startOffset)||!Number.isInteger(range.endOffset)||
        range.startOffset<0||range.endOffset<range.startOffset||range.endOffset>source.length) {
-      throw new TypeError('Transform received a stale, foreign, or incomplete protected source range');
+      throw new TypeError('Transform received an untrusted, stale, foreign, or incomplete protected source range');
     }
     actual.add(range.originSpanId);
   }
@@ -741,8 +773,10 @@ function advancePlanRanges(plan,editMap,sourceBefore,sourceAfter,trackedSourceRa
   if(!isValidatedSourceObservationPlan(plan))throw new TypeError('Unvalidated SourceObservationPlan');
   const next=[];
   for(const range of trackedSourceRanges) {
+    if(!range||typeof range!=='object'||planRangeOwners.get(range)!==plan)return null;
     const mapped=mapMappedSourceRange(editMap,range,sourceBefore,sourceAfter);
     if(!mapped)return null;
+    planRangeOwners.set(mapped,plan);
     next.push(mapped);
   }
   return next;
@@ -760,7 +794,9 @@ function advancePlanRanges(plan,editMap,sourceBefore,sourceAfter,trackedSourceRa
  * @returns {boolean}
  */
 function validatePlanSemantics(plan,source,ast,trackedSourceRanges) {
-  if(!isValidatedSourceObservationPlan(plan))return false;
+  if(!isValidatedSourceObservationPlan(plan)||
+     trackedSourceRanges.some(range=>!range||typeof range!=='object'||
+       planRangeOwners.get(range)!==plan))return false;
   const meta=planMetadata.get(plan);
   if(!meta)return false;
   const generation=sourceGenerationOf(source,meta.parserContractId);
