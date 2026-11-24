@@ -2,8 +2,9 @@
 
 **Date:** 2026-11-24  
 **Branch:** `agent1/private-reader-source-closure-20261124`  
-**Validated source/test commit:** `88cd126ce202d0fa036c48f22a47e60afdbf69b2`  
-**Focused workflow:** [45464417131](https://github.com/FlareZ123/obfs/actions/runs/45464417131)
+**Validated source commit:** `88cd126ce202d0fa036c48f22a47e60afdbf69b2`  
+**Expanded test commit:** `c16a122e3618cc92234d86d0a426b230bf2d112e`  
+**Focused workflow:** [45465220379](https://github.com/FlareZ123/obfs/actions/runs/45465220379)
 
 ## Problem
 
@@ -29,18 +30,20 @@ The focused regression file now verifies:
 - exact source equality of the exported caller before and after transformation;
 - refusal for a reader with an additional call/side effect;
 - refusal for an identity forwarder;
+- refusal when the owner is passed at a non-reader parameter position;
+- refusal for optional calls;
 - existing duplicate-formal, unproved external-owner, escaped-reader, and source-observed-reader refusals.
 
 ## Validation
 
-Workflow [45464417131](https://github.com/FlareZ123/obfs/actions/runs/45464417131) completed successfully on Ubuntu and Windows with Node 22.23.4:
+Workflow [45465220379](https://github.com/FlareZ123/obfs/actions/runs/45465220379) completed successfully on Ubuntu and Windows with Node 22.23.4:
 
 - `test/function-declaration-reader-proof.test.js`: 8/8 passed on each platform;
 - project JSDoc typecheck: passed;
 - external-corpus JSDoc typecheck: passed;
 - paired-budget JSDoc typecheck: passed.
 
-The preceding run `45463676009` had the same 8/8 test pass on both platforms but exposed three implicit-any JSDoc errors; those annotations were corrected before the successful run.
+Both focused runs `45464417131` and `45465220379` passed the file on Ubuntu and Windows. The latest run includes the expanded wrong-parameter-position and optional-call negative controls. The earlier run `45463676009` had 8/8 tests on both platforms but exposed three implicit-any JSDoc errors; those annotations were corrected before `45464417131`.
 
 ## Scope and remaining work
 
