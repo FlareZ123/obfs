@@ -2786,7 +2786,10 @@ function renameCrossFileProperties(files,seed) {
               importedIdentities.get(importerName),consumerIndices,importedKeys,
               verifiedStrings.get(importerName),verifiedPrimitives.get(importerName),
               allowDirectReflection);
-            if(!proof) {failed=true;break;}
+            if(!proof) {
+              if(process.env.OBFS_DEBUG_CARRIER==='1')console.error('importer-proof-null',importerName,alias);
+              failed=true;break;
+            }
             users.push({file:importerName,source:/** @type {string} */ (importer.file.code),proof});
             if(readerAliases.size){
               for(const name of proof.aliases)readerProof.aliases.add(name);
@@ -2795,6 +2798,7 @@ function renameCrossFileProperties(files,seed) {
           }
           if(failed)break;
           if(readerAliases.size) {
+            if(process.env.OBFS_DEBUG_CARRIER==='1')console.error('reader-proof-aliases',importerName,[...readerProof.aliases]);
             let unsafeReaderUse=false;
             walk(importer.ast,(node,parent,key)=>{
               if(node.type!=='Identifier'||!readerAliases.has(node.name))return;
@@ -2806,6 +2810,7 @@ function renameCrossFileProperties(files,seed) {
               const provenInput=Boolean(input &&
                 (input.type==='Identifier' && readerProof.aliases.has(input.name) ||
                  input.type==='CallExpression' && readerProof.forwardedCalls.has(input)));
+              if(process.env.OBFS_DEBUG_CARRIER==='1')console.error('reader-call-proof',node.name,input?.type,input?.name,provenInput);
               if(parent?.type==='CallExpression' && key==='callee' && !parent.optional &&
                   node===parent.callee && provenInput) {
                 if(exportedReader)usedReaders.add(exportedReader);
