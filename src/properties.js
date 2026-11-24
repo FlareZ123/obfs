@@ -176,7 +176,7 @@ const proofInventoryCache=new WeakMap();
  *   identifiers:{node:AstNode,parent:AstNode|null,key:string|null,ancestors:AstNode[],order:number}[],
  *   identifierUses:Map<string,{node:AstNode,parent:AstNode|null,key:string|null,ancestors:AstNode[],order:number}[]>,
  *   parents:WeakMap<AstNode,AstNode>, dynamicScope:boolean,
- *   functionDeclarations:AstNode[], callableDeclarators:AstNode[],
+ *   functionDeclarations:AstNode[], classDeclarations:AstNode[], callableDeclarators:AstNode[],
  *   directInvokedArrows:AstNode[],
  *   directAliasDeclarations:Map<string,AstNode[]>, complexAliasDeclarations:AstNode[],
  *   tupleDeclarations:Map<string,AstNode[]>,
@@ -199,6 +199,8 @@ function collectProofInventory(ast) {
   /** @type {AstNode[]} */
   const functionDeclarations=[];
   /** @type {AstNode[]} */
+  const classDeclarations=[];
+  /** @type {AstNode[]} */
   const callableDeclarators=[];
   /** @type {AstNode[]} */
   const directInvokedArrows=[];
@@ -219,6 +221,8 @@ function collectProofInventory(ast) {
       declarations.push(...node.declarations);
     if(node.type==='FunctionDeclaration'&&node.id?.type==='Identifier')
       functionDeclarations.push(node);
+    if(node.type==='ClassDeclaration'&&node.id?.type==='Identifier')
+      classDeclarations.push(node);
     // A directly invoked arrow never exposes its own callable value;
     // an enclosing exported callable remains separately source-observable.
     if(node.type==='ArrowFunctionExpression'&&
@@ -269,7 +273,7 @@ function collectProofInventory(ast) {
     }
   }
   const inventory={calls,declarations,declarationSet:new Set(declarations),identifiers,identifierUses,parents,dynamicScope,
-    functionDeclarations,callableDeclarators,directInvokedArrows,
+    functionDeclarations,classDeclarations,callableDeclarators,directInvokedArrows,
     directAliasDeclarations,complexAliasDeclarations,tupleDeclarations,recordDeclarations};
   proofInventoryCache.set(ast,inventory);
   return inventory;
@@ -295,6 +299,8 @@ function collectBindingScopes(ast) {
   }
   walk(ast,(node,parent,key,ancestors)=>{
     if(node.type==='VariableDeclarator' && node.id.type==='Identifier') {
+      scopes.set(node.id.name,enclosing(ancestors));
+    } else if(node.type==='ClassDeclaration' && node.id?.type==='Identifier') {
       scopes.set(node.id.name,enclosing(ancestors));
     } else if(node.type==='FunctionDeclaration') {
       if(node.id?.type==='Identifier') scopes.set(node.id.name,enclosing(ancestors));
@@ -376,10 +382,10 @@ function collectOwnedConstantKeys(ast,rootName,bindings,scopes) {
  */
 function proveLocalObject(ast, rootName, bindings, importedIdentityFunctions=new Map(), importedConsumers=new Map(), importedConstantKeys=new Map(), importedSourceKeys=importedConstantKeys, importedPrimitives=new Set(), allowDirectReflection=false) {
   if(observesFunctionSource(ast,importedSourceKeys,new Set(),new Set(),importedPrimitives)) return null;
-  /** @type {Map<string,{node:AstNode,params:AstNode[],forwardIndex:number,returnsRoot?:boolean,external?:boolean,consumerIndex?:number}>} */
+  /** @type {Map<string,{node:AstNode,params:AstNode[],forwardIndex:number,returnsRoot?:boolean,external?:boolean,consumerIndex?:number,memberReaderIndex?:number}>} */
   const functions = new Map();
   const {calls,declarationSet,identifiers,identifierUses,parents,dynamicScope,
-    functionDeclarations,callableDeclarators,directInvokedArrows,
+    functionDeclarations,classDeclarations,callableDeclarators,directInvokedArrows,
     directAliasDeclarations,complexAliasDeclarations,
     tupleDeclarations,recordDeclarations}=collectProofInventory(ast);
   for(const node of functionDeclarations){
@@ -387,15 +393,34 @@ function proveLocalObject(ast, rootName, bindings, importedIdentityFunctions=new
         bindings.get(node.id.name) === 1) {
       let forwardIndex = -1;
       let returnsRoot = false;
-      if (!node.async && !node.generator && node.body.body.length === 1 && node.body.body[0].type === 'ReturnStatement' &&
-          node.body.body[0].argument?.type === 'Identifier') {
+      const returned=node.body.body.length===1 &&
+        node.body.body[0].type==='ReturnStatement' ?
+          node.body.body[0].argument : null;
+      if (!node.async && !node.generator && returned?.type === 'Identifier') {
         /** @type {AstNode[]} */
         const params = node.params;
-        const returned=node.body.body[0].argument.name;
-        forwardIndex = params.findIndex(p => p.type === 'Identifier' && p.name === returned);
-        returnsRoot = !params.length && returned === rootName;
+        forwardIndex = params.findIndex(p => p.type === 'Identifier' && p.name === returned.name);
+        returnsRoot = !params.length && returned.name === rootName;
       }
-      functions.set(node.id.name,{node,params:node.params,forwardIndex,returnsRoot});
+      // A direct member reader can be consumed from an externally observable
+      // caller without publishing the key spelling in that caller's source.
+      // Admit only a single-return, synchronous, non-generator function with
+      // simple unique formals and one statically named member read.
+      let memberReaderIndex=-1;
+      const simpleUniqueParameters=node.params.every(
+        (/** @type {AstNode} */ p)=>p.type==='Identifier') &&
+        new Set(node.params.map((/** @type {AstNode} */ p)=>p.name)).size===node.params.length;
+      if(!node.async&&!node.generator&&simpleUniqueParameters&&
+         returned?.type==='MemberExpression'&&!returned.optional&&
+         returned.object.type==='Identifier'&&
+         (returned.computed?staticString(returned.property):
+           staticName(returned.property))!==null) {
+        memberReaderIndex=node.params.findIndex((/** @type {AstNode} */ p)=>
+          p.type==='Identifier'&&p.name===returned.object.name);
+      }
+      functions.set(node.id.name,{
+        node,params:node.params,forwardIndex,returnsRoot,memberReaderIndex
+      });
     }
   }
   for(const node of callableDeclarators){
@@ -441,16 +466,20 @@ function proveLocalObject(ast, rootName, bindings, importedIdentityFunctions=new
             node:value,params:value.params,forwardIndex:index,returnsRoot
           });
         } else if (body?.type === 'MemberExpression' &&
+                   !body.optional &&
                    body.object.type === 'Identifier' &&
                    (body.computed ? staticString(body.property) :
                      staticName(body.property)) !== null &&
-                   value.params.some((/** @type {AstNode} */ p)=>p.name===body.object.name)) {
+                   new Set(value.params.map((/** @type {AstNode} */ p)=>p.name)).size===value.params.length) {
           // A local, immutable reader consumes the tracked owner but returns
           // the field value, never an alias to the owner. The existing proof
           // requires every call to receive that same owner, checks the field
           // against its own keys, and rejects escaping function references.
-          functions.set(node.id.name,{
-            node:value,params:value.params,forwardIndex:-1,returnsRoot:false
+          const memberReaderIndex=value.params.findIndex(
+            (/** @type {AstNode} */ p)=>p.name===body.object.name);
+          if(memberReaderIndex>=0)functions.set(node.id.name,{
+            node:value,params:value.params,forwardIndex:-1,returnsRoot:false,
+            memberReaderIndex
           });
         }
       }
@@ -730,6 +759,71 @@ function proveLocalObject(ast, rootName, bindings, importedIdentityFunctions=new
     if(privateValue)privateFunctionNodes.add(binding.node);
   }
 
+  // A class method is a private callable only when its entire class/instance
+  // path is closed: one local class, one const instance, and direct calls to
+  // its sole synchronous zero-argument method. Do not treat every method as
+  // private merely because its class declaration is not exported.
+  for(const classNode of classDeclarations) {
+    if(classNode.type!=='ClassDeclaration'||classNode.id?.type!=='Identifier')continue;
+    const className=classNode.id.name;
+    const classScope=scopes.get(className);
+    const methods=classNode.body?.body;
+    if(!classScope||bindings.get(className)!==1||classNode.superClass||
+       !Array.isArray(methods)||methods.length!==1)continue;
+    const method=methods[0];
+    if(method.type!=='MethodDefinition'||method.kind!=='method'||
+       method.static||method.computed||method.key.type!=='Identifier')continue;
+    const fn=method.value;
+    if(fn.type!=='FunctionExpression'||fn.async||fn.generator||
+       fn.params.length!==0||fn.body.body.length!==1||
+       fn.body.body[0].type!=='ReturnStatement')continue;
+    const member=fn.body.body[0].argument;
+    if(member?.type!=='MemberExpression'||member.optional||
+       member.object.type!=='Identifier'||member.object.name!==rootName||
+       (member.computed?staticString(member.property):
+         staticName(member.property))===null)continue;
+
+    const classUses=identifierUses.get(className)??[];
+    const declarationUse=classUses.find(use=>use.node===classNode.id);
+    if(!declarationUse||
+       declarationUse.ancestors.some(ancestor=>/^Export/.test(ancestor.type)))continue;
+    const constructions=classUses.filter(use=>use.node!==classNode.id);
+    if(constructions.length!==1)continue;
+    const construction=constructions[0];
+    const newExpression=construction.parent;
+    const instanceDeclarator=newExpression?.type==='NewExpression'&&
+      construction.key==='callee'&&newExpression.arguments.length===0 ?
+        parents.get(newExpression) : null;
+    const instanceDeclaration=instanceDeclarator?
+      parents.get(instanceDeclarator):null;
+    if(!construction.ancestors.includes(classScope)||
+       instanceDeclarator?.type!=='VariableDeclarator'||
+       instanceDeclarator.init!==newExpression||
+       instanceDeclarator.id.type!=='Identifier'||
+       !declarationSet.has(instanceDeclarator)||
+       instanceDeclaration?.type!=='VariableDeclaration'||
+       instanceDeclaration.kind!=='const'||
+       bindings.get(instanceDeclarator.id.name)!==1||
+       scopes.get(instanceDeclarator.id.name)!==classScope)continue;
+
+    let privateInstance=true;
+    for(const use of identifierUses.get(instanceDeclarator.id.name)??[]) {
+      if(use.node===instanceDeclarator.id)continue;
+      const memberUse=use.parent?.type==='MemberExpression'&&
+        use.key==='object'&&!use.parent.computed&&!use.parent.optional&&
+        use.parent.property.type==='Identifier'&&
+        use.parent.property.name===method.key.name ? use.parent : null;
+      const call=memberUse?parents.get(memberUse):null;
+      if(!use.ancestors.includes(classScope)||!memberUse||
+         call?.type!=='CallExpression'||call.callee!==memberUse||
+         call.optional||call.arguments.length!==0) {
+        privateInstance=false;
+        break;
+      }
+    }
+    if(privateInstance)privateFunctionNodes.add(fn);
+  }
+
   const aliases = new Set([rootName]);
   /**
    * Return the only alias fact needed to resolve an expression. A null result
@@ -940,9 +1034,26 @@ function proveLocalObject(ast, rootName, bindings, importedIdentityFunctions=new
     // A property spelling inside an unproven callable body is part of that
     // callable's externally observable source. Private direct-call-only
     // functions survive the escape analysis above and remain eligible.
-    if(ancestors.some(ancestor=>
+    const hasUnprovedCallable=ancestors.some(ancestor=>
       ['FunctionDeclaration','FunctionExpression','ArrowFunctionExpression'].includes(ancestor.type)&&
-      !privateFunctionNodes.has(ancestor)))return null;
+      !privateFunctionNodes.has(ancestor));
+    if(hasUnprovedCallable) {
+      // An exported/host-observable caller may pass the private owner to a
+      // nonescaping exact member reader: the caller's own source contains
+      // only the call and owner binding, not the member spelling. Do not
+      // extend this exception to identity forwarders, optional calls,
+      // imported readers, escaped functions, or other parameter positions.
+      const call=parent?.type==='CallExpression'&&key==='arguments'?
+        parent:null;
+      const consumer=call?.callee.type==='Identifier'?
+        functions.get(call.callee.name):null;
+      const index=call?call.arguments.indexOf(node):-1;
+      const parameter=consumer?.params[index];
+      if(!call||call.optional||!consumer||consumer.external||
+         consumer.memberReaderIndex!==index||
+         !privateFunctionNodes.has(consumer.node)||index<0||
+         parameter?.type!=='Identifier'||!aliases.has(parameter.name))return null;
+    }
     const scope=scopes.get(node.name);
     if (!scope || !ancestors.includes(scope)) return null;
     if (!parent) return null;
