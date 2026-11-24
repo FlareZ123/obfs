@@ -126,6 +126,11 @@ test('SNO CLI preserves one-entry launch while a host observes a helper callback
       Object.entries(sourceObserverProbes).map(([name,source])=>
         [name,observesFunctionSource(parse(source,'commonjs'))])
     );
+    assert.fail('PROBE_FLAGS='+JSON.stringify({
+      sourceObserverProbeResults,
+      entry:observesFunctionSource(parse(inputEntry,'commonjs')),
+      helper:observesFunctionSource(parse(inputHelper,'commonjs'))
+    }));
     const launcher=await fs.readFile(path.join(outputRoot,'sno-entry.cjs'),'utf8');
     const helperDigest=createHash('sha256').update(emittedHelper).digest('hex');
     assert.ok(launcher.includes('helper.cjs'),'single-entry launcher must include the helper in its manifest');
