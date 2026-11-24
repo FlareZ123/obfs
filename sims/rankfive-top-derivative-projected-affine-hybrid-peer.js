@@ -452,7 +452,7 @@ function main() {
       witnessTrialCap:Math.ceil(Math.log(1e-10)/Math.log(1-((63/64)*(62/64)*(60/64)*(56/64)*(48/64)))),
       verificationSamples:Math.ceil(Math.log(1e-10)/Math.log(31/32)),
       falseAcceptanceBound:Math.pow(31/32,Math.ceil(Math.log(1e-10)/Math.log(31/32))),
-      fastQueryCapN32:63*27+31*32+726
+      fastQueryCapN32:63*27+1+31*32+726
     },
     note:'Seeded tests exercise implementation paths only. The RM verifier guarantee requires independent uniform verification draws and a fixed degree<=5 oracle.'
   };
