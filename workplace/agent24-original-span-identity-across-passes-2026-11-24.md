@@ -24,6 +24,8 @@ The v2 contract mentions either retaining the plan against original spans or pro
 
 Every transform consumer must be able to prove that the current AST node it is about to mutate corresponds to the exact original `SourceSpanId` in the plan. It must never compare offsets across source generations without a validated mapping. If the mapping is absent, overlapping, stale or ambiguous, the consumer declines the affected edit.
 
+**Coordinate unit must be explicit.** The current Acorn/JavaScript-string pipeline and `applyEdits` use JavaScript string offsets (`source.length` / `slice`), i.e. UTF-16 code units, while `sourceGeneration` is described in terms of exact bytes. Do not let a byte offset from a UTF-8/Wasm-side pass be compared directly with an Acorn span. Specify the canonical coordinate unit on `SourceSpanRef`/the edit map (for this pipeline, `utf16-code-unit`) and define any byte↔UTF-16 conversion at the source-unit boundary.
+
 ## Viable implementation strategies
 
 ### A. Stable node identity
@@ -82,7 +84,7 @@ For each source unit, the map should include unchanged segments with exact offse
 4. Repeat with a nested function inside the observed callback; every nested source span is protected.
 5. Repeat with a helper-returned callback across a module edge.
 6. Force an earlier edit to overlap the protected callable. The later consumer must decline rather than use a partial or guessed mapping.
-7. For SCO, create two request variants from one source unit and verify each plan/map is generation-specific and cannot be reused across requests.
+7. Place an astral Unicode character before the protected callable, then perform an earlier width-changing edit; verify UTF-16 span mapping remains exact (and cannot be confused with UTF-8 byte offsets).\n8. For SCO, create two request variants from one source unit and verify each plan/map is generation-specific and cannot be reused across requests.
 
 ## Current evidence and limits
 
