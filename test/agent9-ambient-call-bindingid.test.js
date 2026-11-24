@@ -273,3 +273,15 @@ test('only non-escaping primitive own-data records exempt member-read effects',(
   assert.ok(named(unknown,'caller')[0].reasons.some(r=>
     r.kind==='unknown-member-access'));
 });
+
+
+test('callable values crossing local calls remain unresolved without parameter flow',()=>{
+  const result=analyze(
+    'function hidden(){return 1;}function consume(callback){return 2;}'+
+    'function run(){consume(hidden);}'
+  );
+  assert.equal(named(result,'hidden')[0].hostHeldCallable,true);
+  assert.ok(named(result,'hidden')[0].reasons.some(r=>
+    r.kind==='unresolved-callable-argument-flow'));
+  assert.equal(named(result,'run')[0].ambient,false);
+});
