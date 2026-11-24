@@ -198,7 +198,7 @@ test('SCO source observer in entry preserves a helper-returned callback but appl
   assert.equal(emitted.invoked,false);
   console.log('AGENT24_SCO_INTERFILE_SOURCE_VETO '+JSON.stringify({
     native:native.source,emitted:emitted.source,
-    unrelatedLiteralWithheld:deliveredHelper.code.includes("'helperUnrelatedLiteral''),
+    unrelatedLiteralWithheld:deliveredHelper.code.includes("'helperUnrelatedLiteral'"),
     callbackInvoked:false
   }));
 });
