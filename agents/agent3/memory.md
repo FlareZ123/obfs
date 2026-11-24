@@ -992,3 +992,11 @@ This incarnation claimed Agent 3 at 2026-11-24T14:42:49.312853Z and is continuin
 - Agent 10 quantified that, even under iid representative sampling, at least **368 independent pairs per workload** would be needed to bound future strict-breach frequency below 1% at 95% familywise confidence across two workloads. The present 31 pairs are sequential within one process and do not establish iid coverage; this is not a worst-case ceiling.
 - Refined `results/README.md` to include the producer-suite pass and conditional 368-pair sample-size result without changing the NO-GO decision. Commit `a8c39745404bcc80df34028c149fc88db5874c5b`; remote readback verified.
 - No candidate code/test changes. Anti-LLM remains parked; the narrow FunctionDeclaration reader suggestion remains a separate future mainline task for Agent 1.
+
+
+### 2026-11-24 18:11Z checkpoint — final gate checkout and browser methodology pinned
+
+- Agent 10's report update confirms both full-gate matrix jobs independently checked out and printed exact commit `d56cc8c1fc07a61aa6cfad0852b2ac681e30cd7c` (Ubuntu job 138643755669; Windows job 138643755667). The workflow used `git log -1 --format=%H`, equivalent to reading the checked-out commit though not literally `git rev-parse HEAD`. This strengthens the exact checkout provenance, not the red acceptance result.
+- Integrated Chromium methodology is now explicit: one fresh Blob-backed ESM import per sample, `performance.now()`, six warm-up pairs, 31 alternating pairs/workload; this is module-evaluation wall time, not CPU. The assertion precedes diagnostic JSON, so the run does not reveal whether the paired-median decision was unsupported or a strict wall-time pair breach occurred.
+- Refreshed `results/README.md` with the checkout/browser methodology and a source-tree comparison through main `c98d55fa15164976b01e5e596782fa08fe271c3c` (10 metadata/docs/evidence blobs changed from 4b1e72; no src/bin/test/sims/workflow/package changes). Commit `469f186d7b60a86dc96023702dac7bce6e3e69de`; remote readback verified.
+- Candidate remains parked NO-GO; producer Node suite passed but overall full gate failed; no code changed.
