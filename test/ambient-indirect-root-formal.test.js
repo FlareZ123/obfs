@@ -32,6 +32,27 @@ function sourceGraph(replacement){
 }
 
 /**
+ * Evaluate an ESM graph without the opaque host preloader. Used for controls
+ * that distinguish a shadowed local global-name binding from the real host.
+ * @param {ReadonlyArray<{path:string,code:string|Buffer}>} files
+ * @returns {Promise<string>}
+ */
+async function executePlain(files){
+  const directory=await fs.mkdtemp(path.join(os.tmpdir(),'obfs-ambient-plain-'));
+  try{
+    for(const file of files)await atomicWrite(path.join(directory,file.path),file.code);
+    const result=spawnSync(process.execPath,[path.join(directory,'entry.mjs')],{
+      encoding:'utf8',timeout:15000
+    });
+    if(result.error)throw result.error;
+    assert.equal(result.status,0,result.stderr);
+    return result.stdout.trim();
+  }finally{
+    await fs.rm(directory,{recursive:true,force:true});
+  }
+}
+
+/**
  * Independently evaluate the original and transformed ESM graphs with the
  * same opaque host preloader, which can dynamically import source files
  * unknown to the compiler's static ESM graph.
@@ -44,6 +65,8 @@ async function execute(files){
     for(const file of files)await atomicWrite(path.join(directory,file.path),file.code);
     await atomicWrite(path.join(directory,'preload.cjs'),[
       "'use strict';",
+      'globalThis.window=globalThis;',
+      'globalThis.self=globalThis;',
       'const native=Reflect.ownKeys;',
       'globalThis.HOST_OBSERVATION=Promise.resolve(null);',
       'globalThis.HOST_REFLECT=function(receiver){',
@@ -311,4 +334,41 @@ test('indirect native member extraction through returned global receiver keeps E
   });
   assert.equal(await execute(compiled.files),native);
   assert.equal(compiled.crossFile.properties,0);
+});
+
+
+// All four root spellings are accepted by the existing cross-mode global
+// inventory. The indirect-value proof must preserve the same behavior.
+for(const [name,mutation] of [
+  ['Node global root','const host=(0,global);const cap=host.Reflect;cap.ownKeys=globalThis.HOST_REFLECT;'],
+  ['window root','const host=(0,window);const cap=host.Reflect;cap.ownKeys=globalThis.HOST_REFLECT;'],
+  ['self root','const host=(0,self);const cap=host.Reflect;cap.ownKeys=globalThis.HOST_REFLECT;']
+]){
+  test('indirect native member extraction from '+name+' preserves ESM names',async()=>{
+    const original=sourceGraph(mutation);
+    const native=await execute(original);
+    assert.equal(native,'[41,1,["secretField"]]');
+    const compiled=obfuscateFiles(original,{
+      mode:'coo',closedWorld:true,seed:'ambient-native-root-'+name,
+      identifiers:false,strings:false,properties:true
+    });
+    assert.equal(await execute(compiled.files),native);
+    assert.equal(compiled.crossFile.properties,0);
+  });
+}
+
+test('shadowed local globalThis does not suppress independent ESM property yield',async()=>{
+  const original=sourceGraph([
+    'const globalThis={Reflect:{ownKeys(value){return Object.keys(value);}}};',
+    'globalThis.Reflect.ownKeys({localField:1});'
+  ].join('\n'));
+  const native=await executePlain(original);
+  assert.equal(native,'[41,1,null]');
+  const compiled=obfuscateFiles(original,{
+    mode:'coo',closedWorld:true,seed:'ambient-shadowed-globalthis-positive',
+    identifiers:false,strings:false,properties:true
+  });
+  assert.ok(compiled.crossFile.properties>=1,
+    'A lexically shadowed globalThis is an ordinary local object, not an ambient root');
+  assert.equal(await executePlain(compiled.files),native);
 });
