@@ -81,3 +81,38 @@ A second source-paired test wraps the same triangular core as
 The canonical public anchor `r=0` has a rank-deficient 32-column interpolant for this wrapper. A one-basis `invertByReanchoring(..., maxBases=1, initialZero=true)` attempt therefore fails at that anchor. Random reanchoring is a stronger baseline. With the same first target, seed `0xdeadbeef` succeeds on its third basis in 101 distinct calls; a source-private calculation verifies that this anchor's normalized `B=Lout^-1 M_r Lin^-1` is lower-unitriangular, so the theorem's sufficient condition holds. The successful trial itself adds 35 calls after two 33-call rank-deficient trials, within the 65-query per-successful-trial bound. Seed `0x51515151` fails all four bases after 132 calls (all four interpolants rank-deficient). These are two fixed streams, not a probability estimate. A separate seed `0x12345678` also succeeds for this target although its full-rank normalized B is not lower-unitriangular, showing the condition is sufficient, not necessary, for target-specific convergence. The result is important: **when reanchoring finds a compatible basis, it is far cheaper (about 35 calls for the successful trial, about 100 including two failed bases) than the graph method (about 28,000 calls per target) on this sparse source**. The graph method remains an alternative route that does not require the reanchor basis condition, and it recovers all eight wrapped targets with exact source-forward equality.
 
 An independent Python port gives 27,438–28,067 calls per wrapped target, **222,079 total** for eight targets, 20,746 below the 242,825-query full degree-five clone baseline. As above, these are Python-port counts, not Node stdout receipts. The updated Node test asserts the eight exact wrapped recoveries, the canonical-anchor rank-deficiency failure, a successful random reanchor for seed `0xdeadbeef` (third anchor `0xba8c2458`, 101 calls), verifies its normalized B is lower-unitriangular, checks a four-anchor failure for seed `0x51515151`, and the total-query inequality. It passed the focused two-platform workflow in run `45285785280` on both Ubuntu and Windows, including project JSDoc, external JSDoc and paired-budget JSDoc. The Python port observed 102 calls for the successful random reanchor and 132 calls for the four-anchor failure; those exact counts are not asserted by Node.
+
+
+## Stronger matched baseline: deterministic rank-two inversion
+
+The hidden two-sided wrapper does **not** escape the existing low-rank oracle theorem. Write the core as
+
+`P(z)=z\oplus e_7\,\phi_A(z)\oplus e_8\,\phi_B(z)`.
+
+Then the complete wrapped source has the exact representation
+
+`F(x)=c\oplus A_0x\oplus Wg(x)`,
+
+where `A_0=Lout*Lin` is invertible and `W=[Lout*e7, Lout*e8]` has rank exactly two. The two degree-five controls affect only two output directions before the invertible output wrapper; affine mixing does not increase that rank. Thus the already independently reviewed `invertLowRankDeterministic` in `sims/affine-low-rank-oracle.js` applies with the declared promise `rankBound=2`. It receives only the numeric forward oracle, target and rank bound—not the hidden matrices, offsets, gates or secret.
+
+A local line-for-line reproduction against the exact same fixed wrapper and eight held-out targets recovered **8/8** secrets. Every standard affine interpolant had nullity **1**, so the deterministic orbit cap was `2^(2+1)=8`. The exact receipts were:
+
+| Target | Cycle length | Distinct oracle calls |
+|---:|---:|---:|
+| 1 | 6 | 39 |
+| 2 | 7 | 40 |
+| 3 | 1 | 34 |
+| 4 | 7 | 40 |
+| 5 | 2 | 35 |
+| 6 | 7 | 40 |
+| 7 | 3 | 36 |
+| 8 | 7 | 40 |
+| **Total** | — | **304** |
+
+Each result was checked against the original wrapped oracle. The maximum is **40** calls per target, compared with approximately **27,000** calls per target for the graph method and **101** calls for the successful three-anchor random-reanchor example. Against the graph branch's independent Python-port total of **222,079** calls for eight wrapped targets, the rank-two deterministic attack uses 304 calls. The graph totals remain explicitly Python-port observations; the new Node regression pins the rank-two counts and asserts that the graph total remains below the full degree-five clone cost.
+
+The branch regression now adds the deterministic rank-two attacker to the same eight-target source-paired test and verifies the rank-two representation's two independent output directions, nullity, cycle bound, exact query receipts and original-source equality. A focused two-platform source-pinned run is **pending** at this report revision.
+
+**Interpretation correction:** the graph result remains valid evidence that a degree-five affine-flag inverter can work outside the rank-six learner's joint-radical promise. It does **not** establish that the graph inverter is the strongest or most query-efficient attack on this selected source. The source simultaneously satisfies a much cheaper rank-two promise, so the deterministic rank-two attacker is the stronger matched baseline. The graph method may still matter for higher-output-rank affine-flag families; that comparison requires a source that actually escapes the low-rank promise or an explicit statement that the rank bound is unavailable to the attacker.
+
+This is an intermediate attacker-side candidate-veto result, not static source reconstruction, an authorization bypass, a universal inversion claim, or a positive obfuscation result. The repository's RELEASE-BLOCKED decision is unchanged.
