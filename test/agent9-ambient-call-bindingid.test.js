@@ -225,3 +225,37 @@ test('implicit iterator, Proxy and destructuring protocols are ambient effects',
     assert.equal(named(result,'caller')[0].ambient,true,source);
   }
 });
+
+
+test('ToPrimitive and ToPropertyKey conversions create active-frame effects',()=>{
+  const arithmetic=analyze('function caller(value){return value+1;}');
+  assert.equal(named(arithmetic,'caller')[0].ambient,true);
+  assert.ok(named(arithmetic,'caller')[0].reasons.some(r=>r.kind==='to-primitive'));
+  const computedKey=analyze('function caller(key){return {[key]:1};}');
+  assert.equal(named(computedKey,'caller')[0].ambient,true);
+  assert.ok(named(computedKey,'caller')[0].reasons.some(r=>r.kind==='to-property-key'));
+  const primitive=analyze('function caller(){return 1+2;}');
+  assert.equal(named(primitive,'caller')[0].ambient,false);
+});
+
+test('async return and await distinguish possible thenables from primitives',()=>{
+  const returned=analyze('async function caller(value){return value;}');
+  assert.equal(named(returned,'caller')[0].ambient,true);
+  assert.ok(named(returned,'caller')[0].reasons.some(r=>
+    r.kind==='promise-thenable-assimilation'));
+  const returnedPrimitive=analyze('async function caller(){return 1;}');
+  assert.equal(named(returnedPrimitive,'caller')[0].ambient,false);
+  const awaited=analyze('async function caller(value){await value;}');
+  assert.equal(named(awaited,'caller')[0].ambient,true);
+  const awaitedPrimitive=analyze('async function caller(){await 1;}');
+  assert.equal(named(awaitedPrimitive,'caller')[0].ambient,false);
+});
+
+test('unknown host argument follows a direct const alias to the held callable',()=>{
+  const result=analyze(
+    'function hidden(){return 1;}const alias=hidden;'+
+    'function run(){external(alias);}'
+  );
+  assert.equal(named(result,'hidden')[0].hostHeldCallable,true);
+  assert.equal(named(result,'run')[0].ambient,true);
+});
