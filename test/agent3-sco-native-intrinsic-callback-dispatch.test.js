@@ -86,7 +86,7 @@ function observe(code,observationKind) {
 for(const scenario of cases) {
   test('SCO native intrinsic callback source-observation diagnostic: '+scenario.kind,async()=>{
     const source=[
-      "const jsonText='{"x":1}';",
+      "const jsonText=String.fromCharCode(123,34,120,34,58,49,125);",
       "const inputText='a';",
       "const entries=[['x',1]];",
       'const other={unrelatedField:2};',
