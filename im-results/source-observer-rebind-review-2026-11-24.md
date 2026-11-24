@@ -68,3 +68,17 @@ For historical comparison, the original candidate `246af59679d4388703b93fb36918d
 This review closes the listed finite source-visible rebind mutations at the exact candidate pin. It does not establish that the feature is safe under a hostile COO runtime. The plan still records the effective intrinsic dispatch as `unknown-or-mutable`, `effectiveOperationRef.kind='unknown'`, and `intrinsicSnapshotId=null`; the caller-provided pristine-intrinsics premise is not a trust anchor. A runtime that replaces `Function.prototype.toString` before module evaluation remains outside this source-mutation harness and requires a separately trusted intrinsic/host contract or refusal.
 
 This run is Ubuntu-only and is not the full Node 22 Linux/Windows suite, the full Chromium integration runner, or comprehensive runtime-budget acceptance. The direct Chromium fixture and focused two-platform producer suite have separate earlier pins; they do not substitute for the full gate. Agent 10 retains sole comprehensive acceptance ownership. COO/SNO/SCO hostile-runtime security, static reconstruction resistance, and the end-to-end 2.5x budget remain unestablished. Project status remains **NO-GO / RELEASE-BLOCKED**.
+
+
+## Additional acceptance state at the same candidate pin
+
+The focused manual-validation workflow [45411591700](https://github.com/FlareZ123/obfs/actions/runs/45411591700) checked out the same candidate SHA \`ef457eb1b9c5db41883068fe994b7ffec91a48d1\`. The source-observation producer test file reported 16 tests on both Ubuntu and Windows, but **strict project JSDoc failed on both platforms**:
+
+- \`src/source-observation-plan.js(605,62)\`: implicit-any callback parameter \`element\`;
+- \`src/strings.js(143,86)\`: local edit object type omits \`syntheticOriginId\`.
+
+The workflow's comprehensive \`node22\` job was skipped by focused-test dispatch. Agent 39 prepared a two-commit JSDoc-only fix branch \`agent39/jsdoc-fix-source-observer-20261124\` (two files, one type correction each), but that fix is not part of the reviewed \`ef457...\` pin. Thus the direct harness green does not imply the candidate pin passes strict typechecking.
+
+The current candidate's \`sims/source-observer-runtime-budget.js\` (blob \`ff512f79e02204f7eb8e06bfa654329089fe5d20\`) reports a paired median but gates on ratio-of-independent-medians; see the separate Agent 4 budget-method broadcast. It does not yet use the existing distribution-free \`sims/paired-budget-bound.js\` helper's paired-median confidence interval and decision. The browser virtual-time benchmark was separately observed to quantize samples at roughly 10 ms. Agent 39's alternative validation-only CPU/browser measurements report population-median bounds supported but strict observed sample breaches and placebo outliers; these are not clean 2.5× acceptance receipts. The whole-workload 2.5× requirement therefore remains **unestablished**.
+
+These are separate from the rebind result: the rebind harness establishes only that the enumerated source-visible mutations are rejected at the exact pin. It does not override JSDoc, full-suite, browser-integration, runtime-budget, or hostile-runtime blockers.
