@@ -66,6 +66,7 @@ const planMetadata=new WeakMap();
 function readonlyMap(entries) {
   const backing=new Map(entries);
   const view={
+    [Symbol.toStringTag]:'ReadonlyMap',
     get size(){return backing.size;},
     /** @param {K} key */
     get(key){return backing.get(key);},
@@ -90,6 +91,7 @@ function readonlyMap(entries) {
 function readonlySet(values) {
   const backing=new Set(values);
   const view={
+    [Symbol.toStringTag]:'ReadonlySet',
     get size(){return backing.size;},
     /** @param {T} value */
     has(value){return backing.has(value);},
@@ -101,6 +103,20 @@ function readonlySet(values) {
     [Symbol.iterator](){return backing[Symbol.iterator]();}
   };
   return Object.freeze(view);
+}
+
+/**
+ * @returns {ReadonlyMap<string,Object>}
+ */
+function emptyObjectMap() {
+  return readonlyMap(/** @type {Array<[string,Object]>} */ ([]));
+}
+
+/**
+ * @returns {ReadonlyMap<string,ReadonlySet<string>>}
+ */
+function emptyStringSetMap() {
+  return readonlyMap(/** @type {Array<[string,ReadonlySet<string>]>} */ ([]));
 }
 
 /** @param {AstNode|null|undefined} node @param {string} name */
@@ -532,20 +548,20 @@ function buildDirectFunctionSourcePlan(source,path,hostContract) {
     sourceUnits:readonlyMap([[sourceUnitRef,sourceUnit]]),
     sourceSpans:readonlyMap([[callableSpanId,callableSpan],[readerSpanId,readerSpan]]),
     threatModels:readonlyMap([[threatModelId,threatModel]]),
-    moduleResolutionEdges:readonlyMap([]),
-    sourceDeliveryEdges:readonlyMap([]),
-    scoPartitionEligibility:readonlyMap([]),
-    wellKnownSymbols:readonlyMap([]),
-    propertyKeyIdentities:readonlyMap([]),
+    moduleResolutionEdges:emptyObjectMap(),
+    sourceDeliveryEdges:emptyObjectMap(),
+    scoPartitionEligibility:emptyObjectMap(),
+    wellKnownSymbols:emptyObjectMap(),
+    propertyKeyIdentities:emptyObjectMap(),
     bindings:readonlyMap([[bindingId,binding]]),
     definitions:readonlyMap([[definitionId,definition]]),
     callableDefinitions:readonlyMap([[callableDefinitionId,callable]]),
-    activations:readonlyMap([]),
+    activations:emptyObjectMap(),
     values:readonlyMap([[valueRef,value]]),
     valueFacts:readonlyMap([[valueRef,valueFact]]),
-    valueFlowEdges:readonlyMap([]),
+    valueFlowEdges:emptyObjectMap(),
     callSites:readonlyMap([[callSiteId,callSite]]),
-    callTargets:readonlyMap([]),
+    callTargets:emptyStringSetMap(),
     hostArgumentEdges:readonlyMap([[readerSpanId,readonlySet([callableDefinitionId])]]),
     hostEffects:readonlyMap([[effectId,hostEffect]]),
     valueEdges:readonlyMap([[effectId,Object.freeze([valueEdge])]]),
@@ -555,10 +571,10 @@ function buildDirectFunctionSourcePlan(source,path,hostContract) {
     deploymentManifestId:null,
     sourceMirrors:readonlyMap([[mirrorId,mirror]]),
     sourceMirrorReadEdges:readonlyMap([[mirrorRead.edgeId,mirrorRead]]),
-    receiverRefs:readonlyMap([]),
+    receiverRefs:emptyObjectMap(),
     effects:readonlyMap([[callableSpanId,readonlySet(['ExactSource'])]]),
     semanticClosures:readonlyMap([[callableSpanId,readonlySet([callableSpanId])]]),
-    unsupportedSpans:readonlySet([])
+    unsupportedSpans:readonlySet(/** @type {string[]} */ ([]))
   };
   Object.freeze(plan);
   validatedPlans.add(plan);
