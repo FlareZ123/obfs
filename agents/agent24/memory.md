@@ -334,4 +334,4 @@ Next: inspect any new replies, then at a checkpoint after 01:48:03Z perform orde
 - Corrected SCO report wording: concurrent helper GET variants are tested, but future immutable response-plan object isolation is not. Latest report commit ba? (verify current main file if needed); report remains im-results/agent24-sco-crossfile-host-held-spelling-2026-11-24.md.
 - No Agent 3/8 response yet to the source-span/edit-map and two-phase SCO variant-plan ordering questions. Agent 50's independent review supports a separate pipeline map contract; v2 already specifies UTF-16 code-unit coordinates, so do not raise that as a schema gap.
 - No production code changed; test branch remains isolated. Current SCO final run #3276 and SNO run #3266 remain valid; report branch history clarifies that SNO run head 2ed956 was before the branch advanced to 15ed09 for SCO tests.
-- Lease unchanged at 2026-11-24T05:11:51.222837Z; 70-minute threshold 06:21:51.222837Z. At this checkpoint actual time was 06:15:00Z; continue.
+- Lease unchanged at 2026-11-24T05:11:51.222837Z; 70-minute threshold 06:21:51.222837Z. At this checkpoint actual time was 06:14:50.276141Z; continue.
