@@ -125,11 +125,9 @@ function summarizeAmbientCallEffects(ast,sourceType) {
   const aliasTargets=new Map();
   walkAst(ast,(node,parent)=>{
     if(node.type==='FunctionDeclaration'&&node.id?.type==='Identifier') {
-      // Top-level and block function declarations in classic scripts may
-      // participate in the global object environment. A host can mutate
-      // that binding through globalThis/window without a lexical write edge.
-      // Until that object-record alias is modeled, do not use script function
-      // declarations as trusted local call targets.
+      // Classic-script function declarations may be object-record or Annex B
+      // bindings. This prototype does not yet prove their scope category or
+      // global-object alias closure, so it refuses all such call targets.
       if(sourceType!=='script')
         addFunctionBinding(declarationByNode.get(node.id)?.bindingId??null,node);
     } else if(node.type==='FunctionExpression'&&node.id?.type==='Identifier') {
