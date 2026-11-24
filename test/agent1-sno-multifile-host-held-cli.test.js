@@ -179,17 +179,6 @@ test('SNO CLI preserves one-entry launch while a host observes a helper callback
       emittedHelperSha256:helperDigest
     }));
 
-    console.log(JSON.stringify({
-      mode:'sno-cli',
-      topology:'entry.cjs -> helper.cjs factory return -> host-overridden queueMicrotask',
-      hostDispatch:'page-owned preload override; callback source read; callback not invoked by host',
-      nativeSource:nativeObservation.callbackSource,
-      emittedSource:emittedObservation.callbackSource,
-      applicationResult:emittedResult,
-      emittedHelperSha256:helperDigest,
-      sourceParity:false,
-      unrelatedIdentifierYield:true
-    }));
   } finally {
     await fs.rm(root,{recursive:true,force:true});
   }
