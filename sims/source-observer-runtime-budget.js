@@ -7,6 +7,7 @@ const {obfuscateFiles}=require('../src/core');
 
 const SAMPLE_COUNT=31;
 const WARMUP_COUNT=6;
+const CPU_BATCH_SIZE=128;
 const BUDGET_RATIO=2.5;
 
 /** @param {number[]} values @returns {number} */
@@ -56,12 +57,28 @@ function dataUrl(code,workload,side,index) {
  */
 async function importOnce(code,workload,side,index) {
   const url=dataUrl(code,workload,side,index);
-  const cpuStart=process.cpuUsage();
   const start=performance.now();
   const namespace=await import(url);
-  const elapsedMs=performance.now()-start;
+  return {elapsedMs:performance.now()-start,exports:namespace};
+}
+
+/**
+ * Measure a batch of fresh module instances so process CPU accounting exceeds
+ * coarse per-operation timer resolution on Windows runners.
+ * @param {string} code
+ * @param {string} workload
+ * @param {string} side
+ * @param {number} index
+ * @returns {Promise<{cpuMs:number,exports:Record<string,unknown>}>}
+ */
+async function importCpuBatch(code,workload,side,index) {
+  const urls=Array.from({length:CPU_BATCH_SIZE},(_,offset)=>
+    dataUrl(code,workload,side,index*CPU_BATCH_SIZE+offset));
+  const cpuStart=process.cpuUsage();
+  let namespace;
+  for(const url of urls)namespace=await import(url);
   const cpu=process.cpuUsage(cpuStart);
-  return {elapsedMs,cpuMs:(cpu.user+cpu.system)/1000,exports:namespace};
+  return {cpuMs:(cpu.user+cpu.system)/1000/CPU_BATCH_SIZE,exports:namespace};
 }
 
 /**
@@ -102,6 +119,9 @@ async function measureWorkload(source,workload,extraStrings) {
     const baseline=await importOnce(source,workload,'native-warmup',index);
     const transformed=await importOnce(emitted.code,workload,'obfuscated-warmup',index);
     verify(baseline,transformed);
+    const baselineCpu=await importCpuBatch(source,workload,'native-cpu-warmup',index);
+    const transformedCpu=await importCpuBatch(emitted.code,workload,'obfuscated-cpu-warmup',index);
+    verify(baselineCpu,transformedCpu);
   }
 
   const baselineSamples=[];
@@ -120,8 +140,17 @@ async function measureWorkload(source,workload,extraStrings) {
     verify(baseline,transformed);
     baselineSamples.push(baseline.elapsedMs);
     obfuscatedSamples.push(transformed.elapsedMs);
-    baselineCpuSamples.push(baseline.cpuMs);
-    obfuscatedCpuSamples.push(transformed.cpuMs);
+    let baselineCpu,transformedCpu;
+    if(index%2===0) {
+      baselineCpu=await importCpuBatch(source,workload,'native-cpu-sample',index);
+      transformedCpu=await importCpuBatch(emitted.code,workload,'obfuscated-cpu-sample',index);
+    } else {
+      transformedCpu=await importCpuBatch(emitted.code,workload,'obfuscated-cpu-sample',index);
+      baselineCpu=await importCpuBatch(source,workload,'native-cpu-sample',index);
+    }
+    verify(baselineCpu,transformedCpu);
+    baselineCpuSamples.push(baselineCpu.cpuMs);
+    obfuscatedCpuSamples.push(transformedCpu.cpuMs);
   }
   const pairRatios=obfuscatedSamples.map((value,index)=>value/baselineSamples[index]);
   const baselineMedianMs=median(baselineSamples);
@@ -143,8 +172,17 @@ async function measureWorkload(source,workload,extraStrings) {
     verify(left,right);
     placeboLeftSamples.push(left.elapsedMs);
     placeboRightSamples.push(right.elapsedMs);
-    placeboLeftCpuSamples.push(left.cpuMs);
-    placeboRightCpuSamples.push(right.cpuMs);
+    let leftCpu,rightCpu;
+    if(index%2===0) {
+      leftCpu=await importCpuBatch(source,workload,'placebo-cpu-left',index);
+      rightCpu=await importCpuBatch(source,workload,'placebo-cpu-right',index);
+    } else {
+      rightCpu=await importCpuBatch(source,workload,'placebo-cpu-right',index);
+      leftCpu=await importCpuBatch(source,workload,'placebo-cpu-left',index);
+    }
+    verify(leftCpu,rightCpu);
+    placeboLeftCpuSamples.push(leftCpu.cpuMs);
+    placeboRightCpuSamples.push(rightCpu.cpuMs);
   }
   const placeboPairRatios=placeboRightSamples.map((value,index)=>
     value/placeboLeftSamples[index]);
@@ -160,6 +198,7 @@ async function measureWorkload(source,workload,extraStrings) {
     emittedSha256:sha256(emitted.code),
     sampleCount:SAMPLE_COUNT,
     warmupCount:WARMUP_COUNT,
+    cpuBatchSize:CPU_BATCH_SIZE,
     baselineSamplesMs:baselineSamples,
     obfuscatedSamplesMs:obfuscatedSamples,
     baselineCpuSamplesMs:baselineCpuSamples,
