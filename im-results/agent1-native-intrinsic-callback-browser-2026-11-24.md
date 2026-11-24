@@ -176,3 +176,34 @@ The complete current matrix is ten operations in each of two source modes (20 ex
 3. One host-overridden Array.map callback-source observer, with the observed callback property retained.
 
 The host override is a separate effect path from \`IntrinsicCallbackDispatch\`: it directly observes the callback value, not an active caller frame. This is concrete support for keeping HostEffectValueEdge and ActiveFrameEdge distinct and requiring effective dispatch identity/provenance before assigning the intrinsic-callback contract.
+
+
+## Position-preserving emission proof of concept
+
+The latest harness adds a narrowly scoped padding experiment for the Array.map FramePosition case.
+
+- Successful focused run: [45324257879](https://github.com/FlareZ123/obfs/actions/runs/45324257879).
+- Source SHA: \`e4c21d838384926f64c79fc2c51891ca854ac7fa\`.
+- Ubuntu job ran ten CommonJS and ten strict ESM scenarios plus one padded replay in each mode.
+- Both focused platform jobs passed; Windows browser execution was skipped. Standard, external and paired-budget JSDoc checks passed.
+- Browser test duration: approximately 39.4 seconds.
+
+For both CommonJS and ESM, the ordinary emitted Array.map callback frame moved from column 102 to 93. Inserting nine spaces immediately before the emitted \`[1].map(\` callsite restored the native column to 102 in both modes. The padded replay retained the renamed private owner key, preserved return value 3, and passed the behavioral assertion.
+
+Machine output:
+
+\`\`\`text
+CHROMIUM_FRAME_PADDING {"mode":"commonjs","delta":9,"nativeColumn":102,"compiledColumn":93,"paddedColumn":102}
+CHROMIUM_FRAME_PADDING {"mode":"esm","delta":9,"nativeColumn":102,"compiledColumn":93,"paddedColumn":102}
+\`\`\`
+
+This is a **proof of feasibility**, not a production source-map algorithm:
+- The nine-character offset was measured from the native/emitted runtime columns for this fixture.
+- The harness then inserted whitespace before the known callback call expression.
+- The resulting source still contains the obfuscated property name; the added ASCII whitespace has no runtime execution cost, though it increases source size.
+- Only one callback/callsite and one Chromium engine were tested. It does not establish that every observable frame can be aligned under arbitrary code generation, line wrapping, multiple callsites, Unicode, or source-map transformations.
+- ExactSource remains a separate issue: padding can restore coordinates, but it does not restore the original function source text.
+
+Two failed padding heuristics were retained in the commit history: padding by the full property-token width overshot the native column by two, and padding before the module's later \`hidden(external)\` callsite did not affect the observed frame. The successful location is immediately before the actual \`[1].map(\` operation, consistent with the frame being associated with that active callback-dispatch callsite.
+
+A production direction worth testing is a position-preserving emitter that uses AST/source-span mappings to calculate required padding before observable callsites, rather than measuring runtime columns. Same-width identifier generation may also help, but the failed token-width heuristic shows it cannot be assumed equivalent to callsite-offset preservation.
