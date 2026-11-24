@@ -561,3 +561,11 @@ test('distinct ESM module URLs are not merged into one imported owner binding',a
     'import {state as right} from "./state.mjs?other";'+
     'console.log(peek(left),peek(right));',0);
 });
+
+
+test('distinct ESM module URLs are not merged into one imported owner binding',async()=>{
+  await check(exposed+reader,
+    'import {state as left,peek} from "./state.mjs";'+
+    'import {state as right} from "./state.mjs?other";'+
+    'console.log(peek(left),peek(right));',0);
+});
