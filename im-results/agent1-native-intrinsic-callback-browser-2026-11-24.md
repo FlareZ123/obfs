@@ -265,3 +265,29 @@ For each of the same 14 callsites, the harness now calculates the line-relative 
 This is stronger than the earlier runtime-calibrated proof: the padding amount is derived from original/emitted source positions, not from the observed stack columns. The runtime measurement is now an independent assertion that validates the static offset calculation.
 
 The test still uses manually specified, unique source markers for its fixtures. A production implementation should replace these strings with generation-qualified AST callsite spans and an emitter/source-position map. It must also handle cumulative insertions, multiple callsites on the same line, line shifts, code expansion, Unicode column conventions, generated wrappers, nested callbacks, and different engine stack formats. The result establishes a viable static-offset mechanism for these 14 cases, not a completed general-purpose emitter.
+
+
+## Host-held callback source observation in a real browser
+
+A separate browser witness now tests host-held callback values that are inspected but never invoked.
+
+- Successful focused run: [45325672865](https://github.com/FlareZ123/obfs/actions/runs/45325672865).
+- Source SHA: \`d662b7e58d85a0fe39bd5239f0e4db9606f13566\`.
+- Ubuntu Chromium job and Windows strict-check job passed; Windows browser execution was skipped.
+- Standard, external and paired-budget JSDoc checks passed. The comprehensive \`node22\` job was explicitly skipped.
+- Test files: \`test/agent1-host-held-callback-browser.js\` and \`test/agent1-host-held-callback-browser.test.js\`.
+
+The page replaces \`queueMicrotask\` with a host-owned function that captures \`Function.prototype.toString.call(callback)\` and deliberately does not invoke or schedule the callback. The application then invokes the same function itself to verify native/emitted return-value parity.
+
+Two real Chromium cases passed:
+
+| Transform | Native callback source | Emitted callback source | Return parity |
+|---|---|---|---|
+| Identifier | \`function hidden(inputValue){return inputValue+1;}\` | \`function hidden(_vd8334b58dddb){return _vd8334b58dddb+1;}\` | 3 = 3 |
+| String literal | \`function hidden(){return 'callbackSourceLiteral';}\` | \`function hidden(){return _o3090f7356925[0];}\` | Same string |
+
+Both transforms had positive yield (\`bindings\` and \`literals\`, respectively). In both cases, the host-held callback source changed even though the host did not invoke the callback and application return behavior remained equal.
+
+This is a distinct HostHeldCallable/HostEffectValueEdge observation, not an ActiveFrameEdge or synchronous intrinsic callback dispatch. It corroborates the separate Node evidence from Agent 9 in a real browser. It also exposes an important cross-pass gap in the current fixture: the property pass conservatively retains a callback-captured owner property for a patched Array.map source observer, while identifier and string passes still rewrite a function whose source is directly observed by a host-held callback.
+
+The browser page's scheduler is intentionally patched by the host. This does not claim that the native queueMicrotask implementation itself reads callback source. It demonstrates why a COO compiler cannot assume a mutable global scheduler is the native implementation at runtime, and why callback-value escape/source-observation effects must be represented independently of callback invocation/timing.
