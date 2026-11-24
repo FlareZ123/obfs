@@ -120,16 +120,35 @@ The canonical plan should expose at least:
 
 ```js
 /**
- * @typedef {string} BindingId
- * @typedef {string} SourceSpanId
+ * @typedef {Object} SourceUnitRef
+ * @property {string} sourceUnitId - runtime module/script instance identity
+ * @property {string} sourceGeneration - immutable source/parser generation
+ * @property {string|null} realmGroupId - shared realm for classic-script groups
+ * @property {'module'|'script'|'commonjs'} sourceType
+ * @property {number|null} executionOrder - required when classic-script order matters
+ *
+ * @typedef {Object} BindingRef
+ * @property {SourceUnitRef} sourceUnit
+ * @property {number} localBindingId - resolver ID unique only within one Program
+ *
+ * @typedef {Object} DefinitionRef
+ * @property {BindingRef} binding
+ * @property {string} definitionSpanId
+ * @property {'function-declaration'|'var-initializer'|'lexical-initializer'|'assignment'|'parameter'|'import'|'unknown'} kind
+ * @property {number} sourceOrder
+ *
+ * @typedef {string} BindingRefKey - canonical serialization of SourceUnitRef + localBindingId
+ * @typedef {string} DefinitionRefKey - canonical serialization of BindingRefKey + definition identity
+ * @typedef {string} SourceSpanId - canonical serialization of SourceUnitRef + start/end offsets
  * @typedef {'PrimitiveGet'|'PrimitiveObjectPatternGet'|'PrimitiveIterator'|'PrimitiveMethodDispatch'|'UnknownHostCall'|'AccessorCall'} HostEffectKind
  * @typedef {'ExactSource'|'FramePosition'|'CallableMetadata'|'UnknownHostEffect'} ObservationEffect
  *
  * @typedef {Object} SourceObservationPlan
- * @property {ReadonlyMap<BindingId, unknown>} bindings
- * @property {ReadonlyMap<string, unknown>} valueFacts
- * @property {ReadonlyMap<string, ReadonlySet<BindingId>>} callTargets
- * @property {ReadonlyMap<string, ReadonlySet<BindingId>>} activeFrameTargets
+ * @property {ReadonlyMap<BindingRefKey, unknown>} bindings
+ * @property {ReadonlyMap<DefinitionRefKey, unknown>} definitions
+ * @property {ReadonlyMap<DefinitionRefKey, unknown>} valueFacts
+ * @property {ReadonlyMap<DefinitionRefKey, ReadonlySet<DefinitionRefKey>>} callTargets
+ * @property {ReadonlyMap<DefinitionRefKey, ReadonlySet<DefinitionRefKey>>} activeFrameTargets
  * @property {ReadonlyMap<SourceSpanId, ReadonlySet<ObservationEffect>>} effects
  * @property {ReadonlyMap<SourceSpanId, ReadonlySet<SourceSpanId>>} semanticClosures
  * @property {ReadonlySet<SourceSpanId>} unsupportedSpans
@@ -161,3 +180,32 @@ A candidate must combine, on one exact current-main-based branch:
 - full two-platform correctness, JSDoc, and sampled plus adversarial 2.5× performance evidence.
 
 Until one such candidate exists, retain the fail-closed fallback and the **RELEASE-BLOCKED / NO-GO** decision. Do not create another parallel source-observer proposal or a pass-local integration PR.
+
+
+## Agent 8 / Agent 24 identity and reaching-definition refinements (24 November)
+
+The Stage 1 resolver's numeric `bindingId` is **Program-local**, not module-graph-global: `bindingCounter` resets inside each `resolveLexicalReferences(root, sourceType)` call. Two independently parsed modules can both assign local ID 1. Every binding, function span, effect and closure reference in a graph must therefore be qualified by `sourceUnitId` and `sourceGeneration`; a numeric BindingId or file path alone is not a global identity. The schema above uses a source-unit-qualified `BindingRef`.
+
+A source unit should identify the runtime module/script instance, not merely the source filename. If the same source is loaded under distinct module URLs, query parameters, loader contexts or realms, it can represent distinct instances. `sourceGeneration` binds offsets and local IDs to the exact source/parser generation. For classic scripts, also carry `realmGroupId` and execution order when several scripts share one global lexical environment. ESM top-level bindings remain module-local.
+
+**Classic-script group boundary:** Node 22.16.0 can evaluate `let window = {marker:17}` in one `vm` script and then resolve `window.marker` in a second script in the same context. A per-AST resolver of the second script alone classifies bare `window` as a `free-host-candidate`, even though runtime resolution is the first script's global lexical binding. This is a precision boundary, not a demonstrated compiler bug: the resolver already says `free-host-candidate` is not native-host proof. A multi-file classic-script graph must either construct a shared same-realm global-lexical environment with explicit execution-order premises or downgrade conflicting candidates to `Unknown`. Never compare per-file BindingIds across ASTs.
+
+**Binding identity is not reaching callable definition.** A BindingId identifies a lexical storage location; it does not determine which function value reaches a call. For example:
+
+```js
+function outer() {
+  function helper() { return 'declaration'; }
+  var helper = function () { return 'initializer'; };
+  return helper();
+}
+```
+
+The call returns `'initializer'`. The `var helper = initializer` write is represented by a declaration record and parent VariableDeclarator, not a reference-role write. Duplicate function declarations can also share one BindingId while the later declaration wins. A call-target builder must inspect same-ID declaration records, their parent declarators/initializers, hoisting and source order, and duplicate function-declaration semantics. Either select the actual reaching callable definition under the supported ECMAScript scope or conservatively produce `Unknown`; do not treat every declaration sharing a BindingId as a simultaneous target.
+
+Minimum donor controls:
+1. Two modules whose first declarations both receive local ID 1; observing module A must not taint module B's same-numbered local binding. Include an actual import/re-export edge for A's function to ensure the qualified identity follows the exported value.
+2. Two classic scripts in one realm where the first declares a global lexical name that shadows a host-name candidate in the second. With no shared realm/order proof, the second reference remains Unknown.
+3. A function declaration followed by a same-ID `var` initializer, and duplicate function declarations; verify the call graph selects the runtime reaching definition or declines.
+4. Re-run the 40-fixture/150-TypeScript Stage 1 suite after any resolver change; the current helper's green receipts do not cover all downstream call-target/value-definition semantics.
+
+These are consumer/graph proof obligations, not a request to change the lexical resolver's established per-AST identity semantics or to create a second resolver.
