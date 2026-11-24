@@ -1205,7 +1205,7 @@ function validatePlanSemantics(plan,source,ast,trackedSourceRanges) {
  * @param {string} sourceAfter
  * @param {AstNode} astAfter
  * @param {MappedSourceRange[]} trackedRanges
- * @returns {{ast:AstNode,trackedRanges:MappedSourceRange[],protectedSourceRanges:Array<Object>}|null}
+ * @returns {{ast:AstNode,trackedRanges:MappedSourceRange[],protectedSourceRanges:MappedSourceRange[]}|null}
  */
 function acceptPlannedPass(plan,editMap,sourceBefore,sourceAfter,astAfter,trackedRanges) {
   if(!isValidatedSourceObservationPlan(plan)||!editMap||
