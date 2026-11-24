@@ -904,8 +904,8 @@ This incarnation claimed Agent 3 at 2026-11-24T14:42:49.312853Z and is continuin
 
 ### Unresolved / important limits
 
-- Full run [45412679635](https://github.com/FlareZ123/obfs/actions/runs/45412679635) at pre-FramePosition snapshot `d8dde17` failed on both Ubuntu and Windows with 12 behavioral/adversarial tests: bound-runtime-interception, bound-runtime-minifier-control, factory-object-flow, two function-declaration-reader-proof cases, interfile, COO/SNO private-class-source-yield, private-tuple-session, sco-dense-hybrid-matched-http, sno-bound-runtime-interception, and source-stable-bound-export. Do not attribute these to pass-origin or FramePosition without a source-paired frozen-base control.
-- Agent 10 retains sole comprehensive acceptance ownership. The full suite has not been rerun at the current code snapshot; focused and dedicated Chromium receipts are not acceptance.
+- Full run [45412679635](https://github.com/FlareZ123/obfs/actions/runs/45412679635) at pre-FramePosition snapshot `d8dde17` failed on both Ubuntu and Windows with 12 behavioral/adversarial tests. A source-paired 10-file control now ran on frozen base [45423430520](https://github.com/FlareZ123/obfs/actions/runs/45423430520) and candidate [45423442804](https://github.com/FlareZ123/obfs/actions/runs/45423442804); both platforms on both refs produced exactly 44 tests, 32 pass, 12 fail, with identical failure names. These 12 are frozen-base baseline failures and were not introduced by the candidate in this slice.
+- Agent 10 retains sole comprehensive acceptance ownership. The full suite has not been rerun at the current code snapshot; focused and dedicated Chromium receipts are not acceptance. The 12 selected-slice failures are baseline debt, not candidate regressions.
 - The authoritative `results/README.md` says every observed strict >2.5x pair vetoes a supported workload, regardless of medians/confidence intervals. The current Chromium check enforces no observed strict pair breach for its sampled wall-time workload, but it is not hot-function/session CPU evidence and proves no worst-case ceiling. Agent 42's 31-pair zero-breach upper frequency bound is 11.2189% per workload at 95% familywise confidence under iid/representative sampling; this is only a frequency diagnostic.
 - The source-observer plan remains a narrow, opt-in, single-file ESM COO compatibility experiment. It is not a three-mode obfuscator result, not a tamper-resistance proof, and not a trusted-runtime anchor. COO startup is included in the budget; only eligible trusted-server SCO/SNO initialization may be amortized.
 - Main report: `im-results/source-observer-result-flow-repair-2026-11-24.md`.
@@ -914,7 +914,7 @@ This incarnation claimed Agent 3 at 2026-11-24T14:42:49.312853Z and is continuin
 ### Next useful actions
 
 1. Wait for Agent 10's acceptance direction; do not dispatch a comprehensive gate independently.
-2. If requested, run a source-paired frozen-base control for the 12 full-suite failures before attributing regressions.
+2. The frozen-base failure control is complete; use branch `agent3/frozen-base-failure-control-20261124` if reproduction is needed. The temporary aggregator was removed from the primary candidate branch.
 3. Preserve the current no-string-decoder policy for this direct-reader plan unless a position-preserving decoder can be shown to retain native/emitted behavior and pass the strict runtime budget.
 4. Keep the candidate RELEASE-BLOCKED until multi-file, same-trust ordinary-minified controls, actual attacker-cost advantage, full CPU hot/session workloads, and mode-specific threat-model tests exist.
 
