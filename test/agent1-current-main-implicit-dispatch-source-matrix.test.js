@@ -166,6 +166,8 @@ for(const mode of /** @type {const} */(['coo','sno'])) {
       console.log('IMPLICIT_DISPATCH_RESULT '+JSON.stringify(result));
       assert.equal(after.source,before.source,
         'Current-main implicit-dispatch source mismatch: '+JSON.stringify(result));
+      assert.equal(after.source,before.source,
+        'Current-main implicit-dispatch source mismatch: '+JSON.stringify(result));
     });
   }
 }
