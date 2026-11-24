@@ -5,7 +5,7 @@
 **Owner:** Agent 50  
 **Frozen source SHA-256:** `2b6a7b2cb348cd716e636e8e2da0817d4721a95f98bd45bbd90ffd8a5b366a9d`  
 **Code branch:** `agent50/rankfive-top-quintic-http-20261124`  
-**Code head:** `7839d07a27722b806195e50574d33608648ac26a`
+**Code head:** `63f2a5bc2a74a988cd3e65b11c11ac642ec10c09`
 
 ## Executive summary
 
@@ -119,7 +119,22 @@ The same peer workflow ran `sims/rankfive-top-derivative-hybrid-query-simulation
 
 Paired mean saving was 232.313 queries (11.2609%); the hybrid used fewer queries in 95.4% of paired replications. The simulation uses deterministic SHA-256 counter tapes for exact reproducibility. This is a Monte Carlo simulation, not evidence that those deterministic tapes are independent uniform draws; the analytic verifier guarantee and live CSPRNG tests are separate evidence.
 
-### Live authenticated HTTP comparison
+#### 50-source randomized rank-five ensemble
+
+The final peer workflow also ran `sims/rankfive-top-derivative-hybrid-source-ensemble.js`: 50 deterministic random rank-five projected-table sources × 20 paired replications each (1,000 total). Each source has five independent parity masks and a nonzero degree-five table coefficient. Both learners were checked on 32 heldout inputs per replication (64,000 total heldout checks). Results were identical on Ubuntu and Windows:
+
+| Metric | Existing projected-affine learner | Top-derivative hybrid |
+|---|---:|---:|
+| Mean queries | 2,085.353 | 1,826.352 |
+| Median queries | 2,030 | 1,782 |
+| 10th percentile | 1,936 | 1,782 |
+| 90th percentile | 2,316 | 1,908 |
+| 95th percentile | 2,443 | 1,971 |
+| Maximum | 3,264 | 2,286 |
+
+Paired mean saving was 259.001 queries (12.4200%), median saving 217, and the hybrid was lower in 96.8% of pairs. No hybrid fast-path fallback occurred. This ensemble uses deterministic SHA-256 counter tapes for reproducibility; it remains a simulation, not proof of independent uniform draws or a substitute for the live CSPRNG HTTP experiment.
+
+## Live authenticated HTTP comparison
 
 Manual workflow run [45464863874](https://github.com/FlareZ123/obfs/actions/runs/45464863874), corrected head `5bdfe02f1bdbdbbfefdbe68f6f555675879ac45d`, passed strict JSDoc, syntax, and ten paired live comparisons per platform. Every baseline and hybrid SCO/native pair had matching query counts and transcript hashes. Each arm passed 1,024 post-shutdown heldouts, the unauthorized request returned 403, private names remained absent, and private execution count matched unique oracle queries. All hybrid fast paths succeeded with quotient rank 5, 726 verifier samples, and no fallback.
 
@@ -151,9 +166,9 @@ Artifacts for the corrected-head live run:
 - Ubuntu: artifact `14954297964`, SHA-256 `685a76932baffdf98cbc76e24b9579b91ce72f7951e3b4516c5d55b7349e0cf2`.
 - Windows: artifact `14954987346`, SHA-256 `12b4f08c7d2a6e8d8cf652a51e9885c939c57802047c8caeefc75033d4536ec4`.
 
-Artifacts for the final peer/simulation run (including the codimension-six control):
-- Ubuntu: artifact `14954847770`, SHA-256 `fb52f4698f327c887b0f51ae140792e1008db4295208bfeefdf312b772510566`.
-- Windows: artifact `14954603228`, SHA-256 `8d36683860b4e7c8cf3360608ab43a59d0c2f831ca071fe9c1e06b941e56317e`.
+Artifacts for peer/simulation run `45466502614` (codimension-six control, frozen-source simulation, and 50-source ensemble):
+- Ubuntu: artifact `14954788855`, SHA-256 `a5afa642cd8eda42a3afee01553587110d739552ffbb23244d24129c1b48b219`.
+- Windows: artifact `14954058752`, SHA-256 `f98848a5c5c4680a35519fd0e150d9d26b3f148a98508bd93ae10bdbd0a5a2ac`.
 
 ## Reproduction paths
 
@@ -161,6 +176,7 @@ The implementation and focused workflows are preserved on branch `agent50/rankfi
 
 - `sims/rankfive-top-derivative-projected-affine-hybrid-peer.js`
 - `sims/rankfive-top-derivative-hybrid-query-simulation.js`
+- `sims/rankfive-top-derivative-hybrid-source-ensemble.js`
 - `sims/rankfive-top-derivative-hybrid-http-worker.cjs`
 - `sims/sco-rankfive-top-derivative-hybrid-real-http.js`
 - `sims/sco-rankfive-arbitrary-table-real-http.js` (adds the HTTP runner injection seam)
@@ -169,7 +185,7 @@ The implementation and focused workflows are preserved on branch `agent50/rankfi
 - `.github/workflows/manual-rankfive-top-derivative-hybrid-peer.yml`
 - `.github/workflows/manual-sco-rankfive-top-derivative-hybrid-http.yml`
 
-The branch compares to main as 24 commits ahead and 193 behind, with 12 changed files. Review the shared baseline-script and JSDoc-config diffs before merging; do not blindly merge a stale branch.
+The branch compares to main as 30 commits ahead and 198 behind, with 13 changed files. Draft PR [#373](https://github.com/FlareZ123/obfs/pull/373) is open; GitHub currently reports mergeability as false after the latest head update. Review/rebase the shared baseline-script and JSDoc-config diffs before merging; do not blindly merge a stale branch.
 
 ## Limitations and next work
 
