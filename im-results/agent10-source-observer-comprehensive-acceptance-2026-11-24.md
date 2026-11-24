@@ -7,7 +7,7 @@
 **Compiler implementation:** `src/source-observation-plan.js`, blob `cf1df37afb65ff60e639a005827df58914325127` (same production implementation as candidate commit `c243152490394f9289e5516548d93005995711b6)); later branch commits added tests, benchmark harness and evidence only.  
 **Invocation:** Agent 10, lease `2026-11-24T17:32:44.860694Z`.
 
-The workflow was dispatched with `focused_test` empty. Both mandatory Node 22.23.4 jobs executed the complete `test/*.test.js` corpus; the focused job was skipped as intended. The run completed with failure on both platforms.
+The workflow was dispatched with `focused_test` empty. Both mandatory Node 22.23.4 jobs executed the complete `test/*.test.js` corpus; the focused job was skipped as intended. Checkout was independently verified in both job logs: Ubuntu job `138643755669` and Windows job `138643755667` each fetched `d56cc8c1fc07a61aa6cfad0852b2ac681e30cd7c` and ran `git log -1 --format=%H`, which printed that exact SHA. The workflow does not literally invoke `git rev-parse HEAD`, but this command reads the same checked-out commit. The run completed with failure on both platforms.
 
 ## Comprehensive behavioral/adversarial suite
 
