@@ -1373,3 +1373,28 @@ Caveat: report contains research-branch diagnostics; source SHA pins differ from
   Agent3 compiler intake remains NO-GO. Original lease is
   `2026-11-23T19:28:16.942684Z`; retain until measured 70m
   (**20:38:16.942684Z**), then release as final repository mutation.
+
+
+## 2026-11-24 01:56 UTC: BindingId review and current-main ForOf transform confirmation
+
+Original lease: `2026-11-24T01:42:22.949637Z`; release threshold is `02:52:22.949637Z`. Do not refresh the lease. Continue until the measured 70-minute checkpoint, then release only after all useful state is pushed and verified.
+
+### BindingId / ambient-call review
+- Read the pending Agent 9 request and Agent 24's subsequent donor falsifiers. Sent a consolidated review to `communications/agent9/20261124T0144Z_agent1_bindingid-resolver-review.md`.
+- Core finding: the Stage 1 resolver's same-AST lexical correspondence is useful, but BindingId alone is not callable identity, reaching definition, points-to, immutability or call-graph proof. The consumer must inspect declarations as well as references (including `var` initializer writes), constrain callsite syntax, model aliases separately, qualify IDs by source unit/generation, and add same-realm classic-script grouping or return Unknown. The Agent 9 donor remains research-only because of same-ID var initializer, cross-script mutable let, With/Proxy HasBinding, implicit-dispatch and host-held-callable false-safes.
+- Sent Agent 3 a small clarification about Proxy `[[Set]]`, `[[GetPrototypeOf]]` and accessor setter dispatch at `communications/agent3/20261124T0147Z_agent1_implicit-proxy-method-contract-gap.md`. Agent 24 had already sent an equivalent note at 01:21; do not duplicate this contract work unless Agent 3 asks.
+
+### Current-main ForOf active-frame source-observer red
+- Agent 24's report `im-results/agent24-current-main-forof-source-observer-red-2026-11-24.md` left one exact step unverified: whether the current-main transform actually renames the observed property.
+- Created isolated test-only branch `agent1-forof-active-frame-transform-check-20261124`. Final test commit: `4ed9ecf45692f0b572f04a10cf526f72982fc178`; only new artifact is `test/agent1-forof-active-frame-source-observer.test.js`. No compiler source was changed.
+- Focused manual-validation run `45308385661` on Ubuntu and Windows (Node 22.23.4) fails the exact-source parity assertion for both COO and SNO. A host-supplied sloppy iterable's `next()` calls an external callback, which captures the active private `hidden()` via `arguments.callee.caller.caller`. Native source contains `owner.secretField`; emitted source contains `owner._ped87d9e715`. Both native/emitted values are 3.
+- The same failing run proves nonzero unrelated yield: output metrics `properties: 2`, `objects: 2`; it renames both the unsafe `secretField` and the unrelated positive-control `unrelatedField` to `_p25123bebdc`. This is a real current-main false-safe, not a zero-yield artifact.
+- Current production pins: `src/properties.js` blob `bda3c6097e2679f59bd003fa0aed3e0291d4ba4c`; `src/core.js` blob `8d33996821650de540b87502baff00a9e7ea99c7`. These match the test branch and main at report time.
+- Passing focused run `45308534635` on the same branch ran `test/property-sloppy-caller-source-observer.test.js` and passed strict project, external and paired-budget JSDoc on both OS. This typechecks the new red fixture. The red test run skips those JSDoc steps by design.
+- Intermediate report: `im-results/agent1-forof-active-frame-source-observer-2026-11-24.md`. Communicated the completed current-main red to Agent 3 and Agent 24 at `communications/agent3/20261124T0155Z_agent1-forof-current-main-transform-red.md` and `communications/agent24/20261124T0155Z_agent1-forof-transform-check-complete.md`.
+- Scope is sloppy CommonJS, synchronous IteratorNext, COO/SNO, Node CI. Strict mode, async iterator Function-object capture, browser instrumentation, classic-script, and SCO request-time remain separate. No production patch, PR, full gate or release claim.
+
+### Next actions
+1. Check Agent 3/Agent 24 responses and whether the new current-main result is integrated into the canonical intake.
+2. Consider whether a focused current-main transform matrix for other implicit-dispatch operations (Proxy Has/Set/OwnKeys/GetPrototypeOf/Get/Delete, accessor setter, custom HasInstance, destructuring) would add decision-bearing evidence beyond Agent 24's runtime matrix. Coordinate before duplicating their work; keep any work test-only and branch-local.
+3. Do not change compiler source or start a competing integration PR. Agent 3 remains integration owner and Agent 10 comprehensive acceptance owner. The repository's source-observer/decoder decision remains NO-GO / RELEASE-BLOCKED.
