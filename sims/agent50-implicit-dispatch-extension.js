@@ -136,6 +136,10 @@ function runProxyCase(label, trapName, hidden, expectThrow) {
 function hiddenPlus(value) { return value + 1; }
 function hiddenRel(value) { return value < 2; }
 function hiddenKey(value) { const obj = { x: 1 }; return obj[value]; }
+function hiddenPatternKey(key) { const source = { x: 1 }; const { [key]: value } = source; return value; }
+function hiddenLiteralKey(key) { return { [key]: 1 }; }
+function hiddenInKey(key) { const source = { x: 1 }; return key in source; }
+function hiddenDeleteKey(key) { const source = { x: 1 }; delete source[key]; return source; }
 function hiddenValueOf(value) { return value - 1; }
 function hiddenString(value) { return '' + value; }
 
@@ -162,6 +166,18 @@ async function main() {
     runCallerCase('computed-key-ToPropertyKey', external => ({
       [Symbol.toPrimitive]: function toPrimitive() { external(); return 'x'; }
     }), hiddenKey, 'return obj[value]'),
+    runCallerCase('object-pattern-ToPropertyKey', external => ({
+      [Symbol.toPrimitive]: function toPrimitive() { external(); return 'x'; }
+    }), hiddenPatternKey, 'const { [key]: value } = source'),
+    runCallerCase('object-literal-ToPropertyKey', external => ({
+      [Symbol.toPrimitive]: function toPrimitive() { external(); return 'x'; }
+    }), hiddenLiteralKey, 'return { [key]: 1 }'),
+    runCallerCase('in-operator-ToPropertyKey', external => ({
+      [Symbol.toPrimitive]: function toPrimitive() { external(); return 'x'; }
+    }), hiddenInKey, 'return key in source'),
+    runCallerCase('delete-ToPropertyKey', external => ({
+      [Symbol.toPrimitive]: function toPrimitive() { external(); return 'x'; }
+    }), hiddenDeleteKey, 'delete source[key]'),
     runCallerCase('numeric-valueOf-fallback', external => ({
       valueOf: function valueOf() { external(); return 1; }
     }), hiddenValueOf, 'return value - 1'),
