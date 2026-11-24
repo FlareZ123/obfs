@@ -97,6 +97,13 @@ test('module-local String binding cannot be captured by the inserted decoder pro
     'export const shadowValue = String;'
   ].join('\\n');
   const native=await importDataModule(shadowSource);
+  const withoutAlias=shadowSource.replace('export const shadowValue = String;','');
+  const withoutStringBinding=shadowSource.replace("const String = 'shadowed';",'');
+  process.stdout.write('SOURCE_PLAN_STRING_DIAG '+JSON.stringify({
+    withAlias:Boolean(buildDirectFunctionSourcePlan(shadowSource,'entry.mjs',hostContract)),
+    withoutAlias:Boolean(buildDirectFunctionSourcePlan(withoutAlias,'entry.mjs',hostContract)),
+    withoutStringBinding:Boolean(buildDirectFunctionSourcePlan(withoutStringBinding,'entry.mjs',hostContract))
+  })+'\\n');
   const result=obfuscateFiles([entry(shadowSource)],{
     mode:'coo',seed:'direct-source-plan-string-shadow',strings:true,
     experimentalSourceObservationPlan:hostContract
