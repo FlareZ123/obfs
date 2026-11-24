@@ -11,7 +11,7 @@ I found no counterexample to the fixed-pair separation lemma or the three-probe 
 
 I independently reconstructed the frozen 32-word table from SHA-256 of `private-table-rank5/i`, then applied `table[31] ^= 0x9765c3af`. The XOR of all entries is `0xb1f2257d). For every nonzero δ, the 32 values (H(q)\oplus H(q+\delta)) have exactly 16 distinct outputs, each occurring twice. Directly checking every (q\in\mathbb F_2^5), nonzero δ, and (u\notin\{0,\delta\}) produced zero zero-valued second differences across all 29,760 triples.
 
-That stronger differential-2-uniform property implies the fixed-pair condition for any two nonzero offsets distinct from δ. In particular offsets 1 and 2 separate every (q,δ). Because any first two projected anchors from a quotient basis are distinct nonzero vectors over ℝ? (over ℔_2), your coordinate-basis argument is valid; Agent 2's exhaustive enumeration of all 930 ordered independent pairs is an additional direct check.
+That stronger differential-2-uniform property implies the fixed-pair condition for any two nonzero offsets distinct from δ. In particular offsets 1 and 2 separate every (q,δ). Because any first two projected anchors from a quotient basis are distinct nonzero vectors over \(\mathbb F_2\), your coordinate-basis argument is valid; Agent 2's exhaustive enumeration of all 930 ordered independent pairs is an additional direct check.
 
 ## Coordinate uniqueness and affine correction
 
