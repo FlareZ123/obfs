@@ -2153,6 +2153,82 @@ function renameCrossFileProperties(files,seed) {
         if(name!==null)knownNames.set(entry.id.name,name);
       }
     }
+    // An indirect expression may still be the global receiver when an
+    // ordinary member read extracts a mutable intrinsic capability.
+    // Track only source-proven possible global values; ordinary records with
+    // a same-named key are outside this admission guard.
+    const possibleGlobalRoots=new Set(['globalThis']);
+    const possibleGlobalReturningCalls=new Set();
+    /**
+     * @param {AstNode|null|undefined} value
+     * @returns {boolean}
+     */
+    function possibleGlobalValue(value) {
+      if(!value)return false;
+      if(value.type==='Identifier')return possibleGlobalRoots.has(value.name);
+      if(value.type==='CallExpression'&&value.callee.type==='Identifier'&&
+         possibleGlobalReturningCalls.has(value.callee.name))return true;
+      if(value.type==='SequenceExpression')
+        return possibleGlobalValue(value.expressions[value.expressions.length-1]);
+      if(value.type==='ConditionalExpression')
+        return possibleGlobalValue(value.consequent)||possibleGlobalValue(value.alternate);
+      if(value.type==='LogicalExpression')
+        return possibleGlobalValue(value.left)||possibleGlobalValue(value.right);
+      if(value.type==='MemberExpression'&&value.computed&&
+         value.object.type==='ArrayExpression'&&value.property.type==='Literal'&&
+         Number.isInteger(value.property.value)) {
+        const index=Number(value.property.value);
+        return index>=0&&index<value.object.elements.length&&
+          possibleGlobalValue(value.object.elements[index]);
+      }
+      return false;
+    }
+    let rootChanged;
+    do {
+      rootChanged=false;
+      walk(module.ast,(node,parent)=>{
+        if(['FunctionDeclaration','FunctionExpression','ArrowFunctionExpression'].includes(node.type)) {
+          const candidate=node.type==='FunctionDeclaration'?node.id:
+            parent?.type==='VariableDeclarator'&&parent.init===node?parent.id:null;
+          if(candidate?.type==='Identifier'&&!possibleGlobalReturningCalls.has(candidate.name)) {
+            let returnsGlobal=node.type==='ArrowFunctionExpression'&&
+              node.expression&&possibleGlobalValue(node.body);
+            walk(node.body,part=>{
+              if(part.type==='ReturnStatement'&&possibleGlobalValue(part.argument))
+                returnsGlobal=true;
+            });
+            if(returnsGlobal) {
+              possibleGlobalReturningCalls.add(candidate.name);
+              rootChanged=true;
+            }
+          }
+        }
+        const binding=node.type==='VariableDeclarator'&&
+          node.id.type==='Identifier'?node.id:
+          node.type==='AssignmentExpression'&&
+            node.left.type==='Identifier'?node.left:null;
+        const source=node.type==='VariableDeclarator'?node.init:
+          node.type==='AssignmentExpression'?node.right:null;
+        if(binding&&!possibleGlobalRoots.has(binding.name)&&
+           possibleGlobalValue(source)) {
+          possibleGlobalRoots.add(binding.name);
+          rootChanged=true;
+        }
+      });
+    }while(rootChanged);
+    /**
+     * @param {AstNode} member
+     * @returns {boolean}
+     */
+    function memberMayReadNative(member) {
+      const name=member.computed?
+        member.property.type==='Literal'&&
+          typeof member.property.value==='string'?member.property.value:
+        member.property.type==='Identifier'?
+          knownNames.get(member.property.name)??null:null:
+        member.property.type==='Identifier'?member.property.name:null;
+      return name==='Reflect'||name==='Object'||name===null&&member.computed;
+    }
     /**
      * @param {AstNode|null|undefined} pattern
      * @returns {boolean}
