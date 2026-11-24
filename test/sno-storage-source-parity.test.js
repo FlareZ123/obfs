@@ -63,6 +63,37 @@ async function writeSnoPackages(root,source,protectedCode) {
 
 
 /**
+ * Build two multi-file SNO packages with one executable entry and a required helper.
+ * @param {string} root
+ * @param {{path:string,code:string}[]} nativeFiles
+ * @param {{path:string,code:string}[]} protectedFiles
+ * @param {string} entry
+ * @returns {Promise<{nativeLauncher:string,protectedLauncher:string,nativeStorage:string,protectedStorage:string}>}
+ */
+async function writeSnoMultiFilePackages(root,nativeFiles,protectedFiles,entry) {
+  const nativeRoot=path.join(root,'native-multi');
+  const protectedRoot=path.join(root,'protected-multi');
+  await fs.mkdir(nativeRoot,{recursive:true});
+  await fs.mkdir(protectedRoot,{recursive:true});
+  for(const file of nativeFiles) {
+    await atomicWrite(path.join(nativeRoot,file.path),file.code);
+  }
+  for(const file of protectedFiles) {
+    await atomicWrite(path.join(protectedRoot,file.path),file.code);
+  }
+  const nativeLauncher=path.join(nativeRoot,'sno-entry.cjs');
+  const protectedLauncher=path.join(protectedRoot,'sno-entry.cjs');
+  await atomicWrite(nativeLauncher,createSnoLauncher(nativeFiles,entry));
+  await atomicWrite(protectedLauncher,createSnoLauncher(protectedFiles,entry));
+  const nativeStorage=path.join(root,'native-multi-storage.db');
+  const protectedStorage=path.join(root,'protected-multi-storage.db');
+  await fs.writeFile(nativeStorage,'');
+  await fs.writeFile(protectedStorage,'');
+  return {nativeLauncher,protectedLauncher,nativeStorage,protectedStorage};
+}
+
+
+/**
  * Compile and run a source pair through the one-entry SNO launcher.
  * @param {string} source
  * @param {string} seed
@@ -506,4 +537,118 @@ test('SNO Node Web Storage immutable Symbol.toPrimitive alias remains conservati
   assert.equal(pair.native.independent,29);
   assert.equal(pair.emitted.independent,29);
   console.log(JSON.stringify({mode:'sno',case:'immutable-Symbol.toPrimitive-alias',observer:pair.observes,bindings:pair.bindings,stored:pair.emitted.stored,conservativeRefusal:true}));
+});
+
+
+test('SNO Node sessionStorage native DOMString conversion preserves runtime values but changes callable source',{
+  skip:!supportsExperimentalWebStorage,
+  timeout:30000
+},async()=>{
+  const source=[
+    "'use strict';",
+    'function inspect(){const privateLocal=73;return privateLocal;}',
+    'function independent(){const independentLocal=31;return independentLocal;}',
+    'const nativeDispatch=sessionStorage.setItem===Storage.prototype.setItem;',
+    'sessionStorage.clear();',
+    'sessionStorage.setItem("session-source",inspect);',
+    'const result={nativeDispatch,stored:sessionStorage.getItem("session-source"),',
+    '  value:inspect(),independent:independent()};',
+    'process.stdout.write(JSON.stringify(result));'
+  ].join('\n');
+  const pair=await runSnoDifferential(source,'sno-node-sessionstorage-source','obfs-sno-sessionstorage-');
+  assert.equal(pair.observes,false);
+  assert.ok(pair.bindings>=2);
+  assert.ok(!pair.protectedCode.includes('privateLocal'));
+  assert.ok(!pair.protectedCode.includes('independentLocal'));
+  assert.equal(pair.native.nativeDispatch,true);
+  assert.equal(pair.emitted.nativeDispatch,true);
+  assert.ok(pair.native.stored?.includes('privateLocal'));
+  assert.ok(pair.emitted.stored && !pair.emitted.stored.includes('privateLocal'));
+  assert.notEqual(pair.native.stored,pair.emitted.stored);
+  assert.equal(pair.native.value,73);
+  assert.equal(pair.emitted.value,73);
+  assert.equal(pair.native.independent,31);
+  assert.equal(pair.emitted.independent,31);
+  console.log(JSON.stringify({mode:'sno',case:'sessionStorage-native-setItem',observer:pair.observes,bindings:pair.bindings,nativeDispatch:pair.native.nativeDispatch,sourceParity:false}));
+});
+
+
+test('SNO Node Web Storage cross-file factory return exposes helper callable source through one entrypoint',{
+  skip:!supportsExperimentalWebStorage,
+  timeout:30000
+},async()=>{
+  const entrySource=[
+    "'use strict';",
+    "const getCallback=require('./helper.cjs');",
+    'const inspect=getCallback();',
+    'function independent(){const independentLocal=5;return independentLocal;}',
+    'localStorage.clear();',
+    'localStorage.setItem("cross-file-source",inspect);',
+    'const result={stored:localStorage.getItem("cross-file-source"),',
+    '  value:inspect(),independent:independent()};',
+    'process.stdout.write(JSON.stringify(result));'
+  ].join('\n');
+  const helperSource=[
+    "'use strict';",
+    'module.exports=function getCallback(){',
+    '  function inspect(){const privateLocal=83;return privateLocal;}',
+    '  return inspect;',
+    '};'
+  ].join('\n');
+  assert.equal(observesFunctionSource(parse(entrySource,'commonjs')),false);
+  assert.equal(observesFunctionSource(parse(helperSource,'commonjs')),false);
+  /** @type {{path:string,sourceType:'commonjs',code:string}[]} */
+  const inputFiles=[
+    {path:'entry.cjs',sourceType:'commonjs',code:entrySource},
+    {path:'helper.cjs',sourceType:'commonjs',code:helperSource}
+  ];
+  const transformed=obfuscateFiles(inputFiles,{
+    mode:'sno',
+    seed:'sno-node-webstorage-cross-file-factory-return',
+    strings:false,
+    identifiers:true,
+    properties:false
+  });
+  const entryFile=transformed.files.find(file=>file.path==='entry.cjs');
+  const helperFile=transformed.files.find(file=>file.path==='helper.cjs');
+  assert.ok(entryFile,'expected one SNO entry file');
+  assert.ok(helperFile,'expected one SNO helper file');
+  const protectedHelper=String(helperFile.code);
+  assert.ok(helperFile.metrics.bindings>=1,'expected helper-private identifier rewrite');
+  assert.ok(!protectedHelper.includes('privateLocal'),'expected returned callable source to change');
+
+  const root=await fs.mkdtemp(path.join(os.tmpdir(),'obfs-sno-webstorage-cross-file-'));
+  try {
+    const packages=await writeSnoMultiFilePackages(
+      root,
+      [{path:'entry.cjs',code:entrySource},{path:'helper.cjs',code:helperSource}],
+      transformed.files.map(file=>({path:file.path,code:String(file.code)})),
+      'entry.cjs'
+    );
+    const native=runWithWebStorage(packages.nativeLauncher,packages.nativeStorage);
+    const emitted=runWithWebStorage(packages.protectedLauncher,packages.protectedStorage);
+    assert.ok(native.stored?.includes('privateLocal'));
+    assert.ok(emitted.stored && !emitted.stored.includes('privateLocal'));
+    assert.notEqual(native.stored,emitted.stored);
+    assert.equal(native.value,83);
+    assert.equal(emitted.value,83);
+    assert.equal(native.independent,5);
+    assert.equal(emitted.independent,5);
+    console.log(JSON.stringify({
+      mode:'sno',
+      host:'Node --experimental-webstorage',
+      entrypoint:'entry.cjs',
+      helper:'helper.cjs',
+      flow:'helper factory -> returned callable -> Storage.setItem',
+      nativeStored:native.stored,
+      emittedStored:emitted.stored,
+      helperBindings:helperFile.metrics.bindings,
+      nativeValue:native.value,
+      emittedValue:emitted.value,
+      unrelatedHelper:emitted.independent,
+      sourceParity:false
+    }));
+  } finally {
+    await fs.rm(root,{recursive:true,force:true});
+  }
 });
