@@ -6,7 +6,7 @@ on:
       candidate_sha:
         description: Exact repaired candidate commit to test
         required: true
-        default: "ed1f234747f2733879b24b4214ef2888d3b060bc"
+        default: "0417abb68e3bfe09ed0f80e5e175b057b23e8cca"
         type: string
 
 permissions:
