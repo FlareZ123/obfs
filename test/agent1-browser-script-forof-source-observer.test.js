@@ -51,7 +51,7 @@ const source=
     'const owner={secretField:1};'+
     'const other={unrelatedField:2};'+
     'function hidden(iterable){for(const value of iterable){}return owner.secretField;}'+
-    'function plain(){return other.unrelatedField;}'+
+    'function plain(){const safeLocal=2;return other.unrelatedField+safeLocal;}'+
     'function publicReader(iterable){return hidden(iterable)+plain();}'+
     'globalThis.publicReader=publicReader;'+
   '})();';
@@ -59,10 +59,12 @@ const source=
 for(const mode of /** @type {const} */(['coo','sno'])) {
   test(mode+' classic-script ForOf active-frame source parity',()=>{
     const before=observe(source);
-    assert.equal(before.value,3);
+    assert.equal(before.value,5);
     const code=compile(mode);
     const after=observe(code);
     assert.equal(after.value,before.value);
+    assert.ok(!code.includes('safeLocal'),
+      'The private plain() helper is the positive identifier-yield control: '+code);
     assert.deepEqual(after,before,
       'A host IteratorNext callback can capture hidden() in classic-script '+mode+': '+
       JSON.stringify({before,after,code}));
