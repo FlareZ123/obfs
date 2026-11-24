@@ -4,6 +4,7 @@ const {test}=require('node:test');
 const assert=require('node:assert/strict');
 const {obfuscateFiles}=require('../src/core');
 const {parserContractIdFor}=require('../src/ast');
+const {applyEditsWithMap,mapSourceSpan,mapMappedSourceRange,sourceGenerationOf}=require('../src/source-edit-map');
 const {
   buildDirectFunctionSourcePlan,
   getInitialPlanRanges,
@@ -121,6 +122,46 @@ test('producer rejects aliases, extra readers, unknown syntax and unversioned ho
   assert.throws(()=>obfuscateFiles([entry(alias)],{
     mode:'coo',experimentalSourceObservationPlan:hostContract
   }),/outside the closed direct Function\.prototype\.toString\.call producer grammar/u);
+});
+
+
+test('MappedSourceRange composes directly through the next generation without re-minting SourceSpanRef',()=>{
+  const input='const emoji = "😀";\\nfunction observed() { return 29; }\\nexport const marker = 1;';
+  const unit='unit:direct-map-composition';
+  const start=input.indexOf('function observed');
+  const end=input.indexOf('\\n',start);
+  const originalSpan=Object.freeze({
+    spanId:'span:original:function-observed',
+    sourceUnitRef:unit,
+    sourceGeneration:sourceGenerationOf(input,parserContractIdFor('module')),
+    startOffset:start,
+    endOffset:end,
+    coordinateUnit:'utf16-code-unit',
+    astNodeType:'FunctionDeclaration'
+  });
+  assert.equal(Object.hasOwn(originalSpan,'originSpanId'),false);
+  const first=applyEditsWithMap(input,[{
+    start:0,end:0,text:'// first prologue\\n',affinity:'before-node'
+  }],unit,parserContractIdFor('module'));
+  const firstRange=mapSourceSpan(first.map,originalSpan,input,first.code);
+  assert.ok(firstRange);
+  const second=applyEditsWithMap(first.code,[{
+    start:0,end:0,text:'// second prologue\\n',affinity:'before-node'
+  }],unit,parserContractIdFor('module'));
+  const secondRange=mapMappedSourceRange(second.map,firstRange,first.code,second.code);
+  assert.ok(secondRange,'the second mapper must accept the first MappedSourceRange directly');
+  assert.equal(secondRange.originSpanId,originalSpan.spanId);
+  assert.equal(secondRange.sourceUnitRef,unit);
+  assert.equal(secondRange.sourceGeneration,second.map.toGeneration);
+  assert.equal(second.code.slice(secondRange.startOffset,secondRange.endOffset),
+    input.slice(originalSpan.startOffset,originalSpan.endOffset));
+  const damaged=applyEditsWithMap(second.code,[{
+    start:secondRange.startOffset+1,
+    end:secondRange.startOffset+2,
+    text:'X'
+  }],unit,parserContractIdFor('module'));
+  assert.equal(mapMappedSourceRange(damaged.map,secondRange,second.code,damaged.code),null,
+    'a later edit intersecting the exact source closure must invalidate the range');
 });
 
 test('producer remains scoped to one ESM COO unit and rejects server modes and multi-file inputs',()=>{
