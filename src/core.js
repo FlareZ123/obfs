@@ -2139,14 +2139,15 @@ function obfuscateFiles(files, options = {}) {
      * reparsed callable, reader-result binding and exported mirror remain linked.
      * @param {{code:string,editMap?:import('./source-edit-map').SourceEditMap}} result
      * @param {string} sourceBefore
+     * @param {string[]} allowedOrigins
      * @returns {boolean}
      */
-    function acceptPlanPass(result,sourceBefore) {
+    function acceptPlanPass(result,sourceBefore,allowedOrigins) {
       if(!sourceObservationPlan||!result.editMap)return false;
       let nextAst;
       try {nextAst=parse(result.code,'module');} catch {return false;}
       const accepted=acceptPlannedPass(sourceObservationPlan,result.editMap,
-        sourceBefore,result.code,nextAst,trackedSourceRanges);
+        sourceBefore,result.code,nextAst,trackedSourceRanges,allowedOrigins);
       if(!accepted)return false;
       trackedSourceRanges=accepted.trackedRanges;
       protectedSourceRanges=accepted.protectedSourceRanges;
@@ -2310,7 +2311,7 @@ function obfuscateFiles(files, options = {}) {
           sourceObservationPlan,protectedSourceRanges
         }:{seed:salt});
       if(sourceObservationPlan) {
-        if(acceptPlanPass(modified,before)) {
+        if(acceptPlanPass(modified,before,['properties-local-rename'])) {
           objects=modified.objects;
           properties=modified.properties;
         } else {
@@ -2334,7 +2335,7 @@ function obfuscateFiles(files, options = {}) {
         sourceObservationPlan,protectedSourceRanges
       }:{seed:salt,sourceType});
       if(sourceObservationPlan) {
-        if(acceptPlanPass(renamed,before))bindings=renamed.bindings;
+        if(acceptPlanPass(renamed,before,['identifiers-local-rename']))bindings=renamed.bindings;
         else {code=before;ast=parse(code,sourceType);}
       } else {
         code=renamed.code;
@@ -2358,7 +2359,7 @@ function obfuscateFiles(files, options = {}) {
         fixedArity:options.experimentalFixedArityStrings===true
       });
       if(sourceObservationPlan) {
-        if(acceptPlanPass(modified,before))literals=modified.count;
+        if(acceptPlanPass(modified,before,['strings-decoder-prologue','strings-decoder-replacement']))literals=modified.count;
         else {code=before;ast=parse(code,sourceType);}
       } else {
         code = modified.code;

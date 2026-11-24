@@ -653,7 +653,7 @@ test('independent review: untagged top-level throw is rejected as an arbitrary p
   assert.equal(validatePlanSemantics(plan,changed.code,ast,next,changed.map),true,
     'the structural rebind validator alone does not prove arbitrary statement semantics');
   assert.equal(acceptPlannedPass(plan,changed.map,source,changed.code,ast,
-    initial.trackedSourceRanges)===null,true,
+    initial.trackedSourceRanges,['properties-local-rename'])===null,true,
     'the actual pass-admission boundary must reject an untagged top-level throw');
 });
 
@@ -674,6 +674,6 @@ test('independent review: untagged literal replacement cannot change exported be
   const next=advancePlanRanges(plan,changed.map,source,changed.code,initial.trackedSourceRanges);
   assert.ok(next,'the protected spans remain exactly mappable');
   assert.equal(acceptPlannedPass(plan,changed.map,source,changed.code,ast,
-    initial.trackedSourceRanges),null,
+    initial.trackedSourceRanges,['strings-decoder-replacement']),null,
     'the actual pass-admission boundary must reject an untagged literal replacement');
 });

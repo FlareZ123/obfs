@@ -576,6 +576,7 @@ function isInsideRanges(node,ranges) {
 function collectStringDecoderContext(ast,editMap) {
   const segments=editMap?.segments??[];
   const allowedOrigins=new Set([
+    'properties-local-rename','identifiers-local-rename',
     'strings-decoder-prologue','strings-decoder-replacement'
   ]);
   const validOrigins=segments.every(segment=>
@@ -602,7 +603,7 @@ function collectStringDecoderContext(ast,editMap) {
   walk(ast,node=>{
     if(node.type!=='VariableDeclarator'||node.id?.type!=='Identifier'||
        node.init?.type!=='ArrayExpression'||!isInsideRanges(node,prologueRanges))return;
-    if(node.init.elements.length>0&&node.init.elements.every(element=>
+    if(node.init.elements.length>0&&node.init.elements.every((/** @type {AstNode|null} */ element)=>
       element?.type==='Literal'&&typeof element.value==='string')) {
       helperCandidates.push({name:node.id.name,length:node.init.elements.length});
     }
@@ -1512,6 +1513,52 @@ function validatePlanSemantics(plan,source,ast,trackedSourceRanges,editMap) {
 }
 
 /**
+ * Admit only source edits emitted by the specific trusted compiler pass.
+ * Origin labels are compiler provenance, not cryptographic authentication.
+ *
+ * @param {string} sourceBefore
+ * @param {import('./source-edit-map').SourceEditMap} editMap
+ * @param {string[]} allowedOrigins
+ * @returns {boolean}
+ */
+function hasApprovedPassEdits(sourceBefore,editMap,allowedOrigins) {
+  if(!Array.isArray(allowedOrigins)||!Array.isArray(editMap?.segments))return false;
+  const allowed=new Set(allowedOrigins);
+  let beforeAst;
+  try {beforeAst=parse(sourceBefore,'module');} catch {return false;}
+  for(const segment of editMap.segments) {
+    if(segment.kind==='unchanged') {
+      if(segment.syntheticOriginId!==null)return false;
+      continue;
+    }
+    const origin=segment.syntheticOriginId;
+    if(typeof origin!=='string'||!allowed.has(origin))return false;
+    if(origin==='strings-decoder-prologue') {
+      if(segment.kind!=='inserted')return false;
+      continue;
+    }
+    if(segment.kind!=='replaced')return false;
+    let matched=false;
+    walk(beforeAst,(node,parent,key)=>{
+      if(node.start!==segment.fromStart||node.end!==segment.fromEnd)return;
+      if(origin==='properties-local-rename') {
+        matched=(node.type==='Identifier'||node.type==='Literal')&&(
+          parent?.type==='Property'&&key==='key'||
+          parent?.type==='MemberExpression'&&key==='property'||
+          parent?.type==='BinaryExpression'&&parent.operator==='in'&&key==='left'
+        );
+      } else if(origin==='identifiers-local-rename') {
+        matched=node.type==='Identifier';
+      } else if(origin==='strings-decoder-replacement') {
+        matched=node.type==='Literal'&&typeof node.value==='string';
+      }
+    });
+    if(!matched)return false;
+  }
+  return true;
+}
+
+/**
  * Validate a candidate pass transaction without mutating caller state. A
  * null result means the caller must retain its original code, AST and ranges.
  *
@@ -1521,12 +1568,14 @@ function validatePlanSemantics(plan,source,ast,trackedSourceRanges,editMap) {
  * @param {string} sourceAfter
  * @param {AstNode} astAfter
  * @param {MappedSourceRange[]} trackedRanges
+ * @param {string[]} [allowedOrigins] Pass-specific compiler edit origins.
  * @returns {{ast:AstNode,trackedRanges:MappedSourceRange[],protectedSourceRanges:MappedSourceRange[]}|null}
  */
-function acceptPlannedPass(plan,editMap,sourceBefore,sourceAfter,astAfter,trackedRanges) {
+function acceptPlannedPass(plan,editMap,sourceBefore,sourceAfter,astAfter,trackedRanges,allowedOrigins=[]) {
   if(!isValidatedSourceObservationPlan(plan)||!editMap||
      typeof sourceBefore!=='string'||typeof sourceAfter!=='string'||
-     !astAfter||!Array.isArray(trackedRanges))return null;
+     !astAfter||!Array.isArray(trackedRanges)||!Array.isArray(allowedOrigins))return null;
+  if(!hasApprovedPassEdits(sourceBefore,editMap,allowedOrigins))return null;
   const nextRanges=advancePlanRanges(plan,editMap,sourceBefore,sourceAfter,trackedRanges);
   if(!nextRanges||!validatePlanSemantics(plan,sourceAfter,astAfter,nextRanges,editMap))return null;
   return Object.freeze({

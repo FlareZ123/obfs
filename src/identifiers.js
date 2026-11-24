@@ -68,7 +68,10 @@ function renameLocalIdentifiers(source,ast,options) {
   /** @param {import('./ast').Edit[]} edits @param {number} bindings @returns {{code:string,bindings:number,editMap?:import('./source-edit-map').SourceEditMap}} */
   function finish(edits,bindings) {
     if(hasMapContext) {
-      const mapped=applyEditsWithMap(source,edits,/** @type {string} */ (options.sourceUnitRef),/** @type {string} */ (options.parserContractId));
+      const mappedEdits=edits.map(edit=>({
+        ...edit,syntheticOriginId:'identifiers-local-rename'
+      }));
+      const mapped=applyEditsWithMap(source,mappedEdits,/** @type {string} */ (options.sourceUnitRef),/** @type {string} */ (options.parserContractId));
       return {code:mapped.code,bindings,editMap:mapped.map};
     }
     return {code:applyEdits(source,edits),bindings};

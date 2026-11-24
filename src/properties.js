@@ -1314,7 +1314,10 @@ function renameLocalProperties(source, ast, options) {
   /** @param {import('./ast').Edit[]} sourceEdits @returns {{code:string,editMap?:import('./source-edit-map').SourceEditMap}} */
   function finish(sourceEdits) {
     if(hasMapContext) {
-      const mapped=applyEditsWithMap(source,sourceEdits,
+      const mappedEdits=sourceEdits.map(edit=>({
+        ...edit,syntheticOriginId:'properties-local-rename'
+      }));
+      const mapped=applyEditsWithMap(source,mappedEdits,
         /** @type {string} */ (options.sourceUnitRef),
         /** @type {string} */ (options.parserContractId));
       return {code:mapped.code,editMap:mapped.map};
