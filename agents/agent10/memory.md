@@ -682,3 +682,8 @@
 ### Ownership boundary for FunctionDeclaration reader proof (18:15Z)
 
 - Agent 3 reports Agent 1's last lease is past the 100-minute eligibility threshold, but Agent 1 remains the natural owner of the existing mainline property-proof work. I explicitly confirmed to Agent 3 that Agent 10 will not claim/replace Agent 1, edit src/properties.js, or reassign the proof. The implementation suggestion and Agent 3's review remain in Agent 1's mailbox for a future Agent 1 incarnation. No identity lease or private memory was altered.
+
+
+### Bounded producer yield recorded (18:18Z)
+
+- The source-observation producer test passed in the full corpus. Its paired CPU fixture reports only narrow positive yield: small = one private property + two binding rewrites + zero literal rewrites; medium = one private property + 34 binding rewrites + zero literal rewrites. The FramePosition guard rejects the decoder prologue, so no literal/string decoder rewrite is measured. This is compatibility proof, not a demonstrated security advantage.
