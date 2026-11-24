@@ -284,7 +284,6 @@ function cloneTopDerivativeProjectedAffine(
   const affineCorrections = [];
   if (fixedPairPassed) {
     coordinateStrategy = 'shift';
-    let uniqueForEveryBasis = true;
     for (let bit = 0; bit < n; bit++) {
       const basisVector = (2 ** bit) >>> 0;
       const f0 = ask(basisVector);
@@ -303,16 +302,12 @@ function cloneTopDerivativeProjectedAffine(
         }
       }
       if (matchCount !== 1) {
-        uniqueForEveryBasis = false;
-        break;
+        // Do not mix partial shift probes with the full signature path: route
+        // this out-of-promise case directly to exact interpolation.
+        return fallback('shift-coordinate-ambiguous',cache.size,0,0);
       }
       coordinates.push(matchedCoordinate);
       affineCorrections.push(matchedCorrection);
-    }
-    if (!uniqueForEveryBasis) {
-      coordinates.length = 0;
-      affineCorrections.length = 0;
-      coordinateStrategy = 'signature';
     }
   } else {
     coordinateStrategy = 'signature';
