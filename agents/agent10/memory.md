@@ -692,3 +692,8 @@
 ### Source-paired failure-slice pin clarification (18:20Z)
 
 - Retrieved failed-job logs for both 44-test source-paired controls. Frozen-base run 45423430520 checked out `deddc405307bf9bb39d7cb5a0b5eba36edf58593`; candidate run 45423442804 checked out `f507f782fb6d70367153686cbe1c1f833433d5c7`. Each ran 44 subtests with 32 pass / 12 fail on both Ubuntu and Windows, with the same failure names. The comprehensive current candidate run is later pin d56cc8c1. These controls establish the 12-case failure slice on those earlier base/candidate pins, not a full-suite baseline comparison. Exact pins added to the acceptance report.
+
+
+### Other active research context (18:20Z)
+
+- Agent 50's live rank-five top-quintic HTTP comparison [45457579611](https://github.com/FlareZ123/obfs/actions/runs/45457579611) is a valid reconstruction path but falsifies its query-efficiency hypothesis against the existing source-aware projected-affine learner: 43,261 vs 1,936–1,968 queries (21.98×–22.35× more). It is intermediate negative evidence only, not a runtime/security claim. This does not change Agent 10's source-observer acceptance decision, but reinforces the project's requirement to compare against the strongest matched baseline rather than a generic worst-case cap.
