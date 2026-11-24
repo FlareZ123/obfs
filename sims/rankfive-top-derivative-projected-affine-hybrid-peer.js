@@ -7,7 +7,7 @@ const {evaluateProjectedAffineModel} = require('./projected-affine-coset-profile
 /** @typedef {{kind:'projected-affine',bits:number,rank:5,table:number[],coordinates:number[],affineCorrections:number[]}} ProjectedModel */
 /** @typedef {{kind:'anf',bits:number,lower:Array<[number,number]>,top:Array<[number,number]>,degree:4|5}} AnfModel */
 /** @typedef {ProjectedModel|AnfModel} HybridModel */
-/** @typedef {{fastPathSuccess:boolean,witnessTrials:number,witnessDrawCount:number,witnessProbability:number,witnessFailureBound:number,fastQueries:number,verificationQueries:number,verificationSamples:number,verificationCap:number,verificationDelta:number,falseAcceptanceBound:number,verificationPassed:boolean,fallbackUsed:boolean,fallbackReason:string|null,fallbackQueries:number,exactByInterpolation:boolean}} Diagnostics */
+/** @typedef {{fastPathSuccess:boolean,witnessTrials:number,witnessDrawCount:number,witnessProbability:number,witnessFailureBound:number,quotientRank:number|null,fastQueries:number,verificationQueries:number,verificationSamples:number,verificationCap:number,verificationDelta:number,falseAcceptanceBound:number,verificationPassed:boolean,fallbackUsed:boolean,fallbackReason:string|null,fallbackQueries:number,exactByInterpolation:boolean}} Diagnostics */
 /** @typedef {{model:HybridModel,queries:number,diagnostics:Diagnostics}} CloneResult */
 
 /** @returns {number} */
@@ -228,6 +228,7 @@ function cloneTopDerivativeProjectedAffine(
         witnessDrawCount:witnessTrials * 6,
         witnessProbability,
         witnessFailureBound:Math.pow(1-witnessProbability,witnessTrials),
+        quotientRank:null,
         fastQueries,
         verificationQueries,
         verificationSamples,
@@ -306,6 +307,7 @@ function cloneTopDerivativeProjectedAffine(
       witnessDrawCount:witnessTrials * 6,
       witnessProbability,
       witnessFailureBound:Math.pow(1-witnessProbability,witnessTrials),
+      quotientRank:5,
       fastQueries,
       verificationQueries,
       verificationSamples,
@@ -364,7 +366,7 @@ function main() {
       assert.equal(result.diagnostics.fastPathSuccess,true);
       assert.equal(result.diagnostics.fallbackUsed,false);
       assert.equal(result.diagnostics.verificationSamples,726);
-      assert.equal(result.diagnostics.quotientRank,undefined);
+      assert.equal(result.diagnostics.quotientRank,5);
       for (let input = 0; input < 2 ** n; input++) {
         assert.equal(evaluateHybridModel(result.model,input),source(input),
           'rank-five projected-affine finite truth table mismatch');
