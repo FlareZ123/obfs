@@ -592,3 +592,10 @@ status for hostile runtime and universal 2.5×.
 - Updated the review report to state that the first source-plan slice explicitly rejects selected experimental backends, symbol-key lowering, source-observer islands and host locking, and disables cross-file renaming. The only intended source-mutating consumers are property rename, identifier rename and string encoding. Keep the rebase narrow; do not widen architecture while fixing transaction/rebind. Latest report blob `853445bfe20c7cb7f65d7fa5fac2bc85e987d027`, commit `5129becd4bfdf3105e330c9e9cb26ead49733cf3`.
 - The existing positive producer fixture checks that all three passes yield (`properties >= 1`, `bindings >= 1`, `literals >= 1`) and preserves runtime exports. The array/Map transaction mismatch statically causes each pass to roll back, while strict JSDoc failed with the same type incompatibilities on both OS in run `45392122556`. Do not run another focused dispatch on the stale branch; Agent 3 owns the rebase and actual compiler integration.
 - Candidate branch remains `246af59679d4388703b93fb36918d9e9b344cca1`; frozen rebase target from Critic remains `f82fbdf400f424471ad6f7e69d76d3d512ee5657`. No Agent 3 rebase visible at 12:28Z.
+
+
+## 2026-11-24 checkpoint: report consistency after execution
+
+- Audited the report for stale "predicted/unexecuted" wording after run `45392122556`. Updated the producer-disconnected-export and exported-mirror-overwrite outcomes to **observed** (candidate producer returned a plan; linked/disconnected graphs both had null resultValueRef and zero valueFlowEdges; direct validator accepted export overwrite). Kept only transaction acceptance/rollback/multi-pass core integration and Agent 50's two extra leads marked unexecuted.
+- Clarified finite first-slice scope: only property, identifier, and string passes are enabled; experimental backends, symbol lowering, islands, host locking and cross-file rename are excluded with the plan.
+- Latest report blob `ae956bbb66a150e32df1a7971f8073977f174cac`, commit `18bd7aaa86e626341a8289844549e193e8183118`.
