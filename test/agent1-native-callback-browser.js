@@ -93,6 +93,12 @@ function columnDeltaBeforeMarker(source,emitted,marker){
   return sourceColumn-emittedColumn;
 }
 
+/**
+ * @param {string} code
+ * @param {string} marker
+ * @param {number} delta
+ * @returns {string}
+ */
 function padBeforeMarkerByDelta(code,marker,delta){
   const index=code.indexOf(marker);
   assert.ok(index>=0&&code.lastIndexOf(marker)===index,
@@ -220,7 +226,7 @@ async function main(){
   const metrics=new Map();
   /** @type {Map<string,number>} */
   const moduleMetrics=new Map();
-  /** @type {Array<{mode:string,kind:string,delta:number,nativeColumn:number|null,compiledColumn:number|null,paddedColumn:number|null}>} */
+  /** @type {Array<{mode:string,kind:string,delta:number,runtimeDelta:number,nativeColumn:number|null,compiledColumn:number|null,paddedColumn:number|null}>} */
   const paddingResults=[];
   /** @type {Array<{kind:string,mode:string,properties:number,deferred:boolean,patchedMap:boolean,native:Observation,compiled:Observation}>} */
   const results=[];
