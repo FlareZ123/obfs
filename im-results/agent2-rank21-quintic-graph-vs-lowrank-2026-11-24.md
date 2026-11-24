@@ -7,23 +7,19 @@
 
 A higher-output-rank source was constructed specifically to make the graph method's comparison discriminating. It is a 32-bit triangular permutation of degree five with nonlinear output-displacement rank 21 and joint top-derivative radical codimension 7.
 
-Eight held-out targets were recovered exactly under the same two-sided affine wrapper:
+The test swept **32 target runs**: eight held-out hidden targets, two independent two-sided affine wrappers, and two deterministic low-rank completion sample streams. Every graph and low-rank run recovered the exact preimage.
 
-| Target | Graph calls | Rank-21 low-rank calls | Low-rank orbit calls |
-|---:|---:|---:|---:|
-| 1 | 27,417 | 121,616 | 121,581 |
-| 2 | 27,382 | 2,082,224 | 2,082,189 |
-| 3 | 27,414 | 1,771,722 | 1,771,687 |
-| 4 | 27,381 | 198,219 | 198,184 |
-| 5 | 27,387 | 959,413 | 959,378 |
-| 6 | 27,386 | 1,343,261 | 1,343,226 |
-| 7 | 27,407 | 214,296 | 214,261 |
-| 8 | 27,399 | 1,549,526 | 1,549,491 |
-| **Total** | **219,173** | **8,240,277** | **8,239,997** |
+| Wrapper | Low-rank sample seed | Targets | Graph calls | Rank-21 low-rank calls | Aggregate ratio |
+|---|---|---:|---:|---:|---:|
+| 1 | `0x12345678` | 8 | 219,173 | 8,240,277 | 37.60× |
+| 1 | `0xdeadbeef` | 8 | 219,130 | 8,579,161 | 39.16× |
+| 2 | `0x12345678` | 8 | 219,288 | 8,348,939 | 38.08× |
+| 2 | `0xdeadbeef` | 8 | 219,334 | 7,172,838 | 32.66× |
+| **Total** | — | **32** | **876,925** | **32,341,215** | **36.88×** |
 
-The graph method used **37.60× fewer oracle calls** across this eight-target batch. Its per-target cost stayed within 27,381–27,417 calls, while the low-rank orbit lengths varied substantially and one approached the (2^{21}) cap.
+The graph method used 27,377–27,450 calls per target. The low-rank method ranged from 4,011 to 2,082,224 calls per target. Thus the graph method is **not** cheaper on every individual target; its advantage is aggregate and stable across these two wrappers and two sample streams because the low-rank orbit is often long.
 
-This is a source-specific comparison, not a universal complexity result. The rank-two fixture in `agent2-affine-graph-silent-rank-quintic-2026-11-23.md` shows the opposite regime: rank-two inversion is dramatically cheaper than graph inversion. The two experiments together show why output-displacement rank must be included in matched attack comparisons.
+This is a source-specific comparison, not a universal complexity result. The rank-two fixture in `agent2-affine-graph-silent-rank-quintic-2026-11-23.md` shows the opposite regime: rank-two inversion is dramatically cheaper than graph inversion. The two experiments together show why output-displacement rank and target-dependent orbit lengths must be included in matched attack comparisons.
 
 ## Source construction
 
@@ -42,40 +38,49 @@ This construction has the following exact properties:
 
 The construction is not an involution: lower-degree terms in later output coordinates can depend on earlier coordinates that are themselves changed. It remains a permutation by triangularity.
 
-## Hidden affine wrapper and targets
+## Hidden affine wrappers and targets
 
-The same deterministic dense wrapper seeds used in the rank-two experiment were retained:
+The first wrapper matches the rank-two experiment:
 
 - input linear transform seed: `0x12345678`;
 - output linear transform seed: `0x9abcdef0`;
 - input bias: `0x13579bdf`;
 - output bias: `0x2468ace0`.
 
-The eight hidden target inputs are:
+The second independent wrapper uses:
+
+- input linear transform seed: `0x31415926`;
+- output linear transform seed: `0x27182818`;
+- input bias: `0xdeadbeef`;
+- output bias: `0xcafebabe`.
+
+The eight hidden target inputs for each wrapper are:
 
 `[0x67aa29ff, 0x628acbfe, 0xfe1940fd, 0xc1ece67b, 0x3e411777, 0x37fff36f, 0xbd72765f, 0x8721e5bf]`.
 
-The corresponding public secrets and targets are the rows in the receipt table above. Both attackers receive only the wrapped forward oracle and each public target.
+The low-rank completion sample streams use seeds `0x12345678` and `0xdeadbeef`. Each stream is reinitialized for each target, so receipts are reproducible. Both attackers receive only the wrapped forward oracle and each public target.
 
 ## Attack receipts
 
 ### Affine-graph method
 
-For target index (iin{0,ldots,7}), the test calls `invertByRandomAffineGraph` at width 32, degree 5, seed `0x5e21+i`, and `delta=1e-8`. All eight calls return the exact public preimage and independently verify it against the original wrapped oracle. The per-target query counts are 27,417, 27,382, 27,414, 27,381, 27,387, 27,386, 27,407, and 27,399.
+For each wrapper/sample/target tuple, the test calls `invertByRandomAffineGraph` at width 32 and degree 5, with `delta=1e-8` and deterministic graph seed
+`0x5e21 + wrapperIndex*0x100 + sampleIndex*0x20 + targetIndex`.
+All 32 calls return the exact public preimage and independently verify it against the original wrapped oracle. The total is **876,925** calls.
 
 ### Low-rank orbit method
 
-The exact nonlinear output-displacement rank is 21. The test uses the existing Las Vegas completion/orbit algorithm with explicit `rankBound=21`, `maxRankBound=21`, a reproducible sample stream seeded with `0x12345678` for each target, and 96 maximum complement samples.
+The exact nonlinear output-displacement rank is 21. The test uses the existing Las Vegas completion/orbit algorithm with explicit `rankBound=21`, `maxRankBound=21`, and 96 maximum complement samples.
 
-All eight results have:
+Across all 32 runs:
 
-- affine interpolant nullity: **1**;
-- complement samples: **2**;
-- exact preimage and independent source-forward verification: **pass**.
+- affine interpolant nullity: **1** in every run;
+- complement samples: **1 or 2**;
+- exact preimage and independent source-forward verification: **pass**;
+- orbit calls: 3,977–2,082,189;
+- total calls: **32,341,215**.
 
-The orbit calls are listed in the table. The theoretical orbit cap is (2^{21}=2,097,152); all eight observed orbits terminate within that cap, with the second target requiring 2,082,189 orbit calls. Each target also uses 33 interpolation calls and 2 sampling calls, giving the totals shown above.
-
-The deterministic sample callback makes these receipts reproducible; they are not Monte Carlo estimates. The normal default crypto sampler retains the uniform-draw guarantee.
+The theoretical orbit cap is (2^{21}=2,097,152); all observed orbits terminate within that cap. The target-dependent spread is important: one low-rank run completes in 4,011 total calls, while another requires 2,082,224. The deterministic sample callbacks make these receipts reproducible; they are not Monte Carlo estimates. The normal default crypto sampler retains the uniform-draw guarantee.
 
 ## Implementation change
 
@@ -87,15 +92,15 @@ This API change is **branch-only** pending review from Agent 7, the author of th
 
 - Source-paired test: `test/agent2-rank21-quintic-graph-vs-lowrank.test.js`.
 - JSDoc inclusion: `jsconfig.external.json` and `jsconfig.affine-low-rank-oracle.json`.
-- Focused manual-validation run: **45338876011** (final eight-target run; earlier one-target pilot **45338147045**).
+- Final 32-run focused manual-validation run: **45339444109**.
 - Node: **22.23.4**.
 - Ubuntu and Windows: both passed the test (1/1 each), project JSDoc, external JSDoc, and paired-budget JSDoc.
-- Both platform logs emitted identical eight-target receipts and totals.
+- Both platform logs emitted identical 32-run receipts and aggregate totals.
 
 ## Interpretation and limitations
 
-This experiment supports a narrower, useful conclusion: the graph method can outperform the rank-bound orbit method on at least one degree-five affine-flag permutation whose nonlinear output-displacement rank is 21 and whose joint top-derivative radical codimension is seven. Across the eight selected targets and fixed wrapper/sample streams, it used 219,173 calls versus 8,240,277.
+This experiment supports a narrower, useful conclusion: the graph method can outperform the rank-bound orbit method in aggregate on a degree-five affine-flag permutation whose nonlinear output-displacement rank is 21 and whose joint top-derivative radical codimension is seven. Across 32 runs spanning two wrappers, eight targets, and two low-rank sample streams, it used 876,925 calls versus 32,341,215.
 
-The result is one constructed source family, one wrapper, eight targets, and one reproducible sample stream. It does not establish a universal 37.60× advantage, a black-box method for certifying rank 21, or a security improvement for any obfuscator mode. It also does not execute the full rank-six learner on this exact 32-bit source; the codimension-seven property is verified directly.
+The result is one constructed source family, two wrappers, eight targets, and two reproducible sample streams. It does not establish a universal 36.88× advantage, a black-box method for certifying rank 21, or a security improvement for any obfuscator mode. It also does not execute the full rank-six learner on this exact 32-bit source; the codimension-seven property is verified directly.
 
-The graph method's distinctive value therefore appears dependent on the joint promise regime and output-displacement rank. Future comparisons should vary rank, degree, support geometry, target, wrapper seed, and sampling seed, and report per-target and amortized costs. Keep this in `im-results/`; it is not yet suitable for `results/` or a release claim.
+The graph method is not uniformly better per target: the low-rank method sometimes has short orbits. Future comparisons should vary source family, rank, degree, support geometry, target, wrapper seed, and sampling seed, and report per-target and amortized costs. Keep this in `im-results/`; it is not yet suitable for `results/` or a release claim.
