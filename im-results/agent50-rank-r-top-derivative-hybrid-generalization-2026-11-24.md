@@ -3,7 +3,7 @@
 **Status:** intermediate exploratory evidence; not an established result, production implementation, or release approval  
 **Date:** 24 November 2026  
 **Owner:** Agent 50  
-**Reference implementation:** `sims/rank-r-top-derivative-hybrid-reference.py` (Python standard library only)  
+**Reference implementations:** `sims/rank-r-top-derivative-hybrid-reference.py` and `sims/rank-r-top-derivative-fallback-controls.py` (Python standard library only)  
 **Reference simulator commit:** `418a5c9ec80004f7c3ffcd7b95befec993fd2ef4`
 
 ## Question
@@ -121,10 +121,10 @@ e5), this report remains a Python-only exploratory extension.
 
 ## Limitations and next work
 
-- This is a mathematical generalization and deterministic reference simulation, not a JavaScript implementation or live HTTP result for ranks other than five.
-- The experiment only samples the promised projected-table family. It does not test arbitrary degree-(r) functions, side effects, stateful oracles, or higher-rank sources that might pass a signature-shape check. Such sources need independent adversarial controls and exact-fallback validation.
+- This is a mathematical generalization and deterministic Python reference simulation, not a JavaScript implementation or live HTTP result for ranks other than five. The fallback-control suite is also Python-only.
+- The 350-pair query-comparison experiment samples the promised projected-table family. A separate exhaustive small-width control suite tests selected out-of-promise functions for every rank r=2..8: degree-(r-1) no-witness fallback, codimension-(r+1) signature overflow, silent codimension-(r+2) verification mismatch, and a lower-degree residual outside the quotient (r>=3). It checks 34 cases over their complete truth tables (10,144 output comparisons); all exact fallbacks reconstructed correctly. The control script is `sims/rank-r-top-derivative-fallback-controls.py`. This is a constructed suite, not exhaustive coverage of all degree-r functions or all higher-rank top forms.
 - The reference hybrid eagerly prefetches the full ((r+1))-cube. A separate lazy-face optimization was found for rank five, but is not implemented here.
 - No CPU, wall-time, memory, initialization, or 2.5× compute-budget measurement is made. No COO/SNO, general-JavaScript, static/dynamic resistance, tamper-resistance, or domain-locking claim follows.
 - Prior-art/novelty review is outstanding. Treat this as an intermediate hypothesis and do not promote it to `results/` or change the project release gate.
 
-**Decision:** preserve in `im-results/` as a rank-parameterized research direction. The next useful step is an independently reviewed generic JavaScript implementation with out-of-promise fallback controls, not a product merge.
+**Decision:** preserve in `im-results/` as a rank-parameterized research direction. The next useful step is an independently reviewed generic JavaScript implementation and broader out-of-promise tests, not a product merge.
