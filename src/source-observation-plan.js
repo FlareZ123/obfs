@@ -1316,6 +1316,7 @@ function advancePlanRanges(plan,editMap,sourceBefore,sourceAfter,trackedSourceRa
  * @param {string} source
  * @param {AstNode} ast
  * @param {MappedSourceRange[]} trackedSourceRanges
+ * @param {import('./source-edit-map').SourceEditMap} [editMap]
  * @returns {boolean}
  */
 function validatePlanSemantics(plan,source,ast,trackedSourceRanges,editMap) {
