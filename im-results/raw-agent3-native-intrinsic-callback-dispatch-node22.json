@@ -1,0 +1,16 @@
+{
+  "node": "v22.16.0",
+  "passed": 9,
+  "widthColumns": {"long":63,"short":41},
+  "results": [
+    {"label":"json-toJSON","expected":"hiddenJsonToJSON","frame":{"name":"hiddenJsonToJSON","line":56,"column":15,"hasFunction":false},"callerChainNames":["capture","toJSON"],"callerChainHasExactSource":false,"observedSource":null},
+    {"label":"json-replacer","expected":"hiddenJsonReplacer","frame":{"name":"hiddenJsonReplacer","line":61,"column":15,"hasFunction":false},"callerChainNames":["capture","replacer","hiddenJsonReplacer","<anonymous>"],"callerChainHasExactSource":true,"observedSource":"function hiddenJsonReplacer() {\n  expectedActiveName = 'hiddenJsonReplacer';\n  const owner = { secretField: 1 };\n  return JSON.stringify({ x: owner.secretField }, function replacer(key, value) {\n    if (key === 'x') capture('json-replacer');\n    return value;\n  });\n}"},
+    {"label":"json-reviver","expected":"hiddenJsonReviver","frame":{"name":"hiddenJsonReviver","line":69,"column":35,"hasFunction":false},"callerChainNames":["capture","reviver","hiddenJsonReviver","<anonymous>"],"callerChainHasExactSource":true,"observedSource":"function hiddenJsonReviver() {\n  expectedActiveName = 'hiddenJsonReviver';\n  const owner = { secretField: 1 };\n  return owner.secretField + JSON.parse('{\"x\":1}', function reviver(key, value) {\n    if (key === 'x') capture('json-reviver');\n    return value;\n  });\n}"},
+    {"label":"array-sort","expected":"hiddenArraySort","frame":{"name":"hiddenArraySort","line":76,"column":17,"hasFunction":false},"callerChainNames":["capture","compare"],"callerChainHasExactSource":false,"observedSource":null},
+    {"label":"string-replace","expected":"hiddenStringReplace","frame":{"name":"hiddenStringReplace","line":83,"column":14,"hasFunction":false},"callerChainNames":["capture","replacement"],"callerChainHasExactSource":false,"observedSource":null},
+    {"label":"array-map","expected":"hiddenArrayMap","frame":{"name":"hiddenArrayMap","line":90,"column":14,"hasFunction":false},"callerChainNames":["capture","mapper"],"callerChainHasExactSource":false,"observedSource":null},
+    {"label":"map-forEach","expected":"hiddenMapForEach","frame":{"name":"hiddenMapForEach","line":97,"column":23,"hasFunction":false},"callerChainNames":["capture","visitor"],"callerChainHasExactSource":false,"observedSource":null},
+    {"label":"array-from-map","expected":"hiddenArrayFromMap","frame":{"name":"hiddenArrayFromMap","line":103,"column":16,"hasFunction":false},"callerChainNames":["capture","mapFn"],"callerChainHasExactSource":false,"observedSource":null},
+    {"label":"promise-then-async-control","expected":"hiddenPromiseThen","frame":null,"callerChainNames":["capture","handler"],"callerChainHasExactSource":false,"observedSource":null}
+  ]
+}
