@@ -11,8 +11,8 @@ The six runtime-effect fixtures originally documented below were executed under 
 The candidate acceptance path was inspected statically. I did **not** execute the candidate's `validatePlanSemantics`, `acceptPlannedPass`, or full `obfuscateFiles` pipeline locally because this runtime has no repository checkout/network access. Agent 2 independently parsed the corrected mutable-binding two-edit sequence with Acorn under Node v22.16.0 and confirmed it imports with `sourceText === 'fake'`; Agent 2 also did not execute the candidate validator or full pipeline. To make the acceptance claim independently reproducible, the accompanying script calls the candidate's exported `advancePlanRanges` and `validatePlanSemantics` directly. It deliberately bypasses `acceptPlannedPass`, whose reviewed snapshot has the separate Map/array mismatch.
 
 - Harness: [`source-observer-rebind-counterexamples-2026-11-24.js`](./source-observer-rebind-counterexamples-2026-11-24.js)
-- Harness blob SHA: `46ed5ee7d87882066ccdf0f4a4a4af855708eba7`
-- Harness commit: `05ebf5f20d296879b2d8ea5b61be8ef99ef318a5`
+- Harness blob SHA: `01ab16a62a1e7bd586126c0637633e24fad9df64`
+- Harness commit: `e0a3c5e8bba4b03715afd8ec402ca5d9f9e96348`
 
 To run the direct validator harness, from a checkout of the reviewed candidate branch, copy the harness from main into a temporary file and run it with the candidate checkout as the current working directory:
 
@@ -124,8 +124,8 @@ Agent 50 executed this exact eight-line fixture under Node v22.16.0 with TypeScr
 
 The accompanying harness now has two separate checks:
 
-- `producer-disconnected-export` calls `buildDirectFunctionSourcePlan` on the disconnected source and predicts that the producer still returns a plan. The current producer classifies the literal export as `primitive` but does not require the exported value to receive the reader result. This is a **producer-level** positive/negative obligation: retain a linked reader-result → const binding → exported value positive, and refuse the disconnected literal export.
-- `exported-mirror-overwrite` replaces only the export declaration in an already planned source and predicts that `validatePlanSemantics` accepts it because both tracked spans remain unchanged. This is a **post-plan rebind** obligation, distinct from the mutable-binding/reaching-write case.
+- `producer-disconnected-export` calls `buildDirectFunctionSourcePlan` on the disconnected source and predicts that the producer still returns a plan. The harness compares the linked and disconnected plans: in the reviewed snapshot, both have `resultValueRef:null` and zero `valueFlowEdges`. The producer classifies the literal export as `primitive` but does not represent whether the reader result reaches it. This is a **producer-level linkage/scope test**, not an automatic requirement to reject every module containing an unrelated primitive export: if this first slice promises `sourceText` as the exported mirror, refuse the disconnected case; if a narrower source-read-only plan is intended, it must explicitly avoid claiming that `sourceText` is the mirror while still representing the host operation's result value.
+- `exported-mirror-overwrite` replaces only the export declaration in an already planned source and predicts that `validatePlanSemantics` accepts it because both tracked spans remain unchanged. If the plan claims that this export carries the source-read result, the corrected rebind must reject the mutation by validating the export ValueFlowEdge; if the plan is intentionally narrower, it must not claim that exported mirror. This is a **post-plan rebind** obligation, distinct from the mutable-binding/reaching-write case.
 
 The required result-flow representation is:
 
@@ -152,4 +152,4 @@ At the reviewed branch SHA:
 
 ## Interpretation
 
-The synthetic cases establish gaps in the current producer/rebind contract if unrelated exports or arbitrary source edits are admitted. They do **not** establish that the current three enabled transforms emit such edits. The producer must prove that the reader result actually reaches the declared export; post-plan rebind must preserve that same result-flow path. Agent 24 and Agent 50 should decide whether to close these gaps in the canonical graph/validator, or explicitly narrow the helper contract and prove each enabled pass preserves the omitted binding/effect/cardinality invariants. No candidate branch was changed and no CI was dispatched by Agent 4.
+The synthetic cases establish a result-flow representation gap in the current plan/rebind contract. They do **not** establish that the current three enabled transforms emit such edits. The producer must represent the host effect's returned string and accurately model any assignment/export path that claims to carry it; post-plan rebind must preserve that path when it is in scope. A disconnected export may be refused or treated as an unrelated output by a deliberately narrower plan, but it must not be represented as the source mirror. Agent 24 and Agent 50 should decide the precise contract boundary and prove each enabled pass preserves it. No candidate branch was changed and no CI was dispatched by Agent 4.
