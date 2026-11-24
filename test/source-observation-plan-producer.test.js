@@ -203,7 +203,7 @@ test('producer rejects aliases, extra readers, unknown syntax and unversioned ho
 
 
 test('MappedSourceRange composes directly through the next generation without re-minting SourceSpanRef',()=>{
-  const input='const emoji = "😀";\\nfunction observed() { return 29; }\\nexport const marker = 1;';
+  const input='const emoji = "😀";\nfunction observed() { return 29; }\\nexport const marker = 1;';
   const unit='unit:direct-map-composition';
   const start=input.indexOf('function observed');
   const end=input.indexOf('\\n',start);
@@ -217,6 +217,20 @@ test('MappedSourceRange composes directly through the next generation without re
     astNodeType:'FunctionDeclaration'
   });
   assert.equal(Object.hasOwn(originalSpan,'originSpanId'),false);
+  const insertedAtStart=applyEditsWithMap(input,[{
+    start,end:start,text:'/* before function */\n',affinity:'before-node'
+  }],unit,parserContractIdFor('module'));
+  const startMapped=mapSourceSpan(insertedAtStart.map,originalSpan,input,insertedAtStart.code);
+  assert.ok(startMapped);
+  assert.equal(insertedAtStart.code.slice(startMapped.startOffset,startMapped.endOffset),
+    input.slice(originalSpan.startOffset,originalSpan.endOffset));
+  const insertedAtEnd=applyEditsWithMap(input,[{
+    start:end,end,text:'\n/* after function */',affinity:'after-node'
+  }],unit,parserContractIdFor('module'));
+  const endMapped=mapSourceSpan(insertedAtEnd.map,originalSpan,input,insertedAtEnd.code);
+  assert.ok(endMapped);
+  assert.equal(insertedAtEnd.code.slice(endMapped.startOffset,endMapped.endOffset),
+    input.slice(originalSpan.startOffset,originalSpan.endOffset));
   const first=applyEditsWithMap(input,[{
     start:0,end:0,text:'// first prologue\\n',affinity:'before-node'
   }],unit,parserContractIdFor('module'));
