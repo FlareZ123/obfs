@@ -181,19 +181,58 @@ function buildObjectShapes(ast) {
 }
 
 /**
+ * Classify the tiny closed set of top-level const bindings. Only primitive
+ * values may be copied or exported; object and callable identities stay local.
+ *
+ * @param {AstNode} ast
+ * @param {AstNode} readerCall
+ * @param {Map<string,Set<string>>} objectShapes
+ * @returns {Map<string,'primitive'|'object'|'callable'|'unknown'>|null}
+ */
+function buildBindingKinds(ast,readerCall,objectShapes) {
+  const kinds=new Map();
+  for(const statement of ast.body) {
+    const node=statement.type==='ExportNamedDeclaration'?statement.declaration:statement;
+    if(node?.type==='FunctionDeclaration'&&node.id?.type==='Identifier') {
+      kinds.set(node.id.name,'callable');
+    }
+  }
+  for(const statement of ast.body) {
+    const node=statement.type==='ExportNamedDeclaration'?statement.declaration:statement;
+    if(node?.type!=='VariableDeclaration')continue;
+    for(const declaration of node.declarations) {
+      if(declaration.id?.type!=='Identifier'||!declaration.init)return null;
+      const init=declaration.init;
+      let kind='unknown';
+      if(init.type==='ObjectExpression')kind='object';
+      else if(init.type==='Literal')kind='primitive';
+      else if(init===readerCall)kind='primitive';
+      else if(init.type==='MemberExpression'&&!init.computed&&!init.optional&&
+        init.object.type==='Identifier'&&init.property.type==='Identifier'&&
+        kinds.get(init.object.name)==='object'&&
+        objectShapes.get(init.object.name)?.has(init.property.name))kind='primitive';
+      else if(init.type==='Identifier'&&kinds.get(init.name)==='primitive')kind='primitive';
+      kinds.set(declaration.id.name,kind);
+    }
+  }
+  return kinds;
+}
+
+/**
  * The first producer accepts a deliberately small ESM grammar. Unknown syntax
  * is not approximated: it is rejected so the broad detector cannot hide a
  * second observer behind an unsupported construct.
  * @param {AstNode} node
  * @param {AstNode} readerCall
  * @param {Map<string,Set<string>>} objectShapes
+ * @param {Map<string,'primitive'|'object'|'callable'|'unknown'>} bindingKinds
  * @returns {boolean}
  */
-function isAllowedExpression(node,readerCall,objectShapes) {
+function isAllowedExpression(node,readerCall,objectShapes,bindingKinds) {
   if(node.type==='Literal') {
     return node.value===null||['string','number','boolean'].includes(typeof node.value);
   }
-  if(node.type==='Identifier')return true;
+  if(node.type==='Identifier')return bindingKinds.get(node.name)==='primitive';
   if(node.type==='ObjectExpression') {
     const names=new Set();
     return node.properties.every(/** @param {AstNode} property */ property=>{
@@ -221,9 +260,10 @@ function isAllowedExpression(node,readerCall,objectShapes) {
  * @param {AstNode} ast
  * @param {AstNode} readerCall
  * @param {Map<string,Set<string>>} objectShapes
+ * @param {Map<string,'primitive'|'object'|'callable'|'unknown'>} bindingKinds
  * @returns {boolean}
  */
-function isAllowedProgram(ast,readerCall,objectShapes) {
+function isAllowedProgram(ast,readerCall,objectShapes,bindingKinds) {
   if(ast.type!=='Program'||ast.sourceType!=='module')return false;
   /** @type {AstNode[]} */
   const functionNodes=[];
@@ -231,8 +271,9 @@ function isAllowedProgram(ast,readerCall,objectShapes) {
   for(const statement of ast.body) {
     const node=statement.type==='ExportNamedDeclaration'?
       statement.declaration:statement;
-    if(statement.type==='ExportNamedDeclaration'&&
-       (statement.source||statement.specifiers.length||!statement.declaration))return false;
+    const exported=statement.type==='ExportNamedDeclaration';
+    if(exported&&(statement.source||statement.specifiers.length||!statement.declaration))return false;
+    if(exported&&node?.type!=='VariableDeclaration')return false;
     if(!node)return false;
     if(node.type==='FunctionDeclaration') {
       functionNodes.push(node);
@@ -240,7 +281,7 @@ function isAllowedProgram(ast,readerCall,objectShapes) {
          node.params.length!==0||node.body.type!=='BlockStatement'||
          node.body.body.length!==1||node.body.body[0].type!=='ReturnStatement'||
          !node.body.body[0].argument||
-         !isAllowedExpression(node.body.body[0].argument,readerCall,objectShapes))valid=false;
+         !isAllowedExpression(node.body.body[0].argument,readerCall,objectShapes,bindingKinds))valid=false;
       continue;
     }
     if(node.type==='VariableDeclaration') {
@@ -340,8 +381,9 @@ function buildDirectFunctionSourcePlan(source,path,hostContract) {
   });
   const objectShapes=buildObjectShapes(ast);
   if(functionNodes.length!==1||functionNodes[0].id.name!==callableName||
-     counts.get(callableName)!==1||counts.has('Function')||!objectShapes||
-     !isAllowedProgram(ast,readerCall,objectShapes))return null;
+     counts.get(callableName)!==1||counts.has('Function')||!objectShapes)return null;
+  const bindingKinds=buildBindingKinds(ast,readerCall,objectShapes);
+  if(!bindingKinds||!isAllowedProgram(ast,readerCall,objectShapes,bindingKinds))return null;
 
   // Every free identifier must be the single declared global intrinsic
   // Function used by the admitted reader. No imports, ambient callbacks,
