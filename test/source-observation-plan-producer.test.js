@@ -12,7 +12,9 @@ const {
   buildDirectFunctionSourcePlan,
   getInitialPlanRanges,
   advancePlanRanges,
-  validatePlanConsumerInput
+  validatePlanConsumerInput,
+  validatePlanSemantics,
+  acceptPlannedPass
 }=require('../src/source-observation-plan');
 
 /** @typedef {import('../src/core').SourceFile} SourceFile */
@@ -130,6 +132,9 @@ test('canonical source spans remain immutable and mapped ranges carry provenance
   const effect=plan.hostEffects.values().next().value;
   assert.equal(effect.effectiveDispatchStatus,'unknown-or-mutable');
   assert.equal(effect.effectiveOperationRef.kind,'unknown');
+  assert.deepEqual(effect.observationEffects,['ExactSource','UnknownHostEffect'],
+    'an unverified host intrinsic must retain the explicit unknown-effect fallback');
+  assert.ok(effect.resultValueRef,'the host effect result must be distinct from its callable input');
   assert.equal(effect.receiverProvenance,'unknown');
   assert.equal(effect.receiverLookupRoute,'unknown');
   assert.equal(plan.callSites.values().next().value.targetResolutionStatus,'external');
@@ -143,14 +148,69 @@ test('canonical source spans remain immutable and mapped ranges carry provenance
   assert.equal(Object.hasOwn(callableSpan,'originSpanId'),false,
     'canonical SourceSpanRef identity remains the original span ID');
   const ranges=getInitialPlanRanges(plan,sourceUnitRef);
-  assert.equal(ranges.trackedSourceRanges.length,2);
-  assert.equal(ranges.protectedSourceRanges.length,1);
+  assert.equal(ranges.trackedSourceRanges.length,4);
+  assert.equal(ranges.protectedSourceRanges.length,4);
   assert.equal(ranges.protectedSourceRanges[0].originSpanId,callableSpan.spanId,
     'only the separate MappedSourceRange carries original-span provenance');
+  const mirrorRead=plan.sourceMirrorReadEdges.values().next().value;
+  assert.notEqual(mirrorRead.observedValueRef,effect.resultValueRef,
+    'the callable input and returned source string are different values');
+  assert.equal(plan.values.has(effect.resultValueRef),true);
+  const flowEdges=[...plan.valueFlowEdges.values()];
+  assert.deepEqual(flowEdges.map(edge=>edge.kind).sort(),['assignment','export']);
+  const assignment=flowEdges.find(edge=>edge.kind==='assignment');
+  const exported=flowEdges.find(edge=>edge.kind==='export');
+  assert.equal(assignment.fromValueRef,effect.resultValueRef);
+  assert.equal(exported.fromValueRef,assignment.toValueRef);
+  assert.equal(plan.values.has(exported.toValueRef),true);
   validatePlanConsumerInput(plan,source,sourceUnitRef,parserContractId,
     ranges.protectedSourceRanges);
   assert.throws(()=>validatePlanConsumerInput(plan,source,sourceUnitRef,parserContractId,[]),
     /incomplete protected source coverage/u);
+});
+
+test('source-plan transaction accepts mapped-range arrays and rejects Map impostors',()=>{
+  const plan=buildDirectFunctionSourcePlan(source,'entry.mjs',hostContract);
+  assert.ok(plan);
+  const sourceUnitRef=plan.sourceUnits.keys().next().value;
+  const parserContractId=parserContractIdFor('module');
+  const ranges=getInitialPlanRanges(plan,sourceUnitRef);
+  const identity=applyEditsWithMap(source,[],sourceUnitRef,parserContractId);
+  const accepted=acceptPlannedPass(plan,identity.map,source,identity.code,
+    parse(identity.code,'module'),ranges.trackedSourceRanges);
+  assert.ok(accepted,'the core pipeline supplies the same mapped-range array returned by getInitialPlanRanges');
+  assert.ok(Array.isArray(accepted.trackedRanges));
+  assert.equal(accepted.trackedRanges.length,plan.sourceSpans.size);
+  assert.equal(acceptPlannedPass(plan,identity.map,source,identity.code,
+    parse(identity.code,'module'),new Map()),null,
+    'a Map is not the canonical transaction range representation');
+});
+
+test('producer refuses a disconnected exported source mirror',()=>{
+  const disconnected=source.replace(
+    'export const sourceText = observedSource;',
+    "export const sourceText = 'fake';"
+  );
+  assert.notEqual(disconnected,source);
+  assert.equal(buildDirectFunctionSourcePlan(disconnected,'entry.mjs',hostContract),null,
+    'the exported mirror must receive the exact result of the direct source reader');
+});
+
+test('post-plan export overwrite invalidates the tracked source-result path',()=>{
+  const plan=buildDirectFunctionSourcePlan(source,'entry.mjs',hostContract);
+  assert.ok(plan);
+  const sourceUnitRef=plan.sourceUnits.keys().next().value;
+  const parserContractId=parserContractIdFor('module');
+  const ranges=getInitialPlanRanges(plan,sourceUnitRef);
+  const original='export const sourceText = observedSource;';
+  const start=source.indexOf(original);
+  assert.ok(start>=0);
+  const changed=applyEditsWithMap(source,[{
+    start,end:start+original.length,text:"export const sourceText = 'fake';"
+  }],sourceUnitRef,parserContractId);
+  const next=advancePlanRanges(plan,changed.map,source,changed.code,ranges.trackedSourceRanges);
+  assert.equal(next,null,
+    'the exported mirror VariableDeclarator is part of the immutable semantic closure');
 });
 
 test('producer rejects aliases, extra readers, unknown syntax and unversioned host premises',()=>{
