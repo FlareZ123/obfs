@@ -131,6 +131,8 @@ test('canonical source spans remain immutable and mapped ranges carry provenance
   assert.equal(effect.effectiveOperationRef.kind,'unknown');
   assert.equal(effect.receiverProvenance,'unknown');
   assert.equal(effect.receiverLookupRoute,'unknown');
+  assert.equal(plan.callSites.values().next().value.targetResolutionStatus,'external');
+  assert.equal(plan.sourceMirrors.values().next().value.readerOperationRef.kind,'unknown');
   assert.equal(plan.hostContracts.values().next().value.intrinsicSnapshotId,null,
     'a declared premise is not a runtime intrinsic snapshot');
   const spans=[...plan.sourceSpans.values()];
