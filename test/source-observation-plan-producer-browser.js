@@ -8,16 +8,27 @@ const {obfuscateFiles}=require('../src/core');
 
 const run=promisify(execFile);
 
-const source=[
-  '// UTF-16 coordinate prefix 😀',
-  'const privateRecord = { privateField: 7 };',
-  'function observed() { return 29; }',
-  'const observedSource = Function.prototype.toString.call(observed);',
-  "const label = 'safe-literal';",
-  'export const result = privateRecord.privateField;',
-  'export const sourceText = observedSource;',
-  'export const labelText = label;'
-].join('\n');
+/** @param {number} extraStrings @returns {string} */
+function makeSource(extraStrings) {
+  const lines=[
+    '// UTF-16 coordinate prefix 😀',
+    'const privateRecord = { privateField: 7 };',
+    'function observed() { return 29; }',
+    'const observedSource = Function.prototype.toString.call(observed);',
+    "const label = 'safe-literal';",
+    'export const result = privateRecord.privateField;',
+    'export const sourceText = observedSource;',
+    'export const labelText = label;'
+  ];
+  for(let index=0;index<extraStrings;index++) {
+    const suffix=String(index).padStart(3,'0');
+    lines.push(`const payload${suffix} = 'payload-value-${suffix}-with-enough-characters';`);
+    lines.push(`export const payloadText${suffix} = payload${suffix};`);
+  }
+  return lines.join('\n');
+}
+
+const source=makeSource(0);
 
 /** @returns {string} */
 function page() {
@@ -31,31 +42,66 @@ function page() {
 }
 
 /**
- * Compare the real Chromium ESM loader's Function#toString result with the
- * native source while local property, identifier and string passes run around
- * the protected callable span. This is a pristine-intrinsics compatibility
+ * Measure ESM evaluation in the real browser realm. Blob creation is outside
+ * the timer; module parsing and evaluation are inside it. Each Blob URL is
+ * unique, so each sample performs a fresh module initialization.
+ * @param {Array<{label:string,nativeCode:string,emittedCode:string}>} workloads
+ * @returns {string}
+ */
+function benchmarkPage(workloads) {
+  return '<!doctype html><html><head><meta charset="utf-8"></head><body>'+
+    '<script type="module">const workloads='+JSON.stringify(workloads)+';'+
+    'const median=values=>{const sorted=[...values].sort((a,b)=>a-b);return sorted[Math.floor(sorted.length/2)];};'+
+    'const load=async code=>{const url=URL.createObjectURL(new Blob([code],{type:"text/javascript"}));'+
+    'const start=performance.now();const namespace=await import(url);const elapsedMs=performance.now()-start;'+
+    'URL.revokeObjectURL(url);const snapshot=Object.fromEntries(Object.keys(namespace).sort().map(key=>[key,namespace[key]]));'+
+    'return {elapsedMs,snapshot};};'+
+    'const main=async()=>{const reports=[];for(const workload of workloads){'+
+    'const baselineSamplesMs=[];const obfuscatedSamplesMs=[];'+
+    'for(let index=0;index<6;index++){const baseline=await load(workload.nativeCode);'+
+    'const obfuscated=await load(workload.emittedCode);if(JSON.stringify(baseline.snapshot)!==JSON.stringify(obfuscated.snapshot))'+
+    'throw new Error(workload.label+" warmup exports differ");}'+
+    'for(let index=0;index<31;index++){let baseline,obfuscated;if(index%2===0){'+
+    'baseline=await load(workload.nativeCode);obfuscated=await load(workload.emittedCode);}else{'+
+    'obfuscated=await load(workload.emittedCode);baseline=await load(workload.nativeCode);}'+
+    'if(JSON.stringify(baseline.snapshot)!==JSON.stringify(obfuscated.snapshot))'+
+    'throw new Error(workload.label+" sample exports differ");'+
+    'baselineSamplesMs.push(baseline.elapsedMs);obfuscatedSamplesMs.push(obfuscated.elapsedMs);}'+
+    'const baselineMedianMs=median(baselineSamplesMs);const obfuscatedMedianMs=median(obfuscatedSamplesMs);'+
+    'const ratio=obfuscatedMedianMs/baselineMedianMs;reports.push({workload:workload.label,sampleCount:31,warmupCount:6,'+
+    'baselineSamplesMs,obfuscatedSamplesMs,baselineMedianMs,obfuscatedMedianMs,ratio,budgetRatio:2.5,passesBudget:ratio<=2.5});}return reports;};'+
+    'main().then(reports=>{const pre=document.createElement("pre");pre.id="budget";pre.textContent=btoa(JSON.stringify(reports));'+
+    'document.body.appendChild(pre);}).catch(error=>{const pre=document.createElement("pre");pre.id="budget-failure";'+
+    'pre.textContent=String(error.stack||error);document.body.appendChild(pre);});</script></body></html>';
+}
+
+/**
+ * Compare Chromium ESM loader behavior and the module-evaluation budget for
+ * native and emitted source. This is a pristine-intrinsics compatibility
  * control, not an attacker-resistant client integrity test.
- * @returns {Promise<{browser:string,properties:number,bindings:number,literals:number,exactSource:boolean}>}
+ * @returns {Promise<{browser:string,properties:number,bindings:number,literals:number,exactSource:boolean,chromiumBudget:Array<Object>}>}
  */
 async function main() {
   const executable=process.env.CHROMIUM_BIN??'google-chrome';
   const version=await run(executable,['--version'],{encoding:'utf8',timeout:15000});
   const runtimeVersion=version.stdout.trim();
   assert.match(runtimeVersion,/(Chrome|Chromium)\s+\d+\./u);
-  const result=obfuscateFiles([{
-    path:'entry.mjs',sourceType:'module',code:source
-  }],{
+  const hostContract={
+    runtimeFamily:'Chromium',
+    runtimeVersion,
+    contractVersion:'coo-direct-function-source-v1',
+    pristineIntrinsicsPremise:
+      'Fresh page module realm with unmodified Function.prototype.toString, Function.prototype.call, and String.fromCharCode before module evaluation.'
+  };
+  const options={
     mode:'coo',
     seed:'direct-source-plan-chromium',
     strings:true,
-    experimentalSourceObservationPlan:{
-      runtimeFamily:'Chromium',
-      runtimeVersion,
-      contractVersion:'coo-direct-function-source-v1',
-      pristineIntrinsicsPremise:
-        'Fresh page module realm with unmodified Function.prototype.toString, Function.prototype.call, and String.fromCharCode before module evaluation.'
-    }
-  });
+    experimentalSourceObservationPlan:hostContract
+  };
+  const result=obfuscateFiles([{
+    path:'entry.mjs',sourceType:'module',code:source
+  }],options);
   const emitted=result.files[0];
   assert.ok(emitted&&typeof emitted.code==='string');
   assert.ok(emitted.metrics.properties>=1);
@@ -63,11 +109,26 @@ async function main() {
   assert.ok(emitted.metrics.literals>=1);
   assert.ok(emitted.code.includes('function observed() { return 29; }'));
 
+  const mediumSource=makeSource(32);
+  const mediumResult=obfuscateFiles([{
+    path:'entry.mjs',sourceType:'module',code:mediumSource
+  }],{...options,seed:'direct-source-plan-chromium-medium'});
+  const mediumEmitted=mediumResult.files[0];
+  assert.ok(mediumEmitted&&typeof mediumEmitted.code==='string');
+  assert.ok(mediumEmitted.metrics.properties>=1);
+  assert.ok(mediumEmitted.metrics.bindings>=1);
+  assert.ok(mediumEmitted.metrics.literals>=32);
+  assert.ok(mediumEmitted.code.includes('function observed() { return 29; }'));
+
   const resources=new Map([
     ['/native/index.html',page()],
     ['/native/entry.mjs',source],
     ['/emitted/index.html',page()],
-    ['/emitted/entry.mjs',emitted.code]
+    ['/emitted/entry.mjs',emitted.code],
+    ['/benchmark/index.html',benchmarkPage([
+      {label:'small-one-literal',nativeCode:source,emittedCode:emitted.code},
+      {label:'medium-32-literals',nativeCode:mediumSource,emittedCode:mediumEmitted.code}
+    ])]
   ]);
   const server=http.createServer((request,response)=>{
     const pathname=new URL(request.url??'/','http://127.0.0.1').pathname;
@@ -107,12 +168,26 @@ async function main() {
       sourceText:'function observed() { return 29; }',
       labelText:'safe-literal'
     });
+    const {stdout:benchmarkOutput}=await run(executable,[
+      '--headless','--no-sandbox','--disable-gpu','--disable-dev-shm-usage',
+      '--no-first-run','--virtual-time-budget=30000','--dump-dom',
+      origin+'/benchmark/index.html'
+    ],{encoding:'utf8',timeout:60000,maxBuffer:8*1024*1024});
+    const encodedBudget=benchmarkOutput.match(/<pre id="budget">([A-Za-z0-9+/=]+)<\/pre>/u)?.[1];
+    assert.ok(encodedBudget,'Chromium budget benchmark failed: '+benchmarkOutput.slice(0,2000));
+    const chromiumBudget=JSON.parse(Buffer.from(encodedBudget,'base64').toString('utf8'));
+    assert.equal(chromiumBudget.length,2);
+    assert.ok(chromiumBudget.every(workload=>workload.passesBudget),
+      'COO module-evaluation overhead must remain within 2.5x in Chromium');
+    process.stdout.write('SOURCE_OBSERVER_PLAN_CHROMIUM_BUDGET '+
+      JSON.stringify({browser:runtimeVersion,workloads:chromiumBudget})+'\n');
     const report={
       browser:runtimeVersion,
       properties:emitted.metrics.properties,
       bindings:emitted.metrics.bindings,
       literals:emitted.metrics.literals,
-      exactSource:true
+      exactSource:true,
+      chromiumBudget
     };
     process.stdout.write('SOURCE_OBSERVER_PLAN_CHROMIUM '+JSON.stringify(report)+'\n');
     return report;
@@ -125,4 +200,4 @@ if(require.main===module)main().catch(error=>{
   process.stderr.write(String(error.stack||error)+'\n');
   process.exitCode=1;
 });
-module.exports={main};
+module.exports={main,makeSource};
