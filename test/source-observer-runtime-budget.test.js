@@ -69,7 +69,8 @@ test('current COO source-observer startup reports median and strict budget evide
       familywiseObservedPairsWithinBudget:familywise.rows[index].observedPairsWithinBudget,
       cpuBound,
       cpuStrictBreachCount:cpuValidForWorkload?cpuRatios.filter(value=>value>2.5).length:null,
-      cpuMedianPairedRatio:cpuBound.medianOfPairedRatios,
+      cpuValidForWorkload,
+      cpuMedianPairedRatio:cpuBound?.medianOfPairedRatios??null,
       cpuMaxPairedRatio:cpuValidForWorkload?Math.max(...cpuRatios):null,
       cpuFamilywiseObservedPairsWithinBudget:cpuFamilywise?.rows[index]?.observedPairsWithinBudget??null
     })+'\n');
