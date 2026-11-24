@@ -2,8 +2,8 @@
 
 const {test}=require('node:test');
 const assert=require('node:assert/strict');
-const {applyEditsWithMap,mapSourceSpan,sourceGenerationOf}=require('../src/source-edit-map');
-const PARSER='acorn@8.15.0;ecmaVersion=latest;sourceType=module;allowReturnOutsideFunction=false;allowHashBang=true;preserveParens=false';
+const {parserContractIdFor,applyEditsWithMap,mapSourceSpan,sourceGenerationOf}=require('../src/source-edit-map');
+const PARSER=parserContractIdFor('module');
 
 /** @param {string} sourceUnitRef @param {string} source @param {number} start @param {number} end */
 function span(sourceUnitRef,source,start,end) {
@@ -26,6 +26,7 @@ test('maps a protected span through edits before and after it',()=>{
   assert.deepEqual(mapped,{
     sourceUnitRef:'unit:module.cjs:1',
     sourceGeneration:sourceGenerationOf(result.code,PARSER),
+    originSpanId:original.spanId,
     startOffset:4,endOffset:7,coordinateUnit:'utf16-code-unit'
   });
   assert.equal(result.code.slice(mapped.startOffset,mapped.endOffset),
@@ -122,7 +123,7 @@ test('refuses stale source-unit and parser-generation identities',()=>{
   const stale=span('unit:a.mjs:1','changed',2,4);
   assert.equal(mapSourceSpan(result.map,stale,source,result.code),null);
   assert.equal(mapSourceSpan(result.map,span('unit:a.mjs:1',source,2,4),source,'tampered'),null);
-  const wrongParser=sourceGenerationOf(source,'different-parser-contract');
+  const wrongParser=sourceGenerationOf(source,parserContractIdFor('commonjs'));
   assert.notEqual(wrongParser,result.map.fromGeneration);
 });
 
@@ -164,6 +165,65 @@ test('rejects overlapping edits using the shared applyEdits contract',()=>{
     {start:1,end:4,text:'x'},
     {start:3,end:5,text:'y'}
   ],'unit:m.js:1',PARSER),/Invalid or overlapping edit/);
+});
+
+
+test('canonical parser contracts distinguish script, module and CommonJS options',()=>{
+  const script=parserContractIdFor('script');
+  const module=parserContractIdFor('module');
+  const commonjs=parserContractIdFor('commonjs');
+  assert.notEqual(script,module);
+  assert.notEqual(script,commonjs);
+  assert.notEqual(module,commonjs);
+  assert.match(module,/"version":"8\\.15\\.0"/);
+  assert.match(commonjs,/"allowReturnOutsideFunction":true/);
+});
+
+test('lossless UTF-16 generation digests distinguish lone high and low surrogates',()=>{
+  const high='const a="\\uD800";';
+  const low='const a="\\uDC00";';
+  assert.doesNotThrow(()=>require('../src/ast').parse(high,'module'));
+  assert.doesNotThrow(()=>require('../src/ast').parse(low,'module'));
+  assert.notEqual(Buffer.from(high,'utf16le').toString('hex'),
+    Buffer.from(low,'utf16le').toString('hex'));
+  assert.notEqual(sourceGenerationOf(high,PARSER),sourceGenerationOf(low,PARSER));
+
+  const unit='unit:surrogate-response:1';
+  const map=applyEditsWithMap(high,[
+    {start:0,end:0,text:'// prefix\\n',affinity:'before-node'}
+  ],unit,PARSER);
+  const lowSpan=span(unit,low,0,low.length);
+  assert.equal(mapSourceSpan(map.map,lowSpan,low,map.code),null,
+    'a map from a distinct parser-input generation must not be reusable');
+});
+
+test('maps zero-width spans at replacement and deletion boundaries, rejects interiors',()=>{
+  const source='abcdef';
+  const replacement=applyEditsWithMap(source,[
+    {start:2,end:4,text:'XY'}
+  ],'unit:boundaries:replacement',PARSER);
+  const atStart=mapSourceSpan(replacement.map,
+    span('unit:boundaries:replacement',source,2,2),source,replacement.code);
+  const atEnd=mapSourceSpan(replacement.map,
+    span('unit:boundaries:replacement',source,4,4),source,replacement.code);
+  const inside=mapSourceSpan(replacement.map,
+    span('unit:boundaries:replacement',source,3,3),source,replacement.code);
+  assert.deepEqual([atStart?.startOffset,atStart?.endOffset],[2,2]);
+  assert.deepEqual([atEnd?.startOffset,atEnd?.endOffset],[4,4]);
+  assert.equal(inside,null);
+
+  const deletion=applyEditsWithMap(source,[
+    {start:2,end:4,text:''}
+  ],'unit:boundaries:deletion',PARSER);
+  const deleteStart=mapSourceSpan(deletion.map,
+    span('unit:boundaries:deletion',source,2,2),source,deletion.code);
+  const deleteEnd=mapSourceSpan(deletion.map,
+    span('unit:boundaries:deletion',source,4,4),source,deletion.code);
+  const deleteInside=mapSourceSpan(deletion.map,
+    span('unit:boundaries:deletion',source,3,3),source,deletion.code);
+  assert.deepEqual([deleteStart?.startOffset,deleteStart?.endOffset],[2,2]);
+  assert.deepEqual([deleteEnd?.startOffset,deleteEnd?.endOffset],[2,2]);
+  assert.equal(deleteInside,null);
 });
 
 test('runs deterministic span-preservation checks around UTF-16 edits',()=>{
