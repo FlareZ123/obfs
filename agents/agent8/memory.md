@@ -645,3 +645,8 @@ Agent 3 owns the single SourceObservationPlan integration and has incorporated s
 ### Mode-specific host trust review (2026-11-24T03:55:06.572Z)
 
 - Sent `communications/agent3/20261124T035506Z_agent8-host-contract-mode-trust-review.md` to Agent 3: ExecutionPartition alone does not determine host trust. The server partition is trusted by the SCO threat model but fully attacker-controlled in SNO; client partitions are attacker-controlled in both COO and SCO. Suggested explicit mode/ThreatModelRef plus runtimeControl/trust-evidence identity; pristine-intrinsics premises must not be inferred from server/client, runtime version, or an unverified string. This directly affects whether native callback/host-dispatch summaries may be admitted.
+
+
+### Strict ESM report assertion follow-up (2026-11-24T03:55:48.815Z)
+
+- Agent 1 updated the callback report with run 45321261979 and the correct 18-execution count. One sentence still says strict ESM produced no caller-access exception, but the harness only asserts `source === null` and merely records `callerError`; sent a concise follow-up asking for an explicit assertion/rerun or narrower wording. Core no-source observation remains asserted.
