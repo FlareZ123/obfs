@@ -53,6 +53,7 @@ function benchmarkPage(workloads) {
     '<script type="module">const workloads='+JSON.stringify(workloads)+';'+
     'const median=values=>{const sorted=[...values].sort((a,b)=>a-b);return sorted[Math.floor(sorted.length/2)];};'+
     'const clockResolutionMs=(()=>{let previous=performance.now();let minimum=Infinity;for(let index=0;index<2048;index++){const current=performance.now();const delta=current-previous;if(delta>0&&delta<minimum)minimum=delta;previous=current;}return minimum;})();'+
+    'const crossOriginIsolated=globalThis.crossOriginIsolated===true;'+
     'const load=async code=>{const url=URL.createObjectURL(new Blob([code],{type:"text/javascript"}));'+
     'const start=performance.now();const namespace=await import(url);const elapsedMs=performance.now()-start;'+
     'URL.revokeObjectURL(url);const snapshot=Object.fromEntries(Object.keys(namespace).sort().map(key=>[key,namespace[key]]));'+
@@ -80,7 +81,8 @@ function benchmarkPage(workloads) {
     'baselineSamplesMs,obfuscatedSamplesMs,pairRatios,medianPairRatio:median(pairRatios),maxPairRatio:Math.max(...pairRatios),'+
     'strictBreachCount:strictBreachSamples.length,strictBreachSamples,baselineMedianMs,obfuscatedMedianMs,ratio,'+
     'placeboLeftSamplesMs,placeboRightSamplesMs,placeboPairRatios,placeboMaxPairRatio:Math.max(...placeboPairRatios),'+
-    'placeboStrictBreachCount:placeboPairRatios.filter(value=>value>2.5).length,clockResolutionMs,clockResolutionValid:clockResolutionMs>0&&clockResolutionMs<1,'+
+    'placeboStrictBreachCount:placeboPairRatios.filter(value=>value>2.5).length,clockResolutionMs,crossOriginIsolated,'+
+    'clockResolutionValid:crossOriginIsolated&&clockResolutionMs>0&&clockResolutionMs<1,'+
     'budgetRatio:2.5,passesBudget:ratio<=2.5&&strictBreachSamples.length===0&&placeboPairRatios.every(value=>value<=2.5)&&clockResolutionMs>0&&clockResolutionMs<1});}return reports;};'+
     'try{const reports=await main();const pre=document.createElement("pre");pre.id="budget";pre.textContent=btoa(JSON.stringify(reports));'+
     'document.body.appendChild(pre);}catch(error){const pre=document.createElement("pre");pre.id="budget-failure";'+
@@ -149,7 +151,10 @@ async function main() {
     response.writeHead(200,{
       'content-type':pathname.endsWith('.html')?
         'text/html; charset=utf-8':'text/javascript; charset=utf-8',
-      'cache-control':'no-store'
+      'cache-control':'no-store',
+      'cross-origin-opener-policy':'same-origin',
+      'cross-origin-embedder-policy':'require-corp',
+      'cross-origin-resource-policy':'same-origin'
     });
     response.end(body);
   });
