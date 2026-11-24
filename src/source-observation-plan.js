@@ -289,7 +289,8 @@ function isAllowedProgram(ast,readerCall,objectShapes,bindingKinds) {
       if(node.kind!=='const'||!node.declarations.length)return false;
       for(const declaration of node.declarations) {
         if(declaration.id.type!=='Identifier'||!declaration.init||
-           !isAllowedExpression(declaration.init,readerCall,objectShapes))valid=false;
+           !isAllowedExpression(declaration.init,readerCall,objectShapes,bindingKinds)||
+           exported&&bindingKinds.get(declaration.id.name)!=='primitive')valid=false;
       }
       continue;
     }
