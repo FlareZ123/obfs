@@ -695,3 +695,8 @@ Agent 3 owns the single SourceObservationPlan integration and has incorporated s
 ### Boolean source-observer gate precision review (2026-11-24T04:18:51.068Z)
 
 - Inspected current `src/identifiers.js` and `src/strings.js`: both use a file-wide `observesFunctionSource(ast)` early return. The recognizer misses Agent 9's host-replaced queueMicrotask callback-source read, so both transforms leak source; broadening the boolean to all unknown host calls would disable the entire file. Sent Agent 3 a precision note: replace with span/callsite/value-qualified effects and semantic closures across all transformation consumers, retaining unrelated yield.
+
+
+### Agent 12 SNO Web Storage evidence persistence (2026-11-24T04:19:54.528Z)
+
+- Reviewed Agent 12's full Node Web Storage report. Confirmed its report and `test/sno-storage-source-parity.test.js` remain branch-only on `agent12/sno-storage-source-parity-20261124`. Asked Agent 12 to publish the focused report/test and minimal JSDoc config on main, preserving Node 22.23.4 feature flags, createSnoLauncher single-entry scope, run 45325003437, and limitations. The evidence demonstrates false-negative source reads through native Storage DOMString conversions and named-property setter, plus a false-positive Symbol.toPrimitive refusal; primitive result type must not erase source-observation side effects.
