@@ -56,7 +56,7 @@ function mayAppearInFailedOperand(node,ancestors) {
  * All JS UTF-16 code units are retained, including isolated surrogates.
  * @param {string} source
  * @param {AstNode} ast
- * @param {{seed:string, minimumLength?:number, reservedNames?:Set<string>, reservedSources?:string[], fixedArity?:boolean, sourceUnitRef?:string, parserContractId?:string, protectedSourceSpans?:Array<{spanId:string,sourceUnitRef:string,sourceGeneration:string,startOffset:number,endOffset:number,coordinateUnit:'utf16-code-unit',astNodeType:string|null}>}} options
+ * @param {{seed:string, minimumLength?:number, reservedNames?:Set<string>, reservedSources?:string[], fixedArity?:boolean, sourceUnitRef?:string, parserContractId?:string, protectedSourceSpans?:Array<{spanId:string,sourceUnitRef:string,sourceGeneration:string,startOffset:number,endOffset:number,coordinateUnit:'utf16-code-unit',astNodeType:string|null}>, sourceObserverCoverageComplete?:boolean}} options
  * @returns {{code:string,count:number,editMap?:Object}}
  */
 function encodeStrings(source, ast, options) {
@@ -70,6 +70,10 @@ function encodeStrings(source, ast, options) {
   if(!Array.isArray(protectedSourceSpans))throw new TypeError('protectedSourceSpans must be an array');
   if(protectedSourceSpans.length&&!hasMapContext) {
     throw new TypeError('protectedSourceSpans require a source-unit and parser generation');
+  }
+  const sourceObserverCoverageComplete=options.sourceObserverCoverageComplete===true;
+  if(sourceObserverCoverageComplete&&!protectedSourceSpans.length) {
+    throw new TypeError('Source-observer coverage requires protected source spans');
   }
   if(protectedSourceSpans.length) {
     const generation=sourceGenerationOf(source,/** @type {string} */ (options.parserContractId));
@@ -91,7 +95,7 @@ function encodeStrings(source, ast, options) {
     }
     return {code:source,count:0};
   }
-  if(observesFunctionSource(ast)) return noOp();
+  if(observesFunctionSource(ast)&&!sourceObserverCoverageComplete) return noOp();
   // The decoder uses the ambient String intrinsic. A file-level or nested
   // lexical binding with this name can shadow it, including before TDZ init.
   if (collectBindings(ast).has('String')) return noOp();
