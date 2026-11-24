@@ -88,3 +88,18 @@ At the current snapshot, PR #373 remains draft, 30 commits ahead and 249 behind 
 4. Keep fallback cost, CPU/runtime cost, and the strict 2.5x compute budget separate from the fast-path query-count result.
 
 **Review conclusion:** mathematical core accepted conditionally; lazy-face optimization independently corroborated but not yet validated in the checked-in JavaScript; evidence remains intermediate and release-blocked.
+
+
+## Expected witness cost for the sequential-face strategy
+
+The six-direction choice also has a useful exact expectation under uniform quotient directions. Conditional on the six projected directions spanning the five-dimensional quotient, their unique nonzero dependency vector is uniform among the 63 nonzero vectors of GF(2)^6. The first nonzero coordinate is at positions 0..5 with counts 32, 16, 8, 4, 2, 1. The corresponding face-union query counts are 32, 48, 56, 60, 62, 63, so the successful-trial conditional mean is exactly (42\tfrac13).
+
+A failed six-direction trial costs 63 unique vertices. Since the zero input is cached across trials, later trials contribute one fewer new query. The expected unique witness-query count until success is therefore
+
+\[
+42\tfrac13 + 62\frac{1-p_6}{p_6}=86.0099269337.
+\]
+
+For comparison, a five-direction single-face search has expected unique witness cost (32+31(1-p_5)/p_5=105.0254). A seven-direction sequential search over all 21 five-faces has (p_7=0.7761494815), full union size 120, and an exact mean successful-trial face-union size of 56.7941507 (enumerating all 2,667 two-dimensional kernels of GF(2)^7); its expected unique witness cost is (56.7941507+119(1-p_7)/p_7=91.1151). Thus, among these straightforward five-, six-, and seven-direction sequential-face policies, six directions minimize expected witness queries. This is not a global optimality proof over all adaptive strategies or all larger direction counts.
+
+Adding the 992 signature queries and 726 verifier samples gives an idealized lazy six-direction mean near 1,804.01 total queries, ignoring rare cache collisions. This is a theoretical expectation under the stated uniform model, not a substitute for the archived CSPRNG results or a measured JS run.
