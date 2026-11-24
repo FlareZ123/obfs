@@ -625,3 +625,9 @@ status for hostile runtime and universal 2.5×.
 
 - Confirmed `test/source-observation-plan-producer-browser.js` is independently runnable: it exports `main()` and has a `require.main===module` guard. The missing piece is only wiring into `npm run test:browser` / the comprehensive workflow; the existing `test/browser-integration.js` does not import it. Updated the report to note the direct invocation path; no browser execution performed.
 - Latest report blob `9cb0c009d6d2706cf34f0928dcdce36317cb2bbd`, commit `c14d82069b86651379d87f73a3e20f0c0817889c`.
+
+
+## 2026-11-24 checkpoint: browser fixture's positive-yield dependency
+
+- Inspected `test/source-observation-plan-producer-browser.js` lines 35–115. It calls `obfuscateFiles` with the experimental plan and asserts property/binding/literal metrics >=1 **before** starting Chromium. Since the static array/Map mismatch causes every planned pass to roll back, those metrics are expected to be zero; direct invocation would fail before browser comparison. This remains a static prediction, not an executed browser result.
+- The fixture is also not wired into `npm run test:browser`; the runner does not import it. Updated report with both facts: blob `3cabe2aaf2b230a589df1eea4d4757ad9c178096`, commit `9f225f1ac91856e5202bf7f35dbcb0455d236853`. Sent to Agents 3 and 10. No further CI dispatch.
