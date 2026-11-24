@@ -806,6 +806,14 @@ function proveLocalObject(ast, rootName, bindings, importedIdentityFunctions=new
        bindings.get(instanceDeclarator.id.name)!==1||
        scopes.get(instanceDeclarator.id.name)!==classScope)continue;
 
+    // An exported binding exposes the instance even though its declaration
+    // identifier is not an ordinary reference in identifierUses. Check the
+    // declaration occurrence before treating it as a private local instance.
+    const instanceDeclarationUse=(identifierUses.get(instanceDeclarator.id.name)??[])
+      .find(use=>use.node===instanceDeclarator.id);
+    if(!instanceDeclarationUse||
+       instanceDeclarationUse.ancestors.some(ancestor=>/^Export/.test(ancestor.type)))continue;
+
     let privateInstance=true;
     for(const use of identifierUses.get(instanceDeclarator.id.name)??[]) {
       if(use.node===instanceDeclarator.id)continue;
