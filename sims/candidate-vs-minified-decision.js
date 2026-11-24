@@ -6,11 +6,12 @@ const {familywiseBudgetBounds}=require('./familywise-budget-bound');
  * A falsifiable comparison of one candidate and a conventional minifier
  * against the SAME frozen protected application. This is an experiment
  * classifier, never a general obfuscation release or security guarantee.
- * Zero oracle calls is valid for a source-only attack. Positive support
- * requires a predeclared held-out verification count; a short or missing
- * commitment remains inconclusive.
+ * Zero oracle calls is valid for a source-only attack. A complete positive
+ * declaration requires matched held-out and resource fields; empirical
+ * attacker-cost support remains unavailable until external audit integration.
  *
  * @typedef {'supported'|'contradicted'|'inconclusive'} Decision
+ * @typedef {'complete'|'contradicted'|'incomplete'} DeclarationStatus
  * @typedef {{
  *   protocol:string,
  *   oracleCalls:number,
@@ -124,7 +125,7 @@ function compareCandidateEvidence(evidence){
     typeof control.analysisBudgetMs==='number'&&
     Number.isFinite(control.analysisBudgetMs)&&control.analysisBudgetMs>0&&
     control.analysisBudgetMs===candidate.analysisBudgetMs;
-  /** @type {Decision} */
+  /** @type {DeclarationStatus} */
   let declarationStatus='incomplete';
   if(measurementReady){
     if(candidate.cloneSucceeded)declarationStatus='contradicted';
