@@ -164,7 +164,7 @@ The canonical plan should expose at least the following. The v2 JSDoc schema sup
  *
  * @typedef {Object} DefinitionRef
  * @property {string} definitionId
- * @property {BindingRefKey} bindingRef
+ * @property {BindingIdentityRefKey} bindingRef
  * @property {SourceSpanId} definitionSpanId
  * @property {'function-declaration'|'var-initializer'|'lexical-initializer'|'assignment'|'parameter'|'import'|'catch-binding'|'destructuring'|'unknown'} kind
  * @property {number} sourceOrder
@@ -204,6 +204,7 @@ The canonical plan should expose at least the following. The v2 JSDoc schema sup
  *
  * @typedef {string} BindingRefKey
  * @typedef {string} RealmBindingRefKey
+ * @typedef {BindingRefKey|RealmBindingRefKey} BindingIdentityRefKey
  * @typedef {string} DefinitionRefKey
  * @typedef {string} CallableDefinitionRefKey
  * @typedef {string} ActivationRefKey
@@ -255,7 +256,7 @@ The canonical plan should expose at least the following. The v2 JSDoc schema sup
  *
  * @typedef {Object} ReceiverRef
  * @property {ReceiverRefKey} receiverRef
- * @property {BindingRefKey|null} originBindingRef
+ * @property {BindingIdentityRefKey|null} originBindingRef
  * @property {string|null} hostInterfaceIdentity
  * @property {string|null} realmId
  * @property {ReceiverProvenance} provenance
@@ -304,7 +305,7 @@ The canonical plan should expose at least the following. The v2 JSDoc schema sup
  * @property {ActivationRefKey|null} callerActivationRef
  * @property {InvocationKind} invocationKind
  * @property {ValueRefKey|null} calleeValueRef
- * @property {BindingRefKey|null} calleeBindingRef
+ * @property {BindingIdentityRefKey|null} calleeBindingRef
  * @property {ReadonlyArray<CallableDefinitionRefKey>} targetCallableDefinitionRefs
  * @property {CallTargetResolutionStatus} targetResolutionStatus
  * @property {string|null} controlFlowPointId
@@ -389,7 +390,7 @@ The canonical plan should expose at least the following. The v2 JSDoc schema sup
  * @property {ReadonlyMap<ThreatModelRefKey, ThreatModelRef>} threatModels
  * @property {ReadonlyMap<ModuleResolutionEdgeKey, ModuleResolutionEdge>} moduleResolutionEdges
  * @property {ReadonlyMap<SourceDeliveryEdgeKey, SourceDeliveryEdge>} sourceDeliveryEdges
- * @property {ReadonlyMap<BindingRefKey, BindingIdentity>} bindings
+ * @property {ReadonlyMap<BindingIdentityRefKey, BindingIdentity>} bindings
  * @property {ReadonlyMap<DefinitionRefKey, DefinitionRef>} definitions
  * @property {ReadonlyMap<CallableDefinitionRefKey, CallableDefinitionRef>} callableDefinitions
  * @property {ReadonlyMap<ActivationRefKey, ActivationRef>} activations
