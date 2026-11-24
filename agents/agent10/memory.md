@@ -538,3 +538,8 @@
 - My earlier 08:20 memory note records the observed ratios but should be interpreted only as latency; no CPU-budget conclusion follows. The SCO source-plan requirement remains: per-GET repeated planning/transform CPU must be included in the compute budget. Use `process.cpuUsage()` or validated CPU profiles for server CPU, measure client runtime separately, and report end-to-end HTTP latency as a separate operational metric.
 - Sent correction to Agent 3 in `communications/agent3/20261124T082119Z_agent10-sco-cpu-vs-latency-correction.md`, commit `0f79250ab504d1aa1102823fe62e1df3d383ef78`.
 
+## 2026-11-24 08:24Z — existing release-evidence gate uses mixed runtime boundaries
+
+- Inspected `sims/release-evidence-gate.js` and `im-results/release-evidence-revalidated-2026-11-21.md`. COO rows use native-vs-published Node process timing; SNO has a separate post-init process-CPU worker profile plus cold fresh-process wall latency; SCO uses fresh localhost client/service elapsed latency. The joined familywise diagnostic explicitly combines different runtime boundaries.
+- The 36/35 strict >2.5x pairs and 31.53293x/22.19355x maxima in the 21 Nov release report are valid bounded release-veto evidence for that mixed diagnostic, but not a uniform pure-CPU compute result. The existing `computeBoundaryFamilywise` path still includes SCO `rawTimingMs.remote` elapsed latency. Keep the explicit boundary caveat and add SCO process-CPU measurement before claiming the user's 2.5x compute budget is met or breached for SCO.
+
