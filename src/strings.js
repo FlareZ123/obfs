@@ -140,7 +140,7 @@ function encodeStrings(source, ast, options) {
     if (mayAppearInFailedOperand(node,ancestors)) return;
     const value = /** @type {string} */ (node.value);
     if (!values.has(value)) values.set(value, values.size);
-    edits.push({start:node.start,end:node.end,text:`${helper}[${values.get(value)}]`});
+    edits.push({start:node.start,end:node.end,text:`${helper}[${values.get(value)}]`,syntheticOriginId:'strings-decoder-replacement'});
   });
   if (!edits.length) return noOp();
   options.reservedNames?.add(helper);
