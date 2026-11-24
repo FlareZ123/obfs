@@ -562,3 +562,42 @@ Updated the canonical intake (single source of truth) at `workplace/agent3-sourc
 3. Acknowledge Agent 9 and Agent 11 donor findings and ask them to preserve only reproducible evidence; no separate property-only patch.
 4. Continue architecture work on the single source/effect plan only where it resolves a named missing contract; avoid parallel resolver/provenance engines.
 5. Preserve exact current-main source pins and keep RELEASE-BLOCKED until one frozen candidate passes focused negative + positive yield, all-mode correctness, and comprehensive acceptance.
+
+
+## 2026-11-24 00:40 UTC: Stage 1 fresh validation, PR #361 donor review, and mainline correction
+
+Current main at the start of this checkpoint was `66d6d32316a29fbb3104a3c400a8e0681cc5107b`. The current read-only Stage 1 helper is `workplace/agent1-lexical-reference-resolver.js`, blob `ed6c2fa8856dff921ded8483809488f7c4da7b43`. I dispatched five existing focused workflows on that exact main SHA; all succeeded on Ubuntu and Windows, and each passed strict project/external JSDoc. The full Node 22 job was skipped by focused mode:
+
+- 40 lexical fixtures / 10 Node test groups: 45298036747.
+- 150 independent Acorn/TypeScript comparisons: 45298042851.
+- 16 native getter/setter reference-role fixtures: 45298049490.
+- 60-case switch discriminant / CaseBlock TypeScript grid: 45298056386.
+- 12 exact-source / lexical-closure edit controls: 45298062292.
+
+This is a coherent, bounded Stage 1 research donor, still not production integration and not proof of native-host identity, property/provider closure, full source/effect semantics or 2.5× performance.
+
+### Latest comprehensive mainline status
+
+I inspected GitHub Actions run 45283563363 through the GitHub Actions MCP logs, not the normal repository connector. It is the latest completed unfocused main-branch validation at source `9e614760c75a293a37178fa6e63489d9b904b0ae`: both OS ran 5,336 tests, with 5,293 passed, 11 failed and 32 skipped. All 11 failures are positive-yield assertions (expected one or two private rewrites, actual zero), not runtime-output mismatches. Ubuntu Chromium steps and strict project/external JSDoc passed. Narrow benchmark/session profiles were around 1.05× or lower, not a universal 2.5× result.
+
+Compared recursive `src/` trees at 452835 and current main `66d6d32316a29fbb3104a3c400a8e0681cc5107b`: 42 of 43 source files are byte-identical. The only difference is `src/html-assets.js`, which adds rejection of raw executable syntax characters in import-map URL addresses. The four source-observer core blobs (`ast.js`, `properties.js`, `cross-properties.js`, `identifiers.js`) are identical. Updated both `results/README.md` and the canonical intake to supersede the older 452501 (26-failure) status with 452835 (11 yield-only failures), while making clear that the current head has no full receipt for the one HTML-asset change.
+
+### Primitive-host root cause from source inspection
+
+Current `src/ast.js` exposes a concrete mismatch between value typing and host dispatch:
+- `isFunctionValue` (lines 315–334) does not classify a primitive receiver's property result as a host-supplied callable.
+- `mayBeMemberMethod` (1683–1685) returns false for `isDefinitelyPrimitive(input)`; the object/array destructuring observer gate (2867–2874) therefore skips primitive receivers.
+- The `.toString` / `.toSource` / `.toLocaleString` observer guard (2960–2962) excludes definitely primitive receivers.
+- `isDefinitelyPrimitive` is a value/type fact, not evidence that the realm's prototype chain, accessor dispatch or iterator is pristine.
+
+These paths align with Agent 11's COO-only boxed/destructuring and prototype-method red matrices. Do not globally weaken primitive proof and erase yield. Add distinct primitive Get, GetIterator/@@iterator and prototype-method effect facts, then propagate returned callable capability through bindings, calls/returns, object fields and ESM edges. The discarded/unused getter green fixtures establish parity and zero yield for their exact cases, but not which internal predicate caused refusal; keep that causal limit explicit.
+
+### PR #361: preserve as donor, not candidate
+
+Reviewed PR #361 (Agent 10): draft head `6eddbef387d1aa3b192df16fdb05f8dfa98c3ae8`, base `e9e4f343632db64522f8cf0fb711be52a1cfee6c`, currently `mergeable:false`. It extends the opt-in `experimentalSourceObserverIslands` mechanism to permit identifier renaming in selected primitive ESM leaves while preserving every identifier spelling in exported named function source. Selected leaves have a narrow grammar (unique const primitive records, immediate own-field reads, zero-arg named exported primitive readers; no calls/imports/mutation/nested statements). Focused Node 45277361888 and Chromium/browser 45277585181 passed. Agent 9's review found no counterexample inside that grammar but requests explicit refusal tests for host callback calls in a selected export and callable escapes in an importer.
+
+Important boundary: PR tests call `obfuscateFiles(...,{mode})` directly. CLI `readArgs`/ `main` does not accept/forward the option. Actual SNO CLI uses a CommonJS `sno-entry.cjs` launcher, whereas the island proof requires every input file to be ESM; the `mode:'sno'` core-API row is not SNO CLI validation. Chromium is COO; no actual `createScoHandler` request-time proof. The patch is identifier-only (plus existing local-property island yield), with no strings, cross-file properties, VM/CFG/Wasm or general carrier/effect plan. The Critic explicitly rejects identifier-only patches as the selected candidate; keep PR #361 draft and donor-only. Updated canonical intake with the exact scope and limitations.
+
+### Persistent decision
+
+NO-GO remains. The next candidate must consume the shared per-reference source/effect plan across all affected passes, or the no-go remains. Agent 10 remains comprehensive acceptance owner. Do not merge PR #361 or run a full gate for it. Keep the release decision RELEASE-BLOCKED.
