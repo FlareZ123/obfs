@@ -205,3 +205,37 @@ for(const mode of /** @type {Array<'coo'|'sno'|'sco'>} */ (['coo','sno','sco']))
     assert.equal(emitted.source,native.source);
   });
 }
+
+
+/**
+ * A function declaration inside an exported class's static block is part of
+ * the class's observable source, even when the function and its instance
+ * arguments are otherwise direct-call-only.
+ */
+const nestedStaticBlockFunctionReader=[
+  'class Outer{',
+  '  static{',
+  '    const owner={secretField:7};',
+  '    function read(ownerAlpha){return ownerAlpha.secretField;}',
+  '    this.observed=read(owner);',
+  '  }',
+  '}',
+  'module.exports=Outer;'
+].join('\\n');
+
+for(const mode of /** @type {Array<'coo'|'sno'|'sco'>} */ (['coo','sno','sco'])){
+  test(mode+' nested function reader in an outer static block must preserve outer class source',()=>{
+    const native=runOuterClassSource(nestedStaticBlockFunctionReader);
+    const transformed=obfuscateFiles([{
+      path:'entry.cjs',sourceType:'commonjs',code:nestedStaticBlockFunctionReader
+    }],{
+      mode,seed:'nested-static-block-function-reader/'+mode,
+      strings:false,identifiers:false
+    }).files[0];
+    assert.equal(transformed.metrics.properties,0,
+      mode+': nested function reader source is embedded in Outer.toString()');
+    const emitted=runOuterClassSource(String(transformed.code));
+    assert.equal(emitted.value,native.value);
+    assert.equal(emitted.source,native.source);
+  });
+}
