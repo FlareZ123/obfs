@@ -52,7 +52,7 @@ G(x)=H(q(x))\oplus L(x).
 \]
 It is degree at most (r) and exactly equals every promised projected-affine source. Retain the independent RM postfit verifier to reject sources outside the promise; on mismatch, use the exact degree-(r) ANF fallback.
 
-If the fixed-pair separation check fails, use the original derivative-signature recovery instead. That method is already exact under the codimension-(r) top-derivative promise. Therefore this optimization does not weaken the promised-family path or increase its fast-path query cap. For (r=2), three queries per basis vector equal the original (2^r-1=3) signature queries, so there is no saving.
+If the fixed-pair separation check fails, use the original derivative-signature recovery instead. It recovers quotient coordinates under the codimension-(r) top-derivative promise; exact source reconstruction additionally requires the projected-affine residual promise. For broader degree-at-most-r sources, treat the result only as a candidate and retain the independent RM verifier plus exact ANF fallback. The shift fast cap is conditional on the fixed-pair check passing; if it fails, the old lazy derivative-signature cap remains the worst-case promised-family cap. For (r=2), three queries per basis vector equal the original (2^r-1=3) signature queries, so there is no saving.
 
 ## Local rank-r reproduction
 
