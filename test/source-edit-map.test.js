@@ -6,9 +6,10 @@ const {parserContractIdFor,applyEditsWithMap,mapSourceSpan,sourceGenerationOf}=r
 const PARSER=parserContractIdFor('module');
 
 /** @param {string} sourceUnitRef @param {string} source @param {number} start @param {number} end */
-function span(sourceUnitRef,source,start,end) {
+function span(sourceUnitRef,source,start,end,originSpanId) {
+  const spanId=sourceUnitRef+':'+sourceGenerationOf(source,PARSER)+':'+start+':'+end;
   return {
-    spanId:sourceUnitRef+':'+sourceGenerationOf(source,PARSER)+':'+start+':'+end,
+    spanId,originSpanId:originSpanId??spanId,
     sourceUnitRef,sourceGeneration:sourceGenerationOf(source,PARSER),
     startOffset:start,endOffset:end,coordinateUnit:'utf16-code-unit',
     astNodeType:start===end?null:'FunctionDeclaration'
@@ -31,6 +32,31 @@ test('maps a protected span through edits before and after it',()=>{
   });
   assert.equal(result.code.slice(mapped.startOffset,mapped.endOffset),
     source.slice(original.startOffset,original.endOffset));
+});
+
+
+test('originSpanId remains stable across sequential source-map generations',()=>{
+  const source='alpha beta';
+  const unit='unit:origin-chain:module-1';
+  const original=span(unit,source,0,5);
+  const first=applyEditsWithMap(source,[
+    {start:0,end:0,text:'// prefix'+String.fromCharCode(10),affinity:'before-node'}
+  ],unit,PARSER);
+  const firstRange=mapSourceSpan(first.map,original,source,first.code);
+  assert.ok(firstRange);
+  assert.equal(firstRange.originSpanId,original.spanId);
+
+  const intermediate=span(unit,first.code,firstRange.startOffset,firstRange.endOffset,
+    firstRange.originSpanId);
+  assert.notEqual(intermediate.spanId,original.spanId);
+  const second=applyEditsWithMap(first.code,[
+    {start:first.code.length,end:first.code.length,text:';'}
+  ],unit,PARSER);
+  const secondRange=mapSourceSpan(second.map,intermediate,first.code,second.code);
+  assert.ok(secondRange);
+  assert.equal(secondRange.originSpanId,original.spanId,
+    'a second map must not reset provenance to the intermediate span id');
+  assert.equal(second.code.slice(secondRange.startOffset,secondRange.endOffset),'alpha');
 });
 
 test('rejects protected spans intersected by replacement or interior insertion',()=>{
