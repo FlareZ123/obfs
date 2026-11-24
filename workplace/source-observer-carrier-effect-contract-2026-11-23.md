@@ -278,7 +278,9 @@ The canonical plan should expose at least the following. The v2 JSDoc schema sup
  * @property {ReadonlyArray<ValueCategory>} categoryPossibilities - product/join, not one exclusive tag
  * @property {ValueProofStatus} proofStatus
  * @property {ReadonlyArray<DefinitionRefKey>} originDefinitionRefs
+ * @property {ReadonlyArray<CallableDefinitionRefKey>} callableDefinitionRefs - exact callable identities when category includes Callable
  * @property {ReadonlyArray<SourceUnitRefKey>} originSourceUnitRefs
+ * @property {ReadonlyArray<PathProvenanceRef>} pathProvenance - distinct from ordinary ValueCategory
  * @property {ReadonlyArray<ValueCapability>} capabilities
  *
  * @typedef {'assignment'|'alias'|'phi'|'actual-to-formal'|'return-to-call-result'|'field-write'|'field-read'|'destructuring'|'import'|'export'|'throw-catch'|'promise-fulfillment'|'promise-rejection'|'iterator-yield'|'coercion-result'|'host-argument'|'host-return'|'closure-capture'} ValueFlowEdgeKind
@@ -291,6 +293,9 @@ The canonical plan should expose at least the following. The v2 JSDoc schema sup
  * @property {SourceSpanId} sourceSpanId
  * @property {CallSiteRefKey|null} callSiteRef
  * @property {string|null} controlFlowPointId
+ * @property {ReadonlyArray<string>} branchGuardIds
+ * @property {CallableDefinitionRefKey|null} targetCallableDefinitionRef - target-specific actual/formal or return edge
+ * @property {ValueRefKey|null} ownerValueRef - object identity for field read/write edges
  * @property {number|null} argumentIndex
  * @property {string|null} propertyKeyIdentity
  * @property {string|null} operandPath
@@ -414,7 +419,7 @@ The canonical plan should expose at least the following. The v2 JSDoc schema sup
  */
 ```
 
-The schema separates five identities that must never be collapsed: BindingRef is lexical storage; DefinitionRef is a reaching write; ValueRef is an abstract runtime value; CallSiteRef is one invocation occurrence; HostEffectRecord is one implicit or explicit operation. A BindingId alone is never a graph-global identity. A function value may carry the HostHeldCallable capability while remaining a Callable category; this capability is not a mutually exclusive ValueKind. A host argument that is inspected but never invoked creates an observed-value edge and HostHeldCallable capability. A no-argument callback that inspects the active caller creates a separate ActiveFrameEdge. An unknown call's returned value is represented by ValueFlowEdge, not either of those edges.
+The schema separates five identities that must never be collapsed: BindingRef is lexical storage; DefinitionRef is a reaching write; ValueRef is an abstract runtime value; CallSiteRef is one invocation occurrence; HostEffectRecord is one implicit or explicit operation. ValueFact carries the exact possible CallableDefinitionRef identities and a separate path-provenance product so source URL/path reads can distinguish same-source, other-source and unknown paths. A BindingId alone is never a graph-global identity. A function value may carry the HostHeldCallable capability while remaining a Callable category; this capability is not a mutually exclusive ValueKind. A host argument that is inspected but never invoked creates an observed-value edge and HostHeldCallable capability. A no-argument callback that inspects the active caller creates a separate ActiveFrameEdge. An unknown call's returned value is represented by ValueFlowEdge, not either of those edges.
 
 Mode/trust defaults are fixed by the threat model: COO/client, SCO/client and SNO/server are attacker-controlled; SCO/server is obfuscator-controlled. A declared-trusted premise is admissible only when an explicit, versioned HostContractRef supports it. A known runtime family/version or unshadowed global spelling is not such proof. Build artifacts are provenance, not a third runtime execution partition.
 
