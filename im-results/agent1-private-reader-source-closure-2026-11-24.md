@@ -68,3 +68,24 @@ The interfile fixture correction preserves the original exported-source contract
 Focused workflow [45471168641](https://github.com/FlareZ123/obfs/actions/runs/45471168641) passed `test/private-class-source-yield.test.js` on Ubuntu and Windows, including the positive COO/SNO class method and refusal controls for class, instance, and method escape, optional invocation, and source observation. Project, external, affine-oracle, and paired-budget JSDoc checks also passed. Comprehensive run [45468219501](https://github.com/FlareZ123/obfs/actions/runs/45468219501) predates the class-method proof and still contains the two private-class failures; a fresh comprehensive run is required to measure the updated count.
 
 This is a focused proof-coverage result, not a general source-observer theorem, nor a security/performance claim. The patch is not merged into `main`. The frozen source-observer candidate remains parked/NO-GO; this branch is a separate narrow mainline proof-coverage improvement.
+
+
+## Exported instance declaration source-observation escape (2026-11-24)
+
+Agent 4 independently found that the private class-method proof skipped the instance binding declaration before checking whether that declaration was itself exported. For:
+
+```js
+const owner={privateField:7};
+class Reader{read(){return owner.privateField;}}
+export const reader=new Reader();
+```
+
+the class is local and the instance has no ordinary identifier use beyond its declaration, but the exported declaration is a public module surface. An importing module can inspect `reader.read.toString()`. The original and emitted methods both returned 7, while the emitted source renamed `owner.privateField`. Agent 4 reproduced this in COO, SNO and SCO on Ubuntu and Windows in [45480222512](https://github.com/FlareZ123/obfs/actions/runs/45480222512).
+
+Added `test/private-class-exported-instance-source.test.js`. It executes a separate ESM importer and compares method source and behavior in each mode. The pre-fix source pin [0ddc879966fb18fcc75d7f29d80bbbb97bddd73f](https://github.com/FlareZ123/obfs/commit/0ddc879966fb18fcc75d7f29d80bbbb97bddd73f) failed all three mode cases on both Ubuntu and Windows in [45485757518](https://github.com/FlareZ123/obfs/actions/runs/45485757518), each with one property rewrite instead of zero.
+
+The fix at `src/properties.js` checks the instance declaration identifier's ancestor chain before skipping it in the instance-use scan. If that declaration is under an `Export*` node, the class method is not added to `privateFunctionNodes`. This mirrors the existing exported-class declaration guard and leaves the non-exported local-instance positive fixture intact.
+
+Post-fix source pin [4b49884c827c5486c4ee08bcbbb2d03b40dfbc29](https://github.com/FlareZ123/obfs/commit/4b49884c827c5486c4ee08bcbbb2d03b40dfbc29) passed [45485869983](https://github.com/FlareZ123/obfs/actions/runs/45485869983) on Ubuntu and Windows: **3/3 exported-instance tests passed per platform**, with project, external-corpus and paired-budget JSDoc checks all passing. The test asserts equal method source and return value for COO, SNO and SCO.
+
+The previous comprehensive run [45471798625](https://github.com/FlareZ123/obfs/actions/runs/45471798625) remains the latest full-suite receipt and had seven repository-level failures on each OS. The new focused run is not comprehensive acceptance. Keep PR #372 draft/unmerged; the seven known failures and all other source/privacy boundaries remain separate acceptance work. This fix closes the exported-declaration instance escape only and does not establish general source-observer safety or any mode-wide security guarantee.
