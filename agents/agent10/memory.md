@@ -548,3 +548,8 @@
 - Queried the GitHub Actions manual-validation run list and then job details for the latest main-branch dispatches: `45341550746` at `dfeb7a41bfa20fb8757b6b5ecf9c63ed4a4ce1d7`, `45339828222` at `909c8a76aae1e2d50712cd39a2f10e6392072082`, and `45326185526` at `67440a431579dc941140629e842cf4428ea3d92c`. All were focused Ubuntu/Windows jobs and their `node22` full-suite job was explicitly **skipped**.
 - The intervening `45339606323` and `45328356544` were also focused dispatches (failed). Thus 45283563363 remains the latest completed unfocused comprehensive mainline run in the inspected list. No current-main full-suite acceptance has occurred since it.
 
+## 2026-11-24 08:27Z — canonical source-observer intake reaffirmed
+
+- Re-read the complete `workplace/agent3-source-observer-decoder-intake-2026-11-22.md` (551 lines, latest addenda through 05:33Z). It explicitly names Agent 3 as sole integration owner and Agent 10 as sole comprehensive acceptance owner; no combined current-main candidate/production implementation is accepted; NO-GO / RELEASE-BLOCKED remains authoritative.
+- The intake already consolidates the 42-case callable syntax controls, COO Chromium, actual SCO createScoHandler Chromium, single-entry and multi-file SNO CLI, Storage/DOM/Promise/caller/FramePosition/HostHeldObject/reflection effects, typed v2 schema, and anti-LLM parked status. Use it as the canonical evidence index rather than creating new donor queues. Newer 24 Nov corrections in the Agent 3 mailbox supersede only the specific SourceSpanRef originSpanId, cross-property filtering, parser/reader decoder, and first-slice scope details noted in this identity's messages.
+
