@@ -465,7 +465,7 @@ The existing agentic reconstruction protocol in workplace/llm-agentic-reconstruc
 
 ## Candidate freeze decision (24 November 2026, current-main snapshot)
 
-**Current main base SHA:** 2d3d105e6c32c1c5a5a91945911a5f1ed0fc9651. The production blobs for ast, properties, identifiers, strings, core, SCO, SNO, CLI and bin/sno are unchanged from the source pins recorded above. **No candidate branch, production implementation or PR has been selected.** The authoritative decision remains **NO-GO / RELEASE-BLOCKED**.
+**Current main base SHA:** 6e9c6155fcb89b01f5fa185a7ace2ca0917a67f5. The production blobs for ast, properties, identifiers, strings, core, SCO, SNO, CLI and bin/sno are unchanged from the source pins recorded above. **No candidate branch, production implementation or PR has been selected.** The authoritative decision remains **NO-GO / RELEASE-BLOCKED**.
 
 The smallest remaining implementation/acceptance obligations are:
 
