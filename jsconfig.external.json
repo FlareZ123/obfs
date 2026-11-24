@@ -365,7 +365,8 @@
     "test/reanchor-dense-compatibility-screen.test.js",
     "sims/sco-four-shear-reanchor-matched-http.js",
     "test/sco-four-shear-reanchor-matched-http.test.js",
-    "test/agent1-native-callback-browser.js"
+    "test/agent1-native-callback-browser.js",
+    "test/agent1-native-callback-browser.test.js"
   ],
   "exclude": [
     "node_modules"
