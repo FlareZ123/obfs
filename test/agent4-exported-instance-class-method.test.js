@@ -9,8 +9,6 @@ const {spawnSync}=require('node:child_process');
 const {obfuscateFiles}=require('../src');
 const {atomicWrite}=require('../src/atomic');
 
-/** @typedef {import('../src/core').SourceFile} SourceFile */
-
 /**
  * Import a module from an isolated directory and inspect its exported
  * instance's method source from a separate consumer module.
@@ -45,28 +43,30 @@ test('exported const instance declaration must not classify its class method as 
   ].join('\n');
 
   const native=await inspectExportedInstance(source);
-  const transformed=obfuscateFiles([{
-    path:'reader.mjs',sourceType:'module',code:source
-  }],{
-    mode:'coo',seed:'agent4-exported-instance-class-method',
-    properties:true,identifiers:false,strings:false
-  });
-  const output=transformed.files.find(file=>file.path==='reader.mjs');
-  assert.ok(output);
-  const emitted=await inspectExportedInstance(String(output.code));
+  for(const mode of /** @type {const} */ (['coo','sno'])){
+    const transformed=obfuscateFiles([{
+      path:'reader.mjs',sourceType:'module',code:source
+    }],{
+      mode,seed:'agent4-exported-instance-class-method/'+mode,
+      properties:true,identifiers:false,strings:false
+    });
+    const output=transformed.files.find(file=>file.path==='reader.mjs');
+    assert.ok(output);
+    const emitted=await inspectExportedInstance(String(output.code));
 
-  console.log('AGENT4_EXPORTED_INSTANCE_SOURCE_WITNESS '+JSON.stringify({
-    properties:output.metrics.properties,
-    nativeMethodSource:native.methodSource,
-    emittedMethodSource:emitted.methodSource,
-    nativeValue:native.value,
-    emittedValue:emitted.value,
-    sourceEqual:native.methodSource===emitted.methodSource
-  }));
+    console.log('AGENT4_EXPORTED_INSTANCE_SOURCE_WITNESS '+JSON.stringify({
+      mode,properties:output.metrics.properties,
+      nativeMethodSource:native.methodSource,
+      emittedMethodSource:emitted.methodSource,
+      nativeValue:native.value,
+      emittedValue:emitted.value,
+      sourceEqual:native.methodSource===emitted.methodSource
+    }));
 
-  assert.equal(output.metrics.properties,0,
-    'an exported instance exposes its prototype method to external source observers');
-  assert.equal(emitted.methodSource,native.methodSource,
-    'reader.read.toString() from an importing module must retain native source');
-  assert.equal(emitted.value,native.value);
+    assert.equal(output.metrics.properties,0,
+      mode+': an exported instance exposes its prototype method to external source observers');
+    assert.equal(emitted.methodSource,native.methodSource,
+      mode+': reader.read.toString() from an importing module must retain native source');
+    assert.equal(emitted.value,native.value);
+  }
 });
