@@ -6,6 +6,7 @@ const {execFile}=require('node:child_process');
 const {promisify}=require('node:util');
 const {obfuscateFiles}=require('../src/core');
 const {pairedBudgetBound}=require('../sims/paired-budget-bound');
+const puppeteer=require('puppeteer-core');
 
 const run=promisify(execFile);
 
@@ -156,6 +157,7 @@ async function main() {
     server.once('error',reject);
     server.listen(0,'127.0.0.1',()=>resolve(undefined));
   });
+  let browser=null;
   try {
     const address=server.address();
     if(!address||typeof address==='string')throw new Error('Missing browser test port');
@@ -179,13 +181,16 @@ async function main() {
       sourceText:'function observed() { return 29; }',
       labelText:'safe-literal'
     });
-    const {stdout:benchmarkOutput}=await run(executable,[
-      '--headless','--no-sandbox','--disable-gpu','--disable-dev-shm-usage',
-      '--no-first-run','--dump-dom',
-      origin+'/benchmark/index.html'
-    ],{encoding:'utf8',timeout:60000,maxBuffer:8*1024*1024});
-    const encodedBudget=benchmarkOutput.match(/<pre id="budget">([A-Za-z0-9+/=]+)<\/pre>/u)?.[1];
-    assert.ok(encodedBudget,'Chromium budget benchmark failed: '+benchmarkOutput.slice(0,2000));
+    browser=await puppeteer.launch({
+      executablePath:executable,headless:true,
+      args:['--no-sandbox','--disable-gpu','--disable-dev-shm-usage','--no-first-run']
+    });
+    const browserPage=await browser.newPage();
+    browserPage.setDefaultTimeout(60000);
+    await browserPage.goto(origin+'/benchmark/index.html',{waitUntil:'load',timeout:60000});
+    await browserPage.waitForSelector('#budget');
+    const encodedBudget=await browserPage.$eval('#budget',element=>element.textContent??'');
+    assert.ok(encodedBudget,'Chromium budget benchmark did not publish a report');
     const chromiumBudget=JSON.parse(Buffer.from(encodedBudget,'base64').toString('utf8'));
     assert.equal(chromiumBudget.length,2);
     const chromiumBudgetBounds=chromiumBudget.map(workload=>{
@@ -221,6 +226,7 @@ async function main() {
     process.stdout.write('SOURCE_OBSERVER_PLAN_CHROMIUM '+JSON.stringify(report)+'\n');
     return report;
   } finally {
+    if(browser)await browser.close();
     await new Promise((resolve,reject)=>server.close(error=>error?reject(error):resolve(undefined)));
   }
 }
