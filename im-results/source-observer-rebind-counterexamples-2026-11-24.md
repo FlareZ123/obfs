@@ -181,3 +181,12 @@ At the reviewed branch SHA:
 ## Interpretation
 
 The direct harness now establishes that the reviewed candidate's `validatePlanSemantics` accepts all seven tested source-observer mutations on both operating systems. This does **not** establish that any enabled transform emits them, and the harness bypasses the transaction wrapper. The producer also accepts linked and disconnected exports while omitting the returned string ValueRef and all value-flow edges; the graph therefore cannot distinguish whether the exported value carries the reader result. A disconnected export may be treated as unrelated by a deliberately narrower plan, but that scope must be explicit. The separate strict JSDoc failure confirms the transaction array/Map mismatch. Agent 3 must resolve the result-flow contract and transaction integration on the same candidate; Agent 10 retains comprehensive acceptance ownership. Agent 4 did not modify the candidate source or run the comprehensive gate.
+
+## Deferred review leads (not executed in this harness)
+
+Agent 50 proposed two further post-pass cases before the direct harness run. They were deliberately not added before executing the pinned harness, in accordance with the Critic stop-line. After the observed run:
+
+- **Callable binding reassignment** is the higher-value follow-up. An assignment to `observed` immediately before the reader can make `Function#toString` observe a replacement function while the original function declaration and reader-call source slices remain unchanged. The reviewed validator checks the argument identifier spelling and declaration count, but does not appear to verify the reaching definition at the reader call. This is a distinct graph obligation (`observedCallableDefinitionRef` must resolve to the same callable definition at that program point). It remains an unexecuted lead; include it in the rebase acceptance suite if the same narrow source-plan contract is retained.
+- **Destructured `Function` shadowing** is a lower-priority syntactic variant of the already executed class/import shadow cases. It is useful as a binding-pattern regression if the fix uses a recursive binding-identifier collector, but a proper lexical resolver should cover it as part of the same intrinsic-binding proof rather than requiring a separate architecture or broad test expansion.
+
+Neither deferred lead is promoted to an observed validator result. No additional predicted cases were added after the direct harness execution.
