@@ -67,11 +67,14 @@ function readonlyMap(entries) {
   const backing=new Map(entries);
   const view={
     get size(){return backing.size;},
+    /** @param {K} key */
     get(key){return backing.get(key);},
+    /** @param {K} key */
     has(key){return backing.has(key);},
     entries(){return backing.entries();},
     keys(){return backing.keys();},
     values(){return backing.values();},
+    /** @param {(value:V,key:K,map:ReadonlyMap<K,V>)=>void} callback @param {any} [thisArg] */
     forEach(callback,thisArg){backing.forEach((value,key)=>callback.call(thisArg,value,key,view));},
     [Symbol.iterator](){return backing[Symbol.iterator]();}
   };
@@ -88,10 +91,12 @@ function readonlySet(values) {
   const backing=new Set(values);
   const view={
     get size(){return backing.size;},
+    /** @param {T} value */
     has(value){return backing.has(value);},
     entries(){return backing.entries();},
     keys(){return backing.keys();},
     values(){return backing.values();},
+    /** @param {(value:T,value2:T,set:ReadonlySet<T>)=>void} callback @param {any} [thisArg] */
     forEach(callback,thisArg){backing.forEach(value=>callback.call(thisArg,value,value,view));},
     [Symbol.iterator](){return backing[Symbol.iterator]();}
   };
@@ -600,10 +605,7 @@ function getInitialPlanRanges(plan,sourceUnitRef) {
   const protectedIds=new Set();
   for(const closure of plan.effectClosures.values())for(const spanId of closure)protectedIds.add(spanId);
   const protectedSourceRanges=trackedSourceRanges.filter(range=>protectedIds.has(range.originSpanId));
-  return {
-    protectedSourceRanges:Object.freeze(protectedSourceRanges),
-    trackedSourceRanges:Object.freeze(trackedSourceRanges)
-  };
+  return {protectedSourceRanges,trackedSourceRanges};
 }
 
 /**
@@ -615,7 +617,7 @@ function protectedRangesFromTracked(plan,trackedSourceRanges) {
   if(!isValidatedSourceObservationPlan(plan))throw new TypeError('Unvalidated SourceObservationPlan');
   const protectedIds=new Set();
   for(const closure of plan.effectClosures.values())for(const spanId of closure)protectedIds.add(spanId);
-  return Object.freeze(trackedSourceRanges.filter(range=>protectedIds.has(range.originSpanId)));
+  return trackedSourceRanges.filter(range=>protectedIds.has(range.originSpanId));
 }
 
 /**
@@ -658,7 +660,7 @@ function validatePlanConsumerInput(plan,source,sourceUnitRef,parserContractId,pr
  * A null result means the pass changed or ambiguously mapped a tracked span.
  *
  * @param {SourceObservationPlan} plan
- * @param {Object} editMap
+ * @param {import('./source-edit-map').SourceEditMap} editMap
  * @param {string} sourceBefore
  * @param {string} sourceAfter
  * @param {MappedSourceRange[]} trackedSourceRanges
@@ -672,7 +674,7 @@ function advancePlanRanges(plan,editMap,sourceBefore,sourceAfter,trackedSourceRa
     if(!mapped)return null;
     next.push(mapped);
   }
-  return Object.freeze(next);
+  return next;
 }
 
 /**
@@ -689,16 +691,22 @@ function advancePlanRanges(plan,editMap,sourceBefore,sourceAfter,trackedSourceRa
 function validatePlanSemantics(plan,source,ast,trackedSourceRanges) {
   if(!isValidatedSourceObservationPlan(plan))return false;
   const meta=planMetadata.get(plan);
-  if(!meta||sourceGenerationOf(source,meta.parserContractId)!==
-      trackedSourceRanges[0]?.sourceGeneration&&
-      sourceGenerationOf(source,meta.parserContractId)!==
-      trackedSourceRanges[1]?.sourceGeneration)return false;
+  if(!meta)return false;
+  const generation=sourceGenerationOf(source,meta.parserContractId);
+  if(trackedSourceRanges.length!==plan.sourceSpans.size||
+     trackedSourceRanges.some(range=>range.sourceGeneration!==generation))return false;
+  try {
+    validatePlanConsumerInput(plan,source,meta.sourceUnitRef,meta.parserContractId,
+      protectedRangesFromTracked(plan,trackedSourceRanges));
+  } catch {
+    return false;
+  }
   const byId=new Map(trackedSourceRanges.map(range=>[range.originSpanId,range]));
   if(byId.size!==plan.sourceSpans.size)return false;
   for(const [spanId,span] of plan.sourceSpans) {
     const range=byId.get(spanId);
     if(!range||range.sourceUnitRef!==meta.sourceUnitRef||
-       range.sourceGeneration!==sourceGenerationOf(source,meta.parserContractId)||
+       range.sourceGeneration!==generation||
        source.slice(range.startOffset,range.endOffset)!==
          meta.source.slice(span.startOffset,span.endOffset))return false;
     let matched=false;
@@ -711,14 +719,18 @@ function validatePlanSemantics(plan,source,ast,trackedSourceRanges) {
   const callableRange=byId.get(meta.callableSpanId);
   const readerRange=byId.get(meta.readerSpanId);
   let callableMatches=0,readerMatches=0;
+  /** @type {AstNode|null} */
+  let currentReader=null;
   walk(ast,node=>{
     if(node.type==='FunctionDeclaration'&&node.start===callableRange?.startOffset&&
        node.end===callableRange?.endOffset&&node.id?.name===meta.callableName)callableMatches++;
     if(node.type==='CallExpression'&&node.start===readerRange?.startOffset&&
        node.end===readerRange?.endOffset&&isDirectFunctionSourceCall(node)&&
-       node.arguments[0]?.name===meta.callableName)readerMatches++;
+       node.arguments[0]?.name===meta.callableName) {readerMatches++;currentReader=node;}
   });
-  return callableMatches===1&&readerMatches===1;
+  if(callableMatches!==1||readerMatches!==1||!currentReader)return false;
+  return inspectDeclarations(ast,currentReader).counts.get(meta.callableName)===1&&
+    !inspectDeclarations(ast,currentReader).counts.has('Function');
 }
 
 module.exports={
