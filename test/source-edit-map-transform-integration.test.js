@@ -13,9 +13,10 @@ const UNIT='unit:sno:entry-module:instance-1';
 const PARSER=parserContractIdFor('module');
 
 /** @param {string} sourceUnitRef @param {number} start @param {number} end @param {string} generation */
-function sourceSpan(sourceUnitRef,start,end,generation) {
+function sourceSpan(sourceUnitRef,start,end,generation,originSpanId) {
+  const spanId=sourceUnitRef+':'+generation+':'+start+':'+end;
   return {
-    spanId:sourceUnitRef+':'+generation+':'+start+':'+end,
+    spanId,originSpanId:originSpanId??spanId,
     sourceUnitRef,sourceGeneration:generation,
     startOffset:start,endOffset:end,
     coordinateUnit:'utf16-code-unit',
@@ -76,6 +77,7 @@ test('SNO host-held callback source survives mapped identifier edits and string 
 
   const relocated=mapSourceSpan(renamed.editMap,originalSpan,source,renamed.code);
   assert.ok(relocated,'callback span must survive unrelated identifier edits');
+  assert.equal(relocated.originSpanId,originalSpan.originSpanId);
   const renamedAst=parse(renamed.code,'module');
   const renamedCallback=findCallback(renamedAst);
   assert.equal(renamedCallback.start,relocated.startOffset);
@@ -84,7 +86,7 @@ test('SNO host-held callback source survives mapped identifier edits and string 
 
   // Reparse and rebuild a current-generation SourceSpanRef before the next pass.
   const currentSpan=sourceSpan(UNIT,renamedCallback.start,renamedCallback.end,
-    sourceGenerationOf(renamed.code,PARSER));
+    sourceGenerationOf(renamed.code,PARSER),relocated.originSpanId);
   const encoded=encodeStrings(renamed.code,renamedAst,{
     seed:'source-map-integration-strings',
     sourceUnitRef:UNIT,
@@ -98,6 +100,7 @@ test('SNO host-held callback source survives mapped identifier edits and string 
 
   const finalRange=mapSourceSpan(encoded.editMap,currentSpan,renamed.code,encoded.code);
   assert.ok(finalRange,'callback span must survive decoder prologue and unrelated literal edit');
+  assert.equal(finalRange.originSpanId,originalSpan.originSpanId);
   assert.equal(encoded.code.slice(finalRange.startOffset,finalRange.endOffset),originalCallbackSource);
 
   // The SNO host controls queueMicrotask and reads Function#toString at handoff.
@@ -176,6 +179,7 @@ test('local property pass maps unrelated object edits and declines edits inside 
   assert.ok(renamed.code.includes('privateInsideCallback'));
   const range=mapSourceSpan(renamed.editMap,span,source,renamed.code);
   assert.ok(range);
+  assert.equal(range.originSpanId,span.originSpanId);
   assert.equal(renamed.code.slice(range.startOffset,range.endOffset),originalCallbackSource);
 });
 
