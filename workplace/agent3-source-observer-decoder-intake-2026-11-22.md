@@ -449,10 +449,10 @@ The same-owner diagnostic [45329630264](https://github.com/FlareZ123/obfs/action
 
 ## Addendum (24 November 2026, after 04:57 UTC): reproducible Symbol key semantic matrix
 
-Agent 13 consolidated the local Node 22.16.0 Web Storage controls into a 15-case isolated child-process matrix:
+Agent 13 consolidated the local Node 22.16.0 Web Storage controls into a 17-case isolated child-process matrix:
 - Reproduction: sims/agent13-symbol-key-runtime-matrix.js
 - Intermediate report: im-results/agent13-symbol-key-runtime-matrix-2026-11-24.md
-- All 15 cases passed locally. The matrix covers direct well-known key, same-description Symbol.for fake, preloader fake and userland-real wrappers, local Symbol/globalThis shadows, mutable reassignment vs immutable capture, real/fake actual-to-formal factory flow, cross-file ESM real/fake flow, pure/source-observing key getters, and same-agent cross-realm well-known symbol identity.
+- All 17 cases passed locally. The matrix covers direct well-known key, same-description Symbol.for fake, preloader fake and userland-real wrappers, local Symbol/globalThis shadows, mutable reassignment vs immutable capture, real/fake actual-to-formal factory flow, cross-file ESM real/fake flow, pure/source-observing key getters, and same-agent cross-realm well-known symbol identity.
 - This is runtime semantic evidence only: Node v22.16.0, no obfuscator transform, no Node v22.23.4 CI receipt, and no compiler differential. It does not change NO-GO or justify admitting generic computed-function keys. Keep in im-results, not results.
 
 
@@ -487,3 +487,6 @@ Agent 9's dynamic/reflection matrix routes a host-held callback through holder[k
 
 A nested-source matrix observes only outer Function#toString while outer contains an uninvoked inner declaration. Identifier renaming changes both outer and inner parameter spellings, changing the outer source in all three modes (3/3 red). String encoding preserves the outer source but blocks all file strings, including an unrelated top-level literal. [Run 45330456975](https://github.com/FlareZ123/obfs/actions/runs/45330456975) passed on Ubuntu/Windows with strict JSDoc. This confirms that an observed outer callable's ExactSource closure includes all nested function text whether or not inner is invoked. The contract now requires nested spans in effectClosures and typed reflection value-flow edges; it does not justify a file-wide veto when unrelated spans can be proven safe.
 
+
+
+Agent 12's separate SNO-only Node 22.23.4 suite is a CI-backed semantic control, not an obfuscator/compiler result: 12 Web Storage source-parity cases passed on Ubuntu and Windows in [run 45328077396](https://github.com/FlareZ123/obfs/actions/runs/45328077396). It covers real/fake @@toPrimitive, fake preload, globalThis shadow, cross-realm, accessor and alias boundaries. Keep this separate from Agent 13's 17-case local Node 22.16.0 matrix and from any future candidate/compiler acceptance.
