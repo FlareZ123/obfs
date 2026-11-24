@@ -3,13 +3,13 @@
 const {createHash} = require('node:crypto');
 const {applyEdits,parserContractIdFor} = require('./ast');
 
-/** @typedef {'before-node'|'within-node'|'unknown'} InsertionAffinity */
+/** @typedef {'before-node'|'after-node'|'within-node'|'unknown'} InsertionAffinity */
 /**
  * @typedef {Object} SourceEdit
  * @property {number} start Original UTF-16 start offset.
  * @property {number} end Original UTF-16 end offset.
  * @property {string} text Replacement or inserted source text.
- * @property {InsertionAffinity} [affinity] Required to preserve a span when inserting exactly at its start.
+ * @property {InsertionAffinity} [affinity] Use before-node at a span start and after-node at its end.
  * @property {string} [syntheticOriginId] Stable provenance for generated source.
  */
 /**
@@ -103,7 +103,7 @@ function applyEditsWithMap(source,edits,sourceUnitRef,parserContractId) {
     }
     if(typeof edit.text!=='string')throw new TypeError('edit.text must be a string');
     if(edit.affinity!==undefined&&
-       !['before-node','within-node','unknown'].includes(edit.affinity)) {
+       !['before-node','after-node','within-node','unknown'].includes(edit.affinity)) {
       throw new TypeError('Invalid insertion affinity');
     }
     if(edit.syntheticOriginId!==undefined&&
@@ -245,6 +245,7 @@ function mapSourceSpan(map,span,sourceBefore,sourceAfter) {
     } else if(segment.kind==='inserted') {
       if(span.startOffset<segment.fromStart&&segment.fromStart<span.endOffset)return null;
       if(segment.fromStart===span.startOffset&&segment.affinity!=='before-node')return null;
+      if(segment.fromStart===span.endOffset&&segment.affinity!=='after-node')return null;
     }
   }
 
