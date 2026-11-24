@@ -7,7 +7,7 @@ const {pairedBudgetBound}=require('../sims/paired-budget-bound');
 const {familywiseBudgetBounds}=require('../sims/familywise-budget-bound');
 
 test('current COO source-observer startup reports median and strict budget evidence',async()=>{
-  /** @type {{platform:string,cpuBatchSize:number,threadCpuAvailable:boolean,workloads:Array<{workload:string,baselineSamplesMs:number[],obfuscatedSamplesMs:number[],baselineCpuSamplesMs:number[],obfuscatedCpuSamplesMs:number[],placeboLeftSamplesMs:number[],placeboRightSamplesMs:number[],placeboLeftCpuSamplesMs:number[],placeboRightCpuSamplesMs:number[],baselineThreadCpuSamplesMs:Array<number|null>,obfuscatedThreadCpuSamplesMs:Array<number|null>,placeboLeftThreadCpuSamplesMs:Array<number|null>,placeboRightThreadCpuSamplesMs:Array<number|null>,strictBreachCount:number,strictBreachSamples:Array<{sample:number,ratio:number}>}>}} */
+  /** @type {{platform:string,workloads:Array<{cpuBatchSize:number,threadCpuAvailable:boolean,workload:string,baselineSamplesMs:number[],obfuscatedSamplesMs:number[],baselineCpuSamplesMs:number[],obfuscatedCpuSamplesMs:number[],placeboLeftSamplesMs:number[],placeboRightSamplesMs:number[],placeboLeftCpuSamplesMs:number[],placeboRightCpuSamplesMs:number[],baselineThreadCpuSamplesMs:Array<number|null>,obfuscatedThreadCpuSamplesMs:Array<number|null>,placeboLeftThreadCpuSamplesMs:Array<number|null>,placeboRightThreadCpuSamplesMs:Array<number|null>,strictBreachCount:number,strictBreachSamples:Array<{sample:number,ratio:number}>}>}} */
   const report=/** @type {unknown} */ (await main());
   assert.equal(report.workloads.length,2);
   const workloads=report.workloads.map(workload=>({
@@ -27,16 +27,16 @@ test('current COO source-observer startup reports median and strict budget evide
     candidateMax:Math.max(...workload.obfuscatedCpuSamplesMs)
   }));
   process.stdout.write('SOURCE_OBSERVER_CPU_RAW_DIAGNOSTICS '+JSON.stringify({
-    platform:report.platform,cpuBatchSize:report.cpuBatchSize,threadCpuAvailable:report.threadCpuAvailable,workloads:cpuDiagnostics
+    platform:report.platform,cpuBatchSize:report.workloads[0].cpuBatchSize,threadCpuAvailable:report.workloads[0].threadCpuAvailable,workloads:cpuDiagnostics
   })+'\n');
   const cpuValid=report.workloads.every(workload=>
     [...workload.baselineCpuSamplesMs,...workload.obfuscatedCpuSamplesMs].every(value=>Number.isFinite(value)&&value>0));
   const cpuPlaceboValid=report.workloads.every(workload=>
     [...workload.placeboLeftCpuSamplesMs,...workload.placeboRightCpuSamplesMs].every(value=>Number.isFinite(value)&&value>0));
-  const threadCpuValid=report.threadCpuAvailable&&report.workloads.every(workload=>
+  const threadCpuValid=report.workloads.every(workload=>
     [...workload.baselineThreadCpuSamplesMs,...workload.obfuscatedThreadCpuSamplesMs]
       .every(value=>typeof value==='number'&&Number.isFinite(value)&&value>0));
-  const threadCpuPlaceboValid=report.threadCpuAvailable&&report.workloads.every(workload=>
+  const threadCpuPlaceboValid=report.workloads.every(workload=>
     [...workload.placeboLeftThreadCpuSamplesMs,...workload.placeboRightThreadCpuSamplesMs]
       .every(value=>typeof value==='number'&&Number.isFinite(value)&&value>0));
   const threadCpuFamilywise=threadCpuValid?familywiseBudgetBounds(report.workloads.map(workload=>({
