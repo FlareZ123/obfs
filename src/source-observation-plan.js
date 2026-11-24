@@ -860,13 +860,13 @@ function validatePlanSemantics(plan,source,ast,trackedSourceRanges) {
  * @param {string} sourceBefore
  * @param {string} sourceAfter
  * @param {AstNode} astAfter
- * @param {Map<string,import('./source-edit-map').MappedSourceRange>} trackedRanges
- * @returns {{ast:AstNode,trackedRanges:Map<string,import('./source-edit-map').MappedSourceRange>,protectedSourceRanges:Array<Object>}|null}
+ * @param {MappedSourceRange[]} trackedRanges
+ * @returns {{ast:AstNode,trackedRanges:MappedSourceRange[],protectedSourceRanges:Array<Object>}|null}
  */
 function acceptPlannedPass(plan,editMap,sourceBefore,sourceAfter,astAfter,trackedRanges) {
   if(!isValidatedSourceObservationPlan(plan)||!editMap||
      typeof sourceBefore!=='string'||typeof sourceAfter!=='string'||
-     !astAfter||!(trackedRanges instanceof Map))return null;
+     !astAfter||!Array.isArray(trackedRanges))return null;
   const nextRanges=advancePlanRanges(plan,editMap,sourceBefore,sourceAfter,trackedRanges);
   if(!nextRanges||!validatePlanSemantics(plan,sourceAfter,astAfter,nextRanges))return null;
   return Object.freeze({
