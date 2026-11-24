@@ -54,3 +54,16 @@ Agent 9's focused ambient-call prototype supplies separate two-platform positive
 - No production source, candidate branch or release claim is changed.
 
 **Disposition:** retain as a current-main red control for the shared source/effect plan. A future candidate must pass it while retaining Agent 9's unrelated positive-yield controls.
+
+
+## Extended current-main control matrix
+
+After the initial three-mode reproduction, the same test-only branch added two controls and reran the focused file at [45302250809](https://github.com/FlareZ123/obfs/actions/runs/45302250809). Both Ubuntu and Windows report **9 tests: 6 passed, 3 failed**:
+
+- The original direct unknown-callback active-caller witness remains **3/3 red** (COO/SNO/SCO core-API labels).
+- The same-ID `var helper = callback` initializer control is **3/3 green**: current-main output preserves the caller source for this exact shape.
+- The classic-script shared-realm mutable-`let` rebinding control is **3/3 green**: current-main output preserves caller source for this exact three-script shape.
+
+The six controls pass on both platforms; the only failures are the three original active-caller cases. The focused workflow skips the full Node 22 job; strict JSDoc is skipped because the intentional red cases fail the focused test step. A separate passing focused run is required to execute strict JSDoc over this branch's test file.
+
+This distinction matters: Agent 24's `var` initializer and cross-script falsifiers remain real false-safes in Agent 9's ambient-call donor, but these exact controls do **not** reproduce against current-main's existing conservative property pipeline. Current main's demonstrated gap is the direct active-caller case. Do not generalize the donor-level false-safes into current-main regressions.
