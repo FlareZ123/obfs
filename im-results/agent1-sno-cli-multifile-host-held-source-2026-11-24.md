@@ -15,7 +15,7 @@ The unrelated safe helper is also transformed. This is a confirmed cross-file Ho
 
 - Test: test/agent1-sno-multifile-host-held-cli.test.js
 - Manual-only workflow: .github/workflows/manual-sno-multifile-host-held.yml
-- Final pinned run: [45333011035](https://github.com/FlareZ123/obfs/actions/runs/45333011035)
+- Final-branch pinned run: [45333521542](https://github.com/FlareZ123/obfs/actions/runs/45333521542)
 - Final-branch test commit: 1b6c33ef942d2397f274f05e3bc066d64109495e
 - Result: both Ubuntu and Windows passed the actual CLI witness, strict project JSDoc, and strict external research JSDoc under Node 22.
 - The workflow is workflow_dispatch only; no push/PR trigger was added.
