@@ -133,6 +133,36 @@ function runProxyCase(label, trapName, hidden, expectThrow) {
   };
 }
 
+/**
+ * @param {string} label
+ * @param {'apply'|'construct'} trapName
+ * @param {(value:Function)=>unknown} hidden
+ * @param {Function} target
+ * @param {boolean} returnsObject
+ * @returns {{label:string, functionName:string, framePosition:boolean,
+ *   exactSource:boolean, threw:boolean}}
+ */
+function runProxyCallableCase(label, trapName, hidden, target, returnsObject) {
+  const { observation, external } = makeStackCapture();
+  const trap = returnsObject
+    ? Function('external', 'return function construct(){external();return {}; }')(external)
+    : Function('external', 'return function apply(){external();return 1; }')(external);
+  const proxy = new Proxy(target, { [trapName]: trap });
+  hidden(proxy);
+  const frame = observation.frames.find(item => item.name === hidden.name);
+  assert.ok(frame, label + ': active frame');
+  assert.ok(frame.file && frame.line && frame.column, label + ': frame position');
+  assert.equal(frame.hasFunction, true, label + ': CallSite function');
+  assert.ok(frame.source && frame.source.includes(hidden.name), label + ': exact source');
+  return {
+    label,
+    functionName: frame.name,
+    framePosition: true,
+    exactSource: true,
+    threw: false
+  };
+}
+
 function hiddenPlus(value) { return value + 1; }
 function hiddenRel(value) { return value < 2; }
 function hiddenKey(value) { const obj = { x: 1 }; return obj[value]; }
@@ -153,6 +183,8 @@ function hiddenDefine(value) {
 function hiddenSetProto(value) { Object.setPrototypeOf(value, {}); }
 function hiddenPrevent(value) { Object.preventExtensions(value); }
 function hiddenIsExtensible(value) { return Object.isExtensible(value); }
+function hiddenApply(value) { return value(1); }
+function hiddenConstruct(value) { return new value(); }
 
 /** @returns {Promise<void>} */
 async function main() {
@@ -197,7 +229,9 @@ async function main() {
     runProxyCase('Object.defineProperty', 'defineProperty', hiddenDefine, false),
     runProxyCase('Object.setPrototypeOf', 'setPrototypeOf', hiddenSetProto, false),
     runProxyCase('Object.preventExtensions', 'preventExtensions', hiddenPrevent, true),
-    runProxyCase('Object.isExtensible', 'isExtensible', hiddenIsExtensible, false)
+    runProxyCase('Object.isExtensible', 'isExtensible', hiddenIsExtensible, false),
+    runProxyCallableCase('Proxy [[Call]] / apply trap', 'apply', hiddenApply, function target() {}, false),
+    runProxyCallableCase('Proxy [[Construct]] / construct trap', 'construct', hiddenConstruct, function Target() {}, true)
   ];
 
   const result = {

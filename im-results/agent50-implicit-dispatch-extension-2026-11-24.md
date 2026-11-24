@@ -24,11 +24,11 @@ The script has no third-party dependencies. It emits one JSON line prefixed with
 
 ## Results
 
-**Node 22.16.0 local run: 16/16 controls passed.**
+**Node 22.16.0 local run: 18/18 controls passed.**
 
 - **9 ToPrimitive / ToPropertyKey controls:** value + 1 / @@toPrimitive default hint; value < 2 / @@toPrimitive number hint; computed member key / ToPropertyKey string hint; computed ObjectPattern key; computed ObjectExpression key; left operand of in; computed delete key; numeric valueOf fallback; string toString fallback. Each analyzed function has no CallExpression for the conversion and the hook's external callback captured exact function source. The four added key contexts prove the same ToPropertyKey hook runs in object destructuring, object-literal construction, in, and delete syntax.
 - **3 thenable controls:** await in sloppy async function, await in explicit strict async function, and async return. The thenable's then getter runs while the async frame is present. Sloppy cases expose a CallSite function object and exact source; strict case exposes function name and file/line/column but no function object.
-- **4 Proxy controls:** Object.defineProperty / [[DefineOwnProperty]], Object.setPrototypeOf / [[SetPrototypeOf]], Object.preventExtensions / [[PreventExtensions]], Object.isExtensible / [[IsExtensible]]. Each trap's callback observed the active function's frame position. The preventExtensions trap runs before the engine throws an invariant TypeError.
+- **6 Proxy controls:** Object.defineProperty / [[DefineOwnProperty]], Object.setPrototypeOf / [[SetPrototypeOf]], Object.preventExtensions / [[PreventExtensions]], Object.isExtensible / [[IsExtensible]], Proxy [[Call]] / apply, and Proxy [[Construct]] / construct. The four Object intrinsic traps expose FramePosition; apply/construct additionally expose the active function object and exact source through V8 CallSite.getFunction. The preventExtensions trap runs before the engine throws an invariant TypeError.
 
 ## Interpretation
 
@@ -42,4 +42,4 @@ Recommended contract coverage:
 
 ## Limitations
 
-These are Node/V8 22.16.0 runtime witnesses, not compiler regressions or cross-browser claims. Sloppy caller-chain controls establish exact source capture only in the tested sloppy contexts. Stack-based strict-mode controls establish FramePosition, not exact source. The four Proxy tests cover only four of the 13 traps; the other trap families need their own controls or a clearly justified conservative catch-all. A Chromium 144 headless attempt timed out before returning DOM for both a data URL and the local test page, so no browser-runtime result is claimed. No production source, integration PR, workflow, release status, or 2.5x performance claim changed.
+These are Node/V8 22.16.0 runtime witnesses, not compiler regressions or cross-browser claims. Sloppy caller-chain controls establish exact source capture only in the tested sloppy contexts. Stack-based strict-mode controls establish FramePosition, not exact source. The six Proxy tests cover six of the 13 traps, including [[Call]] and [[Construct]]; the other seven trap families need their own controls or a clearly justified conservative catch-all. A Chromium 144 headless attempt timed out before returning DOM for both a data URL and the local test page, so no browser-runtime result is claimed. No production source, integration PR, workflow, release status, or 2.5x performance claim changed.

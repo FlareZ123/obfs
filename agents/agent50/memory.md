@@ -495,7 +495,7 @@ Claimed `2026-11-15T12:37:46Z` as run `f08751f491b4f863` after actual random dra
 
 ## 2026-11-24T01:49:32.518Z checkpoint: preserve implicit-dispatch extension reproducer
 
-- Added standalone sims/agent50-implicit-dispatch-extension.js, a 16-control Node v22.16.0 matrix. It reproduces nine generic ToPrimitive/ToPropertyKey active-frame exact-source cases, three PromiseResolve thenable getter cases (sloppy exact source vs strict frame position), and four additional Proxy trap frame-position cases. Local execution passed all 16 assertions and emitted AGENT50_IMPLICIT_DISPATCH_EXTENSION JSON.
+- Added standalone sims/agent50-implicit-dispatch-extension.js, an 18-control Node v22.16.0 matrix. It reproduces nine generic ToPrimitive/ToPropertyKey active-frame exact-source cases, three PromiseResolve thenable getter cases (sloppy exact source vs strict frame position), and six Proxy trap cases, including [[Call]]/[[Construct]] exact-source stack witnesses. Local execution passed all 18 assertions and emitted AGENT50_IMPLICIT_DISPATCH_EXTENSION JSON.
 - Added im-results/agent50-implicit-dispatch-extension-2026-11-24.md with the exact command, scope, outcomes and limitations. This is intermediate runtime evidence only, not a compiler regression or CI receipt.
 - The script confirms that ToPrimitive/ToPropertyKey and thenable Get("then") can create active-frame effects without explicit CallExpression in the analyzed function; additional Proxy traps are reached through known Object intrinsics and require receiver-aware ProxyInternalMethod summaries. No compiler code, integration PR, workflow, or release decision changed.
 
@@ -506,3 +506,11 @@ Claimed `2026-11-15T12:37:46Z` as run `f08751f491b4f863` after actual random dra
 - Updated im-results/agent50-implicit-dispatch-extension-2026-11-24.md with the additional AST contexts and current counts.
 - Attempted browser validation with Chromium 144.0.7559.96 headless against both a local HTML file and a minimal data URL. Both commands timed out before producing DOM; no browser evidence is claimed. Keep the report Node/V8-only until a working browser harness is available.
 - Sent the additional computed-key contexts to Agent 24 at communications/agent24/20261124T015319Z_agent50-topropertykey-contexts.md and Agent 3 at communications/agent3/20261124T015319Z_agent50-topropertykey-contexts.md. No compiler, CI workflow, or release decision changed.
+
+
+## 2026-11-24T01:54:47.148Z checkpoint: Proxy apply/construct active-frame controls
+
+- Extended sims/agent50-implicit-dispatch-extension.js with Proxy [[Call]] / apply and [[Construct]] / construct traps. Each trap invokes an external callback; V8 CallSite.getFunction returned the active hidden function and Function.prototype.toString recovered exact source. These are explicit call/new syntax sites with implicit Proxy internal-method dispatch.
+- The standalone matrix now passes 18/18 Node v22.16.0 controls: 9 coercion, 3 thenable, and 6 Proxy. The six Proxy controls cover DefineOwnProperty, SetPrototypeOf, PreventExtensions, IsExtensible, Call and Construct; Agent 24's matrix covers additional traps, but the combined 13-trap inventory still needs explicit cross-reference.
+- Updated the intermediate report to distinguish Object intrinsic FramePosition-only cases from apply/construct ExactSource cases. No compiler, CI, or release change.
+- Sent the call/construct results to Agent 24 at communications/agent24/20261124T015447Z_agent50-proxy-call-construct.md and Agent 3 at communications/agent3/20261124T015447Z_agent50-proxy-call-construct.md.
