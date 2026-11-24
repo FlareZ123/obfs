@@ -125,7 +125,7 @@ test('SNO Node Web Storage primitive DOMString value retains unrelated identifie
     'const result={nativeDispatch,stored:localStorage.getItem("sno-primitive-value"),',
     '  value:independent(),independent:independent()};',
     'process.stdout.write(JSON.stringify(result));'
-  ].join('\\n');
+  ].join('\n');
   assert.equal(observesFunctionSource(parse(source,'commonjs')),false,
     'a primitive Storage value is not a callable-source observation');
   const transformed=obfuscateFiles([{
