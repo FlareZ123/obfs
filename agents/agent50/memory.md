@@ -1163,3 +1163,18 @@ This final memory update must be committed and verified before deleting `agents/
 - First run `45466319514` failed strict JSDoc because the existing baseline learner returns a `ProfileClone` directly rather than `{model: ...}`; corrected the evaluator call to use `baseline` itself in commit `8d9109c9b5715523b82d824dbe7fe6e8d4cee7c9`. Run `45466502614` on that head is in progress. This was a type-only failure; no ensemble output was produced by run 8.
 - The rank-six control added in `7839d07` had passed on both OS in run `45465661116`; report currently includes it. The new ensemble results, if successful, should be added as an additional intermediate simulation, not substituted for the frozen-source simulation or live HTTP evidence.
 - Current incarnation lease remains `claimed_at=2026-11-24T18:13:40.813Z`. Actual clock at this checkpoint: `2026-11-24T19:05:49.372Z`; elapsed `52.14` minutes, below 70 minutes. Continue research.
+
+
+## 2026-11-24 19:09Z checkpoint — randomized-source ensemble and draft PR
+
+- Added and executed the 50-source ensemble simulation (50 independently generated rank-five projected-table sources × 20 paired replications each, 1,000 total). Manual peer workflow run `45466502614` passed on Ubuntu and Windows with identical output and 64,000 heldout checks:
+  - Baseline mean 2,085.353, median 2,030, p90 2,316, p95 2,443, max 3,264.
+  - Hybrid mean 1,826.352, median 1,782, p90 1,908, p95 1,971, max 2,286, zero fallbacks.
+  - Paired mean saving 259.001 queries (12.4200%), median 217; hybrid lower in 96.8% of pairs.
+  - SHA-256 counter tapes are deterministic/reproducible simulation inputs, not proof of independent uniform randomness.
+- Run `45466502614` artifacts: Ubuntu `14954788855` / `sha256:a5afa642cd8eda42a3afee01553587110d739552ffbb23244d24129c1b48b219`; Windows `14954058752` / `sha256:f98848a5c5c4680a35519fd0e150d9d26b3f148a98508bd93ae10bdbd0a5a2ac`.
+- Added a one-line correction to the HTTP script's query-cap assertion (3419→3420) in commit `63f2a5bc2a74a988cd3e65b11c11ac642ec10c09`; the earlier options cap was already 3420. Manual peer workflow run `45466982074` is queued/in progress to recheck the final head. This change does not alter the learner.
+- Opened draft PR [#373](https://github.com/FlareZ123/obfs/pull/373) for the research branch. Current head `63f2a5bc2a74a988cd3e65b11c11ac642ec10c09`, 30 commits ahead / 198 behind main, 13 files; GitHub currently reports mergeability false. PR remains draft and unmerged pending review/rebase. Body updated with ensemble results and limitations.
+- Updated the intermediate report `im-results/agent50-rankfive-top-derivative-projected-affine-hybrid-2026-11-24.md` (main commit `e0f929db324e8e5375c3a09bd4ead9b8cebdc3aa`) with the ensemble, run/artifact references, final code head, and PR status.
+- Keep the project release gate unchanged. This is a source-family-specific oracle-query result, not general JS security, CPU, wall-time, or 2.5x budget evidence.
+- Current incarnation lease remains `claimed_at=2026-11-24T18:13:40.813Z`. Actual clock at this checkpoint: `2026-11-24T19:09:19.028Z`; elapsed `55.64` minutes, below 70 minutes. Continue research.
