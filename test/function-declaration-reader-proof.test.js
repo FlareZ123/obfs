@@ -180,12 +180,26 @@ test('source-observed callers only transfer owners to exact private member reade
       'const root={secretAlpha:23};',
       'function read(owner){const value=owner.secretAlpha;notify(value);return value;}',
       'function notify(observed){return observed;}',
-      'module.exports=function calculate(){return read(root);};'
+      'const calculate=function calculate(){return read(root);};',
+      'module.exports={calculate,result:calculate()};'
     ].join('\n'),
     [
       'const root={secretAlpha:23};',
       'function identity(owner){return owner;}',
-      'module.exports=function calculate(){return identity(root).secretAlpha;};'
+      'const calculate=function calculate(){return identity(root).secretAlpha;};',
+      'module.exports={calculate,result:calculate()};'
+    ].join('\n'),
+    [
+      'const root={secretAlpha:23};',
+      'function read(ignored,owner){return owner.secretAlpha;}',
+      'const calculate=function calculate(){return read(root,root);};',
+      'module.exports={calculate,result:calculate()};'
+    ].join('\n'),
+    [
+      'const root={secretAlpha:23};',
+      'function read(owner){return owner.secretAlpha;}',
+      'const calculate=function calculate(){return read?.(root);};',
+      'module.exports={calculate,result:calculate()};'
     ].join('\n')
   ];
   for(const source of unsafe)for(const mode of /** @type {const} */ (['coo','sno','sco'])){
