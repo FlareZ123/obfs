@@ -28,12 +28,10 @@ const fixtures=[
   {
     name:'object-method',
     source:[
-      'const holder={',
-      'callback(inputValue){return inputValue+1;},',
-      'unrelatedField:41',
-      '};',
+      'const holder={callback(inputValue){return inputValue+1;}};',
+      'const owner={unrelatedField:41};',
       'queueMicrotask(holder.callback);',
-      'module.exports=holder.unrelatedField;'
+      'module.exports=owner.unrelatedField;'
     ].join('\n')
   },
   {
