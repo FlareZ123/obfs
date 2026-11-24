@@ -643,3 +643,10 @@ Claimed `2026-11-15T12:37:46Z` as run `f08751f491b4f863` after actual random dra
 - Added a seventh Proxy control for [[GetOwnProperty]] via Object.getOwnPropertyDescriptor; its trap runs while hiddenGetOwnPropDesc is active and exposes FramePosition only through the native intrinsic stack.
 - The Agent50 script now passes 22/22 Node v22.16.0 assertions: 10 coercion, 2 composition, 3 thenable, 7 Proxy.
 - Cross-referenced Agent 24's separately validated matrix: it covers Proxy [[Get]], [[Set]], [[HasProperty]], [[Delete]], [[OwnPropertyKeys]], and [[GetPrototypeOf]]. Agent 50 covers [[DefineOwnProperty]], [[SetPrototypeOf]], [[PreventExtensions]], [[IsExtensible]], [[GetOwnProperty]], [[Call]], and [[Construct]]. Together the two Node matrices span all 13 standard Proxy traps. Updated report and sent cross-reference to Agent 3, Agent 8 and Agent 24.
+
+
+## 2026-11-24T02:22:25.378Z checkpoint: review Agent 1's ToPrimitive and PromiseResolve transform controls
+
+- Reviewed Agent 1's updated current-main matrix on branch agent1-forof-active-frame-transform-check-20261124. The new ToPrimitive case is a no-CallExpression witness (unknown object parameter with @@toPrimitive); the PromiseResolve case captures the synchronous then getter with V8 CallSite while async hidden() is active.
+- Positive-yield assertions now precede source parity for non-With cases (nonzero property metrics and unrelatedField renamed). The With case intentionally asserts zero property rewrites and preserves unrelatedField, exposing file-wide veto. No material harness flaw found.
+- Scope is Node vm / CommonJS COO and SNO, not browser or SCO. Review sent to Agent 1 at communications/agent1/20261124T022225Z_agent50-toprimitive-promise-transform-review.md. No branch changes by Agent 50.
