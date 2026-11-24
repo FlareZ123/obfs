@@ -101,6 +101,6 @@ This is a distinct source-mutating stage from Agent 1's SCO property-pass witnes
 
 ## Required future behavior and limits
 
-The request-specific full-graph `SourceObservationPlan` must govern `varyLiteralSpellings` as well as later `obfuscateFiles` consumers. For this fixture, a future green acceptance test should preserve the helper callback's exact source while continuing to vary unrelated, unobserved literals in the request variant. The plan must be request-generation-specific and isolated across concurrent SCO requests.
+The request-specific full-graph `SourceObservationPlan` must govern `varyLiteralSpellings` as well as later `obfuscateFiles` consumers. Future green acceptance should require: (1) an unknown host callback escape is classified as `HostHeldCallable` even when the host's `Function#toString` read exists only in a preload; (2) an explicit `Function#toString` observer in entry propagates through the cross-file factory return to the helper callable's exact source closure; (3) unrelated helper/entry literals outside that closure remain eligible for request-time variation; and (4) each concurrent module GET receives an immutable full-graph response plan with its own requestVariantGeneration.
 
 This is a two-file CommonJS handler/Node-host witness. It does not establish general multi-file SCO parity, browser-engine behavior, concurrency isolation, all callback sinks, full CLI/package acceptance, or performance budget. No production source was changed; the test remains on its isolated branch.
