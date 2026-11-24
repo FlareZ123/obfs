@@ -147,6 +147,11 @@ async function cloneTopQuinticFromHttp(access,witnessDraws,verifyDraws){
   });
 }
 
+/** @returns {number} */
+function secureWord(){
+  return randomBytes(4).readUInt32BE(0);
+}
+
 /** @returns {Promise<object>} */
 async function compare(){
   const source=privateSource();

@@ -7,7 +7,8 @@ const {cloneTopQuinticValidated}=require('./rankfive-top-quintic-validated-peer'
 /** @typedef {QuinticModel & {fastQueries:number,verificationQueries:number,verificationSamples:number,verificationCap:number,verificationDelta:number,falseAcceptanceBound:number,verificationPassed:boolean,fallbackUsed:boolean,fallbackReason:string|null,exactByInterpolation:boolean}} ValidatedModel */
 /** @typedef {{degree:number,quotientRank:number,fastQueries:number,verificationQueries:number,verificationSamples:number,verificationCap:number,verificationDelta:number,falseAcceptanceBound:number,verificationPassed:boolean,fallbackUsed:boolean,fallbackReason:string|null,exactByInterpolation:boolean,witnessDrawCount:number,verifyDrawCount:number}} LearnerDiagnostics */
 
-if(!parentPort)throw new Error('Worker requires a parent port');
+const port=parentPort;
+if(!port)throw new Error('Worker requires a parent port');
 const shared=new Int32Array(workerData.sharedBuffer);
 let queryCount=0;
 let witnessIndex=0;
@@ -17,7 +18,7 @@ let verifyIndex=0;
 function oracle(input){
   const sequence=queryCount++;
   Atomics.store(shared,0,0);
-  parentPort.postMessage({type:'query',input:input>>>0,sequence});
+  port.postMessage({type:'query',input:input>>>0,sequence});
   const waitResult=Atomics.wait(shared,0,0,30000);
   if(waitResult==='timed-out')throw new Error('HTTP oracle response timed out');
   const status=Atomics.load(shared,0);
@@ -59,9 +60,9 @@ try{
     witnessDrawCount:witnessIndex,
     verifyDrawCount:verifyIndex
   };
-  parentPort.postMessage({type:'result',model,queryCount,diagnostics});
+  port.postMessage({type:'result',model,queryCount,diagnostics});
 }catch(error){
-  parentPort.postMessage({
+  port.postMessage({
     type:'error',
     message:error instanceof Error?error.message:String(error),
     stack:error instanceof Error?error.stack:undefined,
