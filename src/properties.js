@@ -2,6 +2,7 @@
 
 const {createHash} = require('node:crypto');
 const {parse, walk, applyEdits, observesFunctionSource, staticString, sourceSpelledErrorOperand} = require('./ast');
+const {applyEditsWithMap,sourceGenerationOf} = require('./source-edit-map');
 
 /** @typedef {import('./ast').AstNode} AstNode */
 
@@ -1281,10 +1282,51 @@ function singleUseFactoryObject(ast,bindings,expression) {
  * A conservative proof failure leaves the complete file unchanged for that object.
  * @param {string} source
  * @param {AstNode} ast
- * @param {{seed:string}} options
- * @returns {{code:string,objects:number,properties:number}}
+ * @param {{seed:string,sourceUnitRef?:string,parserContractId?:string,protectedSourceSpans?:Array<{spanId:string,sourceUnitRef:string,sourceGeneration:string,startOffset:number,endOffset:number,coordinateUnit:'utf16-code-unit',astNodeType:string|null}>}} options
+ * @returns {{code:string,objects:number,properties:number,editMap?:Object}}
  */
 function renameLocalProperties(source, ast, options) {
+  if(Reflect.get(options,'sourceObserverCoverageComplete')!==undefined) {
+    throw new TypeError('Raw source-observer coverage booleans are unsupported; use a validated plan');
+  }
+  const hasMapContext=options.sourceUnitRef!==undefined||options.parserContractId!==undefined;
+  if(hasMapContext&&
+     (typeof options.sourceUnitRef!=='string'||options.sourceUnitRef.length===0||
+      typeof options.parserContractId!=='string'||options.parserContractId.length===0)) {
+    throw new TypeError('sourceUnitRef and parserContractId must be supplied together');
+  }
+  const protectedSourceSpans=options.protectedSourceSpans??[];
+  if(!Array.isArray(protectedSourceSpans))throw new TypeError('protectedSourceSpans must be an array');
+  if(protectedSourceSpans.length&&!hasMapContext) {
+    throw new TypeError('protectedSourceSpans require a source-unit and parser generation');
+  }
+  if(protectedSourceSpans.length) {
+    const generation=sourceGenerationOf(source,/** @type {string} */ (options.parserContractId));
+    for(const span of protectedSourceSpans) {
+      if(!span||typeof span.spanId!=='string'||span.spanId.length===0||
+         span.sourceUnitRef!==options.sourceUnitRef||span.sourceGeneration!==generation||
+         span.coordinateUnit!=='utf16-code-unit'||
+         !Number.isInteger(span.startOffset)||!Number.isInteger(span.endOffset)||
+         span.startOffset<0||span.endOffset<span.startOffset||span.endOffset>source.length) {
+        throw new TypeError('Property renamer received a stale or foreign protected source span');
+      }
+    }
+  }
+  /** @param {import('./ast').Edit[]} sourceEdits @returns {{code:string,editMap?:Object}} */
+  function finish(sourceEdits) {
+    if(hasMapContext) {
+      const mapped=applyEditsWithMap(source,sourceEdits,
+        /** @type {string} */ (options.sourceUnitRef),
+        /** @type {string} */ (options.parserContractId));
+      return {code:mapped.code,editMap:mapped.map};
+    }
+    return {code:applyEdits(source,sourceEdits)};
+  }
+  /** @param {number} start @param {number} end @returns {boolean} */
+  function intersectsProtected(start,end) {
+    return protectedSourceSpans.some(span=>
+      start<span.endOffset&&end>span.startOffset);
+  }
   const bindings = collectBindings(ast);
   /** @type {{node:AstNode,name:string,properties:AstNode[]}[]} */
   const candidates = [];
@@ -1312,7 +1354,7 @@ function renameLocalProperties(source, ast, options) {
   let objects = 0;
   let properties = 0;
   for (const candidate of candidates) {
-    const proof = proveLocalObject(ast, candidate.name, bindings);
+    const proof = proveLocalObject(ast,candidate.name,bindings);
     if (!proof || (!proof.members.length && !proof.patterns.length && !proof.inChecks.length)) continue;
     // An unowned field may invoke an inherited getter with this=object. That
     // getter can enumerate own keys, making otherwise private renaming visible.
@@ -1330,25 +1372,31 @@ function renameLocalProperties(source, ast, options) {
     // Truncated digests can collide. Duplicating literal keys silently changes
     // both object contents and all subsequent reads, so decline this object.
     if (new Set(mapping.values()).size !== mapping.size) continue;
+    /** @type {import('./ast').Edit[]} */
+    const candidateEdits=[];
     for (const prop of candidate.properties) {
       const renamed=JSON.stringify(mapping.get(ownPropertyName(prop)));
       // Shorthand has one token for its key and value. Keep the original
       // lexical value and function-name inference when expanding the field.
       const text=prop.shorthand ?
         renamed+':'+source.slice(prop.value.start,prop.value.end) : renamed;
-      edits.push({start:prop.key.start,end:prop.key.end,text});
+      candidateEdits.push({start:prop.key.start,end:prop.key.end,text});
     }
     for (const member of proof.members) {
       const name=proof.memberNames.get(member);
-      if (name!==undefined && mapping.has(name)) edits.push({start:member.property.start,end:member.property.end,
+      if (name!==undefined && mapping.has(name)) candidateEdits.push({start:member.property.start,end:member.property.end,
         text:member.computed ? JSON.stringify(mapping.get(name)) : mapping.get(name)});
     }
-    edits.push(...patternPropertyEdits(source,proof.patterns,mapping,proof.patternNames));
-    edits.push(...inOperatorPropertyEdits(proof.inChecks,mapping));
+    candidateEdits.push(...patternPropertyEdits(source,proof.patterns,mapping,proof.patternNames));
+    candidateEdits.push(...inOperatorPropertyEdits(proof.inChecks,mapping));
+    // A closed-world object rename is atomic: if any key/read/pattern check
+    // intersects a protected source span, decline the entire object's edit set.
+    if(candidateEdits.some(edit=>intersectsProtected(edit.start,edit.end)))continue;
+    edits.push(...candidateEdits);
     objects++;
     properties += mapping.size;
   }
-  return {code:applyEdits(source,edits),objects,properties};
+  return {...finish(edits),objects,properties};
 }
 
 module.exports = {renameLocalProperties,collectBindings,proveLocalObject,staticName,patternPropertyEdits,inOperatorPropertyEdits,isLiteralValue,isPrimitiveConstantExpression,ownPropertyName,singleUseFactoryObject};
