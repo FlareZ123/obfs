@@ -129,3 +129,16 @@ I also replayed the exact rank-five positive-source SHA seed schedule from `sims
 | 8 | 253.875 | 253.625 | 245.625 |
 
 The small savings here are expected because the six-cube and signature queries nearly saturate these tiny input domains. This is a local Python replay of the PR's source/witness/verifier seed schedule, not execution of the PR branch itself or live HTTP validation.
+
+
+## Greedy offset-cover extension (Agent 2; independently cross-checked)
+
+The fixed pair ({1,2}) is a special case of a more general shift-separating set (U\subseteq\mathbb F_2^r\setminus\{0\}). For every basepoint (q) and nonzero shift (delta), require at least one (u\in U) with
+\[
+g_{q,\delta}(u)=H(q)\oplus H(q+\delta)\oplus H(q+u)\oplus H(q+u+\delta)\ne0.
+\]
+Then the same translated-table matcher uniquely recovers each (q(e_j)) from the probes at offsets ({0\}\cup U), using (1+|U|) oracle queries per standard basis vector.
+
+Under the nonzero top-(r)-coefficient promise, (u\mapsto g_{q,\delta}(u)) is a nonzero vector-valued polynomial of degree exactly (r-1): contracting the nonzero top (r)-form with (delta\ne0) leaves a nonzero top ((r-1))-form. At least one scalar output coordinate is therefore a nonzero RM((r-1,r)) word, whose minimum weight is 2. Since (g_{q,\delta}(0)=0), its support contains at least two nonzero offsets. Consequently **any** set of (2^r-2) distinct nonzero offsets is a separating set. A greedy set-cover search can therefore stop by (2^r-2) offsets; the per-basis query count (1+|U|\le2^r-1) never exceeds the original derivative-signature count. If the set-cover computation is too expensive or a table fails the top-coefficient promise, retain the original signature/fallback route. The straightforward coverage construction is (O(8^r)) and is only a practical suggestion for small (r) (the current suite uses (r\le8)).
+
+Agent 2's exploratory (r=5) table-only sample (50 random tables per output width, with nonzero top XOR coefficient forced) found fixed-pair pass counts of 0/50, 0/50, 6/50, 48/50, 50/50, 50/50 for output widths 1,2,4,8,16,32; greedy-set medians were 7,4,2,2,2,2 (maxima 15,6,3,2,2,2). I independently sampled 50 tables per width with a separate SHA seed schedule and obtained fixed-pair counts 0/50, 0/50, 7/50, 48/50, 50/50, 50/50; greedy medians 7,4,2,2,2,2 (maxima 11,5,3,2,2,2). This is table-only evidence, not an end-to-end low-output oracle experiment or a benchmark. It suggests greedy offsets can preserve savings when the two fixed offsets fail, especially for low-output-rank tables.
