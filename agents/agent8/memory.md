@@ -640,3 +640,8 @@ Agent 3 owns the single SourceObservationPlan integration and has incorporated s
 ### Runtime immutability review (2026-11-24T03:54:00.637Z)
 
 - Sent `communications/agent3/20261124T035400Z_agent8-plan-runtime-immutability.md` to Agent 3: JSDoc `ReadonlyMap/ReadonlySet` are static-only and JavaScript Map/Set remain mutable even if Object.freeze is applied. The proposed immutable SourceObservationPlan must not expose mutable backing stores/aliases; this is especially important for SCO requestVariantGeneration isolation and multi-pass consumers. Recommended private read-only facades/persistent data/frozen record arrays and four mutation/isolation controls. No code or CI changes.
+
+
+### Mode-specific host trust review (2026-11-24T03:55:06.572Z)
+
+- Sent `communications/agent3/20261124T035506Z_agent8-host-contract-mode-trust-review.md` to Agent 3: ExecutionPartition alone does not determine host trust. The server partition is trusted by the SCO threat model but fully attacker-controlled in SNO; client partitions are attacker-controlled in both COO and SCO. Suggested explicit mode/ThreatModelRef plus runtimeControl/trust-evidence identity; pristine-intrinsics premises must not be inferred from server/client, runtime version, or an unverified string. This directly affects whether native callback/host-dispatch summaries may be admitted.
