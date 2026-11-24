@@ -2,6 +2,9 @@
 
 const test=require('node:test');
 const assert=require('node:assert/strict');
+const fs=require('node:fs');
+const os=require('node:os');
+const path=require('node:path');
 const {obfuscateFiles}=require('../src');
 
 /**
@@ -136,15 +139,22 @@ async function observe(code,kind) {
     )(observation));
   }
   const args=makeHostArgs(kind,external);
-  const module={exports:null};
-  Function('module',code)(module);
-  assert.equal(typeof module.exports,'function');
-  const reader=/** @type {(...args:unknown[])=>unknown} */(module.exports);
-  const value=await reader(...args);
-  assert.equal(typeof observation.captured,'function',
-    kind+' must capture hidden(): '+JSON.stringify(observation.stackNames));
-  const source=observation.source||Function.prototype.toString.call(observation.captured);
-  return {value,source};
+  const directory=fs.mkdtempSync(path.join(os.tmpdir(),'obfs-agent1-implicit-'));
+  const filePath=path.join(directory,'entry.cjs');
+  try {
+    fs.writeFileSync(filePath,code,'utf8');
+    const resolved=require.resolve(filePath);
+    delete require.cache[resolved];
+    const reader=/** @type {(...args:unknown[])=>unknown} */(require(filePath));
+    const value=await reader(...args);
+    assert.equal(typeof observation.captured,'function',
+      kind+' must capture hidden(): '+JSON.stringify(observation.stackNames));
+    const source=observation.source||Function.prototype.toString.call(observation.captured);
+    return {value,source};
+  } finally {
+    try { delete require.cache[require.resolve(filePath)]; } catch {}
+    fs.rmSync(directory,{recursive:true,force:true});
+  }
 }
 /**
  * @param {'coo'|'sno'} mode
