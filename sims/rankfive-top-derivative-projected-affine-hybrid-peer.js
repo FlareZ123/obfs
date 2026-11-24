@@ -7,7 +7,7 @@ const {evaluateProjectedAffineModel} = require('./projected-affine-coset-profile
 /** @typedef {{kind:'projected-affine',bits:number,rank:5,table:number[],coordinates:number[],affineCorrections:number[]}} ProjectedModel */
 /** @typedef {{kind:'anf',bits:number,lower:Array<[number,number]>,top:Array<[number,number]>,degree:4|5}} AnfModel */
 /** @typedef {ProjectedModel|AnfModel} HybridModel */
-/** @typedef {{fastPathSuccess:boolean,witnessTrials:number,witnessDrawCount:number,witnessProbability:number,witnessFailureBound:number,quotientRank:number|null,fastQueries:number,verificationQueries:number,verificationSamples:number,verificationCap:number,verificationDelta:number,falseAcceptanceBound:number,verificationPassed:boolean,fallbackUsed:boolean,fallbackReason:string|null,fallbackQueries:number,exactByInterpolation:boolean}} Diagnostics */
+/** @typedef {{fastPathSuccess:boolean,witnessTrials:number,witnessDrawCount:number,witnessProbability:number,witnessFailureBound:number,quotientRank:number|null,coordinateStrategy:'shift'|'signature'|null,fixedPairPassed:boolean|null,fastQueries:number,verificationQueries:number,verificationSamples:number,verificationCap:number,verificationDelta:number,falseAcceptanceBound:number,verificationPassed:boolean,fallbackUsed:boolean,fallbackReason:string|null,fallbackQueries:number,exactByInterpolation:boolean}} Diagnostics */
 /** @typedef {{model:HybridModel,queries:number,diagnostics:Diagnostics}} CloneResult */
 
 /** @returns {number} */
@@ -142,6 +142,7 @@ function evaluateHybridModel(model, input) {
  * @param {()=>number} [drawWitness]
  * @param {()=>number} [drawVerify] Must be independent uniform words, separate from witness draws.
  * @param {number} [delta]
+ * @param {()=>void} [onCandidateReady] Called after candidate construction and before verifier draws are requested.
  * @returns {CloneResult}
  */
 function cloneTopDerivativeProjectedAffine(
@@ -149,7 +150,8 @@ function cloneTopDerivativeProjectedAffine(
   n,
   drawWitness = secureWord,
   drawVerify = secureWord,
-  delta = 1e-10
+  delta = 1e-10,
+  onCandidateReady = () => {}
 ) {
   assert.ok(Number.isInteger(n) && n >= 5 && n <= 32);
   assert.ok(Number.isFinite(delta) && delta > 0 && delta < 1);
@@ -192,16 +194,14 @@ function cloneTopDerivativeProjectedAffine(
   let anchors = [];
   let witness = 0;
   let witnessTrials = 0;
+  /** @type {'shift'|'signature'|null} */
+  let coordinateStrategy = null;
+  /** @type {boolean|null} */
+  let fixedPairPassed = null;
   for (; witnessTrials < witnessTrialCap; witnessTrials++) {
     const directions = Array.from({length:6}, () => ((drawWitness() >>> 0) & inputMask) >>> 0);
-    // Query the six-cube once. All six five-subset derivatives share these 64 values.
-    for (let subset = 0; subset < 64; subset++) {
-      let input = 0;
-      for (let bit = 0; bit < 6; bit++) {
-        if (((subset >>> bit) & 1) !== 0) input ^= directions[bit];
-      }
-      ask(input >>> 0);
-    }
+    // Evaluate only the five-dimensional faces in order. The all-six vertex
+    // is not used by any face, and later faces reuse their intersections.
     for (let omitted = 0; omitted < 6; omitted++) {
       const tuple = directions.filter((_,index) => index !== omitted);
       const observed = fifthDerivative(tuple);
@@ -229,6 +229,8 @@ function cloneTopDerivativeProjectedAffine(
         witnessProbability,
         witnessFailureBound:Math.pow(1-witnessProbability,witnessTrials),
         quotientRank:null,
+        coordinateStrategy,
+        fixedPairPassed,
         fastQueries,
         verificationQueries,
         verificationSamples,
@@ -248,25 +250,8 @@ function cloneTopDerivativeProjectedAffine(
     return fallback('no-witness-within-trial-cap',cache.size,0,0);
   }
 
-  // In a five-dimensional quotient, every signature coordinate is either
-  // zero or the same nonzero witness vector. These bits are q(e_i).
-  /** @type {number[]} */
-  const coordinates = [];
-  for (let bit = 0; bit < n; bit++) {
-    const basisVector = (2 ** bit) >>> 0;
-    let coordinate = 0;
-    for (let omitted = 0; omitted < 5; omitted++) {
-      const tuple = [basisVector,...anchors.filter((_,index) => index !== omitted)];
-      const observed = fifthDerivative(tuple);
-      if (observed !== 0 && observed !== witness) {
-        return fallback('signature-outside-codimension-five-span',cache.size,0,0);
-      }
-      if (observed === witness) coordinate |= (1 << omitted);
-    }
-    coordinates.push(coordinate >>> 0);
-  }
-
-  // The anchor subset cube is already present in the successful six-cube.
+  // The successful five-dimensional derivative face already populated
+  // every section-table entry in the query cache.
   /** @type {number[]} */
   const table = [];
   for (let index = 0; index < 32; index++) {
@@ -277,17 +262,90 @@ function cloneTopDerivativeProjectedAffine(
     table.push(ask(input >>> 0));
   }
 
-  // G(x)=H(q(x)) XOR Lx; choose L so G and F agree at every standard basis vector.
+  // A deterministic table-only condition proves that two offsets suffice
+  // for unique translated-section matching. If it fails, use all five
+  // derivative signatures instead.
+  fixedPairPassed = true;
+  for (let base = 0; base < 32 && fixedPairPassed; base++) {
+    for (let delta = 1; delta < 32; delta++) {
+      const pair = table[base] ^ table[base ^ delta];
+      const alongOne = pair ^ table[base ^ 1] ^ table[base ^ 1 ^ delta];
+      const alongTwo = pair ^ table[base ^ 2] ^ table[base ^ 2 ^ delta];
+      if (alongOne === 0 && alongTwo === 0) {
+        fixedPairPassed = false;
+        break;
+      }
+    }
+  }
+
+  /** @type {number[]} */
+  const coordinates = [];
   /** @type {number[]} */
   const affineCorrections = [];
-  for (let bit = 0; bit < n; bit++) {
-    const basisVector = (2 ** bit) >>> 0;
-    affineCorrections.push((ask(basisVector) ^ table[coordinates[bit]]) >>> 0);
+  if (fixedPairPassed) {
+    coordinateStrategy = 'shift';
+    let uniqueForEveryBasis = true;
+    for (let bit = 0; bit < n; bit++) {
+      const basisVector = (2 ** bit) >>> 0;
+      const f0 = ask(basisVector);
+      const f1 = ask((basisVector ^ anchors[0]) >>> 0);
+      const f2 = ask((basisVector ^ anchors[1]) >>> 0);
+      let matchCount = 0;
+      let matchedCoordinate = -1;
+      let matchedCorrection = 0;
+      for (let candidate = 0; candidate < 32; candidate++) {
+        const correction = (f0 ^ table[candidate]) >>> 0;
+        if (correction === ((f1 ^ table[candidate ^ 1]) >>> 0) &&
+            correction === ((f2 ^ table[candidate ^ 2]) >>> 0)) {
+          matchCount++;
+          matchedCoordinate = candidate;
+          matchedCorrection = correction;
+        }
+      }
+      if (matchCount !== 1) {
+        uniqueForEveryBasis = false;
+        break;
+      }
+      coordinates.push(matchedCoordinate);
+      affineCorrections.push(matchedCorrection);
+    }
+    if (!uniqueForEveryBasis) {
+      coordinates.length = 0;
+      affineCorrections.length = 0;
+      coordinateStrategy = 'signature';
+    }
+  } else {
+    coordinateStrategy = 'signature';
+  }
+
+  if (coordinateStrategy === 'signature') {
+    // In a five-dimensional quotient, each signature coordinate is either
+    // zero or the same nonzero witness vector.
+    for (let bit = 0; bit < n; bit++) {
+      const basisVector = (2 ** bit) >>> 0;
+      let coordinate = 0;
+      for (let omitted = 0; omitted < 5; omitted++) {
+        const tuple = [basisVector,...anchors.filter((_,index) => index !== omitted)];
+        const observed = fifthDerivative(tuple);
+        if (observed !== 0 && observed !== witness) {
+          return fallback('signature-outside-codimension-five-span',cache.size,0,0);
+        }
+        if (observed === witness) coordinate |= (1 << omitted);
+      }
+      coordinates.push(coordinate >>> 0);
+    }
+
+    // G(x)=H(q(x)) XOR Lx; choose L so G and F agree at each basis vector.
+    for (let bit = 0; bit < n; bit++) {
+      const basisVector = (2 ** bit) >>> 0;
+      affineCorrections.push((ask(basisVector) ^ table[coordinates[bit]]) >>> 0);
+    }
   }
 
   /** @type {ProjectedModel} */
   const model = {kind:'projected-affine',bits:n,rank:5,table,coordinates,affineCorrections};
   const fastQueries = cache.size;
+  onCandidateReady();
   const beforeVerification = cache.size;
   let verificationSamples = 0;
   for (let index = 0; index < verificationCap; index++) {
@@ -308,6 +366,8 @@ function cloneTopDerivativeProjectedAffine(
       witnessProbability,
       witnessFailureBound:Math.pow(1-witnessProbability,witnessTrials),
       quotientRank:5,
+      coordinateStrategy,
+      fixedPairPassed,
       fastQueries,
       verificationQueries,
       verificationSamples,
