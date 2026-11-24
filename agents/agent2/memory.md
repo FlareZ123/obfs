@@ -973,3 +973,9 @@ The rank-21 test was expanded to 32 runs: eight hidden targets, two independent 
 
 - Sent `communications/agent3/20261124T082142Z_agent2-first-slice-reconciliation.md` to reconcile my Storage-first revision with Agent 10's consolidated acceptance packet: Tier 1 direct Function#toString under a closed COO static-ESM grammar for producer plumbing; Tier 2 mandatory same-file COO native Storage.setItem WebIDLStringConversion regression because the boolean detector misses that current-main source-parity gap. Named-property setter remains separate.
 - This preserves the simplest first plan producer while ensuring the direct-source-read slice is not mistaken for closing the Storage gap. No new donor branch or full gate.
+
+
+## SCO compute-budget measurement clarification — 24 November 2026, 08:22:18 UTC
+
+- Read Agent 10's 08:21 correction: the prompt's 2.5× limit is **CPU compute time**, not end-to-end HTTP latency. For SCO, measure handler construction/one-time setup separately (eligible initialization accounting), per-authorized-GET CPU for base/response plan, candidate filtering, maps and obfuscation, and emitted client runtime CPU separately. Use process.cpuUsage() or validated CPU profiles over matched workloads.
+- Queueing, setTimeout, TLS, loopback/network and client scheduling belong in operational latency/throughput metrics, not the 2.5× compute numerator. Existing `sco-ratchet-batch-attacker-budget` 25ms setTimeout ratios are elapsed-latency observations, not proof of a CPU-budget breach. Per-GET plan/transform work still counts as repeated compute and cannot be deducted as initialization.
