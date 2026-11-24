@@ -125,7 +125,7 @@ function observeCommonJs(code){
   return {value:context.module.exports,...observed};
 }
 
-for(const mode of /** @type {const} */ (['coo','sno'])){
+for(const mode of /** @type {const} */ (['coo','sco','sno'])){
   test(mode+' unknown host callback argument preserves exact source without invocation',()=>{
     const native=observeCommonJs(commonJsSource);
     assert.deepEqual(native,{
