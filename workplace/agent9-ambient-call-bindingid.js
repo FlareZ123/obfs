@@ -571,6 +571,12 @@ function summarizeAmbientCallEffects(ast,sourceType) {
         for(const target of callableNodesForValue(expression))
           addReason(target,{kind:'host-held-callable',start:node.start,end:node.end},'HostHeldCallable');
       }
+    } else if(node.type==='MemberExpression') {
+      const propertyKey=staticPropertyKey(node.property,node.computed);
+      if(propertyKey&&CALLABLE_OBSERVER_PROPERTIES.has(propertyKey)) {
+        for(const target of callableNodesForValue(node.object))
+          addReason(target,{kind:'callable-metadata-observer',start:node.start,end:node.end},'HostHeldCallable');
+      }
     }
   });
 
