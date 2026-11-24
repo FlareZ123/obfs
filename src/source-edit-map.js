@@ -37,10 +37,23 @@ const {applyEdits} = require('./ast');
  */
 /**
  * @typedef {Object} SourceSpanRef
+ * @property {string} spanId
  * @property {string} sourceUnitRef
  * @property {string} sourceGeneration
- * @property {number} start
- * @property {number} end
+ * @property {number} startOffset
+ * @property {number} endOffset
+ * @property {'utf16-code-unit'} coordinateUnit
+ * @property {string|null} astNodeType
+ */
+/**
+ * A relocated range only. It is not a new SourceSpanRef until the current
+ * source is reparsed and the AST node and semantic graph identities are rebuilt.
+ * @typedef {Object} MappedSourceRange
+ * @property {string} sourceUnitRef
+ * @property {string} sourceGeneration
+ * @property {number} startOffset
+ * @property {number} endOffset
+ * @property {'utf16-code-unit'} coordinateUnit
  */
 
 /**
@@ -200,34 +213,37 @@ function applyEditsWithMap(source,edits,sourceUnitRef,parserContractId) {
 
 /**
  * Map an original-generation source span through one exact pass. The caller
- * must supply both adjacent source generations. Positional identity alone is
- * insufficient: consumers must separately prove or invalidate semantic graph
- * identities affected by the pass.
+ * must supply both adjacent source generations. The result is only a relocated
+ * range: reparse the current source, rebuild SourceSpanRef, and separately
+ * prove or invalidate semantic graph identities affected by the pass.
  *
  * @param {SourceEditMap} map
  * @param {SourceSpanRef} span
  * @param {string} sourceBefore
  * @param {string} sourceAfter
- * @returns {SourceSpanRef|null}
+ * @returns {MappedSourceRange|null}
  */
 function mapSourceSpan(map,span,sourceBefore,sourceAfter) {
   if(!map||map.coordinateUnit!=='utf16-code-unit'||
      !span||typeof span!=='object'||
+     span.coordinateUnit!=='utf16-code-unit'||
      typeof sourceBefore!=='string'||typeof sourceAfter!=='string')return null;
-  if(span.sourceUnitRef!==map.sourceUnitRef||
+  if(typeof span.spanId!=='string'||span.spanId.length===0||
+     span.sourceUnitRef!==map.sourceUnitRef||
      span.sourceGeneration!==map.fromGeneration||
      sourceGenerationOf(sourceBefore,map.parserContractId)!==map.fromGeneration||
      sourceGenerationOf(sourceAfter,map.parserContractId)!==map.toGeneration||
      sourceBefore.length!==map.fromLength||sourceAfter.length!==map.toLength||
-     !Number.isInteger(span.start)||!Number.isInteger(span.end)||
-     span.start<0||span.end<span.start||span.end>sourceBefore.length)return null;
+     !Number.isInteger(span.startOffset)||!Number.isInteger(span.endOffset)||
+     span.startOffset<0||span.endOffset<span.startOffset||
+     span.endOffset>sourceBefore.length)return null;
 
   for(const segment of map.segments) {
     if(segment.kind==='replaced'||segment.kind==='deleted') {
-      if(segment.fromStart<span.end&&segment.fromEnd>span.start)return null;
+      if(segment.fromStart<span.endOffset&&segment.fromEnd>span.startOffset)return null;
     } else if(segment.kind==='inserted') {
-      if(span.start<segment.fromStart&&segment.fromStart<span.end)return null;
-      if(segment.fromStart===span.start&&segment.affinity!=='before-node')return null;
+      if(span.startOffset<segment.fromStart&&segment.fromStart<span.endOffset)return null;
+      if(segment.fromStart===span.startOffset&&segment.affinity!=='before-node')return null;
     }
   }
 
@@ -270,15 +286,17 @@ function mapSourceSpan(map,span,sourceBefore,sourceAfter) {
     return offset+delta;
   }
 
-  const start=mapOffset(span.start,'right');
-  const end=span.start===span.end?start:mapOffset(span.end,'left');
+  const start=mapOffset(span.startOffset,'right');
+  const end=span.startOffset===span.endOffset?start:mapOffset(span.endOffset,'left');
   if(start===null||end===null||end<start)return null;
-  if(sourceBefore.slice(span.start,span.end)!==
+  if(sourceBefore.slice(span.startOffset,span.endOffset)!==
      sourceAfter.slice(start,end))return null;
   return Object.freeze({
     sourceUnitRef:span.sourceUnitRef,
     sourceGeneration:map.toGeneration,
-    start,end
+    startOffset:start,
+    endOffset:end,
+    coordinateUnit:'utf16-code-unit'
   });
 }
 
