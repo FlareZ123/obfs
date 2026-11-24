@@ -2,6 +2,7 @@
 
 const assert=require('node:assert/strict');
 const {test}=require('node:test');
+const {inverseWithFullRankInterpolation,inverseWithoutRankBound}=require('../sims/low-rank-residual-cycle-inversion');
 
 /**
  * Independently check the conditional n+2^r oracle-inversion theorem using
@@ -285,6 +286,23 @@ test('full-rank cycle inversion can run without knowing the residual rank',()=>{
     assert.equal(outcome.cycleSteps,1<<rank);
     // Without a known rank cap, the final return edge must be queried.
     assert.equal(outcome.queries,width+1+(1<<rank));
+  }
+});
+
+test('simulation implementation matches known- and unknown-rank full-cycle bounds',()=>{
+  for(let rank=1;rank<=5;rank++){
+    const {table,width,target}=maximalCycle(rank);
+    const oracle=x=>table[x];
+    const known=inverseWithFullRankInterpolation(width,rank,oracle,table[target]);
+    const unknown=inverseWithoutRankBound(width,oracle,table[target]);
+    assert.ok(known);
+    assert.ok(unknown);
+    assert.equal(known.secret,target);
+    assert.equal(unknown.secret,target);
+    assert.equal(known.queries,width+(1<<rank));
+    assert.equal(unknown.queries,width+1+(1<<rank));
+    assert.equal(known.cycleSteps,(1<<rank)-1);
+    assert.equal(unknown.cycleSteps,1<<rank);
   }
 });
 
