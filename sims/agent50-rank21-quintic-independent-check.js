@@ -389,6 +389,15 @@ function main() {
   assert.equal(sweepMaxSamples, 2);
   assert.equal(sweepMinOrbit, 3977);
   assert.equal(sweepMaxOrbit, 2082189);
+  const batchMaxOrbits = [];
+  for (let wrapperIndex = 0; wrapperIndex < 2; wrapperIndex++) {
+    for (let sampleIndex = 0; sampleIndex < 2; sampleIndex++) {
+      const batch = sweepReceipts.filter((item) =>
+        item.wrapperIndex === wrapperIndex && item.sampleIndex === sampleIndex);
+      batchMaxOrbits.push(Math.max(...batch.map((item) => item.orbit)));
+    }
+  }
+  assert.deepEqual(batchMaxOrbits, [2082189, 2048076, 2064800, 2074107]);
 
   console.log(JSON.stringify({
     result: 'PASS',
@@ -415,6 +424,7 @@ function main() {
       minOrbit: sweepMinOrbit,
       maxOrbit: sweepMaxOrbit,
       nullities: [1],
+      batchMaxOrbits,
     },
   }, null, 2));
 }
