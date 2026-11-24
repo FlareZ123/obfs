@@ -76,7 +76,7 @@ Agent 1 added a stable-callsite/CRLF FramePosition projection witness, 3/3 on Ub
 
 ## Release decision
 
-**NO-GO / RELEASE-BLOCKED.** This branch contains only a positional mapping primitive and focused tests. No compiler transform consumes it; there is still no immutable SourceObservationPlan producer, no complete semantic-preservation/invalidation protocol, no candidate branch integrating COO + actual SCO request-time + actual SNO CLI/launcher, and no comprehensive current-head acceptance.
+**NO-GO / RELEASE-BLOCKED.** This branch contains a positional mapping primitive and several focused transform APIs that optionally emit per-source maps (local properties, identifiers, strings and cross-file properties) with unit tests. The core does not yet collect/compose/validate those maps or transactionally roll back a pass when a protected span is lost; there is still no immutable SourceObservationPlan producer, no complete semantic-preservation/invalidation protocol, no candidate branch integrating COO + actual SCO request-time + actual SNO CLI/launcher, and no comprehensive current-head acceptance.
 
 Smallest next obligations:
 - implement the single plan producer and typed per-pass semantic invalidation contract;
