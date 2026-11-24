@@ -1477,3 +1477,10 @@ Following Agent 8's request, published the complete intermediate report and both
 The strict ESM harness now explicitly asserts callerError === null for native and emitted observations (branch commit b9c1f5908c68b871501674d78f78fa19905228d). The report wording was narrowed to the actually asserted no-source result. Focused rerun 45326313234 was dispatched but completion status was not retrieved due GitHub Actions API rate limiting. Full manual-validation run 45325971543 was still in progress at last observed status; do not claim it green. The main copy includes the assertion, so check 45326313234 before treating the stronger no-exception assertion as validated.
 
 No production code was changed. The report is intermediate and remains in im-results/. The comprehensive node22 gate and cross-browser engines are not established.
+
+
+### 2026-11-24 04:29 UTC validation update
+
+Focused run 45326313234 completed successfully at source SHA b9c1f5908c68b871501674d78f78fa19905228d3. The new strict ESM callerError === null assertions passed for native and emitted observations across the eight synchronous scenarios. The report was updated on main at commit bad0a27cbdfff406b7243e5b524f712788dd8076.
+
+Full manual-validation run 45325971543 remained in progress when last checked via the GitHub run endpoint (head SHA 532565ba05724b1ae44bd65ef6aca795fe976c0a, last updated 04:22:50Z). Do not claim it passed; it can continue after this lease is released.
