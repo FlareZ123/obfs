@@ -84,19 +84,19 @@ function compile(mode,code) {
 
 for(const mode of /** @type {const} */(['coo','sno'])) {
   for(const scenario of cases) {
-    test(mode+' native intrinsic callback source-observer parity: '+scenario.kind,()=>{
+    test(mode+' native intrinsic callback diagnostic source-observation witness: '+scenario.kind,()=>{
       const source=
         'const other={unrelatedField:2};'+
-        'function hidden(external){const owner={secretField:1};'+
+        'function hidden(external){const owner={longPrivatePropertyName:1};'+
         scenario.body+
-        'return owner.secretField;}'+
+        'return owner.longPrivatePropertyName;}'+
         'function plain(){return other.unrelatedField;}'+
         'function publicReader(external){return hidden(external)+plain();}'+
         'module.exports=publicReader;';
       const before=observe(source,scenario.observation);
       assert.equal(before.value,3);
       if(scenario.observation==='source') {
-        assert.ok(before.source?.includes('owner.secretField'),
+        assert.ok(before.source?.includes('owner.longPrivatePropertyName'),
           scenario.kind+' must expose exact native hidden() source');
       } else {
         assert.equal(before.frameName,'hidden',
