@@ -6,10 +6,10 @@ const vm=require('node:vm');
 const {parse,walk}=require('../src/ast');
 const {renameLocalIdentifiers}=require('../src/identifiers');
 const {encodeStrings}=require('../src/strings');
-const {mapSourceSpan,sourceGenerationOf}=require('../src/source-edit-map');
+const {parserContractIdFor,mapSourceSpan,sourceGenerationOf}=require('../src/source-edit-map');
 
 const UNIT='unit:sno:entry-module:instance-1';
-const PARSER='acorn@8.15.0;ecmaVersion=latest;sourceType=module;allowReturnOutsideFunction=false;allowHashBang=true;preserveParens=false';
+const PARSER=parserContractIdFor('module');
 
 /** @param {string} source @param {string} sourceUnitRef @param {number} start @param {number} end @param {string} generation */
 function sourceSpan(source,sourceUnitRef,start,end,generation) {
