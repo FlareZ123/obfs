@@ -8,20 +8,48 @@
 
 The six runtime-effect fixtures originally documented below were executed under **Node v22.16.0**. Agent 50 additionally executed the exact exported-mirror overwrite fixture described in section 6 under Node v22.16.0 with TypeScript 5.8.3. These observations demonstrate the behavioral consequences of changing source outside the two original tracked spans.
 
-The candidate acceptance path was inspected statically. I did **not** execute the candidate's `validatePlanSemantics`, `acceptPlannedPass`, or full `obfuscateFiles` pipeline locally because this runtime has no repository checkout/network access. Agent 2 independently parsed the corrected mutable-binding two-edit sequence with Acorn under Node v22.16.0 and confirmed it imports with `sourceText === 'fake'`; Agent 2 also did not execute the candidate validator or full pipeline. To make the acceptance claim independently reproducible, the accompanying script calls the candidate's exported `advancePlanRanges` and `validatePlanSemantics` directly. It deliberately bypasses `acceptPlannedPass`, whose reviewed snapshot has the separate Map/array mismatch.
+I executed the pinned direct-validator harness against the exact candidate source commit using focused GitHub Actions run [45392122556](https://github.com/FlareZ123/obfs/actions/runs/45392122556). The candidate source was `246af59679d4388703b93fb36918d9e9b344cca1`; the execution branch `agent4/rebind-harness-execution-20261124` was created from that exact commit and added only the pinned harness plus a seven-line `node:test` wrapper. The execution branch head was `0ae249aa4ac8fea216a4c073bfb30f0fd0dde827`; its compare against the candidate branch was exactly two files added, zero files changed, and zero commits behind. The harness blob was `01ab16a62a1e7bd586126c0637633e24fad9df64`; the wrapper blob was `d0c4b37d0a7f8484574fd32ba370cf1f43f64ffd`.
+
+The direct harness test passed **1/1 on Ubuntu and 1/1 on Windows**, with exit status 0 on both, under Node **v22.23.4**. It deliberately bypasses `acceptPlannedPass` and exercises `advancePlanRanges` + `validatePlanSemantics` directly; it is an isolated rebind result, not an end-to-end `obfuscateFiles` or transaction-acceptance result. The overall focused workflow concluded **failure** because the subsequent strict project JSDoc step failed on both platforms. The comprehensive `node22` job was skipped because this was a focused workflow. Agent 2's independent Acorn/Node v22.16.0 confirmation of the mutable-binding runtime remains separate evidence.
 
 - Harness: [`source-observer-rebind-counterexamples-2026-11-24.js`](./source-observer-rebind-counterexamples-2026-11-24.js)
 - Harness blob SHA: `01ab16a62a1e7bd586126c0637633e24fad9df64`
 - Harness commit: `e0a3c5e8bba4b03715afd8ec402ca5d9f9e96348`
 
-To run the direct validator harness, from a checkout of the reviewed candidate branch, copy the harness from main into a temporary file and run it with the candidate checkout as the current working directory:
+To reproduce the direct validator run, check out the candidate commit and use the exact pinned harness from the execution branch:
 
 ```sh
-git show main:im-results/source-observer-rebind-counterexamples-2026-11-24.js > /tmp/source-observer-rebind-counterexamples.js
+git checkout 246af59679d4388703b93fb36918d9e9b344cca1
+git show agent4/rebind-harness-execution-20261124:im-results/source-observer-rebind-counterexamples-2026-11-24.js > /tmp/source-observer-rebind-counterexamples.js
 node /tmp/source-observer-rebind-counterexamples.js
 ```
 
-The script's mutable-binding insertion uses a single `\\n` escape in the source file (verified after Agent 2 flagged an initial double-escape); when executed, that becomes an actual newline. The script is written to print `planAccepted: true` for the producer-level disconnected-export control and `validatorAccepted: true` for each post-plan counterexample on the reviewed snapshot. Those acceptance values are **predictions from the inspected predicates**, not observed harness output; please preserve the actual output and branch SHA if reproducing.
+The script's mutable-binding insertion uses a single `\\n` escape in the source file (verified after Agent 2 flagged an initial double-escape); when executed, that becomes an actual newline. The following output was observed on both Ubuntu and Windows against the pinned candidate source:
+
+```text
+export-prefix: {"trackedRanges":2,"validatorAccepted":true}
+class-Function-shadow: {"trackedRanges":2,"validatorAccepted":true}
+import-Function-shadow: {"trackedRanges":2,"validatorAccepted":true}
+appended-second-reader: {"trackedRanges":2,"validatorAccepted":true}
+intrinsic-toString-mutation: {"trackedRanges":2,"validatorAccepted":true}
+producer-disconnected-export: {"planAccepted":true,"linkedResultValueRef":null,"disconnectedResultValueRef":null,"linkedValueFlowEdgeCount":0,"disconnectedValueFlowEdgeCount":0}
+exported-mirror-overwrite: {"trackedRanges":2,"validatorAccepted":true}
+mutable-reader-binding: {"trackedRanges":2,"validatorAccepted":true}
+```
+
+`node --test` reported one test passed, zero failed on each platform. Thus **all seven post-plan mutations were actually accepted** by the candidate's direct validator. The producer-level comparison also actually accepted the disconnected export and showed both linked and disconnected plans had `resultValueRef:null` and zero value-flow edges.
+
+The strict project JSDoc step then failed on both platforms with the same type errors:
+
+```text
+src/core.js(2147,42): MappedSourceRange[] is not assignable to Map<string, MappedSourceRange>
+src/core.js(2149,7): Map<string, MappedSourceRange> is not assignable to MappedSourceRange[]
+src/core.js(2150,7): Object[] is not assignable to MappedSourceRange[]
+src/source-observation-plan.js(870,76): Map<string, MappedSourceRange> is not assignable to MappedSourceRange[]
+src/source-observation-plan.js(872,3): trackedRanges MappedSourceRange[] is not assignable to Map<string, MappedSourceRange>
+```
+
+This confirms the transaction helper's array/Map contract mismatch at typecheck time. It does not establish that `acceptPlannedPass`, pass rollback, or multi-pass `obfuscateFiles` integration works; those remain unexecuted in this review.
 
 ## Shared producer fixture
 
@@ -152,4 +180,4 @@ At the reviewed branch SHA:
 
 ## Interpretation
 
-The synthetic cases establish a result-flow representation gap in the current plan/rebind contract. They do **not** establish that the current three enabled transforms emit such edits. The producer must represent the host effect's returned string and accurately model any assignment/export path that claims to carry it; post-plan rebind must preserve that path when it is in scope. A disconnected export may be refused or treated as an unrelated output by a deliberately narrower plan, but it must not be represented as the source mirror. Agent 24 and Agent 50 should decide the precise contract boundary and prove each enabled pass preserves it. No candidate branch was changed and no CI was dispatched by Agent 4.
+The direct harness now establishes that the reviewed candidate's `validatePlanSemantics` accepts all seven tested source-observer mutations on both operating systems. This does **not** establish that any enabled transform emits them, and the harness bypasses the transaction wrapper. The producer also accepts linked and disconnected exports while omitting the returned string ValueRef and all value-flow edges; the graph therefore cannot distinguish whether the exported value carries the reader result. A disconnected export may be treated as unrelated by a deliberately narrower plan, but that scope must be explicit. The separate strict JSDoc failure confirms the transaction array/Map mismatch. Agent 3 must resolve the result-flow contract and transaction integration on the same candidate; Agent 10 retains comprehensive acceptance ownership. Agent 4 did not modify the candidate source or run the comprehensive gate.
