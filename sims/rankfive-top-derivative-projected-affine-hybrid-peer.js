@@ -41,7 +41,7 @@ function masksOfWeight(n, weight) {
   return result;
 }
 
-/** @param {number} n @param {number} width @returns {number} */
+/** @param {number[]} vectors @param {number} width @returns {number} */
 function vectorRank(vectors, width) {
   const pivots = Array(width).fill(0);
   let rank = 0;
@@ -381,6 +381,7 @@ function main() {
   // The lower-degree residual is deliberately outside the recovered quotient.
   const lowerRng = seeded(0x50a202641);
   const lowerBase = makeRankFiveSource(8,lowerRng);
+  /** @param {number} input @returns {number} */
   const lowerResidual = input =>
     (lowerBase(input) ^ ((((input & 0x20) !== 0) && ((input & 0x40) !== 0)) ? 0x80000000 : 0)) >>> 0;
   const lowerFallback = cloneTopDerivativeProjectedAffine(
@@ -394,6 +395,7 @@ function main() {
 
   // Silent rank-seven counterexample: signatures can look rank five, but the
   // independent RM(5,7) verifier must catch it and force exact interpolation.
+  /** @param {number} input @returns {number} */
   const silentRankSeven = input => (
     ((((input & 31) === 31) ? 1 : 0) ^ (((input & 124) === 124) ? 2 : 0))
   ) >>> 0;
@@ -414,6 +416,7 @@ function main() {
   }
 
   // A degree-four source has no fifth-derivative witness and uses exact fallback.
+  /** @param {number} input @returns {number} */
   const degreeFour = input => (
     ((((input & 15) === 15) ? 0x80000000 : 0) ^ ((input & 0x20) ? 0x12345678 : 0))
   ) >>> 0;
