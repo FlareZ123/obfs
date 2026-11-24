@@ -2,7 +2,6 @@
 
 const test=require('node:test');
 const assert=require('node:assert/strict');
-const vm=require('node:vm');
 const {obfuscateFiles}=require('../src');
 
 /**
@@ -111,8 +110,8 @@ function makeHostArgs(kind,external) {
  * @returns {Promise<{value:unknown,source:string}>}
  */
 async function observe(code,kind) {
-  /** @type {{captured:unknown,source:string|null}} */
-  const observation={captured:null,source:null};
+  /** @type {{captured:unknown,source:string|null,stackNames:string[]}} */
+  const observation={captured:null,source:null,stackNames:[]};
   /** @type {(...args:unknown[])=>void} */
   let external;
   if(kind==='promise-resolve') {
@@ -121,6 +120,7 @@ async function observe(code,kind) {
       'const ErrorCtor=Error;const previous=ErrorCtor.prepareStackTrace;'+
       'try{ErrorCtor.prepareStackTrace=(_error,sites)=>sites;'+
       'const sites=new Error().stack;'+
+      'observation.stackNames=sites.map(site=>site.getFunctionName());'+
       'const frame=sites.find(site=>site.getFunctionName()===\'hidden\');'+
       'observation.captured=frame&&frame.getFunction();'+
       'observation.source=observation.captured?Function.prototype.toString.call(observation.captured):null;'+
@@ -136,13 +136,13 @@ async function observe(code,kind) {
     )(observation));
   }
   const args=makeHostArgs(kind,external);
-  /** @type {{module:{exports:unknown}}} */
-  const context={module:{exports:null}};
-  vm.runInNewContext(code,context,{timeout:2500});
-  assert.equal(typeof context.module.exports,'function');
-  const reader=/** @type {(...args:unknown[])=>unknown} */(context.module.exports);
+  const module={exports:null};
+  Function('module',code)(module);
+  assert.equal(typeof module.exports,'function');
+  const reader=/** @type {(...args:unknown[])=>unknown} */(module.exports);
   const value=await reader(...args);
-  assert.equal(typeof observation.captured,'function',kind+' must capture hidden()');
+  assert.equal(typeof observation.captured,'function',
+    kind+' must capture hidden(): '+JSON.stringify(observation.stackNames));
   const source=observation.source||Function.prototype.toString.call(observation.captured);
   return {value,source};
 }
@@ -184,7 +184,8 @@ for(const mode of /** @type {const} */(['coo','sno'])) {
       const source=
         'const owner={secretField:1};'+
         'const other={unrelatedField:2};'+
-        hiddenPrefix+scenario.body+'}'+
+        hiddenPrefix+scenario.body+
+        (scenario.body.includes('return owner.secretField')?'':'return owner.secretField;')+'}'+
         'function plain(){return other.unrelatedField;}'+
         readerPrefix+readerBody+'}'+
         'module.exports=publicReader;';
