@@ -604,3 +604,23 @@ test('producer remains scoped to one ESM COO unit and rejects server modes and m
     mode:'coo',experimentalSourceObservationPlan:hostContract
   }),/only single-file ESM COO/u);
 });
+
+
+test('post-pass constructor-chain writes to Function.prototype.toString are rejected',()=>{
+  const plan=buildDirectFunctionSourcePlan(source,'entry.mjs',hostContract);
+  assert.ok(plan);
+  const sourceUnitRef=plan.sourceUnits.keys().next().value;
+  const parserContractId=parserContractIdFor('module');
+  const initial=getInitialPlanRanges(plan,sourceUnitRef);
+  const changed=applyEditsWithMap(source,[{
+    start:source.length,
+    end:source.length,
+    text:'\\n({}).constructor.constructor.prototype.toString = 0;\\n',
+    affinity:'unknown'
+  }],sourceUnitRef,parserContractId);
+  const ast=parse(changed.code,'module');
+  const next=advancePlanRanges(plan,changed.map,source,changed.code,initial.trackedSourceRanges);
+  assert.ok(next,'the protected source spans should remain exactly mappable');
+  assert.equal(validatePlanSemantics(plan,changed.code,ast,next),false,
+    'a post-pass write through Object.constructor.constructor must not invalidate the pristine Function source reader');
+});
