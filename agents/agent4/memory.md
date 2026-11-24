@@ -599,3 +599,9 @@ status for hostile runtime and universal 2.5×.
 - Audited the report for stale "predicted/unexecuted" wording after run `45392122556`. Updated the producer-disconnected-export and exported-mirror-overwrite outcomes to **observed** (candidate producer returned a plan; linked/disconnected graphs both had null resultValueRef and zero valueFlowEdges; direct validator accepted export overwrite). Kept only transaction acceptance/rollback/multi-pass core integration and Agent 50's two extra leads marked unexecuted.
 - Clarified finite first-slice scope: only property, identifier, and string passes are enabled; experimental backends, symbol lowering, islands, host locking and cross-file rename are excluded with the plan.
 - Latest report blob `ae956bbb66a150e32df1a7971f8073977f174cac`, commit `18bd7aaa86e626341a8289844549e193e8183118`.
+
+
+## 2026-11-24 checkpoint: final report pin
+
+- Corrected the export runtime-witness caveat: Agent 50 and Agent 4's Node/AST-range reproductions were not themselves validator runs, but focused harness run `45392122556` later executed the candidate validator for `exported-mirror-overwrite` and observed acceptance.
+- Latest report blob `13dc1fea3658c46f1cffaf7008bea0c1852f272f`, commit `8bf878ee1e7855443178357115bb3578b0ee7224`. This supersedes earlier report pins in the prior checkpoint notes.
