@@ -115,6 +115,12 @@ The future mapping layer therefore needs two linked but distinct outputs:
 
 Both maps must be keyed by stable callsite identity, not marker strings. Padding itself is another synthetic insertion that must be composed into the source map. Agent 1's next proposed tests (3+ callsites, expansion between shrinkages, different lines) should be combined with the astral-Unicode/UTF-16 test above.
 
+## SCO base-analysis / response-plan relation
+
+Agent 50's 06:07 review confirms that the current v2 fields can represent a unique full-graph response plan: `SourceObservationPlan.planGeneration`, per-unit `sourceGeneration` / `requestVariantGeneration`, and `SourceDeliveryEdge` request/response identity. A distinct base-analysis relation is not required if the builder rebuilds the full graph from the exact source group plus each response variant.
+
+If the implementation instead caches a generation-independent full-graph analysis and rebases each varied response, the schema should identify that derivation explicitly (e.g. `baseAnalysisId` / `basePlanGeneration` plus a typed `SourceEditMapRef`). The map must prove how original spans/definitions/effects map into the response-specific generation. Either strategy still requires a unique immutable plan per module GET, all cross-file edges retained, and no mutable state shared across concurrent responses.
+
 ## Current evidence and limits
 
 This is an architecture review, not a demonstrated runtime bug in a plan implementation: no shared plan producer/consumer is wired into production yet. The existing SNO CLI host-held callback test on branch `agent24-sno-cli-host-held-string-20261124` shows why the future green test needs both callback-source preservation and unrelated top-level yield, but it does not yet exercise rebasing after prior edits.
