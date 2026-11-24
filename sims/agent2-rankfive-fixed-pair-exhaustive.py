@@ -102,6 +102,20 @@ def check_exact_second_difference_zeros(table: list[int]) -> int:
     return checks
 
 
+def check_differential_uniformity(table: list[int]) -> int:
+    """For each nonzero delta, every derivative value must occur exactly twice."""
+    derivative_value_checks = 0
+    for delta in range(1, SIZE):
+        counts: dict[int, int] = {}
+        for q in range(SIZE):
+            value = table[q] ^ table[q ^ delta]
+            counts[value] = counts.get(value, 0) + 1
+            derivative_value_checks += 1
+        assert len(counts) == SIZE // 2
+        assert set(counts.values()) == {2}
+    return derivative_value_checks
+
+
 def fixed_pair_failures(table: list[int]) -> tuple[int, int]:
     """Check all ordered independent (u,v), all q, and all nonzero delta."""
     pair_count = 0
@@ -144,8 +158,10 @@ def main() -> None:
     source_sha256 = hashlib.sha256(source.encode("utf-8")).hexdigest()
     assert source_sha256 == "2b6a7b2cb348cd716e636e8e2da0817d4721a95f98bd45bbd90ffd8a5b366a9d"
 
+    derivative_value_checks = check_differential_uniformity(table)
     exact_zero_checks = check_exact_second_difference_zeros(table)
     pair_count, tested_constraints = fixed_pair_failures(table)
+    assert derivative_value_checks == SIZE * (SIZE - 1)
     assert exact_zero_checks == SIZE * (SIZE - 1) * (SIZE - 2)
     assert pair_count == 930
     assert tested_constraints == 930 * SIZE * (SIZE - 1)
@@ -155,6 +171,9 @@ def main() -> None:
         "table_top_coefficient": f"0x{top:08x}",
         "source_sha256": source_sha256,
         "source_length": len(source),
+        "derivative_value_checks": derivative_value_checks,
+        "differential_uniformity": 2,
+        "distinct_derivative_values_per_nonzero_delta": SIZE // 2,
         "nontrivial_second_difference_checks": exact_zero_checks,
         "only_nonzero_zero_offset_is_delta": True,
         "ordered_independent_offset_pairs": pair_count,
