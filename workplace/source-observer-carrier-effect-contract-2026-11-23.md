@@ -120,14 +120,18 @@ The canonical plan should expose at least:
 
 ```js
 /**
+ * @typedef {'server'|'client'|'shared-build'} ExecutionPartition
  * @typedef {Object} SourceUnitRef
- * @property {string} sourceUnitId - runtime module/script instance identity
+ * @property {string} sourceUnitId - runtime module/script instance identity, not merely a path
  * @property {string|null} resolvedURL - actual browser/loader-resolved module URL when applicable
  * @property {string|null} resolutionContextId - import-map/loader resolution generation
- * @property {string} sourceGeneration - hash/identity of exact source bytes plus parser version/options; invalidates local IDs and spans on edit/reparse
+ * @property {string} sourceGeneration - exact source bytes plus parser version/options
  * @property {string|null} realmGroupId - shared realm for classic-script groups
  * @property {'module'|'script'|'commonjs'} sourceType
  * @property {number|null} executionOrder - required when classic-script order matters
+ * @property {ExecutionPartition} executionPartition - server, client or shared build
+ * @property {string|null} runtimeContractId - host/runtime contract for this execution partition
+ * @property {string|null} requestVariantGeneration - SCO request-specific emitted variant; null otherwise
  *
  * @typedef {Object} BindingRef
  * @property {SourceUnitRef} sourceUnit
@@ -147,33 +151,95 @@ The canonical plan should expose at least:
  * @property {number} sourceOrder
  * @property {string} controlFlowPointId - reaching-definition point; source order alone is insufficient
  *
+ * @typedef {Object} CallableDefinitionRef
+ * @property {string} callableDefinitionId
+ * @property {SourceUnitRef} sourceUnit
+ * @property {string} sourceSpanId
+ * @property {DefinitionRefKey|null} lexicalDefinition - when the callable has a lexical binding
+ * @property {DefinitionRefKey|null} ownerDefinition - owner object/class definition for property-defined callables
+ * @property {string|null} propertyKeyIdentity - canonical key including static/private/instance distinction
+ * @property {'function-declaration'|'function-expression'|'object-method'|'object-accessor'|'class-method'|'class-accessor'|'class-constructor'|'class-field'|'anonymous-expression'|'imported-callable'|'unknown'} kind
+ *
+ * @typedef {Object} ActivationRef
+ * @property {string} activationId
+ * @property {'function'|'script-or-module'|'class-static-block'|'eval'} kind
+ * @property {SourceUnitRef} sourceUnit
+ * @property {string} activationSpanId
+ * @property {CallableDefinitionRefKey|null} callableDefinition - null for non-function execution frames
+ *
+ * @typedef {Object} HostContractRef
+ * @property {string} hostContractId
+ * @property {ExecutionPartition} executionPartition
+ * @property {string} runtimeFamily
+ * @property {string} runtimeVersion
+ * @property {string|null} realmId
+ * @property {string|null} intrinsicSnapshotId
+ * @property {string|null} loaderPreloadContractId
+ * @property {string|null} deploymentManifestId
+ * @property {string|null} pristineIntrinsicsPremise - explicit auditable premise, never inferred from global spelling
+ *
  * @typedef {string} BindingRefKey - canonical serialization of BindingRef or RealmBindingRef
  * @typedef {string} DefinitionRefKey - canonical serialization of BindingRefKey + definition identity
+ * @typedef {string} CallableDefinitionRefKey - canonical serialization of function-object definition identity
+ * @typedef {string} ActivationRefKey
  * @typedef {string} SourceSpanId - canonical serialization of SourceUnitRef + start/end offsets
- * @typedef {'PrimitiveGet'|'PrimitiveObjectPatternGet'|'PrimitiveIterator'|'IteratorDispatch'|'PrimitiveMethodDispatch'|'UnknownHostCall'|'UnknownHostArgumentEscape'|'AccessorCall'|'ProxyInternalMethod'|'ProxyHasProperty'|'ProxyOwnKeys'|'ProxyGetOwnProperty'|'ProxyGet'|'ProxyDelete'|'CustomHasInstance'|'ObjectCopyDispatch'|'WithBindingLookup'|'PromiseHandlerDispatch'|'WebIDLStringConversion'|'WebIDLNamedPropertySet'|'WebIDLAttributeSet'|'SRIIntegrityPin'|'BrowserImportMapResolution'} HostEffectKind
+ * @typedef {string} HostEffectId - unique identity for one effect, even when spans are shared
+ * @typedef {string} SourceUnitRefKey
+ * @typedef {string} SourceMirrorRefKey
+ * @typedef {string} ValueRefKey
+ * @typedef {'get'|'set'|'has'|'deleteProperty'|'ownKeys'|'getOwnPropertyDescriptor'|'getPrototypeOf'|'defineProperty'|'setPrototypeOf'|'isExtensible'|'preventExtensions'|'apply'|'construct'} ProxyInternalMethod
+ * @typedef {'local-definition'|'verified-native-intrinsic'|'host-overridden'|'unknown-or-mutable'} DispatchProvenance
+ * @typedef {'PrimitiveGet'|'PrimitiveObjectPatternGet'|'PrimitiveIterator'|'IteratorDispatch'|'PrimitiveMethodDispatch'|'UnknownHostCall'|'UnknownHostArgumentEscape'|'AccessorCall'|'ProxyInternalMethod'|'ProxyHasProperty'|'ProxyOwnKeys'|'ProxyGetOwnProperty'|'ProxyGet'|'ProxySet'|'ProxyDelete'|'CustomHasInstance'|'ObjectCopyDispatch'|'WithBindingLookup'|'ToPrimitiveDispatch'|'ToPropertyKeyDispatch'|'PromiseResolveThenableGet'|'PromiseThenableJob'|'PromiseHandlerDispatch'|'WebIDLStringConversion'|'WebIDLNamedPropertySet'|'WebIDLAttributeSet'|'DOMSourceSerialization'|'DOMSourceRead'|'SourceMirrorRead'|'SRIIntegrityPin'|'BrowserImportMapResolution'} HostEffectKind
  * @typedef {'Primitive'|'Callable'|'HostHeldCallable'|'HostOpaque'|'Unknown'} ValueKind
+ * @typedef {'trigger'|'observed'} HostEffectValueRole
+ * @typedef {'ExactSource'|'FramePosition'|'CallableMetadata'|'UnknownHostEffect'} ObservationEffect
+ *
  * @typedef {Object} HostEffectRecord
+ * @property {HostEffectId} effectId
  * @property {HostEffectKind} kind
  * @property {SourceSpanId} operationSpan
+ * @property {string|null} abstractOperation - ToPrimitive, ToPropertyKey, PromiseResolve.GetThen, etc.
+ * @property {'default'|'number'|'string'|null} conversionHint
+ * @property {ProxyInternalMethod|null} proxyInternalMethod
  * @property {string|null} interfaceIdentity
  * @property {string|null} receiverIdentity
  * @property {string|null} effectiveOperationIdentity
  * @property {string|null} conversionTarget - DOMString, USVString, ByteString, etc.
- * @property {'method-argument'|'named-property-setter-value'|'attribute-setter-value'|'computed-property-key'|null} operandRole
+ * @property {string|null} operandRole
  * @property {number|null} argumentIndex
- * @typedef {'ExactSource'|'FramePosition'|'CallableMetadata'|'UnknownHostEffect'} ObservationEffect
+ * @property {string|null} operandPath - nested object/array/iterator path
+ * @property {DispatchProvenance} dispatchProvenance
+ * @property {string|null} hostContractId
+ *
+ * @typedef {Object} HostEffectValueEdge
+ * @property {HostEffectId} effectId
+ * @property {HostEffectValueRole} role - triggering value vs value actually observed/serialized
+ * @property {ValueRefKey} valueRef
+ * @property {string|null} operandRole
+ * @property {number|null} argumentIndex
+ * @property {string|null} operandPath
+ *
+ * @typedef {Object} ActiveFrameEdge
+ * @property {HostEffectId} effectId
+ * @property {ActivationRefKey} activationRef
+ * @property {ReadonlySet<ObservationEffect>} effects
  *
  * @typedef {Object} SourceObservationPlan
  * @property {ReadonlyMap<BindingRefKey, unknown>} bindings
- * @property {ReadonlyMap<DefinitionRefKey, unknown>} definitions
- * @property {ReadonlyMap<DefinitionRefKey, ValueKind>} valueFacts
- * @property {ReadonlyMap<SourceSpanId, ReadonlySet<DefinitionRefKey>>} hostArgumentEdges - callable values retained by unknown host calls
- * @property {ReadonlyMap<SourceSpanId, ReadonlySet<DefinitionRefKey>>} reachingDefinitions - runtime definitions that can reach this callsite
- * @property {ReadonlyMap<DefinitionRefKey, ReadonlySet<DefinitionRefKey>>} callTargets
- * @property {ReadonlyMap<DefinitionRefKey, ReadonlySet<DefinitionRefKey>>} activeFrameTargets
- * @property {string|null} deploymentManifestId - HTML/loader/import-map/SRI manifest generation
- * @property {ReadonlyMap<string, string>} resolvedModuleGraph - source unit -> actual resolved module instance
- * @property {ReadonlyMap<SourceSpanId, ReadonlyArray<HostEffectRecord>>} hostEffects
+ * @property {ReadonlyMap<DefinitionRefKey, DefinitionRef>} definitions
+ * @property {ReadonlyMap<CallableDefinitionRefKey, CallableDefinitionRef>} callableDefinitions
+ * @property {ReadonlyMap<ActivationRefKey, ActivationRef>} activations
+ * @property {ReadonlyMap<ValueRefKey, ValueKind>} valueFacts
+ * @property {ReadonlyMap<SourceSpanId, ReadonlySet<CallableDefinitionRefKey>>} hostArgumentEdges - compatibility projection only; not the per-effect authority
+ * @property {ReadonlyMap<SourceSpanId, ReadonlySet<DefinitionRefKey>>} reachingDefinitions
+ * @property {ReadonlyMap<CallableDefinitionRefKey, ReadonlySet<CallableDefinitionRefKey>>} callTargets
+ * @property {ReadonlyMap<HostEffectId, HostEffectRecord>} hostEffects
+ * @property {ReadonlyMap<HostEffectId, ReadonlyArray<HostEffectValueEdge>>} valueEdges - separate trigger and observed-value edges
+ * @property {ReadonlyMap<HostEffectId, ReadonlyArray<ActiveFrameEdge>>} activeFrameEdges - function and non-function activation frames
+ * @property {ReadonlyMap<string, HostContractRef>} hostContracts
+ * @property {string|null} deploymentManifestId - HTML/loader/import-map/SRI/source-mirror manifest generation
+ * @property {ReadonlyMap<SourceUnitRefKey, SourceUnitRefKey>} resolvedModuleGraph
+ * @property {ReadonlyMap<SourceMirrorRefKey, SourceUnitRefKey>} sourceMirrors - host HTML/DOM copies mapped to source units
  * @property {ReadonlyMap<SourceSpanId, ReadonlySet<ObservationEffect>>} effects
  * @property {ReadonlyMap<SourceSpanId, ReadonlySet<SourceSpanId>>} semanticClosures
  * @property {ReadonlySet<SourceSpanId>} unsupportedSpans
@@ -370,3 +436,76 @@ Required browser negatives before any COO claim:
 
 This is a deployment-proof limitation, not a demonstrated current-main behavior regression under the existing opt-in caller contract. The Node-only source-island fixture remains a narrower positive. No new PR or compiler patch is proposed.
 
+
+
+## Agent 50 / Agent 1 implicit-dispatch convergence and current-main falsification (24 November 2026)
+
+**Status:** stronger current-main correctness evidence and a broader runtime event inventory; still an architectural contract and NO-GO, not an implementation or release result.
+
+### Current-main transform evidence supersedes the earlier donor-only uncertainty for these operation shapes
+
+Agent 1's source-pinned test-only matrix uses the current-main production blobs `src/properties.js` `bda3c6097e2679f59bd003fa0aed3e0291d4ba4c` and `src/core.js` `8d33996821650de540b87502baff00a9e7ea99c7`. Test branch `agent1-forof-active-frame-transform-check-20261124`, commit `f3d73309e0d8ba4cc0f1aaf62ecd60b789457a24`, changes no production source. Run [45312383489](https://github.com/FlareZ123/obfs/actions/runs/45312383489) exercised 13 implicit-dispatch constructs × COO/SNO on Ubuntu and Windows (26 cases per OS): **24 exact-source mismatches and 2 source-parity passes on each OS**.
+
+The 12 mismatching constructs are:
+- `for...of` / IteratorNext;
+- `in` / Proxy `has`;
+- `for...in` / Proxy `ownKeys`;
+- `for...in` / Proxy `getPrototypeOf`;
+- `instanceof` / custom `Symbol.hasInstance`;
+- `delete` / Proxy `deleteProperty`;
+- object destructuring / Proxy `get`;
+- array destructuring / IteratorNext;
+- assignment / Proxy `set`;
+- assignment / accessor setter;
+- arithmetic / `Symbol.toPrimitive`;
+- `await` / PromiseResolve thenable `then` getter.
+
+Each mismatch preserves return values while the tested property transform changes both the source-observed owner's key and an unrelated positive-control owner's key. The two `with` / Proxy HasBinding parity passes are **not** selective proof: current `WithStatement` guards force `properties:0` and leave the unrelated field unchanged, confirmed by [45312608205](https://github.com/FlareZ123/obfs/actions/runs/45312608205). The final matrix file's strict project/external/paired-budget JSDoc passed on both OS in [45312562606](https://github.com/FlareZ123/obfs/actions/runs/45312562606). This evidence demonstrates a current-main property-pass source-observation gap for the stated sloppy CommonJS Node cases, not a universal ECMAScript or browser claim.
+
+SCO has three separate current-main Node/CommonJS `createScoHandler` response mismatches, each with unrelated positive property yield and preserved return value:
+- IteratorNext / ForOf: [45310430205](https://github.com/FlareZ123/obfs/actions/runs/45310430205);
+- PromiseResolve thenable getter: [45313400478](https://github.com/FlareZ123/obfs/actions/runs/45313400478), with focused JSDoc [45313505327](https://github.com/FlareZ123/obfs/actions/runs/45313505327);
+- arithmetic ToPrimitive: [45313693556](https://github.com/FlareZ123/obfs/actions/runs/45313693556), with focused JSDoc [45313771390](https://github.com/FlareZ123/obfs/actions/runs/45313771390).
+
+The SCO controls use a CommonJS entry and the actual generated HTTP response. Classic-script attempts are byte-identical/no-op in the tested fixture because the property pass is skipped; that is not evidence of safe selective transformation. Strict ESM, async iterator source capture and browser DevTools/debugger behavior remain unestablished. See `im-results/agent1-current-main-implicit-dispatch-source-matrix-2026-11-24.md`, `im-results/agent1-sco-forof-active-frame-source-observer-2026-11-24.md` and `im-results/agent1-classic-script-forof-source-parity-2026-11-24.md`.
+
+### Agent 50 runtime extension: generic coercion, PromiseResolve and all Proxy traps
+
+The executable [runtime report](../im-results/agent50-implicit-dispatch-extension-2026-11-24.md) and [reproducer](../sims/agent50-implicit-dispatch-extension.js) record **22/22 local Node 22.16.0 controls**, with no production code or CI changes. The 22 controls comprise 10 ToPrimitive/ToPropertyKey cases, 3 PromiseResolve thenable-assimilation cases, 7 Proxy internal-method/call/construct cases, and 2 multi-effect composition cases. Nine sloppy ToPrimitive/ToPropertyKey functions expose exact source through a callback despite no CallExpression in the analyzed function. Strict-mode ToPrimitive and thenable-getter controls establish FramePosition only, not callable-object/source capture. Object.* Proxy trap controls establish active-frame name/file/line/column but do not recover the callable through CallSite.getFunction; Proxy apply/construct have separate callable/source capture controls. CallableMetadata is not independently asserted.
+
+The earlier Agent 24 runtime matrix and Agent 50 extension together cover all 13 standard Proxy traps across two separate Node/V8 scripts, not one combined run and not a browser audit:
+
+| Proxy internal method | Standard trap | Witness operation |
+| --- | --- | --- |
+| [[Get]] | get | object destructuring |
+| [[Set]] | set | property assignment |
+| [[HasProperty]] | has | in operator / with binding |
+| [[Delete]] | deleteProperty | delete expression |
+| [[OwnPropertyKeys]] | ownKeys | for-in enumeration |
+| [[GetOwnProperty]] | getOwnPropertyDescriptor | for-in / descriptor lookup |
+| [[GetPrototypeOf]] | getPrototypeOf | for-in enumeration |
+| [[DefineOwnProperty]] | defineProperty | Object.defineProperty |
+| [[SetPrototypeOf]] | setPrototypeOf | Object.setPrototypeOf |
+| [[IsExtensible]] | isExtensible | Object.isExtensible |
+| [[PreventExtensions]] | preventExtensions | Object.preventExtensions |
+| [[Call]] | apply | proxy function call |
+| [[Construct]] | construct | proxy constructor call |
+
+### Event, identity and edge consequences for the one shared plan
+
+1. **Generic coercion is an implicit dispatch producer.** Add ToPrimitive/ToPropertyKey events with abstract operation, hint (default/number/string), operand role and nested path, trigger value and hook provenance. Arithmetic, relational comparison, computed member/pattern/object keys, `in`, and computed delete keys can invoke user hooks without a CallExpression. An unknown object coercion defaults to `UnknownHostEffect` unless the effective hook/receiver is proved under a mode-specific host contract.
+2. **PromiseResolve is not ordinary Promise handler dispatch.** During `await` or async return of a thenable, the engine synchronously Gets `then` while the async function's activation is still present; the getter can observe the active frame. The later thenable method runs as a deferred job. Model `PromiseResolveThenableGet` and `PromiseThenableJob` separately. `PromiseHandlerDispatch` (for `.then/.catch/.finally`) is a third event and remains host-controlled if Promise intrinsics can be patched before import.
+3. **Proxy internal-method coverage is an explicit 13-trap inventory.** A generic `ProxyInternalMethod` record must carry the exact internal method/trap identity. Do not assume Object/Reflect intrinsics are inert: receiver provenance can route them into a Proxy trap. `[[Call]]`/`[[Construct]]` may share existing call/new summaries only if the Proxy receiver/trap path is represented.
+4. **One source span can emit multiple effects.** Both operands of one `+` may trigger separate ToPrimitive operations; a computed member expression can trigger ToPropertyKey on its key and Proxy `[[Get]]` on its receiver. Use a unique `HostEffectId` per event and preserve typed operand path/role.
+5. **Three graph relations must remain separate.** The object that triggers coercion/Proxy/thenable dispatch is not necessarily the callable/source value the host observes, and neither is the active function frame. Store trigger-value edges and observed-value edges separately from reverse ActiveFrameEdges. Do not encode all three as hostArgumentEdges.
+6. **Non-function activation frames exist.** A callback may observe script/module evaluation, class static-block or eval frames. Use a generic ActivationRef/FrameRef union; a function-only DefinitionRef map is incomplete.
+7. **Callable definitions are not always lexical bindings.** Object methods/accessors, class methods/accessors/constructors/fields and anonymous function expressions need their own CallableDefinitionRef tied to source span plus owner/key identity. A BindingRef for the owner object is not the identity of the method function object.
+8. **Host dispatch provenance must be explicit.** Record whether dispatch resolves to a local definition, a verified native intrinsic under a versioned contract, a known override, or an unknown/mutable operation. An unshadowed spelling such as Promise, Reflect.get, Response or Storage.prototype.setItem does not prove pristine native behavior.
+9. **DOM source serialization is distinct from Web IDL string conversion.** Add DOMSourceSerialization/DOMSourceRead effects for outerHTML/innerHTML, textContent/node traversal, XMLSerializer, Range/cloned contents and imported helpers receiving Document/Node/Range. Deployment manifests must also map inert host-HTML/DOM source mirrors to their source units, or refuse the affected closure.
+10. **Execution partition and request generation are part of identity.** COO units execute in the client partition; SNO units execute in the server partition; SCO contains distinct server and client units plus cross-partition fetch/response edges. SCO request-specific emitted variants need their own requestVariantGeneration/sourceGeneration. Recompute the plan after request-time edits or use a validated edit map that invalidates every affected span/effect/definition; never share a mutable plan across concurrent requests.
+
+The revised typedef block above is the canonical *proposed* schema extension. It is not wired into the compiler. Existing source-island code remains a separate bounded donor; its eligibility should eventually consume this same plan rather than build a second module/binding/observer authority. The COO deployment manifest must account for host HTML, import maps, SRI and source mirrors. The SCO plan must be partition-aware. SNO's hostile owner/runtime remains outside any local self-integrity guarantee.
+
+### Decision and next evidence boundary
+
+The new evidence strengthens the NO-GO rather than selecting a candidate. Do not port a pass-local ToPrimitive/Proxy/Promise guard or expand the existing With/file-wide veto as a substitute for the graph. No new parallel PR or broad gate is justified. Agent 3 remains the integration owner and Agent 10 the sole comprehensive acceptance owner. The next candidate decision must still identify one exact current-main base, donor set, consumer list, focused red/green and unrelated positive-yield controls, mode-specific COO browser/SCO actual-handler/SNO CLI coverage, then one full immutable two-platform gate and strict 2.5× adversarial performance evidence. Until then preserve the existing fail-closed fallback and keep **NO-GO / RELEASE-BLOCKED**.
