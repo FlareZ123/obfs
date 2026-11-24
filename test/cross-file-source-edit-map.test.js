@@ -60,6 +60,26 @@ test('cross-file property pass emits per-module maps and marks changed source sp
 });
 
 
+
+test('cross-file closed-world pass declines a declared module with non-string source',()=>{
+  const files=[
+    {path:'state.mjs',sourceType:'module',code:'export const state={secretField:23};'},
+    {path:'opaque.mjs',sourceType:'module',code:Buffer.from('export const hidden={secretField:1};')},
+    {path:'main.mjs',sourceType:'module',code:'import {state} from "./state.mjs"; console.log(state.secretField);'}
+  ];
+  const result=renameCrossFileProperties(files,'unparseable-module',{
+    sourceUnits:new Map([
+      ['state.mjs',{sourceUnitRef:'sno:state:1',parserContractId:PARSER}],
+      ['main.mjs',{sourceUnitRef:'sno:main:1',parserContractId:PARSER}]
+    ])
+  });
+  assert.equal(result.objects,0);
+  assert.equal(result.properties,0);
+  assert.equal(result.editMaps,undefined,
+    'a partial module graph must not emit maps that imply closed-world coverage');
+  assert.deepEqual(result.files,files);
+});
+
 test('cross-file map emission rejects duplicate module identities and wrong parser contracts',()=>{
   const files=[
     {path:'state.mjs',sourceType:'module',code:'export const state={secretField:23};'},
