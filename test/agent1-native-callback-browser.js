@@ -168,6 +168,40 @@ function pageFor(observation,scriptPath,patchedMap=false){
 
 
 /**
+ * Observe one of two same-line Array.map callsites. The non-target callback
+ * still runs, but only the selected callback captures the active hidden frame.
+ * @param {string} scriptPath
+ * @param {number} targetIndex
+ * @returns {string}
+ */
+function multiPageFor(scriptPath,targetIndex){
+  return '<!doctype html><meta charset="utf-8">'+
+    '<pre id="result"></pre><pre id="failure"></pre>'+
+    '<script>window.module={exports:{}};'+
+    'window.__target='+targetIndex+';window.__count=0;'+
+    'window.__observation={source:null,frame:null,column:null,error:null,callerError:null};'+
+    'function external(){try{'+
+      'window.__count+=1;if(window.__count!==window.__target)return;'+
+      'var stack=String(new Error("host callback").stack||"");'+
+      'var lines=stack.split("\\n");'+
+      'var frame=lines.find(function(line){return /\\bhidden\\b/.test(line);})||null;'+
+      'window.__observation.frame=frame;'+
+      'var match=frame&&frame.match(/:(\\d+):(\\d+)\\)?$/);'+
+      'window.__observation.column=match?Number(match[2]):null;'+
+    '}catch(error){window.__observation.error=String(error&&error.message||error);}}'+
+    '</script>'+
+    '<script src="'+scriptPath+'"></script>'+
+    '<script>try{'+
+      'var value=module.exports(external);'+
+      'Promise.resolve().then(function(){'+
+        'var seen=window.__observation;'+
+        'var result={value:value,source:seen.source,frame:seen.frame,column:seen.column,error:seen.error,callerError:seen.callerError};'+
+        'document.getElementById("result").textContent=btoa(JSON.stringify(result));'+
+      '});'+
+    '}catch(error){document.getElementById("failure").textContent=String(error&&error.stack||error);}</script>';
+}
+
+/**
  * @param {string} modulePath
  * @param {boolean} [patchedMap]
  * @returns {string}
