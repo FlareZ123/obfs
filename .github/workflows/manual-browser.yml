@@ -136,10 +136,12 @@ jobs:
           CHROMIUM_BIN: google-chrome
         run: node test/instance-prototype-source-browser.js
       - name: Differentially observe native intrinsic callbacks in real Chromium
+        if: always()
         env:
           CHROMIUM_BIN: google-chrome
         run: node test/agent1-native-callback-browser.js
       - name: Strict-check external benchmark and browser harness JSDoc
+        if: always()
         run: npm run typecheck:external
       - name: Compare held-out multi-file property graphs in Chrome
         env:
