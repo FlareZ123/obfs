@@ -36,7 +36,7 @@ function findCallback(ast) {
 test('SNO host-held callback source survives mapped identifier edits and string prologue while unrelated literal encodes',()=>{
   const source=[
     'const aVeryLongUnusedBindingName=1;',
-    "const callback=()=>{return 'inside-callback-literal';};",
+    "const callback=()=>{const privateInsideCallback=2;return 'inside-callback-literal';};",
     'queueMicrotask(callback);',
     "const unrelated='top-level-literal';"
   ].join('\n');
@@ -50,11 +50,16 @@ test('SNO host-held callback source survives mapped identifier edits and string 
     seed:'source-map-integration-identifiers',
     sourceType:'module',
     sourceUnitRef:UNIT,
-    parserContractId:PARSER
+    parserContractId:PARSER,
+    protectedSourceSpans:[originalSpan]
   });
   assert.ok(renamed.bindings>0,'fixture must exercise an identifier rewrite before the callback');
   assert.ok(renamed.editMap,'identifier pass must emit a generation-qualified map');
   assert.notEqual(renamed.code,source);
+  assert.ok(renamed.code.includes('privateInsideCallback'),
+    'identifier inside the observed callable must remain byte-for-byte unchanged');
+  assert.ok(!renamed.code.includes('aVeryLongUnusedBindingName'),
+    'unrelated identifier outside the callable should still be renamed');
 
   const relocated=mapSourceSpan(renamed.editMap,originalSpan,source,renamed.code);
   assert.ok(relocated,'callback span must survive unrelated identifier edits');
