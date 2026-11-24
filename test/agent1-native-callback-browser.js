@@ -8,26 +8,26 @@ const {obfuscateFiles}=require('../src');
 
 const runBrowser=promisify(execFile);
 
-/** @typedef {{kind:string,observation:'source'|'frame',body:string,deferred?:boolean,patchedMap?:boolean}} Scenario */
+/** @typedef {{kind:string,observation:'source'|'frame',body:string,deferred?:boolean,patchedMap?:boolean,marker?:string}} Scenario */
 /** @typedef {{value:number,source:string|null,frame:string|null,column:number|null,error:string|null,callerError:string|null}} Observation */
 
 /** @type {Scenario[]} */
 const scenarios=[
-  {kind:'json-toJSON',observation:'frame',
+  {kind:'json-toJSON',observation:'frame',marker:'JSON.stringify(',
     body:'JSON.stringify({toJSON:function(){external();return 1;}});'},
-  {kind:'json-replacer',observation:'source',
+  {kind:'json-replacer',observation:'source',marker:'JSON.stringify(',
     body:"JSON.stringify({x:1},function(key,value){if(key==='x')external();return value;});"},
-  {kind:'json-reviver',observation:'source',
+  {kind:'json-reviver',observation:'source',marker:'JSON.parse(',
     body:"JSON.parse('{\"x\":1}',function(key,value){if(key==='x')external();return value;});"},
-  {kind:'array-sort',observation:'frame',
+  {kind:'array-sort',observation:'frame',marker:'.sort(',
     body:'[2,1].sort(function(a,b){external();return a-b;});'},
-  {kind:'string-replace',observation:'frame',
+  {kind:'string-replace',observation:'frame',marker:'.replace(',
     body:"'a'.replace(/a/,function(){external();return 'b';});"},
-  {kind:'array-map',observation:'frame',
+  {kind:'array-map',observation:'frame',marker:'.map(',
     body:'[1].map(function(value){external();return value;});'},
-  {kind:'map-forEach',observation:'frame',
+  {kind:'map-forEach',observation:'frame',marker:').forEach(',
     body:"new Map([['x',1]]).forEach(function(){external();});"},
-  {kind:'array-from-map',observation:'frame',
+  {kind:'array-from-map',observation:'frame',marker:'Array.from(',
     body:'Array.from([1],function(value){external();return value;});'},
   {kind:'promise-then-deferred',observation:'frame',deferred:true,
     body:'Promise.resolve(1).then(function(value){external();return value;});'},
@@ -200,7 +200,7 @@ async function main(){
   const metrics=new Map();
   /** @type {Map<string,number>} */
   const moduleMetrics=new Map();
-  /** @type {Array<{mode:string,delta:number,nativeColumn:number|null,compiledColumn:number|null,paddedColumn:number|null}>} */
+  /** @type {Array<{mode:string,kind:string,delta:number,nativeColumn:number|null,compiledColumn:number|null,paddedColumn:number|null}>} */
   const paddingResults=[];
   /** @type {Array<{kind:string,mode:string,properties:number,deferred:boolean,patchedMap:boolean,native:Observation,compiled:Observation}>} */
   const results=[];
@@ -342,26 +342,26 @@ async function main(){
           scenario.kind+' should expose changed active-frame coordinates after private-key rewriting');
       }
 
-      if(scenario.kind==='array-map'){
+      if(scenario.marker&&Number.isInteger(before.column)&&Number.isInteger(after.column)){
         const delta=(before.column??0)-(after.column??0);
-        assert.ok(delta>0,'native/emitted CJS frame columns should differ before padding');
+        assert.ok(delta>0,scenario.kind+' native/emitted CJS frame columns should differ before padding');
         const compiledResource=resources.get(base+'/compiled.js');
         assert.ok(compiledResource);
-        const paddedCode=padBeforeMarkerByDelta(compiledResource.body,'[1].map(',delta);
+        const paddedCode=padBeforeMarkerByDelta(compiledResource.body,scenario.marker,delta);
         resources.set(base+'/padded.js',{body:paddedCode,type:'text/javascript; charset=utf-8'});
         resources.set(base+'/padded.html',{
           body:pageFor('frame',base+'/padded.js'),
           type:'text/html; charset=utf-8'
         });
         const padded=await observe(origin,base+'/padded.html');
-        assert.equal(padded.value,before.value,'padded CJS native/emitted return parity');
-        assert.equal(padded.column,before.column,'runtime-calibrated CJS callsite padding should restore the native frame column');
+        assert.equal(padded.value,before.value,scenario.kind+' padded CJS native/emitted return parity');
+        assert.equal(padded.column,before.column,scenario.kind+' padded CJS callsite should restore native frame column');
         paddingResults.push({
-          mode:'commonjs',delta,
+          mode:'commonjs',kind:scenario.kind,delta,
           nativeColumn:before.column,compiledColumn:after.column,paddedColumn:padded.column
         });
         process.stdout.write('CHROMIUM_FRAME_PADDING '+JSON.stringify({
-          mode:'commonjs',delta,
+          mode:'commonjs',kind:scenario.kind,delta,
           nativeColumn:before.column,compiledColumn:after.column,paddedColumn:padded.column
         })+'\n');
       }
@@ -420,12 +420,12 @@ async function main(){
         assert.notEqual(after.column,before.column,
           scenario.kind+' strict ESM should expose changed active-frame coordinates after private-key rewriting');
       }
-      if(scenario.kind==='array-map'){
+      if(scenario.marker&&Number.isInteger(before.column)&&Number.isInteger(after.column)){
         const delta=(before.column??0)-(after.column??0);
-        assert.ok(delta>0,'native/emitted ESM frame columns should differ before padding');
+        assert.ok(delta>0,scenario.kind+' native/emitted ESM frame columns should differ before padding');
         const compiledResource=resources.get(base+'/module-compiled.mjs');
         assert.ok(compiledResource);
-        const paddedCode=padBeforeMarkerByDelta(compiledResource.body,'[1].map(',delta);
+        const paddedCode=padBeforeMarkerByDelta(compiledResource.body,scenario.marker,delta);
         resources.set(base+'/module-padded.mjs',{
           body:paddedCode,type:'text/javascript; charset=utf-8'
         });
@@ -434,14 +434,14 @@ async function main(){
           type:'text/html; charset=utf-8'
         });
         const padded=await observe(origin,base+'/module-padded.html');
-        assert.equal(padded.value,before.value,'padded ESM native/emitted return parity');
-        assert.equal(padded.column,before.column,'runtime-calibrated ESM callsite padding should restore the native frame column');
+        assert.equal(padded.value,before.value,scenario.kind+' padded ESM native/emitted return parity');
+        assert.equal(padded.column,before.column,scenario.kind+' padded ESM callsite should restore native frame column');
         paddingResults.push({
-          mode:'esm',delta,
+          mode:'esm',kind:scenario.kind,delta,
           nativeColumn:before.column,compiledColumn:after.column,paddedColumn:padded.column
         });
         process.stdout.write('CHROMIUM_FRAME_PADDING '+JSON.stringify({
-          mode:'esm',delta,
+          mode:'esm',kind:scenario.kind,delta,
           nativeColumn:before.column,compiledColumn:after.column,paddedColumn:padded.column
         })+'\n');
       }
@@ -463,7 +463,7 @@ async function main(){
       deferredNoReturnedFrame:moduleResults.filter(item=>item.deferred).every(item=>item.native.frame===null&&item.compiled.frame===null),
       positiveYield:moduleResults.every(item=>item.properties>=1),
       nativeParity:moduleResults.every(item=>item.native.value===item.compiled.value),
-      positionPaddingPreserved:paddingResults.filter(item=>item.mode==='esm').every(item=>item.paddedColumn===item.nativeColumn)
+      positionPaddingPreserved:paddingResults.filter(item=>item.mode==='esm').length===8&&paddingResults.filter(item=>item.mode==='esm').every(item=>item.paddedColumn===item.nativeColumn)
     })+'\n');
   }finally{
     await new Promise((resolve,reject)=>server.close(error=>error?reject(error):resolve(undefined)));
@@ -478,7 +478,7 @@ async function main(){
     deferredNoReturnedFrame:results.filter(item=>item.deferred).every(item=>item.native.frame===null&&item.compiled.frame===null),
     positiveYield:results.every(item=>item.properties>=1),
     nativeParity:results.every(item=>item.native.value===item.compiled.value),
-    positionPaddingPreserved:paddingResults.filter(item=>item.mode==='commonjs').every(item=>item.paddedColumn===item.nativeColumn)
+    positionPaddingPreserved:paddingResults.filter(item=>item.mode==='commonjs').length===6&&paddingResults.filter(item=>item.mode==='commonjs').every(item=>item.paddedColumn===item.nativeColumn)
   })+'\n');
 }
 
