@@ -356,25 +356,26 @@ function inspectDeclarations(ast,readerCall) {
  * @returns {SourceObservationPlan|null}
  */
 function buildDirectFunctionSourcePlan(source,path,hostContract) {
+  const reject=reason=>{if(path==='debug-entry.mjs')console.log('SOURCE_PLAN_REJECT '+reason);return null;};
   if(typeof source!=='string'||typeof path!=='string'||path.length===0||
      !hostContract||typeof hostContract.runtimeFamily!=='string'||
      hostContract.runtimeFamily.length===0||
      typeof hostContract.runtimeVersion!=='string'||hostContract.runtimeVersion.length===0||
      typeof hostContract.contractVersion!=='string'||hostContract.contractVersion.length===0||
      typeof hostContract.pristineIntrinsicsPremise!=='string'||
-     hostContract.pristineIntrinsicsPremise.length===0)return null;
+     hostContract.pristineIntrinsicsPremise.length===0)return reject('host-contract');
   const parserContractId=parserContractIdFor('module');
   let ast;
-  try {ast=parse(source,'module');} catch {return null;}
+  try {ast=parse(source,'module');} catch {return reject('parse');}
   /** @type {AstNode[]} */
   const calls=[];
   walk(ast,node=>{if(node.type==='CallExpression')calls.push(node);});
-  if(calls.length!==1||!isDirectFunctionSourceCall(calls[0]))return null;
+  if(calls.length!==1||!isDirectFunctionSourceCall(calls[0]))return reject('reader-call');
   const readerCall=calls[0];
   const {counts,readerParent,readerKey,readerAncestors}=inspectDeclarations(ast,readerCall);
   if(!readerParent||readerParent.type!=='VariableDeclarator'||
      readerKey!=='init'||readerParent.init!==readerCall||
-     readerAncestors.some(ancestor=>ancestor.type==='FunctionDeclaration'))return null;
+     readerAncestors.some(ancestor=>ancestor.type==='FunctionDeclaration'))return reject('reader-parent');
   const callableName=readerCall.arguments[0].name;
   /** @type {AstNode[]} */
   const functionNodes=[];
@@ -383,9 +384,9 @@ function buildDirectFunctionSourcePlan(source,path,hostContract) {
   });
   const objectShapes=buildObjectShapes(ast);
   if(functionNodes.length!==1||functionNodes[0].id.name!==callableName||
-     counts.get(callableName)!==1||counts.has('Function')||!objectShapes)return null;
+     counts.get(callableName)!==1||counts.has('Function')||!objectShapes)return reject('function-or-object-shape');
   const bindingKinds=buildBindingKinds(ast,readerCall,objectShapes);
-  if(!bindingKinds||!isAllowedProgram(ast,readerCall,objectShapes,bindingKinds))return null;
+  if(!bindingKinds||!isAllowedProgram(ast,readerCall,objectShapes,bindingKinds))return reject('program-grammar');
 
   // Every free identifier must be the single declared global intrinsic
   // Function used by the admitted reader. No imports, ambient callbacks,
@@ -400,7 +401,7 @@ function buildDirectFunctionSourcePlan(source,path,hostContract) {
     if(node.name==='Function'&&ancestors.includes(readerCall))return;
     if(!counts.has(node.name))freeReference=true;
   });
-  if(freeReference)return null;
+  if(freeReference)return reject('free-reference');
 
   const callableNode=functionNodes[0];
   const sourceGeneration=sourceGenerationOf(source,parserContractId);
