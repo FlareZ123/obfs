@@ -83,7 +83,7 @@ function encodeStrings(source, ast, options) {
   } else if(protectedSourceRanges.length) {
     throw new TypeError('Protected source ranges require a validated SourceObservationPlan');
   }
-  /** @returns {{code:string,count:number,editMap?:Object}} */
+  /** @returns {{code:string,count:number,editMap?:import('./source-edit-map').SourceEditMap}} */
   function noOp() {
     if(hasMapContext) {
       const mapped=applyEditsWithMap(source,[],/** @type {string} */ (options.sourceUnitRef),/** @type {string} */ (options.parserContractId));
