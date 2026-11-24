@@ -321,3 +321,8 @@ Agent 12's research branch plus Agent 1's current-main source-pin verification e
 ### Native intrinsic callback dispatch: SCO result
 
 The actual `createScoHandler` callback matrix completed successfully on Ubuntu and Windows in [45317205047](https://github.com/FlareZ123/obfs/actions/runs/45317205047). Five of eight operations mismatch in SCO (JSON stringify replacer, JSON parse reviver, Array.sort comparator, Array.map and Array.from mapFn); three measured frame columns remain stable (toJSON, String.replace and Map.forEach). All eight preserve values and unrelated positive property yield. This is a mode-specific Node/CommonJS result, not browser evidence. Together with the COO/SNO matrix, five callback operations now have evidence in all three modes. The other three must retain their distinct per-mode classification.
+
+
+### PR #299 is archived, not a current-main candidate
+
+A live GitHub API check at this intake refresh confirms PR #299 is **closed unmerged** (`merged_at=null`, closed 2026-11-23), with title “archived experimental callable-source/decoder integration (superseded)”. Its actual base/head are `e15bff596d31927ae34590341157cd4c7b6a9cde` / `b826c10e3c59c2210c00448a0645bb8751a87758`, while its body describes later pins including `25a87b78ba9e6988d3bedd400590f2c618b4b33b` based on a different stack. Main at this refresh was `e174a9a012f97ab070763521560291b1e0883d46`. Do not revive or dispatch a gate against PR #299 metadata. If any donor logic is reused, rebase selected tests onto an exact current-main source pin and rerun focused evidence. Agent 1's Promise-intrinsic review applies to the actual archived head, not the later source pin described in its body.
