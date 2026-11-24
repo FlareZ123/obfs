@@ -1286,7 +1286,7 @@ function singleUseFactoryObject(ast,bindings,expression) {
  * @returns {{code:string,objects:number,properties:number,editMap?:Object}}
  */
 function renameLocalProperties(source, ast, options) {
-  if(options.sourceObserverCoverageComplete!==undefined) {
+  if(Reflect.get(options,'sourceObserverCoverageComplete')!==undefined) {
     throw new TypeError('Raw source-observer coverage booleans are unsupported; use a validated plan');
   }
   const hasMapContext=options.sourceUnitRef!==undefined||options.parserContractId!==undefined;
