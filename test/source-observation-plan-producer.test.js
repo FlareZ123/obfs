@@ -11,6 +11,7 @@ const {applyEditsWithMap,mapSourceSpan,mapMappedSourceRange,sourceGenerationOf}=
 const {
   buildDirectFunctionSourcePlan,
   getInitialPlanRanges,
+  advancePlanRanges,
   validatePlanConsumerInput
 }=require('../src/source-observation-plan');
 
@@ -286,6 +287,69 @@ test('raw spans and structurally copied plans cannot bypass observer vetoes',()=
     seed:'raw-span',sourceUnitRef,parserContractId,
     protectedSourceSpans:[...plan.sourceSpans.values()]
   }),/Raw protectedSourceSpans/u);
+});
+
+test('source plan snapshots caller-controlled host-contract getters exactly once',()=>{
+  const reads={runtimeFamily:0,runtimeVersion:0,contractVersion:0,pristineIntrinsicsPremise:0};
+  const values={...hostContract};
+  const getterContract={};
+  for(const key of Object.keys(reads)) {
+    Object.defineProperty(getterContract,key,{
+      enumerable:true,
+      get() {
+        reads[key]++;
+        return reads[key]===1?values[key]:'mutated-after-first-read';
+      }
+    });
+  }
+  const plan=buildDirectFunctionSourcePlan(source,'entry.mjs',getterContract);
+  const plainPlan=buildDirectFunctionSourcePlan(source,'entry.mjs',values);
+  assert.ok(plan);
+  assert.ok(plainPlan);
+  assert.deepEqual(reads,{
+    runtimeFamily:1,runtimeVersion:1,contractVersion:1,pristineIntrinsicsPremise:1
+  });
+  const [hostContractId,stored]=[...plan.hostContracts.entries()][0];
+  const [plainHostContractId]=[...plainPlan.hostContracts.keys()];
+  assert.equal(stored.runtimeFamily,values.runtimeFamily);
+  assert.equal(stored.runtimeVersion,values.runtimeVersion);
+  assert.equal(stored.contractVersion,values.contractVersion);
+  assert.equal(stored.pristineIntrinsicsPremise,values.pristineIntrinsicsPremise);
+  assert.equal(hostContractId,plainHostContractId,
+    'the identity must be derived from the same immutable values recorded in HostContractRef');
+  assert.equal(plan.planGeneration,plainPlan.planGeneration);
+});
+
+test('source-plan consumers reject copied mapped ranges with forged offsets',()=>{
+  const stringCallableSource=[
+    "function observed() { return 'source-visible-literal'; }",
+    'const observedSource = Function.prototype.toString.call(observed);',
+    'export const sourceText = observedSource;'
+  ].join('\\n');
+  const plan=buildDirectFunctionSourcePlan(stringCallableSource,'entry.mjs',hostContract);
+  assert.ok(plan);
+  const sourceUnitRef=plan.sourceUnits.keys().next().value;
+  const parserContractId=parserContractIdFor('module');
+  const ranges=getInitialPlanRanges(plan,sourceUnitRef);
+  assert.equal(validatePlanConsumerInput(
+    plan,stringCallableSource,sourceUnitRef,parserContractId,ranges.protectedSourceRanges
+  ),true);
+  const valid=ranges.protectedSourceRanges[0];
+  const forged=Object.freeze({...valid,startOffset:0,endOffset:1});
+  assert.throws(()=>validatePlanConsumerInput(
+    plan,stringCallableSource,sourceUnitRef,parserContractId,[forged]
+  ),/untrusted.*protected source range/u);
+  const ast=parse(stringCallableSource,'module');
+  assert.throws(()=>encodeStrings(stringCallableSource,ast,{
+    seed:'forged-range',sourceType:'module',sourceUnitRef,parserContractId,
+    sourceObservationPlan:plan,protectedSourceRanges:[forged],minimumStringLength:4
+  }),/untrusted.*protected source range/u);
+  const identity=applyEditsWithMap(stringCallableSource,[],sourceUnitRef,parserContractId);
+  const forgedTracked=ranges.trackedSourceRanges.map(range=>
+    Object.freeze({...range,startOffset:0,endOffset:1}));
+  assert.equal(advancePlanRanges(
+    plan,identity.map,stringCallableSource,identity.code,forgedTracked
+  ),null,'a forged tracked range must not be advanced into a trusted capability');
 });
 
 test('producer remains scoped to one ESM COO unit and rejects server modes and multi-file inputs',()=>{
