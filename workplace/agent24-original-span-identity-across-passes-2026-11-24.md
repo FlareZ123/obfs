@@ -76,6 +76,25 @@ There is a practical shared place to start: `src/ast.js:62` `applyEdits(source, 
 
 For each source unit, the map should include unchanged segments with exact offset translation, replaced/deleted segments with no exact original-node mapping, and inserted helper segments with synthetic provenance. Each pass would return its new generation plus map; the core pipeline would compose maps and pass the current→original mapping to the next consumer. Any protected span intersecting a replaced/deleted region, or mapping to more than one current segment, must fail closed. The string pass also prepends its decoder prologue *after* `applyEdits` (`src/strings.js` around lines 148–162), so that insertion must be included in the map composition rather than assuming the helper is covered by the literal-edit map. This does not solve identity for transforms that do not use `applyEdits`, so the full consumer inventory still needs checking.
 
+### Current edit-producing consumer inventory
+
+The current source audit shows why a map cannot be implemented only inside `applyEdits` and assumed complete:
+
+| Consumer | Current source edit | Additional generated source that must be mapped |
+| --- | --- | --- |
+| `src/identifiers.js:220` | `applyEdits(source, edits)` | None in this function. |
+| `src/properties.js:1351` | `applyEdits(source, edits)` | None in this function. |
+| `src/cross-properties.js:3088` | `applyEdits(f.code, edits)` per module | Cross-file maps must retain each SourceUnitRef independently. |
+| `src/strings.js:160–162` | Literal edits via `applyEdits` | Decoder prologue is prepended afterward at the hashbang/directive offset. |
+| `src/statement-flow.js:234` | `applyEdits(source, edits)` | No helper in this return path. |
+| `src/expression-vm.js:212` | `applyEdits(source, edits)` | VM helpers are appended afterward with `helpers.join('')`. |
+| `src/register-vm.js:142` | `applyEdits(source, edits)` | Interpreter helpers are appended afterward. |
+| `src/wasm-i32.js:312–323` | Body edits via `applyEdits` | Wasm initialization code is inserted afterward at the hashbang/directive offset. |
+| `src/affine-native.js:153,301` | `applyEdits(source, edits)` | No helper in these return paths. |
+| `src/sco.js:317,678–686` | Request-time literal spelling edits via `applyEdits`, then a new per-request `obfuscateFiles` call | Each request creates a new source generation; the plan/map must be request-specific and cannot be reused across concurrent requests. |
+
+`src/source-observer-islands.js` is a separate proof-only module in this audit; it does not call `applyEdits` and is not a shared source-edit map. Experimental backends that cannot provide a complete mapping should consume the plan before transforming or explicitly decline the affected functions. A central map helper is useful, but each post-edit helper/prologue insertion and every non-`applyEdits` rewrite still needs explicit accounting.
+
 ## Minimum acceptance tests
 
 1. Put a long private identifier before a host-observed callback. Rename the identifier (changing its width); the later string consumer must still protect the callback's exact original source.
