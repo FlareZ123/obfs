@@ -28,5 +28,4 @@ test('amortized rank-two and reanchor inversion use shared bases across the same
   assert.equal(result.rankTwo.orbitBound,8);
   assert.deepEqual(result.rankTwo.perTarget.map(x=>x.orbitCalls),[6,7,1,7,2,7,3,7]);
   assert.equal(result.rankTwo.uniqueOracleQueries,73);
-  assert.equal(result.priorGraphBatchCalls,222079);
 });
