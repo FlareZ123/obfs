@@ -2136,7 +2136,7 @@ function obfuscateFiles(files, options = {}) {
     }
     /**
      * Accept a pass only when every original plan span maps exactly and the
-     * reparsed reader still resolves to the same callable definition.
+     * reparsed callable, reader-result binding and exported mirror remain linked.
      * @param {{code:string,editMap?:import('./source-edit-map').SourceEditMap}} result
      * @param {string} sourceBefore
      * @returns {boolean}
