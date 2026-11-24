@@ -61,7 +61,7 @@ npm run typecheck:external
 
 The self-contained simulator fixes the affine wrappers, biases, target set, anchor stream, and query caches. It separately labels the source-private compatibility audit and counts only unique attacker oracle inputs. Raw-oracle source audits, forward assertions, and supplied target generation are test-only and excluded from the attacker cache. The test asserts the per-target work and totals. The prepared rank-two basis is a test adapter; the public single-target `invertLowRankDeterministic` API still rebuilds its 33-query interpolation for each call.
 
-Cross-platform validation passed in the existing manual workflow: run `45339828222`, source SHA `909c8a76aae1e2d50712cd39a2f10e6392072082`. The focused regression test passed on Ubuntu and Windows; project and external strict JSDoc checks passed on both.
+Cross-platform validation of the final script/test revision passed in the existing manual workflow: run `45341550746`, source SHA `dfeb7a41bfa20fb8757b6b5ecf9c63ed4a4ce1d7`. The focused regression test passed on Ubuntu and Windows; project and external strict JSDoc checks passed on both. Earlier run `45339828222` also passed before the final cleanup that removed a non-computed historical graph count from the simulator.
 
 Supporting evidence:
 - `sims/agent20-quintic-multitarget-amortization.js` — independent amortized reanchor/rank-two implementation.
