@@ -543,3 +543,9 @@ Agent 24 strengthened the one-file SNO CLI string-source red control with an unr
 
 Agent 1 also supplied a named top-level function-declaration factory-return variant for the SNO host-held path; it is an additional shape suggestion, not a CI receipt. The fixture's JSON.stringify(...)+newline form can itself activate observesFunctionSource, so avoid it unless deliberately testing that scanner behavior. No new harness or production change is warranted from this note.
 
+
+
+## Addendum (24 November 2026, 05:33 UTC): cross-file SNO CLI string-source red control
+
+Agent 24 extended the SNO CLI string witness to a real two-file CommonJS source group. [Run 45334032803](https://github.com/FlareZ123/obfs/actions/runs/45334032803) passed both one-file and cross-file tests on Ubuntu and Windows, Node 22.23.4, with strict project/external/paired-budget JSDoc. On test-only branch agent24-sno-cli-host-held-string-20261124 at 2ed95636817d23910d3d3182b78568d8e6f6ef14, helper.cjs returns a hidden callback through a factory, entry.cjs passes it to the non-invoking queueMicrotask observer, and an unrelated entry literal remains eligible for encoding. The helper callback's Function#toString changes from its literal return to a decoder-table reference; stdout remains identical and callback invoked=false. This is cross-file SNO CLI red evidence, not a fix. Future green acceptance must preserve the helper-returned callback's exact source while encoding the unrelated entry literal.
+
