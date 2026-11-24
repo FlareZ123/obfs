@@ -352,7 +352,7 @@ Agent 19's DOM/HTML parser/stream matrix and Agent 1's CSSOMString matrix are us
 
 ## Addendum (24 November 2026, after 04:38 UTC): HostHeldCallable source-observation gap and graph-schema correction
 
-**Current main at refresh:** 3e7b260b3e7febb3178cc5bc5ee87aa083e0d654. The authoritative carrier/effect contract was corrected in commit 3e7b260b3e7febb3178cc5bc5ee87aa083e0d654 and refined through latest schema commit b23f03a28a745747c93850f00a6a8e3bcbe52d5d; its v2 schema supersedes the earlier incomplete typedef block. This is still a proposal, not a production plan module.
+**Current main at refresh:** 3e7b260b3e7febb3178cc5bc5ee87aa083e0d654. The authoritative carrier/effect contract was corrected in commit 3e7b260b3e7febb3178cc5bc5ee87aa083e0d654 and refined through latest schema commit 98e2e094f58021b816fe6bf804d226d47d01e889; its v2 schema supersedes the earlier incomplete typedef block. This is still a proposal, not a production plan module.
 
 ### Current-main HostHeldCallable evidence
 
