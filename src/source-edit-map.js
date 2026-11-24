@@ -271,7 +271,7 @@ function mapSourceSpan(map,span,sourceBefore,sourceAfter) {
   }
 
   const start=mapOffset(span.start,'right');
-  const end=mapOffset(span.end,'left');
+  const end=span.start===span.end?start:mapOffset(span.end,'left');
   if(start===null||end===null||end<start)return null;
   if(sourceBefore.slice(span.start,span.end)!==
      sourceAfter.slice(start,end))return null;
