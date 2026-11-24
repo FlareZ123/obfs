@@ -4,9 +4,11 @@ const assert=require('node:assert/strict');
 const {createHash}=require('node:crypto');
 const {performance}=require('node:perf_hooks');
 const {obfuscateFiles}=require('../src/core');
+const {familywiseBudgetBounds}=require('./familywise-budget-bound');
 
 const SAMPLE_COUNT=31;
 const WARMUP_COUNT=6;
+const IMPORTS_PER_BATCH=512;
 const BUDGET_RATIO=2.5;
 
 /** @param {number[]} values @returns {number} */
@@ -34,8 +36,8 @@ function makeSource(extraStrings) {
   ];
   for(let index=0;index<extraStrings;index++) {
     const suffix=String(index).padStart(3,'0');
-    lines.push(`const payload${suffix} = 'payload-value-${suffix}-with-enough-characters';`);
-    lines.push(`export const payloadText${suffix} = payload${suffix};`);
+    lines.push("const payload"+suffix+" = 'payload-value-"+suffix+"-with-enough-characters';");
+    lines.push('export const payloadText'+suffix+' = payload'+suffix+';');
   }
   return lines.join('\n');
 }
@@ -47,18 +49,28 @@ function dataUrl(code,workload,side,index) {
 }
 
 /**
- * Measure one ESM module evaluation, including the non-exempt COO startup cost.
+ * Measure a batch of fresh ESM evaluations. URLs are prepared before timing;
+ * threadCpuUsage measures main-thread CPU while performance.now is retained as
+ * a separate elapsed-time diagnostic.
  * @param {string} code
  * @param {string} workload
  * @param {string} side
  * @param {number} index
- * @returns {Promise<{elapsedMs:number,exports:Record<string,unknown>}>}
+ * @returns {Promise<{cpuMs:number,wallMs:number,exports:Record<string,unknown>}>}
  */
-async function importOnce(code,workload,side,index) {
-  const url=dataUrl(code,workload,side,index);
-  const start=performance.now();
-  const namespace=await import(url);
-  return {elapsedMs:performance.now()-start,exports:namespace};
+async function importBatch(code,workload,side,index) {
+  const urls=Array.from({length:IMPORTS_PER_BATCH},(_,offset)=>
+    dataUrl(code,workload,side,index*IMPORTS_PER_BATCH+offset));
+  const cpuStart=process.threadCpuUsage();
+  const wallStart=performance.now();
+  let namespace;
+  for(const url of urls) namespace=await import(url);
+  const cpuDelta=process.threadCpuUsage(cpuStart);
+  return {
+    cpuMs:(cpuDelta.user+cpuDelta.system)/1000,
+    wallMs:performance.now()-wallStart,
+    exports:namespace
+  };
 }
 
 /**
@@ -73,13 +85,13 @@ async function measureWorkload(source,workload,extraStrings) {
     runtimeVersion:process.versions.node,
     contractVersion:'coo-direct-function-source-v1',
     pristineIntrinsicsPremise:
-      'Fresh ESM module instance in the same unmodified Node realm, with unmodified Function.prototype.toString, Function.prototype.call, and String.fromCharCode.'
+      'Fresh ESM module instance in the same unmodified Node realm, with unmodified Function.prototype.toString and Function.prototype.call.'
   };
   const result=obfuscateFiles([{
     path:'entry.mjs',sourceType:'module',code:source
   }],{
     mode:'coo',
-    seed:'source-observer-runtime-budget-v1',
+    seed:'source-observer-thread-cpu-budget-v1',
     strings:true,
     experimentalSourceObservationPlan:hostContract
   });
@@ -87,7 +99,10 @@ async function measureWorkload(source,workload,extraStrings) {
   assert.ok(emitted&&typeof emitted.code==='string',workload+' emitted module missing');
   assert.ok(emitted.metrics.properties>=1,workload+' property transform missing');
   assert.ok(emitted.metrics.bindings>=1,workload+' binding transform missing');
-  assert.ok(emitted.metrics.literals>=1,workload+' string transform missing');
+  assert.equal(emitted.metrics.literals,0,
+    workload+' must refuse the frame-shifting string decoder prologue');
+  assert.ok(emitted.code.includes("'safe-literal'"),
+    workload+' must retain the literal when the reader FramePosition would move');
   assert.ok(emitted.code.includes('function observed() { return 29; }'),
     workload+' changed the observed callable source');
 
@@ -96,50 +111,66 @@ async function measureWorkload(source,workload,extraStrings) {
       workload+' exported module values differ');
   };
   for(let index=0;index<WARMUP_COUNT;index++) {
-    const baseline=await importOnce(source,workload,'native-warmup',index);
-    const transformed=await importOnce(emitted.code,workload,'obfuscated-warmup',index);
+    const baseline=await importBatch(source,workload,'native-warmup',index);
+    const transformed=await importBatch(emitted.code,workload,'candidate-warmup',index);
     verify(baseline,transformed);
   }
 
-  const baselineSamples=[];
-  const obfuscatedSamples=[];
+  const baselineCpuSamples=[];
+  const candidateCpuSamples=[];
+  const baselineWallSamples=[];
+  const candidateWallSamples=[];
   for(let index=0;index<SAMPLE_COUNT;index++) {
-    let baseline,transformed;
+    let baseline,candidate;
     if(index%2===0) {
-      baseline=await importOnce(source,workload,'native-sample',index);
-      transformed=await importOnce(emitted.code,workload,'obfuscated-sample',index);
+      baseline=await importBatch(source,workload,'native-sample',index);
+      candidate=await importBatch(emitted.code,workload,'candidate-sample',index);
     } else {
-      transformed=await importOnce(emitted.code,workload,'obfuscated-sample',index);
-      baseline=await importOnce(source,workload,'native-sample',index);
+      candidate=await importBatch(emitted.code,workload,'candidate-sample',index);
+      baseline=await importBatch(source,workload,'native-sample',index);
     }
-    verify(baseline,transformed);
-    baselineSamples.push(baseline.elapsedMs);
-    obfuscatedSamples.push(transformed.elapsedMs);
+    verify(baseline,candidate);
+    baselineCpuSamples.push(baseline.cpuMs);
+    candidateCpuSamples.push(candidate.cpuMs);
+    baselineWallSamples.push(baseline.wallMs);
+    candidateWallSamples.push(candidate.wallMs);
   }
-  const pairRatios=obfuscatedSamples.map((value,index)=>value/baselineSamples[index]);
-  const baselineMedianMs=median(baselineSamples);
-  const obfuscatedMedianMs=median(obfuscatedSamples);
-  const ratio=obfuscatedMedianMs/baselineMedianMs;
-  const placeboLeftSamples=[];
-  const placeboRightSamples=[];
+  const cpuPairRatios=candidateCpuSamples.map((value,index)=>value/baselineCpuSamples[index]);
+  const wallPairRatios=candidateWallSamples.map((value,index)=>value/baselineWallSamples[index]);
+  const baselineCpuMedianMs=median(baselineCpuSamples);
+  const candidateCpuMedianMs=median(candidateCpuSamples);
+  const baselineWallMedianMs=median(baselineWallSamples);
+  const candidateWallMedianMs=median(candidateWallSamples);
+  const strictBreachSamples=cpuPairRatios
+    .map((value,index)=>({sample:index,ratio:value}))
+    .filter(sample=>sample.ratio>BUDGET_RATIO);
+  const strictWallBreachSamples=wallPairRatios
+    .map((value,index)=>({sample:index,ratio:value}))
+    .filter(sample=>sample.ratio>BUDGET_RATIO);
+
+  const placeboLeftCpuSamples=[];
+  const placeboRightCpuSamples=[];
+  const placeboLeftWallSamples=[];
+  const placeboRightWallSamples=[];
   for(let index=0;index<SAMPLE_COUNT;index++) {
     let left,right;
     if(index%2===0) {
-      left=await importOnce(source,workload,'placebo-left',index);
-      right=await importOnce(source,workload,'placebo-right',index);
+      left=await importBatch(source,workload,'placebo-left',index);
+      right=await importBatch(source,workload,'placebo-right',index);
     } else {
-      right=await importOnce(source,workload,'placebo-right',index);
-      left=await importOnce(source,workload,'placebo-left',index);
+      right=await importBatch(source,workload,'placebo-right',index);
+      left=await importBatch(source,workload,'placebo-left',index);
     }
     verify(left,right);
-    placeboLeftSamples.push(left.elapsedMs);
-    placeboRightSamples.push(right.elapsedMs);
+    placeboLeftCpuSamples.push(left.cpuMs);
+    placeboRightCpuSamples.push(right.cpuMs);
+    placeboLeftWallSamples.push(left.wallMs);
+    placeboRightWallSamples.push(right.wallMs);
   }
-  const placeboPairRatios=placeboRightSamples.map((value,index)=>
-    value/placeboLeftSamples[index]);
-  const strictBreachSamples=pairRatios
-    .map((value,index)=>({sample:index,ratio:value}))
-    .filter(sample=>sample.ratio>BUDGET_RATIO);
+  const placeboCpuPairRatios=placeboRightCpuSamples.map((value,index)=>
+    value/placeboLeftCpuSamples[index]);
+  const placeboWallPairRatios=placeboRightWallSamples.map((value,index)=>
+    value/placeboLeftWallSamples[index]);
   return {
     workload,
     extraStrings,
@@ -149,42 +180,68 @@ async function measureWorkload(source,workload,extraStrings) {
     emittedSha256:sha256(emitted.code),
     sampleCount:SAMPLE_COUNT,
     warmupCount:WARMUP_COUNT,
-    baselineSamplesMs:baselineSamples,
-    obfuscatedSamplesMs:obfuscatedSamples,
-    pairRatios,
-    medianPairRatio:median(pairRatios),
-    maxPairRatio:Math.max(...pairRatios),
+    importsPerBatch:IMPORTS_PER_BATCH,
+    baselineCpuSamplesMs:baselineCpuSamples,
+    candidateCpuSamplesMs:candidateCpuSamples,
+    cpuPairRatios,
+    medianCpuPairRatio:median(cpuPairRatios),
+    maxCpuPairRatio:Math.max(...cpuPairRatios),
     strictBreachCount:strictBreachSamples.length,
     strictBreachSamples,
-    baselineMedianMs,
-    obfuscatedMedianMs,
-    ratio,
-    placeboLeftSamplesMs:placeboLeftSamples,
-    placeboRightSamplesMs:placeboRightSamples,
-    placeboPairRatios,
-    placeboMaxPairRatio:Math.max(...placeboPairRatios),
-    placeboStrictBreachCount:placeboPairRatios.filter(value=>value>BUDGET_RATIO).length,
+    baselineCpuMedianMs,
+    candidateCpuMedianMs,
+    cpuRatioOfMedians:candidateCpuMedianMs/baselineCpuMedianMs,
+    baselineWallSamplesMs:baselineWallSamples,
+    candidateWallSamplesMs:candidateWallSamples,
+    wallPairRatios,
+    medianWallPairRatio:median(wallPairRatios),
+    maxWallPairRatio:Math.max(...wallPairRatios),
+    strictWallBreachCount:strictWallBreachSamples.length,
+    strictWallBreachSamples,
+    baselineWallMedianMs,
+    candidateWallMedianMs,
+    wallRatioOfMedians:candidateWallMedianMs/baselineWallMedianMs,
+    placeboLeftCpuSamplesMs:placeboLeftCpuSamples,
+    placeboRightCpuSamplesMs:placeboRightCpuSamples,
+    placeboCpuPairRatios,
+    placeboCpuMaxPairRatio:Math.max(...placeboCpuPairRatios),
+    placeboCpuStrictBreachCount:placeboCpuPairRatios.filter(value=>value>BUDGET_RATIO).length,
+    placeboLeftWallSamplesMs:placeboLeftWallSamples,
+    placeboRightWallSamplesMs:placeboRightWallSamples,
+    placeboWallPairRatios,
+    placeboWallMaxPairRatio:Math.max(...placeboWallPairRatios),
+    placeboWallStrictBreachCount:placeboWallPairRatios.filter(value=>value>BUDGET_RATIO).length,
     budgetRatio:BUDGET_RATIO,
-    passesBudget:ratio<=BUDGET_RATIO,
     metrics:emitted.metrics
   };
 }
 
 async function main() {
+  assert.equal(typeof process.threadCpuUsage,'function',
+    'Node 22 threadCpuUsage is required for CPU evidence');
   const smallSource=makeSource(0);
   const mediumSource=makeSource(32);
-  const small=await measureWorkload(smallSource,'small-one-literal',0);
-  const medium=await measureWorkload(mediumSource,'medium-32-literals',32);
+  const small=await measureWorkload(smallSource,'small-observer-plan-no-string-decoder',0);
+  const medium=await measureWorkload(mediumSource,'medium-observer-plan-32-retained-strings',32);
+  const familywiseBudget=familywiseBudgetBounds([
+    {native:small.baselineCpuSamplesMs,candidate:small.candidateCpuSamplesMs},
+    {native:medium.baselineCpuSamplesMs,candidate:medium.candidateCpuSamplesMs}
+  ],{threshold:BUDGET_RATIO,confidence:0.95});
   const report={
     node:process.version,
     platform:process.platform,
     architecture:process.arch,
-    budgetRule:'COO initialization is not exempt; median module-evaluation ratio must be <= 2.5x; every strict per-pair breach is reported separately and placebo does not erase it.',
+    measurement:'process.threadCpuUsage main-thread CPU; performance.now elapsed wall time is diagnostic only',
+    samplingDesign:'31 sequential alternating paired batches per workload, 512 fresh ESM imports per batch, in one Node process; within-workload independence and representativeness are not established',
+    budgetRule:'COO initialization is not exempt. Every observed strict CPU pair above 2.5x vetoes the supported workload regardless of medians or confidence intervals. The familywise paired-median interval is a typical-runtime diagnostic, not a worst-case guarantee.',
+    familywiseBudget,
     workloads:[small,medium]
   };
   process.stdout.write('SOURCE_OBSERVER_RUNTIME_BUDGET '+JSON.stringify(report)+'\n');
-  assert.ok(small.passesBudget,'small source-observer workload exceeds 2.5x COO budget');
-  assert.ok(medium.passesBudget,'medium source-observer workload exceeds 2.5x COO budget');
+  assert.equal(familywiseBudget.observedSampleHasOverBudgetPair,false,
+    'any observed strict >2.5x CPU pair is a veto');
+  assert.equal(familywiseBudget.verdict,'sample-supported',
+    'the familywise paired-median CPU interval must support the 2.5x threshold; inconclusive is not a pass');
   return report;
 }
 
