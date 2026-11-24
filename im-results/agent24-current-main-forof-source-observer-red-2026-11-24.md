@@ -41,3 +41,8 @@ The core gate `src/core.js:2236-2244` skips the property pass for `sourceType ==
 Add this fixture to the current-main active-caller/source-observer control suite. First verify whether the property transform actually emits a rename for `secretField`; if it does, the runtime witness demonstrates a semantic source-observation failure. If it does not, record the specific conservative rule that blocks it. The general implicit-dispatch contract should not be considered integrated until this and related iterator/Proxy cases are covered by executable controls.
 
 This report is a targeted test proposal, not a claim that the current main output was executed or that a production patch was made.
+
+
+## Strict-mode scope
+
+This witness uses sloppy CommonJS functions. In Node/V8, making the active `hidden` function strict can make the external callback's legacy `.caller` chain terminate at `null`. The runtime result therefore establishes the sloppy-mode source-observation path, not universal Function-object capture under strict mode. Other dynamic instrumentation and stack-metadata channels remain separate. The static property-proof question is whether the transform should admit this sloppy fixture; the exact edit/no-edit output remains unverified.
