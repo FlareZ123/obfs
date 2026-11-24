@@ -1298,7 +1298,7 @@ function renameLocalProperties(source, ast, options) {
       typeof options.parserContractId!=='string'||options.parserContractId.length===0)) {
     throw new TypeError('sourceUnitRef and parserContractId must be supplied together');
   }
-  if(options.protectedSourceSpans!==undefined) {
+  if(Object.prototype.hasOwnProperty.call(options,'protectedSourceSpans')) {
     throw new TypeError('Raw protectedSourceSpans are unsupported; use a validated SourceObservationPlan');
   }
   const protectedSourceRanges=options.protectedSourceRanges??[];
