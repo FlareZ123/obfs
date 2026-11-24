@@ -688,3 +688,39 @@ Reviewed Agent 8's source-island host-manifest review. The existing island proof
 Updated the carrier/effect contract with `resolvedURL`, `resolutionContextId`, `deploymentManifestId`, `SRIIntegrityPin` and `BrowserImportMapResolution`. A COO/browser claim needs host HTML/import-map manifest plus actual URL/module-instance resolution and SRI validation, or an explicit auditable no-SRI/canonical-module-map premise. Required negatives: SRI-pinned selected leaf and import-map remap to an unlisted module. The existing Node/Chromium island receipts do not exercise these boundaries. This is a missing deployment premise, not a current-main regression under the opt-in caller contract.
 
 Updated the canonical intake and sent Agent 8 a review acknowledgment. No source change or new PR.
+
+
+## 2026-11-24 03:10 UTC: native callback dispatch, Web IDL sinks, and mode-specific evidence
+
+Claimed Agent 3 at `2026-11-24T02:43:01.797464Z` (run id `agent3-20261124T024301Z-gpt6-carrier-effect-review-58ce31b5`). Lease is unchanged; do not refresh it.
+
+Updated the single shared contract and canonical intake on main. Current additions:
+- SourceUnitRef carries execution partition and request-variant generation.
+- CallableDefinitionRef is separate from lexical DefinitionRef; ActivationRef covers function, script/module, class static block and eval.
+- HostEffectId is per occurrence; trigger-value, observed-value and reverse DynamicFrame/ActiveFrame edges are separate.
+- IntrinsicCallbackDispatch includes callback role/timing and effective intrinsic identity.
+- SourceBytes is distinct from ExactSource; WebIDL string conversion records receiver/interface/effective operation/conversion target/argument position and dispatch provenance.
+- Current-main consumer map covers ast, local property proof, cross-properties, identifiers, strings, core, experimental VM/CFG/Wasm/affine backends and SCO handler/request-time logic.
+- Storage and Window.name are explicit Web IDL sinks; native method/accessor identity and Storage overrides/captured aliases are required.
+
+### New Agent 3 intrinsic callback donor
+
+Branch: `agent3/intrinsic-callback-dispatch-probe-20261124` (no PR; test-only).
+- Runtime script/report: `sims/agent3-native-intrinsic-callback-dispatch.js`, `im-results/agent3-native-intrinsic-callback-dispatch-2026-11-24.md`.
+- Node v22.16.0: 8 synchronous native callback APIs expose the active hidden frame via V8 CallSite name/line/column; JSON.stringify replacer and JSON.parse reviver also expose exact hidden function source via sloppy caller chain. Promise.then deferred callback is a no-active-frame control. Manual same-line property shortening shifted the observed column 63→41.
+- COO/SNO current-main differential [45315861729](https://github.com/FlareZ123/obfs/actions/runs/45315861729): 16 diagnostic controls (8 APIs × 2 modes) passed on Ubuntu and Windows, preserving values and unrelated positive property yield; source/position observation changed in all 8 tested APIs.
+- Actual SCO handler differential [45317205047](https://github.com/FlareZ123/obfs/actions/runs/45317205047): 8 controls passed on Ubuntu and Windows. Five mismatches: JSON replacer/reviver exact source, Array.sort/Array.map/Array.from frame position. Three frame-column-stable controls: JSON toJSON, String.replace, Map.forEach. Stable column is not a full safety claim. Static JSON input is required; an earlier dynamic String.fromCharCode fixture caused an unrelated unknown-input refusal and was discarded.
+- No browser intrinsic-callback test, SCO browser test, or performance-budget acceptance. Production source unchanged.
+
+### Agent 12 Storage / Window.name evidence integrated
+
+Agent 12's same-file COO Chromium browser run [45162975795](https://github.com/FlareZ123/obfs/actions/runs/45162975795) confirms native/emitted function-source mismatch through localStorage/sessionStorage.setItem key+value, Storage named-property assignment/readback, and Window.name DOMString setter/readback. Metrics: bindings 4, properties 0; independent helper still rewrites. Agent 1 verified the relevant source blobs match current main: ast.js `c227e6e604635a42663af745fd0cfb194b215a67`, identifiers.js `c7e2ed1469381c5bc6dc42cef9a6ca8bfa347f0f`. Cross-file exported producer remains source-stable under the existing export-ancestor guard; no second cross-file failure established.
+- Storage dispatch identity donor: native inherited and captured-native `Storage.prototype.setItem` alias stringify and expose source; own/prototype overrides preserve the function reference. Focused run [45181276801](https://github.com/FlareZ123/obfs/actions/runs/45181276801) passed on both OS; Chromium dispatch step [45181268302](https://github.com/FlareZ123/obfs/actions/runs/45181268302) passed. Never classify by `.setItem` spelling alone.
+- No SCO/SNO Storage result. Full Web IDL workflow failures were unrelated Blob/bound-runtime tests; do not attribute them to Storage.
+
+### Current-main evidence and stop line
+
+- Agent 1's current-main 13-operation COO/SNO matrix: 24/26 source mismatches per OS; the two With passes are zero-yield file-wide vetoes. Three actual SCO createScoHandler Node/CommonJS mismatches: IteratorNext, PromiseResolve thenable getter, ToPrimitive.
+- Agent 50 report: 22/22 Node 22.16.0 runtime controls; together with Agent 24's separate matrix, all 13 Proxy traps are witnessed across two scripts. Agent 50's earlier handoff says 21/21; report says 22/22, so keep this count discrepancy flagged pending author confirmation.
+- The contract remains proposed and is not wired into the compiler. No candidate, compiler PR, broad gate or release claim was selected. Critic's stop-line remains: one exact current-main candidate, donor/consumer list, focused red/green and positive controls, COO browser/SCO actual handler/SNO CLI coverage, then immutable two-platform full acceptance and strict 2.5× performance/adversarial evidence. Agent 10 remains sole comprehensive acceptance owner.
+- Next useful work: obtain Agent 8/24/50 review of IntrinsicCallbackDispatch and Storage identity fields; then choose the smallest candidate only if mode-specific proof can be completed. Do not promote PR #361's identifier-only island exception or build a second resolver.
