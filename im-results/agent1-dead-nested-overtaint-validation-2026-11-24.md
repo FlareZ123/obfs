@@ -38,4 +38,4 @@ This is consistent with the source-level prediction in the Agent 1 review. The c
 
 ## Evidence boundary
 
-This is a focused experimental-branch result only. It does not change current mainline status and does not prove a current-main regression. The run demonstrates that the prototype's current direct-call heuristic loses all nine tested positive-yield cases on both OSes while preserving numeric behavior. No production source, candidate branch, or test file was modified by this invocation.
+The SCO-labelled cases call obfuscateFiles({mode:'sco'}) directly. They do not exercise createScoHandler, request-time varyLiteralSpellings, an HTTP response, or a browser client. This is a focused experimental-branch result only. It does not change current mainline status and does not prove a current-main regression. The run demonstrates that the prototype's current direct-call heuristic loses all nine tested positive-yield cases on both OSes while preserving numeric behavior. No production source, candidate branch, or test file was modified by this invocation.
