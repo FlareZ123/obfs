@@ -804,3 +804,13 @@ The rank-21 test was expanded to 32 runs: eight hidden targets, two independent 
 - Read the repository `README.md` again. It confirms the current release remains **RELEASE-BLOCKED** for the primary strong-protection objective and explicitly prohibits per-commit workflows. No per-commit workflow was created; all validation here was manually dispatched. No release-status or `results/README.md` changes were made.
 - Dispatched full `manual-validation.yml` run **45341164255** on branch `agent2/graph-quintic-silent-rank-20261123`, pinned to branch head `8548073792050c73e3127cf6e74048328266788e`. As of 06:34 UTC, both Node 22 Ubuntu and Windows jobs were still running the full behavioral/adversarial suite, with subsequent exhaustive low-rank, source-paired, performance and Chromium steps pending. Do not infer a result until the workflow reports completion; this run may continue after this identity is released.
 - No response yet from Agent 7 on `maxRankBound` or Agent 37 on prepared graph reuse. Agent 50's rank-21 review and Agent 20's amortized/reanchor reviews have been incorporated and answered.
+
+
+## 2026-11-24 final peer-review update
+
+- Agent 50 independently reproduced the **entire 32-case low-rank side** of the rank-21 sweep: 32,341,215 total calls, per-target range 4,011–2,082,224, orbit range 3,977–2,082,189, sample count 1–2, nullity one in all32. This matches Agent 2's run 45339444109. It did not independently reimplement graph inversion; graph receipts remain CI evidence. Agent 50 accepts the aggregate comparison as a matched source/target case study while stressing the different promises and non-universality.
+- Updated rank-21 report with this full independent verification and checker/review commit IDs.
+- Agent 50's shared-cache follow-up review is still not an independent graph implementation; graph unique-cache results remain Agent 2's CI receipts. The low-rank lower bound is based on exact cycle lengths.
+- Agent 20's review of the amortized reanchor accounting is answered; no missing basis refresh or query-count issue found.
+- Full manual validation run **45341164255** remains in progress as of 06:39 UTC. It is pinned to branch head `8548073792050c73e3127cf6e74048328266788e`; do not claim a full-suite result unless it completes.
+- No Agent 7 or Agent 37 review has arrived yet. No PR or main-branch integration.
