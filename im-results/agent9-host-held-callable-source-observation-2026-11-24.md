@@ -101,9 +101,10 @@ The shared SourceObservationPlan should represent a callsite-qualified HostHeldC
 
 This is a focused direct-argument Node VM witness, not a full language proof:
 
-- It covers COO and SNO, not SCO.
-- It does not yet cover callback aliases, object-field storage, parameter forwarding, returned callbacks, cross-file ESM, spread/apply/bind, or dynamic target unions.
-- It is not a browser Chromium reproduction of this exact queueMicrotask case. Agent 1/8 have a separate focused COO browser witness for host-overridden `Array.prototype.map`.
+- It now covers compiler API modes COO, SCO and SNO, plus one end-to-end `createScoHandler` source-delivery case.
+- The actual SCO handler witness uses a Node client harness, not Chromium; it validates server-delivered module output and a client-controlled host override, not browser-specific host APIs.
+- Same-file direct, alias, object-field, parameter-forward and returned-callback paths are covered in all three compiler modes. Cross-file ESM is covered through one imported factory-return path. Spread/apply/bind, dynamic target unions, module cycles and other value-flow shapes remain open.
+- It is not a browser Chromium reproduction of the exact `queueMicrotask` case. Agent 1/8 have a separate focused COO browser witness for host-overridden `Array.prototype.map`.
 - It establishes a source-observation semantic mismatch, not an additional confidentiality guarantee. COO and SNO threat models already grant the attacker broad source/runtime access.
 - No performance measurements or 2.5× budget conclusions are implied.
 
@@ -183,4 +184,40 @@ The desired future acceptance is different: `hidden` source must remain byte-for
 
 ## Consolidated boundary
 
-Across direct, alias, object-field, actual→formal, return and cross-file factory-return paths, the current-main implementation demonstrates source-observation leaks in identifier/string consumers in COO and SNO. The local property proof is safer for the five same-file handoff paths tested, but that does not establish cross-file property safety. No SCO host-held callback claim is made.
+Across direct, alias, object-field, actual→formal, return and cross-file factory-return paths, the current-main implementation demonstrates source-observation leaks in identifier/string consumers in COO, SCO and SNO. The local property proof is safer for the five same-file handoff paths tested, but that does not establish cross-file property safety. The actual SCO handler delivery path also changes the private callback's formal parameter spelling in a Node client harness.
+
+
+## Three-mode matrix and actual SCO handler delivery
+
+The five same-file handoff paths were expanded to all three compiler API modes (COO, SCO, SNO):
+
+- Property positive controls: 15/15 path/mode cases preserve the observed callback source and retain the observed owner key while renaming an unrelated private key. Run [45326018298](https://github.com/FlareZ123/obfs/actions/runs/45326018298).
+- Identifier/string red controls: 30/30 path/mode/consumer cases change the observed callback source while preserving runtime values and never invoking the callback. Run [45326023443](https://github.com/FlareZ123/obfs/actions/runs/45326023443).
+- Cross-file ESM factory-return red controls: 6/6 mode/consumer cases change private callback source after an imported factory returns it. Run [45326027451](https://github.com/FlareZ123/obfs/actions/runs/45326027451).
+- Per-callable precision diagnostics: in all three modes, both observed `hidden` and unrelated `safe` functions are currently transformed. Run [45326031046](https://github.com/FlareZ123/obfs/actions/runs/45326031046).
+
+Each focused run passed on Ubuntu and Windows with project, external and paired-budget JSDoc checks.
+
+An additional test exercises the actual SCO server-delivery path through `createScoHandler`, not merely `obfuscateFiles({mode:'sco'})`. The handler serves `entry.mjs` and `helper.mjs`; the client imports `getCallback()`, arms a host-controlled `queueMicrotask`, and passes the returned private function to it. The host reads source without invoking the callback. The original source:
+
+```js
+function hidden(inputValue){return inputValue+1;}
+```
+
+is delivered as:
+
+```js
+function hidden(_v5580e2525f52){return _v5580e2525f52+1;}
+```
+
+The runtime output remains `done`; callback invocation remains false. The handler's delivered helper is only 103 bytes in this focused fixture. Run [45326162520](https://github.com/FlareZ123/obfs/actions/runs/45326162520) passed on Ubuntu and Windows with strict JSDoc.
+
+Compiler blobs at end-to-end SCO witness commit `02e6a736a73dcddd222386c8035f57ff59f4390b` were independently verified identical to current main:
+- `src/ast.js`: `c227e6e604635a42663af745fd0cfb194b215a67`
+- `src/properties.js`: `bda3c6097e2679f59bd003fa0aed3e0291d4ba4c`
+- `src/identifiers.js`: `c7e2ed1469381c5bc6dc42cef9a6ca8bfa347f0f`
+- `src/strings.js`: `df489cf25a8aaeb87d90e6dc1b7eb66476da8dd6`
+- `src/core.js`: `8d33996821650de540b87502baff00a9e7ea99c7`
+- `src/sco.js`: `c8f98b553172426559b21abaf0dc9a4fc3ea068e`
+
+The end-to-end SCO case specifically establishes that a client-controlled host can inspect a private callback after the SCO handler has delivered its transformed module. It does not imply the attacker can inspect code that SCO keeps exclusively server-side.
