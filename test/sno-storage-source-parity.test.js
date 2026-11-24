@@ -445,3 +445,34 @@ test('SNO Node Web Storage hook that reads native source then returns a primitiv
   assert.equal(pair.emitted.independent,19);
   console.log(JSON.stringify({mode:'sno',case:'hook-reads-source-then-returns-primitive',observer:pair.observes,bindings:pair.bindings,stored:pair.emitted.stored,observedSource:pair.emitted.observed,sourceParity:true}));
 });
+
+
+test('SNO Node Web Storage shadowed Symbol spelling is not a well-known coercion symbol',{
+  skip:!supportsExperimentalWebStorage,
+  timeout:30000
+},async()=>{
+  const source=[
+    "'use strict';",
+    'const Symbol={toPrimitive:"toPrimitive"};',
+    'function inspect(){const privateLocal=67;return privateLocal;}',
+    'function independent(){const independentLocal=23;return independentLocal;}',
+    'inspect[Symbol.toPrimitive]=function(){return "fake-symbol-string";};',
+    'localStorage.clear();',
+    'localStorage.setItem("shadowed-symbol",inspect);',
+    'const result={stored:localStorage.getItem("shadowed-symbol"),',
+    '  value:inspect(),independent:independent()};',
+    'process.stdout.write(JSON.stringify(result));'
+  ].join('\n');
+  const pair=await runSnoDifferential(source,'sno-node-webstorage-shadowed-symbol','obfs-sno-shadowed-symbol-');
+  assert.equal(pair.observes,true,
+    'a local Symbol binding must not be resolved as the realm well-known Symbol');
+  assert.equal(pair.bindings,0);
+  assert.ok(pair.protectedCode.includes('privateLocal'));
+  assert.ok(pair.native.stored?.includes('privateLocal'));
+  assert.equal(pair.native.stored,pair.emitted.stored);
+  assert.equal(pair.native.value,67);
+  assert.equal(pair.emitted.value,67);
+  assert.equal(pair.native.independent,23);
+  assert.equal(pair.emitted.independent,23);
+  console.log(JSON.stringify({mode:'sno',case:'shadowed-Symbol-not-well-known',observer:pair.observes,bindings:pair.bindings,sourceParity:true}));
+});
