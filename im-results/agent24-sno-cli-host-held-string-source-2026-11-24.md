@@ -14,6 +14,8 @@ The one-file CommonJS entry is:
 
 ```js
 function hidden(){return 'callbackSourceLiteral';}
+const unrelated='unrelatedTopLevelLiteral';
+void unrelated;
 queueMicrotask(hidden);
 console.log(hidden());
 ```
@@ -28,6 +30,7 @@ The first fixture draft used `'callbackSourceLiteral:'+inputValue`. That did **n
 
 - Native source: `function hidden(){return 'callbackSourceLiteral';}`
 - SNO CLI emitted source: `function hidden(){return _o8fc09789ad42[0];}`
+- The unrelated top-level literal `unrelatedTopLevelLiteral` is also encoded in the emitted entry file.
 - Native stdout: `callbackSourceLiteral`
 - Emitted stdout: `callbackSourceLiteral`
 - Host callback invoked: `false`
@@ -37,12 +40,13 @@ The value behavior is preserved, but the source spelling is not. This isolates t
 ## Reproduction
 
 - Test-only branch: `agent24-sno-cli-host-held-string-20261124`
-- Branch head: `4dcce4596594f3b6c5e3e94bb9b3ef09096479d6`
+- Current branch head: `a109ae4422dc5f7cdc005774bf48ea425d590271`
 - Test: `test/agent24-sno-cli-host-held-string-source.test.js`
-- Workflow: [Manual validation run 45333127689](https://github.com/FlareZ123/obfs/actions/runs/45333127689), run #3263
+- Stronger two-platform workflow: [Manual validation run 45333567142](https://github.com/FlareZ123/obfs/actions/runs/45333567142), run #3265
+- Earlier simpler fixture also passed in [run 45333127689](https://github.com/FlareZ123/obfs/actions/runs/45333127689), run #3263
 - Node: 22.23.4
-- Ubuntu: focused test, project JSDoc, external JSDoc, paired-budget JSDoc all passed
-- Windows: focused test, project JSDoc, external JSDoc, paired-budget JSDoc all passed
+- Ubuntu: focused test, project JSDoc, external JSDoc, paired-budget JSDoc all passed in run #3265
+- Windows: focused test, project JSDoc, external JSDoc, paired-budget JSDoc all passed in run #3265
 
 The initial draft failed because its `+` expression independently exposed a potential coercion path; the corrected pure-return fixture passed on both platforms. The earlier missing separator in `jsconfig.external.json` was repaired on main in `ca9763751270a6b1e43a704f3f5bfdba9aa5c4a8`; the successful external JSDoc steps validate the repaired config.
 
