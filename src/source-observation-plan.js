@@ -1,7 +1,7 @@
 'use strict';
 
 const {createHash} = require('node:crypto');
-const {parse,walk,observesFunctionSource,parserContractIdFor} = require('./ast');
+const {parse,walk,parserContractIdFor} = require('./ast');
 const {sourceGenerationOf,mapMappedSourceRange} = require('./source-edit-map');
 
 /** @typedef {import('./ast').AstNode} AstNode */
@@ -151,6 +151,36 @@ function isDirectFunctionSourceCall(node) {
 }
 
 /**
+ * Build the only admitted ordinary-object property surface: const-bound
+ * object literals containing unique, own, static data properties with
+ * primitive literal values. Inherited names and accessors are excluded.
+ *
+ * @param {AstNode} ast
+ * @returns {Map<string,Set<string>>|null}
+ */
+function buildObjectShapes(ast) {
+  const shapes=new Map();
+  let invalid=false;
+  walk(ast,node=>{
+    if(node.type!=='VariableDeclarator'||node.id?.type!=='Identifier'||
+       node.init?.type!=='ObjectExpression')return;
+    const keys=new Set();
+    for(const property of node.init.properties) {
+      if(property.type!=='Property'||property.computed||property.method||
+         property.shorthand||property.kind!=='init') {invalid=true;return;}
+      const key=property.key.type==='Identifier'?property.key.name:
+        property.key.type==='Literal'&&typeof property.key.value==='string'?
+          property.key.value:null;
+      if(key===null||key==='__proto__'||key==='constructor'||key==='prototype'||
+         keys.has(key)||property.value.type!=='Literal') {invalid=true;return;}
+      keys.add(key);
+    }
+    shapes.set(node.id.name,keys);
+  });
+  return invalid?null:shapes;
+}
+
+/**
  * The first producer accepts a deliberately small ESM grammar. Unknown syntax
  * is not approximated: it is rejected so the broad detector cannot hide a
  * second observer behind an unsupported construct.
@@ -158,7 +188,7 @@ function isDirectFunctionSourceCall(node) {
  * @param {AstNode} readerCall
  * @returns {boolean}
  */
-function isAllowedExpression(node,readerCall) {
+function isAllowedExpression(node,readerCall,objectShapes) {
   if(node.type==='Literal') {
     return node.value===null||['string','number','boolean'].includes(typeof node.value);
   }
@@ -171,16 +201,17 @@ function isAllowedExpression(node,readerCall) {
       const key=property.key.type==='Identifier'?property.key.name:
         property.key.type==='Literal'&&typeof property.key.value==='string'?
           property.key.value:null;
-      if(key===null||names.has(key)||property.value.type!=='Literal')return false;
+      if(key===null||key==='__proto__'||key==='constructor'||key==='prototype'||
+         names.has(key)||property.value.type!=='Literal')return false;
       names.add(key);
       return property.value.value===null||
         ['string','number','boolean'].includes(typeof property.value.value);
     });
   }
   if(node.type==='MemberExpression') {
-    return !node.computed&&!node.optional&&node.property.type==='Identifier'&&
-      (node.object.type==='Identifier'||node.object.type==='MemberExpression')&&
-      isAllowedExpression(node.object,readerCall);
+    if(node.computed||node.optional||node.property.type!=='Identifier'||
+       node.object.type!=='Identifier')return false;
+    return objectShapes.get(node.object.name)?.has(node.property.name)===true;
   }
   return node===readerCall&&isDirectFunctionSourceCall(node);
 }
@@ -190,7 +221,7 @@ function isAllowedExpression(node,readerCall) {
  * @param {AstNode} readerCall
  * @returns {boolean}
  */
-function isAllowedProgram(ast,readerCall) {
+function isAllowedProgram(ast,readerCall,objectShapes) {
   if(ast.type!=='Program'||ast.sourceType!=='module')return false;
   /** @type {AstNode[]} */
   const functionNodes=[];
@@ -207,14 +238,14 @@ function isAllowedProgram(ast,readerCall) {
          node.params.length!==0||node.body.type!=='BlockStatement'||
          node.body.body.length!==1||node.body.body[0].type!=='ReturnStatement'||
          !node.body.body[0].argument||
-         !isAllowedExpression(node.body.body[0].argument,readerCall))valid=false;
+         !isAllowedExpression(node.body.body[0].argument,readerCall,objectShapes))valid=false;
       continue;
     }
     if(node.type==='VariableDeclaration') {
       if(node.kind!=='const'||!node.declarations.length)return false;
       for(const declaration of node.declarations) {
         if(declaration.id.type!=='Identifier'||!declaration.init||
-           !isAllowedExpression(declaration.init,readerCall))valid=false;
+           !isAllowedExpression(declaration.init,readerCall,objectShapes))valid=false;
       }
       continue;
     }
@@ -268,34 +299,6 @@ function inspectDeclarations(ast,readerCall) {
 }
 
 /**
- * Remove the one admitted reader from a detached AST and ask the broad
- * observer detector whether any other known source observer remains.
- * @param {AstNode} ast
- * @param {AstNode} readerCall
- * @returns {boolean}
- */
-function hasOtherSourceObserver(ast,readerCall) {
-  const copy=JSON.parse(JSON.stringify(ast));
-  let replaced=false;
-  walk(copy,(node,parent,key)=>{
-    if(replaced||node.type!=='CallExpression'||
-       node.start!==readerCall.start||node.end!==readerCall.end)return;
-    if(!parent||key===null)return;
-    const replacement={type:'Literal',start:node.start,end:node.end,value:0,raw:'0'};
-    const value=parent[key];
-    if(Array.isArray(value)) {
-      const index=value.indexOf(node);
-      if(index<0)return;
-      value[index]=replacement;
-    } else {
-      parent[key]=replacement;
-    }
-    replaced=true;
-  });
-  return !replaced||observesFunctionSource(copy);
-}
-
-/**
  * Build a finite plan for one direct Function.prototype.toString.call(fn)
  * observation in a closed, single-file ESM COO input. The caller must provide
  * an explicit, versioned host premise for pristine Function intrinsics. This
@@ -333,10 +336,10 @@ function buildDirectFunctionSourcePlan(source,path,hostContract) {
   walk(ast,node=>{
     if(node.type==='FunctionDeclaration')functionNodes.push(node);
   });
+  const objectShapes=buildObjectShapes(ast);
   if(functionNodes.length!==1||functionNodes[0].id.name!==callableName||
-     counts.get(callableName)!==1||counts.has('Function')||
-     !isAllowedProgram(ast,readerCall)||!observesFunctionSource(ast)||
-     hasOtherSourceObserver(ast,readerCall))return null;
+     counts.get(callableName)!==1||counts.has('Function')||!objectShapes||
+     !isAllowedProgram(ast,readerCall,objectShapes))return null;
 
   // Every free identifier must be the single declared global intrinsic
   // Function used by the admitted reader. No imports, ambient callbacks,
