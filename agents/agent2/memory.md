@@ -991,3 +991,8 @@ The rank-21 test was expanded to 32 runs: eight hidden targets, two independent 
 
 - Verified current-main `src/sco.js` documentation and handler: `allowedHosts` is explicitly an HTTP Host-header routing filter only; server policy must use `authorizeRead`, `authorizeRpc` and `authorizeOperation`. GET handling rejects when `authorizeRead` is absent/false; RPC requires its policy callback.
 - Do not present client-injected domain/URL guards or Host-header allowlists as authorization. COO guards are removable by the attacker; SCO server policy must be enforced in trusted callbacks, with the stated request/response and unlimited-legitimate-request threat model.
+
+
+## Mainline source-version verification — 24 November 2026, 08:25:04 UTC
+
+- Rechecked current main against the final rank-21 comparison branch: `sims/random-affine-graph-flag-inversion.js` SHA is identical (`dbb16f6dd2358f69e334ba6dc02ab44226ab1fcc`); `sims/sparse-triangular-fixedpoint-inversion.js` SHA is identical (`9af096423e3a516d51a57e9db202dd6b323b244c`); `sims/affine-flag-oracle-attacker.js` SHA is identical (`297e90994bd45d6164b5701fc6a7141ed73d31a0`). Thus the tested graph/low-rank/flag implementations are still the exact current-main blobs; the test/report remain branch-only.
