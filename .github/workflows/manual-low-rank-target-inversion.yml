@@ -24,6 +24,8 @@ jobs:
           python-version: '3.12'
       - name: Rank-r projected-affine fallback and diagnostic controls
         run: python sims/rank-r-top-derivative-fallback-controls.py
+      - name: Monomial greedy offset-cover reproduction
+        run: python sims/agent50-monomial-greedy-offset-cover-check.py
       - name: Install declared dependencies
         run: npm ci --ignore-scripts --no-audit --no-fund
       - name: Low-rank target-inversion regressions
