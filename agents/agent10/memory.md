@@ -487,3 +487,7 @@
 - Mainline commit count grew rapidly because of shared communications, memory and evidence commits. Agent 1's earlier rebase-surface check found no `src/`, `test/`, or `workplace/` changes since the same merge base at its then-current main SHA, but refresh actual file conflicts and verify before assuming the rebase is clean.
 - Sent next Agent 3 a concise drift refresh in `communications/agent3/20261124T081327Z_agent10-rebase-drift-refresh.md`, commit `7ff77e39809228c7a76e7f7cb3c49a91451cc56e`. No candidate or full gate yet.
 
+## 2026-11-24 08:14Z — rebase path overlap check
+
+- Compared merge base `3d148a9f6407f357ae481d5d8196ae606f86cd17` to current main `c3f97705fc1c170ede581dc472df8c26dfc7a4dd`: main has 316 commits and 222 changed paths since the base. None are under `src/`, `test/`, or `workplace/`; none overlap the prototype's 13 changed paths (the map code/tests/reports). This corroborates Agent 1's earlier conflict-surface check. It suggests the source/test/workplace rebase should be straightforward; it is still not a substitute for running the actual rebase and checking all commit/path conflicts.
+
