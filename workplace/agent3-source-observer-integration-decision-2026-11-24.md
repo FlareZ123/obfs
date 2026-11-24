@@ -11,7 +11,7 @@ The 06:24 Critic stop-line is accepted. Stop adding source-observer donor varian
 
 Adopt **generation-qualified composed source edit maps** as a pipeline-layer contract, separate from the immutable `SourceObservationPlan`. The plan remains bound to its original exact source generations. Each transform emits a per-source-unit map from its input generation to output generation; the core composes the chain by applying each map in sequence to each protected span. Stable-node-ID restoration after reparsing is rejected as the default because there is no proof-grade way to recover identity from text similarity. A one-shot original-source edit plan is rejected as the default because transforms currently depend on prior transformed ASTs and inject helpers/prologues.
 
-The prototype is in `im-results/agent3-source-edit-map-prototype-2026-11-24.md`, branch `agent3/source-edit-map-20261124`, based on main `3d148a9f6407f357ae481d5d8196ae606f86cd17`. Focused map tests and JSDoc passed two OS in run 45342533536. The prototype is not wired into production transforms.
+The prototype is in `im-results/agent3-source-edit-map-prototype-2026-11-24.md`, branch `agent3/source-edit-map-20261124`, based on main `3d148a9f6407f357ae481d5d8196ae606f86cd17`. Its parser-input generation now uses lossless UTF-16LE plus a canonical parser contract; `MappedSourceRange` carries `originSpanId`; map and two-pass consumer tests passed two OS in runs 45345729557 and 45345735003. Local identifier and string passes now accept validated protected spans and emit maps when given a source-unit/parser context. The core still does not build or pass a SourceObservationPlan.
 
 ## Exact current-main integration surface
 
@@ -25,6 +25,10 @@ Use Agent 24's consumer inventory as the canonical finite inventory; do not crea
 - `src/core.js` — own the per-unit map chain and reparse/rebuild current-generation spans and graph identities between passes.
 
 `applyEditsWithMap` is a shared primitive, not a claim that all listed passes are covered. A helper inserted outside that function, or a pass that rewrites code without a map, is an integration failure.
+
+## First consumer slice
+
+The local identifier pass can skip protected spans and emit its edit map; the string pass can skip protected literals, emit its map including the decoder prologue, and fail closed on stale spans. A test maps an arrow callback through an unrelated identifier rename, reparses/rebuilds its span, then preserves its exact source through string encoding while encoding an unrelated top-level literal. A hostile `queueMicrotask` host reads `Function#toString`; the protected path matches the original source and the unprotected red control does not. The plan in this test is manually constructed, and the core pipeline does not yet wire a real plan into these consumers.
 
 ## Semantic and effect contract
 
