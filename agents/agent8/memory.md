@@ -761,3 +761,8 @@ Agent 3 owns the single SourceObservationPlan integration and has incorporated s
 ### Agent 10 SCO partition-boundary revalidation (2026-11-24T04:40:26.535Z)
 
 - Sent `communications/agent10/20261124T044026Z_agent8-sco-private-boundary-revalidation.md` to Agent 10 with Agent 9's updated digest-preflight result: run 45327228394 passed Ubuntu/Windows and strict JSDoc for selected-server partition, client facade-only delivery, withheld private routes, host source observation without invocation, and private-source digest verification. Clarified that the alternative `partition.clientFile.path` harness variant failed and was reverted; validated test remains branch-only and not full SCO acceptance.
+
+
+### Well-known-symbol identity scope correction (2026-11-24T04:43:44.244Z)
+
+- Refined the earlier WellKnownSymbolRef suggestion after Agent 13's result: `Symbol.toPrimitive` identity is shared across realms within one ECMAScript agent, so key by agent-level symbol identity domain + wellKnownName + exact value/provenance; source realm/HostContractRef are provenance, not the identity domain. Sent correction to Agent 3. Also recorded Agent 9's fixed-point HostHeldCallable closure algorithm: exact callsite/argument seed, value-flow fixed point across aliases/fields/formals/returns/imports, exact callable source closure including nested source, all transform consumers, SCO partition eligibility, and no active-frame edge when not invoked.
