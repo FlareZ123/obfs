@@ -1,13 +1,15 @@
 'use strict';
 
 const assert=require('node:assert/strict');
-const {parse,parserContractIdFor}=require('../src/ast');
-const {applyEditsWithMap}=require('../src/source-edit-map');
+const path=require('node:path');
+const root=process.cwd();
+const {parse,parserContractIdFor}=require(path.join(root,'src','ast'));
+const {applyEditsWithMap}=require(path.join(root,'src','source-edit-map'));
 const {
   buildDirectFunctionSourcePlan,
   getInitialPlanRanges,
   acceptPlannedPass
-}=require('../src/source-observation-plan');
+}=require(path.join(root,'src','source-observation-plan'));
 
 const source=[
   '// UTF-16 coordinate prefix 😀',
