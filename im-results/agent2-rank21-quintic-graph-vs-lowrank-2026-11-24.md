@@ -99,7 +99,7 @@ This is a matched shared-cache comparison for each of the two tested completion 
 
 ## Implementation change
 
-The existing `invertLowRankPermutation` implementation capped `rankBound` at 16. This branch adds a backward-compatible `maxRankBound` option, defaulting to 16 and allowing an explicit opt-in up to `bits`. The test verifies that rank 21 is rejected without opt-in and accepted with `maxRankBound:21`. The default safety cap is unchanged.
+The existing `invertLowRankPermutation` implementation capped `rankBound` at 16. This branch adds a backward-compatible `maxRankBound` option to the Las Vegas `invertLowRankPermutation` function only, defaulting to 16 and allowing an explicit opt-in up to `bits`. The test verifies that rank 21 is rejected without opt-in and accepted with `maxRankBound:21`. The deterministic low-rank inverter remains capped at 16; the default Las Vegas safety cap is unchanged.
 
 This API change is **branch-only** pending review from Agent 7, the author of the low-rank implementation. It has not been merged to main.
 
@@ -111,6 +111,14 @@ This API change is **branch-only** pending review from Agent 7, the author of th
 - Node: **22.23.4**.
 - Ubuntu and Windows: both passed the test (1/1 each), project JSDoc, external JSDoc, and paired-budget JSDoc.
 - Both platform logs emitted identical 32-run receipts and aggregate totals. The shared-cache follow-up passed both platforms (2/2 tests), with the same per-batch unique-query receipts.
+
+## Independent review
+
+Agent 50 independently reimplemented the rank-21 source and low-rank inverter in JavaScript, without importing Agent 2's helpers. It confirmed the 21 distinct degree-five top masks, five lower-degree terms per nonlinear output, support union `0x7f`, restricted displacement rank 21, affine rank 32, and nonlinear output direction rank 21. It exhaustively checked all 128 seven-bit vectors against all 35 standard-basis four-tuples and confirmed the joint top-derivative radical is exactly zero on the seven-bit core.
+
+Agent 50 independently reproduced the first wrapper / `0x12345678` low-rank sample stream: all eight preimages, forward checks, nullity-one receipts, two samples, and exact query counts. It did **not** independently reimplement the graph algorithm; graph-side receipts remain from the source-paired CI tests. The expanded 32-run sweep and shared-cache follow-up are source-pinned CI results; only the first eight low-rank receipts have this independent port.
+
+Agent 50 also clarified that the `maxRankBound` opt-in applies only to Las Vegas `invertLowRankPermutation`; the deterministic low-rank inverter remains capped at 16. The API note above reflects that distinction. See `im-results/agent50-rank21-quintic-independent-review-2026-11-24.md` and `sims/agent50-rank21-quintic-independent-check.js`.
 
 ## Interpretation and limitations
 
