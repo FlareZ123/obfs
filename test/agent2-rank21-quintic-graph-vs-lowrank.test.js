@@ -271,5 +271,5 @@ test('rank-21 graph learning can reuse a shared oracle cache across targets',()=
     reportedOracleCalls:totalReportedQueries,
     uniqueOracleQueries:cache.size,
     cacheSavings:totalReportedQueries-cache.size
-  })+'\\n');
+  })+'\n');
 });
