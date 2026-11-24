@@ -184,3 +184,40 @@ test('SCO concurrent helper GETs create independent host-held callback source va
     callbackInvoked:false
   }));
 });
+
+
+test('SCO source observer in entry preserves a helper-returned callback but applies a group-wide zero-yield veto',{
+  timeout:30000
+},async()=>{
+  /** @type {CommonJsFile[]} */
+  const files=[
+    {path:'helper.cjs',sourceType:'commonjs',code:
+      "function createHidden(){const unrelated='helperUnrelatedLiteral';void unrelated;return function hidden(){globalThis.result='helperCallbackSourceLiteral';return globalThis.result;};}"+
+      'module.exports={createHidden};'},
+    {path:'entry.cjs',sourceType:'commonjs',code:
+      "const {createHidden}=require('./helper.cjs');"+
+      'const hidden=createHidden();'+
+      'const source=Function.prototype.toString.call(hidden);'+
+      'queueMicrotask(hidden);console.log(hidden());'}
+  ];
+  const native=await execute(files);
+  const delivered=await receive(files);
+  const emitted=await execute(delivered);
+  const deliveredHelper=delivered.find(file=>file.path==='helper.cjs');
+  assert.ok(deliveredHelper);
+  assert.equal(native.stdout,'helperCallbackSourceLiteral');
+  assert.equal(emitted.stdout,native.stdout);
+  assert.equal(emitted.source,native.source,
+    'a source observer in the entry module should protect the helper-returned callback source');
+  assert.ok(deliveredHelper.code.includes("'helperCallbackSourceLiteral'"));
+  assert.ok(deliveredHelper.code.includes("'helperUnrelatedLiteral'"),
+    'the current group-wide veto should also withhold unrelated helper literal variation');
+  assert.equal(native.invoked,false);
+  assert.equal(emitted.invoked,false);
+  console.log('AGENT24_SCO_INTERFILE_SOURCE_VETO '+JSON.stringify({
+    native:native.source,
+    emitted:emitted.source,
+    unrelatedLiteralWithheld:deliveredHelper.code.includes("'helperUnrelatedLiteral'"),
+    callbackInvoked:emitted.invoked
+  }));
+});
