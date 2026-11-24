@@ -226,6 +226,7 @@ The canonical plan should expose at least the following. The v2 JSDoc schema sup
  * @typedef {string} SourceDeliveryEdgeKey
  * @typedef {string} SourceMirrorRefKey
  * @typedef {string} SourceMirrorReadEdgeKey
+ * @typedef {string} WellKnownSymbolRefKey
  * @typedef {string} ReceiverRefKey
  * @typedef {string} ValueRefKey
  * @typedef {string} ValueFlowEdgeKey
@@ -250,6 +251,20 @@ The canonical plan should expose at least the following. The v2 JSDoc schema sup
  * @property {string} requestVariantGeneration
  * @property {string|null} sourceBytesDigest
  * @property {'module'|'asset'|'integrity-token'|'other'} deliveryKind
+ *
+ * @typedef {'eligible'|'ineligible'|'unknown'} ScoPartitionEligibilityStatus
+ * @typedef {'no-client-source-observer'|'client-host-held-source-observer'|'unknown-client-observer-reachability'|'unsupported-cross-partition-value-flow'} ScoPartitionEligibilityReason
+ * @typedef {Object} ScoPartitionEligibility
+ * @property {CallableDefinitionRefKey} callableRef
+ * @property {SourceUnitRefKey} sourceUnitRef
+ * @property {string} sourceGeneration
+ * @property {ScoPartitionEligibilityStatus} status
+ * @property {ScoPartitionEligibilityReason} reason
+ * @property {ReadonlyArray<HostEffectId>} blockingHostEffectIds
+ * @property {ReadonlyArray<ValueRefKey>} clientObservedValueRefs
+ * @property {ReadonlyArray<SourceDeliveryEdgeKey>} sourceDeliveryEdgeRefs
+ * @property {HostContractRefKey|null} clientHostContractRef
+ * @property {boolean} strictSourceSemantics
  *
  * @typedef {'native-global'|'native-property'|'alias'|'proxy'|'userland'|'unknown'} ReceiverProvenance
  * @typedef {'native-inherited'|'native-accessor'|'captured-native'|'own-data'|'own-accessor'|'prototype-patched'|'proxy-forwarded-native'|'userland'|'unknown'} ReceiverLookupRoute
@@ -277,6 +292,16 @@ The canonical plan should expose at least the following. The v2 JSDoc schema sup
  * @typedef {'proven'|'may'|'unknown'} ValueProofStatus
  * @typedef {'HostHeldCallable'|'Escaped'|'SourceObservable'|'CallableMetadataObservable'|'SameSourcePath'|'UnknownPath'} ValueCapability
  *
+ * @typedef {Object} WellKnownSymbolRef
+ * @property {WellKnownSymbolRefKey} symbolRef
+ * @property {string} symbolIdentityDomainId - ECMAScript agent well-known-symbol domain, not realm ID
+ * @property {'toPrimitive'|'iterator'|'asyncIterator'|'hasInstance'|'toStringTag'|'species'|'isConcatSpreadable'|'match'|'matchAll'|'replace'|'search'|'split'|'unscopables'|'dispose'|'asyncDispose'|'other'} wellKnownName
+ * @property {string} symbolValueIdentity - exact symbol value identity used as the property key
+ * @property {string|null} sourceRealmId - provenance only; well-known identity is agent-scoped
+ * @property {'intrinsic-property'|'immutable-alias'|'userland-wrapper'|'unknown'} provenance
+ * @property {ValueProofStatus} proofStatus
+ * @property {HostContractRefKey|null} hostContractRef
+ *
  * @typedef {Object} PathProvenanceRef
  * @property {'same-source-url'|'other-source-url'|'filesystem-path'|'module-url'|'unknown'} kind
  * @property {SourceUnitRefKey|null} sourceUnitRef
@@ -296,6 +321,7 @@ The canonical plan should expose at least the following. The v2 JSDoc schema sup
  * @property {ValueProofStatus} proofStatus
  * @property {ReadonlyArray<DefinitionRefKey>} originDefinitionRefs
  * @property {ReadonlyArray<CallableDefinitionRefKey>} callableDefinitionRefs - exact callable identities when category includes Callable
+ * @property {ReadonlyArray<WellKnownSymbolRefKey>} wellKnownSymbolRefs - exact well-known symbol values carried by this value
  * @property {ReadonlyArray<SourceUnitRefKey>} originSourceUnitRefs
  * @property {ReadonlyArray<PathProvenanceRef>} pathProvenance - distinct from ordinary ValueCategory
  * @property {ReadonlyArray<ValueCapability>} capabilities
@@ -413,6 +439,8 @@ The canonical plan should expose at least the following. The v2 JSDoc schema sup
  * @property {ReadonlyMap<ThreatModelRefKey, ThreatModelRef>} threatModels
  * @property {ReadonlyMap<ModuleResolutionEdgeKey, ModuleResolutionEdge>} moduleResolutionEdges
  * @property {ReadonlyMap<SourceDeliveryEdgeKey, SourceDeliveryEdge>} sourceDeliveryEdges
+ * @property {ReadonlyMap<CallableDefinitionRefKey, ScoPartitionEligibility>} scoPartitionEligibility
+ * @property {ReadonlyMap<WellKnownSymbolRefKey, WellKnownSymbolRef>} wellKnownSymbols
  * @property {ReadonlyMap<BindingIdentityRefKey, BindingIdentity>} bindings
  * @property {ReadonlyMap<DefinitionRefKey, DefinitionRef>} definitions
  * @property {ReadonlyMap<CallableDefinitionRefKey, CallableDefinitionRef>} callableDefinitions
@@ -449,6 +477,12 @@ Dispatch is split into receiver origin, member lookup route and effective operat
 The canonical event taxonomy uses one ProxyInternalMethod event with the exact one of 13 trap names in proxyTrapName. IteratorDispatch covers iteration for all receiver categories; PrimitiveIterator is not a separate event. IntrinsicCallbackDispatch is allowed only when the effective operation is verified under the relevant HostContractRef; a host override is not a native intrinsic merely because it has the same spelling. ToPrimitive/ToPropertyKey, PromiseResolve.GetThen, deferred thenable jobs and Promise handler dispatch remain distinct operations.
 
 ObservationEffect has four positive dimensions: ExactSource (callable source text), SourceBytes (distributed source-unit bytes/mirrors), FramePosition (observable coordinates), and CallableMetadata (name/length/identity metadata). UnknownHostEffect is an epistemic fallback, not a fifth positive observation. A proven ExactSource closure is callable-span scoped; SourceBytes closes over a source unit only when its mirror/URL provenance establishes that reader; FramePosition closes over coordinate-affecting edits; CallableMetadata closes over exposed metadata. These effects are independent.
+
+SCO selected-server partitioning is a separate placement decision, not a source-transform effect. Compute ScoPartitionEligibility per callable over the full client module graph: a client HostHeldCallable/ExactSource observer makes the callable ineligible under strict 1:1 source semantics; unknown client observer reachability is unknown and fails closed; absence of a client source observer can leave the server-private partition eligible. The generated facade may protect private server bytes, but its Function#toString source differs from the original server callable. Do not claim both strict source parity and server-only confidentiality for that observable callable. Request-time mutation of delivered client code and selected-server partition eligibility are distinct SCO boundaries.
+
+Well-known Symbol identity is carried by the actual symbol value, not by the Symbol constructor reference or realm alone. In particular, Symbol.toPrimitive is shared across realms in one ECMAScript agent. A userland wrapper that exposes the exact well-known symbol value may be safe when its value provenance is proven; a fake Symbol.for value, local shadow, mutable alias or unknown preloader remains unknown. sourceRealmId is provenance, while symbolIdentityDomainId is the identity domain.
+
+HostHeldCallable propagation is a monotone fixed-point over the typed value graph: seed at the exact host-controlled callsite/argument; propagate through assignment/alias/phi, object-field write/read, actual-to-formal, return-to-call-result, import/export, closure capture and only explicitly modeled spread/apply/bind edges; resolve the exact CallableDefinitionRef set; then attach ExactSource to each callable's exact source span and populate effectClosures. If an outer callable is observed, nested source text inside its Function#toString span is part of the closure. Do not create an ActiveFrameEdge unless the callback is actually invoked while that frame remains visible. Every source-mutating consumer must use the same immutable closure.
 
 Runtime immutability is a separate implementation obligation: JSDoc ReadonlyMap/ReadonlySet and Object.freeze(Map) do not prevent Map/Set mutation. Keep backing maps/sets private behind closure or WeakMap lookup methods, expose only frozen records/arrays or immutable snapshots, and prevent input aliases or consumers from mutating plan state. Build a fresh plan for each SCO requestVariantGeneration; never share mutable backing state across concurrent requests.
 
