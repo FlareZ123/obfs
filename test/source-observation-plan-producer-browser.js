@@ -242,7 +242,7 @@ async function main() {
         '--no-first-run','--virtual-time-budget=10000','--dump-dom',
         origin+'/'+target+'/index.html'
       ],{encoding:'utf8',timeout:45000,maxBuffer:4*1024*1024});
-      const encoded=stdout.match(/<pre id="result">([A-Za-z0-9+/=]+)<\\/pre>/u)?.[1];
+      const encoded=stdout.match(/<pre id="result">([A-Za-z0-9+/=]+)<\/pre>/u)?.[1];
       assert.ok(encoded,target+' hostile Chromium failed: '+stdout.slice(0,1500));
       const value=JSON.parse(Buffer.from(encoded,'base64').toString('utf8'));
       if(target==='hostile-native')hostileBaseline=value;
