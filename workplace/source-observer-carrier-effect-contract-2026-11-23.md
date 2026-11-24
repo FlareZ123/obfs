@@ -642,3 +642,15 @@ The same identity requirement applies to the Storage named-property setter and n
 The plan's `ActiveFrameEdge` is explicitly the reverse **DynamicFrame** relation: a callback may observe an active caller/ancestor frame without the callable escaping through heap/value flow. Keep this relation separate from trigger-value and observed-value edges. Its observation effects may include exact function source, source bytes, callable metadata and source coordinates, each under the strictness/engine/host contract that actually permits the observation.
 
 `SourceBytes` is now a separate ObservationEffect from `ExactSource`: exact function source text and whole-source byte/mirror observation are different closure obligations. The latter may require closing over a whole source unit, HTML/DOM mirror, loader response or integrity-pinned bytes; a function-local span closure is not enough.
+
+
+### SCO confirmation for native intrinsic callback dispatch
+
+The actual `createScoHandler` HTTP-response differential is now recorded on the intermediate Agent 3 branch. Focused run [45317205047](https://github.com/FlareZ123/obfs/actions/runs/45317205047) passed on Ubuntu and Windows (Node 22.23.4), with all eight classification controls green. In this SCO fixture:
+- **ExactSource mismatches:** JSON.stringify replacer and JSON.parse reviver;
+- **FramePosition mismatches:** Array.sort comparator, Array.map callback and Array.from mapFn;
+- **Frame-column-stable controls:** JSON.stringify `toJSON`, String.replace callback and Map.forEach callback.
+
+All eight cases retain positive owner-property and unrelated-helper rewrite yield and preserve ordinary return values. The three stable controls prove only that the measured frame column did not change in those particular variants; they do not prove all source/metadata/coordinate effects safe. The earlier dynamic JSON text fixture was invalid for this classification because it caused an unrelated unknown-input refusal; the final test uses a statically known primitive JSON string. This is Node/CommonJS actual-handler evidence, not browser evidence. See the branch report for the exact test and run boundary.
+
+Combined with the focused COO/SNO differential, five callback operations now have current-main Node/CommonJS mismatch evidence in all three modes. The other three are not universal failures: their measured SCO frame columns were stable in this fixture, while their COO/SNO tests still changed the measured observation. Preserve the mode-specific distinction.
