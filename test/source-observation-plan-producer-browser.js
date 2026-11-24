@@ -67,9 +67,19 @@ function benchmarkPage(workloads) {
     'if(JSON.stringify(baseline.snapshot)!==JSON.stringify(obfuscated.snapshot))'+
     'throw new Error(workload.label+" sample exports differ");'+
     'baselineSamplesMs.push(baseline.elapsedMs);obfuscatedSamplesMs.push(obfuscated.elapsedMs);}'+
+    'const pairRatios=obfuscatedSamplesMs.map((value,index)=>value/baselineSamplesMs[index]);'+
+    'const placeboLeftSamplesMs=[];const placeboRightSamplesMs=[];'+
+    'for(let index=0;index<31;index++){let left,right;if(index%2===0){left=await load(workload.nativeCode);right=await load(workload.nativeCode);}else{right=await load(workload.nativeCode);left=await load(workload.nativeCode);}'+
+    'if(JSON.stringify(left.snapshot)!==JSON.stringify(right.snapshot))throw new Error(workload.label+" placebo exports differ");'+
+    'placeboLeftSamplesMs.push(left.elapsedMs);placeboRightSamplesMs.push(right.elapsedMs);}'+
+    'const placeboPairRatios=placeboRightSamplesMs.map((value,index)=>value/placeboLeftSamplesMs[index]);'+
+    'const strictBreachSamples=pairRatios.map((ratio,sample)=>({sample,ratio})).filter(item=>item.ratio>2.5);'+
     'const baselineMedianMs=median(baselineSamplesMs);const obfuscatedMedianMs=median(obfuscatedSamplesMs);'+
     'const ratio=obfuscatedMedianMs/baselineMedianMs;reports.push({workload:workload.label,sampleCount:31,warmupCount:6,'+
-    'baselineSamplesMs,obfuscatedSamplesMs,baselineMedianMs,obfuscatedMedianMs,ratio,budgetRatio:2.5,passesBudget:ratio<=2.5});}return reports;};'+
+    'baselineSamplesMs,obfuscatedSamplesMs,pairRatios,medianPairRatio:median(pairRatios),maxPairRatio:Math.max(...pairRatios),'+
+    'strictBreachCount:strictBreachSamples.length,strictBreachSamples,baselineMedianMs,obfuscatedMedianMs,ratio,'+
+    'placeboLeftSamplesMs,placeboRightSamplesMs,placeboPairRatios,placeboMaxPairRatio:Math.max(...placeboPairRatios),'+
+    'placeboStrictBreachCount:placeboPairRatios.filter(value=>value>2.5).length,budgetRatio:2.5,passesBudget:ratio<=2.5});}return reports;};'+
     'main().then(reports=>{const pre=document.createElement("pre");pre.id="budget";pre.textContent=btoa(JSON.stringify(reports));'+
     'document.body.appendChild(pre);}).catch(error=>{const pre=document.createElement("pre");pre.id="budget-failure";'+
     'pre.textContent=String(error.stack||error);document.body.appendChild(pre);});</script></body></html>';
