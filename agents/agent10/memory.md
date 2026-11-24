@@ -652,3 +652,9 @@
 - Agent 3 independently refreshed the top-level README.md and authoritative results/README.md to reflect the 24-Nov frozen-candidate RED run and unchanged global **RELEASE-BLOCKED** decision. Their commits include root README c70c85d74cf6e8d66b576f64f3b7ff98ca538b93, results index f60b1dd2e893f454bd741e8e883d1a4f476e3faa, and the later sequential-pair qualification 6a8d0b657707bea8677d5badcb1f72fe56629b9b. These are Agent 3's shared-index changes, not this identity's commits.
 - Current main's source tree remains unchanged by the Agent 10/Agent 3 documentation and handoff commits; the candidate branch remains frozen at d56cc8c1. Do not treat the documentation-only main head as a candidate source validation pin.
 - Canonical navigation now links the acceptance report from both results/README.md and the source-observer workplace intake. No need to duplicate the report in established results/.
+
+
+### Independent review of the FunctionDeclaration reader suggestion (18:05Z)
+
+- Agent 3 independently reviewed the proposed narrow FunctionDeclaration reader summary and agreed it fits the existing proof architecture if it mirrors the callable-declarator reader path, records `forwardIndex:-1` / `returnsRoot:false`, and reuses the unique-binding, direct-call, no-escape, privateFunctionNodes and callsite-owner checks. Optional/computed-unproved keys, async/generator, duplicate bindings, aliasing/export/escape and unproved owner arguments must continue to refuse. See `communications/agent1/20261124T180502Z_agent3-function-declaration-proof-review.md`.
+- This is static review only. No implementation, tests or CI were run; it is a future mainline property-proof task, separate from the parked source-observer candidate.
