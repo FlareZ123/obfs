@@ -733,3 +733,34 @@ The rank-21 test was expanded to 32 runs: eight hidden targets, two independent 
 2. If further work is useful, vary the rank-21 source family itself (not just wrappers/targets), or add a higher-rank source with different support geometry. Do not promote a single synthetic family to a general graph-method claim.
 3. Preserve the rank-two versus rank-21 contrast; it is the key finding that the best attack depends on output-displacement rank and orbit structure.
 4. Keep the work in `im-results/`; no PR, no results promotion, no release-status change.
+
+
+## 2026-11-24 checkpoint: amortized rank-two baseline and shared-cache graph batch
+
+### Agent 20 amortized rank-two comparison
+
+- Agent 20 independently reproduced the same eight rank-two targets with one shared affine basis/completion and a shared oracle cache. Its artifacts: `sims/agent20-quintic-multitarget-amortization.js`, `test/agent20-quintic-multitarget-amortization.test.js`, `im-results/agent20-quintic-multitarget-amortization-2026-11-24.md`.
+- Unique-query totals: deterministic rank-two orbit inversion **73** (33 shared interpolation/completion +40 total orbit calls); reanchoring **115** (99 shared initialization after two singular anchors +16 target checks). This is the matched shared-basis comparison.
+- The earlier 304-call rank-two total repeats initialization per target. The 101-call reanchor receipt is a single target, not an eight-target batch. The prior graph total222,079 is per-target learning and has not been rerun with a shared graph cache; do not present 73/115 vs222,079 as a fully amortized three-way comparison.
+- The rank-two report now includes this denominator-corrected section.
+
+### Rank-21 shared-cache graph comparison
+
+- Added a second test in `test/agent2-rank21-quintic-graph-vs-lowrank.test.js`: within each wrapper/sample batch, one fixed graph seed is reused across eight targets and a shared Map caches oracle results.
+- Shared-cache CI run **45340510713** passed both platforms, 2/2 tests, plus all JSDoc checks.
+- Graph unique inputs per batch: **130,032**, **129,829**, **129,196**, **129,123**; cache saves about89–90k repeated calls per batch.
+- For each matching low-rank completion stream, the largest orbit alone requires at least **2,082,189**, **2,048,076**, **2,064,800**, or **2,074,107** distinct inputs. This is a rigorous lower bound on the union of low-rank orbit inputs because one cycle of length L contains L distinct states. Even if all other target orbits overlap perfectly, graph uses 15.78–16.06× fewer unique inputs per batch.
+- This is not an exact low-rank union count and not a lower bound across all possible random completion seeds. The test uses one deterministic completion stream per batch; the low-rank union itself was not materialized. The graph cache may also reuse queries across different sample streams for a wrapper; that was not measured.
+- Updated high-rank report with this matched shared-cache lower-bound analysis. Sent the result to Agents 20 and 37.
+
+### Peer review
+
+- Agent 50 independently reviewed Agent 20's conditional 2n reanchoring proof and found no proof gap. It added a wrapped 32-bit nonzero-anchor witness with eight targets recovered in 45–51 distinct calls each (378 total), below the 64-query cap. The arbitrary-Lin counterexample remains outside the hidden-B premise. See `communications/agent2/20261124T0618Z_agent50-reanchor-2n-independent-review.md` and Agent 50's witness artifact.
+- Agent 20's amortized comparison is incorporated. Agent 37/7 review of the rank-21 source and `maxRankBound` option is still pending.
+
+### Next actions
+
+1. Check for Agent 7, Agent 37, and Agent 50 responses to the high-rank review requests.
+2. Consider an exact low-rank shared-orbit union computation only if it can be done without excessive memory; current max-cycle lower bound already gives a robust per-batch comparison.
+3. Explore whether the graph method can reuse learned structure beyond oracle-result caching; ask Agent 37 before altering its API.
+4. Keep all claims source-specific; no promotion to `results/`, no PR, no release-status change.
