@@ -7,7 +7,12 @@ const PARSER='acorn@8.15.0;ecmaVersion=latest;sourceType=module;allowReturnOutsi
 
 /** @param {string} sourceUnitRef @param {string} source @param {number} start @param {number} end */
 function span(sourceUnitRef,source,start,end) {
-  return {sourceUnitRef,sourceGeneration:sourceGenerationOf(source,PARSER),start,end};
+  return {
+    spanId:sourceUnitRef+':'+sourceGenerationOf(source,PARSER)+':'+start+':'+end,
+    sourceUnitRef,sourceGeneration:sourceGenerationOf(source,PARSER),
+    startOffset:start,endOffset:end,coordinateUnit:'utf16-code-unit',
+    astNodeType:start===end?null:'FunctionDeclaration'
+  };
 }
 
 test('maps a protected span through edits before and after it',()=>{
@@ -21,9 +26,10 @@ test('maps a protected span through edits before and after it',()=>{
   assert.deepEqual(mapped,{
     sourceUnitRef:'unit:module.cjs:1',
     sourceGeneration:sourceGenerationOf(result.code,PARSER),
-    start:4,end:7
+    startOffset:4,endOffset:7,coordinateUnit:'utf16-code-unit'
   });
-  assert.equal(result.code.slice(mapped.start,mapped.end),source.slice(original.start,original.end));
+  assert.equal(result.code.slice(mapped.startOffset,mapped.endOffset),
+    source.slice(original.startOffset,original.endOffset));
 });
 
 test('rejects protected spans intersected by replacement or interior insertion',()=>{
@@ -44,7 +50,7 @@ test('requires explicit before-node affinity for insertion at a protected span s
     {start:2,end:2,text:'X',affinity:'before-node',syntheticOriginId:'prologue'}
   ],'unit:m.js:1',PARSER);
   const mapped=mapSourceSpan(before.map,span('unit:m.js:1',source,2,4),source,before.code);
-  assert.deepEqual({start:mapped?.start,end:mapped?.end},{start:3,end:5});
+  assert.deepEqual({start:mapped?.startOffset,end:mapped?.endOffset},{start:3,end:5});
   const unknown=applyEditsWithMap(source,[
     {start:2,end:2,text:'X',syntheticOriginId:'unclassified'}
   ],'unit:m.js:1',PARSER);
@@ -61,7 +67,7 @@ test('insertion at the half-open span end remains outside the protected source',
     {start:4,end:4,text:'X',syntheticOriginId:'following-prologue'}
   ],'unit:m.js:1',PARSER);
   const mapped=mapSourceSpan(result.map,span('unit:m.js:1',source,2,4),source,result.code);
-  assert.deepEqual({start:mapped?.start,end:mapped?.end},{start:2,end:4});
+  assert.deepEqual({start:mapped?.startOffset,end:mapped?.endOffset},{start:2,end:4});
 });
 
 test('maps synthetic prologue insertion at an exact callable boundary',()=>{
@@ -74,7 +80,7 @@ test('maps synthetic prologue insertion at an exact callable boundary',()=>{
   const mapped=mapSourceSpan(result.map,span('unit:entry.mjs:1',source,start,source.length),
     source,result.code);
   assert.ok(mapped);
-  assert.equal(result.code.slice(mapped.start,mapped.end),source.slice(start));
+  assert.equal(result.code.slice(mapped.startOffset,mapped.endOffset),source.slice(start));
 });
 
 test('uses UTF-16 code-unit offsets after astral Unicode',()=>{
@@ -84,8 +90,8 @@ test('uses UTF-16 code-unit offsets after astral Unicode',()=>{
     {start:2,end:2,text:'X',affinity:'before-node',syntheticOriginId:'helper'}
   ],'unit:unicode.mjs:1',PARSER);
   const mapped=mapSourceSpan(result.map,span('unit:unicode.mjs:1',source,2,5),source,result.code);
-  assert.deepEqual({start:mapped?.start,end:mapped?.end},{start:3,end:6});
-  assert.equal(result.code.slice(mapped.start,mapped.end),'abc');
+  assert.deepEqual({start:mapped?.startOffset,end:mapped?.endOffset},{start:3,end:6});
+  assert.equal(result.code.slice(mapped.startOffset,mapped.endOffset),'abc');
 });
 
 test('maps a span through a sequential chain of source generations',()=>{
@@ -95,14 +101,16 @@ test('maps a span through a sequential chain of source generations',()=>{
   ],'unit:entry.cjs:1',PARSER);
   const original=span('unit:entry.cjs:1',source,4,7);
   const firstSpan=mapSourceSpan(first.map,original,source,first.code);
-  assert.deepEqual({start:firstSpan?.start,end:firstSpan?.end},{start:6,end:9});
+  assert.deepEqual({start:firstSpan?.startOffset,end:firstSpan?.endOffset},{start:6,end:9});
   const second=applyEditsWithMap(first.code,[
     {start:0,end:0,text:'!',affinity:'before-node',syntheticOriginId:'banner'},
     {start:10,end:11,text:'Z',syntheticOriginId:'suffix'}
   ],'unit:entry.cjs:1',PARSER);
-  const secondSpan=mapSourceSpan(second.map,firstSpan,first.code,second.code);
-  assert.deepEqual({start:secondSpan?.start,end:secondSpan?.end},{start:7,end:10});
-  assert.equal(second.code.slice(secondSpan.start,secondSpan.end),source.slice(4,7));
+  const secondSpan=mapSourceSpan(second.map,span(
+    'unit:entry.cjs:1',first.code,firstSpan.startOffset,firstSpan.endOffset
+  ),first.code,second.code);
+  assert.deepEqual({start:secondSpan?.startOffset,end:secondSpan?.endOffset},{start:7,end:10});
+  assert.equal(second.code.slice(secondSpan.startOffset,secondSpan.endOffset),source.slice(4,7));
 });
 
 test('refuses stale source-unit and parser-generation identities',()=>{
@@ -111,7 +119,7 @@ test('refuses stale source-unit and parser-generation identities',()=>{
     {start:0,end:0,text:'!',affinity:'before-node'}
   ],'unit:a.mjs:1',PARSER);
   assert.equal(mapSourceSpan(result.map,span('unit:b.mjs:1',source,2,4),source,result.code),null);
-  const stale={...span('unit:a.mjs:1','changed',2,4)};
+  const stale=span('unit:a.mjs:1','changed',2,4);
   assert.equal(mapSourceSpan(result.map,stale,source,result.code),null);
   assert.equal(mapSourceSpan(result.map,span('unit:a.mjs:1',source,2,4),source,'tampered'),null);
   const wrongParser=sourceGenerationOf(source,'different-parser-contract');
@@ -126,8 +134,8 @@ test('preserves applyEdits ordering for multiple insertions at one offset',()=>{
   ],'unit:entry.js:1',PARSER);
   assert.equal(result.code,'aYXb');
   const mapped=mapSourceSpan(result.map,span('unit:entry.js:1',source,1,2),source,result.code);
-  assert.deepEqual({start:mapped?.start,end:mapped?.end},{start:3,end:4});
-  assert.equal(result.code.slice(mapped.start,mapped.end),'b');
+  assert.deepEqual({start:mapped?.startOffset,end:mapped?.endOffset},{start:3,end:4});
+  assert.equal(result.code.slice(mapped.startOffset,mapped.endOffset),'b');
   assert.deepEqual(result.map.segments.filter(x=>x.kind==='inserted')
     .map(x=>x.syntheticOriginId),['second','first']);
 });
@@ -142,21 +150,20 @@ test('supports insertion at the start of a replacement while preserving exact ed
   assert.equal(mapSourceSpan(result.map,span('unit:entry.js:1',source,1,3),source,result.code),null);
 });
 
-test('rejects overlapping edits using the shared applyEdits contract',()=>{
-  assert.throws(()=>applyEditsWithMap('abcdef',[
-    {start:1,end:4,text:'x'},
-    {start:3,end:5,text:'y'}
-  ],'unit:m.js:1',PARSER),/Invalid or overlapping edit/);
-});
-
-
 test('maps an empty source point consistently at a before-node insertion',()=>{
   const source='abcdef';
   const result=applyEditsWithMap(source,[
     {start:2,end:2,text:'X',affinity:'before-node',syntheticOriginId:'prologue'}
   ],'unit:m.js:1',PARSER);
   const mapped=mapSourceSpan(result.map,span('unit:m.js:1',source,2,2),source,result.code);
-  assert.deepEqual({start:mapped?.start,end:mapped?.end},{start:3,end:3});
+  assert.deepEqual({start:mapped?.startOffset,end:mapped?.endOffset},{start:3,end:3});
+});
+
+test('rejects overlapping edits using the shared applyEdits contract',()=>{
+  assert.throws(()=>applyEditsWithMap('abcdef',[
+    {start:1,end:4,text:'x'},
+    {start:3,end:5,text:'y'}
+  ],'unit:m.js:1',PARSER),/Invalid or overlapping edit/);
 });
 
 test('runs deterministic span-preservation checks around UTF-16 edits',()=>{
@@ -196,7 +203,7 @@ test('runs deterministic span-preservation checks around UTF-16 edits',()=>{
       if(invalid)assert.equal(mapped,null);
       else {
         assert.ok(mapped);
-        assert.equal(result.code.slice(mapped.start,mapped.end),source.slice(start,end));
+        assert.equal(result.code.slice(mapped.startOffset,mapped.endOffset),source.slice(start,end));
       }
     }
   }
