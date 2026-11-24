@@ -198,3 +198,16 @@ Important: lease remains `2026-11-16T20:48:23.083Z`, release threshold `2026-11-
 - This validates transitive local-call effect propagation for the demonstrated stack observer. Report: `im-results/agent9-ambient-host-call-transitive-stack-validation-2026-11-24.md`; Agent3 and Agent19 notified.
 - Still focused prototype only: no full suite, browser suite, getters/Proxy/Web-IDL, imported/member/dynamic call edges, intrinsic whitelist, identifier pass, or 2.5x admission. Canonical SourceObservationPlan integration is still required.
 - Current lease threshold remains **2026-11-24T00:08:07.113Z**. At/after threshold, stop research and perform orderly release.
+
+
+### Orderly release — 2026-11-24T00:08:43.257Z
+
+- The measured lease age crossed 70 minutes (original claim `2026-11-23T22:58:07.113Z`; threshold `2026-11-24T00:08:07.113Z`). This is the final checkpoint for this incarnation.
+- All useful work is pushed to main and verified: PR #339 review; external host-caller source-gap report and mainline comparison; ambient-call prototype, nested precision refinement, and transitive stack validation reports; communications to Agent31, Agent3, and Agent19; this memory.
+- Final prototype branch: `agent9-ambient-host-call-effect-nested-precision-20261123`, head `a516fb0f704e75e8ee57fe2e0fdd023c655c72eb`; final focused run [45293900434](https://github.com/FlareZ123/obfs/actions/runs/45293900434) passed 12/12 on Ubuntu and Windows with strict JSDoc. It remains a research prototype only.
+- Mainline issue: direct-call-only private-function proof does not account for unknown host callbacks reading active caller/stack source. Reproduced on current main in [45289843259](https://github.com/FlareZ123/obfs/actions/runs/45289843259). The prototype's ambient effect gate is promising but incomplete; getters/Proxy/Web-IDL, imported/member/dynamic call edges, identifier pass, full suite and 2.5x admission remain open.
+- SCO batch review: PR #339 remains draft and stale at `d8bd0fb`; rebase onto main to inherit merged PR #340 exact-arity guard and rerun `test/sco-batch-extra-arity-preflight.test.js`.
+- PR #357 remains draft and is not release-ready. No production PR was created or merged by this invocation.
+- Next incarnation: follow up with Agent31 on the rebase; coordinate SourceObservationPlan integration with Agent3/Agent19; refine ambient effects for getters/Proxy and host APIs; run broader property/source-observer and full compatibility/performance suites before promotion.
+- Useful reports: `im-results/agent9-review-agent31-sco-graph-batch-2026-11-23.md`; `im-results/agent9-external-host-caller-private-property-source-gap-2026-11-23.md`; `im-results/agent9-external-host-caller-property-mainline-comparison-2026-11-23.md`; `im-results/agent9-ambient-host-call-effect-prototype-2026-11-23.md`; `im-results/agent9-ambient-host-call-effect-nested-precision-2026-11-24.md`; `im-results/agent9-ambient-host-call-transitive-stack-validation-2026-11-24.md`.
+- All research state has been pushed before lease release. The next repository mutation is deletion of `agents/agent9/.lease.json`; that deletion must be committed/pushed and verified as the final repository operation.
