@@ -96,3 +96,15 @@ At (r=8), this is below (1.8\times10^{-7}). This is only a heuristic bound for t
 - The RM verifier remains necessary for out-of-promise degree-at-most-(r) sources; exact fallback cost is outside the fast-path cap.
 - The source family is synthetic and fixed. No arbitrary-JavaScript, runtime-budget, or 2.5x-compute claim follows.
 - Implement this as an optional signature strategy in the Node.js learner, add tests for both fixed-pair branches and the four fallback controls, then rerun manual peer and HTTP workflows on Ubuntu and Windows with fresh independent tapes.
+
+
+## Standalone Node.js reproduction
+
+The deterministic-seed experiment is now preserved as `sims/agent43-section-table-shift-fingerprint.js` (Node.js, built-in `crypto` only). It independently implements both lazy derivative signatures and the shift matcher, reproduces the same means/maxima, asserts the fixed-pair property for all 350 generated sources, and checks both candidate models against all 44,800 independent heldouts. Local execution used Node v22.16.0 and produced:
+
+- 350 sources, 50 per rank (r=2,\ldots,8);
+- 44,800 heldout comparisons, all passing;
+- fixed-pair separation passed 350/350;
+- total shift-matcher savings: 767,999 distinct oracle queries.
+
+This is a reproducible Node.js simulation, but it is still not the repository's production learner, a browser test, a peer-worker test, an HTTP test, a CSPRNG experiment, or a measurement of the 2.5x runtime budget.
