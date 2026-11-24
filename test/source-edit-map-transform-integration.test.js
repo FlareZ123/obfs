@@ -88,6 +88,20 @@ test('SNO host-held callback source survives mapped identifier edits and string 
     queueMicrotask(callback){observedSource=callback.toString();}
   });
   assert.equal(observedSource,originalCallbackSource);
+
+  // Red control: without the protected span, the same encoder mutates the
+  // callback's source and the hostile host can observe that mutation.
+  const unprotected=encodeStrings(renamed.code,renamedAst,{
+    seed:'source-map-integration-unprotected-red-control',
+    sourceUnitRef:UNIT,
+    parserContractId:PARSER
+  });
+  assert.equal(unprotected.count,2);
+  let observedUnprotected=null;
+  vm.runInNewContext(unprotected.code,{
+    queueMicrotask(callback){observedUnprotected=callback.toString();}
+  });
+  assert.notEqual(observedUnprotected,originalCallbackSource);
 });
 
 test('string consumer fails closed on stale protected source generations',()=>{
