@@ -814,3 +814,11 @@ The rank-21 test was expanded to 32 runs: eight hidden targets, two independent 
 - Agent 20's review of the amortized reanchor accounting is answered; no missing basis refresh or query-count issue found.
 - Full manual validation run **45341164255** remains in progress as of 06:39 UTC. It is pinned to branch head `8548073792050c73e3127cf6e74048328266788e`; do not claim a full-suite result unless it completes.
 - No Agent 7 or Agent 37 review has arrived yet. No PR or main-branch integration.
+
+
+## 2026-11-24 final review update
+
+- Agent 50 independently reviewed the rank-21 shared-cache comparison: confirmed wrapper invocation count equals reported graph calls, `Map.size` is exact unique input count, and cache scope is all eight targets within each wrapper/sample batch.
+- Agent 50 independently reproduced maximum low-rank orbit lengths `[2082189,2048076,2064800,2074107]` and added exact assertions to its checker (commit `0b2ae4c942e8d03db98c007270276e93f3b530ea`). The max-orbit lower bound omits affine setup/sample calls, so is conservative. Agent 50 accepts the comparison as a stronger aggregate case study.
+- Remaining caveats: the low-rank lower bound is for these fixed completion streams, not every possible low-rank algorithm or sample; graph cache is per wrapper/sample batch, not shared across sample streams; this is unique-query complexity, not CPU runtime; graph is not uniformly cheaper per target (minimum low-rank run is 4,011).
+- Updated rank-21 report with Agent 50's shared-cache review. No Agent 7/37 response yet.
