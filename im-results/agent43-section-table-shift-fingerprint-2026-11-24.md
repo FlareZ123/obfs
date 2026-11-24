@@ -1,0 +1,98 @@
+# Section-table shift fingerprint for rank-r oracle learning
+
+**Date:** 2026-11-24  
+**Status:** intermediate algorithmic result; local Python prototype only, not yet implemented in the Node.js learner or validated over HTTP.
+
+## Observation
+
+For a promised projected-affine oracle
+\[
+F(x)=A(x)\oplus b\oplus h(Px),
+\]
+where (P: \mathbb F_2^n\to\mathbb F_2^r) has rank (r\), choose quotient-basis anchors (a_0,\ldots,a_{r-1}) and define the section table
+\[
+H(t)=F\left(\sum_i t_i a_i\right).
+\]
+For every input (x), there is a quotient coordinate (q(x)) and an affine correction (L(x)) such that
+\[
+F\left(x+\sum_i t_i a_i\right)=H(q(x)+t)\oplus L(x)
+\]
+for every (t\in\mathbb F_2^r). This follows because the affine parts of (F) and (H) differ by (A(x)\oplus A(s(q(x)))), independent of (t).
+
+Thus (q(e_j)) can be recovered by matching a small number of translated section-table entries, rather than computing all (r) top-derivative contractions for every standard basis vector.
+
+## Exact two-offset separation test
+
+Use the first two anchor coordinates (u=1) and (v=2). Check from the already-known table (H) whether
+
+\[
+H(q)\oplus H(q+\delta)\oplus H(q+u)\oplus H(q+u+\delta)
+\]
+or
+\[
+H(q)\oplus H(q+\delta)\oplus H(q+v)\oplus H(q+v+\delta)
+\]
+is nonzero for every basepoint (q\) and every nonzero shift (\delta\).
+
+Call this the fixed-pair separation property. It is a deterministic (O(4^r)) table-only check. If it passes, then for each standard basis vector (e_j), make just three oracle queries:
+\[
+F(e_j),\quad F(e_j+a_0),\quad F(e_j+a_1).
+\]
+Enumerate (q\in\mathbb F_2^r) and retain candidates satisfying
+\[
+F(e_j)\oplus H(q)
+=F(e_j+a_0)\oplus H(q+1)
+=F(e_j+a_1)\oplus H(q+2).
+\]
+The true (q(e_j)) always satisfies these equations. If another candidate (q+\delta) also satisfied them, both second differences above would be zero at basepoint (q), contradicting the checked separation property. Therefore the coordinate is unique. Set the affine correction to (L(e_j)=F(e_j)\oplus H(q(e_j))).
+
+The linear assignments (e_j\mapsto q(e_j)) and (e_j\mapsto L(e_j)) define the candidate
+\[
+G(x)=H(q(x))\oplus L(x).
+\]
+It is degree at most (r) and exactly equals every promised projected-affine source. Retain the independent RM postfit verifier to reject sources outside the promise; on mismatch, use the exact degree-(r) ANF fallback.
+
+If the fixed-pair separation check fails, use the original derivative-signature recovery instead. That method is already exact under the codimension-(r) top-derivative promise. Therefore this optimization does not weaken the promised-family path or increase its fast-path query cap. For (r=2), three queries per basis vector equal the original (2^r-1=3) signature queries, so there is no saving.
+
+## Local rank-r reproduction
+
+I independently ported the rank-r reference with the same source/witness/verifier seed schedule used by Agent 50, then added the fixed-pair shift matcher. For each (r=2,\ldots,8), all 50 generated 32-bit projected-table sources passed the fixed-pair separation check; the selected coordinate was unique for every standard basis vector. Both the previous lazy derivative-signature model and the shift-matched model were checked against the oracle on 128 independent heldouts per source (44,800 comparisons for the shift model). No promised-family fallback occurred.
+
+| (r) | Lazy derivative-signature mean | Shift-fingerprint mean | Mean queries saved | Reduction | Shift fast cap |
+|---:|---:|---:|---:|---:|---:|
+| 2 | 185.86 | 185.86 | 0 | 0.00% | 310 |
+| 3 | 418.64 | 290.64 | 128 | 30.58% | 620 |
+| 4 | 874.88 | 490.88 | 384 | 43.89% | 1,234 |
+| 5 | 1,809.38 | 913.38 | 896 | 49.52% | 2,497 |
+| 6 | 3,650.24 | 1,730.24 | 1,920 | 52.60% | 4,962 |
+| 7 | 7,411.72 | 3,443.72 | 3,968 | 53.54% | 9,891 |
+| 8 | 14,735.70 | 6,671.72 | 8,063.98 | 54.72% | 19,751 |
+
+The shift fast cap is the lazy witness cap plus (3n=96) shift probes and the same verifier sample count. For comparison, the lazy derivative-signature caps are 310, 748, 1,618, 3,393, 6,882, 13,859, and 27,815 for (r=2,\ldots,8). The optimization is therefore cap-neutral at (r=2) and strictly improves the cap for (r\ge3), whenever the fixed-pair check passes. The table is a local deterministic-seed experiment, not a CSPRNG or HTTP benchmark.
+
+## Fallback checks
+
+I also tested the shift/fallback control path on constructed low-width sources for every (r=2,\ldots,8), exhaustively comparing the returned model on all (2^{r+2}) inputs:
+
+- degree-((r-1)) source: no witness, then exact ANF fallback;
+- codimension-((r+1)) top derivative: shift ambiguity or signature overflow, then exact fallback;
+- silent codimension-((r+2)) source: postfit verification mismatch, then exact fallback;
+- lower-degree residual outside the quotient for (r\ge3): postfit verification mismatch, then exact fallback;
+- projected-affine monomial-table controls: fixed-pair check may fail and the original derivative signatures still reconstruct exactly.
+
+All returned models matched the source over their complete small domains. These are selected deterministic controls, not a statistical false-accept experiment.
+
+## Why the fixed-pair check often passes for random 32-bit tables
+
+For independent uniform 32-bit table entries, each second-difference equation is a parity of four table words. For fixed (q,\delta), the two equations for (u=1,v=2) are independent except for the three special shifts (\delta\in\{1,2,3\}), where one equation is zero or the two equations coincide. A union bound for failure of the fixed-pair property is approximately
+\[
+\frac{3\cdot2^r}{2^{32}}+\frac{2^r(2^r-4)}{2^{64}}.
+\]
+At (r=8), this is below (1.8\times10^{-7}). This is only a heuristic bound for the random-table generator (which forces the top coefficient nonzero); correctness does not depend on it because the property is checked exactly before using the fast path.
+
+## Limits and next validation
+
+- The fixed-pair method is exact when its explicit table check passes; otherwise the original derivative-signature path is retained.
+- The RM verifier remains necessary for out-of-promise degree-at-most-(r) sources; exact fallback cost is outside the fast-path cap.
+- The source family is synthetic and fixed. No arbitrary-JavaScript, runtime-budget, or 2.5x-compute claim follows.
+- Implement this as an optional signature strategy in the Node.js learner, add tests for both fixed-pair branches and the four fallback controls, then rerun manual peer and HTTP workflows on Ubuntu and Windows with fresh independent tapes.
