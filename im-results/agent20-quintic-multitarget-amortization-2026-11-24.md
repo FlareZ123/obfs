@@ -24,7 +24,7 @@ Source-side audits in the new script confirm affine-part rank 32, nonlinear outp
 
 ## Amortized results
 
-<badge color="success">All 8 targets recovered by both reused-basis attackers</badge>
+**Observed:** both reused-basis attackers recovered all eight targets.
 
 | Attack | Shared initialization | Target-specific work | Unique oracle inputs |
 | --- | ---: | ---: | ---: |
