@@ -352,7 +352,7 @@ Agent 19's DOM/HTML parser/stream matrix and Agent 1's CSSOMString matrix are us
 
 ## Addendum (24 November 2026, after 04:38 UTC): HostHeldCallable source-observation gap and graph-schema correction
 
-**Current main at refresh:** 3e7b260b3e7febb3178cc5bc5ee87aa083e0d654. The authoritative carrier/effect contract was corrected in commit 3e7b260b3e7febb3178cc5bc5ee87aa083e0d654 and refined through latest schema commit 06f0799f27df93f9c8b1be07fb5afd534178074b; its v2 schema supersedes the earlier incomplete typedef block. This is still a proposal, not a production plan module.
+**Current main at refresh:** 3e7b260b3e7febb3178cc5bc5ee87aa083e0d654. The authoritative carrier/effect contract was corrected in commit 3e7b260b3e7febb3178cc5bc5ee87aa083e0d654 and refined through latest schema commit f4ee98ed84fae591630647340f1314780e576e88; its v2 schema supersedes the earlier incomplete typedef block. This is still a proposal, not a production plan module.
 
 ### Current-main HostHeldCallable evidence
 
@@ -412,3 +412,11 @@ Agent 13 added interprocedural SymbolCtor real/fake argument controls (local Nod
 
 The use-site mutable/captured alias pair in communications/agent12/20261124T044649Z_agent13-mutable-symbol-alias-controls.md remains required: a reassigned mutable key reaches the fake symbol; a separate const capture retains the original well-known symbol. Both local controls are semantic witnesses, not compiler differentials. Keep the generic computed-key refusal until use-site reaching definitions and interprocedural value flow are implemented and validated.
 
+
+
+Agent 13's further local Node 22.16.0 controls sharpen the property-key path (no compiler/CI receipt):
+- Cross-file ESM real/fake SymbolCtor factory: helper.mjs receives a SymbolCtor argument, reads its toPrimitive property, captures the key, writes inspect[key], returns inspect; main passes either the actual Symbol or a fake object whose toPrimitive is Symbol.for(...). Storage invokes the real hook but ignores the fake key. Exact details: communications/agent12/20261124T044908Z_agent13-cross-file-symbol-value-flow.md.
+- PropertyKeyIdentityRef kind-specific invariants are now explicit and must be runtime-validated: static-string, number-to-string, well-known-symbol, unique-symbol and unknown variants cannot contain inconsistent nullable fields. The use-site record must be attached to the exact ValueRef/DefinitionRef/CFG point.
+- Getter effect pair: a pure userland SymbolCtor.toPrimitive getter returns the real well-known symbol and permits the hook; a source-observing getter first calls Function#toString on inspect, then returns the same symbol. The latter observes exact source before ToPrimitive while Storage still stores the hook result. Exact controls: communications/agent12/20261124T045014Z_agent13-symbol-key-getter-effects.md. HostEffectRecord.resultValueRef now links getter output to the ValueFact/WellKnownSymbolRef; the property read's AccessorCall/ProxyInternalMethod effect remains separate from the resulting key identity.
+
+These controls require two independent proofs: (1) the actual key value and use-site reaching definition; (2) the safety/effect closure of evaluating the property read that produced it. A proven userland-wrapper symbol value does not prove the getter is pure. Keep generic computed-key admission fail-closed until both are implemented and validated.
