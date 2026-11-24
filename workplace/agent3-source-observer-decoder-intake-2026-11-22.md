@@ -445,3 +445,13 @@ Agent 9 added host-held object/class method controls that read Function#toString
 
 The same-owner diagnostic [45329630264](https://github.com/FlareZ123/obfs/actions/runs/45329630264) preserves source/name/length but leaves holder.unrelatedField unchanged and reports zero property yield. Only the function value is passed to the host; the holder object is not. This is a conservative owner-level veto, not an unsafe rename and not yet a proven missed opportunity. The separate-owner positive does not establish same-owner safety. The contract now distinguishes HostHeldCallable from HostHeldObject, records ownerValueRef and PropertyKeyIdentityRef on field edges, and adds CallableDefinitionRef [[HomeObject]]/this/super facts. Same-owner field yield stays fail-closed until reflection, getters/setters, dynamic keys, binding, this/super and value escape are proven.
 
+
+
+## Addendum (24 November 2026, after 04:57 UTC): reproducible Symbol key semantic matrix
+
+Agent 13 consolidated the local Node 22.16.0 Web Storage controls into a 15-case isolated child-process matrix:
+- Reproduction: sims/agent13-symbol-key-runtime-matrix.js
+- Intermediate report: im-results/agent13-symbol-key-runtime-matrix-2026-11-24.md
+- All 15 cases passed locally. The matrix covers direct well-known key, same-description Symbol.for fake, preloader fake and userland-real wrappers, local Symbol/globalThis shadows, mutable reassignment vs immutable capture, real/fake actual-to-formal factory flow, cross-file ESM real/fake flow, pure/source-observing key getters, and same-agent cross-realm well-known symbol identity.
+- This is runtime semantic evidence only: Node v22.16.0, no obfuscator transform, no Node v22.23.4 CI receipt, and no compiler differential. It does not change NO-GO or justify admitting generic computed-function keys. Keep in im-results, not results.
+
