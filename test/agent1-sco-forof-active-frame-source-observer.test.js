@@ -58,14 +58,12 @@ function observe(code) {
 }
 
 const source=
-  '(function(){'+
-    'const owner={secretField:1};'+
-    'const other={unrelatedField:2};'+
-    'function hidden(iterable){for(const value of iterable){}return owner.secretField;}'+
-    'function plain(){return other.unrelatedField;}'+
-    'function publicReader(iterable){return hidden(iterable)+plain();}'+
-    'module.exports=publicReader;'+
-  '})();';
+  'const owner={secretField:1};'+
+  'const other={unrelatedField:2};'+
+  'function hidden(iterable){for(const value of iterable){}return owner.secretField;}'+
+  'function plain(){return other.unrelatedField;}'+
+  'function publicReader(iterable){return hidden(iterable)+plain();}'+
+  'module.exports=publicReader;';
 
 test('SCO response preserves a private callable observed through host IteratorNext',async()=>{
   const before=observe(source);
