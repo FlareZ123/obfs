@@ -4,8 +4,8 @@ const {resolveLexicalReferences}=require('./agent1-lexical-reference-resolver');
 
 /** @typedef {import('../src/ast').AstNode} AstNode */
 /** @typedef {'module'|'script'|'commonjs'} SourceType */
-/** @typedef {{kind:'unknown-call'|'unresolved-local-call'|'new-expression'|'tagged-template'|'await'|'yield'|'dynamic-import'|'transitive-local-call',start:number,end:number,targetStart?:number}} AmbientCallReason */
-/** @typedef {{node:AstNode,start:number,end:number,bindingIds:number[],bindingNames:string[],ambient:boolean,reasons:AmbientCallReason[]}} AmbientCallSummary */
+/** @typedef {{kind:'unknown-call'|'unresolved-local-call'|'new-expression'|'tagged-template'|'await'|'yield'|'dynamic-import'|'transitive-local-call'|'with-binding-lookup'|'implicit-iterator'|'implicit-object-enumeration'|'implicit-proxy-has'|'implicit-instanceof'|'implicit-delete'|'implicit-destructuring'|'implicit-spread'|'to-primitive'|'to-property-key'|'promise-thenable-assimilation'|'host-held-callable'|'classic-script-global-lexical',start:number,end:number,targetStart?:number,effect?:'DynamicFrame'|'HostHeldCallable'|'ExternalReachability'}} AmbientCallReason */
+/** @typedef {{node:AstNode,start:number,end:number,bindingIds:number[],bindingNames:string[],ambient:boolean,dynamicFrame:boolean,hostHeldCallable:boolean,externallyReachable:boolean,safe:boolean,reasons:AmbientCallReason[]}} AmbientCallSummary */
 
 /**
  * @param {unknown} value
@@ -62,6 +62,38 @@ function walkExecutableFunctionBody(root,visitor) {
 }
 
 /**
+ * A small primitive-expression recognizer for deciding whether an operation
+ * can invoke ToPrimitive/ToPropertyKey user code. Unknown identifiers and
+ * member reads remain unknown; this is not a value analysis.
+ * @param {AstNode|null|undefined} node
+ * @returns {boolean}
+ */
+function definitelyPrimitiveExpression(node) {
+  if(!node)return false;
+  switch(node.type) {
+    case 'Literal': return !node.regex;
+    case 'TemplateLiteral': return true;
+    case 'UnaryExpression':
+      if(['typeof','void','!'].includes(node.operator))return true;
+      return ['+','-','~'].includes(node.operator)&&
+        definitelyPrimitiveExpression(node.argument);
+    case 'BinaryExpression':
+      if(['in','instanceof'].includes(node.operator))return false;
+      return definitelyPrimitiveExpression(node.left)&&
+        definitelyPrimitiveExpression(node.right);
+    case 'ConditionalExpression':
+      return definitelyPrimitiveExpression(node.consequent)&&
+        definitelyPrimitiveExpression(node.alternate);
+    case 'SequenceExpression':
+      return node.expressions.length>0&&
+        definitelyPrimitiveExpression(node.expressions[node.expressions.length-1]);
+    case 'ParenthesizedExpression':
+      return definitelyPrimitiveExpression(node.expression);
+    default: return false;
+  }
+}
+
+/**
  * Build a research-only ambient caller/stack effect summary using Agent 1's
  * read-only lexical BindingIds. It recognizes only direct local function
  * declarations, const-bound function expressions, and immutable const
@@ -74,7 +106,7 @@ function walkExecutableFunctionBody(root,visitor) {
  *
  * @param {AstNode} ast
  * @param {SourceType} sourceType
- * @returns {{summaries:AmbientCallSummary[],ambientBindingIds:number[],safeBindingIds:number[]}}
+ * @returns {{summaries:AmbientCallSummary[],ambientBindingIds:number[],hostHeldCallableBindingIds:number[],externallyReachableBindingIds:number[],unsafeBindingIds:number[],safeBindingIds:number[]}}
  */
 function summarizeAmbientCallEffects(ast,sourceType) {
   const resolved=resolveLexicalReferences(ast,sourceType);
@@ -91,6 +123,16 @@ function summarizeAmbientCallEffects(ast,sourceType) {
     }
   }
 
+  /** @type {Map<AstNode,AstNode>} */
+  const parentByNode=new Map();
+  /** @type {Set<AstNode>} */
+  const allFunctionNodes=new Set();
+  walkAst(ast,(node,parent)=>{
+    if(parent)parentByNode.set(node,parent);
+    if(['FunctionDeclaration','FunctionExpression','ArrowFunctionExpression'].includes(node.type))
+      allFunctionNodes.add(node);
+  });
+
   /** @type {Set<number>} */
   const writtenBindings=new Set();
   for(const reference of resolved.references) {
@@ -98,6 +140,46 @@ function summarizeAmbientCallEffects(ast,sourceType) {
        ['write','read-write'].includes(reference.role)) {
       writtenBindings.add(reference.resolution.bindingId);
     }
+  }
+
+  // A VariableDeclarator initializer is a runtime binding write even though
+  // its identifier is correctly represented as a declaration, not a reference.
+  // A same-ID var helper = callback can therefore overwrite a function declaration.
+  /** @type {Set<number>} */
+  const initializerOverwrittenFunctionBindings=new Set();
+  for(const [bindingId,rows] of declarationsByBinding) {
+    if(!rows.some(row=>row.kind==='function'))continue;
+    for(const row of rows) {
+      const parent=parentByNode.get(row.node);
+      if(parent?.type==='VariableDeclarator'&&parent.init!==null)
+        initializerOverwrittenFunctionBindings.add(bindingId);
+    }
+  }
+
+  /** @type {Set<number>} */
+  const topLevelScriptBindings=new Set();
+  /** @type {Set<number>} */
+  const mutableTopLevelScriptBindings=new Set();
+  /** @type {Set<AstNode>} */
+  const externallyReachableFunctions=new Set();
+  if(sourceType==='script') {
+    walkAst(ast,(node,parent)=>{
+      if(node.type==='FunctionDeclaration'&&node.id?.type==='Identifier'&&parent===ast) {
+        externallyReachableFunctions.add(node);
+        const id=declarationByNode.get(node.id)?.bindingId??null;
+        if(id!==null)topLevelScriptBindings.add(id);
+      }
+      if(node.type==='VariableDeclarator'&&parent?.type==='VariableDeclaration'&&
+         parentByNode.get(parent)===ast&&node.id.type==='Identifier') {
+        const id=declarationByNode.get(node.id)?.bindingId??null;
+        if(id!==null) {
+          topLevelScriptBindings.add(id);
+          if(parent.kind!=='const')mutableTopLevelScriptBindings.add(id);
+        }
+        if(node.init&&['FunctionExpression','ArrowFunctionExpression'].includes(node.init.type))
+          externallyReachableFunctions.add(node.init);
+      }
+    });
   }
 
   /** @type {Map<number,AstNode>} */
@@ -111,6 +193,8 @@ function summarizeAmbientCallEffects(ast,sourceType) {
    */
   function addFunctionBinding(bindingId,fn) {
     if(bindingId===null||writtenBindings.has(bindingId)||
+       initializerOverwrittenFunctionBindings.has(bindingId)||
+       mutableTopLevelScriptBindings.has(bindingId)||
        ambiguousFunctionBindings.has(bindingId))return;
     const existing=functionNodeByBinding.get(bindingId);
     if(existing&&existing!==fn) {
@@ -125,15 +209,14 @@ function summarizeAmbientCallEffects(ast,sourceType) {
   const aliasTargets=new Map();
   walkAst(ast,(node,parent)=>{
     if(node.type==='FunctionDeclaration'&&node.id?.type==='Identifier') {
-      // Classic-script function declarations may be object-record or Annex B
-      // bindings. This prototype does not yet prove their scope category or
-      // global-object alias closure, so it refuses all such call targets.
-      if(sourceType!=='script')
+      // Top-level classic-script declarations are globally reachable; other
+      // script declaration/Annex-B cases remain outside this single-AST donor.
+      if(sourceType!=='script'||parent!==ast)
         addFunctionBinding(declarationByNode.get(node.id)?.bindingId??null,node);
     } else if(node.type==='FunctionExpression'&&node.id?.type==='Identifier') {
       addFunctionBinding(declarationByNode.get(node.id)?.bindingId??null,node);
-    } else if(node.type==='VariableDeclarator'&&
-              node.id.type==='Identifier'&&
+    } else if(node.type==='VariableDeclarator'&&parent?.type==='VariableDeclaration'&&
+              parent.kind==='const'&&node.id.type==='Identifier'&&
               (node.init?.type==='FunctionExpression'||
                node.init?.type==='ArrowFunctionExpression')) {
       addFunctionBinding(declarationByNode.get(node.id)?.bindingId??null,node.init);
@@ -170,6 +253,7 @@ function summarizeAmbientCallEffects(ast,sourceType) {
 
   /** @type {Map<AstNode,Set<number>>} */
   const nodeBindingIds=new Map();
+  for(const fn of allFunctionNodes)nodeBindingIds.set(fn,new Set());
   for(const [bindingId,fn] of functionNodeByBinding) {
     const ids=nodeBindingIds.get(fn)??new Set();
     ids.add(bindingId);
@@ -181,27 +265,89 @@ function summarizeAmbientCallEffects(ast,sourceType) {
       const ids=nodeBindingIds.get(fn)??new Set();
       ids.add(bindingId);
       nodeBindingIds.set(fn,ids);
+      if(topLevelScriptBindings.has(bindingId))externallyReachableFunctions.add(fn);
     }
+  }
+  if(sourceType==='script') {
+    walkAst(ast,(node,parent)=>{
+      if(node.type==='FunctionDeclaration'&&node.id?.type==='Identifier'&&parent===ast) {
+        const id=declarationByNode.get(node.id)?.bindingId??null;
+        if(id!==null)nodeBindingIds.get(node)?.add(id);
+      }
+      if(node.type==='VariableDeclarator'&&parent?.type==='VariableDeclaration'&&
+         parentByNode.get(parent)===ast&&node.id.type==='Identifier'&&node.init&&
+         ['FunctionExpression','ArrowFunctionExpression'].includes(node.init.type)) {
+        const id=declarationByNode.get(node.id)?.bindingId??null;
+        if(id!==null)nodeBindingIds.get(node.init)?.add(id);
+      }
+    });
   }
 
   /** @type {Map<AstNode,Array<{target:AstNode,start:number,end:number}>>} */
   const callEdges=new Map();
   /** @type {Set<AstNode>} */
-  const ambientFunctions=new Set();
+  const dynamicFrameFunctions=new Set();
+  /** @type {Set<AstNode>} */
+  const hostHeldFunctions=new Set();
   /** @type {Map<AstNode,Map<string,AmbientCallReason>>} */
   const reasonsByFunction=new Map();
   /**
    * @param {AstNode} fn
    * @param {AmbientCallReason} reason
+   * @param {'DynamicFrame'|'HostHeldCallable'|'ExternalReachability'} [effect]
    * @returns {void}
    */
-  function addReason(fn,reason) {
+  function addReason(fn,reason,effect='DynamicFrame') {
     const reasons=reasonsByFunction.get(fn)??new Map();
-    const key=[reason.kind,reason.start,reason.end,reason.targetStart??''].join(':');
-    reasons.set(key,reason);
+    const row={...reason,effect};
+    const key=[effect,row.kind,row.start,row.end,row.targetStart??''].join(':');
+    reasons.set(key,row);
     reasonsByFunction.set(fn,reasons);
-    ambientFunctions.add(fn);
+    if(effect==='DynamicFrame')dynamicFrameFunctions.add(fn);
+    else if(effect==='HostHeldCallable')hostHeldFunctions.add(fn);
   }
+
+  for(const fn of externallyReachableFunctions)
+    addReason(fn,{kind:'classic-script-global-lexical',start:fn.start,end:fn.end},'ExternalReachability');
+
+  /** @param {AstNode} argument @returns {AstNode|null} */
+  function callableForArgument(argument) {
+    if(['FunctionDeclaration','FunctionExpression','ArrowFunctionExpression'].includes(argument.type))
+      return argument;
+    if(argument.type==='SpreadElement')return callableForArgument(argument.argument);
+    if(argument.type==='Identifier') {
+      const reference=resolved.at(argument.start);
+      if(reference?.resolution.kind==='local')
+        return resolveFunctionNode(reference.resolution.bindingId);
+    }
+    return null;
+  }
+
+  // An unknown host call can retain and stringify a callable argument without
+  // invoking it. This value-escape effect is distinct from DynamicFrame.
+  // This first cut follows direct identifiers, const aliases and inline
+  // function arguments; aggregate/return/parameter flows remain Unknown.
+  walkAst(ast,node=>{
+    if(node.type==='CallExpression'||node.type==='NewExpression') {
+      let knownLocalTarget=null;
+      if(node.type==='CallExpression'&&!node.optional&&node.callee.type==='Identifier') {
+        const reference=resolved.at(node.callee.start);
+        if(reference?.resolution.kind==='local')
+          knownLocalTarget=resolveFunctionNode(reference.resolution.bindingId);
+      }
+      if(!knownLocalTarget) {
+        for(const argument of node.arguments) {
+          const target=callableForArgument(argument);
+          if(target)addReason(target,{kind:'host-held-callable',start:node.start,end:node.end},'HostHeldCallable');
+        }
+      }
+    } else if(node.type==='TaggedTemplateExpression') {
+      for(const expression of node.quasi.expressions) {
+        const target=callableForArgument(expression);
+        if(target)addReason(target,{kind:'host-held-callable',start:node.start,end:node.end},'HostHeldCallable');
+      }
+    }
+  });
 
   for(const fn of nodeBindingIds.keys()) {
     /** @type {Array<{target:AstNode,start:number,end:number}>} */
@@ -230,6 +376,44 @@ function summarizeAmbientCallEffects(ast,sourceType) {
         addReason(fn,{kind:'yield',start:node.start,end:node.end});
       } else if(node.type==='ImportExpression') {
         addReason(fn,{kind:'dynamic-import',start:node.start,end:node.end});
+      } else if(node.type==='WithStatement') {
+        addReason(fn,{kind:'with-binding-lookup',start:node.start,end:node.end});
+      } else if(node.type==='ForOfStatement') {
+        addReason(fn,{kind:'implicit-iterator',start:node.start,end:node.end});
+      } else if(node.type==='ForInStatement') {
+        addReason(fn,{kind:'implicit-object-enumeration',start:node.start,end:node.end});
+      } else if(node.type==='ObjectPattern'||node.type==='ArrayPattern') {
+        addReason(fn,{kind:'implicit-destructuring',start:node.start,end:node.end});
+      } else if(node.type==='SpreadElement') {
+        addReason(fn,{kind:'implicit-spread',start:node.start,end:node.end});
+      } else if(node.type==='BinaryExpression'&&node.operator==='in') {
+        addReason(fn,{kind:'implicit-proxy-has',start:node.start,end:node.end});
+      } else if(node.type==='BinaryExpression'&&node.operator==='instanceof') {
+        addReason(fn,{kind:'implicit-instanceof',start:node.start,end:node.end});
+      } else if(node.type==='UnaryExpression'&&node.operator==='delete'&&
+                node.argument.type==='MemberExpression') {
+        addReason(fn,{kind:'implicit-delete',start:node.start,end:node.end});
+      } else if(node.type==='MemberExpression'&&node.computed&&
+                !definitelyPrimitiveExpression(node.property)) {
+        addReason(fn,{kind:'to-property-key',start:node.start,end:node.end});
+      } else if(node.type==='Property'&&node.computed&&
+                !definitelyPrimitiveExpression(node.key)) {
+        addReason(fn,{kind:'to-property-key',start:node.start,end:node.end});
+      } else if(node.type==='TemplateLiteral'&&
+                node.expressions.some((/** @type {AstNode} */ expression)=>
+                  !definitelyPrimitiveExpression(expression))) {
+        addReason(fn,{kind:'to-primitive',start:node.start,end:node.end});
+      } else if(node.type==='BinaryExpression'&&
+                !['in','instanceof'].includes(node.operator)&&
+                (!definitelyPrimitiveExpression(node.left)||
+                 !definitelyPrimitiveExpression(node.right))) {
+        addReason(fn,{kind:'to-primitive',start:node.start,end:node.end});
+      } else if(node.type==='UnaryExpression'&&['+','-','~'].includes(node.operator)&&
+                !definitelyPrimitiveExpression(node.argument)) {
+        addReason(fn,{kind:'to-primitive',start:node.start,end:node.end});
+      } else if(node.type==='ReturnStatement'&&fn.async&&node.argument&&
+                !definitelyPrimitiveExpression(node.argument)) {
+        addReason(fn,{kind:'promise-thenable-assimilation',start:node.start,end:node.end});
       }
     });
     callEdges.set(fn,edges);
@@ -239,8 +423,8 @@ function summarizeAmbientCallEffects(ast,sourceType) {
   while(changed) {
     changed=false;
     for(const [caller,edges] of callEdges) {
-      if(ambientFunctions.has(caller))continue;
-      const edge=edges.find(candidate=>ambientFunctions.has(candidate.target));
+      if(dynamicFrameFunctions.has(caller))continue;
+      const edge=edges.find(candidate=>dynamicFrameFunctions.has(candidate.target));
       if(edge) {
         addReason(caller,{
           kind:'transitive-local-call',start:edge.start,end:edge.end,
@@ -255,18 +439,29 @@ function summarizeAmbientCallEffects(ast,sourceType) {
     const bindingIds=[...(nodeBindingIds.get(fn)??[])].sort((a,b)=>a-b);
     const bindingNames=[...new Set(bindingIds.flatMap(id=>
       (declarationsByBinding.get(id)??[]).map(declaration=>declaration.name)))].sort();
+    const dynamicFrame=dynamicFrameFunctions.has(fn);
+    const hostHeldCallable=hostHeldFunctions.has(fn);
+    const externallyReachable=externallyReachableFunctions.has(fn);
     return {
       node:fn,start:fn.start,end:fn.end,bindingIds,bindingNames,
-      ambient:ambientFunctions.has(fn),
+      ambient:dynamicFrame,dynamicFrame,hostHeldCallable,externallyReachable,
+      safe:!dynamicFrame&&!hostHeldCallable&&!externallyReachable,
       reasons:[...(reasonsByFunction.get(fn)?.values()??[])].sort((a,b)=>
         a.start-b.start||a.kind.localeCompare(b.kind))
     };
   });
-  const ambientBindingIds=summaries.filter(summary=>summary.ambient)
+  const ambientBindingIds=summaries.filter(summary=>summary.dynamicFrame)
     .flatMap(summary=>summary.bindingIds).sort((a,b)=>a-b);
-  const safeBindingIds=summaries.filter(summary=>!summary.ambient)
+  const hostHeldCallableBindingIds=summaries.filter(summary=>summary.hostHeldCallable)
     .flatMap(summary=>summary.bindingIds).sort((a,b)=>a-b);
-  return {summaries,ambientBindingIds,safeBindingIds};
+  const externallyReachableBindingIds=summaries.filter(summary=>summary.externallyReachable)
+    .flatMap(summary=>summary.bindingIds).sort((a,b)=>a-b);
+  const unsafeBindingIds=summaries.filter(summary=>!summary.safe)
+    .flatMap(summary=>summary.bindingIds).sort((a,b)=>a-b);
+  const safeBindingIds=summaries.filter(summary=>summary.safe)
+    .flatMap(summary=>summary.bindingIds).sort((a,b)=>a-b);
+  return {summaries,ambientBindingIds,hostHeldCallableBindingIds,
+    externallyReachableBindingIds,unsafeBindingIds,safeBindingIds};
 }
 
 module.exports={summarizeAmbientCallEffects};
