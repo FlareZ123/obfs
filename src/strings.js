@@ -2,7 +2,8 @@
 
 const {createHash} = require('node:crypto');
 const {walk, applyEdits, observesFunctionSource, sourceSpelledErrorOperand} = require('./ast');
-const {applyEditsWithMap,sourceGenerationOf} = require('./source-edit-map');
+const {applyEditsWithMap} = require('./source-edit-map');
+const {isValidatedSourceObservationPlan,validatePlanConsumerInput} = require('./source-observation-plan');
 const {collectBindings} = require('./properties');
 
 /** @typedef {import('./ast').AstNode} AstNode */
@@ -56,7 +57,7 @@ function mayAppearInFailedOperand(node,ancestors) {
  * All JS UTF-16 code units are retained, including isolated surrogates.
  * @param {string} source
  * @param {AstNode} ast
- * @param {{seed:string, minimumLength?:number, reservedNames?:Set<string>, reservedSources?:string[], fixedArity?:boolean, sourceUnitRef?:string, parserContractId?:string, protectedSourceSpans?:Array<{spanId:string,sourceUnitRef:string,sourceGeneration:string,startOffset:number,endOffset:number,coordinateUnit:'utf16-code-unit',astNodeType:string|null}>}} options
+ * @param {{seed:string, minimumLength?:number, reservedNames?:Set<string>, reservedSources?:string[], fixedArity?:boolean, sourceUnitRef?:string, parserContractId?:string, sourceObservationPlan?:import('./source-observation-plan').SourceObservationPlan, protectedSourceRanges?:import('./source-edit-map').MappedSourceRange[]}} options
  * @returns {{code:string,count:number,editMap?:Object}}
  */
 function encodeStrings(source, ast, options) {
@@ -69,22 +70,18 @@ function encodeStrings(source, ast, options) {
       typeof options.parserContractId!=='string'||options.parserContractId.length===0)) {
     throw new TypeError('sourceUnitRef and parserContractId must be supplied together');
   }
-  const protectedSourceSpans=options.protectedSourceSpans??[];
-  if(!Array.isArray(protectedSourceSpans))throw new TypeError('protectedSourceSpans must be an array');
-  if(protectedSourceSpans.length&&!hasMapContext) {
-    throw new TypeError('protectedSourceSpans require a source-unit and parser generation');
+  if(options.protectedSourceSpans!==undefined) {
+    throw new TypeError('Raw protectedSourceSpans are unsupported; use a validated SourceObservationPlan');
   }
-  if(protectedSourceSpans.length) {
-    const generation=sourceGenerationOf(source,/** @type {string} */ (options.parserContractId));
-    for(const span of protectedSourceSpans) {
-      if(!span||typeof span.spanId!=='string'||span.spanId.length===0||
-         span.sourceUnitRef!==options.sourceUnitRef||span.sourceGeneration!==generation||
-         span.coordinateUnit!=='utf16-code-unit'||
-         !Number.isInteger(span.startOffset)||!Number.isInteger(span.endOffset)||
-         span.startOffset<0||span.endOffset<span.startOffset||span.endOffset>source.length) {
-        throw new TypeError('String encoder received a stale or foreign protected source span');
-      }
-    }
+  const protectedSourceRanges=options.protectedSourceRanges??[];
+  if(!Array.isArray(protectedSourceRanges))throw new TypeError('protectedSourceRanges must be an array');
+  const plan=options.sourceObservationPlan;
+  if(plan!==undefined) {
+    if(!hasMapContext)throw new TypeError('SourceObservationPlan requires source-unit and parser contract context');
+    validatePlanConsumerInput(plan,source,/** @type {string} */ (options.sourceUnitRef),
+      /** @type {string} */ (options.parserContractId),protectedSourceRanges);
+  } else if(protectedSourceRanges.length) {
+    throw new TypeError('Protected source ranges require a validated SourceObservationPlan');
   }
   /** @returns {{code:string,count:number,editMap?:Object}} */
   function noOp() {
@@ -94,7 +91,7 @@ function encodeStrings(source, ast, options) {
     }
     return {code:source,count:0};
   }
-  if(observesFunctionSource(ast)) return noOp();
+  if(observesFunctionSource(ast)&&!isValidatedSourceObservationPlan(plan)) return noOp();
   // The decoder uses the ambient String intrinsic. A file-level or nested
   // lexical binding with this name can shadow it, including before TDZ init.
   if (collectBindings(ast).has('String')) return noOp();
