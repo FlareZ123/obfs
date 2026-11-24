@@ -81,7 +81,7 @@ function main(){
       const heldout=seededWordGenerator(0x64000000+seed);
       for(let i=0;i<32;i++){
         const input=heldout();
-        assert.equal(evaluateProjectedAffineModel(baseline.model,input),source(input));
+        assert.equal(evaluateProjectedAffineModel(baseline,input),source(input));
         assert.equal(evaluateHybridModel(hybrid.model,input),source(input));
         holdoutChecks+=2;
       }
