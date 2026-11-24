@@ -65,7 +65,9 @@ Both OS also passed strict project JSDoc, strict external JSDoc and the paired/c
 
 A second focused test-only fixture uses the real `createScoHandler` HTTP response and then executes that response in a VM with a host-supplied observer callback. Test: `test/agent3-sco-native-intrinsic-callback-dispatch.test.js`. It uses a statically known primitive JSON input so the separate JSON.parse input-coercion guard does not create an unrelated unknown-value refusal.
 
-Focused manual-validation run [45317205047](https://github.com/FlareZ123/obfs/actions/runs/45317205047) completed successfully on Ubuntu and Windows (Node 22.23.4); all 8 classification controls passed. Every case requires:
+Focused manual-validation run [45317205047](https://github.com/FlareZ123/obfs/actions/runs/45317205047) completed successfully on Ubuntu and Windows (Node 22.23.4); all 8 classification controls passed.
+
+The unchanged current-main implementation blobs exercised by the actual handler are: `src/sco.js` `c8f98b553172426559b21abaf0dc9a4fc3ea068e`, `src/core.js` `8d33996821650de540b87502baff00a9e7ea99c7`, `src/ast.js` `c227e6e604635a42663af745fd0cfb194b215a67`, and `src/properties.js` `bda3c6097e2679f59bd003fa0aed3e0291d4ba4c`. The branch contains test/report artifacts only; these production blobs match main. Every case requires:
 - actual HTTP-generated SCO response;
 - owner property and unrelated `plain()` positive-control property both rewritten;
 - native and emitted return values equal;
