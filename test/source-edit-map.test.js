@@ -149,6 +149,16 @@ test('rejects overlapping edits using the shared applyEdits contract',()=>{
   ],'unit:m.js:1',PARSER),/Invalid or overlapping edit/);
 });
 
+
+test('maps an empty source point consistently at a before-node insertion',()=>{
+  const source='abcdef';
+  const result=applyEditsWithMap(source,[
+    {start:2,end:2,text:'X',affinity:'before-node',syntheticOriginId:'prologue'}
+  ],'unit:m.js:1',PARSER);
+  const mapped=mapSourceSpan(result.map,span('unit:m.js:1',source,2,2),source,result.code);
+  assert.deepEqual({start:mapped?.start,end:mapped?.end},{start:3,end:3});
+});
+
 test('runs deterministic span-preservation checks around UTF-16 edits',()=>{
   let seed=0x51f15e;
   const random=()=>{
