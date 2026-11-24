@@ -98,8 +98,34 @@ check('intrinsic-toString-mutation',{
 });
 
 const readerDeclarationStart=source.indexOf('const observedSource');
-const sourceTextExportStart=source.indexOf('export const sourceText');
+const sourceTextExport='export const sourceText = observedSource;';
+const sourceTextExportStart=source.indexOf(sourceTextExport);
 assert.ok(readerDeclarationStart>=0&&sourceTextExportStart>=0);
+
+// Producer-level control: the current grammar admits an unrelated primitive
+// export even though the Function#toString result does not flow to it.
+const disconnectedSource=source.replace(
+  sourceTextExport,"export const sourceText = 'fake';"
+);
+assert.notEqual(disconnectedSource,source);
+const disconnectedPlan=buildDirectFunctionSourcePlan(
+  disconnectedSource,'entry.mjs',hostContract
+);
+console.log('producer-disconnected-export: '+JSON.stringify({
+  planAccepted:Boolean(disconnectedPlan)
+}));
+assert.equal(Boolean(disconnectedPlan),true,
+  'current producer unexpectedly linked sourceText to the reader result');
+
+// Post-plan control: replacing only the exported initializer leaves both
+// tracked callable/reader spans unchanged but changes the delivered value.
+check('exported-mirror-overwrite',{
+  start:sourceTextExportStart,
+  end:sourceTextExportStart+sourceTextExport.length,
+  text:"export const sourceText = 'fake';",
+  affinity:'unknown',syntheticOriginId:'review-exported-mirror-overwrite'
+});
+
 checkMany('mutable-reader-binding',[
   {
     start:readerDeclarationStart,end:readerDeclarationStart+'const'.length,
