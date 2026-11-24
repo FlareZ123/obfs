@@ -23,7 +23,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: source-observer-direct-validator-${{ inputs.candidate_sha }}
+  group: source-observer-direct-validator-${{ inputs.candidate_sha }}-${{ inputs.harness_sha }}
   cancel-in-progress: true
 
 jobs:
@@ -50,12 +50,17 @@ jobs:
           HARNESS_SHA: ${{ inputs.harness_sha }}
           HARNESS_PATH: ${{ inputs.harness_path }}
         run: |
-          case "$HARNESS_PATH" in
-            im-results/*.js) ;;
-            *) echo "Harness path must be an im-results JavaScript file" >&2; exit 1 ;;
-          esac
+          if [[ ! "$HARNESS_PATH" =~ ^im-results/[A-Za-z0-9._-]+\.js$ ]]; then
+            echo "Harness path must be a flat im-results JavaScript file" >&2
+            exit 1
+          fi
+          if [[ ! "$CANDIDATE_SHA" =~ ^[0-9a-f]{40}$ || ! "$HARNESS_SHA" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "Candidate and harness pins must be full 40-character commit SHAs" >&2
+            exit 1
+          fi
           test "$(git rev-parse HEAD)" = "$CANDIDATE_SHA"
           git fetch --no-tags origin "$HARNESS_SHA"
+          test "$(git rev-parse "$HARNESS_SHA^{commit}")" = "$HARNESS_SHA"
           git show "$HARNESS_SHA:$HARNESS_PATH" > "$RUNNER_TEMP/source-observer-rebind-harness.js"
           sha256sum "$RUNNER_TEMP/source-observer-rebind-harness.js"
           printf 'CANDIDATE_SHA=%s\nHARNESS_SHA=%s\nHARNESS_PATH=%s\n' "$CANDIDATE_SHA" "$HARNESS_SHA" "$HARNESS_PATH"
