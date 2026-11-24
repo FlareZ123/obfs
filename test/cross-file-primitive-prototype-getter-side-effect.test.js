@@ -86,15 +86,15 @@ for(const primitive of primitives) {
   });
 }
 
-test('ordinary own primitive length read retains independent private-field rewrite yield',async()=>{
+test('ordinary primitive arithmetic retains independent private-field rewrite yield',async()=>{
   const files=graph([
     'import {state} from "./state.mjs";',
     'const total=1+2;',
-    'console.log("APP:"+state.secretField+":"+total);'
+    'console.log(JSON.stringify([state.secretField,total]));'
   ].join('\n'));
   const native=await executeWithHostPrototypeObserver(files,null);
-  assert.equal(native,'APP:53:3\n');
-  const output=transform(files,'primitive-getter-own-length-positive');
+  assert.equal(native,'[53,3]\n');
+  const output=transform(files,'primitive-getter-arithmetic-positive');
   const emitted=await executeWithHostPrototypeObserver(output.files,null);
   assert.equal(emitted,native);
   assert.equal(output.crossFile.properties,1,
