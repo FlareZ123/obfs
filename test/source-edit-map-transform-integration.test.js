@@ -156,6 +156,36 @@ test('identifier protection is binding-wide across declarations and references',
   }
 });
 
+
+test('protected escaped free identifiers reserve names against lexical capture',()=>{
+  const source='const privateLocal=79;\nfunction callback(){return \\u005fv87c7bc040aea;}\nqueueMicrotask(callback);';
+  const ast=parse(source,'module');
+  const callback=findNamedFunction(ast,'callback');
+  const originalCallbackSource=source.slice(callback.start,callback.end);
+  const span=sourceSpan(UNIT,callback.start,callback.end,sourceGenerationOf(source,PARSER));
+  const renamed=renameLocalIdentifiers(source,ast,{
+    seed:'protected-collision',sourceType:'module',
+    sourceUnitRef:UNIT,parserContractId:PARSER,protectedSourceSpans:[span]
+  });
+  assert.ok(renamed.bindings>0);
+  assert.ok(!/const\\s+_v87c7bc040aea\\s*=\\s*79/.test(renamed.code),
+    'the escaped free Identifier.name inside the protected span must reserve its spelling');
+  const range=mapSourceSpan(renamed.editMap,span,source,renamed.code);
+  assert.ok(range);
+  assert.equal(renamed.code.slice(range.startOffset,range.endOffset),originalCallbackSource);
+
+  const run=code=>{
+    const context={queueMicrotask(callback){
+      try{context.value=callback();}catch(error){context.error=error.name;}
+    }};
+    vm.runInNewContext(code,context);
+    return {value:context.value,error:context.error};
+  };
+  assert.deepEqual(run(source),{value:undefined,error:'ReferenceError'});
+  assert.deepEqual(run(renamed.code),{value:undefined,error:'ReferenceError'},
+    'the protected callback must not be captured by a generated outer binding');
+});
+
 test('local property pass maps unrelated object edits and declines edits inside a protected span',()=>{
   const source=[
     'const outsideObject={veryLongPrivateKey:1};',
