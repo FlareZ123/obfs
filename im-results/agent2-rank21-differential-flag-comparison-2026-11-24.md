@@ -83,9 +83,9 @@ The low-rank experiment's four maximum-orbit unique-query lower bounds sum to 8,
 
 - Branch: `agent2/rank21-differential-flag-comparison-20261124`
 - Test: `test/agent2-rank21-differential-flag-comparison.test.js`
-- Current branch head at validation: `7e74d1c063e402125b302475e44688d475cad1d5`
-- Focused CI: `45352422403` — Ubuntu and Windows jobs passed, including strict project and external JSDoc.
-- The earlier focused run `45352186521` passed the two-wrapper comparison after refreshing graph expectations to current main.
+- Current branch head at final validation: `028fbf9615862ed843452100f89eb8e8c04ee349`
+- Focused CI: `45354223713` — Ubuntu and Windows jobs passed after adding the matched 48-sample comparison assertion; strict project, external and runtime-budget JSDoc passed.
+- Earlier focused runs `45352422403` and `45352186521` also passed the eight-wrapper sweep and current-main graph baseline, respectively.
 - An intermediate run `45350551352` failed because the test initially carried graph counts from the stronger-budget research branch; those expectations were corrected to the current-main graph implementation before the passing run.
 
 The test contains the deterministic seeds, source generator, target set, query-count assertions, exact forward verification, and current-main graph baseline. The lower-rank helper was checked unchanged between the old research branch and current main.
