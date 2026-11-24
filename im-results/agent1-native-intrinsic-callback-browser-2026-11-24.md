@@ -207,3 +207,42 @@ This is a **proof of feasibility**, not a production source-map algorithm:
 Two failed padding heuristics were retained in the commit history: padding by the full property-token width overshot the native column by two, and padding before the module's later \`hidden(external)\` callsite did not affect the observed frame. The successful location is immediately before the actual \`[1].map(\` operation, consistent with the frame being associated with that active callback-dispatch callsite.
 
 A production direction worth testing is a position-preserving emitter that uses AST/source-span mappings to calculate required padding before observable callsites, rather than measuring runtime columns. Same-width identifier generation may also help, but the failed token-width heuristic shows it cannot be assumed equivalent to callsite-offset preservation.
+
+
+## Generalized callsite-padding replay
+
+The proof was generalized from one Array.map callsite to every synchronous FramePosition-observable callsite in the current matrix.
+
+- Successful focused run: [45324623509](https://github.com/FlareZ123/obfs/actions/runs/45324623509).
+- Source SHA: \`98b22869d12632c5d1daf5713125ff22ac6fbf6f\`.
+- Ubuntu Chromium job and Windows strict-check job passed; Windows browser execution was skipped.
+- Standard, external and paired-budget JSDoc checks passed.
+- Test duration: approximately 35.7 seconds.
+
+The harness performed 14 padded replays:
+- CommonJS/sloppy: JSON \`toJSON\`, Array.sort, String.replace, Array.map, Map.forEach, Array.from (six cases; JSON replacer/reviver are ExactSource observations in this mode and have no frame column).
+- Strict ESM: all eight synchronous callback operations, including JSON replacer and reviver.
+
+Every case used the measured native/emitted frame-column delta of nine characters, inserted whitespace before that operation's explicit callsite marker, then re-executed the padded output in Chromium. All 14 padded columns exactly matched the corresponding native column. All padded executions retained the renamed private property and returned value 3.
+
+The CJS native/padded columns were:
+- JSON toJSON: 103
+- Array.sort: 104
+- String.replace: 102
+- Array.map: 102
+- Map.forEach: 117
+- Array.from: 104
+
+The strict ESM native/padded columns were:
+- JSON toJSON: 103
+- JSON stringify replacer: 103
+- JSON parse reviver: 103
+- Array.sort: 104
+- String.replace: 102
+- Array.map: 102
+- Map.forEach: 117
+- Array.from: 104
+
+Machine summaries for both source modes report \`positionPaddingPreserved:true\`. This materially strengthens the feasibility evidence: the earlier result was not unique to Array.map.
+
+The limitation remains important. The harness measures the native/emitted column difference at runtime and supplies explicit callsite markers. A production implementation must derive the required padding from AST/source-span mappings and account for cumulative shifts when multiple observable callsites share a line or when transformations expand code. It must preserve line count and handle Unicode, generated wrappers, nested callback frames, multiple callsites, and engine-specific stack formatting. The nine-character delta is a property of these fixtures/current property-name generation, not a universal constant.
