@@ -328,3 +328,13 @@ test('prototype method source and callable metadata reads mark the method value 
   assert.ok(alias.summaries.some(summary=>
     summary.hostHeldCallable&&summary.node.type==='FunctionExpression'));
 });
+
+
+test('top-level source observation also marks an escaped class method held',()=>{
+  const result=analyze(
+    'class Reader{read(){return 1;}}const instance=new Reader();'+
+    'const source=Object.getPrototypeOf(instance).read.toString();'
+  );
+  assert.ok(result.summaries.some(summary=>
+    summary.hostHeldCallable&&summary.node.type==='FunctionExpression'));
+});
