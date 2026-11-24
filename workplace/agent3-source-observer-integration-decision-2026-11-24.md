@@ -38,7 +38,7 @@ The local property, identifier and string passes can emit edit maps and filter e
 | Local property renamer | Optional per-source map | Declines the entire object mapping if any key/read/pattern edit intersects a protected span | Unit-tested; existing observer veto retained |
 | Local identifier renamer | Optional per-source map | Skips identifier nodes overlapping validated spans | Host-held callback integration-tested; existing observer veto retained |
 | String encoder | Optional per-source map including decoder prologue | Skips string literals overlapping validated spans | Host-held callback integration-tested; stale generations fail closed |
-| Cross-file property renamer | None | None | Missing |
+| Cross-file property renamer | Optional per-module maps when all module contexts are supplied | No direct filter; changed spans map to null so a future consumer can roll back the whole pass | Map emitter unit-tested; core does not consume/rollback |
 | Experimental statement-flow / VM / Wasm / affine backends | None | None | Missing |
 | Core pipeline | Does not collect or compose maps | Does not reparse/rebind a plan through passes | Missing |
 | SourceObservationPlan producer | None | No complete host-effect/alias/callsite coverage proof | Blocking |
