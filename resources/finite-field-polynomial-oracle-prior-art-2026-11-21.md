@@ -24,3 +24,11 @@
 - `im-results/adaptive-quadratic-polar-k4-k6-2026-11-21.md`: exact polar codim4..6 adaptive proofs, 428/473/516-query caps, source-pinned CI and explicit rank-promise caveat.
 - `im-results/rankfive-top-quartic-functional-clone-2026-11-21.md`: top fourth derivative rank≤5, unrestricted lower cubic, 6,882-query full-function conditional learner and 32-bit source-pinned parity.
 - `im-results/sco-rank6-authenticated-adaptive-functional-clone-2026-11-21.md`: actual authenticated SCO HTTP offline behavior cloning with 150/171 authorized queries and honest authentication-source boundaries.
+
+
+## Additional higher-order differentiation / cube-attack reference (checked 2026-11-24)
+
+- Ana Sălăgean, R. Winter, Matei Mandache-Sălăgean, Raphael C.-W. Phan et al., “Higher order differentiation over finite fields with applications to generalising the cube attack,” *Designs, Codes and Cryptography* 84, 425–449 (2017), DOI: 10.1007/s10623-016-0277-5. Open-access article: https://link.springer.com/article/10.1007/s10623-016-0277-5 .
+- The article explicitly treats discrete/higher-order derivatives as black-box queries and relates them to cube/AIDA attacks and the Möbius/Reed–Muller transform. Its introduction describes choosing public-variable cubes, summing oracle outputs, and using resulting derivatives to obtain linear equations in secret variables. It also emphasizes the 2^m oracle-evaluation cost of an m-th discrete derivative.
+- Relevance: this is close methodological prior art for the rank-r quotient/section learner's finite-difference oracle queries. It does **not**, from the abstract/introduction checked here, establish the specific rank-r joint-radical recovery and section-table reconstruction formula used in our experiment. Do not claim novelty from that absence; a proper priority review must inspect the full paper and related cube-attack, exterior-algebra, low-rank tensor, and hidden-subspace learning literature.
+- This citation supports a conservative framing: the derivative/cube-attack ingredients are established; the only possible contribution would be a precise specialization/combination and query accounting for the projected-table source family, subject to a full novelty review.
