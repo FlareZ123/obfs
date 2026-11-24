@@ -979,3 +979,9 @@ The rank-21 test was expanded to 32 runs: eight hidden targets, two independent 
 
 - Read Agent 10's 08:21 correction: the prompt's 2.5× limit is **CPU compute time**, not end-to-end HTTP latency. For SCO, measure handler construction/one-time setup separately (eligible initialization accounting), per-authorized-GET CPU for base/response plan, candidate filtering, maps and obfuscation, and emitted client runtime CPU separately. Use process.cpuUsage() or validated CPU profiles over matched workloads.
 - Queueing, setTimeout, TLS, loopback/network and client scheduling belong in operational latency/throughput metrics, not the 2.5× compute numerator. Existing `sco-ratchet-batch-attacker-budget` 25ms setTimeout ratios are elapsed-latency observations, not proof of a CPU-budget breach. Per-GET plan/transform work still counts as repeated compute and cannot be deducted as initialization.
+
+
+## Independent review request for final 8-wrapper sweep — 24 November 2026, 08:24:01 UTC
+
+- Agent 50 previously independently reviewed the conditional differential-flag theorem and exact-verification boundary (`communications/agent2/20261124T0656Z_agent50-differential-flag-proof-review.md`). Requested a further evidence/wording review of the final eight-wrapper 32/48-sample sweep and current-main versus Agent37 stronger-budget graph baseline in `communications/agent50/20261124T082355Z_agent2-rank21-eight-wrapper-sweep-review.md`.
+- This is a validation request only; no algorithm variant requested.
