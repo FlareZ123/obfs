@@ -759,140 +759,32 @@ All are focused donor evidence, not full acceptance. No production code changed.
 
 
 
-## 2026-11-24 04:46 UTC checkpoint — SCO eligibility and typed property-key identity
+## Current invocation summary — 24 November 2026, 05:06 UTC
 
-Current main before this memory checkpoint: 87e4dba381404798868ea578c34c2f16997c8130. Latest canonical contract commit: 9db0103430017467237050910cde1a17a3de2e9e. Latest canonical intake commit: f731a51d26150ba5ad228d6a5d0478bd72e0587f.
+Current main head before this memory update: e901dd7376ce067fc835a2707900ba4c9b12fae4. Agent 3 lease began 2026-11-24T04:32:43.365Z; 70-minute release threshold is 05:42:43.365Z. Latest carrier/effect contract commit: 84caff55382ffa2f049d52da92f3f1b8424be448. Latest intake commit: 02f7592c45b87eceeb39ebd2a0d0b4ced2d6e8aa.
 
-### Schema refinements after initial v2
+### Canonical work
+- Canonical source-observer carrier/effect contract is workplace/source-observer-carrier-effect-contract-2026-11-23.md; integration intake and no-go decision are workplace/agent3-source-observer-decoder-intake-2026-11-22.md.
+- V2 separates BindingIdentity, DefinitionRef, ValueRef, CallableDefinitionRef, CallSiteRef, HostEffectRecord, SourceUnitRef, SourceSpanRef and typed value-flow edges. It models mode/partition/host contracts, source delivery, source mirrors, exact source spans, effect-specific closures, callable/value identity, path provenance, use-site property-key identity, agent-scoped well-known symbols, per-callable SCO partition eligibility, reflective reads/writes, getter results and per-event observation dimensions.
+- ExactSource (callable text) and SourceBytes (distributed bytes/DOM/SRI) are distinct. FramePosition, CallableMetadata and UnknownHostEffect are separately represented.
+- HostHeldCallable and HostHeldObject are distinct. Owner object escape is not inferred from a method value escaping. CallableDefinitionRef records [[HomeObject]], usesThis/usesSuper; field edges carry ownerValueRef. Nested source spans belong to an observed outer callable's source closure.
+- PropertyKeyIdentityRef is use-site-specific and runtime-validated; root globalThis must resolve by BindingRef/RealmBindingRef under HostContractRef. Value identity and getter/proxy evaluation effects are separate. Generic computed keys remain fail-closed.
+- HostEffectRecord.observationEffects is per-event; resultValueRef links getter results; effectClosures maps effects to exact source spans. ValueFlowEdgeKind includes reflect-get/descriptor-value/reflect-set/descriptor-write.
+- Mechanical JSDoc check: 76 unique typedefs, no duplicates, no unresolved custom property types after stripping quoted enum literals.
 
-- Added exact callable identities to ValueFact, pathProvenance, per-edge ownerValueRef/targetCallableDefinitionRef/branchGuardIds, SourceSpanRef and effectClosures.
-- Added WellKnownSymbolRef with agent-scoped symbolIdentityDomainId, exact symbolValueIdentity, wellKnownName, sourceRealmId as provenance, provenance kind, proof status and HostContractRef.
-- Added PropertyKeyIdentityRef for static strings, number-to-string, well-known symbols, unique symbols and unknown keys; it is carried through ValueFact, ValueFlowEdge, HostEffectRecord and a plan-level registry. The actual key value, not Symbol constructor identity or realm alone, is the proof target.
-- Added per-callable ScoPartitionEligibility over the full client module graph. A client HostHeldCallable/ExactSource observer makes a server-private facade ineligible under strict 1:1 source semantics; unknown client observer reachability fails closed.
-- Corrected stale contract text that conflated ExactSource with SourceBytes. ExactSource is callable source text; SourceBytes is distributed source-unit bytes/mirrors; UnknownHostEffect is a fallback, not a positive fifth effect.
-- Ran a mechanical schema sanity check on the v2 JSDoc block: 76 typedefs at that checkpoint, no duplicate typedef names and no unresolved custom property-type references. Enum tokens in WellKnownSymbolRef were false positives in the simple capitalized-token scan.
+### Focused evidence (all are not a production candidate)
+- HostHeldCallable syntax matrix: seven callable forms × COO/SCO/SNO × identifier/string, 42/42 source-mismatch controls, run 45328404113.
+- Runtime boundaries: COO browser host override 45325672865; actual SCO createScoHandler Chromium 45329160079 (Windows browser skipped); actual SNO bin/sno.js single-entry CLI/default identifier 45328981265. SNO string transform has only launcher-API witness 45328512061. Multi-file SNO actual CLI and CLI string remain open.
+- Dynamic/reflection matrix holder[key]/Reflect.get/Object.getOwnPropertyDescriptor: identifier pass changes observed callback source in all 9 mode/access combinations; string pass protects source but has zero unrelated literal yield; run 45330368625.
+- Nested source closure: observing outer Function#toString while inner is uninvoked; identifier pass changes outer and inner source, string pass broad-vetoes all literals; run 45330456975.
+- Callable metadata positive: exact source/name/length preserved while unrelated private owner's field is renamed, 6/6, run 45329546230. Same-owner diagnostic 45329630264 withholds sibling field (zero property yield); no same-owner yield claim.
+- Agent 13 local Node 22.16.0 Symbol key matrix: 17 cases, sims/agent13-symbol-key-runtime-matrix.js and im-results/agent13-symbol-key-runtime-matrix-2026-11-24.md. Separate 12-case SNO Node 22.23.4 semantic suite passed both OS, run 45328077396. These are semantic controls, not compiler differentials.
+- SCO selected-server partition digest preflight runs 45326434167/45327228394: private modules withheld behind facade, but facade Function#toString differs from original; strict source parity and partition are incompatible for that callable.
+- Agent 9's current-main HostHeldCallable report: im-results/agent9-host-held-callable-source-observation-2026-11-24.md.
 
-### New evidence incorporated
-
-- Agent 9's fixed-point HostHeldCallable note: seed at exact host-controlled callsite/argument; propagate through modeled value-flow edges; resolve exact CallableDefinitionRefs; protect complete Function#toString source spans including nested source/comments/whitespace; do not create ActiveFrame when host only reads source without invocation.
-- Agent 9's SCO selected-server partition boundary: [45326434167](https://github.com/FlareZ123/obfs/actions/runs/45326434167) and digest-preflight [45327228394](https://github.com/FlareZ123/obfs/actions/runs/45327228394) passed on Ubuntu/Windows with strict JSDoc. Private engine/leaf routes are withheld; client sees a generated facade; its Function#toString differs from original server function. This is a confidentiality/source-semantics tradeoff, not source parity. Request-time createScoHandler mutation and selected-server placement are separate.
-- Agent 13's Symbol.toPrimitive refinement is local Node 22.16.0 semantic evidence only, not a CI/compiler result: a userland wrapper can expose the exact well-known symbol; a fake Symbol.for key cannot; the identity is shared across realms within one ECMAScript agent. Agent 13 also requires mode-scoped HostContract trust: hostile COO/client, SCO/client and SNO/server cannot infer pristine Symbol from runtime version or spelling; SCO/server is the obfuscator-controlled partition.
-- Latest intake addendum records these boundaries and the remaining SNO CLI/launcher and actual SCO browser-handler gaps.
-
-### Communications
-
-Sent targeted follow-ups to Agents 8, 9, 13 and 10. Agent 8 was asked to review remaining v2 consistency after fixing stale SourceBytes wording; Agent 13 was asked to validate property-key identity flow; Agent 9 was asked to check closure/partition edges; Agent 10 was asked to include the selected-partition tradeoff as a separate SCO acceptance dimension. Broadcast and mailbox files are committed; verify replies before deciding further changes.
-
-### Decision
-
-Still **NO-GO / RELEASE-BLOCKED**. No production compiler source changed, no candidate PR opened, and no comprehensive gate dispatched. Do not turn this schema work into another parallel resolver. Next priority is to close any remaining v2 review contradictions, then decide whether one minimal current-main candidate can consume the shared plan across all relevant source-mutating consumers. Preserve per-callable precision: protect hidden while keeping safe eligible.
-
-
-## 2026-11-24 04:51 UTC checkpoint — callable syntax/SNO launcher and key-access effects
-
-Current main before this checkpoint: 00e123ad5fe04e701676ee7c683cc87332913ce3. Latest canonical contract commit: f4ee98ed84fae591630647340f1314780e576e88. Latest canonical intake commit: 00e123ad5fe04e701676ee7c683cc87332913ce3.
-
-### New focused evidence
-
-- Agent 9's HostHeldCallable red matrix now covers seven callable forms (declaration, expression, arrow, object method, class method, async, generator) × COO/SCO/SNO × identifier/string consumers: 42/42 source-mismatch controls, run 45328404113, both OS, strict JSDoc.
-- Actual single-entry SNO launcher path is now covered in run 45328512061: createSnoLauncher produces sno-entry.cjs, verifies artifact manifest, requires one CommonJS entry; Node preload host observer reads queueMicrotask callback source without invocation; identifier/string variants mutate source while stdout remains done. The eight implementation blobs (ast/properties/identifiers/strings/core/sno/cli/bin-sno) match current main at the witness. This closes the focused single-entry SNO launcher/direct-callback gap only; full CLI/package, multi-file SNO and complete hostile-runtime coverage remain open.
-- Agent 13's cross-file ESM SymbolCtor real/fake pair follows actual-to-formal, field-read, immutable key capture, computed own-property write, return-to-call-result and Storage ToPrimitive. Local Node 22.16.0 only, no compiler/CI receipt.
-- Agent 13's pure-vs-source-observing getter pair shows that a userland getter can return the correct agent-wide well-known symbol while separately calling Function#toString on the eventual callable before returning. Value identity does not imply access-effect safety. Local Node 22.16.0 only.
-- Agent 13's mutable-key vs const-captured-alias pair establishes use-site reaching-definition semantics: mutable reassignment to fake Symbol.for is negative; a separate const capture retains the real well-known symbol. Local Node 22.16.0 only.
-
-### Contract changes
-
-- Latest v2 schema now includes PropertyKeyIdentityRef kind-specific runtime invariants, use-site span/CFG/reaching-definition/branch-guard identity, and one typed key reference shared by CallableDefinitionRef, ValueFlowEdge and HostEffectRecord.
-- HostEffectRecord.resultValueRef links a getter/host operation's result to the ValueFact/WellKnownSymbolRef that feeds the later computed key.
-- Contract explicitly separates value identity from evaluation effects: SymbolCtor.toPrimitive read uses the string key "toPrimitive", a field-read ValueFlowEdge and the actual receiver/lookup/effective getter. AccessorCall/ProxyInternalMethod may independently produce ExactSource even when the returned symbol is correct. Userland-wrapper provenance does not prove purity.
-- SourceBytes and ExactSource are distinct throughout the overview and browser/SRI sections: Function#toString is ExactSource; loader/DOM/SRI distributed bytes are SourceBytes. UnknownHostEffect remains a fallback.
-- Intake records cross-file symbol flow, getter effects, callable syntax matrix and actual SNO launcher.
-
-### Decision / open boundaries
-
-Still **NO-GO / RELEASE-BLOCKED**. No production compiler source changed, no candidate PR opened, no comprehensive gate dispatched. Generic computed-key admission remains fail-closed. Actual SCO browser-handler coverage remains open. Full SNO CLI/package and multi-file SNO remain open despite the single-entry launcher witness. Need Agent 8/9 review of the final typed key/effect linkage before any candidate selection. Preserve per-callable precision and unrelated safe-yield.
-
-
-## 2026-11-24 04:57 UTC checkpoint — all three runtime boundaries and metadata precision
-
-Current main before checkpoint: 078bbe74e5fef139d85e218e61c29c0035df0b9f. Latest contract commit: 527f8fb3252fecc46f02cc4662ae793c6ed86e97. Latest intake commit: a1dde0513c0d588b78fb00158be068b14e925435.
-
-### Mode-specific HostHeldCallable evidence
-
-- COO browser host override: 45325672865.
-- Actual SCO createScoHandler browser delivery in Chromium: 45329160079. Entry imports helper factory, passes returned private callback to page-owned queueMicrotask override; browser reads Function#toString without invoking. Ubuntu Chromium; Windows browser skipped. Six compiler source blobs match current main.
-- Actual SNO bin/sno.js single-entry CLI/default identifier path: 45328981265. Manifest-verified sno-entry.cjs plus Node preload reads callback source without invocation; output remains done. Eight source blobs match current main.
-- Seven callable forms × COO/SCO/SNO × identifier/string consumers: 42/42 focused source-mismatch controls, 45328404113.
-- SNO string transform has launcher-API witness 45328512061, not yet actual CLI; full CLI/package and multi-file SNO remain open. Agent 9 was asked for a multi-file actual CLI fixture.
-- Agent 9's current-main HostHeldCallable report is im-results/agent9-host-held-callable-source-observation-2026-11-24.md.
-
-### Callable metadata and owner precision
-
-- Host-held object/class method metadata positive: two method forms × three modes, exact source/name/length preserved while an unrelated private object's property is renamed, 6/6 in 45329546230.
-- Same-owner diagnostic 45329630264: method source/name/length preserved, but sibling holder.unrelatedField remains native and property metrics are zero. This is conservative owner-level withholding, not an unsafe rename or proven yield opportunity.
-- Contract distinguishes HostHeldCallable from HostHeldObject, tracks ownerValueRef/property key, and adds CallableDefinitionRef homeObjectValueRef plus usesThis/usesSuper. Same-owner yield remains fail-closed pending reflection, accessors, dynamic keys, binding and this/super proof.
-
-### Symbol/key/accessor proof boundary
-
-- PropertyKeyIdentityRef is use-site-specific with sourceValueRef, useSiteSpanId, controlFlowPointId, reachingDefinitionRefs and branchGuardIds; CallableDefinitionRef, ValueFlowEdge and HostEffectRecord share the typed key identity.
-- WellKnownSymbolRef uses ECMAScript-agent identity, exact symbol value and sourceRealmId only as provenance. Root globalThis must resolve by BindingRef/RealmBindingRef under mode-specific HostContractRef; spelling alone is insufficient.
-- The mutable-key/frozen-capture pair, cross-file ESM SymbolCtor real/fake pair, globalThis-shadow pair and pure/source-observing getter pair are all local Node 22.16.0 semantic controls, not compiler/CI receipts. The source-observing getter may call Function#toString while still returning the correct symbol; HostEffectRecord.resultValueRef links its result, and AccessorCall/ProxyInternalMethod effect is independent.
-- HostEffectRecord now carries per-event observationEffects, with CallableMetadataRead, StackFrameRead and FileSystemSourceRead events. ExactSource (callable text) and SourceBytes (distributed source) remain separate; UnknownHostEffect is fallback.
-- Mechanical schema check on the JSDoc block: 76 unique typedefs, no duplicate names, and no unresolved custom property types after removing quoted enum literals.
-
-### Decision
-
-Still **NO-GO / RELEASE-BLOCKED**. No production compiler source changed; no candidate PR; no comprehensive gate. Actual SCO browser and single-entry SNO CLI are now covered, but SNO multi-file/CLI string, full package compatibility, 2.5x runtime budget and complete hostile-runtime acceptance remain open. Need final Agent 8 review of getter effect and owner-field schema; generic computed-key admission remains fail-closed.
-
-
-## 2026-11-24 05:01 UTC checkpoint — Symbol matrix, metadata precision and anti-LLM hold
-
-Current main before checkpoint: 3e46fec23998566e91a7d8f5257d864a0ff47720. Latest canonical contract commit: 84caff55382ffa2f049d52da92f3f1b8424be448. Latest canonical intake commit: 981286379ccb14a30675f58daf8a694b4dd99c15.
-
-### New evidence and scope
-
-- Agent 13 published the 15-case local Node 22.16.0 Symbol key runtime matrix in sims/agent13-symbol-key-runtime-matrix.js and im-results/agent13-symbol-key-runtime-matrix-2026-11-24.md. All 15 semantic cases passed locally, but there is no obfuscator transform, compiler differential, Node 22.23.4 CI receipt or release result.
-- The matrix covers direct well-known symbol, fake Symbol.for, preloader fake and userland-real wrappers, local Symbol/globalThis shadows, mutable reassignment vs immutable capture, real/fake actual-to-formal, cross-file ESM, pure/source-observing getters, and same-agent cross-realm symbol identity.
-- Agent 9's new callable metadata positive run 45329546230 preserves source/name/length for two method forms × all three modes while renaming an unrelated private object's property (6/6). Same-owner diagnostic 45329630264 preserves source/name/length but withholds sibling property (zero property yield); it is conservative withholding, not proof of an unsafe rename or same-owner yield.
-- Actual SCO browser handler is now covered by 45329160079 (Chromium Ubuntu, Windows browser skipped); actual SNO single-entry CLI/default identifier by 45328981265; COO browser host override by 45325672865. SNO multi-file actual CLI and CLI string transform remain open; Agent 13 prepared a local two-file fixture for Agent 9 to reuse.
-- The canonical intake records Agent 9's 42/42 seven-syntax-form × three-mode × identifier/string matrix, all focused mode witnesses, SCO partition eligibility tradeoff, local Symbol proof matrix and getter effects.
-
-### Latest schema semantics
-
-- HostHeldCallable and HostHeldObject are distinct capabilities. A callable escaping does not imply its owner object escapes; HostHeldObject propagates through proven field/element/iterator containment, while opaque collection, Proxy, accessor, dynamic-key or reflection paths fail closed.
-- CallableDefinitionRef carries property-key identity, [[HomeObject]], usesThis and usesSuper; field edges carry ownerValueRef. Same-owner field-level yield remains unproven.
-- HostEffectRecord carries per-event observationEffects, resultValueRef, and PropertyKeyIdentityRef; CallableMetadataRead, StackFrameRead and FileSystemSourceRead are explicit events. Getter result identity and getter execution effects are separate.
-- PropertyKeyIdentityRef is use-site-specific with exact sourceValueRef, useSiteSpanId, controlFlowPointId, reachingDefinitionRefs and branchGuardIds; kind-specific field invariants must be runtime-validated. The actual root globalThis must resolve by BindingRef/RealmBindingRef under HostContractRef.
-- ExactSource (callable text) and SourceBytes (distributed bytes) are separate; SourceMirrorRead may map to either by mirror kind. UnknownHostEffect is fallback.
-- Mechanical JSDoc check remains 76 unique typedefs, no duplicate typedef names, no unresolved custom property types after stripping quoted enum values.
-
-### Anti-LLM
-
-Read the existing agentic reconstruction protocol and related reports. It remains **PARKED / NO PAIRED MODEL RESULT** pending a named candidate; no new literature or model trial should be added. If a candidate is later frozen, reuse the equal-trust esbuild/Terser paired protocol and hidden verifier, report candidate-minus-control and separate syntax, semantics, direct task success and runtime extraction.
-
-### Decision / next actions
-
-Still **NO-GO / RELEASE-BLOCKED**. No production compiler source changed; no candidate PR or comprehensive gate. Await Agent 8's final review of property-key/getter/owner-field linkage. Await Agent 9's actual multi-file SNO CLI extension (reuse Agent 13's fixture). Keep same-owner field yield and generic computed-key admission fail-closed. The next useful decision is a single current-main candidate freeze or a precise no-go with the remaining integration/acceptance obligations; do not create parallel resolvers or another LLM study.
-
-
-## 2026-11-24 05:05 UTC checkpoint — reflection flow and nested-source closure
-
-Current main before checkpoint: 81f7a06d0b87ed1df43b6ddafc08341abd0c6e68. Latest contract commit: b23f03a28a745747c93850f00a6a8e3bcbe52d5d. Latest intake commit: 02f7592c45b87eceeb39ebd2a0d0b4ced2d6e8aa.
-
-### New evidence
-
-- Agent 9 dynamic/reflection matrix: holder[key], Reflect.get(holder,key), and Object.getOwnPropertyDescriptor(holder,key).value across COO/SCO/SNO. Identifier pass mutates the observed callback source in all 9 combinations; string pass preserves source in all 9 but has zero literal yield, including an unrelated top-level string. Run 45330368625, 18/18, both OS, strict JSDoc.
-- Agent 9 nested source closure: only outer Function#toString is observed while it contains an uninvoked inner function. Identifier pass changes outer and inner parameter spellings in all 3 modes; string pass preserves outer source but blocks all file strings. Run 45330456975, 6/6, both OS, strict JSDoc. The full outer callable source span, including nested source, must be protected.
-- Agent 13 updated the local Symbol key matrix to 17 cases on Node 22.16.0; report and runner are sims/agent13-symbol-key-runtime-matrix.js and im-results/agent13-symbol-key-runtime-matrix-2026-11-24.md. A separate 12-case SNO-only Node 22.23.4 Web Storage semantic suite passed both OS in run 45328077396. Neither suite is an obfuscator/compiler differential.
-- Agent 9/Agent 13 are coordinating an actual multi-file SNO CLI fixture; Agent 13 sent exact fixture/source pins to Agent 9. No actual CLI multi-file receipt yet.
-
-### Contract changes
-
-- ValueFlowEdgeKind now includes reflect-get, descriptor-value, reflect-set and descriptor-write, with owner/receiver/key/callsite/CFG identity. Proxy/accessor behavior is a separate HostEffectRecord, not merely a global reflection veto.
-- The outer callable's effectClosures must include every nested source span because inner source edits alter outer Function#toString even when inner is never invoked.
-- Same consumer divergence is now explicit: identifiers mutate observed source while strings use a broad file-wide veto and lose unrelated yield. A shared immutable plan must drive both.
-- Candidate freeze decision is appended to the intake with current-main base SHA and the smallest missing obligations.
-
-### Status
-
-Still **NO-GO / RELEASE-BLOCKED**. No production source changed; no candidate branch/PR; no comprehensive gate. The single-entry SNO CLI/default identifier and actual SCO browser path are covered; multi-file SNO CLI, SNO CLI string, full 2.5x budget and package acceptance remain open. Generic computed keys and same-owner field edits remain fail-closed. Anti-LLM is parked pending candidate.
+### Coordination / decision
+- Agent 8 was asked to review final typed key/getter/owner-field linkage; no final response yet.
+- Agent 9 was asked to extend actual SNO CLI to multi-file entry/helper and CLI string; Agent 13 supplied a local fixture and source pins for reuse. No actual multi-file CLI receipt yet.
+- Agent 10 owns comprehensive acceptance; no full gate dispatched.
+- Anti-LLM benchmark remains PARKED pending a named candidate. Reuse the equal-trust esbuild/Terser paired protocol and hidden verifier only after candidate freeze.
+- **NO-GO / RELEASE-BLOCKED.** No production compiler source changed, no candidate branch/PR, no comprehensive gate. Remaining obligations: one immutable shared plan producer; all source-mutating consumers must consume it or fail closed; multi-file SNO CLI and CLI string; full CLI/package compatibility; 2.5x runtime budget and full behavior suite; candidate-based anti-LLM evaluation. Preserve safe unrelated yield; do not claim same-owner field safety or admit generic computed keys.
