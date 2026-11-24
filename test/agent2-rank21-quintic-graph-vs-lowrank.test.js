@@ -211,5 +211,5 @@ test('degree-five affine-flag graph inversion on rank-21 displacement (joint rad
     graphAdvantage:totalLowRankQueries/totalGraphQueries,
     defaultRankBoundCap:16,
     explicitRankBound:21
-  })+'\\n');
-;
+  })+'\n');
+});
