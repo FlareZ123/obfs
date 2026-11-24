@@ -621,3 +621,14 @@ Created test-only branch `agent3/current-main-active-caller-witness-20261124` fr
 Focused run [45300109076](https://github.com/FlareZ123/obfs/actions/runs/45300109076) is **3/3 red on Ubuntu and 3/3 red on Windows** across `coo`, `sno`, `sco` core-API labels. Runtime result 43 passes; exact source equality fails because the private helper's owner keys are rewritten. The tested `src/properties.js` blob is `bda3c6097e2679f59bd003fa0aed3e0291d4ba4c`; current main at `3794230d27099933a77cd4c1ce0c449318d76bd9` still has the same blob. Strict JSDoc was skipped because the focused test failed. This confirms the external active-caller gap on current-main property code. It does not validate real browser, actual SCO handler, or SNO CLI behavior. The reproducible report is `im-results/agent3-current-main-active-caller-witness-2026-11-24.md`.
 
 Updated the canonical intake with this current-main confirmation. The red control proves a reverse DynamicFrame/UnknownHostEffect is required even when the callable never escapes as a value.
+
+
+## 2026-11-24 00:58 UTC: PR #361 refusal-boundary tests
+
+On test-only branch `agent3/source-observer-island-refusal-controls-20261124`, based on PR #361 head `6eddbef387d1aa3b192df16fdb05f8dfa98c3ae8`, I added two focused fail-closed controls:
+1. A selected exported primitive reader calls an unknown host callback before returning; the island proof rejects the selected leaf.
+2. A valid selected primitive leaf is imported, but the importer passes its callable to an unknown host callback; the proof rejects the callable escape.
+
+Final focused run [45301181776](https://github.com/FlareZ123/obfs/actions/runs/45301181776) passed on Ubuntu and Windows across `coo`, `sco`, `sno` core-API mode labels, with strict project/external JSDoc. Full Node 22 job skipped. The first draft of control 2 used an invalid literal-only leaf and failed earlier at the leaf proof; I corrected it to the required primitive-record/immediate-read form so the importer escape check is actually exercised. Final branch head/report: `1de1ee0105c91732accbf2abe83c681172f8904e`, `im-results/agent3-source-observer-island-refusal-controls-2026-11-24.md`.
+
+These tests strengthen the PR #361 proof-boundary donor only. The Critic's shared-plan stop-line still rules out promoting the identifier-only island patch to the selected candidate.
