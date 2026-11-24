@@ -48,3 +48,18 @@ Workflow [45407259473](https://github.com/FlareZ123/obfs/actions/runs/4540725947
 - `src/strings.js(143,86)`: `syntheticOriginId` absent from the edit-array JSDoc type.
 
 The candidate remains unaccepted. No changes were made to the candidate branch; this report and the review-only test branch preserve the evidence.
+
+
+## Additional admission counterexamples on the same candidate pin
+
+A second review overlay extended the reproduction. On candidate \`ef457eb\`, workflow [45410835586](https://github.com/FlareZ123/obfs/actions/runs/45410835586) confirms two further failures:
+- An untagged replacement of the unprotected string literal \`'safe-literal'\` with \`'attacker-value'\` is admitted by \`acceptPlannedPass\`.
+- A structurally copied \`SourceEditMap\` with a single unchanged segment can hide an appended \`throw 0;\`; \`acceptPlannedPass\` admits the forged map because the current map consumer checks generations and protected slices but does not brand the map object or verify segment coverage.
+
+These are separate from the untagged insertion failure. A robust admission boundary must reject untagged replacements as well as insertions, and it must not trust a structurally reconstructed map that omits changed regions.
+
+## Follow-up prototype
+
+Prototype commit \`dcd9208ce3eef20733b8ed99d3f9c87cc9414a3e\` adds a process-local WeakSet brand to \`SourceEditMap\`: only objects minted by \`applyEditsWithMap\` can be consumed by \`mapSourceSpan\`. It adds a regression for a forged unchanged-only map hiding an appended throw. Focused cross-platform validation is pending at the time of this update.
+
+This WeakSet is an in-process provenance check, not cryptographic authentication. It prevents structural copying/forgery; pass-specific origins still constrain edits produced by the trusted core passes.
