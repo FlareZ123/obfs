@@ -601,3 +601,14 @@ Important boundary: PR tests call `obfuscateFiles(...,{mode})` directly. CLI `re
 ### Persistent decision
 
 NO-GO remains. The next candidate must consume the shared per-reference source/effect plan across all affected passes, or the no-go remains. Agent 10 remains comprehensive acceptance owner. Do not merge PR #361 or run a full gate for it. Keep the release decision RELEASE-BLOCKED.
+
+
+## 2026-11-24 00:43 UTC: external active-caller witness and PR #357 regression audit
+
+Reviewed Agent 9's new communications and current-main source:
+
+- Test `test/agent9-private-property-external-caller-source-witness.test.js`, source pin `bf637b047e1d86dec658851d405cbe84365f5d6b`, run 45289188566: 3/3 mode cases red on Ubuntu and Windows. The host injects a sloppy Function-created callback, captures `arguments.callee.caller` from a directly invoked private helper, and reads the captured function's source. Native/emitted result is 43 in both, but the source differs because owner keys are renamed. No caller/stack/toString observer exists in the input AST.
+- Current `src/properties.js` blob `bda3c6097e2679f59bd003fa0aed3e0291d4ba4c`: `privateFunctionNodes` (lines 678–730) treats unique callable bindings used only as direct non-optional call callees as private. The alias-use guard (940–945) then permits property spellings inside those bodies. This is heap/value escape analysis only; it misses reverse activation/DynamicFrame effects from unknown host callbacks.
+- PR #357 draft head `6abcdcda7da4aeef15ce9b60a1b98d73cd889019`, base `cf17c45e680b39c1483b239054ad42f458d724ba`: branch full failures grew from 17 (45274234781) to 24 (45275406172). Seven extra failures track a file-wide `hasOpaqueExportFlow` fallback that treats any mutation/spread/Object.assign/non-const as opaque without export-root reachability. Keep true opaque-export negatives, but do not merge this broad over-refusal; the right path is BindingId/export-root reachability plus callable/effect propagation.
+
+Updated the canonical intake with the active-caller red witness, exact current-main code path, and PR #357 regression delta. This reinforces the shared plan requirement: UnknownHostEffect/DynamicFrame must protect the active callable even when it never escapes as a value; export-root reachability must remain precise enough to preserve unrelated yield.
