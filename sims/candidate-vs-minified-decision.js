@@ -45,10 +45,10 @@ function isCanonicalSha256(value){
 
 /**
  * Compare actual attack calls against declared matching ceilings when present.
- * A valid committed ceiling is more useful than forcing both adaptive arms to
- * consume exactly the same count. If either arm declares a ceiling, both must
- * declare the same valid ceiling and remain within it. Legacy receipts with
- * no ceiling retain the old stricter equal-actual-consumption requirement.
+ * A common ceiling is more useful than forcing adaptive arms to consume the
+ * same count. This checks only caller declarations; it cannot establish that
+ * a ceiling was committed before either artifact was observed. Legacy receipts
+ * with no ceiling retain the old stricter equal-actual-consumption requirement.
  *
  * @param {MatchedAttack} control
  * @param {MatchedAttack} candidate
@@ -73,6 +73,9 @@ function matchedOracleExposure(control,candidate){
  * @returns {{
  *   verdict:Decision,
  *   attackAdvantage:Decision,
+ *   declaredAttackAdvantage:Decision,
+ *   externalAuditRequired:boolean,
+ *   auditStatus:'not-integrated',
  *   measuredRuntimeBudget:Decision,
  *   measurementReady:boolean,
  *   pairedFamilywise:ReturnType<typeof familywiseBudgetBounds>,
@@ -94,11 +97,11 @@ function compareCandidateEvidence(evidence){
     Number.isSafeInteger(control.verifiedHeldoutComparisons)&&
     control.verifiedHeldoutComparisons>=evidence.protectedFunctions&&
     control.verifiedHeldoutComparisons===candidate.verifiedHeldoutComparisons;
-  // A positive claim requires a completed, precommitted, equally resourced
-  // attack on the same functions and held-out inputs, with a recorded reason
-  // for failure. These fields are evidence declarations, not independently
-  // authenticated artifacts: the experimenter must verify the commitments.
-  const positiveEvidenceReady=measurementReady&&
+  // These conditions establish only that a positive *declaration* is
+  // complete. This module has no trusted preregistration or server-log verifier,
+  // so it must not upgrade caller-supplied digests, ceilings or failure causes
+  // into empirical attacker-cost support.
+  const positiveDeclarationReady=measurementReady&&
     evidence.nativeOutputAndHostTraceParity===true&&
     typeof evidence.requiredHeldoutComparisons==='number'&&
     Number.isSafeInteger(evidence.requiredHeldoutComparisons)&&
@@ -122,11 +125,17 @@ function compareCandidateEvidence(evidence){
     Number.isFinite(control.analysisBudgetMs)&&control.analysisBudgetMs>0&&
     control.analysisBudgetMs===candidate.analysisBudgetMs;
   /** @type {Decision} */
-  let attackAdvantage='inconclusive';
+  let declaredAttackAdvantage='inconclusive';
   if(measurementReady){
-    if(candidate.cloneSucceeded)attackAdvantage='contradicted';
-    else if(positiveEvidenceReady)attackAdvantage='supported';
+    if(candidate.cloneSucceeded)declaredAttackAdvantage='contradicted';
+    else if(positiveDeclarationReady)declaredAttackAdvantage='supported';
   }
+  // An observed successful clone is a real contradiction. A claimed failure
+  // after a claimed budget exhaustion is not empirical support until a
+  // separate trusted audit binds the pre-run manifest and server-side usage.
+  const attackAdvantage=measurementReady&&candidate.cloneSucceeded?
+    'contradicted':'inconclusive';
+  const externalAuditRequired=declaredAttackAdvantage==='supported';
   /** @type {Decision} */
   const measuredRuntimeBudget=pairedFamilywise.observedSampleHasOverBudgetPair||
     pairedFamilywise.verdict==='sample-exceeded'?
@@ -140,9 +149,10 @@ function compareCandidateEvidence(evidence){
     attackAdvantage==='supported'&&measuredRuntimeBudget==='supported'?
       'supported':'inconclusive';
   return {
-    verdict,attackAdvantage,measuredRuntimeBudget,measurementReady,
+    verdict,attackAdvantage,declaredAttackAdvantage,externalAuditRequired,
+    auditStatus:'not-integrated',measuredRuntimeBudget,measurementReady,
     pairedFamilywise,
-    caveat:'A positive attacker-cost judgment requires independently checked precommitted methods, verifier cases, selected functions and equivalent preparation/analysis budgets. Unequal consumed oracle calls require the same precommitted integer oracle-call ceiling in both arms, with neither exceeding it. These declarations are not independently authenticated. Even a completed failed bounded attack is not proof of arbitrary-program secrecy. Runtime evidence covers sampled median paired ratios; a single observed >2.5x pair vetoes the strict sampled-budget claim.'
+    caveat:'This classifier can check declaration completeness and matched declared ceilings, but it cannot authenticate pre-run commitment timing or server-side request logs. A complete positive declaration is exposed only as declaredAttackAdvantage=supported with externalAuditRequired=true; empirical attackAdvantage remains inconclusive until a separate trusted audit integration exists. Even an externally audited bounded failure would not prove arbitrary-program secrecy. Runtime evidence covers sampled median paired ratios; a single observed >2.5x pair vetoes the strict sampled-budget claim.'
   };
 }
 
