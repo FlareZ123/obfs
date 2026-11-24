@@ -144,6 +144,10 @@ test('public-only source normalization retains a functional clone beside an ordi
     mode:'coo',seed:'public-helper-normalization',strings:false,identifiers:false
   }).files[0];
   assert.equal(published.metrics.properties,1);
+  const nativeCalculate=/** @type {Function} */ (runCommonJs(hotReaderFixture));
+  const emittedCalculate=/** @type {Function} */ (runCommonJs(String(published.code)));
+  assert.equal(emittedCalculate.toString(),nativeCalculate.toString(),
+    'The exported caller source must not disclose the private reader key');
   const normalized=normalizePublicIsland(String(published.code));
   assert.equal(normalized.properties,1,'Seedless attacker must find the selected public field');
   assert.notEqual(normalized.code,published.code);
@@ -168,6 +172,44 @@ test('public-only source normalization retains a functional clone beside an ordi
     sourceOnlyNormalizedBytes:Buffer.byteLength(normalized.code),
     matchedFunctionalClones:3
   }));
+});
+
+test('source-observed callers only transfer owners to exact private member readers',()=>{
+  const unsafe=[
+    [
+      'const root={secretAlpha:23};',
+      'function read(owner){const value=owner.secretAlpha;notify(value);return value;}',
+      'function notify(observed){return observed;}',
+      'const calculate=function calculate(){return read(root);};',
+      'module.exports={calculate,result:calculate()};'
+    ].join('\n'),
+    [
+      'const root={secretAlpha:23};',
+      'function identity(owner){return owner;}',
+      'const calculate=function calculate(){return identity(root).secretAlpha;};',
+      'module.exports={calculate,result:calculate()};'
+    ].join('\n'),
+    [
+      'const root={secretAlpha:23};',
+      'function read(ignored,owner){return owner.secretAlpha;}',
+      'const calculate=function calculate(){return read(root,root);};',
+      'module.exports={calculate,result:calculate()};'
+    ].join('\n'),
+    [
+      'const root={secretAlpha:23};',
+      'function read(owner){return owner.secretAlpha;}',
+      'const calculate=function calculate(){return read?.(root);};',
+      'module.exports={calculate,result:calculate()};'
+    ].join('\n')
+  ];
+  for(const source of unsafe)for(const mode of /** @type {const} */ (['coo','sno','sco'])){
+    const result=obfuscateFiles([{path:'entry.cjs',sourceType:'commonjs',code:source}],{
+      mode,seed:'observed-caller-refusal-'+mode,strings:false,identifiers:false
+    }).files[0];
+    assert.equal(result.metrics.objects,0,mode+': non-reader transfer must retain original keys');
+    assert.deepEqual(JSON.stringify(runCommonJs(result.code)),
+      JSON.stringify(runCommonJs(source)));
+  }
 });
 
 test('source-observed and escaped declaration readers preserve their original source',()=>{
