@@ -43,30 +43,38 @@ test('exported const instance declaration must not classify its class method as 
   ].join('\n');
 
   const native=await inspectExportedInstance(source);
-  for(const mode of /** @type {const} */ (['coo','sno'])){
-    const transformed=obfuscateFiles([{
-      path:'reader.mjs',sourceType:'module',code:source
-    }],{
-      mode,seed:'agent4-exported-instance-class-method/'+mode,
-      properties:true,identifiers:false,strings:false
-    });
-    const output=transformed.files.find(file=>file.path==='reader.mjs');
-    assert.ok(output);
-    const emitted=await inspectExportedInstance(String(output.code));
-
-    console.log('AGENT4_EXPORTED_INSTANCE_SOURCE_WITNESS '+JSON.stringify({
-      mode,properties:output.metrics.properties,
-      nativeMethodSource:native.methodSource,
-      emittedMethodSource:emitted.methodSource,
-      nativeValue:native.value,
-      emittedValue:emitted.value,
-      sourceEqual:native.methodSource===emitted.methodSource
-    }));
-
-    assert.equal(output.metrics.properties,0,
-      mode+': an exported instance exposes its prototype method to external source observers');
-    assert.equal(emitted.methodSource,native.methodSource,
-      mode+': reader.read.toString() from an importing module must retain native source');
-    assert.equal(emitted.value,native.value);
+  /** @type {{mode:string,properties:number,nativeMethodSource:string,emittedMethodSource:string,nativeValue:number,emittedValue:number,sourceEqual:boolean}|{mode:string,error:string}[]} */
+  const observations=[];
+  for(const mode of /** @type {const} */ (['coo','sno','sco'])){
+    try{
+      const transformed=obfuscateFiles([{
+        path:'reader.mjs',sourceType:'module',code:source
+      }],{
+        mode,seed:'agent4-exported-instance-class-method/'+mode,
+        properties:true,identifiers:false,strings:false
+      });
+      const output=transformed.files.find(file=>file.path==='reader.mjs');
+      assert.ok(output);
+      const emitted=await inspectExportedInstance(String(output.code));
+      observations.push({
+        mode,properties:output.metrics.properties,
+        nativeMethodSource:native.methodSource,
+        emittedMethodSource:emitted.methodSource,
+        nativeValue:native.value,
+        emittedValue:emitted.value,
+        sourceEqual:native.methodSource===emitted.methodSource
+      });
+      assert.equal(emitted.value,native.value,mode+': computed behavior should remain equal');
+    }catch(error){
+      observations.push({mode,error:String(error)});
+    }
   }
+
+  console.log('AGENT4_EXPORTED_INSTANCE_SOURCE_WITNESS '+JSON.stringify(observations));
+  const tested=observations.filter(
+    (/** @type {{mode:string,properties?:number,sourceEqual?:boolean,error?:string}} */ item)=>
+      item.mode==='coo'||item.mode==='sno');
+  assert.equal(tested.length,2,'COO and SNO probes must both execute');
+  assert.ok(tested.every(item=>!item.error&&item.properties===0&&item.sourceEqual),
+    'an exported instance must not expose a transformed prototype method to external source observers');
 });
