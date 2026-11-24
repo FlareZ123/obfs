@@ -153,8 +153,8 @@ function staticallyRequiredCommonJsTargets(files) {
 }
 
 /**
- * Find supplied ESM modules reached by static relative imports or reexports.
- * Exact module specifiers are used because ESM path resolution does not imply
+ * Find supplied ESM modules reached by static relative imports, reexports,
+ * or literal dynamic imports. Exact specifiers are used because ESM resolution does not imply
  * CommonJS-style extension probing.
  * @param {(SourceFile & {sourceType:SourceType})[]} files
  * @returns {Set<string>}
@@ -178,6 +178,19 @@ function staticallyImportedEsmTargets(files) {
         path.posix.join(path.posix.dirname(file.path),specifier));
       if(known.has(target))imported.add(target);
     }
+    // A literal dynamic import can supply an exported descriptor-entry
+    // factory before another module initializes its eager string decoder.
+    // Include supplied exact paths in the same conservative export scan.
+    walk(ast,node=>{
+      if(node.type!=='ImportExpression')return;
+      const specifier=staticString(node.source);
+      if(specifier===null||
+         (!specifier.startsWith('./')&&!specifier.startsWith('../'))||
+         /[?#%\\\\]/u.test(specifier))return;
+      const target=path.posix.normalize(
+        path.posix.join(path.posix.dirname(file.path),specifier));
+      if(known.has(target))imported.add(target);
+    });
   }
   return imported;
 }
@@ -1667,6 +1680,8 @@ function mutatesDecoderIntrinsic(ast,rejectCommonJsExportEscape=false,rejectEsmE
   /** @type {Set<string>} */
   const decoderGetterDescriptors=new Set();
   /** @type {Set<string>} */
+  const decoderGetterDescriptorFactories=new Set();
+  /** @type {Set<string>} */
   const decoderGetterMaps=new Set();
   /** @type {Set<string>} */
   const decoderGetterMapFactories=new Set();
@@ -1676,12 +1691,32 @@ function mutatesDecoderIntrinsic(ast,rejectCommonJsExportEscape=false,rejectEsmE
    */
   function isDecoderGetterDescriptor(value) {
     if(value.type==='Identifier')return decoderGetterDescriptors.has(value.name);
+    if(value.type==='CallExpression'&&value.callee.type==='Identifier')
+      return decoderGetterDescriptorFactories.has(value.callee.name);
     if(value.type!=='ObjectExpression')return false;
     return value.properties.some((/** @type {import('./ast').AstNode} */ property)=>
       property.type==='Property'&&
       (property.computed?staticString(property.key):
         property.key.type==='Identifier'?property.key.name:staticString(property.key))==='get'&&
       proxyGetMayReturnDecoderIntrinsic(property.value));
+  }
+  /**
+   * A local synchronous factory can construct the descriptor entry later
+   * passed as Object.assign's source. Its returned getter may mutate an
+   * intrinsic before a sibling module's eager string decoder executes.
+   * @param {import('./ast').AstNode} value
+   * @returns {boolean}
+   */
+  function isDecoderGetterDescriptorFactory(value) {
+    if(value.type==='Identifier')
+      return decoderGetterDescriptorFactories.has(value.name);
+    if(!['FunctionDeclaration','FunctionExpression','ArrowFunctionExpression']
+      .includes(value.type)||value.async||value.generator)return false;
+    if(value.body.type!=='BlockStatement')
+      return isDecoderGetterDescriptor(value.body);
+    return value.body.body.some((/** @type {import('./ast').AstNode} */ statement)=>
+      statement.type==='ReturnStatement'&&statement.argument&&
+      isDecoderGetterDescriptor(statement.argument));
   }
   /**
    * @param {import('./ast').AstNode} value
@@ -1719,8 +1754,8 @@ function mutatesDecoderIntrinsic(ast,rejectCommonJsExportEscape=false,rejectEsmE
    * @returns {boolean}
    */
   function exportsDecoderGetterMap(value) {
-    if(isDecoderGetterDescriptor(value)||isDecoderGetterMap(value)||
-       isDecoderGetterMapFactory(value))return true;
+    if(isDecoderGetterDescriptor(value)||isDecoderGetterDescriptorFactory(value)||
+       isDecoderGetterMap(value)||isDecoderGetterMapFactory(value))return true;
     return value.type==='ObjectExpression'&&
       value.properties.some((/** @type {import('./ast').AstNode} */ property)=>
         property.type==='Property'&&exportsDecoderGetterMap(property.value));
@@ -1729,19 +1764,27 @@ function mutatesDecoderIntrinsic(ast,rejectCommonJsExportEscape=false,rejectEsmE
   do {
     decoderDescriptorChanged=false;
     walk(ast,(node,_parent,_key,ancestors)=>{
-      // Preserve a descriptor map returned through a local function factory.
-      // Find the nearest return owner, avoiding nested function bodies.
+      // Track synchronous local factories that return either descriptor
+      // entries or whole descriptor maps, including transitive returns.
       if(node.type==='ReturnStatement'&&node.argument&&
-         isDecoderGetterMap(node.argument)) {
+         (isDecoderGetterDescriptor(node.argument)||
+          isDecoderGetterMap(node.argument))) {
         for(let i=ancestors.length-1;i>=0;i--) {
           const owner=ancestors[i];
           if(!['FunctionDeclaration','FunctionExpression',
                 'ArrowFunctionExpression'].includes(owner.type))continue;
           if(owner.type==='FunctionDeclaration'&&
-             owner.id?.type==='Identifier'&&!owner.async&&!owner.generator&&
-             !decoderGetterMapFactories.has(owner.id.name)) {
-            decoderGetterMapFactories.add(owner.id.name);
-            decoderDescriptorChanged=true;
+             owner.id?.type==='Identifier'&&!owner.async&&!owner.generator) {
+            if(isDecoderGetterDescriptor(node.argument)&&
+               !decoderGetterDescriptorFactories.has(owner.id.name)) {
+              decoderGetterDescriptorFactories.add(owner.id.name);
+              decoderDescriptorChanged=true;
+            }
+            if(isDecoderGetterMap(node.argument)&&
+               !decoderGetterMapFactories.has(owner.id.name)) {
+              decoderGetterMapFactories.add(owner.id.name);
+              decoderDescriptorChanged=true;
+            }
           }
           break;
         }
@@ -1761,6 +1804,11 @@ function mutatesDecoderIntrinsic(ast,rejectCommonJsExportEscape=false,rejectEsmE
         decoderGetterMaps.add(name);
         decoderDescriptorChanged=true;
       }
+      if(isDecoderGetterDescriptorFactory(value)&&
+         !decoderGetterDescriptorFactories.has(name)) {
+        decoderGetterDescriptorFactories.add(name);
+        decoderDescriptorChanged=true;
+      }
       if(isDecoderGetterMapFactory(value)&&!decoderGetterMapFactories.has(name)) {
         decoderGetterMapFactories.add(name);
         decoderDescriptorChanged=true;
@@ -1776,6 +1824,10 @@ function mutatesDecoderIntrinsic(ast,rejectCommonJsExportEscape=false,rejectEsmE
   const descriptorBindings=new Map();
   /** @type {Map<string,Set<string>>} */
   const descriptorAliases=new Map();
+  // An alias read from a descriptor-map entry may later receive its getter
+  // through a separate identifier. Resolve these may-alias writes fail-closed.
+  /** @type {Map<string,Set<string>>} */
+  const descriptorMemberReadAliases=new Map();
   /** @type {Map<string,Array<{key:string|null,value:import('./ast').AstNode}>>} */
   const descriptorMemberWrites=new Map();
   /** @type {Map<string,import('./ast').AstNode[]>} */
@@ -1809,6 +1861,23 @@ function mutatesDecoderIntrinsic(ast,rejectCommonJsExportEscape=false,rejectEsmE
         if(key==='create')objectCreateAliases.add(property.value.name);
       }
     }
+    // Destructuring reads the same descriptor-entry object as a direct
+    // member expression: `const {ref:entry}=descriptors` may later mutate
+    // `entry.get`. Track the entry conservatively even for computed keys.
+    const readPattern=node.type==='VariableDeclarator'&&
+      node.id.type==='ObjectPattern'&&node.init?.type==='Identifier'?
+      {source:node.init.name,pattern:node.id}:
+      node.type==='AssignmentExpression'&&node.operator==='='&&
+      node.left.type==='ObjectPattern'&&node.right.type==='Identifier'?
+      {source:node.right.name,pattern:node.left}:null;
+    if(readPattern){
+      const aliases=descriptorMemberReadAliases.get(readPattern.source)??new Set();
+      for(const property of readPattern.pattern.properties){
+        if(property.type==='Property'&&property.value.type==='Identifier')
+          aliases.add(property.value.name);
+      }
+      if(aliases.size)descriptorMemberReadAliases.set(readPattern.source,aliases);
+    }
     if(node.type==='VariableDeclarator'&&node.id.type==='Identifier'&&node.init){
       const entries=descriptorBindings.get(node.id.name)??[];
       entries.push(node.init);
@@ -1817,6 +1886,13 @@ function mutatesDecoderIntrinsic(ast,rejectCommonJsExportEscape=false,rejectEsmE
         const aliases=descriptorAliases.get(node.init.name)??new Set();
         aliases.add(node.id.name);
         descriptorAliases.set(node.init.name,aliases);
+      }
+      if(node.init.type==='MemberExpression'&&
+         node.init.object.type==='Identifier') {
+        const source=node.init.object.name;
+        const aliases=descriptorMemberReadAliases.get(source)??new Set();
+        aliases.add(node.id.name);
+        descriptorMemberReadAliases.set(source,aliases);
       }
     } else if(node.type==='AssignmentExpression'&&node.operator==='='&&
               node.left.type==='Identifier') {
@@ -1827,6 +1903,13 @@ function mutatesDecoderIntrinsic(ast,rejectCommonJsExportEscape=false,rejectEsmE
         const aliases=descriptorAliases.get(node.right.name)??new Set();
         aliases.add(node.left.name);
         descriptorAliases.set(node.right.name,aliases);
+      }
+      if(node.right.type==='MemberExpression'&&
+         node.right.object.type==='Identifier') {
+        const source=node.right.object.name;
+        const aliases=descriptorMemberReadAliases.get(source)??new Set();
+        aliases.add(node.left.name);
+        descriptorMemberReadAliases.set(source,aliases);
       }
     }
   });
@@ -1865,6 +1948,8 @@ function mutatesDecoderIntrinsic(ast,rejectCommonJsExportEscape=false,rejectEsmE
    * @returns {boolean}
    */
   function descriptorHasSensitiveGetter(expression,visited=new Set()) {
+    if(expression.type==='CallExpression'&&expression.callee.type==='Identifier')
+      return decoderGetterDescriptorFactories.has(expression.callee.name);
     if(expression.type==='Identifier'){
       if(visited.has(expression.name))return false;
       visited.add(expression.name);
@@ -1891,6 +1976,28 @@ function mutatesDecoderIntrinsic(ast,rejectCommonJsExportEscape=false,rejectEsmE
       });
   }
   /**
+   * A descriptor entry read through `alias = descriptors.ref` can receive a
+   * getter through `alias.get = fn`. Follow later identifier aliases of the
+   * entry as a conservative may-alias closure. This does not assert that an
+   * arbitrary host member read is safe to rename or otherwise rewrite.
+   * @param {string} name
+   * @param {Set<string>} [visited]
+   * @returns {boolean}
+   */
+  function memberReadAliasWritesDecoderGetter(name,visited=new Set()) {
+    if(visited.has(name))return false;
+    visited.add(name);
+    return sensitiveProxyHandlers.has(name)||
+      (descriptorMemberWrites.get(name)??[]).some(
+        write=>(write.key===null||write.key==='get')&&
+          proxyGetMayReturnDecoderIntrinsic(write.value))||
+      (objectAssignSources.get(name)??[]).some(
+        source=>descriptorHasSensitiveGetter(source)||
+          proxyHandlerHasSensitiveGet(source))||
+      [...(descriptorAliases.get(name)??[])].some(
+        alias=>memberReadAliasWritesDecoderGetter(alias,visited));
+  }
+  /**
    * Object.create's outer map may use a computed property name. The name
    * cannot make a decoder-sensitive accessor harmless if it is later read.
    * @param {import('./ast').AstNode} expression
@@ -1914,6 +2021,8 @@ function mutatesDecoderIntrinsic(ast,rejectCommonJsExportEscape=false,rejectEsmE
         write=>descriptorHasSensitiveGetter(write.value))||
       (objectAssignSources.get(name)??[]).some(
         source=>objectCreateMayExposeDecoder(source,visited))||
+      [...(descriptorMemberReadAliases.get(name)??[])].some(
+        alias=>memberReadAliasWritesDecoderGetter(alias))||
       [...(descriptorAliases.get(name)??[])].some(
         alias=>objectCreateMayExposeDecoderIdentifier(alias,visited));
     visited.delete(name);
