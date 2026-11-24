@@ -99,7 +99,7 @@ The current source audit shows why a map cannot be implemented only inside `appl
 
 Agent 50's independent review adds necessary boundary rules for the proposed map:
 
-- Use half-open source intervals `[start,end)`; define insertion-boundary behavior explicitly.
+- Use half-open source intervals `[start,end)`; define insertion-boundary behavior explicitly, including zero-width insertions exactly at `start` (before-node affinity shifts and preserves; insertion as part of the node invalidates).
 - An insertion strictly before a protected callable shifts its current offset but does not change its source text. An insertion strictly inside the protected span invalidates ExactSource; insertion exactly at the end is outside the span.
 - Any replacement/deletion intersecting a protected span or nested closure invalidates exact mapping; the later consumer must decline.
 - For ExactSource, map every protected callable and nested span, then compare the final current source slice with the original slice. Offset arithmetic alone is not proof of source-text identity.
@@ -112,7 +112,7 @@ This keeps the immutable SourceObservationPlan original-generation-bound and mak
 ## Minimum acceptance tests
 
 1. Put a long private identifier before a host-observed callback. Rename the identifier (changing its width); the later string consumer must still protect the callback's exact original source.
-2. Insert a decoder/helper prologue before the callback. The callback closure must still map exactly.
+2. Insert a decoder/helper prologue immediately before the callback at its exact start offset. The map must apply before-node affinity, shift the span, and preserve exact source; a separate insertion inside the callable must invalidate.
 3. Keep an unrelated top-level string before and after the callback; it must remain eligible for encoding.
 4. Repeat with a nested function inside the observed callback; every nested source span is protected.
 5. Repeat with a helper-returned callback across a module edge.
