@@ -1,0 +1,48 @@
+name: Source-observer focused Chromium fixture
+
+on:
+  workflow_dispatch:
+    inputs:
+      candidate_sha:
+        description: Exact repaired candidate commit to test
+        required: true
+        default: "ed1f234747f2733879b24b4214ef2888d3b060bc"
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: source-observer-chromium-${{ inputs.candidate_sha }}
+  cancel-in-progress: true
+
+jobs:
+  chromium:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout exact repaired candidate
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.candidate_sha }}
+          fetch-depth: 1
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22.23.4
+
+      - name: Record runner and browser versions
+        run: |
+          node --version
+          npm --version
+          google-chrome --version
+          git rev-parse HEAD
+
+      - name: Install declared dependencies
+        run: npm ci --ignore-scripts --no-audit --no-fund
+
+      - name: Execute the source-observer fixture in real Chromium
+        env:
+          CHROMIUM_BIN: google-chrome
+        run: node test/source-observation-plan-producer-browser.js
