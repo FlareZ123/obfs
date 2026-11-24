@@ -54,6 +54,36 @@ function sourceFor(scenario){
 }
 
 
+
+/**
+ * Prototype-only source-column preservation: widen the generated owner key
+ * to the original key's UTF-16 width without restoring its original spelling.
+ * @param {string} code
+ * @returns {{code:string,generated:string,padded:string,delta:number}}
+ */
+function padOwnerKeyToOriginalWidth(code){
+  const match=code.match(/owner\s*=\s*\{\s*([A-Za-z_$][\w$]*)\s*:\s*1\s*\}/u);
+  assert.ok(match,'expected a generated owner key in emitted code');
+  const generated=match[1];
+  const original='longPrivatePropertyName';
+  const delta=original.length-generated.length;
+  assert.ok(delta>=0,'generated key must not exceed the original key width');
+  if(delta===0)return {code,generated,padded:generated,delta};
+  const candidates=[
+    generated+'_'.repeat(delta),
+    generated+'$'.repeat(delta),
+    generated+'Z'.repeat(delta)
+  ];
+  const padded=candidates.find(candidate=>!code.includes(candidate));
+  assert.ok(padded,'could not find a collision-free same-width generated key');
+  const escaped=generated.replace(/\$/gu,'\\$');
+  const pattern=new RegExp('(?<![A-Za-z0-9_$])'+escaped+'(?![A-Za-z0-9_$])','gu');
+  const paddedCode=code.replace(pattern,padded);
+  assert.notEqual(paddedCode,code,'generated property references must be padded');
+  assert.ok(!paddedCode.includes(original),'padding must not restore the original property name');
+  return {code:paddedCode,generated,padded,delta};
+}
+
 /**
  * Build an ESM fixture. Its application functions are strict by language
  * semantics, unlike the CommonJS fixture above.
@@ -173,6 +203,12 @@ async function main(){
   const metrics=new Map();
   /** @type {Map<string,number>} */
   const moduleMetrics=new Map();
+  /** @type {Map<string,{code:string,generated:string,padded:string,delta:number}>} */
+  const cjsPadding=new Map();
+  /** @type {Map<string,{code:string,generated:string,padded:string,delta:number}>} */
+  const esmPadding=new Map();
+  /** @type {Array<{mode:string,delta:number,nativeColumn:number,compiledColumn:number,paddedColumn:number,generated:string,padded:string}>} */
+  const paddingResults=[];
   /** @type {Array<{kind:string,mode:string,properties:number,deferred:boolean,patchedMap:boolean,native:Observation,compiled:Observation}>} */
   const results=[];
 
@@ -212,6 +248,15 @@ async function main(){
       body:pageFor(scenario.observation,base+'/compiled.js',scenario.patchedMap??false),
       type:'text/html; charset=utf-8'
     });
+    if(scenario.kind==='array-map'){
+      const padding=padOwnerKeyToOriginalWidth(emitted);
+      cjsPadding.set(scenario.kind,padding);
+      resources.set(base+'/padded.js',{body:padding.code,type:'text/javascript; charset=utf-8'});
+      resources.set(base+'/padded.html',{
+        body:pageFor('frame',base+'/padded.js'),
+        type:'text/html; charset=utf-8'
+      });
+    }
     const moduleSource=moduleSourceFor(scenario);
     const moduleOutput=obfuscateFiles([{
       path:'entry.mjs',sourceType:'module',code:moduleSource
@@ -250,6 +295,17 @@ async function main(){
       body:modulePageFor(base+'/module-compiled.mjs',scenario.patchedMap??false),
       type:'text/html; charset=utf-8'
     });
+    if(scenario.kind==='array-map'){
+      const padding=padOwnerKeyToOriginalWidth(moduleCode);
+      esmPadding.set(scenario.kind,padding);
+      resources.set(base+'/module-padded.mjs',{
+        body:padding.code,type:'text/javascript; charset=utf-8'
+      });
+      resources.set(base+'/module-padded.html',{
+        body:modulePageFor(base+'/module-padded.mjs'),
+        type:'text/html; charset=utf-8'
+      });
+    }
   }
 
   const server=http.createServer((request,response)=>{
@@ -313,6 +369,23 @@ async function main(){
           scenario.kind+' should expose changed active-frame coordinates after private-key rewriting');
       }
 
+      if(scenario.kind==='array-map'){
+        const padded=await observe(origin,base+'/padded.html');
+        const padding=cjsPadding.get(scenario.kind);
+        assert.ok(padding);
+        assert.equal(padded.value,before.value,'padded CJS native/emitted return parity');
+        assert.equal(padded.column,before.column,'same-width CJS rename should preserve the native frame column');
+        paddingResults.push({
+          mode:'commonjs',delta:padding.delta,
+          nativeColumn:before.column,compiledColumn:after.column,paddedColumn:padded.column,
+          generated:padding.generated,padded:padding.padded
+        });
+        process.stdout.write('CHROMIUM_FRAME_PADDING '+JSON.stringify({
+          mode:'commonjs',delta:padding.delta,
+          nativeColumn:before.column,compiledColumn:after.column,paddedColumn:padded.column,
+          generated:padding.generated,padded:padding.padded
+        })+'\n');
+      }
       const properties=metrics.get(scenario.kind)??0;
       results.push({
         kind:scenario.kind,mode:'coo',deferred:scenario.deferred??false,
@@ -368,6 +441,23 @@ async function main(){
         assert.notEqual(after.column,before.column,
           scenario.kind+' strict ESM should expose changed active-frame coordinates after private-key rewriting');
       }
+      if(scenario.kind==='array-map'){
+        const padded=await observe(origin,base+'/module-padded.html');
+        const padding=esmPadding.get(scenario.kind);
+        assert.ok(padding);
+        assert.equal(padded.value,before.value,'padded ESM native/emitted return parity');
+        assert.equal(padded.column,before.column,'same-width ESM rename should preserve the native frame column');
+        paddingResults.push({
+          mode:'esm',delta:padding.delta,
+          nativeColumn:before.column,compiledColumn:after.column,paddedColumn:padded.column,
+          generated:padding.generated,padded:padding.padded
+        });
+        process.stdout.write('CHROMIUM_FRAME_PADDING '+JSON.stringify({
+          mode:'esm',delta:padding.delta,
+          nativeColumn:before.column,compiledColumn:after.column,paddedColumn:padded.column,
+          generated:padding.generated,padded:padding.padded
+        })+'\n');
+      }
       const properties=moduleMetrics.get(scenario.kind)??0;
       moduleResults.push({kind:scenario.kind,properties,deferred:scenario.deferred??false,patchedMap:scenario.patchedMap??false,native:before,compiled:after});
       process.stdout.write('CHROMIUM_INTRINSIC_CALLBACK_ESM '+JSON.stringify({
@@ -385,7 +475,8 @@ async function main(){
       framePosition:moduleResults.filter(item=>!item.patchedMap&&!item.deferred).every(item=>item.native.frame!==null&&item.compiled.frame!==null&&item.native.column!==item.compiled.column),
       deferredNoReturnedFrame:moduleResults.filter(item=>item.deferred).every(item=>item.native.frame===null&&item.compiled.frame===null),
       positiveYield:moduleResults.every(item=>item.properties>=1),
-      nativeParity:moduleResults.every(item=>item.native.value===item.compiled.value)
+      nativeParity:moduleResults.every(item=>item.native.value===item.compiled.value),
+      positionPaddingPreserved:paddingResults.filter(item=>item.mode==='esm').every(item=>item.paddedColumn===item.nativeColumn)
     })+'\n');
   }finally{
     await new Promise((resolve,reject)=>server.close(error=>error?reject(error):resolve(undefined)));
@@ -399,7 +490,8 @@ async function main(){
     framePosition:results.filter(item=>item.native.frame!==null).length,
     deferredNoReturnedFrame:results.filter(item=>item.deferred).every(item=>item.native.frame===null&&item.compiled.frame===null),
     positiveYield:results.every(item=>item.properties>=1),
-    nativeParity:results.every(item=>item.native.value===item.compiled.value)
+    nativeParity:results.every(item=>item.native.value===item.compiled.value),
+    positionPaddingPreserved:paddingResults.filter(item=>item.mode==='commonjs').every(item=>item.paddedColumn===item.nativeColumn)
   })+'\n');
 }
 
