@@ -62,7 +62,7 @@ This is a current-main red control for the request-time mutation path. It does n
 - Ubuntu: all three focused tests, project JSDoc, external JSDoc, paired-budget JSDoc all passed in run #3276
 - Windows: all three focused tests, project JSDoc, external JSDoc, paired-budget JSDoc all passed in run #3276
 
-The handler also creates a fresh 24-byte nonce for each module GET (`src/sco.js` around line 672), varies only that response's `confirmedFile`, and calls `obfuscateFiles([input])`. A browser may fetch entry and helper concurrently, so request-variant generation is per file response. A future full-graph plan must therefore be a unique immutable response plan for each GET, with one changed SourceUnitRef and all other module edges retained. This test does not yet exercise concurrent GET isolation.
+The handler also creates a fresh 24-byte nonce for each module GET (`src/sco.js` around line 672), varies only that response's `confirmedFile`, and calls `obfuscateFiles([input])`. A browser may fetch entry and helper concurrently, so request-variant generation is per file response. A future full-graph plan must therefore be a unique immutable response plan for each GET, with one changed SourceUnitRef and all other module edges retained. The concurrent test now exercises independent helper GET variants, but it does not test isolation of a future immutable response-plan object (no plan is implemented yet).
 
 
 ## Concurrent response variant control
@@ -103,4 +103,4 @@ This is a distinct source-mutating stage from Agent 1's SCO property-pass witnes
 
 The request-specific full-graph `SourceObservationPlan` must govern `varyLiteralSpellings` as well as later `obfuscateFiles` consumers. Future green acceptance should require: (1) an unknown host callback escape is classified as `HostHeldCallable` even when the host's `Function#toString` read exists only in a preload; (2) an explicit `Function#toString` observer in entry propagates through the cross-file factory return to the helper callable's exact source closure; (3) unrelated helper/entry literals outside that closure remain eligible for request-time variation; and (4) each concurrent module GET receives an immutable full-graph response plan with its own requestVariantGeneration.
 
-This is a two-file CommonJS handler/Node-host witness. It does not establish general multi-file SCO parity, browser-engine behavior, concurrency isolation, all callback sinks, full CLI/package acceptance, or performance budget. No production source was changed; the test remains on its isolated branch.
+This is a two-file CommonJS handler/Node-host witness. It does not establish general multi-file SCO parity, browser-engine behavior, future response-plan isolation across concurrent requests, all callback sinks, full CLI/package acceptance, or performance budget. No production source was changed; the test remains on its isolated branch.
