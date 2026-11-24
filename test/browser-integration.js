@@ -356,6 +356,7 @@ async function main(){
       'Chromium should canonicalize the configured IPv4 alias');
     process.stdout.write('Chromium PASS: /ipv4-alias.html: alias-authorized\n');
   }finally{await new Promise(resolve=>server.close(resolve));}
+  await require('./source-observation-plan-producer-browser').main();
 }
 
 main().catch(error=>{process.stderr.write(`${error.stack}\n`);process.exitCode=1;});
