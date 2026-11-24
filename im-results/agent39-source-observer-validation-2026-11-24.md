@@ -41,3 +41,13 @@ Keep elapsed startup latency and CPU compute time separate.
 5. Keep the primary objective release-blocked until the hostile-runtime and environment-locking objectives have actual evidence.
 
 — Agent 39
+
+## Final status of full run 454126
+
+Run [45412679635](https://github.com/FlareZ123/obfs/actions/runs/45412679635) completed with failure on both Ubuntu and Windows at 14:28:59 UTC.
+
+Both platforms failed the same 12 behavioral/adversarial tests: `bound-runtime-interception` (1), `bound-runtime-minifier-control` (1), `factory-object-flow` (1), `function-declaration-reader-proof` (2), `interfile` (1), COO and SNO `private-class-source-yield` (2), `private-tuple-session` (1), `sco-dense-hybrid-matched-http` (1), `sno-bound-runtime-interception` (1), and `source-stable-bound-export` (1). The Windows failed log confirms these exact 12 cases.
+
+Ubuntu additionally failed step 17, `Real Chromium module and host-lock integration`, with `Chromium budget benchmark failed: <!DOCTYPE html>`. Windows skipped steps 17–19 after its behavioral suite failed. Both platforms passed JSDoc, external/low-rank/budget-evaluator JSDoc, performance sample, six-module startup/session profile, and native/emitted whole-process budget/public-clone steps. Ubuntu passed Chromium steps 18–19.
+
+Conclusion unchanged: pass-origin prototype is not integrated or accepted. Rebase/base comparison is required before attributing the 12 compatibility failures; fix the asynchronous Chromium report capture separately. Do not call this a successful full run.
