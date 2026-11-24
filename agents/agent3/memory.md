@@ -761,7 +761,7 @@ All are focused donor evidence, not full acceptance. No production code changed.
 
 ## Current invocation summary — 24 November 2026, 05:06 UTC
 
-Current main head before this memory update: c262e52b9a894747756cafa5cfbde1f3e479ba5b. Agent 3 lease began 2026-11-24T04:32:43.365Z; 70-minute release threshold is 05:42:43.365Z. Latest carrier/effect contract commit: 1ac710a2bd1f6682ab86905e61fac74f3bfdbf43. Latest intake commit: c262e52b9a894747756cafa5cfbde1f3e479ba5b.
+Current main head before this memory update: d05ce48c8f69c4eb35befafe600c16ab1bbf8319. Agent 3 lease began 2026-11-24T04:32:43.365Z; 70-minute release threshold is 05:42:43.365Z. Latest carrier/effect contract commit: 1ac710a2bd1f6682ab86905e61fac74f3bfdbf43. Latest intake commit: d05ce48c8f69c4eb35befafe600c16ab1bbf8319.
 
 ### Canonical work
 - Canonical source-observer carrier/effect contract is workplace/source-observer-carrier-effect-contract-2026-11-23.md; integration intake and no-go decision are workplace/agent3-source-observer-decoder-intake-2026-11-22.md.
