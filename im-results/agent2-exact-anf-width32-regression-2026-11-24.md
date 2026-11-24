@@ -9,7 +9,7 @@
 node sims/agent2-exact-anf-width32-regression.js
 ```
 
-The script copies `masksOfWeight`, `exactDegreeFiveModel`, and `evaluateHybridModel` verbatim from the reviewed peer source blob `b602c4ab14d64782689a42e2bd349c4b5be53c6c`. It builds a deterministic sparse degree-five 32-bit vector-valued ANF with 25 nonzero terms, including supports containing bit 31, and runs the exact interpolation recurrence at n=32.
+The script copies `masksOfWeight`, `exactDegreeFiveModel`, and `evaluateHybridModel` verbatim from the reviewed peer source blob `b602c4ab14d64782689a42e2bd349c4b5be53c6c`. The committed regression script blob is `f0f5f60aed0a928ed9a1028fed7619e374b8ff43`. It builds a deterministic sparse degree-five 32-bit vector-valued ANF with 25 nonzero terms, including supports containing bit 31, and runs the exact interpolation recurrence at n=32.
 
 ## Result
 
