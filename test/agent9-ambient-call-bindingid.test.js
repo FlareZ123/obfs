@@ -99,6 +99,19 @@ test('mutable aliases and reassigned function bindings are not trusted call edge
   assert.equal(named(reassigned,'caller')[0].ambient,true);
 });
 
+test('classic-script global function declarations are not treated as immutable lexical call targets',()=>{
+  const globalMutation=analyze(
+    'function helper(){return 1;}globalThis.helper=getExternal;function caller(){helper();}',
+    'script'
+  );
+  assert.equal(named(globalMutation,'caller')[0].ambient,true);
+  const lexical=analyze(
+    'const helper=()=>1;const caller=()=>helper();',
+    'script'
+  );
+  assert.equal(named(lexical,'caller')[0].ambient,false);
+});
+
 test('constructors, tags, await, yield and dynamic imports remain ambient',()=>{
   const constructed=analyze('function caller(){new Widget();}');
   assert.equal(named(constructed,'caller')[0].ambient,true);
