@@ -252,7 +252,7 @@ async function main() {
     assert.ok(hostileBaseline);
     assert.equal(hostileBaseline.result,7);
     assert.equal(hostileBaseline.labelText,'safe-literal');
-    const readerLine=hostileSource.split(/\\r?\\n/u)[3];
+    const readerLine=hostileSource.split(/\r?\n/u)[3];
     const expectedColumn=readerLine.indexOf('call')+1;
     assert.equal(hostileBaseline.sourceText,
       'function observed() { return 29; }|callsite=4:'+expectedColumn,
