@@ -534,3 +534,27 @@ The plan must be computed from the exact original source units before any backen
 - produce a validated edit map and invalidate/recompute all affected bindings, callable definitions, host effects, source spans and closures after edits.
 
 SCO requires a fresh request/variant identity because `createScoHandler` performs per-request spelling variation and calls the single-file compiler on the resulting source. Never reuse a mutable plan or an observer allowlist across concurrent requests. This consumer audit narrows the implementation inventory; it does not select a compiler candidate or relax the NO-GO.
+
+
+### Edge semantics and effect-closure rules
+
+A HostEffectRecord is an operation occurrence, not a complete statement of what it observes. The graph must preserve three independent relations:
+
+| Relation | What it identifies | Example |
+| --- | --- | --- |
+| Trigger-value edge | The runtime value whose operation causes dispatch | host-supplied iterable, Proxy receiver, coercion object, thenable, Web IDL input, Document/Range |
+| Observed-value edge | The callable/source/mirror actually read, stringified or serialized | function passed to an unknown host argument, function converted to DOMString, source unit copied through DOM |
+| Active-frame edge | Every activation whose source, coordinates or callable metadata is visible while dispatch occurs | current hidden function, its active ancestors, top-level script/module, class static block or eval frame |
+
+These relations are not interchangeable. For `hidden(value) { return value + 1; }`, the coercion object is the trigger; a callback may observe `hidden` through the active-frame edge. For `external(hidden)`, the function is an observed host-held value even if the host never invokes it; the active caller is a separate possible observation. For `await thenable`, the thenable is the trigger and the synchronous `Get("then")` occurs while the async activation is still active; invocation of the returned then method is a later job and must not inherit the original active frame unless a separately proved async-context edge exists. For DOM serialization, the observed value is a SourceUnit/SourceMirror, not necessarily a callable.
+
+Each operation span may emit multiple HostEffectIds. Both operands of a binary operator may coerce independently; a computed member may perform ToPropertyKey on its key and then Proxy `[[Get]]` on its receiver. Nested arrays, records, iterators and Web IDL dictionaries require operand paths. A callsite-level set of callable definitions is only a lossy projection and cannot be the authoritative edge store.
+
+The effect bits also imply different edit closures:
+
+- **ExactSource:** close over the exact callable source span for Function source observation, or the entire source unit when distributed bytes/serialization/SRI are observed. Include all edits to captured syntax that changes the callable's emitted source, not only the owner's property key.
+- **FramePosition:** close over every edit that can change the observed frame/callsite coordinates under the declared runtime/formatter contract. A width-preserving edit is admissible only with a separately validated coordinate invariant; it does not satisfy ExactSource.
+- **CallableMetadata:** close over edits to function names, lengths, descriptors and identity-bearing metadata that the selected host API exposes. Do not infer this bit from source-text observation.
+- **UnknownHostEffect:** if receiver, dispatch provenance, trigger/observed value or active-frame set is unresolved, refuse the affected semantic closure (or the entire declared group when closure cannot be bounded).
+
+The operation's source span, the active activation span, the observed callable/source unit and the trigger operand must all retain source-unit/generation qualification. The same HostEffectId must not be reused across source generations or SCO request variants.
