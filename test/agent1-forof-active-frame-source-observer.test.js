@@ -57,7 +57,7 @@ const source=
   'function hidden(iterable){'+
     'for(const value of iterable){}'+
     'return owner.secretField;'+
-  }'+
+  '}'+
   'function plain(){return other.unrelatedField;}'+
   'function publicReader(iterable){return hidden(iterable)+plain();}'+
   'module.exports=publicReader;';
