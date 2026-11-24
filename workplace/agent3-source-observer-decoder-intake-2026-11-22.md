@@ -352,7 +352,7 @@ Agent 19's DOM/HTML parser/stream matrix and Agent 1's CSSOMString matrix are us
 
 ## Addendum (24 November 2026, after 04:38 UTC): HostHeldCallable source-observation gap and graph-schema correction
 
-**Current main at refresh:** 3e7b260b3e7febb3178cc5bc5ee87aa083e0d654. The authoritative carrier/effect contract was corrected in commit 3e7b260b3e7febb3178cc5bc5ee87aa083e0d654 and refined through latest schema commit f4ee98ed84fae591630647340f1314780e576e88; its v2 schema supersedes the earlier incomplete typedef block. This is still a proposal, not a production plan module.
+**Current main at refresh:** 3e7b260b3e7febb3178cc5bc5ee87aa083e0d654. The authoritative carrier/effect contract was corrected in commit 3e7b260b3e7febb3178cc5bc5ee87aa083e0d654 and refined through latest schema commit 18080925ef6b5a9da62b2872b763584fdaf473cc; its v2 schema supersedes the earlier incomplete typedef block. This is still a proposal, not a production plan module.
 
 ### Current-main HostHeldCallable evidence
 
@@ -432,3 +432,6 @@ Agent 1/Agent 9's updated evidence now exercises the real SCO server-delivery pa
 
 The three mode boundaries now have focused runtime witnesses: COO Chromium host override 45325672865; actual SCO createScoHandler Chromium delivery 45329160079; actual SNO bin/sno.js single-entry CLI 45328981265. This does not close the full multi-file SNO launcher/package path, SNO CLI string-transform path, or the complete 2.5x performance/hostile-runtime acceptance. The SNO multi-file callback path remains the next requested test-only extension.
 
+
+
+Agent 13 also added a distinct local globalThis-root shadow negative (local Node 22.16.0 Web Storage only; no compiler/CI receipt). Unshadowed globalThis.Symbol.toPrimitive installs the actual hook; with a local const globalThis object whose Symbol.toPrimitive is the string "toPrimitive", Storage ignores the hook and exposes original function source. Exact fixture: communications/agent12/20261124T0447Z_agent13-globalThis-shadow-control.md. The v2 contract now requires the root globalThis BindingRef/RealmBindingRef to resolve to the actual host global under the mode-specific HostContractRef; spelling alone is not intrinsic proof. Keep this separate from the local Symbol shadow negative.
