@@ -4,11 +4,13 @@ const {parentPort,workerData}=require('node:worker_threads');
 const {cloneTopDerivativeProjectedAffine}=require('./rankfive-top-derivative-projected-affine-hybrid-peer');
 
 /** @typedef {{kind:'projected-affine',bits:number,rank:5,table:number[],coordinates:number[],affineCorrections:number[]}|{kind:'anf',bits:number,lower:Array<[number,number]>,top:Array<[number,number]>,degree:4|5}} HybridModel */
-/** @typedef {{fastPathSuccess:boolean,witnessTrials:number,witnessDrawCount:number,witnessProbability:number,witnessFailureBound:number,quotientRank:number|null,fastQueries:number,verificationQueries:number,verificationSamples:number,verificationCap:number,verificationDelta:number,falseAcceptanceBound:number,verificationPassed:boolean,fallbackUsed:boolean,fallbackReason:string|null,fallbackQueries:number,exactByInterpolation:boolean}} Diagnostics */
+/** @typedef {{fastPathSuccess:boolean,witnessTrials:number,witnessDrawCount:number,witnessProbability:number,witnessFailureBound:number,quotientRank:number|null,coordinateStrategy:'shift'|'signature'|null,fixedPairPassed:boolean|null,fastQueries:number,verificationQueries:number,verificationSamples:number,verificationCap:number,verificationDelta:number,falseAcceptanceBound:number,verificationPassed:boolean,fallbackUsed:boolean,fallbackReason:string|null,fallbackQueries:number,exactByInterpolation:boolean,verifierTapeReleasedAfterCandidate:boolean}} Diagnostics */
 
 const port=/** @type {import('node:worker_threads').MessagePort} */ (parentPort);
 if(!port)throw new Error('Worker requires a parent port');
 const shared=new Int32Array(workerData.sharedBuffer);
+const verifyShared=new Int32Array(workerData.verifyBuffer);
+let verifierTapeReleasedAfterCandidate=false;
 let queryCount=0;
 let witnessIndex=0;
 let verifyIndex=0;
@@ -33,13 +35,21 @@ function drawWitness(){
 
 /** @returns {number} */
 function drawVerify(){
-  if(verifyIndex>=workerData.verifyDraws.length)throw new Error('Postfit random tape exhausted');
-  return workerData.verifyDraws[verifyIndex++]>>>0;
+  if(verifyIndex===0){
+    const waitResult=Atomics.wait(verifyShared,0,0,30000);
+    if(waitResult==='timed-out')throw new Error('Verifier tape release timed out');
+    if(Atomics.load(verifyShared,0)!==1)throw new Error('Verifier tape release failed');
+    if(Atomics.load(verifyShared,1)!==workerData.verifyCount)throw new Error('Verifier tape length mismatch');
+    verifierTapeReleasedAfterCandidate=true;
+  }
+  if(verifyIndex>=workerData.verifyCount)throw new Error('Postfit random tape exhausted');
+  return Atomics.load(verifyShared,2+verifyIndex++)>>>0;
 }
 
 try{
   const result=cloneTopDerivativeProjectedAffine(
-    oracle,32,drawWitness,drawVerify,1e-10
+    oracle,32,drawWitness,drawVerify,1e-10,
+    () => port.postMessage({type:'candidate-ready',queryCount})
   );
   if(result.queries!==queryCount)throw new Error('Learner cache count differs from worker oracle calls');
   /** @type {Diagnostics} */
@@ -51,7 +61,8 @@ try{
     diagnostics:{
       ...diagnostics,
       witnessDrawCount:witnessIndex,
-      verifyDrawCount:verifyIndex
+      verifyDrawCount:verifyIndex,
+      verifierTapeReleasedAfterCandidate
     }
   });
 }catch(error){
