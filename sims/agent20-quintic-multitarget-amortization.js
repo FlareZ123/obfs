@@ -63,7 +63,9 @@ function inverseOfColumns(columns){
 }
 /** @param {number[]} columns @returns {number[]} */
 function inverseColumns(columns){
-  const bits=columns.length,rows=[];
+  const bits=columns.length;
+  /** @type {Array<{left:number,right:number}>} */
+  const rows=[];
   for(let row=0;row<bits;row++){
     let left=0;
     for(let col=0;col<bits;col++)if((columns[col]>>>row)&1)left=(left^(1<<col))>>>0;
