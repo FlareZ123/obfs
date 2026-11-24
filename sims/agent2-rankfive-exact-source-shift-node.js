@@ -74,6 +74,19 @@ function derivative(directions, ask) {
   }
   return result >>> 0;
 }
+function isDifferentially2Uniform(table) {
+  for (let delta = 1; delta < SIZE; delta++) {
+    const counts = new Map();
+    for (let q = 0; q < SIZE; q++) {
+      const value = (table[q] ^ table[q ^ delta]) >>> 0;
+      counts.set(value, (counts.get(value) || 0) + 1);
+    }
+    if (counts.size !== SIZE / 2) return false;
+    for (const count of counts.values()) if (count !== 2) return false;
+  }
+  return true;
+}
+
 function fixedPairPasses(section) {
   for (let q = 0; q < SIZE; q++) for (let delta = 1; delta < SIZE; delta++) {
     const along1 = (section[q] ^ section[q ^ delta] ^ section[q ^ 1] ^ section[q ^ 1 ^ delta]) >>> 0;
@@ -171,6 +184,7 @@ async function main() {
   if (sourceHash !== EXPECTED_SOURCE_SHA256) throw new Error(`source hash mismatch: ${sourceHash}`);
   const top = TABLE.reduce((acc, value) => (acc ^ value) >>> 0, 0);
   if (top !== 0xb1f2257d) throw new Error(`top coefficient mismatch: ${top.toString(16)}`);
+  if (!isDifferentially2Uniform(TABLE)) throw new Error('frozen table is not differentially 2-uniform');
   const sourceModule = await import('data:text/javascript;base64,' + Buffer.from(sourceString()).toString('base64'));
   const drawSourceCheck = shaStream('rank5-exact-source-equivalence');
   for (let i = 0; i < 10000; i++) {
@@ -194,6 +208,7 @@ async function main() {
     node: process.version,
     source_sha256: sourceHash,
     top_coefficient: `0x${top.toString(16).padStart(8, '0')}`,
+    differential_uniformity: 2,
     source_equivalence_checks: 10000,
     replicates: REPLICATES,
     verifier_samples: VERIFY_SAMPLES,
