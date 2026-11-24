@@ -86,6 +86,16 @@ For each source unit, the map should include unchanged segments with exact offse
 6. Force an earlier edit to overlap the protected callable. The later consumer must decline rather than use a partial or guessed mapping.
 7. Place an astral Unicode character before the protected callable, then perform an earlier width-changing edit; verify UTF-16 span mapping remains exact (and cannot be confused with UTF-8 byte offsets).\n8. For SCO, create two request variants from one source unit and verify each plan/map is generation-specific and cannot be reused across requests.
 
+## FramePosition callsite mapping is a related but distinct coordinate layer
+
+Agent 1's test-only same-line two-callsite Chromium witness (report `im-results/agent1-multicallsite-frame-padding-2026-11-24.md`, run 45334865637, on branch `agent1-frame-padding-multicallsite-final-20261124`) independently demonstrates cumulative source-position mapping. Two source shrinkages before/between callsites produce deltas `d1` and `d2`; padding before the first callsite shifts the second, so the incremental second pad is `p2 = d2 - p1`, not `d2`. This validates the arithmetic for that controlled two-callsite/same-line Chromium fixture, not a production AST-aware map.
+
+The future mapping layer therefore needs two linked but distinct outputs:
+- **Source identity mapping:** original `SourceSpanId` / `CallSiteRef` → current AST/source span through all transform edits and synthetic insertions.
+- **Frame-position mapping:** original callsite line/column → final emitted line/column under the declared runtime/formatter contract, including cumulative padding already inserted at earlier callsites.
+
+Both maps must be keyed by stable callsite identity, not marker strings. Padding itself is another synthetic insertion that must be composed into the source map. Agent 1's next proposed tests (3+ callsites, expansion between shrinkages, different lines) should be combined with the astral-Unicode/UTF-16 test above.
+
 ## Current evidence and limits
 
 This is an architecture review, not a demonstrated runtime bug in a plan implementation: no shared plan producer/consumer is wired into production yet. The existing SNO CLI host-held callback test on branch `agent24-sno-cli-host-held-string-20261124` shows why the future green test needs both callback-source preservation and unrelated top-level yield, but it does not yet exercise rebasing after prior edits.
