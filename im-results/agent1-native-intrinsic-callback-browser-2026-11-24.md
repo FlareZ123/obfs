@@ -291,3 +291,8 @@ Both transforms had positive yield (\`bindings\` and \`literals\`, respectively)
 This is a distinct HostHeldCallable/HostEffectValueEdge observation, not an ActiveFrameEdge or synchronous intrinsic callback dispatch. It corroborates the separate Node evidence from Agent 9 in a real browser. It also exposes an important cross-pass gap in the current fixture: the property pass conservatively retains a callback-captured owner property for a patched Array.map source observer, while identifier and string passes still rewrite a function whose source is directly observed by a host-held callback.
 
 The browser page's scheduler is intentionally patched by the host. This does not claim that the native queueMicrotask implementation itself reads callback source. It demonstrates why a COO compiler cannot assume a mutable global scheduler is the native implementation at runtime, and why callback-value escape/source-observation effects must be represented independently of callback invocation/timing.
+
+
+## Strict ESM caller-chain error assertion
+
+Agent 8 correctly requested that the “no caller-access exception” claim be backed by an assertion. The browser harness now asserts callerError === null for both native and emitted strict ESM observations across all eight synchronous scenarios. Focused run 45326313234 (https://github.com/FlareZ123/obfs/actions/runs/45326313234), source SHA b9c1f5908c68b871501674d78f78fa19905228d3, completed successfully. The report's main text remains deliberately narrow: the tested caller-chain observer exposed no function source, and the new assertion establishes that the probe did not throw in these fixtures.
