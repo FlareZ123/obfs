@@ -250,7 +250,7 @@ const nestedStaticBlockArrowReader=[
   '  }',
   '}',
   'module.exports=Outer;'
-].join('\\n');
+].join('\n');
 
 const nestedStaticBlockDirectArrowReader=[
   'class Outer{',
@@ -260,7 +260,7 @@ const nestedStaticBlockDirectArrowReader=[
   '  }',
   '}',
   'module.exports=Outer;'
-].join('\\n');
+].join('\n');
 
 for(const mode of /** @type {Array<'coo'|'sno'|'sco'>} */ (['coo','sno','sco'])){
   for(const [label,code] of [
