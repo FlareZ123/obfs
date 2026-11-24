@@ -22,7 +22,7 @@ const {hasPinnedLocalJavaScriptIntegrity}=require('./html-assets');
 const {assertReviewedOpaqueAssets}=require('./reviewed-assets');
 const {proveSourceObserverIslands}=require('./source-observer-islands');
 const {canonicalAllowedHosts}=require('./hosts');
-const {buildDirectFunctionSourcePlan,getInitialPlanRanges,protectedRangesFromTracked,advancePlanRanges,validatePlanSemantics}=require('./source-observation-plan');
+const {buildDirectFunctionSourcePlan,isValidatedSourceObservationPlan,getInitialPlanRanges,protectedRangesFromTracked,advancePlanRanges,validatePlanSemantics}=require('./source-observation-plan');
 
 /** @typedef {'coo'|'sco'|'sno'} ObfuscationMode */
 /** @typedef {'module'|'script'|'commonjs'|'asset'} SourceType */
@@ -263,7 +263,7 @@ function hasUnprovedCommonJsRequire(ast,filename,knownJavaScript) {
  * @param {boolean} [rejectEsmExportEscape]
  * @returns {boolean}
  */
-function mutatesDecoderIntrinsic(ast,rejectCommonJsExportEscape=false,rejectEsmExportEscape=false) {
+function mutatesDecoderIntrinsic(ast,rejectCommonJsExportEscape=false,rejectEsmExportEscape=false,sourceObservationPlan=null) {
   const safeCapturedReflectGet=provenLocalReflectGetCaptures(ast);
   // A supplied binding named Object, Reflect or Array may replace the
   // presumed intrinsic. Numeric-argument prototype provenance is then unsafe.
@@ -1764,8 +1764,16 @@ function mutatesDecoderIntrinsic(ast,rejectCommonJsExportEscape=false,rejectEsmE
         return;
       }
     }
-    if(node.type==='Identifier' && dynamicCompilers.has(node.name) ||
-       node.type==='MemberExpression' && dynamicCompilers.has(memberName(node)??'')) {
+    const plannedFunctionSourceReader=Boolean(
+      isValidatedSourceObservationPlan(sourceObservationPlan)&&
+      node.type==='Identifier'&&node.name==='Function'&&
+      [...sourceObservationPlan.sourceSpans.values()].some(span=>
+        span.astNodeType==='CallExpression'&&node.start>=span.startOffset&&
+        node.end<=span.endOffset)
+    );
+    if((node.type==='Identifier' && dynamicCompilers.has(node.name) ||
+        node.type==='MemberExpression' && dynamicCompilers.has(memberName(node)??''))&&
+       !plannedFunctionSourceReader) {
       mutated=true;
       return;
     }
@@ -2093,7 +2101,7 @@ function obfuscateFiles(files, options = {}) {
       });
       reservedSources.push(input.code);
       if (mutatesDecoderIntrinsic(inputAst,requiredCommonJsTargets.has(input.path),
-            importedEsmTargets.has(input.path)) ||
+            importedEsmTargets.has(input.path),sourceObservationPlan) ||
           hasUnprovedModuleImport(inputAst,input.path,knownJavaScript) ||
           input.sourceType==='commonjs' &&
             hasUnprovedCommonJsRequire(inputAst,input.path,knownJavaScript) ||
