@@ -2126,7 +2126,9 @@ function obfuscateFiles(files, options = {}) {
     const planParserContractId=sourceObservationPlan?parserContractIdFor('module'):null;
     const initialPlanRanges=sourceObservationPlan?
       getInitialPlanRanges(sourceObservationPlan,/** @type {string} */ (planUnitRef)):null;
-    let trackedSourceRanges=initialPlanRanges?.trackedSourceRanges??[];
+    /** @type {import('./source-edit-map').MappedSourceRange[]} */
+    let trackedSourceRanges=/** @type {import('./source-edit-map').MappedSourceRange[]} */ (
+      initialPlanRanges?.trackedSourceRanges??[]);
     let protectedSourceRanges=initialPlanRanges?.protectedSourceRanges??[];
     if(sourceObservationPlan&&
        !validatePlanSemantics(sourceObservationPlan,code,ast,trackedSourceRanges)) {
