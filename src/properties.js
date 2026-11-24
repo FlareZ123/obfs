@@ -2,7 +2,8 @@
 
 const {createHash} = require('node:crypto');
 const {parse, walk, applyEdits, observesFunctionSource, staticString, sourceSpelledErrorOperand} = require('./ast');
-const {applyEditsWithMap,sourceGenerationOf} = require('./source-edit-map');
+const {applyEditsWithMap} = require('./source-edit-map');
+const {isValidatedSourceObservationPlan,validatePlanConsumerInput} = require('./source-observation-plan');
 
 /** @typedef {import('./ast').AstNode} AstNode */
 
@@ -373,10 +374,12 @@ function collectOwnedConstantKeys(ast,rootName,bindings,scopes) {
  * @param {Map<string,string>} [importedSourceKeys] Verified string imports used only to detect source observation; this may include keys unrelated to the owner's fields.
  * @param {Set<string>} [importedPrimitives] Verified immutable primitive results from the exact ESM graph.
  * @param {boolean} [allowDirectReflection] Allow a closed-world caller to rewrite a narrowly proved direct reflective key.
+ * @param {import('./source-observation-plan').SourceObservationPlan|null} [sourceObservationPlan] Validated plan authorizing selective source-span preservation.
  * @returns {{aliases:Set<string>,members:AstNode[],memberNames:Map<AstNode,string>,patterns:AstNode[],patternNames:Map<AstNode,string>,inChecks:AstNode[],reflections:{call:AstNode,key:AstNode,property:string}[],forwardedCalls:Set<AstNode>}|null}
  */
-function proveLocalObject(ast, rootName, bindings, importedIdentityFunctions=new Map(), importedConsumers=new Map(), importedConstantKeys=new Map(), importedSourceKeys=importedConstantKeys, importedPrimitives=new Set(), allowDirectReflection=false) {
-  if(observesFunctionSource(ast,importedSourceKeys,new Set(),new Set(),importedPrimitives)) return null;
+function proveLocalObject(ast, rootName, bindings, importedIdentityFunctions=new Map(), importedConsumers=new Map(), importedConstantKeys=new Map(), importedSourceKeys=importedConstantKeys, importedPrimitives=new Set(), allowDirectReflection=false, sourceObservationPlan=null) {
+  if(observesFunctionSource(ast,importedSourceKeys,new Set(),new Set(),importedPrimitives)&&
+     !isValidatedSourceObservationPlan(sourceObservationPlan)) return null;
   /** @type {Map<string,{node:AstNode,params:AstNode[],forwardIndex:number,returnsRoot?:boolean,external?:boolean,consumerIndex?:number}>} */
   const functions = new Map();
   const {calls,declarationSet,identifiers,identifierUses,parents,dynamicScope,
@@ -1282,7 +1285,7 @@ function singleUseFactoryObject(ast,bindings,expression) {
  * A conservative proof failure leaves the complete file unchanged for that object.
  * @param {string} source
  * @param {AstNode} ast
- * @param {{seed:string,sourceUnitRef?:string,parserContractId?:string,protectedSourceSpans?:Array<{spanId:string,sourceUnitRef:string,sourceGeneration:string,startOffset:number,endOffset:number,coordinateUnit:'utf16-code-unit',astNodeType:string|null}>}} options
+ * @param {{seed:string,sourceUnitRef?:string,parserContractId?:string,sourceObservationPlan?:import('./source-observation-plan').SourceObservationPlan,protectedSourceRanges?:import('./source-edit-map').MappedSourceRange[]}} options
  * @returns {{code:string,objects:number,properties:number,editMap?:Object}}
  */
 function renameLocalProperties(source, ast, options) {
@@ -1295,22 +1298,18 @@ function renameLocalProperties(source, ast, options) {
       typeof options.parserContractId!=='string'||options.parserContractId.length===0)) {
     throw new TypeError('sourceUnitRef and parserContractId must be supplied together');
   }
-  const protectedSourceSpans=options.protectedSourceSpans??[];
-  if(!Array.isArray(protectedSourceSpans))throw new TypeError('protectedSourceSpans must be an array');
-  if(protectedSourceSpans.length&&!hasMapContext) {
-    throw new TypeError('protectedSourceSpans require a source-unit and parser generation');
+  if(options.protectedSourceSpans!==undefined) {
+    throw new TypeError('Raw protectedSourceSpans are unsupported; use a validated SourceObservationPlan');
   }
-  if(protectedSourceSpans.length) {
-    const generation=sourceGenerationOf(source,/** @type {string} */ (options.parserContractId));
-    for(const span of protectedSourceSpans) {
-      if(!span||typeof span.spanId!=='string'||span.spanId.length===0||
-         span.sourceUnitRef!==options.sourceUnitRef||span.sourceGeneration!==generation||
-         span.coordinateUnit!=='utf16-code-unit'||
-         !Number.isInteger(span.startOffset)||!Number.isInteger(span.endOffset)||
-         span.startOffset<0||span.endOffset<span.startOffset||span.endOffset>source.length) {
-        throw new TypeError('Property renamer received a stale or foreign protected source span');
-      }
-    }
+  const protectedSourceRanges=options.protectedSourceRanges??[];
+  if(!Array.isArray(protectedSourceRanges))throw new TypeError('protectedSourceRanges must be an array');
+  const plan=options.sourceObservationPlan;
+  if(plan!==undefined) {
+    if(!hasMapContext)throw new TypeError('SourceObservationPlan requires source-unit and parser contract context');
+    validatePlanConsumerInput(plan,source,/** @type {string} */ (options.sourceUnitRef),
+      /** @type {string} */ (options.parserContractId),protectedSourceRanges);
+  } else if(protectedSourceRanges.length) {
+    throw new TypeError('Protected source ranges require a validated SourceObservationPlan');
   }
   /** @param {import('./ast').Edit[]} sourceEdits @returns {{code:string,editMap?:Object}} */
   function finish(sourceEdits) {
@@ -1324,7 +1323,7 @@ function renameLocalProperties(source, ast, options) {
   }
   /** @param {number} start @param {number} end @returns {boolean} */
   function intersectsProtected(start,end) {
-    return protectedSourceSpans.some(span=>
+    return protectedSourceRanges.some(span=>
       start<span.endOffset&&end>span.startOffset);
   }
   const bindings = collectBindings(ast);
@@ -1354,7 +1353,8 @@ function renameLocalProperties(source, ast, options) {
   let objects = 0;
   let properties = 0;
   for (const candidate of candidates) {
-    const proof = proveLocalObject(ast,candidate.name,bindings);
+    const proof = proveLocalObject(ast,candidate.name,bindings,undefined,undefined,undefined,
+      undefined,undefined,false,plan);
     if (!proof || (!proof.members.length && !proof.patterns.length && !proof.inChecks.length)) continue;
     // An unowned field may invoke an inherited getter with this=object. That
     // getter can enumerate own keys, making otherwise private renaming visible.
