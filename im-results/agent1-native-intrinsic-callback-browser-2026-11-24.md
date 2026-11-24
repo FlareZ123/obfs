@@ -131,3 +131,22 @@ Across the two validated fixtures, there are **16 operation/runtime-mode executi
 - ESM/strict: FramePosition for all eight; caller-chain ExactSource unavailable in all eight.
 
 This strengthens the case for separate \`ExactSource\` and \`FramePosition\` effects and per-source-unit language/realm contracts. It does not justify merging the CJS and ESM observations into one runtime-independent label.
+
+
+## Deferred callback timing control
+
+The harness now includes a ninth operation, \`Promise.resolve(1).then(callback)\`, in both the sloppy CommonJS and strict ESM fixtures. The page waits one microtask before serializing observations, so the Promise callback runs after the application function has returned but before the observation is read.
+
+- Successful focused run: [45321261979](https://github.com/FlareZ123/obfs/actions/runs/45321261979).
+- Source SHA: \`94cf15a2f25fa862e4ec9eec028766b4e76505f9\`.
+- Ubuntu browser job and Windows strict-check job both passed.
+- The Ubuntu job executed nine CommonJS and nine ESM scenarios in real Chromium.
+- Standard, external and paired-budget JSDoc checks passed.
+
+The deferred callback preserved native/emitted return value 3 and the two positive property rewrites, but Chromium exposed **no \`hidden\` frame and no frame column** in either native or emitted execution. The machine summaries report \`deferredNoReturnedFrame:true\` for both language modes.
+
+This is the timing negative control for the event model: a deferred callback may still have a callback-value/escape relation, but it must not inherit an ActiveFrameEdge to a caller that has returned. Do not model callback-value escape and active-frame observability as the same edge.
+
+The current reproducible matrix is therefore nine operations in two language modes (18 executions):
+- Eight synchronous intrinsic callback families: source/frame effects as described above.
+- One deferred Promise callback: no returned caller frame in either mode.
