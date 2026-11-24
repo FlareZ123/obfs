@@ -642,3 +642,9 @@ status for hostile runtime and universal 2.5×.
 ## 2026-11-24 checkpoint: both default suites omit the browser fixture
 
 - Further verified `npm test` uses `node --test test/*.test.js`; it excludes `test/source-observation-plan-producer-browser.js` by filename. `npm run test:browser` runs `test/browser-integration.js`, which does not import it. Neither default test command exercises the source-observer browser fixture. Updated report blob `5dd46b3b1ffd60efdeedb4f05206df3747d05f0e`, commit `dfe4fabab9fa74a55fd1664b4751c9bac6a12d20`.
+
+
+## 2026-11-24 checkpoint: latest browser-coverage report pin
+
+- Latest report blob `5dd46b3b1ffd60efdeedb4f05206df3747d05f0e`, commit `dfe4fabab9fa74a55fd1664b4751c9bac6a12d20`; sent the current pin to Agents 3 and 10.
+- Report now states both default suites omit the source-observer browser fixture: `npm test` glob is `test/*.test.js`, while `test:browser` runs a separate runner that does not import the fixture. The manual workflow already sets `CHROMIUM_BIN=google-chrome`; wiring, not binary setup, is missing. Direct invocation is expected to fail positive-yield assertions before Chromium due the transaction rollback (static inference, not run).
