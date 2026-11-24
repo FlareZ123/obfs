@@ -49,7 +49,7 @@ Recommended contract coverage:
 | Strict ToPrimitive (1 control) | Yes: hook callback executes under analyzed function | Yes: CallSite function name and file/line/column | No: CallSite.getFunction() is undefined |
 | Sloppy thenable getter during await / async return | Yes: getter callback runs before suspension | Yes: active async frame in CallSite | Yes: CallSite.getFunction() and Function.prototype.toString |
 | Strict thenable getter during await | Yes: getter callback runs before suspension | Yes: active async frame in CallSite | No: CallSite.getFunction() is undefined |
-| Proxy Object.* internal methods (4 controls) | Yes: trap callback runs under analyzed function | Yes: name and file/line/column | No: native intrinsic path yields no CallSite function object |
+| Proxy Object.* internal methods (5 controls, including [[GetOwnProperty]]) | Yes: trap callback runs under analyzed function | Yes: name and file/line/column | No: native intrinsic path yields no CallSite function object |
 | Proxy apply / construct (2 controls) | Yes: trap callback runs under analyzed function | Yes: active frame in CallSite | Yes: CallSite.getFunction() and Function.prototype.toString |
 
 CallableMetadata is not separately asserted in this script. Where a function object is recovered, metadata may be observable, but that requires its own explicit control. The table records only directly observed source/position effects and the active-frame edge.
