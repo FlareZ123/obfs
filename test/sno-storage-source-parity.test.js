@@ -6,7 +6,7 @@ const fs=require('node:fs/promises');
 const os=require('node:os');
 const path=require('node:path');
 const {spawnSync}=require('node:child_process');
-const {obfuscateFiles}=require('../src');
+const {obfuscateFiles,createSnoLauncher}=require('../src');
 const {parse,observesFunctionSource}=require('../src/ast');
 const {atomicWrite}=require('../src/atomic');
 
@@ -31,6 +31,34 @@ function runWithWebStorage(entry,storageFile) {
   return /** @type {{nativeDispatch:boolean,stored:string|null,value:number,independent:number}} */(
     JSON.parse(child.stdout)
   );
+}
+ 
+/**
+ * Build two one-entry SNO packages so the runtime witness exercises the real
+ * hash-checking bootloader rather than directly invoking the transformed file.
+ * @param {string} root
+ * @param {string} source
+ * @param {string} protectedCode
+ * @returns {Promise<{nativeLauncher:string,protectedLauncher:string,nativeStorage:string,protectedStorage:string}>}
+ */
+async function writeSnoPackages(root,source,protectedCode) {
+  const nativeRoot=path.join(root,'native');
+  const protectedRoot=path.join(root,'protected');
+  await fs.mkdir(nativeRoot,{recursive:true});
+  await fs.mkdir(protectedRoot,{recursive:true});
+  const nativeLauncher=path.join(nativeRoot,'sno-entry.cjs');
+  const protectedLauncher=path.join(protectedRoot,'sno-entry.cjs');
+  await atomicWrite(path.join(nativeRoot,'entry.cjs'),source);
+  await atomicWrite(path.join(protectedRoot,'entry.cjs'),protectedCode);
+  await atomicWrite(nativeLauncher,
+    createSnoLauncher([{path:'entry.cjs',code:source}],'entry.cjs'));
+  await atomicWrite(protectedLauncher,
+    createSnoLauncher([{path:'entry.cjs',code:protectedCode}],'entry.cjs'));
+  const nativeStorage=path.join(root,'native-storage.db');
+  const protectedStorage=path.join(root,'protected-storage.db');
+  await fs.writeFile(nativeStorage,'');
+  await fs.writeFile(protectedStorage,'');
+  return {nativeLauncher,protectedLauncher,nativeStorage,protectedStorage};
 }
 
 test('SNO Node Web Storage exposes changed callable source through native DOMString conversion',{
@@ -69,17 +97,9 @@ test('SNO Node Web Storage exposes changed callable source through native DOMStr
 
   const root=await fs.mkdtemp(path.join(os.tmpdir(),'obfs-sno-webstorage-'));
   try {
-    const nativePath=path.join(root,'native.cjs');
-    const protectedPath=path.join(root,'protected.cjs');
-    const nativeStorage=path.join(root,'native-storage.db');
-    const protectedStorage=path.join(root,'protected-storage.db');
-    await atomicWrite(nativePath,source);
-    await atomicWrite(protectedPath,protectedCode);
-    await fs.writeFile(nativeStorage,'');
-    await fs.writeFile(protectedStorage,'');
-
-    const native=runWithWebStorage(nativePath,nativeStorage);
-    const emitted=runWithWebStorage(protectedPath,protectedStorage);
+    const packages=await writeSnoPackages(root,source,protectedCode);
+    const native=runWithWebStorage(packages.nativeLauncher,packages.nativeStorage);
+    const emitted=runWithWebStorage(packages.protectedLauncher,packages.protectedStorage);
 
     assert.equal(native.nativeDispatch,true);
     assert.equal(emitted.nativeDispatch,true);
@@ -145,17 +165,9 @@ test('SNO Node Web Storage primitive DOMString value retains unrelated identifie
 
   const root=await fs.mkdtemp(path.join(os.tmpdir(),'obfs-sno-webstorage-primitive-'));
   try {
-    const nativePath=path.join(root,'native.cjs');
-    const protectedPath=path.join(root,'protected.cjs');
-    const nativeStorage=path.join(root,'native-storage.db');
-    const protectedStorage=path.join(root,'protected-storage.db');
-    await atomicWrite(nativePath,source);
-    await atomicWrite(protectedPath,protectedCode);
-    await fs.writeFile(nativeStorage,'');
-    await fs.writeFile(protectedStorage,'');
-
-    const native=runWithWebStorage(nativePath,nativeStorage);
-    const emitted=runWithWebStorage(protectedPath,protectedStorage);
+    const packages=await writeSnoPackages(root,source,protectedCode);
+    const native=runWithWebStorage(packages.nativeLauncher,packages.nativeStorage);
+    const emitted=runWithWebStorage(packages.protectedLauncher,packages.protectedStorage);
     assert.equal(native.nativeDispatch,true);
     assert.equal(emitted.nativeDispatch,true);
     assert.equal(native.stored,'literal');
