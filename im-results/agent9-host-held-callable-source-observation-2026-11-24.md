@@ -277,3 +277,10 @@ The `createScoHandler` witness was extended from a Node client harness to a real
 [Run 45329160079](https://github.com/FlareZ123/obfs/actions/runs/45329160079) succeeded. Chromium executed on Ubuntu; Windows browser execution is intentionally skipped because Chromium is provisioned only on the Ubuntu runner. Both OS jobs passed strict project/external/paired-budget JSDoc. The six relevant compiler blobs at witness commit `4e87e451192f51235b47f9fb740c62bf7b49b2d8` (ast, properties, identifiers, strings, core, SCO) were independently verified identical to current main.
 
 This is direct browser evidence for the actual SCO server-delivery/client-execution path, including cross-file ESM factory-return and non-invoking host-held source observation.
+
+
+## Callable metadata positive controls
+
+A separate property-pass control captures all three host-observable callable dimensions: `Function#toString`, `.name`, and `.length`, without invoking the callback. It covers object methods and class methods in COO/SCO/SNO. In all six cases the exact source, name `callback`, and length `1` remain unchanged while an unrelated private object's property is renamed (one property transform per case). [Run 45329546230](https://github.com/FlareZ123/obfs/actions/runs/45329546230) passed on Ubuntu and Windows with strict JSDoc.
+
+The initial same-owner object-method fixture (run [45329447408](https://github.com/FlareZ123/obfs/actions/runs/45329447408)) also preserved source/name/length, but produced zero property-renaming yield for an unrelated field on the same object that owns the escaping method; the test failed only because it required positive yield. The corrected positive control moved the unrelated field to a separate private owner and passed. This is evidence of conservative owner-level withholding, not yet proof that same-owner field renaming is safe. A field-sensitive analysis may be able to retain that yield, but the `[[HomeObject]]`/reflection/value-escape assumptions need explicit validation before treating it as an established opportunity.
