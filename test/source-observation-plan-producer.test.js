@@ -221,6 +221,36 @@ test('rebind validator rejects the pinned source-observer counterexamples',()=>{
     text:'const {Function} = {Function: function () { return 1; }};\n',
     affinity:'unknown'
   }]);
+  check('top-global-root-alias',[{
+    start:0,end:0,text:"top['Function'].prototype.toString = 0;\n",affinity:'unknown'
+  }]);
+  check('document-defaultView-global-root-alias',[{
+    start:0,end:0,
+    text:"document.defaultView['Function'].prototype.toString = 0;\n",
+    affinity:'unknown'
+  }]);
+  check('catch-binding-does-not-hide-global-root',[{
+    start:0,end:0,
+    text:"try {} catch (top) {}\ntop['Function'].prototype.toString = 0;\n",
+    affinity:'unknown'
+  }]);
+  check('loop-binding-does-not-hide-global-root',[{
+    start:0,end:0,
+    text:"for (let top of []) {}\ntop['Function'].prototype.toString = 0;\n",
+    affinity:'unknown'
+  }]);
+  check('String-constructor-dynamic-code',[{
+    start:0,end:0,
+    text:"String.constructor('top[Function]')();\n",
+    affinity:'unknown'
+  }]);
+  const readerCallStart=source.indexOf('const observedSource = Function.prototype.toString.call(observed);');
+  assert.ok(readerCallStart>=0);
+  check('callable-binding-write',[{
+    start:readerCallStart,end:readerCallStart,
+    text:'observed = function replacement() { return 0; };\n',
+    affinity:'unknown'
+  }]);
   const readerDeclarationStart=source.indexOf('const observedSource');
   const sourceTextExportStart=source.indexOf('export const sourceText = observedSource;');
   assert.ok(readerDeclarationStart>=0&&sourceTextExportStart>=0);
@@ -240,6 +270,84 @@ test('rebind validator rejects the pinned source-observer counterexamples',()=>{
     text:"export const sourceText = 'fake';",
     affinity:'unknown'
   }]);
+});
+
+test('acceptPlannedPass rejects a valid map that edits a protected callable',()=>{
+  const plan=buildDirectFunctionSourcePlan(source,'entry.mjs',hostContract);
+  assert.ok(plan);
+  const sourceUnitRef=plan.sourceUnits.keys().next().value;
+  const parserContractId=parserContractIdFor('module');
+  const ranges=getInitialPlanRanges(plan,sourceUnitRef);
+  const callable=[...plan.sourceSpans.values()].find(span=>
+    span.astNodeType==='FunctionDeclaration');
+  assert.ok(callable);
+  const original=source.slice(callable.startOffset,callable.endOffset);
+  const replacement=original.replace('return 29;','return 30;');
+  assert.notEqual(replacement,original);
+  const changed=applyEditsWithMap(source,[{
+    start:callable.startOffset,end:callable.endOffset,text:replacement,affinity:'unknown'
+  }],sourceUnitRef,parserContractId);
+  assert.ok(changed.map,'the synthetic edit map itself is valid');
+  assert.equal(acceptPlannedPass(plan,changed.map,source,changed.code,
+    parse(changed.code,'module'),ranges.trackedSourceRanges),null,
+    'a valid source map cannot authorize replacement of a protected callable span');
+});
+
+test('core rolls back a rejected mapped property pass and continues safe passes',async()=>{
+  const corePath=require.resolve('../src/core');
+  const propertiesPath=require.resolve('../src/properties');
+  const originalCoreModule=require.cache[corePath];
+  const propertiesModule=require.cache[propertiesPath];
+  assert.ok(originalCoreModule&&propertiesModule);
+  const originalPropertiesExports=propertiesModule.exports;
+  const originalRename=originalPropertiesExports.renameLocalProperties;
+  /** @type {typeof originalRename} */
+  const rejectingRename=(code,ast,options)=>{
+    const start=code.indexOf('function observed()');
+    const close=code.indexOf('}',start);
+    assert.ok(start>=0&&close>start);
+    const end=close+1;
+    const original=code.slice(start,end);
+    const replacement=original.replace('return 29;','return 30;');
+    assert.notEqual(replacement,original);
+    const changed=applyEditsWithMap(code,[{
+      start,end,text:replacement,affinity:'unknown'
+    }],options.sourceUnitRef,options.parserContractId);
+    return {code:changed.code,objects:1,properties:1,editMap:changed.map};
+  };
+  try {
+    propertiesModule.exports={
+      ...originalPropertiesExports,
+      renameLocalProperties:rejectingRename
+    };
+    delete require.cache[corePath];
+    const freshCore=require('../src/core');
+    const transformed=freshCore.obfuscateFiles([{
+      path:'entry.mjs',sourceType:'module',code:source
+    }],{
+      mode:'coo',seed:'source-observer-rollback-test',strings:true,
+      experimentalSourceObservationPlan:hostContract
+    }).files[0];
+    assert.equal(transformed.metrics.properties,0,
+      'the invalid property pass must be rolled back');
+    assert.ok(transformed.metrics.bindings>=1,
+      'later safe identifier rewriting must still run');
+    assert.ok(transformed.metrics.literals>=1,
+      'later safe string decoding must still run');
+    const dataUrl=(code,tag)=>'data:text/javascript;base64,'+
+      Buffer.from(code,'utf8').toString('base64')+'#rollback-'+tag;
+    const native=await import(dataUrl(source,'native'));
+    const emitted=await import(dataUrl(transformed.code,'emitted'));
+    assert.deepEqual({
+      result:emitted.result,sourceText:emitted.sourceText,labelText:emitted.labelText
+    },{
+      result:native.result,sourceText:native.sourceText,labelText:native.labelText
+    },'rollback must preserve native module exports');
+  } finally {
+    propertiesModule.exports=originalPropertiesExports;
+    if(originalCoreModule)require.cache[corePath]=originalCoreModule;
+    else delete require.cache[corePath];
+  }
 });
 
 test('source-plan transaction accepts mapped-range arrays and rejects Map impostors',()=>{
