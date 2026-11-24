@@ -231,6 +231,70 @@ def arbitrary_input_wrapper_counterexample():
     }
 
 
+
+def chain_permutation_32(value):
+    out = value
+    for bit in range(2, 32):
+        dependency = ((value >> (bit - 1)) & 1) & ((value >> (bit - 2)) & 1)
+        out ^= dependency << bit
+    return out & 0xFFFFFFFF
+
+
+def wrapped_chain_32_case():
+    rng = random.Random(20261124)
+    input_cols = random_linear(32, 20261124, lower_only=True)
+    output_cols = random_linear(32, 20261125, lower_only=False)
+    input_inv = inverse_cols(input_cols, 32)
+    output_inv = inverse_cols(output_cols, 32)
+    input_offset = 1 + rng.randrange((1 << 32) - 1)
+    output_offset = 1 + rng.randrange((1 << 32) - 1)
+    anchor = 1 + rng.randrange((1 << 32) - 1)
+
+    def oracle(x):
+        hidden = apply_cols(input_cols, x) ^ input_offset
+        return apply_cols(output_cols, chain_permutation_32(hidden)) ^ output_offset
+
+    observed = [
+        oracle(anchor ^ (1 << bit)) ^ oracle(anchor)
+        for bit in range(32)
+    ]
+    normalized = [apply_cols(output_inv, col) for col in observed]
+    normalized = [
+        apply_cols(normalized, apply_cols(input_inv, 1 << bit))
+        for bit in range(32)
+    ]
+    assert rank_cols(observed, 32) == 32
+    assert lower_unitriangular(normalized, 32)
+
+    receipts = []
+    for _ in range(8):
+        secret = rng.getrandbits(32)
+        target = oracle(secret)
+        recovered, calls, distinct, checks = reanchor_invert(
+            oracle, 32, anchor, target)
+        assert recovered == secret and calls <= 64 and distinct <= 64
+        receipts.append({
+            "secret": f"0x{secret:08x}",
+            "target": f"0x{target:08x}",
+            "calls": calls,
+            "distinct": distinct,
+            "candidate_checks": checks,
+        })
+    return {
+        "n": 32,
+        "input_offset": f"0x{input_offset:08x}",
+        "output_offset": f"0x{output_offset:08x}",
+        "anchor": f"0x{anchor:08x}",
+        "input_linear_part_lower_unitriangular": True,
+        "output_linear_part_invertible": True,
+        "observed_matrix_rank": 32,
+        "hidden_B_lower_unitriangular": True,
+        "two_n_cap_per_target": 64,
+        "total_calls": sum(x["calls"] for x in receipts),
+        "receipts": receipts,
+    }
+
+
 def main():
     results = {
         n: [positive_wrapped_case(n, 100000 * n + seed)
@@ -251,10 +315,12 @@ def main():
     }
     assert all(summary[n]["max_calls"] <= 2 * n for n in summary)
     counterexample = arbitrary_input_wrapper_counterexample()
+    wrapped32 = wrapped_chain_32_case()
     print(json.dumps({
         "result": "PASS",
         "positive_wrapped_cases": sum(x["cases"] for x in summary.values()),
         "positive_summary_by_width": summary,
+        "wrapped_32bit_chain_case": wrapped32,
         "arbitrary_input_wrapper_counterexample": counterexample,
         "scope": "finite independent validation of the stated hidden-B premise; not a universal black-box result",
     }, indent=2))
