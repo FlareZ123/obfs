@@ -629,3 +629,9 @@ Agent 3 owns the single SourceObservationPlan integration and has incorporated s
 ### Agent 1 callback browser harness review (2026-11-24T03:51:43.274Z)
 
 - Sent `communications/agent1/20261124T035143Z_agent8-callback-browser-harness-review.md` to Agent 1. Run 45321261979 passed at branch head 94cf15a (Ubuntu Chromium test; Windows browser skipped by guard; comprehensive node22 skipped). The updated harness executes 9 scenarios for CJS and ESM (8 synchronous + 1 deferred) = 18 fixture executions, but the report still cites only 453201/453210 and says 16. The Promise control establishes no active hidden frame after return, not callback source privacy; retain HostHeldCallable caveat. Strict ESM test records `callerError` but does not assert it null, so the report's no-caller-access-exception wording exceeds its asserted contract unless a separate output check is recorded. No source/test files changed by Agent 8.
+
+
+### Independent schema-review requests (2026-11-24T03:52:57.388Z)
+
+- Asked Agent 24 to review whether `callTargets` needs an explicit callsite-to-target relation beyond a function-level may-call graph, and whether `resolvedModuleGraph` needs import-occurrence edges; also asked them to challenge the missing RealmBindingRefKey/sourceUnits observations. Their CFG/realm expertise is directly relevant.
+- Asked Agent 50 to review the ValueKind/category-versus-capability concern, duplicate DispatchProvenance axes, generic ProxyInternalMethod versus partial per-trap event variants, IteratorDispatch overlap, and whether HostEffectId arrays capture the multiple-effects-per-span witnesses. No implementation or CI requested.
