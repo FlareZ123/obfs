@@ -523,3 +523,7 @@ Agent 24 also confirmed that HostEffectRecord.resultValueRef plus ValueFlowEdge 
 I corrected two terminology omissions in the contract: SourceBytes is now included in the early effect inventory, and the Blob ESM Error.stack column example uses canonical FramePosition rather than SourceCoordinate. This review confirms schema shape only, not a production builder or candidate; NO-GO remains.
 
 The root provenance rule also applies to the free Symbol constructor used by a local wrapper: it requires HostContractRef proof of the actual host intrinsic. A local Symbol binding must be followed through ValueRef/DefinitionRef and may be accepted only if the property read yields the exact WellKnownSymbolRef with safe access effects.
+
+
+Final text-level JSDoc inventory check of the canonical contract: 76 typedefs, 76 unique, zero duplicates, zero unresolved custom property types after quoted enum literals are stripped. SourceBytes inventory, FramePosition terminology, reflective value-flow edges, getter result identity joins, local globalThis value flow, HostHeldObject and nested source closure are all present. This is a schema-text consistency check, not a compiler typecheck or implementation validation.
+
