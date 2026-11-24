@@ -1,17 +1,17 @@
 # Current-main implicit-dispatch active-frame source matrix
 
 **Date:** 2026-11-24  
-**Status:** 10/11 implicit-dispatch constructs produce source mismatches in current-main COO and SNO; test-only branch; no compiler change.
+**Status:** 12/13 implicit-dispatch constructs produce source mismatches in current-main COO and SNO; the sole source-parity control is a file-wide zero-yield `with` veto. Test-only branch; no compiler change.
 
 ## Reproduction and pins
 
-Test-only branch: `agent1-forof-active-frame-transform-check-20261124`, matrix commit `3db4542fc493d5b09e244c4889b8831bad001b65`. The branch adds `test/agent1-current-main-implicit-dispatch-source-matrix.test.js`; the branch also retains the single-case ForOf red test. No `src/` file was changed.
+Test-only branch: `agent1-forof-active-frame-transform-check-20261124`, matrix commit `f3d73309e0d8ba4cc0f1aaf62ecd60b789457a24`. Test file: `test/agent1-current-main-implicit-dispatch-source-matrix.test.js`. No `src/` file was changed.
 
-Focused workflow: [45309327086](https://github.com/FlareZ123/obfs/actions/runs/45309327086), manual-validation.yml, input `focused_test=test/agent1-current-main-implicit-dispatch-source-matrix.test.js`. Node v22.23.4. Both Ubuntu and Windows jobs ran 22 cases (11 operations × COO/SNO): 20 failed exact-source parity and 2 passed. The two passes are the `with`/Proxy HasBinding cases, one per mode.
+Focused workflow: [45312383489](https://github.com/FlareZ123/obfs/actions/runs/45312383489), manual-validation.yml, input `focused_test=test/agent1-current-main-implicit-dispatch-source-matrix.test.js`. Node v22.23.4. Both Ubuntu and Windows ran 26 cases (13 operations × COO/SNO): **24 failed exact-source parity and 2 passed**. The two passes are the `with`/Proxy HasBinding cases, one per mode.
 
-Production-source pins match the preceding ForOf report: `src/properties.js` blob `bda3c6097e2679f59bd003fa0aed3e0291d4ba4c`; `src/core.js` blob `8d33996821650de540b87502baff00a9e7ea99c7`.
+The harness executes each CommonJS fixture from a temporary real `.cjs` module using Node's loader, so V8 CallSite function capture is available for the async PromiseResolve control. A host-controlled iterable, Proxy, accessor, coercion object or thenable invokes an external callback while private `hidden()` is active; the host reads its source. A separate private `plain()` helper is an unrelated positive-yield control.
 
-The harness is an obfuscator-transform extension of `sims/agent24_implicit_dispatch_active_frame_matrix.js`. Each case builds a host-controlled iterable, Proxy or accessor whose sloppy callback captures the active private `hidden()` function via `arguments.callee.caller.caller`; the host reads the captured function source. A separate private `plain()` helper is an unrelated positive-yield control.
+Production-source pins: `src/properties.js` blob `bda3c6097e2679f59bd003fa0aed3e0291d4ba4c`; `src/core.js` blob `8d33996821650de540b87502baff00a9e7ea99c7`.
 
 ## Results
 
@@ -27,15 +27,17 @@ The harness is an obfuscator-transform extension of `sims/agent24_implicit_dispa
 | Array destructuring / IteratorNext | **Mismatch** | **Mismatch** |
 | Assignment / Proxy `set` | **Mismatch** | **Mismatch** |
 | Assignment / accessor setter | **Mismatch** | **Mismatch** |
-| `with` / Proxy `has` during binding lookup | Source parity | Source parity |
+| Arithmetic / `Symbol.toPrimitive` | **Mismatch** | **Mismatch** |
+| `await` / PromiseResolve thenable `then` getter | **Mismatch** | **Mismatch** |
+| `with` / Proxy `has` during binding lookup | Source parity, zero yield | Source parity, zero yield |
 
-Every failing case reports `metrics.properties: 2`, `ownerKeyStillSpelled: false` and `unrelatedKeyStillSpelled: false`. The observed helper source changes from `...return owner.secretField;` to `...return owner._p8cd7f82ef2;`; the unrelated `plain()` owner key is also renamed. All cases preserve the returned value. This establishes a real source-observation failure with nonzero unrelated rewrite yield, not a file-wide refusal or an ordinary behavioral regression.
+Every one of the 12 failing operations reports `metrics.properties: 2`, `ownerKeyStillSpelled: false` and `unrelatedKeyStillSpelled: false`. The observed helper source changes from `...return owner.secretField;` to `...return owner._p8cd7f82ef2;`; the unrelated `plain()` owner key is also renamed. All cases preserve the returned value. Thus these are real source-observation failures with nonzero unrelated rewrite yield, not file-wide refusal or ordinary behavioral regressions.
 
-The `with` case is the only passing control and is consistent with the existing explicit `WithStatement` veto recorded by Agent 3. This test establishes source parity for that fixture; it does not establish whether unrelated property yield remains in that case.
+The `with` control is different: it preserves exact source parity only because the current `WithStatement` veto refuses all property transformations. A separate yield characterization (`test/agent1-with-active-frame-positive-yield.test.js`; initial run [45311192872](https://github.com/FlareZ123/obfs/actions/runs/45311192872)) observed `properties: 0` and left `unrelatedField` unchanged. The follow-up test now characterizes that zero-yield behavior explicitly.
 
 ## Interpretation
 
-The current-main property proof does not account for the reverse active-frame effect of these implicit runtime operations. The failing constructs execute host-controlled callbacks without an explicit CallExpression in `hidden()`. The effect graph therefore needs to represent at least:
+Current-main property proof does not account for the reverse active-frame effect of these implicit runtime operations. They execute host-controlled callbacks without an explicit CallExpression in `hidden()`. The effect graph needs to represent at least:
 
 - `IteratorDispatch` for `for...of` and array destructuring;
 - `ProxyHas` for `in`;
@@ -44,16 +46,18 @@ The current-main property proof does not account for the reverse active-frame ef
 - `ProxyDelete` for `delete`;
 - `ProxyGet` / `AccessorCall` for object destructuring;
 - `ProxySet` and `AccessorCall` for assignment setters;
+- `ToPrimitiveDispatch` for arithmetic coercion;
+- `PromiseThenableAssimilation` for implicit Get(`"then"`) during `await`;
 - the existing `WithBindingLookup` veto for `with`.
 
-Each event that can execute user code must create an appropriate reverse `DynamicFrame` effect on the active callable, and exact-source effects must close over the affected function source and semantic edits. The positive `plain()` control should remain independently rewritable; a file-wide veto would hide the source leak by sacrificing unrelated yield.
+Each event that can execute user code must create an appropriate reverse `DynamicFrame` effect on the active callable, and exact-source effects must close over the affected function source and semantic edits. The unrelated `plain()` helper should remain independently rewritable; a file-wide veto hides the source leak by sacrificing all property yield.
 
 ## Scope and limits
 
-- Confirmed: sloppy CommonJS, synchronous host-supplied objects/proxies/accessors, current-main COO and SNO, Node v22.23.4 on Ubuntu and Windows.
-- Not established: strict-mode active functions, asynchronous iterator source capture, browser DevTools/debugger extraction, classic-script group semantics, or SCO request-time behavior.
+- Confirmed: sloppy CommonJS, synchronous host-supplied objects/proxies/accessors/coercion objects/thenables, current-main COO and SNO, Node v22.23.4 on Ubuntu and Windows.
+- Not established: strict-mode active functions, browser DevTools/debugger extraction, classic-script property-renaming yield (the script path skips the property pass), async iterator source capture, or SCO request-time behavior. SCO Node/CommonJS ForOf is separately confirmed in `im-results/agent1-sco-forof-active-frame-source-observer-2026-11-24.md`.
 - This is an intermediate correctness characterization. It is not an academic result, a compiler fix, or a release acceptance result. The repository remains NO-GO / RELEASE-BLOCKED.
-- The initial diagnostic version of this matrix (before the final source-parity assertion) passed the focused test and strict project/external/paired-budget JSDoc on both OS in run [45309161368](https://github.com/FlareZ123/obfs/actions/runs/45309161368). The final red assertion adds no new types; a final passing typecheck is still desirable.
+- The latest matrix red run intentionally skips JSDoc; the diagnostic predecessor passed strict project/external/paired-budget JSDoc on both OS. A passing focused run against the final matrix file is still required.
 
 Agent 3 owns integration; this report does not propose a competing compiler patch or PR.
 
