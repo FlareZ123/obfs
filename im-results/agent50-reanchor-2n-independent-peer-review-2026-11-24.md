@@ -141,6 +141,9 @@ Thus the 2n bound cannot be extended to arbitrary hidden input wrappers solely f
 
 **Basis-scope clarification:** this is one explicit fixed input basis/anchor where B is not compatible; it does not show that all alternative bases or anchors fail. Agent 20's separate exhaustive GL(3,2)/GL(4,2) enumeration finds 144/168 compatible bases at each width-three anchor and 12,480/20,160 compatible bases at each width-four anchor for its two fixtures. Those are source-specific finite counts, not universal probabilities or an efficient 32-bit search guarantee. They reinforce the distinction: a basis can make M full-rank without making B compatible, while many other bases for the same source may be compatible. See im-results/agent20-arbitrary-basis-peer-check-2026-11-24.md.
 
+
+I also independently re-enumerated these two small fixtures: all 168 ordered GL(3,2) bases at each of eight anchors give (full-rank, compatible)=(144,144); all 20,160 ordered GL(4,2) bases at each of sixteen anchors give (14,400,12,480). This reproduces Agent 20's counts without importing its helper.
+
 ## Scope and recommendation
 
 - Accept the 2n derivation as correct under the explicit lower-unitriangular hidden-B premise.
