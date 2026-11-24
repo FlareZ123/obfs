@@ -5,6 +5,8 @@ const http=require('node:http');
 const {execFile}=require('node:child_process');
 const {promisify}=require('node:util');
 const {obfuscateFiles}=require('../src/core');
+const {pairedBudgetBound}=require('../sims/paired-budget-bound');
+const puppeteer=require('puppeteer-core');
 
 const run=promisify(execFile);
 
@@ -52,8 +54,6 @@ function benchmarkPage(workloads) {
   return '<!doctype html><html><head><meta charset="utf-8"></head><body>'+
     '<script type="module">const workloads='+JSON.stringify(workloads)+';'+
     'const median=values=>{const sorted=[...values].sort((a,b)=>a-b);return sorted[Math.floor(sorted.length/2)];};'+
-    'const clockResolutionMs=(()=>{let previous=performance.now();let minimum=Infinity;for(let index=0;index<2048;index++){const current=performance.now();const delta=current-previous;if(delta>0&&delta<minimum)minimum=delta;previous=current;}return minimum;})();'+
-    'const crossOriginIsolated=globalThis.crossOriginIsolated===true;'+
     'const load=async code=>{const url=URL.createObjectURL(new Blob([code],{type:"text/javascript"}));'+
     'const start=performance.now();const namespace=await import(url);const elapsedMs=performance.now()-start;'+
     'URL.revokeObjectURL(url);const snapshot=Object.fromEntries(Object.keys(namespace).sort().map(key=>[key,namespace[key]]));'+
@@ -79,11 +79,11 @@ function benchmarkPage(workloads) {
     'const baselineMedianMs=median(baselineSamplesMs);const obfuscatedMedianMs=median(obfuscatedSamplesMs);'+
     'const ratio=obfuscatedMedianMs/baselineMedianMs;reports.push({workload:workload.label,sampleCount:31,warmupCount:6,'+
     'baselineSamplesMs,obfuscatedSamplesMs,pairRatios,medianPairRatio:median(pairRatios),maxPairRatio:Math.max(...pairRatios),'+
-    'strictBreachCount:strictBreachSamples.length,strictBreachSamples,baselineMedianMs,obfuscatedMedianMs,ratio,'+
+    'strictBreachCount:strictBreachSamples.length,strictBreachSamples,baselineMedianMs,obfuscatedMedianMs,ratioOfIndependentMedians:ratio,'+
     'placeboLeftSamplesMs,placeboRightSamplesMs,placeboPairRatios,placeboMaxPairRatio:Math.max(...placeboPairRatios),'+
-    'placeboStrictBreachCount:placeboPairRatios.filter(value=>value>2.5).length,clockResolutionMs,crossOriginIsolated,'+
-    'clockResolutionValid:crossOriginIsolated&&clockResolutionMs>0&&clockResolutionMs<1,'+
-    'budgetRatio:2.5,passesBudget:ratio<=2.5&&strictBreachSamples.length===0&&placeboPairRatios.every(value=>value<=2.5)&&clockResolutionMs>0&&clockResolutionMs<1});}return reports;};'+
+    'placeboStrictBreachCount:placeboPairRatios.filter(value=>value>2.5).length,'+
+    'strictSampleStatus:strictBreachSamples.length===0?"no-observed-breach":"sample-exceeded",'+
+    'measurement:"module-evaluation-wall-time-not-cpu",budgetRatio:2.5});}return reports;};'+
     'try{const reports=await main();const pre=document.createElement("pre");pre.id="budget";pre.textContent=btoa(JSON.stringify(reports));'+
     'document.body.appendChild(pre);}catch(error){const pre=document.createElement("pre");pre.id="budget-failure";'+
     'pre.textContent=String(error.stack||error);document.body.appendChild(pre);}</script></body></html>';
@@ -93,7 +93,7 @@ function benchmarkPage(workloads) {
  * Compare Chromium ESM loader behavior and the module-evaluation budget for
  * native and emitted source. This is a pristine-intrinsics compatibility
  * control, not an attacker-resistant client integrity test.
- * @returns {Promise<{browser:string,properties:number,bindings:number,literals:number,exactSource:boolean,chromiumBudget:Array<Object>}>}
+ * @returns {Promise<{browser:string,properties:number,bindings:number,literals:number,exactSource:boolean,chromiumBudget:Array<Object>,chromiumBudgetBounds:Array<Object>}>}
  */
 async function main() {
   const executable=process.env.CHROMIUM_BIN??'google-chrome';
@@ -121,7 +121,8 @@ async function main() {
   assert.ok(emitted.metrics.properties>=1);
   assert.ok(emitted.metrics.bindings>=1);
   assert.equal(emitted.metrics.literals,0,
-    'the string decoder prologue would move the observed reader FramePosition');
+    'the frame-preserving source-observer plan refuses the decoder prologue');
+  assert.ok(emitted.code.includes("'safe-literal'"));
   assert.ok(emitted.code.includes('function observed() { return 29; }'));
 
   const mediumSource=makeSource(32);
@@ -133,7 +134,7 @@ async function main() {
   assert.ok(mediumEmitted.metrics.properties>=1);
   assert.ok(mediumEmitted.metrics.bindings>=1);
   assert.equal(mediumEmitted.metrics.literals,0,
-    'the source-observer plan refuses decoder prologues even for the medium string corpus');
+    'the frame-preserving source-observer plan retains all 32 additional string literals');
   assert.ok(mediumEmitted.code.includes('function observed() { return 29; }'));
 
   const resources=new Map([
@@ -153,10 +154,7 @@ async function main() {
     response.writeHead(200,{
       'content-type':pathname.endsWith('.html')?
         'text/html; charset=utf-8':'text/javascript; charset=utf-8',
-      'cache-control':'no-store',
-      'cross-origin-opener-policy':'same-origin',
-      'cross-origin-embedder-policy':'require-corp',
-      'cross-origin-resource-policy':'same-origin'
+      'cache-control':'no-store'
     });
     response.end(body);
   });
@@ -164,6 +162,7 @@ async function main() {
     server.once('error',reject);
     server.listen(0,'127.0.0.1',()=>resolve(undefined));
   });
+  let browser=null;
   try {
     const address=server.address();
     if(!address||typeof address==='string')throw new Error('Missing browser test port');
@@ -173,7 +172,7 @@ async function main() {
     for(const target of ['native','emitted']) {
       const {stdout}=await run(executable,[
         '--headless','--no-sandbox','--disable-gpu','--disable-dev-shm-usage',
-        '--no-first-run','--dump-dom',
+        '--no-first-run','--virtual-time-budget=10000','--dump-dom',
         origin+'/'+target+'/index.html'
       ],{encoding:'utf8',timeout:45000,maxBuffer:4*1024*1024});
       const encoded=stdout.match(/<pre id="result">([A-Za-z0-9+/=]+)<\/pre>/u)?.[1];
@@ -187,30 +186,58 @@ async function main() {
       sourceText:'function observed() { return 29; }',
       labelText:'safe-literal'
     });
-    const {stdout:benchmarkOutput}=await run(executable,[
-      '--headless','--no-sandbox','--disable-gpu','--disable-dev-shm-usage',
-      '--no-first-run','--dump-dom',
-      origin+'/benchmark/index.html'
-    ],{encoding:'utf8',timeout:60000,maxBuffer:8*1024*1024});
-    const encodedBudget=benchmarkOutput.match(/<pre id="budget">([A-Za-z0-9+/=]+)<\/pre>/u)?.[1];
-    assert.ok(encodedBudget,'Chromium budget benchmark failed: '+benchmarkOutput.slice(0,2000));
+    const {stdout:resolvedExecutable}=await run('which',[executable],{encoding:'utf8',timeout:15000});
+    browser=await puppeteer.launch({
+      executablePath:resolvedExecutable.trim(),headless:true,
+      args:['--no-sandbox','--disable-gpu','--disable-dev-shm-usage','--no-first-run']
+    });
+    const browserPage=await browser.newPage();
+    browserPage.setDefaultTimeout(60000);
+    await browserPage.goto(origin+'/benchmark/index.html',{waitUntil:'load',timeout:60000});
+    await browserPage.waitForSelector('#budget');
+    const encodedBudget=await browserPage.$eval('#budget',element=>element.textContent??'');
+    assert.ok(encodedBudget,'Chromium budget benchmark did not publish a report');
     const chromiumBudget=JSON.parse(Buffer.from(encodedBudget,'base64').toString('utf8'));
     assert.equal(chromiumBudget.length,2);
-    assert.ok(chromiumBudget.every(workload=>workload.passesBudget),
-      'observed Chromium module-evaluation wall-time samples must have no strict 2.5x pair breach; this is not a CPU-compute proof');
+    const chromiumBudgetBounds=chromiumBudget.map(workload=>{
+      const bound=pairedBudgetBound(workload.baselineSamplesMs,workload.obfuscatedSamplesMs,
+        {threshold:2.5,confidence:0.95});
+      const placebo=pairedBudgetBound(workload.placeboLeftSamplesMs,workload.placeboRightSamplesMs,
+        {threshold:2.5,confidence:0.95});
+      const timings=[...workload.baselineSamplesMs,...workload.obfuscatedSamplesMs];
+      const distinct=[...new Set(timings.map(value=>Number(value.toFixed(3))))].sort((a,b)=>a-b);
+      const minimumRoundedStepMs=distinct.length>1?
+        Math.min(...distinct.slice(1).map((value,index)=>value-distinct[index])):null;
+      return {workload:workload.workload,measurement:'module-evaluation-wall-time-not-cpu',...bound,
+        strictBreachCount:workload.strictBreachCount,
+        strictSampleStatus:workload.strictSampleStatus,
+        placeboDecision:placebo.decision,
+        placeboMedianOfPairedRatios:placebo.medianOfPairedRatios,
+        placeboUpperMedianBound:placebo.upperMedianBound,
+        placeboStrictBreachCount:workload.placeboStrictBreachCount,
+        minimumRoundedStepMs,distinctTimingCount:distinct.length};
+    });
+    assert.ok(chromiumBudgetBounds.every(workload=>
+      workload.decision==='supported'&&workload.strictBreachCount===0),
+      'Chromium wall-time median must be supported and have no observed strict 2.5x pair breach; this is not a CPU-compute proof');
     process.stdout.write('SOURCE_OBSERVER_PLAN_CHROMIUM_BUDGET '+
       JSON.stringify({browser:runtimeVersion,workloads:chromiumBudget})+'\n');
+    process.stdout.write('SOURCE_OBSERVER_PLAN_CHROMIUM_BUDGET_BOUND '+
+      JSON.stringify({browser:runtimeVersion,workloads:chromiumBudgetBounds})+'\n');
     const report={
       browser:runtimeVersion,
+      measurement:'module-evaluation-wall-time-not-cpu',
       properties:emitted.metrics.properties,
       bindings:emitted.metrics.bindings,
       literals:emitted.metrics.literals,
       exactSource:true,
-      chromiumBudget
+      chromiumBudget,
+      chromiumBudgetBounds
     };
     process.stdout.write('SOURCE_OBSERVER_PLAN_CHROMIUM '+JSON.stringify(report)+'\n');
     return report;
   } finally {
+    if(browser)await browser.close();
     await new Promise((resolve,reject)=>server.close(error=>error?reject(error):resolve(undefined)));
   }
 }

@@ -411,8 +411,10 @@ test('core rolls back a rejected mapped property pass and continues safe passes'
       'the invalid property pass must be rolled back');
     assert.ok(transformed.metrics.bindings>=1,
       'later safe identifier rewriting must still run');
-    assert.ok(transformed.metrics.literals>=1,
-      'later safe string decoding must still run');
+    assert.equal(transformed.metrics.literals,0,
+      'the frame-shifting decoder must be refused even after the rejected property pass');
+    assert.match(transformed.code,/'safe-literal'/u,
+      'the source-observer reader frame remains stable when the literal stays intact');
     const dataUrl=(code,tag)=>'data:text/javascript;base64,'+
       Buffer.from(code,'utf8').toString('base64')+'#rollback-'+tag;
     const native=await import(dataUrl(source,'native'));
@@ -707,14 +709,14 @@ test('independent review: post-pass constructor-chain intrinsic writes are refus
 });
 
 
-test('independent review: untagged top-level throw is rejected as an arbitrary post-pass insertion',()=>{
+test('independent review: untagged post-reader throw is rejected despite a stable reader frame',()=>{
   const plan=buildDirectFunctionSourcePlan(source,'entry.mjs',hostContract);
   assert.ok(plan);
   const sourceUnitRef=plan.sourceUnits.keys().next().value;
   const parserContractId=parserContractIdFor('module');
   const initial=getInitialPlanRanges(plan,sourceUnitRef);
   const changed=applyEditsWithMap(source,[{
-    start:0,end:0,text:'throw 0;\n',affinity:'unknown'
+    start:source.length,end:source.length,text:'\nthrow 0;\n',affinity:'unknown'
   }],sourceUnitRef,parserContractId);
   const ast=parse(changed.code,'module');
   const next=advancePlanRanges(plan,changed.map,source,changed.code,initial.trackedSourceRanges);

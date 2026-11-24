@@ -557,11 +557,6 @@ function isDirectStringFromCharCodeReference(reference) {
 }
 
 /**
- * @param {AstNode} node
- * @param {Array<{start:number,end:number}>} ranges
- * @returns {boolean}
- */
-/**
  * Compute the source FramePosition visible to host stack inspection. Columns
  * are tracked in both UTF-16 code units and Unicode code points; source maps
  * preserve slices, not caller line/column positions.
