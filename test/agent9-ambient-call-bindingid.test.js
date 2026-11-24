@@ -383,3 +383,15 @@ test('increment and compound assignment invoke conversion on unknown operands',(
     assert.equal(named(result,'caller')[0].ambient,true,source);
   }
 });
+
+
+test('browser and Node global-object assignments expose local callables',()=>{
+  const direct=analyze('function hidden(){return 1;}globalThis.hidden=hidden;');
+  assert.equal(named(direct,'hidden')[0].externallyReachable,true);
+  const alias=analyze(
+    'function hidden(){return 1;}const root=globalThis;root.hidden=hidden;'
+  );
+  assert.equal(named(alias,'hidden')[0].externallyReachable,true);
+  const browser=analyze('function hidden(){return 1;}window.hidden=hidden;');
+  assert.equal(named(browser,'hidden')[0].externallyReachable,true);
+});
