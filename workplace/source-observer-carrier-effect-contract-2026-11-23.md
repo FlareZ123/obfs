@@ -49,7 +49,7 @@ Carry separate effect bits `ExactSource`, `FramePosition`, `CallableMetadata`, a
 
 ## Exact-source coercion sinks
 
-The same `ExactSource` effect can arise from different **proven conversion sinks**. A callable flowing to `Array.prototype.join` element conversion, an ordinary `String(callable)` path, a template substitution, a `Storage.setItem` DOMString argument or `Window.name` Web IDL setter can yield its source bytes when the actual dispatch invokes native function stringification. Each site needs separate receiver/prototype/argument-position proof. A locally proved own `toString` or `Symbol.toPrimitive` can return stable text without invoking native `Function.prototype.toString`; a patched builtin or unknown host getter instead yields `UnknownHostEffect` until the specific execution contract is established. This effect model unifies Agent 12's [browser Web IDL observations](../communications/agent39/20261123T112038Z_agent12-webidl-string-coercion-effect.md) and Agent 47's [Array coercion review](../communications/agent39/20261123T114155_agent47-unify-tostring-source-effect.md) without equating the different host capabilities.
+The same `ExactSource` effect can arise from different **proven conversion sinks**. A callable flowing to `Array.prototype.join` element conversion, an ordinary `String(callable)` path, a template substitution, a `Storage.setItem` DOMString argument or `Window.name` Web IDL setter can yield its exact source text when the actual dispatch invokes native function stringification. Each site needs separate receiver/prototype/argument-position proof. A locally proved own `toString` or `Symbol.toPrimitive` can return stable text without invoking native `Function.prototype.toString`; a patched builtin or unknown host getter instead yields `UnknownHostEffect` until the specific execution contract is established. This effect model unifies Agent 12's [browser Web IDL observations](../communications/agent39/20261123T112038Z_agent12-webidl-string-coercion-effect.md) and Agent 47's [Array coercion review](../communications/agent39/20261123T114155_agent47-unify-tostring-source-effect.md) without equating the different host capabilities.
 
 For a source-span selective transformation, compute *which callable or owner* can reach a particular source effect. Refusal should be confined to its proved affected closure where possible, with an independent positive protected-field rewrite elsewhere in the graph. Assumptions about immutable native conversion methods and host prototypes are deployment contracts and must be checked against the target runtime.
 
@@ -57,11 +57,12 @@ For a source-span selective transformation, compute *which callable or owner* ca
 
 A proposed effect model can classify the *kind* of possible observation:
 
-1. **Exact source bytes**: read/serialize a published file, `Function.prototype.toString`, selected diagnostics. Any changed affected source bytes may be distinguishable.
-2. **Frame coordinates**: `Error.stack` under an ordinary V8 stack formatter. Position-preserving edits are a candidate only with a reviewed host/formatter contract.
-3. **Callable metadata and stack names**: renaming a function can affect `CallSite` names even if byte and column lengths are preserved.
-4. **Opaque host source access**: an unreviewed callback/getter may inspect source bytes, frame location or external state. Conservative refusal applies to its reachable source region.
-5. **Owned primitive-only result**: a proved inert value path can still permit useful private-field transformations.
+1. **ExactSource**: `Function.prototype.toString` and selected diagnostics expose callable source text; protect the exact observed callable span.
+2. **SourceBytes**: read/serialize a published file, loader response, DOM/HTML mirror or SRI-pinned asset; protect the entire source unit only when reader provenance proves it is observable.
+3. **FramePosition**: `Error.stack` under an ordinary V8 stack formatter. Position-preserving edits are a candidate only with a reviewed host/formatter contract.
+4. **CallableMetadata**: renaming a function can affect `CallSite` names, `name`, `length` and identity-bearing descriptors even if byte and column lengths are preserved.
+5. **UnknownHostEffect**: an unreviewed callback/getter may inspect source, frame location or external state. This is an epistemic fallback, not a positive effect bit; conservative refusal applies to its reachable source region.
+6. **Owned primitive-only result**: a proved inert value path can still permit useful private-field transformations.
 
 A pilot test-only AST edit replacing a long private key with a valid short key plus spaces of the same token width preserved the studied Node strict-IIFE host callback column 71→71 while a naive short edit shifted it to 49; [45150232904](https://github.com/FlareZ123/obfs/actions/runs/45150232904). The positional property is a useful narrow invariant: nonoverlapping newline-free replacement spans with equal UTF-16 lengths leave later token offsets unchanged. The experiment does not establish function source-text preservation or hostile-host equivalence.
 
@@ -697,7 +698,7 @@ A browser/COO candidate must choose one explicit boundary:
 1. include the host HTML and import-map manifest in the input contract, resolve every specifier to its actual browser URL/module instance, and validate that no external SRI pins a selected module; or
 2. require an auditable deployment premise such as `hostHtmlIncludedAndNoSRI` plus a canonical resolved-module map/import-map generation, and refuse browser/COO island use when either is absent.
 
-The existing all-ESM option cannot itself prove the host HTML premise. A Node ESM positive does not imply browser deployment closure. The plan's `SourceUnitRef` therefore includes actual `resolvedURL` and `resolutionContextId`, and the graph includes a deployment manifest identity. `SRIIntegrityPin` is an `ExactSource` producer; `BrowserImportMapResolution` determines module instance identity and closure.
+The existing all-ESM option cannot itself prove the host HTML premise. A Node ESM positive does not imply browser deployment closure. The plan's `SourceUnitRef` therefore includes actual `resolvedURL` and `resolutionContextId`, and the graph includes a deployment manifest identity. `SRIIntegrityPin` is a `SourceBytes` producer; `DOMSourceSerialization`/`DOMSourceRead` are also SourceBytes producers when the deployment manifest maps the readable mirror to the source unit. `BrowserImportMapResolution` determines module instance identity and closure.
 
 Required browser negatives before any COO claim:
 - host HTML contains SRI for a selected module: default group veto preserves the bytes, and the island option refuses absent an explicit no-SRI manifest;
