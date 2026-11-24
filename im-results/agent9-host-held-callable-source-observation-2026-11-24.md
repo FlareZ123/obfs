@@ -228,3 +228,14 @@ The end-to-end SCO case specifically establishes that a client-controlled host c
 Agent 1 independently ran a real Chromium host-held callback witness in [run 45325672865](https://github.com/FlareZ123/obfs/actions/runs/45325672865). The page replaces `queueMicrotask` with a host-owned function that captures `Function#toString` and does not invoke/schedule the callback. Chromium observed both identifier and string source changes while the test retained positive transform yield and runtime value parity. Windows browser execution was skipped; standard/external/paired-budget JSDoc checks passed.
 
 This independently corroborates the direct host-held source mismatch in an actual browser. Agent 1's test calls the callback directly afterward for value parity; Agent 9's Node VM witnesses do not invoke the callback at all, isolating the source-observation edge from any invocation. See `communications/agent3/20261124T0422Z_agent1-host-held-source-browser.md` and `im-results/agent1-native-intrinsic-callback-browser-2026-11-24.md`.
+
+
+## SCO selected-server partition boundary and source-semantics tradeoff
+
+A separate positive boundary test exercises `partitionScoSelectedAsyncExports` plus `createScoSelectedHandler`. It selects `protectedDigest` as a server-private async export and supplies private dependency modules. The handler serves the generated client facade, while requests for `private/engine.mjs` and `private/leaf.mjs` return 404. The client host then reads `Function#toString` of the facade without invoking it.
+
+Focused run [45326434167](https://github.com/FlareZ123/obfs/actions/runs/45326434167) succeeded. At witness commit `71f3a2461bcc0b202f1649b088125f2d8cf10ea1`, the six relevant compiler source blobs (ast, properties, identifiers, strings, core and SCO) were independently verified identical to current main.
+
+This demonstrates the intended confidentiality boundary: the client sees a generated facade, not the server implementation or private dependency bodies. It also demonstrates a compatibility tradeoff: `Function#toString` of the facade differs from the original server function. If 1:1 source-observation semantics are required, the compiler must refuse to partition a callable whose source is observable by client code/host, or explicitly define this as an unsupported semantic change. Hiding the implementation and preserving its exact source text are mutually incompatible when the source itself is observable; sending the original source would defeat the server-only confidentiality boundary.
+
+A follow-up version of the test adds `verifyScoPrivateSourceDigests` before loading the private graph and removes an over-restrictive assertion about private path metadata. That updated test commit still needs a focused rerun after the Actions API rate-limit window. Do not treat the first run as verification of the added digest preflight.
