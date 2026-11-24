@@ -12,7 +12,7 @@ const assert=require('node:assert/strict');
  * sourceAudit:{affineRank:number,nonlinearOutputRank:number,canonicalAnchorRank:number,successfulAnchorCompatibleB:boolean},
  * reanchor:{seed:string,failedAnchors:Array<{anchor:string,rank:number,queries:number}>,successfulAnchor:string,basisAttempts:number,perTarget:ReanchorReceipt[],uniqueOracleQueries:number},
  * rankTwo:{rankBound:number,affineNullity:number,orbitBound:number,perTarget:RankTwoReceipt[],uniqueOracleQueries:number},
- * priorGraphBatchCalls:number,note:string
+ * note:string
  * }} AmortizedEvidence */
 
 /** @param {number} seed @returns {()=>number} */
@@ -254,7 +254,6 @@ function runEvidence(){
       basisAttempts:reanchorBasis.attempts,perTarget:reanchorReceipts,uniqueOracleQueries:reanchor.values.size},
     rankTwo:{rankBound:2,affineNullity:rankTwoBasis.nullity,orbitBound:rankTwoBasis.orbitBound,
       perTarget:rankTwoReceipts,uniqueOracleQueries:rankTwo.values.size},
-    priorGraphBatchCalls:222079,
     note:'Both interpolation/completion bases are learned once and reused across all eight targets; all counts are unique source-oracle inputs.'
   };
 }
