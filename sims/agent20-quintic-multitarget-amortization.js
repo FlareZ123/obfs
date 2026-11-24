@@ -5,6 +5,15 @@ const assert=require('node:assert/strict');
 /** @typedef {{values:Map<number,number>,query:(input:number)=>number}} QueryCache */
 /** @typedef {{anchor:number,base:number,solve:(rhs:number)=>number,attempts:number,failed:Array<{anchor:number,rank:number,queryCount:number}>}} ReanchorBasis */
 /** @typedef {{constant:number,nullity:number,inverse:number[],orbitBound:number}} RankTwoBasis */
+/** @typedef {{index:number,corrections:number,checks:number}} ReanchorReceipt */
+/** @typedef {{index:number,orbitCalls:number}} RankTwoReceipt */
+/** @typedef {{
+ * width:number,degree:number,targetCount:number,source:string,
+ * sourceAudit:{affineRank:number,nonlinearOutputRank:number,canonicalAnchorRank:number,successfulAnchorCompatibleB:boolean},
+ * reanchor:{seed:string,failedAnchors:Array<{anchor:string,rank:number,queries:number}>,successfulAnchor:string,basisAttempts:number,perTarget:ReanchorReceipt[],uniqueOracleQueries:number},
+ * rankTwo:{rankBound:number,affineNullity:number,orbitBound:number,perTarget:RankTwoReceipt[],uniqueOracleQueries:number},
+ * priorGraphBatchCalls:number,note:string
+ * }} AmortizedEvidence */
 
 /** @param {number} seed @returns {()=>number} */
 function makeRng(seed){
@@ -173,7 +182,7 @@ function invertWithRankTwo(query,basis,target){
   }
   throw new Error('Rank-two permutation orbit bound exhausted');
 }
-/** @returns {object} */
+/** @returns {AmortizedEvidence} */
 function runEvidence(){
   const inputColumns=makeLinearTransform(0x12345678);
   const outputColumns=makeLinearTransform(0x9abcdef0);
