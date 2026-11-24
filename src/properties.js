@@ -401,14 +401,15 @@ function proveLocalObject(ast, rootName, bindings, importedIdentityFunctions=new
       // Admit only a single-return, synchronous, non-generator function with
       // simple unique formals and one statically named member read.
       let memberReaderIndex=-1;
-      const simpleUniqueParameters=node.params.every(p=>p.type==='Identifier') &&
-        new Set(node.params.map(p=>p.name)).size===node.params.length;
+      const simpleUniqueParameters=node.params.every(
+        (/** @type {AstNode} */ p)=>p.type==='Identifier') &&
+        new Set(node.params.map((/** @type {AstNode} */ p)=>p.name)).size===node.params.length;
       if(!node.async&&!node.generator&&simpleUniqueParameters&&
          returned?.type==='MemberExpression'&&!returned.optional&&
          returned.object.type==='Identifier'&&
          (returned.computed?staticString(returned.property):
            staticName(returned.property))!==null) {
-        memberReaderIndex=node.params.findIndex(p=>
+        memberReaderIndex=node.params.findIndex((/** @type {AstNode} */ p)=>
           p.type==='Identifier'&&p.name===returned.object.name);
       }
       functions.set(node.id.name,{
