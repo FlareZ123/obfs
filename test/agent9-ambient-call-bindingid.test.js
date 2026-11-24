@@ -359,3 +359,15 @@ test('CommonJS export assignments expose direct and aggregated callables',()=>{
   const alias=analyze('function hidden(){return 1;}exports.callback=hidden;');
   assert.equal(named(alias,'hidden')[0].externallyReachable,true);
 });
+
+
+test('mutable function bindings expose possible initializer and assignment values',()=>{
+  const initialized=analyze(
+    'function run(){let hidden=function hidden(){return 1;};external(hidden);}'
+  );
+  assert.equal(named(initialized,'hidden')[0].hostHeldCallable,true);
+  const assigned=analyze(
+    'function run(){let hidden;hidden=function hidden(){return 1;};external(hidden);}'
+  );
+  assert.equal(named(assigned,'hidden')[0].hostHeldCallable,true);
+});
