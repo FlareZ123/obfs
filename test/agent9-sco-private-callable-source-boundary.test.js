@@ -61,9 +61,12 @@ test('selected SCO private callable remains server-only while client host observ
       assert.equal(response.status,404);
     }
 
-    await atomicWrite(path.join(root,'client.mjs'),facade);
+    const clientDestination=path.join(root,partition.clientFile.path);
+    await fs.mkdir(path.dirname(clientDestination),{recursive:true});
+    await atomicWrite(clientDestination,facade);
+    const clientSpecifier='./'+partition.clientFile.path.replace(/^\\.\\//,'');
     const entry=[
-      "import {protectedDigest,format} from './client.mjs';",
+      'import {protectedDigest,format} from '+JSON.stringify(clientSpecifier)+';',
       'ARM_HOST_OBSERVER();',
       'queueMicrotask(protectedDigest);',
       "console.log(format(1));"
