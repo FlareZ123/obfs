@@ -86,26 +86,6 @@ test('corrected affine-graph inversion recovers the 32-bit silent-rank quintic p
     assert.equal(result.stages.length,32);
     assert.ok(result.stages.every(stage=>stage.reason==='affine-relation'));
 
-    // The same source has nonlinear output displacement rank two after
-    // affine wrapping. Compare the existing exact rank-r attacker as a
-    // stronger matched baseline, not merely against complete ANF cloning.
-    const lowRankResult=invertLowRankDeterministic(
-      wrappedOracleNumber,target,{bits:32,rankBound:2}
-    );
-    assert.equal(lowRankResult.preimage,secret);
-    assert.equal(lowRankResult.nullity,1);
-    assert.equal(lowRankResult.cycleLength<=8,true);
-    assert.equal(lowRankResult.provenOrbitUpperBound,8);
-    assert.equal(lowRankResult.oracleCalls,expectedLowRankQueries[index]);
-    totalLowRankQueries+=lowRankResult.oracleCalls;
-    lowRankReceipts.push({
-      secret:'0x'+secret.toString(16).padStart(8,'0'),
-      target:'0x'+target.toString(16).padStart(8,'0'),
-      preimage:'0x'+lowRankResult.preimage.toString(16).padStart(8,'0'),
-      queries:lowRankResult.oracleCalls,
-      nullity:lowRankResult.nullity,
-      cycleLength:lowRankResult.cycleLength
-    });
 
     totalGraphQueries+=result.queries;
     receipts.push({
@@ -121,8 +101,6 @@ test('corrected affine-graph inversion recovers the 32-bit silent-rank quintic p
   const exactCloneQueries=binomialSum(32,5);
   assert.equal(exactCloneQueries,242825);
   assert.ok(totalGraphQueries<exactCloneQueries);
-  assert.equal(totalLowRankQueries,304);
-  assert.ok(totalLowRankQueries<totalGraphQueries);
 
   // A ninth distinct B-active target crosses the one-time full-clone cost
   // for this fixed source/seed schedule; this pins the observed break-even.
@@ -219,6 +197,28 @@ test('affine-graph inversion survives hidden two-sided affine wrappers with a si
     assert.equal(wrappedOracle(result.input),BigInt(target));
     assert.equal(result.stages.length,32);
     assert.ok(result.stages.every(stage=>stage.reason==='affine-relation'));
+
+    // This source also has nonlinear output displacement rank two after
+    // affine wrapping. Compare the existing exact rank-r attacker as a
+    // stronger matched baseline, not merely against complete ANF cloning.
+    const lowRankResult=invertLowRankDeterministic(
+      wrappedOracleNumber,target,{bits:32,rankBound:2}
+    );
+    assert.equal(lowRankResult.preimage,secret);
+    assert.equal(lowRankResult.nullity,1);
+    assert.equal(lowRankResult.cycleLength<=8,true);
+    assert.equal(lowRankResult.provenOrbitUpperBound,8);
+    assert.equal(lowRankResult.oracleCalls,expectedLowRankQueries[index]);
+    totalLowRankQueries+=lowRankResult.oracleCalls;
+    lowRankReceipts.push({
+      secret:'0x'+secret.toString(16).padStart(8,'0'),
+      target:'0x'+target.toString(16).padStart(8,'0'),
+      preimage:'0x'+lowRankResult.preimage.toString(16).padStart(8,'0'),
+      queries:lowRankResult.oracleCalls,
+      nullity:lowRankResult.nullity,
+      cycleLength:lowRankResult.cycleLength
+    });
+
     totalGraphQueries+=result.queries;
     receipts.push({
       secret:'0x'+secret.toString(16).padStart(8,'0'),
@@ -281,6 +281,8 @@ test('affine-graph inversion survives hidden two-sided affine wrappers with a si
   const exactCloneQueries=binomialSum(32,5);
   assert.equal(exactCloneQueries,242825);
   assert.ok(totalGraphQueries<exactCloneQueries);
+  assert.equal(totalLowRankQueries,304);
+  assert.ok(totalLowRankQueries<totalGraphQueries);
   process.stdout.write('OBFS_GRAPH_QUINTIC_AFFINE_WRAPPED '+JSON.stringify({
     width:32,degree:5,
     jointTopDerivativeRadicalCodimension:7,
