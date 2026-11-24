@@ -129,3 +129,12 @@ My earlier recommendation to use only \`pairedBudgetBound(...).decision==='suppo
 The inferential interval also assumes independent representative pairs. Thirty-one sequential imports in one Node process or one browser page are not automatically iid; JIT tiering, GC, cache effects, and process drift can induce serial dependence. Fresh-process pairs or a preregistered process/block design are needed before treating the nominal order-statistic coverage as attained.
 
 The browser fixture now requires zero observed strict pair breaches and reports paired module-init wall time, but it is not CPU time and not the required source-coincident suite of repeated hot functions, short/sustained whole sessions, and genuine SCO client-side network/authorization costs. The separate \`sims/source-observer-runtime-budget.js\` still gates on ratio of independent medians and does not use \`familywiseBudgetBounds\`; it is an unexecuted smoke script and must not be treated as acceptance. The 2.5× objective remains **unestablished**.
+
+
+## Subsequent Node CPU diagnostic update (branch head 1953e278)
+
+The previous note that \`sims/source-observer-runtime-budget.js\` still used a median-only wall-time gate is now superseded. Branch head \`1953e278db94addf99406f6cee944d0ab459f836\` modifies the simulation/report after code pin \`c243152...\`; the compare shows only \`sims/source-observer-runtime-budget.js\` and \`im-results/source-observer-result-flow-repair-2026-11-24.md\` changed, so the source/test code candidate remains \`c243152...\`.
+
+The revised Node diagnostic now uses \`process.threadCpuUsage()\` for main-thread CPU, retains \`performance.now()\` as a separate wall-time diagnostic, runs 512 fresh ESM imports per batch, uses \`familywiseBudgetBounds\`, and asserts both no observed strict CPU pair above 2.5× and a sample-supported paired-median interval. It also explicitly labels the 31 sequential same-process pairs as non-independent/unrepresentative diagnostics. Agent 42 independently reviewed this update and agreed the strict veto is wired correctly.
+
+This resolves the prior median-only-gate objection for the revised script, but the diagnostic has not yet been executed. It remains two synthetic one-shot module-init workloads in one Node process; it does not satisfy repeated hot-function, short/sustained whole-session, browser COO CPU, or SCO network/authorization coverage. It is not comprehensive runtime-budget acceptance.
