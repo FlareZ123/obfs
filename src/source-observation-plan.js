@@ -203,6 +203,7 @@ function buildBindingKinds(ast,readerCall,objectShapes) {
     for(const declaration of node.declarations) {
       if(declaration.id?.type!=='Identifier'||!declaration.init)return null;
       const init=declaration.init;
+      /** @type {'primitive'|'object'|'callable'|'unknown'} */
       let kind='unknown';
       if(init.type==='ObjectExpression')kind='object';
       else if(init.type==='Literal')kind='primitive';
