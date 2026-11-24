@@ -3,7 +3,7 @@
 const path = require('node:path');
 const {isBuiltin}=require('node:module');
 const {randomBytes, createHash} = require('node:crypto');
-const {parse,walk,observesFunctionSource,observesDistributedSource,staticString} = require('./ast');
+const {parse,walk,observesFunctionSource,observesDistributedSource,staticString,parserContractIdFor} = require('./ast');
 const {renameLocalProperties,collectBindings} = require('./properties');
 const {symbolizeLocalProperties} = require('./symbol-properties');
 const {encodeStrings} = require('./strings');
@@ -22,13 +22,14 @@ const {hasPinnedLocalJavaScriptIntegrity}=require('./html-assets');
 const {assertReviewedOpaqueAssets}=require('./reviewed-assets');
 const {proveSourceObserverIslands}=require('./source-observer-islands');
 const {canonicalAllowedHosts}=require('./hosts');
+const {buildDirectFunctionSourcePlan,getInitialPlanRanges,protectedRangesFromTracked,advancePlanRanges,validatePlanSemantics}=require('./source-observation-plan');
 
 /** @typedef {'coo'|'sco'|'sno'} ObfuscationMode */
 /** @typedef {'module'|'script'|'commonjs'|'asset'} SourceType */
 /** @typedef {{path:string,code:string|Buffer,sourceType?:SourceType,privateModulePaths?:string[],privateOriginalDigests?:string[]}} SourceFile */
 /** @typedef {{path:string,code:string|Buffer,sourceType:SourceType,metrics:{literals:number,objects:number,properties:number,bindings:number,vmFunctions?:number,vmInstructions?:number,expressionVmFunctions?:number,expressionVmInstructions?:number,nativeGraphFunctions?:number,nativeGraphInstructions?:number,branchFunctions?:number,branchBlocks?:number,statementFlowFunctions?:number,statementFlowBlocks?:number,polyvariantFunctions?:number,polyvariantPaths?:number,polyvariantSteps?:number,wasmI32Functions?:number,wasmI32Instructions?:number,wasmI32Bytes?:number,symbolKeys?:number}}} OutputFile */
 /**
- * @typedef {{mode?:ObfuscationMode,seed?:string,strings?:boolean,properties?:boolean,identifiers?:boolean,minimumStringLength?:number,experimentalFixedArityStrings?:boolean,allowedHosts?:string[],closedWorld?:boolean,experimentalRegisterVm?:Record<string,string[]>,experimentalExpressionVm?:Record<string,string[]>,experimentalNativeGraph?:Record<string,string[]>,experimentalBranchBlocks?:Record<string,string[]>,experimentalBranchStateBlinding?:boolean,experimentalStatementFlow?:Record<string,string[]>,experimentalStatementFlowCompact?:boolean,experimentalPolyvariantAffine?:Record<string,string[]>,experimentalPolyvariantCount?:2|4|8,experimentalPolyvariantCompact?:boolean,experimentalWasmI32?:Record<string,string[]>,experimentalSymbolKeys?:boolean,experimentalSourceObserverIslands?:string[],reviewedOpaqueAssets?:import('./reviewed-assets').ReviewedOpaqueAsset[]}} ObfuscationOptions
+ * @typedef {{mode?:ObfuscationMode,seed?:string,strings?:boolean,properties?:boolean,identifiers?:boolean,minimumStringLength?:number,experimentalFixedArityStrings?:boolean,allowedHosts?:string[],closedWorld?:boolean,experimentalRegisterVm?:Record<string,string[]>,experimentalExpressionVm?:Record<string,string[]>,experimentalNativeGraph?:Record<string,string[]>,experimentalBranchBlocks?:Record<string,string[]>,experimentalBranchStateBlinding?:boolean,experimentalStatementFlow?:Record<string,string[]>,experimentalStatementFlowCompact?:boolean,experimentalPolyvariantAffine?:Record<string,string[]>,experimentalPolyvariantCount?:2|4|8,experimentalPolyvariantCompact?:boolean,experimentalWasmI32?:Record<string,string[]>,experimentalSymbolKeys?:boolean,experimentalSourceObserverIslands?:string[],experimentalSourceObservationPlan?:{runtimeFamily:string,runtimeVersion:string,contractVersion:string,pristineIntrinsicsPremise:string},reviewedOpaqueAssets?:import('./reviewed-assets').ReviewedOpaqueAsset[]}} ObfuscationOptions
  */
 
 /**
@@ -1913,6 +1914,7 @@ function obfuscateFiles(files, options = {}) {
   // Read caller-controlled configuration once. Getter/proxy access may have
   // side effects, and a later read must not silently remove a host policy.
   const suppliedHosts=options.allowedHosts;
+  const requestedSourceObservationContract=options.experimentalSourceObservationPlan;
   if (mode === 'sno' && suppliedHosts !== undefined) throw new TypeError('Browser host locking does not apply to SNO');
   // An explicitly configured empty/invalid allowlist must not turn the
   // execution guard off. Omission alone selects the unlocked build mode.
@@ -1989,6 +1991,28 @@ function obfuscateFiles(files, options = {}) {
   // transformation by retaining original text and symbol mappings.
   for (const file of prepared) assertNoSourceMapDisclosure(file);
   assertReviewedOpaqueAssets(prepared,options.reviewedOpaqueAssets);
+  // The first selective source-observer producer is intentionally finite:
+  // one closed single-file ESM COO unit and one direct Function#toString call.
+  // It is opt-in until exact-source, semantic-rebind and runtime controls are
+  // independently accepted.
+  const sourceObservationPlan=requestedSourceObservationContract===undefined?null:(()=>{
+    if(!requestedSourceObservationContract||typeof requestedSourceObservationContract!=='object') {
+      throw new TypeError('experimentalSourceObservationPlan requires an explicit versioned host contract');
+    }
+    const selectedBackend=Array.from(selectedFunctionNames.values()).some(byPath=>
+      Array.from(byPath.values()).some(names=>names.length>0));
+    if(mode!=='coo'||prepared.length!==1||prepared[0].sourceType!=='module'||
+       typeof prepared[0].code!=='string'||allowedHosts?.length||selectedBackend||
+       options.experimentalSymbolKeys===true||options.experimentalSourceObserverIslands?.length) {
+      throw new TypeError('The first source-observer plan supports only single-file ESM COO without other experimental backends or host locking');
+    }
+    const plan=buildDirectFunctionSourcePlan(prepared[0].code,prepared[0].path,
+      requestedSourceObservationContract);
+    if(!plan) {
+      throw new TypeError('Source-observer input is outside the closed direct Function.prototype.toString.call producer grammar');
+    }
+    return plan;
+  })();
   // A function declared in one ESM/classic-script file may have its source
   // observed by another supplied file. File-local proofs cannot see that
   // consumer, so preserve all original source spellings across the file group.
@@ -2044,7 +2068,7 @@ function obfuscateFiles(files, options = {}) {
   if((remoteSourceObserver||hostLockSourceObserver) && allowedHosts?.length) {
     throw new TypeError('Host locking cannot preserve observable source bytes');
   }
-  const cross = !remoteSourceObserver && options.closedWorld && options.properties !== false ?
+  const cross = !sourceObservationPlan && !remoteSourceObserver && options.closedWorld && options.properties !== false ?
     renameCrossFileProperties(prepared,seed) : {files:prepared,objects:0,properties:0};
   const shouldEncodeStrings=!remoteSourceObserver &&
     (options.strings === true || (options.strings === undefined && mode === 'sno'));
@@ -2088,6 +2112,37 @@ function obfuscateFiles(files, options = {}) {
     let code = file.code;
     let ast = parse(code,sourceType);
     const salt = createHash('sha256').update(`${seed}/${filename}`).digest('hex');
+    const planUnitRef=sourceObservationPlan?
+      sourceObservationPlan.sourceUnits.keys().next().value:null;
+    const planParserContractId=sourceObservationPlan?parserContractIdFor(sourceType):null;
+    const initialPlanRanges=sourceObservationPlan?
+      getInitialPlanRanges(sourceObservationPlan,/** @type {string} */ (planUnitRef)):null;
+    let trackedSourceRanges=initialPlanRanges?.trackedSourceRanges??[];
+    let protectedSourceRanges=initialPlanRanges?.protectedSourceRanges??[];
+    if(sourceObservationPlan&&
+       !validatePlanSemantics(sourceObservationPlan,code,ast,trackedSourceRanges)) {
+      throw new TypeError('Source-observer plan failed initial semantic rebind');
+    }
+    /**
+     * Accept a pass only when every original plan span maps exactly and the
+     * reparsed reader still resolves to the same callable definition.
+     * @param {{code:string,editMap?:import('./source-edit-map').SourceEditMap}} result
+     * @param {string} sourceBefore
+     * @returns {boolean}
+     */
+    function acceptPlanPass(result,sourceBefore) {
+      if(!sourceObservationPlan||!result.editMap)return false;
+      const nextRanges=advancePlanRanges(sourceObservationPlan,result.editMap,
+        sourceBefore,result.code,trackedSourceRanges);
+      if(!nextRanges)return false;
+      const nextAst=parse(result.code,sourceType);
+      if(!validatePlanSemantics(sourceObservationPlan,result.code,nextAst,nextRanges))return false;
+      trackedSourceRanges=nextRanges;
+      protectedSourceRanges=protectedRangesFromTracked(sourceObservationPlan,trackedSourceRanges);
+      code=result.code;
+      ast=nextAst;
+      return true;
+    }
     const vmNames=selectedFunctionNames.get('Register VM')?.get(filename)??[];
     let vmFunctions=0,vmInstructions=0;
     if(vmNames.length) {
@@ -2235,30 +2290,70 @@ function obfuscateFiles(files, options = {}) {
     let symbolKeys = 0;
     if ((!remoteSourceObserver || sourceObserverIslands.has(filename)) &&
         options.properties !== false && sourceType !== 'script') {
+      const before=code;
       const modified = options.experimentalSymbolKeys === true ?
         symbolizeLocalProperties(code,ast,{seed:salt}) :
-        renameLocalProperties(code,ast,{seed:salt});
-      code = modified.code;
-      objects = modified.objects;
-      properties = modified.properties;
+        renameLocalProperties(code,ast,sourceObservationPlan?{
+          seed:salt,sourceUnitRef:/** @type {string} */ (planUnitRef),
+          parserContractId:/** @type {string} */ (planParserContractId),
+          sourceObservationPlan,protectedSourceRanges
+        }:{seed:salt});
+      if(sourceObservationPlan) {
+        if(acceptPlanPass(modified,before)) {
+          objects=modified.objects;
+          properties=modified.properties;
+        } else {
+          code=before;
+          ast=parse(code,sourceType);
+        }
+      } else {
+        code = modified.code;
+        objects = modified.objects;
+        properties = modified.properties;
+        ast = parse(code,sourceType);
+      }
       if (options.experimentalSymbolKeys === true) symbolKeys = modified.properties;
-      ast = parse(code,sourceType);
     }
     let bindings=0;
     if(!remoteSourceObserver && options.identifiers!==false) {
-      const renamed=renameLocalIdentifiers(code,ast,{seed:salt,sourceType});
-      code=renamed.code;
-      bindings=renamed.bindings;
-      ast=parse(code,sourceType);
+      const before=code;
+      const renamed=renameLocalIdentifiers(code,ast,sourceObservationPlan?{
+        seed:salt,sourceType,sourceUnitRef:/** @type {string} */ (planUnitRef),
+        parserContractId:/** @type {string} */ (planParserContractId),
+        sourceObservationPlan,protectedSourceRanges
+      }:{seed:salt,sourceType});
+      if(sourceObservationPlan) {
+        if(acceptPlanPass(renamed,before))bindings=renamed.bindings;
+        else {code=before;ast=parse(code,sourceType);}
+      } else {
+        code=renamed.code;
+        bindings=renamed.bindings;
+        ast=parse(code,sourceType);
+      }
     }
     let literals = 0;
     // Startup decoding counts toward SCO/COO client runtime. These modes
     // require explicit opt-in for eager string encoding; SNO can amortize init.
     if (shouldEncodeStrings && !unsafeDecoderIntrinsic) {
-      const modified = encodeStrings(code,ast,{seed:salt,minimumLength:options.minimumStringLength,reservedNames,reservedSources,fixedArity:options.experimentalFixedArityStrings===true});
-      code = modified.code;
-      literals = modified.count;
-      ast = parse(code,sourceType);
+      const before=code;
+      const modified = encodeStrings(code,ast,sourceObservationPlan?{
+        seed:salt,minimumLength:options.minimumStringLength,reservedNames,reservedSources,
+        fixedArity:options.experimentalFixedArityStrings===true,
+        sourceUnitRef:/** @type {string} */ (planUnitRef),
+        parserContractId:/** @type {string} */ (planParserContractId),
+        sourceObservationPlan,protectedSourceRanges
+      }:{
+        seed:salt,minimumLength:options.minimumStringLength,reservedNames,reservedSources,
+        fixedArity:options.experimentalFixedArityStrings===true
+      });
+      if(sourceObservationPlan) {
+        if(acceptPlanPass(modified,before))literals=modified.count;
+        else {code=before;ast=parse(code,sourceType);}
+      } else {
+        code = modified.code;
+        literals = modified.count;
+        ast = parse(code,sourceType);
+      }
     }
     if (allowedHosts?.length) {
       if (sourceType === 'commonjs') throw new TypeError(`Host lock unavailable for CommonJS file ${filename}`);
