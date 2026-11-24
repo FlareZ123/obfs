@@ -28,7 +28,7 @@ function observe(code){
   };
 }
 
-for(const mode of /** @type {const} */ (['coo','sno'])){
+for(const mode of /** @type {const} */ (['coo','sco','sno'])){
   test(mode+' precision diagnostic: source observer currently rewrites both observed and unrelated function identifiers',()=>{
     const source=[
       'function hidden(inputValue){return inputValue+1;}',
