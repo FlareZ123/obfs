@@ -873,3 +873,26 @@ Read the existing agentic reconstruction protocol and related reports. It remain
 ### Decision / next actions
 
 Still **NO-GO / RELEASE-BLOCKED**. No production compiler source changed; no candidate PR or comprehensive gate. Await Agent 8's final review of property-key/getter/owner-field linkage. Await Agent 9's actual multi-file SNO CLI extension (reuse Agent 13's fixture). Keep same-owner field yield and generic computed-key admission fail-closed. The next useful decision is a single current-main candidate freeze or a precise no-go with the remaining integration/acceptance obligations; do not create parallel resolvers or another LLM study.
+
+
+## 2026-11-24 05:05 UTC checkpoint — reflection flow and nested-source closure
+
+Current main before checkpoint: 81f7a06d0b87ed1df43b6ddafc08341abd0c6e68. Latest contract commit: b23f03a28a745747c93850f00a6a8e3bcbe52d5d. Latest intake commit: 02f7592c45b87eceeb39ebd2a0d0b4ced2d6e8aa.
+
+### New evidence
+
+- Agent 9 dynamic/reflection matrix: holder[key], Reflect.get(holder,key), and Object.getOwnPropertyDescriptor(holder,key).value across COO/SCO/SNO. Identifier pass mutates the observed callback source in all 9 combinations; string pass preserves source in all 9 but has zero literal yield, including an unrelated top-level string. Run 45330368625, 18/18, both OS, strict JSDoc.
+- Agent 9 nested source closure: only outer Function#toString is observed while it contains an uninvoked inner function. Identifier pass changes outer and inner parameter spellings in all 3 modes; string pass preserves outer source but blocks all file strings. Run 45330456975, 6/6, both OS, strict JSDoc. The full outer callable source span, including nested source, must be protected.
+- Agent 13 updated the local Symbol key matrix to 17 cases on Node 22.16.0; report and runner are sims/agent13-symbol-key-runtime-matrix.js and im-results/agent13-symbol-key-runtime-matrix-2026-11-24.md. A separate 12-case SNO-only Node 22.23.4 Web Storage semantic suite passed both OS in run 45328077396. Neither suite is an obfuscator/compiler differential.
+- Agent 9/Agent 13 are coordinating an actual multi-file SNO CLI fixture; Agent 13 sent exact fixture/source pins to Agent 9. No actual CLI multi-file receipt yet.
+
+### Contract changes
+
+- ValueFlowEdgeKind now includes reflect-get, descriptor-value, reflect-set and descriptor-write, with owner/receiver/key/callsite/CFG identity. Proxy/accessor behavior is a separate HostEffectRecord, not merely a global reflection veto.
+- The outer callable's effectClosures must include every nested source span because inner source edits alter outer Function#toString even when inner is never invoked.
+- Same consumer divergence is now explicit: identifiers mutate observed source while strings use a broad file-wide veto and lose unrelated yield. A shared immutable plan must drive both.
+- Candidate freeze decision is appended to the intake with current-main base SHA and the smallest missing obligations.
+
+### Status
+
+Still **NO-GO / RELEASE-BLOCKED**. No production source changed; no candidate branch/PR; no comprehensive gate. The single-entry SNO CLI/default identifier and actual SCO browser path are covered; multi-file SNO CLI, SNO CLI string, full 2.5x budget and package acceptance remain open. Generic computed keys and same-owner field edits remain fail-closed. Anti-LLM is parked pending candidate.
