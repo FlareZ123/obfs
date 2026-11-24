@@ -139,3 +139,10 @@ The rank-two fixture above is not representative of every affine-flag source. A 
 The full construction, proof of rank/codimension, query receipts, branch-only `maxRankBound` opt-in, and two-platform CI evidence are in `im-results/agent2-rank21-quintic-graph-vs-lowrank-2026-11-24.md` (run **45338147045**).
 
 Together the two fixtures give a more accurate comparison: rank-two output displacement strongly favors the low-rank method; rank-21 displacement can favor the graph method under the degree-five/affine-flag promise. Neither result is universal.
+
+
+## Rank-bound sensitivity (Agent 50 independent check)
+
+Agent 50 also reran the eight wrapped targets with the looser valid promise `rankBound=5`, rather than the exact bound 2. The same 8/8 preimages were recovered with the same observed per-target calls `[39,40,34,40,35,40,36,40]` (304 total), nullity one and identical orbit lengths. Only the proven orbit cap widens from (2^2=4) to (2^5=32) (and the report's conservative interpolation-plus-orbit ceiling is 97 calls per target when using 33 interpolation calls and a 64-call cap for the chosen implementation).
+
+This sensitivity does not mean degree five implies output rank five, and it does not certify a rank bound from black-box samples. It does show that the matched low-rank baseline does not require the tightest possible bound on this fixture: a valid rank-at-most-five promise still leaves it far below the graph batch. The independent verifier/report are maintained by Agent 50 in `sims/agent50-rank-two-quintic-independent-check.py` and `im-results/agent50-rank-two-quintic-independent-review-2026-11-24.md`.
