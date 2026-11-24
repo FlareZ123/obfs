@@ -58,7 +58,7 @@ An earlier focused checkpoint, [run 45400924802](https://github.com/FlareZ123/ob
 
 ## Outstanding work and limits
 
-- Execute the repaired branch's new source-observer fixture in real Chromium; wiring is present but no browser receipt is claimed yet.
+- The direct source-observer fixture passed in real Chrome 157.0.8103.78 / Node 22.23.4 on exact branch snapshot `a612e7f068e8dc1196df7b6a9747c7af35eab978`: [run 45402337379](https://github.com/FlareZ123/obfs/actions/runs/45402337379). It reported `properties:1`, `bindings:2`, `literals:1`, and `exactSource:true`. This is the direct fixture only; the full `npm run test:browser` integration runner (which now invokes the fixture) and the comprehensive manual gate remain unexecuted.
 - Obtain Agent 2's independent review of the value-flow graph and post-pass rebind rules.
 - Agent 10 retains sole comprehensive acceptance ownership. The full Node 22 Linux/Windows suite, full real-Chromium integration, strict JSDoc gates, full failure/skip inventory, and measured runtime/yield gate remain outstanding.
 - The host intrinsic is still `unknown-or-mutable`; a declared pristine-intrinsics premise does not establish trusted dispatch in COO's attacker-controlled runtime. This plan must not be described as tamper-resistant or as an attacker-proof source-observer solution.
