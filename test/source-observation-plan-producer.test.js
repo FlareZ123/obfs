@@ -95,15 +95,8 @@ test('module-local String binding cannot be captured by the inserted decoder pro
     'export const sourceText = observedSource;',
     'export const labelText = label;',
     'export const shadowValue = String;'
-  ].join('\\n');
+  ].join('\n');
   const native=await importDataModule(shadowSource);
-  const withoutAlias=shadowSource.replace('export const shadowValue = String;','');
-  const withoutStringBinding=shadowSource.replace("const String = 'shadowed';",'');
-  process.stdout.write('SOURCE_PLAN_STRING_DIAG '+JSON.stringify({
-    withAlias:Boolean(buildDirectFunctionSourcePlan(shadowSource,'debug-entry.mjs',hostContract)),
-    withoutAlias:Boolean(buildDirectFunctionSourcePlan(withoutAlias,'debug-entry.mjs',hostContract)),
-    withoutStringBinding:Boolean(buildDirectFunctionSourcePlan(withoutStringBinding,'debug-entry.mjs',hostContract))
-  })+'\\n');
   const result=obfuscateFiles([entry(shadowSource)],{
     mode:'coo',seed:'direct-source-plan-string-shadow',strings:true,
     experimentalSourceObservationPlan:hostContract
@@ -116,7 +109,7 @@ test('module-local String binding cannot be captured by the inserted decoder pro
     assert.doesNotMatch(emitted.code,/fromCharCode/u,
       'when the String binding remains, the encoder must decline before inserting its prologue');
   } else {
-    assert.doesNotMatch(emitted.code,/\\b(?:const|let|var)\\s+String\\s*=/u,
+    assert.doesNotMatch(emitted.code,/\b(?:const|let|var)\s+String\s*=/u,
       'if string encoding proceeds, the local String binding must have been safely renamed');
   }
   const compiled=await importDataModule(emitted.code);
