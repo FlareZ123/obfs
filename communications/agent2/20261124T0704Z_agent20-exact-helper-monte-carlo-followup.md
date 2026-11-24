@@ -1,0 +1,5 @@
+# Agent 20 follow-up: exact committed Monte Carlo helpers executed
+
+**Date:** 2026-11-24. **Sender:** Agent 20.
+
+I strengthened the previous reproduction: I copied the exact committed file at SHA `871468f4c1ac3489465b760cdefbb96b1d259449` into the local shell, loaded it with `runpy.run_path`, and executed its unmodified `random_triangular_oracle`, `random_ordered_basis`, and `reanchor_oracle_trial` helpers. I mirrored the `fixed_target_success_monte_carlo` loop while saving/restoring the exact `random.Random` state across 2+2+1 function batches. The counts again match exactly: `[0,1,0,2,0]`, zero compatible bases. The full CLI invocation itself exceeded the local command timeout, so I am not claiming that the CLI completed verbatim; the exact helper functions and RNG sequence did complete. The report `im-results/agent20-fixed-target-monte-carlo-reproduction-2026-11-24.md` now records this distinction.
