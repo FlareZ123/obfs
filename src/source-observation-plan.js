@@ -165,7 +165,7 @@ function isAllowedExpression(node,readerCall) {
   if(node.type==='Identifier')return true;
   if(node.type==='ObjectExpression') {
     const names=new Set();
-    return node.properties.every(property=>{
+    return node.properties.every(/** @param {AstNode} property */ property=>{
       if(property.type!=='Property'||property.computed||property.method||
          property.shorthand||property.kind!=='init')return false;
       const key=property.key.type==='Identifier'?property.key.name:
@@ -192,6 +192,8 @@ function isAllowedExpression(node,readerCall) {
  */
 function isAllowedProgram(ast,readerCall) {
   if(ast.type!=='Program'||ast.sourceType!=='module')return false;
+  /** @type {AstNode[]} */
+  /** @type {AstNode[]} */
   const functionNodes=[];
   let valid=true;
   for(const statement of ast.body) {
@@ -247,7 +249,9 @@ function isAllowedProgram(ast,readerCall) {
  */
 function inspectDeclarations(ast,readerCall) {
   const counts=new Map();
-  let readerParent=null,readerKey=null,readerAncestors=[];
+  let readerParent=null,readerKey=null;
+  /** @type {AstNode[]} */
+  let readerAncestors=[];
   walk(ast,(node,parent,key,ancestors)=>{
     if(node.type==='FunctionDeclaration'&&node.id?.type==='Identifier') {
       counts.set(node.id.name,(counts.get(node.id.name)??0)+1);
@@ -546,7 +550,9 @@ function buildDirectFunctionSourcePlan(source,path,hostContract) {
     planId:'plan:'+planGeneration,
     planGeneration,
     sourceUnits:readonlyMap([[sourceUnitRef,sourceUnit]]),
-    sourceSpans:readonlyMap([[callableSpanId,callableSpan],[readerSpanId,readerSpan]]),
+    sourceSpans:readonlyMap(/** @type {Array<[string,SourceSpanRef]>} */ ([
+      [callableSpanId,callableSpan],[readerSpanId,readerSpan]
+    ])),
     threatModels:readonlyMap([[threatModelId,threatModel]]),
     moduleResolutionEdges:emptyObjectMap(),
     sourceDeliveryEdges:emptyObjectMap(),
