@@ -177,7 +177,7 @@ test('affine-graph inversion survives hidden two-sided affine wrappers with a si
   ];
   /** @type {Array<{secret:string,hidden:string,target:string,queries:number}>} */
   const receipts=[];
-  /** @type {Array<{secret:string,target:string,preimage:string,queries:number,nullity:number,cycleLength:number}>} */
+  /** @type {Array<{secret:string,target:string,preimage:string,queries:number,nullity:number,orbitCalls:number}>} */
   const lowRankReceipts=[];
   let totalGraphQueries=0;
   let totalLowRankQueries=0;
@@ -213,7 +213,7 @@ test('affine-graph inversion survives hidden two-sided affine wrappers with a si
     assert.equal(wrappedOracleNumber(lowRankResult.preimage),target,
       'independent exact source-forward verification for the rank-two attacker');
     assert.equal(lowRankResult.nullity,1);
-    assert.equal(lowRankResult.cycleLength<=8,true);
+    assert.equal(lowRankResult.orbitCalls<=8,true);
     assert.equal(lowRankResult.provenOrbitUpperBound,8);
     assert.equal(lowRankResult.oracleCalls,expectedLowRankQueries[index]);
     totalLowRankQueries+=lowRankResult.oracleCalls;
@@ -223,7 +223,7 @@ test('affine-graph inversion survives hidden two-sided affine wrappers with a si
       preimage:'0x'+lowRankResult.preimage.toString(16).padStart(8,'0'),
       queries:lowRankResult.oracleCalls,
       nullity:lowRankResult.nullity,
-      cycleLength:lowRankResult.cycleLength
+      orbitCalls:lowRankResult.orbitCalls
     });
 
     totalGraphQueries+=result.queries;
