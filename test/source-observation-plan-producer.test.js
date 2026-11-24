@@ -104,6 +104,31 @@ test('string decoder prologue is rejected when it changes the reader FramePositi
 });
 
 
+test('FramePosition guard rejects a same-line prefix insertion with exact span mapping',()=>{
+  const plan=buildDirectFunctionSourcePlan(source,'entry.mjs',hostContract);
+  assert.ok(plan);
+  const sourceUnitRef=plan.sourceUnits.keys().next().value;
+  const parserContractId=parserContractIdFor('module');
+  const initial=getInitialPlanRanges(plan,sourceUnitRef);
+  const prefix='/* same-line prefix */ ';
+  const start=source.indexOf('const observedSource =');
+  assert.ok(start>=0);
+  const changed=applyEditsWithMap(source,[{
+    start,end:start,text:prefix,affinity:'before-node'
+  }],sourceUnitRef,parserContractId);
+  const ast=parse(changed.code,'module');
+  const next=advancePlanRanges(plan,changed.map,source,changed.code,
+    initial.trackedSourceRanges);
+  assert.ok(next,'the original source spans should remain exactly mappable');
+  const originalReaderLine=source.split('\n')[3];
+  const changedReaderLine=changed.code.split('\n')[3];
+  assert.equal(changedReaderLine.indexOf('call'),
+    originalReaderLine.indexOf('call')+prefix.length,
+    'the insertion changes the reader column but not its line');
+  assert.equal(validatePlanSemantics(plan,changed.code,ast,next,changed.map),false,
+    'same-line FramePosition movement must be rejected even when all source spans map exactly');
+});
+
 test('hostile pre-evaluation toString callsite observer retains native/emitted parity',async()=>{
   const hostileSource=source.replace(
     'const observedSource = Function.prototype.toString.call(observed);',
