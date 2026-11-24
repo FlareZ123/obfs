@@ -62,9 +62,9 @@ function sourceFor(scenario){
  * @returns {{code:string,generated:string,padded:string,delta:number}}
  */
 function padOwnerKeyToOriginalWidth(code){
-  const match=code.match(/owner\s*=\s*\{\s*([A-Za-z_$][\w$]*)\s*:\s*1\s*\}/u);
-  assert.ok(match,'expected a generated owner key in emitted code');
-  const generated=match[1]??'';
+  const match=code.match(/owner\s*=\s*\{\s*(?:"([^"]+)"|'([^']+)'|([A-Za-z_$][\w$]*))\s*:\s*1\s*\}/u);
+  assert.ok(match,'expected a generated owner key in emitted code: '+code.slice(Math.max(0,code.indexOf('owner')-20),code.indexOf('owner')+180));
+  const generated=match[1]??match[2]??match[3]??'';
   assert.ok(generated.length>0,'generated owner key must be nonempty');
   const original='longPrivatePropertyName';
   const delta=original.length-generated.length;
@@ -77,7 +77,7 @@ function padOwnerKeyToOriginalWidth(code){
   ];
   const padded=candidates.find(candidate=>!code.includes(candidate));
   assert.ok(padded,'could not find a collision-free same-width generated key');
-  const escaped=generated.replace(/\$/gu,'\\$');
+  const escaped=generated.replace(/[-/\\^$*+?.()|[\]{}]/gu,'\\  const escaped=generated.replace(/\$/gu,'\\$');');
   const pattern=new RegExp('(?<![A-Za-z0-9_$])'+escaped+'(?![A-Za-z0-9_$])','gu');
   const paddedCode=code.replace(pattern,padded);
   assert.notEqual(paddedCode,code,'generated property references must be padded');
