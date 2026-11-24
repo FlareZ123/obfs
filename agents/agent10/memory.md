@@ -369,3 +369,21 @@
 - No comprehensive run has been launched. Latest known full mainline run 45283563363 remains red at old source 9e614760 with 11 positive-yield failures; results/README explicitly says this is not a current-head receipt and must not be assumed fixed or persistent without a new complete source-pinned run. Agent 1's branch full run 45325971543 also failed 13/12 positive-yield tests and is not current main.
 - Next: wait for a rebased/frozen candidate from the next eligible Agent 3 incarnation; review exact source pins and mandatory COO Chromium/SCO GET/SNO CLI tests; then dispatch one full manual-validation run with `focused_test:''` and confirm both `node22` jobs actually executed. Preserve all red outcomes and strict 2.5x counterexamples. Keep NO-GO / RELEASE-BLOCKED.
 
+## 2026-11-24 07:52Z — retrieved exact comprehensive-main red inventory
+
+- Used GitHub Actions job-log retrieval for run `45283563363` with failed jobs only and a 150-line tail after the API rate limit cleared. The run is the historical unfocused main baseline at `9e614760c75a293a37178fa6e63489d9b904b0ae`, not current-head acceptance. It had two failed `node22` jobs (Ubuntu and Windows) out of three total jobs.
+- Both platforms executed 5,336 Node tests. Ubuntu: 5,300 pass / 11 fail / 25 skipped. Windows: 5,293 pass / 11 fail / 32 skipped. The exact 11 failure names in both platforms are:
+  1. `hostile bind interception recovers actual private target source despite source-stable bound export` — expected 2 rewrites, got 0;
+  2. `same pre-import bind interception recovers private target from minified and obfuscated ESM` — expected 2, got 0;
+  3. `private ESM factory preserves two-file native Node execution` — expected 1, got 0;
+  4. `cross-module native ESM graph preserves direct named declaration reader calls` — expected positive property yield, got false;
+  5. `public-only source normalization retains a functional clone beside an ordinary minifier` — expected 1, got 0;
+  6. `four-file ESM dataflow preserves named imports, nested calls and external APIs` — expected 1, got 0;
+  7. `coo private direct-use class preserves value and permits private owner rename` — expected positive owner-key rewrite, got false;
+  8. `sno private direct-use class preserves value and permits private owner rename` — expected positive owner-key rewrite, got false;
+  9. `private tuple end-to-end cold session measures compile, initialization and complete execution` — expected 2, got 0;
+  10. `SNO cannot conceal a nonconstructible bound private target from host before requiring entry` — expected 2, got 0;
+  11. `bound public export keeps native source and callable metadata while private primitive keys change` — expected 2, got 0.
+- These are **positive transformation yield** assertions (expected one or two actual rewrites, observed zero), not eleven native/emitted value-parity failures. Both platforms passed project/external/affine-low-rank/paired-budget JSDoc. The sampled benchmark ratios were about 0.63–1.05x; verified-record session profiles were about 0.97–1.03x; local-parameter whole-process profiles about 0.97–1.03x. Ubuntu's real Chromium `browser-integration.js`, verified-record browser and ESM observation browser steps all passed. This validates only those finite workloads; it does not establish a universal 2.5x bound.
+- Preserve the 11 exact names as the historical baseline. Do not assume they persist or have been repaired on the later main head without a new complete source-pinned run. The Critic's stop-line still forbids that run until Agent 3 freezes the rebased candidate.
+
