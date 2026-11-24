@@ -72,7 +72,7 @@ function encodeStrings(source, ast, options) {
     throw new TypeError('protectedSourceSpans require a source-unit and parser generation');
   }
   if(protectedSourceSpans.length) {
-    const generation=sourceGenerationOf(source,options.parserContractId);
+    const generation=sourceGenerationOf(source,/** @type {string} */ (options.parserContractId));
     for(const span of protectedSourceSpans) {
       if(!span||typeof span.spanId!=='string'||span.spanId.length===0||
          span.sourceUnitRef!==options.sourceUnitRef||span.sourceGeneration!==generation||
@@ -86,7 +86,7 @@ function encodeStrings(source, ast, options) {
   /** @returns {{code:string,count:number,editMap?:Object}} */
   function noOp() {
     if(hasMapContext) {
-      const mapped=applyEditsWithMap(source,[],options.sourceUnitRef,options.parserContractId);
+      const mapped=applyEditsWithMap(source,[],/** @type {string} */ (options.sourceUnitRef),/** @type {string} */ (options.parserContractId));
       return {code:source,count:0,editMap:mapped.map};
     }
     return {code:source,count:0};
@@ -196,7 +196,7 @@ function encodeStrings(source, ast, options) {
       ...edits,
       {start:offset,end:offset,text:'\n'+init,
         affinity:'before-node',syntheticOriginId:'strings-decoder-prologue'}
-    ],options.sourceUnitRef,options.parserContractId);
+    ],/** @type {string} */ (options.sourceUnitRef),/** @type {string} */ (options.parserContractId));
     return {code:mapped.code,count:edits.length,editMap:mapped.map};
   }
   const transformed = applyEdits(source, edits);
