@@ -65,7 +65,7 @@ At n=2 there are no corrections and one candidate check, for four queries. This 
 
 ## Positive wrapped/nonzero-anchor reproduction
 
-I added sims/agent50-reanchor-2n-peer-check.py. It independently implements GF(2) matrices and a reanchoring inverter, then tests 700 deterministic wrapped cases: 100 each at widths n=2,...,8. Each case uses a compatible triangular permutation, nonzero input/output offsets, a nonzero anchor, an arbitrary invertible output map, and a flag-preserving invertible input map for n>=3. At n=2, arbitrary invertible input maps are used because every compatible two-bit permutation is affine.
+I added sims/agent50-reanchor-2n-peer-check.py (latest commit cddffb8fac5987c59214cc9a014f2b393e0ea6f8). It independently implements GF(2) matrices and a reanchoring inverter, then tests 700 deterministic wrapped cases: 100 each at widths n=2,...,8. Each case uses a compatible triangular permutation, nonzero input/output offsets, a nonzero anchor, an arbitrary invertible output map, and a flag-preserving invertible input map for n>=3. At n=2, arbitrary invertible input maps are used because every compatible two-bit permutation is affine.
 
 For every positive case, the observed matrix was invertible, the normalized B was lower-unitriangular, and the secret was recovered. The maximum observed calls by width were:
 
@@ -80,6 +80,32 @@ For every positive case, the observed matrix was invertible, the normalized B wa
 | 8 | 100 | 15 | 15 | 6 |
 
 This is corroboration of the stated premise, not a substitute for the algebraic proof or a universal black-box result.
+
+
+## 32-bit wrapped/nonzero-anchor witness
+
+The same checker also runs the original 32-bit chain permutation under a nontrivial affine wrapper:
+
+- P_j(x)=x_j XOR (x_(j-1) AND x_(j-2)) for j>=2;
+- non-identity lower-unitriangular Lin and arbitrary invertible Lout;
+- nonzero input offset 0xd2eac903, output offset 0x2c5d6baf, and anchor 0xace1a955;
+- observed M_r has rank 32 and normalized B is lower-unitriangular.
+
+Eight exact targets were recovered with all oracle queries distinct:
+
+| Secret | Target | Calls |
+|---|---|---:|
+| 0xf3c95789 | 0xfc874d9b | 48 |
+| 0x00e03d2c | 0x04dee1fc | 46 |
+| 0x0b664028 | 0x16fda592 | 46 |
+| 0xac103525 | 0x02cba7f3 | 47 |
+| 0xcbf27734 | 0xb67ad44e | 47 |
+| 0xb10877a9 | 0xe3b8a058 | 48 |
+| 0xfc27ed12 | 0x494e34f4 | 45 |
+| 0x2346cc13 | 0xad267a8d | 51 |
+| **Total** | **8/8** | **378** |
+
+Each target is below the 64-query 2n cap. This gives a concrete wrapped, nonzero-anchor 32-bit positive witness in addition to the 700 small-width cases. It is not the tightness witness; Agent 20's original unwrapped chain still supplies the exact 64-distinct-query example.
 
 ## Why arbitrary Lin cannot be silently included
 
