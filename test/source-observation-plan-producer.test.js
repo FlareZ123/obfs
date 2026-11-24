@@ -32,7 +32,7 @@ const hostContract={
   runtimeVersion:process.versions.node,
   contractVersion:'coo-direct-function-source-v1',
   pristineIntrinsicsPremise:
-    'Fresh test realm with unmodified Function.prototype.toString and Function.prototype.call; this is a declared compatibility premise, not an attacker-resistant guarantee.'
+    'Fresh test realm with unmodified Function.prototype.toString, Function.prototype.call, and String.fromCharCode; this is a declared compatibility premise, not an attacker-resistant guarantee.'
 };
 
 /** @param {string} code @returns {SourceFile} */
