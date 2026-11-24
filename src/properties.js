@@ -372,9 +372,12 @@ function collectOwnedConstantKeys(ast,rootName,bindings,scopes) {
  * @param {Map<string,string>} [importedSourceKeys] Verified string imports used only to detect source observation; this may include keys unrelated to the owner's fields.
  * @param {Set<string>} [importedPrimitives] Verified immutable primitive results from the exact ESM graph.
  * @param {boolean} [allowDirectReflection] Allow a closed-world caller to rewrite a narrowly proved direct reflective key.
+ * @param {string[]} [additionalRootNames] Other local names proven to denote the same immutable imported ESM binding.
  * @returns {{aliases:Set<string>,members:AstNode[],memberNames:Map<AstNode,string>,patterns:AstNode[],patternNames:Map<AstNode,string>,inChecks:AstNode[],reflections:{call:AstNode,key:AstNode,property:string}[],forwardedCalls:Set<AstNode>}|null}
  */
-function proveLocalObject(ast, rootName, bindings, importedIdentityFunctions=new Map(), importedConsumers=new Map(), importedConstantKeys=new Map(), importedSourceKeys=importedConstantKeys, importedPrimitives=new Set(), allowDirectReflection=false) {
+function proveLocalObject(ast, rootName, bindings, importedIdentityFunctions=new Map(), importedConsumers=new Map(), importedConstantKeys=new Map(), importedSourceKeys=importedConstantKeys, importedPrimitives=new Set(), allowDirectReflection=false, additionalRootNames=[]) {
+  const rootNames=new Set([rootName,...additionalRootNames]);
+  if([...rootNames].some(name=>bindings.get(name)!==1))return null;
   if(observesFunctionSource(ast,importedSourceKeys,new Set(),new Set(),importedPrimitives)) return null;
   /** @type {Map<string,{node:AstNode,params:AstNode[],forwardIndex:number,returnsRoot?:boolean,external?:boolean,consumerIndex?:number}>} */
   const functions = new Map();
@@ -393,7 +396,7 @@ function proveLocalObject(ast, rootName, bindings, importedIdentityFunctions=new
         const params = node.params;
         const returned=node.body.body[0].argument.name;
         forwardIndex = params.findIndex(p => p.type === 'Identifier' && p.name === returned);
-        returnsRoot = !params.length && returned === rootName;
+        returnsRoot = !params.length && rootNames.has(returned);
       }
       functions.set(node.id.name,{node,params:node.params,forwardIndex,returnsRoot});
     }
@@ -436,7 +439,7 @@ function proveLocalObject(ast, rootName, bindings, importedIdentityFunctions=new
         }
         if (body?.type === 'Identifier') {
           const index=value.params.findIndex((/** @type {AstNode} */ p)=>p.name===body.name);
-          const returnsRoot=!value.params.length && body.name===rootName;
+          const returnsRoot=!value.params.length && rootNames.has(body.name);
           if (index>=0 || returnsRoot) functions.set(node.id.name,{
             node:value,params:value.params,forwardIndex:index,returnsRoot
           });
@@ -496,6 +499,8 @@ function proveLocalObject(ast, rootName, bindings, importedIdentityFunctions=new
   }
 
   const scopes=collectBindingScopes(ast);
+  const rootScope=scopes.get(rootName);
+  if(!rootScope||[...rootNames].some(name=>scopes.get(name)!==rootScope))return null;
   // Most owners use direct known member names and need no constant-key scan.
   // Build the same per-owner key facts only when a computed identifier read
   // actually requests them, retaining all original lexical/order gates.
@@ -526,8 +531,10 @@ function proveLocalObject(ast, rootName, bindings, importedIdentityFunctions=new
   const privateOwnerTuples=new Map();
   /** @type {Set<AstNode>} */
   const privateArrayLiteralElements=new Set();
-  for(const decl of tupleDeclarations.get(rootName)??[]){
-    if(decl.id.type!=='Identifier'||decl.id.name===rootName||
+  const tupleCandidates=new Set();
+  for(const name of rootNames)for(const decl of tupleDeclarations.get(name)??[])tupleCandidates.add(decl);
+  for(const decl of tupleCandidates){
+    if(decl.id.type!=='Identifier'||rootNames.has(decl.id.name)||
        parents.get(decl)?.type!=='VariableDeclaration'||
        parents.get(decl)?.kind!=='const'||
        parents.get(/** @type {AstNode} */(parents.get(decl)))?.type==='ExportNamedDeclaration'||
@@ -540,7 +547,7 @@ function proveLocalObject(ast, rootName, bindings, importedIdentityFunctions=new
     let inert=true;
     for(let slot=0;slot<elements.length;slot++){
       const element=elements[slot];
-      if(element?.type==='Identifier'&&element.name===rootName){
+      if(element?.type==='Identifier'&&rootNames.has(element.name)){
         indices.add(slot);
         continue;
       }
@@ -553,7 +560,7 @@ function proveLocalObject(ast, rootName, bindings, importedIdentityFunctions=new
     if(!indices.size||!inert)continue;
     const holder=decl.id.name;
     const scope=scopes.get(holder);
-    if(!scope||scope!==scopes.get(rootName))continue;
+    if(!scope||scope!==rootScope)continue;
     /** @type {Set<string>} */
     const holderAliases=new Set();
     /** @type {Set<AstNode>} */
@@ -632,8 +639,10 @@ function proveLocalObject(ast, rootName, bindings, importedIdentityFunctions=new
   const privateOwnerRecords=new Map();
   /** @type {Set<AstNode>} */
   const privateRecordLiteralValues=new Set();
-  for(const decl of recordDeclarations.get(rootName)??[]){
-    if(decl.id.type!=='Identifier'||decl.id.name===rootName||
+  const recordCandidates=new Set();
+  for(const name of rootNames)for(const decl of recordDeclarations.get(name)??[])recordCandidates.add(decl);
+  for(const decl of recordCandidates){
+    if(decl.id.type!=='Identifier'||rootNames.has(decl.id.name)||
        parents.get(decl)?.type!=='VariableDeclaration'||
        parents.get(decl)?.kind!=='const'||
        parents.get(/** @type {AstNode} */(parents.get(decl)))?.type==='ExportNamedDeclaration'||
@@ -660,7 +669,7 @@ function proveLocalObject(ast, rootName, bindings, importedIdentityFunctions=new
         break;
       }
       names.add(name);
-      if(field.value.type==='Identifier'&&field.value.name===rootName){
+      if(field.value.type==='Identifier'&&rootNames.has(field.value.name)){
         ownedKeys.add(name);
         ownedValues.push(field.value);
       }else if(field.value.type!=='Literal'||
@@ -673,7 +682,7 @@ function proveLocalObject(ast, rootName, bindings, importedIdentityFunctions=new
     if(!safe||!ownedKeys.size)continue;
     const holder=decl.id.name;
     const scope=scopes.get(holder);
-    if(!scope||scope!==scopes.get(rootName))continue;
+    if(!scope||scope!==rootScope)continue;
     /** @type {Set<string>} */
     const holderAliases=new Set();
     /** @type {Set<AstNode>} */
@@ -839,7 +848,7 @@ function proveLocalObject(ast, rootName, bindings, importedIdentityFunctions=new
     if(privateValue)privateFunctionNodes.add(binding.node);
   }
 
-  const aliases = new Set([rootName,...privateCarrierAliases]);
+  const aliases = new Set([...rootNames,...privateCarrierAliases]);
   /**
    * Return the only alias fact needed to resolve an expression. A null result
    * is already proved from this root through a private carrier or captured
@@ -955,7 +964,7 @@ function proveLocalObject(ast, rootName, bindings, importedIdentityFunctions=new
     if (declaration.type !== 'ExportNamedDeclaration' ||
         declaration.declaration?.type !== 'VariableDeclaration') continue;
     for (const decl of declaration.declaration.declarations) {
-      if (decl.id.type === 'Identifier' && decl.id.name !== rootName && aliases.has(decl.id.name)) {
+      if (decl.id.type === 'Identifier' && !rootNames.has(decl.id.name) && aliases.has(decl.id.name)) {
         return null;
       }
     }
