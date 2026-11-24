@@ -71,6 +71,20 @@ The repair reuses `collectVerifiedImportedStrings(files,parseFile)` before graph
 
 At patch `f6ca2c20efcd3e1e52c66aa1fce5c1186628b121`, independent Windows and Ubuntu focused test runs show [computed cross-file matrix 45164379447](https://github.com/FlareZ123/obfs/actions/runs/45164379447) **52/52 pass**, [native ambient-root regression 45164386989](https://github.com/FlareZ123/obfs/actions/runs/45164386989) **14/14 pass**, [computed binding context 45164393963](https://github.com/FlareZ123/obfs/actions/runs/45164393963) **5/5 pass**. The previous `0ff73da83` SHA also had [50/50 existing host-formal pass 45163602620](https://github.com/FlareZ123/obfs/actions/runs/45163602620). A complete `f6ca2c20` Node22 two-platform CI run was dispatched after the focused matrix fix. The externally sourced CEGAR JSDoc step was already red on main, so these top-level workflows should be assessed by their specific source-pinned tests.
 
+## Follow-up: ordinary indirect native member extraction
+
+After the first correction was merged through [PR #337](https://github.com/FlareZ123/obfs/pull/337), a separate branch identified the structurally distinct member-access form of the same source-visible semantic failure:
+
+- `const host=(0,globalThis);const cap=host.Reflect;cap.ownKeys=globalThis.HOST_REFLECT;`
+- `const cap=(0,globalThis)["Reflect"];cap.ownKeys=globalThis.HOST_REFLECT;`
+- `function getRoot(){return globalThis;}const indirect=getRoot();const cap=indirect.Reflect;cap.ownKeys=globalThis.HOST_REFLECT;`
+
+The first two are independently red on both Linux and Windows [45166702461](https://github.com/FlareZ123/obfs/actions/runs/45166702461), where the original opaque callback observes `["secretField"]` but emitted code exposes `["_pe75039b4a453"]` and `["_p3dc51f6c1c48"]`. The third independently failed at source `a80100660d9c2ba3e13d0bd1f6863c8314de92b3` in [45167236570](https://github.com/FlareZ123/obfs/actions/runs/45167236570), yielding `["_pfb49e4201a6c"]`.
+
+A bounded additional fail-closed proof in `src/cross-properties.js` discovers source-visible possible ambient roots through direct aliases, sequence expressions, either conditional or logical branch, static array indexing, and local callable returns. It then declines the full closed-world property rename if such a receiver reads `Reflect`/`Object` or an unresolved computed member key. It does not generally assert that arbitrary call-return values or unrelated member properties are ambient. This source-visible approximation protects these recorded examples but does not complete arbitrary interprocedural value-flow reasoning.
+
+The 3 new real emitted-vs-native differential checks are appended to `test/ambient-indirect-root-formal.test.js`. All tests retain an independent genuinely renamed private ESM positive. This follow-up is subject to Windows/Linux focused regression checks and subsequent integration; no release-level security claim is made.
+
 ## Boundaries
 
 The host preloader and dynamic import are declared attack conditions, rather than proof of a compromised build system or arbitrary runtime. The result does not mean the attacker obtains values which were otherwise secret. The current candidate rejects unproved native-reflection formals while preserving the narrowly established private literal call case; static source recovery, online SCO relaying, deliberate runtime modification, and strict >2.5× profile counterexamples remain outside this regression's scope. A narrower producer/alias/effect proof with retained positive yield is a future replacement candidate.
