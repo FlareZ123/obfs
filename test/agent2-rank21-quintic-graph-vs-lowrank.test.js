@@ -135,50 +135,81 @@ test('degree-five affine-flag graph inversion on rank-21 displacement (joint rad
   /** @param {bigint} input @returns {bigint} */
   const bigOracle=input=>BigInt(oracle(Number(input)));
 
-  // The hidden target activates all 21 distinct degree-five monomials.
-  const hiddenSecret=0x67aa29ff;
-  const secret=inputInverse((hiddenSecret^inputBias)>>>0);
-  const target=oracle(secret);
+  // Eight held-out hidden targets cover all-one and seven distinct six-one
+  // patterns on the seven nonlinear input coordinates.
+  const hiddenTargets=[
+    0x67aa29ff,0x628acbfe,0xfe1940fd,0xc1ece67b,
+    0x3e411777,0x37fff36f,0xbd72765f,0x8721e5bf
+  ];
+  const expectedLowRankQueries=[
+    121616,2082224,1771722,198219,959413,1343261,214296,1549526
+  ];
+  const expectedOrbitCalls=[
+    121581,2082189,1771687,198184,959378,1343226,214261,1549491
+  ];
+  const firstSecret=inputInverse((hiddenTargets[0]^inputBias)>>>0);
+  const firstTarget=oracle(firstSecret);
 
   // The current low-rank implementation retains its default rank-16 safety
   // cap. Explicit opt-in is required for the rank-21 research comparison.
-  assert.throws(()=>invertLowRankPermutation(oracle,target,{
+  assert.throws(()=>invertLowRankPermutation(oracle,firstTarget,{
     bits:32,rankBound:21,sample:seeded(0x12345678)
   }),RangeError);
 
-  const lowRank=invertLowRankPermutation(oracle,target,{
-    bits:32,
-    rankBound:21,
-    maxRankBound:21,
-    sample:seeded(0x12345678),
-    maxSamples:96
-  });
-  assert.equal(lowRank.preimage,secret);
-  assert.equal(oracle(lowRank.preimage),target);
-  assert.equal(lowRank.nullity,1);
-  assert.equal(lowRank.samplingCalls,2);
-  assert.equal(lowRank.orbitCalls,121581);
-  assert.equal(lowRank.cycleLength,121581);
-  assert.equal(lowRank.oracleCalls,121616);
+  /** @type {Array<{index:number,secret:string,target:string,graphQueries:number,lowRankQueries:number,orbitCalls:number}>} */
+  const receipts=[];
+  let totalGraphQueries=0;
+  let totalLowRankQueries=0;
+  for(let index=0;index<hiddenTargets.length;index++){
+    const secret=inputInverse((hiddenTargets[index]^inputBias)>>>0);
+    const target=oracle(secret);
+    const lowRank=invertLowRankPermutation(oracle,target,{
+      bits:32,
+      rankBound:21,
+      maxRankBound:21,
+      sample:seeded(0x12345678),
+      maxSamples:96
+    });
+    assert.equal(lowRank.preimage,secret);
+    assert.equal(oracle(lowRank.preimage),target);
+    assert.equal(lowRank.nullity,1);
+    assert.equal(lowRank.samplingCalls,2);
+    assert.equal(lowRank.orbitCalls,expectedOrbitCalls[index]);
+    assert.equal(lowRank.cycleLength,expectedOrbitCalls[index]);
+    assert.equal(lowRank.oracleCalls,expectedLowRankQueries[index]);
 
-  const graph=invertByRandomAffineGraph(
-    bigOracle,BigInt(target),32,5,{seed:0x5e21,delta:1e-8}
-  );
-  assert.equal(graph.input,BigInt(secret));
-  assert.equal(graph.verified,true);
-  assert.ok(graph.queries<lowRank.oracleCalls);
+    const graph=invertByRandomAffineGraph(
+      bigOracle,BigInt(target),32,5,{seed:0x5e21+index,delta:1e-8}
+    );
+    assert.equal(graph.input,BigInt(secret));
+    assert.equal(graph.verified,true);
+    assert.ok(graph.queries<lowRank.oracleCalls);
+
+    totalGraphQueries+=graph.queries;
+    totalLowRankQueries+=lowRank.oracleCalls;
+    receipts.push({
+      index,
+      secret:'0x'+secret.toString(16).padStart(8,'0'),
+      target:'0x'+target.toString(16).padStart(8,'0'),
+      graphQueries:graph.queries,
+      lowRankQueries:lowRank.oracleCalls,
+      orbitCalls:lowRank.orbitCalls
+    });
+  }
+  assert.equal(totalLowRankQueries,8240277);
+  assert.ok(totalGraphQueries<totalLowRankQueries);
 
   process.stdout.write('OBFS_RANK21_QUINTIC_GRAPH_VS_LOWRANK '+JSON.stringify({
+    targets:receipts.length,
     nonlinearOutputRank:21,
     topDegree:5,
     topSupportUnion:'0x7f',
     jointTopDerivativeRadicalCodimension:7,
-    target:'0x'+target.toString(16).padStart(8,'0'),
-    secret:'0x'+secret.toString(16).padStart(8,'0'),
-    graph:{queries:graph.queries,verified:graph.verified},
-    lowRank:{rankBound:21,nullity:lowRank.nullity,
-      samplingCalls:lowRank.samplingCalls,orbitCalls:lowRank.orbitCalls,
-      oracleCalls:lowRank.oracleCalls},
-    defaultRankBoundCap:16
+    receipts,
+    totalGraphQueries,
+    totalLowRankQueries,
+    graphAdvantage:totalLowRankQueries/totalGraphQueries,
+    defaultRankBoundCap:16,
+    explicitRankBound:21
   })+'\\n');
-});
+;
