@@ -3,7 +3,7 @@
 const {randomInt}=require('node:crypto');
 
 /** @typedef {(input:number)=>number} UInt32Oracle */
-/** @typedef {{bits:number,rankBound:number,sample?:()=>number,maxSamples?:number}} InversionOptions */
+/** @typedef {{bits:number,rankBound:number,maxRankBound?:number,sample?:()=>number,maxSamples?:number}} InversionOptions */
 /** @typedef {{preimage:number,oracleCalls:number,interpolationCalls:number,samplingCalls:number,orbitCalls:number,interpolantRank:number,nullity:number,cycleLength:number}} InversionResult */
 
 /**
@@ -91,9 +91,11 @@ function inverseColumns(columns){
  * to a coset containing at most 2**rankBound points.
  *
  * This is a chosen-input oracle attack, not a static reconstruction. The
- * practical implementation caps rankBound at 16 to bound worst-case work.
- * A custom sample callback is intended for deterministic reproducibility;
- * only the default crypto sampler carries the uniform-draw guarantee.
+ * practical implementation caps rankBound at 16 by default. A caller may
+ * explicitly raise maxRankBound (up to bits) for a research run, opting into
+ * the corresponding exponential orbit budget. A custom sample callback is
+ * intended for deterministic reproducibility; only the default crypto
+ * sampler carries the uniform-draw guarantee.
  *
  * @param {UInt32Oracle} oracle
  * @param {number} target
@@ -102,9 +104,11 @@ function inverseColumns(columns){
  */
 function invertLowRankPermutation(oracle,target,options){
   const {bits,rankBound}=options;
+  const maxRankBound=options.maxRankBound??16;
   if(!Number.isInteger(bits)||bits<1||bits>32||
-     !Number.isInteger(rankBound)||rankBound<0||rankBound>Math.min(16,bits)){
-    throw new RangeError('Expected 1..32 bits and rankBound 0..min(16,bits)');
+     !Number.isInteger(maxRankBound)||maxRankBound<0||maxRankBound>32||
+     !Number.isInteger(rankBound)||rankBound<0||rankBound>Math.min(maxRankBound,bits)){
+    throw new RangeError('Expected 1..32 bits and rankBound 0..min(maxRankBound,bits)');
   }
   const range=2**bits;
   const sample=options.sample??(()=>randomInt(range));
