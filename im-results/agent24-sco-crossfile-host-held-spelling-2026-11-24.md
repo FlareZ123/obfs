@@ -54,14 +54,26 @@ This is a current-main red control for the request-time mutation path. It does n
 ## Reproduction
 
 - Test-only branch: `agent24-sno-cli-host-held-string-20261124`
-- Branch head: `5b7268f2680dffc20deba5ef3e57ebda3758aede`
-- Test: `test/agent24-sco-crossfile-host-held-spelling.test.js`
-- Workflow: [Manual validation run 45336634434](https://github.com/FlareZ123/obfs/actions/runs/45336634434), run #3273
+- Current branch head: `2104c14cfdf72a3d0bb9994052ee680d1cec04f8`
+- Test: `test/agent24-sco-crossfile-host-held-spelling.test.js` (two cases: one response mutation and concurrent independent helper variants)
+- Stronger workflow: [Manual validation run 45337315146](https://github.com/FlareZ123/obfs/actions/runs/45337315146), run #3275
+- Earlier single-response run: [45336634434](https://github.com/FlareZ123/obfs/actions/runs/45336634434), run #3273
 - Node: 22.23.4
-- Ubuntu: focused test, project JSDoc, external JSDoc, paired-budget JSDoc all passed
-- Windows: focused test, project JSDoc, external JSDoc, paired-budget JSDoc all passed
+- Ubuntu: both focused tests, project JSDoc, external JSDoc, paired-budget JSDoc all passed in run #3275
+- Windows: both focused tests, project JSDoc, external JSDoc, paired-budget JSDoc all passed in run #3275
 
 The handler also creates a fresh 24-byte nonce for each module GET (`src/sco.js` around line 672), varies only that response's `confirmedFile`, and calls `obfuscateFiles([input])`. A browser may fetch entry and helper concurrently, so request-variant generation is per file response. A future full-graph plan must therefore be a unique immutable response plan for each GET, with one changed SourceUnitRef and all other module edges retained. This test does not yet exercise concurrent GET isolation.
+
+
+## Concurrent response variant control
+
+The second test fetches `entry.cjs` once and `helper.cjs` twice **concurrently** from one handler instance. The two helper responses have different request-specific escaped spellings. Each helper variant is then executed with the same entry response under the host preload:
+
+- both callback sources differ from native and from each other;
+- both stdout values equal native `helperCallbackSourceLiteral`;
+- neither host callback is invoked.
+
+This confirms that the current handler produces independent source variants per module GET. It does **not** prove a future plan is isolated correctly; the plan is not implemented. It establishes the acceptance requirement that each response have its own immutable plan/generation while preserving cross-file effect closure.
 
 ## Required future behavior and limits
 
