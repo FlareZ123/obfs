@@ -31,7 +31,8 @@
     "workplace/sco-five-state-block-packed-benchmark.js",
     "test/sco-five-state-block-packed-benchmark.test.js",
     "sims/sco-step-only-smt.js",
-    "test/sco-step-only-smt.test.js"
+    "test/sco-step-only-smt.test.js",
+    "sims/sco-rankfive-top-quintic-real-http.js"
   ],
   "exclude": [
     "node_modules"
