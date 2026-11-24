@@ -19,13 +19,13 @@ It reconstructs the table and source string directly from the frozen `privateSou
 - the table's full XOR/top quintic coefficient is `0xb1f2257d`;
 - the reconstructed source string has SHA-256 `2b6a7b2cb348cd716e636e8e2da0817d4721a95f98bd45bbd90ffd8a5b366a9d`, length 3,487 bytes.
 
-It then enumerates every ordered pair (u,vinmathbb F_2^5setminus{0}) with (u
-e v). Over (mathbb F_2), these are exactly the 930 ordered independent pairs. For each pair it checks every basepoint (qinmathbb F_2^5) and every nonzero shift (delta), verifying
-[
-D_uD_delta H(q)
-e0quad	ext{or}quad D_vD_delta H(q)
-e0.
-]
+It first checks the stronger property directly: for every basepoint q, every nonzero shift delta, and every offset u other than 0 or delta, the second difference
+
+`H(q) XOR H(q+delta) XOR H(q+u) XOR H(q+u+delta)`
+
+is nonzero. Thus the only zeros of the function u -> D_u D_delta H(q) are the unavoidable u=0 and u=delta. It checks 32 × 31 × 30 = 29,760 nontrivial triples.
+
+It then independently enumerates every ordered pair u,v of distinct nonzero vectors in F2^5. Over F2, these are exactly the 930 ordered independent pairs. For each pair it checks every basepoint q in F2^5 and every nonzero shift delta, verifying that at least one of D_u D_delta H(q) and D_v D_delta H(q) is nonzero.
 
 **Result:** zero violations.
 
@@ -33,9 +33,9 @@ e0.
 
 ## Why this covers every anchor basis
 
-For any quotient-basis anchors (a_0,ldots,a_4), the first two projected anchor vectors (u=Pa_0) and (v=Pa_1) are distinct nonzero vectors in (mathbb F_2^5), hence independent. Conversely, every ordered independent pair can be extended to a full basis. The enumeration therefore covers the first-two-coordinate pair of every possible invertible anchor-coordinate transformation.
+For any quotient-basis anchors a0,...,a4, the first two projected anchor vectors u=P(a0) and v=P(a1) are distinct nonzero vectors in F2^5, hence independent. Conversely, every ordered independent pair can be extended to a full basis. The enumeration therefore covers the first-two-coordinate pair of every possible invertible anchor-coordinate transformation.
 
-The section table is (H(t)=A(s(t))+b+h(Mt)), where (M) is the invertible coordinate map induced by the anchors. The affine term (A(s(t))+b) vanishes under the second differences, so the checked property for (h(Mt)) is exactly the property used by the shift matcher. Thus, for this frozen source table, the fixed pair ({1,2}) passes regardless of which valid witness anchors are selected.
+The section table is H(t)=A(s(t))+b+h(Mt), where M is the invertible coordinate map induced by the anchors. The affine term A(s(t))+b vanishes under second differences, so the checked property for h(Mt) is exactly the property used by the shift matcher. Thus, for this frozen source table, the fixed pair {1,2} passes regardless of which valid witness anchors are selected.
 
 ## Implication and limits
 
