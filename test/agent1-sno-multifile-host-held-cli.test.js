@@ -3,6 +3,8 @@
 const assert = require('node:assert/strict');
 const {test} = require('node:test');
 const {createHash} = require('node:crypto');
+const {obfuscateFiles} = require('../src');
+const {parse,observesFunctionSource,observesDistributedSource} = require('../src/ast');
 const {spawnSync} = require('node:child_process');
 const fs = require('node:fs/promises');
 const os = require('node:os');
@@ -103,6 +105,27 @@ test('SNO CLI preserves one-entry launch while a host observes a helper callback
     assert.ok(cli.stdout.length>=0);
 
     const emittedHelper=await fs.readFile(path.join(outputRoot,'helper.cjs'),'utf8');
+    const inputEntry=await fs.readFile(path.join(inputRoot,'entry.cjs'),'utf8');
+    const inputHelper=await fs.readFile(path.join(inputRoot,'helper.cjs'),'utf8');
+    const directDefault=obfuscateFiles([
+      {path:'entry.cjs',sourceType:'commonjs',code:inputEntry},
+      {path:'helper.cjs',sourceType:'commonjs',code:inputHelper}
+    ],{mode:'sno',seed:'agent1-sno-host-held-multifile'});
+    const directHelper=String(directDefault.files.find(file=>file.path==='helper.cjs')?.code??'');
+    const directNoStrings=obfuscateFiles([
+      {path:'entry.cjs',sourceType:'commonjs',code:inputEntry},
+      {path:'helper.cjs',sourceType:'commonjs',code:inputHelper}
+    ],{mode:'sno',seed:'agent1-sno-host-held-multifile',strings:false,identifiers:true,properties:false});
+    const directNoStringsHelper=String(directNoStrings.files.find(file=>file.path==='helper.cjs')?.code??'');
+    console.log('SNO_SOURCE_OBSERVER_DIAGNOSTIC '+JSON.stringify({
+      entryFunctionSourceObserver:observesFunctionSource(parse(inputEntry,'commonjs')),
+      helperFunctionSourceObserver:observesFunctionSource(parse(inputHelper,'commonjs')),
+      entryDistributedSourceObserver:observesDistributedSource(parse(inputEntry,'commonjs')),
+      helperDistributedSourceObserver:observesDistributedSource(parse(inputHelper,'commonjs')),
+      cliHelper:emittedHelper,
+      directDefaultHelper:directHelper,
+      directNoStringsHelper:directNoStringsHelper
+    }));
     const launcher=await fs.readFile(path.join(outputRoot,'sno-entry.cjs'),'utf8');
     const helperDigest=createHash('sha256').update(emittedHelper).digest('hex');
     assert.ok(launcher.includes('helper.cjs'),'single-entry launcher must include the helper in its manifest');
