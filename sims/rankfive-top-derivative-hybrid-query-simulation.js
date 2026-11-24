@@ -170,8 +170,8 @@ async function main() {
     'rankfive-top-derivative-hybrid-query-simulation.json',
     JSON.stringify(summary,null,2)+'\n'
   );
-  const compact={...summary};
-  delete compact.arrays;
+  const {arrays:unusedArrays,...compact}=summary;
+  void unusedArrays;
   console.log('RANKFIVE_TOP_DERIVATIVE_HYBRID_SIMULATION '+JSON.stringify(compact));
   return summary;
 }
