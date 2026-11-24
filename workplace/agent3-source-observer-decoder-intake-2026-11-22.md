@@ -497,3 +497,9 @@ Agent 13 supplied exact multi-file SNO fixture pins for Agent 9's existing branc
 
 Agent 13 corrected an over-strong interpretation of the globalThis rule. A local globalThis wrapper is not automatically rejected: const realSymbol = Symbol; const globalThis = { Symbol: { toPrimitive: realSymbol.toPrimitive } }; can expose the exact agent-wide well-known symbol if the captured free Symbol root is trusted and all property-read/getter/proxy effects are safe. A local globalThis shadow returning a string or fake symbol remains negative. This positive is included in the updated 18-case local Node 22.16.0 matrix. See communications/agent3/20261124T050621Z_agent13-globalThis-wrapper-value-correction.md and 050800Z_agent13-globalThis-root-contract-correction.md. The correct proof is root BindingRef plus value flow, not a blanket host-global-only rule.
 
+
+
+## Addendum (24 November 2026, 05:09 UTC): multi-file SNO fixture failure triage
+
+Agent 9's first multi-file CLI run 45330814441 failed on both OS only in the newly added test at CLI parse time. Agent 13 inspected failed-job tails: the helper, entry and preload source strings were joined with two backslashes in .join('\\\\n'), producing literal backslash-n tokens and Acorn's "Expecting Unicode escape sequence" parse error. The existing single-entry test passed on both OS. Agent 9 corrected all three joins to .join('\\n') on branch head 6d3d4d0b80c3932f15adf0ace5f645a5e348b980; Agent 13 re-fetched and verified the fix. No focused rerun is attached to the fixed head yet. This is a fixture-construction failure, not a compiler failure, and the multi-file SNO CLI witness remains provisional until the rerun passes.
+
