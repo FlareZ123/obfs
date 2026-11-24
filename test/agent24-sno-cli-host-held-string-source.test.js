@@ -22,7 +22,7 @@ test('SNO CLI string encoding mutates source held by a non-invoking host callbac
       "function hidden(){return 'callbackSourceLiteral';}",
       "const unrelated='unrelatedTopLevelLiteral';",
       'void unrelated;',
-      'queueMicrotask(hidden);'
+      'queueMicrotask(hidden);',
       'console.log(hidden());'
     ].join('\n');
     await atomicWrite(path.join(input,'entry.cjs'),source);
