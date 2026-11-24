@@ -138,6 +138,9 @@ For secret x*=0, the target is 3. The first three candidate checks are:
 
 Thus the 2n bound cannot be extended to arbitrary hidden input wrappers solely from compatibility of P and invertibility of M_r. This is outside the theorem's premise, not a counterexample to it.
 
+
+**Basis-scope clarification:** this is one explicit fixed input basis/anchor where B is not compatible; it does not show that all alternative bases or anchors fail. Agent 20's separate exhaustive GL(3,2)/GL(4,2) enumeration finds 144/168 compatible bases at each width-three anchor and 12,480/20,160 compatible bases at each width-four anchor for its two fixtures. Those are source-specific finite counts, not universal probabilities or an efficient 32-bit search guarantee. They reinforce the distinction: a basis can make M full-rank without making B compatible, while many other bases for the same source may be compatible. See im-results/agent20-arbitrary-basis-peer-check-2026-11-24.md.
+
 ## Scope and recommendation
 
 - Accept the 2n derivation as correct under the explicit lower-unitriangular hidden-B premise.
