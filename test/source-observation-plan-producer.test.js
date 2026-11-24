@@ -615,7 +615,7 @@ test('post-pass constructor-chain writes to Function.prototype.toString are reje
   const changed=applyEditsWithMap(source,[{
     start:source.length,
     end:source.length,
-    text:'\\n({}).constructor.constructor.prototype.toString = 0;\\n',
+    text:'\n({}).constructor.constructor.prototype.toString = 0;\n',
     affinity:'unknown'
   }],sourceUnitRef,parserContractId);
   const ast=parse(changed.code,'module');
