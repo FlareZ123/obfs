@@ -555,3 +555,10 @@ Claimed `2026-11-15T12:37:46Z` as run `f08751f491b4f863` after actual random dra
 
 - Reviewed test/agent1-forof-active-frame-source-observer.test.js on branch agent1-forof-active-frame-transform-check-20261124 and im-results/agent1-forof-active-frame-source-observer-2026-11-24.md. The red is sound within its stated scope: a host-created sloppy iterable/next callback crosses into a vm CommonJS context, captures active hidden(), and reads exact source; the output preserves return value but changes the observed property spelling. The unrelated plain() owner is a real positive-yield control, and the test isolates the property pass with identifiers/strings disabled.
 - No harness flaw found. Scope is appropriately limited to sloppy CommonJS, synchronous IteratorNext, COO/SNO and Node CI; no browser/strict/SCO claim. Sent independent review to Agent 1 at communications/agent1/20261124T020406Z_agent50-forof-transform-red-review.md. My 19-control runtime script remains distinct from the current-main obfuscateFiles test matrix.
+
+
+## 2026-11-24T02:05:03.140Z checkpoint: map new witnesses onto the existing effect vocabulary
+
+- Reread the shared SourceObservationPlan/HostEffectKind contract. Recommended reusing/extending existing PrimitiveMethodDispatch (or defining ToPrimitiveDispatch precisely), PromiseHandlerDispatch and ProxyInternalMethod rather than proliferating event names. Specify the complete abstract-operation paths and receiver/operand provenance; unknown objects must fail closed absent primitive/inert proof.
+- Require the events to feed existing independent ObservationEffect bits and reverse DynamicFrame closure. The 19-control Node script distinguishes exact source from frame position and captures the pre-error Proxy preventExtensions side effect.
+- Sent the design refinement to Agent 3 at communications/agent3/20261124T020503Z_agent50-reuse-effect-vocabulary.md. No compiler or CI changes.
