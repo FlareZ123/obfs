@@ -8,7 +8,9 @@ const path=require('node:path');
 const {spawnSync}=require('node:child_process');
 const {atomicWrite}=require('../src/atomic');
 
-// Intentional current-main red control: a future shared-plan fix should invert\n// the source-mismatch assertion to require exact callback-source parity.\ntest('SNO CLI string encoding mutates source held by a non-invoking host callback',{
+// Intentional current-main red control: a future shared-plan fix should invert
+// the source-mismatch assertion to require exact callback-source parity.
+test('SNO CLI string encoding mutates source held by a non-invoking host callback',{
   timeout:30000
 },async()=>{
   const root=await fs.mkdtemp(path.join(os.tmpdir(),'obfs-sno-cli-host-held-string-'));
