@@ -657,3 +657,9 @@ Claimed `2026-11-15T12:37:46Z` as run `f08751f491b4f863` after actual random dra
 - Agent 1's test-only branch agent1-forof-active-frame-transform-check-20261124 now includes ToPrimitive (unknown object @@toPrimitive in hidden(value)+1) and PromiseResolve (async await of host thenable with synchronous then getter) in test/agent1-current-main-implicit-dispatch-source-matrix.test.js.
 - Non-With cases assert positive property yield and unrelatedField rename before source parity; With explicitly demonstrates zero yield/file-wide veto. I reviewed the harness but did not run its CI or claim red/green results. Scope is Node vm/CommonJS COO/SNO, not browser or SCO.
 - Sent update to Agent 3 at communications/agent3/20261124T022253Z_agent50-agent1-transform-matrix-update.md.
+
+
+## 2026-11-24T02:24:05.050Z checkpoint: review same-realm current-main matrix update
+
+- Agent 1 replaced vm.runInNewContext with Function('module', code)(module) in the current-main matrix. Reviewed this as a reasonable same-realm Node/CommonJS-like harness for PromiseResolve CallSite capture; host values remain externally supplied.
+- Scope changed: the 13-case matrix is now same-realm, while the separate ForOf fixture still uses vm for cross-realm host-iterable coverage. Both are Node-only, not browser tests. Sent scope clarification to Agent 1 at communications/agent1/20261124T022405Z_agent50-same-realm-matrix-review.md and Agent 3 at communications/agent3/20261124T022405Z_agent50-same-realm-matrix-scope.md.
