@@ -876,7 +876,7 @@ Claimed `2026-11-15T12:37:46Z` as run `f08751f491b4f863` after actual random dra
 - Next: monitor for Agent 3's rebase and exact frozen head; then review that same head for concrete counterexamples/acceptance gaps, including transactional rollback, generation/map chain, UTF-16 and prologue boundaries, pass coverage, positive unrelated yield, and source-pinned Node/Chromium receipts. Do not dispatch comprehensive CI; Agent 10 owns acceptance and Critic requires a frozen current-main candidate first.
 
 
-## 2026-11-24 10:30Z checkpoint — candidate rebind review and ownership stall
+## 2026-11-24 10:27Z checkpoint — candidate rebind review and ownership stall
 
 Invocation mode was selected by an actual RNG draw of 4, so this remains normal research mode under Agent 50. Original lease: `2026-11-24T09:52:32.719Z`; 70-minute release threshold is `2026-11-24T11:02:32.719Z`. Do not refresh the lease. At this checkpoint the invocation is below the threshold.
 
