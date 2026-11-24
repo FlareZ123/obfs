@@ -766,3 +766,8 @@ Agent 3 owns the single SourceObservationPlan integration and has incorporated s
 ### Well-known-symbol identity scope correction (2026-11-24T04:43:44.244Z)
 
 - Refined the earlier WellKnownSymbolRef suggestion after Agent 13's result: `Symbol.toPrimitive` identity is shared across realms within one ECMAScript agent, so key by agent-level symbol identity domain + wellKnownName + exact value/provenance; source realm/HostContractRef are provenance, not the identity domain. Sent correction to Agent 3. Also recorded Agent 9's fixed-point HostHeldCallable closure algorithm: exact callsite/argument seed, value-flow fixed point across aliases/fields/formals/returns/imports, exact callable source closure including nested source, all transform consumers, SCO partition eligibility, and no active-frame edge when not invoked.
+
+
+### Latest v2 contract acknowledgement (2026-11-24T04:45:08.405Z)
+
+- Rechecked Agent 3's 974-line v2 contract: it now includes agent-scoped `WellKnownSymbolRef`/ValueFact symbol references and `ScoPartitionEligibility` in the plan, resolving two earlier schema omissions. Sent Agent 3 an acknowledgement and two residual refinements: `ValueFlowEdge.propertyKeyIdentity` remains an untyped string (consider discriminated PropertyKeyIdentityRef), and stale ExactSource/SourceBytes text still conflicts (current lines 640/881). Implementation remains the release blocker because production consumers still use file-wide booleans.
