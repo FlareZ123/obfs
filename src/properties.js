@@ -552,6 +552,8 @@ function proveLocalObject(ast, rootName, bindings, importedIdentityFunctions=new
     const holder=decl.id.name;
     const scope=scopes.get(holder);
     if(!scope||scope!==scopes.get(rootName))continue;
+    /** @type {Set<string>} */
+    const holderAliases=new Set();
     let valid=true;
     for(const entry of holderIdentifierUses.get(holder)??[]){
       if(entry.node===decl.id)continue;
@@ -572,6 +574,8 @@ function proveLocalObject(ast, rootName, bindings, importedIdentityFunctions=new
         const pattern=parent.id;
         let safePattern=pattern.elements.length<=elements.length;
         let selectedOwner=false;
+        /** @type {Set<string>} */
+        const patternAliases=new Set();
         for(let slot=0;safePattern&&slot<pattern.elements.length;slot++){
           const element=pattern.elements[slot];
           if(element===null)continue;
@@ -580,11 +584,12 @@ function proveLocalObject(ast, rootName, bindings, importedIdentityFunctions=new
             break;
           }
           if(indices.has(slot)){
-            privateCarrierAliases.add(element.name);
+            patternAliases.add(element.name);
             selectedOwner=true;
           }
         }
         destructured=safePattern&&selectedOwner;
+        if(destructured)for(const name of patternAliases)holderAliases.add(name);
       }
       if(!ancestors.includes(scope)||(!read&&!destructured)||
          read&&(receiver?.type!=='VariableDeclarator'||receiver.init!==parent||
@@ -598,6 +603,7 @@ function proveLocalObject(ast, rootName, bindings, importedIdentityFunctions=new
       privateOwnerTuples.set(holder,{indices});
       for(const index of indices)
         privateArrayLiteralElements.add(/** @type {AstNode} */(elements[index]));
+      for(const name of holderAliases)privateCarrierAliases.add(name);
     }
   }
   // A bounded private record can carry the same owner through one or more
@@ -650,6 +656,8 @@ function proveLocalObject(ast, rootName, bindings, importedIdentityFunctions=new
     const holder=decl.id.name;
     const scope=scopes.get(holder);
     if(!scope||scope!==scopes.get(rootName))continue;
+    /** @type {Set<string>} */
+    const holderAliases=new Set();
     for(const entry of holderIdentifierUses.get(holder)??[]){
       if(entry.node===decl.id)continue;
       const {parent,key,ancestors}=entry;
@@ -669,6 +677,8 @@ function proveLocalObject(ast, rootName, bindings, importedIdentityFunctions=new
          parents.get(parent)?.kind==='const'&&declarationSet.has(parent)){
         const pattern=parent.id;
         const selectedKeys=new Set();
+        /** @type {Set<string>} */
+        const patternAliases=new Set();
         let safePattern=pattern.properties.length>0;
         for(const property of pattern.properties){
           if(property.type!=='Property'||property.kind!=='init'||property.computed||
@@ -683,9 +693,10 @@ function proveLocalObject(ast, rootName, bindings, importedIdentityFunctions=new
             break;
           }
           selectedKeys.add(keyName);
-          privateCarrierAliases.add(property.value.name);
+          patternAliases.add(property.value.name);
         }
         destructured=safePattern&&selectedKeys.size>0;
+        if(destructured)for(const name of patternAliases)holderAliases.add(name);
       }
       if(!ancestors.includes(scope)||(!read&&!destructured)||
          read&&(receiver?.type!=='VariableDeclarator'||receiver.init!==parent||
@@ -698,6 +709,7 @@ function proveLocalObject(ast, rootName, bindings, importedIdentityFunctions=new
     if(safe){
       privateOwnerRecords.set(holder,ownedKeys);
       for(const value of ownedValues)privateRecordLiteralValues.add(value);
+      for(const name of holderAliases)privateCarrierAliases.add(name);
     }
   }
   /** @type {Set<string>} */
