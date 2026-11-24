@@ -40,7 +40,7 @@ const {applyEdits,parserContractIdFor} = require('./ast');
  * @property {string} spanId
  * @property {string} sourceUnitRef
  * @property {string} sourceGeneration
- * @property {string} originSpanId Original SourceSpanId carried only as an association.
+ * @property {string} [originSpanId] Immutable original SourceSpanId carried only as an association.
  * @property {number} startOffset
  * @property {number} endOffset
  * @property {'utf16-code-unit'} coordinateUnit
@@ -52,6 +52,7 @@ const {applyEdits,parserContractIdFor} = require('./ast');
  * @typedef {Object} MappedSourceRange
  * @property {string} sourceUnitRef
  * @property {string} sourceGeneration
+ * @property {string} originSpanId Immutable original SourceSpanId association.
  * @property {number} startOffset
  * @property {number} endOffset
  * @property {'utf16-code-unit'} coordinateUnit
@@ -230,6 +231,7 @@ function mapSourceSpan(map,span,sourceBefore,sourceAfter) {
      span.coordinateUnit!=='utf16-code-unit'||
      typeof sourceBefore!=='string'||typeof sourceAfter!=='string')return null;
   if(typeof span.spanId!=='string'||span.spanId.length===0||
+     span.originSpanId!==undefined&&(typeof span.originSpanId!=='string'||span.originSpanId.length===0)||
      span.sourceUnitRef!==map.sourceUnitRef||
      span.sourceGeneration!==map.fromGeneration||
      sourceGenerationOf(sourceBefore,map.parserContractId)!==map.fromGeneration||
@@ -295,7 +297,7 @@ function mapSourceSpan(map,span,sourceBefore,sourceAfter) {
   return Object.freeze({
     sourceUnitRef:span.sourceUnitRef,
     sourceGeneration:map.toGeneration,
-    originSpanId:span.spanId,
+    originSpanId:span.originSpanId??span.spanId,
     startOffset:start,
     endOffset:end,
     coordinateUnit:'utf16-code-unit'
