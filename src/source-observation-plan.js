@@ -429,6 +429,7 @@ function buildDirectFunctionSourcePlan(source,path,hostContract) {
     contractSnapshot.contractVersion,
     contractSnapshot.pristineIntrinsicsPremise
   ]);
+  if(typeof hostContractPayload!=='string')return null;
   const hostContractId='host:coo:'+createHash('sha256').update(hostContractPayload).digest('hex');
   const callableSpanId='span:'+sourceUnitRef+':'+callableNode.start+':'+
     callableNode.end+':FunctionDeclaration';
@@ -618,6 +619,7 @@ function buildDirectFunctionSourcePlan(source,path,hostContract) {
     'source-observation-plan-generation-v1',
     sourceUnitRef,hostContractId,readerSpanId,callableSpanId
   ]);
+  if(typeof planPayload!=='string')return null;
   const planGeneration=createHash('sha256').update(planPayload).digest('hex');
   const plan={
     planId:'plan:'+planGeneration,
