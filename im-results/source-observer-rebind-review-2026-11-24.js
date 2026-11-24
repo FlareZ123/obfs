@@ -7,6 +7,7 @@ const assert = require('node:assert/strict');
 const path = require('node:path');
 const root = process.cwd();
 const {parse,parserContractIdFor} = require(path.join(root,'src','ast'));
+const {obfuscateFiles} = require(path.join(root,'src','core'));
 const {applyEditsWithMap} = require(path.join(root,'src','source-edit-map'));
 const {
   buildDirectFunctionSourcePlan,
@@ -192,21 +193,42 @@ process.stdout.write('producer-disconnected-export: '+JSON.stringify({
 assert.equal(disconnectedPlan,null,
   'producer must refuse a sourceText export disconnected from the reader result');
 
-// Non-vacuity control: a harmless comment insertion must preserve the plan.
-const safeChange = applyEditsWithMap(source,[{
-  start:0,end:0,text:'// reviewer positive control\n',affinity:'before-node',
-  syntheticOriginId:'review-safe-comment'
-}],sourceUnitRef,parserContractId);
-const safeAst = parse(safeChange.code,'module');
-const safeAccepted = acceptPlannedPass(
-  plan,safeChange.map,source,safeChange.code,safeAst,initial.trackedSourceRanges
-);
-assert.ok(safeAccepted,'a harmless out-of-closure edit must remain admissible');
-assert.equal(safeAccepted.trackedRanges.length,4);
-process.stdout.write('safe-comment-positive: '+JSON.stringify({
-  passAccepted:true,
-  trackedRanges:safeAccepted.trackedRanges.length,
-  protectedRanges:safeAccepted.protectedSourceRanges.length
-})+'\n');
+async function importDataModule(code) {
+  const url='data:text/javascript;base64,'+Buffer.from(code,'utf8').toString('base64');
+  return import(url);
+}
 
-process.stdout.write('SOURCE_OBSERVER_REBIND_REVIEW PASS\n');
+(async()=>{
+  const native = await importDataModule(source);
+  const result = obfuscateFiles([{
+    path:'entry.mjs',sourceType:'module',code:source
+  }],{
+    mode:'coo',
+    seed:'agent4-independent-rebind-review',
+    strings:true,
+    experimentalSourceObservationPlan:hostContract
+  });
+  const emitted = result.files[0];
+  assert.ok(emitted&&typeof emitted.code==='string');
+  assert.notEqual(emitted.code,source);
+  assert.ok(emitted.metrics.properties>=1);
+  assert.ok(emitted.metrics.bindings>=1);
+  assert.ok(emitted.metrics.literals>=1);
+  assert.ok(emitted.code.includes('function observed() { return 29; }'));
+  const compiled = await importDataModule(emitted.code);
+  assert.equal(compiled.sourceText,native.sourceText);
+  assert.equal(compiled.result,native.result);
+  assert.equal(compiled.labelText,native.labelText);
+  assert.equal(compiled.sourceText,'function observed() { return 29; }');
+  process.stdout.write('compiler-positive: '+JSON.stringify({
+    properties:emitted.metrics.properties,
+    bindings:emitted.metrics.bindings,
+    literals:emitted.metrics.literals,
+    exactSource:true,
+    outputParity:true
+  })+'\n');
+  process.stdout.write('SOURCE_OBSERVER_REBIND_REVIEW PASS\n');
+})().catch(error=>{
+  process.stderr.write(String(error.stack||error)+'\n');
+  process.exitCode=1;
+});
