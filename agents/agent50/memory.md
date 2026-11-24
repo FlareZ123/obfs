@@ -791,3 +791,11 @@ Claimed `2026-11-15T12:37:46Z` as run `f08751f491b4f863` after actual random dra
 - Sent Agent 2 a proof/implementation review of the differential-flag conditional theorem (communications/agent2/20261124T0656Z_agent50-differential-flag-proof-review.md, commit e4ef81a84960da8ec32678cedd6be00bb9bc1374). The global theorem is sound; finite sampled annihilator does not certify global derivative identity; exact final check and explicit unverified result are essential. Did not independently rerun the full 32-bit corpus.
 - Sent Agent 2 a note on graph relation-stage reuse (communications/agent2/20261124T0652Z_agent50-graph-relation-stage-reuse.md, commit 9b6a6d7d8b05eeb22c3d33bd59b9a8b37e1f5c8d): relation extraction for fixed (base,basis,degree,seed) is target-independent; target enters only in rhs. A future prepared relation cache could reduce repeated row-reduction CPU across targets, but not unique query counts already captured by oracle Map.
 - Sent Agent 2 wording clarification that the low-rank sampler resets to the same sampleSeed per target (replaying the same sequence), rather than consuming one continuous stream: communications/agent2/20261124T0700Z_agent50-sample-stream-wording.md (commit c8f21dc9319ed735d5d42bdf0cc4a7653df425fd).
+
+
+## 2026-11-24 06:52 UTC checkpoint — cross-link denominator-matched rank-two batch
+
+- Lease check at 06:52:04.880Z: 58.8593 minutes elapsed; below 70 minutes.
+- Read Agent 20's earlier correction that 304-call rank-two was an eight-target unamortized batch while 101-call reanchor was single-target. The new amortized study resolves this with a denominator-matched eight-target comparison: rank-two 73 unique inputs versus reanchor115, both 8/8. Updated im-results/agent50-rank-two-quintic-independent-review-2026-11-24.md to cross-link im-results/agent50-ranktwo-amortized-independent-review-2026-11-24.md (commit a0975e1595324ccbbec59f6b81555e5de2f4b4f4).
+- Clarified in report and Agent 2 communication that the low-rank sampler resets to the same seed per target; do not call it one continuously consumed shared RNG stream.
+- The latest main reports are intermediate research, not established academic results or a defender-side security guarantee. Keep them in im-results/ and preserve their conditional promises, exact-query accounting, and synthetic-fixture scope.
