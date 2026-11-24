@@ -20,7 +20,9 @@ test('SNO CLI string encoding mutates source held by a non-invoking host callbac
     await fs.mkdir(input,{recursive:true});
     const source=[
       "function hidden(){return 'callbackSourceLiteral';}",
-      'queueMicrotask(hidden);',
+      "const unrelated='unrelatedTopLevelLiteral';",
+      'void unrelated;',
+      'queueMicrotask(hidden);'
       'console.log(hidden());'
     ].join('\n');
     await atomicWrite(path.join(input,'entry.cjs'),source);
@@ -62,6 +64,7 @@ test('SNO CLI string encoding mutates source held by a non-invoking host callbac
     if(transformed.error)throw transformed.error;
     assert.equal(transformed.status,0,transformed.stderr);
     const emittedObservation=JSON.parse(await fs.readFile(observationPath,'utf8'));
+    const emittedEntry=await fs.readFile(path.join(output,'entry.cjs'),'utf8');
 
     assert.equal(native.stdout.trim(),'callbackSourceLiteral');
     assert.equal(transformed.stdout.trim(),native.stdout.trim());
@@ -70,11 +73,14 @@ test('SNO CLI string encoding mutates source held by a non-invoking host callbac
     assert.ok(nativeObservation.source.includes('callbackSourceLiteral'));
     assert.ok(!emittedObservation.source.includes('callbackSourceLiteral'),
       'SNO CLI string encoding must be visible in the host-observed callback source');
+    assert.ok(!emittedEntry.includes('unrelatedTopLevelLiteral'),
+      'the independent top-level string should remain eligible for encoding');
     assert.equal(nativeObservation.invoked,false);
     assert.equal(emittedObservation.invoked,false);
     console.log('AGENT24_SNO_CLI_HOST_HELD_STRING '+JSON.stringify({
       native:nativeObservation.source,
       emitted:emittedObservation.source,
+      unrelatedTopLevelEncoded:!emittedEntry.includes('unrelatedTopLevelLiteral'),
       callbackInvoked:emittedObservation.invoked,
       compile:compile.stdout.trim()
     }));
