@@ -193,7 +193,6 @@ function isAllowedExpression(node,readerCall) {
 function isAllowedProgram(ast,readerCall) {
   if(ast.type!=='Program'||ast.sourceType!=='module')return false;
   /** @type {AstNode[]} */
-  /** @type {AstNode[]} */
   const functionNodes=[];
   let valid=true;
   for(const statement of ast.body) {
@@ -329,6 +328,7 @@ function buildDirectFunctionSourcePlan(source,path,hostContract) {
      readerKey!=='init'||readerParent.init!==readerCall||
      readerAncestors.some(ancestor=>ancestor.type==='FunctionDeclaration'))return null;
   const callableName=readerCall.arguments[0].name;
+  /** @type {AstNode[]} */
   const functionNodes=[];
   walk(ast,node=>{
     if(node.type==='FunctionDeclaration')functionNodes.push(node);
