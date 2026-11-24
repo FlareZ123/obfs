@@ -73,6 +73,26 @@ function sourceFor(scenario){
  * @param {number} delta
  * @returns {string}
  */
+/**
+ * Compute a fixture marker's original-versus-emitted line-relative column
+ * delta. A production implementation would use AST source spans instead.
+ * @param {string} source
+ * @param {string} emitted
+ * @param {string} marker
+ * @returns {number}
+ */
+function columnDeltaBeforeMarker(source,emitted,marker){
+  const sourceIndex=source.indexOf(marker);
+  const emittedIndex=emitted.indexOf(marker);
+  assert.ok(sourceIndex>=0&&source.lastIndexOf(marker)===sourceIndex,
+    'source callsite marker must occur exactly once');
+  assert.ok(emittedIndex>=0&&emitted.lastIndexOf(marker)===emittedIndex,
+    'emitted callsite marker must occur exactly once');
+  const sourceColumn=sourceIndex-(source.lastIndexOf('\n',sourceIndex-1)+1);
+  const emittedColumn=emittedIndex-(emitted.lastIndexOf('\n',emittedIndex-1)+1);
+  return sourceColumn-emittedColumn;
+}
+
 function padBeforeMarkerByDelta(code,marker,delta){
   const index=code.indexOf(marker);
   assert.ok(index>=0&&code.lastIndexOf(marker)===index,
@@ -343,10 +363,12 @@ async function main(){
       }
 
       if(scenario.marker&&Number.isInteger(before.column)&&Number.isInteger(after.column)){
-        const delta=(before.column??0)-(after.column??0);
-        assert.ok(delta>0,scenario.kind+' native/emitted CJS frame columns should differ before padding');
         const compiledResource=resources.get(base+'/compiled.js');
         assert.ok(compiledResource);
+        const delta=columnDeltaBeforeMarker(source,compiledResource.body,scenario.marker);
+        const runtimeDelta=(before.column??0)-(after.column??0);
+        assert.ok(delta>0,scenario.kind+' source-marker CJS column delta should be positive');
+        assert.equal(delta,runtimeDelta,scenario.kind+' source-marker delta must match observed CJS frame delta');
         const paddedCode=padBeforeMarkerByDelta(compiledResource.body,scenario.marker,delta);
         resources.set(base+'/padded.js',{body:paddedCode,type:'text/javascript; charset=utf-8'});
         resources.set(base+'/padded.html',{
@@ -357,7 +379,7 @@ async function main(){
         assert.equal(padded.value,before.value,scenario.kind+' padded CJS native/emitted return parity');
         assert.equal(padded.column,before.column,scenario.kind+' padded CJS callsite should restore native frame column');
         paddingResults.push({
-          mode:'commonjs',kind:scenario.kind,delta,
+          mode:'commonjs',kind:scenario.kind,delta,runtimeDelta,
           nativeColumn:before.column,compiledColumn:after.column,paddedColumn:padded.column
         });
         process.stdout.write('CHROMIUM_FRAME_PADDING '+JSON.stringify({
@@ -421,10 +443,12 @@ async function main(){
           scenario.kind+' strict ESM should expose changed active-frame coordinates after private-key rewriting');
       }
       if(scenario.marker&&Number.isInteger(before.column)&&Number.isInteger(after.column)){
-        const delta=(before.column??0)-(after.column??0);
-        assert.ok(delta>0,scenario.kind+' native/emitted ESM frame columns should differ before padding');
         const compiledResource=resources.get(base+'/module-compiled.mjs');
         assert.ok(compiledResource);
+        const delta=columnDeltaBeforeMarker(moduleSource,compiledResource.body,scenario.marker);
+        const runtimeDelta=(before.column??0)-(after.column??0);
+        assert.ok(delta>0,scenario.kind+' source-marker ESM column delta should be positive');
+        assert.equal(delta,runtimeDelta,scenario.kind+' source-marker delta must match observed ESM frame delta');
         const paddedCode=padBeforeMarkerByDelta(compiledResource.body,scenario.marker,delta);
         resources.set(base+'/module-padded.mjs',{
           body:paddedCode,type:'text/javascript; charset=utf-8'
@@ -437,7 +461,7 @@ async function main(){
         assert.equal(padded.value,before.value,scenario.kind+' padded ESM native/emitted return parity');
         assert.equal(padded.column,before.column,scenario.kind+' padded ESM callsite should restore native frame column');
         paddingResults.push({
-          mode:'esm',kind:scenario.kind,delta,
+          mode:'esm',kind:scenario.kind,delta,runtimeDelta,
           nativeColumn:before.column,compiledColumn:after.column,paddedColumn:padded.column
         });
         process.stdout.write('CHROMIUM_FRAME_PADDING '+JSON.stringify({
