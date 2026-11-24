@@ -96,7 +96,7 @@ function encodeStrings(source, ast, options) {
   // lexical binding with this name can shadow it, including before TDZ init.
   if (collectBindings(ast).has('String')) return noOp();
   const values = new Map();
-  /** @type {{start:number,end:number,text:string}[]} */
+  /** @type {import('./source-edit-map').SourceEdit[]} */
   const edits = [];
   const helper = unusedName(source, ast, options.seed + 'strings', options.reservedNames, options.reservedSources);
   const minimumLength = options.minimumLength ?? 4;
