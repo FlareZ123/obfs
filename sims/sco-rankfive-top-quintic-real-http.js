@@ -8,7 +8,8 @@ const {cloneTopQuinticValidated}=require('./rankfive-top-quintic-validated-peer'
 const {evaluateClone}=require('./rankfive-top-quintic-functional-clone-peer');
 
 /** @typedef {{origin:string,method:string,credential:string}} Access */
-/** @typedef {{bits:number,lower:Array<[number,number]>,top:Array<[number,number]>}} QuinticModel */
+/** @typedef {{bits:number,lower:Array<[number,number]>,top:Array<[number,number]>,degree:4|5,queries:number,trials:number,quotientRank:number,trialCap:number}} QuinticModel */
+/** @typedef {(model:unknown,input:number)=>number} ModelEvaluator */
 /** @typedef {QuinticModel & {degree:number,queries:number,quotientRank:number,fastQueries:number,verificationQueries:number,verificationSamples:number,verificationCap:number,verificationDelta:number,falseAcceptanceBound:number,verificationPassed:boolean,fallbackUsed:boolean,fallbackReason:string|null,exactByInterpolation:boolean}} ValidatedModel */
 /** @typedef {{degree:number,quotientRank:number,fastQueries:number,verificationQueries:number,verificationSamples:number,verificationCap:number,verificationDelta:number,falseAcceptanceBound:number,verificationPassed:boolean,fallbackUsed:boolean,fallbackReason:string|null,exactByInterpolation:boolean,witnessDrawCount:number,verifyDrawCount:number}} LearnerDiagnostics */
 
@@ -164,8 +165,10 @@ async function compare(){
   const witnessDraws=[];
   /** @type {number[]} */
   const verifyDraws=[];
+  /** @type {(access:Access,_unusedDraws:number[])=>Promise<{model:unknown,queries:number,transcriptSha256:string,diagnostics:LearnerDiagnostics}>} */
   const cloneRunner=(access,_unusedDraws)=>
     cloneTopQuinticFromHttp(access,witnessDraws,verifyDraws);
+  /** @type {ModelEvaluator} */
   const modelEvaluator=(model,input)=>
     evaluateClone(/** @type {QuinticModel} */ (model),input);
   const options={

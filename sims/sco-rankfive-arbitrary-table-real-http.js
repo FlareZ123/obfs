@@ -246,7 +246,7 @@ async function executeArm(arm,source,draws,options={}){
       method=route[1];
     }
     const cloneRunner=options.cloneRunner??cloneFromHttp;
-    const clone=await cloneRunner({origin,method,credential:TOKEN},draws);
+    const clone=/** @type {CloneResult} */ (await cloneRunner({origin,method,credential:TOKEN},draws));
     assert.ok(clone.queries<=(options.maxQueries??72688),
       'HTTP clone exceeded the declared distinct-query cap');
     assert.equal(privateExecutions,clone.queries);
