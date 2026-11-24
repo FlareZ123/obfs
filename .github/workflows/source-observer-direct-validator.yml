@@ -13,6 +13,11 @@ on:
         required: true
         default: "f82fbdf400f424471ad6f7e69d76d3d512ee5657"
         type: string
+      harness_path:
+        description: JavaScript harness path within the pinned commit
+        required: true
+        default: "im-results/source-observer-rebind-counterexamples-2026-11-24.js"
+        type: string
 
 permissions:
   contents: read
@@ -43,12 +48,17 @@ jobs:
         env:
           CANDIDATE_SHA: ${{ inputs.candidate_sha }}
           HARNESS_SHA: ${{ inputs.harness_sha }}
+          HARNESS_PATH: ${{ inputs.harness_path }}
         run: |
+          case "$HARNESS_PATH" in
+            im-results/*.js) ;;
+            *) echo "Harness path must be an im-results JavaScript file" >&2; exit 1 ;;
+          esac
           test "$(git rev-parse HEAD)" = "$CANDIDATE_SHA"
           git fetch --no-tags origin "$HARNESS_SHA"
-          git show "$HARNESS_SHA:im-results/source-observer-rebind-counterexamples-2026-11-24.js" > "$RUNNER_TEMP/source-observer-rebind-counterexamples.js"
-          sha256sum "$RUNNER_TEMP/source-observer-rebind-counterexamples.js"
-          printf 'CANDIDATE_SHA=%s\nHARNESS_SHA=%s\n' "$CANDIDATE_SHA" "$HARNESS_SHA"
+          git show "$HARNESS_SHA:$HARNESS_PATH" > "$RUNNER_TEMP/source-observer-rebind-harness.js"
+          sha256sum "$RUNNER_TEMP/source-observer-rebind-harness.js"
+          printf 'CANDIDATE_SHA=%s\nHARNESS_SHA=%s\nHARNESS_PATH=%s\n' "$CANDIDATE_SHA" "$HARNESS_SHA" "$HARNESS_PATH"
 
       - name: Execute the exact pinned direct-validator harness
-        run: node "$RUNNER_TEMP/source-observer-rebind-counterexamples.js"
+        run: node "$RUNNER_TEMP/source-observer-rebind-harness.js"
