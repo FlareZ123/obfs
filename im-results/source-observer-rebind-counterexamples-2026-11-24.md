@@ -152,8 +152,8 @@ Agent 50 executed this exact eight-line fixture under Node v22.16.0 with TypeScr
 
 The accompanying harness now has two separate checks:
 
-- `producer-disconnected-export` calls `buildDirectFunctionSourcePlan` on the disconnected source and predicts that the producer still returns a plan. The harness compares the linked and disconnected plans: in the reviewed snapshot, both have `resultValueRef:null` and zero `valueFlowEdges`. The producer classifies the literal export as `primitive` but does not represent whether the reader result reaches it. This is a **producer-level linkage/scope test**, not an automatic requirement to reject every module containing an unrelated primitive export: if this first slice promises `sourceText` as the exported mirror, refuse the disconnected case; if a narrower source-read-only plan is intended, it must explicitly avoid claiming that `sourceText` is the mirror while still representing the host operation's result value.
-- `exported-mirror-overwrite` replaces only the export declaration in an already planned source and predicts that `validatePlanSemantics` accepts it because both tracked spans remain unchanged. If the plan claims that this export carries the source-read result, the corrected rebind must reject the mutation by validating the export ValueFlowEdge; if the plan is intentionally narrower, it must not claim that exported mirror. This is a **post-plan rebind** obligation, distinct from the mutable-binding/reaching-write case.
+- `producer-disconnected-export` calls `buildDirectFunctionSourcePlan` on the disconnected source. The executed harness observed that the producer returns a plan. It compares the linked and disconnected plans: both have `resultValueRef:null` and zero `valueFlowEdges`. The producer classifies the literal export as `primitive` but does not represent whether the reader result reaches it. This is a **producer-level linkage/scope test**, not an automatic requirement to reject every module containing an unrelated primitive export: if this first slice promises `sourceText` as the exported mirror, refuse the disconnected case; if a narrower source-read-only plan is intended, it must explicitly avoid claiming that `sourceText` is the mirror while still representing the host operation's result value.
+- `exported-mirror-overwrite` replaces only the export declaration in an already planned source; the executed harness observed that `validatePlanSemantics` accepts it because both tracked spans remain unchanged. If the plan claims that this export carries the source-read result, the corrected rebind must reject the mutation by validating the export ValueFlowEdge; if the plan is intentionally narrower, it must not claim that exported mirror. This is a **post-plan rebind** obligation, distinct from the mutable-binding/reaching-write case.
 
 The required result-flow representation is:
 
@@ -169,7 +169,7 @@ Keep the `ExactSource` effect closure callable-span scoped: the reader/result/ex
 
 Do **not** encode an ordinary ESM export with `SourceDeliveryEdge`; that edge is reserved for SCO server-to-client publication. For this COO fixture, `sourceDeliveryEdges` should remain empty.
 
-The two new harness acceptance outcomes remain **predictions** until the script is run against the exact candidate checkout. The harness deliberately does not claim that its copied static predicates were executed locally.
+The two new harness outcomes are now **observed** in focused workflow `45392122556` against the exact candidate source SHA. The harness called the candidate's exported producer and validator directly; it did not substitute copied predicates or a local mirror.
 
 ## Candidate code path under review
 
