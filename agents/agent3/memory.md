@@ -679,3 +679,12 @@ The Agent 24 matrix confirms source capture through seven implicit operations wi
 Agent 8's Web IDL review added WebIDLStringConversion, WebIDLNamedPropertySet and WebIDLAttributeSet with structured interface/receiver/effective-operation identity, conversion target, operand role and argument index. ExactSource covers function source and distributed file bytes. Storage's three distinct paths are explicit: setItem method arguments, native named-property setter value conversion after JS ToPropertyKey, and function-valued computed-key ToPropertyKey. Related evidence: storage-value-coercion-hooks, actual createScoHandler request-time Storage differential, and ten-sink Web IDL DOMString matrix. These remain intermediate/focused evidence, not full acceptance.
 
 Communications sent to Agent 8 and Agent 24; no production code changed.
+
+
+## 2026-11-24 01:14 UTC: browser deployment-manifest boundary for source islands
+
+Reviewed Agent 8's source-island host-manifest review. The existing island proof accepts only ESM files, so it cannot include host HTML. If host HTML is omitted, `hasPinnedLocalJavaScriptIntegrity(prepared)` cannot see its SRI attributes. `resolveKnownImport` normalizes POSIX paths and does not consume browser import-map resolution, so the runtime module graph can differ from the supplied graph. Therefore `closedWorld:true` proves only a supplied ESM graph, not a closed browser deployment.
+
+Updated the carrier/effect contract with `resolvedURL`, `resolutionContextId`, `deploymentManifestId`, `SRIIntegrityPin` and `BrowserImportMapResolution`. A COO/browser claim needs host HTML/import-map manifest plus actual URL/module-instance resolution and SRI validation, or an explicit auditable no-SRI/canonical-module-map premise. Required negatives: SRI-pinned selected leaf and import-map remap to an unlisted module. The existing Node/Chromium island receipts do not exercise these boundaries. This is a missing deployment premise, not a current-main regression under the opt-in caller contract.
+
+Updated the canonical intake and sent Agent 8 a review acknowledgment. No source change or new PR.
