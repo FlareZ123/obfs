@@ -4,7 +4,7 @@ const {resolveLexicalReferences}=require('./agent1-lexical-reference-resolver');
 
 /** @typedef {import('../src/ast').AstNode} AstNode */
 /** @typedef {'module'|'script'|'commonjs'} SourceType */
-/** @typedef {{kind:'unknown-call'|'unresolved-local-call'|'new-expression'|'tagged-template'|'await'|'yield'|'dynamic-import'|'transitive-local-call'|'with-binding-lookup'|'implicit-iterator'|'implicit-object-enumeration'|'implicit-proxy-has'|'implicit-instanceof'|'implicit-delete'|'implicit-destructuring'|'implicit-spread'|'to-primitive'|'to-property-key'|'promise-thenable-assimilation'|'host-held-callable'|'unresolved-callable-argument-flow'|'returned-callable-value'|'callable-metadata-observer'|'classic-script-global-lexical'|'unknown-member-access',start:number,end:number,targetStart?:number,effect?:'DynamicFrame'|'HostHeldCallable'|'ExternalReachability'}} AmbientCallReason */
+/** @typedef {{kind:'unknown-call'|'unresolved-local-call'|'new-expression'|'tagged-template'|'await'|'yield'|'dynamic-import'|'transitive-local-call'|'with-binding-lookup'|'implicit-iterator'|'implicit-object-enumeration'|'implicit-proxy-has'|'implicit-instanceof'|'implicit-delete'|'implicit-destructuring'|'implicit-spread'|'to-primitive'|'to-property-key'|'promise-thenable-assimilation'|'host-held-callable'|'unresolved-callable-argument-flow'|'returned-callable-value'|'callable-metadata-observer'|'classic-script-global-lexical'|'module-exported-callable'|'unknown-member-access',start:number,end:number,targetStart?:number,effect?:'DynamicFrame'|'HostHeldCallable'|'ExternalReachability'}} AmbientCallReason */
 /** @typedef {{node:AstNode,start:number,end:number,bindingIds:number[],bindingNames:string[],ambient:boolean,dynamicFrame:boolean,hostHeldCallable:boolean,externallyReachable:boolean,safe:boolean,reasons:AmbientCallReason[]}} AmbientCallSummary */
 
 /**
@@ -542,6 +542,55 @@ function summarizeAmbientCallEffects(ast,sourceType) {
     if(effect==='DynamicFrame')dynamicFrameFunctions.add(fn);
     else if(effect==='HostHeldCallable')hostHeldFunctions.add(fn);
   }
+
+  /** @param {AstNode} left @returns {boolean} */
+  function isCommonJsExportTarget(left) {
+    if(left.type==='Identifier'&&left.name==='exports') {
+      const reference=resolved.at(left.start);
+      return reference?.resolution.kind!=='local';
+    }
+    if(left.type!=='MemberExpression')return false;
+    /** @type {(string|null)[]} */
+    const keys=[];
+    let root=left;
+    while(root.type==='MemberExpression') {
+      keys.unshift(staticPropertyKey(root.property,root.computed));
+      root=root.object;
+    }
+    if(root.type!=='Identifier')return false;
+    const reference=resolved.at(root.start);
+    if(reference?.resolution.kind==='local')return false;
+    if(root.name==='exports')return true;
+    return root.name==='module'&&(keys.length===0||keys[0]==='exports'||keys[0]===null);
+  }
+
+  /** @param {AstNode} value @param {number} start @param {number} end @returns {void} */
+  function markExternalCallableValue(value,start,end) {
+    for(const target of callableNodesForValue(value)) {
+      externallyReachableFunctions.add(target);
+      addReason(target,{kind:'module-exported-callable',start,end},'ExternalReachability');
+    }
+  }
+
+  // Module exports and CommonJS wrapper exports are callable escape roots.
+  for(const reference of resolved.references) {
+    if(reference.role==='export-local')
+      markExternalCallableValue(reference.node,reference.start,reference.end);
+  }
+  walkAst(ast,node=>{
+    if(node.type==='ExportNamedDeclaration'&&node.declaration) {
+      if(node.declaration.type==='VariableDeclaration') {
+        for(const declarator of node.declaration.declarations)
+          if(declarator.init)markExternalCallableValue(declarator.init,node.start,node.end);
+      } else {
+        markExternalCallableValue(node.declaration,node.start,node.end);
+      }
+    } else if(node.type==='ExportDefaultDeclaration'&&node.declaration) {
+      markExternalCallableValue(node.declaration,node.start,node.end);
+    } else if(node.type==='AssignmentExpression'&&isCommonJsExportTarget(node.left)) {
+      markExternalCallableValue(node.right,node.start,node.end);
+    }
+  });
 
   for(const fn of externallyReachableFunctions)
     addReason(fn,{kind:'classic-script-global-lexical',start:fn.start,end:fn.end},'ExternalReachability');
