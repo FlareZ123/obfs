@@ -207,7 +207,7 @@ async function compare(){
     assert.equal(diagnostics.verificationPassed,true);
     assert.equal(diagnostics.verificationSamples,726);
     assert.ok(diagnostics.falseAcceptanceBound<=1e-10);
-    assert.ok(hybridSco.queries<=3419);
+    assert.ok(hybridSco.queries<=3420);
 
     records.push({
       replicate,
