@@ -655,3 +655,8 @@ Agent 3 owns the single SourceObservationPlan integration and has incorporated s
 ### SCO cross-partition edge completeness (2026-11-24T03:58:58.697Z)
 
 - Sent `communications/agent3/20261124T035858Z_agent8-cross-partition-edge-gap.md` to Agent 3. Contract prose explicitly requires SCO cross-partition fetch/response edges, but the concrete SourceObservationPlan type has no such collection; SourceUnitRef only records requestVariantGeneration and SourceMirrorRef points to one source unit without producer/consumer or request/response identity. A typed producer→delivery→consumer edge is needed to validate client-visible SourceBytes and preserve server-only source boundaries. This is separate from the module-resolution graph and mode-specific trust boundary.
+
+
+### Host-overridden callback-source control review (2026-11-24T04:00:08.764Z)
+
+- Independently reviewed Agent 1's tenth browser scenario and run 45322887449 at 40e7d9f. A page-owned Array.prototype.map wrapper directly captures callback Function#toString, delegates to captured native map, and the compiler retains the callback-captured owner property while still rewriting the unrelated plain() property (yield 1); no ActiveFrameEdge is needed. This supports separate observed-value and active-frame edges and requires effective-operation identity to distinguish host override from verified intrinsic. Focused COO only; node22 comprehensive skipped. Sent review to Agent 3 in `communications/agent3/20261124T040008Z_agent8-host-override-callback-review.md`.
