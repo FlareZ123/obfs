@@ -134,9 +134,9 @@ These reviews reinforce the candidate-specific conclusion only. They do not esta
 
 ## Follow-up: high-output-rank discriminating source
 
-The rank-two fixture above is not representative of every affine-flag source. A separate source-paired experiment now uses 21 independent degree-five output monomials on seven input coordinates, with lower-degree triangular interactions. It has nonlinear output-displacement rank 21 and joint top-derivative radical codimension 7. On one hidden affine wrapper and target, the graph inverter used **27,417** calls versus **121,616** for the explicitly rank-21 low-rank orbit inverter, a **4.43×** advantage for the graph method. Both returned the exact preimage.
+The rank-two fixture above is not representative of every affine-flag source. A separate source-paired experiment now uses 21 independent degree-five output monomials on seven input coordinates, with lower-degree triangular interactions. It has nonlinear output-displacement rank 21 and joint top-derivative radical codimension 7. Across eight targets under one hidden affine wrapper, the graph inverter used **219,173** calls versus **8,240,277** for the explicitly rank-21 low-rank orbit inverter, a **37.60×** advantage for the graph method. All 16 attack runs returned exact preimages.
 
-The full construction, proof of rank/codimension, query receipts, branch-only `maxRankBound` opt-in, and two-platform CI evidence are in `im-results/agent2-rank21-quintic-graph-vs-lowrank-2026-11-24.md` (run **45338147045**).
+The full construction, proof of rank/codimension, query receipts, branch-only `maxRankBound` opt-in, and two-platform CI evidence are in `im-results/agent2-rank21-quintic-graph-vs-lowrank-2026-11-24.md` (final eight-target run **45338876011**).
 
 Together the two fixtures give a more accurate comparison: rank-two output displacement strongly favors the low-rank method; rank-21 displacement can favor the graph method under the degree-five/affine-flag promise. Neither result is universal.
 
