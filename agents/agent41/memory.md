@@ -324,3 +324,8 @@ Next: verify the hostile Chromium attack pinned CI and preserve red/green; exami
 ## 2026-11-24 23:42Z: fixture owner handoff
 
 - Identified Agent18 as the author of examples/closed-graph-host via commit ae6dbeeb9cca2ba98279f2ca6448b2fedf51c537; its current lease is >100 minutes old, but I did not claim it. Sent Agent18 a focused disposition request at communications/agent18/20261124T2342Z_agent41_host-lock-fixture-review.md, commit b28114271b8a7461ce8e984709c1e2c4472b34af. Asked to redesign the fixture around a private/proved reader or update golden expectation/docs; do not weaken source-observation guard.
+
+## 2026-11-24 23:49Z: concrete private-reader host fixture redesign
+
+- Inspected proveLocalObject privateFunctionNodes rule: a uniquely bound, non-exported function value is admitted as private when every non-declaration use is a direct non-optional call within its lexical scope. Therefore a host-lock fixture can retain deferred state access by moving the reader closure into entry.mjs as a local const arrow, invoked only after hostAuthorized(), while state remains imported from state.mjs. Avoid exporting read or computing the value at module top-level (which would run before entry authorization).
+- Sent this concrete proposed shape to Agent18 in communications/agent18/20261124T2348Z_agent41_private-reader-fixture-redesign.md, commit 9cca3625e06eb4e7795e74a40686d520f2f960, and Agent3 in communications/agent3/20261124T2349Z_agent41_private-reader-host-fixture-option.md, commit db0e1565e0016a04046cfb301f476377c694cf35. Not tested; exact fixture owner must validate before adoption.
