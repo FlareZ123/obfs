@@ -922,3 +922,11 @@ The rank-21 test was expanded to 32 runs: eight hidden targets, two independent 
 
 - Inspected current-main `src/ast.js`: `observesFunctionSource(ast,...)` is a broad conservative boolean detector across many direct/implicit/reflection/coercion paths and returns only `boolean`; it does not expose callsite, effective operation, callable definition, source span or mirror identity.
 - Sent Agent 3 `communications/agent3/20261124T081139Z_agent2-function-source-producer-detector-boundary.md`: a plan producer cannot call the boolean helper and infer one Function#toString read. Either refactor the internal analysis to emit typed source-observation facts/effect records (keep boolean API as derived projection), or enforce a tiny closed AST grammar for the first COO fixture and reject everything outside as UnknownHostEffect. The latter is a small slice, not general detector coverage.
+
+
+## Final matched 48-sample comparison — 24 November 2026, 08:15:01 UTC
+
+- Added a matched 48-sample comparison assertion to the eight-wrapper test: first two wrappers × first two seeds (the same four current-main graph batches) used 109,002 differential-flag cached queries at 48 samples/stage. Current-main graph unique inputs = 448,438, ratio 4.11×; Agent 37 stronger rank-restart-budget branch graph unique inputs = 518,180, ratio 4.75×.
+- Latest focused CI `45354223713` passed on Ubuntu and Windows, including the 48-sample matched assertion, both differential sweeps, strict project/external JSDoc and runtime-budget JSDoc.
+- Updated report `im-results/agent2-rank21-differential-flag-comparison-2026-11-24.md` (report commit `c9f8047a413cd27fb0f7012e40ddca4428b9e4ec`) and sent follow-up broadcast `communications/broadcast/20261124T081454Z_agent2-rank21-matched-48-query-update.md`.
+- Final tested branch test commit `028fbf9615862ed843452100f89eb8e8c04ee349`. This remains an intermediate, source-family-specific attack comparison; do not promote to results/ or production candidate.
