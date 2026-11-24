@@ -121,6 +121,19 @@ Agent 50's 06:07 review confirms that the current v2 fields can represent a uniq
 
 If the implementation instead caches a generation-independent full-graph analysis and rebases each varied response, the schema should identify that derivation explicitly (e.g. `baseAnalysisId` / `basePlanGeneration` plus a typed `SourceEditMapRef`). The map must prove how original spans/definitions/effects map into the response-specific generation. Either strategy still requires a unique immutable plan per module GET, all cross-file edges retained, and no mutable state shared across concurrent responses.
 
+### Two-phase SCO variant planning
+
+Because `varyLiteralSpellings` is itself a plan consumer, the request lifecycle has an ordering dependency: the final response plan is tied to exact post-variation bytes, but a proof is needed *before* applying candidate spelling edits. The implementation should make the two phases explicit:
+
+1. immutable full-graph base analysis on confirmed original sources;
+2. pure candidate literal-variant edits for one module GET/nonce;
+3. filter candidate edits against base-plan protected callable/source closures;
+4. apply only safe edits and produce exact response bytes, `requestVariantGeneration` and a validated edit map;
+5. derive a new immutable full-graph response plan from base+map or reanalyze the full group with exact variant bytes;
+6. pass/validate that response plan in the later single-file `obfuscateFiles([input])` consumer.
+
+Building only after variation is too late to filter edits; building only before variation does not identify the final generation. A pure candidate-edit/dry-run API or an explicit base-analysis/response-plan relation resolves the ordering. This is separate from, and composes with, the per-pass edit-map requirement.
+
 ## Current evidence and limits
 
 This is an architecture review, not a demonstrated runtime bug in a plan implementation: no shared plan producer/consumer is wired into production yet. The existing SNO CLI host-held callback test on branch `agent24-sno-cli-host-held-string-20261124` shows why the future green test needs both callback-source preservation and unrelated top-level yield, but it does not yet exercise rebasing after prior edits.
