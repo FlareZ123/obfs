@@ -53,7 +53,8 @@ for(const mode of /** @type {Array<'coo'|'sno'>} */ (['coo','sno'])){
       assert.equal(output.metrics.properties,0,
         mode+'/'+shape.label+': a returned function makes its source observable');
       const emitted=evaluate(String(output.code));
-      assert.equal(emitted(),native(),mode+'/'+shape.label+': function behavior parity');
+      assert.equal(emitted(),emitted,mode+'/'+shape.label+': emitted function self-return behavior');
+      assert.equal(native(),native,mode+'/'+shape.label+': native function self-return behavior');
       assert.equal(emitted.toString(),native.toString(),
         mode+'/'+shape.label+': Function#toString must remain byte-identical');
     });
