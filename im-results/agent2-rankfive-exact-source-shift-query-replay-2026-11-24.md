@@ -22,7 +22,7 @@ python3 sims/agent2-rankfive-exact-source-shift-query-replay.py
 
 ## Result
 
-<badge>100/100 matched replicates saved exactly 896 distinct queries</badge>
+**Result:** 100/100 matched replicates saved exactly 896 distinct queries.
 
 | Metric | Derivative signatures | Shift matcher |
 |---|---:|---:|
