@@ -288,6 +288,31 @@ const cases = [
     expectedStored: 'source-getter-hook', expectSource: false, expectObservedSource: true
   },
   {
+    name: 'pure-proxy-key-get', entryFile: 'entry.cjs', expectedValue: 149,
+    entrySource: lines(
+      "function inspect(){const privateLocal=149;return privateLocal;}",
+      "const SymbolCtor=new Proxy({toPrimitive:Symbol.toPrimitive},{get(target,key,receiver){return Reflect.get(target,key,receiver);}});",
+      "inspect[SymbolCtor.toPrimitive]=function(hint){return hint==='string'?'pure-proxy-hook':'wrong';};",
+      "localStorage.setItem('probe',inspect);",
+      "const stored=localStorage.getItem('probe');",
+      "console.log(JSON.stringify({stored,value:inspect()}));"
+    ),
+    expectedStored: 'pure-proxy-hook', expectSource: false
+  },
+  {
+    name: 'source-observing-proxy-key-get', entryFile: 'entry.cjs', expectedValue: 151,
+    entrySource: lines(
+      "function inspect(){const privateLocal=151;return privateLocal;}",
+      "let observed='';",
+      "const SymbolCtor=new Proxy({toPrimitive:Symbol.toPrimitive},{get(target,key,receiver){if(key==='toPrimitive')observed=Function.prototype.toString.call(inspect);return Reflect.get(target,key,receiver);}});",
+      "inspect[SymbolCtor.toPrimitive]=function(hint){return hint==='string'?'source-proxy-hook':'wrong';};",
+      "localStorage.setItem('probe',inspect);",
+      "const stored=localStorage.getItem('probe');",
+      "console.log(JSON.stringify({stored,value:inspect(),observed,observerSawSource:observed.includes('privateLocal')}));"
+    ),
+    expectedStored: 'source-proxy-hook', expectSource: false, expectObservedSource: true
+  },
+  {
     name: 'cross-realm-well-known-symbol', entryFile: 'entry.cjs', expectedValue: 71,
     entrySource: lines(
       "const vm=require('node:vm');const SymbolCtor=vm.runInNewContext('Symbol');",
