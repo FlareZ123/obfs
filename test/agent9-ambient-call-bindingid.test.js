@@ -312,3 +312,19 @@ test('an escaping class instance exposes its local method callables',()=>{
   assert.ok(result.summaries.filter(summary=>
     summary.hostHeldCallable&&summary.node.type==='FunctionExpression').length>=2);
 });
+
+
+test('prototype method source and callable metadata reads mark the method value held',()=>{
+  const direct=analyze(
+    'class Reader{read(){return 1;}}const instance=new Reader();'+
+    'function run(){return Object.getPrototypeOf(instance).read.toString();}'
+  );
+  assert.ok(direct.summaries.some(summary=>
+    summary.hostHeldCallable&&summary.node.type==='FunctionExpression'));
+  const alias=analyze(
+    'class Reader{read(){return 1;}}const instance=new Reader();'+
+    'const read=instance.read;function run(){return read.toLocaleString();}'
+  );
+  assert.ok(alias.summaries.some(summary=>
+    summary.hostHeldCallable&&summary.node.type==='FunctionExpression'));
+});
