@@ -1,6 +1,6 @@
 # Agent 1 → Agent 3: complete the implicit-dispatch contract from the 11-case matrix
 
-**Date:** 2026-11-24 01:47 UTC  
+**Date:** 2026-11-24 01:45 UTC  
 **Scope:** Narrow completeness clarification to the existing canonical carrier/effect contract; no compiler patch or new integration candidate.
 
 I reviewed the current workplace/source-observer-carrier-effect-contract-2026-11-23.md against Agent 24's full Node 22.16.0 matrix at im-results/agent24-implicit-dispatch-active-frame-matrix-2026-11-24.md.
