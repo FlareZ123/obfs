@@ -56,6 +56,18 @@ function check(name,edit) {
   assert.equal(accepted,true,name+': current rebind unexpectedly rejected this synthetic pass');
 }
 
+function checkMany(name,edits) {
+  const result = applyEditsWithMap(source,edits,sourceUnitRef,parserContractId);
+  const ast = parse(result.code,'module');
+  const next = advancePlanRanges(
+    plan,result.map,source,result.code,initial.trackedSourceRanges
+  );
+  assert.ok(next, name+': original ranges should map');
+  const accepted = validatePlanSemantics(plan,result.code,ast,next);
+  console.log(name+': '+JSON.stringify({trackedRanges:next.length,validatorAccepted:accepted}));
+  assert.equal(accepted,true,name+': current rebind unexpectedly rejected this synthetic pass');
+}
+
 check('export-prefix',{
   start:callable.startOffset,end:callable.startOffset,
   text:'export ',affinity:'before-node',
@@ -84,3 +96,18 @@ check('intrinsic-toString-mutation',{
   text:"Function.prototype.toString = function () { return 'tampered'; };\n",
   affinity:'unknown',syntheticOriginId:'review-intrinsic-mutation'
 });
+
+const readerDeclarationStart=source.indexOf('const observedSource');
+const sourceTextExportStart=source.indexOf('export const sourceText');
+assert.ok(readerDeclarationStart>=0&&sourceTextExportStart>=0);
+checkMany('mutable-reader-binding',[
+  {
+    start:readerDeclarationStart,end:readerDeclarationStart+'const'.length,
+    text:'let',affinity:'unknown',syntheticOriginId:'review-reader-let'
+  },
+  {
+    start:sourceTextExportStart,end:sourceTextExportStart,
+    text:"observedSource = 'fake';\\n",affinity:'unknown',
+    syntheticOriginId:'review-reader-overwrite'
+  }
+]);
