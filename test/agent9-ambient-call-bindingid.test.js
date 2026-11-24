@@ -1,6 +1,7 @@
 'use strict';
 
 const assert=require('node:assert/strict');
+const vm=require('node:vm');
 const {test}=require('node:test');
 const {parse}=require('../src/ast');
 const {summarizeAmbientCallEffects}=require('../workplace/agent9-ambient-call-bindingid');
@@ -110,6 +111,22 @@ test('classic-script global function declarations are not treated as immutable l
     'script'
   );
   assert.equal(named(lexical,'caller')[0].ambient,false);
+});
+
+test('classic-script global-object mutation changes a function declaration binding',()=>{
+  const context={getExternal:()=>17};
+  vm.runInNewContext(
+    'function helper(){return 1;}globalThis.helper=getExternal;'+
+    'globalThis.answer=helper();',
+    context
+  );
+  assert.equal(context.answer,17);
+  const lexical={};
+  vm.runInNewContext(
+    'const helper=()=>1;globalThis.helper=()=>2;globalThis.answer=helper();',
+    lexical
+  );
+  assert.equal(lexical.answer,1);
 });
 
 test('constructors, tags, await, yield and dynamic imports remain ambient',()=>{
