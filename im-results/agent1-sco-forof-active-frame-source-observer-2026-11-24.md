@@ -20,7 +20,7 @@ The test therefore confirms that the server-generated SCO CommonJS response can 
 
 ## Script-mode boundary
 
-An earlier attempt using `sourceType:'script'` and a classic-script IIFE did not rename the unrelated control field. This is consistent with `src/core.js` explicitly skipping the property pass for `sourceType === 'script'`; it did not establish a safe source-observer proof. The confirmed SCO result is specifically the Node/CommonJS handler path. ESM strict-mode and browser classic-script behavior remain separate.
+Follow-up classic-script controls are recorded in `im-results/agent1-classic-script-forof-source-parity-2026-11-24.md`. The actual SCO handler preserves exact `hidden()` source in the classic-script fixture on Ubuntu and Windows (run `45310725543`). This is consistent with `src/core.js` explicitly skipping the property pass for `sourceType === 'script'`; it is a positive source-parity control, not evidence that the property proof safely handles IteratorNext while still producing property-renaming yield. The confirmed SCO mismatch is specifically the Node/CommonJS handler path. Strict ESM and browser DevTools/debugger behavior remain separate.
 
 ## Interpretation
 
