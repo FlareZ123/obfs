@@ -201,7 +201,7 @@ async function main(){
   const moduleMetrics=new Map();
   /** @type {Map<string,{code:string,delta:number,sourceColumn:number,emittedColumn:number}>} */
   const cjsPadding=new Map();
-  /** @type {Map<string,{code:string,generated:string,padded:string,delta:number}>} */
+  /** @type {Map<string,{code:string,delta:number,sourceColumn:number,emittedColumn:number}>} */
   const esmPadding=new Map();
   /** @type {Array<{mode:string,delta:number,nativeColumn:number|null,compiledColumn:number|null,paddedColumn:number|null,sourceColumn:number,emittedColumn:number}>} */
   const paddingResults=[];
@@ -446,12 +446,12 @@ async function main(){
         paddingResults.push({
           mode:'esm',delta:padding.delta,
           nativeColumn:before.column,compiledColumn:after.column,paddedColumn:padded.column,
-          generated:padding.generated,padded:padding.padded
+          sourceColumn:padding.sourceColumn,emittedColumn:padding.emittedColumn
         });
         process.stdout.write('CHROMIUM_FRAME_PADDING '+JSON.stringify({
           mode:'esm',delta:padding.delta,
           nativeColumn:before.column,compiledColumn:after.column,paddedColumn:padded.column,
-          generated:padding.generated,padded:padding.padded
+          sourceColumn:padding.sourceColumn,emittedColumn:padding.emittedColumn
         })+'\n');
       }
       const properties=moduleMetrics.get(scenario.kind)??0;
