@@ -8,7 +8,7 @@
 Two test-only controls use the same host-supplied sloppy iterable and external callback that captures the active private `hidden()` function via `arguments.callee.caller.caller`. The host reads the captured function with `Function.prototype.toString`. The source is a classic-script IIFE that exposes only `publicReader` on `globalThis`; `hidden` and `plain` remain nested private helpers. The unobserved `plain()` helper includes a `safeLocal` identifier as a positive transform-yield control.
 
 - SCO actual handler: `test/agent1-sco-classic-script-forof-source-observer.test.js`, run [45312801137](https://github.com/FlareZ123/obfs/actions/runs/45312801137). `createScoHandler` serves `entry.js` with `sourceType:'script'`; the variant is executed in Node's VM with the host iterable. The test asserts the emitted variant equals the original source and source parity; both Ubuntu and Windows pass, including strict project/external/paired-budget JSDoc.
-- COO/SNO direct pipeline: `test/agent1-browser-script-forof-source-observer.test.js`, run [45312925917](https://github.com/FlareZ123/obfs/actions/runs/45312925917). `obfuscateFiles` runs both modes with `sourceType:'script'`; both Ubuntu and Windows pass the exact no-op/source-parity characterization. Strict JSDoc is completing in the Windows job.
+- COO/SNO direct pipeline: `test/agent1-browser-script-forof-source-observer.test.js`, run [45312925917](https://github.com/FlareZ123/obfs/actions/runs/45312925917). `obfuscateFiles` runs both modes with `sourceType:'script'`; both Ubuntu and Windows pass the exact no-op/source-parity characterization and all strict JSDoc steps.
 
 ## Results and interpretation
 
