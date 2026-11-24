@@ -1,4 +1,4 @@
-name: Source-observer COO runtime budget
+name: Source-observer COO startup CPU diagnostic
 
 on:
   workflow_dispatch:
@@ -45,5 +45,14 @@ jobs:
       - name: Install declared dependencies
         run: npm ci --ignore-scripts --no-audit --no-fund
 
-      - name: Measure paired original/obfuscated ESM evaluation
+      - name: Measure paired original/obfuscated ESM initialization CPU and wall time
         run: node sims/source-observer-runtime-budget.js
+
+      - name: Upload raw CPU and wall-time samples
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: source-observer-runtime-budget-${{ matrix.os }}
+          path: source-observer-runtime-budget.json
+          if-no-files-found: warn
+          retention-days: 30
