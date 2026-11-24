@@ -161,3 +161,47 @@ for(const mode of /** @type {Array<'coo'|'sno'|'sco'>} */ (['coo','sno','sco']))
     assert.ok(emitted.source);
   });
 }
+
+
+/**
+ * Execute a CommonJS module exporting an outer class whose static block
+ * contains a private nested class. The outer constructor's native source is
+ * an externally observable container for the nested method source.
+ * @param {string} code
+ * @returns {{value:unknown,source:string}}
+ */
+function runOuterClassSource(code){
+  const context={module:{exports:null}};
+  vm.runInNewContext(code,context,{timeout:1000});
+  const Outer=/** @type {Function & {observed?:unknown}} */ (context.module.exports);
+  return {value:Outer.observed,source:Function.prototype.toString.call(Outer)};
+}
+
+const nestedStaticBlockClass=[
+  'class Outer{',
+  '  static{',
+  '    const owner={secretField:7};',
+  '    class Reader{read(){return owner.secretField;}}',
+  '    const reader=new Reader();',
+  '    this.observed=reader.read();',
+  '  }',
+  '}',
+  'module.exports=Outer;'
+].join('\n');
+
+for(const mode of /** @type {Array<'coo'|'sno'|'sco'>} */ (['coo','sno','sco'])){
+  test(mode+' nested class in an outer static block must preserve outer class source',()=>{
+    const native=runOuterClassSource(nestedStaticBlockClass);
+    const transformed=obfuscateFiles([{
+      path:'entry.cjs',sourceType:'commonjs',code:nestedStaticBlockClass
+    }],{
+      mode,seed:'nested-static-block-class/'+mode,
+      strings:false,identifiers:false
+    }).files[0];
+    assert.equal(transformed.metrics.properties,0,
+      mode+': nested class source is embedded in Outer.toString()');
+    const emitted=runOuterClassSource(String(transformed.code));
+    assert.equal(emitted.value,native.value);
+    assert.equal(emitted.source,native.source);
+  });
+}
