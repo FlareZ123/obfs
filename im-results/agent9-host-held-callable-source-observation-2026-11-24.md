@@ -268,3 +268,12 @@ This closes the focused SNO launcher/entrypoint gap for a single CommonJS entry 
 The actual `bin/sno.js` CLI was exercised with `--root`, `--out`, `--entry entry.cjs` and a deterministic seed. It emitted the SNO artifact set and `sno-entry.cjs`; the test then ran the generated single-entry launcher under Node with a host-controlled `queueMicrotask` override. The callback source parameter was changed by the default SNO identifier transform; stdout remained `done`; the host did not invoke the callback. [Run 45328981265](https://github.com/FlareZ123/obfs/actions/runs/45328981265) passed on Ubuntu and Windows with strict project/external/paired-budget JSDoc.
 
 At witness commit `44c3d2b279638960ed52d7ab8064296352994ca3`, the implementation blobs for `src/ast.js`, `src/properties.js`, `src/identifiers.js`, `src/strings.js`, `src/core.js`, `src/sno.js`, `src/cli.js` and `bin/sno.js` were independently verified identical to current main. This is focused CLI evidence for one CommonJS entry and the default identifier pass; the explicit string-transform SNO witness remains the launcher API test in run 45328512061.
+
+
+## Actual SCO handler in Chromium
+
+The `createScoHandler` witness was extended from a Node client harness to a real Chromium client. The server delivers `entry.mjs` and `helper.mjs`; the entry imports a factory that returns private `hidden`, then passes it to a client-overridden `queueMicrotask`. The browser host records `Function#toString` and never invokes the callback. The native control observes `function hidden(inputValue){return inputValue+1;}`; the SCO-delivered module exposes a changed parameter spelling while the module loads successfully.
+
+[Run 45329160079](https://github.com/FlareZ123/obfs/actions/runs/45329160079) succeeded. Chromium executed on Ubuntu; Windows browser execution is intentionally skipped because Chromium is provisioned only on the Ubuntu runner. Both OS jobs passed strict project/external/paired-budget JSDoc. The six relevant compiler blobs at witness commit `4e87e451192f51235b47f9fb740c62bf7b49b2d8` (ast, properties, identifiers, strings, core, SCO) were independently verified identical to current main.
+
+This is direct browser evidence for the actual SCO server-delivery/client-execution path, including cross-file ESM factory-return and non-invoking host-held source observation.
