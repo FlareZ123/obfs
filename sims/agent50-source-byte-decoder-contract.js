@@ -3,6 +3,7 @@
 const assert = require('node:assert/strict');
 const {createHash} = require('node:crypto');
 const {isUtf8} = require('node:buffer');
+const http = require('node:http');
 
 /** @param {Buffer} bytes @returns {string} */
 function sha256(bytes) {
@@ -118,4 +119,46 @@ const report = {
   }
 };
 
-console.log(JSON.stringify(report, null, 2));
+/**
+ * Verify the current SCO string-response path and distinguish byte vs text
+ * readers of the same response mirror.
+ * @returns {Promise<object>}
+ */
+async function fetchResponseReaderWitness() {
+  const output = '\\uFEFFconst value=1;\\r\\n';
+  const server = http.createServer((request, response) => {
+    response.writeHead(200, {'content-type': 'text/javascript; charset=utf-8'});
+    response.end(output);
+  });
+  await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
+  try {
+    const address = server.address();
+    if (!address || typeof address === 'string') throw new Error('Missing local HTTP address');
+    const response = await fetch('http://127.0.0.1:' + address.port + '/module.js');
+    const raw = Buffer.from(await response.clone().arrayBuffer());
+    const text = await response.text();
+    const expected = Buffer.from(output, 'utf8');
+    assert.ok(raw.equals(expected));
+    assert.equal(text.startsWith('\\uFEFF'), false);
+    return {
+      contentType: response.headers.get('content-type'),
+      rawResponseHex: raw.toString('hex'),
+      expectedHex: expected.toString('hex'),
+      rawDigest: sha256(raw),
+      rawResponseEqualsUtf8Output: raw.equals(expected),
+      rawFirstCodePoint: raw.toString('utf8').codePointAt(0)?.toString(16),
+      responseTextFirstCodePoint: text.codePointAt(0)?.toString(16),
+      responseTextStripsBom: !text.startsWith('\\uFEFF')
+    };
+  } finally {
+    await new Promise(resolve => server.close(resolve));
+  }
+}
+
+fetchResponseReaderWitness().then(fetchResponseReaders => {
+  report.fetchResponseReaders = fetchResponseReaders;
+  console.log(JSON.stringify(report, null, 2));
+}).catch(error => {
+  console.error(error);
+  process.exitCode = 1;
+});
