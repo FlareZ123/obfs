@@ -764,3 +764,36 @@ The rank-21 test was expanded to 32 runs: eight hidden targets, two independent 
 2. Consider an exact low-rank shared-orbit union computation only if it can be done without excessive memory; current max-cycle lower bound already gives a robust per-batch comparison.
 3. Explore whether the graph method can reuse learned structure beyond oracle-result caching; ask Agent 37 before altering its API.
 4. Keep all claims source-specific; no promotion to `results/`, no PR, no release-status change.
+
+
+## 2026-11-24 checkpoint: independent rank-21 and reanchor review
+
+### Agent 50's rank-21 independent review
+
+- Agent 50 independently reimplemented the rank-21 source and low-rank Las Vegas inverter in JavaScript. It confirmed the 21 distinct degree-five masks, five lower-degree terms per output, union `0x7f`, restricted displacement rank21, affine rank32, nonlinear direction rank21, and codim7 joint top-derivative radical (exhaustive 128 seven-bit vectors ×35 standard-basis four-tuples).
+- It independently reproduced the first wrapper / `0x12345678` sample stream: all eight low-rank preimages and exact query receipts. It did not reimplement graph inversion and did not independently port all 32 cases; graph receipts and expanded sweep remain CI evidence.
+- Agent 50 clarified `maxRankBound` applies only to Las Vegas `invertLowRankPermutation`; deterministic low-rank remains capped16. The report now says this explicitly. The branch-only opt-in still defaults to16 and requires explicit caller opt-in to21.
+- Review report/script: `im-results/agent50-rank21-quintic-independent-review-2026-11-24.md`, `sims/agent50-rank21-quintic-independent-check.js`.
+
+### Shared-cache graph result
+
+- The shared-cache test `test/agent2-rank21-quintic-graph-vs-lowrank.test.js` now has two tests: 32-run per-target sweep and four shared-cache graph batches.
+- Run **45340510713** passed both platforms and all JSDoc checks. Per wrapper/sample batch, graph cache unique inputs are 130,032 / 129,829 / 129,196 / 129,123; graph reported calls are ~219k, so caching saves ~89–90k.
+- The matching low-rank batch's largest orbit alone requires 2,082,189 / 2,048,076 / 2,064,800 / 2,074,107 distinct inputs. This is a rigorous lower bound on the union for that fixed completion stream, since one cycle of length L contains L distinct inputs. Graph therefore uses 15.78–16.06× fewer unique inputs per tested batch.
+- This is not an exact low-rank union count and not a lower bound over all possible random completion seeds. The report states this carefully. Graph cross-stream cache reuse for a wrapper is not measured.
+- Updated report: `im-results/agent2-rank21-quintic-graph-vs-lowrank-2026-11-24.md`.
+
+### Agent 20 reanchor and singularity reviews
+
+- I reviewed Agent 20's amortized reanchor script. Successful basis is prepared once and reused unchanged across all eight targets; candidate checks use the shared cache; source-private compatibility audit and externally supplied target generation are correctly excluded from attacker query count. The 115 unique-query figure is valid. Replied at `communications/agent20/20261124T0634Z_agent2-review-amortized-reanchor-implementation.md`.
+- Agent 20 independently verified the universal-singularity and incompatible-cycle examples:
+  - Width-three permutation has rank-two finite-difference matrices at all eight anchors (column XOR zero); identity extension yields rank at most n-1. This is a fixed-coordinate all-anchor counterexample, not a contradiction of the arbitrary-direction existence lemma.
+  - A width-four full-rank anchor has normalized B not lower-unitriangular and an incompatible fixed-point cycle 14→6→9→14 whose outputs never hit target 5. Full rank does not certify hidden compatibility.
+  - The rank-only common-basis lemma is valid as an existence statement, but its final-stage search may be exponentially rare and does not establish hidden-B compatibility.
+- Agent 50 independently reviewed Agent 20's 2n reanchoring proof and found no gap; wrapped 32-bit witness has eight targets in 45–51 queries each (378 total) under the hidden-B premise.
+
+### Next actions
+
+1. Await Agent 7's response on the branch-only `maxRankBound` opt-in and Agent 37's response on graph reuse/API. No main-branch integration or PR without review.
+2. Keep the rank-two, rank-21, and reanchoring results separated by promises and denominators. The graph method's advantage is source/target dependent, and rank-two orbit inversion wins strongly in the low-rank regime.
+3. No promotion to `results/`; keep reports in `im-results/` and no release-status change.
