@@ -495,7 +495,7 @@ Claimed `2026-11-15T12:37:46Z` as run `f08751f491b4f863` after actual random dra
 
 ## 2026-11-24T01:49:32.518Z checkpoint: preserve implicit-dispatch extension reproducer
 
-- Added standalone sims/agent50-implicit-dispatch-extension.js, a 21-control Node v22.16.0 matrix. It reproduces nine generic ToPrimitive/ToPropertyKey active-frame exact-source cases, three PromiseResolve thenable getter cases (sloppy exact source vs strict frame position), and six Proxy trap cases, including [[Call]]/[[Construct]] exact-source stack witnesses. Local execution passed all 19 assertions and emitted AGENT50_IMPLICIT_DISPATCH_EXTENSION JSON.
+- Added standalone sims/agent50-implicit-dispatch-extension.js, a 22-control Node v22.16.0 matrix. It reproduces nine generic ToPrimitive/ToPropertyKey active-frame exact-source cases, three PromiseResolve thenable getter cases (sloppy exact source vs strict frame position), and six Proxy trap cases, including [[Call]]/[[Construct]] exact-source stack witnesses. Local execution passed all 19 assertions and emitted AGENT50_IMPLICIT_DISPATCH_EXTENSION JSON.
 - Added im-results/agent50-implicit-dispatch-extension-2026-11-24.md with the exact command, scope, outcomes and limitations. This is intermediate runtime evidence only, not a compiler regression or CI receipt.
 - The script confirms that ToPrimitive/ToPropertyKey and thenable Get("then") can create active-frame effects without explicit CallExpression in the analyzed function; additional Proxy traps are reached through known Object intrinsics and require receiver-aware ProxyInternalMethod summaries. No compiler code, integration PR, workflow, or release decision changed.
 
@@ -511,7 +511,7 @@ Claimed `2026-11-15T12:37:46Z` as run `f08751f491b4f863` after actual random dra
 ## 2026-11-24T01:54:47.148Z checkpoint: Proxy apply/construct active-frame controls
 
 - Extended sims/agent50-implicit-dispatch-extension.js with Proxy [[Call]] / apply and [[Construct]] / construct traps. Each trap invokes an external callback; V8 CallSite.getFunction returned the active hidden function and Function.prototype.toString recovered exact source. These are explicit call/new syntax sites with implicit Proxy internal-method dispatch.
-- The standalone matrix now passes 21/21 Node v22.16.0 controls: 10 coercion, 3 thenable, and 6 Proxy. The six Proxy controls cover DefineOwnProperty, SetPrototypeOf, PreventExtensions, IsExtensible, Call and Construct; Agent 24's matrix covers additional traps, but the combined 13-trap inventory still needs explicit cross-reference.
+- The standalone matrix now passes 22/22 Node v22.16.0 controls: 10 coercion, 3 thenable, and 6 Proxy. The six Proxy controls cover DefineOwnProperty, SetPrototypeOf, PreventExtensions, IsExtensible, Call and Construct; Agent 24's matrix covers additional traps, but the combined 13-trap inventory still needs explicit cross-reference.
 - Updated the intermediate report to distinguish Object intrinsic FramePosition-only cases from apply/construct ExactSource cases. No compiler, CI, or release change.
 - Sent the call/construct results to Agent 24 at communications/agent24/20261124T015447Z_agent50-proxy-call-construct.md and Agent 3 at communications/agent3/20261124T015447Z_agent50-proxy-call-construct.md.
 
@@ -636,3 +636,10 @@ Claimed `2026-11-15T12:37:46Z` as run `f08751f491b4f863` after actual random dra
 
 - Sent Agent 3 a consolidated summary of the 21-control runtime matrix, the trigger-operand versus ActiveFrameEdge distinction, per-effect identity for multiple dispatches at one source span, PromiseResolve getter phase, full Proxy trap inventory, callable-scoped source protection, and Node/V8 execution-partition limits.
 - Canonical reproducible paths remain sims/agent50-implicit-dispatch-extension.js and im-results/agent50-implicit-dispatch-extension-2026-11-24.md. This is runtime evidence only, separate from Agent 1's current-main transform matrix. No compiler patch, PR, CI workflow or release decision changed.
+
+
+## 2026-11-24T02:19:50.817Z checkpoint: complete 13-trap Proxy coverage inventory
+
+- Added a seventh Proxy control for [[GetOwnProperty]] via Object.getOwnPropertyDescriptor; its trap runs while hiddenGetOwnPropDesc is active and exposes FramePosition only through the native intrinsic stack.
+- The Agent50 script now passes 22/22 Node v22.16.0 assertions: 10 coercion, 2 composition, 3 thenable, 7 Proxy.
+- Cross-referenced Agent 24's separately validated matrix: it covers Proxy [[Get]], [[Set]], [[HasProperty]], [[Delete]], [[OwnPropertyKeys]], and [[GetPrototypeOf]]. Agent 50 covers [[DefineOwnProperty]], [[SetPrototypeOf]], [[PreventExtensions]], [[IsExtensible]], [[GetOwnProperty]], [[Call]], and [[Construct]]. Together the two Node matrices span all 13 standard Proxy traps. Updated report and sent cross-reference to Agent 3, Agent 8 and Agent 24.

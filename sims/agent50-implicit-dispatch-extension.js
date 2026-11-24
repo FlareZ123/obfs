@@ -189,6 +189,25 @@ function runProxyCase(label, trapName, hidden, expectThrow) {
 }
 
 /**
+ * @returns {{label:string,functionName:string,framePosition:boolean,exactSource:boolean,threw:boolean}}
+ */
+function runProxyDescriptorCase() {
+  const label = 'Proxy [[GetOwnProperty]] / getOwnPropertyDescriptor trap';
+  const { observation, external } = makeStackCapture();
+  const trap = Function('external',
+    'return function getOwnPropertyDescriptor(target,key){' +
+    'external();return {configurable:true,enumerable:true,value:1,writable:true};' +
+    '}')(external);
+  const proxy = new Proxy({ x: 1 }, { getOwnPropertyDescriptor: trap });
+  hiddenGetOwnPropDesc(proxy);
+  const frame = observation.frames.find(item => item.name === hiddenGetOwnPropDesc.name);
+  assert.ok(frame, label + ': active frame');
+  assert.ok(frame.file && frame.line && frame.column, label + ': frame position');
+  assert.equal(frame.hasFunction, false, label + ': native Object intrinsic hides function');
+  return { label, functionName: frame.name, framePosition: true, exactSource: false, threw: false };
+}
+
+/**
  * @param {string} label
  * @param {'apply'|'construct'} trapName
  * @param {(value:Function)=>unknown} hidden
@@ -241,6 +260,7 @@ function hiddenDefine(value) {
 function hiddenSetProto(value) { Object.setPrototypeOf(value, {}); }
 function hiddenPrevent(value) { Object.preventExtensions(value); }
 function hiddenIsExtensible(value) { return Object.isExtensible(value); }
+function hiddenGetOwnPropDesc(value) { return Object.getOwnPropertyDescriptor(value, 'x'); }
 function hiddenApply(value) { return value(1); }
 function hiddenConstruct(value) { return new value(); }
 
@@ -312,6 +332,7 @@ async function main() {
     runProxyCase('Object.setPrototypeOf', 'setPrototypeOf', hiddenSetProto, false),
     runProxyCase('Object.preventExtensions', 'preventExtensions', hiddenPrevent, true),
     runProxyCase('Object.isExtensible', 'isExtensible', hiddenIsExtensible, false),
+    runProxyDescriptorCase(),
     runProxyCallableCase('Proxy [[Call]] / apply trap', 'apply', hiddenApply, function target() {}, false),
     runProxyCallableCase('Proxy [[Construct]] / construct trap', 'construct', hiddenConstruct, function Target() {}, true)
   ];
