@@ -24,7 +24,7 @@ A second test, `test/agent1-sco-promise-resolve-source-observer.test.js`, uses t
 
 Focused run [45313400478](https://github.com/FlareZ123/obfs/actions/runs/45313400478) fails exact-source parity on both Ubuntu and Windows (Node v22.23.4). Native source contains `owner.secretField`; emitted source contains `owner._pd323527a84`. The unrelated field is also renamed to `other._pdf573ed7a0`; both executions return 3. The positive-yield assertion executes before the source-parity red, so the mismatch is not a zero-yield artifact.
 
-This confirms SCO Node/CommonJS false-safe behavior for both synchronous IteratorNext and asynchronous PromiseResolve thenable assimilation. The new red run skips JSDoc by design; a passing focused run is still needed to typecheck the added test file.
+This confirms SCO Node/CommonJS false-safe behavior for both synchronous IteratorNext and asynchronous PromiseResolve thenable assimilation. The red run skips JSDoc by design; the added test file passed strict project/external/paired-budget JSDoc on both OS in [run 45313505327](https://github.com/FlareZ123/obfs/actions/runs/45313505327).
 
 ## Script-mode boundary
 
