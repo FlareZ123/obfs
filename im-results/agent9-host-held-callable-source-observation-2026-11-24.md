@@ -298,3 +298,10 @@ A further matrix routes the host-held callback through three retrieval forms: co
 - The host callback remains non-invoking in every case.
 
 [Run 45330368625](https://github.com/FlareZ123/obfs/actions/runs/45330368625) passed 18/18 tests on Ubuntu and Windows with strict JSDoc. This is a particularly clear consumer inconsistency: conservative string gating does not protect the callback from identifier renaming. The shared plan must propagate the host-held callable through computed/reflective property-value edges and make all source-mutating consumers honor the same exact-source closure, while retaining unrelated yield where proven.
+
+
+## Nested callable source-span closure
+
+An outer host-held `outer` function contains a nested `inner` declaration. The host observes only `outer` source and never invokes it. In all three modes, identifier renaming changes both outer and nested parameter spellings, therefore changing the outer Function#toString source (3/3 red controls). The string pass preserves the complete outer source, but also skips every string in the file (`metrics.literals === 0`; even an unrelated top-level literal remains unchanged), yielding a broad file-level veto. [Run 45330456975](https://github.com/FlareZ123/obfs/actions/runs/45330456975) passed on Ubuntu and Windows with strict JSDoc.
+
+This confirms that an observed outer callable's source closure includes nested function text. It also adds another consumer divergence: string encoding is broadly withheld while identifier renaming still edits source inside the observed outer span. The plan needs nested-span closure plus a shared per-callable consumer gate; a file-wide string veto is safe but sacrifices unrelated yield.
