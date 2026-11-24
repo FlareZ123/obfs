@@ -577,3 +577,27 @@ test('a query-distinct owner module URL refuses direct-read renaming',async()=>{
     'import {state as right} from "./state.mjs?other";'+
     'console.log(left.secretField,right.secretField);',0);
 });
+
+
+test('sibling imports of one owner can occupy multiple private record slots',async()=>{
+  await check(exposed+reader,
+    'import {state as left,state as right,peek} from "./state.mjs";'+
+    'const carrier={first:left,second:right};'+
+    'const {first:one,second:two}=carrier;'+
+    'const local=value=>value.secretField;'+
+    'console.log(peek(one),local(two));',1);
+});
+
+test('one local reader can consume sibling aliases of one imported owner',async()=>{
+  await check(exposed,
+    'import {state as left,state as right} from "./state.mjs";'+
+    'const local=value=>value.secretField;'+
+    'console.log(local(left),local(right));',1);
+});
+
+test('one escaped sibling owner alias vetoes shared-owner renaming',async()=>{
+  await check(exposed+reader,
+    'import {state as left,state as right,peek} from "./state.mjs";'+
+    'globalThis.escapedOwner=right;'+
+    'console.log(peek(left));',0);
+});
