@@ -114,9 +114,9 @@ const fakeKey = "Symbol.for('Symbol.toPrimitive')";
 const fakePreload = "(()=>{const realSymbol=globalThis.Symbol;globalThis.Symbol={toPrimitive:realSymbol.for('Symbol.toPrimitive')};})();";
 const realWrapperPreload = "(()=>{const realSymbol=globalThis.Symbol;globalThis.Symbol={toPrimitive:realSymbol.toPrimitive};})();";
 const helperModule = lines(
-  "export function create(SymbolCtor,label){",
+  "export function create(SymbolCtor,label,privateValue){",
   "  const key=SymbolCtor.toPrimitive;",
-  "  function inspect(){const privateLocal=53;return privateLocal;}",
+  "  function inspect(){const privateLocal=privateValue;return privateLocal;",
   "  inspect[key]=function(hint){return hint==='string'?label:'wrong';};",
   "  return inspect;",
   "}"
@@ -231,7 +231,7 @@ const cases = [
     extraFiles: { 'helper.mjs': helperModule },
     entrySource: lines(
       "import {create} from './helper.mjs';",
-      "const inspect=create(Symbol,'cross-file-real-hook');",
+      "const inspect=create(Symbol,'cross-file-real-hook',53);",
       "localStorage.setItem('probe',inspect);",
       "const stored=localStorage.getItem('probe');",
       "console.log(JSON.stringify({stored,value:inspect()}));"
@@ -244,7 +244,7 @@ const cases = [
     entrySource: lines(
       "import {create} from './helper.mjs';",
       "const fakeSymbolCtor={toPrimitive:" + fakeKey + "};",
-      "const inspect=create(fakeSymbolCtor,'cross-file-fake-hook');",
+      "const inspect=create(fakeSymbolCtor,'cross-file-fake-hook',59);",
       "localStorage.setItem('probe',inspect);",
       "const stored=localStorage.getItem('probe');",
       "console.log(JSON.stringify({stored,value:inspect()}));"
