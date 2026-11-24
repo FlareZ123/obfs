@@ -20,7 +20,7 @@ function sourceSpan(sourceUnitRef,start,end,generation,originSpanId) {
     sourceUnitRef,sourceGeneration:generation,
     startOffset:start,endOffset:end,
     coordinateUnit:'utf16-code-unit',
-    astNodeType:'ArrowFunctionExpression'
+    astNodeType
   };
 }
 
@@ -137,7 +137,7 @@ test('identifier protection is binding-wide across declarations and references',
     const callback=findNamedFunction(ast,'callback');
     const originalCallbackSource=fixture.source.slice(callback.start,callback.end);
     const span=sourceSpan(UNIT,callback.start,callback.end,
-      sourceGenerationOf(fixture.source,PARSER));
+      sourceGenerationOf(fixture.source,PARSER),undefined,callback.type);
     const renamed=renameLocalIdentifiers(fixture.source,ast,{
       seed:'protected-binding-wide-'+fixture.protectedName,
       sourceType:'module',sourceUnitRef:UNIT,parserContractId:PARSER,
@@ -162,7 +162,7 @@ test('protected escaped free identifiers reserve names against lexical capture',
   const ast=parse(source,'module');
   const callback=findNamedFunction(ast,'callback');
   const originalCallbackSource=source.slice(callback.start,callback.end);
-  const span=sourceSpan(UNIT,callback.start,callback.end,sourceGenerationOf(source,PARSER));
+  const span=sourceSpan(UNIT,callback.start,callback.end,sourceGenerationOf(source,PARSER),undefined,callback.type);
   const renamed=renameLocalIdentifiers(source,ast,{
     seed:'protected-collision',sourceType:'module',
     sourceUnitRef:UNIT,parserContractId:PARSER,protectedSourceSpans:[span]
