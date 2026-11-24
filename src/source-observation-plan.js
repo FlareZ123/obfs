@@ -704,8 +704,8 @@ function buildDirectFunctionSourcePlan(source,path,hostContract) {
     originDefinitionRef:null
   });
   const resultValueFact=Object.freeze({
-    categoryPossibilities:Object.freeze(['Primitive']),
-    proofStatus:'proven',
+    categoryPossibilities:Object.freeze(['Primitive','Unknown']),
+    proofStatus:'unknown',
     originDefinitionRefs:Object.freeze([]),
     callableDefinitionRefs:Object.freeze([]),
     wellKnownSymbolRefs:Object.freeze([]),
@@ -721,8 +721,8 @@ function buildDirectFunctionSourcePlan(source,path,hostContract) {
     originDefinitionRef:readerDefinitionId
   });
   const readerValueFact=Object.freeze({
-    categoryPossibilities:Object.freeze(['Primitive']),
-    proofStatus:'proven',
+    categoryPossibilities:Object.freeze(['Primitive','Unknown']),
+    proofStatus:'unknown',
     originDefinitionRefs:Object.freeze([readerDefinitionId]),
     callableDefinitionRefs:Object.freeze([]),
     wellKnownSymbolRefs:Object.freeze([]),
@@ -738,8 +738,8 @@ function buildDirectFunctionSourcePlan(source,path,hostContract) {
     originDefinitionRef:exportDefinitionId
   });
   const exportValueFact=Object.freeze({
-    categoryPossibilities:Object.freeze(['Primitive']),
-    proofStatus:'proven',
+    categoryPossibilities:Object.freeze(['Primitive','Unknown']),
+    proofStatus:'unknown',
     originDefinitionRefs:Object.freeze([exportDefinitionId]),
     callableDefinitionRefs:Object.freeze([]),
     wellKnownSymbolRefs:Object.freeze([]),
