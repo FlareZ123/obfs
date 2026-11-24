@@ -198,6 +198,7 @@ The canonical plan should expose at least:
  *
  * @typedef {Object} HostEffectRecord
  * @property {HostEffectId} effectId
+ * @property {HostEffectId|null} causedByEffectId - causal parent for nested/deferred effects
  * @property {HostEffectKind} kind
  * @property {SourceSpanId} operationSpan
  * @property {string|null} abstractOperation - ToPrimitive, ToPropertyKey, PromiseResolve.GetThen, etc.
@@ -654,3 +655,20 @@ The actual `createScoHandler` HTTP-response differential is now recorded on the 
 All eight cases retain positive owner-property and unrelated-helper rewrite yield and preserve ordinary return values. The three stable controls prove only that the measured frame column did not change in those particular variants; they do not prove all source/metadata/coordinate effects safe. The earlier dynamic JSON text fixture was invalid for this classification because it caused an unrelated unknown-input refusal; the final test uses a statically known primitive JSON string. This is Node/CommonJS actual-handler evidence, not browser evidence. See the branch report for the exact test and run boundary.
 
 Combined with the focused COO/SNO differential, five callback operations now have current-main Node/CommonJS mismatch evidence in all three modes. The other three are not universal failures: their measured SCO frame columns were stable in this fixture, while their COO/SNO tests still changed the measured observation. Preserve the mode-specific distinction.
+
+
+### Web IDL conversion composes with ECMAScript coercion; dispatch identity is mandatory
+
+A Web IDL `DOMString` conversion is not interchangeable with a generic ToPrimitive event:
+- If the input is a function object, the native Web IDL conversion exposes its exact function source text.
+- If the input is a non-primitive object, ECMAScript ToString/ToPrimitive may invoke `@@toPrimitive`, `toString` or `valueOf`; record a nested `ToPrimitiveDispatch` linked to the `WebIDLStringConversion` by `causedByEffectId`.
+- If the input is definitely primitive, no callable-source edge is created; do not veto unrelated transformations.
+- The sink event itself must carry the native interface, receiver, effective operation/accessor, conversion target and argument/property position. Member spelling alone is never proof of native dispatch.
+
+Examples:
+- `Storage.prototype.setItem`: separate DOMString conversions for argument 0 (key) and argument 1 (value); a function in either slot exposes source. A captured native alias remains the native operation after prototype replacement. An own/prototype wrapper is a different user-code dispatch and must not inherit the native sink summary.
+- Storage named-property assignment: `ToPropertyKey` on the property key (if non-primitive) is distinct from DOMString conversion of the assigned value.
+- `Window.name`: native Window attribute setter converts the assigned value to DOMString; a shadowed local `window` or replaced accessor is not this native sink.
+- A custom `Symbol.toPrimitive` on an object passed to Storage or Window.name can produce both a WebIDLStringConversion event and a nested ToPrimitiveDispatch, with its own trigger value and DynamicFrame edges.
+
+Use `causedByEffectId` only for actual nested/deferred causality, not as a substitute for source-unit/operand identity. It allows the plan to represent (for example) a PromiseResolve thenable getter followed by a deferred thenable job, or a Web IDL conversion that invokes user-defined coercion. Multiple sibling effects may still share one operation span without a parent-child relation.
