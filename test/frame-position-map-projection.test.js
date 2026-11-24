@@ -258,3 +258,48 @@ test('newline prologue maps source spans but invalidates FramePosition line equa
   assert.notDeepEqual(currentPosition,originalPosition,
     'a span map is not a FramePosition preservation proof');
 });
+
+
+test('projects stable callsite spans through CRLF sources with astral UTF-16 columns',()=>{
+  const crlfSource=source.replace(/\n/g,'\r\n');
+  const ast=parse(crlfSource,'commonjs');
+  const originalSites=collectCallSites(ast);
+  assert.equal(originalSites.length,4);
+  const originals=originalSites.map(site=>({
+    id:site.id,
+    span:spanFor(site.id,crlfSource,site.node),
+    position:positionAt(crlfSource,site.node.start)
+  }));
+  const replacements=new Map([
+    ['longPrivatePropertyName','_a'],
+    ['tinyKey','_expandedPrivateKey'],
+    ['anotherLongPrivatePropertyName','_b'],
+    ['fourthLongPrivatePropertyName','_c']
+  ]);
+  /** @type {import('../src/ast').Edit[]} */
+  const edits=[];
+  walk(ast,node=>{
+    if(node.type==='Identifier'&&replacements.has(node.name)){
+      edits.push({start:node.start,end:node.end,text:replacements.get(node.name)});
+    }
+  });
+  const transformed=applyEditsWithMap(crlfSource,edits,UNIT,PARSER);
+  const afterAst=parse(transformed.code,'commonjs');
+  const afterSites=collectCallSites(afterAst);
+  const afterById=new Map(afterSites.map(site=>[site.id,site]));
+  const deltas=[];
+  for(const original of originals){
+    const mapped=mapSourceSpan(transformed.map,original.span,crlfSource,transformed.code);
+    assert.ok(mapped,'CRLF callsite span must remain mappable');
+    assert.equal(mapped.originSpanId,original.span.spanId);
+    const after=afterById.get(original.id);
+    assert.ok(after,'CRLF callsite key must survive reparse');
+    assert.deepEqual([mapped.startOffset,mapped.endOffset],[after.node.start,after.node.end]);
+    const position=positionAt(transformed.code,after.node.start);
+    assert.equal(position.line,original.position.line);
+    deltas.push(original.position.column-position.column);
+  }
+  assert.deepEqual(deltas,[21,9,37,27],
+    'CRLF and astral code units must preserve the same per-line edit deltas');
+});
+
