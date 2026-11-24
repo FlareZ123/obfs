@@ -707,6 +707,71 @@ function proveLocalObject(ast, rootName, bindings, importedIdentityFunctions=new
   /** @type {WeakMap<AstNode,boolean>} */
   const ambientCallEffectCache=new WeakMap();
   /**
+   * An ambient identifier or non-local property read can execute a host
+   * accessor while this function is active. Only a unique const object
+   * literal with a static own data property is admitted as a local read.
+   * @param {AstNode} member
+   * @returns {boolean}
+   */
+  function isProvenLocalDataMember(member) {
+    if(member.object?.type!=='Identifier')return false;
+    const name=member.object.name;
+    if(bindings.get(name)!==1)return false;
+    const scope=scopes.get(name);
+    if(!scope)return false;
+    let scopeContainsMember=false;
+    let cursor=member;
+    while(cursor) {
+      if(cursor===scope){scopeContainsMember=true;break;}
+      cursor=parents.get(cursor)??null;
+    }
+    if(!scopeContainsMember)return false;
+    const declarationUse=(identifierUses.get(name)??[]).find(entry=>
+      entry.parent?.type==='VariableDeclarator'&&entry.parent.id===entry.node);
+    const declarator=declarationUse?.parent;
+    const variableDeclaration=declarator?parents.get(declarator):null;
+    if(variableDeclaration?.type!=='VariableDeclaration'||
+       variableDeclaration.kind!=='const'||
+       declarator?.init?.type!=='ObjectExpression')return false;
+    const ownKeys=new Set();
+    for(const property of declarator.init.properties) {
+      if(property.type!=='Property'||property.kind!=='init'||
+         property.method||property.shorthand)return false;
+      const propertyName=property.computed?
+        staticString(property.key):staticName(property.key);
+      if(propertyName===null||propertyName==='__proto__'||ownKeys.has(propertyName))
+        return false;
+      ownKeys.add(propertyName);
+    }
+    const propertyName=member.computed?
+      staticString(member.property):staticName(member.property);
+    return propertyName!==null&&ownKeys.has(propertyName);
+  }
+  /**
+   * @param {AstNode} node
+   * @param {AstNode|null} parent
+   * @param {string|null} key
+   * @returns {boolean}
+   */
+  function isNonReferenceIdentifier(node,parent,key) {
+    return parent?.type==='MemberExpression'&&key==='property'&&!parent.computed||
+      parent?.type==='Property'&&key==='key'&&!parent.computed&&!parent.shorthand||
+      (parent?.type==='MethodDefinition'||parent?.type==='PropertyDefinition')&&
+        key==='key'&&!parent.computed||
+      parent?.type==='LabeledStatement'&&key==='label'||
+      (parent?.type==='BreakStatement'||parent?.type==='ContinueStatement')&&
+        key==='label'||
+      parent?.type==='ImportSpecifier'||
+      parent?.type==='ImportDefaultSpecifier'||
+      parent?.type==='ImportNamespaceSpecifier'||
+      parent?.type==='ExportSpecifier'&&key==='exported';
+  }
+  /**
+   * Experimental conservative synchronous caller-source effect. Unknown or
+   * non-local calls, ambient identifier reads, and non-local property reads
+   * can invoke host code while the function is active. Direct local calls
+   * propagate the effect recursively. This remains an incomplete
+   * approximation of implicit protocol dispatch and cross-file effects.
    * @param {AstNode} functionNode
    * @param {Set<AstNode>} [active]
    * @returns {boolean}
@@ -717,16 +782,40 @@ function proveLocalObject(ast, rootName, bindings, importedIdentityFunctions=new
     if(active.has(functionNode))return true;
     active.add(functionNode);
     let opaque=false;
-    walk(functionNode,candidate=>{
-      if(candidate.type!=='CallExpression')return;
-      const callee=candidate.callee;
-      if(callee.type==='Identifier') {
-        const target=staticCallableTargets.get(callee.name);
-        if(!target||hasUnprovedAmbientDirectCall(target,active))opaque=true;
-      } else if(callee.type==='ArrowFunctionExpression' ||
-                callee.type==='FunctionExpression') {
-        if(hasUnprovedAmbientDirectCall(callee,active))opaque=true;
-      } else opaque=true;
+    walk(functionNode,(candidate,parent,key)=>{
+      if(candidate.type==='Identifier'&&
+         !isNonReferenceIdentifier(candidate,parent,key)) {
+        const scope=scopes.get(candidate.name);
+        let inScope=false;
+        let cursor=candidate;
+        while(scope&&cursor) {
+          if(cursor===scope){inScope=true;break;}
+          cursor=parents.get(cursor)??null;
+        }
+        if(!inScope||bindings.get(candidate.name)!==1)opaque=true;
+      }
+      if(candidate.type==='MemberExpression'&&!isProvenLocalDataMember(candidate))
+        opaque=true;
+      if(candidate.type==='NewExpression'||
+         candidate.type==='TaggedTemplateExpression'||
+         candidate.type==='ImportExpression'||
+         candidate.type==='AwaitExpression'||
+         candidate.type==='ForOfStatement'||
+         candidate.type==='ForInStatement')opaque=true;
+      if(candidate.type==='UnaryExpression'&&candidate.operator==='delete')
+        opaque=true;
+      if(candidate.type==='AssignmentExpression'&&candidate.left.type==='MemberExpression')
+        opaque=true;
+      if(candidate.type==='CallExpression') {
+        const callee=candidate.callee;
+        if(callee.type==='Identifier') {
+          const target=staticCallableTargets.get(callee.name);
+          if(!target||hasUnprovedAmbientDirectCall(target,active))opaque=true;
+        } else if(callee.type==='ArrowFunctionExpression'||
+                  callee.type==='FunctionExpression') {
+          if(hasUnprovedAmbientDirectCall(callee,active))opaque=true;
+        } else opaque=true;
+      }
     });
     active.delete(functionNode);
     ambientCallEffectCache.set(functionNode,opaque);
