@@ -370,7 +370,14 @@ function buildDirectFunctionSourcePlan(source,path,hostContract) {
   /** @type {AstNode[]} */
   const calls=[];
   walk(ast,node=>{if(node.type==='CallExpression')calls.push(node);});
-  if(calls.length!==1||!isDirectFunctionSourceCall(calls[0]))return reject('reader-call');
+  if(calls.length!==1||!isDirectFunctionSourceCall(calls[0])) {
+    if(path==='debug-entry.mjs')console.log('SOURCE_PLAN_CALLS '+JSON.stringify(calls.map(call=>({
+      start:call.start,end:call.end,calleeType:call.callee.type,
+      calleeProperty:call.callee.property?.name,argumentCount:call.arguments.length,
+      direct:isDirectFunctionSourceCall(call)
+    }))));
+    return reject('reader-call');
+  }
   const readerCall=calls[0];
   const {counts,readerParent,readerKey,readerAncestors}=inspectDeclarations(ast,readerCall);
   if(!readerParent||readerParent.type!=='VariableDeclarator'||
