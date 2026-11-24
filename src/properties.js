@@ -785,8 +785,13 @@ function proveLocalObject(ast, rootName, bindings, importedIdentityFunctions=new
 
     const classUses=identifierUses.get(className)??[];
     const declarationUse=classUses.find(use=>use.node===classNode.id);
+    // A nested class is textually part of its enclosing callable's native
+    // source. That outer function may be observed through an ambient host
+    // callback even when its local binding appears direct-call-only.
     if(!declarationUse||
-       declarationUse.ancestors.some(ancestor=>/^Export/.test(ancestor.type)))continue;
+       declarationUse.ancestors.some(ancestor=>/^Export/.test(ancestor.type))||
+       declarationUse.ancestors.some(ancestor=>
+         ['FunctionDeclaration','FunctionExpression','ArrowFunctionExpression'].includes(ancestor.type)))continue;
     const constructions=classUses.filter(use=>use.node!==classNode.id);
     if(constructions.length!==1)continue;
     const construction=constructions[0];
