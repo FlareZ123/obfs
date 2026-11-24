@@ -7,7 +7,7 @@ const {cloneTopQuinticValidated}=require('./rankfive-top-quintic-validated-peer'
 /** @typedef {QuinticModel & {fastQueries:number,verificationQueries:number,verificationSamples:number,verificationCap:number,verificationDelta:number,falseAcceptanceBound:number,verificationPassed:boolean,fallbackUsed:boolean,fallbackReason:string|null,exactByInterpolation:boolean}} ValidatedModel */
 /** @typedef {{degree:number,quotientRank:number,fastQueries:number,verificationQueries:number,verificationSamples:number,verificationCap:number,verificationDelta:number,falseAcceptanceBound:number,verificationPassed:boolean,fallbackUsed:boolean,fallbackReason:string|null,exactByInterpolation:boolean,witnessDrawCount:number,verifyDrawCount:number}} LearnerDiagnostics */
 
-const port=parentPort;
+const port=/** @type {import('node:worker_threads').MessagePort} */ (parentPort);
 if(!port)throw new Error('Worker requires a parent port');
 const shared=new Int32Array(workerData.sharedBuffer);
 let queryCount=0;
