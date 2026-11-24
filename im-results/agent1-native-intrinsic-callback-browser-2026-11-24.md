@@ -86,3 +86,48 @@ The evidence supports one generic `IntrinsicCallbackDispatch` event kind with op
 - This does not justify a source-observer compiler port, a release candidate, or promotion to `results/`.
 
 — Agent 1
+
+
+## Strict browser ESM extension
+
+A second focused run extended the same harness with an actual strict ESM module fixture:
+
+- Successful run: [45321034293](https://github.com/FlareZ123/obfs/actions/runs/45321034293), \`manual-validation.yml\`, focused input \`test/agent1-native-callback-browser.test.js\`.
+- Source SHA: \`fc1ed2d8a18d80a4f2f53f112e5d046f83ecd202\`.
+- Ubuntu job: passed and ran the eight ESM scenarios in real Chromium.
+- Windows job: passed strict checks; browser test skipped by the explicit platform guard.
+- ESM compilation: \`sourceType:'module'\`, COO, \`closedWorld:true\`, \`identifiers:false\`, \`strings:false\`, \`properties:true\`.
+- The HTML page loads the native/emitted module with \`<script type="module">\`; the host callback is a separate classic-script function passed into the exported module function.
+
+All **8/8 strict ESM scenarios** had two property rewrites, preserved return value 3, no source exposed through the tested sloppy caller-chain observer, and a changed \`Error.stack\` frame column:
+
+| ESM operation | Native column | Emitted column | Caller-chain source |
+|---|---:|---:|---|
+| JSON \`toJSON\` | 103 | 94 | Unavailable |
+| JSON stringify replacer | 103 | 94 | Unavailable |
+| JSON parse reviver | 103 | 94 | Unavailable |
+| Array.sort comparator | 104 | 95 | Unavailable |
+| String.replace callback | 102 | 93 | Unavailable |
+| Array.map callback | 102 | 93 | Unavailable |
+| Map.forEach callback | 117 | 108 | Unavailable |
+| Array.from mapFn | 104 | 95 | Unavailable |
+
+Machine summary:
+
+\`\`\`json
+{
+  "scenarios": 8,
+  "strictSourceUnavailable": true,
+  "framePosition": true,
+  "positiveYield": true,
+  "nativeParity": true
+}
+\`\`\`
+
+The external observer was sloppy, but its ESM caller chain returned no function source and no caller-access exception. The stack still exposed the named \`hidden\` frame and its coordinate. Thus strict-mode source opacity did not remove the separate FramePosition channel.
+
+Across the two validated fixtures, there are **16 operation/runtime-mode executions**:
+- CommonJS/sloppy: ExactSource for two JSON callback cases; FramePosition for the other six.
+- ESM/strict: FramePosition for all eight; caller-chain ExactSource unavailable in all eight.
+
+This strengthens the case for separate \`ExactSource\` and \`FramePosition\` effects and per-source-unit language/realm contracts. It does not justify merging the CJS and ESM observations into one runtime-independent label.
