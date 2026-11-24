@@ -479,6 +479,9 @@ function summarizeAmbientCallEffects(ast,sourceType) {
       return callableNodesForValue(value.expressions[value.expressions.length-1],seen);
     if(value.type==='AssignmentExpression')return callableNodesForValue(value.right,seen);
     if(value.type==='ChainExpression')return callableNodesForValue(value.expression,seen);
+    if(value.type==='CallExpression'&&value.callee.type==='MemberExpression'&&
+       staticPropertyKey(value.callee.property,value.callee.computed)==='bind')
+      return callableNodesForValue(value.callee.object,seen);
     if(value.type==='NewExpression') {
       if(value.callee.type==='Identifier') {
         const reference=resolved.at(value.callee.start);
