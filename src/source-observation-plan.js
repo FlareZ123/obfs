@@ -1318,7 +1318,7 @@ function advancePlanRanges(plan,editMap,sourceBefore,sourceAfter,trackedSourceRa
  * @param {MappedSourceRange[]} trackedSourceRanges
  * @returns {boolean}
  */
-function validatePlanSemantics(plan,source,ast,trackedSourceRanges) {
+function validatePlanSemantics(plan,source,ast,trackedSourceRanges,editMap) {
   if(!isValidatedSourceObservationPlan(plan)||
      trackedSourceRanges.some(range=>!range||typeof range!=='object'||
        planRangeOwners.get(range)!==plan))return false;
@@ -1437,11 +1437,17 @@ function validatePlanSemantics(plan,source,ast,trackedSourceRanges) {
     if(['FunctionDeclaration','FunctionExpression','ArrowFunctionExpression',
         'ClassDeclaration','ClassExpression'].includes(node.type))functionLikeCount++;
   });
+  if(editMap&&(editMap.sourceUnitRef!==meta.sourceUnitRef||
+     editMap.parserContractId!==meta.parserContractId||
+     editMap.toGeneration!==generation))return false;
+  const decoder=collectStringDecoderContext(ast,editMap);
+  if(!decoder.valid)return false;
   const bindingNames=collectBindingNames(ast);
   let stringDecoderCallCount=0;
   walk(ast,(node,parent,key,ancestors)=>{
     if(node.type==='Identifier'&&node.name==='String'&&
-       isDirectStringFromCharCodeReference({name:'String',node,parent,ancestors})) {
+       isDirectStringFromCharCodeReference({name:'String',node,parent,ancestors})&&
+       isInsideRanges(node,decoder.prologueRanges)) {
       stringDecoderCallCount++;
     }
   });
@@ -1458,10 +1464,41 @@ function validatePlanSemantics(plan,source,ast,trackedSourceRanges) {
   const freeReferences=collectFreeIdentifierReferences(ast);
   const noUnapprovedFreeRoots=freeReferences.every(reference=>
     reference.name==='Function'||
-    (reference.name==='String'&&isDirectStringFromCharCodeReference(reference)));
+    (reference.name==='String'&&isDirectStringFromCharCodeReference(reference)&&
+      isInsideRanges(reference.node,decoder.prologueRanges)));
+  let unsafeEffectSyntax=false;
+  walk(ast,node=>{
+    if(node.type==='MemberExpression') {
+      const propertyName=staticMemberPropertyName(node);
+      if(propertyName==='constructor'||propertyName==='__proto__') {
+        unsafeEffectSyntax=true;
+      }
+      if(node.computed) {
+        const objectName=node.object?.type==='Identifier'?node.object.name:null;
+        const inGeneratedRange=isInsideRanges(node,decoder.prologueRanges)||
+          isInsideRanges(node,decoder.replacementRanges);
+        if(!inGeneratedRange||!decoder.decoderArrayNames.has(objectName)) {
+          unsafeEffectSyntax=true;
+        }
+      }
+    }
+    if(node.type==='CallExpression'&&
+       !isAllowedPlanCall(node,found.currentReader,decoder))unsafeEffectSyntax=true;
+    if(node.type==='NewExpression')unsafeEffectSyntax=true;
+    if(node.type==='AssignmentExpression'&&node.left?.type==='MemberExpression') {
+      const objectName=node.left.object?.type==='Identifier'?node.left.object.name:null;
+      if(!node.left.computed||!decoder.decoderArrayNames.has(objectName)||
+         !isInsideRanges(node,decoder.prologueRanges))unsafeEffectSyntax=true;
+    }
+    if(node.type==='UpdateExpression'&&node.argument?.type==='MemberExpression') {
+      unsafeEffectSyntax=true;
+    }
+    if(node.type==='UnaryExpression'&&node.operator==='delete'&&
+       node.argument?.type==='MemberExpression')unsafeEffectSyntax=true;
+  });
   const noAmbientShadow=!bindingNames.has('Function')&&
     identifierCounts.get('Function')===1&&stringBindingSafe&&
-    !unsupportedModuleSyntax&&noUnapprovedFreeRoots;
+    !unsupportedModuleSyntax&&noUnapprovedFreeRoots&&!unsafeEffectSyntax;
   const uniqueClosedReader=directReaderCount===1&&functionLikeCount===1&&
     identifierCounts.get(meta.callableName)===2&&
     identifierCounts.get(meta.readerBindingName)===2&&
@@ -1490,7 +1527,7 @@ function acceptPlannedPass(plan,editMap,sourceBefore,sourceAfter,astAfter,tracke
      typeof sourceBefore!=='string'||typeof sourceAfter!=='string'||
      !astAfter||!Array.isArray(trackedRanges))return null;
   const nextRanges=advancePlanRanges(plan,editMap,sourceBefore,sourceAfter,trackedRanges);
-  if(!nextRanges||!validatePlanSemantics(plan,sourceAfter,astAfter,nextRanges))return null;
+  if(!nextRanges||!validatePlanSemantics(plan,sourceAfter,astAfter,nextRanges,editMap))return null;
   return Object.freeze({
     ast:astAfter,
     trackedRanges:nextRanges,
