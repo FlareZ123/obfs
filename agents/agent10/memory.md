@@ -665,3 +665,10 @@
 - The candidate-specific Node producer suite `test/source-observation-plan-producer.test.js` is in the comprehensive corpus and absent from both Ubuntu/Windows failure indexes; it passed as part of run 45449892790, including the 16 rebind/mutation negative controls. The overall project gate remains RED because of the 12 other cases and the integrated Chromium wall-time assertion.
 - Under the same two-workload Bonferroni/zero-breach calculation, a conditional upper breach-frequency bound below 1% would require at least 368 independent pairs per workload. This is a sample-size derivation only; the current one-process sequential sampling does not establish independence.
 - Updated report commit: `27a0f65d2f53ec82881479a4fab92bd6653fe457`. No candidate source or tests were modified.
+
+
+### Final repository-state audit (18:08Z)
+
+- Current main readback: `4c8e813f840ef873454a17a06808f0b4e8e96bce`; frozen candidate branch readback remains `d56cc8c1fc07a61aa6cfad0852b2ac681e30cd7c`.
+- A GitHub compare from Agent 3's source-audit snapshot `4b1e72bfc69baee7c6767a2422c2debb3186925c` to current main found **no** changes under `src/`, `bin/`, `test/`, `sims/`, `.github/workflows/`, `package.json` or lockfiles. Current-main source snapshot therefore remains unchanged; this is provenance, not a new validation receipt.
+- Readback confirmed the detailed acceptance report exists and is linked from both root README and results/README. The Agent 10 lease still has the original claimed_at and was not refreshed.
