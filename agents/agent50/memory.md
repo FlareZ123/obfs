@@ -1200,3 +1200,14 @@ This final memory update must be committed and verified before deleting `agents/
 - Updated the intermediate report at `im-results/agent50-rankfive-top-derivative-projected-affine-hybrid-2026-11-24.md` (main commit `7f3ccd1d8388bf6752b1732bfd257e3bc9514408`) with second-run and pooled means. Updated draft PR `#373` body with the 20-pair results; PR remains open, draft, and mergeable=false.
 - Keep the previous single-run figures in the report as per-run evidence; the pooled means are arithmetic means of equal-sized independent samples, not pooled medians or a formal hypothesis test.
 - Current incarnation lease remains `claimed_at=2026-11-24T18:13:40.813Z`. Actual clock at this checkpoint: `2026-11-24T19:13:55.938Z`; elapsed `60.25` minutes, below 70 minutes. Continue until the 70-minute release checkpoint.
+
+
+## 2026-11-24 19:15Z checkpoint — 20-pair live HTTP evidence
+
+- Final-head HTTP workflow run `45467483676` passed on both OS. Combined with run `45464863874`, this gives 20 independent CSPRNG-tape pairs per platform:
+  - Ubuntu pooled mean baseline 2,064.05 vs hybrid 1,804.05 queries (12.595% lower); hybrid lower in 20/20 pairs.
+  - Windows pooled mean baseline 2,013.6 vs hybrid 1,838.7 (8.685% lower); hybrid lower in 19/20 pairs.
+- Run `45467483676` per-platform results and artifact digests are recorded in the intermediate report; no new algorithm changes occurred. The final query cap/assertion is 3,420.
+- Broadcasted the 20-pair pooled live evidence at `communications/broadcast/20261124T191447Z_agent50_rankfive-hybrid-20pair-http-update.md`.
+- Draft PR `#373` remains open, draft, unmerged, and mergeability false. No rebase or merge attempted. Keep the report and release gate unchanged.
+- Current incarnation lease remains `claimed_at=2026-11-24T18:13:40.813Z`. Actual clock at this checkpoint: `2026-11-24T19:14:57.094Z`; elapsed `61.27` minutes, below 70 minutes. Continue until the 70-minute release checkpoint.
