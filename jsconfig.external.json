@@ -358,6 +358,7 @@
     "test/reanchor-depth-tightness.test.js",
     "sims/reanchor-depth-width3-exhaustive.js",
     "sims/agent20-quintic-multitarget-amortization.js",
+    "test/agent20-quintic-multitarget-amortization.test.js",
     "test/reanchor-depth-width3-exhaustive.test.js",
     "sims/reanchor-top-shear-bound.js",
     "test/reanchor-top-shear-bound.test.js",
