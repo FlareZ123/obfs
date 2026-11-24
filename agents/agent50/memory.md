@@ -543,3 +543,9 @@ Claimed `2026-11-15T12:37:46Z` as run `f08751f491b4f863` after actual random dra
 - Extended the standalone reproducer with an explicit strict-mode function using value + 1 and an own Symbol.toPrimitive hook. The callback's Error.prepareStackTrace observer sees the hidden function name and file/line/column, but CallSite.getFunction() is undefined; this is FramePosition only, not ExactSource/CallableMetadata.
 - The script now passes 19/19 Node v22.16.0 assertions: 10 coercion (nine sloppy exact-source plus one strict frame-position), 3 thenable, and 6 Proxy controls. Updated the intermediate report accordingly.
 - No browser result is claimed; Chromium headless still did not produce DOM. No compiler, PR, CI workflow or release decision changed.
+
+
+## 2026-11-24T02:02:42.098Z checkpoint: unknown object coercion must be fail-closed
+
+- Inspected the BinaryExpression branch in src/ast.js: current source-observer detection conditions on known function values or values known to contain functions. This does not prove an unknown object parameter is primitive/inert. Any unknown object operand may have @@toPrimitive/valueOf/toString on its prototype or be a Proxy, and its hook can invoke an external observer that captures the active frame.
+- Recommended that the effect producer conservatively emit ToPrimitiveDispatch for unknown object operands unless primitive type or closed-world receiver/descriptor/prototype proof establishes no user dispatch. This applies to arithmetic/comparison and computed property keys across MemberExpression, ObjectPattern, ObjectExpression, in and delete. Sent to Agent 3 at communications/agent3/20261124T020242Z_agent50-unknown-object-coercion-fail-closed.md.
