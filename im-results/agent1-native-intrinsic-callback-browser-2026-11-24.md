@@ -124,7 +124,7 @@ Machine summary:
 }
 \`\`\`
 
-The external observer was sloppy, but its ESM caller chain returned no function source and no caller-access exception. The stack still exposed the named \`hidden\` frame and its coordinate. Thus strict-mode source opacity did not remove the separate FramePosition channel.
+The external observer was sloppy, but the tested ESM caller-chain observer returned no function source. The report does not treat the absence of a caller-access exception as established unless the corresponding assertion is validated. The stack still exposed the named \`hidden\` frame and its coordinate. Thus strict-mode source opacity did not remove the separate FramePosition channel.
 
 Across the two validated fixtures, there are **16 operation/runtime-mode executions**:
 - CommonJS/sloppy: ExactSource for two JSON callback cases; FramePosition for the other six.
