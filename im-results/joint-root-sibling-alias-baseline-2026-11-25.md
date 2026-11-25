@@ -34,3 +34,17 @@ This is a bounded capability gap, not a semantic-correctness bug in current main
 The donor branch is 744 commits behind current main and also predates later class/source-observer work. Do not cherry-pick it wholesale. If the integration owner wants this capability, isolate the minimal root-grouping change, rebase it onto current main, preserve all current source-observer/reflection gates, and run the exact positive and negative fixtures plus the full unfocused validation workflow. The current-main tests intentionally pin zero edits and can be flipped to one after a successful integration.
 
 This finding does not establish stronger static-deobfuscation resistance, tamper resistance, environment locking, or compliance with the 2.5x compute ceiling. Product release remains RELEASE-BLOCKED.
+
+
+## Donor proof changes worth isolating
+
+The donor diff is not only a relaxed alias count. Its relevant proof changes are bounded:
+
+- proveLocalObject accepts additionalRootNames, verifies every root name has exactly one binding, and requires all roots to share the same lexical scope.
+- The private tuple proof collects a set of exact owner indexes rather than one index. Other slots must remain inert primitive literals. It accepts only exact static-index reads into unique local const aliases or bounded array destructuring; unknown indexes, mutation, reflection and holder escapes still refuse.
+- The private record proof collects a set of exact owner-valued own data fields rather than one field. Other fields must remain inert primitive values. It accepts only exact static property reads into unique local const aliases or bounded object destructuring; mutation, reflection and holder escapes still refuse.
+- Destructured carrier targets are tracked separately as binding tokens so they are not mistaken for executable owner references.
+- cross-properties groups named imports only when they resolve to the same (exporter path, export name), verifies each local alias is unique, then proves the complete alias set once using the primary root plus additionalRootNames. A reader alias without a corresponding owner alias remains a refusal.
+- The donor also adds fail-closed checks for query/fragment imports that resolve to a different module URL and for import attributes/assertions on the relevant edge.
+
+This is the candidate scope for an integration review. It still needs a fresh current-main rebase and adversarial review; the passing fixtures do not prove every carrier or alias shape safe.
