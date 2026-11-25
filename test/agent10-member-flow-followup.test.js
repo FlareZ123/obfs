@@ -258,3 +258,30 @@ test('an exported ESM expression-bodied factory cannot hide its returned class-f
   assert.equal(hidden.hostHeldCallable,true,
     'the returned class-field callable must be marked held across the ESM export boundary');
 });
+
+
+test('a classic-script global expression-bodied factory cannot hide its returned field callable',()=>{
+  const source=
+    'function hidden(){return 1;}'+
+    'class Local{callback=hidden;}'+
+    'var create=()=>new Local();';
+  const result=summarizeAmbientCallEffects(parse(source,'script'),'script');
+  const hidden=named(result,'hidden')[0];
+  assert.ok(hidden,'the hidden function must have an analysis summary');
+  assert.equal(hidden.safe,false,
+    'a classic-script global factory can be invoked by the host and expose its returned field');
+  assert.equal(hidden.hostHeldCallable,true,
+    'callable values returned by global script functions must be held');
+});
+
+test('a host-global expression-bodied factory cannot hide its returned field callable',()=>{
+  const source=
+    'function hidden(){return 1;}'+
+    'class Local{callback=hidden;}'+
+    'globalThis.create=()=>new Local();';
+  const hidden=hiddenSummary(source);
+  assert.equal(hidden.safe,false,
+    'a host-global factory can be invoked externally and expose its returned field');
+  assert.equal(hidden.hostHeldCallable,true,
+    'callable values returned by host-global exports must be held');
+});
