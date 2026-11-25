@@ -44,6 +44,12 @@ function page(code){
     '});',
     '</script>',
     '<script>',
+    'const nativeSetItem=Object.getOwnPropertyDescriptor(Storage.prototype,"setItem")?.value;',
+    'if(typeof nativeSetItem!=="function"||localStorage.setItem!==nativeSetItem||',
+    '  !Function.prototype.toString.call(nativeSetItem).includes("[native code]"))',
+    '  throw new Error("expected pristine native Storage.setItem");',
+    '</script>',
+    '<script>',
     code,
     'document.getElementById("result").textContent="PASS:"+btoa(JSON.stringify(globalThis.result));',
     '</script></body></html>'
@@ -111,7 +117,7 @@ async function main(){
   });
   await new Promise((resolve,reject)=>{
     server.once('error',reject);
-    server.listen(0,'0.0.0.0',resolve);
+    server.listen({port:0,host:'0.0.0.0'},()=>resolve(undefined));
   });
   try{
     const address=server.address();
@@ -151,7 +157,7 @@ async function main(){
       hostLockNegative:true
     })+'\n');
   }finally{
-    await new Promise((resolve,reject)=>server.close(error=>error?reject(error):resolve()));
+    await new Promise((resolve,reject)=>server.close(error=>error?reject(error):resolve(undefined)));
   }
 }
 
