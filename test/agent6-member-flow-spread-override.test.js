@@ -11,9 +11,9 @@ function analyze(source) {
   return summarizeAmbientCallEffects(parse(source,'commonjs'),'commonjs');
 }
 
-/** @param {string} source @returns {Function[]} */
+/** @param {string} source @returns {unknown[]} */
 function execute(source) {
-  /** @type {Function[]} */
+  /** @type {unknown[]} */
   const captured=[];
   vm.runInNewContext(source,{
     /** @param {unknown} value */
@@ -21,6 +21,11 @@ function execute(source) {
     readKey(){return 'callback';}
   });
   return captured;
+}
+
+/** @param {unknown} value @returns {string|undefined} */
+function functionName(value) {
+  return typeof value==='function'?value.name:undefined;
 }
 
 /** @param {string} source @returns {ReturnType<typeof analyze>['summaries'][number]} */
@@ -39,7 +44,7 @@ test('a later object spread cannot hide the callable that overrides an explicit 
     'external(owner.callback);';
   const summary=hiddenSummary(source);
   const [captured]=execute(source);
-  assert.equal(captured?.name,'hidden',
+  assert.equal(functionName(captured),'hidden',
     'the runtime spread order must deliver the hidden function to the host');
   assert.match(String(captured),/state\.secret/,
     'the host must be able to observe the original private property spelling');
@@ -58,7 +63,7 @@ test('an explicit property after a spread shadows the earlier callable without o
     'external(owner.callback);';
   const summary=hiddenSummary(source);
   const [captured]=execute(source);
-  assert.equal(captured?.name,'harmless',
+  assert.equal(functionName(captured),'harmless',
     'the later explicit property must be the actual runtime value');
   assert.equal(summary.hostHeldCallable,false,
     'the later explicit property wins over the earlier spread');
@@ -75,7 +80,7 @@ test('an array spread before a static index cannot hide a shifted callable',()=>
     'external(owner[1]);';
   const summary=hiddenSummary(source);
   const [captured]=execute(source);
-  assert.equal(captured?.name,'hidden',
+  assert.equal(functionName(captured),'hidden',
     'the earlier array spread shifts hidden into static index 1');
   assert.match(String(captured),/state\.secret/);
   assert.equal(summary.hostHeldCallable,true,
@@ -92,7 +97,7 @@ test('an array spread after a fixed index does not affect that index',()=>{
     'external(owner[0]);';
   const summary=hiddenSummary(source);
   const [captured]=execute(source);
-  assert.equal(captured?.name,'harmless',
+  assert.equal(functionName(captured),'harmless',
     'the fixed element before the spread remains at runtime index zero');
   assert.equal(summary.hostHeldCallable,false,
     'a later spread cannot overwrite an earlier array index');
@@ -108,7 +113,7 @@ test('an unknown computed key after an explicit property cannot hide an overwrit
     'external(owner.callback);';
   const summary=hiddenSummary(source);
   const [captured]=execute(source);
-  assert.equal(captured?.name,'hidden',
+  assert.equal(functionName(captured),'hidden',
     'the host-provided computed key overwrites callback at runtime');
   assert.match(String(captured),/state\.secret/);
   assert.equal(summary.hostHeldCallable,true,
@@ -124,7 +129,7 @@ test('an unknown computed key alone can supply the observed property',()=>{
     'external(owner.callback);';
   const summary=hiddenSummary(source);
   const [captured]=execute(source);
-  assert.equal(captured?.name,'hidden');
+  assert.equal(functionName(captured),'hidden');
   assert.equal(summary.hostHeldCallable,true,
     'a dynamic computed key may produce the statically read property');
   assert.equal(summary.safe,false);
@@ -139,7 +144,7 @@ test('an unknown computed key before an explicit property is shadowed',()=>{
     'external(owner.callback);';
   const summary=hiddenSummary(source);
   const [captured]=execute(source);
-  assert.equal(captured?.name,'harmless',
+  assert.equal(functionName(captured),'harmless',
     'the later explicit property wins over the earlier computed property');
   assert.equal(summary.hostHeldCallable,false);
   assert.equal(summary.safe,true);
@@ -152,7 +157,7 @@ test('an unknown array member call can return a host-held callable',()=>{
     'external(owner.at(0));';
   const summary=hiddenSummary(source);
   const [captured]=execute(source);
-  assert.equal(captured?.name,'hidden',
+  assert.equal(functionName(captured),'hidden',
     'Array.prototype.at returns the local function stored in the receiver');
   assert.match(String(captured),/state\.secret/);
   assert.equal(summary.hostHeldCallable,true,
@@ -167,7 +172,7 @@ test('an array mutator return can expose a host-held callable',()=>{
     'external(owner.pop());';
   const summary=hiddenSummary(source);
   const [captured]=execute(source);
-  assert.equal(captured?.name,'hidden',
+  assert.equal(functionName(captured),'hidden',
     'Array.prototype.pop returns the local function removed from the receiver');
   assert.equal(summary.hostHeldCallable,true);
   assert.equal(summary.safe,false);
@@ -180,7 +185,7 @@ test('a local member call with an unresolved this-return retains receiver callab
     'external(owner.get());';
   const summary=hiddenSummary(source);
   const [captured]=execute(source);
-  assert.equal(captured?.name,'hidden',
+  assert.equal(functionName(captured),'hidden',
     'the local method returns the callback stored on its receiver');
   assert.equal(summary.hostHeldCallable,true,
     'an unresolved this-member return must conservatively retain receiver callables');
@@ -208,7 +213,7 @@ test('an object getter using this cannot hide a callable sibling',()=>{
     'external(owner.callback);';
   const summary=hiddenSummary(source);
   const [captured]=execute(source);
-  assert.equal(captured?.name,'hidden');
+  assert.equal(functionName(captured),'hidden');
   assert.match(String(captured),/state\.secret/);
   assert.equal(summary.hostHeldCallable,true,
     'the getter returns the callable stored on its receiver');
@@ -222,7 +227,7 @@ test('a class getter using this cannot hide a callable field',()=>{
     'const owner=new Owner();external(owner.callback);';
   const summary=hiddenSummary(source);
   const [captured]=execute(source);
-  assert.equal(captured?.name,'hidden');
+  assert.equal(functionName(captured),'hidden');
   assert.match(String(captured),/state\.secret/);
   assert.equal(summary.hostHeldCallable,true,
     'the class getter returns the callable stored on its instance');
@@ -262,7 +267,7 @@ test('an object-literal prototype setter can supply the observed callable',()=>{
     'external(owner.callback);';
   const summary=hiddenSummary(source);
   const [captured]=execute(source);
-  assert.equal(captured?.name,'hidden',
+  assert.equal(functionName(captured),'hidden',
     'the object inherits callback from its explicit prototype');
   assert.match(String(captured),/state\.secret/);
   assert.equal(summary.hostHeldCallable,true,
@@ -279,7 +284,7 @@ test('an own property shadows a callable inherited through the prototype setter'
     'external(owner.callback);';
   const summary=hiddenSummary(source);
   const [captured]=execute(source);
-  assert.equal(captured?.name,'harmless',
+  assert.equal(functionName(captured),'harmless',
     'the own data property shadows the inherited callback');
   assert.equal(summary.hostHeldCallable,false);
   assert.equal(summary.safe,true);
@@ -294,7 +299,7 @@ test('a later spread getter cannot hide the callable value it returns',()=>{
     'external(owner.callback);';
   const summary=hiddenSummary(source);
   const [captured]=execute(source);
-  assert.equal(captured?.name,'hidden',
+  assert.equal(functionName(captured),'hidden',
     'object spread invokes the getter and copies its returned callable');
   assert.match(String(captured),/state\.secret/,
     'the copied callable retains its original source spelling');
@@ -311,7 +316,7 @@ test('a spread-only property still resolves its callable value',()=>{
     'external(owner.callback);';
   const summary=hiddenSummary(source);
   const [captured]=execute(source);
-  assert.equal(captured?.name,'hidden',
+  assert.equal(functionName(captured),'hidden',
     'the spread-only property must be the actual runtime value');
   assert.equal(summary.hostHeldCallable,true,
     'the spread supplies the observed callback property');
