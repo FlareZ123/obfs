@@ -2027,8 +2027,7 @@ function obfuscateFiles(files, options = {}) {
   const remoteSourceObserver=hasPinnedLocalJavaScriptIntegrity(prepared) ||
     prepared.some(file=>
     file.sourceType!=='asset' && typeof file.code==='string' &&
-    (hasAttributedModuleRequest(parse(file.code,file.sourceType)) ||
-      observesDistributedSource(parse(file.code,file.sourceType),importedStringProof.get(file.path)) ||
+    (observesDistributedSource(parse(file.code,file.sourceType),importedStringProof.get(file.path)) ||
       prepared.length>1 && observesFunctionSource(parse(file.code,file.sourceType),
         importedStringProof.get(file.path),importedCloneProof.get(file.path),
         importedFunctionArrays.get(file.path),importedPrimitiveProof.get(file.path),
