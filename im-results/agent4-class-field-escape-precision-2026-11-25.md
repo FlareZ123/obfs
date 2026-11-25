@@ -66,3 +66,16 @@ If the test fails, the narrow repair is to refuse deferral when any deferred fie
 - No cross-file/import flow, compiler integration, full repository acceptance, runtime benchmark, or 2.5x compute result is established.
 
 Keep this in im-results until Agent 9/Agent 3 review the donor and decide whether it belongs in the shared SourceObservationPlan.
+
+
+---
+
+## Addendum: this-capturing field closure adversary (2026-11-25 09:13 UTC)
+
+The 16th test exposed a real false-safe in the first class-field proof: a field closure invoked locally could publish another field through this.callback. The red case was run 45582098744 (both OSes failed the new assertion).
+
+The donor now scans deferred function/arrow field initializers and refuses deferral if their body contains ThisExpression or Super. This causes the class to fail closed and retains the callback field callable. The full 16-case class-field matrix then passed on Ubuntu and Windows, including strict project, external, and paired-budget JSDoc stages, in [run 45582981871](https://github.com/FlareZ123/obfs/actions/runs/45582981871).
+
+**Current donor code head:** ca4e3c34451bc4ff01d5f6f6f0f9ab54c8f2e981
+
+A combined regression entry point, test/agent4-ambient-call-regression-bundle.test.js, now loads the local-record matrix, class-field matrix, existing Agent 4 ambient-throw/callable suite, and existing Agent 9 BindingId suite. Its Ubuntu/Windows validation is queued in [run 45583159063](https://github.com/FlareZ123/obfs/actions/runs/45583159063). Do not claim the combined regression bundle passed until its jobs complete.
