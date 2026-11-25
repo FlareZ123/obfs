@@ -11,7 +11,7 @@ const {normalizePublicFields}=require('../sims/public-token-normalizer');
 const runBrowser=promisify(execFile);
 
 /** @typedef {{path:string,sourceType:'module',code:string}} BrowserSource */
-/** @typedef {{name:string,kind?:number,renamed:number,files?:BrowserSource[]}} BrowserCase */
+/** @typedef {{name:string,kind?:number,renamed:number,files?:BrowserSource[],duplicateSeparator?:boolean,expected?:unknown[]}} BrowserCase */
 
 /** @type {BrowserCase[]} */
 const CASES=[
@@ -38,6 +38,18 @@ const CASES=[
       'import {state as left,state as right,peek} from "./state.mjs";'+
       'console.log(peek(left),peek(right));'}
   ]},
+  {name:'repeated-separator-distinct-url-identities',renamed:1,duplicateSeparator:true,
+    expected:[false,true,29,29,29,29],files:[
+      {path:'state.mjs',sourceType:'module',code:
+        'export const state={secretField:29};'+
+        'export const url=import.meta.url;'+
+        'export function peek(value){return value.secretField;}'},
+      {path:'entry.mjs',sourceType:'module',code:
+        'import {state as left,url as leftUrl} from "./state.mjs";'+
+        'import {state as right,url as rightUrl,peek} from ".//state.mjs";'+
+        'console.log(left===right,leftUrl!==rightUrl,peek(left),peek(right),'+
+        'left.secretField,right.secretField);'}
+    ]},
   {name:'sibling-alias-escape',renamed:0,files:[
     {path:'state.mjs',sourceType:'module',code:'export const state={secretField:29};'},
     {path:'entry.mjs',sourceType:'module',code:
@@ -126,13 +138,25 @@ async function main() {
     assert.equal(attacked.properties,item.renamed,
       item.name+' should normalize every privately renamed public field');
     normalizedPublicFields+=attacked.properties;
-    for(const source of attacked.files)files.set('/'+item.name+'/normalized/'+source.path,browserCode(source.path,source.code));
-    for(const source of fixture.files)
-      files.set('/'+item.name+'/original/'+source.path,browserCode(source.path,source.code));
+    for(const source of attacked.files) {
+      const pathname='/'+item.name+'/normalized/'+source.path;
+      files.set(pathname,browserCode(source.path,source.code));
+      if(item.duplicateSeparator&&source.path==='state.mjs')
+        files.set('/'+item.name+'/normalized//state.mjs',browserCode(source.path,source.code));
+    }
+    for(const source of fixture.files) {
+      const pathname='/'+item.name+'/original/'+source.path;
+      files.set(pathname,browserCode(source.path,source.code));
+      if(item.duplicateSeparator&&source.path==='state.mjs')
+        files.set('/'+item.name+'/original//state.mjs',browserCode(source.path,source.code));
+    }
     for(const source of protectedFiles.files) {
       assert.equal(typeof source.code,'string');
-      files.set('/'+item.name+'/emitted/'+source.path,
-        browserCode(source.path,/** @type {string} */(source.code)));
+      const pathname='/'+item.name+'/emitted/'+source.path;
+      const emitted=browserCode(source.path,/** @type {string} */(source.code));
+      files.set(pathname,emitted);
+      if(item.duplicateSeparator&&source.path==='state.mjs')
+        files.set('/'+item.name+'/emitted//state.mjs',emitted);
     }
   }
   const server=http.createServer((request,response)=>{
@@ -173,8 +197,10 @@ async function main() {
         const resultText=stdout.match(/<pre id="result">([A-Za-z0-9+/=]+)<\/pre>/u)?.[1];
         assert.ok(resultText,item.name+'/'+target+' Chrome failure: '+stdout.slice(0,1200));
         const result=JSON.parse(Buffer.from(resultText,'base64').toString('utf8'));
-        if(target==='original') baseline=result;
-        else assert.deepEqual(result,baseline,item.name+' emitted/native browser mismatch');
+        if(target==='original') {
+          baseline=result;
+          if(item.expected)assert.deepEqual(result,item.expected,item.name+' native URL-identity contract');
+        } else assert.deepEqual(result,baseline,item.name+' emitted/native browser mismatch');
       }
       if(item.renamed)renamed+=item.renamed;
       else refusals++;
