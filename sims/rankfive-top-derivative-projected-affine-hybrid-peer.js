@@ -642,6 +642,12 @@ function main() {
   assert.equal(lowerFallback.diagnostics.fallbackUsed,true);
   assert.ok(lowerFallback.diagnostics.fallbackReason === 'verification-mismatch' ||
     lowerFallback.diagnostics.fallbackReason === 'shift-coordinate-ambiguous');
+  assert.equal(lowerFallback.diagnostics.verificationAttempted,
+    lowerFallback.diagnostics.fallbackReason==='verification-mismatch');
+  assert.equal(lowerFallback.diagnostics.verificationPassed,
+    lowerFallback.diagnostics.fallbackReason==='verification-mismatch'?false:null);
+  assert.equal(lowerFallback.diagnostics.falseAcceptanceBound,
+    lowerFallback.diagnostics.fallbackReason==='verification-mismatch'?1e-10:null);
   for (let input = 0; input < 256; input++) {
     assert.equal(evaluateHybridModel(lowerFallback.model,input),lowerResidual(input));
   }
@@ -663,6 +669,12 @@ function main() {
   assert.ok(silentFallback.diagnostics.fallbackReason === 'verification-mismatch' ||
     silentFallback.diagnostics.fallbackReason === 'shift-coordinate-ambiguous' ||
     silentFallback.diagnostics.fallbackReason === 'signature-outside-codimension-five-span');
+  assert.equal(silentFallback.diagnostics.verificationAttempted,
+    silentFallback.diagnostics.fallbackReason==='verification-mismatch');
+  assert.equal(silentFallback.diagnostics.verificationPassed,
+    silentFallback.diagnostics.fallbackReason==='verification-mismatch'?false:null);
+  assert.equal(silentFallback.diagnostics.falseAcceptanceBound,
+    silentFallback.diagnostics.fallbackReason==='verification-mismatch'?1e-10:null);
   assert.equal(silentFallback.model.kind,'anf');
   assert.equal(silentRankSeven(124),2);
   assert.equal(evaluateHybridModel(silentFallback.model,124),2);
@@ -779,6 +791,12 @@ function main() {
   assert.ok(rankSixFallback.diagnostics.fallbackReason === 'signature-outside-codimension-five-span' ||
     rankSixFallback.diagnostics.fallbackReason === 'verification-mismatch' ||
     rankSixFallback.diagnostics.fallbackReason === 'shift-coordinate-ambiguous');
+  assert.equal(rankSixFallback.diagnostics.verificationAttempted,
+    rankSixFallback.diagnostics.fallbackReason==='verification-mismatch');
+  assert.equal(rankSixFallback.diagnostics.verificationPassed,
+    rankSixFallback.diagnostics.fallbackReason==='verification-mismatch'?false:null);
+  assert.equal(rankSixFallback.diagnostics.falseAcceptanceBound,
+    rankSixFallback.diagnostics.fallbackReason==='verification-mismatch'?1e-10:null);
   assert.equal(rankSixFallback.model.kind,'anf');
   for (let input = 0; input < 256; input++) {
     assert.equal(evaluateHybridModel(rankSixFallback.model,input),rankSix(input));
@@ -815,6 +833,9 @@ function main() {
   );
   assert.equal(noWitness.diagnostics.fallbackUsed,true);
   assert.equal(noWitness.diagnostics.fallbackReason,'no-witness-within-trial-cap');
+  assert.equal(noWitness.diagnostics.verificationAttempted,false);
+  assert.equal(noWitness.diagnostics.verificationPassed,null);
+  assert.equal(noWitness.diagnostics.falseAcceptanceBound,null);
   for (let input = 0; input < 128; input++) {
     assert.equal(evaluateHybridModel(noWitness.model,input),degreeFour(input));
   }
@@ -838,7 +859,7 @@ function main() {
   const summary = {
     promiseBoundary:{
       rankSeven:{outsidePromise:'silent-rank-seven',mismatches:promiseBoundaryMismatches,outputs:128,verifierSamples:0},
-      rankFiveLowerResidual:{fixedPairPassed:true,coordinateForE5:3,mismatches:rankFivePromiseBoundaryMismatches,outputs:256,verifiedFallbackReason:boundaryVerified.diagnostics.fallbackReason,verifiedFallbackExact:true},
+      rankFiveLowerResidual:{fixedPairPassed:true,coordinateForE5:3,mismatches:rankFivePromiseBoundaryMismatches,outputs:256,verifiedFallbackReason:boundaryVerified.diagnostics.fallbackReason,verifiedFallbackAttempted:boundaryVerified.diagnostics.verificationAttempted,verifiedFallbackSamples:boundaryVerified.diagnostics.verificationSamples,verifiedFallbackExact:true},
       expectedUnsafe:true
     },
     promiseNoWitnessFallback:{
@@ -847,6 +868,7 @@ function main() {
       fallbackReason:promiseNoWitness.diagnostics.fallbackReason,
       exactByInterpolation:promiseNoWitness.diagnostics.exactByInterpolation,
       verifierSamples:0,
+      verificationAttempted:promiseNoWitness.diagnostics.verificationAttempted,
       verifierCalls:promiseNoWitnessVerifierCalls,
       candidateReadyCalls:promiseNoWitnessReadyCalls,
       exactAll256:true
@@ -858,6 +880,7 @@ function main() {
       signatureCases:promiseSignatureCases,
       maxQueries:promiseMaxQueries,
       verifierSamples:0,
+      verificationAttempted:false,
       verifierCallbackCalls:0,
       exactAll256:true
     },
@@ -879,21 +902,34 @@ function main() {
     },
     lowerDegreeResidualFallback:{
       reason:lowerFallback.diagnostics.fallbackReason,
+      verificationAttempted:lowerFallback.diagnostics.verificationAttempted,
+      verificationPassed:lowerFallback.diagnostics.verificationPassed,
+      falseAcceptanceBound:lowerFallback.diagnostics.falseAcceptanceBound,
       exactAll256:true,
       queries:lowerFallback.queries
     },
     silentRankSevenFallback:{
       reason:silentFallback.diagnostics.fallbackReason,
+      verificationAttempted:silentFallback.diagnostics.verificationAttempted,
+      verificationSamples:silentFallback.diagnostics.verificationSamples,
+      verificationPassed:silentFallback.diagnostics.verificationPassed,
+      falseAcceptanceBound:silentFallback.diagnostics.falseAcceptanceBound,
       exactAll128:true,
       witnessDraws:witnessIndex
     },
     degreeFourFallback:{
       reason:noWitness.diagnostics.fallbackReason,
+      verificationAttempted:noWitness.diagnostics.verificationAttempted,
+      verificationPassed:noWitness.diagnostics.verificationPassed,
+      falseAcceptanceBound:noWitness.diagnostics.falseAcceptanceBound,
       exactAll128:true,
       queries:noWitness.queries
     },
     rankSixFallback:{
       reason:rankSixFallback.diagnostics.fallbackReason,
+      verificationAttempted:rankSixFallback.diagnostics.verificationAttempted,
+      verificationPassed:rankSixFallback.diagnostics.verificationPassed,
+      falseAcceptanceBound:rankSixFallback.diagnostics.falseAcceptanceBound,
       exactAll256:true,
       witnessDraws:rankSixWitnessIndex
     },
