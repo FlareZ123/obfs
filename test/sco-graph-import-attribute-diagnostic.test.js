@@ -59,7 +59,7 @@ test('selective SCO rejects even unused attributed default imports outside its n
     'import source from "./private/source.mjs" with {type:"text"};',
     'export async function secret(){return 1;}',
     'export function local(){return 1;}'
-  ].join('\\n');
+  ].join('\n');
   assert.throws(()=>partitionScoSelectedAsyncExports({
     path:'mixed.mjs',sourceType:'module',code
   },{
