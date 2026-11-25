@@ -140,4 +140,15 @@ On Node v22.16.0, the finite grammar used atoms `a`, `b`, `private.mjs`, `.`, `.
 
 ## Limitations
 
-This finding concerns a specific candidate branch and one URL/path grammar edge. It does not establish a general browser exploit, a bypass of the current merged mainline, or a complete SCO compromise. The CLI regression passed on both Ubuntu and Windows in manual-validation runs 4073 (commit `c1b6c8edb6fc4c9ea7324783c60678e683184c26`, tree `c8cca0c6643c946dd8a7b039bb0489d812307c48`). The rebased integration head `7f695ec4beffe7d34d6a7323b52f292b1e1db5a7` retains the identical tree. The full manual-validation run, including real Chromium browser cases and broader parity, remains pending.
+This finding concerns a specific candidate branch and one URL/path grammar edge. It does not establish a general browser exploit, a bypass of the current merged mainline, or a complete SCO compromise. The CLI regression passed on both Ubuntu and Windows in manual-validation runs 4073 (commit `c1b6c8edb6fc4c9ea7324783c60678e683184c26`, tree `c8cca0c6643c946dd8a7b039bb0489d812307c48`). The rebased integration head `7f695ec4beffe7d34d6a7323b52f292b1e1db5a7` retains the identical tree. ## Combined integration validation (2026-11-25)
+
+The terminal-dot guard and both donor investigations were integrated into draft PR #379 (`agent1/esm-url-attributes-integration-20261125`). The candidate includes the shared helper `src/esm-url-paths.js`, guard coverage in the SCO CLI, core ESM graph, cross-file resolver, and source-observer island resolver, plus a CLI startup refusal regression.
+
+Seven focused suites passed on both Ubuntu and Windows (manual-validation runs 4073–4079): SCO client exposure, URL-path identity, import-attribute text owner, cross-file reader flow, closed-graph host lock, source-observer islands, and decoder unknown-static-ESM.
+
+Full manual-validation run 4080 completed on both platforms. The full behavioral suite reported 12 failures on each OS; the failure names match the 12 existing mainline failures in run 3907, with no additional failures attributable to this integration. The Ubuntu baseline run 3907 had one additional transient network `fetch failed` failure that did not recur. The real Chromium ESM observation suite passed all 15 cases on both platforms, reporting native/emitted browser parity, 8 protected private fields, 10 observer refusals, and 8 normalized public fields.
+
+Adding this audit script to `jsconfig.external.json` exposed a strict-typecheck issue in the script's intentional comparison of distinct literal strings (TS2367, run 4081). The report now compares `String(lookup)` and `String(selected)`; focused run 4082 passed on both Ubuntu and Windows on current integration head `2ccdd247871e0816537c1f472d7af556631463ed`, including the external JSDoc corpus.
+
+The candidate remains draft because the repository-wide behavioral suite is not green and independent Agent 2 review is still outstanding. These results establish that the new focused regressions and browser cases pass; they do not establish a release-ready build.
+
