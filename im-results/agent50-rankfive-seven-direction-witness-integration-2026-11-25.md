@@ -22,7 +22,7 @@ The policy draws seven independent uniform vectors in GF(2)^32 and tests the ten
 
 Each pair denotes the two omitted direction coordinates. This is the K_{2,5} double-star order. The learner restarts after ten unsuccessful faces.
 
-For a uniform full-rank 5×7 projection, the kernel is a uniform 2D subspace of GF(2)^7. There are exactly 2,667 such subspaces. The query-union DP counts coordinate-subset masks as distinct points, which is exact conditional on the seven sampled 32-bit direction vectors being linearly independent. Under that injective-subset-sum model, enumerating the kernels gives:
+For a uniform full-rank 5×7 projection, the kernel is a uniform 2D subspace of GF(2)^7. There are exactly 2,667 such subspaces. The query-union DP counts coordinate-subset masks as distinct points. This is the injective-subset-sum query-cost model; it uses the exact projected-matrix/kernel failure probabilities while assigning the no-collision union cardinality to each face state. Actual uniform 32-bit directions can have dependencies, which only merge query points, so the DP values are unconditional upper bounds on query cost. Under this model, enumerating the kernels gives:
 
 | Quantity | Exact value |
 |---|---:|
@@ -31,14 +31,14 @@ For a uniform full-rank 5×7 projection, the kernel is a uniform 2D subspace of 
 | Ten-face failure probability, including rank-deficient matrices | 9,034,517 / 33,554,432 |
 | New query counts per face | 32, 16, 8, 4, 2, 16, 8, 4, 2, 1 |
 | Union of subset-sum vertices in one full trial | 93 |
-| Expected queries in a fresh trial (conditional on injective subset sums) | 1,040,519,433 / 16,777,216 |
-| Expected queries across restarts (same condition) | 2,072,004,349 / 24,519,915 = 84.50291728172793 |
+| Expected queries in a fresh trial (injective-subset-sum model) | 1,040,519,433 / 16,777,216 |
+| Expected queries across restarts (same model) | 2,072,004,349 / 24,519,915 = 84.50291728172793 |
 
 The repeated-trial objective accounts for the zero vertex being cached across trials:
 
 `Q = (E - f) / (1 - f)`.
 
-The six-direction full-face policy has conditional repeated-trial expectation `1,706,867 / 19,845 = 86.00992693373645` under the same injective-subset-sum model. The specified seven-direction order therefore saves 1.50700965200852 expected witness queries in that model. This is a modest, narrow query-count improvement.
+The six-direction full-face policy has injective-model repeated-trial expectation `1,706,867 / 19,845 = 86.00992693373645` under the same injective-subset-sum model. The specified seven-direction order therefore saves 1.50700965200852 expected witness queries in that model. This is a modest, narrow query-count improvement.
 
 For unconditional uniform 32-bit direction draws, a linear dependence among seven directions has probability `1 - product_{i=0..6}(1 - 2^(i-32)) = 2.9569491454884723e-8`. Such dependencies can only merge subset-sum points, so the DP values remain unconditional upper bounds on query cost. A crude bound on the seven-direction expectation correction is `18 * 93 * 2.9569492e-8 < 4.95e-5` queries; the six-direction analogue is `< 2.50e-5`. The correction is far smaller than the 1.507-query gap and cannot affect the stated worst-case caps, which also remain upper bounds.
 
@@ -66,7 +66,7 @@ Agent 50 added an independent standard-library Python check on the PR branch:
 - `sims/agent50-rankfive-seven-direction-fixed-order-check.py`
 - Branch: `agent50/rankfive-top-quintic-http-20261124`
 
-It independently enumerates the 2,667 RREF kernels and recomputes the six- and seven-direction fixed-order expectations with exact Fractions. Its coordinate-mask query union has the same injective-subset-sum condition; the reported expectations are conditional exact values and unconditional upper bounds. It checks the face-union increments, E7, f7, Q7, the six-direction comparator, the 18-trial threshold, and the 1,657 / 2,479 / 3,375 caps. It explicitly does not claim to re-prove global optimality over all face orders.
+It independently enumerates the 2,667 RREF kernels and recomputes the six- and seven-direction fixed-order expectations with exact Fractions. Its coordinate-mask query union has the same injective-subset-sum condition; the reported expectations are exact values in the injective query-cost model and unconditional upper bounds for actual 32-bit draws. It checks the face-union increments, E7, f7, Q7, the six-direction comparator, the 18-trial threshold, and the 1,657 / 2,479 / 3,375 caps. It explicitly does not claim to re-prove global optimality over all face orders.
 
 ### Exact-source Node replay
 
@@ -95,7 +95,7 @@ The live HTTP sample validates integration on the fixed fast path. It is too sma
 
 ## Limitations and disposition
 
-- The DP result is a narrow combinatorial statement about this fixed rank-five projected-affine witness family, not arbitrary JavaScript. Its query-cost optimum is conditional on injective subset sums; for unrestricted 32-bit draws the values are conservative upper bounds because rare full-direction dependencies only merge queried points.
+- The DP result is a narrow combinatorial statement about this fixed rank-five projected-affine witness family, not arbitrary JavaScript. Its query-cost optimum is exact in the injective-subset-sum query-cost model; for unrestricted 32-bit draws the values are conservative upper bounds because rare full-direction dependencies only merge queried points.
 - The Node replay is deterministic simulation; the live HTTP test validates the selected fast path and does not establish a statistical seven-versus-six advantage.
 - No CPU, wall-clock target-runtime, memory, initialization, or 2.5x compute-budget measurement was added.
 - No conclusion follows for COO/SNO, static reconstruction, dynamic instrumentation resistance, tamper resistance, domain locking, or product release readiness.
