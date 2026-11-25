@@ -205,3 +205,20 @@ test('with fallback does not taint a callable in an unrelated sibling-function s
     'a with environment cannot resolve a binding confined to a sibling function scope');
   assert.equal(hidden.safe,true);
 });
+
+
+test('with in one sibling function does not disable a private record proof in another',()=>{
+  const source=
+    'function outer(){'+
+    'function sibling(){function hidden(){return 1;}'+
+    'const owner={callback:0};owner.callback=hidden;return 2;}'+
+    'function entry(proxy){with(proxy){return 2;}}'+
+    'return entry;}'+
+    'module.exports=outer;';
+  const result=analyze(source);
+  const hidden=named(result,'hidden')[0];
+  assert.ok(hidden);
+  assert.equal(hidden.hostHeldCallable,false,
+    'a with environment in entry cannot intercept member writes inside sibling');
+  assert.equal(hidden.safe,true);
+});
