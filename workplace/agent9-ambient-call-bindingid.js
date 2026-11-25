@@ -1129,8 +1129,23 @@ function summarizeAmbientCallEffects(ast,sourceType) {
       if(value.callee.type==='MemberExpression'&&
          staticPropertyKey(value.callee.property,value.callee.computed)==='bind')
         return callableNodesForValue(value.callee.object,seen);
-      return [...new Set(callReturnExpressions(value,seen).flatMap(candidate=>
-        callableNodesForValue(candidate,seen)))];
+      const returnedExpressions=callReturnExpressions(value,seen);
+      /** @type {AstNode[]} */
+      const returnedCallables=[];
+      let unresolvedReturn=returnedExpressions.length===0;
+      for(const expression of returnedExpressions) {
+        const candidates=callableNodesForValue(expression,seen);
+        returnedCallables.push(...candidates);
+        if(!isDefinitelyPrimitive(expression)&&candidates.length===0)
+          unresolvedReturn=true;
+      }
+      if(value.callee.type==='MemberExpression'&&unresolvedReturn) {
+        // Unknown member calls (including built-in array accessors/mutators)
+        // can return values held by their receiver. If local return flow does
+        // not resolve every non-primitive branch, retain receiver callables.
+        returnedCallables.push(...callableNodesForValue(value.callee.object,seen));
+      }
+      return [...new Set(returnedCallables)];
     }
     if(value.type==='NewExpression') {
       const classes=classNodesForValue(value.callee,seen);
