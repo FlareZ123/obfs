@@ -127,6 +127,9 @@ def fetch_client_module(origin: str):
         set_cookie = response.getheader("Set-Cookie")
         if not set_cookie:
             raise RuntimeError("public client module did not issue a session cookie")
+        method_name = response.getheader("X-SCO-Method")
+        if not method_name:
+            raise RuntimeError("public client module did not publish an RPC method identifier")
         cookie = set_cookie.split(";", 1)[0]
         if not cookie.startswith("session="):
             raise RuntimeError("public client module issued an unexpected cookie")
@@ -139,7 +142,7 @@ def fetch_client_module(origin: str):
         )
         if source_disclosed:
             raise RuntimeError("public client module contains a private-source marker")
-        return connection, cookie, response.status, len(source_bytes), source_disclosed
+        return connection, cookie, method_name, response.status, len(source_bytes), source_disclosed
     except Exception:
         connection.close()
         raise
@@ -147,17 +150,21 @@ def fetch_client_module(origin: str):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--origin", required=True)
-    parser.add_argument("--method-name", required=True)
     parser.add_argument("--oracle-seed", type=int, required=True)
     parser.add_argument("--random-walk-length", type=int, default=30)
     parser.add_argument("--origin-states", type=int, default=20)
     args = parser.parse_args()
 
-    connection, cookie, module_status, module_bytes, module_disclosed = fetch_client_module(
-        args.origin
-    )
+    (
+        connection,
+        cookie,
+        method_name,
+        module_status,
+        module_bytes,
+        module_disclosed,
+    ) = fetch_client_module(args.origin)
     sul = HttpNoResetMealySUL(
-        args.origin, args.method_name, cookie, connection
+        args.origin, method_name, cookie, connection
     )
     random.seed(args.oracle_seed)
     np.random.seed(args.oracle_seed)
@@ -210,6 +217,7 @@ def main():
             "status": "completed",
             "client_module_fetch_status": module_status,
             "client_cookie_present": bool(cookie),
+            "client_method_name": method_name,
             "client_module_source_bytes": module_bytes,
             "client_module_source_disclosed": module_disclosed,
             "trace": sul.trace,
