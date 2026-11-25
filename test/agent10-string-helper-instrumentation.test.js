@@ -15,7 +15,7 @@ test('host preloader can recover decoded string units by intercepting String.fro
   const source='const message='+JSON.stringify(original)+';const value=message.length;export {value};';
   const output=obfuscateFiles([{path:'generated.mjs',sourceType:'module',code:source}],{
     mode:'coo',closedWorld:true,seed:'agent10-string-helper-instrumentation',
-    identifiers:false,strings:true,properties:false
+    identifiers:false,strings:true,properties:false,experimentalPreserveFramePositions:true
   }).files[0];
   assert.ok(output.metrics.literals>0);
   const directory=fs.mkdtempSync(path.join(os.tmpdir(),'obfs-agent10-string-instrument-'));
