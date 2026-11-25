@@ -6,9 +6,9 @@
 ## Source and branch pins
 
 - Donor source branch: `agent7/shared-reference-property-proof-20261124`, implementation commit `1c6127a2d1cb7126286e6f02b1399e499f361dd7`.
-- Test-only branch: `agent7/shared-reference-cycle-audit-20261125`, final test pin `dec5fd63a6ce55c09ce7218b4dad03cff3701b87`.
+- Test-only branch: `agent7/shared-reference-cycle-audit-20261125`; cycle-fixture test pin `dec5fd63a6ce55c09ce7218b4dad03cff3701b87`, direct-API negative-control test pin `1c1d98d01bc75352385c16cd5d60ef54336e8d52`, report commit `f3d4d6597b76ce2aa1919df5f96a0b80ea1cda0d`.
 - At comparison time, current `main` was `618520c5b9fe1b2c7ef0e092be6800f0aca0aead`; the donor was 26 commits ahead and 744 behind. The compared differences are limited to `src/cross-properties.js`, `src/properties.js`, and `test/cross-file-reader-flow.test.js`.
-- The test branch leaves donor production sources unchanged: `src/cross-properties.js` SHA `3930556874e070f7f13cd7c07e23ff195441cc42`; `src/properties.js` SHA `85beb98ae2031b6b7ce8d76bd84b66aa78936edf`. Only `test/cross-file-reader-flow.test.js` and this report were added/changed for this audit.
+- The test branch leaves donor production sources unchanged: `src/cross-properties.js` SHA `3930556874e070f7f13cd7c07e23ff195441cc42`; `src/properties.js` SHA `85beb98ae2031b6b7ce8d76bd84b66aa78936edf`. The audit adds `test/cross-file-reader-flow.test.js`, `test/direct-api-symlink-module-identity.test.js`, and this report.
 
 ## Validation
 
