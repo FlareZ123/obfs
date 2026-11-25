@@ -348,6 +348,19 @@ test('a local wrapper return composes parameter flow with nested object members'
     'a local wrapper must preserve its parameter value through a returned object and nested reads');
 });
 
+test('a mutable local factory binding preserves its returned class-field callable',()=>{
+  const source=
+    'let owner,create;'+
+    'function hidden(){return 1;}'+
+    'class Local{callback=hidden;}'+
+    'create=()=>new Local();'+
+    'function leak(){external(owner.callback);}'+
+    'function entry(){owner=create();leak();}'+
+    'module.exports=entry;';
+  assertHeld(hiddenSummary(source),
+    'a local factory stored through a mutable binding must resolve its assigned callable target');
+});
+
 test('an object-literal primitive getter does not retain an unrelated callable sibling',()=>{
   const source=
     'function hidden(){return 1;}'+
