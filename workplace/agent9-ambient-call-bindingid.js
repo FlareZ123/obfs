@@ -168,6 +168,19 @@ function summarizeAmbientCallEffects(ast,sourceType) {
     }
     return false;
   }
+
+  /** @param {AstNode} node @returns {AstNode|null} */
+  function enclosingFunction(node) {
+    let current=node;
+    while(parentByNode.has(current)) {
+      const parent=parentByNode.get(current);
+      if(!parent)break;
+      if(['FunctionDeclaration','FunctionExpression','ArrowFunctionExpression'].includes(parent.type))
+        return parent;
+      current=parent;
+    }
+    return null;
+  }
   /** @param {AstNode} node @returns {boolean} */
   function hasAnnexBBlockFunctionScope(node) {
     if(sourceType==='module')return false;
@@ -447,6 +460,96 @@ function summarizeAmbientCallEffects(ast,sourceType) {
     return initializer;
   }
 
+  // A narrowly proved local record may receive callable values without
+  // publishing them. Require a direct const object literal, own primitive data
+  // slots, and references confined to same-function static member accesses.
+  // Any alias, whole-object escape, closure capture, accessor, spread, proxy
+  // boundary, or unproved key falls back to the existing fail-closed rule.
+  /** @type {Map<number,Set<string>>} */
+  const localRecordOwnerKeys=new Map();
+  /** @param {number} bindingId @returns {Set<string>|null} */
+  function localRecordKeysForBinding(bindingId) {
+    const cached=localRecordOwnerKeys.get(bindingId);
+    if(cached)return cached;
+    const rows=declarationsByBinding.get(bindingId)??[];
+    if(rows.length!==1||rows[0].kind!=='const'||writtenBindings.has(bindingId))return null;
+    const initializer=constInitializersByBinding.get(bindingId);
+    if(initializer?.type!=='ObjectExpression')return null;
+    const keys=new Set();
+    for(const property of initializer.properties) {
+      if(property.type!=='Property'||property.kind!=='init'||property.method||property.computed)
+        return null;
+      const key=staticPropertyKey(property.key,false);
+      if(key===null||key==='__proto__'||keys.has(key)||
+         !definitelyPrimitiveExpression(property.value))return null;
+      keys.add(key);
+    }
+    if(keys.size===0)return null;
+    const ownerFunction=enclosingFunction(rows[0].node);
+    for(const reference of resolved.references) {
+      if(reference.resolution.kind!=='local'||reference.resolution.bindingId!==bindingId)continue;
+      const member=parentByNode.get(reference.node);
+      if(member?.type!=='MemberExpression'||member.object!==reference.node||member.optional)
+        return null;
+      const key=staticPropertyKey(member.property,member.computed);
+      if(key===null||!keys.has(key)||enclosingFunction(reference.node)!==ownerFunction)
+        return null;
+      const use=parentByNode.get(member);
+      if((use?.type==='CallExpression'&&use.callee===member)||
+         (use?.type==='NewExpression'&&use.callee===member)||
+         (use?.type==='TaggedTemplateExpression'&&use.tag===member)||
+         (use?.type==='AssignmentExpression'&&use.left===member&&use.operator!=='=')||
+         (use?.type==='UpdateExpression'&&use.argument===member)||
+         (use?.type==='UnaryExpression'&&use.operator==='delete'&&use.argument===member)||
+         (use?.type==='ForInStatement'&&use.left===member)||
+         (use?.type==='ForOfStatement'&&use.left===member))
+        return null;
+    }
+    localRecordOwnerKeys.set(bindingId,keys);
+    return keys;
+  }
+
+  /** @type {Map<number,Map<string,AstNode[]>>} */
+  const localRecordMemberValues=new Map();
+  /** @param {number} bindingId @param {string} key @param {AstNode} value @returns {void} */
+  function addLocalRecordMemberValue(bindingId,key,value) {
+    const fields=localRecordMemberValues.get(bindingId)??new Map();
+    const values=fields.get(key)??[];
+    values.push(value);
+    fields.set(key,values);
+    localRecordMemberValues.set(bindingId,fields);
+  }
+  walkAst(ast,node=>{
+    if(node.type!=='AssignmentExpression'||node.operator!=='='||
+       node.left.type!=='MemberExpression'||node.left.object.type!=='Identifier')return;
+    const reference=resolved.at(node.left.object.start);
+    if(reference?.resolution.kind!=='local')return;
+    const bindingId=reference.resolution.bindingId;
+    const key=staticPropertyKey(node.left.property,node.left.computed);
+    const keys=localRecordKeysForBinding(bindingId);
+    if(key!==null&&keys?.has(key))
+      addLocalRecordMemberValue(bindingId,key,node.right);
+  });
+
+  /** @param {AstNode} node @returns {boolean} */
+  function isLocalRecordMemberAccess(node) {
+    if(node.type!=='MemberExpression'||node.optional||node.object.type!=='Identifier')return false;
+    const reference=resolved.at(node.object.start);
+    if(reference?.resolution.kind!=='local')return false;
+    const keys=localRecordKeysForBinding(reference.resolution.bindingId);
+    const key=staticPropertyKey(node.property,node.computed);
+    if(!keys||key===null||!keys.has(key))return false;
+    const use=parentByNode.get(node);
+    return !((use?.type==='CallExpression'&&use.callee===node)||
+      (use?.type==='NewExpression'&&use.callee===node)||
+      (use?.type==='TaggedTemplateExpression'&&use.tag===node)||
+      (use?.type==='AssignmentExpression'&&use.left===node&&use.operator!=='=')||
+      (use?.type==='UpdateExpression'&&use.argument===node)||
+      (use?.type==='UnaryExpression'&&use.operator==='delete'&&use.argument===node)||
+      (use?.type==='ForInStatement'&&use.left===node)||
+      (use?.type==='ForOfStatement'&&use.left===node));
+  }
+
   /** @param {AstNode} classNode @param {Set<AstNode>} [seen] @returns {AstNode[]} */
   function classMethodFunctions(classNode,seen=new Set()) {
     if(!['ClassDeclaration','ClassExpression'].includes(classNode.type)||seen.has(classNode))return [];
@@ -491,10 +594,12 @@ function summarizeAmbientCallEffects(ast,sourceType) {
       const next=new Set(seen);
       next.add(bindingId);
       const values=bindingValueExpressions.get(bindingId)??[];
+      const fields=[...(localRecordMemberValues.get(bindingId)?.values()??[])].flat();
+      const stored=fields.flatMap(candidate=>callableNodesForValue(candidate,next));
       if(values.length)
-        return [...new Set(values.flatMap(candidate=>callableNodesForValue(candidate,next)))];
+        return [...new Set([...stored,...values.flatMap(candidate=>callableNodesForValue(candidate,next))])];
       const initializer=constInitializersByBinding.get(bindingId);
-      return initializer?callableNodesForValue(initializer,next):[];
+      return [...new Set([...stored,...(initializer?callableNodesForValue(initializer,next):[])])];
     }
     if(value.type==='SpreadElement')return callableNodesForValue(value.argument,seen);
     if(value.type==='ArrayExpression')
@@ -532,6 +637,19 @@ function summarizeAmbientCallEffects(ast,sourceType) {
     }
     if(value.type==='MemberExpression') {
       const propertyKey=staticPropertyKey(value.property,value.computed);
+      if(value.object.type==='Identifier'&&propertyKey!==null) {
+        const reference=resolved.at(value.object.start);
+        if(reference?.resolution.kind==='local') {
+          const bindingId=reference.resolution.bindingId;
+          const values=localRecordMemberValues.get(bindingId)?.get(propertyKey);
+          if(values?.length) {
+            if(seen.has(bindingId))return [];
+            const next=new Set(seen);
+            next.add(bindingId);
+            return [...new Set(values.flatMap(candidate=>callableNodesForValue(candidate,next)))];
+          }
+        }
+      }
       if(value.object.type==='Identifier'&&value.object.name==='arguments'&&propertyKey==='callee') {
         const reference=resolved.at(value.object.start);
         if(reference?.resolution.kind==='unknown'&&
@@ -854,8 +972,10 @@ function summarizeAmbientCallEffects(ast,sourceType) {
         addReason(target,{kind:'unknown-this-callable-escape',start:node.start,end:node.end},'HostHeldCallable');
     } else if(node.type==='AssignmentExpression'&&node.left.type==='MemberExpression') {
       // Unknown object-field writes may publish a callable into host-owned
-      // or aliased storage; retain the value until receiver ownership is proven.
-      markCallableValuesHeld(node.right,'host-held-callable',node.start,node.end);
+      // or aliased storage. A same-function, own-data local record write is
+      // tracked as a private field value and is held only if that value escapes.
+      if(!isLocalRecordMemberAccess(node.left))
+        markCallableValuesHeld(node.right,'host-held-callable',node.start,node.end);
     }
   });
 
@@ -1058,7 +1178,7 @@ function summarizeAmbientCallEffects(ast,sourceType) {
       } else if(node.type==='MemberExpression') {
         if(node.computed&&!isDefinitelyPrimitive(node.property))
           addReason(fn,{kind:'to-property-key',start:node.start,end:node.end});
-        if(!isPlainRecordMemberRead(node))
+        if(!isPlainRecordMemberRead(node)&&!isLocalRecordMemberAccess(node))
           addReason(fn,{kind:'unknown-member-access',start:node.start,end:node.end});
         const propertyKey=staticPropertyKey(node.property,node.computed);
         if(propertyKey&&CALLABLE_OBSERVER_PROPERTIES.has(propertyKey)) {
