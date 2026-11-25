@@ -585,25 +585,30 @@ function summarizeAmbientCallEffects(ast,sourceType) {
     return null;
   }
 
+  /** @param {AstNode} fn @returns {boolean} */
+  function fieldFunctionUsesInstanceReceiver(fn) {
+    let usesInstanceReceiver=false;
+    walkAst(fn,(/** @type {AstNode} */ node)=>{
+      if(node.type==='ThisExpression'||node.type==='Super')
+        usesInstanceReceiver=true;
+    });
+    return usesInstanceReceiver;
+  }
+
   /** @param {AstNode|null} value @returns {boolean} */
   function isSafeClassFieldInitializer(value) {
     if(!value)return true;
     if(value.type==='Literal')
       return value.value===null||['string','number','boolean','bigint'].includes(typeof value.value);
-    if(['FunctionExpression','ArrowFunctionExpression'].includes(value.type)) {
-      let usesInstanceReceiver=false;
-      walkAst(value,(/** @type {AstNode} */ node)=>{
-        if(node.type==='ThisExpression'||node.type==='Super')
-          usesInstanceReceiver=true;
-      });
-      return !usesInstanceReceiver;
-    }
+    if(['FunctionExpression','ArrowFunctionExpression'].includes(value.type))
+      return !fieldFunctionUsesInstanceReceiver(value);
     if(value.type==='Identifier') {
       const reference=resolved.at(value.start);
-      return reference?.resolution.kind==='local'&&
-        !classNodeByBinding.has(reference.resolution.bindingId)&&
-        !writtenBindings.has(reference.resolution.bindingId)&&
-        resolveFunctionNode(reference.resolution.bindingId)!==null;
+      if(reference?.resolution.kind!=='local'||
+         classNodeByBinding.has(reference.resolution.bindingId)||
+         writtenBindings.has(reference.resolution.bindingId))return false;
+      const fn=resolveFunctionNode(reference.resolution.bindingId);
+      return fn!==null&&!fieldFunctionUsesInstanceReceiver(fn);
     }
     return false;
   }
