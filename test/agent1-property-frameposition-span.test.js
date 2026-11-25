@@ -305,6 +305,97 @@ test('combined local identifier and property span rewrites preserve strict ESM F
   }
 });
 
+
+test('real Chromium strict ESM lazy string-span decoding preserves later FramePosition',{
+  skip:process.platform!=='linux'?'real Chromium fixture currently targets the Linux runner':false
+},async()=>{
+  const stringSource="'use strict';const a=1;const value='Span preserving string with emoji 😀';captureHostStack();export {value};";
+  const output=obfuscateFiles([{
+    path:'generated-strings.mjs',sourceType:'module',code:stringSource
+  }],{
+    mode:'coo',closedWorld:false,seed:'agent1-string-frameposition-span',
+    identifiers:false,strings:true,properties:false,
+    experimentalLocalStringSpanPreservation:true
+  }).files[0];
+  const generatedCode=String(output.code);
+  assert.ok(output.metrics.strings>0,'the fixture must exercise string rewriting');
+  assert.ok(generatedCode.length>stringSource.length,
+    'the lazy decoder is appended after the original source');
+  assert.equal(generatedCode.indexOf('captureHostStack()'),stringSource.indexOf('captureHostStack()'),
+    'the callsite token must retain its original source offset');
+  const html=[
+    '<!doctype html><html><body><pre id="result"></pre><script>',
+    'window.__stacks=[];',
+    'window.captureHostStack=function captureHostStack(){window.__stacks.push(new Error("frame probe").stack||"");};',
+    '(async()=>{try{const native=await import("/native-strings.mjs");const generated=await import("/generated-strings.mjs");',
+    'const result={values:[native.value,generated.value],stacks:window.__stacks};',
+    'document.getElementById("result").textContent=btoa(JSON.stringify(result));',
+    '}catch(error){document.getElementById("result").textContent=btoa(JSON.stringify({error:String(error),stack:error&&error.stack}));}})();',
+    '</script></body></html>'
+  ].join('\n');
+  const pages=new Map([
+    ['/',{type:'text/html; charset=utf-8',body:html}],
+    ['/native-strings.mjs',{type:'text/javascript; charset=utf-8',body:stringSource}],
+    ['/generated-strings.mjs',{type:'text/javascript; charset=utf-8',body:generatedCode}]
+  ]);
+  const server=http.createServer((request,response)=>{
+    const entry=pages.get((request.url??'/').split('?')[0])??pages.get('/');
+    if(!entry){response.writeHead(404);response.end();return;}
+    response.writeHead(200,{'content-type':entry.type});
+    response.end(entry.body);
+  });
+  try {
+    /** @type {Promise<void>} */
+    const listening=new Promise((resolve,reject)=>{
+      server.once('error',reject);
+      server.listen(0,'127.0.0.1',()=>resolve());
+    });
+    await listening;
+    const address=server.address();
+    if(!address||typeof address==='string')throw new Error('Missing Chromium fixture port');
+    const payload=JSON.parse(await dumpDom('http://127.0.0.1:'+address.port+'/'));
+    assert.deepEqual(payload.values,['Span preserving string with emoji 😀','Span preserving string with emoji 😀']);
+    assert.equal(payload.stacks.length,2);
+    const native=parseFrame(payload.stacks[0],'/native-strings.mjs');
+    const generated=parseFrame(payload.stacks[1],'/generated-strings.mjs');
+    process.stdout.write('AGENT1_STRING_FRAMEPOSITION '+JSON.stringify({
+      strings:output.metrics.strings,native,generated,values:payload.values,generatedCode
+    })+'\\n');
+    assert.equal(generated.line,native.line);
+    assert.equal(generated.column,native.column,
+      'lazy string decoding must not move a later strict-ESM module frame');
+  } finally {
+    /** @type {Promise<void>} */
+    const closed=new Promise((resolve,reject)=>server.close(error=>error?reject(error):resolve()));
+    await closed;
+  }
+});
+
+test('experimental lazy string-span mode preserves source prefix in all three modes',()=>{
+  const stringSource="'use strict';const value='abcd';captureHostStack();export {value};";
+  for(const mode of /** @type {Array<'coo'|'sco'|'sno'>} */(['coo','sco','sno'])) {
+    const span=obfuscateFiles([{
+      path:'string-'+mode+'.mjs',sourceType:'module',code:stringSource
+    }],{
+      mode,closedWorld:false,seed:'agent1-string-span/'+mode,
+      identifiers:false,strings:true,properties:false,
+      experimentalLocalStringSpanPreservation:true
+    }).files[0];
+    assert.ok(span.metrics.strings>0,mode+' should rewrite the fitting string literal');
+    assert.equal(String(span.code).indexOf('captureHostStack()'),stringSource.indexOf('captureHostStack()'),
+      mode+' must preserve the original callsite offset');
+    const ordinary=obfuscateFiles([{
+      path:'string-default-'+mode+'.mjs',sourceType:'module',code:stringSource
+    }],{
+      mode,closedWorld:false,seed:'agent1-string-default/'+mode,
+      identifiers:false,strings:true,properties:false
+    }).files[0];
+    assert.ok(ordinary.metrics.strings>0,mode+' default string transform should remain enabled');
+    assert.notEqual(String(ordinary.code).indexOf('captureHostStack()'),stringSource.indexOf('captureHostStack()'),
+      mode+' default decoder prelude remains non-span-preserving');
+  }
+});
+
 test('strict CommonJS Module._compile frame positions survive local property-span rewrites',()=>{
   const cjsSource="'use strict';const owner={longPrivatePropertyName:21};const value=owner.longPrivatePropertyName;captureHostStack();module.exports=value;";
   const output=obfuscateFiles([{
