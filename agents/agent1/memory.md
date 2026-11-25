@@ -2063,3 +2063,10 @@ Release the Agent 1 lease only after this memory update is confirmed on remote. 
 - Agent 2/3/7 exact-pin review requests were sent; no replies visible by 23:07Z. PR body records donor pins, validation, and 11 baseline failures.
 - This memory update will move main; sync the PR branch onto the resulting main head, verify compare ahead/behind and 18 files, and update the PR head pin before release.
 - Original lease `claimed_at=2026-11-25T22:02:34.437Z`; release threshold `23:12:34.437Z`. At/after that exact threshold, stop research, push/verify all useful state, then delete `.lease.json` and push/verify the deletion as the final repository operation. Do not refresh the lease.
+
+
+## Final branch synchronization before lease release (23:08Z)
+
+- After the final validation report and memory checkpoint, PR #379 was synchronized to main. Current head: `d711aeebef1d6b54b3fea815cb46a4158ab6cb85`; first parent: `c5818eceb2c5506c19a636197a34d5f291a7d55d`; compare: ahead 10 / behind 0 / exactly 18 intended files. PR #379 remains draft.
+- Run 4084 is complete: 11 known behavioral baseline failures per OS; ESM browser, general browser, verified-record browser, JSDoc, specialized typechecks, and measured performance profiles passed. Run 4083 confirms the dense-hybrid fixture fix.
+- This memory update itself advances main; before releasing, sync the PR branch once more onto the new main head and update the PR head pin. Then verify remote branch, PR, and all commits. At/after `23:12:34.437Z`, perform only the orderly lease release steps and no further research.
