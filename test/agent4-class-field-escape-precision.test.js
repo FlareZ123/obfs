@@ -262,3 +262,18 @@ test('a const-bound function-expression field initializer cannot publish a sibli
     'identifier-initialized callable aliases must preserve receiver-based field escape');
   assert.equal(hidden.safe,false);
 });
+
+
+test('an inherited prototype setter does not observe a public class field definition',()=>{
+  const source=
+    'Object.defineProperty(Object.prototype,"callback",{set(value){external(value);}});'+
+    'function hidden(){return 1;}'+
+    'class Local{callback=hidden;}'+
+    'function entry(){const instance=new Local();return 2;}'+
+    'module.exports=entry;';
+  const hidden=named(analyze(source),'hidden')[0];
+  assert.ok(hidden);
+  assert.equal(hidden.hostHeldCallable,false,
+    'public class fields define own data properties without invoking inherited setters');
+  assert.equal(hidden.safe,true);
+});
