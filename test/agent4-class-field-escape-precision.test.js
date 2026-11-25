@@ -340,3 +340,19 @@ test('an arrow field cannot publish a sibling field through a mutable closure al
     'an arrow field can read the instance through a mutable captured binding');
   assert.equal(hidden.safe,false);
 });
+
+
+test('a captured mutable object property cannot publish a sibling field through an identifier field function',()=>{
+  const source=
+    'const holder={current:null};'+
+    'function hidden(){return 1;}'+
+    'function leak(){external(holder.current.callback);}'+
+    'class Local{callback=hidden;leak=leak;}'+
+    'function entry(){const instance=new Local();holder.current=instance;instance.leak();}'+
+    'module.exports=entry;';
+  const hidden=named(analyze(source),'hidden')[0];
+  assert.ok(hidden);
+  assert.equal(hidden.hostHeldCallable,true,
+    'a captured object property assigned the instance must preserve the sibling field escape');
+  assert.equal(hidden.safe,false);
+});
