@@ -28,6 +28,27 @@ Confidence attained for the paired median bounds was 0.9824. The TaskDuration me
 
 Project, external-corpus and paired-budget JSDoc checks passed on both platforms.
 
+## Follow-up: combined identifier/property/string transforms
+
+A later branch update enabled all three transform families in the same CDP workload. Focused run [45526969789](https://github.com/FlareZ123/obfs/actions/runs/45526969789) passed on Ubuntu and Windows at branch commit `986d8ba0e614c8d74987206821f7086afbd6d8bf`. The browser measurement ran on Ubuntu Chrome `157.0.8103.78`; Windows validated the explicit browser skip and strict JSDoc.
+
+The combined workload retains the private owner property loop and adds a static marker string. The emitted COO script recorded **2 property rewrites, 2 binding rewrites, and 1 literal rewrite**. Fifteen paired samples were collected with the same one-million-iteration hot call and three 100,000-iteration calls. Native and protected results matched in every pair.
+
+| Metric | Native median | COO median | Ratio of medians | Median paired ratio | 95% upper median bound | Observed pairs under 2.5x |
+|---|---:|---:|---:|---:|---:|---:|
+| CDP ScriptDuration | 9.258 ms | 9.190 ms | 0.993x | 0.980x | 1.102x | 15/15 |
+| CDP TaskDuration | 12.935 ms | 13.010 ms | 1.006x | 0.994x | 1.126x | 15/15 |
+
+Confidence attained for the paired median bounds was 0.9824. The largest observed ScriptDuration pair was 1.417x and the largest TaskDuration pair was 1.222x. These per-pair maxima are retained in the workflow log; they are not hidden by the median decision. Project, external-corpus, and paired-budget JSDoc checks passed on both platforms.
+
+Reproduction of the combined follow-up:
+
+- Branch: `agent9/browser-cpu-cdp-prototype-20261125`
+- Test/source pin: `986d8ba0e614c8d74987206821f7086afbd6d8bf`
+- Focused workflow: [45526969789](https://github.com/FlareZ123/obfs/actions/runs/45526969789)
+- The property-only first run remains separately reproducible at [45526670103](https://github.com/FlareZ123/obfs/actions/runs/45526670103).
+
+
 ## Reproduction
 
 - Branch: `agent9/browser-cpu-cdp-prototype-20261125`
@@ -39,8 +60,8 @@ Project, external-corpus and paired-budget JSDoc checks passed on both platforms
 ## Interpretation and limits
 
 - CDP `ScriptDuration` and `TaskDuration` are useful renderer-main-thread diagnostics and avoid treating `performance.now()` wall time as CPU. `ScriptDuration` is the closer JavaScript-execution metric; `TaskDuration` includes other main-thread task work.
-- The paired median bounds are below 2.5x for this one property-only COO workload. This does **not** prove a worst-case 2.5x ceiling; the ScriptDuration outlier demonstrates why per-sample tails must remain visible.
-- This is one synthetic workload, one Chromium version, one platform, and one transform configuration. It does not cover strings, identifier renaming, VM/wasm, multi-file graphs, SCO, SNO, workers, server CPU, browser startup, or full application session lengths.
+- The paired median bounds are below 2.5x for the initial property-only workload and the follow-up combined-transform workload. This does **not** prove a worst-case 2.5x ceiling; the property-only ScriptDuration outlier demonstrates why per-sample tails must remain visible.
+- These are two closely related synthetic COO workloads, one Chromium version, one platform, and one source family. The follow-up includes identifier and string transforms, but this does not cover independent workload families, VM/wasm, multi-file graphs, SCO, SNO, workers, server CPU, browser startup, or full application session lengths.
 - The metric deltas do not represent total browser-process CPU or GPU/worker activity. They should be described as renderer main-thread JavaScript/task time.
 - A broader acceptance harness needs several independent workload families, more samples, familywise treatment across workloads, cold-start and steady-state reporting, and explicit inclusion/exclusion of initialization for each mode. COO initialization cannot be silently deducted under the project budget rule.
 - No production code or workflow was changed. The prototype remains on an isolated research branch.
