@@ -1,3 +1,5 @@
+> **Scope note:** this report uses a fixed first-two-anchor recovery pair. The current adaptive per-vector anchor-pair and full-path comparison is in [the adaptive anchor-pair report](agent2-rankfive-adaptive-anchor-pair-fullpath-2026-11-25.md); use that report for current m=7/m=8 candidate selection.
+
 # Eight-direction rank-five witness candidate: a 14-face path
 
 **Date:** 2026-11-25  
