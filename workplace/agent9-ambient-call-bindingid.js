@@ -613,8 +613,8 @@ function summarizeAmbientCallEffects(ast,sourceType) {
     return false;
   }
 
-  /** @param {AstNode} element @returns {boolean} */
-  function isSafeClassFieldGetter(element) {
+  /** @param {AstNode} element @param {AstNode} classNode @returns {boolean} */
+  function isSafeClassFieldGetter(element,classNode) {
     if(element.type!=='MethodDefinition'||element.kind!=='get'||element.static||element.computed||
        element.key.type==='PrivateIdentifier'||!element.value?.body||element.value.body.type!=='BlockStatement')
       return false;
@@ -622,8 +622,15 @@ function summarizeAmbientCallEffects(ast,sourceType) {
     if(statements.length!==1||statements[0].type!=='ReturnStatement'||!statements[0].argument)
       return false;
     const returned=statements[0].argument;
-    return returned.type==='MemberExpression'&&returned.object.type==='ThisExpression'&&
-      staticPropertyKey(returned.property,returned.computed)!==null;
+    if(returned.type==='Literal')
+      return returned.value===null||['string','number','boolean','bigint'].includes(typeof returned.value);
+    if(returned.type!=='MemberExpression'||returned.object.type!=='ThisExpression')return false;
+    const key=staticPropertyKey(returned.property,returned.computed);
+    if(key===null)return false;
+    const field=classNode.body.body.find((/** @type {AstNode} */ candidate)=>
+      candidate.type==='PropertyDefinition'&&!candidate.static&&
+      staticPropertyKey(candidate.key,candidate.computed)===key);
+    return Boolean(field&&isSafeClassFieldInitializer(field.value));
   }
 
   /** @param {AstNode} classNode @returns {boolean} */
@@ -632,7 +639,7 @@ function summarizeAmbientCallEffects(ast,sourceType) {
     return classNode.body.body.every((/** @type {AstNode} */ element)=>
       (element.type==='PropertyDefinition'&&!element.static&&!element.computed&&
         element.key.type!=='PrivateIdentifier'&&isSafeClassFieldInitializer(element.value))||
-      isSafeClassFieldGetter(element));
+      isSafeClassFieldGetter(element,classNode));
   }
 
   /** @param {AstNode} field @returns {boolean} */
