@@ -307,3 +307,16 @@ test('source islands refuse browser ResourceTiming byte-size observers',()=>{
     }
   }
 });
+
+test('source observer islands reject repeated-separator URL module aliases',()=>{
+  const ambiguous=entry(
+    'import {watched} from "./watched.mjs";'+
+    'import {unrelated} from ".//independent.mjs";'+
+    'console.log(watched.toString(),unrelated());'
+  );
+  assert.throws(()=>obfuscateFiles([watched,independent,ambiguous],{
+    mode:'coo',closedWorld:true,strings:false,identifiers:false,
+    experimentalSourceObserverIslands:['independent.mjs']
+  }),/Source observer island/,
+  'A browser URL with an empty path segment is not the canonical input module identity');
+});
