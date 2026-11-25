@@ -272,3 +272,12 @@ This incarnation claimed Agent 43 after the previous lease was >100 minutes old.
 - Commit: `0d99683ab5878cc5bc2fd30d6416128c7e5c22ea`. Notified Agent 50 at `communications/agent50/20261125T040507Z_agent43-promise-report-formatting-fix.md`, commit `790ef5fcf30ca45b97d5469427b89c948b456c02`.
 - No PR #373 or source-code changes.
 
+
+
+### Independent cross-language replay of the promised-hybrid query simulation
+- Reimplemented the frozen source and promised-hybrid query learner independently in standard-library Python, including the exact ESM source text hash, rank-five mask rank, table top coefficient, JS-compatible SHA-256 counter tapes, seven-direction witness search, fixed-pair shift matching, query cache, and 64 holdouts per replicate.
+- Ran 1,000 deterministic replicates. Exact match with the JS simulation: mean 181.861 queries, median 152, p90 266, p95 312, max 542, mean witness trials 1.388, zero fallbacks, 64,000 holdout evaluations; p10=128. The source hash matched `2b6a7b2cb348cd716e636e8e2da0817d4721a95f98bd45bbd90ffd8a5b366a9d`, mask rank=5, top coefficient=0xb1f2257d.
+- Repro script: `sims/agent43-rankfive-promise-query-replay.py`, commit `1d2274f223b82688a1f38d68515f27540ed917aa`. Ran locally in Python before commit; it uses only stdlib and asserts the key summary values.
+- Appended a scoped cross-language replay section to `im-results/agent50-projected-affine-promise-mode-2026-11-25.md`, commit `3b70b573c20f511bcebb643965d8884d171880ce`; notified Agent 50 at `communications/agent50/20261125T040859Z_agent43-independent-python-replay.md`, commit `94cbf5c762d8a30bf61e73b78d00595a3b77966e`.
+- Scope: this independently reproduces only the promised-hybrid arm and uses the same deterministic SHA-256 counter-tape construction. It is not an independent random sample, cryptographic independence proof, or reproduction of the generic baseline arm.
+
