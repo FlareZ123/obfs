@@ -645,6 +645,37 @@ function summarizeAmbientCallEffects(ast,sourceType) {
       addReason(target,{kind,start,end},'HostHeldCallable');
   }
 
+  /**
+   * Find a same-function catch target for a throw. Throws from nested callable
+   * bodies are not caught lexically by an enclosing try, so function/class
+   * boundaries stop this lookup.
+   * @param {AstNode} thrown
+   * @returns {{caught:boolean,bindingId:number|null}|null}
+   */
+  function localCatchForThrow(thrown) {
+    let child=thrown;
+    let current=thrown;
+    while(parentByNode.has(current)) {
+      const parent=parentByNode.get(current);
+      if(!parent)break;
+      if(parent.type==='TryStatement'&&parent.block===child&&parent.handler) {
+        if(!parent.handler.param)return {caught:true,bindingId:null};
+        if(parent.handler.param.type==='Identifier') {
+          const declaration=declarationByNode.get(parent.handler.param);
+          if(declaration?.bindingId!==null&&declaration?.bindingId!==undefined)
+            return {caught:true,bindingId:declaration.bindingId};
+        }
+        return null;
+      }
+      if(['FunctionDeclaration','FunctionExpression','ArrowFunctionExpression',
+          'ClassDeclaration','ClassExpression','MethodDefinition','PropertyDefinition',
+          'StaticBlock'].includes(parent.type))return null;
+      child=parent;
+      current=parent;
+    }
+    return null;
+  }
+
   const HOST_GLOBAL_ROOT_NAMES=new Set(['globalThis','window','self','global']);
 
   /** @param {AstNode} left @returns {boolean} */
@@ -816,9 +847,17 @@ function summarizeAmbientCallEffects(ast,sourceType) {
     } else if(node.type==='YieldExpression'&&node.argument) {
       markCallableValuesHeld(node.argument,'returned-callable-value',node.start,node.end);
     } else if(node.type==='ThrowStatement'&&node.argument) {
-      // A thrown callable can cross the module/function boundary through a
-      // catch handler even when it is never returned or passed as an argument.
-      markCallableValuesHeld(node.argument,'thrown-callable-value',node.start,node.end);
+      // Keep a same-function catch local when its binding is explicit; if the
+      // catch later returns/passes/observes the value, normal value-flow sinks
+      // will mark the underlying callable as held. Unmatched or untracked
+      // exception boundaries remain fail-closed.
+      const localCatch=localCatchForThrow(node);
+      if(localCatch?.caught) {
+        if(localCatch.bindingId!==null)
+          addBindingValueExpression(localCatch.bindingId,node.argument);
+      } else {
+        markCallableValuesHeld(node.argument,'thrown-callable-value',node.start,node.end);
+      }
     } else if(node.type==='ReturnStatement'&&node.argument) {
       markCallableValuesHeld(node.argument,'returned-callable-value',node.start,node.end);
     } else if(node.type==='ForOfStatement') {
