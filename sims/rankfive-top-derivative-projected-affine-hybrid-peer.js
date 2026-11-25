@@ -596,6 +596,36 @@ function main() {
     promiseMaxQueries=Math.max(promiseMaxQueries,promised.queries);
   }
 
+  // No-witness in promise mode still takes the exact interpolation fallback.
+  // This is a pure-learner fallback test; the live HTTP adapter remains fast-path-only.
+  let promiseNoWitnessVerifierCalls=0;
+  let promiseNoWitnessReadyCalls=0;
+  const promiseNoWitness=cloneTopDerivativeProjectedAffine(
+    promiseRandomSource,8,
+    () => 0,
+    () => {promiseNoWitnessVerifierCalls++;throw new Error('no-witness promise fallback must not request verifier randomness');},
+    1e-10,
+    () => {promiseNoWitnessReadyCalls++;throw new Error('no-witness promise fallback must not announce a candidate');},
+    'seven-direction-restart',
+    'assume-projected-affine'
+  );
+  assert.equal(promiseNoWitness.diagnostics.witnessTrials,18);
+  assert.equal(promiseNoWitness.diagnostics.witnessDrawCount,126);
+  assert.equal(promiseNoWitness.diagnostics.fallbackReason,'no-witness-within-trial-cap');
+  assert.equal(promiseNoWitness.diagnostics.fallbackUsed,true);
+  assert.equal(promiseNoWitness.diagnostics.exactByInterpolation,true);
+  assert.equal(promiseNoWitness.diagnostics.verificationSamples,0);
+  assert.equal(promiseNoWitness.diagnostics.verificationQueries,0);
+  assert.equal(promiseNoWitness.diagnostics.verificationPassed,null);
+  assert.equal(promiseNoWitness.diagnostics.falseAcceptanceBound,null);
+  assert.equal(promiseNoWitness.diagnostics.promiseAssumed,true);
+  assert.equal(promiseNoWitnessVerifierCalls,0);
+  assert.equal(promiseNoWitnessReadyCalls,0);
+  for(let input=0;input<256;input++) {
+    assert.equal(evaluateHybridModel(promiseNoWitness.model,input),promiseRandomSource(input),
+      'assumed-promise no-witness interpolation fallback must remain exact');
+  }
+
   // The lower-degree residual is deliberately outside the recovered quotient.
   const lowerRng = seeded(0x50a202641);
   const lowerBase = makeRankFiveSource(8,lowerRng);
@@ -664,6 +694,60 @@ function main() {
   }
   assert.ok(promiseBoundaryMismatches>0,
     'the no-verifier mode must not be mistaken for a general degree-five learner');
+
+  // A sharper promise-boundary counterexample: the top fifth-derivative
+  // form still has rank five, but a quadratic residual outside the quotient
+  // invalidates the verifier-free shift identity.
+  const boundaryTable=Array.from({length:32},(_,index)=>
+    createHash('sha256').update('private-table-rank5/'+index).digest().readUInt32BE(0));
+  boundaryTable[31]=(boundaryTable[31]^0x9765c3af)>>>0;
+  const boundaryBeta=(boundaryTable[0]^boundaryTable[3]^boundaryTable[1]^boundaryTable[2])>>>0;
+  assert.notEqual(boundaryBeta,0);
+  const lowerResidualPromiseBoundary=input=>{
+    const x=input&0xff;
+    const lower=(((x>>>5)&1)!==0&&((x&1)^((x>>>1)&1))!==0)?boundaryBeta:0;
+    return (x^0xd4c3b2a1^boundaryTable[x&31]^lower)>>>0;
+  };
+  const fixedAnchorDirections=[1,2,4,8,16,32,64];
+  let boundaryWitnessIndex=0;
+  const boundaryAssumed=cloneTopDerivativeProjectedAffine(
+    lowerResidualPromiseBoundary,8,
+    () => fixedAnchorDirections[boundaryWitnessIndex++%fixedAnchorDirections.length],
+    () => {throw new Error('rank-five promise-boundary test must not verify');},
+    1e-10,
+    () => {throw new Error('rank-five promise-boundary test must not release verifier tape');},
+    'seven-direction-restart',
+    'assume-projected-affine'
+  );
+  assert.equal(boundaryAssumed.diagnostics.coordinateStrategy,'shift');
+  assert.equal(boundaryAssumed.diagnostics.fixedPairPassed,true);
+  assert.equal(boundaryAssumed.diagnostics.fallbackUsed,false);
+  assert.equal(boundaryAssumed.model.coordinates[5],3);
+  let rankFivePromiseBoundaryMismatches=0;
+  for(let input=0;input<256;input++) {
+    if(evaluateHybridModel(boundaryAssumed.model,input)!==lowerResidualPromiseBoundary(input))
+      rankFivePromiseBoundaryMismatches++;
+  }
+  assert.equal(rankFivePromiseBoundaryMismatches,112,
+    'the out-of-quotient quadratic residual should produce the pinned 112/256 mismatch count');
+
+  let verifiedBoundaryWitnessIndex=0;
+  const boundaryVerified=cloneTopDerivativeProjectedAffine(
+    lowerResidualPromiseBoundary,8,
+    () => fixedAnchorDirections[verifiedBoundaryWitnessIndex++%fixedAnchorDirections.length],
+    seeded(0x50a202785),
+    1e-10,
+    () => {},
+    'seven-direction-restart',
+    'verify-degree-five'
+  );
+  assert.equal(boundaryVerified.diagnostics.fallbackReason,'verification-mismatch');
+  assert.equal(boundaryVerified.diagnostics.fallbackUsed,true);
+  assert.equal(boundaryVerified.diagnostics.exactByInterpolation,true);
+  for(let input=0;input<256;input++) {
+    assert.equal(evaluateHybridModel(boundaryVerified.model,input),lowerResidualPromiseBoundary(input),
+      'default verified mode must catch the rank-five out-of-quotient residual');
+  }
 
   // Codimension-six top derivative: a nonzero five-form can still produce a
   // witness, but its six-dimensional quotient cannot be represented by the
@@ -743,11 +827,19 @@ function main() {
 
   const summary = {
     promiseBoundary:{
-      outsidePromise:'silent-rank-seven',
-      mismatches:promiseBoundaryMismatches,
-      outputs:128,
-      verifierSamples:0,
+      rankSeven:{outsidePromise:'silent-rank-seven',mismatches:promiseBoundaryMismatches,outputs:128,verifierSamples:0},
+      rankFiveLowerResidual:{fixedPairPassed:true,coordinateForE5:3,mismatches:rankFivePromiseBoundaryMismatches,outputs:256,verifiedFallbackReason:boundaryVerified.diagnostics.fallbackReason,verifiedFallbackExact:true},
       expectedUnsafe:true
+    },
+    promiseNoWitnessFallback:{
+      trials:promiseNoWitness.diagnostics.witnessTrials,
+      witnessDraws:promiseNoWitness.diagnostics.witnessDrawCount,
+      fallbackReason:promiseNoWitness.diagnostics.fallbackReason,
+      exactByInterpolation:promiseNoWitness.diagnostics.exactByInterpolation,
+      verifierSamples:0,
+      verifierCalls:promiseNoWitnessVerifierCalls,
+      candidateReadyCalls:promiseNoWitnessReadyCalls,
+      exactAll256:true
     },
     promisedProjectedAffine:{
       cases:promiseCases,
@@ -803,7 +895,7 @@ function main() {
       lazySignatureCapN32:63+62*26+31*32+726,
       shiftCapN32:63+62*26+3*32+726
     },
-    note:'Seeded tests exercise implementation paths only. The default RM verifier guarantee requires independent uniform verification draws and a fixed degree<=5 oracle. The opt-in assume-projected-affine mode skips verification and is exact only under its explicit F=A+b+h(Px), rank-five, nonzero-top-coefficient promise. A deliberate silent-rank-seven misuse test confirms that this mode can return a wrong model outside that promise; the default verified mode catches the same source.'
+    note:'Seeded tests exercise implementation paths only. The default RM verifier guarantee requires independent uniform verification draws and a fixed degree<=5 oracle. The opt-in assume-projected-affine mode skips verification and is exact only under its explicit F=A+b+h(Px), rank-five, nonzero-top-coefficient promise. Deliberate silent-rank-seven and rank-five out-of-quotient quadratic-residual misuse tests confirm that this mode can return wrong models outside that promise; the default verified mode catches both.'
   };
   console.log('TOP_DERIVATIVE_PROJECTED_AFFINE_HYBRID ' + JSON.stringify(summary));
   return summary;
