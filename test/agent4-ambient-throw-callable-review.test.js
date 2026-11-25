@@ -331,3 +331,43 @@ test('nested arrow access to the enclosing arguments object remains fail-closed'
   assert.equal(hidden.hostHeldCallable,true);
   assert.equal(hidden.safe,false);
 });
+
+
+test('local actual-to-formal flow reaches a thrown callable sink',()=>{
+  const source=
+    'function hidden(){return 1;}'+
+    'function consume(callback){throw callback;}'+
+    'function entry(){consume(hidden);}'+
+    'module.exports=entry;';
+  const result=analyze(source);
+  const hidden=named(result,'hidden')[0];
+  assert.ok(hidden);
+  assert.equal(hidden.hostHeldCallable,true);
+  assert.equal(hidden.safe,false);
+});
+
+test('local actual-to-formal flow reaches an object-field publication sink',()=>{
+  const source=
+    'function hidden(){return 1;}'+
+    'function put(owner,callback){owner.callback=callback;}'+
+    'function entry(owner){put(owner,hidden);}'+
+    'module.exports=entry;';
+  const result=analyze(source);
+  const hidden=named(result,'hidden')[0];
+  assert.ok(hidden);
+  assert.equal(hidden.hostHeldCallable,true);
+  assert.equal(hidden.safe,false);
+});
+
+test('local actual-to-formal flow reaches an escaping closure capture',()=>{
+  const source=
+    'function hidden(){return 1;}'+
+    'function make(callback){return ()=>callback;}'+
+    'function entry(){return make(hidden);}'+
+    'module.exports=entry;';
+  const result=analyze(source);
+  const hidden=named(result,'hidden')[0];
+  assert.ok(hidden);
+  assert.equal(hidden.hostHeldCallable,true);
+  assert.equal(hidden.safe,false);
+});
