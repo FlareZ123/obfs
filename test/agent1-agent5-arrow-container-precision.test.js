@@ -70,3 +70,25 @@ test('a lexical arrow returning an array primitive does not retain callable sibl
   assert.equal(hiddenSummary(source).hostHeldCallable,false);
   assert.equal(hiddenSummary(source).safe,true);
 });
+
+test('an arrow passed to the host from a method expression uses the actual method receiver',()=>{
+  const source=
+    'function hidden(){return 1;}'+
+    'const owner={callback:hidden,read:function(){const nested=()=>this.callback;external(nested);}};'+
+    'owner.read();';
+  const captured=/** @type {()=>unknown} */ (execute(source));
+  const value=captured();
+  assert.equal(/** @type {Function} */ (value)?.name,'hidden');
+  assert.equal(hiddenSummary(source).hostHeldCallable,true);
+});
+
+test('an arrow passed to the host from a bare function expression does not borrow the outer getter receiver',()=>{
+  const source=
+    'function hidden(){return 1;}'+
+    'const owner={callback:hidden,get result(){const read=function(){const nested=()=>this.callback;external(nested);};read.call({});return 0;}};'+
+    'owner.result;';
+  const captured=/** @type {()=>unknown} */ (execute(source));
+  assert.equal(captured(),undefined);
+  assert.equal(hiddenSummary(source).hostHeldCallable,false);
+  assert.equal(hiddenSummary(source).safe,true);
+});
