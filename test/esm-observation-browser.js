@@ -151,7 +151,11 @@ async function main() {
     normalizedPublicFields+=attacked.properties;
     const normalizedByPath=new Map(attacked.files.map(file=>[file.path,file]));
     const normalizedFiles=protectedFiles.files.map(file=>normalizedByPath.get(file.path)??file);
-    for(const source of normalizedFiles)files.set('/'+item.name+'/normalized/'+source.path,browserCode(source.path,source.code));
+    for(const source of normalizedFiles){
+      assert.equal(typeof source.code,'string');
+      files.set('/'+item.name+'/normalized/'+source.path,
+        browserCode(source.path,/** @type {string} */(source.code)));
+    }
     for(const source of fixture.files)
       files.set('/'+item.name+'/original/'+source.path,browserCode(source.path,source.code));
     for(const source of protectedFiles.files) {
