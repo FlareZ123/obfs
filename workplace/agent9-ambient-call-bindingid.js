@@ -646,6 +646,13 @@ function summarizeAmbientCallEffects(ast,sourceType,options) {
     const constructorReference=resolved.at(prototypeAccess.object.start);
     if(constructorReference?.resolution.kind!=='local') return false;
     const constructorBindingId=constructorReference.resolution.bindingId;
+    const constructorDeclarations=declarationsByBinding.get(constructorBindingId)??[];
+    if(constructorDeclarations.length!==1) return false;
+    const constructorDeclarationNode=constructorDeclarations[0].node;
+    const constructorDeclarationParent=parentByNode.get(constructorDeclarationNode);
+    if(!((constructorDeclarationParent?.type==='FunctionDeclaration'||
+      constructorDeclarationParent?.type==='ClassDeclaration')&&
+      constructorDeclarationParent.id===constructorDeclarationNode)) return false;
     const classNode=classNodeByBinding.get(constructorBindingId);
     const constructorFunction=resolveFunctionNode(constructorBindingId);
     if(!classNode&&(!constructorFunction||
