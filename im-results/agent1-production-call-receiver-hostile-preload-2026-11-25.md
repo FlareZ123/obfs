@@ -41,3 +41,8 @@ This supersedes the incomplete intermediate matrix attempts (45684112553, 456844
 Added two more production mutation shapes: (1) Object.create(Function.prototype, {call: ...}) followed by Object.setPrototypeOf(read, proto), and (2) a Proxy get trap that shadows the callable's call property. Final run [45685572530](https://github.com/FlareZ123/obfs/actions/runs/45685572530), source `f74adb1861902acfa758d98de1ed62aebdb9f761`, **passed all 14 tests on Ubuntu and Windows**: 12 mutation shapes, the initial host-preloader receiver case, and the direct property-read positive control. Every mutation case reports crossFile.properties=0 and preserves execution after transformation; the positive control still renames one property. Both jobs passed all Strict project/external JSDoc and runtime-budget evaluator JSDoc steps.
 
 This is the strongest current production receipt for the reviewed call-receiver family. It remains a focused set of tested shapes, not a full suite or universal proof against arbitrary JavaScript meta-object protocols.
+
+
+## Additional mutator-alias follow-up
+
+Added destructured Object.assign and destructured Reflect.defineProperty mutation cases. Final run [45685960233](https://github.com/FlareZ123/obfs/actions/runs/45685960233), source `efbcf6c27b616ef8a14cd2ea089c2330cd80013e`, **passed all 16 tests on Ubuntu and Windows**. The 14 prior cases plus these two new mutator aliases all preserve execution and report crossFile.properties=0; the direct property-read positive control remains crossFile.properties=1. Both OS jobs also pass Strict project JSDoc, Strict external JSDoc, and runtime-budget evaluator JSDoc. This is the strongest current production receipt for the tested receiver/intrinsic mutation family.
