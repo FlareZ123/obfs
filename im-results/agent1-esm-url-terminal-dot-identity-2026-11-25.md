@@ -105,6 +105,20 @@ These paths reject repeated separators but do not reject a terminal `.` or `..` 
 
 The existing `src/sco-graph.js::verifyPrivateImport` and `src/sco-selective-partition.js::isCanonicalPrivateModulePath` are materially different: both compare the original specifier against a canonical relative spelling, so `./private.mjs/.` is rejected there.
 
+
+## Local route-model cross-check
+
+A minimal local Node HTTP route model copied the handler's relevant sequence (`new URL(request.url, 'http://localhost')`, `decodePublicName(url.pathname.slice(prefix.length))`, exact `inputs.get(name)`) with the selected `private.mjs` entry. It returned:
+
+```json
+{
+  "/obfs/private.mjs/": {"status": 404, "body": "not found"},
+  "/obfs/private.mjs": {"status": 200, "body": "compiled-private-module"}
+}
+```
+
+This is a route-model cross-check, not an invocation of the full repository `createScoHandler`; the latter remains the required integration regression.
+
 ## Recommended repair and tests
 
 Do not create another resolver branch. Extend the existing #374 candidate's shared ESM-specifier admission rule, or consistently apply the same rule at each consumer:
