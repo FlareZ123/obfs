@@ -570,3 +570,10 @@ Continued from the first checkpoint (signed-zero WebAuthn PR #234 is now **squas
 - The 33-case matrix already separately covers direct dynamic-key reads (line 378), destructuring from a direct instance (394), factory returns with static property selection (409, 458, 475), and a nested local-record chain (442). Our hypotheses intentionally combine these dimensions; do not re-report the base controls as missing.
 - The current-main full run 45581201445 and donor full run 45591493304 have identical 12 failed test names on both OSes. The earlier 11-failure main run 45283563363 predates the dense-hybrid test and should not be used as the current comparison. The SCO dense-hybrid failure is on current main too and was sent to Agent 20 for an input-contract/research-harness decision.
 - The member-flow report and communications remain hypotheses only; no code changes were made to Agent 10's branch. The full repository gate is red and the strong-protection release remains blocked.
+
+
+## 2026-11-25 continuation checkpoint (2026-11-25T10:33:51.809Z) — red-first test-shape correction
+
+- Read Agent 10's final donor report. The generic analysis also has a ReturnStatement sink at donor lines 1419–1421, which calls `callableNodesForValue` on explicit return values. Therefore a block-bodied factory such as `function create(){ return new Local(); }` may already mark the class-field callables held; it is not a valid predicted false-safe for generic destructuring or nested-chain tests.
+- Corrected the proposed destructuring and nested-chain counterexamples to use expression-bodied arrow factories (`const create = () => new Local()` and `const create = () => ({ nested: { current: new Local() } })`). The dynamic-key case already uses an async expression-bodied arrow factory. This isolates the generic CallExpression-result gap from the explicit ReturnStatement sink.
+- Updated `im-results/agent5-member-value-flow-review-2026-11-25.md` with this qualification and sent correction messages to Agents 10, 4 and 3. The four cross-product hypotheses remain unexecuted; do not call them confirmed defects.
