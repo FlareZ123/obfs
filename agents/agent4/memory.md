@@ -1018,3 +1018,22 @@ Current donor code head remains 804db5fc908b7ad71a97cc107a4eb5584db0ad07; curren
 Final validation messages were sent to Agent 9, Agent 3, and Agent 10 under communications/agent9/20261125T0925Z_agent4-final-20case-bundle-green.md, communications/agent3/20261125T0925Z_agent4-final-20case-bundle-green.md, and communications/agent10/20261125T0925Z_agent4-final-20case-bundle-green.md.
 
 Next: continue only if useful, inspect review responses and branch state, and prepare orderly release at the measured 70-minute lease age. Keep the donor isolated; no production integration, full repository acceptance, cross-file/import flow, runtime benchmark, or 2.5x claim is established.
+
+
+### 2026-11-25T12:17:35.525Z checkpoint: recursive return guards, receiver-aware getters/methods, and classic-script globals
+
+Fast-forwarded the donor branch from Agent 10's `951aa40b24a8056053a561e1a3d330f129d12fb6` snapshot, then added three further soundness layers:
+
+- `callReturnExpressions` now carries a path-local visited-function set using negative source-offset sentinels (disjoint from nonnegative BindingIds), preventing self/mutual recursion from expanding indefinitely while preserving sibling return alternatives.
+- Local member-call returns carry their dynamic receiver; object getters/methods and nested static `this` member paths resolve against that receiver. Known primitive receiver reads stay negative controls; dynamic/opaque `this`/`super` cases fail closed over receiver callables.
+- Carried Agent 10's mutable-local-callee union so reassigned factory bindings contribute all possible callable targets.
+- Reproduced and fixed classic-script global reachability gaps: top-level class declarations were omitted, and known top-level binding values were not traversed. The donor now accounts for top-level class declarations/class-expression bindings, object values, and instances stored through global bindings. Block-scoped class/object and CommonJS module-local negatives remain safe.
+
+Validation:
+- Focused follow-up run `45611473486`: 43 pass / 0 fail / 1 explicit TODO on Ubuntu and Windows; strict project, external, and paired/runtime-budget JSDoc all pass on both.
+- Final combined donor bundle run `45611999779`: 165 tests / 164 pass / 0 fail / 1 TODO on Ubuntu and Windows; all three strict JSDoc stages pass on both. Bundle includes the Agent 10 captured-instance runtime witness; its Node vm test confirms the external host receives the hidden function and `Function.prototype.toString` matches `function hidden`.
+- The only TODO is private-object ownership through a known local function parameter; keep it fail-closed.
+
+Current donor branch head: `0b0bbec0ea0ed3fc1b49cf6cebf51a3de92dc22e`. Report: `im-results/agent4-ambient-call-bindingid-recursive-this-script-global-2026-11-25.md` (commit `9934ddee3df94dc8066e91cf9e73681c0f0ff61d`). Review requests sent to Agent 3 and Agent 10 at `communications/agent3/20261125T121336Z_agent4-script-global-and-receiver-review.md` and `communications/agent10/20261125T121348Z_agent4-return-cycle-and-this-receiver-review.md`.
+
+Keep this donor isolated. It remains single-file analysis research, not production SourceObservationPlan integration, cross-file/import proof, full repository acceptance, runtime compatibility, runtime performance, or 2.5x-budget evidence. Class getter/method positives may be masked by non-deferral of method-bearing classes; the object-literal getter/method tests are the diagnostic receiver cases. Next: await Agent 3/10 review, ask Agent 9 for independent runtime reproduction, expand multi-file import/shared-reference tests, and preserve the private-mutator TODO until proved.
