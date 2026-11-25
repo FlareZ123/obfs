@@ -6,24 +6,27 @@ const puppeteer=require('puppeteer-core');
 const {obfuscateFiles}=require('../src/core');
 const {pairedBudgetBound}=require('./paired-budget-bound');
 
-/** @typedef {{scriptMs:number,taskMs:number,wallMs:number,result:number}} TimedCall */
-/** @typedef {{init:TimedCall,cold:TimedCall,warm:TimedCall,hot:TimedCall,totalScriptMs:number,totalTaskMs:number}} LaneResult */
+/** @typedef {{scriptMs:number,taskMs:number,wallMs:number,values:number[]}} TimedSample */
 
-const nativeSource=[
-  "'use strict';",
-  "const marker='task-duration-probe';",
-  'function hidden(count) {',
-  '  const state={secretValue:17,step:7};',
-  '  const alias=state;',
-  '  let sum=0;',
-  '  for(let index=0;index<count;index++){',
-  '    alias.secretValue=(alias.secretValue+alias.step)|0;',
-  '    sum=(sum+alias.secretValue+marker.charCodeAt(index%marker.length))|0;',
-  '  }',
-  '  return sum|0;',
-  '}',
-  'globalThis.__invoke=function invoke(count){return hidden(count);};'
-].join('\n');
+function makeSource(count) {
+  return [
+    "'use strict';",
+    "const marker='task-duration-probe';",
+    'function hidden(iterations) {',
+    '  const state={secretValue:17,step:7};',
+    '  const alias=state;',
+    '  let sum=0;',
+    '  for(let index=0;index<iterations;index++){',
+    '    alias.secretValue=(alias.secretValue+alias.step)|0;',
+    '    sum=(sum+alias.secretValue+marker.charCodeAt(index%marker.length))|0;',
+    '  }',
+    '  return sum|0;',
+    '}',
+    'const started=performance.now();',
+    'const values=[hidden(100000),hidden(100000),hidden(100000),hidden('+count+')];',
+    'globalThis.__budgetResult={values,wallMs:performance.now()-started};'
+  ].join('\n');
+}
 
 /**
  * @param {import('puppeteer-core').CDPSession} session
@@ -40,32 +43,32 @@ async function readMetrics(session) {
 }
 
 /**
- * @template T
  * @param {import('puppeteer-core').CDPSession} session
- * @param {()=>Promise<T>} operation
- * @returns {Promise<{scriptMs:number,taskMs:number,result:T}>}
+ * @param {()=>Promise<number[]>} operation
+ * @returns {Promise<TimedSample>}
  */
-async function measure(session,operation) {
+async function measureScript(session,operation) {
   const before=await readMetrics(session);
-  const result=await operation();
+  const values=await operation();
   const after=await readMetrics(session);
   return {
     scriptMs:(after.scriptSeconds-before.scriptSeconds)*1000,
     taskMs:(after.taskSeconds-before.taskSeconds)*1000,
-    result
+    wallMs:0,
+    values
   };
 }
 
 /**
- * Prototype measurement of current-compiler COO initialization and runtime
- * using Chromium renderer ScriptDuration/TaskDuration. Wall time is diagnostic
- * only. Initialization, first call, warm calls, and hot call are separate.
+ * Prototype measurement of current-compiler COO initialization plus repeated
+ * runtime use in one strict script evaluation. ScriptDuration and TaskDuration
+ * are renderer-main-thread metrics; performance.now is diagnostic only.
  *
  * @param {{count?:number,trials?:number}} [options]
  * @returns {Promise<{
- *   chrome:string,node:string,count:number,trials:number,workload:string,
+ *   chrome:string,node:string,count:number,trials:number,
  *   compilerMetrics:{literals:number,objects:number,properties:number,bindings:number},
- *   rows:Array<{trial:number,order:string[],native:LaneResult,protected:LaneResult}>,
+ *   rows:Array<{trial:number,order:string[],native:TimedSample,protected:TimedSample}>,
  *   scriptBudget:ReturnType<typeof pairedBudgetBound>,
  *   taskBudget:ReturnType<typeof pairedBudgetBound>,
  *   clock:string,scope:string
@@ -76,7 +79,7 @@ async function runChromium(options={}) {
   const trials=options.trials??11;
   assert.ok(Number.isSafeInteger(count)&&count>0);
   assert.ok(Number.isSafeInteger(trials)&&trials>=5);
-
+  const nativeSource=makeSource(count);
   const transformed=obfuscateFiles([{
     path:'protected.js',sourceType:'commonjs',code:nativeSource
   }],{
@@ -100,13 +103,12 @@ async function runChromium(options={}) {
     response.writeHead(200,{'content-type':file.type});
     response.end(file.body);
   });
-
   const browser=await puppeteer.launch({
     executablePath:process.env.CHROMIUM_BIN??'/usr/bin/google-chrome',
     headless:true,protocolTimeout:180000,
     args:['--no-sandbox','--disable-gpu','--disable-dev-shm-usage','--no-first-run']
   });
-  /** @type {Array<{trial:number,order:string[],native:LaneResult,protected:LaneResult}>} */
+  /** @type {Array<{trial:number,order:string[],native:TimedSample,protected:TimedSample}>} */
   const rows=[];
   try {
     await new Promise((resolve,reject)=>{
@@ -125,89 +127,46 @@ async function runChromium(options={}) {
       for(let trial=0;trial<trials;trial++) {
         /** @type {('native'|'protected')[]} */
         const order=trial%2===0?['native','protected']:['protected','native'];
-        /** @type {{native?:LaneResult,protected?:LaneResult}} */
-        const lanes={};
+        /** @type {{native?:TimedSample,protected?:TimedSample}} */
+        const samples={};
         for(const lane of order) {
           const scriptPath='/'+lane+'.js?trial='+trial;
-          const initMeasured=await measure(session,async()=>{
+          const sample=await measureScript(session,async()=>{
             await page.addScriptTag({url:base+scriptPath});
-            return 1;
-          });
-          const init=/** @type {TimedCall} */ ({
-            scriptMs:initMeasured.scriptMs,taskMs:initMeasured.taskMs,
-            wallMs:0,result:initMeasured.result
-          });
-          const coldMeasured=await measure(session,async()=>{
-            return page.evaluate(count=>{
+            const result=await page.evaluate(()=>{
               const globals=/** @type {Record<string,any>} */ (globalThis);
-              const start=performance.now();
-              const result=globals.__invoke(count);
-              return {result,wallMs:performance.now()-start};
-            },count);
-          });
-          const cold=/** @type {TimedCall} */ ({
-            scriptMs:coldMeasured.scriptMs,taskMs:coldMeasured.taskMs,
-            wallMs:coldMeasured.result.wallMs,result:coldMeasured.result.result
-          });
-          const warmMeasured=await measure(session,async()=>{
-            return page.evaluate(()=>{
-              const globals=/** @type {Record<string,any>} */ (globalThis);
-              const start=performance.now();
-              let result=0;
-              for(let index=0;index<2;index++)
-                result=globals.__invoke(100000);
-              return {result,wallMs:performance.now()-start};
+              return globals.__budgetResult;
             });
+            return result.values;
           });
-          const warm=/** @type {TimedCall} */ ({
-            scriptMs:warmMeasured.scriptMs,taskMs:warmMeasured.taskMs,
-            wallMs:warmMeasured.result.wallMs,result:warmMeasured.result.result
+          const wall=await page.evaluate(()=>{
+            const globals=/** @type {Record<string,any>} */ (globalThis);
+            return globals.__budgetResult.wallMs;
           });
-          const hotMeasured=await measure(session,async()=>{
-            return page.evaluate(count=>{
-              const globals=/** @type {Record<string,any>} */ (globalThis);
-              const start=performance.now();
-              const result=globals.__invoke(count);
-              return {result,wallMs:performance.now()-start};
-            },count);
-          });
-          const hot=/** @type {TimedCall} */ ({
-            scriptMs:hotMeasured.scriptMs,taskMs:hotMeasured.taskMs,
-            wallMs:hotMeasured.result.wallMs,result:hotMeasured.result.result
-          });
-          assert.ok(init.scriptMs>=0&&init.taskMs>=0,lane+' initialization deltas');
-          assert.ok(cold.scriptMs>0&&cold.taskMs>0,lane+' cold-call deltas');
-          assert.ok(warm.scriptMs>0&&warm.taskMs>0,lane+' warm-call deltas');
-          assert.ok(hot.scriptMs>0&&hot.taskMs>0,lane+' hot-call deltas');
-          lanes[lane]={
-            init,cold,warm,hot,
-            totalScriptMs:init.scriptMs+cold.scriptMs+warm.scriptMs+hot.scriptMs,
-            totalTaskMs:init.taskMs+cold.taskMs+warm.taskMs+hot.taskMs
-          };
+          sample.wallMs=wall;
+          assert.ok(sample.scriptMs>0&&sample.taskMs>0,lane+' renderer deltas must be positive');
+          samples[lane]=sample;
         }
-        const native=lanes.native;
-        const protectedLane=lanes.protected;
-        assert.ok(native&&protectedLane,'Both lanes must be measured');
-        assert.equal(native.cold.result,protectedLane.cold.result,'cold result parity');
-        assert.equal(native.warm.result,protectedLane.warm.result,'warm result parity');
-        assert.equal(native.hot.result,protectedLane.hot.result,'hot result parity');
-        rows.push({trial,order,native,protected:protectedLane});
+        const native=samples.native;
+        const protectedSample=samples.protected;
+        assert.ok(native&&protectedSample,'Both lanes must be measured');
+        assert.deepEqual(native.values,protectedSample.values,'native/protected result parity');
+        rows.push({trial,order,native,protected:protectedSample});
       }
     } finally {
       await session.detach();
       await page.close();
     }
-    const nativeScript=rows.map(row=>row.native.totalScriptMs);
-    const protectedScript=rows.map(row=>row.protected.totalScriptMs);
-    const nativeTask=rows.map(row=>row.native.totalTaskMs);
-    const protectedTask=rows.map(row=>row.protected.totalTaskMs);
+    const nativeScript=rows.map(row=>row.native.scriptMs);
+    const protectedScript=rows.map(row=>row.protected.scriptMs);
+    const nativeTask=rows.map(row=>row.native.taskMs);
+    const protectedTask=rows.map(row=>row.protected.taskMs);
     return {
-      chrome,node:process.version,count,trials,workload:'private local-object alias loop with top-level string decoder',
-      compilerMetrics:transformed.metrics,rows,
+      chrome,node:process.version,count,trials,compilerMetrics:transformed.metrics,rows,
       scriptBudget:pairedBudgetBound(nativeScript,protectedScript,{threshold:2.5,confidence:0.95}),
       taskBudget:pairedBudgetBound(nativeTask,protectedTask,{threshold:2.5,confidence:0.95}),
       clock:'CDP Performance.getMetrics ScriptDuration and TaskDuration (renderer main thread); page performance.now is diagnostic only',
-      scope:'Single COO CommonJS-style strict script. Measures script/decoder initialization, first call, two 100k warm calls, and one hot call. Not process-wide CPU, worker CPU, SCO/SNO, cross-browser, or full-session acceptance.'
+      scope:'Single COO strict CommonJS-style script. Each sample includes decoder initialization, function creation, three 100k calls and one hot call. Not process-wide CPU, worker CPU, SCO/SNO, cross-browser, or full-session acceptance.'
     };
   } finally {
     await browser.close();
