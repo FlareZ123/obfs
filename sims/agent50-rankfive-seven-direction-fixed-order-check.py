@@ -64,6 +64,7 @@ def seven_direction_check():
     remaining = [True] * len(kernels)
     queried_vertices = set()
     expected_fresh_trial_queries = Fraction(0, 1)
+    expected_face_tests_per_fresh_trial = Fraction(0, 1)
     increments = []
     remaining_counts = []
 
@@ -79,6 +80,7 @@ def seven_direction_check():
             + full_rank_probability * Fraction(sum(remaining), len(kernels))
         )
         expected_fresh_trial_queries += reach_probability * new_queries
+        expected_face_tests_per_fresh_trial += reach_probability
         queried_vertices |= vertices
         increments.append(new_queries)
 
@@ -120,6 +122,13 @@ def seven_direction_check():
         "remaining_kernel_counts": remaining_counts,
         "union_queries_per_trial": len(queried_vertices),
         "expected_queries_per_fresh_trial": str(expected_fresh_trial_queries),
+        "expected_face_tests_per_fresh_trial": str(expected_face_tests_per_fresh_trial),
+        "expected_face_tests_across_restarts": str(
+            expected_face_tests_per_fresh_trial / (1 - failure_probability)
+        ),
+        "expected_face_tests_across_restarts_float": float(
+            expected_face_tests_per_fresh_trial / (1 - failure_probability)
+        ),
         "failure_probability_per_trial": str(failure_probability),
         "expected_queries_across_restarts": str(expected_restarted_queries),
         "expected_queries_across_restarts_float": float(expected_restarted_queries),
@@ -141,6 +150,7 @@ def six_direction_check():
     remaining = [True] * len(kernel_vectors)
     queried_vertices = set()
     expected_fresh_trial_queries = Fraction(0, 1)
+    expected_face_tests_per_fresh_trial = Fraction(0, 1)
     increments = []
 
     for omitted in range(6):
@@ -155,6 +165,7 @@ def six_direction_check():
             + full_rank_probability * Fraction(sum(remaining), len(kernel_vectors))
         )
         expected_fresh_trial_queries += reach_probability * new_queries
+        expected_face_tests_per_fresh_trial += reach_probability
         queried_vertices |= vertices
         increments.append(new_queries)
         remaining = [
@@ -181,6 +192,13 @@ def six_direction_check():
         "new_queries_per_face": increments,
         "union_queries_per_trial": len(queried_vertices),
         "expected_queries_per_fresh_trial": str(expected_fresh_trial_queries),
+        "expected_face_tests_per_fresh_trial": str(expected_face_tests_per_fresh_trial),
+        "expected_face_tests_across_restarts": str(
+            expected_face_tests_per_fresh_trial / (1 - failure_probability)
+        ),
+        "expected_face_tests_across_restarts_float": float(
+            expected_face_tests_per_fresh_trial / (1 - failure_probability)
+        ),
         "failure_probability_per_trial": str(failure_probability),
         "expected_queries_across_restarts": str(expected_restarted_queries),
         "expected_queries_across_restarts_float": float(expected_restarted_queries),
@@ -216,6 +234,10 @@ def main():
                 Fraction(93) * Fraction(seven["direction_dependence_probability"])
                 / (1 - Fraction(seven["failure_probability_per_trial"]))
             )
+        ),
+        "expected_face_test_increase_fraction": (
+            seven["expected_face_tests_across_restarts_float"]
+            / six["expected_face_tests_across_restarts_float"] - 1
         ),
         "scope": (
             "Independent exact check of the specified face orders and restart "
