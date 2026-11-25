@@ -189,3 +189,19 @@ test('a with-body name lookup invalidates the local receiver ownership proof',()
     'a Proxy-backed with environment can redirect the owner binding to host-owned storage');
   assert.equal(hidden.safe,false);
 });
+
+
+test('with fallback does not taint a callable in an unrelated sibling-function scope',()=>{
+  const source=
+    'function outer(){'+
+    'function sibling(){function hidden(){return 1;}return 2;}'+
+    'function entry(proxy){with(proxy){return 2;}}'+
+    'return entry;}'+
+    'module.exports=outer;';
+  const result=analyze(source);
+  const hidden=named(result,'hidden')[0];
+  assert.ok(hidden);
+  assert.equal(hidden.hostHeldCallable,false,
+    'a with environment cannot resolve a binding confined to a sibling function scope');
+  assert.equal(hidden.safe,true);
+});
