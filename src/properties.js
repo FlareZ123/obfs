@@ -725,6 +725,8 @@ function proveLocalObject(ast, rootName, bindings, importedIdentityFunctions=new
   const privateFunctionNodes=new Set(
     [...directInvokedArrows].filter(node=>!nestedInClassSource(node))
   );
+  /** @type {Set<AstNode>} */
+  const privateClassNodes=new Set();
   /** @type {{name:string,node:AstNode,decl:AstNode}[]} */
   const callableBindings=[];
   for(const node of functionDeclarations) {
@@ -853,7 +855,10 @@ function proveLocalObject(ast, rootName, bindings, importedIdentityFunctions=new
         break;
       }
     }
-    if(privateInstance)privateFunctionNodes.add(fn);
+    if(privateInstance){
+      privateFunctionNodes.add(fn);
+      privateClassNodes.add(classNode);
+    }
   }
 
   const aliases = new Set([rootName]);
@@ -1063,13 +1068,17 @@ function proveLocalObject(ast, rootName, bindings, importedIdentityFunctions=new
         parent?.type==='MemberExpression' && key==='property' && !parent.computed ||
         (parent?.type==='MethodDefinition'||parent?.type==='PropertyDefinition') &&
           key==='key' && !parent.computed) continue;
-    // A property spelling inside an unproven callable body is part of that
-    // callable's externally observable source. Private direct-call-only
-    // functions survive the escape analysis above and remain eligible.
-    const hasUnprovedCallable=ancestors.some(ancestor=>
-      ['FunctionDeclaration','FunctionExpression','ArrowFunctionExpression'].includes(ancestor.type)&&
-      !privateFunctionNodes.has(ancestor));
-    if(hasUnprovedCallable) {
+    // A property spelling inside an unproved callable or class body is
+    // part of that source container's externally observable native source.
+    // Only a fully closed private callable/class proof makes it eligible.
+    const hasUnprovedSourceContainer=ancestors.some(ancestor=>{
+      if(['FunctionDeclaration','FunctionExpression','ArrowFunctionExpression'].includes(ancestor.type))
+        return !privateFunctionNodes.has(ancestor);
+      if(ancestor.type==='ClassDeclaration'||ancestor.type==='ClassExpression')
+        return !privateClassNodes.has(ancestor);
+      return false;
+    });
+    if(hasUnprovedSourceContainer) {
       // An exported/host-observable caller may pass the private owner to a
       // nonescaping exact member reader: the caller's own source contains
       // only the call and owner binding, not the member spelling. Do not
