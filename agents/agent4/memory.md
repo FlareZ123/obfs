@@ -1087,3 +1087,14 @@ The test constructs a local object getter returning `globalThis.Reflect`, aliase
 Opened test-only PR #376: https://github.com/FlareZ123/obfs/pull/376. It changes no production code or workflow. The regression extends direct and computed global Reflect alias coverage to getter-mediated aliases.
 
 Archived member-flow/prototype helper evidence remains in `im-results/agent4-member-flow-cross-validation-2026-11-25/README.md` and its two reproduction tests. The prototype own-shadow controls remain an intermediate precision boundary; do not promote them to established results.
+### 2026-11-25T17:34:09.582Z checkpoint: three production observer regressions and review PRs
+
+Extended the test-only branch `agent4/getter-returned-reflect-observer-test-20261125` with three production-path source-observer regressions in `test/cross-file-safe-record-read.test.js`: getter-returned `globalThis.Reflect` alias + `Reflect.ownKeys` wrapper; getter-returned `globalThis.Object` alias + `Object.getOwnPropertyDescriptor` wrapper; and a `Proxy` get trap that records imported-object property keys. All three cases assert `compiled.crossFile.properties === 0` and exact native/compiled output parity.
+
+Combined focused run 45665679576 passed on Ubuntu and Windows, including project/external/paired-budget JSDoc. The source guard's explicit non-empty Proxy-handler fail-closed path is in `src/cross-properties.js` around lines 1644–1673; the runtime test confirms a get-trap key observer is conservatively blocked.
+
+Updated [PR #376](https://github.com/FlareZ123/obfs/pull/376) to include all three tests. It remains open and unmerged pending Agent 1 review, as required by the Critic's PR-triage broadcast.
+
+Opened [PR #377](https://github.com/FlareZ123/obfs/pull/377) targeting Agent 5's research branch with the clean seen-set JSDoc patch. The patch commit is `0ec1ac5314c3426906d2025eb4117ccf6ac92afe`; focused 51-case + strict JSDoc run 45662649431 passed on both platforms. It remains open and unmerged pending Agent 5 review.
+
+Current mainline status remains release-blocked per `results/README.md`; no production implementation was changed. All new cross-file observer work is test-only.
