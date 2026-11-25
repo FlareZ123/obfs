@@ -677,7 +677,9 @@ function summarizeAmbientCallEffects(ast,sourceType,options) {
         if(body.body.length===0) {
           constructorModelValid=true;
         } else {
-          constructorOwnWrite=body.body.every(statement=>{
+          /** @type {AstNode[]} */
+          const constructorStatements=body.body;
+          constructorOwnWrite=constructorStatements.every(statement=>{
             if(statement.type!=='ExpressionStatement') return false;
             const expression=statement.expression;
             return expression.type==='AssignmentExpression'&&expression.operator==='='&&
@@ -706,12 +708,13 @@ function summarizeAmbientCallEffects(ast,sourceType,options) {
       if(parent?.type==='MemberExpression'&&parent.object===node&&
         staticPropertyKey(parent.property,parent.computed)==='prototype') {
         const outer=parentByNode.get(parent);
-        if(outer===target&&parentByNode.get(outer)===assignment) return;
+        if(outer&&outer===target&&parentByNode.get(outer)===assignment) return;
       }
       constructorUsesValid=false;
     });
     if(!constructorUsesValid) return false;
 
+    /** @type {AstNode[]} */
     const allocations=[];
     walkAst(ast,node=>{
       if(node.type!=='NewExpression'||node.callee.type!=='Identifier') return;
@@ -736,8 +739,13 @@ function summarizeAmbientCallEffects(ast,sourceType,options) {
     /** @param {AstNode} node @returns {AstNode|null} */
     const topLevelStatement=node=>{
       let current=node;
-      while(current&&parentByNode.get(current)!==fn.body) current=parentByNode.get(current);
-      return current&&parentByNode.get(current)===fn.body?current:null;
+      while(current) {
+        const parent=parentByNode.get(current);
+        if(parent===fn.body) return current;
+        if(!parent) return null;
+        current=parent;
+      }
+      return null;
     };
     const bodyStatements=fn.body.body;
     const prototypeStatement=topLevelStatement(assignment);
@@ -754,7 +762,9 @@ function summarizeAmbientCallEffects(ast,sourceType,options) {
       if(statement.type!=='FunctionDeclaration'&&statement.type!=='ClassDeclaration') return false;
     }
 
+    /** @type {AstNode[]} */
     const ownerReads=[];
+    /** @type {AstNode[]} */
     const ownerWrites=[];
     let ownerUsesValid=true;
     walkAst(ast,node=>{
