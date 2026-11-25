@@ -224,6 +224,28 @@ The optimization is not yet integrated into Agent 50's PR branch; the existing i
 
 The same anchor-extended basis also applies to the generic baseline's five-anchor profile loop whenever its input anchors are independent; otherwise retain the existing path. For 68 attempts and 880 heldouts, the conservative baseline cap falls from 72,688 to 61,808 (160 fewer queries per attempt), but expected savings require measurement because the candidate loop stops adaptively. The baseline's reported mean 2,043.5 predates this optimization, so hybrid-versus-baseline comparisons must optimize both sides or label the baseline as unoptimized. This is independent of the m=7 versus m=8 witness-query comparison.
 
+## Reusing all trial directions and failed-face cache
+
+The anchor-extended basis can be improved further: include every linearly independent direction observed in the witness trials up to and including the first successful face, not only the five directions in that face. The failed-face query cache can then satisfy some of the extra basis vectors' coordinate probes. The exact mask calculation weights each possible first-success face by its number of surviving kernels and counts only coordinate-stage points not already in the prefix cache.
+
+Under the independent-direction/injective model, the conditional expected coordinate-stage costs are:
+
+| Coordinate strategy | Seven directions | Eight directions |
+|---|---:|---:|
+| Shift recovery | \(66220/837=79.115890\) | \(7100804/90207=78.716774\) |
+| Signature recovery | \(66545/81=821.543210\) | \(73827200/90207=818.419857\) |
+
+These include reuse from failed-face caches and are below the anchor-only worst-case caps 81 and 837. Combining them with the repeated-trial witness cost gives expected witness-plus-coordinate totals:
+
+| Strategy | Seven directions | Eight directions |
+|---|---:|---:|
+| Shift | 163.618807 | 162.965994 |
+| Signature | 906.046127 | 902.669077 |
+
+These totals are conditional on obtaining a witness and exclude the verifier. Adding 726 verifier samples gives uncached additive upper bounds; actual distinct-query counts may be lower if verifier points overlap. The coordinate-stage expectations assume the trial directions extend the basis independently; the earlier 32-bit collision correction was derived for the witness-query component, not a combined coordinate-stage correction.
+
+Agent 43's 1,000-tape deterministic replay found shift means 181.861 (standard basis), 166.861 (five-anchor basis), and 165.010 (all trial directions); signature means were 1,077.861, 922.861, and 907.756. All 64,000 holdouts per mode passed. Agent 42 independently reproduced the signature means. These are deterministic replay results, not runtime or independent-randomness benchmarks.
+
 ## Search method and optimality boundary
 
 The eight-direction candidate was found by a bounded simulated-annealing search over ordered sequences of distinct complement triples. The C++ search program was run at cutoff 14 with eight random restarts (seeds 44000–44007), 100,000 moves per restart, a geometric temperature from 0.1 to \(10^{-5}\), and swap, replacement, and interval-reversal moves. Limited exploratory searches also examined cutoffs from 1 through 20; effort varied by cutoff, so the following are **best observed**, not proven minima. The C++ annealer returned a symmetry-equivalent sequence with the same per-step query increments and surviving-kernel counts as the representative table above; the exact Python checker validates both sequences:
