@@ -131,6 +131,13 @@ Do not create another resolver branch. Extend the existing #374 candidate's shar
 
 A centralized predicate is preferable to another set of slightly different string checks. It should model the admitted URL grammar first and only then derive the corresponding input-tree path.
 
+
+## Reusable bounded grammar audit
+
+The deterministic model is preserved as `sims/esm-url-path-identity-audit.js`. It mirrors the candidate SCO CLI's segment admission and POSIX target derivation, compares that target with WHATWG URL resolution, models the SCO handler's exact path-name lookup, and checks a proposed terminal-dot refusal. Run with `node sims/esm-url-path-identity-audit.js`.
+
+On Node v22.16.0, the finite grammar used atoms `a`, `b`, `private.mjs`, `.`, `..`, and the empty segment, with one to five segments. It generated 11,190 sequences; 4,514 passed the candidate admission model and 4,308 remained in-root. Of those in-root candidates, 1,566 had a POSIX/URL path mismatch; all mismatches ended in literal `.` or `..` in this bounded grammar. Adding a terminal-dot/dot-dot refusal left 2,742 in-root candidates and zero mismatches. These counts are bounded model evidence, not a claim about all possible URL strings or all file trees.
+
 ## Limitations
 
 This finding concerns a specific candidate branch and one URL/path grammar edge. It does not establish a general browser exploit, a bypass of the current merged mainline, or a complete SCO compromise. The full CLI/HTTP regression and cross-mode parity checks remain to be run on the eventual combined #374/#375 current-main candidate.
