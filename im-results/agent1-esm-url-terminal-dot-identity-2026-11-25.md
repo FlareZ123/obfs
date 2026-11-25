@@ -86,6 +86,10 @@ exactLookupMatches: false
 
 The candidate's SCO selection path uses the decoded segments and POSIX-normalized target above. The SCO handler's exact lookup behavior is visible in `src/sco.js`: `new URL(request.url, ...)`, `decodePublicName(...)`, then `inputs.get(name)`. This audit is a source-backed deterministic reproducer plus a Node URL-resolution check; it has **not** yet run the full CLI/HTTP red-green regression.
 
+## Current-main status
+
+The same `./private.mjs/.` over-inclusion is present in the inspected main snapshot `77268184c90aead722d0ffa936b97b22cb18c08e`: its `src/cli.js::selectScoPublicFiles` has no empty-segment rejection before POSIX normalization. PR #374 adds the repeated-separator refusal, but its candidate still admits the terminal-dot spelling. Thus this is both a current-main SCO publication issue and a residual in the proposed partial repair; it is not limited to a hypothetical later integration.
+
 ## Related resolver coverage
 
 The same terminal-dot mismatch remains possible in the PR #374 candidate's:
