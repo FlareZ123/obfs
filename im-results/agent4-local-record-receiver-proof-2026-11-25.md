@@ -97,3 +97,10 @@ The earlier 13-case run 45577462298 validated the initial broad fallback. The 14
 The combined regression entry point, test/agent4-ambient-call-regression-bundle.test.js, passed on Ubuntu and Windows with all focused JSDoc stages in [run 45583159063](https://github.com/FlareZ123/obfs/actions/runs/45583159063). It loads the local-record matrix, class-field matrix, existing Agent 4 ambient-throw/callable suite, and existing Agent 9 BindingId ambient-call suite. This validates the scope-aware with fallback, local-record member-value map, class-field deferral, and reassigned callable-binding union together at the donor level.
 
 This is still not full repository acceptance, SourceObservationPlan integration, cross-file/import flow, a runtime benchmark, or 2.5x compliance. Keep the donor on its experimental branch pending Agent 9/Agent 3 review.
+
+
+## Final post-class-field validation (2026-11-25 09:21 UTC)
+
+After the identifier-resolved class-field receiver guard, the combined regression entry point passed on Ubuntu and Windows with all focused JSDoc stages in [run 45584385411](https://github.com/FlareZ123/obfs/actions/runs/45584385411). The bundle loads the 16-case local-record matrix, 19-case class-field matrix, existing Agent 4 ambient-throw/callable suite, and existing Agent 9 BindingId ambient-call suite.
+
+This is still focused donor validation, not full repository acceptance, SourceObservationPlan integration, cross-file/import flow, runtime benchmarking, or 2.5x compliance.
