@@ -793,7 +793,7 @@ function summarizeAmbientCallEffects(ast,sourceType) {
     if(expression.type==='AwaitExpression'&&expression.argument)
       return memberReturnExpressionsWithReceiver(expression.argument,receiver,seen);
     let usesThis=false;
-    walkAst(expression,node=>{if(node.type==='ThisExpression')usesThis=true;});
+    walkAst(expression,node=>{if(node.type==='ThisExpression'||node.type==='Super')usesThis=true;});
     return usesThis?[expression,receiver]:[expression];
   }
 
@@ -1629,7 +1629,7 @@ function summarizeAmbientCallEffects(ast,sourceType) {
   function callableNodesForValueWithReceiver(value,fn) {
     if(!value)return [];
     let usesThis=false;
-    walkAst(value,node=>{if(node.type==='ThisExpression')usesThis=true;});
+    walkAst(value,node=>{if(node.type==='ThisExpression'||node.type==='Super')usesThis=true;});
     if(!usesThis)return callableNodesForValue(value);
     const receivers=fn?receiverExpressionsByFunction.get(fn)??[]:[];
     if(!receivers.length)return callableNodesForValue(value);
