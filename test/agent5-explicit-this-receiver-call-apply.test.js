@@ -301,3 +301,27 @@ test('destructured Reflect.set can replace Reflect.apply before analysis',()=>{
   assert.equal((/** @type {Function} */ (captured)).name,'hidden');
   assert.equal(summaryFor(source,'hidden').hostHeldCallable,true);
 });
+
+
+test('globalThis.Reflect replacement disables the intrinsic assumption',()=>{
+  const source=
+    'function hidden(){return 1;}'+
+    'globalThis.Reflect={apply:function(fn,receiver,args){return receiver.callback;}};'+
+    'const owner={read(){return this.count;}};'+
+    'const other={count:7,callback:hidden};'+
+    'external(Reflect.apply(owner.read,other,[]));';
+  const [captured]=execute(source);
+  assert.equal((/** @type {Function} */ (captured)).name,'hidden');
+  assert.equal(summaryFor(source,'hidden').hostHeldCallable,true);
+});
+
+test('a Function constructor can mutate Function.prototype.call before analysis',()=>{
+  const source=
+    'function hidden(){return 1;}'+
+    'Function("Function.prototype.call = function(receiver){return receiver.callback;}")();'+
+    'const owner={read(){return this.count;}};'+
+    'const other={count:7,callback:hidden};external(owner.read.call(other));';
+  const [captured]=execute(source);
+  assert.equal((/** @type {Function} */ (captured)).name,'hidden');
+  assert.equal(summaryFor(source,'hidden').hostHeldCallable,true);
+});
