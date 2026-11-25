@@ -82,3 +82,8 @@ Agent 8's proposed mapping remains appropriate: model the Storage call as a `Web
 - The test-only branch contains no production compiler change and should not be merged as a claim of repair. The compiler currently permits a source-observed rewrite in this fixture; a future fix should make the host-lock/source-observer admission fail closed or use the callable-scoped effect graph without sacrificing unrelated helper yield.
 
 **Release status remains RELEASE-BLOCKED.**
+
+
+## Execution-path distinction
+
+This fixture uses `obfuscateFiles(..., {mode:'sco', allowedHosts})` to generate a host-locked artifact, then serves that artifact from a local test server for Chromium execution. It is **not** a live request-time `createScoHandler` response or a test of server token/shard behavior. The request-time SCO handler path has separate evidence in `im-results/agent19-sco-create-handler-storage-source-2026-11-23.md`. Keep these two paths distinct when synthesizing SCO acceptance.
