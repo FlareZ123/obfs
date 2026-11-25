@@ -105,6 +105,13 @@ jobs:
               "errors": result["errors"],
               "exact_initial_clone_successes": result["exact_clone_successes"],
               "future_clone_successes": result["future_clone_successes"],
+              "candidate_end_behavior_unambiguous_runs": sum(
+                  bool(row.get("candidate_end_behavior_unambiguous")) for row in result["results"]
+              ),
+              "candidate_end_equivalence_classes_max": max(
+                  (row.get("candidate_end_equivalence_classes", 0) for row in result["results"]),
+                  default=0,
+              ),
               "ambiguous_initial_behavior_runs": sum(
                   bool(row.get("ambiguous_initial_behavior")) for row in result["results"]
               ),
