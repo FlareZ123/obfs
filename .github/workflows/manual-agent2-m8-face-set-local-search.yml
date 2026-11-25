@@ -1,0 +1,47 @@
+name: Manual Agent 2 m8 face-set local search
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  local-search:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Run exact one-swap face-set search
+        run: |
+          python sims/agent2-rankfive-m8-face-set-local-search.py --iterations 1 --max-evaluations 644 --kmax 16 > m8-face-search.json
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          result = json.loads(Path("m8-face-search.json").read_text())
+          assert result["model"]["width"] == 8
+          assert result["model"]["face_universe"] == 56
+          assert result["model"]["kernel_count"] == 97155
+          assert abs(result["baseline"]["total_queries"] - 160.312633363971) < 1e-9
+          assert result["total_evaluations"] + sum(
+              row["skipped_universal"] for row in result["iterations"]
+          ) == 644
+          assert result["best"]["total_queries"] <= result["baseline"]["total_queries"]
+          assert result["best"]["uncacheable_vertices"] == []
+          print("M8 local-search summary:", json.dumps({
+              "baseline": result["baseline"]["total_queries"],
+              "best": result["best"]["total_queries"],
+              "best_face_count": len(result["best"]["faces"]),
+              "evaluations": result["total_evaluations"],
+              "elapsed_seconds": result["elapsed_seconds"],
+          }, sort_keys=True))
+          PY
+      - name: Preserve exact local-search result
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: agent2-m8-face-set-local-search
+          path: m8-face-search.json
