@@ -36,26 +36,14 @@ function fingerprint(value){
 }
 
 /**
- * @param {string} entryUrl
+ * @param {string} indexUrl
  * @returns {Promise<{kind:'PASS',result:{value:number,independent:number,stored:string,host:string}}|{kind:'ERROR',message:string}>}
  */
-async function executeChromium(entryUrl){
-  const html=[
-    '<!doctype html><html><body><pre id="result">PENDING</pre>',
-    '<script type="module">',
-    'try {',
-    '  const {sample}=await import('+JSON.stringify(entryUrl)+');',
-    '  const result=sample();',
-    '  document.getElementById("result").textContent="PASS:"+btoa(JSON.stringify(result));',
-    '} catch(error) {',
-    '  document.getElementById("result").textContent="ERROR:"+btoa(String(error.message||error));',
-    '}',
-    '</script></body></html>'
-  ].join('\n');
+async function executeChromium(indexUrl){
   const {stdout,stderr}=await exec(process.env.CHROMIUM_BIN??'google-chrome',[
     '--headless','--no-sandbox','--disable-gpu','--disable-dev-shm-usage',
     '--no-first-run','--virtual-time-budget=3000','--dump-dom',
-    entryUrl.replace(/\/entry\.mjs$/u,'/index.html')
+    indexUrl
   ],{timeout:45000,maxBuffer:8*1024*1024,encoding:'utf8'});
   const pass=stdout.match(/<pre id="result">PASS:([A-Za-z0-9+/=]+)<\/pre>/u)?.[1];
   if(pass){
@@ -95,7 +83,7 @@ async function main(){
         consumer:observesFunctionSource(parse(entry,'module'))},
       compilationRejected:true,
       rejection:String(error)
-    })+'\\n');
+    })+'\n');
     return;
   }
   const producer=output.files.find(file=>file.path==='logic.mjs');
