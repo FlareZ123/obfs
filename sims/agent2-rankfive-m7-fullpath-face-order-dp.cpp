@@ -29,6 +29,9 @@ static constexpr int KERNELS = 2667;
 static constexpr int KMAX = 20;
 static constexpr int GLOBAL_STATES = 1 << N_FACES;
 
+static_assert(std::numeric_limits<long double>::digits >= 64,
+              "m7 search requires a 64-bit long-double significand");
+
 struct Candidate {
     long double total = std::numeric_limits<long double>::infinity();
     long double witness = 0.0L;
@@ -381,6 +384,7 @@ int main(int argc, char** argv) {
     std::cout << "graphs=" << graph_masks.size()
               << " states=" << total_states
               << " transitions=" << total_transitions
+              << " long_double_digits=" << std::numeric_limits<long double>::digits
               << " rank5_probability=" << p << "\n";
     for (int k = 1; k <= 21; ++k) {
         if (graphs_by_k[k] == 0) continue;
