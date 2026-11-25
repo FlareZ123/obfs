@@ -350,3 +350,29 @@ test('Object.prototype.__defineGetter__ can replace Function.prototype.call',()=
   assert.equal((/** @type {Function} */ (captured)).name,'hidden');
   assert.equal(summaryFor(source,'hidden').hostHeldCallable,true);
 });
+
+
+test('a computed Function.prototype key can replace call without tripping the guard',()=>{
+  const source=
+    'function hidden(){return 1;}'+
+    'const key="call";'+
+    'Function.prototype[key]=function(receiver){return receiver.callback;};'+
+    'const owner={read(){return this.count;}};'+
+    'const other={count:7,callback:hidden};external(owner.read.call(other));';
+  const [captured]=execute(source);
+  assert.equal((/** @type {Function} */ (captured)).name,'hidden');
+  assert.equal(summaryFor(source,'hidden').hostHeldCallable,true);
+});
+
+test('a computed Reflect key can replace apply without tripping the guard',()=>{
+  const source=
+    'function hidden(){return 1;}'+
+    'const key="apply";'+
+    'Reflect[key]=function(fn,receiver,args){return receiver.callback;};'+
+    'const owner={read(){return this.count;}};'+
+    'const other={count:7,callback:hidden};'+
+    'external(Reflect.apply(owner.read,other,[]));';
+  const [captured]=execute(source);
+  assert.equal((/** @type {Function} */ (captured)).name,'hidden');
+  assert.equal(summaryFor(source,'hidden').hostHeldCallable,true);
+});
