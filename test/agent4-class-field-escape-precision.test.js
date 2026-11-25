@@ -373,3 +373,19 @@ test('a captured accessor-backed holder cannot publish a sibling field through a
     'an accessor-backed holder that returns the instance must preserve the sibling field escape');
   assert.equal(hidden.safe,false);
 });
+
+
+test('a dynamic member key on a mutable closure alias cannot hide a sibling field escape',()=>{
+  const source=
+    'let owner;let key;'+
+    'function hidden(){return 1;}'+
+    'function leak(){external(owner[key]);}'+
+    'class Local{callback=hidden;leak=leak;}'+
+    'function entry(){const instance=new Local();owner=instance;key="callback";instance.leak();}'+
+    'module.exports=entry;';
+  const hidden=named(analyze(source),'hidden')[0];
+  assert.ok(hidden);
+  assert.equal(hidden.hostHeldCallable,true,
+    'an unknown computed key must conservatively retain callables reachable from the mutable instance alias');
+  assert.equal(hidden.safe,false);
+});
