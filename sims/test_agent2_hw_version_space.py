@@ -46,6 +46,39 @@ class VersionSpaceAuditTests(unittest.TestCase):
             witness["candidate_future_outputs"],
         )
 
+    def test_finds_alternate_initial_state_inside_target_machine(self):
+        # Both target states emit 0 on input 0 and loop there, so the same
+        # public trace is consistent with either initial state. Input 1
+        # distinguishes their post-trace behavior.
+        row = {
+            "status": "completed",
+            "state_count": 2,
+            "seed": 1,
+            "fixture_table": {
+                "transitions": [[0, 1], [1, 0]],
+                "outputs": [["0", "0"], ["0", "1"]],
+                "initial_state": 0,
+            },
+            "observed_trace": [["0", "0"], ["0", "0"]],
+            "target_post_trace_state": 0,
+            "fixture_digest": "fixture-alternate-start",
+            "trace_digest": "trace-alternate-start",
+        }
+        result = MODULE.audit_row(row, timeout_ms=5000)
+        self.assertEqual(result["status"], "sat")
+        witness = result["witness"]
+        self.assertEqual(
+            witness["witness_source"],
+            "same_target_machine_with_alternate_initial_state",
+        )
+        self.assertEqual(witness["candidate_initial_state"], 1)
+        self.assertEqual(witness["candidate_post_trace_state"], 1)
+        self.assertEqual(witness["future_counterexample"], ["1"])
+        self.assertNotEqual(
+            witness["target_future_outputs"],
+            witness["candidate_future_outputs"],
+        )
+
     def test_unsat_when_one_state_trace_fixes_all_future_outputs(self):
         # With one target state, observing both input/output pairs fixes every
         # possible future output of every one-state candidate.
