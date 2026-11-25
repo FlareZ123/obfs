@@ -87,6 +87,7 @@ def start_server(fixture, seed: int):
             stderr=subprocess.PIPE,
             text=True,
             bufsize=1,
+            cwd=mirror_root,
         )
         machine = {
             "next": [list(row) for row in fixture.transitions],
