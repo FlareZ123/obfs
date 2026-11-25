@@ -3,6 +3,7 @@
 const {createHash} = require('node:crypto');
 const {walk, applyEdits, observesFunctionSource, sourceSpelledErrorOperand} = require('./ast');
 const {collectBindings} = require('./properties');
+const {encodeStrings: encodeStringsLegacy} = require('./strings-legacy');
 
 /** @typedef {import('./ast').AstNode} AstNode */
 
@@ -72,7 +73,7 @@ function mayAppearInFailedOperand(node,ancestors) {
  * @param {{seed:string, minimumLength?:number, reservedNames?:Set<string>, reservedSources?:string[], fixedArity?:boolean}} options
  * @returns {{code:string, count:number}}
  */
-function encodeStrings(source, ast, options) {
+function encodeStringsPreservingFramePositions(source, ast, options) {
   if(observesFunctionSource(ast)) return {code:source,count:0};
   // The decoder uses the ambient String intrinsic. A file-level or nested
   // lexical binding with this name can shadow it, including before TDZ init.
@@ -180,4 +181,19 @@ function encodeStrings(source, ast, options) {
   };
 }
 
-module.exports = {encodeStrings};
+/**
+ * Keep the established encoder as the default. The source-span-preserving
+ * lazy decoder is opt-in until source-observation and runtime-extraction
+ * effects are evaluated together.
+ * @param {string} source
+ * @param {AstNode} ast
+ * @param {{seed:string, minimumLength?:number, reservedNames?:Set<string>, reservedSources?:string[], fixedArity?:boolean, preserveFramePositions?:boolean}} options
+ * @returns {{code:string,count:number}}
+ */
+function encodeStrings(source,ast,options) {
+  return options.preserveFramePositions ?
+    encodeStringsPreservingFramePositions(source,ast,options) :
+    encodeStringsLegacy(source,ast,options);
+}
+
+module.exports={encodeStrings};
