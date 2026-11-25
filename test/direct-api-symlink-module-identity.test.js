@@ -38,6 +38,7 @@ test('negative control: direct API treats lexical symlink aliases as distinct mo
       if(file.path==='app/alias.mjs')continue;
       await atomicWrite(path.join(dir,file.path),file.code);
     }
+    await fs.mkdir(path.dirname(aliasAbs),{recursive:true});
     await fs.symlink(path.relative(path.dirname(aliasAbs),targetAbs),aliasAbs,'file');
     const child=spawnSync(process.execPath,[path.join(dir,'main.mjs')],{
       encoding:'utf8',timeout:10000
