@@ -21,7 +21,7 @@ const CASES=[
   {name:'inherited-prototype-getter',kind:17,renamed:0},
   {name:'unrelated-descriptor-positive',kind:20,renamed:2},
   {name:'external-numeric-positive',kind:23,renamed:2},
-  {name:'text-import-default-owner-module-type',renamed:1,files:[
+  {name:'text-import-default-owner-module-type',renamed:0,files:[
     {path:'state.mjs',sourceType:'module',code:'export default {length:23};'},
     {path:'entry.mjs',sourceType:'module',code:
       'import source from "./state.mjs" with {type:"text"};export const value=source.length??-1;'}
