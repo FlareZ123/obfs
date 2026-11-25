@@ -187,6 +187,30 @@ The full 220-case matrix and the targeted 12-state / seed-7 timeout still need r
 
 For local reproduction, install **aalpy==2.0.0** and **numpy==2.2.6**, and prefix the command with **PYTHONHASHSEED=0**. The 220-case aggregate remains provisional pending its pinned-RNG rerun.
 
+## Live authenticated HTTP SCO follow-up
+
+The no-reset learner was then moved out of the evaluator process and exercised against an actual local Node SCO handler. The Node server runs under the unprivileged `nobody` account; the Python learner is a separate subprocess and receives only the HTTP origin, public method identifier, and session cookie. The target transition/output table is supplied to the server over stdin and retained in its server-side module. The evaluator remains in the parent process and does not pass the target table to the learner.
+
+The final eight-case live run used workflow **45624637784**, exact source head **ca2d86e9d8807c0954c992e860e5583ece612faa**, AALpy 2.0.0, random-walk length 30, 20 test origin states, target sizes 2–5, and two deterministic seeds per size.
+
+| Measure | Result |
+|---|---:|
+| Completed live HTTP cases | **8/8** |
+| Timeouts / errors | 0 / 0 |
+| Exact initial-model clone success | **8/8** |
+| Offline future-behavior certifications | **8/8** |
+| Ambiguous initial / future behavior | 0 / 0 |
+| False future convergence | 0 |
+| Public state-transition RPC calls | 7,091 |
+| Total HTTP requests | 7,115 |
+| Elapsed benchmark wall time | 5.067 s |
+
+For each case the harness separately checked one public client-module GET, one unauthenticated RPC denial (403), and one absent reset route (404). Each state-transition step used one authenticated `POST /obfs/rpc`; the per-run accounting was `HTTP requests = SUL steps + 3` and `RPC requests = SUL steps + 1`. The public client module did not contain the fixture canary or the tested private-source identifiers (`privateTable`, `serverCanary`). These are finite marker checks, not a proof that arbitrary source or all semantic information is undiscoverable.
+
+The live harness and artifact are **sims/agent2-hw-live-sco-server.js**, **sims/agent2-hw-live-sco-client.py**, **sims/agent2-hw-live-sco-benchmark.py**, and workflow **.github/workflows/manual-agent2-hw-live-sco.yml**; artifact ID **15026098578**. The server's public compiler/runtime tree is mirrored to a world-readable temporary directory so the unprivileged process can load it despite the runner's private checkout path. The private application module remains in a separate server-created temporary directory. The learner cannot call a reset or membership-query API; its SUL enforces one `pre()`, one no-op `post()`, and zero `query()` calls.
+
+This is a stronger process/transport boundary than the in-process SUL, but it remains a small synthetic binary Mealy-machine test. It does not establish WAN/TLS behavior, concurrency, a matched ordinary-HTTP comparison, arbitrary JavaScript/EFSM learnability, complete source confidentiality, or the obfuscator's 2.5× compute budget. The exact evaluator certifies only trace-matching states inside the returned conjecture, not every possible machine consistent with the observed trace; the attacker's randomized hW equivalence oracle remains heuristic.
+
 ## Limitations and interpretation
 
 1. **Small deterministic sample.** Two seeds per state count do not characterize the distribution of strongly connected Mealy machines, the probability of convergence, or adversarially selected targets.
