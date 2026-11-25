@@ -756,6 +756,18 @@ function summarizeAmbientCallEffects(ast,sourceType) {
             next.add(bindingId);
             return [...new Set(values.flatMap(candidate=>callableNodesForValue(candidate,next)))];
           }
+          // A mutable lexical alias may be assigned a local class instance
+          // after its declaration and then read through a member expression
+          // inside a closure. Preserve all known assigned values here too;
+          // callableNodesForValue(NewExpression) conservatively yields the
+          // class's public field callables.
+          const assignedValues=bindingValueExpressions.get(bindingId)??[];
+          if(assignedValues.length) {
+            if(seen.has(bindingId))return [];
+            const next=new Set(seen);
+            next.add(bindingId);
+            return [...new Set(assignedValues.flatMap(candidate=>callableNodesForValue(candidate,next)))];
+          }
         }
       }
       if(value.object.type==='Identifier'&&value.object.name==='arguments'&&propertyKey==='callee') {
