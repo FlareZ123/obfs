@@ -149,6 +149,34 @@ const exportAliasShapes=[
       'export {};'
     ].join('\n'),
     importer:'import "./reader.mjs";\nconst reader=globalThis.reader;'
+  },
+  {
+    label:'constructor reflection export',
+    code:[
+      'const owner={privateField:7};',
+      'class Reader{read(){return owner.privateField;}}',
+      'const reader=new Reader();',
+      'export const Constructor=reader.constructor;'
+    ].join('\n'),
+    importer:'import {Constructor} from "./reader.mjs";\nconst reader=new Constructor();'
+  },
+  {
+    label:'prototype descriptor reflection export',
+    code:[
+      'const owner={privateField:7};',
+      'class Reader{read(){return owner.privateField;}}',
+      'export const method=Object.getOwnPropertyDescriptor(Reader.prototype,"read").value;'
+    ].join('\n'),
+    importer:'import {method} from "./reader.mjs";\nconst reader={read:method};'
+  },
+  {
+    label:'prototype Reflect.get export',
+    code:[
+      'const owner={privateField:7};',
+      'class Reader{read(){return owner.privateField;}}',
+      'export const method=Reflect.get(Reader.prototype,"read");'
+    ].join('\n'),
+    importer:'import {method} from "./reader.mjs";\nconst reader={read:method};'
   }
 ];
 
