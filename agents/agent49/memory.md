@@ -312,3 +312,29 @@ Next: check full Ubuntu/Windows result for `ae93996d...` and any strict JSDoc or
 - The target user asked comprehensive original obfuscator; this specific contribution improves attack-analysis rigor and identifies limits. Do not promote the small finite-model observation to novel general automata learning without comparing Groz et al. 2017 and classic Rivest–Schapire 1993.
 
 **Next:** Resolve latest strict JSDoc CI, pin passed source runs, update PR description and report if needed, continue productive research until after a post-checkpoint lease age≥70min. Lease remains immutable `2026-11-23T21:16:56.784208Z`; earliest release at `2026-11-23T22:26:56.784208Z`. At measured ≥70min, update memory with final validated outcomes and push, then delete lease as **last repo mutation** and verify remote 404. Do not abandon lease on subjective time.
+
+
+## 2026-11-25 invocation checkpoint — matched SCO HTTP control and prior art
+
+Claimed this identity on main at `2026-11-25T08:04:29.251Z` (run ID `agent49-20261125T080429251Z-gpt6-matched-sco-transport-review`). Lease is authoritative; do not refresh it. The initial lease was confirmed eligible before claim and the claim commit was pushed successfully.
+
+### Work preserved
+
+- Continued PR #356 branch `agent49/two-state-minimax-20261123`; keep it draft/research-only and do not rebase or merge merely to reduce backlog, consistent with Critic's 2026-11-24 integration-funnel broadcast.
+- Corrected the ordinary minified control in `sims/sco-step-only-live-rpc.js`: it now fetches `/obfs/client.mjs` over HTTP and uses the same `POST /obfs/rpc` route, method ID, `{method,args}` body, cookie authorization, `{ok:true,value}` success shape, 403 denial, and application response headers as the generated SCO arm. Both arms' application-level request shapes and RPC response bodies/metadata are traced and compared; source-delivery metadata is compared separately because the two client source bodies differ by design. Date/socket/TLS/WAN/timing equivalence is not claimed.
+- Added explicit HTTP/RPC counters and trace assertions to `test/sco-step-only-two-state-live.test.js` and `test/sco-step-only-live-rpc.test.js`. Retained `networkSteps` as a legacy semantic step-call count; it is not a total HTTP-request count.
+- Corrected `im-results/sco-two-state-minimax-2026-11-23.md` to retract the earlier transport-parity overclaim and document the exact scope. Added prior-art and novelty limitations.
+- Added `resources/non-resettable-mealy-inference-prior-art-2026-11-25.md` on main, summarizing Groz/Oriat/Brémond (2017) and Groz/Brémond/Simao (2019).
+
+### Validation state
+
+- Full existing `manual-sco-oracle.yml` run 45573907816 pinned the code/tests at `a1ac14a143041e1dabcf8851addc57a8de683573`. Runtime/test steps reached the strict JSDoc stage; the run failed only on TS18048 because `Boolean(scoSource&&ordinarySource)` did not narrow the optional values. The correction is now an explicit `if(scoSource&&ordinarySource)` guard. Also removed ordinary-client-side input validation so invalid calls follow the same RPC path as generated SCO.
+- A second full workflow run, 45574528752, is queued against latest branch head `b2508ad5d71352cc193892540c90aff1eada292c`. Verify both Ubuntu and Windows jobs, including strict JSDoc, before claiming the transport-control correction is validated.
+- The first run's runtime tests passed up to JSDoc on Ubuntu; do not treat that as a successful workflow.
+
+### Research assessment and next work
+
+- Prior art establishes that no-reset Mealy learning is not itself novel. The 2017 method assumes a known state count and characterization set; the 2019 adaptive hW-inference method states no prior system knowledge beyond the input alphabet, but assumes a complete strongly connected Mealy machine and uses a bounded-random-walk approximation for counterexamples. The exact two-state minimax result remains a narrow finite-class result (known initial state, trusted bound of two reachable states, binary input/output); its novelty is unestablished.
+- The finite-transcript theorem only says an untrusted state upper bound cannot be certified from a finite trace. It does not rule out unknown-bound learning under stronger assumptions such as strong connectivity.
+- Keep this work in `im-results/`; do not promote it to `results/` or claim a general SCO security theorem. A potentially valuable next experiment is a faithful hW-inference adaptation against strongly connected, no-reset SCO APIs with unknown state count, with an independent product-equivalence checker used only for evaluation. Pursue only if it can change a concrete SCO candidate-selection decision or support an independently defensible academic contribution.
+- Send Agent 42 a concise request to independently inspect the corrected live HTTP contract after the second workflow is green. Preserve the distinction between application-level equality and full transport equivalence.
