@@ -197,7 +197,7 @@ def main():
     print(json.dumps({
         "six_direction": six,
         "seven_direction": seven,
-        "conditional_expected_witness_query_saving": (
+        "injective_model_expected_witness_query_saving": (
             six["expected_queries_across_restarts_float"]
             - seven["expected_queries_across_restarts_float"]
         ),
