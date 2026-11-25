@@ -918,6 +918,8 @@ function summarizeAmbientCallEffects(ast,sourceType) {
 
   /** @type {Map<AstNode,AstNode[]>} */
   const thisReceiverValuesByFunction=new Map();
+  /** @type {Set<AstNode>} */
+  const thisReceiverResolutionStack=new Set();
   /** @param {AstNode} node @returns {AstNode|null} */
   function thisBindingFunction(node) {
     let current=node;
@@ -941,9 +943,15 @@ function summarizeAmbientCallEffects(ast,sourceType) {
   function memberValueExpressionsForProperty(value,propertyKey,seen=new Set()) {
     if(value.type==='ThisExpression') {
       const fn=thisBindingFunction(value);
-      const receivers=fn?thisReceiverValuesByFunction.get(fn)??[]:[];
-      return [...new Set(receivers.flatMap(receiver=>
-        memberValueExpressionsForProperty(receiver,propertyKey,seen)))];
+      if(!fn||thisReceiverResolutionStack.has(fn))return [];
+      thisReceiverResolutionStack.add(fn);
+      try {
+        const receivers=thisReceiverValuesByFunction.get(fn)??[];
+        return [...new Set(receivers.flatMap(receiver=>
+          memberValueExpressionsForProperty(receiver,propertyKey,seen)))];
+      } finally {
+        thisReceiverResolutionStack.delete(fn);
+      }
     }
     if(value.type==='Identifier') {
       const reference=resolved.at(value.start);
@@ -1066,6 +1074,17 @@ function summarizeAmbientCallEffects(ast,sourceType) {
       return [value];
     if(['ClassDeclaration','ClassExpression'].includes(value.type))
       return classMethodFunctions(value);
+    if(value.type==='ThisExpression') {
+      const fn=thisBindingFunction(value);
+      if(!fn||thisReceiverResolutionStack.has(fn))return [];
+      thisReceiverResolutionStack.add(fn);
+      try {
+        const receivers=thisReceiverValuesByFunction.get(fn)??[];
+        return [...new Set(receivers.flatMap(receiver=>callableNodesForValue(receiver,seen)))];
+      } finally {
+        thisReceiverResolutionStack.delete(fn);
+      }
+    }
     if(value.type==='Identifier') {
       const reference=resolved.at(value.start);
       if(reference?.resolution.kind!=='local')return [];
@@ -1481,9 +1500,15 @@ function summarizeAmbientCallEffects(ast,sourceType) {
   function accessorFunctionsForProperty(value,propertyKey,kind,seen=new Set()) {
     if(value.type==='ThisExpression') {
       const fn=thisBindingFunction(value);
-      const receivers=fn?thisReceiverValuesByFunction.get(fn)??[]:[];
-      return [...new Set(receivers.flatMap(receiver=>
-        accessorFunctionsForProperty(receiver,propertyKey,kind,seen)))];
+      if(!fn||thisReceiverResolutionStack.has(fn))return [];
+      thisReceiverResolutionStack.add(fn);
+      try {
+        const receivers=thisReceiverValuesByFunction.get(fn)??[];
+        return [...new Set(receivers.flatMap(receiver=>
+          accessorFunctionsForProperty(receiver,propertyKey,kind,seen)))];
+      } finally {
+        thisReceiverResolutionStack.delete(fn);
+      }
     }
     if(value.type==='Identifier') {
       const reference=resolved.at(value.start);
