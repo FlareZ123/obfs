@@ -8,7 +8,7 @@ const {summarizeAmbientCallEffects}=require('../workplace/agent9-ambient-call-bi
 
 /** @param {string} source @returns {ReturnType<typeof summarizeAmbientCallEffects>} */
 function analyze(source) {
-  return summarizeAmbientCallEffects(parse(source,'commonjs'),'commonjs');
+  return summarizeAmbientCallEffects(parse(source,'commonjs'),'commonjs',{assumeTrustedRealm:true});
 }
 
 /** @param {string} source @returns {ReturnType<typeof analyze>['summaries'][number]} */
@@ -307,4 +307,24 @@ test('a constructor call after its own write invalidates the shadow proof',()=>{
     '}'+
     'module.exports=entry;';
   assertHeldAndObserved(source,'constructor call may delete the own property and expose the prototype value');
+});
+
+test('prototype shadow precision stays disabled without a trusted-realm assertion',()=>{
+  const source=
+    'function entry(){'+
+    'function hidden(){return 1;}'+
+    'function harmless(){return 0;}'+
+    'function Local(){this.callback=harmless;}'+
+    'Local.prototype.callback=hidden;'+
+    'const owner=new Local();'+
+    'external(owner.callback);'+
+    '}'+
+    'module.exports=entry;';
+  const observed=invokeExternal(source);
+  assert.equal(/** @type {{name?:unknown}} */ (observed).name,'harmless');
+  const summary=summarizeAmbientCallEffects(parse(source,'commonjs'),'commonjs').summaries
+    .find(item=>item.bindingNames.includes('hidden'));
+  assert.ok(summary,'hidden must have an analysis summary');
+  assert.equal(summary.hostHeldCallable,true,'default mode must conservatively retain prototype callables');
+  assert.equal(summary.safe,false,'default mode must not claim the hidden callable is safe');
 });
