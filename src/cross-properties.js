@@ -27,7 +27,12 @@ function parseModule(file){
  * @returns {string|null}
  */
 function resolveImport(from,specifier) {
-  if (!specifier.startsWith('./') && !specifier.startsWith('../')) return null;
+  // Browser URL resolution preserves empty path segments, while POSIX
+  // normalization collapses them. A repeated separator can therefore name a
+  // distinct module URL (or resolve around a dot segment to a different input
+  // file). Refuse that spelling instead of merging distinct module identities.
+  if ((!specifier.startsWith('./') && !specifier.startsWith('../')) ||
+      specifier.includes('//')) return null;
   const normalized=path.posix.normalize(path.posix.join(path.posix.dirname(from),specifier));
   return normalized.startsWith('../') || normalized==='..' ? null : normalized;
 }
@@ -2205,8 +2210,10 @@ function renameCrossFileProperties(files,seed) {
   const acyclicImports=hasAcyclicStaticImports(modules);
   const allowDirectReflection=stableDirectOwnerReflection(modules);
   // The filename-oriented resolver only proves canonical relative imports.
-  // Absolute file URLs, package aliases and encoded/query/fragment paths can
-  // reach the same ESM source through another spelling without being tracked.
+  // Absolute file URLs, package aliases, repeated separators, and
+  // encoded/query/fragment paths can reach the same ESM source through another
+  // spelling without being tracked. Browser URL paths preserve empty segments,
+  // so POSIX normalization is not a safe module-map identity function.
   // Node builtins cannot resolve to an input module under the default loader.
   // Dynamic source generation can hide additional consumers of an otherwise
   // statically closed ESM module graph. Even a constructor held as an alias
