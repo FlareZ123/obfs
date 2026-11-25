@@ -443,3 +443,41 @@ This incarnation is still Agent 9, claimed at `2026-11-24T04:01:52.365Z`; the 70
 - The updated canonical contract in `workplace/source-observer-carrier-effect-contract-2026-11-23.md` now includes ValueFlowEdge, CallSiteRef, HostHeldCallable and SourceDeliveryEdge but remains unwired. Agent 8's review notes SCO partition eligibility is still missing. Sent Agent 3 a proposed per-callable `ScoPartitionEligibility` record in `communications/agent3/20261124T044100Z_agent9-sco-partition-eligibility-proposal.md`; also sent updates to Agent 8.
 - Agent 3 has not yet replied directly. Continue monitoring the contract and Agent 3/8 communications. Next useful work: validate the selected-partition source-observer eligibility boundary against the full client graph; extend value-flow through namespace/import aliases, dynamic import, spread/apply/bind and shared object references; ask Agent 10 to incorporate all three modes plus the source/facade compatibility tradeoff into comprehensive acceptance.
 - Keep all red controls on the test-only branch; do not merge them to main without the integration owner. The intermediate report stays in `im-results/`, not `results/`, until a shared-plan implementation resolves the issue and passes full mode/performance gates.
+
+
+## 2026-11-25 — current-main receiver/global runtime review
+
+Claimed Agent 9 lease at `2026-11-25T14:03:17.442Z` (`agent9-20261125T1403Z-gpt6-donor-runtime-witness`). Current branch: `agent9/agent1-current-main-call-receiver-review-20261125`.
+
+### Durable findings
+
+- Agent 1's current-main experimental helper already contains `externalReturnQueue`: it follows callable values returned from externally reachable functions and marks those values `HostHeldCallable`. My initial test incorrectly asserted `ExternalReachability`; corrected the assertion. Do not repeat the earlier mistaken claim that current-main lacks returned-factory propagation.
+- Agent 1's current-main helper's class-root logic did overtaint a block-scoped classic-script class. Runtime `typeof Local` is `undefined` outside `{ class Local { ... } }`, but the helper treated the class as a global root because `!isWithinFunctionOrClass(node)` does not exclude a plain block.
+- Patched only `workplace/agent9-ambient-call-bindingid.js` on the review branch: for a classic-script `ClassDeclaration`, require `parent === ast` before adding it as a top-level global binding. Keep the separate variable/instance flow so a global instance constructed from a block-local class remains externally reachable.
+- Corrected 14-case VM runtime matrix now passes 14/14 on Ubuntu and Windows, with strict project, external and paired-budget JSDoc: [run 45632920658](https://github.com/FlareZ123/obfs/actions/runs/45632920658). Patch commit: `413797bd8ee350ba4cbc9554a61111e3e03b2bd1`.
+- The matrix covers object getters, receiver-bound methods, direct host sinks, nested `this` paths, dynamic keys, primitive negative control, top-level class/class-expression/object/global-instance roots, block class/object negatives, CommonJS module-local class, and exported-factory class instance return.
+- Agent 4's earlier donor branch `agent4/agent9-local-owner-precision-20261125` has the more precise Program-only class root but lacks `externalReturnQueue`; its direct receiver sink witness also failed. Treat it as a falsifier, not a complete integration candidate. Agent 1's newer helper has receiver sinks and return closure; the one-condition Program-scope fix combines them.
+- Independent five-case exported-return witness (class instance, object, direct callable, nested factory, primitive-only negative control) passed 5/5 on Ubuntu/Windows with JSDoc: [run 45631027085](https://github.com/FlareZ123/obfs/actions/runs/45631027085).
+
+### Production compiler observations (no production code changed)
+
+- Compared all 43 `src/` file blob SHAs between the review branch and `main`: identical. This keeps the production tests pinned to current-main compiler code.
+- Node/CommonJS exported-factory witness in COO, SCO and SNO: host reads the returned instance's `callback`, invokes it, and extracts `Function#toString`; runtime behavior and property access remain intact while the emitted function source shows transformed local binding spelling. Passed both OSes and JSDoc: [run 45632153965](https://github.com/FlareZ123/obfs/actions/runs/45632153965).
+- Real Chromium classic-script witness in COO/SCO: host page calls global factory, reads callback, invokes it, and extracts source. Runtime value remains 19 and original local spelling is absent from emitted source. Ubuntu Chromium plus both OS focused JSDoc passed: [run 45632580720](https://github.com/FlareZ123/obfs/actions/runs/45632580720). Windows skips the Chromium execution by design.
+- Do not describe host-visible `Function#toString` source mutation as a parity failure: the initial equality assertion was invalid for an obfuscator. The correct fixture checks runtime behavior/property contract and that host extraction sees transformed, not original, local identifiers. Also fixed a missing `error:null` in the browser harness and removed an overbroad assertion about renaming function declaration names; declarations like `helper` remain visible in the emitted source.
+- Full manual validation was dispatched on the same branch and is still running: [run 45633142987](https://github.com/FlareZ123/obfs/actions/runs/45633142987). Poll before concluding.
+
+### Files and communications
+
+- Intermediate report: `im-results/agent9-host-held-callable-runtime-review-2026-11-25.md`.
+- Review tests: `test/agent9-agent1-current-main-runtime-boundary.test.js`, `test/agent9-exported-factory-production-source-observer.test.js`, `test/agent9-exported-factory-browser-source.js`, `test/agent9-exported-factory-browser-source.test.js`.
+- Messages sent to Agent 1 and Agent 4 under `communications/agent1/` and `communications/agent4/`, including corrections to the exported-factory classification. Agent 1 was given the isolated `413797b` patch and green run.
+- No changes to `src/`, no merge/PR, and no promotion to `results/`. The report remains intermediate.
+
+### Next actions
+
+1. Poll full validation run `45633142987`; inspect failed jobs only if it fails.
+2. Send Agent 1 any final full-suite evidence and wait for review of `413797b`.
+3. If full suite passes, update the intermediate report with that result; do not promote it to established results.
+4. Continue with alias chains, conditional factory returns, inheritance/accessors, inter-file ESM/CommonJS factory exports, and performance under the 2.5× budget.
+5. At every checkpoint, compare current system time against the original lease `claimed_at`; do not refresh the lease. The 70-minute release threshold is `2026-11-25T15:13:17.442Z`.
