@@ -1,0 +1,460 @@
+#!/usr/bin/env python3
+"""Exact bounded version-space search for no-reset Mealy observations.
+
+The learner is not given the target fixture or its state count. This evaluator
+uses the held-out target only to ask whether any minimal, strongly connected
+binary Mealy machine with 1..N states can reproduce the public trace yet have
+different future behavior. N is the target's hidden state count, used only as
+an evaluator upper bound. A SAT result is a constructive ambiguity witness;
+UNSAT is exact only within this finite machine class and bound.
+"""
+from __future__ import annotations
+
+import argparse
+import json
+import time
+from collections import deque
+from pathlib import Path
+
+import z3
+from z3 import And, Array, Implies, Int, IntSort, K, Or, Select, Solver, Store, sat, unknown
+
+
+def is_strongly_connected(transitions: list[list[int]]) -> bool:
+    n = len(transitions)
+    for start in range(n):
+        seen = {start}
+        todo = [start]
+        while todo:
+            state = todo.pop()
+            for nxt in transitions[state]:
+                if nxt not in seen:
+                    seen.add(nxt)
+                    todo.append(nxt)
+        if len(seen) != n:
+            return False
+    return True
+
+
+def is_minimal_mealy(transitions: list[list[int]], outputs: list[list[int]]) -> bool:
+    n = len(transitions)
+    partition = [0] * n
+    while True:
+        signatures = [
+            (
+                tuple(outputs[state]),
+                tuple(partition[transitions[state][a]] for a in range(2)),
+            )
+            for state in range(n)
+        ]
+        classes = {}
+        refined = []
+        for signature in signatures:
+            if signature not in classes:
+                classes[signature] = len(classes)
+            refined.append(classes[signature])
+        if refined == partition:
+            break
+        partition = refined
+    return len(set(partition)) == n
+
+
+def replay_trace(transitions, outputs, initial_state: int, trace):
+    state = initial_state
+    for letter, observed in trace:
+        a = int(letter)
+        if outputs[state][a] != int(observed):
+            return False, None
+        state = transitions[state][a]
+    return True, state
+
+
+def product_counterexample(
+    target_transitions,
+    target_outputs,
+    candidate_transitions,
+    candidate_outputs,
+    target_start: int,
+    candidate_start: int,
+):
+    """Return the shortest future input word with differing output, if any."""
+    queue = deque([(target_start, candidate_start, [])])
+    seen = {(target_start, candidate_start)}
+    while queue:
+        target_state, candidate_state, prefix = queue.popleft()
+        for a in range(2):
+            if target_outputs[target_state][a] != candidate_outputs[candidate_state][a]:
+                return [str(x) for x in prefix + [a]]
+            pair = (
+                target_transitions[target_state][a],
+                candidate_transitions[candidate_state][a],
+            )
+            if pair not in seen:
+                seen.add(pair)
+                queue.append((pair[0], pair[1], prefix + [a]))
+    return None
+
+
+def solve_for_size(row, candidate_size: int, timeout_ms: int):
+    fixture = row["fixture_table"]
+    target_transitions = [[int(x) for x in r] for r in fixture["transitions"]]
+    target_outputs = [[int(x) for x in r] for r in fixture["outputs"]]
+    target_n = len(target_transitions)
+    target_initial = int(fixture["initial_state"])
+    trace = row["observed_trace"]
+    target_post = int(row["target_post_trace_state"])
+    k = candidate_size
+    tag = f"case_{row['state_count']}_{row['seed']}_k_{k}"
+
+    solver = Solver()
+    solver.set(timeout=timeout_ms)
+    delta = Array(f"delta_{tag}", IntSort(), IntSort())
+    output = Array(f"output_{tag}", IntSort(), IntSort())
+
+    for state in range(k):
+        for a in range(2):
+            index = 2 * state + a
+            solver.add(Select(delta, index) >= 0, Select(delta, index) < k)
+            solver.add(Select(output, index) >= 0, Select(output, index) <= 1)
+
+    trace_states = [Int(f"trace_state_{tag}_{i}") for i in range(len(trace) + 1)]
+    for state in trace_states:
+        solver.add(state >= 0, state < k)
+    for i, (letter, observed) in enumerate(trace):
+        a = int(letter)
+        y = int(observed)
+        solver.add(Select(output, 2 * trace_states[i] + a) == y)
+        solver.add(trace_states[i + 1] == Select(delta, 2 * trace_states[i] + a))
+
+    # Exact strong connectivity: every state is reachable from the trace start
+    # and can reach it. Strictly decreasing ranks certify both directions.
+    forward_rank = [Int(f"forward_rank_{tag}_{s}") for s in range(k)]
+    backward_rank = [Int(f"backward_rank_{tag}_{s}") for s in range(k)]
+    for s in range(k):
+        solver.add(forward_rank[s] >= 0, forward_rank[s] < k)
+        solver.add(backward_rank[s] >= 0, backward_rank[s] < k)
+        solver.add(Implies(trace_states[0] == s, forward_rank[s] == 0))
+        solver.add(Implies(trace_states[0] == s, backward_rank[s] == 0))
+        if k > 1:
+            incoming = [
+                And(
+                    Select(delta, 2 * p + a) == s,
+                    forward_rank[p] < forward_rank[s],
+                )
+                for p in range(k)
+                for a in range(2)
+            ]
+            outgoing = [
+                And(
+                    Select(delta, 2 * s + a) == t,
+                    backward_rank[t] < backward_rank[s],
+                )
+                for a in range(2)
+                for t in range(k)
+            ]
+            solver.add(
+                Implies(
+                    trace_states[0] != s,
+                    And(forward_rank[s] > 0, Or(incoming)),
+                )
+            )
+            solver.add(
+                Implies(
+                    trace_states[0] != s,
+                    And(backward_rank[s] > 0, Or(outgoing)),
+                )
+            )
+
+    # Exact minimality certificate. Every unordered state pair must have a
+    # distinguishing path whose pair-distance rank strictly decreases until
+    # an immediate output difference is reached.
+    pair_count = k * (k - 1) // 2
+    pair_rank = {
+        (i, j): Int(f"pair_rank_{tag}_{i}_{j}")
+        for i in range(k)
+        for j in range(i + 1, k)
+    }
+    for (i, j), rank in pair_rank.items():
+        solver.add(rank >= 1, rank <= max(1, pair_count))
+        witnesses = []
+        for a in range(2):
+            witnesses.append(
+                Select(output, 2 * i + a) != Select(output, 2 * j + a)
+            )
+            for u in range(k):
+                for v in range(u + 1, k):
+                    lower_rank = pair_rank[(u, v)]
+                    witnesses.append(
+                        And(
+                            Select(delta, 2 * i + a) == u,
+                            Select(delta, 2 * j + a) == v,
+                            lower_rank < rank,
+                        )
+                    )
+                    witnesses.append(
+                        And(
+                            Select(delta, 2 * i + a) == v,
+                            Select(delta, 2 * j + a) == u,
+                            lower_rank < rank,
+                        )
+                    )
+        solver.add(Or(witnesses))
+
+    target_delta = K(IntSort(), 0)
+    target_output = K(IntSort(), 0)
+    for state in range(target_n):
+        for a in range(2):
+            index = 2 * state + a
+            target_delta = Store(target_delta, index, target_transitions[state][a])
+            target_output = Store(target_output, index, target_outputs[state][a])
+
+    # A product of N target states and k candidate states has N*k pairs. If
+    # future behavior differs, a distinguishing word exists within this bound.
+    future_length = target_n * k
+    candidate_future = [
+        Int(f"candidate_future_{tag}_{i}") for i in range(future_length + 1)
+    ]
+    target_future = [
+        Int(f"target_future_{tag}_{i}") for i in range(future_length + 1)
+    ]
+    future_inputs = [Int(f"future_input_{tag}_{i}") for i in range(future_length)]
+    solver.add(candidate_future[0] == trace_states[-1])
+    solver.add(target_future[0] == target_post)
+    mismatches = []
+    for i in range(future_length):
+        solver.add(candidate_future[i] >= 0, candidate_future[i] < k)
+        solver.add(target_future[i] >= 0, target_future[i] < target_n)
+        solver.add(future_inputs[i] >= 0, future_inputs[i] < 2)
+        candidate_index = 2 * candidate_future[i] + future_inputs[i]
+        target_index = 2 * target_future[i] + future_inputs[i]
+        mismatches.append(
+            Select(output, candidate_index) != Select(target_output, target_index)
+        )
+        solver.add(
+            candidate_future[i + 1] == Select(delta, candidate_index)
+        )
+        solver.add(
+            target_future[i + 1] == Select(target_delta, target_index)
+        )
+    solver.add(Or(mismatches))
+
+    checked = solver.check()
+    if checked == unknown:
+        return "unknown", {"reason": solver.reason_unknown()}
+    if checked != sat:
+        return "unsat", {}
+
+    model = solver.model()
+    candidate_transitions = [
+        [
+            model.eval(Select(delta, 2 * state + a)).as_long()
+            for a in range(2)
+        ]
+        for state in range(k)
+    ]
+    candidate_outputs = [
+        [
+            model.eval(Select(output, 2 * state + a)).as_long()
+            for a in range(2)
+        ]
+        for state in range(k)
+    ]
+    candidate_initial = model.eval(trace_states[0]).as_long()
+    candidate_post = model.eval(trace_states[-1]).as_long()
+
+    matched, replayed_post = replay_trace(
+        candidate_transitions, candidate_outputs, candidate_initial, trace
+    )
+    if not matched or replayed_post != candidate_post:
+        raise AssertionError("SAT witness does not reproduce the public trace")
+    if not is_strongly_connected(candidate_transitions):
+        raise AssertionError("SAT witness failed independent strong-connectivity check")
+    if not is_minimal_mealy(candidate_transitions, candidate_outputs):
+        raise AssertionError("SAT witness failed independent minimality check")
+    target_matched, verified_target_post = replay_trace(
+        target_transitions, target_outputs, target_initial, trace
+    )
+    if not target_matched or verified_target_post != target_post:
+        raise AssertionError("target fixture/trace/post-state evidence is inconsistent")
+
+    future_word = product_counterexample(
+        target_transitions,
+        target_outputs,
+        candidate_transitions,
+        candidate_outputs,
+        target_post,
+        candidate_post,
+    )
+    if future_word is None:
+        raise AssertionError("SAT witness has no independently verified future difference")
+
+    target_state = target_post
+    candidate_state = candidate_post
+    target_future_outputs = []
+    candidate_future_outputs = []
+    for letter in future_word:
+        a = int(letter)
+        target_future_outputs.append(str(target_outputs[target_state][a]))
+        candidate_future_outputs.append(str(candidate_outputs[candidate_state][a]))
+        target_state = target_transitions[target_state][a]
+        candidate_state = candidate_transitions[candidate_state][a]
+
+    return "sat", {
+        "candidate_state_count": k,
+        "candidate_initial_state": candidate_initial,
+        "candidate_post_trace_state": candidate_post,
+        "candidate_transitions": candidate_transitions,
+        "candidate_outputs": candidate_outputs,
+        "future_counterexample": future_word,
+        "target_future_outputs": target_future_outputs,
+        "candidate_future_outputs": candidate_future_outputs,
+        "candidate_trace_verified": True,
+        "candidate_minimal_verified": True,
+        "candidate_strongly_connected_verified": True,
+        "target_trace_verified": True,
+        "target_post_trace_state_verified": True,
+    }
+
+
+def audit_row(row, timeout_ms: int):
+    if row.get("status") != "completed":
+        return {"status": "skipped", "reason": "learner row did not complete"}
+    if "fixture_table" not in row or "observed_trace" not in row:
+        return {"status": "skipped", "reason": "raw evaluator fixture/trace not present"}
+
+    started = time.perf_counter()
+    target_n = int(row["state_count"])
+    unsat_sizes = []
+    unknown_sizes = []
+    for candidate_size in range(1, target_n + 1):
+        status, detail = solve_for_size(row, candidate_size, timeout_ms)
+        if status == "sat":
+            return {
+                "status": "sat",
+                "fixture_digest": row.get("fixture_digest"),
+                "trace_digest": row.get("trace_digest"),
+                "target_state_count": target_n,
+                "candidate_size_search": {
+                    "unsat_sizes_before_witness": unsat_sizes,
+                    "unknown_sizes_before_witness": unknown_sizes,
+                },
+                "elapsed_seconds": round(time.perf_counter() - started, 4),
+                "witness": detail,
+            }
+        if status == "unknown":
+            unknown_sizes.append({"state_count": candidate_size, **detail})
+        else:
+            unsat_sizes.append(candidate_size)
+
+    final_status = "unknown" if unknown_sizes else "unsat"
+    return {
+        "status": final_status,
+        "fixture_digest": row.get("fixture_digest"),
+        "trace_digest": row.get("trace_digest"),
+        "target_state_count": target_n,
+        "candidate_size_search": {
+            "unsat_sizes": unsat_sizes,
+            "unknown_sizes": unknown_sizes,
+        },
+        "elapsed_seconds": round(time.perf_counter() - started, 4),
+        "interpretation": (
+            "At least one candidate size timed out; no global bounded conclusion."
+            if unknown_sizes
+            else (
+                "No minimal strongly connected binary Mealy machine with 1..N "
+                "states reproduces this trace and differs in future behavior."
+            )
+        ),
+    }
+
+
+def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--input", required=True)
+    parser.add_argument("--output", required=True)
+    parser.add_argument("--max-cases", type=int, default=10)
+    parser.add_argument("--timeout-ms", type=int, default=5000)
+    args = parser.parse_args()
+    if args.max_cases < 1 or args.timeout_ms < 1:
+        raise SystemExit("--max-cases and --timeout-ms must be positive")
+
+    source = json.loads(Path(args.input).read_text(encoding="utf-8"))
+    completed = [row for row in source.get("results", []) if row.get("status") == "completed"]
+    preferred = [
+        row for row in completed
+        if row.get("trace_matching_initial_candidates", 0) > 1
+        or row.get("false_future_convergence")
+    ]
+    if not preferred:
+        preferred = completed
+    preferred.sort(
+        key=lambda row: (
+            not (
+                row.get("trace_matching_initial_candidates", 0) > 1
+                or row.get("false_future_convergence")
+            ),
+            -int(row.get("state_count", 0)),
+            int(row.get("seed", 0)),
+        )
+    )
+    selected = preferred[: args.max_cases]
+
+    started = time.perf_counter()
+    cases = []
+    for row in selected:
+        cases.append({
+            "state_count": row.get("state_count"),
+            "seed": row.get("seed"),
+            "candidate_hypothesis_starts": row.get("trace_matching_initial_candidates"),
+            "hW_future_clone_success": row.get("future_clone_success"),
+            "audit": audit_row(row, args.timeout_ms),
+        })
+
+    counts = {
+        status: sum(case["audit"]["status"] == status for case in cases)
+        for status in ("sat", "unsat", "unknown", "skipped")
+    }
+    output = {
+        "experiment": "bounded-exact-minimal-strongly-connected-mealy-version-space",
+        "z3_version": z3.get_full_version(),
+        "scope": {
+            "alphabet": ["0", "1"],
+            "outputs": ["0", "1"],
+            "candidate_state_counts": "1..target_state_count inclusive",
+            "candidate_class": "complete deterministic minimal strongly connected Mealy machines",
+            "observation": "the public one-shot input/output trace only",
+            "target_state_count": "hidden from learner; used only as evaluator upper bound",
+            "target_fixture": "held-out evaluator data; never passed to hW",
+            "future_difference": "exact product BFS witness from post-trace states",
+            "meaning": "SAT is a constructive full-version-space ambiguity witness; UNSAT is exact only within the stated finite class and bound; UNKNOWN is inconclusive",
+        },
+        "selected_cases": len(cases),
+        "summary": counts,
+        "elapsed_seconds": round(time.perf_counter() - started, 4),
+        "cases": cases,
+    }
+    Path(args.output).write_text(
+        json.dumps(output, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+    print("VERSION_SPACE_AUDIT_SUMMARY " + json.dumps({
+        "z3_version": output["z3_version"],
+        "selected_cases": output["selected_cases"],
+        **counts,
+        "elapsed_seconds": output["elapsed_seconds"],
+        "cases": [
+            {
+                "state_count": case["state_count"],
+                "seed": case["seed"],
+                "status": case["audit"]["status"],
+                "candidate_state_count": case["audit"].get("witness", {}).get("candidate_state_count"),
+                "future_counterexample": case["audit"].get("witness", {}).get("future_counterexample"),
+                "elapsed_seconds": case["audit"].get("elapsed_seconds"),
+            }
+            for case in cases
+        ],
+    }, sort_keys=True))
+
+
+if __name__ == "__main__":
+    main()
