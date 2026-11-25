@@ -839,7 +839,14 @@ function summarizeAmbientCallEffects(ast,sourceType) {
         markCallableValuesHeld(node.object,'callable-metadata-observer',node.start,node.end);
       if(node.computed&&!isDefinitelyPrimitive(node.property))
         markCallableValuesHeld(node.property,'callable-coercion-observer',node.start,node.end);
-    } else if((node.type==='Property'||node.type==='MethodDefinition'||node.type==='PropertyDefinition')&&
+    } else if(node.type==='PropertyDefinition') {
+      // Class field initializers can publish callable values on instances or
+      // constructors; private fields are included because methods may expose them.
+      if(node.value)
+        markCallableValuesHeld(node.value,'host-held-callable',node.start,node.end);
+      if(node.computed&&!isDefinitelyPrimitive(node.key))
+        markCallableValuesHeld(node.key,'callable-coercion-observer',node.start,node.end);
+    } else if((node.type==='Property'||node.type==='MethodDefinition')&&
               node.computed&&!isDefinitelyPrimitive(node.key)) {
       markCallableValuesHeld(node.key,'callable-coercion-observer',node.start,node.end);
     } else if(node.type==='BinaryExpression'&&node.operator==='in') {
