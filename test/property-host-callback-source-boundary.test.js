@@ -28,7 +28,7 @@ function observeHostCallback(source) {
   };
 }
 
-for(const mode of /** @type {const} */(['coo','sno'])) {
+for(const mode of /** @type {const} */(['coo','sco','sno'])) {
   test(mode+' preserves a private owner key when its reader escapes to a host callback',()=>{
     const source=
       'const privateOwner={secretField:17,otherField:5};'+
