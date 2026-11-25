@@ -1119,6 +1119,11 @@ function summarizeAmbientCallEffects(ast,sourceType) {
             return [...new Set(values.flatMap(candidate=>callableNodesForValue(candidate,next)))];
         }
       }
+      // For a dynamic key on a non-identifier receiver, first resolve the
+      // receiver expression itself. This composes the conservative fallback
+      // through nested member reads and factory-call results.
+      const receiverCallables=value.object.type==='Identifier'?[]:
+        callableNodesForValue(value.object,seen);
       /** @type {AstNode[]} */
       const candidates=[];
       walkAst(value,(node,parent)=>{
@@ -1134,7 +1139,7 @@ function summarizeAmbientCallEffects(ast,sourceType) {
         if(initializer&&['ObjectExpression','ArrayExpression','NewExpression','ClassExpression'].includes(initializer.type))
           candidates.push(...callableNodesForValue(initializer,seen));
       });
-      return [...new Set(candidates)];
+      return [...new Set([...receiverCallables,...candidates])];
     }
     return [];
   }
