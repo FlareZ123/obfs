@@ -89,6 +89,36 @@ f_8=\frac{192870469}{1073741824}=0.17962462175637484,
 Q_8=\frac{74212724813}{880871355}=84.24922026554036.
 \]
 
+## Exact ordering optimality for the selected 14-face set
+
+For a fixed selected face set, the final failure probability \(f\) is independent of face order. Therefore minimizing repeated-trial \(Q=(E-f)/(1-f)\) is equivalent to minimizing the fresh-trial expected query count \(E\).
+
+The checker runs an exact subset dynamic program over all \(2^{14}=16,384\) subsets of the selected faces. For each subset \(A\), it computes the surviving-kernel count \(R(A)\), query-union size \(C(A)\), and exact reach probability \(\rho(A)\). Since
+
+\[
+p_8=\frac{a}{b},\qquad a=948718575,\quad b=2^{30},\quad K_8=97155,
+\]
+
+all reach probabilities share denominator \(D=bK_8=104319386910720\), with numerator
+
+\[
+w(A)=(b-a)K_8+aR(A).
+\]
+
+The integer DP recurrence is
+
+\[
+\operatorname{DP}[\varnothing]=0,\qquad
+\operatorname{DP}[A\cup\{i\}]
+=\min_i\left(
+\operatorname{DP}[A]+w(A)\big(C(A\cup\{i\})-C(A)\big)
+\right).
+\]
+
+It evaluates exactly **114,688 transitions**. For both the representative sequence above and the coordinate-permutation-equivalent C++ annealer sequence, the annealed order is returned as the exact optimum for that selected face set. The exact numerator for \(E_8\) is 7,228,875,609,622,710 over denominator 104,319,386,910,720; the final failure numerator is 18,738,330,415,695 over the same denominator.
+
+This proves optimal ordering **within each selected 14-face set**. It does not prove that the selected face set is globally optimal among all \(\binom{56}{14}\) sets, nor that 14 is the globally optimal cutoff.
+
 ## Seven-direction comparison
 
 The existing seven-direction ten-face sequence has 2,667 full-rank kernels, query union 93, and exact values
