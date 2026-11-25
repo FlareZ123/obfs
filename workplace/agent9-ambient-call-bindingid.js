@@ -681,6 +681,138 @@ function summarizeAmbientCallEffects(ast,sourceType) {
     return [...new Set([...own,...inherited])];
   }
 
+  /**
+   * Resolve callable values stored at one statically named member. Unlike
+   * callableNodesForValue(NewExpression), this preserves the member key so a
+   * primitive sibling field does not retain unrelated callable fields.
+   * @param {AstNode} classNode
+   * @param {string} propertyKey
+   * @param {Set<AstNode>} [seen]
+   * @returns {AstNode[]}
+   */
+  function classFieldCallablesForProperty(classNode,propertyKey,seen=new Set()) {
+    if(!['ClassDeclaration','ClassExpression'].includes(classNode.type)||seen.has(classNode))return [];
+    const next=new Set(seen);
+    next.add(classNode);
+    const own=classNode.body.body.flatMap((/** @type {AstNode} */ element)=>{
+      if(element.type==='MethodDefinition'&&!element.static&&element.kind==='method'&&
+         staticPropertyKey(element.key,element.computed)===propertyKey&&element.value)
+        return [element.value];
+      if(element.type==='PropertyDefinition'&&!element.static&&
+         staticPropertyKey(element.key,element.computed)===propertyKey&&element.value)
+        return callableNodesForValue(element.value);
+      return [];
+    });
+    /** @type {AstNode[]} */
+    let inherited=[];
+    if(classNode.superClass?.type==='Identifier') {
+      const reference=resolved.at(classNode.superClass.start);
+      if(reference?.resolution.kind==='local') {
+        const parentClass=classNodeByBinding.get(reference.resolution.bindingId);
+        if(parentClass)inherited=classFieldCallablesForProperty(parentClass,propertyKey,next);
+      }
+    } else if(['ClassExpression','ClassDeclaration'].includes(classNode.superClass?.type)) {
+      inherited=classFieldCallablesForProperty(classNode.superClass,propertyKey,next);
+    }
+    return [...new Set([...own,...inherited])];
+  }
+
+  /**
+   * Resolve a member read against possible object values while retaining a
+   * known property key. Dynamic keys deliberately fall back to all callables.
+   * @param {AstNode} value
+   * @param {string} propertyKey
+   * @param {Set<number>} [seen]
+   * @returns {AstNode[]}
+   */
+  function callableNodesForMemberValue(value,propertyKey,seen=new Set()) {
+    if(value.type==='Identifier') {
+      const reference=resolved.at(value.start);
+      if(reference?.resolution.kind!=='local')return [];
+      const bindingId=reference.resolution.bindingId;
+      if(seen.has(bindingId))return [];
+      const next=new Set(seen);
+      next.add(bindingId);
+      const localValues=localRecordMemberValues.get(bindingId)?.get(propertyKey);
+      if(localValues?.length)
+        return [...new Set(localValues.flatMap(candidate=>callableNodesForValue(candidate,next)))];
+      const assignedValues=bindingValueExpressions.get(bindingId)??[];
+      if(assignedValues.length)
+        return [...new Set(assignedValues.flatMap(candidate=>callableNodesForMemberValue(candidate,propertyKey,next)))];
+      const initializer=constInitializersByBinding.get(bindingId);
+      if(initializer)return callableNodesForMemberValue(initializer,propertyKey,next);
+      return [];
+    }
+    if(value.type==='NewExpression'&&value.callee.type==='Identifier') {
+      const reference=resolved.at(value.callee.start);
+      if(reference?.resolution.kind!=='local')return [];
+      const bindingId=reference.resolution.bindingId;
+      const classNode=writtenBindings.has(bindingId)?null:classNodeByBinding.get(bindingId);
+      if(classNode)return classFieldCallablesForProperty(classNode,propertyKey);
+      const assignedValues=bindingValueExpressions.get(bindingId)??[];
+      return [...new Set(assignedValues.flatMap(candidate=>callableNodesForMemberValue(candidate,propertyKey,seen)))];
+    }
+    if(['ClassDeclaration','ClassExpression'].includes(value.type))
+      return classFieldCallablesForProperty(value,propertyKey);
+    if(value.type==='ObjectExpression') {
+      const matching=value.properties.filter((/** @type {AstNode} */ property)=>
+        property.type==='Property'&&staticPropertyKey(property.key,property.computed)===propertyKey);
+      if(matching.length)
+        return [...new Set(matching.flatMap((/** @type {AstNode} */ property)=>
+          property.kind==='init'?callableNodesForValue(property.value,seen):
+            callableNodesForValue(value,seen)))];
+      if(value.properties.some((/** @type {AstNode} */ property)=>property.type==='SpreadElement'))
+        return callableNodesForValue(value,seen);
+      return [];
+    }
+    if(value.type==='ArrayExpression') {
+      const index=Number(propertyKey);
+      if(Number.isInteger(index)&&index>=0&&index<value.elements.length) {
+        const element=value.elements[index];
+        return element?callableNodesForValue(element,seen):[];
+      }
+      return [];
+    }
+    if(value.type==='ConditionalExpression')
+      return [...new Set([
+        ...callableNodesForMemberValue(value.consequent,propertyKey,seen),
+        ...callableNodesForMemberValue(value.alternate,propertyKey,seen)
+      ])];
+    if(value.type==='LogicalExpression')
+      return [...new Set([
+        ...callableNodesForMemberValue(value.left,propertyKey,seen),
+        ...callableNodesForMemberValue(value.right,propertyKey,seen)
+      ])];
+    if(value.type==='SequenceExpression'&&value.expressions.length)
+      return callableNodesForMemberValue(value.expressions[value.expressions.length-1],propertyKey,seen);
+    if(value.type==='AssignmentExpression')
+      return callableNodesForMemberValue(value.right,propertyKey,seen);
+    if(value.type==='ChainExpression')
+      return callableNodesForMemberValue(value.expression,propertyKey,seen);
+    if(value.type==='SpreadElement')
+      return callableNodesForMemberValue(value.argument,propertyKey,seen);
+    if(value.type==='CallExpression'&&value.callee.type==='Identifier') {
+      const reference=resolved.at(value.callee.start);
+      if(reference?.resolution.kind!=='local')return [];
+      const target=resolveFunctionNode(reference.resolution.bindingId);
+      if(!target)return [];
+      /** @type {AstNode[]} */
+      const returns=[];
+      if(target.body.type==='BlockStatement') {
+        walkAst(target.body,node=>{
+          if(node.type==='ReturnStatement'&&node.argument&&enclosingFunction(node)===target)
+            returns.push(node.argument);
+        });
+      } else {
+        returns.push(target.body);
+      }
+      return [...new Set(returns.flatMap(candidate=>callableNodesForMemberValue(candidate,propertyKey,seen)))];
+    }
+    if(value.type==='AwaitExpression'&&value.argument)
+      return callableNodesForMemberValue(value.argument,propertyKey,seen);
+    return callableNodesForValue(value,seen);
+  }
+
   /** @param {AstNode} value @param {Set<number>} [seen] @returns {AstNode[]} */
   function callableNodesForValue(value,seen=new Set()) {
     if(['FunctionDeclaration','FunctionExpression','ArrowFunctionExpression'].includes(value.type))
@@ -760,14 +892,16 @@ function summarizeAmbientCallEffects(ast,sourceType) {
           }
           // A mutable lexical alias may be assigned a local class instance
           // after its declaration and then read through a member expression
-          // inside a closure. For unknown/computed keys, conservatively retain
-          // every callable reachable from each known assigned object value.
+          // inside a closure. Preserve the specific property when it is known;
+          // computed keys remain conservative and retain every callable.
           const assignedValues=bindingValueExpressions.get(bindingId)??[];
           if(assignedValues.length) {
             if(seen.has(bindingId))return [];
             const next=new Set(seen);
             next.add(bindingId);
-            return [...new Set(assignedValues.flatMap(candidate=>callableNodesForValue(candidate,next)))];
+            return [...new Set(assignedValues.flatMap(candidate=>
+              propertyKey===null?callableNodesForValue(candidate,next):
+                callableNodesForMemberValue(candidate,propertyKey,next)))];
           }
         }
       }
