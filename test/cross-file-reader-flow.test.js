@@ -506,10 +506,15 @@ test('separate import declarations still identify one shared ESM root in all mod
 });
 
 test('an imported reader can consume both sibling owner aliases in all modes',async()=>{
-  const exporter=exposed+'export const peek=value=>value.secretField;';
   const main='import {state as left,state as right,peek} from "./state.mjs";'+
     'console.log(peek(left),peek(right));';
-  for(const mode of ['coo','sno','sco'])await check(exporter,main,1,mode);
+  for(const mode of ['coo','sno','sco'])await check(exposed+reader,main,1,mode);
+});
+
+test('source observation of an imported reader vetoes grouped owner roots in all modes',async()=>{
+  const main='import {state as left,state as right,peek} from "./state.mjs";'+
+    'console.log(peek.toString().includes("secretField"),peek(left),peek(right));';
+  for(const mode of ['coo','sno','sco'])await check(exposed+reader,main,0,mode);
 });
 
 test('re-exporting a sibling owner alias vetoes shared-root renaming in all modes',async()=>{
