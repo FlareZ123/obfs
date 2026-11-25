@@ -15,9 +15,10 @@ const {atomicWrite}=require('../src/atomic');
  * Verify a declared ESM graph against the native Node linker.
  * @param {Source[]} files
  * @param {number} expected
+ * @param {'coo'|'sno'|'sco'} [mode]
  * @returns {Promise<void>}
  */
-async function preserves(files,expected) {
+async function preserves(files,expected,mode='coo') {
   const dir=await fs.mkdtemp(path.join(os.tmpdir(),'obfs-cross-reader-'));
   try {
     /** @param {Source[]|ReturnType<typeof obfuscateFiles>['files']} sources */
@@ -31,7 +32,7 @@ async function preserves(files,expected) {
     }
     const baseline=await run(files);
     const output=obfuscateFiles(files,{
-      mode:'coo',seed:'cross-file-reader-proof',closedWorld:true,strings:false,identifiers:false
+      mode,seed:'cross-file-reader-proof',closedWorld:true,strings:false,identifiers:false
     });
     assert.equal(output.crossFile.properties,expected,
       JSON.stringify(output.files.map(f=>({path:f.path,code:f.code}))));
@@ -41,12 +42,12 @@ async function preserves(files,expected) {
   }
 }
 
-/** @param {string} exporter @param {string} main @param {number} expected */
-async function check(exporter,main,expected) {
+/** @param {string} exporter @param {string} main @param {number} expected @param {'coo'|'sno'|'sco'} [mode] */
+async function check(exporter,main,expected,mode='coo') {
   await preserves([
     {path:'state.mjs',sourceType:'module',code:exporter},
     {path:'main.mjs',sourceType:'module',code:main}
-  ],expected);
+  ],expected,mode);
 }
 
 const exposed='export const state={secretField:23};';
@@ -480,7 +481,7 @@ test('relayed identity owner result reflected by opaque consumer refuses rewrite
 });
 
 
-test('mainline baseline conservatively refuses sibling owner aliases in a private carrier',async()=>{
+test('mainline remains conservative for sibling owners in separate private carrier slots',async()=>{
   await check(exposed+reader,
     'import {state as left,state as right,peek} from "./state.mjs";'+
     'const carrier={first:left,second:right};'+
@@ -489,9 +490,93 @@ test('mainline baseline conservatively refuses sibling owner aliases in a privat
     'console.log(peek(one),local(two));',0);
 });
 
-test('mainline baseline conservatively refuses one local reader over sibling owner aliases',async()=>{
+test('one local reader can consume sibling aliases of one imported owner in all modes',async()=>{
+  const main='import {state as left,state as right} from "./state.mjs";'+
+    'const local=value=>value.secretField;'+
+    'console.log(local(left),local(right));';
+  for(const mode of ['coo','sno','sco'])await check(exposed,main,1,mode);
+});
+
+test('separate import declarations still identify one shared ESM root in all modes',async()=>{
+  const main='import {state as left} from "./state.mjs";'+
+    'import {state as right} from "./state.mjs";'+
+    'const local=value=>value.secretField;'+
+    'console.log(local(left),local(right));';
+  for(const mode of ['coo','sno','sco'])await check(exposed,main,1,mode);
+});
+
+test('an imported reader can consume both sibling owner aliases in all modes',async()=>{
+  const main='import {state as left,state as right,peek} from "./state.mjs";'+
+    'console.log(peek(left),peek(right));';
+  for(const mode of ['coo','sno','sco'])await check(exposed+reader,main,1,mode);
+});
+
+test('secondary root aliases flow through local aliases and zero-argument return helpers',async()=>{
+  const main='import {state as left,state as right} from "./state.mjs";'+
+    'const alias=right;const getLeft=()=>left;'+
+    'const local=value=>value.secretField;'+
+    'console.log(local(alias),local(getLeft()));';
+  for(const mode of ['coo','sno','sco'])await check(exposed,main,1,mode);
+});
+
+test('secondary root aliases flow through identity-return calls into an imported reader',async()=>{
+  const main='import {state as left,state as right,peek} from "./state.mjs";'+
+    'const identity=value=>value;'+
+    'console.log(peek(identity(left)),peek(identity(right)));';
+  for(const mode of ['coo','sno','sco'])await check(exposed+reader,main,1,mode);
+});
+
+test('identity-return calls through a local reader remain conservatively unproved',async()=>{
+  const main='import {state as left,state as right} from "./state.mjs";'+
+    'const identity=value=>value;const local=value=>value.secretField;'+
+    'console.log(local(identity(left)),local(identity(right)));';
+  for(const mode of ['coo','sno','sco'])await check(exposed,main,0,mode);
+});
+
+test('source observation of an imported reader vetoes grouped owner roots in all modes',async()=>{
+  const main='import {state as left,state as right,peek} from "./state.mjs";'+
+    'console.log(peek.toString().includes("secretField"),peek(left),peek(right));';
+  for(const mode of ['coo','sno','sco'])await check(exposed+reader,main,0,mode);
+});
+
+test('reflection through a sibling owner alias vetoes shared-root renaming in all modes',async()=>{
+  const main='import {state as left,state as right} from "./state.mjs";'+
+    'const local=value=>value.secretField;'+
+    'console.log(local(left),Object.keys(right).length);';
+  for(const mode of ['coo','sno','sco'])await check(exposed,main,0,mode);
+});
+
+test('same exported name from different modules is not one shared root',async()=>{
+  const files=[
+    {path:'state.mjs',sourceType:'module',code:'export const state={secretField:23};'},
+    {path:'other.mjs',sourceType:'module',code:'export const state={secretField:47};'},
+    {path:'main.mjs',sourceType:'module',code:
+      'import {state as left} from "./state.mjs";'+
+      'import {state as right} from "./other.mjs";'+
+      'const local=value=>value.secretField;'+
+      'console.log(local(left),local(right));'}
+  ];
+  for(const mode of ['coo','sno','sco'])await preserves(files,0,mode);
+});
+
+test('re-exporting a sibling owner alias vetoes shared-root renaming in all modes',async()=>{
+  const main='import {state as left,state as right} from "./state.mjs";'+
+    'const local=value=>value.secretField;'+
+    'console.log(local(left));export {right};';
+  for(const mode of ['coo','sno','sco'])await check(exposed,main,0,mode);
+});
+
+test('an escaped sibling owner alias vetoes shared-root renaming in all modes',async()=>{
+  const main='import {state as left,state as right} from "./state.mjs";'+
+    'globalThis.escapedOwner=right;'+
+    'const local=value=>value.secretField;'+
+    'console.log(local(left));';
+  for(const mode of ['coo','sno','sco'])await check(exposed,main,0,mode);
+});
+
+test('a shadowed sibling import is not grouped with the imported owner',async()=>{
   await check(exposed,
     'import {state as left,state as right} from "./state.mjs";'+
     'const local=value=>value.secretField;'+
-    'console.log(local(left),local(right));',0);
+    '{const right={secretField:99};console.log(local(left),local(right));}',0);
 });
