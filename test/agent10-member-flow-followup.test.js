@@ -364,6 +364,17 @@ test('multiple mutable factory assignments retain every possible returned callab
     'the second assigned factory target must remain in the possible-call set');
 });
 
+test('a recursive mutable factory return is bounded and retains its concrete branch',()=>{
+  const source=
+    'function hidden(){return 1;}'+
+    'class Local{callback=hidden;}'+
+    'function entry(){let owner;let create;create=(flag)=>flag?new Local():create(true);'+
+    'owner=create(true);external(owner.callback);}'+
+    'module.exports=entry;';
+  assertHeld(hiddenSummary(source),
+    'recursive factory return analysis must terminate and retain its concrete class-field branch');
+});
+
 test('a mutable local factory binding preserves its returned class-field callable',()=>{
   const source=
     'let owner,create;'+
