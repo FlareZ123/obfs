@@ -117,3 +117,47 @@ test('a recursive mutable factory return retains its concrete class-field branch
   assertRuntimeHostReceivesHidden(source);
   assertHiddenHeld(source);
 });
+
+test('a mutable factory invoked through Function.prototype.call cannot hide its returned field callable',()=>{
+  const source=
+    'function hidden(){return 1;}'+
+    'class Local{callback=hidden;}'+
+    'function entry(){let owner;let create;create=()=>new Local();'+
+    'owner=create.call(null);external(owner.callback);}'+
+    'module.exports=entry;';
+  assertRuntimeHostReceivesHidden(source);
+  assertHiddenHeld(source);
+});
+
+test('a mutable factory invoked through Function.prototype.apply cannot hide its returned field callable',()=>{
+  const source=
+    'function hidden(){return 1;}'+
+    'class Local{callback=hidden;}'+
+    'function entry(){let owner;let create;create=()=>new Local();'+
+    'owner=create.apply(null,[]);external(owner.callback);}'+
+    'module.exports=entry;';
+  assertRuntimeHostReceivesHidden(source);
+  assertHiddenHeld(source);
+});
+
+test('an immediately invoked bound mutable factory cannot hide its returned field callable',()=>{
+  const source=
+    'function hidden(){return 1;}'+
+    'class Local{callback=hidden;}'+
+    'function entry(){let owner;let create;create=()=>new Local();'+
+    'owner=create.bind(null)();external(owner.callback);}'+
+    'module.exports=entry;';
+  assertRuntimeHostReceivesHidden(source);
+  assertHiddenHeld(source);
+});
+
+test('a bound mutable factory stored in a local variable remains a positive control',()=>{
+  const source=
+    'function hidden(){return 1;}'+
+    'class Local{callback=hidden;}'+
+    'function entry(){let owner;let create;create=()=>new Local();'+
+    'const bound=create.bind(null);owner=bound();external(owner.callback);}'+
+    'module.exports=entry;';
+  assertRuntimeHostReceivesHidden(source);
+  assertHiddenHeld(source);
+});
