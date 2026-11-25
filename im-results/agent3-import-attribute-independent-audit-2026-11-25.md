@@ -68,6 +68,8 @@ A separate diagnostic [45676307446](https://github.com/FlareZ123/obfs/actions/ru
 - The module specifier and `type:"json"` attribute literal remain unchanged.
 - An unrelated ordinary string literal is still encoded.
 
+A real Chromium differential using the same direct local transforms has been added to `test/esm-observation-browser.js` on diagnostic branch commit `22855d2c2d4c695cf16335f82fdfc8748d194bee`; it serves the JSON asset with `application/json` and compares native, transformed and normalized ESM module graphs. Full manual workflow [45680523945](https://github.com/FlareZ123/obfs/actions/runs/45680523945) is queued. No production policy change has been made.
+
 This is evidence that a future refinement could treat the exact static `type:"json"` attribute as a non-source-byte observer while still refusing cross-file owner proof on any attributed edge. Dynamic import options and unknown/multiple attributes should remain fail-closed. The full pipeline still conservatively blocks all transforms for every attribute today. A runtime differential using the direct local transforms and a real Node JSON-module import passed 2/2 on both Ubuntu and Windows in [45677102879](https://github.com/FlareZ123/obfs/actions/runs/45677102879): original and transformed modules returned identical JSON-derived values and exported marker strings. This is a direct-transform experiment, not yet an end-to-end `obfuscateFiles` policy change. Do not relax the current guard until a real browser differential and full pipeline checks are complete.
 
 ## Integration constraints
