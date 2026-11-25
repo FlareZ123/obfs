@@ -47,6 +47,8 @@ test('real Chromium strict ESM private-object rewrites preserve later FramePosit
     identifiers:false,strings:false,properties:true
   }).files[0];
   const generatedCode=String(output.code);
+  assert.equal(generatedCode.length,source.length,
+    'span-preserving property edits must keep the whole source length unchanged');
   assert.equal(output.metrics.properties,3,
     'the fixture must exercise all three private-property rewrites');
   const html=[
@@ -71,10 +73,12 @@ test('real Chromium strict ESM private-object rewrites preserve later FramePosit
     response.end(entry.body);
   });
   try {
-    await new Promise((resolve,reject)=>{
+    /** @type {Promise<void>} */
+    const listening=new Promise((resolve,reject)=>{
       server.once('error',reject);
-      server.listen(0,'127.0.0.1',resolve);
+      server.listen(0,'127.0.0.1',()=>resolve());
     });
+    await listening;
     const address=server.address();
     if(!address||typeof address==='string')throw new Error('Missing Chromium fixture port');
     const payload=JSON.parse(await dumpDom('http://127.0.0.1:'+address.port+'/'));
@@ -94,7 +98,9 @@ test('real Chromium strict ESM private-object rewrites preserve later FramePosit
       'property rewrites='+output.metrics.properties+
       ', native='+native.frame+', generated='+generated.frame);
   } finally {
-    await new Promise((resolve,reject)=>server.close(error=>error?reject(error):resolve()));
+    /** @type {Promise<void>} */
+    const closed=new Promise((resolve,reject)=>server.close(error=>error?reject(error):resolve()));
+    await closed;
   }
 });
 
