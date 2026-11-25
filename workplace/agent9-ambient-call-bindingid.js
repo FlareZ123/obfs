@@ -992,10 +992,40 @@ function summarizeAmbientCallEffects(ast,sourceType) {
       const matching=value.properties.filter((/** @type {AstNode} */ property)=>
         property.type==='Property'&&
         staticPropertyKey(property.key,property.computed)===propertyKey);
-      if(matching.length)
-        return [...new Set(matching.flatMap((/** @type {AstNode} */ property)=>
+      let lastMatchingIndex=-1;
+      for(let index=0;index<value.properties.length;index++) {
+        const property=value.properties[index];
+        if(property?.type==='Property'&&
+           staticPropertyKey(property.key,property.computed)===propertyKey)
+          lastMatchingIndex=index;
+      }
+      const explicitValues=matching.flatMap((/** @type {AstNode} */ property)=>
+        property.kind==='init'?[property.value]:
+        property.kind==='get'?functionReturnExpressions(property.value):[]);
+      // Later spreads and unknown computed keys can overwrite a known property.
+      // Earlier ones are shadowed by the final explicit definition.
+      const laterSpreadValues=value.properties.slice(lastMatchingIndex+1)
+        .filter((/** @type {AstNode} */ property)=>property.type==='SpreadElement')
+        .map((/** @type {AstNode} */ property)=>property.argument);
+      const laterComputedValues=value.properties.slice(lastMatchingIndex+1)
+        .filter((/** @type {AstNode} */ property)=>
+          property.type==='Property'&&property.computed&&
+          staticPropertyKey(property.key,property.computed)===null)
+        .flatMap((/** @type {AstNode} */ property)=>
           property.kind==='init'?[property.value]:
-          property.kind==='get'?functionReturnExpressions(property.value):[]))];
+          property.kind==='get'?functionReturnExpressions(property.value):[]);
+      const prototypeSetter=value.properties.find((/** @type {AstNode} */ property)=>
+        property.type==='Property'&&property.kind==='init'&&!property.method&&
+        !property.computed&&staticPropertyKey(property.key,false)==='__proto__');
+      const prototypeValues=prototypeSetter?
+        memberValueExpressionsForProperty(prototypeSetter.value,propertyKey,seen):[];
+      if(matching.length||laterComputedValues.length)
+        return [...new Set([
+          ...explicitValues,...laterSpreadValues,...laterComputedValues,
+          ...(matching.length?[]:prototypeValues)
+        ])];
+      if(prototypeValues.length)
+        return [...new Set([...laterSpreadValues,...prototypeValues])];
       if(value.properties.some((/** @type {AstNode} */ property)=>property.type==='SpreadElement'))
         return value.properties.flatMap((/** @type {AstNode} */ property)=>
           property.type==='SpreadElement'?[property.argument]:
@@ -1004,9 +1034,26 @@ function summarizeAmbientCallEffects(ast,sourceType) {
     }
     if(value.type==='ArrayExpression') {
       const index=Number(propertyKey);
-      if(Number.isInteger(index)&&index>=0&&index<value.elements.length) {
-        const element=value.elements[index];
-        return element?[element]:[];
+      if(!Number.isInteger(index)||index<0)return [];
+      let position=0;
+      for(let elementIndex=0;elementIndex<value.elements.length;elementIndex++) {
+        const element=value.elements[elementIndex];
+        if(element?.type==='SpreadElement') {
+          // A spread before the requested index has unknown length. Any value
+          // from that spread or a later element may occupy the runtime slot.
+          if(position<=index) {
+            /** @type {AstNode[]} */
+            const candidates=[];
+            for(let candidateIndex=elementIndex;candidateIndex<value.elements.length;candidateIndex++) {
+              const candidate=value.elements[candidateIndex];
+              if(candidate)candidates.push(candidate);
+            }
+            return candidates;
+          }
+          continue;
+        }
+        if(position===index)return element?[element]:[];
+        position++;
       }
       return [];
     }
@@ -1131,8 +1178,23 @@ function summarizeAmbientCallEffects(ast,sourceType) {
       if(value.callee.type==='MemberExpression'&&
          staticPropertyKey(value.callee.property,value.callee.computed)==='bind')
         return callableNodesForValue(value.callee.object,seen);
-      return [...new Set(callReturnExpressions(value,seen).flatMap(candidate=>
-        callableNodesForValue(candidate,seen)))];
+      const returnedExpressions=callReturnExpressions(value,seen);
+      /** @type {AstNode[]} */
+      const returnedCallables=[];
+      let unresolvedReturn=returnedExpressions.length===0;
+      for(const expression of returnedExpressions) {
+        const candidates=callableNodesForValue(expression,seen);
+        returnedCallables.push(...candidates);
+        if(!isDefinitelyPrimitive(expression)&&candidates.length===0)
+          unresolvedReturn=true;
+      }
+      if(value.callee.type==='MemberExpression'&&unresolvedReturn) {
+        // An unresolved member call may return a callable held by its receiver
+        // (for example Array#at or Array#pop). Retain receiver callables rather
+        // than certifying a value whose return path is not modeled.
+        returnedCallables.push(...callableNodesForValue(value.callee.object,seen));
+      }
+      return [...new Set(returnedCallables)];
     }
     if(value.type==='NewExpression') {
       const classes=classNodesForValue(value.callee,seen);
