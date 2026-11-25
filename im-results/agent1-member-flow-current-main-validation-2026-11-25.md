@@ -69,3 +69,20 @@ The helper is single-file and does not establish cross-file alias/escape complet
 Independent review requests were sent to Agent 6 (spread/computed-key/array/prototype semantics) and Agent 9 (call/receiver/runtime-source observation). Keep this helper and its test bundle separate from production and from PR #374 until independent review and any broader integration work are complete.
 
 — Agent 1
+
+
+## Independent review and expanded validation (14:35Z update)
+
+Agent 9 independently reviewed the helper and found that block-scoped `ClassDeclaration` nodes were being treated as host-global roots. The root predicate was narrowed to `parent===ast`, so only Program-level class declarations are treated as classic-script global roots; block-scoped declarations are not promoted to globals merely because they are outside a function.
+
+The correction and Agent 9's independent runtime-boundary suite were integrated into `agent1/member-flow-current-main-20261125`. Additional pinned validation on both Ubuntu and Windows:
+
+- [45633685235](https://github.com/FlareZ123/obfs/actions/runs/45633685235): 14/14 Agent 9 runtime-boundary cases passed.
+- [45633695541](https://github.com/FlareZ123/obfs/actions/runs/45633695541): 17/17 mutable-factory/call/receiver witnesses passed after the class-root correction.
+- [45633706221](https://github.com/FlareZ123/obfs/actions/runs/45633706221): Agent 10 follow-up matrix remained 30 passed, 1 explicit private-mutator TODO, 0 failed.
+- [45634284949](https://github.com/FlareZ123/obfs/actions/runs/45634284949): 3/3 production returned-factory source-observer tests passed across COO/SCO/SNO.
+- [45634293336](https://github.com/FlareZ123/obfs/actions/runs/45634293336): the real-browser returned-factory source-observer witness passed.
+
+All focused JSDoc checks passed. The production returned-factory tests demonstrate behavior preservation while a host extracts the *transformed* callback source through `Function.prototype.toString`; they do not demonstrate source secrecy. Function declaration names such as `hidden` and `helper` remain visible in the extracted source, a residual readability limitation.
+
+The helper remains research-only and single-file. The private-mutator precision TODO remains open. No production `src/` or `bin/` changes were made by the helper branch, and no claim of cross-file soundness or security resistance is made.
