@@ -55,7 +55,7 @@ Evidence, all on Ubuntu and Windows with Node 22.23.4:
 |---|---|---|
 | [45605032119](https://github.com/FlareZ123/obfs/actions/runs/45605032119) | Runtime witness plus static effect assertion | Pass on both OSes; project, external and paired-budget JSDoc pass |
 | [45605274108](https://github.com/FlareZ123/obfs/actions/runs/45605274108) | Complete 33-case class-field matrix | Pass on both OSes; all focused JSDoc stages pass |
-| [45605478954](https://github.com/FlareZ123/obfs/actions/runs/45605478954) | Combined local-record, class-field, ambient-throw/callable and BindingId bundle | **116/116 pass** on Ubuntu; Windows job also passes; all focused JSDoc stages pass |
+| [45605478954](https://github.com/FlareZ123/obfs/actions/runs/45605478954) | Combined local-record, class-field, ambient-throw/callable and BindingId bundle | **116/116 pass** on both Ubuntu and Windows; all focused JSDoc stages pass |
 
 The 33-case class-field matrix includes the mutable module/function-local alias cases, inline function and arrow field variants, captured object/accessor holder controls, dynamic member keys, destructuring, factory returns, nested member chains, and a negative control where reading a primitive sibling field must not publish an unrelated callable. The 116-case bundle comprises 16 local-record cases, 33 class-field cases, 23 ambient-throw/callable cases, and 44 BindingId cases.
 
