@@ -4,7 +4,7 @@ const {resolveLexicalReferences}=require('./agent1-lexical-reference-resolver');
 
 /** @typedef {import('../src/ast').AstNode} AstNode */
 /** @typedef {'module'|'script'|'commonjs'} SourceType */
-/** @typedef {{kind:'unknown-call'|'unresolved-local-call'|'new-expression'|'tagged-template'|'await'|'yield'|'dynamic-import'|'transitive-local-call'|'with-binding-lookup'|'implicit-iterator'|'implicit-object-enumeration'|'implicit-proxy-has'|'implicit-instanceof'|'implicit-delete'|'implicit-destructuring'|'implicit-spread'|'to-primitive'|'to-property-key'|'promise-thenable-assimilation'|'host-held-callable'|'thrown-callable-value'|'unresolved-callable-argument-flow'|'returned-callable-value'|'callable-metadata-observer'|'callable-coercion-observer'|'direct-eval-local-scope'|'debugger-local-scope'|'debugger-inspection'|'classic-script-global-lexical'|'module-exported-callable'|'host-global-exported-callable'|'unknown-this-callable-escape'|'unknown-member-access',start:number,end:number,targetStart?:number,effect?:'DynamicFrame'|'HostHeldCallable'|'ExternalReachability'}} AmbientCallReason */
+/** @typedef {{kind:'unknown-call'|'unresolved-local-call'|'new-expression'|'tagged-template'|'await'|'yield'|'dynamic-import'|'transitive-local-call'|'with-binding-lookup'|'implicit-iterator'|'implicit-object-enumeration'|'implicit-proxy-has'|'implicit-instanceof'|'implicit-delete'|'implicit-destructuring'|'implicit-spread'|'to-primitive'|'to-property-key'|'promise-thenable-assimilation'|'host-held-callable'|'thrown-callable-value'|'closure-captured-callable-value'|'unresolved-callable-argument-flow'|'returned-callable-value'|'callable-metadata-observer'|'callable-coercion-observer'|'direct-eval-local-scope'|'debugger-local-scope'|'debugger-inspection'|'classic-script-global-lexical'|'module-exported-callable'|'host-global-exported-callable'|'unknown-this-callable-escape'|'unknown-member-access',start:number,end:number,targetStart?:number,effect?:'DynamicFrame'|'HostHeldCallable'|'ExternalReachability'}} AmbientCallReason */
 /** @typedef {{node:AstNode,start:number,end:number,bindingIds:number[],bindingNames:string[],ambient:boolean,dynamicFrame:boolean,hostHeldCallable:boolean,externallyReachable:boolean,safe:boolean,reasons:AmbientCallReason[]}} AmbientCallSummary */
 
 /**
@@ -676,6 +676,21 @@ function summarizeAmbientCallEffects(ast,sourceType) {
     return null;
   }
 
+  /**
+   * @param {AstNode} node
+   * @param {AstNode} ancestor
+   * @returns {boolean}
+   */
+  function isWithinNode(node,ancestor) {
+    let current=node;
+    while(current) {
+      if(current===ancestor)return true;
+      if(!parentByNode.has(current))break;
+      current=parentByNode.get(current);
+    }
+    return false;
+  }
+
   const HOST_GLOBAL_ROOT_NAMES=new Set(['globalThis','window','self','global']);
 
   /** @param {AstNode} left @returns {boolean} */
@@ -875,6 +890,33 @@ function summarizeAmbientCallEffects(ast,sourceType) {
         addReason(target,{kind:'debugger-local-scope',start:node.start,end:node.end},'HostHeldCallable');
     }
   });
+
+  // A host-held closure can expose callable values captured from its lexical
+  // environment. Propagate that capability to a fixed point across nested
+  // escaping closures; non-escaping closures do not seed this queue.
+  const heldClosureQueue=[...hostHeldFunctions];
+  const processedHeldClosures=new Set();
+  while(heldClosureQueue.length) {
+    const fn=heldClosureQueue.shift();
+    if(processedHeldClosures.has(fn))continue;
+    processedHeldClosures.add(fn);
+    walkExecutableFunctionBody(fn,node=>{
+      if(node.type!=='Identifier')return;
+      const reference=resolved.at(node.start);
+      if(reference?.resolution.kind!=='local')return;
+      const bindingId=reference.resolution.bindingId;
+      const declarations=declarationsByBinding.get(bindingId)??[];
+      if(declarations.some(declaration=>isWithinNode(declaration.node,fn)))return;
+      for(const target of callableNodesForValue(node)) {
+        const wasHeld=hostHeldFunctions.has(target);
+        addReason(target,{
+          kind:'closure-captured-callable-value',
+          start:node.start,end:node.end,targetStart:fn.start
+        },'HostHeldCallable');
+        if(!wasHeld)heldClosureQueue.push(target);
+      }
+    });
+  }
 
   for(const fn of nodeBindingIds.keys()) {
     /** @type {Array<{target:AstNode,start:number,end:number}>} */
