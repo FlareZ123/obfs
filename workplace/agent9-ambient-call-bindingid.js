@@ -1104,10 +1104,20 @@ function summarizeAmbientCallEffects(ast,sourceType) {
       markCallableValuesHeld(node.object,'host-held-callable',node.start,node.end);
       // A with-object Proxy can intercept lexical names in the body. The
       // current resolver does not provide a sound binding map for every
-      // intercepted reference, so conservatively retain all callable sources
-      // in this source unit until WithEnvironment effects are modeled.
-      for(const target of allFunctionNodes)
-        addReason(target,{kind:'with-binding-lookup',start:node.start,end:node.end},'HostHeldCallable');
+      // intercepted reference, so retain callable sources in the lexical
+      // function scopes visible to this WithStatement. Do not taint function-
+      // local bindings confined to an unrelated sibling function.
+      const accessibleScopes=new Set();
+      let scope=enclosingFunction(node);
+      while(scope) {
+        accessibleScopes.add(scope);
+        scope=enclosingFunction(scope);
+      }
+      accessibleScopes.add(null);
+      for(const target of allFunctionNodes) {
+        if(accessibleScopes.has(enclosingFunction(target)))
+          addReason(target,{kind:'with-binding-lookup',start:node.start,end:node.end},'HostHeldCallable');
+      }
     } else if(node.type==='ObjectPattern'||node.type==='ArrayPattern') {
       const parent=parentByNode.get(node);
       if(parent?.type==='VariableDeclarator'&&parent.init)
