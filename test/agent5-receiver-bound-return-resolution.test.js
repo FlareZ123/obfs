@@ -235,3 +235,27 @@ test('an escaped class instance method exposes its returned callable to the host
   assert.equal(observed?.name,'hidden');
   assert.equal(hiddenSummary(source).hostHeldCallable,true);
 });
+
+
+test('a class method returning a super getter fails closed over its receiver',()=>{
+  const source=
+    'function hidden(){return 1;}'+
+    'class Base{get result(){return hidden;}}'+
+    'class Child extends Base{read(){return super.result;}}'+
+    'const owner=new Child();external(owner.read());';
+  const [captured]=execute(source);
+  assert.equal(captured?.name,'hidden');
+  assert.equal(hiddenSummary(source).hostHeldCallable,true);
+});
+
+test('a super getter side-effect sink resolves through the child receiver',()=>{
+  const source=
+    'function hidden(){return 1;}'+
+    'class Base{get callback(){return hidden;}}'+
+    'class Child{read(){external(super.callback);}}'+
+    'Object.setPrototypeOf(Child.prototype,Base.prototype);'+
+    'const owner=new Child();owner.read();';
+  const [captured]=execute(source);
+  assert.equal(captured?.name,'hidden');
+  assert.equal(hiddenSummary(source).hostHeldCallable,true);
+});
