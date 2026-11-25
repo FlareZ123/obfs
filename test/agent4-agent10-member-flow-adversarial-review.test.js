@@ -38,12 +38,12 @@ function invokeExternal(source,globals={}) {
 
 /** @param {string} source @param {string} message @param {Record<string,unknown>} [globals] */
 function assertHeldAndObserved(source,message,globals={}) {
-  const summary=hiddenSummary(source);
-  assert.equal(summary.hostHeldCallable,true,message);
-  assert.equal(summary.safe,false,message);
   const observed=invokeExternal(source,globals);
   assert.equal(typeof observed,'function',message);
   assert.equal(/** @type {{name?:unknown}} */ (observed).name,'hidden',message);
+  const summary=hiddenSummary(source);
+  assert.equal(summary.hostHeldCallable,true,message);
+  assert.equal(summary.safe,false,message);
 }
 
 test('later object spread can overwrite an earlier static property with a callable',()=>{
