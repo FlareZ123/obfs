@@ -37,7 +37,7 @@ function classifyIdentifier(node,parent,key) {
 /**
  * @param {string} source
  * @param {AstNode} ast
- * @param {{seed:string,sourceType:'script'|'module'|'commonjs'}} options
+ * @param {{seed:string,sourceType:'script'|'module'|'commonjs',experimentalLocalIdentifierSpanPreservation?:boolean}} options
  * @returns {{code:string,bindings:number}}
  */
 function renameLocalIdentifiers(source,ast,options) {
@@ -188,7 +188,13 @@ function renameLocalIdentifiers(source,ast,options) {
     for(const item of identifiers) {
       if(item.node.name!==name) continue;
       if (item.node===identifier) {
-        local.push({start:identifier.start,end:identifier.end,text:replacement});
+        const oldText=source.slice(identifier.start,identifier.end);
+        if(options.experimentalLocalIdentifierSpanPreservation===true&&replacement.length>oldText.length) {
+          safe=false;break;
+        }
+        local.push({start:identifier.start,end:identifier.end,
+          text:options.experimentalLocalIdentifierSpanPreservation===true?
+            replacement+' '.repeat(oldText.length-replacement.length):replacement});
         continue;
       }
       const role=classifyIdentifier(item.node,item.parent,item.key);
@@ -196,6 +202,7 @@ function renameLocalIdentifiers(source,ast,options) {
       if(role==='ambiguous' || !item.ancestors.includes(scope) ||
           item.ancestors.some(a=>a.type==='ObjectPattern')) {safe=false;break;}
       if(role==='shorthand') {
+        if(options.experimentalLocalIdentifierSpanPreservation===true){safe=false;break;}
         const parent=item.parent;
         if(parent?.type!=='Property' || !item.ancestors.some(a=>a.type==='ObjectExpression')) {safe=false;break;}
         const span=`${item.node.start}:${item.node.end}`;
@@ -210,7 +217,13 @@ function renameLocalIdentifiers(source,ast,options) {
         }
         continue;
       }
-      local.push({start:item.node.start,end:item.node.end,text:replacement});
+      const oldText=source.slice(item.node.start,item.node.end);
+      if(options.experimentalLocalIdentifierSpanPreservation===true&&replacement.length>oldText.length) {
+        safe=false;break;
+      }
+      local.push({start:item.node.start,end:item.node.end,
+        text:options.experimentalLocalIdentifierSpanPreservation===true?
+          replacement+' '.repeat(oldText.length-replacement.length):replacement});
     }
     if(!safe) continue;
     used.add(replacement);
