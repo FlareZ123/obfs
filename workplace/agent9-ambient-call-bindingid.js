@@ -717,6 +717,11 @@ function summarizeAmbientCallEffects(ast,sourceType) {
     });
     return returns;
   }
+  /** @returns {Set<number>} */
+  function newNumericSeenSet() {
+    return new Set();
+  }
+
   /**
    * Resolve a direct this-rooted member chain against a known getter/method receiver.
    * Unknown or dynamic chains fall back to the receiver so callers fail closed.
@@ -746,6 +751,7 @@ function summarizeAmbientCallEffects(ast,sourceType) {
         next.add(marker);
         let objects=[receiver];
         for(const key of keys.slice(0,-1)) {
+          /** @type {Set<number>} */
           const propertySeen=new Set();
           for(const item of next)if(typeof item==='number')propertySeen.add(item);
           const resolvedValues=objects.flatMap(candidate=>
@@ -756,6 +762,7 @@ function summarizeAmbientCallEffects(ast,sourceType) {
         /** @type {AstNode[]} */
         const returned=[];
         for(const object of objects) {
+          /** @type {Set<number>} */
           const propertySeen=new Set();
           for(const item of next)if(typeof item==='number')propertySeen.add(item);
           const methodValues=memberValueExpressionsForProperty(object,keys[keys.length-1],propertySeen);
@@ -786,6 +793,7 @@ function summarizeAmbientCallEffects(ast,sourceType) {
         next.add(marker);
         let values=[receiver];
         for(const key of keys) {
+          /** @type {Set<number>} */
           const propertySeen=new Set();
           for(const item of next)if(typeof item==='number')propertySeen.add(item);
           const resolvedValues=values.flatMap(candidate=>
@@ -1029,7 +1037,7 @@ function summarizeAmbientCallEffects(ast,sourceType) {
         }
         return [];
       }))];
-    const parents=classNodesForValue(classNode.superClass??{type:'UnknownExpression'},new Set());
+    const parents=classNodesForValue(classNode.superClass??{type:'UnknownExpression'},newNumericSeenSet());
     return [...new Set(parents.flatMap(parent=>
       classMemberValueExpressionsForProperty(parent,propertyKey,next,receiver)))];
   }
@@ -1367,7 +1375,7 @@ function summarizeAmbientCallEffects(ast,sourceType) {
     const own=classNode.body.body.filter((/** @type {AstNode} */ element)=>
       element.type==='MethodDefinition'&&element.kind==='get'&&!element.static)
       .map((/** @type {AstNode} */ element)=>element.value);
-    const parents=classNode.superClass?classNodesForValue(classNode.superClass,new Set()):[];
+    const parents=classNode.superClass?classNodesForValue(classNode.superClass,newNumericSeenSet()):[];
     return [...new Set([...own,...parents.flatMap(parent=>allClassGetterNodes(parent,next))])];
   }
 
@@ -1382,7 +1390,7 @@ function summarizeAmbientCallEffects(ast,sourceType) {
     if(matching.length)return matching.filter((/** @type {AstNode} */ element)=>
       element.type==='MethodDefinition'&&element.kind==='get').map((/** @type {AstNode} */ element)=>element.value);
     if(!classNode.superClass)return [];
-    const parents=classNodesForValue(classNode.superClass,new Set());
+    const parents=classNodesForValue(classNode.superClass,newNumericSeenSet());
     return [...new Set(parents.flatMap(parent=>classGetterNodesForProperty(parent,propertyKey,next)))];
   }
 
@@ -1754,7 +1762,7 @@ function summarizeAmbientCallEffects(ast,sourceType) {
         next.add(target);
         return receivers.flatMap(receiver=>
           functionReturnExpressions(target).flatMap(expression=>
-            memberReturnExpressionsWithReceiver(expression,receiver,new Set()).flatMap(candidate=>
+            memberReturnExpressionsWithReceiver(expression,receiver,newNumericSeenSet()).flatMap(candidate=>
               callableNodesForValueWithReceiver(candidate,target,next))));
       });
       if(hasReceiverBoundTarget) {
@@ -1783,7 +1791,8 @@ function summarizeAmbientCallEffects(ast,sourceType) {
         property.type==='Property'?
           [staticPropertyKey(property.key,property.computed)].filter((/** @type {string|null} */ key)=>key!==null):[]))];
       /** @type {Set<number>} */
-      const propertySeen=new Set();
+      /** @type {Set<number>} */
+          const propertySeen=new Set();
       for(const item of seen)if(typeof item==='number')propertySeen.add(item);
       const candidates=keys.flatMap(key=>memberValueExpressionsForProperty(value,key,propertySeen).filter(candidate=>candidate!==value));
       const nested=candidates.flatMap(candidate=>
@@ -1824,7 +1833,7 @@ function summarizeAmbientCallEffects(ast,sourceType) {
     const receivers=fn?receiverExpressionsByFunction.get(fn)??[]:[];
     if(!receivers.length)return callableNodesForValue(value);
     return [...new Set(receivers.flatMap(receiver=>
-      memberReturnExpressionsWithReceiver(value,receiver,new Set()).flatMap(candidate=>
+      memberReturnExpressionsWithReceiver(value,receiver,newNumericSeenSet()).flatMap(candidate=>
         callableNodesForValue(candidate))))];
   }
   /** @param {AstNode|null|undefined} value @param {AmbientCallReason['kind']} kind @param {number} start @param {number} end @returns {void} */
