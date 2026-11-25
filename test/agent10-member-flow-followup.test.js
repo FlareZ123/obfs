@@ -190,3 +190,31 @@ test('a mutable local factory binding cannot hide a returned class-field callabl
   assertHeld(hiddenSummary(source),
     'callable return analysis must resolve a locally assigned mutable factory binding');
 });
+
+
+test('a mutable factory binding assigned a local function declaration cannot hide its return',()=>{
+  const source=
+    'let owner;let create;'+
+    'function hidden(){return 1;}'+
+    'class Local{callback=hidden;}'+
+    'function make(){return new Local();}'+
+    'create=make;'+
+    'function leak(){external(owner.callback);}'+
+    'function entry(){owner=create();leak();}'+
+    'module.exports=entry;';
+  assertHeld(hiddenSummary(source),
+    'mutable aliases to local function declarations must participate in factory return analysis');
+});
+
+test('recursive mutable factory returns terminate while retaining known branch values',()=>{
+  const source=
+    'let owner;let create;'+
+    'function hidden(){return 1;}'+
+    'class Local{callback=hidden;}'+
+    'create=()=>flag?new Local():create();'+
+    'function leak(){external(owner.callback);}'+
+    'function entry(){owner=create();leak();}'+
+    'module.exports=entry;';
+  assertHeld(hiddenSummary(source),
+    'recursive factory return graphs must terminate without dropping known callable branches');
+});
