@@ -101,6 +101,11 @@ jobs:
                   continue
               assert row["server_user_isolated"] is True, row
               assert row["source_disclosed"] is False, row
+              assert row["session_cookie_issued"] is True, row
+              assert row["session_token_in_public_module"] is False, row
+              assert row["client_module_fetch_status"] == 200, row
+              assert row["client_cookie_present"] is True, row
+              assert row["client_module_source_disclosed"] is False, row
               assert row["unauthorized_status"] == 403, row
               assert row["reset_status"] == 404, row
               assert row["partition_names"] == ["step"], row
@@ -109,9 +114,9 @@ jobs:
               assert row["steps_total"] == row["http_step_calls"] == row["sul_num_steps"], row
               assert row["steps_total"] == row["steps_oracle"] + row["steps_non_oracle"], row
               stats = row["server_stats"]
-              assert stats["http_requests"] == row["steps_total"] + 3, row
+              assert stats["http_requests"] == row["steps_total"] + 4, row
               assert stats["rpc_requests"] == row["steps_total"] + 1, row
-              assert stats["client_module_requests"] == 1, row
+              assert stats["client_module_requests"] == 2, row
               assert stats["authorized_rpc_requests"] == row["steps_total"], row
               assert stats["unauthorized_rpc_requests"] == 1, row
               assert len(row["fixture_digest"]) == 64, row
