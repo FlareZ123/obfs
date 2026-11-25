@@ -373,10 +373,11 @@ function cloneTopDerivativeProjectedAffine(
     diagnostics:{
       fastPathSuccess:true,
       witnessTrials,
+      witnessTrialCap,
       witnessStrategy,
-        witnessDrawCount:witnessTrials * directionCount,
+      witnessDrawCount:witnessTrials * directionCount,
       witnessProbability,
-      witnessFailureBound:Math.pow(1-witnessProbability,witnessTrials),
+      witnessFailureBound:Math.pow(1-witnessProbability,witnessTrialCap),
       quotientRank:5,
       coordinateStrategy,
       fixedPairPassed,
