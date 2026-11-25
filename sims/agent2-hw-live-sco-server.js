@@ -98,11 +98,17 @@ async function start(payload) {
         stats.unauthorized_rpc_requests += 1;
       }
     }
-    Promise.resolve(handler(request, response)).catch(() => {
+    try {
+      Promise.resolve(handler(request, response)).catch(() => {
+        if (!response.headersSent && !response.destroyed) {
+          response.writeHead(500).end();
+        }
+      });
+    } catch {
       if (!response.headersSent && !response.destroyed) {
         response.writeHead(500).end();
       }
-    });
+    }
   });
 
   await new Promise((resolve, reject) => {
