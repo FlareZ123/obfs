@@ -205,3 +205,18 @@ There are 32 possible coordinates. The candidate \(q=31\) returns \(w\) for ever
 Follow the adaptive decision-tree path on which every response is zero. After \(k\) distinct nonzero offsets have been queried, the candidates \(q=31\) and \(q=31\oplus u_i\) for the queried offsets are eliminated; exactly \(31-k\) candidates remain. For \(k\le29\), at least two candidates are indistinguishable, so certainty is impossible. At \(k=30\), one candidate remains. Thus 30 offset probes, in addition to the known base response, are worst-case necessary even for adaptive offset selection in this single-coordinate model.
 
 This is not a lower bound on the total multi-coordinate query count: probes and cached points may be reused across different input-basis coordinates. It also relies on the normalized shift model in which the affine correction is invariant under the matched shift; it does not cover arbitrary oracle queries or arbitrary source families.
+
+
+## Anchor-extended input basis: remove known coordinate probes
+
+The five successful witness anchors are already linearly independent. They are also the first five vectors of a full input basis after extending them with \(n-5\) complement vectors. Since the section table has queried every \(F(s(t))\), each anchor satisfies \(q(a_i)=e_i\) and \(C(a_i)=F(a_i)\oplus H(e_i)=0\). No separate coordinate or correction probes are needed for those five basis vectors.
+
+Recover coordinates and corrections only for the \(n-5=27\) complement vectors, then express arbitrary inputs in the anchor-extended basis. This reduces the shift stage from 96 to 81 probes and the signature stage from 992 to 837 probes. The corresponding conservative caps are:
+- no-verifier shift: \(1,657+81=1,738\);
+- verified shift: \(1,657+81+726=2,464\);
+- no-verifier signature: \(1,657+837=2,494\);
+- verified signature: \(1,657+837+726=3,220\).
+
+Agent 43 extended the independent Python replay to run both the original standard-basis model and this anchor-extended model on the same 1,000 deterministic witness tapes. Every replicate saved exactly 15 unique queries in the shift mode, with unchanged witness trials and 64 holdouts per replicate. The anchor-extended statistics were mean 166.861, median 137, p90 251, p95 297, maximum 527, mean witness trials 1.388, and zero fallbacks (64,000 holdouts). This is a deterministic cross-language replay, not an independent random sample or a runtime benchmark.
+
+The updated replay is \`sims/agent43-rankfive-promise-query-replay.py\` (commit \`c1c6a11a5ecfb8759c36f155b6f98c961b8be65a\`). The anchor extension applies to both shift and signature coordinate recovery; its input-basis solve cost has not been benchmarked. It is a more material query reduction than the m=8 face-order gain, but should still be evaluated for runtime before claiming an end-to-end performance improvement.
