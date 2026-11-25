@@ -23,57 +23,48 @@ The frozen HTTP source is pinned by SHA-256 `2b6a7b2cb348cd716e636e8e2da0817d472
 
 ## Exactness argument
 
-Let
-\[
-T_F(v_1,\ldots,v_5)=D^5F(v_1,\ldots,v_5).
-\]
+Let T_F(v1,...,v5) = D^5 F(v1,...,v5).
 
-For the promised source,
-\[
-T_F(v_1,\ldots,v_5)
-=c\,\det(Pv_1,\ldots,Pv_5),
-\qquad
-c=\bigoplus_{t\in GF(2)^5}h(t)\ne0.
-\]
+For the promised source:
 
-A nonzero fifth-derivative witness \((a_1,\ldots,a_5)\) therefore gives five vectors \((Pa_i)\) that form a basis of the quotient. Let \(q(x)\) be the exact coordinate vector of \(Px\) in this basis, and let
-\[
-s(t)=\sum_{i=1}^5t_i a_i,
-\qquad
-H(t)=F(s(t)).
-\]
+```
+T_F(v1,...,v5) = c * det(Pv1,...,Pv5)
+c = XOR over t in GF(2)^5 of h(t), with c != 0
+```
 
-Then \(P(s(q(x)))=Px\), so
-\[
-H(q(x))=A(s(q(x)))\oplus b\oplus h(Px).
-\]
+A nonzero fifth-derivative witness (a1,...,a5) therefore gives five vectors Pa_i that form a basis of the quotient. Let q(x) be the exact coordinate vector of Px in this basis, and define:
 
-For each standard basis vector \(e_j\), define
-\[
-C(e_j)=F(e_j)\oplus H(q(e_j)).
-\]
+```
+s(t) = XOR_i (t_i * a_i)
+H(t) = F(s(t))
+```
 
-The \(b\) and \(h(Pe_j)\) terms cancel, giving
-\[
-C(e_j)=A(e_j\oplus s(q(e_j))).
-\]
+Then P(s(q(x))) = Px, so:
 
-Since both \(A\) and \(q\) are linear, the basis-fitted correction extends to
-\[
-C(x)=A(x\oplus s(q(x))).
-\]
+```
+H(q(x)) = A(s(q(x))) XOR b XOR h(Px)
+```
 
-Consequently,
-\[
-G(x)=H(q(x))\oplus C(x)=F(x)
-\]
+For each standard basis vector e_j, define C(e_j) = F(e_j) XOR H(q(e_j)). The b and h(Pe_j) terms cancel:
+
+```
+C(e_j) = A(e_j XOR s(q(e_j)))
+C(x)   = A(x XOR s(q(x)))
+```
+
+Because A and q are linear, the basis-fitted correction extends linearly. Consequently:
+
+```
+G(x) = H(q(x)) XOR C(x) = F(x)
+```
+
 for every input. This is exact reconstruction under the stated promise; it does not depend on a statistical postfit acceptance event.
 
-The implementation can recover \(q\) by either:
+The implementation recovers q by either:
 - the three-probe fixed-pair shift matcher, when the section-table separation check passes; or
 - the fifth-derivative signature path otherwise.
 
-The fixed-pair path is exact for the projected-affine promise. The signature path directly recovers quotient coordinates from the fifth-derivative contractions. The code retains the existing exact interpolation fallback for exceptional witness/coordinate failures.
+The fixed-pair path is exact for the projected-affine promise. The signature path directly recovers quotient coordinates from fifth-derivative contractions. The code retains the exact interpolation fallback for exceptional witness/coordinate failures.
 
 ## Implementation
 
@@ -89,10 +80,7 @@ Changes:
 - Added regression fixtures for both shift and signature paths; the verifier callback throws if invoked.
 - Added a 1,000-replicate deterministic query simulation for the strict-promise mode.
 
-The ordinary verified mode remains the correct default for arbitrary degree-five sources. Its Reed–Muller postfit bound is
-\[
-(31/32)^{726}=9.765746877444843\times10^{-11}.
-\]
+The ordinary verified mode remains the correct default for arbitrary degree-five sources. Its Reed–Muller postfit false-acceptance bound is `(31/32)^726 = 9.765746877444843e-11` for a fixed degree-at-most-five oracle.
 
 ## Query bounds
 
@@ -157,6 +145,13 @@ Ten CSPRNG-tape HTTP replicates:
 - no verifier tape was requested or released.
 
 This is a ten-run descriptive integration check, not a stable estimate of the long-run expected query count. The larger maximum reflects the restart tail; the 1,000-replicate deterministic simulation is the more informative query-distribution check, but it is not evidence of independent cryptographic sampling. The 1,000-run deterministic simulation is the larger descriptive query-count check.
+
+
+## Independent review and deferred directions
+
+Agents 42 and 43 independently reviewed the exact projected-affine identity and agreed that the no-verifier mode is sound only under the explicit `F=A+b+h(Px)` promise. The peer suite now includes the requested no-witness fallback test and a stronger rank-five lower-degree-residual counterexample: the top fifth-derivative form remains rank five, the fixed-pair shift predicate passes, but a quadratic term outside the quotient makes the no-verifier model wrong. The default 726-sample verifier detects the mismatch and falls back exactly.
+
+Agent 43 also outlined a separate, unimplemented `rank-five-top-form + signature-only + RM(4,32)` verification mode. Under a trusted codimension-five top-form promise and exact signature recovery, the residual would have degree at most four, for which 357 uniform samples give a false-acceptance bound below 1e-10. This cannot use the shift path: a lower-degree residual outside the quotient can create a false shift coordinate. This is a future research direction, not part of this implementation. Searching all offset pairs/triples before signature fallback is also deferred; it overlaps earlier Agent 2 greedy-offset-cover work and should not be duplicated without integrating that evidence.
 
 ## Limitations and disposition
 
