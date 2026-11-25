@@ -170,7 +170,7 @@ The eight-direction policy's expected total face evaluations over repeated trial
 
 ## Search method and optimality boundary
 
-The eight-direction candidate was found by a bounded simulated-annealing search over ordered sequences of distinct complement triples. For the 14-face search, eight random restarts (seeds 44000–44007) each used 20,000 moves, a geometric temperature from 0.1 to \(10^{-5}\), and swap, replacement, and interval-reversal moves. Limited exploratory searches also examined cutoffs from 1 through 20; effort varied by cutoff, so the following are **best observed**, not proven minima:
+The eight-direction candidate was found by a bounded simulated-annealing search over ordered sequences of distinct complement triples. The C++ search program was run at cutoff 14 with eight random restarts (seeds 44000–44007), 100,000 moves per restart, a geometric temperature from 0.1 to \(10^{-5}\), and swap, replacement, and interval-reversal moves. Limited exploratory searches also examined cutoffs from 1 through 20; effort varied by cutoff, so the following are **best observed**, not proven minima. The C++ annealer returned a symmetry-equivalent sequence with the same per-step query increments and surviving-kernel counts as the representative table above; the exact Python checker validates both sequences:
 
 | Faces per trial | Best observed repeated-trial query cost |
 |---:|---:|
