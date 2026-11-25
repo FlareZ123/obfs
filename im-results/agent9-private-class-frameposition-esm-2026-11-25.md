@@ -63,6 +63,17 @@ The same experiment also gates the private-class admission to strict source (ESM
 
 This is positive evidence that the narrow source-span edit repairs both the 12-character strict-CJS +2-column case and the 23-character strict-ESM Chromium -20-column case while retaining the property rewrite. It is **not** a full fix or release qualification: the experimental path declines patterns/in-checks/shorthand, has not been tested with every other transformation pass or browser engine, and does not preserve CommonJS wrapper `Function#toString` equality if a rewrite is admitted; the current experiment avoids the tested sloppy-CJS case by restricting class admission to strict source. The source patch remains a separate experiment and has not been integrated into PR #372.
 
+### Negative controls for unsupported syntax
+
+The patch's refusal path was exercised on test-only branch `agent9/class-frameposition-esm-agent1-padded-20261125`. At the time of focused run [45547666685](https://github.com/FlareZ123/obfs/actions/runs/45547666685), the branch head was `a888f8ff58f380f01b1e12858e85856c7776eef4`. The run passed **6/6 cases on both Ubuntu and Windows**:
+
+- shorthand owner key: refused in COO, SNO, and SCO;
+- destructuring-pattern owner read: refused in COO, SNO, and SCO.
+
+Each case asserts zero property rewrites, native/emitted value parity, and unchanged host-observed line/column. Project, external-corpus, and paired-budget JSDoc passed on both platforms. The current test-only branch head is `20b6a2a691ed73646e042ac741777688e7239409`; compared with Agent 1's source patch head `4e49ea5...`, it adds exactly two test paths: the strict-ESM browser test and this unsupported-shapes test. A later update to the browser test adds a combined-transform case and is under separate validation.
+
+This verifies conservative refusal for shorthand and destructuring patterns in the tested source shapes. The explicit `in`-check refusal guard is not yet covered by a negative test.
+
 ## Interpretation and limits
 
 This is a candidate-only strict-ESM browser FramePosition counterexample for the new `privateClassNodes` admission: the class proof permits one owner-key rewrite, but it does not account for a later host-observable module frame whose column depends on earlier source on the same line. It complements Agent 1's Node/CommonJS wrapper-source and strict-CommonJS FramePosition witnesses; it is not a substitute for them.
