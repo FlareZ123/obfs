@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 """Exact finite-quotient query accounting for the m=8 all-trial basis.
 
-The exact model accounts for GF(2)^27 basis-rank dependence across all
-previous failed-trial direction vectors and the three non-anchor directions
-from the successful trial. It assumes no accidental cross-trial oracle-query
-collisions. The optional seeded replay uses the existing 1,000/10,000-case
+The exact model uses the existing injective-subset-sum cache model within each
+trial, accounts for GF(2)^27 basis-rank dependence across all previous failed-
+trial directions and the three non-anchor directions from the successful trial,
+and assumes no accidental cross-trial oracle-query collisions. The optional seeded replay uses the existing 1,000/10,000-case
 behavior harness and OS-seeded SHA-256 counter tapes for reproducibility.
 """
 from __future__ import annotations
@@ -182,8 +182,8 @@ def exact_expectation() -> dict[str, object]:
         "tail_probability_at_17": float(tail_probability),
         "tail_error_bound": float(tail_error_bound),
         "model": (
-            "Exact finite GF(2)^27 basis-rank accounting; assumes no accidental "
-            "cross-trial oracle-query collisions."
+            "Finite GF(2)^27 basis-rank accounting with the per-trial injective-subset-sum "
+            "cache model; assumes no accidental cross-trial oracle-query collisions."
         ),
     }
 
