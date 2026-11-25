@@ -242,7 +242,7 @@ These include reuse from failed-face caches and are below the anchor-only worst-
 | Shift | 163.618807 | 162.965994 |
 | Signature | 906.046127 | 902.669077 |
 
-These totals are conditional on obtaining a witness and exclude the verifier. Adding 726 verifier samples gives uncached additive upper bounds; actual distinct-query counts may be lower if verifier points overlap. The coordinate-stage expectations assume the trial directions extend the basis independently; the earlier 32-bit collision correction was derived for the witness-query component, not a combined coordinate-stage correction.
+These totals are conditional on obtaining a witness and exclude the verifier. They use successful-trial-only basis reuse and are superseded for full-path candidate ranking by im-results/agent2-rankfive-m7-vs-m8-all-trial-basis-2026-11-25.md, which includes all prior failed-trial directions and a coordinate-stage collision bound. Adding 726 verifier samples gives uncached additive upper bounds; actual distinct-query counts may be lower if verifier points overlap.
 
 For m=7, Agent 43's 1,000-tape deterministic replay found shift means 181.861 (standard basis), 166.861 (five-anchor basis), and 165.010 (all trial directions); signature means were 1,077.861, 922.861, and 907.756. All 64,000 holdouts per mode passed, and Agent 42 independently reproduced the signature means. These are deterministic replay results, not runtime or independent-randomness benchmarks. The m=8 values above have exact mask accounting but no corresponding live replay yet.
 
