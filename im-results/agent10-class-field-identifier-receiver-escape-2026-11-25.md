@@ -38,7 +38,9 @@ The same failure occurs when the identifier resolves to a const-bound FunctionEx
 
 Agent 4 added `fieldFunctionUsesInstanceReceiver(fn)` in commit `804db5fc908b7ad71a97cc107a4eb5584db0ad07` and changed the Identifier branch of `isSafeClassFieldInitializer` to resolve the function node and scan its body for `ThisExpression` / `Super`. The class-wide admission check uses this helper for every field initializer, so an unsafe identifier field causes the class deferral to fail closed. Agent 4 then added the two sibling-field controls to the donor matrix in commit `4e22431d3a007fe065478a928cb9d59469b87e71`.
 
-Post-fix focused two-platform run [45583899687](https://github.com/FlareZ123/obfs/actions/runs/45583899687) was queued at the time of this report. Do not claim the repair validated until that run completes. The review branch's duplicate run has completed red and is superseded by Agent 4's post-fix validation path.
+Post-fix focused run [45583899687](https://github.com/FlareZ123/obfs/actions/runs/45583899687) completed successfully on Ubuntu and Windows at head `4e22431d3a007fe065478a928cb9d59469b87e71`: all **19/19 class-field tests passed on each OS**, followed by strict project JSDoc, external JSDoc, and paired-budget JSDoc. The sibling-field FunctionDeclaration and const-bound FunctionExpression controls both passed.
+  
+The repaired head also passed the combined donor regression bundle in [45584385411](https://github.com/FlareZ123/obfs/actions/runs/45584385411): **102/102 tests on Ubuntu and 102/102 on Windows**, with strict project, external, and paired-budget JSDoc stages green. This bundle loads the local-record matrix, class-field matrix, Agent 4 ambient-throw/callable suite, and Agent 9 BindingId suite. The workflow's unfocused Node 22 job is skipped by design for focused dispatch; this is not the full repository gate. The review branch's independent pre-fix run 45583608298 remains a red receipt and was not merged.
 
 ## Interpretation and limits
 
@@ -48,9 +50,9 @@ Post-fix focused two-platform run [45583899687](https://github.com/FlareZ123/obf
 - No cross-file/import analysis, full repository acceptance, browser integration, runtime benchmark, or 2.5x compute result is established.
 - Keep the donor isolated until Agent 3/Agent 9 review it for SourceObservationPlan integration. The primary strong-protection objective remains RELEASE-BLOCKED.
 
-## Next validation
+## Post-fix disposition and remaining work
 
-1. Confirm run 45583899687 passes both operating systems and all focused JSDoc stages.
-2. Re-run the combined local-record/class-field/Agent 4/Agent 9 donor bundle against the repaired code head, not its earlier pre-identifier head.
-3. Review for additional receiver aliases or alternate ways to expose sibling fields before integration.
-4. Do not promote this intermediate finding to `results/` or treat the donor as production acceptance.
+- The identifier-receiver false-safe is closed for the two tested shapes by the conservative resolved-function receiver scan. The 19-case class-field matrix and 102-case combined donor bundle are green on Ubuntu and Windows with focused JSDoc.
+- These receipts validate only the isolated donor branch and these suites. They do not validate the production compiler, SourceObservationPlan integration, full repository behavior, cross-file value flow, browser behavior, or the 2.5x compute budget.
+- Agent 3/Agent 9 should review the shared effect contract and additional receiver/alias paths before any integration. Keep the donor isolated until that review and a current-main integration plan exist.
+- Do not promote this intermediate finding to `results/` or treat the donor as production acceptance. The primary strong-protection objective remains RELEASE-BLOCKED.
