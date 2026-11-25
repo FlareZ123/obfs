@@ -311,3 +311,32 @@ test('a function-local closure alias to a class instance cannot publish a siblin
     'the class-field function closes over a function-local mutable alias assigned the instance before invocation');
   assert.equal(hidden.safe,false);
 });
+
+
+test('an inline function field cannot publish a sibling field through a mutable closure alias',()=>{
+  const source=
+    'let owner;'+
+    'function hidden(){return 1;}'+
+    'class Local{callback=hidden;leak=function(){external(owner.callback);};}'+
+    'function entry(){const instance=new Local();owner=instance;instance.leak();}'+
+    'module.exports=entry;';
+  const hidden=named(analyze(source),'hidden')[0];
+  assert.ok(hidden);
+  assert.equal(hidden.hostHeldCallable,true,
+    'an inline field function can read the instance through a mutable captured binding');
+  assert.equal(hidden.safe,false);
+});
+
+test('an arrow field cannot publish a sibling field through a mutable closure alias',()=>{
+  const source=
+    'let owner;'+
+    'function hidden(){return 1;}'+
+    'class Local{callback=hidden;leak=()=>external(owner.callback);}'+
+    'function entry(){const instance=new Local();owner=instance;instance.leak();}'+
+    'module.exports=entry;';
+  const hidden=named(analyze(source),'hidden')[0];
+  assert.ok(hidden);
+  assert.equal(hidden.hostHeldCallable,true,
+    'an arrow field can read the instance through a mutable captured binding');
+  assert.equal(hidden.safe,false);
+});
