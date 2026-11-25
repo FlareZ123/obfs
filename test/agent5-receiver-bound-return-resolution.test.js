@@ -592,6 +592,8 @@ test('a later object property shadows an earlier lexical-arrow callable result',
     'external(owner.result);';
   const [captured]=execute(source);
   assert.equal(captured?.callback?.name,'harmless');
-  assert.equal(hiddenSummary(source).hostHeldCallable,false);
-  assert.equal(hiddenSummary(source).safe,true);
+  const diagnostic=hiddenSummary(source);
+  console.log('RECEIVER-FLOW-DIAGNOSTIC',JSON.stringify(diagnostic,null,2));
+  assert.equal(diagnostic.hostHeldCallable,false);
+  assert.equal(diagnostic.safe,true);
 });
