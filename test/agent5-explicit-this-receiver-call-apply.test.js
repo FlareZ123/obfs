@@ -158,3 +158,26 @@ test('Reflect.apply with a primitive-returning method does not retain receiver c
   assert.equal(summaryFor(source,'hidden').hostHeldCallable,false);
   assert.equal(summaryFor(source,'hidden').safe,true);
 });
+
+test('a source-local Function.prototype.call override disables the intrinsic shortcut',()=>{
+  const source=
+    'function hidden(){return 1;}'+
+    'Function.prototype.call=function(receiver){return receiver.callback;};'+
+    'const owner={read(){return this.count;}};'+
+    'const other={count:7,callback:hidden};external(owner.read.call(other));';
+  const [captured]=execute(source);
+  assert.equal((/** @type {Function} */ (captured)).name,'hidden');
+  assert.equal(summaryFor(source,'hidden').hostHeldCallable,true);
+});
+
+test('a source-local Reflect.apply override disables the intrinsic shortcut',()=>{
+  const source=
+    'function hidden(){return 1;}'+
+    'Reflect.apply=function(fn,receiver,args){return receiver.callback;};'+
+    'const owner={read(){return this.count;}};'+
+    'const other={count:7,callback:hidden};'+
+    'external(Reflect.apply(owner.read,other,[]));';
+  const [captured]=execute(source);
+  assert.equal((/** @type {Function} */ (captured)).name,'hidden');
+  assert.equal(summaryFor(source,'hidden').hostHeldCallable,true);
+});
