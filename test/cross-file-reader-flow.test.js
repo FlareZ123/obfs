@@ -478,3 +478,20 @@ test('relayed identity owner result reflected by opaque consumer refuses rewrite
       'console.log(Object.keys(pass(state)));'}
   ],0);
 });
+
+
+test('mainline baseline conservatively refuses sibling owner aliases in a private carrier',async()=>{
+  await check(exposed+reader,
+    'import {state as left,state as right,peek} from "./state.mjs";'+
+    'const carrier={first:left,second:right};'+
+    'const {first:one,second:two}=carrier;'+
+    'const local=value=>value.secretField;'+
+    'console.log(peek(one),local(two));',0);
+});
+
+test('mainline baseline conservatively refuses one local reader over sibling owner aliases',async()=>{
+  await check(exposed,
+    'import {state as left,state as right} from "./state.mjs";'+
+    'const local=value=>value.secretField;'+
+    'console.log(local(left),local(right));',0);
+});
