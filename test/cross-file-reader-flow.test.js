@@ -700,3 +700,21 @@ test('owner re-export cycle refuses joint-root property rewriting',async()=>{
       'import {result} from "./a.mjs";console.log(result);'}
   ],0);
 });
+
+test('two-module reentrant imported reader preserves owner TDZ under positive rename',async()=>{
+  await preserves([
+    {path:'a.mjs',sourceType:'module',code:
+      'import {attempt} from "./b.mjs";'+
+      'export function peek(x){return x.secretField;}'+
+      'export const state={secretField:23};'+
+      'export const early=attempt;'},
+    {path:'b.mjs',sourceType:'module',code:
+      'import {state,peek} from "./a.mjs";'+
+      'let early;try{early=peek(state);}catch(error){'+
+      'early=error instanceof ReferenceError?"tdz":"other";}'+
+      'export const attempt=early;'},
+    {path:'main.mjs',sourceType:'module',code:
+      'import {state,peek,early} from "./a.mjs";console.log(early,peek(state));'}
+  ],1);
+});
+
