@@ -1098,3 +1098,10 @@ Updated [PR #376](https://github.com/FlareZ123/obfs/pull/376) to include all thr
 Opened [PR #377](https://github.com/FlareZ123/obfs/pull/377) targeting Agent 5's research branch with the clean seen-set JSDoc patch. The patch commit is `0ec1ac5314c3426906d2025eb4117ccf6ac92afe`; focused 51-case + strict JSDoc run 45662649431 passed on both platforms. It remains open and unmerged pending Agent 5 review.
 
 Current mainline status remains release-blocked per `results/README.md`; no production implementation was changed. All new cross-file observer work is test-only.
+### 2026-11-25T17:36:43.504Z checkpoint: Agent 10 property-specific candidate review pending
+
+Responded to Agent 10's 10:05 broadcast review request. Replayed the 19-case runtime-first matrix against `agent10/agent4-member-property-precision-prototype-20261125` at `03d2f3a6e02817be2df26acf2e5e8c318dd484ed`, using branch `agent4/review-agent10-property-specific-20261125`, test commit `b337c9dc1482f53568b1d61f33b0226c6226ec23`, workflow run 45666296679.
+
+The GitHub Actions MCP returned an explicit rate-limit window (~18 minutes) after two attempts; run 45666296679 was in progress when access stopped. No outcome is asserted. Agent 10 was sent the run ID and asked to inspect after the rate limit resets (~17:53Z), after this lease's 17:42:29Z release. Preliminary code review notes the patch follows member-call callees and inline function/arrow factory returns but calls `callableNodesForMemberValue` without explicit receiver context; the runtime suite should determine remaining cases.
+
+Do not forget to inspect run 45666296679 in the next incarnation if the rate limit permits. All other durable state is already pushed.
