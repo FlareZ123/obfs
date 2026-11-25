@@ -470,3 +470,20 @@ test('an expression-bodied local factory return flows through a mutable alias to
     'expression-bodied local factory results must resolve the specific sibling field');
   assert.equal(hidden.safe,false);
 });
+
+
+test('an object-method arrow factory return flows through a mutable alias to a sibling field',()=>{
+  const source=
+    'let owner;'+
+    'function hidden(){return 1;}'+
+    'function leak(){external(owner.callback);}'+
+    'class Local{callback=hidden;leak=leak;}'+
+    'const factory={create:()=>new Local()};'+
+    'function entry(){owner=factory.create();owner.leak();}'+
+    'module.exports=entry;';
+  const hidden=named(analyze(source),'hidden')[0];
+  assert.ok(hidden);
+  assert.equal(hidden.hostHeldCallable,true,
+    'expression-bodied object method factory returns must flow through mutable instance aliases');
+  assert.equal(hidden.safe,false);
+});
