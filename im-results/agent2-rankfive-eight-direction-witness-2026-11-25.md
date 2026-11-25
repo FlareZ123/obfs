@@ -216,7 +216,7 @@ This can eliminate the three fixed-pair shift probes per anchor (15 total) and t
 | Verified shift (+726 verifier samples) | 2,464 | 2,516 |
 | Verified signature (+726 verifier samples) | 3,220 | 3,272 |
 
-These are algebraic cap reductions, not implemented measurements. The existing Agent 50 integration reports still use the unoptimized 96/992-probe caps until the anchor reuse is implemented and tested. Promise mode has no verifier samples; verified mode adds 726. The optimization is independent of the m=7 versus m=8 witness-query comparison.
+These are algebraic cap reductions, not implemented measurements. The existing Agent 50 integration reports still use the unoptimized 96/992-probe caps until the anchor reuse is implemented and tested. Promise mode has no verifier samples; verified mode adds 726. With the 81-probe shift path, the uncached additive upper bound Q+81+726 is 891.502917 for m=7 and 891.249220 for m=8; cache overlaps can only lower the actual distinct-query count. The optimization is independent of the m=7 versus m=8 witness-query comparison.
 
 ## Search method and optimality boundary
 
