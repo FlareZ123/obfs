@@ -51,3 +51,10 @@ Added destructured Object.assign and destructured Reflect.defineProperty mutatio
 ## Direct function-object mutation follow-up
 
 Added direct assignment to a local function's own `.call` property and direct `Object.setPrototypeOf(read, ...)` shadowing. Final run [45686396972](https://github.com/FlareZ123/obfs/actions/runs/45686396972), source `c29dc9d449f59107554226a020c69d38b7b9d4a6`, **passed all 18 tests on Ubuntu and Windows**. The 16 prior cases plus these two direct function-object mutation shapes report `crossFile.properties=0` and preserve execution after transformation; the direct property-read positive control remains `crossFile.properties=1`. Both OS jobs pass all strict JSDoc and runtime-budget evaluator checks.
+
+
+## Own apply/bind follow-up — current final matrix
+
+Added direct own-property replacements for `read.apply` and `read.bind`. Final run [45686751880](https://github.com/FlareZ123/obfs/actions/runs/45686751880), source `9c41778e60f579484376d2d38131073b5f761d77`, **passed all 20 tests on Ubuntu and Windows**: 18 mutation/receiver cases, the initial host-preloader receiver case, and the direct property-read positive control. The mutation cases all report `crossFile.properties=0` and preserve execution after transformation; the direct read still reports `crossFile.properties=1`. All Strict project/external JSDoc and runtime-budget evaluator checks pass on both OSes.
+
+This is the final strongest focused receipt for this invocation. It includes direct `.call`, `.apply`, and `.bind` own-property replacement; direct and aliased Object/Reflect mutators; Function.prototype mutation; legacy descriptor mutation; computed keys; globalThis/window roots; Object.create/prototype changes; Proxy get-trap; and host-preloader mutation of an escaped function.
