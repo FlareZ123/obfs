@@ -162,3 +162,62 @@ test('a prototype getter exposes its returned callable through a property read',
     'module.exports=entry;';
   assertHeldAndObserved(source,'the prototype getter returns hidden when callback is read');
 });
+
+
+test('a function-constructor own assignment shadows its prototype callable',()=>{
+  const source=
+    'function entry(){'+
+    'function hidden(){return 1;}'+
+    'function harmless(){return 0;}'+
+    'function Local(){this.callback=harmless;}'+
+    'Local.prototype.callback=hidden;'+
+    'const owner=new Local();'+
+    'external(owner.callback);'+
+    '}'+
+    'module.exports=entry;';
+  const observed=invokeExternal(source);
+  assert.equal(typeof observed,'function');
+  assert.equal(/** @type {{name?:unknown}} */ (observed).name,'harmless');
+  const summary=hiddenSummary(source);
+  assert.equal(summary.hostHeldCallable,false);
+  assert.equal(summary.safe,true);
+});
+
+test('a class instance field shadows its prototype callable',()=>{
+  const source=
+    'function entry(){'+
+    'function hidden(){return 1;}'+
+    'function harmless(){return 0;}'+
+    'class Local{callback=harmless;}'+
+    'Local.prototype.callback=hidden;'+
+    'const owner=new Local();'+
+    'external(owner.callback);'+
+    '}'+
+    'module.exports=entry;';
+  const observed=invokeExternal(source);
+  assert.equal(typeof observed,'function');
+  assert.equal(/** @type {{name?:unknown}} */ (observed).name,'harmless');
+  const summary=hiddenSummary(source);
+  assert.equal(summary.hostHeldCallable,false);
+  assert.equal(summary.safe,true);
+});
+
+test('a later own assignment shadows its prototype callable',()=>{
+  const source=
+    'function entry(){'+
+    'function hidden(){return 1;}'+
+    'function harmless(){return 0;}'+
+    'function Local(){}'+
+    'Local.prototype.callback=hidden;'+
+    'const owner=new Local();'+
+    'owner.callback=harmless;'+
+    'external(owner.callback);'+
+    '}'+
+    'module.exports=entry;';
+  const observed=invokeExternal(source);
+  assert.equal(typeof observed,'function');
+  assert.equal(/** @type {{name?:unknown}} */ (observed).name,'harmless');
+  const summary=hiddenSummary(source);
+  assert.equal(summary.hostHeldCallable,false);
+  assert.equal(summary.safe,true);
+});
