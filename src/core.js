@@ -1,6 +1,7 @@
 'use strict';
 
 const path = require('node:path');
+const {hasTerminalUrlDotSegment}=require('./esm-url-paths');
 const {isBuiltin}=require('node:module');
 const {randomBytes, createHash} = require('node:crypto');
 const {parse,walk,observesFunctionSource,observesDistributedSource,staticString} = require('./ast');
@@ -38,9 +39,10 @@ const {canonicalAllowedHosts}=require('./hosts');
  * checks the host and could perform arbitrary effects.
  *
  * This deliberately excludes opaque assets, scripts, bare package imports,
- * URL/query/fragment specifiers, case-mismatched filenames, and undeclared
- * dependencies. Module cycles are safe for this boundary because each module
- * body starts with its own guard, irrespective of evaluation order.
+ * URL/query/fragment and encoded specifiers, repeated-separator paths,
+ * case-mismatched filenames, and undeclared dependencies. Module cycles are
+ * safe for this boundary because each module body starts with its own guard,
+ * irrespective of evaluation order.
  *
  * @param {(SourceFile & {sourceType:SourceType})[]} files
  * @returns {boolean}
@@ -56,7 +58,7 @@ function completeGuardedModuleGraph(files) {
       const specifier=statement.source.value;
       if(typeof specifier!=='string' ||
           (!specifier.startsWith('./')&&!specifier.startsWith('../')) ||
-          /[?#%\\\\]/u.test(specifier))return false;
+          /[?#%\\\\]/u.test(specifier) || specifier.includes('//') || hasTerminalUrlDotSegment(specifier))return false;
       const target=path.posix.normalize(path.posix.join(path.posix.dirname(file.path),specifier));
       if(!known.has(target))return false;
     }
@@ -158,7 +160,7 @@ function staticallyImportedEsmTargets(files) {
       if(!source||source.type!=='Literal'||typeof source.value!=='string')continue;
       const specifier=source.value;
       if((!specifier.startsWith('./')&&!specifier.startsWith('../'))||
-         /[?#%\\\\]/u.test(specifier))continue;
+         /[?#%\\\\]/u.test(specifier) || specifier.includes('//') || hasTerminalUrlDotSegment(specifier))continue;
       const target=path.posix.normalize(
         path.posix.join(path.posix.dirname(file.path),specifier));
       if(known.has(target))imported.add(target);
@@ -189,7 +191,7 @@ function hasUnprovedModuleImport(ast,filename,knownJavaScript) {
     if(source?.type!=='Literal'||typeof source.value!=='string')return false;
     const specifier=source.value;
     if((!specifier.startsWith('./')&&!specifier.startsWith('../'))||
-       /[?#%\\]/u.test(specifier))return false;
+       /[?#%\\]/u.test(specifier) || specifier.includes('//') || hasTerminalUrlDotSegment(specifier))return false;
     const target=path.posix.normalize(
       path.posix.join(path.posix.dirname(filename),specifier));
     return knownJavaScript.has(target);
