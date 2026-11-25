@@ -222,3 +222,19 @@ test('with in one sibling function does not disable a private record proof in an
     'a with environment in entry cannot intercept member writes inside sibling');
   assert.equal(hidden.safe,true);
 });
+
+
+test('a reassigned function binding remains tracked through an escaping local record',()=>{
+  const source=
+    'function hidden(){return 1;}'+
+    'function other(){return 2;}'+
+    'function entry(){const owner={callback:0};hidden=other;'+
+    'owner.callback=hidden;return owner;}'+
+    'module.exports=entry;';
+  const result=analyze(source);
+  const other=named(result,'other')[0];
+  assert.ok(other);
+  assert.equal(other.hostHeldCallable,true,
+    'the member write stores the current value of the reassigned function binding');
+  assert.equal(other.safe,false);
+});
