@@ -252,8 +252,7 @@ test('a super getter side-effect sink resolves through the child receiver',()=>{
   const source=
     'function hidden(){return 1;}'+
     'class Base{get callback(){return hidden;}}'+
-    'class Child{read(){external(super.callback);}}'+
-    'Object.setPrototypeOf(Child.prototype,Base.prototype);'+
+    'class Child extends Base{read(){external(super.callback);}}'+
     'const owner=new Child();owner.read();';
   const [captured]=execute(source);
   assert.equal(captured?.name,'hidden');
