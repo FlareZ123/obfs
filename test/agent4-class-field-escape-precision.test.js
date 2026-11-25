@@ -277,3 +277,19 @@ test('an inherited prototype setter does not observe a public class field defini
     'public class fields define own data properties without invoking inherited setters');
   assert.equal(hidden.safe,true);
 });
+
+
+test('a mutable closure alias to a local class instance cannot publish a sibling field through an identifier field function',()=>{
+  const source=
+    'let owner;'+
+    'function hidden(){return 1;}'+
+    'function leak(){external(owner.callback);}'+
+    'class Local{callback=hidden;leak=leak;}'+
+    'function entry(){const instance=new Local();owner=instance;instance.leak();}'+
+    'module.exports=entry;';
+  const hidden=named(analyze(source),'hidden')[0];
+  assert.ok(hidden);
+  assert.equal(hidden.hostHeldCallable,true,
+    'the field function closes over a mutable alias assigned the instance before the local call');
+  assert.equal(hidden.safe,false);
+});
