@@ -638,7 +638,7 @@ function summarizeAmbientCallEffects(ast,sourceType) {
     else if(effect==='HostHeldCallable')hostHeldFunctions.add(fn);
   }
 
-  /** @param {AstNode|null|undefined} value @param {string} kind @param {number} start @param {number} end @returns {void} */
+  /** @param {AstNode|null|undefined} value @param {AmbientCallReason['kind']} kind @param {number} start @param {number} end @returns {void} */
   function markCallableValuesHeld(value,kind,start,end) {
     if(!value)return;
     for(const target of callableNodesForValue(value))
