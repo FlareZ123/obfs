@@ -73,6 +73,13 @@ const canonicalLookup=decodePublicName(canonicalUrl.pathname.slice('/obfs/'.leng
 assert.equal(canonicalTarget,'private.mjs');
 assert.equal(canonicalLookup,'private.mjs');
 
+const interior='./folder/../private.mjs';
+const interiorTarget=candidateTarget(interior,'entry.mjs',true);
+const interiorUrl=new URL(interior,'http://localhost/obfs/entry.mjs');
+const interiorLookup=decodePublicName(interiorUrl.pathname.slice('/obfs/'.length));
+assert.equal(interiorTarget,'private.mjs');
+assert.equal(interiorLookup,'private.mjs');
+
 let generated=0;
 let candidateAccepted=0;
 let candidateInRoot=0;
