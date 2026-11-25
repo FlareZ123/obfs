@@ -320,7 +320,9 @@ function summarizeAmbientCallEffects(ast,sourceType) {
         if(id!==null)topLevelScriptBindings.add(id);
       }
       if(node.type==='ClassDeclaration'&&node.id?.type==='Identifier'&&
-         !isWithinFunctionOrClass(node)) {
+         parent===ast) {
+        // A class declaration inside a BlockStatement is block-lexical, not
+        // a host-visible classic-script global. Only Program children are roots.
         const id=declarationByNode.get(node.id)?.bindingId??null;
         if(id!==null)topLevelScriptBindings.add(id);
       }
