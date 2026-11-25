@@ -45,3 +45,8 @@ Added an escaped class-field arrow control at review-branch source `a7ab1caba027
 ## Temporal escape caveat for any precision fix
 
 Deferring constructor this-member writes until an instance is known to escape must be temporal, not a single post-construction check. A base constructor can pass `this` to a host before returning; the same object is then retained while derived fields and the derived constructor body run afterward. Any callable values assigned after that escape remain observable through the retained object. A safe refined model must record the first escape point and continue treating later writes to that same instance as host-visible. For derived construction, preserve the order of base fields, base constructor body (including any early escape), derived fields, and derived constructor body.
+
+
+## Early-constructor-escape temporal control
+
+Added a further positive control at review-branch source `8aada6dfa2dff5139a4ad52868021b362da0a103`: a base constructor passes `this` to an unknown host callback; the callback installs a setter on `callback`; the constructor then assigns `hidden`, the setter captures it, and a derived field later overwrites the final property with a primitive. The host has already captured the callable during construction. [Run 45683353378](https://github.com/FlareZ123/obfs/actions/runs/45683353378) passes this case on both OSes. The same run remains 25 tests, 21 pass / 4 fail, with the four precision failures unchanged. This validates the temporal caveat: once an instance escapes, subsequent writes can be observed or intercepted even if the final own-property value is primitive.
