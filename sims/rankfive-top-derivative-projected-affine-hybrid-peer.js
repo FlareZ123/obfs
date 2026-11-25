@@ -703,6 +703,7 @@ function main() {
   boundaryTable[31]=(boundaryTable[31]^0x9765c3af)>>>0;
   const boundaryBeta=(boundaryTable[0]^boundaryTable[3]^boundaryTable[1]^boundaryTable[2])>>>0;
   assert.notEqual(boundaryBeta,0);
+  /** @param {number} input @returns {number} */
   const lowerResidualPromiseBoundary=input=>{
     const x=input&0xff;
     const lower=(((x>>>5)&1)!==0&&((x&1)^((x>>>1)&1))!==0)?boundaryBeta:0;
@@ -722,6 +723,8 @@ function main() {
   assert.equal(boundaryAssumed.diagnostics.coordinateStrategy,'shift');
   assert.equal(boundaryAssumed.diagnostics.fixedPairPassed,true);
   assert.equal(boundaryAssumed.diagnostics.fallbackUsed,false);
+  if(boundaryAssumed.model.kind!=='projected-affine')
+    throw new Error('expected projected-affine candidate for rank-five residual boundary');
   assert.equal(boundaryAssumed.model.coordinates[5],3);
   let rankFivePromiseBoundaryMismatches=0;
   for(let input=0;input<256;input++) {
