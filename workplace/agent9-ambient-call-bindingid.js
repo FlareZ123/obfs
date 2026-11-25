@@ -976,6 +976,7 @@ function summarizeAmbientCallEffects(ast,sourceType) {
    * @param {AstNode} value
    * @param {string} propertyKey
    * @param {Set<number>} [seen]
+   * @param {AstNode|null} [receiver]
    * @returns {AstNode[]}
    */
   function memberValueExpressionsForProperty(value,propertyKey,seen=new Set(),receiver=null) {
