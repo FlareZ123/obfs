@@ -275,6 +275,9 @@ def main():
           float(result7["expected_total_faces"]), float(result8["expected_total_faces"]))
     print("  expected direction words (7,8):",
           float(result7["expected_direction_words"]), float(result8["expected_direction_words"]))
+    face_delta = float(result8["expected_total_faces"] - result7["expected_total_faces"])
+    print("  extra expected face evaluations (m8 - m7):", face_delta)
+    print("  break-even face-evaluation cost in query units:", float(gap) / face_delta)
 
 
 if __name__ == "__main__":
