@@ -153,8 +153,10 @@ function purePrimitiveSnapshotExports(ast,filename,modules,known){
  * @returns {string|null}
  */
 function resolveKnownImport(origin,specifier,known) {
+  // Browser URL paths preserve empty segments; POSIX normalization does not.
+  // Repeated separators can therefore denote a different module-map key.
   if((!specifier.startsWith('./')&&!specifier.startsWith('../')) ||
-     /[?#%\\]/u.test(specifier))return null;
+     /[?#%\\]/u.test(specifier) || specifier.includes('//'))return null;
   const target=path.posix.normalize(path.posix.join(path.posix.dirname(origin),specifier));
   return known.has(target) ? target : null;
 }
