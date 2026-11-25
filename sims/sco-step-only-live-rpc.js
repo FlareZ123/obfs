@@ -206,7 +206,6 @@ async function runLiveStepVersionSpace(states=2,seed=0x31415926,matchedControl=f
       const ordinaryMethod=partition.methodNames.step;
       const ordinarySource=[
         'export async function step(symbol){',
-        'if(!Number.isInteger(symbol)||symbol<0||symbol>1)throw TypeError("symbol");',
         'const response=await fetch("/obfs/rpc",{method:"POST",credentials:"same-origin",cache:"no-store",headers:{"content-type":"application/json"},body:JSON.stringify({method:'+JSON.stringify(ordinaryMethod)+',args:[symbol]})});',
         'const payload=await response.json();',
         'if(!response.ok||!payload||payload.ok!==true)throw Error("Remote operation failed");',
@@ -426,11 +425,13 @@ async function runLiveStepVersionSpace(states=2,seed=0x31415926,matchedControl=f
           entry.responseBytes===other.responseBytes&&
           entry.responseSha256===other.responseSha256;
       });
-      sourceDeliveryMetadataMatched=Boolean(scoSource&&ordinarySource)&&
-        scoSource.status===ordinarySource.status&&
-        scoSource.responseContentType===ordinarySource.responseContentType&&
-        scoSource.responseCacheControl===ordinarySource.responseCacheControl&&
-        scoSource.responseNosniff===ordinarySource.responseNosniff;
+      sourceDeliveryMetadataMatched=false;
+      if(scoSource&&ordinarySource){
+        sourceDeliveryMetadataMatched=scoSource.status===ordinarySource.status&&
+          scoSource.responseContentType===ordinarySource.responseContentType&&
+          scoSource.responseCacheControl===ordinarySource.responseCacheControl&&
+          scoSource.responseNosniff===ordinarySource.responseNosniff;
+      }
       httpApplicationTraceMatched=httpRequestShapeMatched&&
         rpcResponseTraceMatched&&sourceDeliveryMetadataMatched;
       assert.equal(httpRequestCountMatched,true);
