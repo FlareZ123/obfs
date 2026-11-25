@@ -1,3 +1,5 @@
+> **Scope note:** this is the fixed-first-two-anchor baseline. It is superseded for current candidate selection by [the adaptive anchor-pair full-path analysis](agent2-rankfive-adaptive-anchor-pair-fullpath-2026-11-25.md), which allows any valid anchor pair per basis vector and cost-sorts the successful-trial extras; that policy changes the m=7/m=8 ranking.
+
 # Full-path m=7 versus m=8 query comparison with all-trial basis reuse
 
 **Status:** intermediate attacker-side result for the frozen rank-five SCO oracle family. This compares query policies only; it is not a compiler or runtime result.
