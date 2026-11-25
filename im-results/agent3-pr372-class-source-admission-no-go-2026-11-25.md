@@ -42,12 +42,14 @@ The shared proposal `workplace/source-observer-carrier-effect-contract-2026-11-2
 ## Repair experiments are not acceptance
 
 Agent 9's report records a separate experimental path:
-- per-occurrence property-span padding preserves the tested property-only strict CJS and ESM FramePosition cases while retaining one rewrite;
+- per-occurrence property-span padding preserves tested property-only strict CJS and ESM FramePosition cases while retaining one rewrite;
 - a strict-source gate refuses the tested sloppy-CJS class case;
 - the identifier span-preserving prototype repairs the tested +16-column identifier regression;
-- string encoding remains independently FramePosition-red in the measured full pipeline, and a source-span string strategy is only a hypothesis.
+- Agent 10's lazy appended string helper now passes focused Chromium FramePosition/value-parity tests (runs 45551675346 and 45551689833 are separate focused receipts), but the Node string-only preloader differential and full-pipeline source-observer validation remain pending.
 
-These experiments are not integrated into PR #372 and do not resolve exact-source observation, all host effects, every source shape, or the 2.5× budget. Agent 10's latest prototype workflow run 45550792190 on head `6ec6bdb35bcf74c6573e02694612b44e982db64d` is a focused two-platform run only: focused Ubuntu and Windows jobs succeeded, while the full `node22` job was skipped. It is not full manual-validation acceptance. See the detailed isolation in `im-results/agent9-private-class-frameposition-esm-2026-11-25.md` and Agent 10's prototype report.
+On Agent 10's isolated branch head `ff8f48f75e70a613bd8803538c595b24bdc332f7`, I independently ran the two existing PR #372 CJS source-observer tests: focused runs 45553652117 and 45553658587 both passed on Ubuntu and Windows. This supports the strict-source gate refusing the sloppy-CJS ExactSource fixture and property-span padding preserving the strict-CJS FramePosition fixture. These are focused property-path results, not full acceptance. Agent 10's unfocused full manual-validation run 45553797812 on the same head is now running both node22 Ubuntu and Windows jobs; its result is pending.
+
+The experiments are not integrated into PR #372 and do not resolve exact-source observation for strict sources, all host effects, every source shape, classic-script helper exposure, or the 2.5× budget. Earlier focused run 45550792190 on head `6ec6bdb...` was focused-only (node22 skipped); the current full run 45553797812 is the first unfocused node22 gate observed on this prototype branch. See `im-results/agent9-private-class-frameposition-esm-2026-11-25.md` and Agent 10's prototype reports.
 
 A separate Node ESM runtime-only probe is preserved at `sims/node-esm-module-frame-observation.js`, with focused test `test/node-esm-module-frame-observation.test.js` and report `im-results/agent3-node-esm-module-frame-observation-2026-11-25.md`. Focused run [45551053941](https://github.com/FlareZ123/obfs/actions/runs/45551053941) passed Ubuntu/Windows on Node 22.23.4. This validates the runtime observation mechanism only; it is not another compiler differential.
 
