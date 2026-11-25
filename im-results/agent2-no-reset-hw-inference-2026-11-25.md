@@ -11,10 +11,10 @@ A corrected evaluator distinguishes full initial-machine equivalence from future
 - **20/22** uniquely identified a trace-consistent initial hypothesis state that was product-equivalent to the target initial state.
 - **2/22** had ambiguous initial-state candidates (one equivalent and one non-equivalent to the target initial state).
 - In **both** ambiguous cases, every candidate's post-trace state was product-equivalent to the target's post-trace state.
-- **22/22** therefore identified the target's future behavior from the end of the observed trace.
+- **22/22** returned conjectures passed an offline exact future-equivalence check for every trace-matching candidate state within that conjecture.
 - **0/22** had ambiguous future behavior or false future convergence.
 
-This corrects the earlier interpretation of the two eight-/nine-state cases. They are counterexamples to unique initial-state identification, not counterexamples to future-behavior cloning under the evaluator used here.
+This corrects the earlier interpretation of the two eight-/nine-state cases. They are counterexamples to unique initial-state identification, not counterexamples to future-behavior equivalence of the returned conjectures under the evaluator used here.
 
 ## Scope and threat model
 
@@ -35,7 +35,7 @@ The state count is used only by the fixture generator and evaluator. It is not p
 
 The previous evaluator found hypothesis states whose outputs matched the entire observed trace, but retained only each candidate's *start* state. It then tested product equivalence from the target's initial state to each candidate start. That answers whether the candidate reproduces the complete initial machine; it does not answer whether it reproduces the target's future behavior from the current post-trace state.
 
-The corrected evaluator retains every trace-consistent pair:
+The corrected evaluator retains every trace-consistent pair **within the returned AALpy conjecture**:
 
 \[
 (\text{candidate start state},\ \text{candidate post-trace state}).
@@ -46,9 +46,9 @@ For each pair it performs two separate exact BFS product checks:
 1. **Initial-model equivalence:** target initial state versus candidate start state.
 2. **Post-trace future equivalence:** target state reached by replaying the observed input word versus candidate state reached by matching the same trace.
 
-**future_clone_success** is true only when the candidate set is nonempty and **every** trace-consistent candidate post-trace state is product-equivalent to the target post-trace state. A single equivalent candidate is not enough when other trace-consistent candidates can have different future behavior.
+**future_clone_success** is true only when the candidate set is nonempty and **every** trace-consistent candidate post-trace state in the returned conjecture is product-equivalent to the target post-trace state. A single equivalent candidate is not enough when other trace-consistent candidates can have different future behavior. This is offline evaluator certification of one returned conjecture, not a proof that all machines consistent with the observed trace have the same future behavior.
 
-The report keeps distinct fields for unique initial-state identification, initial behavior identification, future behavior identification, ambiguous initial/future behavior, no trace-consistent candidates, false initial convergence, and false future convergence. The exact BFS checks are evaluator-only.
+The report keeps distinct fields for unique initial-state identification, initial behavior identification, future behavior identification, ambiguous initial/future behavior, no trace-consistent candidates, false initial convergence, and false future convergence. The exact BFS checks are evaluator-only. The learner's RandomWphWOracle performs bounded randomized random-walk tests; its pass is heuristic, not an exact equivalence proof, and the attacker cannot observe the evaluator's target table or certify the offline result.
 
 The seven-test suite covers:
 - ambiguous initial states that nevertheless converge to one target-equivalent future behavior;
@@ -131,15 +131,59 @@ Relevant artifacts:
 - **sims/test_agent2_hw_no_reset_evaluator.py** — evaluator and metric unit tests.
 - **.github/workflows/manual-agent2-no-reset-hw-benchmark.yml** — pinned AALpy install, evaluator tests, 22-run benchmark, output assertions, and artifact preservation.
 
+## Expanded 20-seed sweep
+
+A larger sweep used 20 deterministic seeds per target size (220 requested cases), the same binary fixture class, and the same RandomWphWOracle configuration (random-walk length 30, 20 origin states), with a 5-second per-fixture timeout. It ran under workflow **45593948605**, head commit **a5fb80049aa27cc4254e47abafd910f0f862c7bf**. The artifact is **agent2-no-reset-hw-benchmark** (artifact ID **15012032719**, SHA-256 **f781a0d0de8f80cecd0c27b2ed2c321af71d3c419bcbb351e98ead7d176bc885**).
+
+| Measure | Result |
+|---|---:|
+| Requested cases | 220 |
+| Completed | 219 |
+| Timeouts | 1 |
+| Errors | 0 |
+| Exact initial-model clone success | 177/219 |
+| Ambiguous initial behavior | 42/219 |
+| Returned-hypothesis future-equivalence certifications | **219/219 completed** |
+| Ambiguous future behavior | 0/219 |
+| False initial convergence | 0/219 |
+| False future convergence | 0/219 |
+| Total SUL steps | 317,161 |
+| Oracle steps (subset) | 162,639 |
+| Non-oracle steps | 154,522 |
+| Wall time reported by benchmark | 6.031 seconds |
+
+The candidate-count distribution among completed runs was 177 runs with one trace-matching start, 39 with two, and 3 with three. All 42 cases with more than one candidate still had every candidate post-trace state exactly equivalent to the target post-trace state **within the returned conjecture**.
+
+| Target states | Completed | Exact initial clones | Ambiguous initial behavior | Future certifications |
+|---:|---:|---:|---:|---:|
+| 2 | 20 | 20 | 0 | 20 |
+| 3 | 20 | 17 | 3 | 20 |
+| 4 | 20 | 17 | 3 | 20 |
+| 5 | 20 | 16 | 4 | 20 |
+| 6 | 20 | 16 | 4 | 20 |
+| 7 | 20 | 16 | 4 | 20 |
+| 8 | 20 | 15 | 5 | 20 |
+| 9 | 20 | 15 | 5 | 20 |
+| 10 | 20 | 11 | 9 | 20 |
+| 11 | 20 | 17 | 3 | 20 |
+| 12 | 19 | 17 | 2 | 19 |
+
+The single timeout was target size 12, seed 7. It reached 2,512 trace steps and timed out at 5 seconds before the SUL post hook; it had one pre call, zero post calls, zero query calls, and no completed hypothesis to evaluate. Fixture digest: **2fdddf7ab2ad825045e81e500b8096329e861334a216c8725492862eedae0b3c**; partial-trace digest: **e41ed869223cfa00cc49af9c33fdc497ae3abb9626f2ed02cf550f9d790a759b**. This is a censored learner run, not a false convergence.
+
+The 220-case run predates the later output-field naming and explicit version-space-scope metadata; the evaluator algorithm and the numerical result fields were unchanged. A targeted 12-state rerun with an increased per-fixture timeout is queued to determine whether the lone timeout is simply a short-budget cutoff.
+
+The 20 seeds per state size are deterministic fixture-generator seeds, not an IID sample from a specified distribution of Mealy machines. Results remain empirical and fixture-family-specific.
+
 ## Limitations and interpretation
 
 1. **Small deterministic sample.** Two seeds per state count do not characterize the distribution of strongly connected Mealy machines, the probability of convergence, or adversarially selected targets.
-2. **Specific oracle configuration.** The randomized hW equivalence oracle uses fixed random-walk length and origin-state count. A successful sampled experiment is not a completeness proof for arbitrary targets.
+2. **Specific oracle configuration.** The randomized hW equivalence oracle uses fixed random-walk length and origin-state count. Its pass is heuristic, not exact; exact BFS is available only to the offline evaluator.
 3. **Finite binary machines.** This is not a JavaScript API, EFSM, parameterized operation, multi-output protocol, concurrent service, or stateful browser environment.
 4. **In-process SUL only.** No HTTP transport, authorization, request limits, cookies, network delay, browser instrumentation, or real SCO server is exercised.
 5. **No performance-budget claim.** The 0.123-second Python run does not establish the obfuscator's 2.5× compute budget or production runtime.
 6. **Prior art.** Resetless hW inference is established prior work (Groz, Brémond & Simao, 2019). This benchmark is an application/evaluation of that method, not a claim to have invented it.
-7. **No production decision.** The result demonstrates a bounded attacker capability against the tested abstract machine class. It does not establish a general SCO vulnerability, prove universal client cloneability, or justify compiler integration.
+7. **Candidate-set limitation.** Candidate starts are enumerated only within the returned hW conjecture, not across all possible machines consistent with the observed trace. The exact evaluator certifies the returned conjecture against the hidden target; it does not prove global version-space identifiability or attacker-side certainty.
+8. **No production decision.** The result demonstrates a bounded attacker capability against the tested abstract machine class. It does not establish a general SCO vulnerability, prove universal client cloneability, or justify compiler integration.
 
 ## Next work
 
