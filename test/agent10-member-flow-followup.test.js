@@ -270,7 +270,7 @@ test('a direct shared-reference alias preserves the instance callable',()=>{
     'a second binding to the same instance must preserve the callable member value');
 });
 
-test('an object-record alias observes later nested member mutation',()=>{
+test('an object-record alias remains fail-closed after a nested member mutation',()=>{
   const source=
     'let holder;'+
     'function hidden(){return 1;}'+
@@ -278,10 +278,10 @@ test('an object-record alias observes later nested member mutation',()=>{
     'function entry(){holder={};const alias=holder;holder.nested=new Local();external(alias.nested.callback);}'+
     'module.exports=entry;';
   assertHeld(hiddenSummary(source),
-    'a shared object alias must observe later property writes through the original binding');
+    'an aliased object write must not cause the callable value to be treated as safe');
 });
 
-test('a local mutator function preserves nested member values through its object parameter',()=>{
+test('a member write through a local mutator parameter remains fail-closed',()=>{
   const source=
     'function hidden(){return 1;}'+
     'class Local{callback=hidden;}'+
@@ -289,10 +289,10 @@ test('a local mutator function preserves nested member values through its object
     'function entry(){const holder={};const alias=holder;install(holder);external(alias.nested.callback);}'+
     'module.exports=entry;';
   assertHeld(hiddenSummary(source),
-    'a known local mutator call must connect its object parameter to the caller shared reference');
+    'an unresolved parameter alias must conservatively retain the callable value');
 });
 
-test('a factory returning a shared object preserves later nested callable mutations',()=>{
+test('a factory returning a shared object remains fail-closed after nested callable mutation',()=>{
   const source=
     'let holder;'+
     'function hidden(){return 1;}'+
@@ -301,7 +301,7 @@ test('a factory returning a shared object preserves later nested callable mutati
     'function entry(){holder={};holder.nested=new Local();external(getHolder().nested.callback);}'+
     'module.exports=entry;';
   assertHeld(hiddenSummary(source),
-    'a local factory return of a shared object must retain the current nested callable value');
+    'a shared object mutation must not make its nested callable appear safe');
 });
 
 test('a local mutator parameter does not create an escape when its object stays private',()=>{
