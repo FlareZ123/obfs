@@ -24,14 +24,18 @@ ALPHABET = ("0", "1")
 class HttpNoResetMealySUL(SUL):
     """One-session HTTP SUL; no reset and no membership-query operation."""
 
-    def __init__(self, origin: str, method_name: str, cookie: str):
+    def __init__(
+        self,
+        origin: str,
+        method_name: str,
+        cookie: str,
+        connection: http.client.HTTPConnection,
+    ):
         super().__init__()
         parsed = urlsplit(origin)
         if parsed.scheme != "http" or not parsed.hostname or parsed.port is None:
             raise ValueError("expected an explicit local http origin")
-        self.connection = http.client.HTTPConnection(
-            parsed.hostname, parsed.port, timeout=20
-        )
+        self.connection = connection
         self.method_name = method_name
         self.cookie = cookie
         self.counters = {"pre_calls": 0, "post_calls": 0, "query_calls": 0}
@@ -100,17 +104,61 @@ def percentile(sorted_values, fraction):
     return sorted_values[index]
 
 
+
+def fetch_client_module(origin: str):
+    parsed = urlsplit(origin)
+    if parsed.scheme != "http" or not parsed.hostname or parsed.port is None:
+        raise ValueError("expected an explicit local http origin")
+    connection = http.client.HTTPConnection(
+        parsed.hostname, parsed.port, timeout=20
+    )
+    try:
+        connection.request(
+            "GET",
+            "/obfs/client.mjs",
+            headers={"Cache-Control": "no-store"},
+        )
+        response = connection.getresponse()
+        source_bytes = response.read()
+        if response.status != 200:
+            raise RuntimeError(
+                f"public client module returned HTTP {response.status}"
+            )
+        set_cookie = response.getheader("Set-Cookie")
+        if not set_cookie:
+            raise RuntimeError("public client module did not issue a session cookie")
+        cookie = set_cookie.split(";", 1)[0]
+        if not cookie.startswith("session="):
+            raise RuntimeError("public client module issued an unexpected cookie")
+        source = source_bytes.decode("utf-8")
+        token = cookie.split("=", 1)[1]
+        source_disclosed = (
+            "privateTable" in source
+            or "serverCanary" in source
+            or token in source
+        )
+        if source_disclosed:
+            raise RuntimeError("public client module contains a private-source marker")
+        return connection, cookie, response.status, len(source_bytes), source_disclosed
+    except Exception:
+        connection.close()
+        raise
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--origin", required=True)
     parser.add_argument("--method-name", required=True)
-    parser.add_argument("--cookie", default="session=approved")
     parser.add_argument("--oracle-seed", type=int, required=True)
     parser.add_argument("--random-walk-length", type=int, default=30)
     parser.add_argument("--origin-states", type=int, default=20)
     args = parser.parse_args()
 
-    sul = HttpNoResetMealySUL(args.origin, args.method_name, args.cookie)
+    connection, cookie, module_status, module_bytes, module_disclosed = fetch_client_module(
+        args.origin
+    )
+    sul = HttpNoResetMealySUL(
+        args.origin, args.method_name, cookie, connection
+    )
     random.seed(args.oracle_seed)
     np.random.seed(args.oracle_seed)
     oracle = RandomWphWOracle(
@@ -160,6 +208,10 @@ def main():
         latencies = sorted(sul.latencies_ms)
         result = {
             "status": "completed",
+            "client_module_fetch_status": module_status,
+            "client_cookie_present": bool(cookie),
+            "client_module_source_bytes": module_bytes,
+            "client_module_source_disclosed": module_disclosed,
             "trace": sul.trace,
             "hypothesis_states": serialized_states,
             "pre_calls": sul.counters["pre_calls"],
