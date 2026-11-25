@@ -2403,8 +2403,10 @@ function renameCrossFileProperties(files,seed) {
             (callee.computed ? staticString(callee.property) : staticName(callee.property)) : null;
         if (typeof name==='string' && ['require','createRequire','getBuiltinModule'].includes(name)) ambiguous=true;
       }
+      if(node.type==='ImportExpression' && node.options){ambiguous=true;return;}
       if (!['ImportDeclaration','ExportNamedDeclaration','ExportAllDeclaration'].includes(node.type) ||
           node.source?.type!=='Literal' || typeof node.source.value!=='string') return;
+      if(node.attributes?.length || node.assertions?.length){ambiguous=true;return;}
       const specifier=node.source.value;
       // node:module exposes createRequire and loader hooks. A separate
       // require('./target.mjs') would not appear as an ESM import edge.
