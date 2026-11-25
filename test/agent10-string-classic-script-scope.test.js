@@ -14,7 +14,7 @@ test('FramePosition-preserving string helper is declined for classic scripts',()
   }).files[0];
   assert.equal(output.metrics.literals,0);
   assert.equal(output.code,source);
-  assert.doesNotMatch(output.code,/\\nfunction /u);
+  assert.doesNotMatch(output.code,/\nfunction /u);
   const context={};
   vm.runInNewContext('const a=1;',context,{timeout:1000});
   vm.runInNewContext(output.code,context,{timeout:1000});
