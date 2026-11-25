@@ -148,13 +148,6 @@ def exact_m7_expectation(checker) -> dict[str, object]:
         "expected_total_queries": float(expected_witness + expected_coordinate),
         "tail_probability_at_21": float(tail_probability),
         "tail_error_bound": float(tail_error_bound),
-        "successful_face_weights": [
-            {
-                "complement": list(complement),
-                "weight_numerator": (row["remaining_kernels"] if False else 0),
-            }
-            for complement, row in zip(sequence, metrics["rows"])
-        ],
         "model": (
             "Finite GF(2)^27 basis-rank accounting with the per-trial "
             "injective-subset-sum cache model; assumes no accidental "
