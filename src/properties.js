@@ -1330,21 +1330,37 @@ function renameLocalProperties(source, ast, options) {
     // Truncated digests can collide. Duplicating literal keys silently changes
     // both object contents and all subsequent reads, so decline this object.
     if (new Set(mapping.values()).size !== mapping.size) continue;
-    for (const prop of candidate.properties) {
-      const renamed=JSON.stringify(mapping.get(ownPropertyName(prop)));
-      // Shorthand has one token for its key and value. Keep the original
-      // lexical value and function-name inference when expanding the field.
-      const text=prop.shorthand ?
-        renamed+':'+source.slice(prop.value.start,prop.value.end) : renamed;
-      edits.push({start:prop.key.start,end:prop.key.end,text});
+    // Preserve the source coordinate of every later token. Parser offsets and
+    // JavaScript string lengths are UTF-16 code units; padding a shorter
+    // replacement with spaces keeps both line and column positions stable.
+    // Unsupported edit shapes stay fail-closed rather than expanding a span.
+    if(proof.patterns.length||proof.inChecks.length||
+       candidate.properties.some(prop=>prop.shorthand))continue;
+    /** @type {import('./ast').Edit[]} */
+    const widthSafeEdits=[];
+    let widthSafe=true;
+    for(const prop of candidate.properties) {
+      const name=mapping.get(ownPropertyName(prop));
+      if(name===undefined){widthSafe=false;break;}
+      const oldText=source.slice(prop.key.start,prop.key.end);
+      const replacement=prop.computed||prop.key.type!=='Identifier'?
+        JSON.stringify(name):name;
+      if(replacement.length>oldText.length){widthSafe=false;break;}
+      widthSafeEdits.push({start:prop.key.start,end:prop.key.end,
+        text:replacement+' '.repeat(oldText.length-replacement.length)});
     }
-    for (const member of proof.members) {
+    if(!widthSafe)continue;
+    for(const member of proof.members) {
       const name=proof.memberNames.get(member);
-      if (name!==undefined && mapping.has(name)) edits.push({start:member.property.start,end:member.property.end,
-        text:member.computed ? JSON.stringify(mapping.get(name)) : mapping.get(name)});
+      if(name===undefined||!mapping.has(name))continue;
+      const oldText=source.slice(member.property.start,member.property.end);
+      const replacement=member.computed?JSON.stringify(mapping.get(name)):mapping.get(name);
+      if(replacement.length>oldText.length){widthSafe=false;break;}
+      widthSafeEdits.push({start:member.property.start,end:member.property.end,
+        text:replacement+' '.repeat(oldText.length-replacement.length)});
     }
-    edits.push(...patternPropertyEdits(source,proof.patterns,mapping,proof.patternNames));
-    edits.push(...inOperatorPropertyEdits(proof.inChecks,mapping));
+    if(!widthSafe)continue;
+    edits.push(...widthSafeEdits);
     objects++;
     properties += mapping.size;
   }
