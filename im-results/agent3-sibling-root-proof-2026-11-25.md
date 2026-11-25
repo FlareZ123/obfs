@@ -16,7 +16,7 @@ Within one importer module, two named import specifiers that resolve to the exac
 
 Branch: `agent3/joint-root-single-reader-20261125`
 
-Current candidate head: `c06271d65219558dae2d04b678517ea815308981`
+Current candidate head at this checkpoint: `2fbff7504e509b0c245ec3bb356b60e06167eb58`
 
 Changes are limited to `src/properties.js`, `src/cross-properties.js`, `test/cross-file-reader-flow.test.js`, and `test/esm-observation-browser.js`.
 
@@ -40,12 +40,14 @@ Changes are limited to `src/properties.js`, `src/cross-properties.js`, `test/cro
 ## Evidence and open validation
 
 - Existing current-main sibling-alias baseline: focused run `45568705106` passed its 55-case focused suite while the two sibling-alias cases still produced zero edits.
-- Initial candidate focused run `45579522397` passed on Ubuntu and Windows, including the original positive/escape/shadowed fixtures in all three modes.
-- Initial candidate full run `45579742313` failed the behavioral/adversarial suite on both OSes. Ubuntu reported 5,339 pass / 12 fail / 25 skipped; Windows reported 5,330 pass / 12 fail / 34 skipped. The same 12 test names failed on both platforms. These failures span bound-export/source interception, factory flow, function-declaration reader proof, interfile flow, private class/tuple yield, and SCO/SNO behavior.
-- A focused baseline run of `test/private-class-source-yield.test.js` on unmodified current main also failed, demonstrating that at least one full-suite failure is pre-existing. A full baseline manual-validation run on current main (`45581201445`) is in progress to determine whether all 12 failures are baseline.
+- Initial candidate focused run `45579522397` passed on Ubuntu and Windows, including the first positive/escape/shadowed fixtures in all three modes.
+- Full unmodified-main baseline run `45581201445` (head `d08da6f61c8d0e72bca3b1cb02c65a80e3dbbfc7`) completed red on both platforms: Ubuntu 5,338 pass / 12 fail / 24 skipped (5,374 total); Windows 5,328 pass / 12 fail / 34 skipped (5,374 total).
+- Initial candidate full run `45579742313` (head `05c400851d71bc02c07c80f6a252d83d4c1634a3`) also completed red on both platforms: Ubuntu 5,339 pass / 12 fail / 25 skipped (5,376 total); Windows 5,330 pass / 12 fail / 34 skipped (5,376 total). The exact same 12 test names failed as on the unmodified-main baseline. The candidate added two tests, both passing, and introduced no additional full-suite failure.
+- The 12 known baseline failures are classified in `im-results/agent1-452835-yield-failure-classification-2026-11-24.md`: four valid fail-closed cases, four attacker-side extraction/normalization witnesses, three genuine positive-yield gaps, and one SCO fixture source-shape defect. They are not evidence of a regression in this candidate.
+- A focused baseline run of `test/private-class-source-yield.test.js` on unmodified current main also failed, independently confirming that this is a pre-existing gap.
 - The initial candidate's later performance and browser steps completed. Existing paired Node session profiles reported `within2point5:true` on both platforms; this does not establish the universal 2.5× budget or measure the exact new sibling-alias fixture.
-- A fresh focused run of the expanded Node fixture suite (`45581544292`) is in progress.
-- The new Chromium sibling-alias fixtures are committed but not yet covered by a full manual-validation run.
+- Expanded focused Node coverage and strict JSDoc for the current candidate head are being checked in run `45582714439`.
+- The Chromium sibling-alias fixtures now cover a private local reader, an imported reader, and an escaped alias. They compare original, emitted, and public-field-normalized module graphs; the full current-candidate run is still required to execute them.
 
 ## Security and performance interpretation
 
