@@ -53,8 +53,10 @@ function assertFactorySourceParity(mode) {
     mode+' runtime extraction must not recover the original local identifier spellings');
 }
 
+test.todo('acceptance: host-held callbacks returned by exported factories preserve exact Function#toString source in COO/SCO/SNO');
+
 for(const mode of /** @type {const} */ (['coo','sco','sno'])) {
-  test('exported factory preserves behavior while host extraction sees transformed callback source in '+mode,()=>{
+  test('red control: exported-factory host-held callback source is rewritten in '+mode,()=>{
     assertFactorySourceParity(mode);
   });
 }
