@@ -133,7 +133,7 @@ test('a primitive this member getter does not retain an unrelated callable sibli
   const source=
     'function hidden(){return 6;}'+
     'const owner={callback:hidden,count:17,get value(){return this.count;}};'+
-    'external(owner.value);module.exports=owner;';
+    'external(owner.value);';
   const runtime=executeCommonJs(source);
   assert.equal(runtime.observed,17);
   const hidden=hiddenSummary(analyzeCommonJs(source));
