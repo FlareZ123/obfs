@@ -1,6 +1,7 @@
 'use strict';
 
 const assert=require('node:assert/strict');
+const vm=require('node:vm');
 const {test}=require('node:test');
 const {parse}=require('../src/ast');
 const {summarizeAmbientCallEffects}=require('../workplace/agent9-ambient-call-bindingid');
@@ -22,6 +23,21 @@ test('a deferred field closure can publish a sibling callable through a captured
     'class Local{callback=hidden;leak=()=>external(owner.callback);}'+
     'owner=new Local();owner.leak();}'+
     'module.exports=entry;';
+
+  /** @type {unknown} */
+  let observed=null;
+  /** @type {{module:{exports:(()=>unknown)|null},external:(value:unknown)=>void}} */
+  const context={
+    module:{exports:null},
+    external(value) { observed=value; }
+  };
+  vm.runInNewContext(source,context);
+  assert.equal(typeof context.module.exports,'function');
+  (/** @type {()=>unknown} */ (context.module.exports))();
+  assert.equal(typeof observed,'function',
+    'the runtime sends the hidden field callable to the external host');
+  assert.match(Function.prototype.toString.call(observed),/function hidden/u,
+    'the host can recover the hidden function source');
 
   const hidden=named(analyze(source),'hidden')[0];
   assert.ok(hidden,'the hidden field callable must have a summary');
