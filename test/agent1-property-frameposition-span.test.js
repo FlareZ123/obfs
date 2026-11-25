@@ -309,7 +309,7 @@ test('combined local identifier and property span rewrites preserve strict ESM F
 test('real Chromium strict ESM lazy string-span decoding preserves later FramePosition',{
   skip:process.platform!=='linux'?'real Chromium fixture currently targets the Linux runner':false
 },async()=>{
-  const stringSource="'use strict';const a=1;const value='Span preserving string with emoji 😀';captureHostStack();export {value};";
+  const stringSource="'use strict';const a=1;function read(){return 'Span preserving string with emoji 😀';}const value=read()+read();captureHostStack();export {value};";
   const output=obfuscateFiles([{
     path:'generated-strings.mjs',sourceType:'module',code:stringSource
   }],{
@@ -354,7 +354,7 @@ test('real Chromium strict ESM lazy string-span decoding preserves later FramePo
     const address=server.address();
     if(!address||typeof address==='string')throw new Error('Missing Chromium fixture port');
     const payload=JSON.parse(await dumpDom('http://127.0.0.1:'+address.port+'/'));
-    assert.deepEqual(payload.values,['Span preserving string with emoji 😀','Span preserving string with emoji 😀']);
+    assert.deepEqual(payload.values,['Span preserving string with emoji 😀Span preserving string with emoji 😀','Span preserving string with emoji 😀Span preserving string with emoji 😀']);
     assert.equal(payload.stacks.length,2);
     const native=parseFrame(payload.stacks[0],'/native-strings.mjs');
     const generated=parseFrame(payload.stacks[1],'/generated-strings.mjs');
