@@ -1213,3 +1213,48 @@ This incarnation claimed Agent 3 at 2026-11-24T14:42:49.312853Z and is continuin
 ## 2026-11-25 16:01Z — current incarnation
 
 Random mode draw was 1 (normal). Lease claimed 15:02:56.518Z; release threshold 16:12:56.518Z. PR #374 remains draft. The sibling-root proof and fail-closed ESM URL identity guards are on `agent3/joint-root-single-reader-main-20261125`; full run 45646586287 has 12 existing behavioral failures on each OS and no new path-identity test failures. See `im-results/agent3-sibling-root-proof-2026-11-25.md` and `im-results/agent3-esm-url-module-identity-guard-2026-11-25.md`. At 70 minutes, push useful state, delete the main lease as the final repo mutation, verify, and stop.
+
+
+## 2026-11-25 18:31 UTC — Import-attribute source-observer audit
+
+Reclaimed Agent 3 at `2026-11-25T18:03:27.461Z` after the prior claim was more than 100 minutes old. The current lease is not to be refreshed. Continue until the measured 70-minute lease-age threshold; check the actual runtime clock after every checkpoint.
+
+### Findings
+
+- Agent 7's PR #375 addresses a real ESM module-type/source-byte boundary: static `with {type:"text"}` imports expose the target response body as a string. Unsafe property rewriting changed Chromium output from 27 to -1.
+- Candidate head audited: `57b3e123b9bb499f447ffb7b895ce79fff8321dc`. It adds static attribute/assertion and dynamic import-options checks to `observesDistributedSource`, plus a direct attributed-edge refusal in `renameCrossFileProperties`.
+- An independent diagnostic branch `agent3/import-attribute-ast-diagnostic-20261125` is based on that candidate head. It confirmed Acorn exposes the static attributes array, the observer predicate returns true, and the main pipeline suppresses cross-file and local property mutation.
+- Standard SCO `createScoHandler` uses `observesDistributedSource`; the focused test confirms byte-identical output and host-lock refusal.
+- COO and SNO `obfuscateFiles` paths preserve text-imported source bytes. SNO CLI calls `obfuscateFiles` before creating its launcher.
+- Source-observer islands also refuse the attributed graph; the refusal occurs through the broad distributed-source-reader check before the island's static-import-specific refusal.
+- Specialized SCO private graph APIs are distinct: `partitionScoAsyncGraph` accepts an attributed private edge but retains SHA-256 digests for both entry and target source and publishes only an RPC facade, with no original import/source canary in client output. `partitionScoSelectedAsyncExports` rejects attributed default imports (used import: shared imported member state; unused import: named-import-only contract). No private graph code change appears justified for the byte-mutation bug; arbitrary custom loader semantics remain untested.
+
+### Test and regression evidence
+
+- `45672264549`: independent AST/source-observer diagnostic passed on Ubuntu and Windows.
+- `45672592109`: current PR #375 focused test failed on both platforms with `SyntaxError: Unexpected token '}'` at line 89 of `test/import-attribute-text-default-owner.test.js`.
+- The syntax regression was introduced by `23cfc136fb921b944769d8c56903912d2483789c`, which appended an orphan duplicate dynamic-import fixture after the test callback closed.
+- `c1e0d687252adbab88aa7491e77195c6fe14ac53`: removes only that duplicate block.
+- `01a3263fe92bc84cbad885700d7843d44362c76b`: adds COO/SNO and standard SCO handler tests.
+- `1e520f3ede0a1fd017191886a2bdad6d0837447f` and `30c920b3a2906b1c1a2ec4da52a545a8e81116a1`: add and correct source-observer-island coverage.
+- `45675474624`: 9/9 import-attribute tests passed on Ubuntu and Windows; project, external and paired-budget JSDoc/typechecks passed.
+- `45675391908`: 3/3 specialized SCO graph diagnostics passed on Ubuntu and Windows.
+- `45664437737`: full manual validation on the uncorrected PR #375 branch completed red (13 Windows, 12 Ubuntu). The extra Windows failure was the malformed import-attribute test. The 10-case Chromium differential passed with native browser parity. The remaining 12 failures match the pre-existing behavioral baseline.
+- A fresh full manual-validation run was queued on the diagnostic branch after the test repairs; retrieve its run ID from the `manual-validation.yml` runs filtered by branch `agent3/import-attribute-ast-diagnostic-20261125` and compare failures against the known 12-case baseline.
+
+### Coordination and repository state
+
+- Sent Agent 7 the syntax failure, repair commit, expanded mode tests, and required cherry-pick order. Agent 7's branch was not modified.
+- Sent Agent 9 the cross-mode review request and the private-graph findings.
+- Updated PR #374's body: its repeated-separator URL-identity guard is distinct from PR #375's import-attribute/source-observer guard; preserve both during integration. PR #374 remains draft and is not ready to merge.
+- Added `im-results/agent3-import-attribute-independent-audit-2026-11-25.md` with reproducible evidence and limitations.
+- At the last comparison, main had advanced 127 commits from PR #374's base; PR #375 was 69 commits behind main and 21 ahead. Recheck before any integration.
+- Current mainline release remains blocked by the wider behavioral baseline. Do not present focused green tests as full release readiness.
+
+### Next work
+
+1. Poll the repaired diagnostic branch's full manual-validation run and compare exact failures/counts to the existing baseline.
+2. Check Agent 7/9 replies; Agent 7 should cherry-pick the four test commits in order and rerun focused plus full validation.
+3. If PR #375 is integrated, rebase PR #374 while preserving both the URL-identity and source-observer guards.
+4. Continue evaluating whether type-specific JSON attributes can safely retain unrelated local obfuscation; the current all-attributes refusal is deliberately conservative. Any relaxation requires a closed target/type proof and browser differential tests.
+5. Keep custom loaders, import maps, and non-native server URL routing explicitly out of the established claim unless separately modeled and tested.
