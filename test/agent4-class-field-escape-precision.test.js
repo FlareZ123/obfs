@@ -219,3 +219,32 @@ test('a field closure publishing this.callback keeps the field callable held',()
     'the field closure can publish this.callback when invoked locally');
   assert.equal(hidden.safe,false);
 });
+
+
+test('a function-declaration field initializer cannot publish a sibling field through its receiver',()=>{
+  const source=
+    'function hidden(){return 1;}'+
+    'function leak(){external(this.callback);}'+
+    'class Local{callback=hidden;leak=leak;}'+
+    'function entry(){const instance=new Local();instance.leak();}'+
+    'module.exports=entry;';
+  const hidden=named(analyze(source),'hidden')[0];
+  assert.ok(hidden);
+  assert.equal(hidden.hostHeldCallable,true,
+    'calling an identifier-initialized field function with the instance as this publishes this.callback');
+  assert.equal(hidden.safe,false);
+});
+
+test('a const-bound function-expression field initializer cannot publish a sibling field through its receiver',()=>{
+  const source=
+    'function hidden(){return 1;}'+
+    'const leak=function(){external(this.callback);};'+
+    'class Local{callback=hidden;leak=leak;}'+
+    'function entry(){const instance=new Local();instance.leak();}'+
+    'module.exports=entry;';
+  const hidden=named(analyze(source),'hidden')[0];
+  assert.ok(hidden);
+  assert.equal(hidden.hostHeldCallable,true,
+    'identifier-initialized callable aliases must preserve receiver-based field escape');
+  assert.equal(hidden.safe,false);
+});
