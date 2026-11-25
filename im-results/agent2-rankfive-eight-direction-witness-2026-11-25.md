@@ -262,3 +262,10 @@ The independent run matched:
 The rank criterion follows because \(\ker(P)\cap\operatorname{span}\{e_i:i\in S\}=\{0\}\) exactly when the projection of \(\ker(P)\) onto the complementary coordinates \(T\) is injective; both spaces have dimension \(m-5\), so injectivity is equivalent to full rank. The cross-trial bound is valid after conditioning on the five-bit projections: each nonempty subset sum has an independent uniform component in the 27-dimensional kernel, while face reach depends only on the projections.
 
 This peer check validates the supplied sequences and stated bounds; it does not validate the annealer's global search or establish optimality. The expected query saving remains only about 0.254, while expected face evaluations and direction words increase, so this result alone does not justify integration or a runtime claim.
+
+
+### Fixed-face-set order optimality and ties
+
+The independent checker now also runs an exact subset DP over all orderings of each supplied fixed face set. It reproduces the exact one-trial expectations \(E_7=1040519433/16777216\) and \(E_8=37202797641/536870912\), and counts **28,800 optimal m=7 orders** and **138,240 optimal m=8 orders**. Thus the reported sequences are globally optimal for their respective fixed face sets, but are not unique; the alternative C++ m=8 sequence is another optimal tie. This does not establish global optimality over face-set selection.
+
+See the updated independent checker \`sims/agent43-rankfive-m8-independent-check.py\` (commit \`c35eeab7caeae2f92c0e21751f1a3cee265a7d97\`).
