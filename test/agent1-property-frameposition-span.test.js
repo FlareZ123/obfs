@@ -43,7 +43,8 @@ test('real Chromium strict ESM private-object rewrites preserve later FramePosit
   const output=obfuscateFiles([{
     path:'generated.mjs',sourceType:'module',code:source
   }],{
-    mode:'coo',closedWorld:true,seed:'agent1-property-frameposition-span',
+    mode:'coo',closedWorld:false,seed:'agent1-property-frameposition-span',
+    experimentalLocalPropertySpanPreservation:true,
     identifiers:false,strings:false,properties:true
   }).files[0];
   const generatedCode=String(output.code);
@@ -104,6 +105,32 @@ test('real Chromium strict ESM private-object rewrites preserve later FramePosit
   }
 });
 
+
+test('experimental local property-span mode is opt-in and works in all three modes',()=>{
+  for(const mode of /** @type {Array<'coo'|'sco'|'sno'>} */(['coo','sco','sno'])) {
+    const span=obfuscateFiles([{
+      path:'mode-'+mode+'.mjs',sourceType:'module',code:source
+    }],{
+      mode,closedWorld:false,seed:'agent1-property-frameposition-span/'+mode,
+      identifiers:false,strings:false,properties:true,
+      experimentalLocalPropertySpanPreservation:true
+    }).files[0];
+    assert.equal(span.metrics.properties,3,mode+' should retain all three long-key rewrites');
+    assert.equal(String(span.code).length,source.length,
+      mode+' property-only output must preserve UTF-16 source width');
+    const ordinary=obfuscateFiles([{
+      path:'ordinary-'+mode+'.mjs',sourceType:'module',code:source
+    }],{
+      mode,closedWorld:false,seed:'agent1-property-frameposition-default/'+mode,
+      identifiers:false,strings:false,properties:true
+    }).files[0];
+    assert.equal(ordinary.metrics.properties,3,
+      mode+' default property rename yield must remain unchanged');
+    assert.notEqual(String(ordinary.code).length,source.length,
+      mode+' default mode is not required to preserve property source width');
+  }
+});
+
 test('span-preserving property mode refuses short keys and unsupported edit forms',()=>{
   const fixtures=[
     {name:'short-key',code:'const owner={x:21};const value=owner.x;export {value};'},
@@ -115,7 +142,8 @@ test('span-preserving property mode refuses short keys and unsupported edit form
     const output=obfuscateFiles([{
       path:fixture.name+'.mjs',sourceType:'module',code:fixture.code
     }],{
-      mode:'coo',closedWorld:true,seed:'agent1-property-frameposition-refusal',
+      mode:'coo',closedWorld:false,seed:'agent1-property-frameposition-refusal',
+      experimentalLocalPropertySpanPreservation:true,
       identifiers:false,strings:false,properties:true
     }).files[0];
     assert.equal(output.metrics.properties,0,fixture.name+' must not perform a width-unsafe or unsupported rewrite');
