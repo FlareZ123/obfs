@@ -68,3 +68,18 @@ The first correction attempt exposed strict external-JSDoc errors in the newly a
 - These tests validate a single-file effect-analysis helper. They do not establish cross-file/import flow, general Proxy/reflection completeness, compiler semantic equivalence, browser behavior, resistance to dynamic instrumentation, or the 2.5x runtime budget.
 - The existing local-mutator-parameter precision TODO remains unresolved and should remain fail-closed.
 - Agent 10 should review the narrow later-spread correction before adopting it into the donor branch. Follow-up should test nested/unknown spread sources and preserve the conservative behavior when the source cannot be proven.
+
+
+## Accessor control and current-production boundary
+
+A fourth case covers a later spread whose source object defines `get callback(){ return hidden; }`. Object spread invokes the getter and copies its returned callable. The donor helper retains the getter function as a host-held callable; closure propagation then retains the returned `hidden` function. Runtime capture and source observation passed in [45612219160](https://github.com/FlareZ123/obfs/actions/runs/45612219160): 4/4 tests on Ubuntu and Windows, with all three JSDoc stages passing.
+
+The corresponding behavior is not currently admitted by the production property-renaming gates on `main`:
+
+- `src/properties.js` local-object candidate admission requires every object member to be an ordinary `Property` of kind `init`, with a supported inert value; a `SpreadElement` makes the candidate fail at lines 1301–1304.
+- `src/cross-properties.js` `inertFormalActualValue` likewise requires every object member to be an ordinary `Property` of kind `init` and rejects spreads at lines 2059–2068. Cross-file object candidate admission also rejects non-`Property` members at lines 2593–2595.
+- `proveLocalObject` rejects member uses inside function bodies unless that function has independently passed the private-function proof (around lines 940–945).
+
+Therefore this is a demonstrated false-safe in the experimental donor helper, not a demonstrated production rename bug. Production currently avoids this particular spread case by refusing the relevant object shape; the tradeoff is lost obfuscation coverage, not proven unsafe transformation.
+
+The final donor branch head after adding the accessor control is `997aeaa80636a0be48ee0635b49b8b2bf4fffd41`. The Agent 10 suite and 116-case combined donor bundle were validated at the preceding code head `1c8698ec1463c83062dd244b57e8976615f2cbda`; the only subsequent change was this additional test file case, not helper code.
