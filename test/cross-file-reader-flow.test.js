@@ -539,6 +539,26 @@ test('source observation of an imported reader vetoes grouped owner roots in all
   for(const mode of ['coo','sno','sco'])await check(exposed+reader,main,0,mode);
 });
 
+test('reflection through a sibling owner alias vetoes shared-root renaming in all modes',async()=>{
+  const main='import {state as left,state as right} from "./state.mjs";'+
+    'const local=value=>value.secretField;'+
+    'console.log(local(left),Object.keys(right).length);';
+  for(const mode of ['coo','sno','sco'])await check(exposed,main,0,mode);
+});
+
+test('same exported name from different modules is not one shared root',async()=>{
+  const files=[
+    {path:'state.mjs',sourceType:'module',code:'export const state={secretField:23};'},
+    {path:'other.mjs',sourceType:'module',code:'export const state={secretField:47};'},
+    {path:'main.mjs',sourceType:'module',code:
+      'import {state as left} from "./state.mjs";'+
+      'import {state as right} from "./other.mjs";'+
+      'const local=value=>value.secretField;'+
+      'console.log(local(left),local(right));'}
+  ];
+  for(const mode of ['coo','sno','sco'])await preserves(files,0,mode);
+});
+
 test('re-exporting a sibling owner alias vetoes shared-root renaming in all modes',async()=>{
   const main='import {state as left,state as right} from "./state.mjs";'+
     'const local=value=>value.secretField;'+
