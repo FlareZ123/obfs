@@ -225,3 +225,24 @@ test('a callable stored in an exported class field and returned by a method is h
     'exported class field values are reachable through instance methods');
   assert.equal(hidden.safe,false);
 });
+
+
+test('an exported class field closure propagates its captured callable',()=>{
+  const source=
+    'function hidden(){return 1;}'+
+    'class C{#callback=()=>hidden;getCallback(){return this.#callback;}}'+
+    'module.exports=C;';
+  /** @type {{module:{exports:unknown}}} */
+  const context={module:{exports:null}};
+  vm.runInNewContext(source,context);
+  /** @type {unknown} */
+  const caught=vm.runInNewContext('new module.exports().getCallback()()',context);
+  assert.equal(typeof caught,'function');
+  assert.match(Function.prototype.toString.call(caught),/function hidden/u);
+
+  const result=analyze(source);
+  const hidden=named(result,'hidden')[0];
+  assert.ok(hidden);
+  assert.equal(hidden.hostHeldCallable,true);
+  assert.equal(hidden.safe,false);
+});
