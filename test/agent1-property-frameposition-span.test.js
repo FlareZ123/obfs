@@ -354,6 +354,7 @@ test('real Chromium strict ESM lazy string-span decoding preserves later FramePo
     const address=server.address();
     if(!address||typeof address==='string')throw new Error('Missing Chromium fixture port');
     const payload=JSON.parse(await dumpDom('http://127.0.0.1:'+address.port+'/'));
+    process.stdout.write('AGENT1_STRING_PAYLOAD '+JSON.stringify(payload)+'\\n');
     assert.deepEqual(payload.values,['Span preserving string with emoji 😀Span preserving string with emoji 😀','Span preserving string with emoji 😀Span preserving string with emoji 😀']);
     assert.equal(payload.stacks.length,2);
     const native=parseFrame(payload.stacks[0],'/native-strings.mjs');
