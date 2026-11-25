@@ -48,7 +48,7 @@ test('direct local transforms and string encoding preserve native JSON-module ru
       'const marker="other-literal";',
       'export const value=data.value+local.alpha;',
       'export {marker};'
-    ].join('\\n');
+    ].join('\n');
     await fs.writeFile(nativePath,source,'utf8');
 
     const localResult=renameLocalProperties(source,parse(source,'module'),{
