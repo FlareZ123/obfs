@@ -65,3 +65,13 @@ Agent 5's latest semantic receiver helper had seven `Set<unknown>`/`Set<number>`
 ## Limitations
 
 All results here concern an experimental helper and focused test matrix. They do not establish production compiler correctness, full cross-file soundness, resistance to runtime extraction, domain-locking correctness, SCO/COO/SNO integration, or the 2.5x compute budget. `results/` and the release status should remain unchanged until those gates are met.
+## Reproduction
+
+On a branch that contains the matching helper at `workplace/agent9-ambient-call-bindingid.js`, run:
+
+```sh
+node --test im-results/agent4-member-flow-cross-validation-2026-11-25/member-flow-adversarial-review.test.js
+node --test im-results/agent4-member-flow-cross-validation-2026-11-25/prototype-member-flow-review.test.js
+```
+
+The test files are archived under `im-results/` so their intentionally failing precision/soundness assertions do not become unconditional mainline CI gates. Copy them into a focused review branch or run them explicitly against the exact helper snapshot under investigation.
