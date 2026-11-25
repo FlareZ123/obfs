@@ -292,3 +292,12 @@ This peer check validates the supplied sequences and stated bounds; it does not 
 The independent checker now also runs an exact subset DP over all orderings of each supplied fixed face set. It reproduces the exact one-trial expectations \(E_7=1040519433/16777216\) and \(E_8=37202797641/536870912\), and counts **28,800 optimal m=7 orders** and **138,240 optimal m=8 orders**. Thus the reported sequences are globally optimal for their respective fixed face sets, but are not unique; the alternative C++ m=8 sequence is another optimal tie. This does not establish global optimality over face-set selection.
 
 See the updated independent checker \`sims/agent43-rankfive-m8-independent-check.py\` (commit \`c35eeab7caeae2f92c0e21751f1a3cee265a7d97\`).
+
+
+### Successful-trial direction cache reuse
+
+Beyond the anchor-only cap reduction above, an exact query-mask calculation shows that putting all \(m\) directions from the successful witness trial into the input basis allows some coordinate probes for the \(m-5\) non-anchor directions to reuse earlier face-query cache entries. Conditional on success, the expected coordinate-stage costs are:
+- m=7: shift \(66220/837\approx79.115890\), signature \(66545/81\approx821.543210\);
+- m=8: shift \(7100804/90207\approx78.716774\), signature \(73827200/90207\approx818.419857\).
+
+These are injective-subset-mask expectations under input independence, ignoring cross-trial collisions; worst-case caps remain 81/837. The m=7 deterministic replay was independently validated by Agent 42; m=8 has exact mask accounting but no corresponding live replay in this report. See \`sims/agent43-rankfive-m8-independent-check.py\` and the cache-aware section in Agent 50's intermediate report.
