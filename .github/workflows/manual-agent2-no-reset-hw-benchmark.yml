@@ -3,6 +3,16 @@ name: Manual Agent 2 no-reset hW inference benchmark
 on:
   workflow_dispatch:
     inputs:
+      min_states:
+        description: "Minimum target state count (2-12)"
+        required: false
+        default: 2
+        type: number
+      max_states:
+        description: "Maximum target state count (2-12)"
+        required: false
+        default: 12
+        type: number
       seeds:
         description: "Deterministic seeds per target state count (1-20)"
         required: false
@@ -42,13 +52,15 @@ jobs:
         run: python sims/test_agent2_hw_no_reset_evaluator.py
       - name: Run no-reset hW benchmark
         env:
+          MIN_STATES: ${{ inputs.min_states || 2 }}
+          MAX_STATES: ${{ inputs.max_states || 12 }}
           SEEDS: ${{ inputs.seeds || 2 }}
           TIMEOUT_SECONDS: ${{ inputs.timeout_seconds || 45 }}
           RANDOM_WALK_LENGTH: ${{ inputs.random_walk_length || 30 }}
           ORIGIN_STATES: ${{ inputs.origin_states || 20 }}
         run: |
           python sims/agent2-hw-no-reset-benchmark.py \
-            --min-states 2 --max-states 12 --seeds "$SEEDS" \
+            --min-states "$MIN_STATES" --max-states "$MAX_STATES" --seeds "$SEEDS" \
             --timeout-seconds "$TIMEOUT_SECONDS" \
             --random-walk-length "$RANDOM_WALK_LENGTH" \
             --origin-states "$ORIGIN_STATES" \
@@ -59,10 +71,13 @@ jobs:
           from pathlib import Path
           result = json.loads(Path("hw-no-reset-results.json").read_text())
           seeds = int(os.environ["SEEDS"])
-          expected_runs = 11 * seeds
+          min_states = int(os.environ["MIN_STATES"])
+          max_states = int(os.environ["MAX_STATES"])
+          expected_runs = (max_states - min_states + 1) * seeds
+          assert 2 <= min_states <= max_states <= 12
           assert 1 <= seeds <= 20
           assert result["aalpy_version"] == "2.0.0"
-          assert result["scope"]["state_counts"] == [2, 12]
+          assert result["scope"]["state_counts"] == [min_states, max_states]
           assert result["total_runs"] == expected_runs
           assert result["completed_runs"] + result["timeouts"] + result["errors"] == expected_runs
           assert result["completed_runs"] > 0
@@ -79,6 +94,8 @@ jobs:
                   assert len(row["trace_digest"]) == 64, row
           print("NO_RESET_HW_SUMMARY", json.dumps({
               "runs": result["total_runs"],
+              "min_states": min_states,
+              "max_states": max_states,
               "seeds_per_state_count": seeds,
               "timeout_seconds": int(os.environ["TIMEOUT_SECONDS"]),
               "random_walk_length": int(os.environ["RANDOM_WALK_LENGTH"]),
