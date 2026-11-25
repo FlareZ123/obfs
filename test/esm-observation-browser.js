@@ -96,7 +96,7 @@ function page() {
 }
 
 /**
- * Test six actual network-served, original vs generated ESM module graphs
+ * Test eight actual network-served, original vs generated ESM module graphs
  * with Chrome's genuine ESM linker and external host callback support.
  * @returns {Promise<{cases:number,nativeBrowserParity:true,protectedPrivateFields:number,observerRefusals:number,normalizedPublicFields:number}>}
  */
@@ -105,8 +105,8 @@ async function main() {
   const files=new Map();
   let normalizedPublicFields=0;
   for(const item of CASES) {
-    const fixture=item.files?{files:item.files}:makeFixture(7,item.kind);
-    if(!item.files)assert.equal(fixture.scenario,SCENARIOS[item.kind]);
+    const fixture=item.files?{files:item.files,scenario:null}:makeFixture(7,item.kind);
+    if(fixture.scenario!==null)assert.equal(fixture.scenario,SCENARIOS[item.kind]);
     const protectedFiles=obfuscateFiles(fixture.files,{
       mode:'coo',closedWorld:true,identifiers:false,strings:false,
       seed:'esm-observer-browser-'+item.name
