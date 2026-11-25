@@ -198,6 +198,29 @@ test('Object.getOwnPropertyDescriptor cannot hide a callable field value',()=>{
     'property-descriptor reflection must conservatively retain the callable field');
 });
 
+test('direct eval cannot hide a callable member read from a local instance',()=>{
+  const source=
+    'let owner;'+
+    'function hidden(){return 1;}'+
+    'class Local{callback=hidden;}'+
+    'function entry(){owner=new Local();eval("external(owner.callback)");}'+
+    'module.exports=entry;';
+  assertHeld(hiddenSummary(source),
+    'direct eval can inspect the local lexical environment and must fail closed');
+});
+
+test('a Function-constructor reader cannot hide a callable passed as its receiver',()=>{
+  const source=
+    'let owner;'+
+    'function hidden(){return 1;}'+
+    'class Local{callback=hidden;}'+
+    'const read=new Function("value","return value.callback;");'+
+    'function entry(){owner=new Local();external(read(owner));}'+
+    'module.exports=entry;';
+  assertHeld(hiddenSummary(source),
+    'a dynamically generated reader is an unknown call boundary for the receiver value');
+});
+
 test('a callable field behind an unknown Proxy constructor is conservatively held',()=>{
   const source=
     'let owner;'+
