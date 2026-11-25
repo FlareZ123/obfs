@@ -54,6 +54,12 @@ jobs:
               "ambiguous_future_behavior_runs": result["ambiguous_future_behavior_runs"],
               "false_future_convergences": result["false_future_convergences"],
               "initial_state_identified": result["initial_state_identified"],
+              "ambiguous_initial_behavior_runs": sum(
+                  bool(row.get("ambiguous_initial_behavior")) for row in result["results"]
+              ),
+              "false_initial_convergences": sum(
+                  bool(row.get("false_initial_convergence")) for row in result["results"]
+              ),
               "elapsed_seconds": result["elapsed_seconds"],
           }, sort_keys=True))
           PY
