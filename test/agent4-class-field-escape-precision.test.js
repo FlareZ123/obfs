@@ -45,7 +45,10 @@ test('exporting the class publishes public instance field callables',()=>{
     'export class Local{callback=hidden;}';
   const hidden=named(analyze(source,'module'),'hidden')[0];
   assert.ok(hidden);
-  assert.equal(hidden.hostHeldCallable,true,JSON.stringify(hidden));
+  assert.equal(hidden.externallyReachable,true,
+    'exporting the class makes its public field callable externally reachable');
+  assert.equal(hidden.hostHeldCallable,false,
+    'the class export is an external-reachability effect, not a host-held field write');
   assert.equal(hidden.safe,false);
 });
 
