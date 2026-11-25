@@ -1102,6 +1102,12 @@ function summarizeAmbientCallEffects(ast,sourceType) {
       markCallableValuesHeld(node.right,'host-held-callable',node.start,node.end);
     } else if(node.type==='WithStatement') {
       markCallableValuesHeld(node.object,'host-held-callable',node.start,node.end);
+      // A with-object Proxy can intercept lexical names in the body. The
+      // current resolver does not provide a sound binding map for every
+      // intercepted reference, so conservatively retain all callable sources
+      // in this source unit until WithEnvironment effects are modeled.
+      for(const target of allFunctionNodes)
+        addReason(target,{kind:'with-binding-lookup',start:node.start,end:node.end},'HostHeldCallable');
     } else if(node.type==='ObjectPattern'||node.type==='ArrayPattern') {
       const parent=parentByNode.get(node);
       if(parent?.type==='VariableDeclarator'&&parent.init)
