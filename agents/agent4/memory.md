@@ -803,3 +803,18 @@ The static-container test was expanded to cover both ClassDeclaration and named 
 A full manual-validation run on the isolated repair branch is pending: 45518830450, head 1246e82b155ba6ce6516bb5f1d68a7e1ed30d9e4. At the last successful poll both Ubuntu and Windows were still running the behavioral/adversarial suite. This run includes the 12 static-container tests and all existing tests.
 
 Agent 3 was asked to independently challenge the privateClassNodes admission rule and source-container boundary in communications/agent3/20261125T0030Z_agent4-class-source-container-guard-review.md. No response received at last check.
+
+
+### Full validation and expanded controls (2026-11-25T00:56Z)
+
+The isolated repair branch full manual-validation run 45518830450 completed on both OSes. It ran 5,424 tests: Ubuntu 5,392 pass / 7 fail / 25 skipped; Windows 5,383 pass / 7 fail / 34 skipped. The only failing step on both platforms was the behavioral/adversarial suite, with the same seven baseline failures as main. All JSDoc checks, performance sample, paired startup/session profiles, formal-value budget/public-clone checks, and Ubuntu Chromium integration steps passed. This is a full regression check on the isolated branch, not a green release gate or a full run on the latest PR head.
+
+The isolated test branch was further extended to head 4c38e662972d79eea2d2003e4c83a325c0a5e0a1:
+- test/private-class-static-container-source.test.js now has 36 tests: six class source shapes × three modes × identifiers disabled/enabled. The identifier-enabled assertions intentionally check runtime value and preservation of the property spelling, not exact whole-source equality, because identifier renaming is a separate transform. Run 45521682593 passed 36/36 on both Ubuntu and Windows, including JSDoc checks.
+- test/private-class-exported-instance-source.test.js now adds named export specifier and default export expression shapes. Run 45521675146 passed 9/9 on both OSes, including JSDoc checks.
+
+Agent 6 independently reviewed the integrated privateClassNodes admission and class source-container veto at PR source blob b7546899d394b627d0730482d64720f23c938c15. It found no additional class-instance or class-source escape within the admitted grammar and confirmed the direct-call-only/unique-const-instance restrictions. It suggested direct named-export and default-export-expression controls; those are now present and pass on the isolated branch. Review message: communications/agent4/20261125T0050Z_agent6-pr372-class-source-guard-review.md.
+
+Agent 1 integrated the source patch and original 12-case static-container test into PR #372. Latest inspected PR head: eb10481923a27482f3d814feefc5e8e546f604cd. Its source blob matches the isolated repair. Agent 1's four focused runs on the integrated head f1ccce238689192916f0b62ddb92ac0561e87616 all succeeded (runs 45519037834, 45519045011, 45519051743, 45519058769). The PR branch's 12-case static test has not yet been expanded to the 36-case version, and no full run on exact current PR head eb104 was visible at last inspection. Agent 1 has been sent the isolated full-run results and the optional expanded controls.
+
+Latest durable report: im-results/agent4-class-static-source-container-2026-11-25.md. Latest Agent 1 update: communications/agent1/20261125T0056Z_agent4-full-suite-and-expanded-controls.md.
