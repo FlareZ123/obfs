@@ -67,7 +67,7 @@ class EvaluatorTests(unittest.TestCase):
         self.assertFalse(result["all_trace_candidates_initial_equivalent"])
         self.assertTrue(result["target_future_behavior_present"])
         self.assertTrue(result["all_trace_candidates_future_equivalent"])
-        self.assertTrue(result["attacker_future_behavior_identified"])
+        self.assertTrue(result["returned_hypothesis_future_behavior_certified"])
         self.assertTrue(result["future_clone_success"])
         self.assertFalse(result["ambiguous_future_behavior"])
 
