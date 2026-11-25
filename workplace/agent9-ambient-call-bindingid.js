@@ -1648,6 +1648,26 @@ function summarizeAmbientCallEffects(ast,sourceType) {
   /** @param {AstNode|null|undefined} value @param {AstNode|null} fn @returns {AstNode[]} */
   function callableNodesForValueWithReceiver(value,fn) {
     if(!value)return [];
+    // A local arrow call can expose a this-bound value even when the call
+    // expression itself contains no ThisExpression. Resolve its return under
+    // the receiver environment attached to the arrow at its lexical creation
+    // site; ordinary functions keep their dynamic-this semantics.
+    if(value.type==='CallExpression') {
+      const targets=callableNodesForValue(value.callee);
+      const receiverBoundReturns=targets.flatMap(target=>{
+        if(target.type!=='ArrowFunctionExpression')return [];
+        const receivers=receiverExpressionsByFunction.get(target)??[];
+        return receivers.flatMap(receiver=>
+          functionReturnExpressions(target).flatMap(expression=>
+            memberReturnExpressionsWithReceiver(expression,receiver,new Set())));
+      });
+      if(receiverBoundReturns.length) {
+        return [...new Set([
+          ...receiverBoundReturns.flatMap(candidate=>callableNodesForValue(candidate)),
+          ...callableNodesForValue(value)
+        ])];
+      }
+    }
     let usesThis=false;
     walkAst(value,node=>{if(node.type==='ThisExpression'||node.type==='Super')usesThis=true;});
     if(!usesThis)return callableNodesForValue(value);
