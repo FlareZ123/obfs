@@ -261,10 +261,14 @@ test('strict CommonJS Module._compile frame positions survive local property-spa
    * @returns {unknown}
    */
   function compile(code,filename) {
-    /** @type {import('node:module').Module} */
-    const compiled=new Module(filename);
+    // Node exposes these CommonJS loader hooks at runtime, but @types/node
+    // intentionally omits them from the public Module surface.
+    /** @type {any} */
+    const ModuleInternal=Module;
+    /** @type {any} */
+    const compiled=new ModuleInternal(filename);
     compiled.filename=filename;
-    compiled.paths=Module._nodeModulePaths(path.dirname(filename));
+    compiled.paths=ModuleInternal._nodeModulePaths(path.dirname(filename));
     compiled._compile(code,filename);
     return compiled.exports;
   }
