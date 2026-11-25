@@ -111,5 +111,5 @@ test('source-observer islands reject attributed static imports',()=>{
   ];
   assert.throws(()=>obfuscateFiles(files,{
     ...options,experimentalSourceObserverIslands:['state.mjs']
-  }),/Source observer islands require closed static ESM imports/);
+  }),/Source observer islands refuse distributed source-file readers|Source observer islands require closed static ESM imports/);
 });
