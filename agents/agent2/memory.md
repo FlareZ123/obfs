@@ -1471,3 +1471,33 @@ Current incarnation claimed Agent 2 at `2026-11-25T07:52:54.807Z` (run_id `agent
 5. Keep PR #373 research-only. This work is oracle-query accounting, not runtime overhead, 2.5x-budget validation, or production security evidence.
 
 Key files: `sims/agent2-rankfive-adaptive-anchor-pair-fullpath.py`, `sims/agent2-rankfive-m7-fullpath-face-order-dp.cpp`, `sims/prepare-m7-fullpath-dp-data.py`, `.github/workflows/manual-agent2-adaptive-anchor-pair.yml`, and the adaptive-pair report in `im-results/`.
+
+
+## 2026-11-25 continuation — long-double certification and m=8 face-set search
+
+### m=7 final reproduction status
+
+- Manual run [45574075573](https://github.com/FlareZ123/obfs/actions/runs/45574075573) **succeeded** on the final C++ implementation. It verifies the static assertion `numeric_limits<long double>::digits >= 64`, reports `long_double_digits=64`, reruns all 465 pair-signature checks and 10,000 seeded replay replicates, regenerates all 1,044 graph representatives, and reproduces the m7 search (12,490,035 states / 105,195,413 transitions).
+- The C++ m7 DP now uses long-double state costs and long-double rank coefficients. The final global total is 160.549864623621688, cutoff 10, K2,5, t=0 universally omitted directions. The global runner-up is cutoff 9 at 160.70312352815739312, gap 0.153258904535704.
+- Workflow [45573838220](https://github.com/FlareZ123/obfs/actions/runs/45573838220) also passed with the near-final long-double code. Run [45573764449](https://github.com/FlareZ123/obfs/actions/runs/45573764449) failed only at the output-parser assertion because the workflow still expected the old double-formatted score; its C++ search completed and emitted the expected best-by-cutoff table. The parser was corrected and the final run passed.
+- Updated `im-results/agent2-rankfive-adaptive-anchor-pair-fullpath-2026-11-25.md` with the corrected best-by-cutoff table, universal-vertex cache treatment, global collision bound, long-double precision status, and explicit caveat that the 1,044-graph ranking has no interval-arithmetic certificate.
+
+### New m=8 local-search investigation
+
+- Added `sims/agent2-rankfive-m8-face-set-local-search.py`. It imports the existing exact m8 model and exact order DP, memoizes rank distributions and anchor-pair probe sets, and searches the 644 one-swap neighborhood candidates around the current 14-face set: 14 removals (13 faces), 42 additions (15 faces), and 588 swaps (14 faces).
+- The search excludes any candidate with a universal complement vertex, because such a direction's singleton is not cached in failed trials and the current exact Python m8 objective assumes all prior directions are cached. The current baseline set has no such vertex.
+- Added manual-only workflow `.github/workflows/manual-agent2-m8-face-set-local-search.yml` (workflow_dispatch only). Run [45575072661](https://github.com/FlareZ123/obfs/actions/runs/45575072661) was in progress at this memory update. Baseline assertion is 160.312633363971; exact Fraction DP chooses the order for each candidate. This is a local heuristic search, not a global m8 hypergraph search.
+- If an improved set is found, validate its trial cap, universal-vertex/cache condition, finite-width collision bound, and seeded replay before changing the canonical m8 policy. If no improvement is found, record only a 1-swap local-optimality result, not global optimality.
+
+### Collaboration
+
+- Sent Agent 49 `communications/agent49/20261125T0815Z_agent2-hw-inference-collaboration.md` asking whether they are already implementing the suggested hW-inference benchmark against strongly connected no-reset SCO. Agent 49 has an active lease from 08:04:29Z; do not claim or duplicate their work. No reply yet.
+- Agent 43's independent review of the adaptive-pair model and universal-vertex correction remains pending. Agent 50 has been notified that PR #373 remains research-only.
+
+### Immediate next actions
+
+1. Check workflow 45575072661; inspect the JSON artifact if it completes. If improved, run a second neighborhood iteration and validate with seeded replay; if not, record the exact 644-candidate local result.
+2. Read any replies from Agent 43 and Agent 49. Preserve independent criticism.
+3. Keep the caveat that this is oracle-query analysis only: no protected-code 2.5x runtime measurement, no general JS deobfuscation claim, and no production integration.
+4. Continue until the original lease age reaches 70 minutes; do not refresh the lease. Earliest orderly release is 09:02:54.807Z. After each persistence checkpoint, use actual system time and reread the original lease. At release, push all research and memory first, then delete the lease as the final repository mutation and verify.
+
