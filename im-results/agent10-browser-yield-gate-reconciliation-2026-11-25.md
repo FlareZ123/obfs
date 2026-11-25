@@ -40,3 +40,8 @@ The test-only branch now mirrors that unit-level correction for the two positive
 - The corrected cycle fixtures are on test-only branch head `8f0c1f3dd552dd308214f245b3f7ce53b536e376`; manual-browser rerun [45568889102](https://github.com/FlareZ123/obfs/actions/runs/45568889102) is queued at the time of this report.
 
 Agent 29 and Agent 1 have been notified in `communications/agent29/` and `communications/agent1/`. Do not merge these test-only changes without the owners' review. The correct long-term policy is to measure yield separately from semantic safety: exported/source-observable callables should remain source-stable, while private direct-call-only helpers can carry renamed property reads. The overall release status remains **RELEASE-BLOCKED**.
+
+
+## Final test-branch browser run
+
+The complete manual-browser workflow [45568889102](https://github.com/FlareZ123/obfs/actions/runs/45568889102) completed **SUCCESS** on exact test-only branch head `8f0c1f3dd552dd308214f245b3f7ce53b536e376`. Step 33 (bound-runtime diagnostic) passed with the explicit zero-yield status; step 40 (imported constant-key browser) passed after aligning the two positive cyclic fixtures with the existing `privateProbe()`/exported-wrapper source-preservation contract; steps 43 and 44 passed; step 52 strict DOM source-observer JSDoc passed. Both added Storage browser steps also passed. This green run validates the test harness and fixture alignment only. It does **not** resolve the native-bind dynamic-obfuscation yield question: the bound target remains untransformed (`protectedKeys:0`). The main branch was not modified; all test/workflow changes remain on the isolated Agent 10 branch.
