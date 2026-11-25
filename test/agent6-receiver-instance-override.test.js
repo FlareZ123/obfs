@@ -266,3 +266,24 @@ test('an escaped class-field arrow retains its constructed instance receiver',()
   assert.equal((/** @type {Function} */ (callback))().name,'hidden');
   assert.equal(hiddenSummary(source).hostHeldCallable,true);
 });
+
+
+test('an early host escape can intercept a later base-constructor write before a derived field overwrites it',()=>{
+  const source=
+    'function hidden(){return 1;}'+
+    'class Base{constructor(){external(this);this.callback=hidden;}}'+
+    'class Local extends Base{callback=1;}'+
+    'const instance=new Local();';
+  /** @type {unknown} */
+  let observed=null;
+  /** @param {object} instance */
+  function external(instance) {
+    Object.defineProperty(instance,'callback',{
+      configurable:true,
+      set:/** @type {(value:unknown)=>void} */ (value=>{observed=value;})
+    });
+  }
+  runInNewContext(source,{external});
+  assert.equal((/** @type {Function} */ (observed)).name,'hidden');
+  assert.equal(hiddenSummary(source).hostHeldCallable,true);
+});
