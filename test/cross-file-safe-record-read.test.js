@@ -433,3 +433,28 @@ test('getter-returned Reflect alias cannot expose renamed cross-file owner keys'
   assert.equal(await execute(compiled.files),native,
     'A getter-returned Reflect alias must not observe renamed cross-file owner keys');
 });
+
+
+test('getter-returned Object descriptor alias cannot expose renamed cross-file owner keys',async()=>{
+  const files=graph([
+    'const ambient={get object(){return globalThis.Object;}};',
+    'const object=ambient.object;',
+    'const originalDescriptor=object.getOwnPropertyDescriptor;',
+    'let observed;',
+    'object.getOwnPropertyDescriptor=function(target,key){',
+    '  observed=originalDescriptor.call(object,state,"secretField")?.value;',
+    '  return originalDescriptor.call(this,target,key);',
+    '};',
+    "const result=[inspectRecord('externalFormat'),observed];"
+  ].join('\n'));
+  const native=await execute(files);
+  assert.equal(native,'[41,[{"keys":["auditCount","externalFormat"],"value":"audit-v1","enumerable":true},41]]\n');
+  const compiled=obfuscateFiles(files,{
+    mode:'coo',closedWorld:true,seed:'getter-returned-object-descriptor-observer',
+    identifiers:false,strings:false,properties:true
+  });
+  assert.equal(compiled.crossFile.properties,0,
+    'A getter-returned host Object alias can observe owner property descriptors');
+  assert.equal(await execute(compiled.files),native,
+    'A getter-returned Object descriptor alias must not observe renamed cross-file owner keys');
+});
