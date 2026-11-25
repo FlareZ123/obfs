@@ -77,7 +77,7 @@ The older Agent 4 donor branch is useful as a falsifier and has a more precise P
 
 ## Production compiler source-observation red controls
 
-The production-source files under `src/` were compared by blob SHA between the review branch and `main`: all 43 files were identical. The same 43 `src/` blobs were also identical to the last successful full-suite baseline commit `3944455a30cf50e43a7e964f2e711d7657847bad`. No production source was changed in this investigation.
+The production-source files under `src/` were compared by blob SHA between the review branch and current `main`: all 43 files were identical. They were also identical to commit `3944455a30cf50e43a7e964f2e711d7657847bad`, but that earlier run was a **focused** validation, not a full-suite baseline. No production source was changed in this investigation.
 
 ### Node / CommonJS exported-factory red control
 
@@ -107,9 +107,9 @@ The focused run [45632580720](https://github.com/FlareZ123/obfs/actions/runs/456
 
 ## Full-suite validation and baseline comparison
 
-A full manual validation run was dispatched on the review branch at `413797b`: [run 45633142987](https://github.com/FlareZ123/obfs/actions/runs/45633142987). Its Ubuntu behavioral-suite step reported 12 existing property/boundary test failures; the run was still in progress at the last check. The same workflow was dispatched on current `main` for a baseline comparison: [run 45634926207](https://github.com/FlareZ123/obfs/actions/runs/45634926207), also still in progress at the last check.
+A full manual validation run was dispatched on the review branch at `413797b`: [run 45633142987](https://github.com/FlareZ123/obfs/actions/runs/45633142987). It completed with 12 behavioral-suite failures on both Ubuntu and Windows (5,468/5,480 and 5,458/5,470 non-skipped tests passed respectively); strict JSDoc, benchmark, paired profile and browser integration steps completed. The current-main baseline run [45634926207](https://github.com/FlareZ123/obfs/actions/runs/45634926207) is still in progress.
 
-The failing test files and all 43 production `src/` files are byte-identical between the review branch and the successful 12:22 baseline commit. The review branch adds test files and Agent 2 simulation/workflow artifacts but does not alter those failing tests or production sources. Do not attribute the 12 failures to this helper patch without comparing the in-progress main baseline run.
+The review branch and current `main` have identical `src/` files and identical versions of the 12 failing test files. The review branch adds test files and Agent 2 simulation/workflow artifacts but does not alter those failing tests or production sources. However, the full current-main baseline is not yet complete, so do not attribute the 12 failures to the helper patch or call them baseline failures until run `45634926207` finishes.
 
 ## Communications
 
