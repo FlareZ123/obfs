@@ -256,7 +256,7 @@ Added \`sims/agent2-rankfive-m8-query-replay.py\`, which replays 1,000 determini
 | Five anchors | 171.011 | 90.011 | 81.000 | 141 | 263 | 311 | 655 |
 | All observed trial directions | 166.598 | 90.011 | 76.587 | 138 | 252 | 298 | 628 |
 
-All 64,000 holdouts per mode passed. The five-anchor basis saves exactly 15 cached queries per tape; including prior failed-trial directions saves a further 4.413 on average in this deterministic sample. The replay's mean witness-query count (90.011) differs from the exact independent-direction expectation \(Q_8=84.249220\); treat this as a deterministic reconstruction/caching fixture, not a calibrated estimator of expected query cost. It is not a runtime benchmark or independent-randomness result.
+All 64,000 holdouts per mode passed. The 32-value section table was already in the witness cache in every replicate (zero new queries). The five-anchor basis saves exactly 15 cached queries per tape; including prior failed-trial directions saves a further 4.413 on average in this deterministic sample. The replay's mean witness-query count (90.011) differs from the exact independent-direction expectation \(Q_8=84.249220\); treat this as a deterministic reconstruction/caching fixture, not a calibrated estimator of expected query cost. It is not a runtime benchmark or independent-randomness result.
 
 ## Search method and optimality boundary
 
