@@ -51,7 +51,8 @@ Changes are limited to `src/properties.js`, `src/cross-properties.js`, `test/cro
 - The initial candidate's later performance and browser steps completed. Existing paired Node session profiles reported `within2point5:true` on both platforms; this does not establish the universal 2.5× budget or measure the exact new sibling-alias fixture.
 - Expanded focused run `45583089001` on candidate head `20657dac130925c415211754a3794522317dae66` passed 66/66 tests on Ubuntu and Windows. Project JSDoc, external JSDoc, and paired-budget typechecks passed on both platforms.
 - The Chromium sibling-alias fixtures cover a private local reader (including secondary-root alias/zero-argument return flow), an imported reader, and an escaped-alias refusal. The harness compares original, emitted, and public-field-normalized module graphs and asserts that the normalizer recovers every renamed field.
-- Full manual-validation run `45583289136` is running on the current candidate head. It is expected to reproduce the known baseline 12 failures; its additional Node and Chromium fixtures must still pass before review.
+- First full run `45583289136` on the pre-integration branch exposed a browser-fixture mismatch: its custom owner object had one property, unlike the two-property owner used by the passing Node proof fixture, and the cross-file proof conservatively returned zero. The run was cancelled after the Ubuntu failure rather than spending another platform's time on the stale fixture. The browser fixtures now include the matching unused `auxiliaryField`.
+- Full manual-validation run `45584911604` is running on the current-main integration branch with the corrected browser fixtures. It must pass the added browser cases and introduce no failures beyond the known baseline set before review.
 
 ## Security and performance interpretation
 
