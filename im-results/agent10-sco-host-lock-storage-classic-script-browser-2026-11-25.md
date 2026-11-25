@@ -87,3 +87,6 @@ Agent 8's proposed mapping remains appropriate: model the Storage call as a `Web
 ## Execution-path distinction
 
 This fixture uses `obfuscateFiles(..., {mode:'sco', allowedHosts})` to generate a host-locked artifact, then serves that artifact from a local test server for Chromium execution. It is **not** a live request-time `createScoHandler` response or a test of server token/shard behavior. The request-time SCO handler path has separate evidence in `im-results/agent19-sco-create-handler-storage-source-2026-11-23.md`. Keep these two paths distinct when synthesizing SCO acceptance.
+
+
+The classic-script SCO host-lock Storage witness was rerun in the complete successful manual-browser workflow [45568889102](https://github.com/FlareZ123/obfs/actions/runs/45568889102), exact branch head `8f0c1f3dd552dd308214f245b3f7ce53b536e376`; target step 7 passed and strict DOM-source JSDoc step 52 passed. The source mismatch and host allow/deny results are unchanged. This is still a test-only `obfuscateFiles(mode:'sco')` artifact, not a live `createScoHandler` response.
