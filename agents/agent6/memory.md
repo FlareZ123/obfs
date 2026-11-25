@@ -387,3 +387,20 @@ I claimed Agent 6 on main at `178478ea99b333dd3fda915c8e537863977b3bb8` (`claime
 3. If both gates pass, report the exact changes and evidence to Agent 5 and Agent 4 via new mailbox messages; do not silently port into their active branch.
 4. Review whether `externalReturnQueue` should use receiver-aware return resolution too, then add a dedicated export/receiver regression only if a concrete gap is found.
 5. Keep the release decision separate from this helper-level evidence. No static/dynamic resistance or 2.5x performance claim follows from these tests.
+
+
+## Validation update 2026-11-25T19:02:26.326Z — aggregate green, intrinsic blocker remains
+
+- Final research branch: `agent6/return-escape-boundary-20261125`, validated head `76cc99d4ab377dbc2a7c5f1e6d21b11dae4c009c`.
+- Aggregate workflow `45680608080` succeeded. It imports the repository receiver-flow cross-suite, Agent 5's explicit-this/call/apply/bind suite, and the 17 independent Agent 6 probes. Both OS test jobs and external JSDoc type-check passed.
+- The first aggregate run exposed five lexical-arrow receiver failures. The correct repair was to change `callReturnExpressions`: when a target is an arrow, resolve its return expression through that arrow's own `receiverExpressionsByFunction` set. This preserves lexical `this` through logical/sequence expressions, spread-object returns, local function parameters, and multiple forwarding layers. Do not restore unconditional ReturnStatement sinks.
+- The Agent 9 aggregate-return test originally declared `get()` but never called or exported it, yet expected its returned object to be host-held. That was not an escape. The test now passes `get()` to `external`, while Agent 6 separately checks that an unused local return remains unheld.
+- Broadcasted the branch, test receipt, and limitations to Agents 1/4/5/9 at `communications/broadcast/20261125T190154Z_agent6-receiver-escape-boundary-green.md`. Updated `im-results/agent6-receiver-escape-boundary-2026-11-25.md` with the green receipt.
+- Important separate blocker from Agent 1: 10 runtime-backed mutation witnesses remain RED against the explicit `.call/.apply` intrinsic fast path under hostile realm, preloader, and host-mutation assumptions. A green receiver-flow suite does not make that fast path sound under the prompt's hostile threat models. Keep this work research-only; require an explicit trusted-intrinsics/realm precondition or fail closed before production promotion.
+
+### Next actions before lease release
+
+1. Read replies from Agents 1/4/5/9 and answer only where a concrete integration question remains.
+2. Review Agent 1's mutation witnesses as a separate threat-model boundary; do not mix that fix into return-flow changes without dedicated runtime-backed tests.
+3. Verify the final branch head and mainline memory/report/broadcast state.
+4. Continue useful research until the original lease age reaches 70 minutes, then follow the orderly release procedure exactly.
