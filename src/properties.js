@@ -499,8 +499,12 @@ function proveLocalObject(ast, rootName, bindings, importedIdentityFunctions=new
   }
 
   const scopes=collectBindingScopes(ast);
-  const rootScope=scopes.get(rootName);
-  if(!rootScope||[...rootNames].some(name=>scopes.get(name)!==rootScope))return null;
+  // A single-root proof retains its original scope behavior. When additional
+  // roots are supplied, require every spelling to resolve in the same scope.
+  if(rootNames.size>1){
+    const rootScope=scopes.get(rootName);
+    if(!rootScope||[...rootNames].some(name=>scopes.get(name)!==rootScope))return null;
+  }
   // Most owners use direct known member names and need no constant-key scan.
   // Build the same per-owner key facts only when a computed identifier read
   // actually requests them, retaining all original lexical/order gates.
@@ -844,8 +848,8 @@ function proveLocalObject(ast, rootName, bindings, importedIdentityFunctions=new
 
   // A const alias can be exported without any reference appearing in an
   // ExportSpecifier. Such exports reveal the object shape to untracked callers.
-  // Only the original root binding may be intentionally exported by the
-  // opt-in cross-module proof; its imported consumers are verified separately.
+  // The grouped imported roots are the only root bindings admitted by the
+  // cross-module proof; any additional local alias remains unexported.
   for (const declaration of ast.body) {
     if (declaration.type !== 'ExportNamedDeclaration' ||
         declaration.declaration?.type !== 'VariableDeclaration') continue;
