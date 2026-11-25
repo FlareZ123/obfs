@@ -114,7 +114,6 @@ def main():
     random.seed(args.oracle_seed)
     np.random.seed(args.oracle_seed)
     oracle = RandomWphWOracle(
-        sul,
         random_walk_length=args.random_walk_length,
         num_test_origin_states=args.origin_states,
     )
@@ -123,11 +122,13 @@ def main():
     try:
         with contextlib.redirect_stdout(sys.stderr):
             hypothesis, info = run_hW(
+                list(ALPHABET),
                 sul,
                 oracle,
                 automaton_type="mealy",
                 query_for_initial_state=False,
                 return_data=True,
+                print_level=0,
             )
         elapsed = time.perf_counter() - started
         if sul.counters["pre_calls"] != 1 or sul.counters["post_calls"] != 1:
