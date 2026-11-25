@@ -57,17 +57,31 @@ The current helper's generic member-assignment sink still marks the RHS of an un
 
 The class-specific `classConstructorPropertyWrites` and class-field resolution cannot undo that earlier reason. They correctly model some own-property overrides within class syntax, but they do not suppress the separate prototype-assignment sink. This explains why the three precision controls remain RED despite the green 17-case receiver-instance suite.
 
+## Experimental opt-in proof v1
+
+A narrow prototype-write shadow proof was implemented on the separate branch `agent4/prototype-member-shadow-heap-20261125`:
+
+- helper commit: `dfe466f636464701784a70921a3bf33bec49ae11`;
+- test commit: `e210e80f9edbf32ac99ec3dcd2e2308132d1f419`;
+- the helper accepts an optional `trustedPrototypeSemantics` contract, defaulting to `false`;
+- the proof accepts only a single local constructor, one direct `Constructor.prototype.key=value` assignment, one const-bound instance created immediately afterward, and direct static own writes/host-observed reads in a straight-line function body;
+- constructors must be empty, a one-field class, or a straight-line function constructor whose statements all write the same `this.key`;
+- constructor aliases/exports, inheritance, extra prototype operations, unknown statements, dynamic keys, non-const instances, instance aliases/escapes, and unmodeled control flow fail closed.
+
+The 14-case prototype suite passed on both Ubuntu and Windows in [45719686608](https://github.com/FlareZ123/obfs/actions/runs/45719686608). Strict project JSDoc, external JSDoc, and paired/complete-suite runtime-budget JSDoc passed on both platforms.
+
+The three former precision controls now assert both modes:
+- default mode retains the prototype callable (fail-closed);
+- `trustedPrototypeSemantics:true` suppresses the prototype callable only for the three statically shadowed shapes.
+
+Two adversarial trust-boundary tests constrain the opt-in:
+- a source-local `Object.defineProperty(Object.prototype, ...)` before the prototype write prevents the proof even with the opt-in;
+- an external preloader that installs an `Object.prototype.callback` setter/getter can make the runtime expose `hidden` while the trusted-mode summary suppresses it. This is an intentional demonstration that the option is a caller contract, not an analyzer-verified runtime guarantee. Setting it when a hostile preloader may exist is unsound.
+
+The broader `test/agent6-receiver-escape-boundary-cross-suite.test.js` passed on both platforms with strict JSDoc in [45719465176](https://github.com/FlareZ123/obfs/actions/runs/45719465176).
+
 ## Next research step
 
-Model a narrowly proven local `Constructor.prototype.key` write as heap state rather than an immediate escape:
-- track the constructor binding and static prototype key;
-- resolve the ordered prototype value and instance own-property writes at the actual observed read;
-- include direct function-constructor writes, class fields/constructors, and later own writes only where all relevant paths are proven;
-- skip the prototype-write escape sink only if all reachable observations are demonstrably shadowed;
-- fail closed on conditional/dynamic writes, deletion, reflection, proxies, prototype replacement, unknown calls, constructor/prototype escape, or unresolved aliases.
+Do not enable `trustedPrototypeSemantics` for COO/SNO or any environment where the attacker can install a preloader or mutate `Object.prototype`. The default-false behavior is the correct fail-closed setting there. A future production-grade precision improvement would need a runtime integrity/realm attestation that the caller can actually verify, or a different proof that does not rely on pristine inherited setter semantics.
 
-Keep this separate from the intrinsic-identity problem. The `.call`/`.apply` fast path still has independent hostile-realm counterexamples; the green receiver-flow aggregate does not repair that trust boundary.
-
-## Status
-
-Research-only; no production renamer change and no security or 2.5× performance claim. Preserve the RED precision cases as regression tests while developing a bounded heap/alias proof.
+Keep this separate from the intrinsic-identity problem. The `.call`/`.apply` fast path still has independent hostile-realm counterexamples; neither the narrow prototype proof nor the green receiver-flow aggregate repairs that trust boundary.
