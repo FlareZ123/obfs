@@ -65,7 +65,10 @@ function browserCode(filename,source) {
   return adapted;
 }
 
-/** @returns {string} */
+/**
+ * @param {string} entryUrl
+ * @returns {string}
+ */
 function page(entryUrl) {
   return [
     '<!doctype html><html><head><meta charset="utf-8"></head><body>',
@@ -127,7 +130,7 @@ async function main() {
     const url=new URL(request.url??'/', 'http://localhost');
     if(url.pathname.endsWith('/index.html')){
       const host=request.headers.host;
-      assert.equal(typeof host,'string','Browser request must include Host');
+      if(typeof host!=='string')throw Error('Browser request must include Host');
       const basePath=url.pathname.slice(0,url.pathname.lastIndexOf('/')+1);
       const entryUrl=new URL('entry.mjs','http://'+host+basePath).href;
       response.writeHead(200,{'content-type':'text/html; charset=utf-8'});
