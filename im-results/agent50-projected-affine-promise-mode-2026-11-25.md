@@ -24,62 +24,52 @@ The frozen HTTP source is pinned by SHA-256 `2b6a7b2cb348cd716e636e8e2da0817d472
 ## Exactness argument
 
 Let
-
-[
-T_F(v_1,ldots,v_5)=D^5F(v_1,ldots,v_5).
-]
+\[
+T_F(v_1,\ldots,v_5)=D^5F(v_1,\ldots,v_5).
+\]
 
 For the promised source,
+\[
+T_F(v_1,\ldots,v_5)
+=c\,\det(Pv_1,\ldots,Pv_5),
+\qquad
+c=\bigoplus_{t\in GF(2)^5}h(t)\ne0.
+\]
 
-[
-T_F(v_1,ldots,v_5)
-=c,det(Pv_1,ldots,Pv_5),
-qquad
-c=igoplus_{tin GF(2)^5}h(t)
-e0.
-]
-
-A nonzero fifth-derivative witness ((a_1,ldots,a_5)) therefore gives five vectors (Pa_i) that form a basis of the quotient. Let (q(x)) be the exact coordinate vector of (Px) in this basis, and let
-
-[
-s(t)=sum_{i=1}^5t_i a_i,
-qquad
+A nonzero fifth-derivative witness \((a_1,\ldots,a_5)\) therefore gives five vectors \((Pa_i)\) that form a basis of the quotient. Let \(q(x)\) be the exact coordinate vector of \(Px\) in this basis, and let
+\[
+s(t)=\sum_{i=1}^5t_i a_i,
+\qquad
 H(t)=F(s(t)).
-]
+\]
 
-Then (P(s(q(x)))=Px), so
+Then \(P(s(q(x)))=Px\), so
+\[
+H(q(x))=A(s(q(x)))\oplus b\oplus h(Px).
+\]
 
-[
-H(q(x))=A(s(q(x)))oplus boplus h(Px).
-]
+For each standard basis vector \(e_j\), define
+\[
+C(e_j)=F(e_j)\oplus H(q(e_j)).
+\]
 
-For each standard basis vector (e_j), define
+The \(b\) and \(h(Pe_j)\) terms cancel, giving
+\[
+C(e_j)=A(e_j\oplus s(q(e_j))).
+\]
 
-[
-C(e_j)=F(e_j)oplus H(q(e_j)).
-]
-
-The (b) and (h(Pe_j)) terms cancel, giving
-
-[
-C(e_j)=A(e_joplus s(q(e_j))).
-]
-
-Since both (A) and (q) are linear, the basis-fitted correction extends to
-
-[
-C(x)=A(xoplus s(q(x))).
-]
+Since both \(A\) and \(q\) are linear, the basis-fitted correction extends to
+\[
+C(x)=A(x\oplus s(q(x))).
+\]
 
 Consequently,
-
-[
-G(x)=H(q(x))oplus C(x)=F(x)
-]
-
+\[
+G(x)=H(q(x))\oplus C(x)=F(x)
+\]
 for every input. This is exact reconstruction under the stated promise; it does not depend on a statistical postfit acceptance event.
 
-The implementation can recover (q) by either:
+The implementation can recover \(q\) by either:
 - the three-probe fixed-pair shift matcher, when the section-table separation check passes; or
 - the fifth-derivative signature path otherwise.
 
@@ -100,10 +90,9 @@ Changes:
 - Added a 1,000-replicate deterministic query simulation for the strict-promise mode.
 
 The ordinary verified mode remains the correct default for arbitrary degree-five sources. Its Reed–Muller postfit bound is
-
-[
-(31/32)^{726}=9.765746877444843	imes10^{-11}.
-]
+\[
+(31/32)^{726}=9.765746877444843\times10^{-11}.
+\]
 
 ## Query bounds
 
