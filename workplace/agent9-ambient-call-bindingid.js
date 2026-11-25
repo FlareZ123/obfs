@@ -205,7 +205,7 @@ function summarizeAmbientCallEffects(ast,sourceType) {
       grandparent.body===parent);
   }
 
-  /** @type {Set<number>} */
+  /** @type {Set<unknown>} */
   const writtenBindings=new Set();
   for(const reference of resolved.references) {
     if(reference.resolution.kind==='local' &&
@@ -294,7 +294,7 @@ function summarizeAmbientCallEffects(ast,sourceType) {
   // A VariableDeclarator initializer is a runtime binding write even though
   // its identifier is correctly represented as a declaration, not a reference.
   // A same-ID var helper = callback can therefore overwrite a function declaration.
-  /** @type {Set<number>} */
+  /** @type {Set<unknown>} */
   const initializerOverwrittenFunctionBindings=new Set();
   for(const [bindingId,rows] of declarationsByBinding) {
     if(!rows.some(row=>row.kind==='function'))continue;
@@ -305,9 +305,9 @@ function summarizeAmbientCallEffects(ast,sourceType) {
     }
   }
 
-  /** @type {Set<number>} */
+  /** @type {Set<unknown>} */
   const topLevelScriptBindings=new Set();
-  /** @type {Set<number>} */
+  /** @type {Set<unknown>} */
   const mutableTopLevelScriptBindings=new Set();
   /** @type {Set<AstNode>} */
   const externallyReachableFunctions=new Set();
@@ -336,7 +336,7 @@ function summarizeAmbientCallEffects(ast,sourceType) {
 
   /** @type {Map<number,AstNode>} */
   const functionNodeByBinding=new Map();
-  /** @type {Set<number>} */
+  /** @type {Set<unknown>} */
   const ambiguousFunctionBindings=new Set();
   /**
    * @param {number|null} bindingId
@@ -388,7 +388,7 @@ function summarizeAmbientCallEffects(ast,sourceType) {
   /**
    * Resolve a local binding or const alias to one uniquely known function.
    * @param {number} bindingId
-   * @param {Set<number>} [seen]
+   * @param {Set<unknown>} [seen]
    * @returns {AstNode|null}
    */
   function resolveFunctionNode(bindingId,seen=new Set()) {
@@ -456,7 +456,7 @@ function summarizeAmbientCallEffects(ast,sourceType) {
       constInitializersByBinding.set(bindingId,declarator.init);
   }
 
-  /** @param {number} bindingId @param {Set<number>} [seen] @returns {AstNode|null} */
+  /** @param {number} bindingId @param {Set<unknown>} [seen] @returns {AstNode|null} */
   function initializerForBinding(bindingId,seen=new Set()) {
     if(seen.has(bindingId))return null;
     const initializer=constInitializersByBinding.get(bindingId);
@@ -821,7 +821,7 @@ function summarizeAmbientCallEffects(ast,sourceType) {
    * Resolve a local call target and expose its possible return expressions.
    * Unknown calls deliberately produce no local-value proof.
    * @param {AstNode} call
-   * @param {Set<number>} [seen]
+   * @param {Set<unknown>} [seen]
    * @returns {AstNode[]}
    */
   function callReturnExpressions(call,seen=new Set()) {
@@ -865,7 +865,7 @@ function summarizeAmbientCallEffects(ast,sourceType) {
    * Resolve class constructor values through local aliases and static object
    * members. This is intentionally limited to statically named local values.
    * @param {AstNode} value
-   * @param {Set<number>} [seen]
+   * @param {Set<unknown>} [seen]
    * @returns {AstNode[]}
    */
   function classNodesForValue(value,seen=new Set()) {
@@ -919,7 +919,7 @@ function summarizeAmbientCallEffects(ast,sourceType) {
    * Resolve a class-valued property through a local object/record value.
    * @param {AstNode} value
    * @param {string} propertyKey
-   * @param {Set<number>} [seen]
+   * @param {Set<unknown>} [seen]
    * @returns {AstNode[]}
    */
   function classNodesForMemberValue(value,propertyKey,seen=new Set()) {
@@ -1210,7 +1210,7 @@ function summarizeAmbientCallEffects(ast,sourceType) {
    * known property key. Dynamic keys deliberately fall back to all callables.
    * @param {AstNode} value
    * @param {string} propertyKey
-   * @param {Set<number>} [seen]
+   * @param {Set<unknown>} [seen]
    * @returns {AstNode[]}
    */
   function callableNodesForMemberValue(value,propertyKey,seen=new Set()) {
@@ -1294,7 +1294,7 @@ function summarizeAmbientCallEffects(ast,sourceType) {
     return [];
   }
 
-  /** @param {AstNode} value @param {Set<number>} [seen] @returns {AstNode[]} */
+  /** @param {AstNode} value @param {Set<unknown>} [seen] @returns {AstNode[]} */
   function allGetterNodesForMemberValue(value,seen=new Set()) {
     if(value.type==='Identifier') {
       const reference=resolved.at(value.start);
@@ -1376,7 +1376,7 @@ function summarizeAmbientCallEffects(ast,sourceType) {
     return [...new Set(parents.flatMap(parent=>classGetterNodesForProperty(parent,propertyKey,next)))];
   }
 
-  /** @param {AstNode} value @param {Set<number>} [seen] @returns {AstNode[]} */
+  /** @param {AstNode} value @param {Set<unknown>} [seen] @returns {AstNode[]} */
   function callableNodesForValue(value,seen=new Set()) {
     if(['FunctionDeclaration','FunctionExpression','ArrowFunctionExpression'].includes(value.type))
       return [value];
@@ -1595,7 +1595,7 @@ function summarizeAmbientCallEffects(ast,sourceType) {
     }
   });
 
-  /** @param {AstNode} value @param {Set<number>} [seen] @returns {boolean} */
+  /** @param {AstNode} value @param {Set<unknown>} [seen] @returns {boolean} */
   function isDefinitelyObjectExpression(value,seen=new Set()) {
     if(['ObjectExpression','ArrayExpression','FunctionDeclaration','FunctionExpression',
         'ArrowFunctionExpression','ClassDeclaration','ClassExpression','NewExpression'].includes(value.type))
@@ -1615,7 +1615,7 @@ function summarizeAmbientCallEffects(ast,sourceType) {
     return false;
   }
 
-  /** @type {Map<AstNode,Set<number>>} */
+  /** @type {Map<AstNode,Set<unknown>>} */
   const nodeBindingIds=new Map();
   for(const fn of allFunctionNodes)nodeBindingIds.set(fn,new Set());
   for(const [bindingId,fn] of functionNodeByBinding) {
