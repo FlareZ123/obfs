@@ -181,12 +181,12 @@ for(const mode of /** @type {Array<'coo'|'sno'|'sco'>} */ (['coo','sno','sco']))
  * @param {string} code
  * @returns {Promise<{classSource:string,methodSource:string,value:number,result:number}>}
  */
-async function inspectExportedClass(code){
+async function inspectExportedClass(code,importer='import Reader,{result} from "./reader.mjs";'){
   const root=await fs.mkdtemp(path.join(os.tmpdir(),'obfs-private-class-export-'));
   try{
     await atomicWrite(path.join(root,'reader.mjs'),code);
     await atomicWrite(path.join(root,'entry.mjs'),[
-      'import Reader,{result} from "./reader.mjs";',
+      importer,
       'const reader=new Reader();',
       'process.stdout.write(JSON.stringify({classSource:Reader.toString(),methodSource:Reader.prototype.read.toString(),value:reader.read(),result}));'
     ].join('\n'));
@@ -219,13 +219,34 @@ const exportedClassShapes=[
       'export {Reader as default};',
       'export const result=reader.read();'
     ].join('\n')
+  },
+  {
+    label:'named export specifier',
+    code:[
+      'const owner={privateField:7};',
+      'class Reader{read(){return owner.privateField;}}',
+      'const reader=new Reader();',
+      'export {Reader};',
+      'export const result=reader.read();'
+    ].join('\n'),
+    importer:'import {Reader,result} from "./reader.mjs";'
+  },
+  {
+    label:'default export expression',
+    code:[
+      'const owner={privateField:7};',
+      'class Reader{read(){return owner.privateField;}}',
+      'const reader=new Reader();',
+      'export default Reader;',
+      'export const result=reader.read();'
+    ].join('\n')
   }
 ];
 
 for(const mode of /** @type {Array<'coo'|'sno'|'sco'>} */ (['coo','sno','sco'])){
   test(mode+' exported class declaration forms must preserve class and method source',async()=>{
     for(const shape of exportedClassShapes){
-      const native=await inspectExportedClass(shape.code);
+      const native=await inspectExportedClass(shape.code,shape.importer);
       const transformed=obfuscateFiles([{
         path:'reader.mjs',sourceType:'module',code:shape.code
       }],{
@@ -236,7 +257,7 @@ for(const mode of /** @type {Array<'coo'|'sno'|'sco'>} */ (['coo','sno','sco']))
       assert.ok(output,mode+'/'+shape.label+': module must remain present');
       assert.equal(output.metrics.properties,0,
         mode+'/'+shape.label+': an exported class is not a private source container');
-      const emitted=await inspectExportedClass(String(output.code));
+      const emitted=await inspectExportedClass(String(output.code),shape.importer);
       assert.deepEqual(emitted,native,
         mode+'/'+shape.label+': class/method source and behavior must remain identical');
     }
