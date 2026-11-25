@@ -21,7 +21,7 @@ const source=[
   'class Reader{read(){return owner.helper()+owner.secretField;}}',
   'const reader=new Reader();',
   'module.exports=reader.read();'
-].join('\\n');
+].join('\n');
 
 for(const mode of /** @type {Array<'coo'|'sno'|'sco'>} */ (['coo','sno','sco'])){
   test(mode+' must not rename owner fields used through a function-valued property receiver',()=>{
