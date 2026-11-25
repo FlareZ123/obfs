@@ -608,8 +608,10 @@ function summarizeAmbientCallEffects(ast,sourceType) {
     for(let i=0;i<node.arguments.length;i++) {
       const argument=node.arguments[i];
       if(argument.type==='SpreadElement')continue;
-      let param=params[i]??null;
-      if(restIndex>=0&&i>=restIndex)param=params[restIndex];
+      // Rest-element arrays are not decomposed into element-level value flows;
+      // leave those actuals unmapped so the call-site sink fails closed.
+      if(restIndex>=0&&i>=restIndex)continue;
+      const param=params[i]??null;
       if(!param) {
         // Extra arguments are not observable without an implicit arguments object.
         locallyMappedCallArguments.add(argument);
@@ -617,7 +619,7 @@ function summarizeAmbientCallEffects(ast,sourceType) {
       }
       let bindingNode=param;
       if(param.type==='AssignmentPattern')bindingNode=param.left;
-      if(param.type==='RestElement')bindingNode=param.argument;
+      if(param.type==='RestElement')continue;
       if(bindingNode.type!=='Identifier')continue;
       const bindingId=declarationByNode.get(bindingNode)?.bindingId??null;
       if(bindingId!==null) {
