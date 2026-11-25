@@ -108,3 +108,6 @@ g++ -O3 -std=c++20 sims/agent2-rankfive-witness-restart-dp.cpp -o /tmp/rank7rest
 The local run completed in 3.39 seconds with maximum resident memory 728,576 KiB. Dinkelbach converged in two or three iterations for each cutoff.
 
 This result is optimal only among restart policies that draw seven random directions, query complete fifth-derivative faces sequentially, and restart after a fixed cutoff. It does not prove optimality over other direction counts, partial-face queries, nonuniform/adaptive direction generation, or different algebraic witness methods. The result should be peer-reviewed and benchmarked before any production change.
+
+
+**Error-bound interpretation:** the 18-trial witness-miss probability is a fast-path availability bound. In the hybrid learner, exhausting the witness cap routes to exact degree-five interpolation; it does not itself produce an incorrect accepted model. The independent 726-sample RM verifier retains its separate false-acceptance bound \((31/32)^{726}<10^{-10}\). Do not add the witness-miss and verifier bounds as though both were correctness failures; they describe different outcomes. Exact fallback has a substantially larger query cost and is outside the fast-path cap.
