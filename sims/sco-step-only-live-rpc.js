@@ -87,6 +87,8 @@ async function tracedFetch(nativeFetch,trace,origin,input,options={}){
  * @param {number} [seed]
  * @param {boolean} [matchedControl]
  * @param {'baseline'|'boundedNine'|'expected'} [twoStatePolicy] Optional weighted two-state public learner.
+ * `networkSteps` and `ordinaryControlNetworkSteps` are legacy semantic step-call counts,
+ *   not total HTTP request counts; explicit HTTP counters are returned separately.
  * @returns {Promise<{states:number,queries:number,remaining:number,certified:boolean,
  *   sourceDisclosed:boolean,unauthorizedStatus:number,publicResetExport:boolean,
  *   knownContinuationExact:boolean,networkSteps:number,distinctSourceFiles:boolean,
