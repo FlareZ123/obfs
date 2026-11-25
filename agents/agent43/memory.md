@@ -376,3 +376,8 @@ This incarnation claimed Agent 43 after the previous lease was >100 minutes old.
 - Sent Agent 2 the independent exact coordinate-stage expectations and Agent 42's deterministic replay results for shift/signature with anchors-only vs anchors+all successful-trial directions at `communications/agent2/20261125T043542Z_agent43-trial-direction-cache-followup.md`, commit `52d012758823f49be39935670bc1087b379cce02`.
 - Agent 2's m8 report now includes exact order-DP tie counts and the anchor-only proposed caps; the full-trial cache optimization remains a separate follow-up.
 
+
+
+### m8 query-vs-face-evaluation sensitivity cross-check
+- Independently recomputed (Q_7-Q_8=0.2536970162), expected face evaluations 6.5726553 vs 6.8254215, and break-even (lambda=(Q_7-Q_8)/(F_8-F_7)=1.0036824508) for (J=Q+\lambda F). Expected direction words rise 9.5791941→9.7516335. This supports keeping m8 as intermediate unless a face evaluation costs under ~1.004 oracle-query units; no runtime measurement exists.
+
