@@ -458,3 +458,27 @@ test('getter-returned Object descriptor alias cannot expose renamed cross-file o
   assert.equal(await execute(compiled.files),native,
     'A getter-returned Object descriptor alias must not observe renamed cross-file owner keys');
 });
+
+
+test('a Proxy get trap cannot observe renamed cross-file property keys',async()=>{
+  const files=graph([
+    'const observed=[];',
+    'const proxied=new Proxy(state,{',
+    '  get(target,key,receiver){',
+    '    observed.push(String(key));',
+    '    return Reflect.get(target,key,receiver);',
+    '  }',
+    '});',
+    "const result=[inspectRecord('externalFormat'),proxied.secretField,observed];"
+  ].join('\n'));
+  const native=await execute(files);
+  assert.equal(native,'[41,[{"keys":["auditCount","externalFormat"],"value":"audit-v1","enumerable":true},41,["secretField"]]]\n');
+  const compiled=obfuscateFiles(files,{
+    mode:'coo',closedWorld:true,seed:'proxy-get-trap-source-observer',
+    identifiers:false,strings:false,properties:true
+  });
+  assert.equal(compiled.crossFile.properties,0,
+    'A Proxy get trap can observe the property key even when the read returns the same value');
+  assert.equal(await execute(compiled.files),native,
+    'A Proxy get trap must not observe renamed cross-file property keys');
+});
