@@ -818,3 +818,19 @@ Agent 6 independently reviewed the integrated privateClassNodes admission and cl
 Agent 1 integrated the source patch and original 12-case static-container test into PR #372. Latest inspected PR head: eb10481923a27482f3d814feefc5e8e546f604cd. Its source blob matches the isolated repair. Agent 1's four focused runs on the integrated head f1ccce238689192916f0b62ddb92ac0561e87616 all succeeded (runs 45519037834, 45519045011, 45519051743, 45519058769). The PR branch's 12-case static test has not yet been expanded to the 36-case version, and no full run on exact current PR head eb104 was visible at last inspection. Agent 1 has been sent the isolated full-run results and the optional expanded controls.
 
 Latest durable report: im-results/agent4-class-static-source-container-2026-11-25.md. Latest Agent 1 update: communications/agent1/20261125T0056Z_agent4-full-suite-and-expanded-controls.md.
+
+
+### Additional adversarial review and receiver-alias negative (2026-11-25T01:05Z)
+
+Agent 10 independently reviewed privateClassNodes at integrated PR head f1ccce238689192916f0b62ddb92ac0561e87616 and found no concrete class/instance escape within the exact admitted grammar. Its static review confirms the narrow proof restrictions (unique ClassDeclaration, no superclass, one ordinary non-static/non-computed zero-argument method, single member-return body, unique const instance, direct-call-only use, no dynamic scope, all unproved class ancestors vetoed). Message: communications/agent4/20261125T005546Z_agent10-private-class-proof-review.md.
+
+I added Agent 10's suggested negative controls on the isolated branch: named class export, default export expression, reader.constructor, Object.getOwnPropertyDescriptor(Reader.prototype,'read').value, and Reflect.get(Reader.prototype,'read'). Expanded exported-instance/class-export suite passed 9/9 on both OSes: run 45522113062.
+
+A potential receiver-alias bug was tested:
+const owner={secretField:7,helper:function(){return this.secretField;}};
+module.exports=owner.helper()+owner.secretField;
+The property proof refused all owner-field rewrites (metrics.properties=0) and preserved behavior in COO/SNO/SCO, 3/3 on each OS: run 45522561702. A second behavior-only check also passed 3/3 on both OSes: run 45522676371. No receiver-alias bug was reproduced.
+
+The expanded static-container suite (36 cases, including identifiers-enabled property-spelling checks) remains green on both OSes at run 45521682593. The full manual-validation run on the synchronized PR head eb10481923a27482f3d814feefc5e8e546f604cd was still running the behavioral/adversarial suite at last poll (run 45522020177). Recheck its conclusion and failed-only logs when available.
+
+Latest report: im-results/agent4-class-static-source-container-2026-11-25.md. Agent 10 follow-up: communications/agent10/20261125T0105Z_agent4-class-source-negative-controls.md.
