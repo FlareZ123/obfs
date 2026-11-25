@@ -613,7 +613,20 @@ test('one escaped sibling owner alias vetoes shared-owner renaming',async()=>{
 // proof. The range assertions intentionally allow either a safe rename or a
 // conservative refusal; native/emitted output equality is mandatory.
 
-test('self-import aliases of one owner share private carrier slots',async()=>{
+
+test('self-imported owner and reader aliases preserve positive local and imported reads',async()=>{
+  await preserves([
+    {path:'state.mjs',sourceType:'module',code:
+      'import {state as self,peek as inspect} from "./state.mjs";'+
+      'export const state={secretField:23};'+
+      'export function peek(x){return x.secretField;}'+
+      'export const result=inspect(self)+peek(state);'},
+    {path:'main.mjs',sourceType:'module',code:
+      'import {state,peek,result} from "./state.mjs";console.log(result,peek(state));'}
+  ],1);
+});
+
+test('self-import duplicate owner aliases with shared carrier are conservatively refused',async()=>{
   await preserves([
     {path:'state.mjs',sourceType:'module',code:
       'import {state as first,state as second,peek as inspect} from "./state.mjs";'+
@@ -625,7 +638,7 @@ test('self-import aliases of one owner share private carrier slots',async()=>{
       'export const result=inspect(left)+local(right);'},
     {path:'main.mjs',sourceType:'module',code:
       'import {result} from "./state.mjs";console.log(result);'}
-  ],1);
+  ],0);
 });
 
 test('self-import owner reads preserve the pre-initialization TDZ exception',async()=>{
@@ -638,7 +651,7 @@ test('self-import owner reads preserve the pre-initialization TDZ exception',asy
       'export const result=[early,self.secretField];'},
     {path:'main.mjs',sourceType:'module',code:
       'import {result} from "./state.mjs";console.log(JSON.stringify(result));'}
-  ],[0,1]);
+  ],0);
 });
 
 test('two-module reentrant owner reads preserve TDZ before later initialization',async()=>{
@@ -654,7 +667,7 @@ test('two-module reentrant owner reads preserve TDZ before later initialization'
       'export function read(){return state.secretField;}'},
     {path:'main.mjs',sourceType:'module',code:
       'import {early,late} from "./a.mjs";console.log(early,late);'}
-  ],[0,1]);
+  ],1);
 });
 
 test('late imported key in a cyclic graph is not folded across its TDZ',async()=>{
