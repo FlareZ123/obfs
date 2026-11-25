@@ -66,12 +66,12 @@ function browserCode(filename,source) {
 }
 
 /** @returns {string} */
-function page() {
+function page(entryUrl) {
   return [
     '<!doctype html><html><head><meta charset="utf-8"></head><body>',
     '<script type="module">',
     'try {',
-    'const mod=await import("./entry.mjs");',
+    `const mod=await import(${JSON.stringify(entryUrl)});`,
     'const pre=document.createElement("pre");',
     'pre.id="result";pre.textContent=btoa(JSON.stringify(mod.value));',
     'document.body.appendChild(pre);',
@@ -122,13 +122,16 @@ async function main() {
         browserCode(source.path,/** @type {string} */(source.code)));
     }
   }
-  const html=page();
   const server=http.createServer((request,response)=>{
     if(request.method!=='GET'){response.writeHead(405).end();return;}
     const url=new URL(request.url??'/', 'http://localhost');
     if(url.pathname.endsWith('/index.html')){
+      const host=request.headers.host;
+      assert.equal(typeof host,'string','Browser request must include Host');
+      const basePath=url.pathname.slice(0,url.pathname.lastIndexOf('/')+1);
+      const entryUrl=new URL('entry.mjs','http://'+host+basePath).href;
       response.writeHead(200,{'content-type':'text/html; charset=utf-8'});
-      response.end(html);
+      response.end(page(entryUrl));
       return;
     }
     const content=files.get(url.pathname);
