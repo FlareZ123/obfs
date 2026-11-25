@@ -256,7 +256,8 @@ def main():
             "accounting under injective subset sums. Unconditional values are "
             "upper bounds because direction dependencies only merge points; "
             "global optimality under the injective model is supplied separately "
-            "by the exhaustive 2^21-state C++ Bellman/Dinkelbach DP."
+            "by the exhaustive 2^21-state C++ Bellman/Dinkelbach DP, whose "
+            "objective comparisons use double precision."
         ),
     }, indent=2))
 
