@@ -813,7 +813,11 @@ function summarizeAmbientCallEffects(ast,sourceType) {
     if(expression.type==='AwaitExpression'&&expression.argument)
       return memberReturnExpressionsWithReceiver(expression.argument,receiver,seen);
     let usesThis=false;
-    walkAst(expression,node=>{if(node.type==='ThisExpression'||node.type==='Super')usesThis=true;});
+    const rootFunction=enclosingFunction(expression);
+    walkAst(expression,node=>{
+      if((node.type==='ThisExpression'||node.type==='Super')&&
+         enclosingFunction(node)===rootFunction)usesThis=true;
+    });
     return usesThis?[expression,receiver]:[expression];
   }
 
