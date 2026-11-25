@@ -124,14 +124,22 @@ Combining both corrections bounds the actual expected witness-query savings from
 
 ## Reproduction and scope
 
-The exact C++ implementation is sims/agent2-rankfive-witness-restart-dp.cpp. Reproduce with:
+The original floating-point DP and the exact-integer verifier are separate programs:
 
 ~~~sh
+# Original Bellman/Dinkelbach implementation (double-precision decisions)
 g++ -O3 -std=c++20 sims/agent2-rankfive-witness-restart-dp.cpp -o /tmp/rank7restartdp
 /tmp/rank7restartdp
+
+# Exact-integer verifier (128-bit decisions)
+g++ -O3 -std=c++20 sims/agent2-rankfive-witness-restart-dp-exact.cpp -o /tmp/rank7restartdp-exact
+/tmp/rank7restartdp-exact
+
+# Independent exact fixed-order and collision check
+python3 sims/agent2-rankfive-witness-independent-check.py
 ~~~
 
-The local run completed in 3.10 seconds with maximum resident memory 728,576 KiB. Dinkelbach converged in two or three iterations for each cutoff.
+The original DP completed in 3.10 seconds with maximum resident memory 728,576 KiB. The exact-integer verifier completed in 5.61 seconds with maximum resident memory 693,760 KiB. Both Dinkelbach implementations converged in two or three iterations for each cutoff; only the verifier uses exact integer arithmetic for policy selection.
 
 This result is optimal only among restart policies that draw seven random directions, query complete fifth-derivative faces sequentially, and restart after a fixed cutoff. It does not prove optimality over other direction counts, partial-face queries, nonuniform/adaptive direction generation, or different algebraic witness methods. The result should be peer-reviewed and benchmarked before any production change.
 
