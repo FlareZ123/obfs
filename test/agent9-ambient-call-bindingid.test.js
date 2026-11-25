@@ -280,7 +280,7 @@ test('callable actuals flow to simple local formals and are held only at escape 
     'function hidden(){return 1;}function consume(callback){return 2;}'+
     'function run(){consume(hidden);}'
   );
-  assert.equal(named(discarded,'hidden')[0].hostHeldCallable,false);
+  assert.equal(named(discarded,'hidden')[0].hostHeldCallable,false,JSON.stringify(named(discarded,'hidden')[0],null,2));
   assert.equal(named(discarded,'hidden')[0].safe,true);
   const forwarded=analyze(
     'function hidden(){return 1;}function consume(callback){external(callback);}'+
