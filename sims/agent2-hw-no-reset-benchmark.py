@@ -13,6 +13,8 @@ import importlib.metadata
 import json
 import math
 import random
+
+import numpy as np
 import signal
 import sys
 import time
@@ -374,6 +376,7 @@ def run_one(
     sul, trace, counters = make_sul(fixture)
     oracle_seed = (seed * 0x9E3779B1 + state_count * 0x85EBCA77) & 0xFFFFFFFF
     random.seed(oracle_seed)
+    np.random.seed(oracle_seed)
     oracle = RandomWphWOracle(
         random_walk_length=random_walk_length,
         num_test_origin_states=origin_states,
