@@ -51,7 +51,32 @@ test('host locking refuses a module group with an attributed source-observer edg
     /Host locking cannot preserve observable source bytes/);
 });
 
+test('text re-exports refuse source transformations',()=>{
+  const files=[
+    {path:'state.mjs',sourceType:'module',
+      code:'const privateValue=23;export default {length:privateValue};'},
+    {path:'relay.mjs',sourceType:'module',
+      code:'export {default as source} from "./state.mjs" with {type:"text"};'},
+    {path:'main.mjs',sourceType:'module',
+      code:'import {source} from "./relay.mjs";console.log(source.length);'}
+  ];
+  const output=obfuscateFiles(files,{...options,properties:false,identifiers:true});
+  assert.equal(output.crossFile.properties,0);
+  assert.equal(output.files.find(file=>file.path==='state.mjs').code,files[0].code);
+});
+
 test('dynamic import attributes also refuse source transformations',()=>{
+  const files=[
+    {path:'state.mjs',sourceType:'module',
+      code:'const privateValue=23;export default {length:privateValue};'},
+    {path:'main.mjs',sourceType:'module',
+      code:'const loaded=await import("./state.mjs",{with:{type:"text"}});console.log(loaded.default.length);'}
+  ];
+  const output=obfuscateFiles(files,{...options,properties:false,identifiers:true});
+  assert.equal(output.crossFile.properties,0);
+  assert.equal(output.files.find(file=>file.path==='state.mjs').code,files[0].code);
+});
+
   const files=[
     {path:'state.mjs',sourceType:'module',
       code:'const privateValue=23;export default {length:privateValue};'},
