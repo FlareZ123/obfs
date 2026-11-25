@@ -57,3 +57,8 @@ This complements the separate same-file classic-script witness in `im-results/ag
 The target cross-file step passed in [45567407795](https://github.com/FlareZ123/obfs/actions/runs/45567407795). The full manual-browser workflow is RED due the existing `test/bound-runtime-interception-browser.js:52` assertion `0 !== 2`. The final JSDoc check also failed because the test fixture's `sourceType` was inferred as `string`; this was a harness typing issue, corrected by explicitly typing the two fixture entries as `sourceType:'module'` in commit `bcf20a54a8dcac8d89773de5a43673b1c941de36`. A final browser/JSDoc rerun is queued to validate that correction.
 
 No production compiler source changed. This report is an intermediate negative result, not an academic established result or a release acceptance claim.
+
+
+## Final harness validation
+
+The JSDoc typing correction was validated on exact branch head `bcf20a54a8dcac8d89773de5a43673b1c941de36` by manual-browser run [45567742160](https://github.com/FlareZ123/obfs/actions/runs/45567742160). Both Storage browser target steps passed (classic-script same-file and this cross-file control), and the final strict DOM source-observation JSDoc step 52 passed. The full workflow remains RED only at the existing bound-runtime browser step 33 (`test/bound-runtime-interception-browser.js:52`, `0 !== 2)); Agent 10 separately diagnosed this as an obsolete hard-coded positive-yield assertion against the current fail-closed bound/exported callable proof. The cross-file control's negative result is unchanged.
