@@ -262,3 +262,42 @@ test('a nested ordinary function does not inherit its creator method receiver',(
   assert.equal(summaryFor(source,'hidden').hostHeldCallable,false);
   assert.equal(summaryFor(source,'harmless').hostHeldCallable,true);
 });
+
+
+test('destructured Object.defineProperty can mutate Function.prototype.call before analysis',()=>{
+  const source=
+    'function hidden(){return 1;}'+
+    'const {defineProperty}=Object;'+
+    'defineProperty(Function.prototype,"call",{value:function(receiver){return receiver.callback;}});'+
+    'const owner={read(){return this.count;}};'+
+    'const other={count:7,callback:hidden};external(owner.read.call(other));';
+  const [captured]=execute(source);
+  assert.equal((/** @type {Function} */ (captured)).name,'hidden');
+  assert.equal(summaryFor(source,'hidden').hostHeldCallable,true);
+});
+
+test('a globalThis.Object mutator alias cannot preserve the intrinsic assumption',()=>{
+  const source=
+    'function hidden(){return 1;}'+
+    'const objectConstructor=globalThis.Object;'+
+    'const define=objectConstructor.defineProperty;'+
+    'define(Function.prototype,"call",{value:function(receiver){return receiver.callback;}});'+
+    'const owner={read(){return this.count;}};'+
+    'const other={count:7,callback:hidden};external(owner.read.call(other));';
+  const [captured]=execute(source);
+  assert.equal((/** @type {Function} */ (captured)).name,'hidden');
+  assert.equal(summaryFor(source,'hidden').hostHeldCallable,true);
+});
+
+test('destructured Reflect.set can replace Reflect.apply before analysis',()=>{
+  const source=
+    'function hidden(){return 1;}'+
+    'const {set}=Reflect;'+
+    'set(Reflect,"apply",function(fn,receiver,args){return receiver.callback;});'+
+    'const owner={read(){return this.count;}};'+
+    'const other={count:7,callback:hidden};'+
+    'external(Reflect.apply(owner.read,other,[]));';
+  const [captured]=execute(source);
+  assert.equal((/** @type {Function} */ (captured)).name,'hidden');
+  assert.equal(summaryFor(source,'hidden').hostHeldCallable,true);
+});
