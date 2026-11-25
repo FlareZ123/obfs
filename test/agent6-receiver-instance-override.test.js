@@ -139,3 +139,37 @@ test('a base constructor own write shadows its prototype method for derived inst
   assert.equal(actual,1);
   const summary=hiddenSummary(source);assert.equal(summary.hostHeldCallable,false,JSON.stringify(summary.reasons));
 });
+
+
+test('an unused local return does not publish its callable value',()=>{
+  const source=
+    'function hidden(){return 1;}'+
+    'function local(){return hidden;}'+
+    'local();';
+  assert.equal(hiddenSummary(source).hostHeldCallable,false);
+});
+
+test('a local return value passed directly to the host is held',()=>{
+  const source=
+    'function hidden(){return 1;}'+
+    'function local(){return hidden;}'+
+    'external(local());';
+  assert.equal(hiddenSummary(source).hostHeldCallable,true);
+});
+
+test('a host-held function propagates a returned arrow closure and its captures',()=>{
+  const source=
+    'function hidden(){return 1;}'+
+    'function outer(){return ()=>hidden;}'+
+    'external(outer);';
+  assert.equal(hiddenSummary(source).hostHeldCallable,true);
+});
+
+test('a host-held wrapper propagates call-return values transitively',()=>{
+  const source=
+    'function hidden(){return 1;}'+
+    'function local(){return hidden;}'+
+    'function outer(){return local();}'+
+    'external(outer);';
+  assert.equal(hiddenSummary(source).hostHeldCallable,true);
+});
