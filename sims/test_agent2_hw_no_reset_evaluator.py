@@ -84,6 +84,24 @@ class EvaluatorTests(unittest.TestCase):
         self.assertTrue(result["ambiguous_future_behavior"])
         self.assertFalse(result["false_future_convergence"])
 
+    def test_complete_hypothesis_with_no_target_future_is_false_convergence(self):
+        fixture, hypothesis, trace = make_fixture_and_hypothesis(
+            bad_post_trace=True
+        )
+        hypothesis.states = [
+            state for state in hypothesis.states
+            if state.state_id != "h-good"
+        ]
+        result = BENCHMARK.evaluate_hypothesis(fixture, hypothesis, trace)
+
+        self.assertTrue(result["hypothesis_complete"])
+        self.assertEqual(result["candidate_count"], 1)
+        self.assertFalse(result["target_initial_behavior_present"])
+        self.assertFalse(result["target_future_behavior_present"])
+        self.assertTrue(result["false_initial_convergence"])
+        self.assertTrue(result["false_future_convergence"])
+        self.assertFalse(result["future_clone_success"])
+
     def test_no_trace_consistent_candidate_is_not_false_convergence(self):
         fixture, hypothesis, _trace = make_fixture_and_hypothesis()
         result = BENCHMARK.evaluate_hypothesis(
