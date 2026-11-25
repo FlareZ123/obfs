@@ -1088,10 +1088,22 @@ function summarizeAmbientCallEffects(ast,sourceType) {
            staticPropertyKey(property.key,property.computed)===propertyKey)
           lastMatchingIndex=index;
       }
-      const explicitValues=matching.flatMap((/** @type {AstNode} */ property)=>
-        property.kind==='init'?[property.value]:
-        property.kind==='get'?functionReturnExpressions(property.value).flatMap(expression=>
-          memberReturnExpressionsWithReceiver(expression,actualReceiver,seen)):[]);
+      let dataProperty=null;
+      let getterProperty=null;
+      for(const property of matching) {
+        if(property.kind==='init'||property.method) {
+          dataProperty=property;
+          getterProperty=null;
+        } else if(property.kind==='get') {
+          dataProperty=null;
+          getterProperty=property;
+        } else if(property.kind==='set') {
+          dataProperty=null;
+        }
+      }
+      const explicitValues=dataProperty?[dataProperty.value]:
+        getterProperty?functionReturnExpressions(getterProperty.value).flatMap(expression=>
+          memberReturnExpressionsWithReceiver(expression,actualReceiver,seen)):[ ];
       // A later spread can overwrite an explicit key. An unknown computed key
       // can do the same even without a spread; only later candidates matter.
       const laterSpreadValues=value.properties.slice(lastMatchingIndex+1)
@@ -1231,10 +1243,20 @@ function summarizeAmbientCallEffects(ast,sourceType) {
       const matching=value.properties.filter((/** @type {AstNode} */ property)=>
         property.type==='Property'&&
         staticPropertyKey(property.key,property.computed)===propertyKey);
-      if(matching.length) {
-        const last=matching[matching.length-1];
-        return last.kind==='get'?[last.value]:[];
+      let getter=null;
+      let data=false;
+      for(const property of matching) {
+        if(property.kind==='init'||property.method) {
+          data=true;
+          getter=null;
+        } else if(property.kind==='get') {
+          data=false;
+          getter=property.value;
+        } else if(property.kind==='set') {
+          data=false;
+        }
       }
+      if(matching.length)return !data&&getter?[getter]:[];
       const prototypeSetter=value.properties.find((/** @type {AstNode} */ property)=>
         property.type==='Property'&&property.kind==='init'&&!property.method&&
         !property.computed&&staticPropertyKey(property.key,false)==='__proto__');
@@ -1288,8 +1310,10 @@ function summarizeAmbientCallEffects(ast,sourceType) {
       return initializer?allGetterNodesForMemberValue(initializer,next):[];
     }
     if(value.type==='ObjectExpression') {
-      const ownGetters=value.properties.filter((/** @type {AstNode} */ property)=>
-        property.type==='Property'&&property.kind==='get').map((/** @type {AstNode} */ property)=>property.value);
+      const keys=[...new Set(value.properties.flatMap((/** @type {AstNode} */ property)=>
+        property.type==='Property'?
+          [staticPropertyKey(property.key,property.computed)].filter((/** @type {string|null} */ key)=>key!==null):[]))];
+      const ownGetters=keys.flatMap(key=>getterNodesForMemberValue(value,key,seen));
       const prototypeSetter=value.properties.find((/** @type {AstNode} */ property)=>
         property.type==='Property'&&property.kind==='init'&&!property.method&&
         !property.computed&&staticPropertyKey(property.key,false)==='__proto__');
@@ -1384,10 +1408,24 @@ function summarizeAmbientCallEffects(ast,sourceType) {
     if(value.type==='ArrayExpression')
       return [...new Set(value.elements.flatMap((/** @type {AstNode|null} */ element)=>
         element?callableNodesForValue(element,seen):[]))];
-    if(value.type==='ObjectExpression')
-      return [...new Set(value.properties.flatMap((/** @type {AstNode} */ property)=>
-        property.type==='SpreadElement'?callableNodesForValue(property.argument,seen):
-        property.type==='Property'?callableNodesForValue(property.value,seen):[]))];
+    if(value.type==='ObjectExpression') {
+      const conservative=value.properties.some((/** @type {AstNode} */ property)=>
+        property.type==='SpreadElement'||
+        (property.type==='Property'&&property.computed&&
+         staticPropertyKey(property.key,property.computed)===null)||
+        (property.type==='Property'&&property.kind==='init'&&!property.method&&
+         !property.computed&&staticPropertyKey(property.key,false)==='__proto__'));
+      if(conservative)
+        return [...new Set(value.properties.flatMap((/** @type {AstNode} */ property)=>
+          property.type==='SpreadElement'?callableNodesForValue(property.argument,seen):
+          property.type==='Property'?callableNodesForValue(property.value,seen):[]))];
+      const keys=[...new Set(value.properties.flatMap((/** @type {AstNode} */ property)=>
+        property.type==='Property'?
+          [staticPropertyKey(property.key,property.computed)].filter((/** @type {string|null} */ key)=>key!==null):[]))];
+      const values=keys.flatMap(key=>memberValueExpressionsForProperty(value,key,seen));
+      const getters=keys.flatMap(key=>getterNodesForMemberValue(value,key,seen));
+      return [...new Set([...values.flatMap(candidate=>callableNodesForValue(candidate,seen)),...getters])];
+    }
     if(value.type==='ConditionalExpression')
       return [...new Set([...callableNodesForValue(value.consequent,seen),
         ...callableNodesForValue(value.alternate,seen)])];
@@ -1701,12 +1739,28 @@ function summarizeAmbientCallEffects(ast,sourceType) {
       }
     }
     if(value.type==='ObjectExpression') {
-      const nested=value.properties.flatMap((/** @type {AstNode} */ property)=>
-        property.type==='SpreadElement'?
-          callableNodesForValueWithReceiver(property.argument,fn,seen):
-          property.type==='Property'?
-            callableNodesForValueWithReceiver(property.value,fn,seen):[]);
-      return [...new Set([...nested,...callableNodesForValue(value)])];
+      const conservative=value.properties.some((/** @type {AstNode} */ property)=>
+        property.type==='SpreadElement'||
+        (property.type==='Property'&&property.computed&&
+         staticPropertyKey(property.key,property.computed)===null)||
+        (property.type==='Property'&&property.kind==='init'&&!property.method&&
+         !property.computed&&staticPropertyKey(property.key,false)==='__proto__'));
+      if(conservative) {
+        const nested=value.properties.flatMap((/** @type {AstNode} */ property)=>
+          property.type==='SpreadElement'?
+            callableNodesForValueWithReceiver(property.argument,fn,seen):
+            property.type==='Property'?
+              callableNodesForValueWithReceiver(property.value,fn,seen):[]);
+        return [...new Set([...nested,...callableNodesForValue(value)])];
+      }
+      const keys=[...new Set(value.properties.flatMap((/** @type {AstNode} */ property)=>
+        property.type==='Property'?
+          [staticPropertyKey(property.key,property.computed)].filter((/** @type {string|null} */ key)=>key!==null):[]))];
+      const candidates=keys.flatMap(key=>memberValueExpressionsForProperty(value,key,seen));
+      const nested=candidates.flatMap(candidate=>
+        callableNodesForValueWithReceiver(candidate,fn,seen));
+      const getters=keys.flatMap(key=>getterNodesForMemberValue(value,key,seen));
+      return [...new Set([...nested,...getters])];
     }
     if(value.type==='ArrayExpression') {
       const nested=value.elements.flatMap((/** @type {AstNode|null} */ element)=>
