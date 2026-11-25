@@ -252,6 +252,26 @@ def derive_step_metrics(total_steps: int, oracle_steps):
     }
 
 
+def hypothesis_states_equivalent(left_state, right_state):
+    """Exact product equivalence between two states in the returned conjecture."""
+    queue = [(left_state, right_state)]
+    seen = {(id(left_state), id(right_state))}
+    while queue:
+        left, right = queue.pop(0)
+        for letter in ALPHABET:
+            if left.output_fun.get(letter) != right.output_fun.get(letter):
+                return False
+            left_next = left.transitions.get(letter)
+            right_next = right.transitions.get(letter)
+            if left_next is None or right_next is None:
+                return False
+            pair = (id(left_next), id(right_next))
+            if pair not in seen:
+                seen.add(pair)
+                queue.append((left_next, right_next))
+    return True
+
+
 def evaluate_hypothesis(fixture: Fixture, hypothesis, trace):
     """Offline-certify the returned conjecture's initial and future behavior.
 
@@ -298,6 +318,17 @@ def evaluate_hypothesis(fixture: Fixture, hypothesis, trace):
     target_future_present = any(future_flags)
     all_initial_equivalent = candidate_count > 0 and all(initial_flags)
     all_future_equivalent = candidate_count > 0 and all(future_flags)
+    end_representatives = []
+    for match in matches:
+        if not any(
+            hypothesis_states_equivalent(representative, match["end"])
+            for representative in end_representatives
+        ):
+            end_representatives.append(match["end"])
+    candidate_end_classes = len(end_representatives)
+    candidate_end_unambiguous = (
+        complete and candidate_count > 0 and candidate_end_classes == 1
+    )
     exact_initial_clone = candidate_count == 1 and initial_flags[0]
 
     return {
@@ -306,6 +337,8 @@ def evaluate_hypothesis(fixture: Fixture, hypothesis, trace):
         "hypothesis_complete": complete,
         "target_post_trace_state": target_post_trace,
         "candidate_count": candidate_count,
+        "candidate_end_equivalence_classes": candidate_end_classes,
+        "candidate_end_behavior_unambiguous": candidate_end_unambiguous,
         "attacker_initial_state_identified": candidate_count == 1,
         "target_initial_behavior_present": target_initial_present,
         "all_trace_candidates_initial_equivalent": all_initial_equivalent,
@@ -424,6 +457,8 @@ def run_one(
         "status": "completed",
         "target_initial_state": fixture.initial_state,
         "target_post_trace_state": evaluation["target_post_trace_state"],
+        "candidate_end_equivalence_classes": evaluation["candidate_end_equivalence_classes"],
+        "candidate_end_behavior_unambiguous": evaluation["candidate_end_behavior_unambiguous"],
         "target_minimal": True,
         "target_strongly_connected": True,
         "fixture_generation_attempts": fixture.generation_attempts,
