@@ -526,11 +526,18 @@ test('secondary root aliases flow through identity-return calls into an imported
   for(const mode of ['coo','sno','sco'])await check(exposed+reader,main,1,mode);
 });
 
-test('identity-return calls through a local reader remain conservatively unproved',async()=>{
+test('same-spelled parameter bindings keep local identity-return calls conservatively unproved',async()=>{
   const main='import {state as left,state as right} from "./state.mjs";'+
     'const identity=value=>value;const local=value=>value.secretField;'+
     'console.log(local(identity(left)),local(identity(right)));';
   for(const mode of ['coo','sno','sco'])await check(exposed,main,0,mode);
+});
+
+test('identity-return calls through a local reader are proven with unique parameter bindings',async()=>{
+  const main='import {state as left,state as right} from "./state.mjs";'+
+    'const identity=owner=>owner;const local=record=>record.secretField;'+
+    'console.log(local(identity(left)),local(identity(right)));';
+  for(const mode of ['coo','sno','sco'])await check(exposed,main,1,mode);
 });
 
 test('source observation of an imported reader vetoes grouped owner roots in all modes',async()=>{
