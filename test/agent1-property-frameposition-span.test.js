@@ -239,6 +239,72 @@ test('experimental identifier-span mode is opt-in, width-bounded, and mode-indep
   assert.equal(ordinary.metrics.bindings,1,'default identifier mangling remains available');
 });
 
+
+test('combined local identifier and property span rewrites preserve strict ESM FramePosition',{
+  skip:process.platform!=='linux'?'real Chromium fixture currently targets the Linux runner':false
+},async()=>{
+  const combinedSource="'use strict';const extraordinarilyLongPrivateBindingName=21;const owner={longPrivatePropertyName:21,'longPrivateStringProperty':22,'longPrivateUnicodeProperty😀':23};const value=extraordinarilyLongPrivateBindingName+owner.longPrivatePropertyName+owner['longPrivateStringProperty']+owner['longPrivateUnicodeProperty😀'];captureHostStack();export {value};";
+  const output=obfuscateFiles([{
+    path:'generated-combined.mjs',sourceType:'module',code:combinedSource
+  }],{
+    mode:'coo',closedWorld:false,seed:'agent1-combined-frameposition-span',
+    identifiers:true,strings:false,properties:true,
+    experimentalLocalIdentifierSpanPreservation:true,
+    experimentalLocalPropertySpanPreservation:true
+  }).files[0];
+  const generatedCode=String(output.code);
+  assert.ok(output.metrics.bindings>0);
+  assert.equal(output.metrics.properties,3);
+  assert.equal(generatedCode.length,combinedSource.length);
+  const html=[
+    '<!doctype html><html><body><pre id="result"></pre><script>',
+    'window.__stacks=[];',
+    'window.captureHostStack=function captureHostStack(){window.__stacks.push(new Error("frame probe").stack||"");};',
+    '(async()=>{try{const native=await import("/native-combined.mjs");const generated=await import("/generated-combined.mjs");',
+    'const result={values:[native.value,generated.value],stacks:window.__stacks};',
+    'document.getElementById("result").textContent=btoa(JSON.stringify(result));',
+    '}catch(error){document.getElementById("result").textContent=btoa(JSON.stringify({error:String(error),stack:error&&error.stack}));}})();',
+    '</script></body></html>'
+  ].join('\n');
+  const pages=new Map([
+    ['/',{type:'text/html; charset=utf-8',body:html}],
+    ['/native-combined.mjs',{type:'text/javascript; charset=utf-8',body:combinedSource}],
+    ['/generated-combined.mjs',{type:'text/javascript; charset=utf-8',body:generatedCode}]
+  ]);
+  const server=http.createServer((request,response)=>{
+    const entry=pages.get((request.url??'/').split('?')[0])??pages.get('/');
+    if(!entry){response.writeHead(404);response.end();return;}
+    response.writeHead(200,{'content-type':entry.type});
+    response.end(entry.body);
+  });
+  try {
+    /** @type {Promise<void>} */
+    const listening=new Promise((resolve,reject)=>{
+      server.once('error',reject);
+      server.listen(0,'127.0.0.1',()=>resolve());
+    });
+    await listening;
+    const address=server.address();
+    if(!address||typeof address==='string')throw new Error('Missing Chromium fixture port');
+    const payload=JSON.parse(await dumpDom('http://127.0.0.1:'+address.port+'/'));
+    assert.deepEqual(payload.values,[87,87]);
+    assert.equal(payload.stacks.length,2);
+    const native=parseFrame(payload.stacks[0],'/native-combined.mjs');
+    const generated=parseFrame(payload.stacks[1],'/generated-combined.mjs');
+    process.stdout.write('AGENT1_COMBINED_FRAMEPOSITION '+JSON.stringify({
+      bindings:output.metrics.bindings,properties:output.metrics.properties,
+      native,generated,values:payload.values,generatedCode
+    })+'\\n');
+    assert.equal(generated.line,native.line);
+    assert.equal(generated.column,native.column,
+      'combined local identifier and property edits must preserve later ESM frame coordinates');
+  } finally {
+    /** @type {Promise<void>} */
+    const closed=new Promise((resolve,reject)=>server.close(error=>error?reject(error):resolve()));
+    await closed;
+  }
+});
+
 test('strict CommonJS Module._compile frame positions survive local property-span rewrites',()=>{
   const cjsSource="'use strict';const owner={longPrivatePropertyName:21};const value=owner.longPrivatePropertyName;captureHostStack();module.exports=value;";
   const output=obfuscateFiles([{
