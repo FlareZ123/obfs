@@ -40,3 +40,8 @@ This establishes a second precision issue beyond the unconditional this-member s
 ## Class-field arrow control
 
 Added an escaped class-field arrow control at review-branch source `a7ab1caba027af15f1ab195fd2c4036d1b6c2713`: a field arrow `callback=()=>this.secret` captures the constructed instance, and invoking the escaped arrow returns the hidden function stored in the `secret` field. [Run 45682929388](https://github.com/FlareZ123/obfs/actions/runs/45682929388) passed this new case on both OSes. The same run retained the four constructor/initialization-order precision failures (24 tests, 20 pass / 4 fail). This narrows the finding: the tested class-field arrow receiver path is handled; the remaining issue is constructor this-write escape gating and inherited own-property ordering.
+
+
+## Temporal escape caveat for any precision fix
+
+Deferring constructor this-member writes until an instance is known to escape must be temporal, not a single post-construction check. A base constructor can pass `this` to a host before returning; the same object is then retained while derived fields and the derived constructor body run afterward. Any callable values assigned after that escape remain observable through the retained object. A safe refined model must record the first escape point and continue treating later writes to that same instance as host-visible. For derived construction, preserve the order of base fields, base constructor body (including any early escape), derived fields, and derived constructor body.
