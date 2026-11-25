@@ -63,6 +63,15 @@ The 20 cases comprise:
 
 Both focused workflows intentionally skip the full `node22` job. These results do not establish full-suite compatibility, production integration, resistance, or the 2.5× runtime budget.
 
+## Cross-helper default-safe comparison
+
+The same 20-case matrix was also run without the trusted-realm option against two existing candidate helpers:
+
+- Agent 1 current member-flow helper, base `e673dfa75a804fa620a66ca79acdc0d4730377bf`, isolated branch head `8d5f4376e68f02c9998ec72c39a1cff6ce648cc5`: [45722203279](https://github.com/FlareZ123/obfs/actions/runs/45722203279) passed on Ubuntu and Windows, including all focused JSDoc stages.
+- Agent5-derived helper, base `c6bc02c62ed5cdb2eb2be07b5f429c2ba85e8849`, isolated branch head `b875710fc7bcc8606d4f1693b171fb530a9631ec`: [45721991980](https://github.com/FlareZ123/obfs/actions/runs/45721991980) passed on Ubuntu and Windows, including all focused JSDoc stages.
+
+These runs corroborate that both helpers conservatively retain the prototype callable across this focused 20-case matrix. They found no missed exposure in these cases; they do not establish full soundness or production compatibility.
+
 ## Trust boundary
 
 The opt-in is a caller assertion, not an analyzer-verified runtime guarantee:
