@@ -20,15 +20,28 @@ function unusedName(source, ast, seed, reservedNames, reservedSources) {
   const names = new Set();
   walk(ast, node => {if (node.type === 'Identifier') names.add(node.name);});
   const digest = createHash('sha256').update(seed).digest('hex');
-  for (let n = 0; n <= digest.length - 12; n++) {
-    const name = `_o${digest.slice(n, n + 12)}`;
+  const available = name => {
     const pattern = new RegExp(`\\b${name}\\b`, 'u');
-    if (!names.has(name) && !reservedNames?.has(name) && !pattern.test(source) &&
-        !(reservedSources?.some(text => pattern.test(text)))) return name;
+    return !names.has(name) && !reservedNames?.has(name) && !pattern.test(source) &&
+      !(reservedSources?.some(text => pattern.test(text)));
+  };
+  // Prefer the shortest collision-free binding: short call-site spellings
+  // make it possible to replace a literal without moving later source columns.
+  const firstChars = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ_';
+  const first = parseInt(digest.slice(0, 2), 16) % firstChars.length;
+  for (let offset = 0; offset < firstChars.length; offset++) {
+    const name = firstChars[(first + offset) % firstChars.length];
+    if (available(name)) return name;
+  }
+  for (let length = 2; length <= 14; length++) {
+    for (let salt = 0; salt < 64; salt++) {
+      const suffix = createHash('sha256').update(`${seed}/${salt}`).digest('hex');
+      const name = `_${suffix.slice(0, length - 1)}`;
+      if (available(name)) return name;
+    }
   }
   throw new Error('Failed to allocate a collision-free helper name');
 }
-
 /**
  * V8 can echo a failed operand's source spelling into TypeError.message.
  * Rewriting any string literal inside the source of that operand would
@@ -105,8 +118,17 @@ function encodeStrings(source, ast, options) {
     if (ancestors.some(ancestor => /^(ForStatement|ForInStatement|ForOfStatement|WhileStatement|DoWhileStatement)$/.test(ancestor.type))) return;
     if (mayAppearInFailedOperand(node,ancestors)) return;
     const value = /** @type {string} */ (node.value);
-    if (!values.has(value)) values.set(value, values.size);
-    edits.push({start:node.start,end:node.end,text:`${helper}[${values.get(value)}]`});
+    const index = values.get(value) ?? values.size;
+    const text = `${helper}(${index})`;
+    const original = source.slice(node.start, node.end);
+    // A continued string literal can span lines. Decline it rather than
+    // replacing its internal line terminators with padding spaces.
+    if (text.length > original.length || /[\\r\\n\\u2028\\u2029]/u.test(original)) return;
+    if (!values.has(value)) values.set(value, index);
+    edits.push({
+      start:node.start,end:node.end,
+      text:text + ' '.repeat(original.length - text.length)
+    });
   });
   if (!edits.length) return {code:source,count:0};
   options.reservedNames?.add(helper);
@@ -123,6 +145,8 @@ function encodeStrings(source, ast, options) {
   const decoded = `${helper}d`;
   const offsetName = `${helper}o`;
   const units = `${helper}u`;
+  const argument = `${helper}a`;
+  const cache = `${helper}c`;
   const originalDecoder = `for(let ${j}=0;${j}<${raw}.length;${j}++)${decoded}+=String.fromCharCode(${raw}.charCodeAt(${j})^${key});`;
   // Chunk long strings into 4096-code-unit spreads to avoid quadratic-looking
   // concatenation costs in fresh V8 contexts. Small literals stay on the
@@ -145,8 +169,11 @@ function encodeStrings(source, ast, options) {
     longDecoder=`let ${offsetName}=0;for(;${offsetName}+${width}<=${raw}.length;${offsetName}+=${width})${decoded}+=String.fromCharCode(${args});for(let ${j}=${offsetName};${j}<${raw}.length;${j}++)${decoded}+=String.fromCharCode(${raw}.charCodeAt(${j})^${key});`;
   }
   const decoder=useChunks ? `if(${raw}.length<1024){${originalDecoder}}else{${longDecoder}}` : originalDecoder;
-  const init = `const ${helper}=${JSON.stringify(encoded)};for(let ${i}=0;${i}<${helper}.length;${i}++){const ${raw}=${helper}[${i}];let ${decoded}='';${decoder}${helper}[${i}]=${decoded};}\n`;
-
+  // Function declarations are instantiated before module evaluation. Keeping
+  // the decoder at the end and decoding lazily avoids shifting original code.
+  const init = `function ${helper}(${argument}){let ${cache}=${helper}.c;if(!${cache}){${cache}=${JSON.stringify(encoded)};for(let ${i}=0;${i}<${cache}.length;${i}++){const ${raw}=${cache}[${i}];let ${decoded}='';${decoder}${cache}[${i}]=${decoded};}${helper}.c=${cache};}return ${cache}[${argument}];}`;
+  const transformed = applyEdits(source, edits);
+  return {code:transformed + (transformed.endsWith('\\n') ? '' : '\\n') + init + '\\n',count:edits.length};
   // Keep hashbang and directive prologues intact; imports can follow declarations per ESM grammar.
   let offset = 0;
   if (source.startsWith('#!')) {
