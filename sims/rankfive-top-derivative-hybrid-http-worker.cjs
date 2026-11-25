@@ -4,7 +4,7 @@ const {parentPort,workerData}=require('node:worker_threads');
 const {cloneTopDerivativeProjectedAffine}=require('./rankfive-top-derivative-projected-affine-hybrid-peer');
 
 /** @typedef {{kind:'projected-affine',bits:number,rank:5,table:number[],coordinates:number[],affineCorrections:number[]}|{kind:'anf',bits:number,lower:Array<[number,number]>,top:Array<[number,number]>,degree:4|5}} HybridModel */
-/** @typedef {{fastPathSuccess:boolean,witnessTrials:number,witnessDrawCount:number,witnessProbability:number,witnessFailureBound:number,quotientRank:number|null,coordinateStrategy:'shift'|'signature'|null,fixedPairPassed:boolean|null,fastQueries:number,verificationQueries:number,verificationSamples:number,verificationCap:number,verificationDelta:number,falseAcceptanceBound:number,verificationPassed:boolean,fallbackUsed:boolean,fallbackReason:string|null,fallbackQueries:number,exactByInterpolation:boolean,verifierTapeReleasedAfterCandidate?:boolean}} Diagnostics */
+/** @typedef {{fastPathSuccess:boolean,witnessStrategy:'six-direction'|'seven-direction-restart',witnessTrials:number,witnessDrawCount:number,witnessProbability:number,witnessFailureBound:number,quotientRank:number|null,coordinateStrategy:'shift'|'signature'|null,fixedPairPassed:boolean|null,fastQueries:number,verificationQueries:number,verificationSamples:number,verificationCap:number,verificationDelta:number,falseAcceptanceBound:number,verificationPassed:boolean,fallbackUsed:boolean,fallbackReason:string|null,fallbackQueries:number,exactByInterpolation:boolean,verifierTapeReleasedAfterCandidate?:boolean}} Diagnostics */
 
 const port=/** @type {import('node:worker_threads').MessagePort} */ (parentPort);
 if(!port)throw new Error('Worker requires a parent port');
@@ -49,8 +49,10 @@ function drawVerify(){
 try{
   const result=cloneTopDerivativeProjectedAffine(
     oracle,32,drawWitness,drawVerify,1e-10,
-    () => port.postMessage({type:'candidate-ready',queryCount})
+    () => port.postMessage({type:'candidate-ready',queryCount}),
+    workerData.witnessStrategy ?? 'six-direction'
   );
+  if(result.diagnostics.witnessDrawCount!==witnessIndex)throw new Error('Witness draw accounting differs from worker tape consumption');
   if(result.queries!==queryCount)throw new Error('Learner cache count differs from worker oracle calls');
   /** @type {Diagnostics} */
   const diagnostics=result.diagnostics;
