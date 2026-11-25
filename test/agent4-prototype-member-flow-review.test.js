@@ -6,14 +6,14 @@ const vm=require('node:vm');
 const {parse}=require('../src/ast');
 const {summarizeAmbientCallEffects}=require('../workplace/agent9-ambient-call-bindingid');
 
-/** @param {string} source @returns {ReturnType<typeof summarizeAmbientCallEffects>} */
-function analyze(source) {
-  return summarizeAmbientCallEffects(parse(source,'commonjs'),'commonjs');
+/** @param {string} source @param {{trustedPrototypeSemantics?:boolean}} [options] @returns {ReturnType<typeof summarizeAmbientCallEffects>} */
+function analyze(source,options) {
+  return summarizeAmbientCallEffects(parse(source,'commonjs'),'commonjs',options);
 }
 
-/** @param {string} source @returns {ReturnType<typeof analyze>['summaries'][number]} */
-function hiddenSummary(source) {
-  const summary=analyze(source).summaries.find(item=>item.bindingNames.includes('hidden'));
+/** @param {string} source @param {{trustedPrototypeSemantics?:boolean}} [options] @returns {ReturnType<typeof analyze>['summaries'][number]} */
+function hiddenSummary(source,options) {
+  const summary=analyze(source,options).summaries.find(item=>item.bindingNames.includes('hidden'));
   assert.ok(summary,'hidden must have an analysis summary');
   return summary;
 }
@@ -178,7 +178,8 @@ test('a function-constructor own assignment shadows its prototype callable',()=>
   const observed=invokeExternal(source);
   assert.equal(typeof observed,'function');
   assert.equal(/** @type {{name?:unknown}} */ (observed).name,'harmless');
-  const summary=hiddenSummary(source);
+  assert.equal(hiddenSummary(source).hostHeldCallable,true,'default mode must fail closed without the trusted-prototype contract');
+  const summary=hiddenSummary(source,{trustedPrototypeSemantics:true});
   assert.equal(summary.hostHeldCallable,false);
   assert.equal(summary.safe,true);
 });
@@ -197,7 +198,8 @@ test('a class instance field shadows its prototype callable',()=>{
   const observed=invokeExternal(source);
   assert.equal(typeof observed,'function');
   assert.equal(/** @type {{name?:unknown}} */ (observed).name,'harmless');
-  const summary=hiddenSummary(source);
+  assert.equal(hiddenSummary(source).hostHeldCallable,true,'default mode must fail closed without the trusted-prototype contract');
+  const summary=hiddenSummary(source,{trustedPrototypeSemantics:true});
   assert.equal(summary.hostHeldCallable,false);
   assert.equal(summary.safe,true);
 });
@@ -217,7 +219,30 @@ test('a later own assignment shadows its prototype callable',()=>{
   const observed=invokeExternal(source);
   assert.equal(typeof observed,'function');
   assert.equal(/** @type {{name?:unknown}} */ (observed).name,'harmless');
-  const summary=hiddenSummary(source);
+  assert.equal(hiddenSummary(source).hostHeldCallable,true,'default mode must fail closed without the trusted-prototype contract');
+  const summary=hiddenSummary(source,{trustedPrototypeSemantics:true});
   assert.equal(summary.hostHeldCallable,false);
   assert.equal(summary.safe,true);
+});
+
+test('a source-local Object.prototype setter invalidates the trusted prototype-shadow proof',()=>{
+  const source=
+    'function entry(){'+
+    'function hidden(){return 1;}'+
+    'function Local(){}'+
+    'const values=new WeakMap();'+
+    'Object.defineProperty(Object.prototype,"callback",{configurable:true,'+
+      'get(){return values.get(Object.getPrototypeOf(this))??values.get(this);},'+
+      'set(value){values.set(this,value);}});'+
+    'Local.prototype.callback=hidden;'+
+    'const owner=new Local();'+
+    'owner.callback=function harmless(){return 0;};'+
+    'external(owner.callback);'+
+    '}'+
+    'module.exports=entry;';
+  const observed=invokeExternal(source);
+  assert.equal(typeof observed,'function');
+  assert.equal(/** @type {{name?:unknown}} */ (observed).name,'hidden');
+  assert.equal(hiddenSummary(source).hostHeldCallable,true);
+  assert.equal(hiddenSummary(source,{trustedPrototypeSemantics:true}).hostHeldCallable,true);
 });
