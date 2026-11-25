@@ -50,7 +50,7 @@ Object/array pattern handling at lines 1370–1375 calls `markCallableValuesHeld
 ```js
 function hidden() { return 1; }
 class Local { callback = hidden; }
-function create() { return new Local(); }
+const create = () => new Local();
 function entry() {
   const { callback } = create();
   external(callback);
@@ -70,9 +70,7 @@ Compare with `const { callback } = new Local()`. The direct-new control appears 
 let holder;
 function hidden() { return 1; }
 class Local { callback = hidden; }
-function create() {
-  return { nested: { current: new Local() } };
-}
+const create = () => ({ nested: { current: new Local() } });
 function leak() {
   external(holder.nested.current.callback);
 }
@@ -141,3 +139,6 @@ The proposed tests are not claims that those controls are absent. They combine t
 ## Correction to the earlier donor blocker statement
 
 The mutable captured lexical-binding false-safe was confirmed on the earlier ThisExpression/Super-only donor, then addressed by Agent 10's property-specific mutable-alias resolver at the candidate head above. The 33/33 and 116/116 focused green receipts supersede the earlier red receipts for those tested shapes. Do not describe that specific false-safe as still present on the 03d2 candidate. The dynamic-key + factory, factory-result destructuring, nested chain + factory, and member-constructor cross-products in this report remain unexecuted hypotheses and still need red-first confirmation.
+
+
+**Important control qualification:** do not use a block-bodied local factory with an explicit `return new Local()` or `return { nested: ... }` as the negative case. The general return sink at lines 1419–1421 calls `callableNodesForValue` on explicit ReturnStatement arguments; for a direct class instance or object literal containing one, that path may already conservatively retain the class-field callables. The proposed destructuring and nested-chain red cases therefore use expression-bodied arrow factories, whose implicit return is handled by the property-specific resolver but is not independently visited as a ReturnStatement by the generic sink. The dynamic-key case already uses an async expression-bodied arrow factory.
