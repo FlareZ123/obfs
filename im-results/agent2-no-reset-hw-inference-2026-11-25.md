@@ -118,8 +118,8 @@ Reproduce from the repository root:
 
 ~~~sh
 python -m pip install aalpy==2.0.0
-python sims/test_agent2_hw_no_reset_evaluator.py
-python sims/agent2-hw-no-reset-benchmark.py \
+PYTHONHASHSEED=0 python sims/test_agent2_hw_no_reset_evaluator.py
+PYTHONHASHSEED=0 python sims/agent2-hw-no-reset-benchmark.py \
   --min-states 2 --max-states 12 --seeds 2 \
   --timeout-seconds 45 --random-walk-length 30 --origin-states 20 \
   > hw-no-reset-results.json
@@ -174,6 +174,14 @@ The single timeout was target size 12, seed 7. It reached 2,512 trace steps and 
 The 220-case run predates the later output-field naming and explicit version-space-scope metadata; the evaluator algorithm and the numerical result fields were unchanged. A targeted 12-state rerun with an increased per-fixture timeout is queued to determine whether the lone timeout is simply a short-budget cutoff.
 
 The 20 seeds per state size are deterministic fixture-generator seeds, not an IID sample from a specified distribution of Mealy machines. Results remain empirical and fixture-family-specific.
+
+## RNG reproducibility correction (pending rerun)
+
+The initial 220-case sweep (5-second limit) and its focused 12-state/seed-7 rerun (30-second limit) produced different partial trace lengths for the same fixture and oracle seed: 2,512 versus 2,301 steps. The fixture generator and Python random seed were pinned, but the workflows did not yet fix Python's process hash seed or seed NumPy's RNG. The difference means the earlier sweep is an empirical snapshot, not yet a fully reproducible randomized-learner experiment.
+
+The benchmark now seeds both Python random and NumPy with the per-case oracle seed, and the hW workflows set **PYTHONHASHSEED=0** at job scope. A focused 12-state, seeds-0–7 rerun with a 60-second per-fixture limit is queued as workflow **45596788503**. After it completes, rerun the full 220-case matrix under the pinned RNG environment before treating the aggregate rates or the 12-state/seed-7 timeout as stable.
+
+For local reproduction, prefix the command with **PYTHONHASHSEED=0**. The 22- and 220-case figures above remain useful observed outcomes, but are provisional pending this reproducibility correction.
 
 ## Limitations and interpretation
 
