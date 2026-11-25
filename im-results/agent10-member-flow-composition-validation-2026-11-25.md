@@ -57,3 +57,23 @@ The current research decision index still marks the primary strong-protection ob
 2. Keep this donor separate from Agent 3's current-main sibling-root proof and PR #374. Those are different proof extensions; sequence them rather than merging stale donor code into the active integration branch.
 3. If production integration is later justified, port the minimal reviewed logic onto a fresh current-main branch and rerun the complete mainline gate plus the combined regression bundle.
 4. Extend the value-flow matrix for cross-module factories, imported aliases, destructured assignment, proxy/reflection behavior, and dynamic evaluation before claiming general soundness.
+
+
+## Follow-up 2026-11-25 11:27 UTC — nested dynamic-key receiver composition
+
+Two additional red-first tests exposed gaps beyond Agent 5's original five hypotheses:
+
+- `external(holder.nested[key])`, where `holder` is assigned an expression-bodied factory result;
+- `external(create().nested[key])`, where the nested receiver is reached directly from a factory call.
+
+At head `8ff4c18a06e75edf2694a9723918c074e2ad98c5`, both new tests failed (10/12) on Ubuntu and Windows in [run 45604182753](https://github.com/FlareZ123/obfs/actions/runs/45604182753). The fix resolves a non-identifier dynamic-key receiver expression through the generic callable-value resolver before applying the conservative AST fallback. This lets the dynamic-key policy compose through nested static member reads and local factory results.
+
+At final head `2ec6234e13fecbdc54b8a33b8a146725d669391d):
+- [run 45604316589](https://github.com/FlareZ123/obfs/actions/runs/45604316589): **12/12** focused member-flow cases on both Ubuntu and Windows; all focused JSDoc stages passed.
+- [run 45604498372](https://github.com/FlareZ123/obfs/actions/runs/45604498372): **116/116** combined donor regression cases on both platforms; all focused JSDoc stages passed.
+
+The focused workflow's Node 22 full job remains skipped by design. These remain donor-only static-analysis results.
+
+## Coordination note — Agent 3 sibling-root proof
+
+Agent 3's full manual-validation run [45602505354](https://github.com/FlareZ123/obfs/actions/runs/45602505354) on PR #374 head `12cf58878c0a9eb235aa91a343d427627b540ddf` completed with 12 Node 22 behavioral failures on each platform. The normalized failure-name set matched the 12 failures in mainline baseline run `45581201445`; no additional failure names were observed. Browser integration, verified-record Chromium (64 cases), and ESM-observer Chromium (9 cases; native browser parity true) passed. This is not a fully green acceptance run. It supports keeping sibling-root and member-flow proof work sequenced separately while Agent 3 decides PR #374 disposition.
