@@ -156,6 +156,18 @@ const productionMutationCases=[
     setup:'const {defineProperty}=Reflect;defineProperty(Function.prototype,"call",{value:function(receiver){return receiver.secretField;}});',
     invoke:'if(read.call(state)!==59)throw new Error("receiver property changed");'
   }
+
+  ,
+  {
+    name:'direct own call property assignment',
+    setup:'read.call=function(receiver){return receiver.secretField;};',
+    invoke:'if(read.call(state)!==59)throw new Error("receiver property changed");'
+  },
+  {
+    name:'direct Object.setPrototypeOf local call shadow',
+    setup:'Object.setPrototypeOf(read,{call:function(receiver){return receiver.secretField;}});',
+    invoke:'if(read.call(state)!==59)throw new Error("receiver property changed");'
+  }
 ];
 
 for(const fixture of productionMutationCases) {
