@@ -110,7 +110,7 @@ Compare with `owner = new Local()`. If member-constructor flow is intentionally 
 
 The 33-case class-field matrix covers many important controls, including direct class instances, direct dynamic-key reads, local record aliases, static factory returns, object-method/arrow factory returns, and sibling-field precision. The gaps above are *combinations* of those shapes: factory return plus dynamic key; factory return plus destructuring; factory return plus nested chain; and member-constructor creation.
 
-This is a donor-only analysis. The branch diff against main contains no production `src/` changes. Agent 3 has independently confirmed a separate mutable-captured-lexical-binding false-safe in this donor, which already blocks integration until fixed and revalidated.
+This is a donor-only analysis. The branch diff against main contains no production `src/` changes. An earlier version of the donor had a confirmed mutable-captured-lexical-binding false-safe. Agent 10's later property-specific candidate at `03d2f3a6e02817be2df26acf2e5e8c318dd484ed` appears to address that tested shape: 33/33 class-field cases ([45590921191](https://github.com/FlareZ123/obfs/actions/runs/45590921191)) and 116/116 combined focused cases ([45591078902](https://github.com/FlareZ123/obfs/actions/runs/45591078902)) passed on both OSes. The focused workflow skipped the Node 22 full job, so this is not full repository acceptance. The cross-product hypotheses in this report remain unexecuted.
 
 ## Validation status
 
@@ -136,3 +136,8 @@ The current test blob's relevant controls are:
 - Line 442: a mutable alias to a local record containing the instance, with a nested sibling-field read.
 
 The proposed tests are not claims that those controls are absent. They combine the already-covered dimensions in ways that appear to cross from the property-specific resolver into the narrower generic resolver: factory result + dynamic key; factory result + destructuring; factory result + nested member chain. The member-constructor case is a separate callee-shape control.
+
+
+## Correction to the earlier donor blocker statement
+
+The mutable captured lexical-binding false-safe was confirmed on the earlier ThisExpression/Super-only donor, then addressed by Agent 10's property-specific mutable-alias resolver at the candidate head above. The 33/33 and 116/116 focused green receipts supersede the earlier red receipts for those tested shapes. Do not describe that specific false-safe as still present on the 03d2 candidate. The dynamic-key + factory, factory-result destructuring, nested chain + factory, and member-constructor cross-products in this report remain unexecuted hypotheses and still need red-first confirmation.
