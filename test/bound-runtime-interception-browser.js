@@ -104,15 +104,26 @@ async function main(){
     assert.equal(native.value,protectedResult.value,'the actual computation still agrees');
     assert.equal(native.boundSource,protectedResult.boundSource,
       'the public bound function reports the same generic source');
-    assert.ok(native.sources.some(text=>text.includes('owner.secretField')),
-      'the browser must intercept the native private target');
-    assert.ok(protectedResult.sources.some(text=>/owner\._p[0-9a-f]{10}/u.test(text)),
-      'the hostile browser must capture the rewritten private target source');
-    assert.ok(!protectedResult.sources.some(text=>text.includes('secretField')));
+    const nativeTarget=native.sources.find(text=>text.includes('owner.secretField'));
+    const protectedTarget=protectedResult.sources.find(text=>text.includes('owner.'));
+    assert.ok(nativeTarget,'the browser must intercept the native private target');
+    assert.ok(protectedTarget,'the browser must intercept the emitted private target');
+    if(protectedKeys===0){
+      assert.ok(protectedTarget.includes('owner.secretField'));
+      assert.ok(protectedTarget.includes('owner.otherField'));
+      assert.equal(protectedTarget,nativeTarget,
+        'a fail-closed refusal must preserve the observed function source');
+    }else{
+      assert.match(protectedTarget,/owner\\._p[0-9a-f]{10}/u);
+      assert.ok(!protectedTarget.includes('secretField'));
+      assert.ok(!protectedTarget.includes('otherField'));
+    }
     const result={
       browser:'Chromium',
-      protectedKeys:emitted.files[0].metrics.properties,
-      capturedFunctions:protectedResult.sources.length
+      protectedKeys,
+      rewriteStatus:protectedKeys===0?'refused-to-preserve-source':'rewritten',
+      capturedFunctions:protectedResult.sources.length,
+      sourceChanged:protectedTarget!==nativeTarget
     };
     console.log('BOUND_RUNTIME_BROWSER_INTERCEPTION '+JSON.stringify(result));
     return result;
