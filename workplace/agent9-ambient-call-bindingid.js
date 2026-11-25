@@ -944,7 +944,7 @@ function summarizeAmbientCallEffects(ast,sourceType) {
    * function itself; this preserves precision for primitive-returning getters.
    * @param {AstNode} classNode
    * @param {string} propertyKey
-   * @param {Set<AstNode>} [seen]
+   * @param {Set<unknown>} [seen]
    * @param {AstNode|null} [receiver]
    * @returns {AstNode[]}
    */
@@ -978,7 +978,7 @@ function summarizeAmbientCallEffects(ast,sourceType) {
    * @param {Set<number>} [seen]
    * @returns {AstNode[]}
    */
-  function memberValueExpressionsForProperty(value,propertyKey,seen=new Set(),receiver=value) {
+  function memberValueExpressionsForProperty(value,propertyKey,seen=new Set(),receiver=null) {
     if(value.type==='Identifier') {
       const reference=resolved.at(value.start);
       if(reference?.resolution.kind!=='local')return [];
@@ -991,16 +991,17 @@ function summarizeAmbientCallEffects(ast,sourceType) {
       const assignedValues=bindingValueExpressions.get(bindingId)??[];
       if(assignedValues.length)
         return [...new Set(assignedValues.flatMap(candidate=>
-          memberValueExpressionsForProperty(candidate,propertyKey,next,candidate)))];
+          memberValueExpressionsForProperty(candidate,propertyKey,next,receiver??candidate)))];
       const initializer=constInitializersByBinding.get(bindingId);
-      if(initializer)return memberValueExpressionsForProperty(initializer,propertyKey,next,initializer);
+      if(initializer)return memberValueExpressionsForProperty(initializer,propertyKey,next,receiver??initializer);
       return [];
     }
     if(value.type==='NewExpression') {
+      const actualReceiver=receiver??value;
       const classes=classNodesForValue(value.callee,seen);
       if(classes.length)
         return [...new Set(classes.flatMap(classNode=>
-          classMemberValueExpressionsForProperty(classNode,propertyKey,new Set(),receiver)))];
+          classMemberValueExpressionsForProperty(classNode,propertyKey,seen,actualReceiver)))];
       // Unknown constructor forms retain the constructor callable itself.
       // This is deliberately conservative until their instance-field writes
       // can be resolved with the same property-specific proof as class fields.
@@ -1015,6 +1016,7 @@ function summarizeAmbientCallEffects(ast,sourceType) {
       return [];
     }
     if(value.type==='ObjectExpression') {
+      const actualReceiver=receiver??value;
       const matching=value.properties.filter((/** @type {AstNode} */ property)=>
         property.type==='Property'&&
         staticPropertyKey(property.key,property.computed)===propertyKey);
@@ -1028,7 +1030,7 @@ function summarizeAmbientCallEffects(ast,sourceType) {
       const explicitValues=matching.flatMap((/** @type {AstNode} */ property)=>
         property.kind==='init'?[property.value]:
         property.kind==='get'?functionReturnExpressions(property.value).flatMap(expression=>
-          memberReturnExpressionsWithReceiver(expression,receiver,seen)):[]);
+          memberReturnExpressionsWithReceiver(expression,actualReceiver,seen)):[]);
       // A later spread can overwrite an explicit key. An unknown computed key
       // can do the same even without a spread; only later candidates matter.
       const laterSpreadValues=value.properties.slice(lastMatchingIndex+1)
@@ -1041,12 +1043,12 @@ function summarizeAmbientCallEffects(ast,sourceType) {
         .flatMap((/** @type {AstNode} */ property)=>
           property.kind==='init'?[property.value]:
           property.kind==='get'?functionReturnExpressions(property.value).flatMap(expression=>
-            memberReturnExpressionsWithReceiver(expression,receiver,seen)):[]);
+            memberReturnExpressionsWithReceiver(expression,actualReceiver,seen)):[]);
       const prototypeSetter=value.properties.find((/** @type {AstNode} */ property)=>
         property.type==='Property'&&property.kind==='init'&&!property.method&&
         !property.computed&&staticPropertyKey(property.key,false)==='__proto__');
       const prototypeValues=prototypeSetter?
-        memberValueExpressionsForProperty(prototypeSetter.value,propertyKey,seen,receiver):[];
+        memberValueExpressionsForProperty(prototypeSetter.value,propertyKey,seen,actualReceiver):[];
       if(matching.length||laterComputedValues.length)
         return [...new Set([
           ...explicitValues,...laterSpreadValues,...laterComputedValues,
