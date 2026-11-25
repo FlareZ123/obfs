@@ -348,6 +348,22 @@ test('a local wrapper return composes parameter flow with nested object members'
     'a local wrapper must preserve its parameter value through a returned object and nested reads');
 });
 
+test('multiple mutable factory assignments retain every possible returned callable field',()=>{
+  const source=
+    'let owner,create;'+
+    'function hiddenA(){return 1;}'+
+    'function hiddenB(){return 2;}'+
+    'class First{callback=hiddenA;}'+
+    'class Second{callback=hiddenB;}'+
+    'function entry(flag){if(flag){create=()=>new First();}else{create=()=>new Second();}owner=create();external(owner.callback);}'+
+    'module.exports=entry;';
+  const result=analyze(source);
+  assert.equal(named(result,'hiddenA')[0].hostHeldCallable,true,
+    'the first assigned factory target must remain in the possible-call set');
+  assert.equal(named(result,'hiddenB')[0].hostHeldCallable,true,
+    'the second assigned factory target must remain in the possible-call set');
+});
+
 test('a mutable local factory binding preserves its returned class-field callable',()=>{
   const source=
     'let owner,create;'+
