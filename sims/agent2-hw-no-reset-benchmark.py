@@ -22,7 +22,7 @@ from collections import deque
 from dataclasses import dataclass
 
 from aalpy.base import SUL
-from aalpy.learning_algs.resetless.hW import run_hW
+from aalpy.learning_algs.resetless.hW import hW
 from aalpy.learning_algs.resetless.resetless_oracles import RandomWphWOracle
 
 
@@ -237,6 +237,77 @@ class InstrumentedRandomWphWOracle(RandomWphWOracle):
                     len(counterexample) if counterexample is not None else None
                 ),
             })
+
+
+class InstrumentedHW(hW):
+    """Observe which hW subroutine is consuming one-shot SUL steps."""
+
+    def __init__(self, *args, **kwargs):
+        self.activity_counts = {}
+        self.steps_by_phase = {}
+        self.last_activity = "__init__"
+        self.last_activity_detail = None
+        self.last_step_input = None
+        self.last_step_index = 0
+        super().__init__(*args, **kwargs)
+
+    def _mark(self, activity: str, detail=None):
+        self.last_activity = activity
+        self.last_activity_detail = detail
+        self.activity_counts[activity] = self.activity_counts.get(activity, 0) + 1
+
+    def step_wrapper(self, letter):
+        phase = self.last_activity
+        self.steps_by_phase[phase] = self.steps_by_phase.get(phase, 0) + 1
+        self.last_step_input = letter
+        self.last_step_index = len(self.global_trace) + 1
+        return super().step_wrapper(letter)
+
+    def main_loop(self, print_level: int = 2):
+        self._mark("main_loop")
+        return super().main_loop(print_level=print_level)
+
+    def create_hypothesis(self):
+        self._mark("create_hypothesis")
+        return super().create_hypothesis()
+
+    def execute_homing_sequence(self):
+        self._mark("execute_homing_sequence", len(self.homing_sequence))
+        return super().execute_homing_sequence()
+
+    def execute_sequence(self, sequence):
+        self._mark("execute_sequence", len(sequence))
+        return super().execute_sequence(sequence)
+
+    def execute_conjecture_path(self, start_state, path):
+        self._mark("execute_conjecture_path", len(path))
+        return super().execute_conjecture_path(start_state, path)
+
+    def find_reachable_incomplete_transition(self, start_state):
+        self._mark("find_reachable_incomplete_transition")
+        return super().find_reachable_incomplete_transition(start_state)
+
+    def check_conjecture_inconsistencies(self, current_state):
+        self._mark("check_conjecture_inconsistencies")
+        return super().check_conjecture_inconsistencies(current_state)
+
+    def debug_snapshot(self):
+        return {
+            "last_activity": self.last_activity,
+            "last_activity_detail": self.last_activity_detail,
+            "activity_counts": dict(self.activity_counts),
+            "steps_by_phase": dict(self.steps_by_phase),
+            "last_step_input": self.last_step_input,
+            "last_step_index": self.last_step_index,
+            "global_trace_steps": len(self.global_trace),
+            "homing_sequence": list(self.homing_sequence),
+            "homing_sequence_length": len(self.homing_sequence),
+            "characterization_set": [list(w) for w in self.W],
+            "characterization_set_size": len(self.W),
+            "identified_state_count": len(self.state_map),
+            "h_response_state_count": len(self.h_response_map),
+            "known_state_count": len(self._all_states()),
+        }
 
 
 class NoResetMealySUL(SUL):
@@ -520,15 +591,14 @@ def run_one(
     signal.alarm(timeout_seconds)
     started = time.monotonic()
     try:
-        hypothesis, info = run_hW(
-            list(ALPHABET),
-            sul,
-            oracle,
+        learner = InstrumentedHW(
+            input_al=list(ALPHABET),
+            sul=sul,
             automaton_type="mealy",
+            eq_oracle=oracle,
             query_for_initial_state=False,
-            return_data=True,
-            print_level=0,
         )
+        hypothesis, info = learner.main_loop(print_level=0)
     except RunTimeout:
         learner = oracle.learner
         timeout_debug = None
@@ -536,10 +606,11 @@ def run_one(
             timeout_debug = {
                 "oracle_call_count": len(oracle.rounds),
                 "learning_rounds_observed": max(0, len(oracle.rounds) - 1),
-                "homing_sequence_length": len(learner.homing_sequence),
-                "characterization_set_size": len(learner.W),
-                "identified_state_count": len(learner.state_map),
-                "h_response_state_count": len(learner.h_response_map),
+                "learner": (
+                    learner.debug_snapshot()
+                    if hasattr(learner, "debug_snapshot")
+                    else None
+                ),
                 "last_oracle_rounds": oracle.rounds[-10:],
             }
         return {
@@ -661,6 +732,8 @@ def run_one(
             (round["characterization_set_size_after"] for round in oracle.rounds),
             default=0,
         ),
+        "learner_activity_counts": dict(learner.activity_counts),
+        "learner_steps_by_phase": dict(learner.steps_by_phase),
         "steps_total": step_metrics["steps_total"],
         "steps_oracle": step_metrics["steps_oracle"],
         "steps_non_oracle": step_metrics["steps_non_oracle"],
