@@ -130,7 +130,7 @@ jobs:
               assert row["sco"]["server_stats"] == row["ordinary"]["server_stats"], row
               assert row["sco"]["source_disclosed"] is False, row
               assert row["ordinary"]["source_disclosed"] is False, row
-          print("LIVE_HW_MATCHED_CONTROL_SUMMARY", json.dumps({
+          summary = {
               "fixture_family": family,
               "runs": result["total_runs"],
               "completed": result["completed_runs"],
@@ -184,7 +184,15 @@ jobs:
                   for row in result["results"]
                   if row["status"] == "completed"
               ],
-          }, sort_keys=True))
+          }
+          print("LIVE_HW_MATCHED_CONTROL_SUMMARY", json.dumps(summary, sort_keys=True))
+          summary_path = os.environ.get("GITHUB_STEP_SUMMARY")
+          if summary_path:
+              with open(summary_path, "a", encoding="utf-8") as summary_file:
+                  summary_file.write("### Live hW matched-control results\n\n")
+                  summary_file.write("~~~json\n")
+                  summary_file.write(json.dumps(summary, indent=2, sort_keys=True))
+                  summary_file.write("\n~~~\n")
           PY
       - name: Preserve matched-control evidence
         if: always()
