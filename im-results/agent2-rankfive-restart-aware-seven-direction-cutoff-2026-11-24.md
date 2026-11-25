@@ -88,7 +88,7 @@ The first trial uses at most 93 witness queries; each later trial reuses the zer
 
 For comparison, the current six-direction strategy uses 27 trials, a 1,675 witness-query cap, and a 2,497 fast-path cap. The ten-face seven-direction strategy lowers the expected witness cost by 1.507009652008 queries and the fast-path cap by 18 queries. It draws 126 direction words rather than 162. It does evaluate 180 complete faces across all trials rather than 162, so this is a query-count result, not a CPU-runtime or 2.5× compute result.
 
-Adding the same 96 shift probes and 726 verifier samples gives expected total query counts of:
+Adding the same 96 shift probes and 726 verifier samples, before negligible cross-stage cache collisions, gives nominal expected total query counts of:
 - six directions: **908.009926933736**;
 - seven directions, ten-face restart policy: **906.502917281728**.
 
