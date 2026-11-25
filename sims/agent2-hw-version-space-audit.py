@@ -17,7 +17,7 @@ from collections import deque
 from pathlib import Path
 
 import z3
-from z3 import And, Array, Implies, Int, IntSort, K, Or, Select, Solver, Store, sat, unknown
+from z3 import And, Array, Int, IntSort, K, Or, Select, Solver, Store, sat, unknown
 
 
 def is_strongly_connected(transitions: list[list[int]]) -> bool:
@@ -57,6 +57,52 @@ def is_minimal_mealy(transitions: list[list[int]], outputs: list[list[int]]) -> 
             break
         partition = refined
     return len(set(partition)) == n
+
+
+def minimize_mealy(transitions, outputs, initial_state: int, extra_state: int):
+    """Quotient a deterministic Mealy machine by behavioral equivalence."""
+    n = len(transitions)
+    partition = [0] * n
+    while True:
+        signatures = [
+            (
+                tuple(outputs[state]),
+                tuple(partition[transitions[state][a]] for a in range(2)),
+            )
+            for state in range(n)
+        ]
+        classes = {}
+        refined = []
+        for signature in signatures:
+            if signature not in classes:
+                classes[signature] = len(classes)
+            refined.append(classes[signature])
+        if refined == partition:
+            break
+        partition = refined
+
+    representatives = {}
+    for state, class_id in enumerate(partition):
+        representatives.setdefault(class_id, state)
+    ordered_classes = sorted(representatives)
+    remap = {class_id: index for index, class_id in enumerate(ordered_classes)}
+    minimized_transitions = [
+        [
+            remap[partition[transitions[representatives[class_id]][a]]]
+            for a in range(2)
+        ]
+        for class_id in ordered_classes
+    ]
+    minimized_outputs = [
+        list(outputs[representatives[class_id]]) for class_id in ordered_classes
+    ]
+    return (
+        minimized_transitions,
+        minimized_outputs,
+        remap[partition[initial_state]],
+        remap[partition[extra_state]],
+        partition,
+    )
 
 
 def replay_trace(transitions, outputs, initial_state: int, trace):
@@ -108,6 +154,7 @@ def solve_for_size(row, candidate_size: int, timeout_ms: int):
 
     solver = Solver()
     solver.set(timeout=timeout_ms)
+    solver.set(random_seed=0)
     delta = Array(f"delta_{tag}", IntSort(), IntSort())
     output = Array(f"output_{tag}", IntSort(), IntSort())
 
@@ -126,79 +173,34 @@ def solve_for_size(row, candidate_size: int, timeout_ms: int):
         solver.add(Select(output, 2 * trace_states[i] + a) == y)
         solver.add(trace_states[i + 1] == Select(delta, 2 * trace_states[i] + a))
 
-    # Exact strong connectivity: every state is reachable from the trace start
-    # and can reach it. Strictly decreasing ranks certify both directions.
-    forward_rank = [Int(f"forward_rank_{tag}_{s}") for s in range(k)]
+    # State names are arbitrary, so fix the candidate initial state to 0.
+    # Every state s>0 has an incoming edge from some lower-numbered state;
+    # this is a spanning arborescence rooted at 0 and breaks label symmetry.
+    solver.add(trace_states[0] == 0)
+
+    # Every state can also reach 0: a strictly decreasing rank certifies a
+    # return path. Together, the two conditions encode strong connectivity.
     backward_rank = [Int(f"backward_rank_{tag}_{s}") for s in range(k)]
     for s in range(k):
-        solver.add(forward_rank[s] >= 0, forward_rank[s] < k)
         solver.add(backward_rank[s] >= 0, backward_rank[s] < k)
-        solver.add(Implies(trace_states[0] == s, forward_rank[s] == 0))
-        solver.add(Implies(trace_states[0] == s, backward_rank[s] == 0))
-        if k > 1:
-            incoming = [
-                And(
-                    Select(delta, 2 * p + a) == s,
-                    forward_rank[p] < forward_rank[s],
-                )
-                for p in range(k)
-                for a in range(2)
-            ]
-            outgoing = [
-                And(
-                    Select(delta, 2 * s + a) == t,
-                    backward_rank[t] < backward_rank[s],
-                )
-                for a in range(2)
-                for t in range(k)
-            ]
-            solver.add(
-                Implies(
-                    trace_states[0] != s,
-                    And(forward_rank[s] > 0, Or(incoming)),
-                )
+        if s == 0:
+            solver.add(backward_rank[s] == 0)
+            continue
+        incoming = [
+            Select(delta, 2 * p + a) == s
+            for p in range(s)
+            for a in range(2)
+        ]
+        outgoing = [
+            And(
+                Select(delta, 2 * s + a) == t,
+                backward_rank[t] < backward_rank[s],
             )
-            solver.add(
-                Implies(
-                    trace_states[0] != s,
-                    And(backward_rank[s] > 0, Or(outgoing)),
-                )
-            )
-
-    # Exact minimality certificate. Every unordered state pair must have a
-    # distinguishing path whose pair-distance rank strictly decreases until
-    # an immediate output difference is reached.
-    pair_count = k * (k - 1) // 2
-    pair_rank = {
-        (i, j): Int(f"pair_rank_{tag}_{i}_{j}")
-        for i in range(k)
-        for j in range(i + 1, k)
-    }
-    for (i, j), rank in pair_rank.items():
-        solver.add(rank >= 1, rank <= max(1, pair_count))
-        witnesses = []
-        for a in range(2):
-            witnesses.append(
-                Select(output, 2 * i + a) != Select(output, 2 * j + a)
-            )
-            for u in range(k):
-                for v in range(u + 1, k):
-                    lower_rank = pair_rank[(u, v)]
-                    witnesses.append(
-                        And(
-                            Select(delta, 2 * i + a) == u,
-                            Select(delta, 2 * j + a) == v,
-                            lower_rank < rank,
-                        )
-                    )
-                    witnesses.append(
-                        And(
-                            Select(delta, 2 * i + a) == v,
-                            Select(delta, 2 * j + a) == u,
-                            lower_rank < rank,
-                        )
-                    )
-        solver.add(Or(witnesses))
+            for a in range(2)
+            for t in range(k)
+        ]
+        solver.add(Or(incoming))
+        solver.add(backward_rank[s] > 0, Or(outgoing))
 
     target_delta = K(IntSort(), 0)
     target_output = K(IntSort(), 0)
@@ -245,32 +247,59 @@ def solve_for_size(row, candidate_size: int, timeout_ms: int):
         return "unsat", {}
 
     model = solver.model()
-    candidate_transitions = [
+    raw_candidate_transitions = [
         [
             model.eval(Select(delta, 2 * state + a)).as_long()
             for a in range(2)
         ]
         for state in range(k)
     ]
-    candidate_outputs = [
+    raw_candidate_outputs = [
         [
             model.eval(Select(output, 2 * state + a)).as_long()
             for a in range(2)
         ]
         for state in range(k)
     ]
-    candidate_initial = model.eval(trace_states[0]).as_long()
-    candidate_post = model.eval(trace_states[-1]).as_long()
+    raw_candidate_initial = model.eval(trace_states[0]).as_long()
+    raw_candidate_post = model.eval(trace_states[-1]).as_long()
 
+    raw_matched, raw_replayed_post = replay_trace(
+        raw_candidate_transitions,
+        raw_candidate_outputs,
+        raw_candidate_initial,
+        trace,
+    )
+    if not raw_matched or raw_replayed_post != raw_candidate_post:
+        raise AssertionError("SAT model does not reproduce the public trace")
+    if not is_strongly_connected(raw_candidate_transitions):
+        raise AssertionError("SAT model failed independent strong-connectivity check")
+
+    # Behavioral quotienting preserves every trace and future output while
+    # producing a minimal machine. A quotient of a strongly connected machine
+    # remains strongly connected, so minimality need not burden the SMT solve.
+    (
+        candidate_transitions,
+        candidate_outputs,
+        candidate_initial,
+        candidate_post,
+        _partition,
+    ) = minimize_mealy(
+        raw_candidate_transitions,
+        raw_candidate_outputs,
+        raw_candidate_initial,
+        raw_candidate_post,
+    )
     matched, replayed_post = replay_trace(
         candidate_transitions, candidate_outputs, candidate_initial, trace
     )
     if not matched or replayed_post != candidate_post:
-        raise AssertionError("SAT witness does not reproduce the public trace")
+        raise AssertionError("minimized SAT witness does not reproduce the public trace")
     if not is_strongly_connected(candidate_transitions):
-        raise AssertionError("SAT witness failed independent strong-connectivity check")
+        raise AssertionError("minimized SAT witness is not strongly connected")
     if not is_minimal_mealy(candidate_transitions, candidate_outputs):
-        raise AssertionError("SAT witness failed independent minimality check")
+        raise AssertionError("minimized SAT witness is not minimal")
+
     target_matched, verified_target_post = replay_trace(
         target_transitions, target_outputs, target_initial, trace
     )
@@ -300,7 +329,8 @@ def solve_for_size(row, candidate_size: int, timeout_ms: int):
         candidate_state = candidate_transitions[candidate_state][a]
 
     return "sat", {
-        "candidate_state_count": k,
+        "candidate_state_count": len(candidate_transitions),
+        "solver_model_state_count": k,
         "candidate_initial_state": candidate_initial,
         "candidate_post_trace_state": candidate_post,
         "candidate_transitions": candidate_transitions,
@@ -324,6 +354,21 @@ def audit_row(row, timeout_ms: int):
 
     started = time.perf_counter()
     target_n = int(row["state_count"])
+    fixture = row["fixture_table"]
+    target_transitions = [[int(x) for x in values] for values in fixture["transitions"]]
+    target_outputs = [[int(x) for x in values] for values in fixture["outputs"]]
+    if len(target_transitions) != target_n or len(target_outputs) != target_n:
+        raise AssertionError("target fixture size does not match the declared state count")
+    if not is_strongly_connected(target_transitions) or not is_minimal_mealy(target_transitions, target_outputs):
+        raise AssertionError("target fixture is not minimal and strongly connected")
+    target_matched, target_post = replay_trace(
+        target_transitions,
+        target_outputs,
+        int(fixture["initial_state"]),
+        row["observed_trace"],
+    )
+    if not target_matched or target_post != int(row["target_post_trace_state"]):
+        raise AssertionError("target fixture does not reproduce its recorded trace/post-state")
     unsat_sizes = []
     unknown_sizes = []
     for candidate_size in range(1, target_n + 1):
@@ -334,6 +379,7 @@ def audit_row(row, timeout_ms: int):
                 "fixture_digest": row.get("fixture_digest"),
                 "trace_digest": row.get("trace_digest"),
                 "target_state_count": target_n,
+                "target_class_verified": True,
                 "candidate_size_search": {
                     "unsat_sizes_before_witness": unsat_sizes,
                     "unknown_sizes_before_witness": unknown_sizes,
@@ -352,6 +398,7 @@ def audit_row(row, timeout_ms: int):
         "fixture_digest": row.get("fixture_digest"),
         "trace_digest": row.get("trace_digest"),
         "target_state_count": target_n,
+        "target_class_verified": True,
         "candidate_size_search": {
             "unsat_sizes": unsat_sizes,
             "unknown_sizes": unknown_sizes,
