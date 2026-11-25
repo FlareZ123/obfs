@@ -701,7 +701,7 @@ test('owner re-export cycle refuses joint-root property rewriting',async()=>{
   ],0);
 });
 
-test('two-module reentrant imported reader preserves owner TDZ under positive rename',async()=>{
+test('two-module reentrant imported reader cycle is conservatively refused while preserving owner TDZ',async()=>{
   await preserves([
     {path:'a.mjs',sourceType:'module',code:
       'import {attempt} from "./b.mjs";'+
@@ -715,6 +715,6 @@ test('two-module reentrant imported reader preserves owner TDZ under positive re
       'export const attempt=early;'},
     {path:'main.mjs',sourceType:'module',code:
       'import {state,peek,early} from "./a.mjs";console.log(early,peek(state));'}
-  ],1);
+  ],0);
 });
 
