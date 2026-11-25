@@ -131,7 +131,9 @@ async function shutdown() {
   if (root) {
     await fs.rm(root, { recursive: true, force: true });
   }
-  process.stdout.write('STATS ' + JSON.stringify(stats) + '\n');
+  await new Promise(resolve => {
+    process.stdout.write('STATS ' + JSON.stringify(stats) + '\n', resolve);
+  });
   process.exit(0);
 }
 
