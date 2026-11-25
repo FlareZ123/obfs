@@ -389,3 +389,35 @@ test('a dynamic member key on a mutable closure alias cannot hide a sibling fiel
     'an unknown computed key must conservatively retain callables reachable from the mutable instance alias');
   assert.equal(hidden.safe,false);
 });
+
+
+test('destructuring a callable field from a mutable closure alias cannot hide its host escape',()=>{
+  const source=
+    'let owner;'+
+    'function hidden(){return 1;}'+
+    'function leak(){const {callback}=owner;external(callback);}'+
+    'class Local{callback=hidden;leak=leak;}'+
+    'function entry(){const instance=new Local();owner=instance;instance.leak();}'+
+    'module.exports=entry;';
+  const hidden=named(analyze(source),'hidden')[0];
+  assert.ok(hidden);
+  assert.equal(hidden.hostHeldCallable,true,
+    'destructured sibling field values from a mutable closure alias must remain held');
+  assert.equal(hidden.safe,false);
+});
+
+test('a local factory return assigned to a mutable closure alias cannot hide a sibling field escape',()=>{
+  const source=
+    'let owner;'+
+    'function hidden(){return 1;}'+
+    'function leak(){external(owner.callback);}'+
+    'class Local{callback=hidden;leak=leak;}'+
+    'function create(){return new Local();}'+
+    'function entry(){owner=create();owner.leak();}'+
+    'module.exports=entry;';
+  const hidden=named(analyze(source),'hidden')[0];
+  assert.ok(hidden);
+  assert.equal(hidden.hostHeldCallable,true,
+    'class instances returned by a local factory must flow through mutable closure aliases');
+  assert.equal(hidden.safe,false);
+});
