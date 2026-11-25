@@ -54,7 +54,7 @@ At delta = 1e-10, 18 seven-direction trials are required: `f^18 = 5.5308370176e-
 | Fixed-pair shift path (plus 96 shift probes and 726 verifier samples) | 2,479 |
 | Five-signature path (plus 992 signature probes and 726 verifier samples) | 3,375 |
 
-The six-direction caps remain 1,675 witness / 2,497 shift / 3,393 signature queries, with 27 trials and a miss bound of approximately 4.3580153939e-11. The Reed-Muller verifier false-accept bound remains `(31/32)^726 = 9.7657468774e-11`, under the fixed degree-at-most-five oracle and independent verifier-draw assumptions.
+The six-direction caps remain 1,675 witness / 2,497 shift / 3,393 signature queries, with 27 trials and a miss bound of approximately 4.3580153939e-11. The Reed-Muller verifier false-accept bound remains `(31/32)^726 = 9.7657468774e-11`, under the fixed degree-at-most-five oracle and independent verifier-draw assumptions. The witness-miss bound is a fast-path availability bound: exhausting the witness cap routes to exact degree-five interpolation fallback and does not itself mean an incorrect model was accepted. It is separate from the verifier false-acceptance bound; do not add the two probabilities as if they described the same failure event.
 
 ## Reproducibility and evidence
 
