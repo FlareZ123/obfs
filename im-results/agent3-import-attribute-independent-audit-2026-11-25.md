@@ -54,6 +54,16 @@ Two additional diagnostics distinguish private graph admission from source-mutat
 
 The specialized private graph does not rewrite or publish the imported private source bytes, so this particular byte-observation hazard is not the same as the standard SCO handler path. The graph still assumes native, closed server-side module resolution; custom loader semantics were not exercised. The selective partitioner is fail-closed for the tested default-import form. No specialized SCO graph code was changed.
 
+## JSON attribute precision experiment
+
+A separate diagnostic [45676307446](https://github.com/FlareZ123/obfs/actions/runs/45676307446) passed 2/2 tests on Ubuntu and Windows. It calls the local property renamer and string encoder directly on a static `with {type:"json"}` import:
+- The imported JSON binding's `data.value` access remains unchanged.
+- An unrelated locally owned object property is renamed.
+- The module specifier and `type:"json"` attribute literal remain unchanged.
+- An unrelated ordinary string literal is still encoded.
+
+This is evidence that a future refinement could treat the exact static `type:"json"` attribute as a non-source-byte observer while still refusing cross-file owner proof on any attributed edge. Dynamic import options and unknown/multiple attributes should remain fail-closed. The full pipeline still conservatively blocks all transforms for every attribute today. A runtime differential using the direct local transforms and a real Node JSON-module import is queued; do not relax the current guard until that runtime check and a browser differential are complete.
+
 ## Integration constraints
 
 - PR #374 covers repeated-separator URL/module identity and its own direct ESM proof boundary.
