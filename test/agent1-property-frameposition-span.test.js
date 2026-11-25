@@ -4,6 +4,8 @@ const assert=require('node:assert/strict');
 const http=require('node:http');
 const {execFile}=require('node:child_process');
 const {promisify}=require('node:util');
+const Module=require('node:module');
+const path=require('node:path');
 const {test}=require('node:test');
 const {obfuscateFiles}=require('../src/core');
 
@@ -128,6 +130,55 @@ test('experimental local property-span mode is opt-in and works in all three mod
       mode+' default property rename yield must remain unchanged');
     assert.notEqual(String(ordinary.code).length,source.length,
       mode+' default mode is not required to preserve property source width');
+  }
+});
+
+
+test('strict CommonJS Module._compile frame positions survive local property-span rewrites',()=>{
+  const cjsSource="'use strict';const owner={longPrivatePropertyName:21};const value=owner.longPrivatePropertyName;captureHostStack();module.exports=value;";
+  const output=obfuscateFiles([{
+    path:'generated.cjs',sourceType:'script',code:cjsSource
+  }],{
+    mode:'coo',closedWorld:false,seed:'agent1-cjs-property-frameposition',
+    identifiers:false,strings:false,properties:true,
+    experimentalLocalPropertySpanPreservation:true
+  }).files[0];
+  assert.equal(output.metrics.properties,1);
+  assert.equal(String(output.code).length,cjsSource.length);
+  /** @type {string[]} */
+  const stacks=[];
+  Object.defineProperty(globalThis,'captureHostStack',{
+    configurable:true,value:()=>stacks.push(new Error('frame probe').stack??'')
+  });
+  /**
+   * @param {string} code
+   * @param {string} filename
+   * @returns {unknown}
+   */
+  function compile(code,filename) {
+    /** @type {import('node:module').Module} */
+    const compiled=new Module(filename);
+    compiled.filename=filename;
+    compiled.paths=Module._nodeModulePaths(path.dirname(filename));
+    compiled._compile(code,filename);
+    return compiled.exports;
+  }
+  try {
+    const nativePath=path.resolve('agent1-native-frame.cjs');
+    const generatedPath=path.resolve('agent1-generated-frame.cjs');
+    assert.equal(compile(cjsSource,nativePath),21);
+    assert.equal(compile(String(output.code),generatedPath),21);
+    assert.equal(stacks.length,2);
+    const native=parseFrame(stacks[0],'agent1-native-frame.cjs');
+    const generated=parseFrame(stacks[1],'agent1-generated-frame.cjs');
+    process.stdout.write('AGENT1_CJS_PROPERTY_FRAMEPOSITION '+JSON.stringify({
+      propertyRewrites:output.metrics.properties,native,generated
+    })+'\\n');
+    assert.equal(generated.line,native.line);
+    assert.equal(generated.column,native.column,
+      'strict CommonJS module-wrapper frame position must remain stable');
+  } finally {
+    Reflect.deleteProperty(globalThis,'captureHostStack');
   }
 });
 
