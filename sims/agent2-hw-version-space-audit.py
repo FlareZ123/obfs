@@ -449,6 +449,7 @@ def main():
                 "status": case["audit"]["status"],
                 "candidate_state_count": case["audit"].get("witness", {}).get("candidate_state_count"),
                 "future_counterexample": case["audit"].get("witness", {}).get("future_counterexample"),
+                "witness": case["audit"].get("witness"),
                 "elapsed_seconds": case["audit"].get("elapsed_seconds"),
             }
             for case in cases
