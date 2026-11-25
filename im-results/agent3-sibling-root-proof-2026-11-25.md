@@ -1,6 +1,6 @@
 # Same-export ESM sibling-import root proof
 
-<badge>Intermediate research — PR #374 remains draft</badge>
+**Status:** Intermediate research — PR #374 remains draft
 
 ## Scope
 
@@ -13,7 +13,7 @@ This is a narrow correctness/capability improvement, not a new anti-analysis bou
 ## Reproducible validation
 
 - Focused cross-file reader suite: run [45622982666](https://github.com/FlareZ123/obfs/actions/runs/45622982666), 70/70 passing on Ubuntu and Windows, with project and external JSDoc checks passing. The exact source/test commit for that focused run was `1ad0e269939011962c8974a84ec821c7985464dd`.
-- Full validation after the browser comparator repair: run [45629037951](https://github.com/FlareZ123/obfs/actions/runs/45629037951), candidate head `374ec38bc05a98f30f8e2e4ec035bb694eaa3dea` (the branch was refreshed onto main `5917d5...` before dispatch). The overall workflow is red because the behavioral suite still contains baseline failures; it is not a clean release gate.
+- Full validation after the browser comparator repair: run [45629037951](https://github.com/FlareZ123/obfs/actions/runs/45629037951), candidate head `374ec38bc05a98f30f8e2e4ec035bb694eaa3dea` (the branch was refreshed onto main `5917d5e2b7bca8ed3f5ee014687262ae88b457c5` before dispatch). The overall workflow is red because the behavioral suite still contains baseline failures; it is not a clean release gate.
 - Full-suite counts on that candidate head: Ubuntu 5,354 passed / 13 failed / 25 skipped; Windows 5,346 passed / 12 failed / 34 skipped. The 12 common failures are the previously recorded mainline gaps in bound-runtime interception, factory object flow, function-declaration readers/public-only normalization, private-class and tuple profiles, dense SCO, live SCO RPC, SNO bound runtime, and source-stable bound exports.
 - The additional Ubuntu `test/interfile.test.js` failure is also a current-main baseline issue, not a candidate regression. Focused run [45630823630](https://github.com/FlareZ123/obfs/actions/runs/45630823630) against unmodified main `822ad712a19a018cb807af186f8450aac28ff1a6` fails the same test on both Ubuntu and Windows at the same expected-one/actual-zero assertion.
 - TypeScript/JSDoc checks, affine-oracle and paired-budget typechecks, benchmark samples, verified-record session profiles, and local-parameter profiles completed successfully in the full run. The measured benchmark ratios ranged from 0.571x to 1.083x; captured session/local-parameter ratios were also below 1.1x. These are workload-specific paired measurements, not a universal 2.5x guarantee.
