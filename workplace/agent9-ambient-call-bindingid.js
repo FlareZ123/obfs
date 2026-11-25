@@ -472,6 +472,46 @@ function summarizeAmbientCallEffects(ast,sourceType) {
     return initializer;
   }
 
+  // Local mutation of Function.prototype invocation helpers or Reflect.apply
+  // disables the intrinsic fast path. The analysis assumes standard intrinsics
+  // only when the source itself provides no evidence that they were replaced.
+  let callLikeIntrinsicsUnmodified=true;
+  walkAst(ast,node=>{
+    if(node.type==='AssignmentExpression'&&node.left.type==='MemberExpression') {
+      const key=staticPropertyKey(node.left.property,node.left.computed);
+      if(['call','apply','bind','__proto__'].includes(key))
+        callLikeIntrinsicsUnmodified=false;
+    } else if(node.type==='UpdateExpression'&&node.argument.type==='MemberExpression') {
+      const key=staticPropertyKey(node.argument.property,node.argument.computed);
+      if(['call','apply','bind','__proto__'].includes(key))
+        callLikeIntrinsicsUnmodified=false;
+    } else if(node.type==='UnaryExpression'&&node.operator==='delete'&&
+              node.argument.type==='MemberExpression') {
+      const key=staticPropertyKey(node.argument.property,node.argument.computed);
+      if(['call','apply','bind','__proto__'].includes(key))
+        callLikeIntrinsicsUnmodified=false;
+    } else if(node.type==='CallExpression'&&node.callee.type==='MemberExpression') {
+      const objectName=node.callee.object.type==='Identifier'?node.callee.object.name:null;
+      const key=staticPropertyKey(node.callee.property,node.callee.computed);
+      if((objectName==='Object'&&
+          ['defineProperty','defineProperties','assign','setPrototypeOf'].includes(key))||
+         (objectName==='Reflect'&&
+          ['defineProperty','set','setPrototypeOf'].includes(key)))
+        callLikeIntrinsicsUnmodified=false;
+    } else if(node.type==='WithStatement') {
+      callLikeIntrinsicsUnmodified=false;
+    } else if(node.type==='CallExpression'&&node.callee.type==='Identifier'&&
+              node.callee.name==='eval') {
+      const reference=resolved.at(node.callee.start);
+      if(reference?.resolution.kind==='unknown'&&
+         reference.resolution.reason==='unproven-free-name')
+        callLikeIntrinsicsUnmodified=false;
+    } else if(node.type==='AssignmentExpression'&&node.left.type==='Identifier'&&
+              ['Function','Reflect'].includes(node.left.name)) {
+      callLikeIntrinsicsUnmodified=false;
+    }
+  });
+
   // A narrowly proved local record may receive callable values without
   // publishing them. Require a direct const object literal, own primitive data
   // slots, and references confined to same-function static member accesses.
@@ -843,11 +883,23 @@ function summarizeAmbientCallEffects(ast,sourceType) {
    */
   function callReturnExpressions(call,seen=new Set()) {
     if(call.type!=='CallExpression')return [];
-    if(call.callee.type==='MemberExpression'&&
-       staticPropertyKey(call.callee.property,call.callee.computed)==='bind')return [];
+    const directInvocation=localInvocationDetails(call);
+    if(directInvocation?.kind==='bind')return [];
+    const boundInvocation=boundInvocationForCallee(call.callee);
     /** @type {AstNode[]} */
     let targets=[];
-    if(call.callee.type==='Identifier') {
+    /** @type {AstNode|null} */
+    let receiverOverride=null;
+    let hasReceiverOverride=false;
+    if(directInvocation) {
+      targets=directInvocation.targets;
+      receiverOverride=directInvocation.receiver;
+      hasReceiverOverride=Boolean(receiverOverride);
+    } else if(boundInvocation) {
+      targets=boundInvocation.targets;
+      receiverOverride=boundInvocation.receiver;
+      hasReceiverOverride=Boolean(receiverOverride);
+    } else if(call.callee.type==='Identifier') {
       const reference=resolved.at(call.callee.start);
       if(reference?.resolution.kind==='local') {
         const target=resolveFunctionNode(reference.resolution.bindingId);
@@ -858,6 +910,7 @@ function summarizeAmbientCallEffects(ast,sourceType) {
       }
     } else if(call.callee.type==='MemberExpression') {
       const calleeKey=staticPropertyKey(call.callee.property,call.callee.computed);
+      if(calleeKey==='bind')return [];
       targets=calleeKey===null?
         callableNodesForValue(call.callee.object,seen):
         callableNodesForMemberValue(call.callee.object,calleeKey,seen);
@@ -873,18 +926,18 @@ function summarizeAmbientCallEffects(ast,sourceType) {
       seen.add(marker);
       return true;
     });
-    return [...new Set(freshTargets.flatMap(target=>functionReturnExpressions(target).flatMap(expression=>
-      call.callee.type==='MemberExpression'?
-        memberReturnExpressionsWithReceiver(expression,call.callee.object,seen):[expression])))];
+    return [...new Set(freshTargets.flatMap(target=>functionReturnExpressions(target).flatMap(expression=>{
+      // Arrows ignore call/apply/bind receivers; their this value comes from
+      // the lexical receiver fixed point instead.
+      if(target.type==='ArrowFunctionExpression')return [expression];
+      if(hasReceiverOverride&&receiverOverride)
+        return memberReturnExpressionsWithReceiver(expression,receiverOverride,seen);
+      if(call.callee.type==='MemberExpression'&&!directInvocation)
+        return memberReturnExpressionsWithReceiver(expression,call.callee.object,seen);
+      return [expression];
+    })))];
   }
 
-  /**
-   * Resolve class constructor values through local aliases and static object
-   * members. This is intentionally limited to statically named local values.
-   * @param {AstNode} value
-   * @param {Set<number>} [seen]
-   * @returns {AstNode[]}
-   */
   function classNodesForValue(value,seen=new Set()) {
     if(['ClassDeclaration','ClassExpression'].includes(value.type))return [value];
     if(value.type==='Identifier') {
@@ -1558,6 +1611,170 @@ function summarizeAmbientCallEffects(ast,sourceType) {
    * @param {AstNode} fn
    * @returns {boolean}
    */
+  /**
+   * Determine whether an expression is proved to denote only local function
+   * values. Object records containing methods are not function values.
+   * @param {AstNode} value
+   * @param {Set<number>} [seen]
+   * @returns {boolean}
+   */
+  function isStaticallyFunctionValue(value,seen=new Set()) {
+    if(['FunctionDeclaration','FunctionExpression','ArrowFunctionExpression'].includes(value.type))
+      return true;
+    if(value.type==='Identifier') {
+      const reference=resolved.at(value.start);
+      if(reference?.resolution.kind!=='local')return false;
+      const bindingId=reference.resolution.bindingId;
+      if(seen.has(bindingId)||writtenBindings.has(bindingId))return false;
+      const direct=resolveFunctionNode(bindingId);
+      if(direct)return true;
+      const next=new Set(seen);
+      next.add(bindingId);
+      const initializer=initializerForBinding(bindingId);
+      if(initializer)return isStaticallyFunctionValue(initializer,next);
+      const values=bindingValueExpressions.get(bindingId)??[];
+      return values.length>0&&values.every(candidate=>
+        isStaticallyFunctionValue(candidate,next));
+    }
+    if(value.type==='MemberExpression') {
+      const key=staticPropertyKey(value.property,value.computed);
+      if(key===null)return false;
+      const values=memberValueExpressionsForProperty(value.object,key,seen);
+      return values.length>0&&values.every(candidate=>
+        isStaticallyFunctionValue(candidate,seen));
+    }
+    if(value.type==='ConditionalExpression')
+      return isStaticallyFunctionValue(value.consequent,seen)&&
+        isStaticallyFunctionValue(value.alternate,seen);
+    if(value.type==='LogicalExpression')
+      return isStaticallyFunctionValue(value.left,seen)&&
+        isStaticallyFunctionValue(value.right,seen);
+    if(value.type==='SequenceExpression'&&value.expressions.length)
+      return isStaticallyFunctionValue(value.expressions[value.expressions.length-1],seen);
+    if(value.type==='AssignmentExpression')
+      return isStaticallyFunctionValue(value.right,seen);
+    if(value.type==='ChainExpression')
+      return isStaticallyFunctionValue(value.expression,seen);
+    if(value.type==='AwaitExpression'&&value.argument)
+      return isStaticallyFunctionValue(value.argument,seen);
+    return false;
+  }
+
+  /**
+   * Resolve only a literal or immutable local array argument list for apply.
+   * Unknown/spread lists remain ordinary fail-closed call arguments.
+   * @param {AstNode|null} value
+   * @returns {{known:boolean,actuals:AstNode[]}}
+   */
+  function applyArgumentElements(value) {
+    if(!value||(value.type==='Literal'&&value.value===null))
+      return {known:true,actuals:[]};
+    let candidate=value;
+    if(value.type==='Identifier') {
+      const reference=resolved.at(value.start);
+      if(reference?.resolution.kind==='local')
+        candidate=initializerForBinding(reference.resolution.bindingId)??value;
+    }
+    if(candidate.type!=='ArrayExpression'||
+       candidate.elements.some(element=>!element||element.type==='SpreadElement'))
+      return {known:false,actuals:[]};
+    return {known:true,actuals:candidate.elements};
+  }
+
+  /**
+   * Recognize local function invocation through standard call/apply/bind
+   * intrinsics. This path is disabled when the source mutates those intrinsics,
+   * introduces dynamic name interception, or leaves the target's arguments
+   * unmodelled.
+   * @param {AstNode} call
+   * @returns {{kind:'call'|'apply'|'bind'|'reflect-apply',targets:AstNode[],receiver:AstNode|null,receiverArgument:AstNode|null,targetArgument:AstNode|null,argumentList:AstNode|null,actuals:AstNode[],actualsKnown:boolean}|null}
+   */
+  function localInvocationDetails(call) {
+    if(call.type!=='CallExpression'||!callLikeIntrinsicsUnmodified)return null;
+    let kind=null;
+    /** @type {AstNode|null} */
+    let targetValue=null;
+    /** @type {AstNode|null} */
+    let receiverArgument=null;
+    /** @type {AstNode|null} */
+    let targetArgument=null;
+    /** @type {AstNode|null} */
+    let argumentList=null;
+    /** @type {AstNode[]} */
+    let actuals=[];
+    let actualsKnown=true;
+    if(call.callee.type==='MemberExpression') {
+      const key=staticPropertyKey(call.callee.property,call.callee.computed);
+      if(call.callee.object.type==='Identifier'&&
+         call.callee.object.name==='Reflect'&&key==='apply') {
+        const reference=resolved.at(call.callee.object.start);
+        if(reference?.resolution.kind!=='unknown'||
+           reference.resolution.reason!=='unproven-free-name')return null;
+        kind='reflect-apply';
+        targetArgument=call.arguments[0]??null;
+        targetValue=targetArgument;
+        receiverArgument=call.arguments[1]??null;
+        argumentList=call.arguments[2]??null;
+      } else if(['call','apply','bind'].includes(key)) {
+        kind=key;
+        targetValue=call.callee.object;
+        receiverArgument=call.arguments[0]??null;
+        if(kind==='call'||kind==='bind') {
+          actuals=call.arguments.slice(1);
+          actualsKnown=actuals.every(argument=>argument.type!=='SpreadElement');
+        } else {
+          argumentList=call.arguments[1]??null;
+        }
+      } else {
+        return null;
+      }
+    } else {
+      return null;
+    }
+    if(!targetValue||!isStaticallyFunctionValue(targetValue))return null;
+    const targets=callableNodesForValue(targetValue);
+    if(targets.length!==1||hasUnmodelledArgumentAccess(targets[0]))return null;
+    if(receiverArgument?.type==='SpreadElement')return null;
+    if(kind==='apply'||kind==='reflect-apply') {
+      const resolvedArguments=applyArgumentElements(argumentList);
+      actuals=resolvedArguments.actuals;
+      actualsKnown=resolvedArguments.known;
+    }
+    return {
+      kind,
+      targets,
+      receiver:receiverArgument,
+      receiverArgument,
+      targetArgument,
+      argumentList,
+      actuals,
+      actualsKnown
+    };
+  }
+
+  /**
+   * Resolve a bound-function initializer when it is invoked through a local
+   * const identifier or immediately invoked bind expression.
+   * @param {AstNode} callee
+   * @returns {ReturnType<typeof localInvocationDetails>}
+   */
+  function boundInvocationForCallee(callee) {
+    if(callee.type==='CallExpression') {
+      const details=localInvocationDetails(callee);
+      return details?.kind==='bind'?details:null;
+    }
+    if(callee.type==='Identifier') {
+      const reference=resolved.at(callee.start);
+      if(reference?.resolution.kind!=='local')return null;
+      const initializer=initializerForBinding(reference.resolution.bindingId);
+      if(initializer?.type==='CallExpression') {
+        const details=localInvocationDetails(initializer);
+        return details?.kind==='bind'?details:null;
+      }
+    }
+    return null;
+  }
+
   function hasUnmodelledArgumentAccess(fn) {
     let found=false;
     walkAst(fn,node=>{
@@ -1587,15 +1804,37 @@ function summarizeAmbientCallEffects(ast,sourceType) {
   /** @type {WeakSet<AstNode>} */
   const locallyMappedCallArguments=new WeakSet();
   walkAst(ast,node=>{
-    if(node.type!=='CallExpression'||node.callee.type!=='Identifier')return;
-    const reference=resolved.at(node.callee.start);
-    if(reference?.resolution.kind!=='local')return;
-    const target=resolveFunctionNode(reference.resolution.bindingId);
+    if(node.type!=='CallExpression')return;
+    let target=null;
+    /** @type {AstNode[]} */
+    let actuals=node.arguments;
+    let actualsKnown=true;
+    /** @type {AstNode[]} */
+    const skippedArguments=[];
+    if(node.callee.type==='Identifier') {
+      const reference=resolved.at(node.callee.start);
+      if(reference?.resolution.kind==='local')
+        target=resolveFunctionNode(reference.resolution.bindingId);
+    } else {
+      const invocation=localInvocationDetails(node);
+      if(invocation) {
+        target=invocation.targets[0]??null;
+        actuals=invocation.actuals;
+        actualsKnown=invocation.actualsKnown;
+        if(invocation.receiverArgument)skippedArguments.push(invocation.receiverArgument);
+        if(invocation.targetArgument)skippedArguments.push(invocation.targetArgument);
+        if(invocation.argumentList&&invocation.actualsKnown)
+          skippedArguments.push(invocation.argumentList);
+      }
+    }
     if(!target||hasUnmodelledArgumentAccess(target))return;
+    for(const argument of skippedArguments)
+      locallyMappedCallArguments.add(argument);
+    if(!actualsKnown)return;
     const params=target.params??[];
     const restIndex=params.findIndex((/** @type {AstNode} */ param)=>param.type==='RestElement');
-    for(let i=0;i<node.arguments.length;i++) {
-      const argument=node.arguments[i];
+    for(let i=0;i<actuals.length;i++) {
+      const argument=actuals[i];
       if(argument.type==='SpreadElement')continue;
       // Rest-element arrays are not decomposed into element-level value flows;
       // leave those actuals unmapped so the call-site sink fails closed.
@@ -1718,6 +1957,24 @@ function summarizeAmbientCallEffects(ast,sourceType) {
    */
   function callableNodesForValueWithReceiver(value,fn,seen=new Set()) {
     if(!value)return [];
+    const invocation=localInvocationDetails(value);
+    if(invocation?.kind==='bind') {
+      const boundCallables=invocation.targets.flatMap(target=>{
+        const returned=functionReturnExpressions(target).flatMap(expression=>{
+          if(target.type==='ArrowFunctionExpression') {
+            const lexicalReceivers=receiverExpressionsByFunction.get(target)??[];
+            return lexicalReceivers.flatMap(receiver=>
+              memberReturnExpressionsWithReceiver(expression,receiver,newNumericSeenSet())
+                .flatMap(candidate=>callableNodesForValueWithReceiver(candidate,target,new Set(seen))));
+          }
+          if(!invocation.receiver)return [];
+          return memberReturnExpressionsWithReceiver(expression,invocation.receiver,newNumericSeenSet())
+            .flatMap(candidate=>callableNodesForValueWithReceiver(candidate,target,new Set(seen)));
+        });
+        return [target,...returned];
+      });
+      return [...new Set(boundCallables)];
+    }
     // Ordinary functions have dynamic this. Never borrow the receiver of the
     // function that merely contains or returns this function value.
     if(value.type==='FunctionDeclaration'||value.type==='FunctionExpression')
@@ -1756,7 +2013,8 @@ function summarizeAmbientCallEffects(ast,sourceType) {
       }
     }
     if(value.type==='CallExpression') {
-      const targets=callableNodesForValue(value.callee);
+      const invocation=localInvocationDetails(value);
+      const targets=invocation&&invocation.kind!=='bind'?invocation.targets:callableNodesForValue(value.callee);
       let hasReceiverBoundTarget=false;
       const receiverBoundCallables=targets.flatMap(target=>{
         if(target.type!=='ArrowFunctionExpression'||seen.has(target))return [];
@@ -1965,16 +2223,28 @@ function summarizeAmbientCallEffects(ast,sourceType) {
         for(const receiver of outer?receiverExpressionsByFunction.get(outer)??[]:[])
           if(addReceiverExpression(node,receiver))receiverMapChanged=true;
       }
-      if(node.type==='CallExpression'&&node.callee.type==='MemberExpression') {
-        const ownerFunction=enclosingFunction(node);
-        const receiverCandidates=node.callee.object.type==='ThisExpression'||node.callee.object.type==='Super'?
-          ownerFunction?receiverExpressionsByFunction.get(ownerFunction)??[]:[]:[node.callee.object];
-        const key=staticPropertyKey(node.callee.property,node.callee.computed);
-        for(const receiver of receiverCandidates) {
-          const targets=key===null?callableNodesForValue(receiver):callableNodesForMemberValue(receiver,key);
-          for(const target of targets) {
-            if(target.type==='ArrowFunctionExpression')continue;
-            if(addReceiverExpression(target,receiver))receiverMapChanged=true;
+      if(node.type==='CallExpression') {
+        const invocation=localInvocationDetails(node);
+        if(invocation) {
+          for(const target of invocation.targets) {
+            if(target.type!=='ArrowFunctionExpression'&&invocation.receiver&&
+               addReceiverExpression(target,invocation.receiver))
+              receiverMapChanged=true;
+          }
+        } else if(node.callee.type==='MemberExpression') {
+          const ownerFunction=enclosingFunction(node);
+          const receiverCandidates=node.callee.object.type==='ThisExpression'||
+            node.callee.object.type==='Super'?
+            ownerFunction?receiverExpressionsByFunction.get(ownerFunction)??[]:[]:
+            [node.callee.object];
+          const key=staticPropertyKey(node.callee.property,node.callee.computed);
+          for(const receiver of receiverCandidates) {
+            const targets=key===null?callableNodesForValue(receiver):
+              callableNodesForMemberValue(receiver,key);
+            for(const target of targets) {
+              if(target.type==='ArrowFunctionExpression')continue;
+              if(addReceiverExpression(target,receiver))receiverMapChanged=true;
+            }
           }
         }
       }
@@ -2095,13 +2365,18 @@ function summarizeAmbientCallEffects(ast,sourceType) {
   walkAst(ast,node=>{
     if(node.type==='CallExpression'||node.type==='NewExpression') {
       let knownLocalTarget=null;
-      if(node.type==='CallExpression'&&!node.optional&&node.callee.type==='Identifier') {
-        const reference=resolved.at(node.callee.start);
-        if(reference?.resolution.kind==='local')
-          knownLocalTarget=resolveFunctionNode(reference.resolution.bindingId);
-        else if(node.callee.name==='eval') {
-          for(const target of allFunctionNodes)
-            addReason(target,{kind:'direct-eval-local-scope',start:node.start,end:node.end},'HostHeldCallable');
+      if(node.type==='CallExpression'&&!node.optional) {
+        if(node.callee.type==='Identifier') {
+          const reference=resolved.at(node.callee.start);
+          if(reference?.resolution.kind==='local')
+            knownLocalTarget=resolveFunctionNode(reference.resolution.bindingId);
+          else if(node.callee.name==='eval') {
+            for(const target of allFunctionNodes)
+              addReason(target,{kind:'direct-eval-local-scope',start:node.start,end:node.end},'HostHeldCallable');
+          }
+        } else {
+          const invocation=localInvocationDetails(node);
+          if(invocation)knownLocalTarget=invocation.targets[0]??null;
         }
       }
       for(const argument of node.arguments) {
