@@ -2,7 +2,7 @@
 
 const assert=require('node:assert/strict');
 const {test}=require('node:test');
-const {obfuscateFiles}=require('../src');
+const {obfuscateFiles,createScoHandler}=require('../src');
 
 const options={
   mode:'coo',
@@ -77,13 +77,39 @@ test('dynamic import attributes also refuse source transformations',()=>{
   assert.equal(output.files.find(file=>file.path==='state.mjs').code,files[0].code);
 });
 
+test('SNO and COO mode pipelines preserve text-imported source bytes',()=>{
+  const files=textImportFiles();
+  for(const mode of ['coo','sno']){
+    const output=obfuscateFiles(files,{...options,mode,identifiers:true});
+    assert.equal(output.crossFile.properties,0,mode+': cross-file proof must refuse text import');
+    assert.equal(output.files.find(file=>file.path==='state.mjs').code,files[0].code,
+      mode+': text-imported source must remain byte-stable');
+  }
+});
+
+test('standard SCO handler preserves attributed source and refuses host locking',()=>{
+  const files=textImportFiles();
+  const handler=createScoHandler(files,{closedWorld:true});
+  const response={
+    status:0,body:undefined,
+    writeHead(status){this.status=status;return this;},
+    end(body){this.body=body;return this;}
+  };
+  handler({url:'/obfs/main.mjs',method:'GET',headers:{}},response);
+  assert.equal(response.status,200);
+  assert.equal(response.body,files[1].code,
+    'SCO must not vary, rename or otherwise mutate bytes observed by a text import');
+  assert.throws(()=>createScoHandler(files,{closedWorld:true,allowedHosts:['example.com']}),
+    /Host locking cannot preserve observable source bytes/);
+});
+
+test('source-observer islands reject attributed static imports',()=>{
   const files=[
-    {path:'state.mjs',sourceType:'module',
-      code:'const privateValue=23;export default {length:privateValue};'},
+    {path:'state.mjs',sourceType:'module',code:'export const secret=23;'},
     {path:'main.mjs',sourceType:'module',
-      code:'const loaded=await import("./state.mjs",{with:{type:"text"}});console.log(loaded.default.length);'}
+      code:'import source from "./state.mjs" with {type:"text"};export const value=source.length;'}
   ];
-  const output=obfuscateFiles(files,{...options,properties:false,identifiers:true});
-  assert.equal(output.crossFile.properties,0);
-  assert.equal(output.files.find(file=>file.path==='state.mjs').code,files[0].code);
+  assert.throws(()=>obfuscateFiles(files,{
+    ...options,experimentalSourceObserverIslands:['state.mjs']
+  }),/Source observer islands refuse distributed source-file readers|Source observer islands require closed static ESM imports/);
 });
