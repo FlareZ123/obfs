@@ -702,7 +702,7 @@ function summarizeAmbientCallEffects(ast,sourceType) {
    * Unknown or dynamic chains fall back to the receiver so callers fail closed.
    * @param {AstNode} expression
    * @param {AstNode} receiver
-   * @param {Set<number>} [seen]
+   * @param {Set<unknown>} [seen]
    * @returns {AstNode[]}
    */
   function memberReturnExpressionsWithReceiver(expression,receiver,seen=new Set()) {
@@ -726,8 +726,10 @@ function summarizeAmbientCallEffects(ast,sourceType) {
         next.add(marker);
         let values=[receiver];
         for(const key of keys) {
+          const propertySeen=new Set();
+          for(const item of next)if(typeof item==='number')propertySeen.add(item);
           const resolvedValues=values.flatMap(candidate=>
-            memberValueExpressionsForProperty(candidate,key,next));
+            memberValueExpressionsForProperty(candidate,key,propertySeen));
           if(!resolvedValues.length)return [receiver];
           values=[...new Set(resolvedValues)];
         }
@@ -943,6 +945,7 @@ function summarizeAmbientCallEffects(ast,sourceType) {
    * @param {AstNode} classNode
    * @param {string} propertyKey
    * @param {Set<AstNode>} [seen]
+   * @param {AstNode|null} [receiver]
    * @returns {AstNode[]}
    */
   function classMemberValueExpressionsForProperty(classNode,propertyKey,seen=new Set(),receiver=null) {
