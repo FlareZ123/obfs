@@ -372,6 +372,10 @@
     "test/agent1-native-callback-browser.test.js",
     "test/agent1-host-held-callback-browser.test.js",
     "test/agent1-host-held-callback-browser.js",
+    "workplace/agent9-ambient-call-bindingid.js",
+    "test/agent9-ambient-call-bindingid.test.js",
+    "test/agent9-mutable-factory-runtime-witness.test.js",
+    "test/agent6-member-flow-spread-override.test.js",
   ],
   "exclude": [
     "node_modules"
