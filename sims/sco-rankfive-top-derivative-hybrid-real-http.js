@@ -11,7 +11,7 @@ const {evaluateHybridModel}=require('./rankfive-top-derivative-projected-affine-
 
 /** @typedef {{origin:string,method:string,credential:string}} Access */
 /** @typedef {{kind:'projected-affine',bits:number,rank:5,table:number[],coordinates:number[],affineCorrections:number[]}|{kind:'anf',bits:number,lower:Array<[number,number]>,top:Array<[number,number]>,degree:4|5}} HybridModel */
-/** @typedef {{fastPathSuccess:boolean,witnessStrategy:'six-direction'|'seven-direction-restart',witnessTrials:number,witnessTrialCap:number,witnessDrawCount:number,witnessProbability:number,witnessFailureBound:number,quotientRank:number|null,coordinateStrategy:'shift'|'signature'|null,fixedPairPassed:boolean|null,fastQueries:number,verificationQueries:number,verificationSamples:number,verificationCap:number,verificationDelta:number,falseAcceptanceBound:number,verificationPassed:boolean,fallbackUsed:boolean,fallbackReason:string|null,fallbackQueries:number,exactByInterpolation:boolean,verifyDrawCount?:number,verifierTapeReleasedAfterCandidate?:boolean}} HybridDiagnostics */
+/** @typedef {{fastPathSuccess:boolean,witnessStrategy:'six-direction'|'seven-direction-restart',witnessTrials:number,witnessTrialCap:number,witnessDrawCount:number,witnessProbability:number,witnessFailureBound:number,quotientRank:number|null,coordinateStrategy:'shift'|'signature'|null,fixedPairPassed:boolean|null,fastQueries:number,verificationQueries:number,verificationSamples:number,verificationCap:number,verificationDelta:number|null,falseAcceptanceBound:number|null,verificationPassed:boolean|null,verificationMode:'verify-degree-five'|'assume-projected-affine',promiseAssumed:boolean,fallbackUsed:boolean,fallbackReason:string|null,fallbackQueries:number,exactByInterpolation:boolean,verifyDrawCount?:number,verifierTapeReleasedAfterCandidate?:boolean}} HybridDiagnostics */
 /** @typedef {(model:unknown,input:number)=>number} ModelEvaluator */
 /** @typedef {{model:HybridModel,queries:number,transcriptSha256:string,diagnostics:HybridDiagnostics}} CloneResult */
 /** @typedef {{
@@ -37,16 +37,18 @@ class NeedHttpQuery extends Error {
  * @param {number[]} witnessDraws
  * @param {number[]} verifyDraws
  * @param {'six-direction'|'seven-direction-restart'} [witnessStrategy]
+ * @param {'verify-degree-five'|'assume-projected-affine'} [verificationMode]
  * @returns {Promise<CloneResult>}
  */
-async function cloneHybridFromHttp(access,witnessDraws,verifyDraws,witnessStrategy='six-direction'){
-  assert.equal(verifyDraws.length,726,'The verifier tape must match the fixed RM sample cap');
+async function cloneHybridFromHttp(access,witnessDraws,verifyDraws,witnessStrategy='six-direction',verificationMode='verify-degree-five'){
+  const expectedVerifierWords=verificationMode==='verify-degree-five'?726:0;
+  assert.equal(verifyDraws.length,expectedVerifierWords,'The verifier tape length must match the selected verification mode');
   const sharedBuffer=new SharedArrayBuffer(Int32Array.BYTES_PER_ELEMENT*2);
   const shared=new Int32Array(sharedBuffer);
   const verifyBuffer=new SharedArrayBuffer(Int32Array.BYTES_PER_ELEMENT*(2+verifyDraws.length));
   const verifyShared=new Int32Array(verifyBuffer);
   const worker=new Worker(pathModule.join(__dirname,'rankfive-top-derivative-hybrid-http-worker.cjs'),{
-    workerData:{sharedBuffer,witnessDraws,verifyBuffer,verifyCount:verifyDraws.length,witnessStrategy}
+    workerData:{sharedBuffer,witnessDraws,verifyBuffer,verifyCount:verifyDraws.length,witnessStrategy,verificationMode}
   });
   /** @type {Map<number,number>} */
   const seen=new Map();
@@ -90,6 +92,8 @@ async function cloneHybridFromHttp(access,witnessDraws,verifyDraws,witnessStrate
       }else if(message.type==='candidate-ready'){
         if(settled)return;
         try{
+          assert.equal(verificationMode,'verify-degree-five',
+            'The assumed-promise mode must not request verifier randomness');
           assert.equal(candidateReadyCount,0,'Verifier tape requested more than once');
           assert.equal(message.queryCount,seen.size,'Candidate-ready query count differs from the completed training transcript');
           assert.equal(Atomics.load(verifyShared,0),0,'Verifier tape was released before candidate construction');
@@ -109,9 +113,15 @@ async function cloneHybridFromHttp(access,witnessDraws,verifyDraws,witnessStrate
         if(settled)return;
         settled=true;
         try{
-          assert.equal(candidateReadyCount,1,'Verifier tape was not released after a fixed candidate was constructed');
-          assert.equal(Atomics.load(verifyShared,0),1);
-          assert.equal(message.diagnostics.verifierTapeReleasedAfterCandidate,true);
+          if(verificationMode==='verify-degree-five') {
+            assert.equal(candidateReadyCount,1,'Verifier tape was not released after a fixed candidate was constructed');
+            assert.equal(Atomics.load(verifyShared,0),1);
+            assert.equal(message.diagnostics.verifierTapeReleasedAfterCandidate,true);
+          } else {
+            assert.equal(candidateReadyCount,0,'Assumed-promise mode unexpectedly requested verifier randomness');
+            assert.equal(Atomics.load(verifyShared,0),0);
+            assert.equal(message.diagnostics.verifierTapeReleasedAfterCandidate,false);
+          }
           assert.equal(message.queryCount,seen.size);
           resolve({
             model:message.model,
@@ -168,15 +178,16 @@ function percentile(values,p){
 }
 
 /**
- * Execute baseline and hybrid reconstructions over the same frozen SCO/native
- * HTTP source for each replicate. Tapes are shared across SCO/native within an
- * arm, but independently generated between the baseline and hybrid arms.
+ * Execute baseline and exact-promise hybrid reconstructions over the same
+ * frozen SCO/native HTTP source. The hybrid explicitly assumes the verified
+ * projected-affine rank-five source promise and therefore consumes no verifier tape.
  *
  * @returns {Promise<object>}
  */
 async function compare(){
   const replicates=10;
   const witnessStrategy='seven-direction-restart';
+  const verificationMode='assume-projected-affine';
   const source=privateSource();
   const sourcePromise=verifySourcePromise(source);
   /** @type {ReplicateRecord[]} */
@@ -200,14 +211,14 @@ async function compare(){
     /** @type {number[]} */
     const witnessDraws=Array.from({length:126},secureWord);
     /** @type {number[]} */
-    const verifyDraws=Array.from({length:726},secureWord);
+    const verifyDraws=[];
     /** @type {(access:Access,_unusedDraws:number[])=>Promise<CloneResult>} */
     const cloneRunner=(access,_unusedDraws)=>
-      cloneHybridFromHttp(access,witnessDraws,verifyDraws,witnessStrategy);
+      cloneHybridFromHttp(access,witnessDraws,verifyDraws,witnessStrategy,verificationMode);
     /** @type {ModelEvaluator} */
     const modelEvaluator=(model,input)=>
       evaluateHybridModel(/** @type {HybridModel} */ (model),input);
-    const options={cloneRunner,modelEvaluator,maxQueries:2479};
+    const options={cloneRunner,modelEvaluator,maxQueries:1753};
     const hybridSco=await executeArm('sco',source,[],options);
     const hybridNative=await executeArm('native',source,[],options);
     assert.equal(hybridSco.sourceHash,sourcePromise.sourceHash);
@@ -239,13 +250,18 @@ async function compare(){
     assert.ok(diagnostics.witnessFailureBound<=1e-10);
     assert.equal(diagnostics.quotientRank,5);
     assert.equal(diagnostics.fallbackUsed,false);
-    assert.equal(diagnostics.verificationPassed,true);
-    assert.equal(diagnostics.verificationSamples,726);
-    assert.ok(diagnostics.falseAcceptanceBound<=1e-10);
+    assert.equal(diagnostics.verificationMode,verificationMode);
+    assert.equal(diagnostics.promiseAssumed,true);
+    assert.equal(diagnostics.verificationPassed,null);
+    assert.equal(diagnostics.verificationSamples,0);
+    assert.equal(diagnostics.verificationQueries,0);
+    assert.equal(diagnostics.verificationCap,0);
+    assert.equal(diagnostics.falseAcceptanceBound,null);
     assert.equal(diagnostics.coordinateStrategy,'shift');
     assert.equal(diagnostics.fixedPairPassed,true);
-    assert.equal(diagnostics.verifierTapeReleasedAfterCandidate,true);
-    assert.ok(hybridSco.queries<=2479);
+    assert.equal(diagnostics.verifierTapeReleasedAfterCandidate,false);
+    assert.equal(diagnostics.verifyDrawCount,0);
+    assert.ok(hybridSco.queries<=1753);
 
     records.push({
       replicate,
@@ -280,8 +296,11 @@ async function compare(){
       maskRank:sourcePromise.maskRank,
       tableTopCoefficient:'0x'+sourcePromise.tableTopCoefficient.toString(16).padStart(8,'0'),
       fixedDeterministicDegreeFive:true,
-      jointRadicalCodimension:5
+      jointRadicalCodimension:5,
+      exactProjectedAffinePromise:true
     },
+    verificationMode,
+    verifierSamples:0,
     replicates,
     baseline:{
       meanQueries:baselineMean,
@@ -294,6 +313,10 @@ async function compare(){
     },
     hybrid:{
       witnessStrategy,
+      verificationMode,
+      promiseAssumed:true,
+      verifierSamples:0,
+      queryCap:1753,
       meanQueries:hybridMean,
       medianQueries:median(hybridQueries),
       p10Queries:percentile(hybridQueries,0.10),
