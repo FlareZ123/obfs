@@ -1407,9 +1407,26 @@ function summarizeAmbientCallEffects(ast,sourceType) {
 
   /** @param {AstNode} value @param {number} start @param {number} end @returns {void} */
   function markExternalCallableValue(value,start,end) {
-    for(const target of callableNodesForValue(value)) {
+    // Exported factories can expose callables without an explicit ReturnStatement
+    // (notably concise arrows). Follow the callable values they return so a
+    // private class-field function cannot be certified safe merely because its
+    // only external path passes through an exported factory.
+    const pending=[...callableNodesForValue(value)];
+    const seen=new Set();
+    while(pending.length) {
+      const target=pending.shift();
+      if(!target||seen.has(target))continue;
+      seen.add(target);
       externallyReachableFunctions.add(target);
       addReason(target,{kind:'module-exported-callable',start,end},'ExternalReachability');
+      for(const returned of functionReturnExpressions(target)) {
+        for(const returnedTarget of callableNodesForValue(returned)) {
+          addReason(returnedTarget,{
+            kind:'returned-callable-value',start,end,targetStart:target.start
+          },'HostHeldCallable');
+          pending.push(returnedTarget);
+        }
+      }
     }
   }
 
