@@ -366,7 +366,8 @@
     "sims/reanchor-dense-compatibility-screen.js",
     "test/reanchor-dense-compatibility-screen.test.js",
     "sims/sco-four-shear-reanchor-matched-http.js",
-    "test/sco-four-shear-reanchor-matched-http.test.js"
+    "test/sco-four-shear-reanchor-matched-http.test.js",
+    "test/agent5-explicit-this-receiver-call-apply.test.js"
   ],
   "exclude": [
     "node_modules"
