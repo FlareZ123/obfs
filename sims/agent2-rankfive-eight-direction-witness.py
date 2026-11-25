@@ -310,6 +310,63 @@ def exact_order_dp(model, sequence):
     }
 
 
+def trial_direction_cache_costs(model, sequence, metrics):
+    """Exact coordinate-stage query expectation with all trial directions in the basis."""
+    width = model["m"]
+    kernel_count = len(model["kernels"])
+    prefix_caches = []
+    covered = set()
+    for complement in sequence:
+        face_mask = ((1 << width) - 1) ^ sum(1 << index for index in complement)
+        subset = face_mask
+        while True:
+            covered.add(subset)
+            if subset == 0:
+                break
+            subset = (subset - 1) & face_mask
+        prefix_caches.append(set(covered))
+
+    previous = kernel_count
+    weighted_shift = 0
+    weighted_signature = 0
+    remaining = [row["remaining_kernels"] for row in metrics["rows"]]
+    for face_index, still_failing in enumerate(remaining):
+        first_success = previous - still_failing
+        previous = still_failing
+        if first_success == 0:
+            continue
+        anchors = [index for index in range(width)
+                   if index not in sequence[face_index]]
+        extras = list(sequence[face_index])
+        cache = prefix_caches[face_index]
+        shift_extra = 0
+        signature_extra = 0
+        for extra in extras:
+            shift_masks = {
+                1 << extra,
+                (1 << extra) | (1 << anchors[0]),
+                (1 << extra) | (1 << anchors[1]),
+            }
+            shift_extra += sum(mask not in cache for mask in shift_masks)
+            for subset in range((1 << 5) - 1):
+                mask = 1 << extra
+                for bit, anchor in enumerate(anchors):
+                    if (subset >> bit) & 1:
+                        mask |= 1 << anchor
+                if mask not in cache:
+                    signature_extra += 1
+        shift_cost = 3 * (32 - width) + shift_extra
+        signature_cost = 31 * (32 - width) + signature_extra
+        weighted_shift += first_success * shift_cost
+        weighted_signature += first_success * signature_cost
+
+    success_count = kernel_count - remaining[-1]
+    return {
+        "shift_expected": Fraction(weighted_shift, success_count),
+        "signature_expected": Fraction(weighted_signature, success_count),
+    }
+
+
 def main():
     model7 = build_model(7)
     model8 = build_model(8)
@@ -322,6 +379,8 @@ def main():
     order_dp7 = exact_order_dp(model7, M7_SEQUENCE)
     order_dp8 = exact_order_dp(model8, M8_SEQUENCE)
     order_dp8_cpp = exact_order_dp(model8, M8_CPP_SEQUENCE)
+    trial_cache7 = trial_direction_cache_costs(model7, M7_SEQUENCE, result7)
+    trial_cache8 = trial_direction_cache_costs(model8, M8_SEQUENCE, result8)
 
     assert len(model7["kernels"]) == 2667
     assert len(model8["kernels"]) == 97155
@@ -385,6 +444,14 @@ def main():
     assert release8["anchor_basis_promise_signature_cap"] == 2546
     assert release8["anchor_basis_verified_shift_cap"] == 2516
     assert release8["anchor_basis_verified_signature_cap"] == 3272
+    assert trial_cache7["shift_expected"] == Fraction(66220, 837)
+    assert trial_cache7["signature_expected"] == Fraction(66545, 81)
+    assert trial_cache8["shift_expected"] == Fraction(7100804, 90207)
+    assert trial_cache8["signature_expected"] == Fraction(73827200, 90207)
+    assert result7["expected_repeated_trial_queries"] + trial_cache7["shift_expected"] == Fraction(4011919249, 24519915)
+    assert result8["expected_repeated_trial_queries"] + trial_cache8["shift_expected"] == Fraction(143552075873, 880871355)
+    assert result7["expected_repeated_trial_queries"] + trial_cache7["signature_expected"] == Fraction(22216174024, 24519915)
+    assert result8["expected_repeated_trial_queries"] + trial_cache8["signature_expected"] == Fraction(795135332813, 880871355)
     assert 0.2536614 < gap_lower < 0.2536615
     assert 0.2537354 < gap_upper < 0.2537356
 
@@ -417,6 +484,16 @@ def main():
     face_delta = float(result8["expected_total_faces"] - result7["expected_total_faces"])
     print("  extra expected face evaluations (m8 - m7):", face_delta)
     print("  break-even face-evaluation cost in query units:", float(gap) / face_delta)
+    print("  all-trial-direction coordinate-stage expected queries (m7/m8):",
+          float(trial_cache7["shift_expected"]), float(trial_cache8["shift_expected"]),
+          "shift;", float(trial_cache7["signature_expected"]),
+          float(trial_cache8["signature_expected"]), "signature")
+    print("  witness + coordinate-stage expected queries (m7/m8):",
+          float(result7["expected_repeated_trial_queries"] + trial_cache7["shift_expected"]),
+          float(result8["expected_repeated_trial_queries"] + trial_cache8["shift_expected"]),
+          "shift;", float(result7["expected_repeated_trial_queries"] + trial_cache7["signature_expected"]),
+          float(result8["expected_repeated_trial_queries"] + trial_cache8["signature_expected"]),
+          "signature")
     print("  fixed-set exact ordering DP (m7,m8):",
           order_dp7["optimal_order_count"], order_dp8["optimal_order_count"],
           "optimal orders; states:", order_dp7["states"], order_dp8["states"])
