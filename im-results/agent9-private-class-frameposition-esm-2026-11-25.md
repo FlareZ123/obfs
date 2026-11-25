@@ -43,6 +43,7 @@ On the baseline, the compiler conservatively performed no property rewrite and b
 - Baseline test commit: `c6ada9e5c063cf4f147b3d2ebf10fa1a9669e420`
 - Baseline focused workflow: [45545522393](https://github.com/FlareZ123/obfs/actions/runs/45545522393)
 - Test: `test/agent9-private-class-frameposition-browser.test.js`
+- Each evidence branch differs from its pinned source parent by exactly one path: `test/agent9-private-class-frameposition-browser.test.js`. The candidate compare is PR head `499060b...` → `b67a24b...`; the baseline compare is main `c41b591...` → `c6ada9e...`. No compiler, production, workflow, package, or lockfile files were changed in either experiment.
 - Candidate PR: [#372](https://github.com/FlareZ123/obfs/pull/372), head unchanged at `499060b780fc1b355df7d9610711f77280217276` when checked at 04:17 UTC.
 
 The focused workflow executes the browser test on Ubuntu; the Windows test is skipped by the explicit platform guard. The baseline workflow passed on both OSes, including project, external-corpus, and paired-budget JSDoc. In the candidate workflow, the Ubuntu job failed at the intended red assertion before downstream JSDoc steps; the Windows skip job and its JSDoc steps passed.
