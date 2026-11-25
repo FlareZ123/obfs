@@ -457,3 +457,71 @@ test('a lexical-arrow return nested in an object result preserves the getter rec
   assert.match(String(captured?.callback),/return 1/);
   assert.equal(hiddenSummary(source).hostHeldCallable,true);
 });
+
+
+test('a lexical-arrow return nested in an array result preserves the getter receiver',()=>{
+  const source=
+    'function hidden(){return 1;}'+
+    'const owner={callback:hidden,get result(){const read=()=>this.callback;return [read()];}};'+
+    'external(owner.result);';
+  const [captured]=execute(source);
+  assert.equal(captured?.[0]?.name,'hidden');
+  assert.match(String(captured?.[0]),/return 1/);
+  assert.equal(hiddenSummary(source).hostHeldCallable,true);
+});
+
+test('a conditional lexical-arrow return preserves the getter receiver',()=>{
+  const source=
+    'function hidden(){return 1;}'+
+    'const owner={callback:hidden,get result(){const read=()=>this.callback;return true?read():undefined;}};'+
+    'external(owner.result);';
+  const [captured]=execute(source);
+  assert.equal(captured?.name,'hidden');
+  assert.match(String(captured),/return 1/);
+  assert.equal(hiddenSummary(source).hostHeldCallable,true);
+});
+
+test('a logical lexical-arrow return preserves the getter receiver',()=>{
+  const source=
+    'function hidden(){return 1;}'+
+    'const owner={callback:hidden,get result(){const read=()=>this.callback;return true&&read();}};'+
+    'external(owner.result);';
+  const [captured]=execute(source);
+  assert.equal(captured?.name,'hidden');
+  assert.match(String(captured),/return 1/);
+  assert.equal(hiddenSummary(source).hostHeldCallable,true);
+});
+
+test('a sequence lexical-arrow return preserves the getter receiver',()=>{
+  const source=
+    'function hidden(){return 1;}'+
+    'const owner={callback:hidden,get result(){const read=()=>this.callback;return (0,read());}};'+
+    'external(owner.result);';
+  const [captured]=execute(source);
+  assert.equal(captured?.name,'hidden');
+  assert.match(String(captured),/return 1/);
+  assert.equal(hiddenSummary(source).hostHeldCallable,true);
+});
+
+test('a spread-object lexical-arrow return preserves the getter receiver',()=>{
+  const source=
+    'function hidden(){return 1;}'+
+    'const owner={callback:hidden,get result(){const read=()=>this.callback;return {...{callback:read()}};}};'+
+    'external(owner.result);';
+  const [captured]=execute(source);
+  assert.equal(captured?.callback?.name,'hidden');
+  assert.match(String(captured?.callback),/return 1/);
+  assert.equal(hiddenSummary(source).hostHeldCallable,true);
+});
+
+test('an async method preserves lexical-arrow receiver flow through await',async()=>{
+  const source=
+    'function hidden(){return 1;}'+
+    'const owner={callback:hidden,async getCallback(){const read=()=>this.callback;return await read();}};'+
+    'external(owner.getCallback());';
+  const [pending]=execute(source);
+  const captured=await pending;
+  assert.equal(captured?.name,'hidden');
+  assert.match(String(captured),/return 1/);
+  assert.equal(hiddenSummary(source).hostHeldCallable,true);
+});
