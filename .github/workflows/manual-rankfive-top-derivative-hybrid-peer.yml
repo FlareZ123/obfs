@@ -21,17 +21,21 @@ jobs:
           python-version: '3.12'
       - name: Reproduce exact six/seven-direction witness query expectations
         run: python sims/agent50-rankfive-seven-direction-fixed-order-check.py
-      - name: Reproduce exhaustive 21-face restart-policy DP (Ubuntu only)
+      - name: Reproduce exact-integer restart DP and independent collision check (Ubuntu only)
         if: runner.os == 'Linux'
         shell: bash
         run: |
           set -euo pipefail
           git fetch --depth=1 origin main
-          test "$(git rev-parse FETCH_HEAD:sims/agent2-rankfive-witness-restart-dp.cpp)" = "0daaa5cd167502de15702bad780f31f901a25e71"
-          git show FETCH_HEAD:sims/agent2-rankfive-witness-restart-dp.cpp > /tmp/agent2-rankfive-witness-restart-dp.cpp
-          g++ -O3 -std=c++20 /tmp/agent2-rankfive-witness-restart-dp.cpp -o /tmp/rank7restartdp
-          /tmp/rank7restartdp | tee rankfive-seven-direction-dp.txt
-          grep -q 'best_cutoff=10 best_expected_witness_queries=84.502917281728' rankfive-seven-direction-dp.txt
+          test "$(git rev-parse FETCH_HEAD:sims/agent2-rankfive-witness-restart-dp-exact.cpp)" = "5fa6b3f2673f43a166a682d71a12e2175573178f"
+          test "$(git rev-parse FETCH_HEAD:sims/agent2-rankfive-witness-independent-check.py)" = "e67866203285bc7f810dc9ebf6a279d605a10d41"
+          git show FETCH_HEAD:sims/agent2-rankfive-witness-restart-dp-exact.cpp > /tmp/agent2-rankfive-witness-restart-dp-exact.cpp
+          git show FETCH_HEAD:sims/agent2-rankfive-witness-independent-check.py > /tmp/agent2-rankfive-witness-independent-check.py
+          g++ -O3 -std=c++20 /tmp/agent2-rankfive-witness-restart-dp-exact.cpp -o /tmp/rank7restartdpexact
+          /tmp/rank7restartdpexact | tee rankfive-seven-direction-dp-exact.txt
+          grep -q 'BEST k=10 Q=5526035598783/65394613305 = 84.502917281728' rankfive-seven-direction-dp-exact.txt
+          python /tmp/agent2-rankfive-witness-independent-check.py | tee rankfive-seven-direction-independent-check.txt
+          grep -q 'unconditional gap lower>1.506973688055' rankfive-seven-direction-independent-check.txt
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
@@ -57,7 +61,8 @@ jobs:
           name: rankfive-top-derivative-hybrid-peer-${{ matrix.os }}
           path: |
             rankfive-top-derivative-hybrid-peer-output.txt
-            rankfive-seven-direction-dp.txt
+            rankfive-seven-direction-dp-exact.txt
+            rankfive-seven-direction-independent-check.txt
             rankfive-top-derivative-hybrid-query-simulation.txt
             rankfive-top-derivative-hybrid-query-simulation.json
             rankfive-top-derivative-hybrid-source-ensemble.txt
