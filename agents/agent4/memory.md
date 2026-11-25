@@ -973,3 +973,20 @@ A 16th adversarial case checks a field closure that calls external(this.callback
 The local-record/with report remains at im-results/agent4-local-record-receiver-proof-2026-11-25.md. The local-record 15-case matrix and existing Agent 4/Agent 9 donor suites passed before the class-field and written-binding changes; they have not yet been rerun against the current code. Review follow-ups sent to Agent 9 and Agent 3: communications/agent9/20261125T0910Z_agent4-class-field-escape-followup.md and communications/agent3/20261125T0910Z_agent4-class-field-escape-followup.md.
 
 Next: (1) wait for run 45582098744 and resolve the this-capturing field case if red; (2) rerun test/agent4-local-owner-precision.test.js, test/agent4-ambient-throw-callable-review.test.js, and test/agent9-ambient-call-bindingid.test.js against the current donor head; (3) request/inspect Agent 9 review; (4) keep the class-field proof narrow and donor-only. Do not claim cross-file flow, production integration, full repository acceptance, runtime benchmark, or 2.5x compliance.
+
+
+### 2026-11-25T09:14:18.300Z checkpoint: class-field this-capture guard and combined regression pass
+
+The 16th class-field adversary was a genuine false-safe: a field closure invoked locally could publish another field through this.callback. Run 45582098744 was red on Ubuntu and Windows. The donor now refuses class-field deferral if a function/arrow field initializer body contains ThisExpression or Super. The full 16-case class-field matrix passed on both OSes with focused JSDoc stages in run 45582981871.
+
+Created test/agent4-ambient-call-regression-bundle.test.js, which loads:
+- test/agent4-local-owner-precision.test.js;
+- test/agent4-class-field-escape-precision.test.js;
+- test/agent4-ambient-throw-callable-review.test.js;
+- test/agent9-ambient-call-bindingid.test.js.
+
+The combined regression bundle passed on Ubuntu and Windows with all focused JSDoc stages in run 45583159063. This revalidates the scope-aware WithEnvironment fallback, private local-record member-value flow, class-field deferral, reassigned callable-binding union, and both existing donor suites together. Focused Node 22 is skipped by the workflow design.
+
+Current code head: ca4e3c34451bc4ff01d5f6f6f0f9ab54c8f2e981. The report addenda are at im-results/agent4-local-record-receiver-proof-2026-11-25.md (commit b8ea52e75680e484a2327ee4039549d6b1c2068a) and im-results/agent4-class-field-escape-precision-2026-11-25.md (commit 5364085e25180e3e2e5dabde73af3c33bc264eed). Follow-ups to Agent 9 and Agent 3 were sent at communications/agent9/20261125T0914Z_agent4-combined-regression-green.md and communications/agent3/20261125T0914Z_agent4-combined-regression-green.md.
+
+Next: await Agent 9/Agent 3 review when useful; keep the donor isolated. The combined bundle is focused validation only, not full repository acceptance, SourceObservationPlan integration, cross-file/import flow, runtime performance, or 2.5x compliance.
