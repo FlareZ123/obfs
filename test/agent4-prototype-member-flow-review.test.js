@@ -334,3 +334,91 @@ test('an aliased constructor exposed to the host invalidates prototype-shadow pr
   assert.equal(hiddenSummary(source,{trustedPrototypeSemantics:true}).hostHeldCallable,true,
     'an aliased constructor is not eligible for the local prototype-shadow proof');
 });
+
+/** @param {string} source */
+function assertHeldButRuntimeSendsHarmless(source) {
+  const observed=invokeExternal(source);
+  assert.equal(typeof observed,'function');
+  assert.equal(/** @type {{name?:unknown}} */ (observed).name,'harmless');
+  assert.equal(hiddenSummary(source).hostHeldCallable,true);
+  assert.equal(hiddenSummary(source,{trustedPrototypeSemantics:true}).hostHeldCallable,true);
+}
+
+test('conditional constructor writes do not prove an own-property shadow',()=>{
+  const source=
+    'function entry(){'+
+    'function hidden(){return 1;}'+
+    'function harmless(){return 0;}'+
+    'function Local(flag){if(flag)this.callback=harmless;}'+
+    'Local.prototype.callback=hidden;'+
+    'const owner=new Local(true);'+
+    'external(owner.callback);'+
+    '}'+
+    'module.exports=entry;';
+  assertHeldButRuntimeSendsHarmless(source);
+});
+
+test('dynamic instance property writes do not prove an own-property shadow',()=>{
+  const source=
+    'function entry(){'+
+    'function hidden(){return 1;}'+
+    'function harmless(){return 0;}'+
+    'function Local(){}'+
+    'Local.prototype.callback=hidden;'+
+    'const owner=new Local();'+
+    'const key="callback";'+
+    'owner[key]=harmless;'+
+    'external(owner.callback);'+
+    '}'+
+    'module.exports=entry;';
+  assertHeldButRuntimeSendsHarmless(source);
+});
+
+test('an instance alias invalidates the own-property shadow proof',()=>{
+  const source=
+    'function entry(){'+
+    'function hidden(){return 1;}'+
+    'function harmless(){return 0;}'+
+    'function Local(){}'+
+    'Local.prototype.callback=hidden;'+
+    'const owner=new Local();'+
+    'owner.callback=harmless;'+
+    'const alias=owner;'+
+    'external(alias.callback);'+
+    '}'+
+    'module.exports=entry;';
+  assertHeldButRuntimeSendsHarmless(source);
+});
+
+test('multiple instances invalidate the own-property shadow proof',()=>{
+  const source=
+    'function entry(){'+
+    'function hidden(){return 1;}'+
+    'function harmless(){return 0;}'+
+    'function Local(){}'+
+    'Local.prototype.callback=hidden;'+
+    'const owner=new Local();'+
+    'owner.callback=harmless;'+
+    'external(owner.callback);'+
+    'const other=new Local();'+
+    'external(other.callback);'+
+    '}'+
+    'module.exports=entry;';
+  assertHeldAndObserved(source);
+});
+
+test('deleting an own shadow invalidates the prototype proof',()=>{
+  const source=
+    'function entry(){'+
+    'function hidden(){return 1;}'+
+    'function harmless(){return 0;}'+
+    'function Local(){}'+
+    'Local.prototype.callback=hidden;'+
+    'const owner=new Local();'+
+    'owner.callback=harmless;'+
+    'delete owner.callback;'+
+    'external(owner.callback);'+
+    '}'+
+    'module.exports=entry;';
+  assertHeldAndObserved(source);
+});
