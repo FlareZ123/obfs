@@ -1226,10 +1226,6 @@ function summarizeAmbientCallEffects(ast,sourceType) {
     return [];
   }
 
-  /**
-   * @param {AstNode} fn
-   * @returns {boolean}
-   */
   // In classic scripts, global lexical and var bindings are readable by host
   // code (including DevTools/eval). Their known values therefore publish any
   // nested callables even when no in-file escape sink exists. This includes
@@ -1261,6 +1257,10 @@ function summarizeAmbientCallEffects(ast,sourceType) {
     }
   }
 
+  /**
+   * @param {AstNode} fn
+   * @returns {boolean}
+   */
   function hasUnmodelledArgumentAccess(fn) {
     let found=false;
     walkAst(fn,node=>{
