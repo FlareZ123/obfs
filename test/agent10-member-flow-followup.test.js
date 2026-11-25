@@ -567,3 +567,60 @@ test('a var object declared inside a classic-script block remains globally reach
     'var remains function/global scoped even when its declaration appears in a block');
   assert.equal(hidden.safe,false);
 });
+
+
+/** @param {string} source @returns {ReturnType<typeof summarizeAmbientCallEffects>} */
+function analyzeModule(source) {
+  return summarizeAmbientCallEffects(parse(source,'module'),'module');
+}
+
+/** @param {string} source @returns {ReturnType<typeof analyzeModule>['summaries'][number]} */
+function hiddenModuleSummary(source) {
+  const summary=named(analyzeModule(source),'hidden')[0];
+  assert.ok(summary,'the hidden module function must have an analysis summary');
+  return summary;
+}
+
+test('an exported ESM class exposes its deferred instance field callable',()=>{
+  const source='export class Local{callback=function hidden(){return 1;};}';
+  const hidden=hiddenModuleSummary(source);
+  assert.equal(hidden.externallyReachable,true,
+    'the exported class can be instantiated by a module consumer');
+  assert.equal(hidden.safe,false);
+});
+
+test('an exported ESM object getter exposes a sibling callable through this',()=>{
+  const source=
+    'const owner={callback:function hidden(){return 1;},get exposed(){return this.callback;}};'+
+    'export {owner};';
+  const hidden=hiddenModuleSummary(source);
+  assert.equal(hidden.externallyReachable,true,
+    'the exported object exposes the getter and its callable sibling to consumers');
+  assert.equal(hidden.safe,false);
+});
+
+test('an exported ESM object getter exposes a closed-over callable return',()=>{
+  const source=
+    'function hidden(){return 1;}'+
+    'const owner={get exposed(){return hidden;}};'+
+    'export {owner};';
+  const hidden=hiddenModuleSummary(source);
+  assert.equal(hidden.externallyReachable,true,
+    'an exported getter can return a private module callable');
+  assert.equal(hidden.safe,false);
+});
+
+test('an exported default ESM object exposes nested callable values',()=>{
+  const source='const owner={callback:function hidden(){return 1;}};export default owner;';
+  const hidden=hiddenModuleSummary(source);
+  assert.equal(hidden.externallyReachable,true);
+  assert.equal(hidden.safe,false);
+});
+
+test('an unexported ESM module-local class field callable remains safe',()=>{
+  const source='class Local{callback=function hidden(){return 1;};}';
+  const hidden=hiddenModuleSummary(source);
+  assert.equal(hidden.externallyReachable,false);
+  assert.equal(hidden.hostHeldCallable,false);
+  assert.equal(hidden.safe,true);
+});
