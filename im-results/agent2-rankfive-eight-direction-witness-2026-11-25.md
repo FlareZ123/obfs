@@ -188,11 +188,16 @@ This is **not** an exhaustive search over the \(2^{56}\) face subsets or all ord
 
 ## Reproduction
 
-Run:
+Run the exact checker:
 
     python3 sims/agent2-rankfive-eight-direction-witness.py
 
-The script enumerates all 2,667 seven-direction and 97,155 eight-direction kernel subspaces, reconstructs face-failure sets and subset-sum query unions, and asserts the exact fractions, increments, caps, and collision-correction interval.
+Run the heuristic search (C++20):
+
+    g++ -O3 -std=c++20 -march=native sims/agent2-rankfive-eight-direction-anneal.cpp -o /tmp/rankfive-m8-anneal
+    /tmp/rankfive-m8-anneal 14 100000 8
+
+The Python script enumerates all 2,667 seven-direction and 97,155 eight-direction kernel subspaces, reconstructs face-failure sets and subset-sum query unions, and asserts the exact fractions, increments, caps, and collision-correction interval for both candidate representatives. The C++ program is a heuristic searcher only; its floating-point objective is not evidence of exact optimality.
 
 ## Scope and next work
 
