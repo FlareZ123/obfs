@@ -381,6 +381,7 @@
     "test/agent9-exported-factory-production-source-observer.test.js",
     "test/agent9-exported-factory-browser-source.test.js",
     "test/agent9-exported-factory-browser-source.js",
+    "test/agent4-prototype-member-flow-default-safe.test.js",
   ],
   "exclude": [
     "node_modules"
