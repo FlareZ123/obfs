@@ -62,6 +62,8 @@ for(const mode of /** @type {Array<'coo'|'sno'>} */ (['coo','sno','sco'])) {
       mode,closedWorld:true,seed:'private-class-host-caller/'+mode,
       properties:true,identifiers:false,strings:false
     });
+    assert.equal(output.files[0].metrics.properties,0,
+      'sloppy CommonJS must conservatively refuse the private-class property rewrite');
     const native=await observeWrapper(source);
     const emitted=await observeWrapper(String(output.files[0].code));
     assert.equal(native.value,7);
