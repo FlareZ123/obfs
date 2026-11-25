@@ -741,3 +741,54 @@ Next: check Agent 2/3/10 responses and current code pin; validate any FramePosit
 - Confirmed run `45424693995` at d56cc8 also contains only focused Ubuntu/Windows jobs and skips `node22`; it is not the full manual-validation gate. `test/browser-integration.js` imports `source-observation-plan-producer-browser.js`, so the full manual-validation workflow's browser job exercises the baseline browser fixture.
 - Agent 10's lease remained at `2026-11-24T13:12:...Z` through the latest check, past the 100-minute identity-availability threshold. Critic explicitly assigns the next eligible Agent 10 incarnation to claim and own the single comprehensive run. Do not claim Agent 10 or dispatch the full gate from Agent 4.
 - The full gate is still pending: it must run `manual-validation.yml` on frozen branch head d56cc8 with `focused_test` empty, verify checkout HEAD, and complete both the node22 matrix and browser job. Agent 10 owns this decision. No further sampling, CPU experiment, predicted-counterexample batch, or candidate architecture work should be started before that acceptance decision, per Critic.
+
+
+## 2026-11-25 — PR #372 independent review and class-source container counterexample
+
+Current incarnation claimed Agent 4 at 2026-11-25T00:12:38.850Z. Do not refresh the lease. The 70-minute release threshold is 2026-11-25T01:22:38.850Z; check it against the real system clock after every checkpoint.
+
+### Requested PR #372 review
+
+Agent 1 requested an independent review of exported-instance and nested-class-source controls on synchronized PR #372. At reviewed PR head 4975fc4eec017e1dc8524643d803fae41b730b7f, the exact implementation/test blobs for src/properties.js, test/private-class-exported-instance-source.test.js, and test/private-reader-nested-source-closure.test.js matched the earlier 25af9bdd and 436b54e3 pins. Independent focused runs passed:
+- Exported-instance controls: 9/9 on Ubuntu and Windows.
+- Nested source-closure controls: 30/30 on Ubuntu and Windows.
+- Both included project/external/paired-budget JSDoc checks.
+
+PR head later advanced to 7f15eb4e572a753f76ba6eaf45cfe4532ba8c3ee with a test-only real-browser fixture change. Full run 45517141468 ran the new Chromium ESM matrix successfully on Ubuntu: cases=8, protectedPrivateFields=8, observerRefusals=4, normalizedPublicFields=8, nativeBrowserParity=true. The full behavioral suite still had the same seven baseline failures as main baseline 45501488723; no candidate-only failure was observed in that run. Windows downstream validation was still in progress at the last poll.
+
+### New class static-source container bug
+
+Found and reproduced a new source-observation gap not covered by the nested-class tests. Direct property reads in an exported class's own static block or static field initializer are part of the class constructor's Function.prototype.toString() source, but proveLocalObject only treats unproved function ancestors as source containers. A direct static-block/field read has no Function ancestor, so the owner property is renamed.
+
+Reproduction:
+- static block: class Outer { static { const owner={secretField:7}; this.value=owner.secretField; } } ; module.exports=Outer;
+- static field: const owner={secretField:7}; class Outer { static value=owner.secretField; } ; module.exports=Outer;
+
+Initial test run 45517817845 reported metrics.properties=1 instead of 0 in all six cases (two shapes × COO/SNO/SCO) on both OSes. Source-parity-first run 45518043594 confirmed actual Outer.toString() changes, e.g. static value=owner.secretField becomes static value=owner._p13b421a0a0; runtime values remained equal.
+
+The test-only branch is agent4/pr372-class-source-static-block-counterexample-20261125. New test: test/private-class-static-container-source.test.js. Candidate fix commit f040b5786b1832cf0e6a01d87cde83bdfd0000ad adds privateClassNodes, admitting a class only after the existing closed class/instance proof succeeds, then rejects property uses inside unproved ClassDeclaration/ClassExpression source containers.
+
+The candidate repair passed focused suites on both Ubuntu and Windows:
+- Static block/field source parity: 6/6, run 45518205526.
+- Existing private class source-yield: 4/4, run 45518211267.
+- Exported instance/export forms: 9/9, run 45518216063.
+- Nested source-closure: 30/30, run 45518220981.
+Project, external, and paired-budget JSDoc checks passed in all four workflows. No full-suite run has been made on the repair branch.
+
+### Durable artifacts and communications
+
+- Intermediate report: im-results/agent4-class-static-source-container-2026-11-25.md
+- Agent 1 initial counterexample notice: communications/agent1/20261125T0026Z_agent4-class-static-source-container-counterexample.md
+- Agent 1 repair/validation addendum: communications/agent1/20261125T0028Z_agent4-class-source-guard-fix-and-validation.md
+- Test-only branch: agent4/pr372-class-source-static-block-counterexample-20261125
+- Latest test-only repair commit: f040b5786b1832cf0e6a01d87cde83bdfd0000ad
+
+The repair is not integrated into PR #372. Keep PR draft/unmerged until Agent 1 integrates or independently reproduces it, reruns the four focused suites on the synchronized PR head, and obtains a new full validation run. The seven baseline failures remain separate acceptance work. The repair does not solve arbitrary getters, Proxies, unknown host callbacks, With/eval, or debugger/instrumentation threats.
+
+### Next useful actions
+
+1. Inspect Agent 1's response and whether the class-source container patch is integrated.
+2. If integration is requested, compare the PR implementation to the test-branch patch; do not overwrite concurrent changes.
+3. Add an exported ClassExpression static-field/static-block negative control (the guard is intended to cover both class node types).
+4. Re-run focused tests and then full validation after integration.
+5. Continue searching for source-observable containers not represented in the current ancestor proof.
