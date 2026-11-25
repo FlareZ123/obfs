@@ -1046,16 +1046,16 @@ function summarizeAmbientCallEffects(ast,sourceType) {
           property.kind==='init'?[property.value]:
           property.kind==='get'?functionReturnExpressions(property.value).flatMap(expression=>
             resolveThisReturnExpression(expression,thisReceiver??value,seen)):[]);
-      if(matching.length||laterSpreadValues.length||laterComputedValues.length)
-        return [...new Set([...explicitValues,...laterSpreadValues,...laterComputedValues])];
       const prototypeSetter=value.properties.find((/** @type {AstNode} */ property)=>
         property.type==='Property'&&property.kind==='init'&&!property.computed&&
         staticPropertyKey(property.key,false)==='__proto__');
-      if(prototypeSetter?.value) {
-        const inherited=memberValueExpressionsForProperty(
-          prototypeSetter.value,propertyKey,seen,thisReceiver??value);
-        return inherited.length?inherited:callableNodesForValue(prototypeSetter.value,seen);
-      }
+      const inheritedValues=!matching.length&&prototypeSetter?.value?
+        memberValueExpressionsForProperty(
+          prototypeSetter.value,propertyKey,seen,thisReceiver??value):[];
+      if(matching.length||laterSpreadValues.length||laterComputedValues.length||inheritedValues.length)
+        return [...new Set([...explicitValues,...laterSpreadValues,...laterComputedValues,...inheritedValues])];
+      if(prototypeSetter?.value)
+        return callableNodesForValue(prototypeSetter.value,seen);
       return [];
     }
     if(value.type==='ArrayExpression') {
