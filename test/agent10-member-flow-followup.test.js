@@ -114,16 +114,15 @@ test('an inherited getter returning a callable remains visible through the subcl
     'the property-value resolver must include callable values returned by inherited getters');
 });
 
-test('a primitive getter does not retain an unrelated callable sibling field',()=>{
+test('reading a primitive-returning getter does not retain another getter callable',()=>{
   const source=
     'let owner;'+
     'function hidden(){return 1;}'+
-    'class Local{callback=hidden;get value(){return 1;}}'+
+    'class Local{get callback(){return hidden;}get value(){return 1;}}'+
     'function entry(){owner=new Local();external(owner.value);}'+
     'module.exports=entry;';
   const hidden=hiddenSummary(source);
-  if(hidden.hostHeldCallable)console.log('PRIMITIVE_GETTER_REASONS',JSON.stringify(hidden.reasons));
   assert.equal(hidden.hostHeldCallable,false,
-    'a getter returning a primitive must not retain an unrelated callable field');
+    'the unobserved callable-returning getter must not be retained when only a primitive getter is read');
   assert.equal(hidden.safe,true);
 });
