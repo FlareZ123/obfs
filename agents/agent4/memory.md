@@ -1050,3 +1050,31 @@ Latest combined validation: run `45613731865`, 176 tests / 175 pass / 0 fail / 1
 Current donor head: `a726d91de8277ee19c402c1fd8a9e52f65f7f525`. Updated report: `im-results/agent4-ambient-call-bindingid-recursive-this-script-global-2026-11-25.md` (commit `59440728e9974640be1ccf18caa8912e85914a99`).
 
 Do not promote to production yet. Remaining work: obtain Agent 3/10/9 review, test object spread and global/export roots under independent runtime instrumentation, extend multi-file import/namespace coverage, and retain the private-mutator parameter TODO/fail-closed behavior. The analysis is still single-file and no runtime 2.5x budget has been measured.
+
+### 2026-11-25T17:17:47.329Z checkpoint: independent receiver-flow differential, 51-case green donor, and prototype shadow boundary
+
+Reviewed the Agent 10 member-flow candidate and cross-validated the receiver/member-flow helper across Agent 10, Agent 6, Agent 1, Agent 4, and Agent 5 branches. Added runtime-first tests: every positive case executes through Node vm and verifies the exact host-observed function before asserting the static summary.
+
+**19-case member-flow matrix** (`test/agent4-agent10-member-flow-adversarial-review.test.js`):
+- Agent 10 candidate `c8d6bf6...`: 10/19; nine runtime-confirmed false negatives covering later spread/computed-key overrides, object method/getter `this.callback` returns and side-effect sinks, and factory-returned object method/getter receiver paths. Run 45657844717.
+- Agent 6 spread/override helper `719f484...`: 16/19; missed object method/getter side-effect sinks and factory-returned method receiver. Run 45659709961.
+- Agent 4 return-only receiver donor `6b21582...`: 12/14; missed the two method/getter side-effect sink cases. Run 45657750458.
+- Agent 1 current-main helper `e673dfa...`: 19/19 on the subset. Run 45659950310.
+- Agent 5 earlier receiver helper `4bf3c478...`: 19/19. Run 45657855450.
+
+**51-case Agent 5 receiver suite**:
+- Agent 1 current-main helper passed 44/51 (7 failures: inherited getter and dynamic getter side-effect false negatives; primitive/receiver and shadowed lexical-arrow precision over-retention). Run 45660207684.
+- Agent 5's latest semantic helper, including effective object-property traversal from `5f5d170...`, passes 51/51 after a clean JSDoc patch. The clean patch is branch `agent4/agent5-seen-set-jdoc-fix-20261125`, commit `0ec1ac5314c3426906d2025eb4117ccf6ac92afe`; it changes recursive value-flow `seen` params to `Set<unknown>` while retaining `Map<AstNode,Set<number>>` for binding-ID maps. Run 45662649431 passed 51 tests and project/external/paired-budget JSDoc on Ubuntu and Windows. Sent Agent 5 this exact commit; did not modify their branch.
+- Earlier Agent 5 pin `4e7ad...` was 50/51; the later effective-object-value change fixed the shadowed lexical-arrow precision case. Do not repeat the earlier hypothesis that the generic `memberReturnExpressionsWithReceiver` fallback caused it; the verified fix is effective-value traversal in `callableNodesForValue` / `callableNodesForValueWithReceiver`.
+
+**Prototype/instance boundary** (`test/agent4-prototype-member-flow-review.test.js`):
+- Agent 5 and Agent 1 helpers both pass all 9 positive prototype cases: function/class prototype callback assignments, prototype replacement, prototype methods returning `this.callback`, base-class inheritance, constructor-returned objects, and prototype getters.
+- Both fail the same 3 precision controls: constructor own write, class instance field, or later own write shadows `Local.prototype.callback = hidden`, but the summary still marks hidden held. Runtime sees `harmless`; this is conservative over-retention, not a false negative. Agent 5 run 45662347666; Agent 1 run 45662563234.
+- Next precision model: ordered own-property writes versus prototype-chain lookup, including class fields, constructor writes, inheritance, and explicit constructor object returns. Keep unknown descriptor/proxy/prototype mutation fail-closed.
+
+**Persistent artifacts and communications**:
+- Report and archived reproduction files: `im-results/agent4-member-flow-cross-validation-2026-11-25/README.md`, `member-flow-adversarial-review.test.js`, and `prototype-member-flow-review.test.js`.
+- Messages sent to Agent 10 (9 false-negative differential), Agent 6 (3 receiver gaps), Agent 1 (44/51 differential and prototype precision), and Agent 5 (51-case green/JSDoc patch and prototype boundary) under their `communications/<agent>/` directories.
+- No production `src/` code was changed and no result was promoted to `results/`.
+
+Next: coordinate with Agent 5 and Agent 1 to port the minimal receiver-map/effective-value logic onto a fresh current-main integration branch; use the clean JSDoc patch; then model prototype own-shadow precision. Continue cross-file/import/mutator-parameter tests and preserve fail-closed behavior until runtime witnesses pass. All evidence remains helper-level; no production integration, full-suite acceptance, SCO/COO/SNO validation, or 2.5x runtime-budget evidence is established.
