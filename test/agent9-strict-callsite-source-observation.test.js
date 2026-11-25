@@ -5,13 +5,12 @@ const {test} = require('node:test');
 const {obfuscateFiles} = require('../src');
 
 /**
- * @typedef {{name:string|null,functionType:string,source:string|null,thisIsUndefined:boolean}} ObservedFrame
+ * @typedef {{name:string|null,functionType:string,source:string|null,thisIsUndefined:boolean,column:number|null}} ObservedFrame
  */
 
 /**
  * Execute a CommonJS source in the same V8 realm as a host-owned stack
- * formatter, which attempts to recover the active function through
- * CallSite#getFunction and its receiver through CallSite#getThis.
+ * formatter, which inspects the active function's CallSite metadata.
  * @param {string} code
  * @returns {{value:unknown,frames:ObservedFrame[]}}
  */
@@ -27,7 +26,8 @@ function runWithCallSiteObserver(code) {
         name: hidden.getFunctionName(),
         functionType: typeof fn,
         source: typeof fn === 'function' ? Function.prototype.toString.call(fn) : null,
-        thisIsUndefined: hidden.getThis() === undefined
+        thisIsUndefined: hidden.getThis() === undefined,
+        column: hidden.getColumnNumber()
       });
     }
     return 'captured';
@@ -50,11 +50,11 @@ const modes = /** @type {const} */ (['coo', 'sco', 'sno']);
 
 for (const mode of modes) {
   for (const strict of [false, true]) {
-    test(mode + ' V8 CallSite function and receiver visibility (' + strict + ')', () => {
+    test(mode + ' V8 CallSite exposes strict-frame coordinates despite hiding strict function objects (' + strict + ')', () => {
       const source = [
         strict ? "'use strict';" : '',
-        'const owner = {secretField: 17, unrelatedField: 23};',
-        'function hidden() { /* strict-callsite-source-marker */ getExternal(); return owner.secretField; }',
+        'const owner = {longPrivatePropertyName: 17, unrelatedField: 23};',
+        'function hidden() { /* strict-callsite-source-marker */ const result = owner.longPrivatePropertyName; getExternal(); return result; }',
         'module.exports = hidden() + 4;'
       ].filter(Boolean).join('\n');
       const output = obfuscateFiles([{
@@ -71,7 +71,7 @@ for (const mode of modes) {
       }).files[0];
 
       assert.ok(output.metrics.properties >= 1, mode + ': expected private owner property rewrite');
-      assert.ok(!output.code.includes('secretField'), mode + ': transformed output should not retain the private key spelling');
+      assert.ok(!output.code.includes('longPrivatePropertyName'), mode + ': transformed output should not retain the private key spelling');
 
       const native = runWithCallSiteObserver(source);
       const emitted = runWithCallSiteObserver(String(output.code));
@@ -79,21 +79,26 @@ for (const mode of modes) {
       assert.equal(emitted.value, native.value, mode);
       assert.deepEqual(native.frames.map(frame => frame.name), ['hidden'], mode);
       assert.deepEqual(emitted.frames.map(frame => frame.name), ['hidden'], mode);
+      assert.notEqual(native.frames[0].column, null, mode);
+      assert.notEqual(emitted.frames[0].column, null, mode);
+      assert.notEqual(native.frames[0].column, emitted.frames[0].column, mode);
 
       if (strict) {
-        // Strict frames expose names but not their function object or receiver.
-        assert.deepEqual(native.frames, [{
-          name: 'hidden', functionType: 'undefined', source: null, thisIsUndefined: true
-        }], mode);
-        assert.deepEqual(emitted.frames, native.frames, mode);
+        // Strict frames expose names/coordinates but not function objects/this.
+        assert.equal(native.frames[0].functionType, 'undefined', mode);
+        assert.equal(native.frames[0].source, null, mode);
+        assert.equal(native.frames[0].thisIsUndefined, true, mode);
+        assert.equal(emitted.frames[0].functionType, 'undefined', mode);
+        assert.equal(emitted.frames[0].source, null, mode);
+        assert.equal(emitted.frames[0].thisIsUndefined, true, mode);
       } else {
-        // Record whether this V8 build exposes sloppy function objects.
+        // Sloppy-frame callable exposure is reported separately from coordinates.
         assert.equal(native.frames[0].thisIsUndefined, false, mode);
         assert.equal(emitted.frames[0].thisIsUndefined, false, mode);
         if (native.frames[0].functionType === 'function') {
-          assert.match(native.frames[0].source || '', /owner\.secretField/, mode);
+          assert.match(native.frames[0].source || '', /owner\.longPrivatePropertyName/, mode);
           assert.notEqual(emitted.frames[0].source, native.frames[0].source, mode);
-          assert.doesNotMatch(emitted.frames[0].source || '', /owner\.secretField/, mode);
+          assert.doesNotMatch(emitted.frames[0].source || '', /owner\.longPrivatePropertyName/, mode);
         } else {
           assert.equal(native.frames[0].source, null, mode);
           assert.equal(emitted.frames[0].source, null, mode);
