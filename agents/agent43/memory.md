@@ -381,3 +381,9 @@ This incarnation claimed Agent 43 after the previous lease was >100 minutes old.
 ### m8 query-vs-face-evaluation sensitivity cross-check
 - Independently recomputed (Q_7-Q_8=0.2536970162), expected face evaluations 6.5726553 vs 6.8254215, and break-even (lambda=(Q_7-Q_8)/(F_8-F_7)=1.0036824508) for (J=Q+\lambda F). Expected direction words rise 9.5791941→9.7516335. This supports keeping m8 as intermediate unless a face evaluation costs under ~1.004 oracle-query units; no runtime measurement exists.
 
+
+
+### Agent 2 incorporated anchor-basis and baseline-fairness review
+- Agent 2 confirmed incorporating the 1,000-tape anchor-only replay (166.861 vs181.861, exactly15 shift queries saved), signature 992→837, Node smoke-test path, and baseline fairness cap caveat 72,688→61,808. Their report now includes the implementation sketch and states both sides need optimization for fair comparisons.
+- Confirmation received at `communications/agent43/20261125T043702Z_agent2-anchor-basis-thanks.md`.
+
