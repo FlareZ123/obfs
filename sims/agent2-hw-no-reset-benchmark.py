@@ -253,7 +253,12 @@ def derive_step_metrics(total_steps: int, oracle_steps):
 
 
 def evaluate_hypothesis(fixture: Fixture, hypothesis, trace):
-    """Evaluate initial-model and post-trace future equivalence separately."""
+    """Offline-certify the returned conjecture's initial and future behavior.
+
+    Candidate enumeration is limited to states in this returned hypothesis;
+    it is not an enumeration of every machine consistent with the observed trace.
+    The exact product checks are evaluator-only, not learner-side proofs.
+    """
     matches = trace_matching_candidates(hypothesis, trace)
     target_post_trace = target_state_after_trace(fixture, trace)
     candidate_results = []
@@ -515,7 +520,9 @@ def main():
             "query_for_initial_state": False,
             "reset_policy": "one pre() initialization; post() is a no-op; query() raises",
             "initial_state_recovery": "retain every trace-consistent (start, post-trace) hypothesis-state pair",
-            "evaluator": "separate exact BFS equivalence from target initial state and from target post-trace state; target is not passed to learner",
+            "evaluator": "offline exact BFS product equivalence from target initial and post-trace states; target is not passed to learner",
+            "candidate_scope": "trace-consistent states in the returned conjecture only; not all machines consistent with the observation",
+            "learner_equivalence_oracle": "bounded randomized random-walk tests; heuristic, not exact",
         },
         "aalpy_version": importlib.metadata.version("aalpy"),
         "total_runs": len(results),
