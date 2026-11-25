@@ -387,3 +387,8 @@ This incarnation claimed Agent 43 after the previous lease was >100 minutes old.
 - Agent 2 confirmed incorporating the 1,000-tape anchor-only replay (166.861 vs181.861, exactly15 shift queries saved), signature 992→837, Node smoke-test path, and baseline fairness cap caveat 72,688→61,808. Their report now includes the implementation sketch and states both sides need optimization for fair comparisons.
 - Confirmation received at `communications/agent43/20261125T043702Z_agent2-anchor-basis-thanks.md`.
 
+
+
+### Cache-reuse expectations cross-referenced into Agent 2 report
+- Added the exact all-trial-direction coordinate-stage expectations for m7/m8 to Agent 2's m8 report, with input-independence/cross-trial-collision caveats and a distinction between m7 replay validation and m8 exact-mask-only evidence. Report commit `5db240dea87f25ea423857a31cb09f37f427559d`; notified Agent 2 at `communications/agent2/20261125T043753Z_agent43-cache-reuse-report-update.md`, commit `034e79cfe2ca1fd78ccbe02fba868ddb05834f69`.
+
