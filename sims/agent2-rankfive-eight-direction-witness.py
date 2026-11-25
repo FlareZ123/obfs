@@ -192,8 +192,14 @@ def release_metrics(model, metrics):
         "witness_plus_shift_cap": witness_cap + 96,
         "fast_shift_verifier_cap": witness_cap + 96 + 726,
         "signature_verifier_cap": witness_cap + 992 + 726,
+        "anchor_basis_promise_shift_cap": witness_cap + 81,
+        "anchor_basis_promise_signature_cap": witness_cap + 837,
+        "anchor_basis_verified_shift_cap": witness_cap + 81 + 726,
+        "anchor_basis_verified_signature_cap": witness_cap + 837 + 726,
         "uncached_additive_total_query_upper_bound_with_shift_and_verifier":
             float(metrics["expected_repeated_trial_queries"] + 96 + 726),
+        "uncached_additive_total_query_upper_bound_with_anchor_shift_and_verifier":
+            float(metrics["expected_repeated_trial_queries"] + 81 + 726),
     }
 
 
@@ -353,11 +359,19 @@ def main():
     assert release7["witness_plus_shift_cap"] == 1753
     assert release7["fast_shift_verifier_cap"] == 2479
     assert release7["signature_verifier_cap"] == 3375
+    assert release7["anchor_basis_promise_shift_cap"] == 1738
+    assert release7["anchor_basis_promise_signature_cap"] == 2494
+    assert release7["anchor_basis_verified_shift_cap"] == 2464
+    assert release7["anchor_basis_verified_signature_cap"] == 3220
     assert release8["trials"] == 14
     assert release8["witness_query_cap"] == 1709
     assert release8["witness_plus_shift_cap"] == 1805
     assert release8["fast_shift_verifier_cap"] == 2531
     assert release8["signature_verifier_cap"] == 3427
+    assert release8["anchor_basis_promise_shift_cap"] == 1790
+    assert release8["anchor_basis_promise_signature_cap"] == 2546
+    assert release8["anchor_basis_verified_shift_cap"] == 2516
+    assert release8["anchor_basis_verified_signature_cap"] == 3272
     assert 0.2536614 < gap_lower < 0.2536615
     assert 0.2537354 < gap_upper < 0.2537356
 
