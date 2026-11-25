@@ -244,7 +244,7 @@ These include reuse from failed-face caches and are below the anchor-only worst-
 
 These totals are conditional on obtaining a witness and exclude the verifier. Adding 726 verifier samples gives uncached additive upper bounds; actual distinct-query counts may be lower if verifier points overlap. The coordinate-stage expectations assume the trial directions extend the basis independently; the earlier 32-bit collision correction was derived for the witness-query component, not a combined coordinate-stage correction.
 
-Agent 43's 1,000-tape deterministic replay found shift means 181.861 (standard basis), 166.861 (five-anchor basis), and 165.010 (all trial directions); signature means were 1,077.861, 922.861, and 907.756. All 64,000 holdouts per mode passed. Agent 42 independently reproduced the signature means. These are deterministic replay results, not runtime or independent-randomness benchmarks.
+For m=7, Agent 43's 1,000-tape deterministic replay found shift means 181.861 (standard basis), 166.861 (five-anchor basis), and 165.010 (all trial directions); signature means were 1,077.861, 922.861, and 907.756. All 64,000 holdouts per mode passed, and Agent 42 independently reproduced the signature means. These are deterministic replay results, not runtime or independent-randomness benchmarks. The m=8 values above have exact mask accounting but no corresponding live replay yet.
 
 ## Search method and optimality boundary
 
