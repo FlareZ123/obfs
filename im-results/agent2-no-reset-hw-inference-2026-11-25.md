@@ -35,7 +35,7 @@ The state count is used only by the fixture generator and evaluator. It is not p
 
 The previous evaluator found hypothesis states whose outputs matched the entire observed trace, but retained only each candidate's *start* state. It then tested product equivalence from the target's initial state to each candidate start. That answers whether the candidate reproduces the complete initial machine; it does not answer whether it reproduces the target's future behavior from the current post-trace state.
 
-The corrected evaluator retains every trace-consistent pair **within the returned AALpy conjecture**:
+The corrected evaluator retains every trace-consistent pair **within the returned AALpy conjecture** and separately computes whether their end states collapse to one future-equivalence class without consulting the target:
 
 \[
 (\text{candidate start state},\ \text{candidate post-trace state}).
@@ -48,7 +48,7 @@ For each pair it performs two separate exact BFS product checks:
 
 **future_clone_success** is true only when the candidate set is nonempty and **every** trace-consistent candidate post-trace state in the returned conjecture is product-equivalent to the target post-trace state. A single equivalent candidate is not enough when other trace-consistent candidates can have different future behavior. This is offline evaluator certification of one returned conjecture, not a proof that all machines consistent with the observed trace have the same future behavior.
 
-The report keeps distinct fields for unique initial-state identification, initial behavior identification, future behavior identification, ambiguous initial/future behavior, no trace-consistent candidates, false initial convergence, and false future convergence. The exact BFS checks are evaluator-only. The learner's RandomWphWOracle performs bounded randomized random-walk tests; its pass is heuristic, not an exact equivalence proof, and the attacker cannot observe the evaluator's target table or certify the offline result.
+The report keeps distinct fields for unique initial-state identification, initial behavior identification, future behavior identification, ambiguous initial/future behavior, no trace-consistent candidates, false initial convergence, and false future convergence. The target-vs-hypothesis exact BFS checks are evaluator-only. The learner can inspect whether its own candidate end states are equivalent within the returned conjecture, but the target-vs-hypothesis certification remains offline. The learner's RandomWphWOracle performs bounded randomized random-walk tests; its pass is heuristic, not an exact equivalence proof, and the attacker cannot observe the evaluator's target table or certify the offline result.
 
 The seven-test suite covers:
 - ambiguous initial states that nevertheless converge to one target-equivalent future behavior;
@@ -143,7 +143,8 @@ A larger sweep used 20 deterministic seeds per target size (220 requested cases)
 | Errors | 0 |
 | Exact initial-model clone success | 177/219 |
 | Ambiguous initial behavior | 42/219 |
-| Returned-hypothesis future-equivalence certifications | **219/219 completed** |
+| Candidate-end behavior unambiguous within returned conjecture | **219/219 completed** |
+| Returned-hypothesis future-equivalence certifications (offline target check) | **219/219 completed** |
 | Ambiguous future behavior | 0/219 |
 | False initial convergence | 0/219 |
 | False future convergence | 0/219 |
@@ -152,7 +153,7 @@ A larger sweep used 20 deterministic seeds per target size (220 requested cases)
 | Non-oracle steps | 154,522 |
 | Wall time reported by benchmark | 6.031 seconds |
 
-The candidate-count distribution among completed runs was 177 runs with one trace-matching start, 39 with two, and 3 with three. All 42 cases with more than one candidate still had every candidate post-trace state exactly equivalent to the target post-trace state **within the returned conjecture**.
+The candidate-count distribution among completed runs was 177 runs with one trace-matching start, 39 with two, and 3 with three. In all 42 cases with more than one candidate, every trace-matching start reached the **same exact hypothesis state ID** after the trace; thus all 219 completed runs had exactly one distinct candidate end-state ID. The updated evaluator also checks candidate-end equivalence within the returned conjecture without consulting the target. The separate offline target check confirms that this single candidate-end behavior matches the target future in all 219 completed cases.
 
 | Target states | Completed | Exact initial clones | Ambiguous initial behavior | Future certifications |
 |---:|---:|---:|---:|---:|
