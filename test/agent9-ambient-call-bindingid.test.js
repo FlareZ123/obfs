@@ -275,15 +275,20 @@ test('only non-escaping primitive own-data records exempt member-read effects',(
 });
 
 
-test('callable values crossing local calls remain unresolved without parameter flow',()=>{
-  const result=analyze(
+test('callable actuals flow to simple local formals and are held only at escape sinks',()=>{
+  const discarded=analyze(
     'function hidden(){return 1;}function consume(callback){return 2;}'+
     'function run(){consume(hidden);}'
   );
-  assert.equal(named(result,'hidden')[0].hostHeldCallable,true);
-  assert.ok(named(result,'hidden')[0].reasons.some(r=>
-    r.kind==='unresolved-callable-argument-flow'));
-  assert.equal(named(result,'run')[0].ambient,false);
+  assert.equal(named(discarded,'hidden')[0].hostHeldCallable,false);
+  assert.equal(named(discarded,'hidden')[0].safe,true);
+  const forwarded=analyze(
+    'function hidden(){return 1;}function consume(callback){external(callback);}'+
+    'function run(){consume(hidden);}'
+  );
+  assert.equal(named(forwarded,'hidden')[0].hostHeldCallable,true);
+  assert.equal(named(forwarded,'hidden')[0].safe,false);
+  assert.equal(named(forwarded,'run')[0].ambient,false);
 });
 
 
