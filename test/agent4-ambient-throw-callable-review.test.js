@@ -371,3 +371,17 @@ test('local actual-to-formal flow reaches an escaping closure capture',()=>{
   assert.equal(hidden.hostHeldCallable,true);
   assert.equal(hidden.safe,false);
 });
+
+
+test('local actual-to-formal flow reaches a returned callable sink',()=>{
+  const source=
+    'function hidden(){return 1;}'+
+    'function consume(callback){return callback;}'+
+    'function entry(){return consume(hidden);}'+
+    'module.exports=entry;';
+  const result=analyze(source);
+  const hidden=named(result,'hidden')[0];
+  assert.ok(hidden);
+  assert.equal(hidden.hostHeldCallable,true);
+  assert.equal(hidden.safe,false);
+});
