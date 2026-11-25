@@ -29,7 +29,7 @@ test('cached span-preserving string helper stays within the 2.5x hot-loop budget
   const source='function read(){const text='+JSON.stringify(message)+';return text.length;}let total=0;for(let i=0;i<1000000;i++)total+=read();export {total};';
   const output=obfuscateFiles([{path:'generated.mjs',sourceType:'module',code:source}],{
     mode:'coo',closedWorld:true,seed:'agent10-string-hot-loop-budget',
-    identifiers:false,strings:true,properties:false
+    identifiers:false,strings:true,properties:false,experimentalPreserveFramePositions:true
   }).files[0];
   assert.ok(output.metrics.literals>0,'the hot-loop literal must be transformed');
   const generatedCode=String(output.code);
