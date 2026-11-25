@@ -2,6 +2,27 @@ name: Manual Agent 2 no-reset hW inference benchmark
 
 on:
   workflow_dispatch:
+    inputs:
+      seeds:
+        description: "Deterministic seeds per target state count (1-20)"
+        required: false
+        default: 2
+        type: number
+      timeout_seconds:
+        description: "Per-fixture hW learner timeout"
+        required: false
+        default: 45
+        type: number
+      random_walk_length:
+        description: "RandomWphWOracle random walk length"
+        required: false
+        default: 30
+        type: number
+      origin_states:
+        description: "RandomWphWOracle test origin-state count"
+        required: false
+        default: 20
+        type: number
 
 permissions:
   contents: read
@@ -20,18 +41,30 @@ jobs:
       - name: Test evaluator semantics and step accounting
         run: python sims/test_agent2_hw_no_reset_evaluator.py
       - name: Run no-reset hW benchmark
+        env:
+          SEEDS: ${{ inputs.seeds || 2 }}
+          TIMEOUT_SECONDS: ${{ inputs.timeout_seconds || 45 }}
+          RANDOM_WALK_LENGTH: ${{ inputs.random_walk_length || 30 }}
+          ORIGIN_STATES: ${{ inputs.origin_states || 20 }}
         run: |
           python sims/agent2-hw-no-reset-benchmark.py \
-            --min-states 2 --max-states 12 --seeds 2 \
-            --timeout-seconds 45 --random-walk-length 30 --origin-states 20 \
+            --min-states 2 --max-states 12 --seeds "$SEEDS" \
+            --timeout-seconds "$TIMEOUT_SECONDS" \
+            --random-walk-length "$RANDOM_WALK_LENGTH" \
+            --origin-states "$ORIGIN_STATES" \
             > hw-no-reset-results.json
           python - <<'PY'
           import json
+          import os
           from pathlib import Path
           result = json.loads(Path("hw-no-reset-results.json").read_text())
+          seeds = int(os.environ["SEEDS"])
+          expected_runs = 11 * seeds
+          assert 1 <= seeds <= 20
           assert result["aalpy_version"] == "2.0.0"
-          assert result["total_runs"] == 22
-          assert result["completed_runs"] + result["timeouts"] + result["errors"] == 22
+          assert result["scope"]["state_counts"] == [2, 12]
+          assert result["total_runs"] == expected_runs
+          assert result["completed_runs"] + result["timeouts"] + result["errors"] == expected_runs
           assert result["completed_runs"] > 0
           for row in result["results"]:
               assert row.get("query_calls", 0) == 0, row
@@ -46,20 +79,24 @@ jobs:
                   assert len(row["trace_digest"]) == 64, row
           print("NO_RESET_HW_SUMMARY", json.dumps({
               "runs": result["total_runs"],
+              "seeds_per_state_count": seeds,
+              "timeout_seconds": int(os.environ["TIMEOUT_SECONDS"]),
+              "random_walk_length": int(os.environ["RANDOM_WALK_LENGTH"]),
+              "origin_states": int(os.environ["ORIGIN_STATES"]),
               "completed": result["completed_runs"],
               "timeouts": result["timeouts"],
               "errors": result["errors"],
               "exact_initial_clone_successes": result["exact_clone_successes"],
               "future_clone_successes": result["future_clone_successes"],
-              "ambiguous_future_behavior_runs": result["ambiguous_future_behavior_runs"],
-              "false_future_convergences": result["false_future_convergences"],
-              "initial_state_identified": result["initial_state_identified"],
               "ambiguous_initial_behavior_runs": sum(
                   bool(row.get("ambiguous_initial_behavior")) for row in result["results"]
               ),
+              "ambiguous_future_behavior_runs": result["ambiguous_future_behavior_runs"],
               "false_initial_convergences": sum(
                   bool(row.get("false_initial_convergence")) for row in result["results"]
               ),
+              "false_future_convergences": result["false_future_convergences"],
+              "initial_state_identified": result["initial_state_identified"],
               "elapsed_seconds": result["elapsed_seconds"],
           }, sort_keys=True))
           PY
