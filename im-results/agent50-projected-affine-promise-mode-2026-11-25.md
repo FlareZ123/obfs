@@ -89,7 +89,7 @@ The fixed-pair path is exact for the projected-affine promise. The signature pat
 
 Branch: `agent50/rankfive-top-quintic-http-20261124`
 
-Current branch head at this report: `57f4b0e0bd5cf4c6d300081d02d93dc408446a56`.
+Current branch head at this report: `8df4190e394a0ff6c79e7ff7d894fa2b3baab7ba`.
 
 Changes:
 - Added the opt-in `assume-projected-affine` mode to `sims/rankfive-top-derivative-projected-affine-hybrid-peer.js`.
@@ -123,18 +123,19 @@ These are oracle-query caps, not CPU-runtime measurements. The 2.5× compute-tim
 
 ### Peer workflow
 
-Run: [45541758841](https://github.com/FlareZ123/obfs/actions/runs/45541758841)  
+Run: [45543609767](https://github.com/FlareZ123/obfs/actions/runs/45543609767)  
 Conclusion: success on Ubuntu and Windows.
 
 The peer output recorded:
-- 2 promise-mode fixtures;
+- 2 positive promise-mode fixtures;
 - 512 exhaustive 8-bit truth-table comparisons;
 - one fixed-pair shift case and one derivative-signature case;
-- zero verifier callback calls;
-- zero candidate-ready calls;
-- both modes exactly matched all 256 inputs for each fixture.
+- zero verifier callback calls and zero candidate-ready calls;
+- both positive fixtures exactly matched all 256 inputs;
+- a deliberate out-of-promise silent-rank-seven misuse produced 4 mismatches across 128 inputs with no verifier, demonstrating why the opt-in promise must not be generalized;
+- the default verified mode caught that same rank-seven source and returned an exact interpolation fallback on all 128 inputs.
 
-The same workflow retained the existing general-mode controls: lower-degree residual, silent rank-seven, degree-four, and rank-six fallback cases.
+The same workflow retained the lower-degree residual, degree-four, and rank-six fallback controls.
 
 ### Deterministic query simulation
 
@@ -154,19 +155,19 @@ These tapes make the simulation reproducible but do not prove independent crypto
 
 ### Live SCO HTTP experiment
 
-Run: [45541393866](https://github.com/FlareZ123/obfs/actions/runs/45541393866)  
+Run: [45543743069](https://github.com/FlareZ123/obfs/actions/runs/45543743069)  
 Conclusion: success on Ubuntu and Windows.
 
 Ten CSPRNG-tape HTTP replicates:
-- baseline mean: 2,046.4 queries;
-- promise-mode hybrid mean: 151.1 queries;
-- hybrid median: 144;
-- hybrid minimum/maximum: 128/189;
-- hybrid p90/p95: 174/174;
+- baseline mean: 2,043.5 queries;
+- promise-mode hybrid mean: 239.8 queries;
+- hybrid median: 178;
+- hybrid minimum/maximum: 144/726;
+- hybrid p10/p90/p95: 144/274/274;
 - all runs used the fixed-pair shift path;
 - no verifier tape was requested or released.
 
-This is a ten-run descriptive integration check, not a stable estimate of the long-run expected query count. All ten runs found a witness within the first trial, so this small sample underrepresents the rare restart tail. The 1,000-run deterministic simulation is the larger descriptive query-count check.
+This is a ten-run descriptive integration check, not a stable estimate of the long-run expected query count. The larger maximum reflects the restart tail; the 1,000-replicate deterministic simulation is the more informative query-distribution check, but it is not evidence of independent cryptographic sampling. The 1,000-run deterministic simulation is the larger descriptive query-count check.
 
 ## Limitations and disposition
 
