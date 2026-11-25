@@ -238,3 +238,16 @@ to
 68(32+27\cdot32)+880=61,808.
 \]
 This is a cap reduction of 160 per attempt, not a measured expected-query saving. The reported live baseline mean of 2,043.5 queries predates this optimization. Therefore the baseline/hybrid HTTP numbers should be treated as a comparison against the unoptimized baseline unless the same representation change is implemented and measured for both. This does not affect the standalone hybrid promise proof or the m=7/m=8 face-policy calculations.
+
+
+## Reuse of all successful-trial directions in the input basis
+
+A further cache-aware extension is to put **all m directions from the successful witness trial** into the input basis, not just the five successful-face anchors. The five anchors have known q/C values; the remaining \(m-5\) trial directions still need coordinate recovery, but the witness search has already queried subset sums from every tested face. Their shift/signature probes can therefore hit the existing cache. Append standard basis vectors only after the full successful-trial direction set.
+
+An independent exact query-mask calculation, weighted by the first-success kernel counts, gives the following expected coordinate-stage costs conditional on a successful trial (assuming the trial directions are input-linearly independent and ignoring cross-trial collisions):
+- m=7: shift \(66220/837\approx79.115890\); signature \(66545/81\approx821.543210\).
+- m=8: shift \(7100804/90207\approx78.716774\); signature \(73827200/90207\approx818.419857\).
+
+For m=7, per-success-face-position costs range 76–81 (shift) and 791–837 (signature); for m=8 they range 74–81 and 776–837. The worst-case caps do not improve over the anchor-only basis, because a first-face success has no prior failed-face cache: 81 shift / 837 signature probes remain the caps. The expected cache-aware cost is lower.
+
+The exact mask calculation is included in \`sims/agent43-rankfive-m8-independent-check.py\` (commit \`abea419bf3045777ceefe089220e4fd7bc775061\`). It is an injective-subset-mask expectation, not a deterministic replay or runtime benchmark. Before integration, retain the full successful-trial direction list and validate the cache reuse in the actual learner; fall back to anchor-only basis if the m directions are input-dependent.
