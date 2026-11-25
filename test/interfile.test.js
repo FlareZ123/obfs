@@ -11,7 +11,7 @@ const {atomicWrite}=require('../src/atomic');
 
 test('four-file ESM dataflow preserves named imports, nested calls and external APIs',async()=>{
   const inputs=[
-    {path:'state.mjs',code:'export const state={secretValue:3,otherKey:5};export function internal(){return state.secretValue;}'},
+    {path:'state.mjs',code:'export const state={secretValue:3,otherKey:5};function readSecret(owner){return owner.secretValue;}export function internal(){return readSecret(state);}'},
     {path:'workerA.mjs',code:'import {state} from "./state.mjs";function worker(param){const alias=param;return alias.secretValue+alias.otherKey;}export const partial=worker(state);'},
     {path:'workerB.mjs',code:'import {state} from "./state.mjs";const {secretValue:factor,otherKey}=state;export const partial=factor*otherKey;'},
     {path:'index.mjs',code:'import {state,internal} from "./state.mjs";import {partial as a} from "./workerA.mjs";import {partial as b} from "./workerB.mjs";export const value=(+a)+(+b)+internal()+state.secretValue+globalThis.window.api.bridge;'}
@@ -23,6 +23,12 @@ test('four-file ESM dataflow preserves named imports, nested calls and external 
     assert.equal(output.crossFile.properties,2);
     const entry=output.files.find(f=>f.path==='index.mjs');
     assert.match(entry.code,/globalThis\.window\.api\.bridge/);
+    const stateModule=output.files.find(f=>f.path==='state.mjs');
+    assert.ok(stateModule);
+    const originalInternal=inputs[0].code.match(/export function internal\(\)\{[^}]*\}/)?.[0];
+    const emittedInternal=stateModule.code.match(/export function internal\(\)\{[^}]*\}/)?.[0];
+    assert.equal(emittedInternal,originalInternal,
+      'the exported wrapper source must remain byte-identical while its private reader is transformed');
     for(const file of output.files)await atomicWrite(path.join(root,file.path),file.code);
     const entryUrl=new URL('file://'+path.join(root,'index.mjs')).href;
     const command=`globalThis.window={api:{bridge:10}};import(${JSON.stringify(entryUrl)}).then(x=>console.log(x.value));`;
@@ -30,4 +36,22 @@ test('four-file ESM dataflow preserves named imports, nested calls and external 
     assert.equal(result.status,0,result.stderr);
     assert.equal(result.stdout.trim(),String(8+15+3+3+10));
   }finally{await fs.rm(root,{recursive:true,force:true});}
+});
+
+
+test('closed-world ESM proof refuses a key spelled inside an exported reader source',()=>{
+  const inputs=[
+    {path:'state.mjs',code:'export const state={secretValue:3};export function internal(){return state.secretValue;}'},
+    {path:'index.mjs',code:'import {state,internal} from "./state.mjs";export const value=internal()+state.secretValue;'}
+  ];
+  const output=obfuscateFiles(inputs,{
+    mode:'coo',seed:'exported-reader-source-refusal',closedWorld:true,
+    strings:false,identifiers:false
+  });
+  assert.equal(output.crossFile.objects,0);
+  assert.equal(output.crossFile.properties,0);
+  const state=output.files.find(f=>f.path==='state.mjs');
+  assert.ok(state);
+  assert.equal(state.code,inputs[0].code,
+    'an exported function that directly reads the owner key must retain its original source');
 });
