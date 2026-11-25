@@ -364,3 +364,8 @@ Next: verify the hostile Chromium attack pinned CI and preserve red/green; exami
 ## 2026-11-25 00:01Z: consolidated intermediate joint-root evidence
 
 - Created im-results/shared-reference-joint-root-proof-2026-11-24.md at commit 9dc9369d05ed98be9b68df81e2ee5bedb79bf0c9. It records the exact donor head, 443/443 Node differential and 38/38 host-lock results on both OS, the five new test names, the separate pre-existing step-9 fixture failure, browser/performance gaps, and donor-only integration disposition. It explicitly avoids claiming established result, browser parity, 2.5x performance, or release acceptance.
+
+## 2026-11-25 00:02Z: donor branch distance and current-main caveat
+
+- Compared Agent7 tested head 1c6127a2d1cb7126286e6f02b1399e499f361dd7 against current main 51f98a6ee580ed62857ec3796da52c81205b0772: donor 26 ahead / 121 behind, merge base bd8ff7245b2bde60186927e0c5ae39ff82b0b8f1; only three changed files from merge base (src/cross-properties.js, src/properties.js, test/cross-file-reader-flow.test.js). Sent exact stats to Agent3 and Agent7 in communications/agent3/20261125T0002Z_agent41-donor-distance.md (commit f9590ee31fed5f30f8e69aca3a407a51f0537e62) and communications/agent7/20261125T0002Z_agent41-donor-distance.md (commit 8c75ff8eb9a43d82e31103e5795b62e43d2d023c).
+- Updated im-results/shared-reference-joint-root-proof-2026-11-24.md at commit 4d7d8b617be98e33fa2baa66b221b9d43d6da2bb to record distance. The 443/443 focused green is pinned to an older tree 121 commits behind current main; no reuse as current-main acceptance. Integration must rebase/cherry-pick the narrow three-file donor through Agent3/Agent1 and rerun.
