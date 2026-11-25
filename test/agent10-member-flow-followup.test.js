@@ -235,6 +235,30 @@ test('a callable field behind an unknown Proxy constructor is conservatively hel
     'an unknown constructor may wrap the receiver and must not erase callable arguments');
 });
 
+test('optional chaining through a nested factory alias preserves the callable value',()=>{
+  const source=
+    'let holder;'+
+    'function hidden(){return 1;}'+
+    'class Local{callback=hidden;}'+
+    'const create=()=>({nested:{current:new Local()}});'+
+    'function entry(){holder=create();external(holder?.nested?.current?.callback);}'+
+    'module.exports=entry;';
+  assertHeld(hiddenSummary(source),
+    'optional chaining must compose the same known nested member values as ordinary member reads');
+});
+
+test('an optional dynamic key on a nested receiver remains fail-closed',()=>{
+  const source=
+    'let holder;let key;'+
+    'function hidden(){return 1;}'+
+    'class Local{callback=hidden;}'+
+    'const create=()=>({nested:{current:new Local()}});'+
+    'function entry(){holder=create();key="callback";external(holder?.nested?.current?.[key]);}'+
+    'module.exports=entry;';
+  assertHeld(hiddenSummary(source),
+    'an optional dynamic member read must conservatively retain callables in its nested receiver');
+});
+
 test('an object-literal primitive getter does not retain an unrelated callable sibling',()=>{
   const source=
     'function hidden(){return 1;}'+
