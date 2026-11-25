@@ -105,6 +105,8 @@ jobs:
               assert row["session_token_in_public_module"] is False, row
               assert row["client_module_fetch_status"] == 200, row
               assert row["client_cookie_present"] is True, row
+              assert row["method_name_published"] is True, row
+              assert row["client_method_name_matches"] is True, row
               assert row["client_module_source_disclosed"] is False, row
               assert row["unauthorized_status"] == 403, row
               assert row["reset_status"] == 404, row
