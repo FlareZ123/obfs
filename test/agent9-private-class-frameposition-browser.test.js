@@ -99,7 +99,7 @@ test('real Chromium strict ESM private-class rewrite preserves later FramePositi
 });
 
 
-test('real Chromium strict ESM combined property, identifier, and string transforms preserve later FramePosition',{
+test('real Chromium strict ESM property and identifier transforms preserve later FramePosition',{
   skip:process.platform!=='linux'?'real Chromium fixture currently targets the Linux runner':false
 },async()=>{
   const combinedSource='const marker="xy";const owner={longPrivatePropertyName:21};class Reader{read(){return owner.longPrivatePropertyName;}}const reader=new Reader();const value=reader.read()+marker.length;captureHostStack();export {value};';
@@ -149,6 +149,7 @@ test('real Chromium strict ESM combined property, identifier, and string transfo
       native,generated,values:payload.values
     })+'\n');
     assert.equal(output.metrics.properties,1,'the private owner-key rewrite must remain active');
+  assert.equal(output.metrics.literals,0,'the two-character marker is intentionally below the string-transform threshold');
     assert.equal(generated.line,native.line);
     assert.equal(generated.column,native.column,
       'the full combined transform pipeline must preserve the later strict-ESM module frame; '+
