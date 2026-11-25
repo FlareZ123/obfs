@@ -28,7 +28,7 @@ The ESM row is Agent 9's **actual compiler differential**, not merely a runtime 
 
 ## Source-level review
 
-The candidate's `privateClassNodes` admission is deliberately narrow: top-level non-exported ClassDeclaration, no superclass, one ordinary non-static/non-computed zero-argument synchronous method with one member-return, one unique const instance, and only direct zero-argument method calls. The existing tests reject direct/indirect exports, aliases, method extraction/binding, prototype/reflection and other instance uses. Within this admitted grammar, independent review found no additional class-instance escape.
+The candidate's `privateClassNodes` admission is deliberately narrow: top-level non-exported ClassDeclaration, no superclass, a class body containing exactly one ordinary non-static/non-computed MethodDefinition, a zero-argument synchronous method body containing exactly one ReturnStatement with one member-return, one unique const instance, and only direct zero-argument method calls. The exact one-element class-body check excludes static blocks, static/instance fields, accessors and additional methods from the admitted class shape. The existing tests reject direct/indirect exports, aliases, method extraction/binding, prototype/reflection and other instance uses. Within this admitted grammar, independent review found no additional class-instance escape.
 
 The missing fact is different: **active source-unit visibility is not equivalent to callable/value escape**.
 
