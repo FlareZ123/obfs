@@ -293,3 +293,21 @@ test('a mutable closure alias to a local class instance cannot publish a sibling
     'the field function closes over a mutable alias assigned the instance before the local call');
   assert.equal(hidden.safe,false);
 });
+
+
+test('a function-local closure alias to a class instance cannot publish a sibling field through an identifier field function',()=>{
+  const source=
+    'function hidden(){return 1;}'+
+    'function entry(){'+
+      'let owner;'+
+      'function leak(){external(owner.callback);}'+
+      'class Local{callback=hidden;leak=leak;}'+
+      'const instance=new Local();owner=instance;instance.leak();'+
+    '}'+
+    'module.exports=entry;';
+  const hidden=named(analyze(source),'hidden')[0];
+  assert.ok(hidden);
+  assert.equal(hidden.hostHeldCallable,true,
+    'the class-field function closes over a function-local mutable alias assigned the instance before invocation');
+  assert.equal(hidden.safe,false);
+});
