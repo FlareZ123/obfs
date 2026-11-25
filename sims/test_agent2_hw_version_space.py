@@ -67,6 +67,19 @@ class VersionSpaceAuditTests(unittest.TestCase):
         self.assertEqual(result["status"], "unsat")
         self.assertEqual(result["candidate_size_search"]["unsat_sizes"], [1])
 
+    def test_minimization_preserves_strong_connectivity_and_state_mapping(self):
+        transitions = [[1, 0], [0, 1]]
+        outputs = [[0, 0], [0, 0]]
+        minimized = MODULE.minimize_mealy(transitions, outputs, 0, 1)
+        new_transitions, new_outputs, initial, post, _partition = minimized
+        self.assertEqual(len(new_transitions), 1)
+        self.assertEqual(new_transitions, [[0, 0]])
+        self.assertEqual(new_outputs, [[0, 0]])
+        self.assertEqual(initial, 0)
+        self.assertEqual(post, 0)
+        self.assertTrue(MODULE.is_strongly_connected(new_transitions))
+        self.assertTrue(MODULE.is_minimal_mealy(new_transitions, new_outputs))
+
     def test_skips_rows_without_raw_evaluator_evidence(self):
         result = MODULE.audit_row({"status": "completed"}, timeout_ms=100)
         self.assertEqual(result["status"], "skipped")
