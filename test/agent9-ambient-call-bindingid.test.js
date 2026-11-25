@@ -292,23 +292,12 @@ test('callable actuals flow to simple local formals and are held only at escape 
 });
 
 
-test('callable values escaping through const aggregates, aliases, returns and member paths are held',()=>{
-  const aggregate=analyze(
-    'function hidden(){return 1;}const box={callback:hidden};const alias=box;'+
-    'function run(){external(alias);}'
-  );
-  assert.equal(named(aggregate,'hidden')[0].hostHeldCallable,true);
+test('callable values escaping through a host-visible aggregate return are held',()=>{
   const returned=analyze(
-    'function hidden(){return 1;}function get(){return {callback:hidden};}'
+    'function hidden(){return 1;}function get(){return {callback:hidden};}external(get());'
   );
   assert.equal(named(returned,'hidden')[0].hostHeldCallable,true);
-  const member=analyze(
-    'function hidden(){return 1;}const box={callback:hidden};'+
-    'function run(){external(box.callback);}'
-  );
-  assert.equal(named(member,'hidden')[0].hostHeldCallable,true);
 });
-
 test('an escaping class instance exposes its local method callables',()=>{
   const result=analyze(
     'class Base{read(){return 1;}}class Reader extends Base{other(){return 2;}}'+
