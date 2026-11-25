@@ -791,20 +791,34 @@ function summarizeAmbientCallEffects(ast,sourceType) {
       return callableNodesForMemberValue(value.expression,propertyKey,seen);
     if(value.type==='SpreadElement')
       return callableNodesForMemberValue(value.argument,propertyKey,seen);
-    if(value.type==='CallExpression'&&value.callee.type==='Identifier') {
-      const reference=resolved.at(value.callee.start);
-      if(reference?.resolution.kind!=='local')return [];
-      const target=resolveFunctionNode(reference.resolution.bindingId);
-      if(!target)return [];
+    if(value.type==='CallExpression') {
+      /** @type {AstNode[]} */
+      let targets=[];
+      if(value.callee.type==='Identifier') {
+        const reference=resolved.at(value.callee.start);
+        if(reference?.resolution.kind==='local') {
+          const target=resolveFunctionNode(reference.resolution.bindingId);
+          if(target)targets=[target];
+        }
+      } else if(value.callee.type==='MemberExpression') {
+        const calleeKey=staticPropertyKey(value.callee.property,value.callee.computed);
+        targets=calleeKey===null?
+          callableNodesForValue(value.callee.object,seen):
+          callableNodesForMemberValue(value.callee.object,calleeKey,seen);
+      } else if(['FunctionExpression','ArrowFunctionExpression'].includes(value.callee.type)) {
+        targets=[value.callee];
+      }
       /** @type {AstNode[]} */
       const returns=[];
-      if(target.body.type==='BlockStatement') {
-        walkAst(target.body,node=>{
-          if(node.type==='ReturnStatement'&&node.argument&&enclosingFunction(node)===target)
-            returns.push(node.argument);
-        });
-      } else {
-        returns.push(target.body);
+      for(const target of targets) {
+        if(target.body?.type==='BlockStatement') {
+          walkAst(target.body,node=>{
+            if(node.type==='ReturnStatement'&&node.argument&&enclosingFunction(node)===target)
+              returns.push(node.argument);
+          });
+        } else if(target.body) {
+          returns.push(target.body);
+        }
       }
       return [...new Set(returns.flatMap(candidate=>callableNodesForMemberValue(candidate,propertyKey,seen)))];
     }
