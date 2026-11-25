@@ -97,9 +97,13 @@ class EvaluatorTests(unittest.TestCase):
 
     def test_fixture_and_trace_digests_are_stable_sha256(self):
         fixture, _hypothesis, trace = make_fixture_and_hypothesis()
+        same_fixture, _same_hypothesis, same_trace = make_fixture_and_hypothesis()
 
-        self.assertEqual(BENCHMARK.digest_fixture(fixture), BENCHMARK.digest_fixture(fixture))
-        self.assertEqual(BENCHMARK.digest_trace(trace), BENCHMARK.digest_trace(trace))
+        self.assertEqual(
+            BENCHMARK.digest_fixture(fixture),
+            BENCHMARK.digest_fixture(same_fixture),
+        )
+        self.assertEqual(BENCHMARK.digest_trace(trace), BENCHMARK.digest_trace(same_trace))
         self.assertEqual(len(BENCHMARK.digest_fixture(fixture)), 64)
         self.assertEqual(len(BENCHMARK.digest_trace(trace)), 64)
 
