@@ -1,31 +1,76 @@
-# Candidate-only class wrapper source-observer witness
+'use strict';
 
-**Researcher:** Agent 1. **Date:** 2026-11-25.  
-**Status:** Red-first regression for PR #372; the candidate fails on both operating systems while the same test passes on current main.
+const assert=require('node:assert/strict');
+const {test}=require('node:test');
+const {mkdtemp,writeFile,rm}=require('node:fs/promises');
+const os=require('node:os');
+const path=require('node:path');
+const {spawnSync}=require('node:child_process');
+const {obfuscateFiles}=require('../src');
 
-## Question
+/**
+ * Run a real CommonJS module under a preloaded sloppy host source observer.
+ * The callback captures the implicit module wrapper, not the class or instance.
+ * @param {string} source
+ * @returns {Promise<{value:number,observed:string|null}>}
+ */
+async function observeWrapper(source) {
+  const directory=await mkdtemp(path.join(os.tmpdir(),'obfs-private-class-host-caller-'));
+  try {
+    const preload=path.join(directory,'preload.cjs');
+    const runner=path.join(directory,'runner.cjs');
+    const target=path.join(directory,'target.cjs');
+    await writeFile(preload,
+      "const nativeIsArray=Array.isArray;\\n"+
+      "Array.isArray=function observedIsArray(value){\\n"+
+      "  if(globalThis.__obfsPrivateClassArmed){\\n"+
+      "    const caller=arguments.callee.caller;\\n"+
+      "    globalThis.__obfsPrivateClassObserved=caller?Function.prototype.toString.call(caller):null;\\n"+
+      "  }\\n"+
+      "  return nativeIsArray(value);\\n"+
+      "};\\n",'utf8');
+    await writeFile(runner,
+      "globalThis.__obfsPrivateClassArmed=false;\\n"+
+      "globalThis.__obfsPrivateClassObserved=null;\\n"+
+      "const value=require(process.argv[2]);\\n"+
+      "process.stdout.write(JSON.stringify({value,observed:globalThis.__obfsPrivateClassObserved}));\\n",
+      'utf8');
+    await writeFile(target,source,'utf8');
+    const child=spawnSync(process.execPath,['-r',preload,runner,target],{
+      encoding:'utf8',timeout:10000
+    });
+    assert.equal(child.error,undefined);
+    assert.equal(child.status,0,child.stderr);
+    return /** @type {{value:number,observed:string|null}} */ (JSON.parse(child.stdout));
+  } finally {
+    await rm(directory,{recursive:true,force:true});
+  }
+}
 
-Does the new `privateClassNodes` admission preserve source when a host preloader can observe the implicit CommonJS wrapper, even though the class and its instance are lexically private?
-
-## Fixture
-
-The test uses a top-level unexported class with exactly one synchronous method that returns one statically named field from a top-level const owner. It creates one const instance and calls the method directly. The only additional operation is a top-level call to `Array.isArray`.
-
-A sloppy preloader replaces `Array.isArray`, captures `arguments.callee.caller`, and applies `Function.prototype.toString` to the captured caller. In Node CommonJS this caller is the implicit module wrapper, whose source contains the entire module, including the class method.
-
-The test compares native and emitted wrapper source and checks the computed value in both executions. It runs in COO and SNO.
-
-## Pinned red/green evidence
-
-- PR candidate base `eb10481923a27482f3d814feefc5e8e546f604cd`, witness commit `eb401c860a65f341b1b4c39f4209d18d40917055`, [run 45542177651](https://github.com/FlareZ123/obfs/actions/runs/45542177651): **2/2 failures on Ubuntu and 2/2 on Windows**. Both modes report one property rewrite. Native and emitted values are both 7. The native wrapper contains `privateField`; emitted wrappers contain generated `_p...` property names.
-- Current-main base control, witness commit `d62b6c133c33e95f6ba582bd05e24e9ec9d36478`, [run 45542183261](https://github.com/FlareZ123/obfs/actions/runs/45542183261): **2/2 passes on Ubuntu and 2/2 on Windows**, with project, external and paired-budget JSDoc checks passing.
-
-The source/test tree on current main is unchanged from the PR's merge base `256a1167280848192e7e8fac87c80ce5f235788c`; the candidate's `privateClassNodes` class admission is the relevant added behavior. The failure is therefore candidate-only for this source pin, not the ordinary private-function ambient-caller gap already present on main.
-
-## Interpretation and limits
-
-The local class/instance reference proof does not account for the enclosing CommonJS wrapper's source being exposed through a host callback. The rewrite preserves runtime value but violates the repository's source-observation equivalence condition.
-
-This does not establish a general obfuscation impossibility or a release-level security result. It is a specific compiler correctness counterexample. A strict directive alone is not a complete correction: V8 stack FramePosition can remain observable in strict frames, and shortening source before a later callback can change its reported column.
-
-Keep PR #372 draft/unmerged until the class admission is redesigned or conservatively narrowed and this witness passes on both platforms.
+for(const mode of /** @type {Array<'coo'|'sno'>} */ (['coo','sno'])) {
+  test(mode+' private class must preserve source visible through sloppy CommonJS wrapper',async()=>{
+    const source=[
+      'const owner={privateField:7};',
+      'class Reader{read(){return owner.privateField;}}',
+      'const reader=new Reader();',
+      'globalThis.__obfsPrivateClassArmed=true;Array.isArray([1,2]);globalThis.__obfsPrivateClassArmed=false;',
+      'module.exports=reader.read();'
+    ].join('');
+    const output=obfuscateFiles([{
+      path:'private-class.cjs',sourceType:'commonjs',code:source
+    }],{
+      mode,closedWorld:true,seed:'private-class-host-caller/'+mode,
+      properties:true,identifiers:false,strings:false
+    });
+    const native=await observeWrapper(source);
+    const emitted=await observeWrapper(String(output.files[0].code));
+    assert.equal(native.value,7);
+    assert.equal(emitted.value,7);
+    assert.match(native.observed??'',/privateField/);
+    assert.ok(emitted.observed,'the host preloader must observe the emitted module wrapper');
+    assert.equal(emitted.observed,native.observed,
+      'The host-observed CommonJS wrapper source must remain identical; '+
+      'property rewrites='+output.files[0].metrics.properties+
+      ', emittedContainsPrivateField='+String(emitted.observed.includes('privateField')));
+  });
+}
