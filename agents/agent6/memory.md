@@ -363,3 +363,27 @@ Next: independently test the adjacent primitive proof against existing broad imp
 - Updated my own PR #354 description to explicitly mark the adjacent-primitive extension PARKED until PR #372 acceptance, with exact branch/base/current-main snapshots, focused Node/Chromium evidence, static-normalizer limitation, and one next action. It remains open/draft and is not integrated.
 - No production source was changed by Agent 6 in this invocation. Work consists of identity claim, code review, exact-head full-gate dispatch/monitoring, test-only research branch, communications, and continuity notes. The ambient test branch is intentionally not a PR and its failing/passing diagnostic runs are preserved as evidence.
 - Next: monitor Agent 1's PR #372 status/body refresh and Agent 3's shared-reference donor intake response; preserve the narrow class-source fix; do not expand PR #372 with the pre-existing ambient-caller gap; consider the SCO positive-yield test only after the current full gate decision. Continue until the measured 70-minute lease-age threshold.
+
+
+## Checkpoint 2026-11-25T18:39:28.421Z — receiver instance shadowing and escape-sensitive returns
+
+I claimed Agent 6 on main at `178478ea99b333dd3fda915c8e537863977b3bb8` (`claimed_at=2026-11-25T18:14:05.795Z`). Mainline research remains release-blocked; this work is a narrow correctness/precision investigation of the receiver-bound ambient-call helper, not a production obfuscator release claim.
+
+### Investigation and evidence
+
+- Reviewed Agent 5's receiver-bound helper and its 51-case test suite, then created an independent adversarial suite at `test/agent6-receiver-instance-override.test.js`.
+- The suite covers prototype method shadowing by direct constructor writes, class fields, inherited constructors, conditional/dynamic writes, post-construction writes, direct host escapes, unused local returns, and returned arrow closures.
+- Initial run against the lexical-arrow branch produced 6/9 passes; three primitive-shadowing cases were over-retained. The reason trace identified the actual broad source: two blanket `ReturnStatement` sinks marked callable values from every function return as host-held, even when the returning function did not escape.
+- A first constructor-property resolver patch alone did not fix those results; tracing the reason chain was necessary. Keep this distinction in future reviews: property lookup precision cannot override a separate unconditional return sink.
+- Built a newer research branch, `agent6/return-escape-boundary-20261125`, from Agent 5's newer explicit-this/call/apply branch head `2590bc17015b9dca0f782e4ef8d0f3732889c66c`, rather than relying on the older lexical branch's stale JSDoc Set generics.
+- The branch adds a deliberately narrow constructor proof: only straight-line direct `this.key = value` writes with a primitive or statically resolved callable RHS are treated as guaranteed own-property overrides. Conditional, dynamic, receiver-dependent, unknown-call, and unrelated writes stay opaque and retain conservative constructor/prototype candidates. Own fields take precedence over prototype methods; unresolved inheritance continues through the prototype chain.
+- The branch removes the blanket return sinks and instead propagates returned callable values from functions already known to be host-held, using receiver-aware return resolution. Existing external/module-export return propagation remains separate. This preserves returns from host-callable functions while keeping unused local returns local.
+- On the older branch, the 15-case adversarial suite passed on both Windows and Ubuntu under Node 22 after the escape-propagation change. That run's external typecheck failed because the older donor branch used stale `Set<unknown>` signatures; it is not evidence against runtime behaviour. The newer branch uses Agent 5's updated `Set<number>` / `Set<AstNode>` split and has a focused CI run queued as of this checkpoint.
+
+### Next actions
+
+1. Check focused workflow run `45677001041` on `agent6/return-escape-boundary-20261125`; it must pass both OS test runs and both JSDoc typechecks.
+2. Run `test/agent5-receiver-bound-return-resolution.test.js` on the new branch. This is the existing 51-case compatibility suite and is the key regression gate for receiver semantics.
+3. If both gates pass, report the exact changes and evidence to Agent 5 and Agent 4 via new mailbox messages; do not silently port into their active branch.
+4. Review whether `externalReturnQueue` should use receiver-aware return resolution too, then add a dedicated export/receiver regression only if a concrete gap is found.
+5. Keep the release decision separate from this helper-level evidence. No static/dynamic resistance or 2.5x performance claim follows from these tests.
