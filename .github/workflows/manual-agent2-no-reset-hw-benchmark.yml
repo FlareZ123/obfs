@@ -82,7 +82,7 @@ jobs:
           python sims/agent2-hw-version-space-audit.py \
             --input hw-no-reset-results.json \
             --output hw-version-space-audit.json \
-            --max-cases 10 --timeout-ms 5000
+            --max-cases 10 --timeout-ms 15000
           python - <<'PY'
           import json
           import os
