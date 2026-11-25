@@ -44,7 +44,7 @@ jobs:
           set -euo pipefail
           g++ -O3 -std=c++17 sims/agent2-rankfive-m7-fullpath-face-order-dp.cpp -o /tmp/agent2-m7-fullpath-dp
           /tmp/agent2-m7-fullpath-dp sims/data/m7-fullpath | tee m7-fullpath-dp-output.txt
-          grep -q '^graphs=1044 states=12490035 transitions=105195413 ' m7-fullpath-dp-output.txt
+          grep -q '^graphs=1044 states=12490035 transitions=105195413 long_double_digits=64 ' m7-fullpath-dp-output.txt
           python - <<'PY'
           import re
           from pathlib import Path
