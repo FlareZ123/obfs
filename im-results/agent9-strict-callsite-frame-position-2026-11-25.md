@@ -34,10 +34,24 @@ For **sloppy** `hidden`, `CallSite.getFunction()` returns the callable and `Func
 
 The host callback is deliberately sloppy, created with the Function constructor. V8 suppresses `CallSite.getFunction()` for strict frames and frames below a strict frame; a strict host callback would therefore hide the frame under test and produce a false negative. The final fixture keeps the observer callback sloppy while varying only the observed `hidden` function's strictness.
 
+## Real Chromium strict-ESM confirmation
+
+A separate real-browser fixture serves the native module and COO-generated module from a local HTTP server and executes both in headless Chromium. Because both are ESM, `hidden` is strict. A page-owned host callback captures only `new Error().stack`; it does not receive the function object.
+
+- Focused workflow: [45524759755](https://github.com/FlareZ123/obfs/actions/runs/45524759755), successful.
+- Ubuntu: the real Chromium test passed. The native frame was `native.mjs:2:67`; the generated frame was `generated.mjs:2:56`.
+- Runtime values: `[21, 21]`.
+- The 11-column shift again matches the 23-to-12-character property shortening.
+- Windows: the browser test is intentionally skipped because this harness currently targets the Linux Chrome runner; project, external-corpus and paired-budget JSDoc checks passed.
+
+Test: `test/agent9-strict-stack-browser.test.js`; harness: `sims/agent9-strict-stack-browser.js`; exact test commit `699193d056553f5f69d1ca582160216a5b525dde` on `agent9/strict-callsite-source-20261125`.
+
+This adds a browser-side **Error.stack / FramePosition** observation for COO strict ESM. It does not establish browser `Error.prepareStackTrace` / CallSite support, SCO server-response behavior, cross-browser portability, or a full browser acceptance matrix.
+
 ## Interpretation and limits
 
 - This independently confirms the existing `FramePosition` dimension in `workplace/source-observer-carrier-effect-contract-2026-11-23.md` on the repository's pinned Node 22.23.4 runtime.
 - `FramePosition` is distinct from `ExactSource`: strict frames can hide the function object while still exposing source-coordinate changes.
-- The observation is Node/V8-specific. This run does **not** establish browser Error.stack behavior, other engines' CallSite semantics, universal stack-format stability, or a general host trust contract.
+- The structured CallSite observation is Node/V8-specific. The separate browser test establishes ordinary `Error.stack` frame coordinates in one headless Chromium environment for COO strict ESM, not browser CallSite support, other engines, universal stack-format stability, or a general host trust contract.
 - This focused test is not full-suite acceptance, a 2.5x compute qualification, a confidentiality result, or a release-readiness claim. The product remains subject to the repository's existing release blockers.
 - No production code was changed; the test remains on its isolated research branch to avoid expanding the active PR candidate or conflating focused evidence with comprehensive acceptance.
