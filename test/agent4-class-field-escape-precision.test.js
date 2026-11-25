@@ -277,3 +277,99 @@ test('an inherited prototype setter does not observe a public class field defini
     'public class fields define own data properties without invoking inherited setters');
   assert.equal(hidden.safe,true);
 });
+
+
+test('a mutable closure alias to a local class instance cannot publish a sibling field through an identifier field function',()=>{
+  const source=
+    'let owner;'+
+    'function hidden(){return 1;}'+
+    'function leak(){external(owner.callback);}'+
+    'class Local{callback=hidden;leak=leak;}'+
+    'function entry(){const instance=new Local();owner=instance;instance.leak();}'+
+    'module.exports=entry;';
+  const hidden=named(analyze(source),'hidden')[0];
+  assert.ok(hidden);
+  assert.equal(hidden.hostHeldCallable,true,
+    'the field function closes over a mutable alias assigned the instance before the local call');
+  assert.equal(hidden.safe,false);
+});
+
+
+test('a function-local closure alias to a class instance cannot publish a sibling field through an identifier field function',()=>{
+  const source=
+    'function hidden(){return 1;}'+
+    'function entry(){'+
+      'let owner;'+
+      'function leak(){external(owner.callback);}'+
+      'class Local{callback=hidden;leak=leak;}'+
+      'const instance=new Local();owner=instance;instance.leak();'+
+    '}'+
+    'module.exports=entry;';
+  const hidden=named(analyze(source),'hidden')[0];
+  assert.ok(hidden);
+  assert.equal(hidden.hostHeldCallable,true,
+    'the class-field function closes over a function-local mutable alias assigned the instance before invocation');
+  assert.equal(hidden.safe,false);
+});
+
+
+test('an inline function field cannot publish a sibling field through a mutable closure alias',()=>{
+  const source=
+    'let owner;'+
+    'function hidden(){return 1;}'+
+    'class Local{callback=hidden;leak=function(){external(owner.callback);};}'+
+    'function entry(){const instance=new Local();owner=instance;instance.leak();}'+
+    'module.exports=entry;';
+  const hidden=named(analyze(source),'hidden')[0];
+  assert.ok(hidden);
+  assert.equal(hidden.hostHeldCallable,true,
+    'an inline field function can read the instance through a mutable captured binding');
+  assert.equal(hidden.safe,false);
+});
+
+test('an arrow field cannot publish a sibling field through a mutable closure alias',()=>{
+  const source=
+    'let owner;'+
+    'function hidden(){return 1;}'+
+    'class Local{callback=hidden;leak=()=>external(owner.callback);}'+
+    'function entry(){const instance=new Local();owner=instance;instance.leak();}'+
+    'module.exports=entry;';
+  const hidden=named(analyze(source),'hidden')[0];
+  assert.ok(hidden);
+  assert.equal(hidden.hostHeldCallable,true,
+    'an arrow field can read the instance through a mutable captured binding');
+  assert.equal(hidden.safe,false);
+});
+
+
+test('a captured mutable object property cannot publish a sibling field through an identifier field function',()=>{
+  const source=
+    'const holder={current:null};'+
+    'function hidden(){return 1;}'+
+    'function leak(){external(holder.current.callback);}'+
+    'class Local{callback=hidden;leak=leak;}'+
+    'function entry(){const instance=new Local();holder.current=instance;instance.leak();}'+
+    'module.exports=entry;';
+  const hidden=named(analyze(source),'hidden')[0];
+  assert.ok(hidden);
+  assert.equal(hidden.hostHeldCallable,true,
+    'a captured object property assigned the instance must preserve the sibling field escape');
+  assert.equal(hidden.safe,false);
+});
+
+
+test('a captured accessor-backed holder cannot publish a sibling field through an identifier field function',()=>{
+  const source=
+    'let stored;'+
+    'const holder={get current(){return stored;},set current(value){stored=value;}};'+
+    'function hidden(){return 1;}'+
+    'function leak(){external(holder.current.callback);}'+
+    'class Local{callback=hidden;leak=leak;}'+
+    'function entry(){const instance=new Local();holder.current=instance;instance.leak();}'+
+    'module.exports=entry;';
+  const hidden=named(analyze(source),'hidden')[0];
+  assert.ok(hidden);
+  assert.equal(hidden.hostHeldCallable,true,
+    'an accessor-backed holder that returns the instance must preserve the sibling field escape');
+  assert.equal(hidden.safe,false);
+});
