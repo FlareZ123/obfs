@@ -907,6 +907,54 @@ function summarizeAmbientCallEffects(ast,sourceType) {
   }
 
   /**
+   * Resolve a getter's direct this.member return against its object-literal
+   * receiver. Unsupported/nested this expressions fall back to the receiver
+   * so callable fields cannot disappear from the value-flow proof.
+   * @param {AstNode} getter
+   * @param {AstNode} receiver
+   * @param {string} propertyKey
+   * @param {Set<number>} seen
+   * @returns {AstNode[]}
+   */
+  function objectGetterReturnExpressions(getter,receiver,propertyKey,seen) {
+    const returns=functionReturnExpressions(getter);
+    /** @type {AstNode[]} */
+    const values=[];
+    let receiverFallback=false;
+    for(const expression of returns) {
+      if(expression.type==='MemberExpression'&&expression.object.type==='ThisExpression') {
+        const key=staticPropertyKey(expression.property,expression.computed);
+        if(key!==null&&key!==propertyKey) {
+          const candidates=memberValueExpressionsForProperty(receiver,key,seen);
+          if(candidates.length) {
+            values.push(...candidates);
+            for(const candidate of candidates) {
+              let hasThis=false;
+              walkAst(candidate,node=>{if(node.type==='ThisExpression')hasThis=true;});
+              if(hasThis&&!isDefinitelyPrimitive(candidate)&&
+                 callableNodesForValue(candidate).length===0)
+                receiverFallback=true;
+            }
+          } else {
+            receiverFallback=true;
+          }
+        } else {
+          receiverFallback=true;
+        }
+      } else {
+        let hasThis=false;
+        walkAst(expression,node=>{if(node.type==='ThisExpression')hasThis=true;});
+        if(hasThis&&!isDefinitelyPrimitive(expression)&&
+           callableNodesForValue(expression).length===0)
+          receiverFallback=true;
+        values.push(expression);
+      }
+    }
+    if(receiverFallback)values.push(receiver);
+    return values;
+  }
+
+  /**
    * Resolve a statically named property through aliases, object literals,
    * class instances, factory returns, and nested member chains.
    * @param {AstNode} value
@@ -963,7 +1011,7 @@ function summarizeAmbientCallEffects(ast,sourceType) {
       }
       const explicitValues=matching.flatMap((/** @type {AstNode} */ property)=>
         property.kind==='init'?[property.value]:
-        property.kind==='get'?functionReturnExpressions(property.value):[]);
+        property.kind==='get'?objectGetterReturnExpressions(property.value,value,propertyKey,seen):[]);
       // A later spread can overwrite an explicit key. An unknown computed key
       // can do the same even without a spread; only later candidates matter.
       const laterSpreadValues=value.properties.slice(lastMatchingIndex+1)
@@ -975,7 +1023,7 @@ function summarizeAmbientCallEffects(ast,sourceType) {
           staticPropertyKey(property.key,property.computed)===null)
         .flatMap((/** @type {AstNode} */ property)=>
           property.kind==='init'?[property.value]:
-          property.kind==='get'?functionReturnExpressions(property.value):[]);
+          property.kind==='get'?objectGetterReturnExpressions(property.value,value,propertyKey,seen):[]);
       const prototypeSetter=value.properties.find((/** @type {AstNode} */ property)=>
         property.type==='Property'&&property.kind==='init'&&!property.method&&
         !property.computed&&staticPropertyKey(property.key,false)==='__proto__');
