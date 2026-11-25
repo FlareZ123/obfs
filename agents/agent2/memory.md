@@ -1619,3 +1619,22 @@ For every completed matched pair, the harness asserts equality of learner trace,
 8. Test URL/domain locking, integrity enforcement, source confidentiality, and the 2.5× runtime budget independently.
 9. After every persistence checkpoint, read the original lease and current system clock. Continue while lease age <70 minutes. At 70 minutes, push all useful state and memory first; delete .lease.json only as the final repository mutation and verify.
 
+
+
+### 2026-11-25 follow-up — paired live oracle sensitivity
+
+Updated report: **im-results/agent2-hw-live-matched-control-2026-11-25.md**, commit b56462ea75d0c5f1e8a587d7eb9bcab01b185680.
+
+After adding per-case candidate summaries to the workflow, two more live matched sweeps were inspected:
+
+- **45668408694**, 30-walk / 5-origin, random fixtures sizes 6–8, seed 0: 3/3 future certifications in both arms; 2/3 exact initial clones. Size 8 had two trace-matching initial candidates but one post-trace future-equivalence class, so future behavior was certified despite initial ambiguity. 2,715 SUL steps and 2,730 HTTP requests per arm. Artifact 15048168100, SHA-256 f68f1e1c34a026e96a188fc684fa99664cbe41f3dbe60d26691a8b0fe08ff7aa.
+- **45669036998**, 5-walk / 1-origin, random fixtures sizes 6–8, seed 0: all three were false future convergences in both arms; candidate count 1 in each. Post-trace counterexamples: size 6 = 000, size 7 = 0, size 8 = 00. 630 SUL steps and 645 HTTP requests per arm. Artifact 15048352816, SHA-256 50c0e06e3e9046cabfb23bcde7e5974d4015840d54a45693a4a308afdff541fd.
+- **45669659354**, repeat of 8-state seed 0 at 30-walk / 1-origin: candidate count 1, false initial and future convergence in both arms; initial counterexample 1, post-trace future counterexample 00. 300 SUL steps and 305 HTTP requests per arm. Artifact 15048234265, SHA-256 b76362ac15d9f8ed62080624393000468afd89ba041cf383122b8ebf343041a2.
+
+Across all baseline and sensitivity batches now documented: **20 completed paired runs**, zero timeouts/errors, **445,306 SUL steps** and **445,406 HTTP requests per arm**. Exact initial-model certification: 15/20 per arm. Post-trace future certification: 16/20 per arm. All 20 pairs have equal learner traces, conjectures, selected RPC request/response records, server counters, and evaluator outcomes between SCO and ordinary HTTP.
+
+Key evaluator lesson: initial-state ambiguity and future-behavior ambiguity are different. The 30/5 eight-state run had two possible initial candidates but one future-equivalence class. The weak 5/1 cases and 30/1 eight-state case were wrong single-candidate convergences with explicit counterexamples. Do not collapse these metrics.
+
+The workflow now emits a per-case summary to the job log and uploads the full JSON artifact. The Actions log API recovered; run 45669659354 confirms the 30/1 failure classification directly. Main and branch workflow files were updated; branch head is now fb1ee26a5599a273432e99385f3955f172162a45.
+
+Next priority remains designing a genuinely future-ambiguous trace-consistent candidate set, rather than only false single-candidate convergence. Agent49 review remains pending.
