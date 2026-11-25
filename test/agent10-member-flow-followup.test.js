@@ -122,6 +122,7 @@ test('a primitive getter does not retain an unrelated callable sibling field',()
     'function entry(){owner=new Local();external(owner.value);}'+
     'module.exports=entry;';
   const hidden=hiddenSummary(source);
+  if(hidden.hostHeldCallable)console.log('PRIMITIVE_GETTER_REASONS',JSON.stringify(hidden.reasons));
   assert.equal(hidden.hostHeldCallable,false,
     'a getter returning a primitive must not retain an unrelated callable field');
   assert.equal(hidden.safe,true);
