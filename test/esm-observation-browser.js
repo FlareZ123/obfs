@@ -5,13 +5,17 @@ const http=require('node:http');
 const {execFile}=require('node:child_process');
 const {promisify}=require('node:util');
 const {obfuscateFiles}=require('../src');
+const {parse}=require('../src/ast');
+const {renameLocalProperties}=require('../src/properties');
+const {renameLocalIdentifiers}=require('../src/identifiers');
+const {encodeStrings}=require('../src/strings');
 const {makeFixture,SCENARIOS}=require('../sims/esm-observation-matrix');
 const {normalizePublicFields}=require('../sims/public-token-normalizer');
 
 const runBrowser=promisify(execFile);
 
-/** @typedef {{path:string,sourceType:'module',code:string}} BrowserSource */
-/** @typedef {{name:string,kind?:number,renamed:number,files?:BrowserSource[],properties?:boolean,identifiers?:boolean}} BrowserCase */
+/** @typedef {{path:string,sourceType:'module'|'asset',code:string}} BrowserSource */
+/** @typedef {{name:string,kind?:number,renamed:number,files?:BrowserSource[],properties?:boolean,identifiers?:boolean,manualJsonTransforms?:boolean}} BrowserCase */
 
 /** @type {BrowserCase[]} */
 const CASES=[
@@ -45,6 +49,11 @@ const CASES=[
       'export {default as source} from "./state.mjs" with {type:"text"};'},
     {path:'entry.mjs',sourceType:'module',code:
       'import {source} from "./relay.mjs";export const value=source.length;'}
+  ]},
+  {name:'json-import-local-transform-precision',renamed:0,manualJsonTransforms:true,files:[
+    {path:'config.json',sourceType:'asset',code:'{"value":41}'},
+    {path:'entry.mjs',sourceType:'module',code:
+      'import data from "./config.json" with {type:"json"};const local={alpha:1};const marker="other-literal";export const value=data.value+local.alpha;export {marker};'}
   ]}
 ];
 
@@ -85,7 +94,30 @@ function page() {
 }
 
 /**
- * Test six actual network-served, original vs generated ESM module graphs
+ * Apply the local-only transforms proposed for the static JSON-attribute
+ * precision experiment. Cross-file owner proof is deliberately not run.
+ * @param {BrowserSource[]} sources
+ * @param {string} seed
+ * @returns {{files:BrowserSource[],crossFile:{properties:number}}}
+ */
+function transformJsonImportFiles(sources,seed) {
+  const files=sources.map(source=>{
+    if(source.path!=='entry.mjs')return source;
+    let code=source.code;
+    code=renameLocalProperties(code,parse(code,'module'),{seed}).code;
+    code=renameLocalIdentifiers(code,parse(code,'module'),{
+      seed,sourceType:'module'
+    }).code;
+    code=encodeStrings(code,parse(code,'module'),{
+      seed,minimumLength:4
+    }).code;
+    return {...source,code};
+  });
+  return {files,crossFile:{properties:0}};
+}
+
+/**
+ * Test network-served, original vs generated ESM module graphs
  * with Chrome's genuine ESM linker and external host callback support.
  * @returns {Promise<{cases:number,nativeBrowserParity:true,protectedPrivateFields:number,observerRefusals:number,normalizedPublicFields:number}>}
  */
@@ -98,23 +130,28 @@ async function main() {
       {scenario:'custom-import-attribute',files:item.files} :
       makeFixture(7,item.kind??0);
     if(item.kind!==undefined)assert.equal(fixture.scenario,SCENARIOS[item.kind]);
-    const protectedFiles=obfuscateFiles(fixture.files,{
-      mode:'coo',closedWorld:true,properties:item.properties,
-      identifiers:item.identifiers??false,strings:false,
-      seed:'esm-observer-browser-'+item.name
-    });
+    const protectedFiles=item.manualJsonTransforms ?
+      transformJsonImportFiles(fixture.files,'esm-json-precision-'+item.name) :
+      obfuscateFiles(fixture.files,{
+        mode:'coo',closedWorld:true,properties:item.properties,
+        identifiers:item.identifiers??false,strings:false,
+        seed:'esm-observer-browser-'+item.name
+      });
     assert.equal(protectedFiles.crossFile.properties,item.renamed,
       item.name+' should retain the declared protected/refused field count');
-    const attackInputs=protectedFiles.files.map(file=>{
+    const attackInputs=protectedFiles.files.filter(file=>file.sourceType==='module').map(file=>{
       assert.equal(typeof file.code,'string');
       return {path:file.path,sourceType:/** @type {const} */('module'),
         code:/** @type {string} */(file.code)};
     });
-    const attacked=normalizePublicFields(attackInputs);
+    const attacked=item.manualJsonTransforms ?
+      {files:attackInputs,properties:0} : normalizePublicFields(attackInputs);
     assert.equal(attacked.properties,item.renamed,
       item.name+' should normalize every privately renamed public field');
     normalizedPublicFields+=attacked.properties;
-    for(const source of attacked.files)files.set('/'+item.name+'/normalized/'+source.path,browserCode(source.path,source.code));
+    const normalizedByPath=new Map(attacked.files.map(file=>[file.path,file]));
+    const normalizedFiles=protectedFiles.files.map(file=>normalizedByPath.get(file.path)??file);
+    for(const source of normalizedFiles)files.set('/'+item.name+'/normalized/'+source.path,browserCode(source.path,source.code));
     for(const source of fixture.files)
       files.set('/'+item.name+'/original/'+source.path,browserCode(source.path,source.code));
     for(const source of protectedFiles.files) {
@@ -134,7 +171,9 @@ async function main() {
     }
     const content=files.get(url.pathname);
     if(content===undefined){response.writeHead(404).end();return;}
-    response.writeHead(200,{'content-type':'text/javascript; charset=utf-8'});
+    const contentType=url.pathname.endsWith('.json') ?
+      'application/json; charset=utf-8' : 'text/javascript; charset=utf-8';
+    response.writeHead(200,{'content-type':contentType});
     response.end(content);
   });
   try {
@@ -161,8 +200,10 @@ async function main() {
         if(target==='original') baseline=result;
         else assert.deepEqual(result,baseline,item.name+' emitted/native browser mismatch');
       }
-      if(item.renamed)renamed+=item.renamed;
-      else refusals++;
+      if(!item.manualJsonTransforms){
+        if(item.renamed)renamed+=item.renamed;
+        else refusals++;
+      }
     }
     const report={cases:CASES.length,protectedPrivateFields:renamed,observerRefusals:refusals,
       normalizedPublicFields,
