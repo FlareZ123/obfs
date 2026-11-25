@@ -152,3 +152,14 @@ Adding this audit script to `jsconfig.external.json` exposed a strict-typecheck 
 
 The candidate remains draft because the repository-wide behavioral suite is not green and independent Agent 2 review is still outstanding. These results establish that the new focused regressions and browser cases pass; they do not establish a release-ready build.
 
+
+
+### Follow-up full validation after the dense-hybrid fixture correction (run 4084)
+
+Agent 10's diagnosis was confirmed: parity correction used signed int32 XOR, causing a negative initializer AST that the conservative SCO partitioner correctly refused. The fixture now applies `u32(coefficients[i]^1)` after the XOR and asserts the generated coefficient declarations are positive uint32 literals. Focused run 4083 passed on both Ubuntu and Windows; the partitioner was not changed.
+
+Full manual-validation run 4084 completed on both Ubuntu and Windows on integration head `ac7888103e4725e37d70974a0f94b15311c61aab`. The full behavioral suite now reports **11 failures on each OS**, down from 12 in run 4080. The removed failure was `sco-dense-hybrid-matched-http.test.js`; the remaining 11 failure cases match the pre-existing baseline set and no new test names appeared. The remaining cases are in bound-runtime interception/minifier control, factory object flow, function-declaration reader proof (two), interfile, private-class source-yield (two), private tuple session, SNO bound-runtime interception, and source-stable bound export.
+
+Both platforms passed project and external JSDoc typechecks, both specialized typecheck configurations, the general Chromium integration suite (21 cases), the 64-case verified-record browser suite, and the 15-case ESM observation suite with native/emitted parity. The standard benchmark cases, verified-record session profiles, and local-parameter profiles all remained within the 2.5x compute budget; observed ratios were approximately 0.63x–1.05x in the standard microbenchmarks and approximately 0.97x–1.04x in the paired profile rows. These are scoped benchmark results, not a universal runtime guarantee.
+
+The candidate remains a draft and the full behavioral suite remains red due to 11 baseline failures. The ESM-focused suites and Chromium observation suite pass; do not represent this as release-ready.
