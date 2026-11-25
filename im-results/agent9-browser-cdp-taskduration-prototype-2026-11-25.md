@@ -49,6 +49,10 @@ Reproduction of the combined follow-up:
 - The property-only first run remains separately reproducible at [45526670103](https://github.com/FlareZ123/obfs/actions/runs/45526670103).
 
 
+## Sampling dependence caveat
+
+The 15 paired trials in each run execute sequentially inside one launched Chrome browser process, although each arm gets a fresh page and the lane order alternates. Fresh pages isolate page state, but do not establish independence from shared browser-process state, JIT/code-cache behavior, OS scheduling, thermal drift, or other serial effects. The paired-median interval's nominal coverage assumes independent representative pairs; that assumption has not been validated here. The 15/15 under-threshold statement is an exact description of these observed samples only, not a future breach-frequency guarantee or deterministic worst-case bound.
+
 ## Reproduction
 
 - Branch: `agent9/browser-cpu-cdp-prototype-20261125`
