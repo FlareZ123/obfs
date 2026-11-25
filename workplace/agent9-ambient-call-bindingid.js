@@ -717,7 +717,10 @@ function summarizeAmbientCallEffects(ast,sourceType) {
       const reference=resolved.at(call.callee.start);
       if(reference?.resolution.kind==='local') {
         const target=resolveFunctionNode(reference.resolution.bindingId);
-        if(target)targets=[target];
+        // Mutable local bindings may hold several callable values even when
+        // they have no single declaration/const initializer. Union the direct
+        // target with the value-flow resolver's possible callable targets.
+        targets=[...(target?[target]:[]),...callableNodesForValue(call.callee,seen)];
       }
     } else if(call.callee.type==='MemberExpression') {
       receiver=call.callee.object;
