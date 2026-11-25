@@ -21,6 +21,12 @@ M8_SEQUENCE = [
     (2, 6, 7), (2, 3, 6), (2, 5, 6), (2, 4, 6),
     (0, 2, 6),
 ]
+# Independent representative returned by the C++ annealer.
+M8_CPP_SEQUENCE = [
+    (1, 3, 7), (0, 1, 7), (1, 5, 7), (1, 6, 7), (1, 4, 7),
+    (1, 2, 5), (1, 2, 4), (0, 1, 2), (1, 2, 6),
+    (2, 3, 4), (2, 3, 5), (2, 3, 6), (0, 2, 3), (2, 3, 7),
+]
 DELTA = Fraction(1, 10**10)
 
 
@@ -200,8 +206,10 @@ def main():
     model8 = build_model(8)
     seq7 = face_sequence_indices(model7, M7_SEQUENCE)
     seq8 = face_sequence_indices(model8, M8_SEQUENCE)
+    seq8_cpp = face_sequence_indices(model8, M8_CPP_SEQUENCE)
     result7 = evaluate(model7, seq7)
     result8 = evaluate(model8, seq8)
+    result8_cpp = evaluate(model8, seq8_cpp)
 
     assert len(model7["kernels"]) == 2667
     assert len(model8["kernels"]) == 97155
@@ -216,6 +224,11 @@ def main():
     assert result8["expected_repeated_trial_queries"] == Fraction(74212724813, 880871355)
     assert [row["new_queries"] for row in result8["rows"]] == [32,16,8,4,2,16,8,4,2,16,8,4,2,1]
     assert result8["query_union"] == 123
+    assert result8_cpp["expected_one_trial_queries"] == result8["expected_one_trial_queries"]
+    assert result8_cpp["failure_probability"] == result8["failure_probability"]
+    assert result8_cpp["expected_repeated_trial_queries"] == result8["expected_repeated_trial_queries"]
+    assert [row["new_queries"] for row in result8_cpp["rows"]] == [32,16,8,4,2,16,8,4,2,16,8,4,2,1]
+    assert [row["remaining_kernels"] for row in result8_cpp["rows"]] == [64387,48003,39811,35715,33667,24963,20611,18435,17347,11955,9259,7911,7237,6948]
 
     correction7 = collision_correction_bound(7, result7)
     correction8 = collision_correction_bound(8, result8)
