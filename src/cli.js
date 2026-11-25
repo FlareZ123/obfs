@@ -9,6 +9,7 @@ const {atomicWrite,withDirectoryLock} = require('./atomic');
 const {safePath} = require('./core');
 const {parse,walk}=require('./ast');
 const {portableKeys}=require('./portable-paths');
+const {hasTerminalUrlDotSegment}=require('./esm-url-paths');
 const {assertSnoDirectBareRequireParity}=require('./sno-bare-audit');
 
 /** @typedef {import('./core').SourceFile} SourceFile */
@@ -320,9 +321,18 @@ function selectScoPublicFiles(files,entry,publicScripts,publicAssets) {
       // change the imported file's publication authority.
       if(specifier.includes('\\'))throw new Error('SCO encoded import path unsupported: '+specifier);
       const rawPath=specifier.split(/[?#]/u,1)[0];
+      // WHATWG URL resolution preserves empty path segments until dot-segment
+      // processing. POSIX normalization would collapse them and can select a
+      // different file from the one the SCO HTTP route will serve.
+      /** @type {string[]} */
+      const rawSegments=rawPath.split('/');
+      if(rawSegments.some((part,index)=>index>0&&part==='') ||
+         hasTerminalUrlDotSegment(specifier)) {
+        throw new Error('SCO noncanonical ESM import path unsupported: '+specifier);
+      }
       /** @type {string[]} */
       const segments=[];
-      for(const part of rawPath.split('/')) {
+      for(const part of rawSegments) {
         /** @type {string} */
         let decoded;
         try {decoded=decodeURIComponent(part);}

@@ -1,6 +1,7 @@
 'use strict';
 
 const path = require('node:path');
+const {hasTerminalUrlDotSegment}=require('./esm-url-paths');
 const {createHash} = require('node:crypto');
 const {walk,applyEdits,parse,observesFunctionSource,observesDistributedSource,staticString,collectDirectCarrierFactories} = require('./ast');
 const {collectBindings,proveLocalObject,staticName,patternPropertyEdits,inOperatorPropertyEdits,isLiteralValue,isPrimitiveConstantExpression,ownPropertyName,singleUseFactoryObject} = require('./properties');
@@ -27,7 +28,12 @@ function parseModule(file){
  * @returns {string|null}
  */
 function resolveImport(from,specifier) {
-  if (!specifier.startsWith('./') && !specifier.startsWith('../')) return null;
+  // Browser URL resolution preserves empty path segments, while POSIX
+  // normalization collapses them. A repeated separator can therefore name a
+  // distinct module URL (or resolve around a dot segment to a different input
+  // file). Refuse that spelling instead of merging distinct module identities.
+  if ((!specifier.startsWith('./') && !specifier.startsWith('../')) ||
+      specifier.includes('//') || hasTerminalUrlDotSegment(specifier)) return null;
   const normalized=path.posix.normalize(path.posix.join(path.posix.dirname(from),specifier));
   return normalized.startsWith('../') || normalized==='..' ? null : normalized;
 }
@@ -2205,8 +2211,10 @@ function renameCrossFileProperties(files,seed) {
   const acyclicImports=hasAcyclicStaticImports(modules);
   const allowDirectReflection=stableDirectOwnerReflection(modules);
   // The filename-oriented resolver only proves canonical relative imports.
-  // Absolute file URLs, package aliases and encoded/query/fragment paths can
-  // reach the same ESM source through another spelling without being tracked.
+  // Absolute file URLs, package aliases, repeated separators, and
+  // encoded/query/fragment paths can reach the same ESM source through another
+  // spelling without being tracked. Browser URL paths preserve empty segments,
+  // so POSIX normalization is not a safe module-map identity function.
   // Node builtins cannot resolve to an input module under the default loader.
   // Dynamic source generation can hide additional consumers of an otherwise
   // statically closed ESM module graph. Even a constructor held as an alias
@@ -2403,8 +2411,10 @@ function renameCrossFileProperties(files,seed) {
             (callee.computed ? staticString(callee.property) : staticName(callee.property)) : null;
         if (typeof name==='string' && ['require','createRequire','getBuiltinModule'].includes(name)) ambiguous=true;
       }
+      if(node.type==='ImportExpression' && node.options){ambiguous=true;return;}
       if (!['ImportDeclaration','ExportNamedDeclaration','ExportAllDeclaration'].includes(node.type) ||
           node.source?.type!=='Literal' || typeof node.source.value!=='string') return;
+      if(node.attributes?.length || node.assertions?.length){ambiguous=true;return;}
       const specifier=node.source.value;
       // node:module exposes createRequire and loader hooks. A separate
       // require('./target.mjs') would not appear as an ESM import edge.
@@ -2767,26 +2777,28 @@ function renameCrossFileProperties(files,seed) {
           let hasDynamic=false;
           walk(importer.ast,node=>{if(node.type==='ImportExpression')hasDynamic=true;});
           if (hasDynamic) {failed=true;break;}
-          // A reader imported without the candidate state, or alongside two
-          // separately proved state bindings, has insufficient call ownership
-          // evidence. Refuse rather than treating the reader as a free alias.
-          if(readerAliases.size && importedAliases.length!==1) {failed=true;break;}
+          // A reader imported without any candidate state alias has
+          // insufficient call ownership evidence. Multiple exact aliases of
+          // this same export are grouped and validated as one root set below.
+          if(readerAliases.size && importedAliases.length===0) {failed=true;break;}
           const consumerIndices=new Map([...readerAliases].map(([name,exported])=>
             [name,/** @type {{member:AstNode,property:string,argIndex:number}} */ (readers.get(exported)).argIndex]));
           /** @type {NonNullable<ReturnType<typeof proveLocalObject>>|null} */
           let readerProof=null;
-          for(const alias of importedAliases) {
-            if(importer.bindings.get(alias)!==1) {failed=true;break;}
-            // Source-observation safety can use every independently proven imported
-            // string. Object-field rewriting remains limited to keys that
-            // were initialized before the owner and match its own fields.
-            const proof=proveLocalObject(importer.ast,alias,importer.bindings,
+          if(importedAliases.length){
+            if(importedAliases.some(alias=>importer.bindings.get(alias)!==1)){failed=true;break;}
+            const primary=/** @type {string} */ (importedAliases[0]);
+            const additional=importedAliases.slice(1);
+            // These exact named imports resolve to the same immutable ESM
+            // export binding. Validate their complete alias set as one root
+            // identity so local consumers can safely receive either spelling.
+            const proof=proveLocalObject(importer.ast,primary,importer.bindings,
               importedIdentities.get(importerName),consumerIndices,importedKeys,
               verifiedStrings.get(importerName),verifiedPrimitives.get(importerName),
-              allowDirectReflection);
-            if(!proof) {failed=true;break;}
+              allowDirectReflection,additional);
+            if(!proof){failed=true;break;}
             users.push({file:importerName,source:/** @type {string} */ (importer.file.code),proof});
-            if(readerAliases.size)readerProof=proof;
+            readerProof=proof;
           }
           if(failed)break;
           if(readerAliases.size) {
