@@ -100,3 +100,33 @@ test('SCO CLI serves distinct valid JavaScript bodies from its Node entrypoint',
     await fs.rm(root,{recursive:true,force:true});
   }
 });
+
+
+test('COO CLI rejects symlinked source entries before building a closed-world graph',async t=>{
+  const root=await fs.mkdtemp(path.join(os.tmpdir(),'obfs-cli-input-symlink-'));
+  try {
+    const input=path.join(root,'input'),output=path.join(root,'output');
+    await fs.mkdir(input);
+    await atomicWrite(path.join(input,'index.mjs'),'console.log("ok");');
+    await atomicWrite(path.join(input,'real.mjs'),'export const value=1;');
+    try {
+      await fs.symlink(path.join(input,'real.mjs'),path.join(input,'alias.mjs'),'file');
+    } catch(error) {
+      if(['EPERM','EACCES','ENOTSUP','ENOSYS'].includes(
+        /** @type {NodeJS.ErrnoException} */(error).code??'')) {
+        t.skip('Runner cannot create a file symlink');
+        return;
+      }
+      throw error;
+    }
+    const result=spawnSync(process.execPath,[
+      path.join(__dirname,'../bin/coo.js'),
+      '--root',input,'--entry','index.mjs','--out',output,'--closed-world'
+    ],{encoding:'utf8'});
+    assert.notEqual(result.status,0,result.stdout+'\n'+result.stderr);
+    assert.match(result.stderr,/Symlink in source tree/);
+    await assert.rejects(fs.access(path.join(output,'index.mjs')));
+  } finally {
+    await fs.rm(root,{recursive:true,force:true});
+  }
+});
