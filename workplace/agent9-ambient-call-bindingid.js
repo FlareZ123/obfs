@@ -1302,6 +1302,14 @@ function summarizeAmbientCallEffects(ast,sourceType) {
       visitedContainers.add(container);
       if(container.type==='ObjectExpression') {
         for(const property of container.properties) {
+          if(property.type==='SpreadElement') {
+            for(const candidate of knownValueExpressions(property.argument)) {
+              for(const target of callableNodesForValue(candidate))targets.add(target);
+              if(['ObjectExpression','ArrayExpression','ClassDeclaration','ClassExpression'].includes(candidate.type))
+                visitContainer(candidate);
+            }
+            continue;
+          }
           if(property.type!=='Property')continue;
           if(property.kind!=='init'||property.method||
              property.value?.type==='FunctionExpression') {
@@ -1319,9 +1327,17 @@ function summarizeAmbientCallEffects(ast,sourceType) {
         return;
       }
       if(container.type==='ArrayExpression') {
-        for(const element of container.elements)
-          if(element&&['ObjectExpression','ArrayExpression'].includes(element.type))
+        for(const element of container.elements) {
+          if(element?.type==='SpreadElement') {
+            for(const candidate of knownValueExpressions(element.argument)) {
+              for(const target of callableNodesForValue(candidate))targets.add(target);
+              if(['ObjectExpression','ArrayExpression','ClassDeclaration','ClassExpression'].includes(candidate.type))
+                visitContainer(candidate);
+            }
+          } else if(element&&['ObjectExpression','ArrayExpression'].includes(element.type)) {
             visitContainer(element);
+          }
+        }
         return;
       }
       if(['ClassDeclaration','ClassExpression'].includes(container.type)) {
