@@ -281,7 +281,7 @@ static Candidate optimize_graph(
         int rem = remaining_count[global_mask[mask]];
         int rem_next = remaining_count[global_mask[next]];
         long double reach = 1.0L - rank5_probability
-            + rank5_probability * static_cast<double>(rem) / KERNELS;
+            + rank5_probability * static_cast<long double>(rem) / KERNELS;
         int new_queries = static_cast<int>(covered_count[next])
             - static_cast<int>(covered_count[mask]);
         int newly_succeeded = rem - rem_next;
