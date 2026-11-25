@@ -11,7 +11,7 @@ const {evaluateHybridModel}=require('./rankfive-top-derivative-projected-affine-
 
 /** @typedef {{origin:string,method:string,credential:string}} Access */
 /** @typedef {{kind:'projected-affine',bits:number,rank:5,table:number[],coordinates:number[],affineCorrections:number[]}|{kind:'anf',bits:number,lower:Array<[number,number]>,top:Array<[number,number]>,degree:4|5}} HybridModel */
-/** @typedef {{fastPathSuccess:boolean,witnessStrategy:'six-direction'|'seven-direction-restart',witnessTrials:number,witnessTrialCap:number,witnessDrawCount:number,witnessProbability:number,witnessFailureBound:number,quotientRank:number|null,coordinateStrategy:'shift'|'signature'|null,fixedPairPassed:boolean|null,fastQueries:number,verificationQueries:number,verificationSamples:number,verificationCap:number,verificationDelta:number|null,falseAcceptanceBound:number|null,verificationPassed:boolean|null,verificationMode:'verify-degree-five'|'assume-projected-affine',promiseAssumed:boolean,fallbackUsed:boolean,fallbackReason:string|null,fallbackQueries:number,exactByInterpolation:boolean,verifyDrawCount?:number,verifierTapeReleasedAfterCandidate?:boolean}} HybridDiagnostics */
+/** @typedef {{fastPathSuccess:boolean,witnessStrategy:'six-direction'|'seven-direction-restart',witnessTrials:number,witnessTrialCap:number,witnessDrawCount:number,witnessProbability:number,witnessFailureBound:number,quotientRank:number|null,coordinateStrategy:'shift'|'signature'|null,fixedPairPassed:boolean|null,fastQueries:number,verificationQueries:number,verificationSamples:number,verificationCap:number,verificationDelta:number|null,falseAcceptanceBound:number|null,verificationPassed:boolean|null,verificationMode:'verify-degree-five'|'assume-projected-affine',promiseAssumed:boolean,verificationAttempted:boolean,fallbackUsed:boolean,fallbackReason:string|null,fallbackQueries:number,exactByInterpolation:boolean,verifyDrawCount?:number,verifierTapeReleasedAfterCandidate?:boolean}} HybridDiagnostics */
 /** @typedef {(model:unknown,input:number)=>number} ModelEvaluator */
 /** @typedef {{model:HybridModel,queries:number,transcriptSha256:string,diagnostics:HybridDiagnostics}} CloneResult */
 /** @typedef {{
@@ -252,6 +252,7 @@ async function compare(){
     assert.equal(diagnostics.fallbackUsed,false);
     assert.equal(diagnostics.verificationMode,verificationMode);
     assert.equal(diagnostics.promiseAssumed,true);
+    assert.equal(diagnostics.verificationAttempted,false);
     assert.equal(diagnostics.verificationPassed,null);
     assert.equal(diagnostics.verificationSamples,0);
     assert.equal(diagnostics.verificationQueries,0);
