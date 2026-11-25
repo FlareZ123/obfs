@@ -441,11 +441,11 @@ test('reading a non-callable field through a mutable closure alias does not publ
 
 test('a mutable alias to a local record containing the instance cannot hide a nested sibling field escape',()=>{
   const source=
-    'let owner;const holder={current:null};'+
+    'let owner;'+
     'function hidden(){return 1;}'+
     'function leak(){external(owner.current.callback);}'+
     'class Local{callback=hidden;leak=leak;}'+
-    'function entry(){const instance=new Local();owner=holder;holder.current=instance;instance.leak();}'+
+    'function entry(){const holder={current:null};const instance=new Local();owner=holder;holder.current=instance;instance.leak();}'+
     'module.exports=entry;';
   const hidden=named(analyze(source),'hidden')[0];
   assert.ok(hidden);
