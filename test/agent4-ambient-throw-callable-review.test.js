@@ -73,3 +73,48 @@ test('throwing a primitive does not hold unrelated callable values',()=>{
   assert.equal(hidden.hostHeldCallable,false);
   assert.equal(hidden.safe,true);
 });
+
+
+test('a same-function catch that discards a thrown callable preserves the positive control',()=>{
+  const source=
+    'function hidden(){return 1;}'+
+    'function discard(){try{throw hidden;}catch(error){return 2;}}';
+  const result=analyze(source);
+  const hidden=named(result,'hidden')[0];
+  assert.ok(hidden);
+  assert.equal(hidden.hostHeldCallable,false);
+  assert.equal(hidden.safe,true);
+});
+
+test('a same-function catch that passes the thrown callable to a host holds it',()=>{
+  const source=
+    'function hidden(){return 1;}'+
+    'function expose(){try{throw hidden;}catch(error){external(error);}}';
+  const result=analyze(source);
+  const hidden=named(result,'hidden')[0];
+  assert.ok(hidden);
+  assert.equal(hidden.hostHeldCallable,true);
+  assert.equal(hidden.safe,false);
+});
+
+test('a callable rethrown from a local catch remains host-held',()=>{
+  const source=
+    'function hidden(){return 1;}'+
+    'function relay(){try{throw hidden;}catch(error){throw error;}}';
+  const result=analyze(source);
+  const hidden=named(result,'hidden')[0];
+  assert.ok(hidden);
+  assert.equal(hidden.hostHeldCallable,true);
+  assert.equal(hidden.safe,false);
+});
+
+test('a throw from a nested function is not mistaken for a lexical local catch',()=>{
+  const source=
+    'function hidden(){return 1;}'+
+    'function caller(){try{(function(){throw hidden;})();}catch(error){return 2;}}';
+  const result=analyze(source);
+  const hidden=named(result,'hidden')[0];
+  assert.ok(hidden);
+  assert.equal(hidden.hostHeldCallable,true);
+  assert.equal(hidden.safe,false);
+});
