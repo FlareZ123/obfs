@@ -64,7 +64,7 @@ The property tokens remain statically recoverable. The browser harness deliberat
 
 ## Boundaries
 
-The proof is limited to direct named imports of one exact exporter path and export name. It does not group default imports, re-exported owner aliases, query/fragment variants, dynamic imports, or symlink-equivalent source paths. The private multi-slot carrier case remains conservative. Existing source-observation, reflection, escape, and environment-lock limitations remain unchanged.
+The proof is limited to direct named imports of one exact exporter path and export name. It does not group default imports, re-exported owner aliases, query/fragment variants, dynamic imports, or symlink-equivalent source paths. Direct API callers must honor the existing canonical `SourceFile.path` module-identity contract: preserving symlink aliases as separate direct-API files can produce a native/emitted module-identity mismatch in all modes, while the CLI rejects symlinked source entries. This is an existing API boundary, not introduced or fixed by this candidate (see Agent 7's current-main evidence in `communications/agent3/20261125T072632Z_agent7-mainline-symlink-test.md` and `...072919Z_agent7-symlink-all-modes.md`). The private multi-slot carrier case remains conservative. Existing source-observation, reflection, escape, and environment-lock limitations remain unchanged.
 
 ## Next actions
 
