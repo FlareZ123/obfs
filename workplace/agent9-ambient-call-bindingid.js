@@ -4,7 +4,7 @@ const {resolveLexicalReferences}=require('./agent1-lexical-reference-resolver');
 
 /** @typedef {import('../src/ast').AstNode} AstNode */
 /** @typedef {'module'|'script'|'commonjs'} SourceType */
-/** @typedef {{kind:'unknown-call'|'unresolved-local-call'|'new-expression'|'tagged-template'|'await'|'yield'|'dynamic-import'|'transitive-local-call'|'with-binding-lookup'|'implicit-iterator'|'implicit-object-enumeration'|'implicit-proxy-has'|'implicit-instanceof'|'implicit-delete'|'implicit-destructuring'|'implicit-spread'|'to-primitive'|'to-property-key'|'promise-thenable-assimilation'|'host-held-callable'|'thrown-callable-value'|'closure-captured-callable-value'|'unresolved-callable-argument-flow'|'returned-callable-value'|'callable-metadata-observer'|'callable-coercion-observer'|'direct-eval-local-scope'|'debugger-local-scope'|'debugger-inspection'|'classic-script-global-lexical'|'module-exported-callable'|'host-global-exported-callable'|'unknown-this-callable-escape'|'unknown-member-access',start:number,end:number,targetStart?:number,effect?:'DynamicFrame'|'HostHeldCallable'|'ExternalReachability'}} AmbientCallReason */
+/** @typedef {{kind:'unknown-call'|'unresolved-local-call'|'new-expression'|'tagged-template'|'await'|'yield'|'dynamic-import'|'transitive-local-call'|'with-binding-lookup'|'implicit-iterator'|'implicit-object-enumeration'|'implicit-proxy-has'|'implicit-instanceof'|'implicit-delete'|'implicit-destructuring'|'implicit-spread'|'to-primitive'|'to-property-key'|'promise-thenable-assimilation'|'host-held-callable'|'thrown-callable-value'|'closure-captured-callable-value'|'unresolved-callable-argument-flow'|'returned-callable-value'|'yielded-callable-value'|'callable-metadata-observer'|'callable-coercion-observer'|'direct-eval-local-scope'|'debugger-local-scope'|'debugger-inspection'|'classic-script-global-lexical'|'module-exported-callable'|'host-global-exported-callable'|'unknown-this-callable-escape'|'unknown-member-access',start:number,end:number,targetStart?:number,effect?:'DynamicFrame'|'HostHeldCallable'|'ExternalReachability'}} AmbientCallReason */
 /** @typedef {{node:AstNode,start:number,end:number,bindingIds:number[],bindingNames:string[],ambient:boolean,dynamicFrame:boolean,hostHeldCallable:boolean,externallyReachable:boolean,safe:boolean,reasons:AmbientCallReason[]}} AmbientCallSummary */
 
 /**
@@ -768,6 +768,21 @@ function summarizeAmbientCallEffects(ast,sourceType) {
     });
     return returns;
   }
+  /**
+   * Return only yield operands belonging to one generator function.
+   * @param {AstNode} fn
+   * @returns {AstNode[]}
+   */
+  function functionYieldExpressions(fn) {
+    if(!fn.body||fn.body.type!=='BlockStatement')return [];
+    /** @type {AstNode[]} */
+    const yields=[];
+    walkAst(fn.body,node=>{
+      if(node.type==='YieldExpression'&&node.argument&&enclosingFunction(node)===fn)
+        yields.push(node.argument);
+    });
+    return yields;
+  }
   /** @returns {Set<number>} */
   function newNumericSeenSet() {
     return new Set();
@@ -937,7 +952,7 @@ function summarizeAmbientCallEffects(ast,sourceType) {
       seen.add(marker);
       return true;
     });
-    return [...new Set(freshTargets.flatMap(target=>functionReturnExpressions(target).flatMap(expression=>{
+    return [...new Set(freshTargets.flatMap(target=>[...functionReturnExpressions(target),...(target.generator?functionYieldExpressions(target):[])].flatMap(expression=>{
       // Arrows ignore call/apply/bind receivers; their this value comes from
       // the lexical receiver fixed point instead.
       if(target.type==='ArrowFunctionExpression') {
@@ -2434,6 +2449,10 @@ function summarizeAmbientCallEffects(ast,sourceType) {
       for(const target of callableNodesForValueWithReceiver(returned,source))
         externalReturnQueue.push({target,source});
     }
+    for(const yielded of functionYieldExpressions(source)) {
+      for(const target of callableNodesForValueWithReceiver(yielded,source))
+        externalReturnQueue.push({target,source});
+    }
   }
   /** @type {Set<AstNode>} */
   const externalReturnSeen=new Set();
@@ -2447,6 +2466,10 @@ function summarizeAmbientCallEffects(ast,sourceType) {
     },'HostHeldCallable');
     for(const returned of functionReturnExpressions(item.target)) {
       for(const target of callableNodesForValueWithReceiver(returned,item.target))
+        externalReturnQueue.push({target,source:item.target});
+    }
+    for(const yielded of functionYieldExpressions(item.target)) {
+      for(const target of callableNodesForValueWithReceiver(yielded,item.target))
         externalReturnQueue.push({target,source:item.target});
     }
   }
@@ -2536,8 +2559,6 @@ function summarizeAmbientCallEffects(ast,sourceType) {
         markCallableValuesHeld(node.right,'callable-coercion-observer',node.start,node.end);
     } else if(node.type==='AwaitExpression'&&node.argument&&!isDefinitelyPrimitive(node.argument)) {
       markCallableValuesHeld(node.argument,'callable-coercion-observer',node.start,node.end);
-    } else if(node.type==='YieldExpression'&&node.argument) {
-      markCallableValuesHeld(node.argument,'returned-callable-value',node.start,node.end);
     } else if(node.type==='ThrowStatement'&&node.argument) {
       // Keep a same-function catch local when its binding is explicit; if the
       // catch later returns/passes/observes the value, normal value-flow sinks
@@ -2619,6 +2640,16 @@ function summarizeAmbientCallEffects(ast,sourceType) {
         const wasHeld=hostHeldFunctions.has(target);
         addReason(target,{
           kind:'returned-callable-value',start:returned.start,end:returned.end,
+          targetStart:fn.start
+        },'HostHeldCallable');
+        if(!wasHeld)heldClosureQueue.push(target);
+      }
+    }
+    for(const yielded of functionYieldExpressions(fn)) {
+      for(const target of callableNodesForValueWithReceiver(yielded,fn)) {
+        const wasHeld=hostHeldFunctions.has(target);
+        addReason(target,{
+          kind:'yielded-callable-value',start:yielded.start,end:yielded.end,
           targetStart:fn.start
         },'HostHeldCallable');
         if(!wasHeld)heldClosureQueue.push(target);
