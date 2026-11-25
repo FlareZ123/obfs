@@ -199,6 +199,46 @@ def generate_delayed_pair_fixture(state_count: int, seed: int) -> Fixture:
     )
 
 
+class InstrumentedRandomWphWOracle(RandomWphWOracle):
+    """Record per-equivalence-check learner state, including interrupted checks."""
+
+    def __init__(self, random_walk_length: int, num_test_origin_states: int):
+        super().__init__(
+            random_walk_length=random_walk_length,
+            num_test_origin_states=num_test_origin_states,
+        )
+        self.rounds = []
+
+    def find_cex(self, hypothesis):
+        learner = self.learner
+        record = {
+            "call_index": len(self.rounds) + 1,
+            "hypothesis_size": hypothesis.size,
+            "global_trace_steps_before": len(learner.global_trace),
+            "oracle_steps_before": self.num_steps,
+            "homing_sequence_length_before": len(learner.homing_sequence),
+            "characterization_set_size_before": len(learner.W),
+        }
+        self.rounds.append(record)
+        counterexample = None
+        try:
+            counterexample = super().find_cex(hypothesis)
+            return counterexample
+        finally:
+            record.update({
+                "global_trace_steps_after": len(learner.global_trace),
+                "oracle_steps_after": self.num_steps,
+                "homing_sequence_length_after": len(learner.homing_sequence),
+                "characterization_set_size_after": len(learner.W),
+                "identified_state_count_after": len(learner.state_map),
+                "h_response_state_count_after": len(learner.h_response_map),
+                "counterexample_found": counterexample is not None,
+                "counterexample_length": (
+                    len(counterexample) if counterexample is not None else None
+                ),
+            })
+
+
 class NoResetMealySUL(SUL):
     """Duck-compatible AALpy SUL that permits one initialization only."""
 
@@ -471,7 +511,7 @@ def run_one(
     oracle_seed = (seed * 0x9E3779B1 + state_count * 0x85EBCA77) & 0xFFFFFFFF
     random.seed(oracle_seed)
     np.random.seed(oracle_seed)
-    oracle = RandomWphWOracle(
+    oracle = InstrumentedRandomWphWOracle(
         random_walk_length=random_walk_length,
         num_test_origin_states=origin_states,
     )
@@ -490,6 +530,18 @@ def run_one(
             print_level=0,
         )
     except RunTimeout:
+        learner = oracle.learner
+        timeout_debug = None
+        if learner is not None:
+            timeout_debug = {
+                "oracle_call_count": len(oracle.rounds),
+                "learning_rounds_observed": max(0, len(oracle.rounds) - 1),
+                "homing_sequence_length": len(learner.homing_sequence),
+                "characterization_set_size": len(learner.W),
+                "identified_state_count": len(learner.state_map),
+                "h_response_state_count": len(learner.h_response_map),
+                "last_oracle_rounds": oracle.rounds[-10:],
+            }
         return {
             "state_count": state_count,
             "seed": seed,
@@ -521,6 +573,7 @@ def run_one(
             "post_calls": counters["post_calls"],
             "query_calls": counters["query_calls"],
             "trace_steps": len(trace),
+            "timeout_debug": timeout_debug,
         }
     finally:
         signal.alarm(0)
@@ -599,6 +652,15 @@ def run_one(
         "sul_num_queries": sul.num_queries,
         "sul_num_steps": sul.num_steps,
         "trace_steps": len(trace),
+        "oracle_call_count": len(oracle.rounds),
+        "max_homing_sequence_length_observed": max(
+            (round["homing_sequence_length_after"] for round in oracle.rounds),
+            default=0,
+        ),
+        "max_characterization_set_size_observed": max(
+            (round["characterization_set_size_after"] for round in oracle.rounds),
+            default=0,
+        ),
         "steps_total": step_metrics["steps_total"],
         "steps_oracle": step_metrics["steps_oracle"],
         "steps_non_oracle": step_metrics["steps_non_oracle"],
