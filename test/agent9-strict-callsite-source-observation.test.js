@@ -5,12 +5,14 @@ const {test} = require('node:test');
 const {obfuscateFiles} = require('../src');
 
 /**
- * @typedef {{name:string|null,functionType:string,source:string|null,thisIsUndefined:boolean,column:number|null}} ObservedFrame
+ * @typedef {{name:string|null,functionType:string,source:string|null,column:number|null}} ObservedFrame
  */
 
 /**
  * Execute a CommonJS source in the same V8 realm as a host-owned stack
  * formatter, which inspects the active function's CallSite metadata.
+ * The host callback is deliberately sloppy: V8 hides getFunction() for
+ * strict frames and frames below a strict frame.
  * @param {string} code
  * @returns {{value:unknown,frames:ObservedFrame[]}}
  */
@@ -26,7 +28,6 @@ function runWithCallSiteObserver(code) {
         name: hidden.getFunctionName(),
         functionType: typeof fn,
         source: typeof fn === 'function' ? Function.prototype.toString.call(fn) : null,
-        thisIsUndefined: hidden.getThis() === undefined,
         column: hidden.getColumnNumber()
       });
     }
@@ -34,11 +35,8 @@ function runWithCallSiteObserver(code) {
   };
   try {
     const module = {exports: null};
-    const getExternal = () => {
-      const error = new Error('host CallSite source probe');
-      void error.stack;
-    };
-    // Function creates the fixture in the same realm as Error.prepareStackTrace.
+    // Use a sloppy host callback so it does not hide strict/sloppy frames below it.
+    const getExternal = new Function("const error = new Error('host CallSite source probe'); void error.stack;");
     new Function('getExternal', 'module', code)(getExternal, module);
     return {value: module.exports, frames};
   } finally {
@@ -50,7 +48,7 @@ const modes = /** @type {const} */ (['coo', 'sco', 'sno']);
 
 for (const mode of modes) {
   for (const strict of [false, true]) {
-    test(mode + ' V8 CallSite exposes strict-frame coordinates despite hiding strict function objects (' + strict + ')', () => {
+    test(mode + ' V8 CallSite exposes strict-frame coordinates while withholding strict function objects (' + strict + ')', () => {
       const source = [
         strict ? "'use strict';" : '',
         'const owner = {longPrivatePropertyName: 17, unrelatedField: 23};',
@@ -84,25 +82,17 @@ for (const mode of modes) {
       assert.notEqual(native.frames[0].column, emitted.frames[0].column, mode);
 
       if (strict) {
-        // Strict frames expose names/coordinates but not function objects/this.
+        // Strict frames expose names/coordinates but not their function objects.
         assert.equal(native.frames[0].functionType, 'undefined', mode);
         assert.equal(native.frames[0].source, null, mode);
-        assert.equal(native.frames[0].thisIsUndefined, true, mode);
         assert.equal(emitted.frames[0].functionType, 'undefined', mode);
         assert.equal(emitted.frames[0].source, null, mode);
-        assert.equal(emitted.frames[0].thisIsUndefined, true, mode);
       } else {
-        // Sloppy-frame callable exposure is reported separately from coordinates.
-        assert.equal(native.frames[0].thisIsUndefined, false, mode);
-        assert.equal(emitted.frames[0].thisIsUndefined, false, mode);
-        if (native.frames[0].functionType === 'function') {
-          assert.match(native.frames[0].source || '', /owner\.longPrivatePropertyName/, mode);
-          assert.notEqual(emitted.frames[0].source, native.frames[0].source, mode);
-          assert.doesNotMatch(emitted.frames[0].source || '', /owner\.longPrivatePropertyName/, mode);
-        } else {
-          assert.equal(native.frames[0].source, null, mode);
-          assert.equal(emitted.frames[0].source, null, mode);
-        }
+        // A sloppy frame below a sloppy host callback exposes its function object.
+        assert.equal(native.frames[0].functionType, 'function', mode);
+        assert.match(native.frames[0].source || '', /owner\.longPrivatePropertyName/, mode);
+        assert.notEqual(emitted.frames[0].source, native.frames[0].source, mode);
+        assert.doesNotMatch(emitted.frames[0].source || '', /owner\.longPrivatePropertyName/, mode);
       }
 
       console.log('AGENT9_CALLSITE_VISIBILITY ' + JSON.stringify({
