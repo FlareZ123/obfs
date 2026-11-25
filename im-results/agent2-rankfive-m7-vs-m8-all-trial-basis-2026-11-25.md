@@ -90,7 +90,7 @@ Thus the m=7 full-path advantage remains positive under these conservative corre
 
 ## Randomized replay
 
-A paired 10,000-replicate Python reproduction used the same OS-generated 256-bit master seed for both policies, with separate domain-separated counter streams. Each mode used 64 independent holdouts per replicate: **640,000 holdouts per mode**, all passing.
+A 10,000-replicate Python reproduction used the same OS-generated 256-bit master seed for both policies, with separate domain-separated counter streams. Each mode used 64 independent holdouts per replicate: **640,000 holdouts per mode**, all passing.
 
 Master seed:
 
