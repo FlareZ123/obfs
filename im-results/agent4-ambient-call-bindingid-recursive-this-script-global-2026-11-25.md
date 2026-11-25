@@ -2,7 +2,7 @@
 
 **Checkpoint:** 2026-11-25T12:17:11.179Z  
 **Research branch:** `agent4/agent9-local-owner-precision-20261125`  
-**Branch head:** `0b0bbec0ea0ed3fc1b49cf6cebf51a3de92dc22e`  
+**Branch head:** `a726d91de8277ee19c402c1fd8a9e52f65f7f525`  
 **Research status:** intermediate donor evidence; not production integration
 
 ## Scope
@@ -87,3 +87,23 @@ The runtime witness executes the class-field closure case in Node's `vm` context
 4. Keep the private-mutator parameter case fail-closed until a red/green proof establishes the ownership invariant.
 5. Only then evaluate whether a reviewed subset belongs in the current SourceObservationPlan and how it composes with property-renaming proofs.
 6. Measure transformation/runtime overhead separately against the 2.5x budget; the current CI timings are analysis-test durations, not obfuscated-program runtime benchmarks.
+
+
+## Follow-on checkpoint: export-root and spread exposure propagation
+
+**Date:** 2026-11-25T12:28:04.933Z  
+**Updated donor head:** `a726d91de8277ee19c402c1fd8a9e52f65f7f525`
+
+A new red test showed that an exported ESM object getter returning a closed-over module callable was not reflected in the exported object's external-reachability summary. The getter function itself was marked external, but its returned callable was not. Run `45612665289` isolated this as the sole failure in the then-current 53-test follow-up suite (51 pass, 1 fail, 1 TODO).
+
+Added `knownValueExpressions` and `callableNodesExposedByValue`:
+- expand local aliases, factory returns, and statically named member reads;
+- collect callables directly in values and those returned by reachable object-literal getters/methods through their actual receiver;
+- traverse nested object/array containers and class method return values;
+- apply the expanded set consistently to `markCallableValuesHeld`, `markExternalCallableValue`, and classic-script global roots.
+
+This also covers object and array spread. Object spread can invoke a source getter and copy its callable return into the host-visible object; array spread can copy local callable elements. Tests now cover host-passed object getters/methods returning closed-over functions, exported ESM getter returns, primitive-returning getter negatives, object spread, exported object spread, and array spread.
+
+**Latest combined validation:** run `45613731865`, 176 tests / 175 pass / 0 fail / 1 explicit TODO. Both Ubuntu and Windows jobs passed. Strict project, external, and paired/runtime-budget JSDoc stages passed on both. The captured-instance Node vm runtime witness remains included.
+
+The explicit TODO remains the private-object mutation-through-known-function-parameter proof. This remains a donor-only static-analysis result; it does not establish cross-file module graph analysis, production integration, full release acceptance, or the 2.5x runtime budget.
