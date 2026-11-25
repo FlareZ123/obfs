@@ -1,0 +1,58 @@
+name: Manual Agent 2 adaptive anchor-pair reproduction
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  reproduce:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install pinned graph-atlas dependency
+        run: python -m pip install --disable-pip-version-check networkx==3.5
+      - name: Reproduce exact adaptive-pair checks and seeded replays
+        run: |
+          python sims/agent2-rankfive-adaptive-anchor-pair-fullpath.py --replay-replicates 10000 --seed b89a5ffa2ed9f00fd81efc3de0e06a5caa630fba2ab37b6001eac0c6f1986b29 > adaptive-anchor-pair-output.json
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          result = json.loads(Path("adaptive-anchor-pair-output.json").read_text())
+          exact = result["exact"]
+          assert exact["pair_signature_pairs_checked"] == 465
+          assert exact["all_pairs_injective"] is True
+          assert abs(exact["m7"]["total_queries"] - 160.549864623622) < 1e-9
+          assert abs(exact["m8"]["total_queries"] - 160.312633363971) < 1e-9
+          assert exact["m7_minus_m8_total"] > 0.237
+          replay = result["randomized_replay"]
+          assert replay["replicates"] == 10000
+          assert replay["holdouts_per_policy_mode"] == 640000
+          assert set(replay["summary"]) == {"m7", "m8"}
+          print("Exact adaptive-pair and 10,000-replicate replay assertions passed.")
+          PY
+      - name: Generate all 1,044 unlabeled seven-vertex graph representatives
+        run: python sims/prepare-m7-fullpath-dp-data.py > m7-fullpath-data-manifest.json
+      - name: Compile and exhaustively optimize all m=7 face sets, cutoffs, and orders
+        shell: bash
+        run: |
+          set -euo pipefail
+          g++ -O3 -std=c++17 sims/agent2-rankfive-m7-fullpath-face-order-dp.cpp -o /tmp/agent2-m7-fullpath-dp
+          /tmp/agent2-m7-fullpath-dp sims/data/m7-fullpath | tee m7-fullpath-dp-output.txt
+          grep -q '^graphs=1044 states=12490035 transitions=105195413 ' m7-fullpath-dp-output.txt
+          grep -q '^GLOBAL total=160.549864623622 .* k=10 ' m7-fullpath-dp-output.txt
+      - name: Preserve reproducibility artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: agent2-adaptive-anchor-pair-reproduction
+          path: |
+            adaptive-anchor-pair-output.json
+            m7-fullpath-data-manifest.json
+            m7-fullpath-dp-output.txt
+            sims/data/m7-fullpath/manifest.json
