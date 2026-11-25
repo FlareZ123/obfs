@@ -32,12 +32,12 @@ async function runProbe(sourceText,generatedCode,suffix) {
     '  if(stack.includes("native-'+suffix+'.mjs")||stack.includes("generated-'+suffix+'.mjs"))globalThis.__frames.push(stack);',
     '  return native(value);',
     '};'
-  ].join('\\n');
+  ].join('\n');
   const runner=[
     'const native=await import("./native-'+suffix+'.mjs");',
     'const generated=await import("./generated-'+suffix+'.mjs");',
     'process.stdout.write(JSON.stringify({values:[native.value,generated.value],frames:globalThis.__frames}));'
-  ].join('\\n');
+  ].join('\n');
   fs.writeFileSync(preloadPath,preload);
   fs.writeFileSync(nativePath,sourceText);
   fs.writeFileSync(generatedPath,generatedCode);
@@ -58,9 +58,9 @@ async function runProbe(sourceText,generatedCode,suffix) {
  * @returns {{line:number,column:number,frame:string}}
  */
 function parseFrame(stack,filename) {
-  const frame=stack.split('\\n').find(line=>line.includes(filename))??'';
+  const frame=stack.split('\n').find(line=>line.includes(filename))??'';
   assert.ok(frame,'Missing active module frame '+filename+': '+stack);
-  const match=frame.match(/:(\\d+):(\\d+)\\)?$/u);
+  const match=frame.match(/:(\d+):(\d+)\)?$/u);
   assert.ok(match,'Missing source coordinates in '+frame);
   return {line:Number(match[1]),column:Number(match[2]),frame};
 }
