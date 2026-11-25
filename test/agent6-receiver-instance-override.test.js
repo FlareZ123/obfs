@@ -220,3 +220,37 @@ test('an escaping instance publishes its final constructor callable property',()
   execute(source);
   assert.equal(hiddenSummary(source).hostHeldCallable,true);
 });
+
+
+test('a base constructor primitive own write shadows a derived prototype method',()=>{
+  const source=
+    'function hidden(){return 1;}'+
+    'class Base{constructor(){this.callback=1;}}'+
+    'class Local extends Base{callback(){return hidden;}}'+
+    'const instance=new Local();external(instance.callback);';
+  const [actual]=execute(source);
+  assert.equal(actual,1);
+  assert.equal(hiddenSummary(source).hostHeldCallable,false);
+});
+
+test('a base constructor callable own write shadows a derived prototype method',()=>{
+  const source=
+    'function hidden(){return 1;}'+
+    'class Base{constructor(){this.callback=hidden;}}'+
+    'class Local extends Base{callback(){return 0;}}'+
+    'const instance=new Local();external(instance.callback);';
+  const [actual]=execute(source);
+  assert.equal((/** @type {Function} */ (actual)).name,'hidden');
+  assert.equal(hiddenSummary(source).hostHeldCallable,true);
+});
+
+test('a derived primitive constructor write overwrites a base callable own write',()=>{
+  const source=
+    'function hidden(){return 1;}'+
+    'class Base{constructor(){this.callback=hidden;}}'+
+    'class Local extends Base{constructor(){super();this.callback=1;}}'+
+    'const instance=new Local();external(instance.callback);';
+  const [actual]=execute(source);
+  assert.equal(actual,1);
+  assert.equal(hiddenSummary(source).hostHeldCallable,false);
+});
