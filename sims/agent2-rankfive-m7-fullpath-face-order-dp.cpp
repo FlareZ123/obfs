@@ -21,6 +21,7 @@
 #include <iomanip>
 #include <iostream>
 #include <limits>
+#include <stdexcept>
 #include <vector>
 
 static constexpr int N_FACES = 21;
@@ -411,6 +412,7 @@ int main(int argc, char** argv) {
               << " miss=" << best_global.miss
               << " remaining=" << best_global.remaining
               << " k=" << best_global.order_edges.size()
+              << " uncacheable_vertices=" << best_global.uncacheable_vertices
               << " graph_mask=" << best_global.graph_mask
               << " order=";
     for (size_t i = 0; i < best_global.order_edges.size(); ++i) {
