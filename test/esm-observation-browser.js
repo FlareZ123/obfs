@@ -37,6 +37,14 @@ const CASES=[
       'const privateValue=23;export default {length:privateValue};'},
     {path:'entry.mjs',sourceType:'module',code:
       'const loaded=await import("./state.mjs",{with:{type:"text"}});export const value=loaded.default.length;'}
+  ]},
+  {name:'text-reexport-observes-module-source',renamed:0,properties:false,identifiers:true,files:[
+    {path:'state.mjs',sourceType:'module',code:
+      'const privateValue=23;export default {length:privateValue};'},
+    {path:'relay.mjs',sourceType:'module',code:
+      'export {default as source} from "./state.mjs" with {type:"text"};'},
+    {path:'entry.mjs',sourceType:'module',code:
+      'import {source} from "./relay.mjs";export const value=source.length;'}
   ]}
 ];
 
