@@ -613,13 +613,26 @@ function summarizeAmbientCallEffects(ast,sourceType) {
     return false;
   }
 
+  /** @param {AstNode} element @returns {boolean} */
+  function isSafeClassFieldGetter(element) {
+    if(element.type!=='MethodDefinition'||element.kind!=='get'||element.static||element.computed||
+       element.key.type==='PrivateIdentifier'||!element.value?.body||element.value.body.type!=='BlockStatement')
+      return false;
+    const statements=element.value.body.body;
+    if(statements.length!==1||statements[0].type!=='ReturnStatement'||!statements[0].argument)
+      return false;
+    const returned=statements[0].argument;
+    return returned.type==='MemberExpression'&&returned.object.type==='ThisExpression'&&
+      staticPropertyKey(returned.property,returned.computed)!==null;
+  }
+
   /** @param {AstNode} classNode @returns {boolean} */
-  function classHasOnlyPublicInstanceFields(classNode) {
+  function classHasOnlyPublicInstanceFieldsAndSimpleGetters(classNode) {
     if(classNode.superClass||classNode.body.body.length===0)return false;
     return classNode.body.body.every((/** @type {AstNode} */ element)=>
-      element.type==='PropertyDefinition'&&!element.static&&!element.computed&&
-      element.key.type!=='PrivateIdentifier'&&
-      isSafeClassFieldInitializer(element.value));
+      (element.type==='PropertyDefinition'&&!element.static&&!element.computed&&
+        element.key.type!=='PrivateIdentifier'&&isSafeClassFieldInitializer(element.value))||
+      isSafeClassFieldGetter(element));
   }
 
   /** @param {AstNode} field @returns {boolean} */
@@ -639,7 +652,7 @@ function summarizeAmbientCallEffects(ast,sourceType) {
         return false;
       current=parent;
     }
-    if(!classNode||!classHasOnlyPublicInstanceFields(classNode))return false;
+    if(!classNode||!classHasOnlyPublicInstanceFieldsAndSimpleGetters(classNode))return false;
     const bindingId=classBindingId(classNode);
     if(bindingId===null||writtenBindings.has(bindingId)||
        (declarationsByBinding.get(bindingId)?.length??0)!==1)return false;
