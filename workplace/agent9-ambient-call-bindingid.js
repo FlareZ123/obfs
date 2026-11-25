@@ -595,6 +595,7 @@ function summarizeAmbientCallEffects(ast,sourceType) {
       const reference=resolved.at(value.start);
       return reference?.resolution.kind==='local'&&
         !classNodeByBinding.has(reference.resolution.bindingId)&&
+        !writtenBindings.has(reference.resolution.bindingId)&&
         resolveFunctionNode(reference.resolution.bindingId)!==null;
     }
     return false;
@@ -679,19 +680,22 @@ function summarizeAmbientCallEffects(ast,sourceType) {
       if(reference?.resolution.kind!=='local')return [];
       const bindingId=reference.resolution.bindingId;
       const direct=resolveFunctionNode(bindingId);
-      if(direct)return [direct];
+      if(direct&&!writtenBindings.has(bindingId))return [direct];
       const classNode=writtenBindings.has(bindingId)?null:classNodeByBinding.get(bindingId);
       if(classNode)return classMethodFunctions(classNode);
-      if(seen.has(bindingId))return [];
+      if(seen.has(bindingId))return direct?[direct]:[];
       const next=new Set(seen);
       next.add(bindingId);
       const values=bindingValueExpressions.get(bindingId)??[];
       const fields=[...(localRecordMemberValues.get(bindingId)?.values()??[])].flat();
       const stored=fields.flatMap(candidate=>callableNodesForValue(candidate,next));
-      if(values.length)
-        return [...new Set([...stored,...values.flatMap(candidate=>callableNodesForValue(candidate,next))])];
-      const initializer=constInitializersByBinding.get(bindingId);
-      return [...new Set([...stored,...(initializer?callableNodesForValue(initializer,next):[])])];
+      const initialized=constInitializersByBinding.get(bindingId);
+      return [...new Set([
+        ...(direct?[direct]:[]),
+        ...stored,
+        ...values.flatMap(candidate=>callableNodesForValue(candidate,next)),
+        ...(initialized?callableNodesForValue(initialized,next):[])
+      ])];
     }
     if(value.type==='SpreadElement')return callableNodesForValue(value.argument,seen);
     if(value.type==='ArrayExpression')
