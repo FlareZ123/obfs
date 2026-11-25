@@ -377,6 +377,7 @@
     "test/agent9-mutable-factory-runtime-witness.test.js",
     "test/agent6-member-flow-spread-override.test.js",
     "test/agent10-member-flow-followup.test.js",
+    "test/agent9-agent1-current-main-runtime-boundary.test.js",
   ],
   "exclude": [
     "node_modules"
