@@ -153,3 +153,27 @@ test('a non-escaping closure does not taint its captured callable',()=>{
   assert.equal(hidden.hostHeldCallable,false);
   assert.equal(hidden.safe,true);
 });
+
+
+test('an escaping closure propagates a callable from a captured parameter default',()=>{
+  const source=
+    'function hidden(){return 1;}'+
+    'function entry(callback=hidden){return ()=>callback;}'+
+    'module.exports=entry;';
+  /** @type {{module:{exports:(()=>unknown)|null}}} */
+  const context={module:{exports:null}};
+  vm.runInNewContext(source,context);
+  const entry=context.module.exports;
+  assert.equal(typeof entry,'function');
+  const closure=(/** @type {()=>()=>unknown} */ (entry))();
+  const caught=closure();
+  assert.equal(typeof caught,'function');
+  assert.match(Function.prototype.toString.call(caught),/function hidden/u);
+
+  const result=analyze(source);
+  const hidden=named(result,'hidden')[0];
+  assert.ok(hidden);
+  assert.equal(hidden.hostHeldCallable,true,
+    'a returned closure exposes the function selected by its default parameter');
+  assert.equal(hidden.safe,false);
+});
