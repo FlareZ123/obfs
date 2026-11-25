@@ -7,7 +7,8 @@ const {evaluateProjectedAffineModel} = require('./projected-affine-coset-profile
 /** @typedef {{kind:'projected-affine',bits:number,rank:5,table:number[],coordinates:number[],affineCorrections:number[]}} ProjectedModel */
 /** @typedef {{kind:'anf',bits:number,lower:Array<[number,number]>,top:Array<[number,number]>,degree:4|5}} AnfModel */
 /** @typedef {ProjectedModel|AnfModel} HybridModel */
-/** @typedef {{fastPathSuccess:boolean,witnessTrials:number,witnessDrawCount:number,witnessProbability:number,witnessFailureBound:number,quotientRank:number|null,coordinateStrategy:'shift'|'signature'|null,fixedPairPassed:boolean|null,fastQueries:number,verificationQueries:number,verificationSamples:number,verificationCap:number,verificationDelta:number,falseAcceptanceBound:number,verificationPassed:boolean,fallbackUsed:boolean,fallbackReason:string|null,fallbackQueries:number,exactByInterpolation:boolean}} Diagnostics */
+/** @typedef {'six-direction'|'seven-direction-restart'} WitnessStrategy */
+/** @typedef {{fastPathSuccess:boolean,witnessStrategy:WitnessStrategy,witnessTrials:number,witnessDrawCount:number,witnessProbability:number,witnessFailureBound:number,quotientRank:number|null,coordinateStrategy:'shift'|'signature'|null,fixedPairPassed:boolean|null,fastQueries:number,verificationQueries:number,verificationSamples:number,verificationCap:number,verificationDelta:number,falseAcceptanceBound:number,verificationPassed:boolean,fallbackUsed:boolean,fallbackReason:string|null,fallbackQueries:number,exactByInterpolation:boolean}} Diagnostics */
 /** @typedef {{model:HybridModel,queries:number,diagnostics:Diagnostics}} CloneResult */
 
 /** @returns {number} */
@@ -143,6 +144,7 @@ function evaluateHybridModel(model, input) {
  * @param {()=>number} [drawVerify] Must be independent uniform words, separate from witness draws.
  * @param {number} [delta]
  * @param {()=>void} [onCandidateReady] Called after candidate construction and before verifier draws are requested.
+ * @param {WitnessStrategy} [witnessStrategy] Selects the six-direction or exact seven-direction restart policy.
  * @returns {CloneResult}
  */
 function cloneTopDerivativeProjectedAffine(
@@ -151,7 +153,8 @@ function cloneTopDerivativeProjectedAffine(
   drawWitness = secureWord,
   drawVerify = secureWord,
   delta = 1e-10,
-  onCandidateReady = () => {}
+  onCandidateReady = () => {},
+  witnessStrategy = 'six-direction'
 ) {
   assert.ok(Number.isInteger(n) && n >= 5 && n <= 32);
   assert.ok(Number.isFinite(delta) && delta > 0 && delta < 1);
@@ -185,8 +188,18 @@ function cloneTopDerivativeProjectedAffine(
     return result >>> 0;
   }
 
-  const witnessProbability =
-    (63 / 64) * (62 / 64) * (60 / 64) * (56 / 64) * (48 / 64);
+  assert.ok(witnessStrategy === 'six-direction' ||
+    witnessStrategy === 'seven-direction-restart');
+  const directionCount = witnessStrategy === 'six-direction' ? 6 : 7;
+  /** @type {number[][]} */
+  const faceComplements = witnessStrategy === 'six-direction'
+    ? [[0],[1],[2],[3],[4],[5]]
+    : [[0,1],[0,2],[0,3],[0,4],[0,5],[1,6],[2,6],[3,6],[4,6],[5,6]];
+  // The seven-direction policy tests the exact ten-face restart optimum.
+  // Its probability is for those ten faces only, not all 21 possible faces.
+  const witnessProbability = witnessStrategy === 'six-direction'
+    ? (63 / 64) * (62 / 64) * (60 / 64) * (56 / 64) * (48 / 64)
+    : 24519915 / 33554432;
   const witnessTrialCap = Math.ceil(Math.log(delta) / Math.log(1 - witnessProbability));
   const verificationCap = Math.ceil(Math.log(delta) / Math.log(31 / 32));
 
@@ -198,21 +211,22 @@ function cloneTopDerivativeProjectedAffine(
   let coordinateStrategy = null;
   /** @type {boolean|null} */
   let fixedPairPassed = null;
-  for (; witnessTrials < witnessTrialCap; witnessTrials++) {
-    const directions = Array.from({length:6}, () => ((drawWitness() >>> 0) & inputMask) >>> 0);
-    // Evaluate only the five-dimensional faces in order. The all-six vertex
-    // is not used by any face, and later faces reuse their intersections.
-    for (let omitted = 0; omitted < 6; omitted++) {
-      const tuple = directions.filter((_,index) => index !== omitted);
+  while (witnessTrials < witnessTrialCap) {
+    const directions = Array.from({length:directionCount},
+      () => ((drawWitness() >>> 0) & inputMask) >>> 0);
+    let found = false;
+    for (const complement of faceComplements) {
+      const tuple = directions.filter((_,index) => !complement.includes(index));
       const observed = fifthDerivative(tuple);
       if (observed !== 0) {
         anchors = tuple;
         witness = observed;
-        witnessTrials++;
+        found = true;
         break;
       }
     }
-    if (witness !== 0) break;
+    witnessTrials++;
+    if (found) break;
   }
 
   /** @param {string} reason @param {number} fastQueries @param {number} verificationSamples @param {number} verificationQueries @returns {CloneResult} */
@@ -225,7 +239,8 @@ function cloneTopDerivativeProjectedAffine(
       diagnostics:{
         fastPathSuccess:false,
         witnessTrials,
-        witnessDrawCount:witnessTrials * 6,
+        witnessStrategy,
+        witnessDrawCount:witnessTrials * directionCount,
         witnessProbability,
         witnessFailureBound:Math.pow(1-witnessProbability,witnessTrials),
         quotientRank:null,
@@ -357,7 +372,8 @@ function cloneTopDerivativeProjectedAffine(
     diagnostics:{
       fastPathSuccess:true,
       witnessTrials,
-      witnessDrawCount:witnessTrials * 6,
+      witnessStrategy,
+        witnessDrawCount:witnessTrials * directionCount,
       witnessProbability,
       witnessFailureBound:Math.pow(1-witnessProbability,witnessTrials),
       quotientRank:5,
@@ -436,6 +452,38 @@ function main() {
       positiveCases++;
       totalPositiveQueries += result.queries;
       maxPositiveQueries = Math.max(maxPositiveQueries,result.queries);
+    }
+  }
+
+  // Exercise the exact seven-direction, ten-face restart policy independently.
+  let sevenDirectionPositiveCases = 0;
+  let sevenDirectionPositiveOutputs = 0;
+  let sevenDirectionMaxQueries = 0;
+  for (let n = 5; n <= 8; n++) {
+    for (let caseIndex = 0; caseIndex < 8; caseIndex++) {
+      const source = makeRankFiveSource(
+        n,seeded(0x50a202711 + n * 100 + caseIndex)
+      );
+      const result = cloneTopDerivativeProjectedAffine(
+        source,n,
+        seeded(0x50a202721 + n * 100 + caseIndex),
+        seeded(0x50a202731 + n * 100 + caseIndex),
+        1e-10,() => {},'seven-direction-restart'
+      );
+      assert.equal(result.diagnostics.witnessStrategy,'seven-direction-restart');
+      assert.equal(result.diagnostics.fastPathSuccess,true);
+      assert.equal(result.diagnostics.fallbackUsed,false);
+      assert.equal(result.diagnostics.witnessDrawCount,result.diagnostics.witnessTrials * 7);
+      assert.ok(result.diagnostics.witnessTrials <= 18);
+      assert.ok(result.diagnostics.witnessFailureBound <= 1e-10);
+      assert.ok(result.queries <= 3375);
+      for (let input = 0; input < 2 ** n; input++) {
+        assert.equal(evaluateHybridModel(result.model,input),source(input),
+          'seven-direction rank-five finite truth table mismatch');
+        sevenDirectionPositiveOutputs++;
+      }
+      sevenDirectionPositiveCases++;
+      sevenDirectionMaxQueries = Math.max(sevenDirectionMaxQueries,result.queries);
     }
   }
 
@@ -539,7 +587,27 @@ function main() {
     assert.equal(evaluateHybridModel(noWitness.model,input),degreeFour(input));
   }
 
+  const noWitnessSeven = cloneTopDerivativeProjectedAffine(
+    degreeFour,7,seeded(0x50a202661),seeded(0x50a202662),
+    1e-10,() => {},'seven-direction-restart'
+  );
+  assert.equal(noWitnessSeven.diagnostics.witnessStrategy,'seven-direction-restart');
+  assert.equal(noWitnessSeven.diagnostics.fallbackUsed,true);
+  assert.equal(noWitnessSeven.diagnostics.fallbackReason,'no-witness-within-trial-cap');
+  assert.equal(noWitnessSeven.diagnostics.witnessTrials,18);
+  assert.equal(noWitnessSeven.diagnostics.witnessDrawCount,126);
+  for (let input = 0; input < 128; input++) {
+    assert.equal(evaluateHybridModel(noWitnessSeven.model,input),degreeFour(input));
+  }
+
   const summary = {
+    sevenDirectionRestart:{
+      cases:sevenDirectionPositiveCases,
+      outputs:sevenDirectionPositiveOutputs,
+      maxQueries:sevenDirectionMaxQueries,
+      noWitnessFallbackExactAll128:true,
+      noWitnessTrials:noWitnessSeven.diagnostics.witnessTrials
+    },
     finite:{cases:positiveCases,outputs:positiveOutputs,
       meanQueries:totalPositiveQueries/positiveCases,maxQueries:maxPositiveQueries,
       shiftStrategyCases,signatureStrategyCases},
