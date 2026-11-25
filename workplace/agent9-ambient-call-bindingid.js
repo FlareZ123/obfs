@@ -722,7 +722,7 @@ function summarizeAmbientCallEffects(ast,sourceType) {
    * Unknown or dynamic chains fall back to the receiver so callers fail closed.
    * @param {AstNode} expression
    * @param {AstNode} receiver
-   * @param {Set<unknown>} [seen]
+   * @param {Set<number>} [seen]
    * @returns {AstNode[]}
    */
   function memberReturnExpressionsWithReceiver(expression,receiver,seen=new Set()) {
@@ -1004,7 +1004,7 @@ function summarizeAmbientCallEffects(ast,sourceType) {
    * function itself; this preserves precision for primitive-returning getters.
    * @param {AstNode} classNode
    * @param {string} propertyKey
-   * @param {Set<unknown>} [seen]
+   * @param {Set<number>} [seen]
    * @param {AstNode|null} [receiver]
    * @returns {AstNode[]}
    */
@@ -1035,7 +1035,7 @@ function summarizeAmbientCallEffects(ast,sourceType) {
    * class instances, factory returns, and nested member chains.
    * @param {AstNode} value
    * @param {string} propertyKey
-   * @param {Set<unknown>} [seen]
+   * @param {Set<number>} [seen]
    * @param {AstNode|null} [receiver]
    * @returns {AstNode[]}
    */
@@ -1222,7 +1222,7 @@ function summarizeAmbientCallEffects(ast,sourceType) {
    * Resolve getter functions that may execute for a local property read.
    * @param {AstNode} value
    * @param {string} propertyKey
-   * @param {Set<unknown>} [seen]
+   * @param {Set<number>} [seen]
    * @returns {AstNode[]}
    */
   function getterNodesForMemberValue(value,propertyKey,seen=new Set()) {
@@ -1695,6 +1695,22 @@ function summarizeAmbientCallEffects(ast,sourceType) {
    */
   function callableNodesForValueWithReceiver(value,fn,seen=new Set()) {
     if(!value)return [];
+    // Ordinary functions have dynamic this. Never borrow the receiver of the
+    // function that merely contains or returns this function value.
+    if(value.type==='FunctionDeclaration'||value.type==='FunctionExpression')
+      return callableNodesForValue(value);
+    // Arrows capture this from their lexical parent. Resolve that capture from
+    // the arrow's own receiver set, not from an arbitrary enclosing caller.
+    if(value.type==='ArrowFunctionExpression') {
+      if(seen.has(value))return callableNodesForValue(value);
+      const receivers=receiverExpressionsByFunction.get(value)??[];
+      if(!receivers.length)return callableNodesForValue(value);
+      const next=new Set(seen);
+      next.add(value);
+      const contextual=functionReturnExpressions(value).flatMap(expression=>
+        callableNodesForValueWithReceiver(expression,value,next));
+      return [...new Set([...contextual,...callableNodesForValue(value)])];
+    }
     if(value.type==='Identifier') {
       const reference=resolved.at(value.start);
       if(reference?.resolution.kind==='local') {
@@ -1756,10 +1772,13 @@ function summarizeAmbientCallEffects(ast,sourceType) {
       const keys=[...new Set(value.properties.flatMap((/** @type {AstNode} */ property)=>
         property.type==='Property'?
           [staticPropertyKey(property.key,property.computed)].filter((/** @type {string|null} */ key)=>key!==null):[]))];
-      const candidates=keys.flatMap(key=>memberValueExpressionsForProperty(value,key,seen).filter(candidate=>candidate!==value));
+      /** @type {Set<number>} */
+      const propertySeen=new Set();
+      for(const item of seen)if(typeof item==='number')propertySeen.add(item);
+      const candidates=keys.flatMap(key=>memberValueExpressionsForProperty(value,key,propertySeen).filter(candidate=>candidate!==value));
       const nested=candidates.flatMap(candidate=>
         callableNodesForValueWithReceiver(candidate,fn,seen));
-      const getters=keys.flatMap(key=>getterNodesForMemberValue(value,key,seen));
+      const getters=keys.flatMap(key=>getterNodesForMemberValue(value,key,propertySeen));
       return [...new Set([...nested,...getters])];
     }
     if(value.type==='ArrayExpression') {
