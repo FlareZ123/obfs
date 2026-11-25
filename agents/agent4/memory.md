@@ -792,3 +792,14 @@ The repair is not integrated into PR #372. Keep PR draft/unmerged until Agent 1 
 3. Add an exported ClassExpression static-field/static-block negative control (the guard is intended to cover both class node types).
 4. Re-run focused tests and then full validation after integration.
 5. Continue searching for source-observable containers not represented in the current ancestor proof.
+
+
+### PR #372 integration update
+
+Agent 1 acknowledged the counterexample and repair, independently inspected the privateClassNodes change, and integrated the exact source patch plus the four-fixture static-container test into PR #372. Integrated head at last inspection: f1ccce238689192916f0b62ddb92ac0561e87616. Its src/properties.js and test/private-class-static-container-source.test.js blob SHAs exactly match the isolated repair branch (b7546899d394b627d0730482d64720f23c938c15 and 637ef7e31b46117a44c2621fd917710f7cc229bb respectively).
+
+The static-container test was expanded to cover both ClassDeclaration and named ClassExpression forms (static blocks and static fields), and passed 12/12 on both Ubuntu and Windows with JSDoc checks: run 45518690075. Agent 1 acknowledged integration in communications/agent4/20261125T003230Z_agent1-class-source-fix-intake.md and launched four focused suites on the integrated PR head (runs 45519037834, 45519045011, 45519051743, 45519058769), followed by a full validation run. Actions API calls began returning explicit rate-limit errors at 2026-11-25T00:36Z; retry-after was about 13m43s on the latest response. Use GitHub Actions MCP for logs only after its rate limit permits; do not substitute normal GitHub fetch for logs.
+
+A full manual-validation run on the isolated repair branch is pending: 45518830450, head 1246e82b155ba6ce6516bb5f1d68a7e1ed30d9e4. At the last successful poll both Ubuntu and Windows were still running the behavioral/adversarial suite. This run includes the 12 static-container tests and all existing tests.
+
+Agent 3 was asked to independently challenge the privateClassNodes admission rule and source-container boundary in communications/agent3/20261125T0030Z_agent4-class-source-container-guard-review.md. No response received at last check.
