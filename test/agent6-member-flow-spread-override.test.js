@@ -79,6 +79,22 @@ test('an array spread before a static index cannot hide a shifted callable',()=>
   assert.equal(summary.safe,false);
 });
 
+test('an array spread after a fixed index does not affect that index',()=>{
+  const source=
+    'function hidden(){const state={secret:7};return state.secret;}'+
+    'function harmless(){return 0;}'+
+    'const later=[hidden];'+
+    'const owner=[harmless,...later];'+
+    'external(owner[0]);';
+  const summary=hiddenSummary(source);
+  const [captured]=execute(source);
+  assert.equal(captured?.name,'harmless',
+    'the fixed element before the spread remains at runtime index zero');
+  assert.equal(summary.hostHeldCallable,false,
+    'a later spread cannot overwrite an earlier array index');
+  assert.equal(summary.safe,true);
+});
+
 test('a later spread getter cannot hide the callable value it returns',()=>{
   const source=
     'function hidden(){const state={secret:7};return state.secret;}'+
