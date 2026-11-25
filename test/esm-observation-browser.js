@@ -22,29 +22,29 @@ const CASES=[
   {name:'unrelated-descriptor-positive',kind:20,renamed:2},
   {name:'external-numeric-positive',kind:23,renamed:2},
   {name:'sibling-alias-local-reader',renamed:1,files:[
-    {path:'state.mjs',sourceType:'module',code:'export const state={secretField:29,auxiliaryField:13};'},
+    {path:'state.mjs',sourceType:'module',code:'export const state={secretField:29};'},
     {path:'entry.mjs',sourceType:'module',code:
       'import {state as left} from "./state.mjs";'+
       'import {state as right} from "./state.mjs";'+
       'const alias=right;const getLeft=()=>left;'+
       'const local=value=>value.secretField;'+
-      'export const value=local(alias)+local(getLeft());'}
+      'console.log(local(alias),local(getLeft()));'}
   ]},
   {name:'sibling-alias-imported-reader',renamed:1,files:[
     {path:'state.mjs',sourceType:'module',code:
-      'export const state={secretField:29,auxiliaryField:13};'+
+      'export const state={secretField:29};'+
       'export function peek(value){return value.secretField;}'},
     {path:'entry.mjs',sourceType:'module',code:
       'import {state as left,state as right,peek} from "./state.mjs";'+
-      'export const value=peek(left)+peek(right);'}
+      'console.log(peek(left),peek(right));'}
   ]},
   {name:'sibling-alias-escape',renamed:0,files:[
-    {path:'state.mjs',sourceType:'module',code:'export const state={secretField:29,auxiliaryField:13};'},
+    {path:'state.mjs',sourceType:'module',code:'export const state={secretField:29};'},
     {path:'entry.mjs',sourceType:'module',code:
       'import {state as left,state as right} from "./state.mjs";'+
       'globalThis.escapedOwner=right;'+
       'const local=value=>value.secretField;'+
-      'export const value=local(left);'}
+      'console.log(local(left));'}
   ]}
 ];
 
@@ -73,12 +73,17 @@ function page(entryUrl) {
   return [
     '<!doctype html><html><head><meta charset="utf-8"></head><body>',
     '<script type="module">',
+    'let output="";',
+    'const originalLog=console.log;',
+    'console.log=(...args)=>{output=args.join(" ");};',
     'try {',
-    `const mod=await import(${JSON.stringify(entryUrl)});`,
+    `await import(${JSON.stringify(entryUrl)});`,
+    'console.log=originalLog;',
     'const pre=document.createElement("pre");',
-    'pre.id="result";pre.textContent=btoa(JSON.stringify(mod.value));',
+    'pre.id="result";pre.textContent=btoa(JSON.stringify(output));',
     'document.body.appendChild(pre);',
     '} catch(error) {',
+    'console.log=originalLog;',
     'const pre=document.createElement("pre");pre.id="failure";',
     'pre.textContent=String(error.stack||error);',
     'document.body.appendChild(pre);',
