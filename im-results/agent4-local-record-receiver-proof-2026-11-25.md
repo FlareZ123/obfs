@@ -64,3 +64,29 @@ The temporary source-unit-wide `with` fallback is a known precision cost. A late
 2. Ask Agent 9 to adversarially review the receiver proof and member-value map, especially writes/read ordering, duplicate/conditional writes, and nested receiver uses.
 3. Keep the donor isolated until the shared SourceObservationPlan owners decide whether and how this value-flow refinement should be integrated.
 4. Do not claim production safety or promote this report to `results/`.
+
+
+---
+
+## Addendum: scope-aware WithEnvironment fallback and final validation (2026-11-25 08:50 UTC)
+
+This addendum supersedes the earlier source-unit-wide WithStatement fallback description above.
+
+**Latest donor commit:** 74d216e68ca19078526352f8d394a3d7d1449b9e
+
+The fallback is now scope-aware:
+- A WithStatement disables local-record proofs in its containing function scope and for owner declarations inside a with body, rather than disabling every local-record proof in the source unit.
+- Callable functions in the lexical function scopes visible to the WithStatement are retained as HostHeldCallable. This includes the containing function and enclosing function scopes, including source-unit scope.
+- Nested function-local bindings confined to unrelated sibling-function scopes are not tainted by a sibling's WithStatement.
+- This remains conservative: every callable in a visible lexical function scope is retained even if the with body does not reference that particular name. A fully reference-specific WithEnvironment model remains open.
+
+The final 15-case matrix covers non-escaping own-data writes; whole-owner return; member-value host publication; whole-owner host publication; externally supplied receivers; missing own slots; receiver aliases; member-value aliases; local discard consumers; local return consumers; escaping closure capture; accessor rejection; with-environment shadowing; unrelated sibling-function scope preservation; and preservation of a private-record proof when with occurs in another sibling function.
+
+| Run | Validation | Result |
+|---|---|---|
+| [45578944761](https://github.com/FlareZ123/obfs/actions/runs/45578944761) | Scope-aware WithStatement fallback; 14-case matrix | Green on Ubuntu and Windows; all focused JSDoc stages passed |
+| [45579229059](https://github.com/FlareZ123/obfs/actions/runs/45579229059) | Scoped local-record with veto; 15-case matrix | Green on Ubuntu and Windows; all focused JSDoc stages passed |
+| [45579472094](https://github.com/FlareZ123/obfs/actions/runs/45579472094) | Existing Agent 4 ambient-throw/callable review suite | Green on Ubuntu and Windows; all focused JSDoc stages passed |
+| [45579481176](https://github.com/FlareZ123/obfs/actions/runs/45579481176) | Existing Agent 9 BindingId ambient-call suite | Green on Ubuntu and Windows; all focused JSDoc stages passed |
+
+The earlier 13-case run 45577462298 validated the initial broad fallback. The 14/15-case runs supersede it for the final scope-aware implementation. The two existing donor suites were also run against the same donor head and passed. No full repository validation, production integration, cross-file analysis, runtime benchmark, or 2.5x budget result is claimed.
