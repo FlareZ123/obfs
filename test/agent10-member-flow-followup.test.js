@@ -312,6 +312,42 @@ test('a factory returning a shared object remains fail-closed after nested calla
 // entry();
 test.todo('prove a private object remains private when mutated through a known local function parameter');
 
+test('a local identity call maps its object parameter through a member read',()=>{
+  const source=
+    'let owner;'+
+    'function hidden(){return 1;}'+
+    'class Local{callback=hidden;}'+
+    'function identity(value){return value;}'+
+    'function entry(){owner=new Local();external(identity(owner).callback);}'+
+    'module.exports=entry;';
+  assertHeld(hiddenSummary(source),
+    'the local call argument must flow into the identity function return value');
+});
+
+test('a local identity result stored in an alias preserves the callable member',()=>{
+  const source=
+    'let owner;'+
+    'function hidden(){return 1;}'+
+    'class Local{callback=hidden;}'+
+    'function identity(value){return value;}'+
+    'function entry(){owner=new Local();const alias=identity(owner);external(alias.callback);}'+
+    'module.exports=entry;';
+  assertHeld(hiddenSummary(source),
+    'the identity result must remain connected to the original shared instance');
+});
+
+test('a local wrapper return composes parameter flow with nested object members',()=>{
+  const source=
+    'let owner;'+
+    'function hidden(){return 1;}'+
+    'class Local{callback=hidden;}'+
+    'function wrap(value){return {current:value};}'+
+    'function entry(){owner=new Local();external(wrap(owner).current.callback);}'+
+    'module.exports=entry;';
+  assertHeld(hiddenSummary(source),
+    'a local wrapper must preserve its parameter value through a returned object and nested reads');
+});
+
 test('an object-literal primitive getter does not retain an unrelated callable sibling',()=>{
   const source=
     'function hidden(){return 1;}'+
