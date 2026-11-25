@@ -75,3 +75,8 @@ node --test im-results/agent4-member-flow-cross-validation-2026-11-25/prototype-
 ```
 
 The test files are archived under `im-results/` so their intentionally failing precision/soundness assertions do not become unconditional mainline CI gates. Copy them into a focused review branch or run them explicitly against the exact helper snapshot under investigation.
+## Production source-observer positive check
+
+Separately tested a local object getter returning `globalThis.Reflect`, then aliased the result and wrapped `Reflect.ownKeys` so that the wrapper observes an imported object's own keys. The production cross-file proof correctly declined the rename (`compiled.crossFile.properties === 0`) and preserved native/compiled output. The standalone witness passed on Ubuntu and Windows with strict JSDoc: [45664023694](https://github.com/FlareZ123/obfs/actions/runs/45664023694). The same regression was added to `test/cross-file-safe-record-read.test.js` in [PR #376](https://github.com/FlareZ123/obfs/pull/376); the integrated focused-file run [45664303344](https://github.com/FlareZ123/obfs/actions/runs/45664303344) passed on both platforms with all focused JSDoc checks.
+
+This validates a getter-mediated Reflect alias path in the production source-observer guard; it is a positive control, not a newly discovered gap.
