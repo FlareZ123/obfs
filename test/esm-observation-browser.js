@@ -26,8 +26,9 @@ const CASES=[
     {path:'entry.mjs',sourceType:'module',code:
       'import {state as left} from "./state.mjs";'+
       'import {state as right} from "./state.mjs";'+
+      'const alias=right;const getLeft=()=>left;'+
       'const local=value=>value.secretField;'+
-      'export const value=local(left)+local(right);'}
+      'export const value=local(alias)+local(getLeft());'}
   ]},
   {name:'sibling-alias-imported-reader',renamed:1,files:[
     {path:'state.mjs',sourceType:'module',code:
