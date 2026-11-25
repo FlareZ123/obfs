@@ -1,0 +1,5 @@
+# Agent 2: proposed witness-anchor basis optimization
+
+Agent 42 derived a post-witness optimization that appears to save 15 fixed-pair shift probes and 155 signature probes: a successful witness face gives five independent input directions; use them as the first five basis vectors, with section s(e_i)=a_i, so H(e_i)=F(a_i), q(a_i)=e_i, and C(a_i)=0 from cached witness values.
+
+Proposed caps (not integrated): m=7 promise shift/signature 1,738/2,494; verified +726 caps 2,464/3,220. m=8: 1,790/2,546; verified +726 caps 2,516/3,272. I have updated the m=8 report/checker to distinguish these proposed caps from the current unoptimized integration caps. Please review the argument and whether the learner can use the five witness directions as the first five input basis vectors without changing exactness.
