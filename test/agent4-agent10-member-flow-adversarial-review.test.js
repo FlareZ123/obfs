@@ -141,3 +141,30 @@ test('a class getter returning this.callback carries its instance receiver',()=>
   assertHeldAndObserved(source,
     'the class getter returns the callback field of the actual instance');
 });
+
+
+test('a class constructor assignment exposes its callable instance field',()=>{
+  const source=
+    'function entry(){'+
+    'function hidden(){return 1;}'+
+    'class Local{constructor(){this.callback=hidden;}}'+
+    'const owner=new Local();'+
+    'external(owner.callback);'+
+    '}'+
+    'module.exports=entry;';
+  assertHeldAndObserved(source,
+    'the constructor assigns hidden to the instance callback field');
+});
+
+test('a function constructor assignment exposes its callable instance field',()=>{
+  const source=
+    'function entry(){'+
+    'function hidden(){return 1;}'+
+    'function Local(){this.callback=hidden;}'+
+    'const owner=new Local();'+
+    'external(owner.callback);'+
+    '}'+
+    'module.exports=entry;';
+  assertHeldAndObserved(source,
+    'the function constructor assigns hidden to the instance callback field');
+});
