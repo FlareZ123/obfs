@@ -51,7 +51,7 @@ async function observeFrame(source) {
   }
 }
 
-for(const mode of /** @type {Array<'coo'|'sno'>} */ (['coo','sno'])) {
+for(const mode of /** @type {Array<'coo'|'sno'>} */ (['coo','sno','sco'])) {
   test(mode+' strict private class must preserve caller FramePosition after a host callback',async()=>{
     const source=[
       "'use strict';",
