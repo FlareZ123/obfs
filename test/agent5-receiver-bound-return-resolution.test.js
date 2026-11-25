@@ -312,3 +312,25 @@ test('a simple-getter class instance escaping still retains its callable field',
   assert.equal(callback?.name,'hidden');
   assert.equal(hiddenSummary(source).hostHeldCallable,true);
 });
+
+
+test('a pure class getter returning a primitive literal can defer callable siblings',()=>{
+  const source=
+    'function hidden(){return 1;}'+
+    'class Owner{callback=hidden;get result(){return 7;}}'+
+    'const owner=new Owner();external(owner.result);';
+  const [captured]=execute(source);
+  assert.equal(captured,7);
+  assert.equal(hiddenSummary(source).hostHeldCallable,false);
+  assert.equal(hiddenSummary(source).safe,true);
+});
+
+test('a class getter reading an undeclared prototype member does not qualify for field deferral',()=>{
+  const source=
+    'function hidden(){return 1;}'+
+    'class Owner{callback=hidden;get result(){return this.toString;}}'+
+    'const owner=new Owner();external(owner.result);';
+  const [captured]=execute(source);
+  assert.equal(captured?.name,'toString');
+  assert.equal(hiddenSummary(source).hostHeldCallable,true);
+});
