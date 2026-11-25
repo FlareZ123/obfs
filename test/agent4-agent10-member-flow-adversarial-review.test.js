@@ -235,3 +235,67 @@ test('an object getter side-effect sink resolves this.callback through its prope
   assertHeldAndObserved(source,
     'the getter side effect publishes the callback field of its actual receiver');
 });
+
+
+test('a factory-returned object method resolves this.callback against the factory receiver',()=>{
+  const source=
+    'function entry(){'+
+    'function hidden(){return 1;}'+
+    'const create=()=>({callback:hidden,reveal(){return this.callback;}});'+
+    'external(create().reveal());'+
+    '}'+
+    'module.exports=entry;';
+  assertHeldAndObserved(source,
+    'the factory-returned object method exposes its receiver callback');
+});
+
+test('a factory-returned object getter resolves this.callback against the factory receiver',()=>{
+  const source=
+    'function entry(){'+
+    'function hidden(){return 1;}'+
+    'const create=()=>({callback:hidden,get reveal(){return this.callback;}});'+
+    'external(create().reveal);'+
+    '}'+
+    'module.exports=entry;';
+  assertHeldAndObserved(source,
+    'the factory-returned object getter exposes its receiver callback');
+});
+
+test('destructuring a factory-returned object exposes its callable member',()=>{
+  const source=
+    'function entry(){'+
+    'function hidden(){return 1;}'+
+    'const create=()=>({callback:hidden});'+
+    'const {callback}=create();'+
+    'external(callback);'+
+    '}'+
+    'module.exports=entry;';
+  assertHeldAndObserved(source,
+    'the destructured callable from the local factory reaches external');
+});
+
+test('a namespace-qualified class constructor exposes its callable field',()=>{
+  const source=
+    'function entry(){'+
+    'function hidden(){return 1;}'+
+    'class Local{callback=hidden;}'+
+    'const namespace={Local};'+
+    'const owner=new namespace.Local();'+
+    'external(owner.callback);'+
+    '}'+
+    'module.exports=entry;';
+  assertHeldAndObserved(source,
+    'the namespace-qualified constructor creates an instance exposing hidden');
+});
+
+test('a nested member chain on a factory-returned object exposes its callable leaf',()=>{
+  const source=
+    'function entry(){'+
+    'function hidden(){return 1;}'+
+    'const create=()=>({nested:{current:{callback:hidden}}});'+
+    'external(create().nested.current.callback);'+
+    '}'+
+    'module.exports=entry;';
+  assertHeldAndObserved(source,
+    'the nested factory-returned member chain resolves to hidden');
+});
