@@ -45,8 +45,8 @@ test('identifier edit refuses tagged-template references before inserting paddin
 
 test('escaped identifier spellings with unequal source-token widths retain exact offsets',()=>{
   const fixtures=[
-    "const \\\\u0061lpha=7;const value=alpha;captureHostStack();export {value};",
-    "const alpha=7;const value=\\\\u0061lpha;captureHostStack();export {value};"
+    "const \\u0061lpha=7;const value=alpha;captureHostStack();export {value};",
+    "const alpha=7;const value=\\u0061lpha;captureHostStack();export {value};"
   ];
   for(let index=0;index<fixtures.length;index++) {
     const source=fixtures[index];
