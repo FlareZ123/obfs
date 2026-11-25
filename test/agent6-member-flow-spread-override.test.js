@@ -37,7 +37,7 @@ test('a later object spread cannot hide the callable that overrides an explicit 
   const [captured]=execute(source);
   assert.equal(captured?.name,'hidden',
     'the runtime spread order must deliver the hidden function to the host');
-  assert.match(String(captured),/state\\.secret/,
+  assert.match(String(captured),/state\.secret/,
     'the host must be able to observe the original private property spelling');
   assert.equal(summary.hostHeldCallable,true,
     'the final callback comes from the later spread, so the host can observe hidden source');
