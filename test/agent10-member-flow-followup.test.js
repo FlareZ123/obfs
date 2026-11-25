@@ -624,3 +624,33 @@ test('an unexported ESM module-local class field callable remains safe',()=>{
   assert.equal(hidden.hostHeldCallable,false);
   assert.equal(hidden.safe,true);
 });
+
+
+test('an object getter passed to an unknown host exposes a closed-over callable return',()=>{
+  const source=
+    'function hidden(){return 1;}'+
+    'function entry(){external({get exposed(){return hidden;}});}'+
+    'module.exports=entry;';
+  assertHeld(hiddenSummary(source),
+    'a host-reachable getter can return a private callable even without a sibling data property');
+});
+
+test('an object method passed to an unknown host exposes a closed-over callable return',()=>{
+  const source=
+    'function hidden(){return 1;}'+
+    'function entry(){external({expose(){return hidden;}});}'+
+    'module.exports=entry;';
+  assertHeld(hiddenSummary(source),
+    'a host-reachable method can return a private callable even without a sibling data property');
+});
+
+test('a host-reachable object getter returning a primitive does not retain an unrelated closure callable',()=>{
+  const source=
+    'function hidden(){return 1;}'+
+    'function entry(){external({count:1,get value(){return this.count;}});}'+
+    'module.exports=entry;';
+  const hidden=hiddenSummary(source);
+  assert.equal(hidden.hostHeldCallable,false,
+    'a known primitive getter return does not expose an unrelated module-local function');
+  assert.equal(hidden.safe,true);
+});
