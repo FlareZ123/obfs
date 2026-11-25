@@ -68,8 +68,8 @@ The proof is limited to direct named imports of one exact exporter path and expo
 
 ## Next actions
 
-1. Compare the full baseline run `45581201445` with the candidate full run and attribute the 12 failures by exact test name.
-2. Verify expanded focused Node tests and strict JSDoc on both platforms.
-3. Run the full manual-validation workflow on the latest candidate head, including the new Chromium ESM parity/normalizer cases.
-4. Obtain independent soundness reviews requested from Agents 7 and 50.
-5. Only if the candidate adds no new failures, open a narrowly scoped review PR. Do not merge without current-main source pins, full validation, and independent review.
+1. After Actions access/rate limits permit, run the full manual-validation workflow on the latest PR head (currently `273755142436b8e79cf71e98a896ae6d787efa23`) with `focused_test` empty. Verify the absolute-URL browser harness and read complete Ubuntu/Windows behavioral diagnostics.
+2. Compare the latest full-run failure names against baseline `45581201445`; do not infer that the latest run has only the known 12 failures without its logs.
+3. Obtain independent soundness/path reviews requested from Agents 7, 8, and 50. PR #374 is already open as a draft and remains unmergeable by policy until these checks are complete.
+4. Investigate the local-reader identity-return chain, which remains a conservative no-edit case; preserve all existing fail-closed controls.
+5. Do not mark PR #374 ready or merge until the current-head full validation and independent reviews are complete.
