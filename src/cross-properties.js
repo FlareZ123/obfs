@@ -2767,26 +2767,28 @@ function renameCrossFileProperties(files,seed) {
           let hasDynamic=false;
           walk(importer.ast,node=>{if(node.type==='ImportExpression')hasDynamic=true;});
           if (hasDynamic) {failed=true;break;}
-          // A reader imported without the candidate state, or alongside two
-          // separately proved state bindings, has insufficient call ownership
-          // evidence. Refuse rather than treating the reader as a free alias.
-          if(readerAliases.size && importedAliases.length!==1) {failed=true;break;}
+          // A reader imported without any candidate state alias has
+          // insufficient call ownership evidence. Multiple exact aliases of
+          // this same export are grouped and validated as one root set below.
+          if(readerAliases.size && importedAliases.length===0) {failed=true;break;}
           const consumerIndices=new Map([...readerAliases].map(([name,exported])=>
             [name,/** @type {{member:AstNode,property:string,argIndex:number}} */ (readers.get(exported)).argIndex]));
           /** @type {NonNullable<ReturnType<typeof proveLocalObject>>|null} */
           let readerProof=null;
-          for(const alias of importedAliases) {
-            if(importer.bindings.get(alias)!==1) {failed=true;break;}
-            // Source-observation safety can use every independently proven imported
-            // string. Object-field rewriting remains limited to keys that
-            // were initialized before the owner and match its own fields.
-            const proof=proveLocalObject(importer.ast,alias,importer.bindings,
+          if(importedAliases.length){
+            if(importedAliases.some(alias=>importer.bindings.get(alias)!==1)){failed=true;break;}
+            const primary=/** @type {string} */ (importedAliases[0]);
+            const additional=importedAliases.slice(1);
+            // These exact named imports resolve to the same immutable ESM
+            // export binding. Validate their complete alias set as one root
+            // identity so local consumers can safely receive either spelling.
+            const proof=proveLocalObject(importer.ast,primary,importer.bindings,
               importedIdentities.get(importerName),consumerIndices,importedKeys,
               verifiedStrings.get(importerName),verifiedPrimitives.get(importerName),
-              allowDirectReflection);
-            if(!proof) {failed=true;break;}
+              allowDirectReflection,additional);
+            if(!proof){failed=true;break;}
             users.push({file:importerName,source:/** @type {string} */ (importer.file.code),proof});
-            if(readerAliases.size)readerProof=proof;
+            readerProof=proof;
           }
           if(failed)break;
           if(readerAliases.size) {
