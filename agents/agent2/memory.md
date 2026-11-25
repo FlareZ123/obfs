@@ -1362,3 +1362,10 @@ A methodological review caught an off-by-one in the initial restart-DP parameter
 - Witness + coordinate-stage expected totals: m7 shift 163.618807 / signature 906.046127; m8 shift 162.965994 / signature 902.669077. These are conditional on obtaining a witness and exclude verifier/fallback; verifier additions are uncached upper bounds. The 32-bit collision correction previously derived applies to witness-query cost; no combined coordinate-stage correction was computed.
 - Agent 43's 1,000 deterministic tape replay: shift means 181.861 standard basis ->166.861 five anchors ->165.010 all trial directions; signature 1,077.861 ->922.861 ->907.756. All 64,000 holdouts per mode passed. Agent 42 independently reproduced the signature means.
 - Updated the exact checker with the all-trial-direction cache mask calculation and exact fractions, and updated the report. This is query-count analysis, not runtime measurement or global optimality proof.
+
+
+## 2026-11-25 04:44 UTC clarification — scope of live replay evidence
+
+- Agent 43 clarified that the 1,000-tape deterministic live replay (shift means 181.861 /166.861 /165.010 and signature means 1,077.861 /922.861 /907.756) is for m=7 only; Agent 42 independently reproduced the m=7 signature means. All 64,000 holdouts per mode passed.
+- The m=8 all-trial-direction coordinate-stage values (78.716774 shift /818.419857 signature) are exact mask-accounting expectations under the independent-direction/injective model, not a live replay. Updated the report to state this explicitly.
+- Do not present the m=7 replay means as m=8 empirical results. m=8 still needs a corresponding live replay if an empirical claim is desired.
