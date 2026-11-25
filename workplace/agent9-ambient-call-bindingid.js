@@ -981,9 +981,26 @@ function summarizeAmbientCallEffects(ast,sourceType) {
     }
     if(value.type==='ArrayExpression') {
       const index=Number(propertyKey);
-      if(Number.isInteger(index)&&index>=0&&index<value.elements.length) {
-        const element=value.elements[index];
-        return element?[element]:[];
+      if(!Number.isInteger(index)||index<0)return [];
+      let position=0;
+      for(let elementIndex=0;elementIndex<value.elements.length;elementIndex++) {
+        const element=value.elements[elementIndex];
+        if(element?.type==='SpreadElement') {
+          // A spread before the requested index has unknown length. Any value
+          // from that spread or a later element may occupy the runtime slot.
+          if(position<=index) {
+            /** @type {AstNode[]} */
+            const candidates=[];
+            for(let candidateIndex=elementIndex;candidateIndex<value.elements.length;candidateIndex++) {
+              const candidate=value.elements[candidateIndex];
+              if(candidate)candidates.push(candidate);
+            }
+            return candidates;
+          }
+          continue;
+        }
+        if(position===index)return element?[element]:[];
+        position++;
       }
       return [];
     }
