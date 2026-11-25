@@ -404,7 +404,7 @@ test('multiple instances invalidate the own-property shadow proof',()=>{
     'external(other.callback);'+
     '}'+
     'module.exports=entry;';
-  assertHeldAndObserved(source);
+  assertHeldAndObserved(source,'the second instance still exposes the prototype callable');
 });
 
 test('deleting an own shadow invalidates the prototype proof',()=>{
@@ -420,5 +420,5 @@ test('deleting an own shadow invalidates the prototype proof',()=>{
     'external(owner.callback);'+
     '}'+
     'module.exports=entry;';
-  assertHeldAndObserved(source);
+  assertHeldAndObserved(source,'deleting the own property reveals the prototype callable');
 });
