@@ -788,6 +788,10 @@ function summarizeAmbientCallEffects(ast,sourceType) {
     } else if(node.type==='AssignmentExpression'&&hasThisMemberRoot(node.left)) {
       for(const target of callableNodesForValue(node.right))
         addReason(target,{kind:'unknown-this-callable-escape',start:node.start,end:node.end},'HostHeldCallable');
+    } else if(node.type==='AssignmentExpression'&&node.left.type==='MemberExpression') {
+      // Unknown object-field writes may publish a callable into host-owned
+      // or aliased storage; retain the value until receiver ownership is proven.
+      markCallableValuesHeld(node.right,'host-held-callable',node.start,node.end);
     }
   });
 
