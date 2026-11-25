@@ -35,6 +35,25 @@ function invokeExternal(source) {
   return observed;
 }
 
+
+/** @param {string} source @param {string} preloader @returns {unknown} */
+function invokeExternalWithPreloader(source,preloader) {
+  let observed;
+  /** @type {{module:{exports:unknown},external:(value:unknown)=>void}} */
+  const context={
+    module:{exports:null},
+    external(value){observed=value;}
+  };
+  vm.runInNewContext(preloader,context);
+  vm.runInNewContext(source,context);
+  const entry=context.module.exports;
+  assert.equal(typeof entry,'function');
+  /** @type {()=>void} */
+  const invoke=/** @type {()=>void} */ (entry);
+  invoke();
+  return observed;
+}
+
 /** @param {string} source @param {string} message */
 function assertHeldAndObserved(source,message) {
   const observed=invokeExternal(source);
@@ -245,4 +264,29 @@ test('a source-local Object.prototype setter invalidates the trusted prototype-s
   assert.equal(/** @type {{name?:unknown}} */ (observed).name,'hidden');
   assert.equal(hiddenSummary(source).hostHeldCallable,true);
   assert.equal(hiddenSummary(source,{trustedPrototypeSemantics:true}).hostHeldCallable,true);
+});
+
+test('trusted prototype semantics is unsound when an external preloader violates the contract',()=>{
+  const source=
+    'function entry(){'+
+    'function hidden(){return 1;}'+
+    'function harmless(){return 0;}'+
+    'function Local(){}'+
+    'Local.prototype.callback=hidden;'+
+    'const owner=new Local();'+
+    'owner.callback=harmless;'+
+    'external(owner.callback);'+
+    '}'+
+    'module.exports=entry;';
+  const preloader=
+    'const values=new WeakMap();'+
+    'Object.defineProperty(Object.prototype,"callback",{configurable:true,'+
+      'get(){return values.get(Object.getPrototypeOf(this))??values.get(this);},'+
+      'set(value){values.set(this,value);}});';
+  const observed=invokeExternalWithPreloader(source,preloader);
+  assert.equal(typeof observed,'function');
+  assert.equal(/** @type {{name?:unknown}} */ (observed).name,'hidden');
+  assert.equal(hiddenSummary(source).hostHeldCallable,true);
+  assert.equal(hiddenSummary(source,{trustedPrototypeSemantics:true}).hostHeldCallable,false,
+    'the opt-in is valid only when its no-hostile-preloader contract is actually true');
 });
