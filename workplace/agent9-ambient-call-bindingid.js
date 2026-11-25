@@ -1035,7 +1035,7 @@ function summarizeAmbientCallEffects(ast,sourceType) {
    * class instances, factory returns, and nested member chains.
    * @param {AstNode} value
    * @param {string} propertyKey
-   * @param {Set<number>} [seen]
+   * @param {Set<unknown>} [seen]
    * @param {AstNode|null} [receiver]
    * @returns {AstNode[]}
    */
@@ -1222,7 +1222,7 @@ function summarizeAmbientCallEffects(ast,sourceType) {
    * Resolve getter functions that may execute for a local property read.
    * @param {AstNode} value
    * @param {string} propertyKey
-   * @param {Set<number>} [seen]
+   * @param {Set<unknown>} [seen]
    * @returns {AstNode[]}
    */
   function getterNodesForMemberValue(value,propertyKey,seen=new Set()) {
