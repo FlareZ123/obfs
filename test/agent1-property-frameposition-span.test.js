@@ -318,7 +318,7 @@ test('real Chromium strict ESM lazy string-span decoding preserves later FramePo
     experimentalLocalStringSpanPreservation:true
   }).files[0];
   const generatedCode=String(output.code);
-  assert.ok(output.metrics.strings>0,'the fixture must exercise string rewriting');
+  assert.ok(output.metrics.literals>0,'the fixture must exercise string rewriting');
   assert.ok(generatedCode.length>stringSource.length,
     'the lazy decoder is appended after the original source');
   assert.equal(generatedCode.indexOf('captureHostStack()'),stringSource.indexOf('captureHostStack()'),
@@ -381,7 +381,7 @@ test('experimental lazy string-span mode preserves source prefix in all three mo
       identifiers:false,strings:true,properties:false,
       experimentalLocalStringSpanPreservation:true
     }).files[0];
-    assert.ok(span.metrics.strings>0,mode+' should rewrite the fitting string literal');
+    assert.ok(span.metrics.literals>0,mode+' should rewrite the fitting string literal');
     assert.equal(String(span.code).indexOf('captureHostStack()'),stringSource.indexOf('captureHostStack()'),
       mode+' must preserve the original callsite offset');
     const ordinary=obfuscateFiles([{
@@ -390,7 +390,7 @@ test('experimental lazy string-span mode preserves source prefix in all three mo
       mode,closedWorld:false,seed:'agent1-string-default/'+mode,
       identifiers:false,strings:true,properties:false
     }).files[0];
-    assert.ok(ordinary.metrics.strings>0,mode+' default string transform should remain enabled');
+    assert.ok(ordinary.metrics.literals>0,mode+' default string transform should remain enabled');
     assert.notEqual(String(ordinary.code).indexOf('captureHostStack()'),stringSource.indexOf('captureHostStack()'),
       mode+' default decoder prelude remains non-span-preserving');
   }
