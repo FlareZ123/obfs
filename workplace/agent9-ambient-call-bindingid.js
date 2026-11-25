@@ -682,10 +682,10 @@ function summarizeAmbientCallEffects(ast,sourceType) {
    * @returns {boolean}
    */
   function isWithinNode(node,ancestor) {
+    /** @type {AstNode|undefined} */
     let current=node;
     while(current) {
       if(current===ancestor)return true;
-      if(!parentByNode.has(current))break;
       current=parentByNode.get(current);
     }
     return false;
@@ -898,7 +898,7 @@ function summarizeAmbientCallEffects(ast,sourceType) {
   const processedHeldClosures=new Set();
   while(heldClosureQueue.length) {
     const fn=heldClosureQueue.shift();
-    if(processedHeldClosures.has(fn))continue;
+    if(!fn||processedHeldClosures.has(fn))continue;
     processedHeldClosures.add(fn);
     walkExecutableFunctionBody(fn,node=>{
       if(node.type!=='Identifier')return;
