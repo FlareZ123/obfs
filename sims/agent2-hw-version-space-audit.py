@@ -141,6 +141,37 @@ def product_counterexample(
     return None
 
 
+def trace_state_separation_pairs(trace, max_depth: int = 4, max_pairs: int = 100000):
+    """Soundly separate positions with equal input prefixes but unequal outputs."""
+    pairs = set()
+    for depth in range(1, min(max_depth, len(trace)) + 1):
+        groups = {}
+        for start in range(len(trace) - depth + 1):
+            inputs = tuple(int(trace[start + offset][0]) for offset in range(depth))
+            outputs = tuple(int(trace[start + offset][1]) for offset in range(depth))
+            groups.setdefault(inputs, {}).setdefault(outputs, []).append(start)
+        for output_groups in groups.values():
+            if len(output_groups) < 2:
+                continue
+            representatives = {
+                output_word: positions[0]
+                for output_word, positions in output_groups.items()
+            }
+            for output_word, positions in output_groups.items():
+                other_representatives = [
+                    representative
+                    for other_word, representative in representatives.items()
+                    if other_word != output_word
+                ]
+                for position in positions:
+                    for other in other_representatives:
+                        if position != other:
+                            pairs.add((min(position, other), max(position, other)))
+                            if len(pairs) >= max_pairs:
+                                return sorted(pairs)
+    return sorted(pairs)
+
+
 def target_alternate_start_witness(
     target_transitions,
     target_outputs,
@@ -232,6 +263,12 @@ def solve_for_size(row, candidate_size: int, timeout_ms: int):
         solver.add(Select(output, 2 * trace_states[i] + a) == y)
         solver.add(trace_states[i + 1] == Select(delta, 2 * trace_states[i] + a))
 
+    # If two trace positions see the same future input prefix but different
+    # output prefixes, they cannot be the same deterministic Mealy state.
+    separation_pairs = trace_state_separation_pairs(trace, max_depth=4)
+    for left, right in separation_pairs:
+        solver.add(trace_states[left] != trace_states[right])
+
     # State names are arbitrary, so fix the candidate initial state to 0.
     # Every state s>0 has an incoming edge from some lower-numbered state;
     # this is a spanning arborescence rooted at 0 and breaks label symmetry.
@@ -301,9 +338,14 @@ def solve_for_size(row, candidate_size: int, timeout_ms: int):
 
     checked = solver.check()
     if checked == unknown:
-        return "unknown", {"reason": solver.reason_unknown()}
+        return "unknown", {
+            "reason": solver.reason_unknown(),
+            "trace_separation_constraints": len(separation_pairs),
+        }
     if checked != sat:
-        return "unsat", {}
+        return "unsat", {
+            "trace_separation_constraints": len(separation_pairs),
+        }
 
     model = solver.model()
     raw_candidate_transitions = [
@@ -391,6 +433,7 @@ def solve_for_size(row, candidate_size: int, timeout_ms: int):
         "witness_source": "z3_candidate_machine",
         "candidate_state_count": len(candidate_transitions),
         "solver_model_state_count": k,
+        "trace_separation_constraints": len(separation_pairs),
         "candidate_initial_state": candidate_initial,
         "candidate_post_trace_state": candidate_post,
         "candidate_transitions": candidate_transitions,
