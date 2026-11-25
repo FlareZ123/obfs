@@ -467,3 +467,51 @@ test('multiple mutable factory assignments retain every possible returned callab
 // conservative: the donor does not yet prove caller-owned record privacy
 // through a local function parameter, so member writes stay fail-closed.
 test.todo('prove a private object remains private when mutated through a known local function parameter');
+
+
+/** @param {string} source @returns {ReturnType<typeof summarizeAmbientCallEffects>} */
+function analyzeScript(source) {
+  return summarizeAmbientCallEffects(parse(source,'script'),'script');
+}
+
+/** @param {string} source @returns {ReturnType<typeof analyzeScript>['summaries'][number]} */
+function hiddenScriptSummary(source) {
+  const summary=named(analyzeScript(source),'hidden')[0];
+  assert.ok(summary,'the hidden function expression must have an analysis summary');
+  return summary;
+}
+
+test('a top-level classic-script class declaration exposes its deferred field callable',()=>{
+  const source='class Local{callback=function hidden(){return 1;};}';
+  const hidden=hiddenScriptSummary(source);
+  assert.equal(hidden.externallyReachable,true,
+    'a top-level class binding is available to the classic-script global lexical environment');
+  assert.equal(hidden.safe,false,
+    'the host can instantiate the class and read its callable field');
+});
+
+test('a top-level classic-script class expression binding exposes its deferred field callable',()=>{
+  const source='const Local=class{callback=function hidden(){return 1;};};';
+  const hidden=hiddenScriptSummary(source);
+  assert.equal(hidden.externallyReachable,true,
+    'a top-level lexical class-expression binding is available to the classic-script host');
+  assert.equal(hidden.safe,false,
+    'the host can instantiate the bound class and read its callable field');
+});
+
+test('a block-scoped classic-script class does not become globally reachable',()=>{
+  const source='{class Local{callback=function hidden(){return 1;};}}';
+  const hidden=hiddenScriptSummary(source);
+  assert.equal(hidden.externallyReachable,false,
+    'a block lexical class binding is not a global script binding');
+  assert.equal(hidden.safe,true,
+    'an uninstantiated block-scoped class does not expose its field callable');
+});
+
+test('an uninstantiated module-local class field callable remains safe',()=>{
+  const source='class Local{callback=function hidden(){return 1;};}';
+  const hidden=hiddenSummary(source);
+  assert.equal(hidden.externallyReachable,false);
+  assert.equal(hidden.hostHeldCallable,false);
+  assert.equal(hidden.safe,true);
+});
