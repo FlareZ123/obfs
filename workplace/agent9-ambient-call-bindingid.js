@@ -1226,33 +1226,138 @@ function summarizeAmbientCallEffects(ast,sourceType) {
     return [];
   }
 
-  // In classic scripts, global lexical and var bindings are readable by host
-  // code (including DevTools/eval). Their known values therefore publish any
-  // nested callables even when no in-file escape sink exists. This includes
-  // class declarations, class-expression bindings, object/array records, and
-  // instances assigned through a top-level mutable alias.
-  if(sourceType==='script') {
-    for(const bindingId of topLevelScriptBindings) {
-      const values=bindingValueExpressions.get(bindingId)??[];
-      for(const value of values) {
-        for(const target of callableNodesForValue(value))
-          externallyReachableFunctions.add(target);
-        // Object-literal accessors/methods can return sibling callables through
-        // their dynamic this receiver. Resolve those returns against the
-        // globally reachable object, preserving property-specific negatives.
-        walkAst(value,node=>{
-          if(node.type!=='ObjectExpression')return;
-          for(const property of node.properties) {
-            if(property.type!=='Property'||
-               (property.kind!=='get'&&!property.method)||!property.value)continue;
+  /**
+   * Expand local aliases, factory returns, and statically named member reads
+   * into the value expressions that can cross an observation boundary.
+   * @param {AstNode} value
+   * @param {Set<number>} [seen]
+   * @returns {AstNode[]}
+   */
+  function knownValueExpressions(value,seen=new Set()) {
+    if(value.type==='Identifier') {
+      const reference=resolved.at(value.start);
+      if(reference?.resolution.kind!=='local')return [value];
+      const bindingId=reference.resolution.bindingId;
+      if(seen.has(bindingId))return [];
+      const next=new Set(seen);
+      next.add(bindingId);
+      const assigned=bindingValueExpressions.get(bindingId)??[];
+      if(assigned.length)
+        return [...new Set(assigned.flatMap(candidate=>knownValueExpressions(candidate,next)))];
+      const initializer=constInitializersByBinding.get(bindingId);
+      return initializer?knownValueExpressions(initializer,next):[value];
+    }
+    if(value.type==='CallExpression') {
+      const rows=callReturnExpressions(value,seen);
+      if(rows.length)
+        return [...new Set(rows.flatMap(row=>
+          resolveThisReturnExpression(row.expression,row.receiver,row.seen)
+            .flatMap(candidate=>knownValueExpressions(candidate,row.seen))))];
+      return [value];
+    }
+    if(value.type==='MemberExpression') {
+      const key=staticPropertyKey(value.property,value.computed);
+      if(key!==null) {
+        const members=memberValueExpressionsForProperty(value.object,key,seen);
+        if(members.length)
+          return [...new Set(members.flatMap(candidate=>knownValueExpressions(candidate,seen)))];
+      }
+      return [value];
+    }
+    if(value.type==='ConditionalExpression')
+      return [...new Set([
+        ...knownValueExpressions(value.consequent,seen),
+        ...knownValueExpressions(value.alternate,seen)
+      ])];
+    if(value.type==='LogicalExpression')
+      return [...new Set([
+        ...knownValueExpressions(value.left,seen),
+        ...knownValueExpressions(value.right,seen)
+      ])];
+    if(value.type==='SequenceExpression'&&value.expressions.length)
+      return knownValueExpressions(value.expressions[value.expressions.length-1],seen);
+    if(value.type==='AssignmentExpression')
+      return knownValueExpressions(value.right,seen);
+    if(value.type==='ChainExpression')
+      return knownValueExpressions(value.expression,seen);
+    if(value.type==='AwaitExpression'&&value.argument)
+      return knownValueExpressions(value.argument,seen);
+    if(value.type==='SpreadElement')
+      return knownValueExpressions(value.argument,seen);
+    return [value];
+  }
+
+  /**
+   * Collect callables directly present in a value and those a reachable
+   * object-literal getter/method can return through its actual receiver.
+   * @param {AstNode} value
+   * @returns {AstNode[]}
+   */
+  function callableNodesExposedByValue(value) {
+    /** @type {Set<AstNode>} */
+    const targets=new Set();
+    const visitedContainers=new Set();
+    const visitContainer=(/** @type {AstNode} */ container)=>{
+      if(visitedContainers.has(container))return;
+      visitedContainers.add(container);
+      if(container.type==='ObjectExpression') {
+        for(const property of container.properties) {
+          if(property.type!=='Property')continue;
+          if(property.kind!=='init'||property.method||
+             property.value?.type==='FunctionExpression') {
             for(const expression of functionReturnExpressions(property.value)) {
-              for(const candidate of resolveThisReturnExpression(expression,node)) {
-                for(const target of callableNodesForValue(candidate))
-                  externallyReachableFunctions.add(target);
+              for(const candidate of resolveThisReturnExpression(expression,container)) {
+                for(const target of callableNodesForValue(candidate))targets.add(target);
+                if(['ObjectExpression','ArrayExpression'].includes(candidate.type))
+                  visitContainer(candidate);
               }
             }
           }
-        });
+          if(['ObjectExpression','ArrayExpression'].includes(property.value?.type))
+            visitContainer(property.value);
+        }
+        return;
+      }
+      if(container.type==='ArrayExpression') {
+        for(const element of container.elements)
+          if(element&&['ObjectExpression','ArrayExpression'].includes(element.type))
+            visitContainer(element);
+        return;
+      }
+      if(['ClassDeclaration','ClassExpression'].includes(container.type)) {
+        for(const element of container.body.body) {
+          if(element.type==='MethodDefinition'&&element.value) {
+            for(const expression of functionReturnExpressions(element.value)) {
+              for(const candidate of resolveThisReturnExpression(expression,container)) {
+                for(const target of callableNodesForValue(candidate))targets.add(target);
+                if(['ObjectExpression','ArrayExpression'].includes(candidate.type))
+                  visitContainer(candidate);
+              }
+            }
+          } else if(element.type==='PropertyDefinition'&&
+                    element.value&&['ObjectExpression','ArrayExpression'].includes(element.value.type)) {
+            visitContainer(element.value);
+          }
+        }
+      }
+    };
+    for(const target of callableNodesForValue(value))targets.add(target);
+    for(const candidate of knownValueExpressions(value)) {
+      for(const target of callableNodesForValue(candidate))targets.add(target);
+      if(['ObjectExpression','ArrayExpression','ClassDeclaration','ClassExpression'].includes(candidate.type))
+        visitContainer(candidate);
+    }
+    return [...targets];
+  }
+
+  // In classic scripts, global lexical and var bindings are readable by host
+  // code (including DevTools/eval). Their known values therefore publish any
+  // nested callables even when no in-file escape sink exists.
+  if(sourceType==='script') {
+    for(const bindingId of topLevelScriptBindings) {
+      for(const value of bindingValueExpressions.get(bindingId)??[]) {
+        for(const target of callableNodesExposedByValue(value))
+          externallyReachableFunctions.add(target);
       }
     }
   }
@@ -1402,7 +1507,7 @@ function summarizeAmbientCallEffects(ast,sourceType) {
   /** @param {AstNode|null|undefined} value @param {AmbientCallReason['kind']} kind @param {number} start @param {number} end @returns {void} */
   function markCallableValuesHeld(value,kind,start,end) {
     if(!value)return;
-    for(const target of callableNodesForValue(value))
+    for(const target of callableNodesExposedByValue(value))
       addReason(target,{kind,start,end},'HostHeldCallable');
   }
 
@@ -1513,7 +1618,7 @@ function summarizeAmbientCallEffects(ast,sourceType) {
 
   /** @param {AstNode} value @param {number} start @param {number} end @returns {void} */
   function markExternalCallableValue(value,start,end) {
-    for(const target of callableNodesForValue(value)) {
+    for(const target of callableNodesExposedByValue(value)) {
       externallyReachableFunctions.add(target);
       addReason(target,{kind:'module-exported-callable',start,end},'ExternalReachability');
     }
