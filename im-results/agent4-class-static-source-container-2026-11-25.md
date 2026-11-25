@@ -80,3 +80,10 @@ The full behavioral suite still failed the same seven repository-level cases as 
 3. Add a direct exported ClassExpression static-field/static-block negative control; the guard is intended to cover both class node types.
 4. Run the complete manual validation after integration. The seven baseline failures remain independent acceptance work.
 5. Continue adversarial checks for other observable source containers and unknown host effects; this repair does not solve getter, Proxy, arbitrary callback, or instrumentation gaps.
+
+
+## ClassExpression extension (2026-11-25)
+
+Extended the static-source test with direct reads inside exported ClassExpression static blocks and static field initializers. The isolated repair branch's expanded test passed **12/12 on Ubuntu and 12/12 on Windows**, including project/external/paired-budget JSDoc checks: [45518690075](https://github.com/FlareZ123/obfs/actions/runs/45518690075). The test file is now at branch commit 1246e82b155ba6ce6516bb5f1d68a7e1ed30d9e4.
+
+A full manual-validation run of the isolated repair branch is pending as [45518830450](https://github.com/FlareZ123/obfs/actions/runs/45518830450). It includes the 12 new static-container cases and all existing repository tests. The repair still has not been integrated into PR #372.
