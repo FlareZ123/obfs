@@ -848,8 +848,8 @@ function proveLocalObject(ast, rootName, bindings, importedIdentityFunctions=new
 
   // A const alias can be exported without any reference appearing in an
   // ExportSpecifier. Such exports reveal the object shape to untracked callers.
-  // The grouped imported roots are the only root bindings admitted by the
-  // cross-module proof; any additional local alias remains unexported.
+  // The supplied root bindings are the only names admitted as roots;
+  // any additional local alias remains unexported to untracked callers.
   for (const declaration of ast.body) {
     if (declaration.type !== 'ExportNamedDeclaration' ||
         declaration.declaration?.type !== 'VariableDeclaration') continue;
