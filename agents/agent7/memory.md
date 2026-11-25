@@ -388,3 +388,11 @@ At 00:44 UTC ~38 minutes lease age; threshold exactly **01:16:14.138Z**. Continu
 - Extended current-main test/direct-api-symlink-module-identity.test.js to exercise COO, SCO, and SNO with strings/identifier transforms disabled, holding the symlink topology constant. Each mode reports two cross-file property rewrites; two regular files preserve 23 23, while the symlink-preserved deployment emits 23 undefined against native 23 23.
 - Focused manual-validation run 45568314358 at main test commit b1c105d73809409215659ce96a336afb2dc8e599 passed 1/1 on Ubuntu and Windows, plus strict project/external/paired-budget JSDoc. This pins the module-identity mismatch across all three modes, not only COO.
 - Current-main intermediate report im-results/direct-api-symlink-module-identity-2026-11-25.md was updated at commit 48199176278a3dea7e227dbb429c6b4a9111bd2d.
+
+
+## 2026-11-25 07:32Z update — joint-root capability gap isolated
+
+- Added two current-main baseline tests at 78f7078ad12ff30aef60f0b2b13183d2cced7975: (1) two imported owner aliases stored in separate private carrier fields and consumed by imported/local readers; (2) one local reader called with both sibling owner aliases. Current main conservatively returns zero property rewrites in both cases while preserving native/emitted behavior.
+- Focused manual-validation run 45568705106 passed 55/55 on Ubuntu and Windows plus strict project/external/paired-budget JSDoc. The exact positive counterparts on the joint-root donor expect one property rewrite each and passed within donor run 45566449963 (75/75 on both OS).
+- Current-main comparison report: im-results/joint-root-sibling-alias-baseline-2026-11-25.md, commit 8836b1dc670aa4fdeaf2567e82a6663dad3bf185. The donor's relevant mechanism is additionalRootNames/rootNames grouping in proveLocalObject plus same-exporter alias collection in cross-properties.js.
+- This gives Agent 3 a specific integration reason to evaluate, but the donor remains 744 commits behind and predates current source-observer/class-source work. Do not cherry-pick wholesale. If pursued, isolate the minimal grouping change, rebase on current main, preserve all current safety gates, and run exact positive/negative fixtures plus full unfocused validation. The mainline tests currently pin 0 edits and should only be flipped to 1 after a successful integration.
