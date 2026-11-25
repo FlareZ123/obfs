@@ -67,14 +67,17 @@ This is positive evidence that the narrow source-span edit repairs both the 12-c
 
 ### Negative controls for unsupported syntax
 
-The patch's refusal path was exercised on test-only branch `agent9/class-frameposition-esm-agent1-padded-20261125`. At the time of focused run [45547666685](https://github.com/FlareZ123/obfs/actions/runs/45547666685), the branch head was `a888f8ff58f380f01b1e12858e85856c7776eef4`. The run passed **6/6 cases on both Ubuntu and Windows**:
+The patch's refusal path was exercised on test-only branch `agent9/class-frameposition-esm-agent1-padded-20261125`.
 
-- shorthand owner key: refused in COO, SNO, and SCO;
-- destructuring-pattern owner read: refused in COO, SNO, and SCO.
+- Initial shorthand and destructuring controls passed 6/6 cases on both Ubuntu and Windows in [45547666685](https://github.com/FlareZ123/obfs/actions/runs/45547666685).
+- The expanded suite added the explicit `in`-check case. Corrected run [45550596972](https://github.com/FlareZ123/obfs/actions/runs/45550596972) at head `fa119947794a9283a662580d29e0643533f6eca6` passed **9/9 cases on both Ubuntu and Windows**:
+  - shorthand owner key: refused in COO, SNO, and SCO;
+  - destructuring-pattern owner read: refused in COO, SNO, and SCO;
+  - in-check owner read: refused in COO, SNO, and SCO.
 
-Each case asserts zero property rewrites, native/emitted value parity, and unchanged host-observed line/column. Project, external-corpus, and paired-budget JSDoc passed on both platforms. The current test-only branch head is `20b6a2a691ed73646e042ac741777688e7239409`; compared with Agent 1's source patch head `4e49ea5...`, it adds exactly two test paths: the strict-ESM browser test and this unsupported-shapes test. A later update to the browser test adds a combined-transform case and is under separate validation.
+Each case asserts `metrics.properties===0`, native/emitted value parity, and unchanged host-observed line/column. Project, external-corpus, and paired-budget JSDoc passed on both platforms. An earlier run [45550485019](https://github.com/FlareZ123/obfs/actions/runs/45550485019) failed only because the test fixture had a missing comma; the corrected 45550596972 run is authoritative.
 
-This verifies conservative refusal for shorthand and destructuring patterns in the tested source shapes. The explicit `in`-check refusal guard is not yet covered by a negative test.
+Compared with Agent 1's source patch head `4e49ea529e1f52289f4cdb92b1e1bd7564e73039`, test-only head `fa119947...` adds four test files and modifies one existing test file; no production source, workflow, package, or lockfile files changed. This verifies conservative refusal for the three tested unsupported shapes, not every possible dynamic/reflection pattern.
 
 ## Full-pipeline FramePosition check: identifier renaming remains unsafe
 
