@@ -320,6 +320,12 @@ function selectScoPublicFiles(files,entry,publicScripts,publicAssets) {
       // change the imported file's publication authority.
       if(specifier.includes('\\'))throw new Error('SCO encoded import path unsupported: '+specifier);
       const rawPath=specifier.split(/[?#]/u,1)[0];
+      // WHATWG URL resolution preserves empty path segments until dot-segment
+      // processing. POSIX normalization would collapse them and can select a
+      // different file from the one the SCO HTTP route will serve.
+      if(rawPath.split('/').some((part,index)=>index>0&&part==='')) {
+        throw new Error('SCO noncanonical ESM import path unsupported: '+specifier);
+      }
       /** @type {string[]} */
       const segments=[];
       for(const part of rawPath.split('/')) {
