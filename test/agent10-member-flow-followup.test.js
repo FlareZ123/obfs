@@ -165,6 +165,39 @@ test('a dynamic key after a nested factory-call member cannot hide a field calla
     'a dynamic key on a factory-call result must retain all callables in the known nested receiver');
 });
 
+test('Reflect.get on a local class instance cannot hide a callable field',()=>{
+  const source=
+    'let owner;'+
+    'function hidden(){return 1;}'+
+    'class Local{callback=hidden;}'+
+    'function entry(){owner=new Local();external(Reflect.get(owner,"callback"));}'+
+    'module.exports=entry;';
+  assertHeld(hiddenSummary(source),
+    'Reflect.get is a reflective member read and must not make the callable appear safe');
+});
+
+test('Reflect.get with a dynamic key on a local class instance remains fail-closed',()=>{
+  const source=
+    'let owner;let key;'+
+    'function hidden(){return 1;}'+
+    'class Local{callback=hidden;}'+
+    'function entry(){owner=new Local();key="callback";external(Reflect.get(owner,key));}'+
+    'module.exports=entry;';
+  assertHeld(hiddenSummary(source),
+    'a dynamic reflective key must conservatively retain the known receiver callables');
+});
+
+test('Object.getOwnPropertyDescriptor cannot hide a callable field value',()=>{
+  const source=
+    'let owner;'+
+    'function hidden(){return 1;}'+
+    'class Local{callback=hidden;}'+
+    'function entry(){owner=new Local();external(Object.getOwnPropertyDescriptor(owner,"callback").value);}'+
+    'module.exports=entry;';
+  assertHeld(hiddenSummary(source),
+    'property-descriptor reflection must conservatively retain the callable field');
+});
+
 test('a callable field behind an unknown Proxy constructor is conservatively held',()=>{
   const source=
     'let owner;'+
