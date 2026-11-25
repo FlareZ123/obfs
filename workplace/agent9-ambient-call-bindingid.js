@@ -1038,7 +1038,7 @@ function summarizeAmbientCallEffects(ast,sourceType) {
         if(element.type==='MethodDefinition'&&element.value) {
           if(element.kind==='method')return [element.value];
           if(element.kind==='get')return functionReturnExpressions(element.value).flatMap(expression=>
-            receiver?memberReturnExpressionsWithReceiver(expression,receiver,next):[expression]);
+            receiver?memberReturnExpressionsWithReceiver(expression,receiver,newNumericSeenSet()):[expression]);
         }
         return [];
       }))];
