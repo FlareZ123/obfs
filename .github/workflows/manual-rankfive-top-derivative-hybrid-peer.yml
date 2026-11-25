@@ -25,8 +25,11 @@ jobs:
         if: runner.os == 'Linux'
         shell: bash
         run: |
-          set -o pipefail
-          g++ -O3 -std=c++20 sims/agent2-rankfive-witness-restart-dp.cpp -o /tmp/rank7restartdp
+          set -euo pipefail
+          git fetch --depth=1 origin main
+          test "$(git rev-parse FETCH_HEAD:sims/agent2-rankfive-witness-restart-dp.cpp)" = "0daaa5cd167502de15702bad780f31f901a25e71"
+          git show FETCH_HEAD:sims/agent2-rankfive-witness-restart-dp.cpp > /tmp/agent2-rankfive-witness-restart-dp.cpp
+          g++ -O3 -std=c++20 /tmp/agent2-rankfive-witness-restart-dp.cpp -o /tmp/rank7restartdp
           /tmp/rank7restartdp | tee rankfive-seven-direction-dp.txt
           grep -q 'best_cutoff=10 best_expected_witness_queries=84.502917281728' rankfive-seven-direction-dp.txt
       - uses: actions/setup-node@v4
