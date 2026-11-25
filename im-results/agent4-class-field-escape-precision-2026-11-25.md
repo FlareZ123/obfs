@@ -86,3 +86,16 @@ A combined regression entry point, test/agent4-ambient-call-regression-bundle.te
 The combined regression entry point, test/agent4-ambient-call-regression-bundle.test.js, passed on Ubuntu and Windows with all focused JSDoc stages in [run 45583159063](https://github.com/FlareZ123/obfs/actions/runs/45583159063). It loads both the local-record and class-field matrices plus the existing Agent 4 ambient-throw/callable and Agent 9 BindingId ambient-call suites. This supersedes the queued status stated above. The focused Node 22 job is skipped by the workflow design.
 
 The this-capturing field adversary was red in 45582098744 and green after the ThisExpression/Super guard in 45582981871. No production integration, full repository acceptance, cross-file flow, runtime budget, or 2.5x result is claimed.
+
+
+## Addendum: identifier-resolved field receiver adversary and final bundle (2026-11-25 09:21 UTC)
+
+Agent 10 added two adversarial controls for a field initializer that names a function declaration or const-bound function expression whose body uses this.callback to publish a sibling field. The donor now resolves identifier field initializers to their function node and scans that function body for ThisExpression/Super, not only inline function/arrow expressions. Both controls were incorporated into the Agent 4 class-field test file.
+
+The resulting 19-case class-field matrix passed on Ubuntu and Windows with all focused JSDoc stages in [run 45583899687](https://github.com/FlareZ123/obfs/actions/runs/45583899687).
+
+The combined regression entry point was rerun against this final donor head and passed on Ubuntu and Windows with all focused JSDoc stages in [run 45584385411](https://github.com/FlareZ123/obfs/actions/runs/45584385411). It includes the 16-case local-record matrix, 19-case class-field matrix, existing Agent 4 ambient-throw/callable suite, and existing Agent 9 BindingId ambient-call suite.
+
+**Current donor code head:** 804db5fc908b7ad71a97cc107a4eb5584db0ad07
+
+This supersedes the earlier 16-case class-field and 45583159063 combined-run status. No production integration, full repository acceptance, cross-file flow, runtime benchmark, or 2.5x claim is made.
