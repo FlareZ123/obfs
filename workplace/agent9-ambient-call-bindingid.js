@@ -604,7 +604,7 @@ function summarizeAmbientCallEffects(ast,sourceType) {
     const target=resolveFunctionNode(reference.resolution.bindingId);
     if(!target||hasUnmodelledArgumentAccess(target))return;
     const params=target.params??[];
-    const restIndex=params.findIndex(param=>param.type==='RestElement');
+    const restIndex=params.findIndex((/** @type {AstNode} */ param)=>param.type==='RestElement');
     for(let i=0;i<node.arguments.length;i++) {
       const argument=node.arguments[i];
       if(argument.type==='SpreadElement')continue;
