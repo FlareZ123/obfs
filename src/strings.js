@@ -83,8 +83,7 @@ function encodeStringsWithSourceSpans(source,ast,options) {
   let helper=null;
   for(let attempt=0;attempt<candidates.length;attempt++) {
     const candidate=candidates[(offset+attempt)%candidates.length];
-    if(names.has(candidate)||options.reservedNames?.has(candidate)||
-       options.reservedSources?.some(text=>text.includes(candidate)))continue;
+    if(names.has(candidate)||options.reservedNames?.has(candidate))continue;
     helper=candidate;
     break;
   }
@@ -124,7 +123,7 @@ function encodeStringsWithSourceSpans(source,ast,options) {
       data+=String.fromCharCode(value.charCodeAt(index)^key);
     return data;
   });
-  const decoder='function '+helper+'(i){const t='+helper+'.t||('+helper+'.t='+JSON.stringify(encoded)+');let r=t[i];if(typeof r!=="string")return r;let d="";for(let o=0;o<r.length;o+=4096){const u=[];for(let j=o;j<r.length&&j<o+4096;j++)u.push(r.charCodeAt(j)^'+key+');d+=String.fromCharCode(...u);}t[i]=d;return d;}\n';
+  const decoder='function '+helper+'(i){const t='+helper+'.t||('+helper+'.t='+JSON.stringify(encoded)+');let r=t[i];if(typeof r!=="string")return r.v;let d="";for(let o=0;o<r.length;o+=4096){const u=[];for(let j=o;j<r.length&&j<o+4096;j++)u.push(r.charCodeAt(j)^'+key+');d+=String.fromCharCode(...u);}t[i]={v:d};return d;}\n';
   const transformed=applyEdits(source,edits);
   return {code:transformed+'\n'+decoder,count:edits.length};
 }
