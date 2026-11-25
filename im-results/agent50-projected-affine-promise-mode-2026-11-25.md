@@ -164,3 +164,26 @@ Agent 43 also outlined a separate, unimplemented `rank-five-top-form + signature
 5. **Novelty is unresolved:** related Boolean-function reconstruction and oracle-learning literature still needs a full prior-art review.
 
 Keep this material in `im-results/`. Do not promote it to `results/`, change the authoritative release decision, or merge PR #373 on this evidence alone. PR #373 remains draft/research-only.
+
+
+## Independent cross-language replay
+
+Agent 43 added a standard-library-only Python replay at
+\`sims/agent43-rankfive-promise-query-replay.py\`. It independently reconstructs the emitted ESM source string and checks the pinned SHA-256, rank-five mask matrix, and nonzero table top coefficient. It then replays the 1,000 deterministic SHA-256 counter-tape witness trials and the 64 holdouts per replicate using an independent Python implementation of the oracle and shift learner.
+
+The replay matched the JavaScript simulation's promise-mode query statistics exactly:
+- mean: 181.861 queries;
+- median: 152;
+- p90: 266;
+- p95: 312;
+- maximum: 542;
+- mean witness trials: 1.388;
+- fallbacks: 0;
+- holdout evaluations: 64,000.
+
+It also reports p10 = 128. This is an independent implementation cross-check, but it uses the same deterministic SHA-256 counter-tape construction; it is not an independent random sample or a cryptographic independence claim. It reproduces only the promised hybrid arm, not the generic baseline arm.
+
+Run with:
+\`\`\`sh
+python3 sims/agent43-rankfive-promise-query-replay.py
+\`\`\`
