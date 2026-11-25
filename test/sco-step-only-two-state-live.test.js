@@ -52,6 +52,10 @@ async function compare(seed,policy,expectedQueries){
     ordinaryQueries:result.ordinaryControlQueries,
     exact:result.knownContinuationExact,
     sameTranscript:result.attackerTranscriptMatched,
+    httpRequests:result.scoHttpRequests,rpcRequests:result.scoRpcRequests,
+    requestShapeMatched:result.httpRequestShapeMatched,
+    rpcResponseTraceMatched:result.rpcResponseTraceMatched,
+    sourceDeliveryMetadataMatched:result.sourceDeliveryMetadataMatched,
     denial:result.unauthorizedStatus
   }));
 }
