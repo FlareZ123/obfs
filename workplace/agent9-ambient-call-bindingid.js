@@ -319,6 +319,11 @@ function summarizeAmbientCallEffects(ast,sourceType) {
         const id=declarationByNode.get(node.id)?.bindingId??null;
         if(id!==null)topLevelScriptBindings.add(id);
       }
+      if(node.type==='ClassDeclaration'&&node.id?.type==='Identifier'&&
+         !isWithinFunctionOrClass(node)) {
+        const id=declarationByNode.get(node.id)?.bindingId??null;
+        if(id!==null)topLevelScriptBindings.add(id);
+      }
       const globalScriptVariable=node.type==='VariableDeclarator'&&
         parent?.type==='VariableDeclaration'&&node.id.type==='Identifier'&&
         (parentByNode.get(parent)===ast||(parent.kind==='var'&&!isWithinFunctionOrClass(node)));
@@ -1410,6 +1415,17 @@ function summarizeAmbientCallEffects(ast,sourceType) {
     for(const target of callableNodesForValue(value)) {
       externallyReachableFunctions.add(target);
       addReason(target,{kind:'module-exported-callable',start,end},'ExternalReachability');
+    }
+  }
+
+  // Classic-script top-level bindings (including later assignments and IIFE
+  // initializers that produce callables) are visible to other scripts in the
+  // same global environment. Resolve their possible callable values after the
+  // local value-flow helpers are available.
+  if(sourceType==='script') {
+    for(const bindingId of topLevelScriptBindings) {
+      for(const value of bindingValueExpressions.get(bindingId)??[])
+        markExternalCallableValue(value,value.start,value.end);
     }
   }
 
