@@ -958,9 +958,13 @@ function summarizeAmbientCallEffects(ast,sourceType) {
         // An object spread after an explicit property can overwrite that key.
         // Include every later spread value in the conservative candidate set;
         // spreads before the final explicit key cannot override that key.
-        const lastMatchingIndex=value.properties.reduce((last,property,index)=>
-          property.type==='Property'&&
-          staticPropertyKey(property.key,property.computed)===propertyKey?index:last,-1);
+        let lastMatchingIndex=-1;
+        for(let index=0;index<value.properties.length;index++) {
+          const property=value.properties[index];
+          if(property?.type==='Property'&&
+             staticPropertyKey(property.key,property.computed)===propertyKey)
+            lastMatchingIndex=index;
+        }
         const explicitValues=matching.flatMap((/** @type {AstNode} */ property)=>
           property.kind==='init'?[property.value]:
           property.kind==='get'?functionReturnExpressions(property.value):[]);
@@ -1469,6 +1473,7 @@ function summarizeAmbientCallEffects(ast,sourceType) {
   // An externally reachable function may expose additional callable values
   // by returning them. Follow that return closure from exports and global
   // roots; concise arrow bodies have no ReturnStatement sink of their own.
+  /** @type {Array<{target:AstNode,source:AstNode}>} */
   const externalReturnQueue=[];
   for(const source of externallyReachableFunctions) {
     for(const returned of functionReturnExpressions(source)) {
@@ -1476,6 +1481,7 @@ function summarizeAmbientCallEffects(ast,sourceType) {
         externalReturnQueue.push({target,source});
     }
   }
+  /** @type {Set<AstNode>} */
   const externalReturnSeen=new Set();
   for(let cursor=0;cursor<externalReturnQueue.length;cursor++) {
     const item=externalReturnQueue[cursor];
