@@ -80,7 +80,7 @@ class HttpNoResetMealySUL(SUL):
                 f"{raw[:200]!r}"
             )
         payload = json.loads(raw)
-        if payload.get("ok") is not True or payload.get("value") not in (0, 1):
+        if payload.get("ok") is not True or payload.get("value") not in ("0", "1"):
             raise RuntimeError(f"unexpected SCO RPC response: {payload!r}")
         output = str(payload["value"])
         self.trace.append([letter, output])
