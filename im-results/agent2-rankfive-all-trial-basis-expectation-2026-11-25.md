@@ -6,7 +6,7 @@
 
 The existing m=8 replay extends the input basis with every independent direction observed in all failed trials and the successful trial. Earlier accounting covered the successful trial's three non-anchor directions and its prefix query cache, but did not derive the expected coordinate-stage cost when directions from prior failed trials are also reused.
 
-A finite-dimensional rank dynamic program gives **76.9786387993 expected coordinate queries** for the all-trial basis in the no-accidental-cross-trial-query-collision model. The comparison values are:
+A finite-dimensional rank dynamic program gives **76.9786387993 expected coordinate queries** for the all-trial basis in the existing per-trial injective-subset-sum model with no accidental cross-trial query collisions. The comparison values are:
 
 - Five anchors plus standard-basis completion: **81** queries.
 - Successful-trial directions only: **78.7167736428** queries.
@@ -92,7 +92,7 @@ The earlier fixed-seed 1,000-tape replay had 214 failed first trials (21.4%) and
 ## Scope and limitations
 
 - The rank dynamic program is exact for basis dependence in the 27-dimensional quotient.
-- The expected coordinate count assumes no accidental cross-trial oracle-query collisions. The randomized 32-bit replay includes actual collisions and agrees within sampling error.
+- The cache calculation retains the existing per-trial injective-subset-sum model and assumes no accidental cross-trial oracle-query collisions. The randomized 32-bit replay includes actual dependencies/collisions and agrees within sampling error.
 - The witness expectation is the previously established exact m=8 result. This does not prove global optimality over face sets or witness policies.
 - This measures oracle queries only, not CPU, wall time, memory, initialization, or the 2.5× runtime budget.
 - This is attacker-side research for one frozen rank-five SCO source family. It establishes no general JavaScript reconstruction result and no incremental security advantage over an equal-trust conventional/minified control.
