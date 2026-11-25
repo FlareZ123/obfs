@@ -59,3 +59,8 @@ The result is a bounded runtime/source-parity observation, not a claim that ever
 A repair should model the implicit CommonJS activation as an active `FrameRef` and propagate unknown-host callback effects to that frame, or conservatively refuse affected source-sensitive rewrites when the host contract is unproved. A function-value escape proof alone is insufficient. The relevant shared architecture proposal is `workplace/source-observer-carrier-effect-contract-2026-11-23.md`.
 
 This report records a pre-existing gap and its exact mainline receipt; it does not change the release decision. Strong-protection release remains **RELEASE-BLOCKED**.
+
+
+## Relationship to the existing Agent 6 ambient-caller gap
+
+This private-arrow fixture is a concrete CommonJS-wrapper instance of the broader ordinary-private-function ambient-caller gap already acknowledged in the current PR #372 description. It should be tracked as a sharper, independently executable reproducer of that same general effect family, not counted as an unrelated fifth source-observation category. The test adds useful binding shape (const arrow, direct call) and source container (implicit sloppy CJS wrapper) specificity; the underlying missing abstraction remains the reverse active-frame effect from a host callback to the current caller chain.
