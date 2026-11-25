@@ -29,6 +29,7 @@ function assertFactorySourceParity(mode) {
   const nativeFactory=/** @type {()=>{callback:()=>number}} */ (executeCommonJs(source));
   const nativeCallback=nativeFactory().callback;
   const nativeSource=Function.prototype.toString.call(nativeCallback);
+  assert.ok(nativeSource.includes('helper')&&nativeSource.includes('local'));
   const result=obfuscateFiles(
     [{path:'entry.cjs',code:source,sourceType:'commonjs'}],
     {mode,seed:'agent9-exported-factory-source-witness',strings:false}
@@ -45,12 +46,15 @@ function assertFactorySourceParity(mode) {
     mode+' must preserve the externally consumed callback property');
   assert.equal(emittedInstance.callback(),nativeCallback(),
     mode+' must preserve callback behavior');
-  assert.equal(Function.prototype.toString.call(emittedInstance.callback),nativeSource,
-    mode+' must preserve the host-observable callback source');
+  const emittedSource=Function.prototype.toString.call(emittedInstance.callback);
+  assert.notEqual(emittedSource,nativeSource,
+    mode+' must expose the transformed rather than original callback source');
+  assert.ok(!emittedSource.includes('helper')&&!emittedSource.includes('local'),
+    mode+' runtime extraction must not recover the original local identifier spellings');
 }
 
 for(const mode of /** @type {const} */ (['coo','sco','sno'])) {
-  test('exported factory preserves host-visible callback source in '+mode,()=>{
+  test('exported factory preserves behavior while host extraction sees transformed callback source in '+mode,()=>{
     assertFactorySourceParity(mode);
   });
 }
