@@ -437,3 +437,19 @@ test('reading a non-callable field through a mutable closure alias does not publ
     'a read of a primitive sibling field must not retain unrelated callable fields');
   assert.equal(hidden.safe,true);
 });
+
+
+test('a mutable alias to a local record containing the instance cannot hide a nested sibling field escape',()=>{
+  const source=
+    'let owner;const holder={current:null};'+
+    'function hidden(){return 1;}'+
+    'function leak(){external(owner.current.callback);}'+
+    'class Local{callback=hidden;leak=leak;}'+
+    'function entry(){const instance=new Local();owner=holder;holder.current=instance;instance.leak();}'+
+    'module.exports=entry;';
+  const hidden=named(analyze(source),'hidden')[0];
+  assert.ok(hidden);
+  assert.equal(hidden.hostHeldCallable,true,
+    'nested member reads through a mutable alias must propagate the captured instance value');
+  assert.equal(hidden.safe,false);
+});
