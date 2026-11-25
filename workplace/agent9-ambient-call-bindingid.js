@@ -1422,7 +1422,7 @@ function summarizeAmbientCallEffects(ast,sourceType) {
       const keys=[...new Set(value.properties.flatMap((/** @type {AstNode} */ property)=>
         property.type==='Property'?
           [staticPropertyKey(property.key,property.computed)].filter((/** @type {string|null} */ key)=>key!==null):[]))];
-      const values=keys.flatMap(key=>memberValueExpressionsForProperty(value,key,seen));
+      const values=keys.flatMap(key=>memberValueExpressionsForProperty(value,key,seen).filter(candidate=>candidate!==value));
       const getters=keys.flatMap(key=>getterNodesForMemberValue(value,key,seen));
       return [...new Set([...values.flatMap(candidate=>callableNodesForValue(candidate,seen)),...getters])];
     }
@@ -1756,7 +1756,7 @@ function summarizeAmbientCallEffects(ast,sourceType) {
       const keys=[...new Set(value.properties.flatMap((/** @type {AstNode} */ property)=>
         property.type==='Property'?
           [staticPropertyKey(property.key,property.computed)].filter((/** @type {string|null} */ key)=>key!==null):[]))];
-      const candidates=keys.flatMap(key=>memberValueExpressionsForProperty(value,key,seen));
+      const candidates=keys.flatMap(key=>memberValueExpressionsForProperty(value,key,seen).filter(candidate=>candidate!==value));
       const nested=candidates.flatMap(candidate=>
         callableNodesForValueWithReceiver(candidate,fn,seen));
       const getters=keys.flatMap(key=>getterNodesForMemberValue(value,key,seen));
