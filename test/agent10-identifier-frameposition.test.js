@@ -11,7 +11,7 @@ test('identifier-only renaming preserves later strict-ESM FramePosition',{
   const source='const operand=20;const value=operand;captureHostStack();export {value};';
   const output=obfuscateFiles([{path:'generated.mjs',sourceType:'module',code:source}],{
     mode:'coo',closedWorld:true,seed:'agent10-identifier-frameposition',
-    identifiers:true,strings:false,properties:false
+    identifiers:true,strings:false,properties:false,experimentalPreserveFramePositions:true
   }).files[0];
   const payload=await compareBrowser(source,String(output.code),'identifier');
   assert.deepEqual(payload.values,[20,20]);
