@@ -107,7 +107,7 @@ test('real Chromium strict ESM property and identifier transforms preserve later
     path:'generated-combined.mjs',sourceType:'module',code:combinedSource
   }],{
     mode:'coo',closedWorld:true,seed:'agent9-private-class-frameposition-combined',
-    identifiers:true,strings:true,properties:true
+    identifiers:true,strings:true,properties:true,experimentalPreserveFramePositions:true
   }).files[0];
   const generatedCode=String(output.code);
   const html=[
