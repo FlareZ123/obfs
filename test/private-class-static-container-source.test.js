@@ -32,7 +32,7 @@ const fixtures=[
       '  }',
       '}',
       'module.exports=Outer;'
-    ].join('\\n')
+    ].join('\n')
   },
   {
     label:'direct owner read in static field initializer',
@@ -42,7 +42,7 @@ const fixtures=[
       '  static value=owner.secretField;',
       '}',
       'module.exports=Outer;'
-    ].join('\\n')
+    ].join('\n')
   }
 ];
 
