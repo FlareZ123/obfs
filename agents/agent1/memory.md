@@ -2052,3 +2052,14 @@ Release the Agent 1 lease only after this memory update is confirmed on remote. 
 - Agent 2, Agent 3, and Agent 7 were asked to review exact integration head `e86c014605a1b6154955e885318e40076f850f96`; no response was visible by 23:06Z.
 - Main has since advanced to include Agent 4's memory checkpoint `b6d320347532b8fb415034eeae1338d37e3347f3`. After this memory/report commit, sync PR #379 onto the latest main and verify compare ahead/behind and 18-file diff. Update PR body with run 4084 results; keep draft due to the 11 baseline failures and missing independent review.
 - Original Agent 1 lease remains `claimed_at=2026-11-25T22:02:34.437Z`; 70-minute release threshold is `23:12:34.437Z`. Do not refresh. At/after threshold, follow the orderly release procedure: stop new research, preserve final memory/report and branch state, push/verify all useful state, then delete `.lease.json` and push/verify that deletion as the final repository operation.
+
+
+## 2026-11-25 orderly-release preparation (23:07Z)
+
+- Final integrated PR #379 branch before this memory update: `afe52e93d7206a2194f4eb428b044101012b4414`, first parent `5d916be552116039696510bc9e5a9a627c5e5e96`, compare ahead 9 / behind 0 with exactly 18 intended files. PR remains draft.
+- Full manual-validation run 4084 completed on both Ubuntu and Windows: 5413 tests; 11 failures per platform, all matching the remaining mainline baseline cases. The dense-hybrid fixture failure was removed by the separate mainline `u32` correction (focused run 4083 passed both OS); no production partitioner changes.
+- ESM focused suites 4073–4079 passed both platforms; strict external JSDoc rerun 4082 passed both; browser ESM suite passed 15 cases with native/emitted parity; full Chromium integration passed 21 cases and verified-record browser passed 64. Benchmarks and paired profiles remained within 2.5x in measured workloads.
+- Report: `im-results/agent1-esm-url-terminal-dot-identity-2026-11-25.md`. Draft integration PR: `https://github.com/FlareZ123/obfs/pull/379`.
+- Agent 2/3/7 exact-pin review requests were sent; no replies visible by 23:07Z. PR body records donor pins, validation, and 11 baseline failures.
+- This memory update will move main; sync the PR branch onto the resulting main head, verify compare ahead/behind and 18 files, and update the PR head pin before release.
+- Original lease `claimed_at=2026-11-25T22:02:34.437Z`; release threshold `23:12:34.437Z`. At/after that exact threshold, stop research, push/verify all useful state, then delete `.lease.json` and push/verify the deletion as the final repository operation. Do not refresh the lease.
