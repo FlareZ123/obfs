@@ -10,7 +10,8 @@ const {normalizePublicFields}=require('../sims/public-token-normalizer');
 
 const runBrowser=promisify(execFile);
 
-/** @typedef {{name:string,kind:number,renamed:number}} BrowserCase */
+/** @typedef {{path:string,sourceType:'module',code:string}} BrowserSource */
+/** @typedef {{name:string,kind?:number,renamed:number,files?:BrowserSource[]}} BrowserCase */
 
 /** @type {BrowserCase[]} */
 const CASES=[
@@ -19,7 +20,32 @@ const CASES=[
   {name:'external-key-callback',kind:13,renamed:0},
   {name:'inherited-prototype-getter',kind:17,renamed:0},
   {name:'unrelated-descriptor-positive',kind:20,renamed:2},
-  {name:'external-numeric-positive',kind:23,renamed:2}
+  {name:'external-numeric-positive',kind:23,renamed:2},
+  {name:'sibling-alias-local-reader',renamed:1,files:[
+    {path:'state.mjs',sourceType:'module',code:'export const state={secretField:29};'},
+    {path:'entry.mjs',sourceType:'module',code:
+      'import {state as left} from "./state.mjs";'+
+      'import {state as right} from "./state.mjs";'+
+      'const alias=right;const getLeft=()=>left;'+
+      'const local=value=>value.secretField;'+
+      'console.log(local(alias),local(getLeft()));'}
+  ]},
+  {name:'sibling-alias-imported-reader',renamed:1,files:[
+    {path:'state.mjs',sourceType:'module',code:
+      'export const state={secretField:29};'+
+      'export function peek(value){return value.secretField;}'},
+    {path:'entry.mjs',sourceType:'module',code:
+      'import {state as left,state as right,peek} from "./state.mjs";'+
+      'console.log(peek(left),peek(right));'}
+  ]},
+  {name:'sibling-alias-escape',renamed:0,files:[
+    {path:'state.mjs',sourceType:'module',code:'export const state={secretField:29};'},
+    {path:'entry.mjs',sourceType:'module',code:
+      'import {state as left,state as right} from "./state.mjs";'+
+      'globalThis.escapedOwner=right;'+
+      'const local=value=>value.secretField;'+
+      'console.log(local(left));'}
+  ]}
 ];
 
 /**
@@ -39,17 +65,30 @@ function browserCode(filename,source) {
   return adapted;
 }
 
-/** @returns {string} */
-function page() {
+/**
+ * @param {string} entryUrl
+ * @returns {string}
+ */
+function page(entryUrl) {
   return [
     '<!doctype html><html><head><meta charset="utf-8"></head><body>',
     '<script type="module">',
+    'let capturedArgs;',
+    'let logged=false;',
+    'const originalLog=console.log;',
+    'console.log=(...args)=>{if(logged)throw Error("Multiple fixture outputs");logged=true;capturedArgs=args;};',
     'try {',
-    'const mod=await import("./entry.mjs");',
+    `const mod=await import(${JSON.stringify(entryUrl)});`,
+    'console.log=originalLog;',
+    'const hasValue=Object.hasOwn(mod,"value");',
+    'if(!hasValue&&!logged)throw Error("Missing fixture output");',
+    'const encoded=JSON.stringify(hasValue?mod.value:capturedArgs);',
+    'if(typeof encoded!=="string")throw Error("Fixture value is not JSON serializable");',
     'const pre=document.createElement("pre");',
-    'pre.id="result";pre.textContent=btoa(JSON.stringify(mod.value));',
+    'pre.id="result";pre.textContent=btoa(encoded);',
     'document.body.appendChild(pre);',
     '} catch(error) {',
+    'console.log=originalLog;',
     'const pre=document.createElement("pre");pre.id="failure";',
     'pre.textContent=String(error.stack||error);',
     'document.body.appendChild(pre);',
@@ -59,8 +98,8 @@ function page() {
 }
 
 /**
- * Test six actual network-served, original vs generated ESM module graphs
- * with Chrome's genuine ESM linker and external host callback support.
+ * Test nine actual network-served, original vs generated ESM module graphs
+ * with Chrome's genuine ESM linker and a known in-graph host shim.
  * @returns {Promise<{cases:number,nativeBrowserParity:true,protectedPrivateFields:number,observerRefusals:number,normalizedPublicFields:number}>}
  */
 async function main() {
@@ -68,8 +107,10 @@ async function main() {
   const files=new Map();
   let normalizedPublicFields=0;
   for(const item of CASES) {
-    const fixture=makeFixture(7,item.kind);
-    assert.equal(fixture.scenario,SCENARIOS[item.kind]);
+    const fixture=item.files ?
+      {scenario:'custom-sibling-alias',files:item.files} :
+      makeFixture(7,item.kind??0);
+    if(item.kind!==undefined)assert.equal(fixture.scenario,SCENARIOS[item.kind]);
     const protectedFiles=obfuscateFiles(fixture.files,{
       mode:'coo',closedWorld:true,identifiers:false,strings:false,
       seed:'esm-observer-browser-'+item.name
@@ -94,13 +135,16 @@ async function main() {
         browserCode(source.path,/** @type {string} */(source.code)));
     }
   }
-  const html=page();
   const server=http.createServer((request,response)=>{
     if(request.method!=='GET'){response.writeHead(405).end();return;}
     const url=new URL(request.url??'/', 'http://localhost');
     if(url.pathname.endsWith('/index.html')){
+      const host=request.headers.host;
+      if(typeof host!=='string')throw Error('Browser request must include Host');
+      const basePath=url.pathname.slice(0,url.pathname.lastIndexOf('/')+1);
+      const entryUrl=new URL('entry.mjs','http://'+host+basePath).href;
       response.writeHead(200,{'content-type':'text/html; charset=utf-8'});
-      response.end(html);
+      response.end(page(entryUrl));
       return;
     }
     const content=files.get(url.pathname);
