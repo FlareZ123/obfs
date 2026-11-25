@@ -334,3 +334,59 @@ test('a class getter reading an undeclared prototype member does not qualify for
   assert.equal(captured?.name,'toString');
   assert.equal(hiddenSummary(source).hostHeldCallable,true);
 });
+
+
+test('object getter resolves lexical-arrow this.callback through a local invocation',()=>{
+  const source=
+    'function hidden(){return 1;}'+
+    'const owner={callback:hidden,get result(){const read=()=>this.callback;return read();}};'+
+    'external(owner.result);';
+  const [captured]=execute(source);
+  assert.equal(captured?.name,'hidden');
+  assert.match(String(captured),/return 1/);
+  assert.equal(hiddenSummary(source).hostHeldCallable,true);
+});
+
+test('object method resolves lexical-arrow this.callback through a local invocation',()=>{
+  const source=
+    'function hidden(){return 1;}'+
+    'const owner={callback:hidden,getCallback(){const read=()=>this.callback;return read();}};'+
+    'external(owner.getCallback());';
+  const [captured]=execute(source);
+  assert.equal(captured?.name,'hidden');
+  assert.match(String(captured),/return 1/);
+  assert.equal(hiddenSummary(source).hostHeldCallable,true);
+});
+
+test('class getter resolves lexical-arrow this.callback through a local invocation',()=>{
+  const source=
+    'function hidden(){return 1;}'+
+    'class Owner{callback=hidden;get result(){const read=()=>this.callback;return read();}}'+
+    'const owner=new Owner();external(owner.result);';
+  const [captured]=execute(source);
+  assert.equal(captured?.name,'hidden');
+  assert.match(String(captured),/return 1/);
+  assert.equal(hiddenSummary(source).hostHeldCallable,true);
+});
+
+test('class method resolves lexical-arrow this.callback through a local invocation',()=>{
+  const source=
+    'function hidden(){return 1;}'+
+    'class Owner{callback=hidden;getCallback(){const read=()=>this.callback;return read();}}'+
+    'const owner=new Owner();external(owner.getCallback());';
+  const [captured]=execute(source);
+  assert.equal(captured?.name,'hidden');
+  assert.match(String(captured),/return 1/);
+  assert.equal(hiddenSummary(source).hostHeldCallable,true);
+});
+
+test('lexical-arrow this.count primitive return does not retain callable siblings',()=>{
+  const source=
+    'function hidden(){return 1;}'+
+    'const owner={callback:hidden,count:1,get result(){const read=()=>this.count;return read();}};'+
+    'external(owner.result);';
+  const [captured]=execute(source);
+  assert.equal(captured,1);
+  assert.equal(hiddenSummary(source).hostHeldCallable,false);
+  assert.equal(hiddenSummary(source).safe,true);
+});
