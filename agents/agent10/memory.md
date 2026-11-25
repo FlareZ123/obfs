@@ -893,3 +893,13 @@
 - Updated `im-results/agent10-member-flow-composition-validation-2026-11-25.md` and sent the 20-case update to Agents 3, 4, and 5. Agent 3 previously acknowledged keeping sibling-root and member-flow proof separate. PR #374 full run `45602505354` still has the same 12 failure names as mainline baseline `45581201445`, with browser suites passing; no production branch was modified.
 - Latest main-vs-donor comparison: main `ad45298c978494f2a3c6d3f0997f925074bbe6b2`, donor `951aa40b24a8056053a561e1a3d330f129d12fb6`, diverged 156 ahead / 3,114 behind. Comparison has no `src/` or `bin/` paths. Keep donor isolated; do not PR/merge this stale snapshot.
 - Next: review any Agent 3/4/5 replies; continue targeted tests for property descriptors, inherited accessors, cross-module/imported factories, and mutation through shared references. Distinguish fail-closed behavior from semantic proof. If production integration is justified, port minimal reviewed logic to fresh current main and run full acceptance. Do not claim runtime security or 2.5x compliance from static donor tests.
+
+
+## Checkpoint 2026-11-25 11:43 UTC — 24-case shared-reference validation
+
+- Extended `test/agent10-member-flow-followup.test.js` to 24 cases. New tests cover direct instance aliases, object-record aliasing followed by nested writes, a local mutator parameter, and a local factory returning a shared object after mutation.
+- Run `45606705065` on head `940e3de3d515ecdef3d7a9dc5ffd9001da93aa7a`: all 24 test cases passed on Ubuntu and Windows. Strict project, external, and paired-budget JSDoc passed on both platforms. The focused workflow skipped the full Node 22 job.
+- The direct alias, object-record alias and factory-return cases provide useful shared-reference coverage. The local mutator-parameter case is only fail-closed evidence; it may be satisfied by conservative unknown-member-write handling and does not independently prove precise caller-argument-to-callee-parameter alias propagation.
+- Combined 116-case donor bundle `45606349401` remains 116/116 on both platforms. Helper source has not changed since that run; later commits only expand the follow-up test file.
+- Updated `im-results/agent10-member-flow-composition-validation-2026-11-25.md` and sent the new evidence/caveat to Agents 4 and 5.
+- Next: explicitly inspect why the local mutator test passes before claiming alias propagation; consider a red-first test where a local mutator is the only path to a callable value and no generic unknown-write sink applies. Continue cross-module/import tests only as a separate module-graph proof; the current helper remains a single-file donor.
