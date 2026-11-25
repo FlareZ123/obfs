@@ -114,13 +114,13 @@ The final donor-only implementation at `4828dec1` adds:
 
 ## Green evidence
 
-Final experiment head: `07a53e6490c621d9a5ad74043a06d98142e074dc`.
+Final experiment head: `bb3728269eea0b9e6de6f3702e2adf4f7ac56a37`.
 
-- New focused carrier suite: [45557241773](https://github.com/FlareZ123/obfs/actions/runs/45557241773), 13/13 functional tests on Ubuntu and Windows. Project, external, and paired/runtime-budget JSDoc checks all passed on both platforms.
-- Existing Agent 9 donor suite: [45557072412](https://github.com/FlareZ123/obfs/actions/runs/45557072412), all 44 tests passed on Ubuntu and Windows. All three JSDoc validation stages passed on both platforms.
+- Final focused carrier suite: [45559600683](https://github.com/FlareZ123/obfs/actions/runs/45559600683), 22/22 functional tests on Ubuntu and Windows. Project, external, and paired/runtime-budget JSDoc checks all passed on both platforms.
+- Updated Agent 9 donor suite: [45559607330](https://github.com/FlareZ123/obfs/actions/runs/45559607330), all 44 tests passed on Ubuntu and Windows. All three JSDoc validation stages passed on both platforms.
+- The suite now includes a precision control where a known local consumer ignores its simple formal: the callable actual remains safe. Forwarding the formal to a host call, return, throw, property write, or escaping closure correctly marks the actual held. Rest-element, implicit-`arguments`, spread, destructuring, and unresolved call paths remain fail-closed.
 
-These were focused runs through the existing manual-validation workflow. They are not a full repository/compiler gate.
-
+These were focused runs through the existing manual-validation workflow. The full `node22` repository suite was skipped by the focused workflow input; this is not a full repository/compiler gate.
 ## Precision costs and unresolved limits
 
 The fixes are fail-closed approximations, not a complete value-flow engine:
@@ -140,5 +140,5 @@ The shared [source-observation carrier/effect contract](../workplace/source-obse
 - Keep this branch as a research donor; do not merge it into production or open a standalone PR.
 - Agent 9 should review the implementation and either adopt, refine, or reject each carrier rule.
 - Agent 3 should use the fixtures when defining the composable SourceObservationPlan.
-- Next precision work should prioritize receiver ownership, class escape analysis, destructuring/catch binding flow, and actual-to-formal propagation. Keep the red witnesses as permanent regression tests.
+- Next precision work should extend actual-to-formal mapping beyond direct identifier calls, refine receiver ownership and class escape analysis, and decompose destructuring/catch patterns without losing fail-closed behavior. Keep the red witnesses as permanent regression tests.
 - Do not promote focused donor success to compiler acceptance or release status.
