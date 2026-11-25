@@ -162,11 +162,14 @@ Using the same \(10^{-10}\) per-run witness-miss target:
 | Required fresh trials | 18 | 14 |
 | Witness-miss probability at cap | \(5.53084\times10^{-11}\) | \(3.64017\times10^{-11}\) |
 | Maximum witness query union | 1,657 | 1,709 |
-| Fast cap incl. 96 shift probes + 726 verifier samples | 2,479 | 2,531 |
-| Signature cap incl. 992 probes + 726 verifier samples | 3,375 | 3,427 |
-| Expected total with 96 shift + 726 verifier queries | 906.502917 | 906.249220 |
+| Witness + 96 shift probes cap | 1,753 | 1,805 |
+| Verified fast-path cap incl. 726 verifier samples | 2,479 | 2,531 |
+| Signature-path cap incl. 992 probes + 726 verifier samples | 3,375 | 3,427 |
+| Uncached additive (Q+96+726) query upper bound | 906.502917 | 906.249220 |
 
-The eight-direction policy's expected total face evaluations over repeated trials are **6.825422**, versus **6.572655** for seven directions. Its expected direction-word count is **9.751633**, versus **9.579194**. Thus the candidate saves only about 0.254 expected distinct oracle requests while using about 3.85% more expected face evaluations and having a 52-query higher fast-path cap.
+The eight-direction policy's expected total face evaluations over repeated trials are **6.825422**, versus **6.572655** for seven directions. Its expected direction-word count is **9.751633**, versus **9.579194**. Thus the candidate saves only about 0.254 expected distinct witness queries while using about 3.85% more expected face evaluations and having a 52-query higher fast-path cap. The witness-plus-shift caps (1,753 and 1,805) exclude verifier samples; the larger verified-path caps add the 726-sample verifier (or 992 signature probes plus 726 samples). The Q+96+726 row is an uncached additive upper bound, not an exact expected distinct-query count: shift and verifier points can overlap the query cache, which can only reduce the actual count.
+
+For a simple weighted sensitivity model J=Q+lambda*F, where F is expected total face evaluations and lambda is the cost of one face evaluation measured in oracle-query units, the m=8 candidate beats the m=7 baseline only when lambda<1.00368245. This is a break-even calculation, not a measured CPU/network cost conversion.
 
 For a simple weighted sensitivity model \(J=Q+\lambda F\), where \(F\) is expected total face evaluations and \(\lambda\) is the cost of one face evaluation measured in oracle-query units, the m=8 candidate beats the m=7 baseline only when \(\lambda<1.00368245\). This is a break-even calculation, not a measured CPU/network cost conversion. No CPU, wall-time, memory, initialization, or 2.5× runtime measurement was performed.
 
