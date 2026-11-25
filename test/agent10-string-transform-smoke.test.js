@@ -13,7 +13,7 @@ test('string-only transform preserves the literal value in strict ESM Chromium',
   const expectedValue=source.match(/message="([^"]+)"/u)?.[1].length;
   const output=obfuscateFiles([{path:'generated.mjs',sourceType:'module',code:source}],{
     mode:'coo',closedWorld:true,seed:'agent10-string-frameposition',
-    identifiers:false,strings:true,properties:false
+    identifiers:false,strings:true,properties:false,experimentalPreserveFramePositions:true
   }).files[0];
   const payload=await compareBrowser(source,String(output.code),'string-smoke');
   assert.deepEqual(payload.values,[expectedValue,expectedValue]);
