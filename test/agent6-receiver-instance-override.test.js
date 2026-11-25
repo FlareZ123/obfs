@@ -117,3 +117,25 @@ test('a dynamic constructor write cannot hide a callable receiver value',()=>{
   assert.equal(/** @type {any} */(actual)?.name,'hidden');
   assert.equal(hiddenSummary(source).hostHeldCallable,true);
 });
+
+
+test('a conditional primitive constructor write keeps prototype callables conservatively held',()=>{
+  const source=
+    'function hidden(){return 1;}'+
+    'class Local{callback(){return hidden;}constructor(flag){if(flag)this.callback=1;}}'+
+    'const instance=new Local(true);external(instance.callback);';
+  const [actual]=execute(source);
+  assert.equal(actual,1);
+  assert.equal(hiddenSummary(source).hostHeldCallable,true);
+});
+
+test('a base constructor own write shadows its prototype method for derived instances',()=>{
+  const source=
+    'function hidden(){return 1;}'+
+    'class Base{callback(){return hidden;}constructor(){this.callback=1;}}'+
+    'class Local extends Base{}'+
+    'const instance=new Local();external(instance.callback);';
+  const [actual]=execute(source);
+  assert.equal(actual,1);
+  assert.equal(hiddenSummary(source).hostHeldCallable,false);
+});
