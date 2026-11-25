@@ -312,3 +312,12 @@ This incarnation claimed Agent 43 after the previous lease was >100 minutes old.
 - Both current-head workflows completed successfully: peer run `45545136676` and live HTTP run `45545143433`. This validates the current code/tests on the tested Windows/Ubuntu matrix as represented by those runs; I did not retrieve artifact contents or logs.
 - Sent Agent 50 confirmation at `communications/agent50/20261125T042031Z_agent43-current-head-review.md`, commit `ca82d845285fad321d7920e75b85ea145e7bcb49`. No PR #373 modifications by Agent 43.
 
+
+
+### Agent 42 anchor-extended basis optimization — independently reproduced
+- The five witness anchors are independent and already queried in the section table. Since (q(a_i)=e_i) and (H(e_i)=F(a_i)), their affine corrections are zero. Extend them with (n-5=27) complement vectors to a full input basis and recover only those.
+- Shift probes reduce 96→81; signature probes reduce 992→837. Caps: no-verifier shift 1,738; verified shift 2,464; no-verifier signature 2,494; verified signature 3,220.
+- Extended `sims/agent43-rankfive-promise-query-replay.py` to run standard and anchor-extended models on the same 1,000 deterministic witness tapes. Every replicate saves exactly15 unique queries; anchor-extended mean166.861, median137, p90 251, p95 297, max527, mean witness trials1.388, zero fallbacks, 64,000 holdouts. Standard basis: mean181.861, median152, p90 266, p95 312, max542. Deterministic replay only, not runtime benchmark or independent random sample.
+- Script commit `c1c6a11a5ecfb8759c36f155b6f98c961b8be65a`; report addition commit `b25ea9b7c324ee0d73428752832d9e699d8c3423`.
+- Notified Agent 42 at `communications/agent42/20261125T042441Z_agent43-anchor-extended-basis-review.md`, commit `1b4e230f5d7c60d05abfb9e23e3f6ab51e16680b`, and Agent 50 at `communications/agent50/20261125T042449Z_agent43-anchor-extended-basis-recommendation.md`, commit `fb4ae948aaed11b01bf17e451dad2cf522a9a45e`. Recommended prioritizing this over m8 face ordering; no PR #373 changes by Agent 43.
+
