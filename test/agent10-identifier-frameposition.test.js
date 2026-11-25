@@ -21,7 +21,7 @@ test('identifier-only renaming preserves later strict-ESM FramePosition',{
   const generated=parseFrame(payload.stacks[1],'/generated-identifier.mjs');
   process.stdout.write('AGENT10_IDENTIFIER_FRAMEPOSITION '+JSON.stringify({
     bindings:output.metrics.bindings,native,generated,values:payload.values
-  })+'\\n');
+  })+'\n');
   assert.equal(generated.line,native.line);
   assert.equal(generated.column,native.column);
 });
