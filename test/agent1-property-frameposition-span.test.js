@@ -11,6 +11,7 @@ const {obfuscateFiles}=require('../src/core');
 
 const exec=promisify(execFile);
 const source="const owner={longPrivatePropertyName:21,'longPrivateStringProperty':22,'longPrivateUnicodeProperty😀':23};const value=owner.longPrivatePropertyName+owner['longPrivateStringProperty']+owner['longPrivateUnicodeProperty😀'];captureHostStack();export {value};";
+const identifierSource="'use strict';const extraordinarilyLongPrivateBindingName=21;const value=extraordinarilyLongPrivateBindingName;captureHostStack();export {value};";
 
 /**
  * @param {string} url
@@ -133,6 +134,110 @@ test('experimental local property-span mode is opt-in and works in all three mod
   }
 });
 
+
+
+test('real Chromium strict ESM identifier-span rewrites preserve later FramePosition',{
+  skip:process.platform!=='linux'?'real Chromium fixture currently targets the Linux runner':false
+},async()=>{
+  const output=obfuscateFiles([{
+    path:'generated-identifiers.mjs',sourceType:'module',code:identifierSource
+  }],{
+    mode:'coo',closedWorld:false,seed:'agent1-identifier-frameposition-span',
+    identifiers:true,strings:false,properties:false,
+    experimentalLocalIdentifierSpanPreservation:true
+  }).files[0];
+  const generatedCode=String(output.code);
+  assert.ok(output.metrics.bindings>0,'the fixture must exercise an identifier rewrite');
+  assert.equal(generatedCode.length,identifierSource.length);
+  assert.ok(!generatedCode.includes('extraordinarilyLongPrivateBindingName'));
+  const html=[
+    '<!doctype html><html><body><pre id="result"></pre><script>',
+    'window.__stacks=[];',
+    'window.captureHostStack=function captureHostStack(){window.__stacks.push(new Error("frame probe").stack||"");};',
+    '(async()=>{try{const native=await import("/native-identifiers.mjs");const generated=await import("/generated-identifiers.mjs");',
+    'const result={values:[native.value,generated.value],stacks:window.__stacks};',
+    'document.getElementById("result").textContent=btoa(JSON.stringify(result));',
+    '}catch(error){document.getElementById("result").textContent=btoa(JSON.stringify({error:String(error),stack:error&&error.stack}));}})();',
+    '</script></body></html>'
+  ].join('\n');
+  const pages=new Map([
+    ['/',{type:'text/html; charset=utf-8',body:html}],
+    ['/native-identifiers.mjs',{type:'text/javascript; charset=utf-8',body:identifierSource}],
+    ['/generated-identifiers.mjs',{type:'text/javascript; charset=utf-8',body:generatedCode}]
+  ]);
+  const server=http.createServer((request,response)=>{
+    const entry=pages.get((request.url??'/').split('?')[0])??pages.get('/');
+    if(!entry){response.writeHead(404);response.end();return;}
+    response.writeHead(200,{'content-type':entry.type});
+    response.end(entry.body);
+  });
+  try {
+    /** @type {Promise<void>} */
+    const listening=new Promise((resolve,reject)=>{
+      server.once('error',reject);
+      server.listen(0,'127.0.0.1',()=>resolve());
+    });
+    await listening;
+    const address=server.address();
+    if(!address||typeof address==='string')throw new Error('Missing Chromium fixture port');
+    const payload=JSON.parse(await dumpDom('http://127.0.0.1:'+address.port+'/'));
+    assert.deepEqual(payload.values,[21,21]);
+    assert.equal(payload.stacks.length,2);
+    const native=parseFrame(payload.stacks[0],'/native-identifiers.mjs');
+    const generated=parseFrame(payload.stacks[1],'/generated-identifiers.mjs');
+    process.stdout.write('AGENT1_IDENTIFIER_FRAMEPOSITION '+JSON.stringify({
+      bindings:output.metrics.bindings,native,generated,values:payload.values,generatedCode
+    })+'\\n');
+    assert.equal(generated.line,native.line);
+    assert.equal(generated.column,native.column,
+      'identifier-only edits must not move a later strict-ESM module frame');
+  } finally {
+    /** @type {Promise<void>} */
+    const closed=new Promise((resolve,reject)=>server.close(error=>error?reject(error):resolve()));
+    await closed;
+  }
+});
+
+test('experimental identifier-span mode is opt-in, width-bounded, and mode-independent',()=>{
+  for(const mode of /** @type {Array<'coo'|'sco'|'sno'>} */(['coo','sco','sno'])) {
+    const span=obfuscateFiles([{
+      path:'identifier-'+mode+'.mjs',sourceType:'module',code:identifierSource
+    }],{
+      mode,closedWorld:false,seed:'agent1-identifier-span/'+mode,
+      identifiers:true,strings:false,properties:false,
+      experimentalLocalIdentifierSpanPreservation:true
+    }).files[0];
+    assert.ok(span.metrics.bindings>0,mode+' should rename the long binding');
+    assert.equal(String(span.code).length,identifierSource.length,
+      mode+' identifier-only output must preserve UTF-16 source width');
+    const ordinary=obfuscateFiles([{
+      path:'identifier-default-'+mode+'.mjs',sourceType:'module',code:identifierSource
+    }],{
+      mode,closedWorld:false,seed:'agent1-identifier-default/'+mode,
+      identifiers:true,strings:false,properties:false
+    }).files[0];
+    assert.ok(ordinary.metrics.bindings>0,mode+' default identifier rename yield must remain unchanged');
+    assert.notEqual(String(ordinary.code).length,identifierSource.length,
+      mode+' default mode is not required to preserve identifier source width');
+  }
+  const shortSource='const x=21;const value=x;export {value};';
+  const span=obfuscateFiles([{
+    path:'short-identifier.mjs',sourceType:'module',code:shortSource
+  }],{
+    mode:'coo',closedWorld:false,seed:'agent1-short-identifier-span',
+    identifiers:true,strings:false,properties:false,
+    experimentalLocalIdentifierSpanPreservation:true
+  }).files[0];
+  assert.equal(span.metrics.bindings,0,'short identifiers must remain unchanged when the replacement cannot fit');
+  assert.equal(String(span.code),shortSource);
+  const ordinary=obfuscateFiles([{
+    path:'short-identifier-default.mjs',sourceType:'module',code:shortSource
+  }],{
+    mode:'coo',closedWorld:false,seed:'agent1-short-identifier-default',
+    identifiers:true,strings:false,properties:false
+  }).files[0];
+  assert.equal(ordinary.metrics.bindings,1,'default identifier mangling remains available');
+});
 
 test('strict CommonJS Module._compile frame positions survive local property-span rewrites',()=>{
   const cjsSource="'use strict';const owner={longPrivatePropertyName:21};const value=owner.longPrivatePropertyName;captureHostStack();module.exports=value;";
