@@ -108,3 +108,25 @@ At head `940e3de3d515ecdef3d7a9dc5ffd9001da93aa7a`, run [45606705065](https://gi
 The direct alias, object-record alias, and factory-return cases provide useful shared-reference coverage. The local mutator-parameter case is only evidence of fail-closed behavior; it may be satisfied by the donor's conservative unknown-member-write handling and does **not** independently prove precise caller-argument-to-callee-parameter alias propagation.
 
 The combined donor regression run [45606349401](https://github.com/FlareZ123/obfs/actions/runs/45606349401) remains 116/116 on both platforms. The helper source has not changed since that run; later commits only expanded the follow-up test file.
+
+
+## Follow-up 2026-11-25 11:48 UTC — private mutator-parameter precision boundary
+
+A red-first precision case was added for a private object whose only mutation occurs through a known local function parameter:
+
+```js
+function install(target) { target.nested = new Local(); }
+function entry() {
+  const holder = {};
+  install(holder);
+  const callback = holder.nested.callback;
+  return 0;
+}
+entry();
+```
+
+The assertion that the callable should remain safe failed on both platforms in run [45607198001](https://github.com/FlareZ123/obfs/actions/runs/45607198001). The Actions log endpoint returned 403/rate-limit responses, so the exact assertion trace was unavailable. The isolated delta was this one new precision assertion; the prior 24 executable cases had passed. The donor's local-record proof explicitly rejects aliases/parameter bindings and treats an unproved member write as a host-held callable escape, which explains the conservative result.
+
+This is a **precision limitation, not a safety false negative**. The red test was retained as a `test.todo` with its reproduction snippet, rather than leaving a failing CI test or weakening the fail-closed rule. At head `ec40069f62b4aacbf2b981adf5b7bbd6f673576e`, [run 45607688032](https://github.com/FlareZ123/obfs/actions/runs/45607688032) passed all **24 executable tests** on Ubuntu and Windows, with one documented TODO and all focused project, external, and paired-budget JSDoc stages passing.
+
+Open optimization question: prove a private object remains private when passed by reference to a known local mutator, including all call sites, parameter uses, return/closure paths, and unknown escapes. Until that proof exists, keep the callable held. Do not treat the current test as evidence that parameter alias propagation is implemented.
