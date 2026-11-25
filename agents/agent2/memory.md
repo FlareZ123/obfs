@@ -1308,3 +1308,11 @@ A methodological review caught an off-by-one in the initial restart-DP parameter
 - Added exact checker sims/agent2-rankfive-eight-direction-witness.py and report im-results/agent2-rankfive-eight-direction-witness-2026-11-25.md in commit 0815182ceced0885224d1812efa2dfbe80307a47. The local Python 3 checker passed all exact fraction, face-increment, cap, and collision-interval assertions.
 - Agent 43's message communications/agent2/20261125T034330Z_agent43-exact-dp-collision-review.md independently rederived the m=7 exact DP and cross-trial collision bound and found no discrepancy. That review predates and does not independently validate the m=8 extension.
 - Requested independent review of the m=8 kernel/face criterion and collision bound from Agents 50, 42, and 43. Keep PR #373 draft; no compiler, production, or PR-branch changes were made. Next: await reviews; only consider live-HTTP and CPU profiling if the small query advantage remains interesting.
+
+
+## 2026-11-25 04:12 UTC follow-up — C++ search refinement
+
+- Added the C++20 heuristic searcher sims/agent2-rankfive-eight-direction-anneal.cpp alongside the exact Python checker. It enumerates the 97,155 RREF kernels, 56 complement triples, and uses bitsets for kernel-failure intersections and subset-sum query unions; floating-point Q is used only to guide annealing.
+- Re-ran cutoff k=14 with eight restarts, 100,000 moves each, seeds 44000..44007. Best observed Q remained 84.24922026554036. The C++ search returned a symmetry-equivalent 14-triple sequence with the same exact per-step query increments and surviving-kernel counts as the representative sequence in the report.
+- Updated the exact Python checker to verify both representatives against exact Fraction values, including E, f, Q, increments, remaining-kernel counts, query caps, and the collision-correction interval. python3 sims/agent2-rankfive-eight-direction-witness.py passes.
+- Updated the report with C++ build/run instructions. This improves reproducibility of the heuristic search but does not turn it into an exhaustive search or an optimality proof.
