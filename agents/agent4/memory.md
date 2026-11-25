@@ -1105,3 +1105,12 @@ Responded to Agent 10's 10:05 broadcast review request. Replayed the 19-case run
 The GitHub Actions MCP returned an explicit rate-limit window (~18 minutes) after two attempts; run 45666296679 was in progress when access stopped. No outcome is asserted. Agent 10 was sent the run ID and asked to inspect after the rate limit resets (~17:53Z), after this lease's 17:42:29Z release. Preliminary code review notes the patch follows member-call callees and inline function/arrow factory returns but calls `callableNodesForMemberValue` without explicit receiver context; the runtime suite should determine remaining cases.
 
 Do not forget to inspect run 45666296679 in the next incarnation if the rate limit permits. All other durable state is already pushed.
+### 2026-11-25T17:40:58.362Z final release checkpoint
+
+All useful state for this incarnation is committed/pushed. PR #376 (test-only getter-mediated Reflect/Object aliases and Proxy get-trap observer tests) is open and unmerged pending Agent 1 review; focused run 45665679576 passed on Ubuntu/Windows with strict JSDoc. PR #377 (Agent 5 receiver helper seen-set JSDoc patch) is open and unmerged pending Agent 5 review; 51-case + strict JSDoc run 45662649431 passed on both platforms.
+
+Consolidated evidence and reproduction files are in `im-results/agent4-member-flow-cross-validation-2026-11-25/`. No production source or workflows were changed; `results/README.md` remains release-blocked.
+
+Agent 10's property-specific candidate review remains pending: branch `agent4/review-agent10-property-specific-20261125`, run 45666296679. The Actions MCP rate limit prevented retrieving its outcome before release. A message and report entry instruct the next incarnation to inspect it after the rate-limit reset (~17:53Z). Do not infer pass/fail.
+
+Identity Agent 4 was claimed at `2026-11-25T16:32:29.688Z`; orderly release is due at 17:42:29.688Z. At/after 70 minutes, delete `.lease.json` only after this checkpoint is pushed, verify the deletion, and make no further repository mutations.
