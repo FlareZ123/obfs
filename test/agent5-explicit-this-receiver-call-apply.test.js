@@ -325,3 +325,28 @@ test('a Function constructor can mutate Function.prototype.call before analysis'
   assert.equal((/** @type {Function} */ (captured)).name,'hidden');
   assert.equal(summaryFor(source,'hidden').hostHeldCallable,true);
 });
+
+
+test('a destructured Reflect.setPrototypeOf can shadow a local function call method',()=>{
+  const source=
+    'function hidden(){return 1;}'+
+    'const {setPrototypeOf}=Reflect;'+
+    'const owner={read(){return this.count;}};'+
+    'setPrototypeOf(owner.read,{call:function(receiver){return receiver.callback;}});'+
+    'const other={count:7,callback:hidden};external(owner.read.call(other));';
+  const [captured]=execute(source);
+  assert.equal((/** @type {Function} */ (captured)).name,'hidden');
+  assert.equal(summaryFor(source,'hidden').hostHeldCallable,true);
+});
+
+test('Object.prototype.__defineGetter__ can replace Function.prototype.call',()=>{
+  const source=
+    'function hidden(){return 1;}'+
+    'Object.prototype.__defineGetter__.call(Function.prototype,"call",'+
+    'function(){return function(receiver){return receiver.callback;};});'+
+    'const owner={read(){return this.count;}};'+
+    'const other={count:7,callback:hidden};external(owner.read.call(other));';
+  const [captured]=execute(source);
+  assert.equal((/** @type {Function} */ (captured)).name,'hidden');
+  assert.equal(summaryFor(source,'hidden').hostHeldCallable,true);
+});
