@@ -8,6 +8,7 @@
     "sims/browser-dom-property-source-parity.js",
     "sims/browser-dom-delegated-cross-file-source-parity.js",
     "sims/browser-dom-external-module-source-parity.js",
-    "sims/browser-dom-blob-source-parity.js"
+    "sims/browser-dom-blob-source-parity.js",
+    "sims/sco-host-lock-storage-source-browser.js"
   ]
 }
