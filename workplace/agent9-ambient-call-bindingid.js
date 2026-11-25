@@ -498,6 +498,17 @@ function summarizeAmbientCallEffects(ast,sourceType) {
          (objectName==='Reflect'&&key!==null&&
           ['defineProperty','set','setPrototypeOf'].includes(key)))
         callLikeIntrinsicsUnmodified=false;
+    } else if(node.type==='MemberExpression') {
+      // Merely taking an alias to a mutation primitive is enough to make a
+      // later call/apply/bind proof unreliable, even when the invocation name
+      // itself no longer mentions Object or Reflect.
+      const objectName=node.object.type==='Identifier'?node.object.name:null;
+      const key=staticPropertyKey(node.property,node.computed);
+      if((objectName==='Object'&&
+          (key===null||['defineProperty','defineProperties','assign','setPrototypeOf'].includes(key)))||
+         (objectName==='Reflect'&&
+          (key===null||['defineProperty','set','setPrototypeOf'].includes(key))))
+        callLikeIntrinsicsUnmodified=false;
     } else if(node.type==='WithStatement') {
       callLikeIntrinsicsUnmodified=false;
     } else if(node.type==='CallExpression'&&node.callee.type==='Identifier'&&
