@@ -96,6 +96,7 @@ async function start(payload) {
         'Set-Cookie',
         sessionCookie + '; HttpOnly; SameSite=Strict; Path=/obfs',
       );
+      response.setHeader('X-SCO-Method', partition.methodNames.step);
     }
     if (pathname === '/obfs/rpc') {
       stats.rpc_requests += 1;
