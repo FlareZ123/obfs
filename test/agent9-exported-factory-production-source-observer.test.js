@@ -18,7 +18,8 @@ function executeCommonJs(source) {
   return context.module.exports;
 }
 
-test('exported factory instance preserves host-visible class field and callback source in all modes',()=>{
+/** @param {'coo'|'sco'|'sno'} mode */
+function assertFactorySourceParity(mode) {
   const source=
     'function hidden(){const local=helper();return local;}'+
     'function helper(){return 19;}'+
@@ -28,26 +29,28 @@ test('exported factory instance preserves host-visible class field and callback 
   const nativeFactory=/** @type {()=>{callback:()=>number}} */ (executeCommonJs(source));
   const nativeCallback=nativeFactory().callback;
   const nativeSource=Function.prototype.toString.call(nativeCallback);
-  const modes=/** @type {const} */ (['coo','sco','sno']);
+  const result=obfuscateFiles(
+    [{path:'entry.cjs',code:source,sourceType:'commonjs'}],
+    {mode,seed:'agent9-exported-factory-source-witness',strings:false}
+  );
+  const output=result.files[0];
+  assert.ok(output,'the obfuscator must emit the entry file');
+  assert.equal(typeof output.code,'string');
+  const metrics=output.metrics;
+  assert.ok(metrics.bindings>0||metrics.properties>0,
+    mode+' fixture must exercise at least one production transformation');
+  const emittedFactory=/** @type {()=>{callback:()=>number}} */ (executeCommonJs(output.code));
+  const emittedInstance=emittedFactory();
+  assert.equal(typeof emittedInstance.callback,'function',
+    mode+' must preserve the externally consumed callback property');
+  assert.equal(emittedInstance.callback(),nativeCallback(),
+    mode+' must preserve callback behavior');
+  assert.equal(Function.prototype.toString.call(emittedInstance.callback),nativeSource,
+    mode+' must preserve the host-observable callback source');
+}
 
-  for(const mode of modes) {
-    const result=obfuscateFiles(
-      [{path:'entry.cjs',code:source,sourceType:'commonjs'}],
-      {mode,seed:'agent9-exported-factory-source-witness',strings:false}
-    );
-    const output=result.files[0];
-    assert.ok(output,'the obfuscator must emit the entry file');
-    assert.equal(typeof output.code,'string');
-    const metrics=output.metrics;
-    assert.ok(metrics.bindings>0||metrics.properties>0,
-      mode+' fixture must exercise at least one production transformation');
-    const emittedFactory=/** @type {()=>{callback:()=>number}} */ (executeCommonJs(output.code));
-    const emittedInstance=emittedFactory();
-    assert.equal(typeof emittedInstance.callback,'function',
-      mode+' must preserve the externally consumed callback property');
-    assert.equal(emittedInstance.callback(),nativeCallback(),
-      mode+' must preserve callback behavior');
-    assert.equal(Function.prototype.toString.call(emittedInstance.callback),nativeSource,
-      mode+' must preserve the host-observable callback source');
-  }
-});
+for(const mode of /** @type {const} */ (['coo','sco','sno'])) {
+  test('exported factory preserves host-visible callback source in '+mode,()=>{
+    assertFactorySourceParity(mode);
+  });
+}
