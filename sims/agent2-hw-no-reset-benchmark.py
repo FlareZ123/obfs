@@ -632,6 +632,12 @@ def run_one(
             "trace_digest": digest_trace(trace),
         }
     except Exception as error:
+        error_traceback = traceback.format_exc()
+        error_kind = (
+            "initial_oracle_returned_none"
+            if "counter_example[-1]" in error_traceback
+            else "unclassified_learner_error"
+        )
         return {
             "state_count": state_count,
             "seed": seed,
@@ -641,7 +647,8 @@ def run_one(
             "max_distinguishing_pair": pair_metrics["max_distinguishing_pair"],
             "status": "error",
             "error": f"{type(error).__name__}: {error}",
-            "error_traceback": traceback.format_exc(),
+            "error_kind": error_kind,
+            "error_traceback": error_traceback,
             "fixture_table": {
                 "transitions": [list(row) for row in fixture.transitions],
                 "outputs": [list(row) for row in fixture.outputs],
