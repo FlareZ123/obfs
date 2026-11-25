@@ -1615,7 +1615,7 @@ function summarizeAmbientCallEffects(ast,sourceType) {
     return false;
   }
 
-  /** @type {Map<AstNode,Set<unknown>>} */
+  /** @type {Map<AstNode,Set<number>>} */
   const nodeBindingIds=new Map();
   for(const fn of allFunctionNodes)nodeBindingIds.set(fn,new Set());
   for(const [bindingId,fn] of functionNodeByBinding) {
