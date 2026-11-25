@@ -189,3 +189,15 @@ test('an object getter sink resolves this.callback through its property receiver
   assert.equal(captured?.name,'hidden');
   assert.equal(hiddenSummary(source).hostHeldCallable,true);
 });
+
+
+test('a dynamic getter read conservatively binds the getter receiver for side-effect sinks',()=>{
+  const source=
+    'function hidden(){return 1;}'+
+    'const key=selectKey();'+
+    'const owner={callback:hidden,get value(){external(this.callback);return 0;}};'+
+    'const result=owner[key];';
+  const [captured]=execute(source,{selectKey:()=> 'value'});
+  assert.equal(captured?.name,'hidden');
+  assert.equal(hiddenSummary(source).hostHeldCallable,true);
+});
