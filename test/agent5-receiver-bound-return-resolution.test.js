@@ -300,3 +300,15 @@ test('an ordinary class method prevents pure-getter field deferral',()=>{
   assert.equal(captured,1);
   assert.equal(hiddenSummary(source).hostHeldCallable,true);
 });
+
+
+test('a simple-getter class instance escaping still retains its callable field',()=>{
+  const source=
+    'function hidden(){return 1;}'+
+    'class Owner{callback=hidden;count=1;get result(){return this.count;}}'+
+    'const owner=new Owner();external(owner);';
+  const [captured]=execute(source);
+  const callback=/** @type {any} */(captured).callback;
+  assert.equal(callback?.name,'hidden');
+  assert.equal(hiddenSummary(source).hostHeldCallable,true);
+});
