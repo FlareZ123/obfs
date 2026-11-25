@@ -60,3 +60,43 @@ for(const mode of /** @type {const} */ (['coo','sco','sno'])) {
     assertFactorySourceParity(mode);
   });
 }
+
+
+/** @param {'coo'|'sco'|'sno'} mode */
+function assertFactoryStringSourceParity(mode) {
+  const source=
+    'function hidden(){const local="factorySecretLiteral";return local;}'+
+    'class Local{callback=hidden;}'+
+    'const create=()=>new Local();'+
+    'module.exports=create;';
+  const nativeFactory=/** @type {()=>{callback:()=>string}} */ (executeCommonJs(source));
+  const nativeCallback=nativeFactory().callback;
+  const nativeSource=Function.prototype.toString.call(nativeCallback);
+  const result=obfuscateFiles(
+    [{path:'entry.cjs',code:source,sourceType:'commonjs'}],
+    {mode,seed:'agent9-exported-factory-string-source-witness',strings:true,identifiers:false,properties:false}
+  );
+  const output=result.files[0];
+  assert.ok(output,'the obfuscator must emit the entry file');
+  assert.equal(typeof output.code,'string');
+  assert.ok(output.metrics.literals>0,
+    mode+' fixture must exercise string encoding inside the returned callback');
+  const emittedFactory=/** @type {()=>{callback:()=>string}} */ (executeCommonJs(output.code));
+  const emittedInstance=emittedFactory();
+  assert.equal(typeof emittedInstance.callback,'function');
+  assert.equal(emittedInstance.callback(),nativeCallback(),
+    mode+' must preserve callback runtime value');
+  const emittedSource=Function.prototype.toString.call(emittedInstance.callback);
+  assert.notEqual(emittedSource,nativeSource,
+    mode+' red control: host-observed callback source is rewritten by string encoding');
+  assert.ok(!emittedSource.includes('factorySecretLiteral'),
+    mode+' host extraction must expose the encoded literal rather than its original spelling');
+}
+
+test.todo('acceptance: string encoding preserves exact source of host-held exported-factory callbacks in COO/SCO/SNO');
+
+for(const mode of /** @type {const} */ (['coo','sco','sno'])) {
+  test('red control: string encoding rewrites host-held exported-factory callback source in '+mode,()=>{
+    assertFactoryStringSourceParity(mode);
+  });
+}
