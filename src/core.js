@@ -38,9 +38,10 @@ const {canonicalAllowedHosts}=require('./hosts');
  * checks the host and could perform arbitrary effects.
  *
  * This deliberately excludes opaque assets, scripts, bare package imports,
- * URL/query/fragment, encoded, and repeated-separator specifiers, case-mismatched
- * dependencies. Module cycles are safe for this boundary because each module
- * body starts with its own guard, irrespective of evaluation order.
+ * URL/query/fragment and encoded specifiers, repeated-separator paths,
+ * case-mismatched filenames, and undeclared dependencies. Module cycles are
+ * safe for this boundary because each module body starts with its own guard,
+ * irrespective of evaluation order.
  *
  * @param {(SourceFile & {sourceType:SourceType})[]} files
  * @returns {boolean}
