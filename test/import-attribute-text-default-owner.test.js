@@ -102,3 +102,14 @@ test('standard SCO handler preserves attributed source and refuses host locking'
   assert.throws(()=>createScoHandler(files,{closedWorld:true,allowedHosts:['example.com']}),
     /Host locking cannot preserve observable source bytes/);
 });
+
+test('source-observer islands reject attributed static imports',()=>{
+  const files=[
+    {path:'state.mjs',sourceType:'module',code:'export const secret=23;'},
+    {path:'main.mjs',sourceType:'module',
+      code:'import source from "./state.mjs" with {type:"text"};export const value=source.length;'}
+  ];
+  assert.throws(()=>obfuscateFiles(files,{
+    ...options,experimentalSourceObserverIslands:['state.mjs']
+  }),/Source observer islands require closed static ESM imports/);
+});
