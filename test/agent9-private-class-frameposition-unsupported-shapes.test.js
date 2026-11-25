@@ -76,6 +76,19 @@ const fixtures=[
       'module.exports=reader.read()+copy;'
     ].join('')
   }
+  {
+    name:'in-check owner read',
+    expected:7,
+    source:[
+      "'use strict';",
+      'const owner={longPrivatePropertyName:7};',
+      "const hasKey='longPrivatePropertyName' in owner;",
+      'class Reader{read(){return owner.longPrivatePropertyName;}}',
+      'const reader=new Reader();',
+      'globalThis.__obfsPrivateClassArmed=true;Array.isArray([1,2]);globalThis.__obfsPrivateClassArmed=false;',
+      'module.exports=reader.read()+(hasKey?0:1);'
+    ].join('')
+  },
 ];
 
 for(const fixture of fixtures){
