@@ -36,3 +36,15 @@ The exact two-state minimax numbers may still be a useful finite-case contributi
 ## Suggested next experiment
 
 Implement or faithfully adapt hW-inference as an attacker against a strongly connected, no-reset SCO step API with unknown state count. Use independently generated strongly connected Mealy machines, a bounded random-walk counterexample policy, and an independent product-equivalence checker used only by the evaluator. Report query counts, false-convergence rates, and the gap between empirical convergence and exact guarantees. Keep this as intermediate evidence unless it yields a defensible result beyond the published algorithm.
+
+### Petrenko, Avellaneda, Groz & Oriat (2017): SAT-based inference from a single trace
+
+Alexandre Petrenko, Florent Avellaneda, Roland Groz, and Catherine Oriat, “From Passive to Active FSM Inference via Checking Sequence Construction,” *ICTSS 2017*, LNCS 10533, 126–141 (2017).
+
+- DOI/chapter: https://doi.org/10.1007/978-3-319-67549-7_8
+- Open-record abstract: https://ndl.iitkgp.ac.in/re_document/hal/hal/oai_hal_hal_01678991v1
+- This is a particularly close antecedent to a bounded no-reset learner: it treats a single evolving trace, uses SAT to find alternative FSM conjectures consistent with the trace, and extends the trace to eliminate distinguishable alternatives.
+- The authors state that their assumptions are the input alphabet and an upper bound on the number of states; they do not require state-identification facilities or a characterization set.
+- The 2019 hW-inference paper's related-work section summarizes this SAT approach as oracle-free, shortest-trace-oriented, and empirically scaling to roughly a dozen states. See the 2019 paper, Section 5: https://proceedings.mlr.press/v93/groz19a/groz19a.pdf
+
+This is the closest located algorithmic antecedent for the current experiment's trusted-state-bound, no-reset setting. The repository's explicit belief-state Bellman/minimax certificate may differ from the SAT-based conjecture-elimination method, but a novelty claim requires a direct comparison of assumptions, objective (per-machine shortest trace versus global worst-case minimax policy), and resulting query guarantees.
