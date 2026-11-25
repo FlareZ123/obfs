@@ -7,6 +7,7 @@
 
 - Direct API negative-control test: test/direct-api-symlink-module-identity.test.js, added in commit 512987e68c2d1349e218cccc13b1374fb8821b02.
 - Focused manual-validation run [45567968492](https://github.com/FlareZ123/obfs/actions/runs/45567968492) checked that exact test on Ubuntu and Windows. Both passed 1/1, plus strict project JSDoc, strict external JSDoc, and paired/complete-suite budget JSDoc.
+- The test was then extended to exercise all three obfuscation modes (COO, SCO, SNO) with the same symlink layout and a separate-file positive control. Focused manual-validation run [45568314358](https://github.com/FlareZ123/obfs/actions/runs/45568314358) passed 1/1 on Ubuntu and Windows, plus strict project JSDoc, strict external JSDoc, and paired/complete-suite budget JSDoc.
 - CLI input guard test: test/cli-e2e.test.js, added in commit 47bb38eb515fa6bb0e66c10aed633c5f722c464e.
 - Focused manual-validation run [45567808998](https://github.com/FlareZ123/obfs/actions/runs/45567808998) passed 4/4 CLI E2E tests on Ubuntu and Windows, plus the same JSDoc checks.
 - README contract note: commit 2c073d06b73ceffaa8c262342f825e506ace1684.
@@ -19,7 +20,7 @@ The direct API test supplies three in-memory module entries:
 - app/alias.mjs supplies identical source bytes but is deployed as a symlink to lib/state.mjs.
 - main.mjs imports state from both lexical paths and prints both field reads.
 
-The test runs two deployment layouts:
+The test exercises COO, SCO, and SNO with two deployment layouts:
 
 1. Two independent regular files: native output is 23 23 and transformed output is also 23 23.
 2. app/alias.mjs remains a symlink to lib/state.mjs: native Node output is 23 23, but transformed output is 23 undefined. The API reports two cross-file property rewrites.
