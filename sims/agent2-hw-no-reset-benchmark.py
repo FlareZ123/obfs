@@ -796,8 +796,15 @@ def main():
                 args.fixture_family,
             )
             results.append(result)
+            diagnostic = {
+                key: value
+                for key, value in result.items()
+                if key not in {"fixture_table", "observed_trace", "error_traceback"}
+            }
+            if result.get("status") == "error":
+                diagnostic["error_traceback"] = result.get("error_traceback")
             print(
-                "HW_NO_RESET_RESULT " + json.dumps(result, sort_keys=True),
+                "HW_NO_RESET_RESULT " + json.dumps(diagnostic, sort_keys=True),
                 file=sys.stderr,
                 flush=True,
             )
