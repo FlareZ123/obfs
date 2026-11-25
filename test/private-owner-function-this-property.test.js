@@ -18,9 +18,7 @@ function run(code){
 
 const source=[
   'const owner={secretField:7,helper:function(){return this.secretField;}};',
-  'class Reader{read(){return owner.helper()+owner.secretField;}}',
-  'const reader=new Reader();',
-  'module.exports=reader.read();'
+  'module.exports=owner.helper()+owner.secretField;'
 ].join('\n');
 
 for(const mode of /** @type {Array<'coo'|'sno'|'sco'>} */ (['coo','sno','sco'])){
