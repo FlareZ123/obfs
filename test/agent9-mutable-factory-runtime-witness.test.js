@@ -201,3 +201,34 @@ test('a local object method returning a primitive does not retain an unrelated c
   assert.equal(hidden.hostHeldCallable,false);
   assert.equal(hidden.safe,true);
 });
+
+
+test('an object getter cannot hide a callback returned through its this receiver',()=>{
+  const source=
+    'function hidden(){return 1;}'+
+    'function entry(){const owner={callback:hidden,get read(){return this.callback;}};'+
+    'external(owner.read);}'+
+    'module.exports=entry;';
+  assertRuntimeHostReceivesHidden(source);
+  assertHiddenHeld(source);
+});
+
+test('a class getter cannot hide a callback returned through its this receiver',()=>{
+  const source=
+    'function hidden(){return 1;}'+
+    'class Local{callback=hidden;get read(){return this.callback;}}'+
+    'function entry(){const owner=new Local();external(owner.read);}'+
+    'module.exports=entry;';
+  assertRuntimeHostReceivesHidden(source);
+  assertHiddenHeld(source);
+});
+
+test('an object setter cannot hide a callback passed through its this receiver',()=>{
+  const source=
+    'function hidden(){return 1;}'+
+    'function entry(){const owner={callback:hidden,set trigger(value){external(this.callback);}};'+
+    'owner.trigger=1;}'+
+    'module.exports=entry;';
+  assertRuntimeHostReceivesHidden(source);
+  assertHiddenHeld(source);
+});
