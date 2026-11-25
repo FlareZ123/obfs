@@ -278,6 +278,70 @@ def ordered_subset_dp(width: int, sequence, kernels):
     }
 
 
+def trial_direction_cache_costs(width: int, sequence, remaining):
+    """Exact coordinate-query cost when all successful-trial directions join the basis."""
+    kernel_count = len(list(rref_subspaces(width, width - 5)))
+    prefix_caches = []
+    covered: set[int] = set()
+    for complement in sequence:
+        face_mask = ((1 << width) - 1) ^ sum(1 << index for index in complement)
+        subset = face_mask
+        while True:
+            covered.add(subset)
+            if subset == 0:
+                break
+            subset = (subset - 1) & face_mask
+        prefix_caches.append(set(covered))
+
+    previous = kernel_count
+    weighted_shift = 0
+    weighted_signature = 0
+    per_position = []
+    for face_index, still_failing in enumerate(remaining):
+        first_success = previous - still_failing
+        previous = still_failing
+        if first_success == 0:
+            continue
+        anchors = [index for index in range(width) if index not in sequence[face_index]]
+        extras = list(sequence[face_index])
+        cache = prefix_caches[face_index]
+        shift_extra = 0
+        signature_extra = 0
+        for extra in extras:
+            shift_masks = {
+                1 << extra,
+                (1 << extra) | (1 << anchors[0]),
+                (1 << extra) | (1 << anchors[1]),
+            }
+            shift_extra += sum(mask not in cache for mask in shift_masks)
+            for subset in range(1 << 5):
+                if subset == (1 << 5) - 1:
+                    continue
+                mask = 1 << extra
+                for bit, anchor in enumerate(anchors):
+                    if (subset >> bit) & 1:
+                        mask |= 1 << anchor
+                if mask not in cache:
+                    signature_extra += 1
+        shift_cost = 3 * (32 - width) + shift_extra
+        signature_cost = 31 * (32 - width) + signature_extra
+        weighted_shift += first_success * shift_cost
+        weighted_signature += first_success * signature_cost
+        per_position.append({
+            "face_index": face_index,
+            "first_success_kernels": first_success,
+            "shift_cost": shift_cost,
+            "signature_cost": signature_cost,
+        })
+
+    success_count = kernel_count - remaining[-1]
+    return {
+        "shift_expected": Fraction(weighted_shift, success_count),
+        "signature_expected": Fraction(weighted_signature, success_count),
+        "per_position": per_position,
+    }
+
+
 def collision_bounds(width: int, result):
     union = result["query_union"]
     failure = result["failure_probability"]
@@ -309,11 +373,17 @@ def main():
     result8_cpp = evaluate(8, M8_CPP)
     order_dp7 = ordered_subset_dp(7, M7, list(rref_subspaces(7, 2)))
     order_dp8 = ordered_subset_dp(8, M8, list(rref_subspaces(8, 3)))
+    trial_cache7 = trial_direction_cache_costs(7, M7, result7["remaining"])
+    trial_cache8 = trial_direction_cache_costs(8, M8, result8["remaining"])
 
     assert order_dp7["expected_one_trial"] == result7["expected_one_trial"]
     assert order_dp8["expected_one_trial"] == result8["expected_one_trial"]
     assert order_dp7["optimal_order_count"] == 28800
     assert order_dp8["optimal_order_count"] == 138240
+    assert trial_cache7["shift_expected"] == Fraction(66220, 837)
+    assert trial_cache7["signature_expected"] == Fraction(66545, 81)
+    assert trial_cache8["shift_expected"] == Fraction(7100804, 90207)
+    assert trial_cache8["signature_expected"] == Fraction(73827200, 90207)
 
     assert result7["kernel_count"] == 2667
     assert result8["kernel_count"] == 97155
@@ -388,6 +458,12 @@ def main():
             "m7_optimal_order_count": order_dp7["optimal_order_count"],
             "m8_expected_one_trial": str(order_dp8["expected_one_trial"]),
             "m8_optimal_order_count": order_dp8["optimal_order_count"],
+        },
+        "trial_direction_cache_coordinate_costs": {
+            "m7_shift": float(trial_cache7["shift_expected"]),
+            "m7_signature": float(trial_cache7["signature_expected"]),
+            "m8_shift": float(trial_cache8["shift_expected"]),
+            "m8_signature": float(trial_cache8["signature_expected"]),
         },
         "m7_minus_m8_injective_query_gap": as_float(gap),
         "actual_uniform_32bit_gap_interval": [as_float(lower), as_float(upper)],
