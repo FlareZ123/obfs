@@ -204,3 +204,61 @@ test('an aliased Reflect.set mutation disables the Reflect.apply intrinsic short
   assert.equal((/** @type {Function} */ (captured)).name,'hidden');
   assert.equal(summaryFor(source,'hidden').hostHeldCallable,true);
 });
+
+test('call receiver flows into an arrow returned by the local method',()=>{
+  const source=
+    'function hidden(){return 1;}function harmless(){return 0;}'+
+    'const owner={make(){return ()=>this.callback;}};'+
+    'const other={callback:hidden};external(owner.make.call(other)());';
+  const [captured]=execute(source);
+  assert.equal((/** @type {Function} */ (captured)).name,'hidden');
+  assert.equal(summaryFor(source,'hidden').hostHeldCallable,true);
+  assert.equal(summaryFor(source,'harmless').hostHeldCallable,false);
+});
+
+test('apply receiver flows into an arrow returned by the local method',()=>{
+  const source=
+    'function hidden(){return 1;}function harmless(){return 0;}'+
+    'const owner={make(){return ()=>this.callback;}};'+
+    'const other={callback:hidden};external(owner.make.apply(other,[])());';
+  const [captured]=execute(source);
+  assert.equal((/** @type {Function} */ (captured)).name,'hidden');
+  assert.equal(summaryFor(source,'hidden').hostHeldCallable,true);
+  assert.equal(summaryFor(source,'harmless').hostHeldCallable,false);
+});
+
+test('bind receiver flows into an arrow returned by the local method',()=>{
+  const source=
+    'function hidden(){return 1;}function harmless(){return 0;}'+
+    'const owner={make(){return ()=>this.callback;}};'+
+    'const other={callback:hidden};const bound=owner.make.bind(other);'+
+    'external(bound()());';
+  const [captured]=execute(source);
+  assert.equal((/** @type {Function} */ (captured)).name,'hidden');
+  assert.equal(summaryFor(source,'hidden').hostHeldCallable,true);
+  assert.equal(summaryFor(source,'harmless').hostHeldCallable,false);
+});
+
+test('Reflect.apply receiver flows into an arrow returned by the local method',()=>{
+  const source=
+    'function hidden(){return 1;}function harmless(){return 0;}'+
+    'const owner={make(){return ()=>this.callback;}};'+
+    'const other={callback:hidden};'+
+    'external(Reflect.apply(owner.make,other,[])());';
+  const [captured]=execute(source);
+  assert.equal((/** @type {Function} */ (captured)).name,'hidden');
+  assert.equal(summaryFor(source,'hidden').hostHeldCallable,true);
+  assert.equal(summaryFor(source,'harmless').hostHeldCallable,false);
+});
+
+test('a nested ordinary function does not inherit its creator method receiver',()=>{
+  const source=
+    'function hidden(){return 1;}function harmless(){return 0;}'+
+    'const owner={make(){return function(){return this.callback;};}};'+
+    'const other={callback:hidden};const actual={callback:harmless};'+
+    'external(owner.make.call(other).call(actual));';
+  const [captured]=execute(source);
+  assert.equal((/** @type {Function} */ (captured)).name,'harmless');
+  assert.equal(summaryFor(source,'hidden').hostHeldCallable,false);
+  assert.equal(summaryFor(source,'harmless').hostHeldCallable,true);
+});
