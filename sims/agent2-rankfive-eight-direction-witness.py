@@ -189,9 +189,10 @@ def release_metrics(model, metrics):
         "trials": trials,
         "witness_miss_probability": float(failure**trials),
         "witness_query_cap": witness_cap,
+        "witness_plus_shift_cap": witness_cap + 96,
         "fast_shift_verifier_cap": witness_cap + 96 + 726,
         "signature_verifier_cap": witness_cap + 992 + 726,
-        "expected_total_queries_with_shift_and_verifier":
+        "uncached_additive_total_query_upper_bound_with_shift_and_verifier":
             float(metrics["expected_repeated_trial_queries"] + 96 + 726),
     }
 
@@ -240,10 +241,12 @@ def main():
 
     assert release7["trials"] == 18
     assert release7["witness_query_cap"] == 1657
+    assert release7["witness_plus_shift_cap"] == 1753
     assert release7["fast_shift_verifier_cap"] == 2479
     assert release7["signature_verifier_cap"] == 3375
     assert release8["trials"] == 14
     assert release8["witness_query_cap"] == 1709
+    assert release8["witness_plus_shift_cap"] == 1805
     assert release8["fast_shift_verifier_cap"] == 2531
     assert release8["signature_verifier_cap"] == 3427
     assert 0.2536614 < gap_lower < 0.2536615
@@ -275,6 +278,9 @@ def main():
           float(result7["expected_total_faces"]), float(result8["expected_total_faces"]))
     print("  expected direction words (7,8):",
           float(result7["expected_direction_words"]), float(result8["expected_direction_words"]))
+    face_delta = float(result8["expected_total_faces"] - result7["expected_total_faces"])
+    print("  extra expected face evaluations (m8 - m7):", face_delta)
+    print("  break-even face-evaluation cost in query units:", float(gap) / face_delta)
     face_delta = float(result8["expected_total_faces"] - result7["expected_total_faces"])
     print("  extra expected face evaluations (m8 - m7):", face_delta)
     print("  break-even face-evaluation cost in query units:", float(gap) / face_delta)
