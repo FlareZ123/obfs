@@ -968,8 +968,8 @@ function summarizeAmbientCallEffects(ast,sourceType) {
 
   /**
    * Resolve a statically named property through aliases, object literals,
-   * class instances, factory returns, nested member chains, and known this
-   * receivers.
+   * class instances, factory returns, nested member chains, spreads, and known
+   * this receivers. Unknown later keys/spreads fail closed over their values.
    * @param {AstNode} value
    * @param {string} propertyKey
    * @param {Set<number>} [seen]
@@ -1021,22 +1021,65 @@ function summarizeAmbientCallEffects(ast,sourceType) {
       const matching=value.properties.filter((/** @type {AstNode} */ property)=>
         property.type==='Property'&&
         staticPropertyKey(property.key,property.computed)===propertyKey);
-      if(matching.length)
-        return [...new Set(matching.flatMap((/** @type {AstNode} */ property)=>
+      let lastMatchingIndex=-1;
+      for(let index=0;index<value.properties.length;index++) {
+        const property=value.properties[index];
+        if(property?.type==='Property'&&
+           staticPropertyKey(property.key,property.computed)===propertyKey)
+          lastMatchingIndex=index;
+      }
+      const explicitValues=matching.flatMap((/** @type {AstNode} */ property)=>
+        property.kind==='init'?[property.value]:
+        property.kind==='get'?functionReturnExpressions(property.value).flatMap(expression=>
+          resolveThisReturnExpression(expression,thisReceiver??value,seen)):[]);
+      const laterSpreadValues=value.properties.slice(lastMatchingIndex+1)
+        .filter((/** @type {AstNode} */ property)=>property.type==='SpreadElement')
+        .flatMap((/** @type {AstNode} */ property)=>{
+          const spreadMembers=memberValueExpressionsForProperty(property.argument,propertyKey,seen);
+          return spreadMembers.length?spreadMembers:[property.argument];
+        });
+      const laterComputedValues=value.properties.slice(lastMatchingIndex+1)
+        .filter((/** @type {AstNode} */ property)=>
+          property.type==='Property'&&property.computed&&
+          staticPropertyKey(property.key,property.computed)===null)
+        .flatMap((/** @type {AstNode} */ property)=>
           property.kind==='init'?[property.value]:
           property.kind==='get'?functionReturnExpressions(property.value).flatMap(expression=>
-            resolveThisReturnExpression(expression,value,seen)):[]))];
-      if(value.properties.some((/** @type {AstNode} */ property)=>property.type==='SpreadElement'))
-        return value.properties.flatMap((/** @type {AstNode} */ property)=>
-          property.type==='SpreadElement'?[property.argument]:
-          property.type==='Property'?[property.value]:[]);
+            resolveThisReturnExpression(expression,thisReceiver??value,seen)):[]);
+      if(matching.length||laterSpreadValues.length||laterComputedValues.length)
+        return [...new Set([...explicitValues,...laterSpreadValues,...laterComputedValues])];
+      const prototypeSetter=value.properties.find((/** @type {AstNode} */ property)=>
+        property.type==='Property'&&property.kind==='init'&&!property.computed&&
+        staticPropertyKey(property.key,false)==='__proto__');
+      if(prototypeSetter?.value) {
+        const inherited=memberValueExpressionsForProperty(
+          prototypeSetter.value,propertyKey,seen,thisReceiver??value);
+        return inherited.length?inherited:callableNodesForValue(prototypeSetter.value,seen);
+      }
       return [];
     }
     if(value.type==='ArrayExpression') {
       const index=Number(propertyKey);
-      if(Number.isInteger(index)&&index>=0&&index<value.elements.length) {
-        const element=value.elements[index];
-        return element?[element]:[];
+      if(!Number.isInteger(index)||index<0)return [];
+      let position=0;
+      for(let elementIndex=0;elementIndex<value.elements.length;elementIndex++) {
+        const element=value.elements[elementIndex];
+        if(element?.type==='SpreadElement') {
+          // A spread before the requested index has unknown length. Any value
+          // from that spread or a later element may occupy the runtime slot.
+          if(position<=index) {
+            /** @type {AstNode[]} */
+            const candidates=[];
+            for(let candidateIndex=elementIndex;candidateIndex<value.elements.length;candidateIndex++) {
+              const candidate=value.elements[candidateIndex];
+              if(candidate)candidates.push(candidate);
+            }
+            return candidates;
+          }
+          continue;
+        }
+        if(position===index)return element?[element]:[];
+        position++;
       }
       return [];
     }
