@@ -718,8 +718,12 @@ function summarizeAmbientCallEffects(ast,sourceType) {
     let targets=[];
     if(call.callee.type==='Identifier') {
       const reference=resolved.at(call.callee.start);
-      if(reference?.resolution.kind==='local')
-        targets=callableNodesForValue(call.callee,seen);
+      if(reference?.resolution.kind==='local') {
+        const target=resolveFunctionNode(reference.resolution.bindingId);
+        // Preserve a direct function target while also following mutable
+        // binding values that the single-target resolver cannot represent.
+        targets=[...(target?[target]:[]),...callableNodesForValue(call.callee,seen)];
+      }
     } else if(call.callee.type==='MemberExpression') {
       const calleeKey=staticPropertyKey(call.callee.property,call.callee.computed);
       targets=calleeKey==='call'||calleeKey==='apply'?
