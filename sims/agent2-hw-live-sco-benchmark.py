@@ -60,9 +60,9 @@ def start_server(fixture, seed: int):
         )
 
     # GitHub-hosted runners keep /home/runner/work non-traversable to
-    # unprivileged users. Mirror only the public compiler/runtime code into a
-    # world-readable temporary tree so uid nobody can load the server entry;
-    # the private application module remains in the server's 0700 temp root.
+    # unprivileged users. Mirror only public compiler/runtime code into a
+    # world-readable tree so uid nobody can load the server entry. The private
+    # application module remains in the server's separate 0700 temp root.
     repository_root = Path(__file__).resolve().parents[1]
     mirror_root = Path(tempfile.mkdtemp(prefix="obfs-agent2-live-server-"))
     mirror_root.chmod(0o755)
@@ -88,17 +88,17 @@ def start_server(fixture, seed: int):
             text=True,
             bufsize=1,
         )
-    machine = {
-        "next": [list(row) for row in fixture.transitions],
-        "output": [list(row) for row in fixture.outputs],
-        "initial_state": fixture.initial_state,
-    }
-    canary = f"agent2-live-sco-private-canary-{fixture.state_count}-{seed}"
-    payload = {
-        "machine": machine,
-        "canary": canary,
-        "partition_seed": f"agent2-live-sco-{fixture.state_count}-{seed}",
-    }
+        machine = {
+            "next": [list(row) for row in fixture.transitions],
+            "output": [list(row) for row in fixture.outputs],
+            "initial_state": fixture.initial_state,
+        }
+        canary = f"agent2-live-sco-private-canary-{fixture.state_count}-{seed}"
+        payload = {
+            "machine": machine,
+            "canary": canary,
+            "partition_seed": f"agent2-live-sco-{fixture.state_count}-{seed}",
+        }
         try:
             process.stdin.write(json.dumps(payload, separators=(",", ":")) + "\n")
             process.stdin.flush()
@@ -112,25 +112,26 @@ def start_server(fixture, seed: int):
                 f"Node SCO server failed before readiness: {error}; "
                 f"stderr={stderr[-4000:]}"
             ) from error
-    if line.startswith("ERROR "):
-        process.wait(timeout=10)
-        stderr = process.stderr.read() if process.stderr else ""
-        raise RuntimeError(
-            "Node SCO server initialization failed: "
-            + line[6:]
-            + "\\n"
-            + stderr[-4000:]
-        )
-    if not line.startswith("READY "):
-        process.kill()
-        process.wait(timeout=10)
-        stderr = process.stderr.read() if process.stderr else ""
-        raise RuntimeError(
-            "unexpected Node SCO server readiness line: "
-            + line
-            + "\\n"
-            + stderr[-4000:]
-        )
+
+        if line.startswith("ERROR "):
+            process.wait(timeout=10)
+            stderr = process.stderr.read() if process.stderr else ""
+            raise RuntimeError(
+                "Node SCO server initialization failed: "
+                + line[6:]
+                + "\n"
+                + stderr[-4000:]
+            )
+        if not line.startswith("READY "):
+            process.kill()
+            process.wait(timeout=10)
+            stderr = process.stderr.read() if process.stderr else ""
+            raise RuntimeError(
+                "unexpected Node SCO server readiness line: "
+                + line
+                + "\n"
+                + stderr[-4000:]
+            )
         ready = json.loads(line[6:])
         if ready.get("partition_names") != ["step"]:
             raise AssertionError(f"unexpected public SCO methods: {ready!r}")
@@ -142,7 +143,6 @@ def start_server(fixture, seed: int):
             process.wait(timeout=10)
         shutil.rmtree(mirror_root, ignore_errors=True)
         raise
-
 
 def preflight(origin: str, public_path: str, rpc_path: str, canary: str):
     with urllib.request.urlopen(origin + public_path, timeout=10) as response:
