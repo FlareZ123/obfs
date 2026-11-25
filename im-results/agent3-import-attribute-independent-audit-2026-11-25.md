@@ -68,7 +68,7 @@ A separate diagnostic [45676307446](https://github.com/FlareZ123/obfs/actions/ru
 - The module specifier and `type:"json"` attribute literal remain unchanged.
 - An unrelated ordinary string literal is still encoded.
 
-This is evidence that a future refinement could treat the exact static `type:"json"` attribute as a non-source-byte observer while still refusing cross-file owner proof on any attributed edge. Dynamic import options and unknown/multiple attributes should remain fail-closed. The full pipeline still conservatively blocks all transforms for every attribute today. A runtime differential using the direct local transforms and a real Node JSON-module import is queued; do not relax the current guard until that runtime check and a browser differential are complete.
+This is evidence that a future refinement could treat the exact static `type:"json"` attribute as a non-source-byte observer while still refusing cross-file owner proof on any attributed edge. Dynamic import options and unknown/multiple attributes should remain fail-closed. The full pipeline still conservatively blocks all transforms for every attribute today. A runtime differential using the direct local transforms and a real Node JSON-module import passed 2/2 on both Ubuntu and Windows in [45677102879](https://github.com/FlareZ123/obfs/actions/runs/45677102879): original and transformed modules returned identical JSON-derived values and exported marker strings. This is a direct-transform experiment, not yet an end-to-end `obfuscateFiles` policy change. Do not relax the current guard until a real browser differential and full pipeline checks are complete.
 
 ## Integration constraints
 
