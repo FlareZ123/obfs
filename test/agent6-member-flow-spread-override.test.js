@@ -62,6 +62,23 @@ test('an explicit property after a spread shadows the earlier callable without o
     'the overwritten callable is not reachable through the observed property');
 });
 
+test('an array spread before a static index cannot hide a shifted callable',()=>{
+  const source=
+    'function hidden(){const state={secret:7};return state.secret;}'+
+    'function harmless(){return 0;}'+
+    'const later=[harmless,hidden];'+
+    'const owner=[...later,harmless];'+
+    'external(owner[1]);';
+  const summary=hiddenSummary(source);
+  const [captured]=execute(source);
+  assert.equal(captured?.name,'hidden',
+    'the earlier array spread shifts hidden into static index 1');
+  assert.match(String(captured),/state\.secret/);
+  assert.equal(summary.hostHeldCallable,true,
+    'the resolver must account for array-spread length before trusting a static index');
+  assert.equal(summary.safe,false);
+});
+
 test('a later spread getter cannot hide the callable value it returns',()=>{
   const source=
     'function hidden(){const state={secret:7};return state.secret;}'+
