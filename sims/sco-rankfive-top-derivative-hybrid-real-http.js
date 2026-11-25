@@ -233,6 +233,9 @@ async function compare(){
     assert.ok(diagnostics.witnessTrials<=diagnostics.witnessTrialCap);
     assert.equal(diagnostics.witnessTrialCap,18);
     assert.equal(diagnostics.witnessDrawCount,diagnostics.witnessTrials*7);
+    assert.equal(diagnostics.witnessProbability,24519915/33554432);
+    assert.equal(diagnostics.witnessFailureBound,
+      Math.pow(1-diagnostics.witnessProbability,diagnostics.witnessTrialCap));
     assert.ok(diagnostics.witnessFailureBound<=1e-10);
     assert.equal(diagnostics.quotientRank,5);
     assert.equal(diagnostics.fallbackUsed,false);
