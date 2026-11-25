@@ -200,6 +200,58 @@ test('a known primitive-returning local member call does not retain unrelated ca
   assert.equal(summary.safe,true);
 });
 
+test('an object getter using this cannot hide a callable sibling',()=>{
+  const source=
+    'function hidden(){const state={secret:7};return state.secret;}'+
+    'const owner={hidden,get callback(){return this.hidden;}};'+
+    'external(owner.callback);';
+  const summary=hiddenSummary(source);
+  const [captured]=execute(source);
+  assert.equal(captured?.name,'hidden');
+  assert.match(String(captured),/state\.secret/);
+  assert.equal(summary.hostHeldCallable,true,
+    'the getter returns the callable stored on its receiver');
+  assert.equal(summary.safe,false);
+});
+
+test('a class getter using this cannot hide a callable field',()=>{
+  const source=
+    'function hidden(){const state={secret:7};return state.secret;}'+
+    'class Owner{hidden=hidden;get callback(){return this.hidden;}}'+
+    'const owner=new Owner();external(owner.callback);';
+  const summary=hiddenSummary(source);
+  const [captured]=execute(source);
+  assert.equal(captured?.name,'hidden');
+  assert.match(String(captured),/state\.secret/);
+  assert.equal(summary.hostHeldCallable,true,
+    'the class getter returns the callable stored on its instance');
+  assert.equal(summary.safe,false);
+});
+
+test('an object getter reading a primitive this-field does not retain callable siblings',()=>{
+  const source=
+    'function hidden(){const state={secret:7};return state.secret;}'+
+    'const owner={hidden,count:1,get value(){return this.count;}};'+
+    'external(owner.value);';
+  const summary=hiddenSummary(source);
+  const [captured]=execute(source);
+  assert.equal(captured,1);
+  assert.equal(summary.hostHeldCallable,false);
+  assert.equal(summary.safe,true);
+});
+
+test('a class getter reading a primitive this-field does not retain callable siblings',()=>{
+  const source=
+    'function hidden(){const state={secret:7};return state.secret;}'+
+    'class Owner{hidden=hidden;count=1;get value(){return this.count;}}'+
+    'const owner=new Owner();external(owner.value);';
+  const summary=hiddenSummary(source);
+  const [captured]=execute(source);
+  assert.equal(captured,1);
+  assert.equal(summary.hostHeldCallable,false);
+  assert.equal(summary.safe,true);
+});
+
 test('an object-literal prototype setter can supply the observed callable',()=>{
   const source=
     'function hidden(){const state={secret:7};return state.secret;}'+
