@@ -421,3 +421,19 @@ test('a local factory return assigned to a mutable closure alias cannot hide a s
     'class instances returned by a local factory must flow through mutable closure aliases');
   assert.equal(hidden.safe,false);
 });
+
+
+test('reading a non-callable field through a mutable closure alias does not publish unrelated callables',()=>{
+  const source=
+    'let owner;'+
+    'function hidden(){return 1;}'+
+    'function leak(){external(owner.value);}'+
+    'class Local{callback=hidden;value=1;leak=leak;}'+
+    'function entry(){const instance=new Local();owner=instance;instance.leak();}'+
+    'module.exports=entry;';
+  const hidden=named(analyze(source),'hidden')[0];
+  assert.ok(hidden);
+  assert.equal(hidden.hostHeldCallable,false,
+    'a read of a primitive sibling field must not retain unrelated callable fields');
+  assert.equal(hidden.safe,true);
+});
