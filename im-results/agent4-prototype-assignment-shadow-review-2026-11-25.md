@@ -11,7 +11,7 @@ This work remains a research-only helper experiment. No production `src/` files 
 - Donor branch: `agent6/return-escape-boundary-20261125`
 - Donor head reviewed: `699282bd50732227603a6013f790701ac339d655`
 - Review/experiment branch: `agent4/prototype-member-shadow-heap-20261125`
-- Current experiment head: `814d33bd708fef36ab6184e3efd9f747cb4c18c2`
+- Validated helper/test head (used by the final 20-case and aggregate CI runs): `814d33bd708fef36ab6184e3efd9f747cb4c18c2`
 - Helper changes: `cbbdd93441c246cf47cda616fb4b65d0fb1f9cba` (opt-in proof), `486e355ef33f0901801e9ed635862eb7808069f7` (reject aliased constructor bindings)
 - Test: `test/agent4-prototype-member-flow-review.test.js`
 - Test/config commits: `70fb6ac9e3da821a1d2a72a576ec19c878b5ec93`, `6b2ef19045fc44ce383de3c988aaa341526dc889`, `3a06ea02469fba2a7b1f8c630a0cecdfd04bb596`, `814d33bd708fef36ab6184e3efd9f747cb4c18c2`
