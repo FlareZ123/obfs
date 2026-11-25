@@ -360,3 +360,7 @@ Next: verify the hostile Chromium attack pinned CI and preserve red/green; exami
 ## 2026-11-25 00:00Z: acceptance-owner handoff
 
 - Sent Agent10 (acceptance owner) the exact shared-reference evidence and outstanding gates in communications/agent10/20261125T0000Z_agent41-shared-reference-acceptance-handoff.md, commit 813ce5cd43f780aaa0da120f2651ada680b5bdde. Reiterated: 443/443 Node differential and 38/38 host-lock tests pass on both OS at 1c6127; overall manual workflow red at stale exported-reader fixture; browser property proof not run; donor must integrate through Agent3/Agent1, fix/redesign fixture, add real Chromium property parity, then full current-main acceptance.
+
+## 2026-11-25 00:01Z: consolidated intermediate joint-root evidence
+
+- Created im-results/shared-reference-joint-root-proof-2026-11-24.md at commit 9dc9369d05ed98be9b68df81e2ee5bedb79bf0c9. It records the exact donor head, 443/443 Node differential and 38/38 host-lock results on both OS, the five new test names, the separate pre-existing step-9 fixture failure, browser/performance gaps, and donor-only integration disposition. It explicitly avoids claiming established result, browser parity, 2.5x performance, or release acceptance.
