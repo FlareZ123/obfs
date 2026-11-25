@@ -40,6 +40,10 @@ jobs:
         env:
           CHROMIUM_BIN: google-chrome
         run: node sims/sco-host-lock-storage-source-browser.js
+      - name: Measure cross-file SCO Storage source observation in Chromium
+        env:
+          CHROMIUM_BIN: google-chrome
+        run: node sims/sco-host-lock-storage-cross-file-browser.js
       - name: Compare asynchronous cross-file shared-reference graphs under Chromium CSP
         env:
           CHROMIUM_BIN: google-chrome
