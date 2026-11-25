@@ -270,3 +270,66 @@ test('an object-literal primitive getter does not retain an unrelated callable s
     'the getter returns a primitive, so the unrelated callback property is not observed');
   assert.equal(hidden.safe,true);
 });
+
+
+test('recursive local return expressions terminate while retaining a reachable callable base case',()=>{
+  const source=
+    'function hidden(){return 1;}'+
+    'function choose(flag){if(flag)return hidden;return choose(true);}'+
+    'function entry(){external(choose(false));}'+
+    'module.exports=entry;';
+  assertHeld(hiddenSummary(source),
+    'recursive local return graphs must terminate without dropping callable base-case values');
+});
+
+test('a callable returned through a local identity parameter remains held',()=>{
+  const source=
+    'function hidden(){return 1;}'+
+    'class Local{callback=hidden;}'+
+    'function identity(value){return value;}'+
+    'function entry(){const owner=new Local();external(identity(owner).callback);}'+
+    'module.exports=entry;';
+  assertHeld(hiddenSummary(source),
+    'actual-to-formal value substitution must compose with a returned object member read');
+});
+
+test('a class getter returning this.callback preserves the instance field callable',()=>{
+  const source=
+    'function hidden(){return 1;}'+
+    'class Local{callback=hidden;get exposed(){return this.callback;}}'+
+    'function entry(){const owner=new Local();external(owner.exposed);}'+
+    'module.exports=entry;';
+  assertHeld(hiddenSummary(source),
+    'a getter return using its receiver must resolve the callable field on the actual instance');
+});
+
+test('an inherited class getter returning this.callback preserves the subclass field callable',()=>{
+  const source=
+    'function hidden(){return 1;}'+
+    'class Base{get exposed(){return this.callback;}}'+
+    'class Local extends Base{callback=hidden;}'+
+    'function entry(){const owner=new Local();external(owner.exposed);}'+
+    'module.exports=entry;';
+  assertHeld(hiddenSummary(source),
+    'an inherited getter must resolve this against the concrete subclass instance');
+});
+
+test('an object getter returning this.callback preserves the object field callable',()=>{
+  const source=
+    'function hidden(){return 1;}'+
+    'const owner={callback:hidden,get exposed(){return this.callback;}};'+
+    'function entry(){external(owner.exposed);}'+
+    'module.exports=entry;';
+  assertHeld(hiddenSummary(source),
+    'an object getter return using this must resolve the receiver own-property value');
+});
+
+test('a class method returning this.callback preserves the instance field callable',()=>{
+  const source=
+    'function hidden(){return 1;}'+
+    'class Local{callback=hidden;expose(){return this.callback;}}'+
+    'function entry(){const owner=new Local();external(owner.expose());}'+
+    'module.exports=entry;';
+  assertHeld(hiddenSummary(source),
+    'a local method return using this must resolve the actual receiver class field');
+});
