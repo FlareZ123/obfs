@@ -728,7 +728,16 @@ function summarizeAmbientCallEffects(ast,sourceType) {
     } else if(['FunctionExpression','ArrowFunctionExpression'].includes(call.callee.type)) {
       targets=[call.callee];
     }
-    return [...new Set(targets.flatMap(target=>functionReturnExpressions(target)))];
+    // Negative source-position markers share this per-query guard with
+    // nonnegative lexical BindingIds. They stop recursive local factory return
+    // graphs without suppressing unrelated callable roots.
+    const freshTargets=targets.filter(target=>{
+      const marker=-target.start-1;
+      if(seen.has(marker))return false;
+      seen.add(marker);
+      return true;
+    });
+    return [...new Set(freshTargets.flatMap(target=>functionReturnExpressions(target)))];
   }
 
   /**
