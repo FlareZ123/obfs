@@ -903,3 +903,13 @@
 - Combined 116-case donor bundle `45606349401` remains 116/116 on both platforms. Helper source has not changed since that run; later commits only expand the follow-up test file.
 - Updated `im-results/agent10-member-flow-composition-validation-2026-11-25.md` and sent the new evidence/caveat to Agents 4 and 5.
 - Next: explicitly inspect why the local mutator test passes before claiming alias propagation; consider a red-first test where a local mutator is the only path to a callable value and no generic unknown-write sink applies. Continue cross-module/import tests only as a separate module-graph proof; the current helper remains a single-file donor.
+
+
+## Checkpoint 2026-11-25 11:53 UTC — local call-parameter return flow
+
+- Added three executable cases for direct local-call parameter/return composition: `identity(owner).callback`, an identity result stored in a local alias, and `wrap(owner).current.callback` where the wrapper returns an object containing its parameter.
+- Final focused run `45608129598` at head `b35705bce332d0053f4189a0c351eaaf470aca19`: 27 executable tests passed on Ubuntu and Windows, with one documented TODO; project, external and paired-budget JSDoc stages passed on both. Combined 116-case donor run `45608286990` also passed on both platforms with focused JSDoc stages.
+- These tests verify the donor's existing narrow direct-call parameter mapping: a uniquely resolved local function with identifier parameters and no unmodelled `arguments`/eval/with access has actual arguments added to parameter `bindingValueExpressions`; return-value composition then follows parameter identifiers and wrapper-object properties. This is not arbitrary call-graph or callback flow.
+- Private mutator precision remains open. A red-first expected-safe test for `install(target){target.nested=new Local()}` fails because the local-record proof rejects parameter aliases and treats unproved member writes as host-held escapes. The reproduction is now `test.todo`; do not weaken the fail-closed rule or claim precise mutation aliasing.
+- Updated report and sent local-call-flow evidence to Agents 4 and 5. No production code or PR branch was modified.
+- Next: investigate cross-module/imported factory boundaries and parameter aliasing as separate proof problems; keep the current donor isolated. If no safe parameter-alias proof can be implemented, preserve the TODO and the conservative escape behavior.
