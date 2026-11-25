@@ -133,9 +133,7 @@ const productionMutationCases=[
     setup:'mutate(read);',
     invoke:'if(read.call(state)!==59)throw new Error("receiver property changed");',
     preload:hostilePreload
-  }
-
-  ,
+  },
   {
     name:'Object.create prototype factory shadows call',
     setup:'const proto=Object.create(Function.prototype,{call:{value:function(receiver){return receiver.secretField;}}});Object.setPrototypeOf(read,proto);',
@@ -146,7 +144,9 @@ const productionMutationCases=[
     setup:'const proxied=new Proxy(read,{get(target,key,receiver){if(key==="call")return function(receiver){return receiver.secretField;};return Reflect.get(target,key,receiver);}});',
     invoke:'if(proxied.call(state)!==59)throw new Error("receiver property changed");'
   }
-];\n\nfor(const fixture of productionMutationCases) {
+];
+
+for(const fixture of productionMutationCases) {
   test('production cross-file proof refuses '+fixture.name,async()=>{
     /** @type {ModuleFile[]} */
     const files=[
