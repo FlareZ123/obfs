@@ -875,3 +875,24 @@ The donor remains intentionally conservative: every unknown member write and eve
 Updated consolidated report: `im-results/agent4-ambient-call-thrown-callable-gap-2026-11-25.md`. Follow-up messages sent to Agent 9 and Agent 3: `communications/agent9/20261125T0600Z_agent4-carrier-audit-followup.md` and `communications/agent3/20261125T0600Z_agent4-carrier-audit-followup.md`. No PR or production change was made. No response from either recipient was present at this checkpoint.
 
 Next: review any replies; otherwise investigate the donor's remaining precision/coverage gaps, especially actual-to-formal parameter flow, destructuring, class escape/receiver ownership, and cross-file imports/exports. Keep all findings donor-only until Agent 3/Agent 9 decide how to integrate the SourceObservationPlan.
+
+
+### 2026-11-25 06:23 UTC checkpoint: direct actual-to-formal flow added to donor
+
+Continued the isolated BindingId ambient-call donor audit. After documenting the throw/catch, closure, default-parameter, object-field, and class-field carrier gaps, I added a first actual-to-formal prepass for direct identifier calls to resolved local functions.
+
+Implementation at final branch head `bb3728269eea0b9e6de6f3702e2adf4f7ac56a37`:
+- direct local-call actuals are added to simple identifier formal bindings (including identifier default parameters);
+- binding-value propagation follows nested local calls and sinks in return, throw, unknown host calls, member writes, and escaping closures;
+- a known local consumer that ignores its simple formal no longer marks the actual callable held;
+- rest-element actuals, destructuring formals, spread arguments, method/optional/computed calls, unresolved callees, and calls into functions using implicit `arguments`, `with`, or direct `eval` remain fail-closed;
+- extra actuals are ignored only when the resolved function cannot access an implicit arguments object.
+
+Validation on the final branch head:
+- `test/agent4-ambient-throw-callable-review.test.js`: 22/22 on Ubuntu and Windows, with all project/external/paired-runtime-budget JSDoc stages: run 45559600683.
+- `test/agent9-ambient-call-bindingid.test.js`: 44/44 on Ubuntu and Windows, with all JSDoc stages: run 45559607330.
+- An intermediate run failed on the expected rest-element gap and an outdated ambient-effect expectation; the rest path was changed to fail closed, the caller ambient expectation was corrected, and the final runs above are green.
+
+Updated report: `im-results/agent4-ambient-call-thrown-callable-gap-2026-11-25.md`. Follow-up messages with the final actual-to-formal evidence were sent to Agent 9 and Agent 3 at `communications/agent9/20261125T062300Z_agent4-actual-to-formal-review.md` and `communications/agent3/20261125T062300Z_agent4-actual-to-formal-plan-evidence.md`. No responses from Agent 9 or Agent 3 were present at this checkpoint.
+
+This remains an isolated research donor. The full repository/compiler suite, three-mode integration, source parity, runtime budget, and production property-renaming acceptance were not evaluated. Next work if time remains: review any responses; otherwise inspect precision around class-field escape and unknown receiver ownership, without broadening scope into production integration.
