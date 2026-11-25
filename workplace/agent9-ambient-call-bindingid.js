@@ -1039,13 +1039,16 @@ function summarizeAmbientCallEffects(ast,sourceType) {
    * @param {AstNode|null} [receiver]
    * @returns {AstNode[]}
    */
-  function memberValueExpressionsForProperty(value,propertyKey,seen=new Set(),receiver=null) {
+  function memberValueExpressionsForProperty(value,propertyKey,seen=new Set(),receiver=null) {    /** @type {Set<number>} */
+    const numericSeen=new Set();
+    for(const item of seen)if(typeof item==='number')numericSeen.add(item);
+
     if(value.type==='Identifier') {
       const reference=resolved.at(value.start);
       if(reference?.resolution.kind!=='local')return [];
       const bindingId=reference.resolution.bindingId;
-      if(seen.has(bindingId))return [];
-      const next=new Set(seen);
+      if(numericSeen.has(bindingId))return [];
+      const next=new Set(numericSeen);
       next.add(bindingId);
       const localValues=localRecordMemberValues.get(bindingId)?.get(propertyKey);
       if(localValues?.length)return localValues;
@@ -1059,20 +1062,20 @@ function summarizeAmbientCallEffects(ast,sourceType) {
     }
     if(value.type==='NewExpression') {
       const actualReceiver=receiver??value;
-      const classes=classNodesForValue(value.callee,seen);
+      const classes=classNodesForValue(value.callee,numericSeen);
       if(classes.length)
         return [...new Set(classes.flatMap(classNode=>
-          classMemberValueExpressionsForProperty(classNode,propertyKey,seen,actualReceiver)))];
+          classMemberValueExpressionsForProperty(classNode,propertyKey,numericSeen,actualReceiver)))];
       // Unknown constructor forms retain the constructor callable itself.
       // This is deliberately conservative until their instance-field writes
       // can be resolved with the same property-specific proof as class fields.
       if(value.callee.type==='Identifier')
-        return callableNodesForValue(value.callee,seen);
+        return callableNodesForValue(value.callee,numericSeen);
       if(value.callee.type==='MemberExpression') {
         const calleeKey=staticPropertyKey(value.callee.property,value.callee.computed);
         return calleeKey===null?
-          callableNodesForValue(value.callee.object,seen):
-          callableNodesForMemberValue(value.callee.object,calleeKey,seen);
+          callableNodesForValue(value.callee.object,numericSeen):
+          callableNodesForMemberValue(value.callee.object,calleeKey,numericSeen);
       }
       return [];
     }
@@ -1103,7 +1106,7 @@ function summarizeAmbientCallEffects(ast,sourceType) {
       }
       const explicitValues=dataProperty?[dataProperty.value]:
         getterProperty?functionReturnExpressions(getterProperty.value).flatMap(expression=>
-          memberReturnExpressionsWithReceiver(expression,actualReceiver,seen)):[ ];
+          memberReturnExpressionsWithReceiver(expression,actualReceiver,numericSeen)):[ ];
       // A later spread can overwrite an explicit key. An unknown computed key
       // can do the same even without a spread; only later candidates matter.
       const laterSpreadValues=value.properties.slice(lastMatchingIndex+1)
@@ -1116,12 +1119,12 @@ function summarizeAmbientCallEffects(ast,sourceType) {
         .flatMap((/** @type {AstNode} */ property)=>
           property.kind==='init'?[property.value]:
           property.kind==='get'?functionReturnExpressions(property.value).flatMap(expression=>
-            memberReturnExpressionsWithReceiver(expression,actualReceiver,seen)):[]);
+            memberReturnExpressionsWithReceiver(expression,actualReceiver,numericSeen)):[]);
       const prototypeSetter=value.properties.find((/** @type {AstNode} */ property)=>
         property.type==='Property'&&property.kind==='init'&&!property.method&&
         !property.computed&&staticPropertyKey(property.key,false)==='__proto__');
       const prototypeValues=prototypeSetter?
-        memberValueExpressionsForProperty(prototypeSetter.value,propertyKey,seen,actualReceiver):[];
+        memberValueExpressionsForProperty(prototypeSetter.value,propertyKey,numericSeen,actualReceiver):[];
       if(matching.length||laterComputedValues.length)
         return [...new Set([
           ...explicitValues,...laterSpreadValues,...laterComputedValues,
@@ -1162,33 +1165,33 @@ function summarizeAmbientCallEffects(ast,sourceType) {
     }
     if(value.type==='ConditionalExpression')
       return [...new Set([
-        ...memberValueExpressionsForProperty(value.consequent,propertyKey,seen),
-        ...memberValueExpressionsForProperty(value.alternate,propertyKey,seen)
+        ...memberValueExpressionsForProperty(value.consequent,propertyKey,numericSeen),
+        ...memberValueExpressionsForProperty(value.alternate,propertyKey,numericSeen)
       ])];
     if(value.type==='LogicalExpression')
       return [...new Set([
-        ...memberValueExpressionsForProperty(value.left,propertyKey,seen),
-        ...memberValueExpressionsForProperty(value.right,propertyKey,seen)
+        ...memberValueExpressionsForProperty(value.left,propertyKey,numericSeen),
+        ...memberValueExpressionsForProperty(value.right,propertyKey,numericSeen)
       ])];
     if(value.type==='SequenceExpression'&&value.expressions.length)
-      return memberValueExpressionsForProperty(value.expressions[value.expressions.length-1],propertyKey,seen);
+      return memberValueExpressionsForProperty(value.expressions[value.expressions.length-1],propertyKey,numericSeen);
     if(value.type==='AssignmentExpression')
-      return memberValueExpressionsForProperty(value.right,propertyKey,seen);
+      return memberValueExpressionsForProperty(value.right,propertyKey,numericSeen);
     if(value.type==='ChainExpression')
-      return memberValueExpressionsForProperty(value.expression,propertyKey,seen);
+      return memberValueExpressionsForProperty(value.expression,propertyKey,numericSeen);
     if(value.type==='SpreadElement')
-      return memberValueExpressionsForProperty(value.argument,propertyKey,seen);
+      return memberValueExpressionsForProperty(value.argument,propertyKey,numericSeen);
     if(value.type==='AwaitExpression'&&value.argument)
-      return memberValueExpressionsForProperty(value.argument,propertyKey,seen);
+      return memberValueExpressionsForProperty(value.argument,propertyKey,numericSeen);
     if(value.type==='CallExpression')
-      return [...new Set(callReturnExpressions(value,seen).flatMap(candidate=>
-        memberValueExpressionsForProperty(candidate,propertyKey,seen)))];
+      return [...new Set(callReturnExpressions(value,numericSeen).flatMap(candidate=>
+        memberValueExpressionsForProperty(candidate,propertyKey,numericSeen)))];
     if(value.type==='MemberExpression') {
       const innerKey=staticPropertyKey(value.property,value.computed);
       if(innerKey===null)return [];
-      const intermediate=memberValueExpressionsForProperty(value.object,innerKey,seen);
+      const intermediate=memberValueExpressionsForProperty(value.object,innerKey,numericSeen);
       return [...new Set(intermediate.flatMap(candidate=>
-        memberValueExpressionsForProperty(candidate,propertyKey,seen)))];
+        memberValueExpressionsForProperty(candidate,propertyKey,numericSeen)))];
     }
     return [];
   }
@@ -1225,13 +1228,16 @@ function summarizeAmbientCallEffects(ast,sourceType) {
    * @param {Set<number>} [seen]
    * @returns {AstNode[]}
    */
-  function getterNodesForMemberValue(value,propertyKey,seen=new Set()) {
+  function getterNodesForMemberValue(value,propertyKey,seen=new Set()) {    /** @type {Set<number>} */
+    const numericSeen=new Set();
+    for(const item of seen)if(typeof item==='number')numericSeen.add(item);
+
     if(value.type==='Identifier') {
       const reference=resolved.at(value.start);
       if(reference?.resolution.kind!=='local')return [];
       const bindingId=reference.resolution.bindingId;
-      if(seen.has(bindingId))return [];
-      const next=new Set(seen);
+      if(numericSeen.has(bindingId))return [];
+      const next=new Set(numericSeen);
       next.add(bindingId);
       const values=bindingValueExpressions.get(bindingId)??[];
       if(values.length)return [...new Set(values.flatMap(candidate=>
@@ -1261,36 +1267,36 @@ function summarizeAmbientCallEffects(ast,sourceType) {
         property.type==='Property'&&property.kind==='init'&&!property.method&&
         !property.computed&&staticPropertyKey(property.key,false)==='__proto__');
       return prototypeSetter?
-        getterNodesForMemberValue(prototypeSetter.value,propertyKey,seen):[];
+        getterNodesForMemberValue(prototypeSetter.value,propertyKey,numericSeen):[];
     }
     if(value.type==='NewExpression') {
-      const classes=classNodesForValue(value.callee,seen);
+      const classes=classNodesForValue(value.callee,numericSeen);
       return [...new Set(classes.flatMap(classNode=>
         classGetterNodesForProperty(classNode,propertyKey)))];
     }
     if(value.type==='ConditionalExpression')
-      return [...new Set([...getterNodesForMemberValue(value.consequent,propertyKey,seen),
-        ...getterNodesForMemberValue(value.alternate,propertyKey,seen)])];
+      return [...new Set([...getterNodesForMemberValue(value.consequent,propertyKey,numericSeen),
+        ...getterNodesForMemberValue(value.alternate,propertyKey,numericSeen)])];
     if(value.type==='LogicalExpression')
-      return [...new Set([...getterNodesForMemberValue(value.left,propertyKey,seen),
-        ...getterNodesForMemberValue(value.right,propertyKey,seen)])];
+      return [...new Set([...getterNodesForMemberValue(value.left,propertyKey,numericSeen),
+        ...getterNodesForMemberValue(value.right,propertyKey,numericSeen)])];
     if(value.type==='SequenceExpression'&&value.expressions.length)
-      return getterNodesForMemberValue(value.expressions[value.expressions.length-1],propertyKey,seen);
+      return getterNodesForMemberValue(value.expressions[value.expressions.length-1],propertyKey,numericSeen);
     if(value.type==='AssignmentExpression')
-      return getterNodesForMemberValue(value.right,propertyKey,seen);
+      return getterNodesForMemberValue(value.right,propertyKey,numericSeen);
     if(value.type==='ChainExpression')
-      return getterNodesForMemberValue(value.expression,propertyKey,seen);
+      return getterNodesForMemberValue(value.expression,propertyKey,numericSeen);
     if(value.type==='AwaitExpression'&&value.argument)
-      return getterNodesForMemberValue(value.argument,propertyKey,seen);
+      return getterNodesForMemberValue(value.argument,propertyKey,numericSeen);
     if(value.type==='MemberExpression') {
       const innerKey=staticPropertyKey(value.property,value.computed);
       if(innerKey===null)return [];
-      return [...new Set(memberValueExpressionsForProperty(value.object,innerKey,seen).flatMap(candidate=>
-        getterNodesForMemberValue(candidate,propertyKey,seen)))];
+      return [...new Set(memberValueExpressionsForProperty(value.object,innerKey,numericSeen).flatMap(candidate=>
+        getterNodesForMemberValue(candidate,propertyKey,numericSeen)))];
     }
     if(value.type==='CallExpression')
-      return [...new Set(callReturnExpressions(value,seen).flatMap(candidate=>
-        getterNodesForMemberValue(candidate,propertyKey,seen)))];
+      return [...new Set(callReturnExpressions(value,numericSeen).flatMap(candidate=>
+        getterNodesForMemberValue(candidate,propertyKey,numericSeen)))];
     return [];
   }
 
