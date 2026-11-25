@@ -76,9 +76,9 @@ Agent 2's 10,000-replicate exact-source Node replay passed all source/oracle, fi
 
 ### Peer workflow
 
-Peer workflow [45525969219](https://github.com/FlareZ123/obfs/actions/runs/45525969219) passed on Ubuntu and Windows at branch head `078b837829dab9281c7eea4f7264817621e88d3c`. It ran the independent exact Python check (including the full-direction dependence correction bound), strict JSDoc/syntax, 32 seven-direction finite cases covering 3,840 truth-table outputs, and an 18-trial no-witness fallback that exactly reconstructed all 128 width-seven inputs. On Ubuntu it also fetched the exact pinned Agent 2 DP source blob `0daaa5cd167502de15702bad780f31f901a25e71`, compiled and ran the exhaustive 2^21-state C++ DP, and asserted the output `best_cutoff=10 best_expected_witness_queries=84.502917281728`. The pre-existing six-direction peer/simulation suites also passed; those simulations continue to use the default six-direction policy.
+Peer workflow [45526497607](https://github.com/FlareZ123/obfs/actions/runs/45526497607) passed on Ubuntu and Windows at branch head `889ed26ef59ccf91cb919b9685651ba5f0311866`. It ran the independent exact Python check (including the full-direction dependence correction bound), strict JSDoc/syntax, 32 seven-direction finite cases covering 3,840 truth-table outputs, and an 18-trial no-witness fallback that exactly reconstructed all 128 width-seven inputs. On Ubuntu it also fetched the exact pinned Agent 2 DP source blob `0daaa5cd167502de15702bad780f31f901a25e71`, compiled and ran the exhaustive 2^21-state C++ DP, and asserted the output `best_cutoff=10 best_expected_witness_queries=84.502917281728`. The pre-existing six-direction peer/simulation suites also passed; those simulations continue to use the default six-direction policy.
 
-Artifacts: Ubuntu `14983065422`; Windows `14982073432`.
+Artifacts: Ubuntu `14982801727`; Windows `14981244992`.
 
 ### Live SCO/native HTTP workflow
 
