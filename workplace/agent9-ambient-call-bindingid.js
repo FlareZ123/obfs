@@ -1646,12 +1646,38 @@ function summarizeAmbientCallEffects(ast,sourceType) {
     return true;
   }
   /** @param {AstNode|null|undefined} value @param {AstNode|null} fn @returns {AstNode[]} */
+  /**
+   * Resolve callable values in the lexical receiver environment of a known
+   * function. This follows local aliases and value containers so an arrow's
+   * captured this is not lost merely because its result was assigned or wrapped.
+   * @param {AstNode|null|undefined} value
+   * @param {AstNode|null} fn
+   * @param {Set<unknown>} [seen]
+   * @returns {AstNode[]}
+   */
   function callableNodesForValueWithReceiver(value,fn,seen=new Set()) {
     if(!value)return [];
-    // A local arrow call can expose a this-bound value even when the call
-    // expression itself contains no ThisExpression. Resolve its return under
-    // the receiver environment attached to the arrow at its lexical creation
-    // site; ordinary functions keep their dynamic-this semantics.
+    if(value.type==='Identifier') {
+      const reference=resolved.at(value.start);
+      if(reference?.resolution.kind==='local') {
+        const bindingId=reference.resolution.bindingId;
+        if(!seen.has(bindingId)) {
+          const next=new Set(seen);
+          next.add(bindingId);
+          const initializer=constInitializersByBinding.get(bindingId);
+          const stored=[...(localRecordMemberValues.get(bindingId)?.values()??[])].flat();
+          const candidates=[
+            ...(bindingValueExpressions.get(bindingId)??[]),
+            ...stored,
+            ...(initializer?[initializer]:[])
+          ];
+          const contextual=candidates.flatMap(candidate=>
+            callableNodesForValueWithReceiver(candidate,fn,next));
+          if(contextual.length)
+            return [...new Set([...contextual,...callableNodesForValue(value)])];
+        }
+      }
+    }
     if(value.type==='CallExpression') {
       const targets=callableNodesForValue(value.callee);
       let hasReceiverBoundTarget=false;
@@ -1665,9 +1691,7 @@ function summarizeAmbientCallEffects(ast,sourceType) {
         return receivers.flatMap(receiver=>
           functionReturnExpressions(target).flatMap(expression=>
             memberReturnExpressionsWithReceiver(expression,receiver,new Set()).flatMap(candidate=>
-              candidate.type==='CallExpression'?
-                callableNodesForValueWithReceiver(candidate,target,next):
-                callableNodesForValue(candidate))));
+              callableNodesForValueWithReceiver(candidate,target,next))));
       });
       if(hasReceiverBoundTarget) {
         return [...new Set([
@@ -1676,6 +1700,41 @@ function summarizeAmbientCallEffects(ast,sourceType) {
         ])];
       }
     }
+    if(value.type==='ObjectExpression') {
+      const nested=value.properties.flatMap((/** @type {AstNode} */ property)=>
+        property.type==='SpreadElement'?
+          callableNodesForValueWithReceiver(property.argument,fn,seen):
+          property.type==='Property'?
+            callableNodesForValueWithReceiver(property.value,fn,seen):[]);
+      return [...new Set([...nested,...callableNodesForValue(value)])];
+    }
+    if(value.type==='ArrayExpression') {
+      const nested=value.elements.flatMap((/** @type {AstNode|null} */ element)=>
+        element?callableNodesForValueWithReceiver(element,fn,seen):[]);
+      return [...new Set([...nested,...callableNodesForValue(value)])];
+    }
+    if(value.type==='ConditionalExpression')
+      return [...new Set([
+        ...callableNodesForValueWithReceiver(value.consequent,fn,seen),
+        ...callableNodesForValueWithReceiver(value.alternate,fn,seen),
+        ...callableNodesForValue(value)
+      ])];
+    if(value.type==='LogicalExpression')
+      return [...new Set([
+        ...callableNodesForValueWithReceiver(value.left,fn,seen),
+        ...callableNodesForValueWithReceiver(value.right,fn,seen),
+        ...callableNodesForValue(value)
+      ])];
+    if(value.type==='SequenceExpression'&&value.expressions.length)
+      return callableNodesForValueWithReceiver(value.expressions[value.expressions.length-1],fn,seen);
+    if(value.type==='AssignmentExpression')
+      return callableNodesForValueWithReceiver(value.right,fn,seen);
+    if(value.type==='ChainExpression')
+      return callableNodesForValueWithReceiver(value.expression,fn,seen);
+    if(value.type==='SpreadElement')
+      return callableNodesForValueWithReceiver(value.argument,fn,seen);
+    if(value.type==='AwaitExpression'&&value.argument)
+      return callableNodesForValueWithReceiver(value.argument,fn,seen);
     let usesThis=false;
     walkAst(value,node=>{if(node.type==='ThisExpression'||node.type==='Super')usesThis=true;});
     if(!usesThis)return callableNodesForValue(value);
