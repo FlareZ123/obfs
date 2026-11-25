@@ -259,6 +259,51 @@ test('an optional dynamic key on a nested receiver remains fail-closed',()=>{
     'an optional dynamic member read must conservatively retain callables in its nested receiver');
 });
 
+test('a direct shared-reference alias preserves the instance callable',()=>{
+  const source=
+    'let owner;let alias;'+
+    'function hidden(){return 1;}'+
+    'class Local{callback=hidden;}'+
+    'function entry(){owner=new Local();alias=owner;external(alias.callback);}'+
+    'module.exports=entry;';
+  assertHeld(hiddenSummary(source),
+    'a second binding to the same instance must preserve the callable member value');
+});
+
+test('an object-record alias observes later nested member mutation',()=>{
+  const source=
+    'let holder;'+
+    'function hidden(){return 1;}'+
+    'class Local{callback=hidden;}'+
+    'function entry(){holder={};const alias=holder;holder.nested=new Local();external(alias.nested.callback);}'+
+    'module.exports=entry;';
+  assertHeld(hiddenSummary(source),
+    'a shared object alias must observe later property writes through the original binding');
+});
+
+test('a local mutator function preserves nested member values through its object parameter',()=>{
+  const source=
+    'function hidden(){return 1;}'+
+    'class Local{callback=hidden;}'+
+    'function install(target){target.nested=new Local();}'+
+    'function entry(){const holder={};const alias=holder;install(holder);external(alias.nested.callback);}'+
+    'module.exports=entry;';
+  assertHeld(hiddenSummary(source),
+    'a known local mutator call must connect its object parameter to the caller shared reference');
+});
+
+test('a factory returning a shared object preserves later nested callable mutations',()=>{
+  const source=
+    'let holder;'+
+    'function hidden(){return 1;}'+
+    'class Local{callback=hidden;}'+
+    'function getHolder(){return holder;}'+
+    'function entry(){holder={};holder.nested=new Local();external(getHolder().nested.callback);}'+
+    'module.exports=entry;';
+  assertHeld(hiddenSummary(source),
+    'a local factory return of a shared object must retain the current nested callable value');
+});
+
 test('an object-literal primitive getter does not retain an unrelated callable sibling',()=>{
   const source=
     'function hidden(){return 1;}'+
