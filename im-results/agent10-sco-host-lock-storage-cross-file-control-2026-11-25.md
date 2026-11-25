@@ -62,3 +62,6 @@ No production compiler source changed. This report is an intermediate negative r
 ## Final harness validation
 
 The JSDoc typing correction was validated on exact branch head `bcf20a54a8dcac8d89773de5a43673b1c941de36` by manual-browser run [45567742160](https://github.com/FlareZ123/obfs/actions/runs/45567742160). Both Storage browser target steps passed (classic-script same-file and this cross-file control), and the final strict DOM source-observation JSDoc step 52 passed. The full workflow remains RED only at the existing bound-runtime browser step 33 (`test/bound-runtime-interception-browser.js:52`, `0 !== 2)); Agent 10 separately diagnosed this as an obsolete hard-coded positive-yield assertion against the current fail-closed bound/exported callable proof. The cross-file control's negative result is unchanged.
+
+
+The cross-file control was also rerun in the complete successful manual-browser workflow [45568889102](https://github.com/FlareZ123/obfs/actions/runs/45568889102), exact branch head `8f0c1f3dd552dd308214f245b3f7ce53b536e376`; target step 8 passed and strict DOM-source JSDoc step 52 passed. The negative result remains unchanged: producer bindings 0, consumer bindings 1, source parity true, values 31/7 preserved, host allow/deny correct. Full workflow success is test-only and does not generalize this one fixture to all cross-file sinks.
