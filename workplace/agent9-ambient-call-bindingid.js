@@ -1252,6 +1252,71 @@ function summarizeAmbientCallEffects(ast,sourceType) {
     return [];
   }
 
+  /** @param {AstNode} value @param {Set<number>} [seen] @returns {AstNode[]} */
+  function allGetterNodesForMemberValue(value,seen=new Set()) {
+    if(value.type==='Identifier') {
+      const reference=resolved.at(value.start);
+      if(reference?.resolution.kind!=='local')return [];
+      const bindingId=reference.resolution.bindingId;
+      if(seen.has(bindingId))return [];
+      const next=new Set(seen);
+      next.add(bindingId);
+      const values=bindingValueExpressions.get(bindingId)??[];
+      if(values.length)return [...new Set(values.flatMap(candidate=>
+        allGetterNodesForMemberValue(candidate,next)))];
+      const initializer=constInitializersByBinding.get(bindingId);
+      return initializer?allGetterNodesForMemberValue(initializer,next):[];
+    }
+    if(value.type==='ObjectExpression') {
+      const ownGetters=value.properties.filter((/** @type {AstNode} */ property)=>
+        property.type==='Property'&&property.kind==='get').map((/** @type {AstNode} */ property)=>property.value);
+      const prototypeSetter=value.properties.find((/** @type {AstNode} */ property)=>
+        property.type==='Property'&&property.kind==='init'&&!property.method&&
+        !property.computed&&staticPropertyKey(property.key,false)==='__proto__');
+      const inherited=prototypeSetter?
+        allGetterNodesForMemberValue(prototypeSetter.value,seen):[];
+      return [...new Set([...ownGetters,...inherited])];
+    }
+    if(value.type==='NewExpression') {
+      const classes=classNodesForValue(value.callee,seen);
+      return [...new Set(classes.flatMap(classNode=>allClassGetterNodes(classNode)))];
+    }
+    if(value.type==='ConditionalExpression')
+      return [...new Set([...allGetterNodesForMemberValue(value.consequent,seen),
+        ...allGetterNodesForMemberValue(value.alternate,seen)])];
+    if(value.type==='LogicalExpression')
+      return [...new Set([...allGetterNodesForMemberValue(value.left,seen),
+        ...allGetterNodesForMemberValue(value.right,seen)])];
+    if(value.type==='SequenceExpression'&&value.expressions.length)
+      return allGetterNodesForMemberValue(value.expressions[value.expressions.length-1],seen);
+    if(value.type==='AssignmentExpression')return allGetterNodesForMemberValue(value.right,seen);
+    if(value.type==='ChainExpression')return allGetterNodesForMemberValue(value.expression,seen);
+    if(value.type==='AwaitExpression'&&value.argument)
+      return allGetterNodesForMemberValue(value.argument,seen);
+    if(value.type==='MemberExpression') {
+      const key=staticPropertyKey(value.property,value.computed);
+      if(key===null)return [];
+      return [...new Set(memberValueExpressionsForProperty(value.object,key,seen).flatMap(candidate=>
+        allGetterNodesForMemberValue(candidate,seen)))];
+    }
+    if(value.type==='CallExpression')
+      return [...new Set(callReturnExpressions(value,seen).flatMap(candidate=>
+        allGetterNodesForMemberValue(candidate,seen)))];
+    return [];
+  }
+
+  /** @param {AstNode} classNode @param {Set<AstNode>} [seen] @returns {AstNode[]} */
+  function allClassGetterNodes(classNode,seen=new Set()) {
+    if(seen.has(classNode))return [];
+    const next=new Set(seen);
+    next.add(classNode);
+    const own=classNode.body.body.filter((/** @type {AstNode} */ element)=>
+      element.type==='MethodDefinition'&&element.kind==='get'&&!element.static)
+      .map((/** @type {AstNode} */ element)=>element.value);
+    const parents=classNode.superClass?classNodesForValue(classNode.superClass,new Set()):[];
+    return [...new Set([...own,...parents.flatMap(parent=>allClassGetterNodes(parent,next))])];
+  }
+
   /** @param {AstNode} classNode @param {string} propertyKey @param {Set<AstNode>} [seen] @returns {AstNode[]} */
   function classGetterNodesForProperty(classNode,propertyKey,seen=new Set()) {
     if(seen.has(classNode))return [];
@@ -1728,10 +1793,12 @@ function summarizeAmbientCallEffects(ast,sourceType) {
         const receiverCandidates=node.object.type==='ThisExpression'||node.object.type==='Super'?
           ownerFunction?receiverExpressionsByFunction.get(ownerFunction)??[]:[]:[node.object];
         const key=staticPropertyKey(node.property,node.computed);
-        if(key===null)return;
-        for(const receiver of receiverCandidates)
-          for(const getter of getterNodesForMemberValue(receiver,key))
+        for(const receiver of receiverCandidates) {
+          const getters=key===null?allGetterNodesForMemberValue(receiver):
+            getterNodesForMemberValue(receiver,key);
+          for(const getter of getters)
             if(addReceiverExpression(getter,receiver))receiverMapChanged=true;
+        }
       }
     });
   }
