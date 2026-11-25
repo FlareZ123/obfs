@@ -2425,7 +2425,7 @@ function summarizeAmbientCallEffects(ast,sourceType) {
   const externalReturnQueue=[];
   for(const source of externallyReachableFunctions) {
     for(const returned of functionReturnExpressions(source)) {
-      for(const target of callableNodesForValue(returned))
+      for(const target of callableNodesForValueWithReceiver(returned,source))
         externalReturnQueue.push({target,source});
     }
   }
@@ -2440,7 +2440,7 @@ function summarizeAmbientCallEffects(ast,sourceType) {
       targetStart:item.source.start
     },'HostHeldCallable');
     for(const returned of functionReturnExpressions(item.target)) {
-      for(const target of callableNodesForValue(returned))
+      for(const target of callableNodesForValueWithReceiver(returned,item.target))
         externalReturnQueue.push({target,source:item.target});
     }
   }
