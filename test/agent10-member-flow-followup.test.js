@@ -141,6 +141,30 @@ test('a callable returned from an inherited getter remains held by the generic r
     'the property-value resolver must include callable values returned by inherited getters');
 });
 
+test('a dynamic key after a nested mutable factory alias cannot hide a field callable',()=>{
+  const source=
+    'let holder;let key;'+
+    'function hidden(){return 1;}'+
+    'class Local{callback=hidden;}'+
+    'const create=()=>({nested:new Local()});'+
+    'function leak(){external(holder.nested[key]);}'+
+    'function entry(){holder=create();key="callback";leak();}'+
+    'module.exports=entry;';
+  assertHeld(hiddenSummary(source),
+    'a dynamic key on a nested member receiver must retain all callables in the known receiver');
+});
+
+test('a dynamic key after a nested factory-call member cannot hide a field callable',()=>{
+  const source=
+    'function hidden(){return 1;}'+
+    'class Local{callback=hidden;}'+
+    'const create=()=>({nested:new Local()});'+
+    'function entry(){external(create().nested[key]);}'+
+    'module.exports=entry;';
+  assertHeld(hiddenSummary(source),
+    'a dynamic key on a factory-call result must retain all callables in the known nested receiver');
+});
+
 test('an object-literal primitive getter does not retain an unrelated callable sibling',()=>{
   const source=
     'function hidden(){return 1;}'+
