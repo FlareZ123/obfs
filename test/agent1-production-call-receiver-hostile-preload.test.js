@@ -52,7 +52,7 @@ test('production cross-file proof refuses a property reached only through call r
       'import {state} from "./state.mjs";',
       'function read(){return this.secretField;}',
       'mutate(read);',
-      'if(read.call(state)!==59)throw new Error('receiver property changed');'
+      'if(read.call(state)!==59)throw new Error("receiver property changed");'
     ].join('\n')}
   ];
   const expected=await execute(files,hostilePreload);
@@ -87,52 +87,52 @@ const productionMutationCases=[
   {
     name:'destructured Object.defineProperty',
     setup:'const {defineProperty}=Object;defineProperty(Function.prototype,"call",{value:function(receiver){return receiver.secretField;}});',
-    invoke:'if(read.call(state)!==59)throw new Error('receiver property changed');'
+    invoke:'if(read.call(state)!==59)throw new Error("receiver property changed");'
   },
   {
     name:'globalThis.Object mutator alias',
     setup:'const objectConstructor=globalThis.Object;const define=objectConstructor.defineProperty;define(Function.prototype,"call",{value:function(receiver){return receiver.secretField;}});',
-    invoke:'if(read.call(state)!==59)throw new Error('receiver property changed');'
+    invoke:'if(read.call(state)!==59)throw new Error("receiver property changed");'
   },
   {
     name:'destructured Reflect.set replacing Reflect.apply',
     setup:'const {set}=Reflect;set(Reflect,"apply",function(fn,receiver,args){return receiver.secretField;});',
-    invoke:'if(Reflect.apply(read,state,[])!==59)throw new Error('receiver property changed');'
+    invoke:'if(Reflect.apply(read,state,[])!==59)throw new Error("receiver property changed");'
   },
   {
     name:'globalThis.Reflect replacement',
     setup:'globalThis.Reflect={apply:function(fn,receiver,args){return receiver.secretField;}};',
-    invoke:'if(Reflect.apply(read,state,[])!==59)throw new Error('receiver property changed');'
+    invoke:'if(Reflect.apply(read,state,[])!==59)throw new Error("receiver property changed");'
   },
   {
     name:'Function constructor mutation',
     setup:'Function("Function.prototype.call=function(receiver){return receiver.secretField;}")();',
-    invoke:'if(read.call(state)!==59)throw new Error('receiver property changed');'
+    invoke:'if(read.call(state)!==59)throw new Error("receiver property changed");'
   },
   {
     name:'destructured Reflect.setPrototypeOf local call shadow',
     setup:'const {setPrototypeOf}=Reflect;setPrototypeOf(read,{call:function(receiver){return receiver.secretField;}});',
-    invoke:'if(read.call(state)!==59)throw new Error('receiver property changed');'
+    invoke:'if(read.call(state)!==59)throw new Error("receiver property changed");'
   },
   {
     name:'legacy Object.prototype.__defineGetter__',
     setup:'Object.prototype.__defineGetter__.call(Function.prototype,"call",function(){return function(receiver){return receiver.secretField;};});',
-    invoke:'if(read.call(state)!==59)throw new Error('receiver property changed');'
+    invoke:'if(read.call(state)!==59)throw new Error("receiver property changed");'
   },
   {
     name:'computed Function.prototype key',
     setup:'const key="call";Function.prototype[key]=function(receiver){return receiver.secretField;};',
-    invoke:'if(read.call(state)!==59)throw new Error('receiver property changed');'
+    invoke:'if(read.call(state)!==59)throw new Error("receiver property changed");'
   },
   {
     name:'window.Object alias',
     setup:'globalThis.window=globalThis;window.Object.defineProperty(Function.prototype,"call",{value:function(receiver){return receiver.secretField;}});',
-    invoke:'if(read.call(state)!==59)throw new Error('receiver property changed');'
+    invoke:'if(read.call(state)!==59)throw new Error("receiver property changed");'
   },
   {
     name:'host preloader mutates escaped function',
     setup:'mutate(read);',
-    invoke:'if(read.call(state)!==59)throw new Error('receiver property changed');',
+    invoke:'if(read.call(state)!==59)throw new Error("receiver property changed");',
     preload:hostilePreload
   }
 ];
