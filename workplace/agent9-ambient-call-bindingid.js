@@ -1381,8 +1381,15 @@ function summarizeAmbientCallEffects(ast,sourceType) {
    * @returns {AstNode[]}
    */
   function callableNodesForMemberValue(value,propertyKey,seen=new Set()) {
-    return [...new Set(memberValueExpressionsForProperty(value,propertyKey,seen)
-      .flatMap(candidate=>callableNodesForValue(candidate,seen)))];
+    const direct=memberValueExpressionsForProperty(value,propertyKey,seen)
+      .flatMap(candidate=>callableNodesForValue(candidate,seen));
+    // A getter is executed as part of the property read itself. Resolve its
+    // returned value in the getter's receiver environment instead of relying
+    // on the generic local-return escape rule.
+    const getterReturns=getterNodesForMemberValue(value,propertyKey,seen).flatMap(getter=>
+      functionReturnExpressions(getter).flatMap(expression=>
+        callableNodesForValueWithReceiver(expression,getter)));
+    return [...new Set([...direct,...getterReturns])];
   }
 
   /**
