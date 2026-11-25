@@ -398,6 +398,11 @@ function summarizeAmbientCallEffects(ast,sourceType) {
     } else if(node.type==='VariableDeclarator'&&node.id.type==='Identifier'&&node.init) {
       const id=declarationByNode.get(node.id)?.bindingId??null;
       if(id!==null)addBindingValueExpression(id,node.init);
+    } else if(node.type==='AssignmentPattern'&&node.left.type==='Identifier'&&node.right) {
+      // Default parameter and destructuring defaults are runtime writes to
+      // their binding; retain the initializer for later closure/value-flow.
+      const id=declarationByNode.get(node.left)?.bindingId??null;
+      if(id!==null)addBindingValueExpression(id,node.right);
     } else if(node.type==='AssignmentExpression'&&node.left.type==='Identifier') {
       const reference=resolved.at(node.left.start);
       if(reference?.resolution.kind==='local')
@@ -885,6 +890,10 @@ function summarizeAmbientCallEffects(ast,sourceType) {
         markCallableValuesHeld(parent.init,'host-held-callable',node.start,node.end);
       else if(parent?.type==='AssignmentExpression')
         markCallableValuesHeld(parent.right,'host-held-callable',node.start,node.end);
+    } else if(node.type==='AssignmentPattern'&&node.left.type!=='Identifier'&&node.right) {
+      // Complex parameter defaults are not yet decomposed into per-binding
+      // flows; fail closed on callable values in the default expression.
+      markCallableValuesHeld(node.right,'host-held-callable',node.start,node.end);
     } else if(node.type==='DebuggerStatement') {
       for(const target of allFunctionNodes)
         addReason(target,{kind:'debugger-local-scope',start:node.start,end:node.end},'HostHeldCallable');
