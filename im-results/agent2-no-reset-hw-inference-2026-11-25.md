@@ -7,6 +7,7 @@
 A corrected evaluator distinguishes full initial-machine equivalence from future behavior after the observed no-reset trace. In the pinned 22-run benchmark:
 
 - **22/22** runs completed without timeout or error.
+- **7/7** evaluator and accounting tests passed, including a positive false-future-convergence control.
 - **20/22** uniquely identified a trace-consistent initial hypothesis state that was product-equivalent to the target initial state.
 - **2/22** had ambiguous initial-state candidates (one equivalent and one non-equivalent to the target initial state).
 - In **both** ambiguous cases, every candidate's post-trace state was product-equivalent to the target's post-trace state.
@@ -49,10 +50,11 @@ For each pair it performs two separate exact BFS product checks:
 
 The report keeps distinct fields for unique initial-state identification, initial behavior identification, future behavior identification, ambiguous initial/future behavior, no trace-consistent candidates, false initial convergence, and false future convergence. The exact BFS checks are evaluator-only.
 
-The test suite covers:
+The seven-test suite covers:
 - ambiguous initial states that nevertheless converge to one target-equivalent future behavior;
 - an ambiguous candidate whose post-trace behavior is wrong, which must block future-clone success;
 - no trace-consistent candidate, which must not be mislabeled false convergence;
+- a complete but wrong future hypothesis, which must be counted as false future convergence;
 - deterministic fixture/trace SHA-256 digests;
 - the accounting identity for oracle versus total SUL steps.
 
@@ -86,7 +88,7 @@ For all 22 runs, AALpy's raw **steps_learning** equaled total SUL steps, and raw
 \text{steps}_{\text{oracle}}.
 \]
 
-The complete benchmark took 0.123 seconds on the GitHub Actions runner. This is an in-process Python measurement, not an HTTP, browser, Node.js, or end-to-end SCO runtime measurement.
+The complete benchmark took 0.117 seconds on the GitHub Actions runner. This is an in-process Python measurement, not an HTTP, browser, Node.js, or end-to-end SCO runtime measurement.
 
 ### The two ambiguous initial-state cases
 
@@ -103,7 +105,7 @@ Both cases therefore have ambiguous initial behavior but identified future behav
 
 ### Reproduction identifiers
 
-The corrected benchmark was run by manual workflow **45592728133**, on source commit **4671c3a7144118aa1fcb160568375dfb637ff66c**, using AALpy 2.0.0. The artifact is **agent2-no-reset-hw-benchmark** (artifact ID **15011897313**, SHA-256 **c37946e58562c2c7bb41b76c9d4467bac7e1fc230d897a4309cfd8b5b150d6ba**).
+The final corrected benchmark was run by manual workflow **45593620264**, on head commit **eb2dac841626f37b4c48dcd68d6343e2ccf4c82d** (source evaluator commit **4671c3a7144118aa1fcb160568375dfb637ff66c**), using AALpy 2.0.0. All seven tests passed before the 22-run experiment. The artifact is **agent2-no-reset-hw-benchmark** (artifact ID **15011374570**, SHA-256 **f70a2a37ceafd2080ca99407a43ec1cb7f5c25e4bee874887ee56c770a01d145**).
 
 The two ambiguous cases are pinned by these SHA-256 digests:
 
