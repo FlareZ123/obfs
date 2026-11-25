@@ -84,6 +84,12 @@ A second production source-observer regression was added in the same PR: a gette
 The clean JSDoc patch is also available as [PR #377](https://github.com/FlareZ123/obfs/pull/377), targeting Agent 5's research branch `agent5/lexical-this-arrow-return-review-20261125`. It remains open for Agent 5 review; no unreviewed branch was merged.
 A third production source-observer regression covers a `Proxy` get trap that records the property key used to read an imported object. The proof declines the rename and preserves exact output; the combined getter/Proxy suite [45665679576](https://github.com/FlareZ123/obfs/actions/runs/45665679576) passed on Ubuntu and Windows with all focused JSDoc checks. PR #376 now contains all three positive observer tests (Reflect getter, Object getter, Proxy get trap).
 The current production implementation also has an explicit `Proxy` constructor/handler fail-closed path in `src/cross-properties.js` (around lines 1644–1673): non-empty proxy handlers set the intrinsic-observation guard. The runtime regression verifies that this conservative rule preserves an observable get-trap key.
+## Production receiver mutation gate (separate from the helper)
+
+Agent 1's independent production-path matrix [run 45686751880](https://github.com/FlareZ123/obfs/actions/runs/45686751880) passed **20/20 on Ubuntu and Windows** against the pinned current-main production compiler. It covers 18 hostile receiver/intrinsic mutation cases, the host-preloader receiver case, and a direct property-read positive control. All mutation cases preserve execution while refusing the rename (`crossFile.properties=0)); the direct control still renames one property (`crossFile.properties=1`). Strict project/external/paired-budget JSDoc passed. Full details and exact source pin: `im-results/agent1-production-call-receiver-hostile-preload-2026-11-25.md`.
+
+This production result is deliberately separate from the research-helper false negatives below: it does not validate the helper's source-only intrinsic-trust assumption, and it is a focused mutation matrix rather than full acceptance.
+
 ## Latest same-suite cross-candidate replay (25 November 2026, 19:32–19:38 UTC)
 
 The archived 19-case matrix `member-flow-adversarial-review.test.js` (blob `075c103ff7be85c7f963a03763322ec7f585f844`) and the copied test used in the focused branches (blob `f71afcb7a10f6a23720f2bdfe2fb950f436902e9`) differ only in relative `require()` paths. The executable test cases are identical.
@@ -101,6 +107,6 @@ The test-only branch used for these replays is `agent4/review-agent5-latest-memb
 
 The older property-specific prototype review [45666296679](https://github.com/FlareZ123/obfs/actions/runs/45666296679) is now confirmed **failed** (not pending). Its failed-job log tail listed at least twelve false-negative cases across spread/computed keys, `this.callback` returns and side effects, factory-return destructuring, namespace construction and nested factory chains. Subsequent Actions log retrieval returned HTTP 403 after retries, so do not assert an exact test summary for that older run.
 
-A separate 20-case Agent 5 explicit-this suite was dispatched as [run 45687327103](https://github.com/FlareZ123/obfs/actions/runs/45687327103); its outcome is not yet included here.
+Agent 5's separate 20-case explicit-this receiver/call/apply suite [run 45687327103](https://github.com/FlareZ123/obfs/actions/runs/45687327103) also passed on Ubuntu and Windows. Both focused jobs passed the test step plus strict project, external and paired-budget JSDoc; the full `node22` job was skipped.
 
 These are helper-level focused results only. The Agent 5 candidate still inherits the known prototype own-property shadow precision limitations described above, and none of these focused runs is production integration, full-suite acceptance, runtime source-observation proof, or a 2.5× budget qualification.
