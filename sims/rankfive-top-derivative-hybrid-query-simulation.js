@@ -97,7 +97,16 @@ async function main() {
   const hybridTrials=[];
   /** @type {number[]} */
   const pairedSavings=[];
+  /** @type {number[]} */
+  const promiseHybridQueries=[];
+  /** @type {number[]} */
+  const promiseWitnessTrials=[];
+  /** @type {number[]} */
+  const promiseFastQueries=[];
+  /** @type {number[]} */
+  const promiseSavings=[];
   let hybridFallbacks=0;
+  let promiseFallbacks=0;
   let baselineFailures=0;
 
   for(let replicate=0;replicate<replicates;replicate++){
@@ -126,10 +135,44 @@ async function main() {
         'top-derivative hybrid model failed an independent simulation holdout');
     }
     pairedSavings.push(baseline.queries-hybrid.queries);
+
+    // The source hash and promise checker above establish this exact
+    // projected-affine family. This separate run deliberately skips the
+    // RM verifier; it must not be generalized to arbitrary degree-five oracles.
+    const promiseHybrid=cloneTopDerivativeProjectedAffine(
+      oracle,32,
+      seededWordGenerator(0x55000000+replicate),
+      () => {throw new Error('assume-projected-affine mode must not draw verifier words');},
+      1e-10,
+      () => {},
+      'seven-direction-restart',
+      'assume-projected-affine'
+    );
+    assert.equal(promiseHybrid.diagnostics.verificationMode,'assume-projected-affine');
+    assert.equal(promiseHybrid.diagnostics.promiseAssumed,true);
+    assert.equal(promiseHybrid.diagnostics.verificationSamples,0);
+    assert.equal(promiseHybrid.diagnostics.verificationPassed,null);
+    assert.equal(promiseHybrid.diagnostics.falseAcceptanceBound,null);
+    assert.equal(promiseHybrid.diagnostics.coordinateStrategy,'shift');
+    assert.equal(promiseHybrid.diagnostics.fixedPairPassed,true);
+    assert.equal(promiseHybrid.diagnostics.fallbackUsed,false);
+    assert.ok(promiseHybrid.queries<=1753);
+    promiseHybridQueries.push(promiseHybrid.queries);
+    promiseWitnessTrials.push(promiseHybrid.diagnostics.witnessTrials);
+    promiseFastQueries.push(promiseHybrid.diagnostics.fastQueries);
+    promiseSavings.push(baseline.queries-promiseHybrid.queries);
+    if(promiseHybrid.diagnostics.fallbackUsed)promiseFallbacks++;
+    const promiseHeldout=seededWordGenerator(0x56000000+replicate);
+    for(let i=0;i<64;i++){
+      const input=promiseHeldout();
+      assert.equal(evaluateHybridModel(promiseHybrid.model,input),oracle(input),
+        'assumed projected-affine model failed an independent simulation holdout');
+    }
   }
 
   const baselineMean=mean(baselineQueries);
   const hybridMean=mean(hybridQueries);
+  const promiseHybridMean=mean(promiseHybridQueries);
   const summary={
     replicates,
     sourceHash:sourcePromise.sourceHash,
@@ -163,8 +206,29 @@ async function main() {
       meanReductionPercent:100*(baselineMean-hybridMean)/baselineMean,
       fractionHybridLower:pairedSavings.filter(value=>value>0).length/replicates
     },
+    promiseHybrid:{
+      verificationMode:'assume-projected-affine',
+      promiseAssumed:true,
+      verifierSamples:0,
+      queryCap:1753,
+      meanQueries:promiseHybridMean,
+      medianQueries:median(promiseHybridQueries),
+      p10Queries:percentile(promiseHybridQueries,0.10),
+      p90Queries:percentile(promiseHybridQueries,0.90),
+      p95Queries:percentile(promiseHybridQueries,0.95),
+      maxQueries:Math.max(...promiseHybridQueries),
+      meanWitnessTrials:mean(promiseWitnessTrials),
+      maxFastQueries:Math.max(...promiseFastQueries),
+      fallbacks:promiseFallbacks
+    },
+    promiseComparison:{
+      meanQueryDifference:baselineMean-promiseHybridMean,
+      meanReductionPercent:100*(baselineMean-promiseHybridMean)/baselineMean,
+      sampleDesign:'Descriptive difference using separate deterministic SHA-256 counter tapes; not matched-pair inference.'
+    },
     drawMethod:'deterministic SHA-256 counter tapes; reproducible simulation only, not an independence proof',
-    arrays:{baselineQueries,hybridQueries,baselineAttempts,hybridTrials,pairedSavings}
+    arrays:{baselineQueries,hybridQueries,baselineAttempts,hybridTrials,pairedSavings,
+      promiseHybridQueries,promiseWitnessTrials,promiseFastQueries,promiseSavings}
   };
   fs.writeFileSync(
     'rankfive-top-derivative-hybrid-query-simulation.json',
