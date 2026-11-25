@@ -48,6 +48,36 @@ The global second-best cutoff is 9, leaving a 0.1532589045 gap to the m=7 optimu
 
 The canonical winning graph has complement-pair edges with indices 1 through 10 under the lexicographic \(\binom{[7]}2\) indexing. It is isomorphic to the existing m=7 \(K_{2,5}\) face set. Its optimal order is one five-edge star followed by the other.
 
+#### Corrected best score by m=7 face cutoff
+
+The final 64-bit-significand long-double DP reports the following best score for each cutoff. The last column is the number of universally omitted directions in that cutoff's best graph.
+
+| Face cutoff k | Best expected total queries | Uncacheable directions t |
+|---:|---:|---:|
+| 1 | 176.032957 | 2 |
+| 2 | 168.687199 | 1 |
+| 3 | 164.951885 | 1 |
+| 4 | 162.967427 | 1 |
+| 5 | 161.950112 | 1 |
+| 6 | 161.435621 | 1 |
+| 7 | 161.397515 | 0 |
+| 8 | 160.988768 | 0 |
+| 9 | 160.703124 | 0 |
+| 10 | **160.549865** | **0** |
+| 11 | 160.863477 | 0 |
+| 12 | 161.492080 | 0 |
+| 13 | 161.833990 | 0 |
+| 14 | 162.061685 | 0 |
+| 15 | 162.337484 | 0 |
+| 16 | 163.065670 | 0 |
+| 17 | 163.325512 | 0 |
+| 18 | 163.587415 | 0 |
+| 19 | 164.017595 | 0 |
+| 20 | 164.276400 | 0 |
+| 21 | 164.534637 | 0 |
+
+The global runner-up is cutoff 9 at 160.70312352815739312; the long-double global winner is cutoff 10 at 160.549864623621688. The model gap is 0.153258904535704 expected queries.
+
 ### Follow-up: cache completeness in the m=7 graph-class search
 
 A direction's singleton oracle value is cached in a failed trial iff that direction appears in at least one tested face. In the graph representation, an edge is an omitted pair. A vertex of degree k (incident to every selected edge) is therefore omitted from every face, so its singleton is not cached. The first m=7 graph-search implementation treated every prior-trial direction as singleton-cached; that was exact for graphs with no universal vertex, but optimistic for graphs with one or two universal vertices.
@@ -84,7 +114,7 @@ This is below 0.9% of the 0.153258904535 model gap between the K2,5 winner (160.
 
 ### Numerical qualification
 
-The graph-class search enumerates all 1,044 unlabeled seven-vertex graphs and all face orders, but its C++ DP uses double state costs with long-double rank coefficients. The winner and the best cutoff-9/10/11 candidates are independently re-evaluated with exact Python Fraction arithmetic; the complete 1,044-graph ranking is not yet accompanied by a formal interval-arithmetic certificate. Treat the exhaustive ranking as numerically reproduced with a large margin, not as an all-candidate rational-arithmetic proof.
+The graph-class search enumerates all 1,044 unlabeled seven-vertex graphs and all face orders. Its C++ DP uses long-double state costs and long-double rank coefficients. The source has a compile-time requirement of at least 64 significand bits; the clean-checkout workflow verifies `long_double_digits=64` on Ubuntu x86_64. Final manual workflow run [45574075573](https://github.com/FlareZ123/obfs/actions/runs/45574075573) passed the exact m7/m8 checks, all 465 pair-signature checks, the 10,000-replicate seeded replay, graph-atlas generation, and the extended-precision C++ search. The winner and best cutoff-9/10/11 candidates are independently re-evaluated with exact Python Fraction arithmetic; the complete 1,044-graph ranking is not yet accompanied by a formal interval-arithmetic certificate. Treat the exhaustive ranking as extended-precision reproduced with a large margin, not as an all-candidate rational-arithmetic proof.
 
 ### m=8 fixed-set order optimization
 
