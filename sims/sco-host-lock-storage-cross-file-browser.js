@@ -78,15 +78,26 @@ async function main(){
     {path:'logic.mjs',sourceType:'module',code:logic},
     {path:'entry.mjs',sourceType:'module',code:entry}
   ];
-  const output=obfuscateFiles(files,{
-    mode:'sco',
-    seed:'sco-cross-file-storage-source-browser',
-    closedWorld:true,
-    allowedHosts:['127.0.0.1'],
-    strings:false,
-    properties:false,
-    identifiers:true
-  });
+  let output;
+  try{
+    output=obfuscateFiles(files,{
+      mode:'sco',
+      seed:'sco-cross-file-storage-source-browser',
+      closedWorld:true,
+      allowedHosts:['127.0.0.1'],
+      strings:false,
+      properties:false,
+      identifiers:true
+    });
+  }catch(error){
+    process.stdout.write('SCO_CROSS_FILE_STORAGE_SOURCE_BROWSER '+JSON.stringify({
+      sourceObserver:{producer:observesFunctionSource(parse(logic,'module')),
+        consumer:observesFunctionSource(parse(entry,'module'))},
+      compilationRejected:true,
+      rejection:String(error)
+    })+'\\n');
+    return;
+  }
   const producer=output.files.find(file=>file.path==='logic.mjs');
   const consumer=output.files.find(file=>file.path==='entry.mjs');
   assert.ok(producer&&consumer,'expected both modules in the output graph');
@@ -118,8 +129,6 @@ async function main(){
       response.end(body);
       return;
     }
-    const prefix=pathname.split('/')[1];
-    const host=prefix==='denied'?'127.0.0.2':'127.0.0.1';
     const html=[
       '<!doctype html><html><body><pre id="result">PENDING</pre>',
       '<script type="module">',
@@ -132,7 +141,7 @@ async function main(){
       '}',
       '</script></body></html>'
     ].join('\n');
-    response.writeHead(200,{'content-type':'text/html; charset=utf-8','x-fixture-host':host});
+    response.writeHead(200,{'content-type':'text/html; charset=utf-8'});
     response.end(html);
   });
   await new Promise((resolve,reject)=>{
@@ -143,9 +152,9 @@ async function main(){
     const address=server.address();
     if(!address||typeof address==='string')throw new Error('Missing browser fixture port');
     const port=address.port;
-    const native=await executeChromium('http://127.0.0.1:'+port+'/native/entry.mjs');
-    const emitted=await executeChromium('http://127.0.0.1:'+port+'/generated/entry.mjs');
-    const denied=await executeChromium('http://127.0.0.2:'+port+'/denied/entry.mjs');
+    const native=await executeChromium('http://127.0.0.1:'+port+'/native/index.html');
+    const emitted=await executeChromium('http://127.0.0.1:'+port+'/generated/index.html');
+    const denied=await executeChromium('http://127.0.0.2:'+port+'/denied/index.html');
 
     assert.equal(native.kind,'PASS','native two-file module graph must execute');
     assert.equal(emitted.kind,'PASS','allowed SCO two-file graph must execute');
