@@ -144,6 +144,34 @@ test('an unknown computed key before an explicit property is shadowed',()=>{
   assert.equal(summary.safe,true);
 });
 
+test('an unknown array member call can return a host-held callable',()=>{
+  const source=
+    'function hidden(){const state={secret:7};return state.secret;}'+
+    'const owner=[hidden];'+
+    'external(owner.at(0));';
+  const summary=hiddenSummary(source);
+  const [captured]=execute(source);
+  assert.equal(captured?.name,'hidden',
+    'Array.prototype.at returns the local function stored in the receiver');
+  assert.match(String(captured),/state\.secret/);
+  assert.equal(summary.hostHeldCallable,true,
+    'an unresolved member call may return a callable from its receiver');
+  assert.equal(summary.safe,false);
+});
+
+test('an array mutator return can expose a host-held callable',()=>{
+  const source=
+    'function hidden(){const state={secret:7};return state.secret;}'+
+    'const owner=[hidden];'+
+    'external(owner.pop());';
+  const summary=hiddenSummary(source);
+  const [captured]=execute(source);
+  assert.equal(captured?.name,'hidden',
+    'Array.prototype.pop returns the local function removed from the receiver');
+  assert.equal(summary.hostHeldCallable,true);
+  assert.equal(summary.safe,false);
+});
+
 test('an object-literal prototype setter can supply the observed callable',()=>{
   const source=
     'function hidden(){const state={secret:7};return state.secret;}'+
