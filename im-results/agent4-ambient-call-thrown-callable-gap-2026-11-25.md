@@ -4,8 +4,8 @@
 **Status:** intermediate research result; donor-only experiment, no production change, no PR  
 **Donor base:** `agent9/ambient-call-bindingid-20261124`  
 **Experiment branch:** [`agent4/agent9-throw-callable-review-20261125`](https://github.com/FlareZ123/obfs/tree/agent4/agent9-throw-callable-review-20261125)  
-**Final experiment head:** `07a53e6490c621d9a5ad74043a06d98142e074dc`  
-**Final implementation commit:** `4828dec1ae125b7e99d7180891d33a81607cd6da`
+**Final experiment head:** `bb3728269eea0b9e6de6f3702e2adf4f7ac56a37`  
+**Final implementation commit:** `bb3728269eea0b9e6de6f3702e2adf4f7ac56a37`
 
 ## Executive finding
 
@@ -105,6 +105,8 @@ The final donor-only implementation at `4828dec1` adds:
 - **Throw/catch flow:** callable values in `ThrowStatement.argument` are marked held when they leave the analyzed function/module or cross an unmodelled exception boundary. A same-function `catch(identifier)` adds the thrown expression to that binding's value set; a catch without a binding consumes the value; destructuring catches and cross-function throws remain fail-closed.
 - **Closure capture fixed point:** each host-held closure is scanned for local references whose declarations are outside that closure. Callable values resolved through those bindings are added to the host-held set and recursively processed. This handles catch-binding capture, nested escaping closures, and object/array aliases.
 - **Parameter defaults:** simple identifier `AssignmentPattern` defaults are added to the corresponding binding's value set. Complex destructuring defaults are conservatively marked held rather than decomposed.
+- **Actual-to-formal flow:** a prepass maps actual expressions at direct, statically resolved identifier calls into simple identifier and identifier-default formal bindings. The resulting binding-value graph is followed through nested local calls and into return, throw, host-call, object-field-write, and escaping-closure sinks. A known local consumer that ignores its simple formal no longer causes its callable actual to be vetoed.
+- **Call-site fail-closed boundaries:** rest-element actuals are not decomposed into array element flows; spread arguments, destructuring formals, unknown/member/optional calls, and calls into functions using implicit `arguments`, `with`, or direct `eval` remain held at the call site. Extra actuals are ignored only when the resolved callee cannot access an implicit `arguments` object.
 - **Object-field writes:** callable RHS values of unknown `MemberExpression` assignments are marked held. This includes writes through host-supplied parameters and aliased receivers.
 - **Class fields:** callable values in every `PropertyDefinition.value` are marked held, including private and static fields, direct function identifiers, and closure-valued fields.
 - **Implicit `arguments.callee`:** an unshadowed `arguments` reference classified as `unknown/unproven-free-name` is associated with the nearest enclosing non-arrow function.
@@ -127,7 +129,7 @@ The fixes are fail-closed approximations, not a complete value-flow engine:
 - every class field initializer is treated as potentially host-held, including fields on local, non-escaping classes;
 - complex destructuring defaults and catch patterns are conservatively vetoed;
 - throws crossing nested callable boundaries are treated as escaping because interprocedural exception propagation is not modeled;
-- callable arguments to calls remain broadly marked held rather than being tracked precisely through actual-to-formal flow;
+- actual-to-formal mapping currently covers only direct identifier calls whose callee resolves to a local function and whose corresponding formal is a simple identifier (or identifier under a default assignment). Method/optional/computed calls, complex destructuring parameters, rest elements, spreads, and unresolved targets remain fail-closed;
 - cross-file import/export, dynamic imports, module wrapper/source-unit observation, and arbitrary debugger inspection remain outside this donor's proof;
 - no three-mode integration, property-renaming acceptance, exact-source parity, or 2.5× performance result was measured.
 
