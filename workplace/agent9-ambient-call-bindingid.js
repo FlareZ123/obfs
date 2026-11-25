@@ -922,8 +922,21 @@ function summarizeAmbientCallEffects(ast,sourceType) {
     }
     if(value.type==='NewExpression') {
       const classes=classNodesForValue(value.callee,seen);
-      return [...new Set(classes.flatMap(classNode=>
-        classMemberValueExpressionsForProperty(classNode,propertyKey)))];
+      if(classes.length)
+        return [...new Set(classes.flatMap(classNode=>
+          classMemberValueExpressionsForProperty(classNode,propertyKey)))];
+      // Unknown constructor forms retain the constructor callable itself.
+      // This is deliberately conservative until their instance-field writes
+      // can be resolved with the same property-specific proof as class fields.
+      if(value.callee.type==='Identifier')
+        return callableNodesForValue(value.callee,seen);
+      if(value.callee.type==='MemberExpression') {
+        const calleeKey=staticPropertyKey(value.callee.property,value.callee.computed);
+        return calleeKey===null?
+          callableNodesForValue(value.callee.object,seen):
+          callableNodesForMemberValue(value.callee.object,calleeKey,seen);
+      }
+      return [];
     }
     if(value.type==='ObjectExpression') {
       const matching=value.properties.filter((/** @type {AstNode} */ property)=>
@@ -1064,6 +1077,14 @@ function summarizeAmbientCallEffects(ast,sourceType) {
       const classes=classNodesForValue(value.callee,seen);
       if(classes.length)
         return [...new Set(classes.flatMap(classNode=>classMethodFunctions(classNode)))];
+      if(value.callee.type==='Identifier')
+        return callableNodesForValue(value.callee,seen);
+      if(value.callee.type==='MemberExpression') {
+        const calleeKey=staticPropertyKey(value.callee.property,value.callee.computed);
+        return calleeKey===null?
+          callableNodesForValue(value.callee.object,seen):
+          callableNodesForMemberValue(value.callee.object,calleeKey,seen);
+      }
       return [];
     }
     if(value.type==='MemberExpression') {
