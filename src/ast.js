@@ -3966,6 +3966,9 @@ function observesDistributedSource(ast,importedStrings=new Map()) {
     }
     if(node.type==='ImportDeclaration' || node.type==='ExportAllDeclaration' ||
        node.type==='ExportNamedDeclaration' && node.source) {
+      // Import attributes can change the fetched resource's module type and
+      // expose its source bytes (notably browser type=text modules).
+      if(node.attributes?.length || node.assertions?.length)observed=true;
       if(fileModules.has(node.source?.value) ||
          loaderModules.has(node.source?.value))observed=true;
     }
@@ -3985,6 +3988,7 @@ function observesDistributedSource(ast,importedStrings=new Map()) {
          canReachLoader('process',specifier.imported.type==='Identifier' ?
            specifier.imported.name:String(specifier.imported.value))))observed=true;
     if(node.type==='ImportExpression') {
+      if(node.options)observed=true;
       const source=staticString(node.source);
       if(source===null || fileModules.has(source) || loaderModules.has(source) ||
          ['process','node:process'].includes(source))observed=true;
