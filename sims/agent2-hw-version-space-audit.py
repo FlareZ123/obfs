@@ -141,6 +141,65 @@ def product_counterexample(
     return None
 
 
+def target_alternate_start_witness(
+    target_transitions,
+    target_outputs,
+    target_initial: int,
+    target_post: int,
+    trace,
+):
+    """Find a second trace-consistent initial state in the target machine itself."""
+    n = len(target_transitions)
+    matching = []
+    for start in range(n):
+        matched, post = replay_trace(target_transitions, target_outputs, start, trace)
+        if matched:
+            matching.append({"initial_state": start, "post_trace_state": post})
+    for alternative in matching:
+        alt_initial = alternative["initial_state"]
+        alt_post = alternative["post_trace_state"]
+        if alt_initial == target_initial:
+            continue
+        word = product_counterexample(
+            target_transitions,
+            target_outputs,
+            target_transitions,
+            target_outputs,
+            target_post,
+            alt_post,
+        )
+        if word is None:
+            continue
+        target_state = target_post
+        alternative_state = alt_post
+        target_future_outputs = []
+        alternative_future_outputs = []
+        for letter in word:
+            a = int(letter)
+            target_future_outputs.append(str(target_outputs[target_state][a]))
+            alternative_future_outputs.append(str(target_outputs[alternative_state][a]))
+            target_state = target_transitions[target_state][a]
+            alternative_state = target_transitions[alternative_state][a]
+        return {
+            "witness_source": "same_target_machine_with_alternate_initial_state",
+            "candidate_state_count": n,
+            "candidate_initial_state": alt_initial,
+            "candidate_post_trace_state": alt_post,
+            "candidate_transitions": target_transitions,
+            "candidate_outputs": target_outputs,
+            "future_counterexample": word,
+            "target_future_outputs": target_future_outputs,
+            "candidate_future_outputs": alternative_future_outputs,
+            "trace_matching_target_starts": matching,
+            "candidate_trace_verified": True,
+            "candidate_minimal_verified": True,
+            "candidate_strongly_connected_verified": True,
+            "target_trace_verified": True,
+            "target_post_trace_state_verified": True,
+        }
+    return None
+
+
 def solve_for_size(row, candidate_size: int, timeout_ms: int):
     fixture = row["fixture_table"]
     target_transitions = [[int(x) for x in r] for r in fixture["transitions"]]
@@ -329,6 +388,7 @@ def solve_for_size(row, candidate_size: int, timeout_ms: int):
         candidate_state = candidate_transitions[candidate_state][a]
 
     return "sat", {
+        "witness_source": "z3_candidate_machine",
         "candidate_state_count": len(candidate_transitions),
         "solver_model_state_count": k,
         "candidate_initial_state": candidate_initial,
@@ -369,6 +429,28 @@ def audit_row(row, timeout_ms: int):
     )
     if not target_matched or target_post != int(row["target_post_trace_state"]):
         raise AssertionError("target fixture does not reproduce its recorded trace/post-state")
+
+    alternate_start = target_alternate_start_witness(
+        target_transitions,
+        target_outputs,
+        int(fixture["initial_state"]),
+        target_post,
+        row["observed_trace"],
+    )
+    if alternate_start is not None:
+        return {
+            "status": "sat",
+            "fixture_digest": row.get("fixture_digest"),
+            "trace_digest": row.get("trace_digest"),
+            "target_state_count": target_n,
+            "target_class_verified": True,
+            "candidate_size_search": {
+                "method": "same target machine, alternate trace-consistent initial state"
+            },
+            "elapsed_seconds": round(time.perf_counter() - started, 4),
+            "witness": alternate_start,
+        }
+
     unsat_sizes = []
     unknown_sizes = []
     for candidate_size in range(1, target_n + 1):
