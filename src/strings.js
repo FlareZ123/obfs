@@ -81,9 +81,9 @@ function encodeStrings(source, ast, options) {
   const edits = [];
   const helper = unusedName(source, ast, options.seed + 'strings', options.reservedNames, options.reservedSources);
   const minimumLength = options.minimumLength ?? 4;
-  // ESM dependencies evaluate before this module's body. In an import cycle,
-  // a dependency can call a hoisted function declaration before the decoder
-  // array's top-level initializer executes. Preserve such literals verbatim.
+  // Keep the conservative ESM import-cycle exclusion while validating the
+  // lazy decoder's re-entrant behavior. It can be relaxed after dedicated
+  // cycle tests prove that the hoisted helper is safe during dependency evaluation.
   const hasEagerDependencies = ast.sourceType === 'module' && (/** @type {AstNode[]} */ (ast.body)).some((/** @type {AstNode} */ statement) =>
     statement.type === 'ImportDeclaration' || statement.type === 'ExportAllDeclaration' ||
     statement.type === 'ExportNamedDeclaration' && statement.source);
@@ -173,20 +173,10 @@ function encodeStrings(source, ast, options) {
   // the decoder at the end and decoding lazily avoids shifting original code.
   const init = `function ${helper}(${argument}){let ${cache}=${helper}.c;if(!${cache}){${cache}=${JSON.stringify(encoded)};for(let ${i}=0;${i}<${cache}.length;${i}++){const ${raw}=${cache}[${i}];let ${decoded}='';${decoder}${cache}[${i}]=${decoded};}${helper}.c=${cache};}return ${cache}[${argument}];}`;
   const transformed = applyEdits(source, edits);
-  return {code:transformed + (transformed.endsWith('\\n') ? '' : '\\n') + init + '\\n',count:edits.length};
-  // Keep hashbang and directive prologues intact; imports can follow declarations per ESM grammar.
-  let offset = 0;
-  if (source.startsWith('#!')) {
-    const end = source.indexOf('\n');
-    offset = end < 0 ? source.length : end + 1;
-  }
-  for (const statement of ast.body) {
-    if (statement.type === 'ExpressionStatement' && statement.directive) offset = statement.end;
-    else break;
-  }
-  const transformed = applyEdits(source, edits);
-  // The prefix remains untouched: literal replacements never overlap a directive.
-  return {code:transformed.slice(0,offset) + '\n' + init + transformed.slice(offset),count:edits.length};
+  return {
+    code:transformed + (transformed.endsWith('\\n') ? '' : '\\n') + init + '\\n',
+    count:edits.length
+  };
 }
 
 module.exports = {encodeStrings};
