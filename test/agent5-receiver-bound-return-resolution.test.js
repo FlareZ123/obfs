@@ -258,3 +258,45 @@ test('a super getter side-effect sink resolves through the child receiver',()=>{
   assert.equal(captured?.name,'hidden');
   assert.equal(hiddenSummary(source).hostHeldCallable,true);
 });
+
+
+test('a pure class getter returning a primitive field avoids retaining callable siblings',()=>{
+  const source=
+    'function hidden(){return 1;}'+
+    'class Owner{callback=hidden;count=1;get result(){return this.count;}}'+
+    'const owner=new Owner();external(owner.result);';
+  const [captured]=execute(source);
+  assert.equal(captured,1);
+  assert.equal(hiddenSummary(source).hostHeldCallable,false);
+  assert.equal(hiddenSummary(source).safe,true);
+});
+
+test('a pure class getter returning a callable field retains that field',()=>{
+  const source=
+    'function hidden(){return 1;}'+
+    'class Owner{callback=hidden;get result(){return this.callback;}}'+
+    'const owner=new Owner();external(owner.result);';
+  const [captured]=execute(source);
+  assert.equal(captured?.name,'hidden');
+  assert.equal(hiddenSummary(source).hostHeldCallable,true);
+});
+
+test('a side-effecting class getter does not qualify for field deferral',()=>{
+  const source=
+    'function hidden(){return 1;}'+
+    'class Owner{callback=hidden;count=1;get result(){external(this.callback);return this.count;}}'+
+    'const owner=new Owner();external(owner.result);';
+  const [captured]=execute(source);
+  assert.equal(captured?.name,'hidden');
+  assert.equal(hiddenSummary(source).hostHeldCallable,true);
+});
+
+test('an ordinary class method prevents pure-getter field deferral',()=>{
+  const source=
+    'function hidden(){return 1;}'+
+    'class Owner{callback=hidden;count=1;get result(){return this.count;}read(){return this.count;}}'+
+    'const owner=new Owner();external(owner.result);';
+  const [captured]=execute(source);
+  assert.equal(captured,1);
+  assert.equal(hiddenSummary(source).hostHeldCallable,true);
+});
