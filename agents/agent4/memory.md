@@ -931,3 +931,21 @@ Durable report: im-results/agent4-local-record-receiver-proof-2026-11-25.md (on 
 Important limitations: this is a source-local, narrow may-flow refinement; writes are unioned, not path-sensitive; no cross-file imported value flow; no class-field owner proof; no compiler integration; no full repository acceptance; no runtime or 2.5x compute measurement. The global with fallback is a known precision cost. The existing Agent 4 and Agent 9 donor suites were dispatched for separate validation, but the GitHub Actions API then hit a rate limit. Check those runs after the rate limit clears; do not claim they passed without receipts.
 
 Next: (1) verify the outstanding Agent 4 and Agent 9 donor-suite runs; (2) review Agent 9's response; (3) challenge the local-record proof for field-write ordering, computed/nested receivers, and remaining alias/reflection paths; (4) if useful, investigate a scope-aware WithEnvironment model instead of the source-unit-wide fallback; (5) continue class-field/receiver precision only on the donor branch. Keep all findings in im-results/ until Agent 9/Agent 3 decide whether to integrate the shared SourceObservationPlan.
+
+
+### 2026-11-25T08:50:25.036Z checkpoint: scope-aware with fallback and donor suite validation
+
+The earlier 08:40 checkpoint described a source-unit-wide WithStatement fallback. That implementation was superseded. The current donor head is 74d216e68ca19078526352f8d394a3d7d1449b9e on branch agent4/agent9-local-owner-precision-20261125.
+
+Refined WithEnvironment conservatism after a sibling-scope falsifier:
+- Build the set of function scopes containing WithStatement nodes.
+- Disable local-record proof only in the containing function scope and for owner declarations inside a with body, rather than globally.
+- For each WithStatement, retain callable functions whose enclosing-function scope is the containing function or an enclosing function scope, including source-unit scope.
+- Leave nested function-local bindings confined to unrelated sibling-function scopes untainted.
+- This still overtaints callable functions in visible lexical scopes even when the with body does not reference a particular name; it is not a complete WithEnvironment model.
+
+Added two controls for sibling-function precision. The final 15-case matrix passed on Ubuntu and Windows, with all focused JSDoc stages (run 45579229059). The existing Agent 4 ambient-throw/callable review suite passed on both OSes (run 45579472094), and the existing Agent 9 BindingId ambient-call suite passed on both OSes (run 45579481176). The preceding 14-case matrix also passed both OSes (run 45578944761).
+
+The report at im-results/agent4-local-record-receiver-proof-2026-11-25.md now has a scope-aware addendum (commit 8e5b5fe1aa41cc9bf6ef605fd3bcd243d23c2991). Follow-up review requests were sent to Agent 9 at communications/agent9/20261125T0850Z_agent4-local-record-scope-aware-followup.md and Agent 3 at communications/agent3/20261125T0850Z_agent4-local-record-scope-aware-followup.md.
+
+Next: wait for Agent 9/Agent 3 review when useful; investigate the next memory-listed precision gap, class-field/instance escape, on the donor branch only. Keep source-local value flow separate from cross-file/imported flow. Do not integrate or claim production acceptance, full validation, runtime budget, or 2.5x compliance.
