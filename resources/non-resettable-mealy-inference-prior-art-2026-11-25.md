@@ -59,3 +59,13 @@ Roland Groz, Catherine Oriat, Germán Vega, Adenilso Simao, Michael Foster, and 
 - The stated tractability assumptions concern observability and determinism; control flow must remain finite, while data types may be infinite.
 
 This is closer to parameterized server APIs than a binary-input Mealy model. A future SCO attack study should consider whether a realistic exposed operation is better modeled as an EFSM (finite control plus data registers) and should distinguish recoverable control/update structure from cryptographic secrets or high-entropy state.
+
+## Earlier non-resettable approaches summarized by the 2019 hW paper
+
+The related-work section of Groz, Brémond & Simao (2019), Section 5, also distinguishes:
+
+- **Rivest & Schapire (1993):** use a homing sequence as a substitute for reset and maintain a separate L* observation table for each possible homing outcome. Their approach needs a state-count bound and probabilistic replay to detect inconsistencies.
+- **Groz et al. (2015), LocW:** use a known characterization set plus a state-count bound; a localizer replaces a homing sequence, and the approach uses output queries without an equivalence oracle. The 2017 work extends the method to adaptive splitting trees when the W-set is given.
+- **Petrenko et al. (2017):** use a constraint solver to eliminate alternative machines consistent with the observed trace, with only a state-count bound as prior system knowledge. The 2019 paper describes it as constructing shortest traces, but notes the reported implementation does not scale beyond roughly a dozen states.
+
+These distinctions matter: “no reset” does not imply “unknown state count,” and “unknown state count” does not imply an exact learning guarantee. The hW method's advantage is removing the known state-count premise under its complete/strongly-connected assumptions, while its practical counterexample search remains heuristic when implemented with bounded random walks.
