@@ -590,7 +590,14 @@ function summarizeAmbientCallEffects(ast,sourceType) {
     if(!value)return true;
     if(value.type==='Literal')
       return value.value===null||['string','number','boolean','bigint'].includes(typeof value.value);
-    if(['FunctionExpression','ArrowFunctionExpression'].includes(value.type))return true;
+    if(['FunctionExpression','ArrowFunctionExpression'].includes(value.type)) {
+      let usesInstanceReceiver=false;
+      walkAst(value,(/** @type {AstNode} */ node)=>{
+        if(node.type==='ThisExpression'||node.type==='Super')
+          usesInstanceReceiver=true;
+      });
+      return !usesInstanceReceiver;
+    }
     if(value.type==='Identifier') {
       const reference=resolved.at(value.start);
       return reference?.resolution.kind==='local'&&
