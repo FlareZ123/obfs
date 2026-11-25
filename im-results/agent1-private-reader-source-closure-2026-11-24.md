@@ -167,3 +167,13 @@ Pinned results:
 This is an independent observable channel from the sloppy wrapper-source leak above. It demonstrates that adding a strict directive is insufficient: the host callback can inspect the active strict wrapper's V8 `Error.stack` frame position. In this fixture the transformed object-literal key is quoted, adding two source characters before the later callback; V8 reports the callback frame column shifted by exactly two. The mainline base performs no class rewrite and preserves the original column.
 
 The two witnesses jointly establish that the current class admission is unsound under both exact wrapper-source observation (sloppy CJS) and FramePosition observation (strict CJS). This is a candidate-only regression for this source pin. Do not treat a strictness guard as a complete repair; the proof needs an explicit source/effect model that includes active enclosing frames, or a conservative refusal where source positions are observable.
+
+
+## All three obfuscation modes and exact-PR head confirmation (2026-11-25)
+
+The two new witnesses were extended from COO/SNO to include SCO and rerun on the exact PR branch. The current-main controls were extended identically.
+
+- **Sloppy wrapper ExactSource:** exact PR branch head `93a68ddbf7ddd84f164b303f2d78c0414d1281b8`, [run 45544329858](https://github.com/FlareZ123/obfs/actions/runs/45544329858): **3/3 failures on Ubuntu and 3/3 on Windows** (COO/SNO/SCO). Each mode performs one property rewrite and the emitted wrapper source reveals the generated property spelling. The current-main control [run 45544336152](https://github.com/FlareZ123/obfs/actions/runs/45544336152) passes **3/3 on both OSes**.
+- **Strict wrapper FramePosition:** exact PR branch head `93a68ddbf7ddd84f164b303f2d78c0414d1281b8`, [run 45544342871](https://github.com/FlareZ123/obfs/actions/runs/45544342871): **3/3 failures on Ubuntu and 3/3 on Windows** (COO/SNO/SCO). In all modes, native frame column is 163 and emitted frame column is 165. The current-main control [run 45544348695](https://github.com/FlareZ123/obfs/actions/runs/45544348695) passes **3/3 on both OSes**; the focused test steps executed successfully.
+
+The two source-observation failures therefore affect all three prescribed obfuscation modes under the tested Node 22.23.4 / V8 12.4.254.21-node.57 runtime. The mainline control preserves both observed properties by refusing the class rewrite. These are source-observation correctness counterexamples for this candidate shape; they are not evidence that every class proof is impossible or that the broader release threat model has been solved.
