@@ -263,7 +263,7 @@ test('an exported ESM expression-bodied factory cannot hide its returned class-f
 test('a classic-script global factory produced by an IIFE cannot hide its returned field callable',()=>{
   const source=
     'var create=(()=>{'+
-      'function hidden(){return 1;}'+
+      'const hidden=function hidden(){return 1;};'+
       'class Local{callback=hidden;}'+
       'return ()=>new Local();'+
     '})();';
