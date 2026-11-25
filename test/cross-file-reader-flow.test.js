@@ -19,7 +19,7 @@ const {atomicWrite}=require('../src/atomic');
  * @param {string} [expectedOutput]
  * @returns {Promise<void>}
  */
-async function preserves(files,expected,mode='coo') {
+async function preserves(files,expected,mode='coo',expectedOutput) {
   const dir=await fs.mkdtemp(path.join(os.tmpdir(),'obfs-cross-reader-'));
   try {
     /** @param {Source[]|ReturnType<typeof obfuscateFiles>['files']} sources */
