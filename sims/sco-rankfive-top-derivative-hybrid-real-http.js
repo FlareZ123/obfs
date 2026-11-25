@@ -11,7 +11,7 @@ const {evaluateHybridModel}=require('./rankfive-top-derivative-projected-affine-
 
 /** @typedef {{origin:string,method:string,credential:string}} Access */
 /** @typedef {{kind:'projected-affine',bits:number,rank:5,table:number[],coordinates:number[],affineCorrections:number[]}|{kind:'anf',bits:number,lower:Array<[number,number]>,top:Array<[number,number]>,degree:4|5}} HybridModel */
-/** @typedef {{fastPathSuccess:boolean,witnessStrategy:'six-direction'|'seven-direction-restart',witnessTrials:number,witnessDrawCount:number,witnessProbability:number,witnessFailureBound:number,quotientRank:number|null,coordinateStrategy:'shift'|'signature'|null,fixedPairPassed:boolean|null,fastQueries:number,verificationQueries:number,verificationSamples:number,verificationCap:number,verificationDelta:number,falseAcceptanceBound:number,verificationPassed:boolean,fallbackUsed:boolean,fallbackReason:string|null,fallbackQueries:number,exactByInterpolation:boolean,verifyDrawCount?:number,verifierTapeReleasedAfterCandidate?:boolean}} HybridDiagnostics */
+/** @typedef {{fastPathSuccess:boolean,witnessStrategy:'six-direction'|'seven-direction-restart',witnessTrials:number,witnessTrialCap:number,witnessDrawCount:number,witnessProbability:number,witnessFailureBound:number,quotientRank:number|null,coordinateStrategy:'shift'|'signature'|null,fixedPairPassed:boolean|null,fastQueries:number,verificationQueries:number,verificationSamples:number,verificationCap:number,verificationDelta:number,falseAcceptanceBound:number,verificationPassed:boolean,fallbackUsed:boolean,fallbackReason:string|null,fallbackQueries:number,exactByInterpolation:boolean,verifyDrawCount?:number,verifierTapeReleasedAfterCandidate?:boolean}} HybridDiagnostics */
 /** @typedef {(model:unknown,input:number)=>number} ModelEvaluator */
 /** @typedef {{model:HybridModel,queries:number,transcriptSha256:string,diagnostics:HybridDiagnostics}} CloneResult */
 /** @typedef {{
@@ -230,7 +230,8 @@ async function compare(){
     const diagnostics=/** @type {HybridDiagnostics} */ (hybridSco.learnerDiagnostics);
     assert.equal(diagnostics.fastPathSuccess,true,'Hybrid did not accept its fast path');
     assert.equal(diagnostics.witnessStrategy,witnessStrategy);
-    assert.ok(diagnostics.witnessTrials<=18);
+    assert.ok(diagnostics.witnessTrials<=diagnostics.witnessTrialCap);
+    assert.equal(diagnostics.witnessTrialCap,18);
     assert.equal(diagnostics.witnessDrawCount,diagnostics.witnessTrials*7);
     assert.ok(diagnostics.witnessFailureBound<=1e-10);
     assert.equal(diagnostics.quotientRank,5);
