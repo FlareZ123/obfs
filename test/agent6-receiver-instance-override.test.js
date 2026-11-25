@@ -254,3 +254,15 @@ test('a derived primitive constructor write overwrites a base callable own write
   assert.equal(actual,1);
   assert.equal(hiddenSummary(source).hostHeldCallable,false);
 });
+
+
+test('an escaped class-field arrow retains its constructed instance receiver',()=>{
+  const source=
+    'function hidden(){return 1;}'+
+    'class Local{secret=hidden;callback=()=>this.secret;}'+
+    'const instance=new Local();external(instance.callback);';
+  const [callback]=execute(source);
+  assert.equal(typeof callback,'function');
+  assert.equal((/** @type {Function} */ (callback))().name,'hidden');
+  assert.equal(hiddenSummary(source).hostHeldCallable,true);
+});
