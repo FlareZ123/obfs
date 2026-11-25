@@ -227,12 +227,17 @@ Run the exact checker:
 
     python3 sims/agent2-rankfive-eight-direction-witness.py
 
-Run the heuristic search (C++20):
+Run the sequence-level heuristic search (C++20):
 
     g++ -O3 -std=c++20 -march=native sims/agent2-rankfive-eight-direction-anneal.cpp -o /tmp/rankfive-m8-anneal
     /tmp/rankfive-m8-anneal 14 100000 8
 
-The Python script enumerates all 2,667 seven-direction and 97,155 eight-direction kernel subspaces, reconstructs face-failure sets and subset-sum query unions, and asserts the exact fractions, increments, caps, and collision-correction interval for both candidate representatives. The C++ program is a heuristic searcher only; its floating-point objective is not evidence of exact optimality.
+Run the set-level annealer, which solves the ordering problem exactly for each proposed set:
+
+    g++ -O3 -std=c++20 -march=native sims/agent2-rankfive-eight-direction-set-anneal.cpp -o /tmp/rankfive-m8-set-anneal
+    /tmp/rankfive-m8-set-anneal 14 500 1
+
+The Python script enumerates all 2,667 seven-direction and 97,155 eight-direction kernel subspaces, reconstructs face-failure sets and subset-sum query unions, and asserts the exact fractions, increments, caps, collision-correction interval, and fixed-set ordering DP for both candidate representatives. The sequence-level C++ program is a heuristic searcher; the set-level program uses exact DP for each face set but remains heuristic over the set space. Neither proves global optimality.
 
 ## Scope and next work
 
