@@ -11,14 +11,14 @@ const {evaluateHybridModel}=require('./rankfive-top-derivative-projected-affine-
 
 /** @typedef {{origin:string,method:string,credential:string}} Access */
 /** @typedef {{kind:'projected-affine',bits:number,rank:5,table:number[],coordinates:number[],affineCorrections:number[]}|{kind:'anf',bits:number,lower:Array<[number,number]>,top:Array<[number,number]>,degree:4|5}} HybridModel */
-/** @typedef {{fastPathSuccess:boolean,witnessTrials:number,witnessDrawCount:number,witnessProbability:number,witnessFailureBound:number,quotientRank:number|null,coordinateStrategy:'shift'|'signature'|null,fixedPairPassed:boolean|null,fastQueries:number,verificationQueries:number,verificationSamples:number,verificationCap:number,verificationDelta:number,falseAcceptanceBound:number,verificationPassed:boolean,fallbackUsed:boolean,fallbackReason:string|null,fallbackQueries:number,exactByInterpolation:boolean,verifyDrawCount?:number,verifierTapeReleasedAfterCandidate?:boolean}} HybridDiagnostics */
+/** @typedef {{fastPathSuccess:boolean,witnessStrategy:'six-direction'|'seven-direction-restart',witnessTrials:number,witnessDrawCount:number,witnessProbability:number,witnessFailureBound:number,quotientRank:number|null,coordinateStrategy:'shift'|'signature'|null,fixedPairPassed:boolean|null,fastQueries:number,verificationQueries:number,verificationSamples:number,verificationCap:number,verificationDelta:number,falseAcceptanceBound:number,verificationPassed:boolean,fallbackUsed:boolean,fallbackReason:string|null,fallbackQueries:number,exactByInterpolation:boolean,verifyDrawCount?:number,verifierTapeReleasedAfterCandidate?:boolean}} HybridDiagnostics */
 /** @typedef {(model:unknown,input:number)=>number} ModelEvaluator */
 /** @typedef {{model:HybridModel,queries:number,transcriptSha256:string,diagnostics:HybridDiagnostics}} CloneResult */
 /** @typedef {{
   replicate:number,
   baseline:{scoQueries:number,nativeQueries:number,transcriptSha256:string,drawCount:number,drawTapeSha256:string,draws:number[]},
   hybrid:{scoQueries:number,nativeQueries:number,transcriptSha256:string,diagnostics:HybridDiagnostics,witnessDrawTapeSha256:string,verifyDrawTapeSha256:string,witnessDraws:number[],verifyDraws:number[]},
-  queriesSaved:number
+  queryDifference:number
 }} ReplicateRecord */
 
 class NeedHttpQuery extends Error {
@@ -39,14 +39,14 @@ class NeedHttpQuery extends Error {
  * @param {number[]} verifyDraws
  * @returns {Promise<CloneResult>}
  */
-async function cloneHybridFromHttp(access,witnessDraws,verifyDraws){
+async function cloneHybridFromHttp(access,witnessDraws,verifyDraws,witnessStrategy='six-direction'){
   assert.equal(verifyDraws.length,726,'The verifier tape must match the fixed RM sample cap');
   const sharedBuffer=new SharedArrayBuffer(Int32Array.BYTES_PER_ELEMENT*2);
   const shared=new Int32Array(sharedBuffer);
   const verifyBuffer=new SharedArrayBuffer(Int32Array.BYTES_PER_ELEMENT*(2+verifyDraws.length));
   const verifyShared=new Int32Array(verifyBuffer);
   const worker=new Worker(pathModule.join(__dirname,'rankfive-top-derivative-hybrid-http-worker.cjs'),{
-    workerData:{sharedBuffer,witnessDraws,verifyBuffer,verifyCount:verifyDraws.length}
+    workerData:{sharedBuffer,witnessDraws,verifyBuffer,verifyCount:verifyDraws.length,witnessStrategy}
   });
   /** @type {Map<number,number>} */
   const seen=new Map();
@@ -175,6 +175,7 @@ function percentile(values,p){
  */
 async function compare(){
   const replicates=10;
+  const witnessStrategy='seven-direction-restart';
   const source=privateSource();
   const sourcePromise=verifySourcePromise(source);
   /** @type {ReplicateRecord[]} */
@@ -196,16 +197,16 @@ async function compare(){
     assert.equal(baselineNative.publishedPrivateNames,false);
 
     /** @type {number[]} */
-    const witnessDraws=Array.from({length:162},secureWord);
+    const witnessDraws=Array.from({length:126},secureWord);
     /** @type {number[]} */
     const verifyDraws=Array.from({length:726},secureWord);
     /** @type {(access:Access,_unusedDraws:number[])=>Promise<CloneResult>} */
     const cloneRunner=(access,_unusedDraws)=>
-      cloneHybridFromHttp(access,witnessDraws,verifyDraws);
+      cloneHybridFromHttp(access,witnessDraws,verifyDraws,witnessStrategy);
     /** @type {ModelEvaluator} */
     const modelEvaluator=(model,input)=>
       evaluateHybridModel(/** @type {HybridModel} */ (model),input);
-    const options={cloneRunner,modelEvaluator,maxQueries:3393};
+    const options={cloneRunner,modelEvaluator,maxQueries:2479};
     const hybridSco=await executeArm('sco',source,[],options);
     const hybridNative=await executeArm('native',source,[],options);
     assert.equal(hybridSco.sourceHash,sourcePromise.sourceHash);
@@ -227,6 +228,10 @@ async function compare(){
     assert.deepEqual(hybridSco.learnerDiagnostics,hybridNative.learnerDiagnostics);
     const diagnostics=/** @type {HybridDiagnostics} */ (hybridSco.learnerDiagnostics);
     assert.equal(diagnostics.fastPathSuccess,true,'Hybrid did not accept its fast path');
+    assert.equal(diagnostics.witnessStrategy,witnessStrategy);
+    assert.ok(diagnostics.witnessTrials<=18);
+    assert.equal(diagnostics.witnessDrawCount,diagnostics.witnessTrials*7);
+    assert.ok(diagnostics.witnessFailureBound<=1e-10);
     assert.equal(diagnostics.quotientRank,5);
     assert.equal(diagnostics.fallbackUsed,false);
     assert.equal(diagnostics.verificationPassed,true);
@@ -235,7 +240,7 @@ async function compare(){
     assert.equal(diagnostics.coordinateStrategy,'shift');
     assert.equal(diagnostics.fixedPairPassed,true);
     assert.equal(diagnostics.verifierTapeReleasedAfterCandidate,true);
-    assert.ok(hybridSco.queries<=2497);
+    assert.ok(hybridSco.queries<=2479);
 
     records.push({
       replicate,
@@ -257,13 +262,12 @@ async function compare(){
         witnessDraws:witnessDraws.slice(0,diagnostics.witnessDrawCount),
         verifyDraws:verifyDraws.slice(0,diagnostics.verificationSamples)
       },
-      queriesSaved:baselineSco.queries-hybridSco.queries
+      queryDifference:baselineSco.queries-hybridSco.queries
     });
   }
 
   const baselineQueries=records.map(record=>record.baseline.scoQueries);
   const hybridQueries=records.map(record=>record.hybrid.scoQueries);
-  const savings=records.map(record=>record.queriesSaved);
   const baselineMean=mean(baselineQueries);
   const hybridMean=mean(hybridQueries);
   const output={
@@ -285,6 +289,7 @@ async function compare(){
       maxQueries:Math.max(...baselineQueries)
     },
     hybrid:{
+      witnessStrategy,
       meanQueries:hybridMean,
       medianQueries:median(hybridQueries),
       p10Queries:percentile(hybridQueries,0.10),
@@ -293,11 +298,10 @@ async function compare(){
       minQueries:Math.min(...hybridQueries),
       maxQueries:Math.max(...hybridQueries)
     },
-    paired:{
-      meanQueriesSaved:mean(savings),
-      medianQueriesSaved:median(savings),
+    comparison:{
+      meanQueryDifference:baselineMean-hybridMean,
       meanReductionPercent:100*(baselineMean-hybridMean)/baselineMean,
-      fractionHybridLower:savings.filter(value=>value>0).length/replicates
+      sampleDesign:'Baseline and hybrid use independently generated CSPRNG tapes; this is a descriptive independent-sample comparison, not matched-pair inference.'
     },
     records
   };
