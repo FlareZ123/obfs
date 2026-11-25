@@ -1,7 +1,6 @@
 'use strict';
 
 const assert = require('node:assert/strict');
-const vm = require('node:vm');
 const {test} = require('node:test');
 const {obfuscateFiles} = require('../src');
 
@@ -10,8 +9,9 @@ const {obfuscateFiles} = require('../src');
  */
 
 /**
- * Execute a CommonJS source in a VM while a host-owned V8 stack formatter
- * attempts to recover the active private function through CallSite#getFunction.
+ * Execute a CommonJS source in the same V8 realm as a host-owned stack
+ * formatter, which attempts to recover the active function through
+ * CallSite#getFunction.
  * @param {string} code
  * @returns {{value:unknown,frames:ObservedFrame[]}}
  */
@@ -31,17 +31,15 @@ function runWithCallSiteObserver(code) {
     return 'captured';
   };
   try {
-    const context = {
-      Error,
-      Function,
-      module: {exports: null},
-      getExternal() {
-        const error = new Error('host CallSite source probe');
-        void error.stack;
-      }
+    const module = {exports: null};
+    const getExternal = () => {
+      const error = new Error('host CallSite source probe');
+      void error.stack;
     };
-    vm.runInNewContext(code, context, {timeout: 2500});
-    return {value: context.module.exports, frames};
+    // Function creates the fixture in the same realm as Error.prepareStackTrace.
+    // A leading directive makes the wrapper and nested hidden function strict.
+    new Function('getExternal', 'module', code)(getExternal, module);
+    return {value: module.exports, frames};
   } finally {
     Error.prepareStackTrace = previous;
   }
