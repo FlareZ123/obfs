@@ -477,6 +477,9 @@ function main() {
       assert.equal(result.diagnostics.fastPathSuccess,true);
       assert.equal(result.diagnostics.fallbackUsed,false);
       assert.equal(result.diagnostics.witnessDrawCount,result.diagnostics.witnessTrials * 7);
+      assert.equal(result.diagnostics.witnessProbability,24519915/33554432);
+      assert.equal(result.diagnostics.witnessFailureBound,
+        Math.pow(1-result.diagnostics.witnessProbability,result.diagnostics.witnessTrialCap));
       assert.ok(result.diagnostics.witnessTrials <= 18);
       assert.ok(result.diagnostics.witnessFailureBound <= 1e-10);
       assert.ok(result.queries <= 3375);
@@ -599,6 +602,9 @@ function main() {
   assert.equal(noWitnessSeven.diagnostics.fallbackReason,'no-witness-within-trial-cap');
   assert.equal(noWitnessSeven.diagnostics.witnessTrials,18);
   assert.equal(noWitnessSeven.diagnostics.witnessDrawCount,126);
+  assert.equal(noWitnessSeven.diagnostics.witnessFailureBound,
+    Math.pow(1-noWitnessSeven.diagnostics.witnessProbability,
+      noWitnessSeven.diagnostics.witnessTrialCap));
   for (let input = 0; input < 128; input++) {
     assert.equal(evaluateHybridModel(noWitnessSeven.model,input),degreeFour(input));
   }
