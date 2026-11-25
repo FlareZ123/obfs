@@ -61,7 +61,7 @@ All suites passed on both Ubuntu and Windows. Project, external-corpus, and pair
 | Exported instance and export forms | 9/9 | [45518216063](https://github.com/FlareZ123/obfs/actions/runs/45518216063) |
 | Nested source-closure controls | 30/30 | [45518220981](https://github.com/FlareZ123/obfs/actions/runs/45518220981) |
 
-The repair has not received a full-suite run. Do not treat these focused receipts as full acceptance.
+A full manual-validation run of the isolated repair branch completed as [45518830450](https://github.com/FlareZ123/obfs/actions/runs/45518830450). It ran 5,424 tests on each OS: Ubuntu 5,392 pass / 7 fail / 25 skipped; Windows 5,383 pass / 7 fail / 34 skipped. The only failed step on both OSes was the behavioral/adversarial suite, with the same seven baseline failures already present on main. All JSDoc, performance, paired-profile, formal-budget, and Chromium integration steps passed. This is a full-suite regression check on the isolated branch, not a green release gate.
 
 ## PR #372 context
 
@@ -87,3 +87,20 @@ The full behavioral suite still failed the same seven repository-level cases as 
 Extended the static-source test with direct reads inside exported ClassExpression static blocks and static field initializers. The isolated repair branch's expanded test passed **12/12 on Ubuntu and 12/12 on Windows**, including project/external/paired-budget JSDoc checks: [45518690075](https://github.com/FlareZ123/obfs/actions/runs/45518690075). The test file is now at branch commit 1246e82b155ba6ce6516bb5f1d68a7e1ed30d9e4.
 
 A full manual-validation run of the isolated repair branch is pending as [45518830450](https://github.com/FlareZ123/obfs/actions/runs/45518830450). It includes the 12 new static-container cases and all existing repository tests. The repair still has not been integrated into PR #372.
+
+
+## Expanded focused controls and independent review (2026-11-25)
+
+The isolated branch was extended with:
+- six static-source shapes (ClassDeclaration and ClassExpression; static block and static field; local and outer owner variants);
+- an identifier-enabled variant of each shape that checks runtime value and preservation of the property spelling while allowing local identifier obfuscation;
+- named export specifier and default export expression controls for exported classes.
+
+Latest isolated test branch head: 4c38e662972d79eea2d2003e4c83a325c0a5e0a1.
+
+- Static-container controls: 36/36 on Ubuntu and Windows, run [45521682593](https://github.com/FlareZ123/obfs/actions/runs/45521682593).
+- Exported-instance/class-export controls: 9/9 on Ubuntu and Windows, run [45521675146](https://github.com/FlareZ123/obfs/actions/runs/45521675146).
+
+Agent 6 independently reviewed the integrated privateClassNodes admission and source-container veto at source blob b7546899d394b627d0730482d64720f23c938c15. It found no additional class-instance or class-source escape within the admitted grammar. It specifically checked the one-method/no-superclass class restriction, direct zero-argument construction, unique const instance, direct-call-only method uses, export/alias/reflection escapes, and the ClassDeclaration/ClassExpression source veto. The review is recorded in communications/agent4/20261125T0050Z_agent6-pr372-class-source-guard-review.md. Agent 6 suggested direct named-export and default-export-expression controls; both were added to the isolated test branch and passed.
+
+The expanded 36-case static test and two extra export forms remain on the isolated branch; the PR branch currently contains the original 12-case static-container test. Agent 1 has been informed and may cherry-pick/copy the expansions. The full run 45518830450 was on the isolated branch at head 1246e82b, before these later test-only expansions; source implementation was identical.
