@@ -12,7 +12,7 @@ test('string-only encoding preserves later strict-ESM FramePosition in Chromium'
   const expectedValue=source.match(/message="([^"]+)"/u)?.[1].length;
   const output=obfuscateFiles([{path:'generated.mjs',sourceType:'module',code:source}],{
     mode:'coo',closedWorld:true,seed:'agent10-string-frameposition',
-    identifiers:false,strings:true,properties:false
+    identifiers:false,strings:true,properties:false,experimentalPreserveFramePositions:true
   }).files[0];
   const payload=await compareBrowser(source,String(output.code),'string');
   assert.deepEqual(payload.values,[expectedValue,expectedValue]);
