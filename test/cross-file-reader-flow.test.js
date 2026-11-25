@@ -653,3 +653,12 @@ test('query-distinct owner module URL refuses imported-reader alias grouping',as
     'import {state as right} from "./state.mjs?other";'+
     'console.log(peek(left),peek(right));',0);
 });
+
+test('browser URL dot-segment resolution is not collapsed by POSIX path normalization',async()=>{
+  await preserves([
+    {path:'state.mjs',sourceType:'module',code:'export const state={secretField:23};'},
+    {path:'a/state.mjs',sourceType:'module',code:'export const state={secretField:42};'},
+    {path:'entry.mjs',sourceType:'module',code:
+      'import {state} from "./a//../state.mjs";console.log(state.secretField);'}
+  ],0,'coo','23');
+});
