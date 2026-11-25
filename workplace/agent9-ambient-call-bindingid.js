@@ -479,20 +479,23 @@ function summarizeAmbientCallEffects(ast,sourceType) {
   // boundary, or unproved key falls back to the existing fail-closed rule.
   /** @type {Map<number,Set<string>>} */
   const localRecordOwnerKeys=new Map();
-  // A with environment can intercept even a lexically resolved identifier
-  // through its HasBinding trap. Until that environment is modeled per scope,
-  // disable this local-owner proof for the whole source unit.
-  let hasWithStatement=false;
+  // A with environment can intercept a same-scope identifier through its
+  // HasBinding trap. Disable local-owner proofs in the containing function
+  // scope, not in unrelated sibling functions.
+  /** @type {Set<AstNode|null>} */
+  const withFunctionScopes=new Set();
   walkAst(ast,node=>{
-    if(node.type==='WithStatement')hasWithStatement=true;
+    if(node.type==='WithStatement')
+      withFunctionScopes.add(enclosingFunction(node));
   });
   /** @param {number} bindingId @returns {Set<string>|null} */
   function localRecordKeysForBinding(bindingId) {
-    if(hasWithStatement)return null;
     const cached=localRecordOwnerKeys.get(bindingId);
     if(cached)return cached;
     const rows=declarationsByBinding.get(bindingId)??[];
     if(rows.length!==1||rows[0].kind!=='const'||writtenBindings.has(bindingId))return null;
+    const ownerFunction=enclosingFunction(rows[0].node);
+    if(withFunctionScopes.has(ownerFunction)||isInsideWithBody(rows[0].node))return null;
     const initializer=constInitializersByBinding.get(bindingId);
     if(initializer?.type!=='ObjectExpression')return null;
     const keys=new Set();
@@ -505,7 +508,6 @@ function summarizeAmbientCallEffects(ast,sourceType) {
       keys.add(key);
     }
     if(keys.size===0)return null;
-    const ownerFunction=enclosingFunction(rows[0].node);
     for(const reference of resolved.references) {
       if(reference.resolution.kind!=='local'||reference.resolution.bindingId!==bindingId)continue;
       const member=parentByNode.get(reference.node);
