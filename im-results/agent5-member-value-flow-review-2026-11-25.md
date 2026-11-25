@@ -11,7 +11,7 @@
 
 The donor adds a property-specific resolver, `callableNodesForMemberValue(value, propertyKey)`, that can follow a statically known property through local assignments, direct `new Local()`, object/array literals, conditionals, local function/method factory returns, and `await`. The generic resolver, `callableNodesForValue(value)`, is used by several value sinks and by the dynamic-key fallback, but its supported expression set is materially narrower.
 
-The likely risk is not that the static-property resolver lacks factory-return support; it is that other paths fall back to the generic resolver and lose the same locally known values. Four red-first hypotheses follow. None has been executed by this reviewer.
+The likely risk is not that the static-property resolver lacks factory-return support; it is that other paths fall back to the generic resolver and lose the same locally known values. Five red-first hypotheses follow. None has been executed by this reviewer.
 
 ## Source observations
 
@@ -138,7 +138,32 @@ The proposed tests are not claims that those controls are absent. They combine t
 
 ## Correction to the earlier donor blocker statement
 
-The mutable captured lexical-binding false-safe was confirmed on the earlier ThisExpression/Super-only donor, then addressed by Agent 10's property-specific mutable-alias resolver at the candidate head above. The 33/33 and 116/116 focused green receipts supersede the earlier red receipts for those tested shapes. Do not describe that specific false-safe as still present on the 03d2 candidate. The dynamic-key + factory, factory-result destructuring, nested chain + factory, and member-constructor cross-products in this report remain unexecuted hypotheses and still need red-first confirmation.
+The mutable captured lexical-binding false-safe was confirmed on the earlier ThisExpression/Super-only donor, then addressed by Agent 10's property-specific mutable-alias resolver at the candidate head above. The 33/33 and 116/116 focused green receipts supersede the earlier red receipts for those tested shapes. Do not describe that specific false-safe as still present on the 03d2 candidate. The dynamic-key + factory, factory-result destructuring, nested chain + factory, member-constructor, and class-getter-return cases in this report remain unexecuted hypotheses and still need red-first confirmation.
 
 
 **Important control qualification:** do not use a block-bodied local factory with an explicit `return new Local()` or `return { nested: ... }` as the negative case. The general return sink at lines 1419–1421 calls `callableNodesForValue` on explicit ReturnStatement arguments; for a direct class instance or object literal containing one, that path may already conservatively retain the class-field callables. The proposed destructuring and nested-chain red cases therefore use expression-bodied arrow factories, whose implicit return is handled by the property-specific resolver but is not independently visited as a ReturnStatement by the generic sink. The dynamic-key case already uses an async expression-bodied arrow factory.
+
+
+### 5. Class getter returning a callable
+
+The class member resolver at lines 697–704 includes ordinary `MethodDefinition` entries only when `element.kind === 'method'`, plus `PropertyDefinition` values. It omits `get` and `set` accessors. The same filter is used while walking inherited class members. A getter read returns the getter's result, not the getter function itself.
+
+**Proposed red-first test**
+
+```js
+let owner;
+function hidden() { return 1; }
+class Local {
+  get callback() { return hidden; }
+}
+function leak() {
+  external(owner.callback);
+}
+function entry() {
+  owner = new Local();
+  leak();
+}
+module.exports = entry;
+```
+
+For `owner.callback`, the receiver assignment resolves to `new Local()` and the static-property path calls `classFieldCallablesForProperty(Local, 'callback')`. The current filter omits the getter, so the result appears empty even though the host receives `hidden`. Add an inherited-getter variant (`class Base { get callback() { return hidden; } } class Local extends Base {}`) because the inherited traversal uses the same `kind === 'method'` restriction. If getters are intentionally unsupported, this access must conservatively become unknown/unsafe rather than an empty callable set.
