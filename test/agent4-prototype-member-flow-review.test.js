@@ -8,7 +8,7 @@ const {summarizeAmbientCallEffects}=require('../workplace/agent9-ambient-call-bi
 
 /** @param {string} source @returns {ReturnType<typeof summarizeAmbientCallEffects>} */
 function analyze(source) {
-  return summarizeAmbientCallEffects(parse(source,'commonjs'),'commonjs',{assumeTrustedRealm:true});
+  return summarizeAmbientCallEffects(parse(source,'commonjs'),'commonjs',{assumePristinePrototypeChain:true});
 }
 
 /** @param {string} source @returns {ReturnType<typeof analyze>['summaries'][number]} */
@@ -309,7 +309,7 @@ test('a constructor call after its own write invalidates the shadow proof',()=>{
   assertHeldAndObserved(source,'constructor call may delete the own property and expose the prototype value');
 });
 
-test('prototype shadow precision stays disabled without a trusted-realm assertion',()=>{
+test('prototype shadow precision stays disabled without a pristine-prototype-chain assertion',()=>{
   const source=
     'function entry(){'+
     'function hidden(){return 1;}'+
