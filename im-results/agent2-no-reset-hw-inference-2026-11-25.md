@@ -177,11 +177,11 @@ The 20 seeds per state size are deterministic fixture-generator seeds, not an II
 
 ## RNG reproducibility correction (pending rerun)
 
-The initial 220-case sweep (5-second limit) and its focused 12-state/seed-7 rerun (30-second limit) produced different partial trace lengths for the same fixture and oracle seed: 2,512 versus 2,301 steps. The fixture generator and Python random seed were pinned, but the workflows did not yet fix Python's process hash seed or seed NumPy's RNG. The difference means the earlier sweep is an empirical snapshot, not yet a fully reproducible randomized-learner experiment.
+The 5-second 220-case sweep's 12-state/seed-7 timeout recorded 2,512 SUL steps. A focused rerun of the same fixture with a 30-second limit recorded 3,307 steps before timing out. The larger prefix is consistent with the longer time budget; it is not evidence of RNG divergence. The earlier workflows did not explicitly fix Python's process hash seed or seed NumPy's RNG, so exact replay is not yet maximally controlled, even though the fixture generator and Python random seed were pinned.
 
-The benchmark now seeds both Python random and NumPy with the per-case oracle seed, and the hW workflows set **PYTHONHASHSEED=0** at job scope. A focused 12-state, seeds-0–7 rerun with a 60-second per-fixture limit is queued as workflow **45596788503**. After it completes, rerun the full 220-case matrix under the pinned RNG environment before treating the aggregate rates or the 12-state/seed-7 timeout as stable.
+The benchmark now seeds both Python random and NumPy with the per-case oracle seed, and the hW workflows set **PYTHONHASHSEED=0** at job scope. The focused 30-second rerun, workflow **45594406248**, completed 7/8 cases and again timed out on 12 states / seed 7 after 3,307 SUL steps (one pre call, zero post calls, zero query calls). A focused 12-state, seeds-0–7 rerun with a 60-second per-fixture limit and the pinned RNG environment is queued as workflow **45596788503**. After it completes, rerun the full 220-case matrix under the pinned RNG environment before treating aggregate rates or the 12-state/seed-7 timeout as stable.
 
-For local reproduction, prefix the command with **PYTHONHASHSEED=0**. The 22- and 220-case figures above remain useful observed outcomes, but are provisional pending this reproducibility correction.
+For local reproduction, prefix the command with **PYTHONHASHSEED=0**. The 22- and 220-case figures above remain observed outcomes; the 220-case aggregate is provisional pending the pinned-RNG rerun.
 
 ## Limitations and interpretation
 
