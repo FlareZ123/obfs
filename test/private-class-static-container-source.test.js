@@ -58,11 +58,11 @@ for(const mode of /** @type {Array<'coo'|'sno'|'sco'>} */ (['coo','sno','sco']))
       });
       const output=result.files.find(file=>file.path==='entry.cjs');
       assert.ok(output,'transformed CommonJS entry must remain present');
-      assert.equal(output.metrics.properties,0,
-        mode+'/'+fixture.label+': owner reads inside observable class source must not be renamed');
       const emitted=inspectOuter(String(output.code));
       assert.deepEqual(emitted,native,
         mode+'/'+fixture.label+': class source and behavior must remain identical');
+      assert.equal(output.metrics.properties,0,
+        mode+'/'+fixture.label+': owner reads inside observable class source must not be renamed');
     });
   }
 }
