@@ -240,7 +240,7 @@ test('an object getter reading a primitive this-field does not retain callable s
   assert.equal(summary.safe,true);
 });
 
-test('a class getter reading a primitive this-field does not retain callable siblings',()=>{
+test('a class getter keeps non-deferred callable fields fail-closed even for a primitive this-field',()=>{
   const source=
     'function hidden(){const state={secret:7};return state.secret;}'+
     'class Owner{hidden=hidden;count=1;get value(){return this.count;}}'+
@@ -248,8 +248,9 @@ test('a class getter reading a primitive this-field does not retain callable sib
   const summary=hiddenSummary(source);
   const [captured]=execute(source);
   assert.equal(captured,1);
-  assert.equal(summary.hostHeldCallable,false);
-  assert.equal(summary.safe,true);
+  assert.equal(summary.hostHeldCallable,true,
+    'the current non-deferred class-field gate conservatively retains callable fields');
+  assert.equal(summary.safe,false);
 });
 
 test('an object-literal prototype setter can supply the observed callable',()=>{
