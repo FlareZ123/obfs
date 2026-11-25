@@ -37,7 +37,7 @@ Q=E+f(E-1)+f^2(E-1)+\cdots
 =\frac{E-f}{1-f}.
 \]
 
-For each cutoff \\(k=1,\\ldots,21\\), the C++ program optimizes this fractional objective over every ordered sequence of \\(k\\) faces. Set \\(\\mu=Q-1\\). For a trial \\(\\mu\\), minimize \\(E+\\mu f\\) by a Bellman DP over all \\(2^{21}\\) face subsets; the terminal penalty at state \\(A\\) is \\(\\mu r(A)\\), and the transition cost for face \\(j\\) is \\(r(A)\\) times its newly exposed query count. Reconstruct the minimizing sequence, calculate \\(Q=(E-f)/(1-f)\\), then update \\(\\mu\\leftarrow Q-1\\). At the optimum, \\(\\min(E+\\mu f)=Q=\\mu+1\\). The DP enumerates all 2,667 kernels exactly; this is not Monte Carlo.
+For each cutoff \(k=1,\ldots,21\), the C++ program optimizes this fractional objective over every ordered sequence of \(k\) faces. Set \(\mu=Q-1\). For a trial \(\mu\), minimize \(E+\mu f\) by a Bellman DP over all \(2^{21}\) face subsets; the terminal penalty at state \(A\) is \(\mu r(A)\), and the transition cost for face \(j\) is \(r(A)\) times its newly exposed query count. Reconstruct the minimizing sequence, calculate \(Q=(E-f)/(1-f)\), then update \(\mu\leftarrow Q-1\). At the optimum, \(\min(E+\mu f)=Q=\mu+1\). The DP enumerates all 2,667 kernels exactly; this is not Monte Carlo.
 
 ## Optimal cutoff comparison
 
