@@ -81,7 +81,7 @@ function page(entryUrl) {
     'const pre=document.createElement("pre");',
     'pre.id="result";pre.textContent=btoa(encoded);',
     'document.body.appendChild(pre);',
-    '} catch(error) {
+    '} catch(error) {',
     'const pre=document.createElement("pre");pre.id="failure";',
     'pre.textContent=String(error.stack||error);',
     'document.body.appendChild(pre);',
