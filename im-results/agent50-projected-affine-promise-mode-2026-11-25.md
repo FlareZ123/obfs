@@ -187,3 +187,6 @@ Run with:
 \`\`\`sh
 python3 sims/agent43-rankfive-promise-query-replay.py
 \`\`\`
+
+
+The replay also checks the deterministic query-cap derivation. The ten selected five-faces of seven witness directions cover 93 distinct subset patterns per trial, including the empty subset. The empty input is shared by all trials, so 18 trials require at most \(1+18(93-1)=1,657\) witness queries. The shift stage adds at most \(32\times3=96\), giving the HTTP fast-path cap of 1,753. Direction dependencies or cross-trial collisions can only reduce the actual unique-query count.
