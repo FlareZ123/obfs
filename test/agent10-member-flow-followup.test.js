@@ -515,3 +515,22 @@ test('an uninstantiated module-local class field callable remains safe',()=>{
   assert.equal(hidden.hostHeldCallable,false);
   assert.equal(hidden.safe,true);
 });
+
+
+test('a top-level classic-script object binding exposes its nested callable values',()=>{
+  const source='const owner={callback:function hidden(){return 1;}};';
+  const hidden=hiddenScriptSummary(source);
+  assert.equal(hidden.externallyReachable,true,
+    'the host can read callable properties from a top-level lexical object binding');
+  assert.equal(hidden.safe,false);
+});
+
+test('a top-level classic-script instance binding exposes a block-local class field callable',()=>{
+  const source=
+    'let owner;'+
+    '{class Local{callback=function hidden(){return 1;};}owner=new Local();}';
+  const hidden=hiddenScriptSummary(source);
+  assert.equal(hidden.externallyReachable,true,
+    'the global instance binding exposes the class field even when the class name is block-local');
+  assert.equal(hidden.safe,false);
+});
