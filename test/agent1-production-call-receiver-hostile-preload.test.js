@@ -81,3 +81,81 @@ test('production cross-file proof retains a direct property-read positive contro
   assert.equal(transformed.crossFile.properties,1);
   assert.equal(await execute(transformed.files),expected);
 });
+
+
+const productionMutationCases=[
+  {
+    name:'destructured Object.defineProperty',
+    setup:'const {defineProperty}=Object;defineProperty(Function.prototype,"call",{value:function(receiver){return receiver.secretField;}});',
+    invoke:'console.log(read.call(state));'
+  },
+  {
+    name:'globalThis.Object mutator alias',
+    setup:'const objectConstructor=globalThis.Object;const define=objectConstructor.defineProperty;define(Function.prototype,"call",{value:function(receiver){return receiver.secretField;}});',
+    invoke:'console.log(read.call(state));'
+  },
+  {
+    name:'destructured Reflect.set replacing Reflect.apply',
+    setup:'const {set}=Reflect;set(Reflect,"apply",function(fn,receiver,args){return receiver.secretField;});',
+    invoke:'console.log(Reflect.apply(read,state,[]));'
+  },
+  {
+    name:'globalThis.Reflect replacement',
+    setup:'globalThis.Reflect={apply:function(fn,receiver,args){return receiver.secretField;}};',
+    invoke:'console.log(Reflect.apply(read,state,[]));'
+  },
+  {
+    name:'Function constructor mutation',
+    setup:'Function("Function.prototype.call=function(receiver){return receiver.secretField;}")();',
+    invoke:'console.log(read.call(state));'
+  },
+  {
+    name:'destructured Reflect.setPrototypeOf local call shadow',
+    setup:'const {setPrototypeOf}=Reflect;setPrototypeOf(read,{call:function(receiver){return receiver.secretField;}});',
+    invoke:'console.log(read.call(state));'
+  },
+  {
+    name:'legacy Object.prototype.__defineGetter__',
+    setup:'Object.prototype.__defineGetter__.call(Function.prototype,"call",function(){return function(receiver){return receiver.secretField;};});',
+    invoke:'console.log(read.call(state));'
+  },
+  {
+    name:'computed Function.prototype key',
+    setup:'const key="call";Function.prototype[key]=function(receiver){return receiver.secretField;};',
+    invoke:'console.log(read.call(state));'
+  },
+  {
+    name:'window.Object alias',
+    setup:'globalThis.window=globalThis;window.Object.defineProperty(Function.prototype,"call",{value:function(receiver){return receiver.secretField;}});',
+    invoke:'console.log(read.call(state));'
+  },
+  {
+    name:'host preloader mutates escaped function',
+    setup:'mutate(read);',
+    invoke:'console.log(read.call(state));',
+    preload:hostilePreload
+  }
+];
+
+for(const fixture of productionMutationCases) {
+  test('production cross-file proof refuses '+fixture.name,async()=>{
+    /** @type {ModuleFile[]} */
+    const files=[
+      {path:'state.mjs',sourceType:'module',code:'export const state={secretField:59};'},
+      {path:'main.mjs',sourceType:'module',code:[
+        'import {state} from "./state.mjs";',
+        'function read(){return this.secretField;}',
+        fixture.setup,
+        fixture.invoke
+      ].join('\n')}
+    ];
+    const expected=await execute(files,fixture.preload??null);
+    assert.equal(expected,'59\n');
+    const transformed=obfuscateFiles(files,{
+      mode:'coo',closedWorld:true,seed:'production-call-receiver-'+fixture.name,
+      strings:false,identifiers:false
+    });
+    assert.equal(transformed.crossFile.properties,0,transformed.files[0].code);
+    assert.equal(await execute(transformed.files,fixture.preload??null),expected);
+  });
+}
