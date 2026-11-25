@@ -202,6 +202,102 @@ def face_sequence_indices(model, sequence):
     return [index[tuple(face)] for face in sequence]
 
 
+def exact_order_dp(model, sequence):
+    """Prove the best ordering for a fixed selected face set by subset DP."""
+    selected = face_sequence_indices(model, sequence)
+    k = len(selected)
+    states = 1 << k
+    kernels = len(model["kernels"])
+    p = model["rank_probability"]
+    denominator = p.denominator * kernels
+    remaining_masks = [0] * states
+    cover_unions = [0] * states
+    remaining_counts = [0] * states
+    cover_counts = [0] * states
+    remaining_masks[0] = model["all_kernels"]
+    remaining_counts[0] = kernels
+
+    for subset in range(1, states):
+        bit = subset & -subset
+        position = bit.bit_length() - 1
+        previous = subset ^ bit
+        face_index = selected[position]
+        remaining_masks[subset] = (
+            remaining_masks[previous] & model["fail_masks"][face_index]
+        )
+        cover_unions[subset] = (
+            cover_unions[previous] | model["cover_masks"][face_index]
+        )
+        remaining_counts[subset] = remaining_masks[subset].bit_count()
+        cover_counts[subset] = cover_unions[subset].bit_count()
+
+    p_numerator = p.numerator
+    p_denominator = p.denominator
+    reach_numerators = [
+        (p_denominator - p_numerator) * kernels
+        + p_numerator * remaining_counts[subset]
+        for subset in range(states)
+    ]
+
+    dp = [None] * states
+    parent = [-1] * states
+    dp[0] = 0
+    transitions = 0
+    for subset in range(states):
+        base = dp[subset]
+        for position in range(k):
+            bit = 1 << position
+            if subset & bit:
+                continue
+            target = subset | bit
+            increment = cover_counts[target] - cover_counts[subset]
+            candidate = base + reach_numerators[subset] * increment
+            transitions += 1
+            if dp[target] is None or candidate < dp[target]:
+                dp[target] = candidate
+                parent[target] = position
+
+    full = states - 1
+    order = []
+    subset = full
+    while subset:
+        position = parent[subset]
+        order.append(sequence[position])
+        subset ^= 1 << position
+    order.reverse()
+
+    input_cost_numerator = 0
+    subset = 0
+    for position in range(k):
+        target = subset | (1 << position)
+        increment = cover_counts[target] - cover_counts[subset]
+        input_cost_numerator += reach_numerators[subset] * increment
+        subset = target
+
+    failure_numerator = reach_numerators[full]
+    optimal_q = Fraction(
+        dp[full] - failure_numerator,
+        denominator - failure_numerator,
+    )
+    input_q = Fraction(
+        input_cost_numerator - failure_numerator,
+        denominator - failure_numerator,
+    )
+    return {
+        "optimal_order": order,
+        "optimal_q": optimal_q,
+        "input_order_q": input_q,
+        "expected_query_numerator": dp[full],
+        "input_expected_query_numerator": input_cost_numerator,
+        "reach_denominator": denominator,
+        "failure_numerator": failure_numerator,
+        "remaining_kernels": remaining_counts[full],
+        "query_union": cover_counts[full],
+        "states": states,
+        "transitions": transitions,
+    }
+
+
 def main():
     model7 = build_model(7)
     model8 = build_model(8)
@@ -211,6 +307,8 @@ def main():
     result7 = evaluate(model7, seq7)
     result8 = evaluate(model8, seq8)
     result8_cpp = evaluate(model8, seq8_cpp)
+    order_dp8 = exact_order_dp(model8, M8_SEQUENCE)
+    order_dp8_cpp = exact_order_dp(model8, M8_CPP_SEQUENCE)
 
     assert len(model7["kernels"]) == 2667
     assert len(model8["kernels"]) == 97155
@@ -230,6 +328,17 @@ def main():
     assert result8_cpp["expected_repeated_trial_queries"] == result8["expected_repeated_trial_queries"]
     assert [row["new_queries"] for row in result8_cpp["rows"]] == [32,16,8,4,2,16,8,4,2,16,8,4,2,1]
     assert [row["remaining_kernels"] for row in result8_cpp["rows"]] == [64387,48003,39811,35715,33667,24963,20611,18435,17347,11955,9259,7911,7237,6948]
+    for order_dp in (order_dp8, order_dp8_cpp):
+        assert order_dp["optimal_q"] == result8["expected_repeated_trial_queries"]
+        assert order_dp["input_order_q"] == order_dp["optimal_q"]
+        assert order_dp["expected_query_numerator"] == 7228875609622710
+        assert order_dp["reach_denominator"] == 104319386910720
+        assert order_dp["failure_numerator"] == 18738330415695
+        assert order_dp["states"] == 16384
+        assert order_dp["transitions"] == 114688
+        assert order_dp["remaining_kernels"] == 6948
+        assert order_dp["query_union"] == 123
+        assert order_dp["optimal_order"] in (M8_SEQUENCE, M8_CPP_SEQUENCE)
 
     correction7 = collision_correction_bound(7, result7)
     correction8 = collision_correction_bound(8, result8)
@@ -281,6 +390,8 @@ def main():
     face_delta = float(result8["expected_total_faces"] - result7["expected_total_faces"])
     print("  extra expected face evaluations (m8 - m7):", face_delta)
     print("  break-even face-evaluation cost in query units:", float(gap) / face_delta)
+    print("  fixed-set exact ordering DP:", order_dp8["states"], "states,",
+          order_dp8["transitions"], "transitions; input order is optimal")
     face_delta = float(result8["expected_total_faces"] - result7["expected_total_faces"])
     print("  extra expected face evaluations (m8 - m7):", face_delta)
     print("  break-even face-evaluation cost in query units:", float(gap) / face_delta)
