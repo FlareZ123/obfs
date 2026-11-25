@@ -745,22 +745,23 @@ function summarizeAmbientCallEffects(ast,sourceType) {
     }
     if(value.type==='MemberExpression') {
       const propertyKey=staticPropertyKey(value.property,value.computed);
-      if(value.object.type==='Identifier'&&propertyKey!==null) {
+      if(value.object.type==='Identifier') {
         const reference=resolved.at(value.object.start);
         if(reference?.resolution.kind==='local') {
           const bindingId=reference.resolution.bindingId;
-          const values=localRecordMemberValues.get(bindingId)?.get(propertyKey);
-          if(values?.length) {
-            if(seen.has(bindingId))return [];
-            const next=new Set(seen);
-            next.add(bindingId);
-            return [...new Set(values.flatMap(candidate=>callableNodesForValue(candidate,next)))];
+          if(propertyKey!==null) {
+            const values=localRecordMemberValues.get(bindingId)?.get(propertyKey);
+            if(values?.length) {
+              if(seen.has(bindingId))return [];
+              const next=new Set(seen);
+              next.add(bindingId);
+              return [...new Set(values.flatMap(candidate=>callableNodesForValue(candidate,next)))];
+            }
           }
           // A mutable lexical alias may be assigned a local class instance
           // after its declaration and then read through a member expression
-          // inside a closure. Preserve all known assigned values here too;
-          // callableNodesForValue(NewExpression) conservatively yields the
-          // class's public field callables.
+          // inside a closure. For unknown/computed keys, conservatively retain
+          // every callable reachable from each known assigned object value.
           const assignedValues=bindingValueExpressions.get(bindingId)??[];
           if(assignedValues.length) {
             if(seen.has(bindingId))return [];
