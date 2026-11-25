@@ -144,6 +144,18 @@ const productionMutationCases=[
     setup:'const proxied=new Proxy(read,{get(target,key,receiver){if(key==="call")return function(receiver){return receiver.secretField;};return Reflect.get(target,key,receiver);}});',
     invoke:'if(proxied.call(state)!==59)throw new Error("receiver property changed");'
   }
+
+  ,
+  {
+    name:'destructured Object.assign mutates Function.prototype.call',
+    setup:'const {assign}=Object;assign(Function.prototype,{call:function(receiver){return receiver.secretField;}});',
+    invoke:'if(read.call(state)!==59)throw new Error("receiver property changed");'
+  },
+  {
+    name:'destructured Reflect.defineProperty mutates Function.prototype.call',
+    setup:'const {defineProperty}=Reflect;defineProperty(Function.prototype,"call",{value:function(receiver){return receiver.secretField;}});',
+    invoke:'if(read.call(state)!==59)throw new Error("receiver property changed");'
+  }
 ];
 
 for(const fixture of productionMutationCases) {
