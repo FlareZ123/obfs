@@ -38,7 +38,7 @@ const CASES=[
       'import {state as left,state as right,peek} from "./state.mjs";'+
       'console.log(peek(left),peek(right));'}
   ]},
-  {name:'repeated-separator-distinct-url-identities',renamed:1,duplicateSeparator:true,
+  {name:'repeated-separator-distinct-url-identities',renamed:0,duplicateSeparator:true,
     expected:[false,true,29,29,29,29],files:[
       {path:'state.mjs',sourceType:'module',code:
         'export const state={secretField:29};'+
@@ -49,6 +49,13 @@ const CASES=[
         'import {state as right,url as rightUrl,peek} from ".//state.mjs";'+
         'console.log(left===right,leftUrl!==rightUrl,peek(left),peek(right),'+
         'left.secretField,right.secretField);'}
+    ]},
+  {name:'browser-url-dot-segment-target-distinct-from-posix-path',renamed:0,
+    expected:[42],files:[
+      {path:'state.mjs',sourceType:'module',code:'export const state={secretField:23};'},
+      {path:'a/state.mjs',sourceType:'module',code:'export const state={secretField:42};'},
+      {path:'entry.mjs',sourceType:'module',code:
+        'import {state} from "./a//../state.mjs";console.log(state.secretField);'}
     ]},
   {name:'sibling-alias-escape',renamed:0,files:[
     {path:'state.mjs',sourceType:'module',code:'export const state={secretField:29};'},
@@ -110,7 +117,7 @@ function page(entryUrl) {
 }
 
 /**
- * Test nine actual network-served, original vs generated ESM module graphs
+ * Test eleven actual network-served, original vs generated ESM module graphs
  * with Chrome's genuine ESM linker and a known in-graph host shim.
  * @returns {Promise<{cases:number,nativeBrowserParity:true,protectedPrivateFields:number,observerRefusals:number,normalizedPublicFields:number}>}
  */
