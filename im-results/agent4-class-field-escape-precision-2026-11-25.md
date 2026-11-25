@@ -99,3 +99,15 @@ The combined regression entry point was rerun against this final donor head and 
 **Current donor code head:** 804db5fc908b7ad71a97cc107a4eb5584db0ad07
 
 This supersedes the earlier 16-case class-field and 45583159063 combined-run status. No production integration, full repository acceptance, cross-file flow, runtime benchmark, or 2.5x claim is made.
+
+
+## Addendum: prototype-setter own-data control and final 20-case validation (2026-11-25 09:25 UTC)
+
+Added a negative control that installs an inherited Object.prototype setter for the same property name and constructs a local class instance with a public field of that name. The field initializer remains non-escaping: class public fields define own data properties rather than invoking inherited setters. The 20-case class-field matrix passed on Ubuntu and Windows with all focused JSDoc stages in [run 45584754204](https://github.com/FlareZ123/obfs/actions/runs/45584754204).
+
+The combined regression bundle was rerun after this control and passed on Ubuntu and Windows with all focused JSDoc stages in [run 45584933625](https://github.com/FlareZ123/obfs/actions/runs/45584933625). It loads the 16-case local-record matrix, 20-case class-field matrix, existing Agent 4 ambient-throw/callable suite, and existing Agent 9 BindingId ambient-call suite.
+
+**Current donor code head:** 804db5fc908b7ad71a97cc107a4eb5584db0ad07  
+**Current branch head:** 84c93ab5ea5ad04c5c80898ec90762bc6639c6fc
+
+No production integration, full repository acceptance, cross-file flow, runtime benchmark, or 2.5x claim is made.
