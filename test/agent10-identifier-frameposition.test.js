@@ -8,13 +8,13 @@ const {compareBrowser,parseFrame}=require('./agent10-frameposition-browser-helpe
 test('identifier-only renaming preserves later strict-ESM FramePosition',{
   skip:process.platform!=='linux'?'real Chromium fixture currently targets the Linux runner':false
 },async()=>{
-  const source='const marker="xy";const value=marker.length;captureHostStack();export {value};';
+  const source='const operand=20;const value=operand+2;captureHostStack();export {value};';
   const output=obfuscateFiles([{path:'generated.mjs',sourceType:'module',code:source}],{
     mode:'coo',closedWorld:true,seed:'agent10-identifier-frameposition',
     identifiers:true,strings:false,properties:false
   }).files[0];
   const payload=await compareBrowser(source,String(output.code),'identifier');
-  assert.deepEqual(payload.values,[2,2]);
+  assert.deepEqual(payload.values,[22,22]);
   assert.equal(output.metrics.bindings,1,'the local marker binding must be renamed');
   assert.equal(payload.stacks.length,2);
   const native=parseFrame(payload.stacks[0],'/native-identifier.mjs');
