@@ -2,7 +2,21 @@
 
 const assert=require('node:assert/strict');
 const {test}=require('node:test');
-const {compare}=require('../sims/sco-dense-hybrid-matched-http');
+const {compare,fixture,rivestCoefficients}=require('../sims/sco-dense-hybrid-matched-http');
+
+
+test('dense hybrid fixture emits unsigned primitive coefficient literals',()=>{
+  const sample=fixture();
+  const coefficients=rivestCoefficients(sample.seed^0x3c6ef372);
+  assert.equal(coefficients.length,4);
+  for(const value of coefficients){
+    assert.equal(Number.isInteger(value),true);
+    assert.equal(value>=0&&value<=0xffffffff,true);
+  }
+  for(let index=0;index<coefficients.length;index++){
+    assert.match(sample.source,new RegExp('const OBFS_PRIVATE_C'+index+'=[0-9]+;'));
+  }
+});
 
 test('real SCO and minified dense Rivest-3 authenticated hybrid inversion match every request',async()=>{
   const result=await compare();

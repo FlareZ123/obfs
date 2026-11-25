@@ -24,8 +24,8 @@ function rivestCoefficients(seed) {
   const next=makeRng(seed);
   const coefficients=Array.from({length:4},()=>next());
   coefficients[1]=u32(coefficients[1]|1);
-  if((coefficients[2]&1)!==0)coefficients[2]^=1;
-  if((coefficients[3]&1)!==0)coefficients[3]^=1;
+  if((coefficients[2]&1)!==0)coefficients[2]=u32(coefficients[2]^1);
+  if((coefficients[3]&1)!==0)coefficients[3]=u32(coefficients[3]^1);
   return coefficients;
 }
 
