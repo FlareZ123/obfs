@@ -48,6 +48,44 @@ The global second-best cutoff is 9, leaving a 0.1532589045 gap to the m=7 optimu
 
 The canonical winning graph has complement-pair edges with indices 1 through 10 under the lexicographic \(\binom{[7]}2\) indexing. It is isomorphic to the existing m=7 \(K_{2,5}\) face set. Its optimal order is one five-edge star followed by the other.
 
+### Follow-up: cache completeness in the m=7 graph-class search
+
+A direction's singleton oracle value is cached in a failed trial iff that direction appears in at least one tested face. In the graph representation, an edge is an omitted pair. A vertex of degree k (incident to every selected edge) is therefore omitted from every face, so its singleton is not cached. The first m=7 graph-search implementation treated every prior-trial direction as singleton-cached; that was exact for graphs with no universal vertex, but optimistic for graphs with one or two universal vertices.
+
+Corrected `sims/agent2-rankfive-m7-fullpath-face-order-dp.cpp` to count t universal vertices (t=0,1,2). For k failed trials, the expected number of cache-backed independent prior directions is now E[rank((7-t)k)] in GF(2)^27. The span of all 7k prior directions still determines whether successful-trial extras extend the basis, so the extra-direction independence coefficients continue to use the full rank distribution E[rank(7k)]. The successful-face pair costs already account for singleton misses within the current successful trial.
+
+The winning K2,5 graph has no universal vertex, so its score is unchanged. The corrected exhaustive search still returns cutoff 10, K2,5, total 160.549864623622, with `uncacheable_vertices=0`. Manual-only workflow run [45573056357](https://github.com/FlareZ123/obfs/actions/runs/45573056357) succeeded after this correction. It reruns the exact m=7/m=8 adaptive-pair comparison, all 465 pair-signature checks, 10,000 seeded replay replicates per policy/mode, graph-atlas generation, and the C++ graph-class/order DP. The run reports 1,044 graph representatives, 12,490,035 subset states, and 105,195,413 transitions.
+
+### Global finite-width collision bound for m=7
+
+The collision correction can be bounded over every nonempty m=7 face set, not only the K2,5 winner. Across all 21 possible 5-faces, the query union contains at most the 120 subset masks of size 0 through 5 among seven directions, so Cmax <= 120. Any nonempty face set has per-trial miss probability at most the one-face miss:
+
+[
+f_{\max}=1-\prod_{i=0}^{4}(1-2^{i-5})
+=0.701995849609375.
+]
+
+For seven uniform 32-bit direction words,
+
+[
+p_{\mathrm{dep}}(7)=1-\prod_{j=0}^{6}(1-2^{j-32})
+\approx 2.9569491455\times 10^{-8}.
+]
+
+Substituting Cmax-1=119 and f=fmax into the existing conservative bounds gives:
+
+| Stage | Maximum expected query savings from collisions |
+|---|---:|
+| Witness stage | 0.000845823 |
+| Coordinate stage | 0.000490018 |
+| Combined | **0.001335842** |
+
+This is below 0.9% of the 0.153258904535 model gap between the K2,5 winner (160.549864623622) and the best cutoff-9 candidate (160.703123528157). Under the stated uniform 27-dimensional kernel-component model, finite-width dependence and cross-trial cache collisions therefore cannot reverse the m=7 graph-search ranking. This is a query-count bound, not a runtime or security claim.
+
+### Numerical qualification
+
+The graph-class search enumerates all 1,044 unlabeled seven-vertex graphs and all face orders, but its C++ DP uses double state costs with long-double rank coefficients. The winner and the best cutoff-9/10/11 candidates are independently re-evaluated with exact Python Fraction arithmetic; the complete 1,044-graph ranking is not yet accompanied by a formal interval-arithmetic certificate. Treat the exhaustive ranking as numerically reproduced with a large margin, not as an all-candidate rational-arithmetic proof.
+
 ### m=8 fixed-set order optimization
 
 For the existing 14-face m=8 candidate, an exact subset DP over all \(2^{14}=16,384\) face subsets finds the best order under adaptive anchor-pair selection and cost-sorted extras:
