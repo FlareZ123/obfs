@@ -166,7 +166,9 @@ Using the same \(10^{-10}\) per-run witness-miss target:
 | Signature cap incl. 992 probes + 726 verifier samples | 3,375 | 3,427 |
 | Expected total with 96 shift + 726 verifier queries | 906.502917 | 906.249220 |
 
-The eight-direction policy's expected total face evaluations over repeated trials are **6.825422**, versus **6.572655** for seven directions. Its expected direction-word count is **9.751633**, versus **9.579194**. Thus the candidate saves only about 0.254 expected distinct oracle requests while using about 3.85% more expected face evaluations and having a 52-query higher fast-path cap. No CPU, wall-time, memory, initialization, or 2.5× runtime measurement was performed.
+The eight-direction policy's expected total face evaluations over repeated trials are **6.825422**, versus **6.572655** for seven directions. Its expected direction-word count is **9.751633**, versus **9.579194**. Thus the candidate saves only about 0.254 expected distinct oracle requests while using about 3.85% more expected face evaluations and having a 52-query higher fast-path cap.
+
+For a simple weighted sensitivity model \(J=Q+\lambda F\), where \(F\) is expected total face evaluations and \(\lambda\) is the cost of one face evaluation measured in oracle-query units, the m=8 candidate beats the m=7 baseline only when \(\lambda<1.00368245\). This is a break-even calculation, not a measured CPU/network cost conversion. No CPU, wall-time, memory, initialization, or 2.5× runtime measurement was performed.
 
 ## Search method and optimality boundary
 
