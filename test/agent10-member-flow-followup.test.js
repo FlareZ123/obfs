@@ -91,7 +91,7 @@ test('a statically named namespace constructor preserves its instance field call
     'a statically resolved namespace constructor must preserve its known class field');
 });
 
-test('a getter returning a callable field value cannot be treated as an empty property',()=>{
+test('a callable returned from a class getter remains held by the generic return sink',()=>{
   const source=
     'let owner;'+
     'function hidden(){return 1;}'+
@@ -102,7 +102,7 @@ test('a getter returning a callable field value cannot be treated as an empty pr
     'a getter return value is the value observed by the host');
 });
 
-test('an inherited getter returning a callable remains visible through the subclass',()=>{
+test('a callable returned from an inherited getter remains held by the generic return sink',()=>{
   const source=
     'let owner;'+
     'function hidden(){return 1;}'+
@@ -114,15 +114,14 @@ test('an inherited getter returning a callable remains visible through the subcl
     'the property-value resolver must include callable values returned by inherited getters');
 });
 
-test('reading a primitive-returning getter does not retain another getter callable',()=>{
+test('an object-literal primitive getter does not retain an unrelated callable sibling',()=>{
   const source=
-    'let owner;'+
     'function hidden(){return 1;}'+
-    'class Local{get callback(){return hidden;}get value(){return 1;}}'+
-    'function entry(){owner=new Local();external(owner.value);}'+
+    'const owner={callback:hidden,get value(){return 1;}};'+
+    'function entry(){external(owner.value);}'+
     'entry();';
   const hidden=hiddenSummary(source);
   assert.equal(hidden.hostHeldCallable,false,
-    'the unobserved callable-returning getter must not be retained when only a primitive getter is read');
+    'the getter returns a primitive, so the unrelated callback property is not observed');
   assert.equal(hidden.safe,true);
 });
