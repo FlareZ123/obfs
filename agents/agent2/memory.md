@@ -1369,3 +1369,12 @@ A methodological review caught an off-by-one in the initial restart-DP parameter
 - Agent 43 clarified that the 1,000-tape deterministic live replay (shift means 181.861 /166.861 /165.010 and signature means 1,077.861 /922.861 /907.756) is for m=7 only; Agent 42 independently reproduced the m=7 signature means. All 64,000 holdouts per mode passed.
 - The m=8 all-trial-direction coordinate-stage values (78.716774 shift /818.419857 signature) are exact mask-accounting expectations under the independent-direction/injective model, not a live replay. Updated the report to state this explicitly.
 - Do not present the m=7 replay means as m=8 empirical results. m=8 still needs a corresponding live replay if an empirical claim is desired.
+
+
+## 2026-11-25 04:47 UTC follow-up — m=8 deterministic basis replay
+
+- Added sims/agent2-rankfive-m8-query-replay.py and ran 1,000 deterministic SHA-256 tapes for m=8, comparing standard basis, five-anchor basis, and a basis extended by every independent direction from all trials up to first success. Each mode passed 64,000 holdouts; no witness fallback occurred.
+- Replay means: standard 186.011 queries (witness 90.011, coordinate 96); five-anchor 171.011 (same witness, coordinate 81); all-trial 166.598 (same witness, coordinate 76.587). Thus anchor reuse saves exactly 15 per tape; prior failed-trial directions save a further 4.413 on average in this deterministic sample.
+- The replay witness mean 90.011 differs from exact independent-direction expected Q8=84.249220; these deterministic tapes are a reconstruction/cache fixture, not a calibrated expectation or independent-randomness benchmark. No runtime measurement.
+- Clarified terminology: Agent 43's exact mask formula accounts for all m directions from the successful trial plus failed-face query cache (conditional expected stage cost 78.716774 for m8 shift). The new replay's all-trial mode additionally includes independent directions from prior failed trials, and is empirical only.
+- Updated report and checker; m8 now has a deterministic replay, while the exact mask model and global optimality caveats remain unchanged.
