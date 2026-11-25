@@ -1,6 +1,7 @@
 'use strict';
 
 const assert=require('node:assert/strict');
+const vm=require('node:vm');
 const {test}=require('node:test');
 const {parse}=require('../src/ast');
 const {summarizeAmbientCallEffects}=require('../workplace/agent9-ambient-call-bindingid');
@@ -8,6 +9,14 @@ const {summarizeAmbientCallEffects}=require('../workplace/agent9-ambient-call-bi
 /** @param {string} source @returns {ReturnType<typeof summarizeAmbientCallEffects>} */
 function analyze(source) {
   return summarizeAmbientCallEffects(parse(source,'commonjs'),'commonjs');
+}
+
+/** @param {string} source @returns {Function[]} */
+function execute(source) {
+  /** @type {Function[]} */
+  const captured=[];
+  vm.runInNewContext(source,{external(value){captured.push(value);}});
+  return captured;
 }
 
 /** @param {string} source @returns {ReturnType<typeof analyze>['summaries'][number]} */
@@ -25,6 +34,11 @@ test('a later object spread cannot hide the callable that overrides an explicit 
     'const owner={callback:harmless,...later};'+
     'external(owner.callback);';
   const summary=hiddenSummary(source);
+  const [captured]=execute(source);
+  assert.equal(captured?.name,'hidden',
+    'the runtime spread order must deliver the hidden function to the host');
+  assert.match(String(captured),/state\\.secret/,
+    'the host must be able to observe the original private property spelling');
   assert.equal(summary.hostHeldCallable,true,
     'the final callback comes from the later spread, so the host can observe hidden source');
   assert.equal(summary.safe,false,
@@ -39,6 +53,9 @@ test('an explicit property after a spread shadows the earlier callable without o
     'const owner={...earlier,callback:harmless};'+
     'external(owner.callback);';
   const summary=hiddenSummary(source);
+  const [captured]=execute(source);
+  assert.equal(captured?.name,'harmless',
+    'the later explicit property must be the actual runtime value');
   assert.equal(summary.hostHeldCallable,false,
     'the later explicit property wins over the earlier spread');
   assert.equal(summary.safe,true,
@@ -52,6 +69,9 @@ test('a spread-only property still resolves its callable value',()=>{
     'const owner={...later};'+
     'external(owner.callback);';
   const summary=hiddenSummary(source);
+  const [captured]=execute(source);
+  assert.equal(captured?.name,'hidden',
+    'the spread-only property must be the actual runtime value');
   assert.equal(summary.hostHeldCallable,true,
     'the spread supplies the observed callback property');
   assert.equal(summary.safe,false);
