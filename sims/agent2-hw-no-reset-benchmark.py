@@ -555,6 +555,7 @@ def run_one(
             "post_calls": counters["post_calls"],
             "query_calls": counters["query_calls"],
             "trace_steps": len(trace),
+            "timeout_debug": timeout_debug,
             "fixture_digest": digest_fixture(fixture),
             "trace_digest": digest_trace(trace),
         }
@@ -573,7 +574,6 @@ def run_one(
             "post_calls": counters["post_calls"],
             "query_calls": counters["query_calls"],
             "trace_steps": len(trace),
-            "timeout_debug": timeout_debug,
         }
     finally:
         signal.alarm(0)
