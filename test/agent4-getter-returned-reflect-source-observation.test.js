@@ -58,7 +58,7 @@ test('a getter-returned Reflect alias cannot expose renamed cross-file owner key
   ].join('\n');
   const files=graph(caller);
   const native=await execute(files);
-  assert.equal(native,'[41,[[["auditCount","externalFormat"],"audit-v1",true],["secretField"]]]\n');
+  assert.equal(native,'[41,[{"keys":["auditCount","externalFormat"],"value":"audit-v1","enumerable":true},["secretField"]]]\n');
   const compiled=obfuscateFiles(files,{
     mode:'coo',closedWorld:true,seed:'getter-returned-reflect-observer',
     identifiers:false,strings:false,properties:true
