@@ -224,9 +224,9 @@ The optimization is not yet integrated into Agent 50's PR branch; the existing i
 
 The same anchor-extended basis also applies to the generic baseline's five-anchor profile loop whenever its input anchors are independent; otherwise retain the existing path. For 68 attempts and 880 heldouts, the conservative baseline cap falls from 72,688 to 61,808 (160 fewer queries per attempt), but expected savings require measurement because the candidate loop stops adaptively. The baseline's reported mean 2,043.5 predates this optimization, so hybrid-versus-baseline comparisons must optimize both sides or label the baseline as unoptimized. This is independent of the m=7 versus m=8 witness-query comparison.
 
-## Reusing all trial directions and failed-face cache
+## Reusing all directions from the successful trial and failed-face cache
 
-The anchor-extended basis can be improved further: include every linearly independent direction observed in the witness trials up to and including the first successful face, not only the five directions in that face. The failed-face query cache can then satisfy some of the extra basis vectors' coordinate probes. The exact mask calculation weights each possible first-success face by its number of surviving kernels and counts only coordinate-stage points not already in the prefix cache.
+The anchor-extended basis can be improved further: include all m directions from the successful witness trial, not only the five directions in the successful face. The failed-face query cache can then satisfy some coordinate probes for the m-5 extra directions. The exact mask calculation weights each possible first-success face by its number of surviving kernels and counts only coordinate-stage points not already in the prefix cache.
 
 Under the independent-direction/injective model, the conditional expected coordinate-stage costs are:
 
@@ -245,6 +245,18 @@ These include reuse from failed-face caches and are below the anchor-only worst-
 These totals are conditional on obtaining a witness and exclude the verifier. Adding 726 verifier samples gives uncached additive upper bounds; actual distinct-query counts may be lower if verifier points overlap. The coordinate-stage expectations assume the trial directions extend the basis independently; the earlier 32-bit collision correction was derived for the witness-query component, not a combined coordinate-stage correction.
 
 For m=7, Agent 43's 1,000-tape deterministic replay found shift means 181.861 (standard basis), 166.861 (five-anchor basis), and 165.010 (all trial directions); signature means were 1,077.861, 922.861, and 907.756. All 64,000 holdouts per mode passed, and Agent 42 independently reproduced the signature means. These are deterministic replay results, not runtime or independent-randomness benchmarks. The m=8 values above have exact mask accounting but no corresponding live replay yet.
+
+## m=8 deterministic replay with all observed trial directions
+
+Added \`sims/agent2-rankfive-m8-query-replay.py\`, which replays 1,000 deterministic SHA-256 counter tapes against the same fixed rank-five oracle, with 64 independent holdouts per tape and no witness fallback. It compares the standard basis, the five-anchor basis, and a basis extended by every independent direction observed in all trials up to the first successful face:
+
+| Basis mode | Mean cached queries | Mean witness queries | Mean new coordinate queries | Median | P90 | P95 | Max |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| Standard | 186.011 | 90.011 | 96.000 | 156 | 278 | 326 | 670 |
+| Five anchors | 171.011 | 90.011 | 81.000 | 141 | 263 | 311 | 655 |
+| All observed trial directions | 166.598 | 90.011 | 76.587 | 138 | 252 | 298 | 628 |
+
+All 64,000 holdouts per mode passed. The five-anchor basis saves exactly 15 cached queries per tape; including prior failed-trial directions saves a further 4.413 on average in this deterministic sample. The replay's mean witness-query count (90.011) differs from the exact independent-direction expectation \(Q_8=84.249220\); treat this as a deterministic reconstruction/caching fixture, not a calibrated estimator of expected query cost. It is not a runtime benchmark or independent-randomness result.
 
 ## Search method and optimality boundary
 
@@ -322,4 +334,4 @@ Beyond the anchor-only cap reduction above, an exact query-mask calculation show
 - m=7: shift \(66220/837\approx79.115890\), signature \(66545/81\approx821.543210\);
 - m=8: shift \(7100804/90207\approx78.716774\), signature \(73827200/90207\approx818.419857\).
 
-These are injective-subset-mask expectations under input independence, ignoring cross-trial collisions; worst-case caps remain 81/837. The m=7 deterministic replay was independently validated by Agent 42; m=8 has exact mask accounting but no corresponding live replay in this report. See \`sims/agent43-rankfive-m8-independent-check.py\` and the cache-aware section in Agent 50's intermediate report.
+These are injective-subset-mask expectations under input independence, ignoring cross-trial collisions; worst-case caps remain 81/837. The m=7 deterministic replay was independently validated by Agent 42. Agent 43's note predates the m=8 deterministic replay now recorded above. See \`sims/agent43-rankfive-m8-independent-check.py\` and the cache-aware section in Agent 50's intermediate report.
