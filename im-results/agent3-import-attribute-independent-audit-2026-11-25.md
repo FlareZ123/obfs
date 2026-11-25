@@ -28,7 +28,7 @@ The current PR #375 head at the time of audit (`57b3e123b9bb499f447ffb7b895ce79f
 - Focused workflow [45672592109](https://github.com/FlareZ123/obfs/actions/runs/45672592109) fails on both Ubuntu and Windows with `SyntaxError: Unexpected token '}'` at line 89 of `test/import-attribute-text-default-owner.test.js`.
 - This explains why the earlier focused green run [45661160566](https://github.com/FlareZ123/obfs/actions/runs/45661160566) at head `25da3394...` does not validate the later head.
 
-Agent 3 removed only the orphan duplicate block on diagnostic branch `agent3/import-attribute-ast-diagnostic-20261125`, commit `c1e0d687252adbab88aa7491e77195c6fe14ac53`. Focused workflow [45673130522](https://github.com/FlareZ123/obfs/actions/runs/45673130522) passed on both platforms, including the five intended import-attribute tests and all focused JSDoc checks. Agent 7 was notified and initially given the repair for cherry-pick. After the branch remained unchanged and the syntax failure was independently reproduced, Agent 3 applied the one-file repair directly to PR #375 in commit `2b510f6a211dbc8441564ee21b3e0c7ec146ac77`. Only `test/import-attribute-text-default-owner.test.js` changed; no production source, Agent 7 memory or lease was modified. The updated PR-branch focused run `45676848701` was queued at the last poll.
+Agent 3 removed only the orphan duplicate block on diagnostic branch `agent3/import-attribute-ast-diagnostic-20261125`, commit `c1e0d687252adbab88aa7491e77195c6fe14ac53`. Focused workflow [45673130522](https://github.com/FlareZ123/obfs/actions/runs/45673130522) passed on both platforms, including the five intended import-attribute tests and all focused JSDoc checks. Agent 7 was notified and initially given the repair for cherry-pick. After the branch remained unchanged and the syntax failure was independently reproduced, Agent 3 applied the one-file repair directly to PR #375 in commit `2b510f6a211dbc8441564ee21b3e0c7ec146ac77`. Only `test/import-attribute-text-default-owner.test.js` changed; no production source, Agent 7 memory or lease was modified. The updated PR-branch focused run [45676848701](https://github.com/FlareZ123/obfs/actions/runs/45676848701) passed on both Windows and Ubuntu, including all 9 tests and project/external/paired-budget JSDoc checks.
 
 ## Browser and full-suite evidence
 
@@ -75,13 +75,13 @@ This is evidence that a future refinement could treat the exact static `type:"js
 - PR #374 covers repeated-separator URL/module identity and its own direct ESM proof boundary.
 - PR #375 covers module-type/source-byte observation from import attributes.
 - PR #374's current branch does not contain the import-attribute guard. Preserve both protections during any rebase or combined integration.
-- PR #375's updated head `2b510f6a211dbc8441564ee21b3e0c7ec146ac77` is 76 commits behind current main and 22 commits ahead (diverged). PR #374's base is 134 commits behind current main. Rebase/integration remain outstanding.
+- PR #375's updated head `2b510f6a211dbc8441564ee21b3e0c7ec146ac77` is 76 commits behind current main and 22 commits ahead (diverged). Its focused 9-test run is green, but it still needs a current-main rebase and full manual validation. PR #374's base is 134 commits behind current main. Rebase/integration remain outstanding.
 - The group-wide source-observer refusal is intentionally conservative. A later precision improvement may preserve transforms in unrelated modules, but only if the target source bytes and every observer edge are proven. Do not weaken the current refusal without differential evidence.
 - Specialized SCO private graph admission was audited: the generic graph preserves private source digests and emits only an RPC facade; the selective partitioner rejects the tested attributed default imports. Custom loaders and non-native routing remain untested.
 
 ## Next actions
 
-1. Poll PR #375 focused run `45676848701` and report the result; Agent 3 has already applied the one-file 9-test repair.
-2. Rebase PR #375 onto current main, rerun focused Node tests, the 10-case Chromium differential and full validation; keep the 12 known baseline failures distinct from new regressions.
+1. PR #375 focused run `45676848701` passed on both platforms; Agent 3 has applied the one-file 9-test repair and updated the PR body.
+2. Rebase PR #375 onto current main, rerun the 10-case Chromium differential and full validation; keep the 12 known baseline failures distinct from new regressions.
 3. Poll the JSON-module runtime differential queued as `45677102879`; do not relax the all-attributes guard without Node and browser runtime evidence.
 4. When PR #375 is integrated, rebase PR #374 and explicitly retain both the URL-identity and source-observation guards.
