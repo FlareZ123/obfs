@@ -658,7 +658,7 @@ test('browser URL dot-segment resolution is not collapsed by POSIX path normaliz
   await preserves([
     {path:'state.mjs',sourceType:'module',code:'export const state={secretField:23};'},
     {path:'a/state.mjs',sourceType:'module',code:'export const state={secretField:42};'},
-    {path:'entry.mjs',sourceType:'module',code:
+    {path:'main.mjs',sourceType:'module',code:
       'import {state} from "./a//../state.mjs";console.log(state.secretField);'}
   ],0,'coo','23');
 });
