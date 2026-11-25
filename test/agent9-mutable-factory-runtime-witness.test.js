@@ -232,3 +232,14 @@ test('an object setter cannot hide a callback passed through its this receiver',
   assertRuntimeHostReceivesHidden(source);
   assertHiddenHeld(source);
 });
+
+
+test('a local method with a dynamic this-member read cannot hide the selected callback',()=>{
+  const source=
+    'function hidden(){return 1;}'+
+    'function entry(){const owner={callback:hidden,read(key){return this[key];}};'+
+    'external(owner.read("callback"));}'+
+    'module.exports=entry;';
+  assertRuntimeHostReceivesHidden(source);
+  assertHiddenHeld(source);
+});
