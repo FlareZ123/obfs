@@ -85,7 +85,7 @@ Test: `test/agent9-exported-factory-production-source-observer.test.js`
 
 The host invokes an exported factory, reads the returned instance's `callback` field, invokes it, and calls `Function.prototype.toString` on it. The fixture contains a private local binding inside the callback. Runtime behavior and the public field remain correct, but the emitted function source is rewritten and no longer contains the original local binding spelling.
 
-The earlier focused run [45632153965](https://github.com/FlareZ123/obfs/actions/runs/45632153965) passed because the test asserted this mismatch as a red control. It is **not** evidence of source-observation compatibility. The updated test now explicitly labels the mismatch red-control and includes TODO acceptance criteria for exact source preservation in COO/SCO/SNO. A second red-control matrix is being added for string encoding inside the returned callback.
+The earlier focused run [45632153965](https://github.com/FlareZ123/obfs/actions/runs/45632153965) first demonstrated identifier rewriting. The updated red-control suite also tests string encoding inside the returned callback and includes TODO acceptance criteria for exact source preservation in COO/SCO/SNO. Both identifier and string red-control matrices passed on Ubuntu and Windows with JSDoc green in [run 45635205211](https://github.com/FlareZ123/obfs/actions/runs/45635205211). This passing result confirms the mismatch is reproducible; it is **not** evidence of source-observation compatibility.
 
 ### Real Chromium / classic-script exported-factory red control
 
