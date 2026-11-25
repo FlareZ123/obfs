@@ -11,6 +11,8 @@ import sys
 import time
 from urllib.parse import urlsplit
 
+import numpy as np
+
 from aalpy.base import SUL
 from aalpy.learning_algs.resetless.hW import run_hW
 from aalpy.learning_algs.resetless.resetless_oracles import RandomWphWOracle
@@ -110,6 +112,7 @@ def main():
 
     sul = HttpNoResetMealySUL(args.origin, args.method_name, args.cookie)
     random.seed(args.oracle_seed)
+    np.random.seed(args.oracle_seed)
     oracle = RandomWphWOracle(
         sul,
         random_walk_length=args.random_walk_length,
