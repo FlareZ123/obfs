@@ -184,6 +184,100 @@ def evaluate(width: int, sequence):
     }
 
 
+def ordered_subset_dp(width: int, sequence, kernels):
+    """Exact subset DP for the best ordering of a fixed face set."""
+    face_count = len(sequence)
+    state_count = 1 << face_count
+    kernel_rank = width - 5
+    kernel_count = len(kernels)
+
+    # Distribution of each kernel's face-failure mask.
+    fail_counts = [0] * state_count
+    for rows in kernels:
+        failure_mask = 0
+        for face_index, complement in enumerate(sequence):
+            restricted = []
+            for row in rows:
+                value = 0
+                for position, column in enumerate(complement):
+                    value |= ((row >> column) & 1) << position
+                restricted.append(value)
+            if gf2_rank(restricted) != kernel_rank:
+                failure_mask |= 1 << face_index
+        fail_counts[failure_mask] += 1
+
+    # Superset zeta transform: count kernels that fail every face in mask.
+    remaining = fail_counts[:]
+    for bit in range(face_count):
+        bit_mask = 1 << bit
+        for mask in range(state_count):
+            if not (mask & bit_mask):
+                remaining[mask] += remaining[mask | bit_mask]
+
+    all_directions = (1 << width) - 1
+    face_query_masks = []
+    for complement in sequence:
+        face_mask = all_directions ^ sum(1 << index for index in complement)
+        query_mask = 0
+        subset = face_mask
+        while True:
+            query_mask |= 1 << subset
+            if subset == 0:
+                break
+            subset = (subset - 1) & face_mask
+        face_query_masks.append(query_mask)
+
+    covered = [0] * state_count
+    for mask in range(1, state_count):
+        least_bit = mask & -mask
+        face_index = least_bit.bit_length() - 1
+        covered[mask] = covered[mask ^ least_bit] | face_query_masks[face_index]
+
+    p = rank5_probability(width)
+    p_num, p_den = p.numerator, p.denominator
+    infinity = 10**100
+    best = [infinity] * state_count
+    ways = [0] * state_count
+    predecessor = [None] * state_count
+    best[0] = 0
+    ways[0] = 1
+
+    for mask in range(state_count):
+        reach_numerator = (
+            (p_den - p_num) * kernel_count
+            + p_num * remaining[mask]
+        )
+        available = (state_count - 1) ^ mask
+        while available:
+            least_bit = available & -available
+            face_index = least_bit.bit_length() - 1
+            next_mask = mask | least_bit
+            new_queries = (
+                face_query_masks[face_index] & ~covered[mask]
+            ).bit_count()
+            candidate = best[mask] + reach_numerator * new_queries
+            if candidate < best[next_mask]:
+                best[next_mask] = candidate
+                ways[next_mask] = ways[mask]
+                predecessor[next_mask] = (mask, face_index)
+            elif candidate == best[next_mask]:
+                ways[next_mask] += ways[mask]
+            available ^= least_bit
+
+    order = []
+    mask = state_count - 1
+    while mask:
+        previous, face_index = predecessor[mask]
+        order.append(face_index)
+        mask = previous
+    order.reverse()
+    return {
+        "expected_one_trial": Fraction(best[-1], p_den * kernel_count),
+        "optimal_order_count": ways[-1],
+        "one_optimal_order": order,
+    }
+
+
 def collision_bounds(width: int, result):
     union = result["query_union"]
     failure = result["failure_probability"]
@@ -213,6 +307,13 @@ def main():
     result7 = evaluate(7, M7)
     result8 = evaluate(8, M8)
     result8_cpp = evaluate(8, M8_CPP)
+    order_dp7 = ordered_subset_dp(7, M7, list(rref_subspaces(7, 2)))
+    order_dp8 = ordered_subset_dp(8, M8, list(rref_subspaces(8, 3)))
+
+    assert order_dp7["expected_one_trial"] == result7["expected_one_trial"]
+    assert order_dp8["expected_one_trial"] == result8["expected_one_trial"]
+    assert order_dp7["optimal_order_count"] == 28800
+    assert order_dp8["optimal_order_count"] == 138240
 
     assert result7["kernel_count"] == 2667
     assert result8["kernel_count"] == 97155
@@ -281,6 +382,12 @@ def main():
             "signature_verifier_cap": result8["signature_verifier_cap"],
             "expected_total_with_shift_and_verifier": as_float(result8["expected_total_with_shift_and_verifier"]),
             "collision_savings_bound": as_float(collision8["total_savings_bound"]),
+        },
+        "fixed_face_set_order_dp": {
+            "m7_expected_one_trial": str(order_dp7["expected_one_trial"]),
+            "m7_optimal_order_count": order_dp7["optimal_order_count"],
+            "m8_expected_one_trial": str(order_dp8["expected_one_trial"]),
+            "m8_optimal_order_count": order_dp8["optimal_order_count"],
         },
         "m7_minus_m8_injective_query_gap": as_float(gap),
         "actual_uniform_32bit_gap_interval": [as_float(lower), as_float(upper)],
