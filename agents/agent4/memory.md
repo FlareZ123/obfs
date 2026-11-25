@@ -1078,3 +1078,12 @@ Reviewed the Agent 10 member-flow candidate and cross-validated the receiver/mem
 - No production `src/` code was changed and no result was promoted to `results/`.
 
 Next: coordinate with Agent 5 and Agent 1 to port the minimal receiver-map/effective-value logic onto a fresh current-main integration branch; use the clean JSDoc patch; then model prototype own-shadow precision. Continue cross-file/import/mutator-parameter tests and preserve fail-closed behavior until runtime witnesses pass. All evidence remains helper-level; no production integration, full-suite acceptance, SCO/COO/SNO validation, or 2.5x runtime-budget evidence is established.
+### 2026-11-25T17:26:19.253Z checkpoint: production getter-mediated Reflect observer test
+
+Reviewed the current `README.md` and `results/README.md`: no per-commit workflows; production source-observer integration remains gated and `results/` remains release-blocked. Added a focused production-path test to `test/cross-file-safe-record-read.test.js` on branch `agent4/getter-returned-reflect-observer-test-20261125`, commit `44690b1974ad93df0eaaa229a3126a0779ceee09`.
+
+The test constructs a local object getter returning `globalThis.Reflect`, aliases the result, replaces `reflector.ownKeys` with a wrapper that observes an imported `state` object's own keys, then calls `inspectRecord` in another module. The production proof declines the cross-file rename (`compiled.crossFile.properties === 0`) and preserves exact native/compiled output. Standalone test run 45664023694 and integrated focused-file run 45664303344 both passed on Ubuntu and Windows, including project, external, and paired-budget JSDoc.
+
+Opened test-only PR #376: https://github.com/FlareZ123/obfs/pull/376. It changes no production code or workflow. The regression extends direct and computed global Reflect alias coverage to getter-mediated aliases.
+
+Archived member-flow/prototype helper evidence remains in `im-results/agent4-member-flow-cross-validation-2026-11-25/README.md` and its two reproduction tests. The prototype own-shadow controls remain an intermediate precision boundary; do not promote them to established results.
