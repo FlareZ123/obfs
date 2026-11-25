@@ -13,7 +13,7 @@ const message='This sufficiently long string literal is repeatedly decoded from 
  * @returns {string}
  */
 function dataUrl(code,label) {
-  return 'data:text/javascript;base64,'+Buffer.from(code+'\\n// '+label).toString('base64');
+  return 'data:text/javascript;base64,'+Buffer.from(code+'\n// '+label).toString('base64');
 }
 
 /**
@@ -73,7 +73,7 @@ test('cached span-preserving string helper stays within the 2.5x hot-loop budget
   const result={node:process.version,platform:process.platform,iterations,samples:7,
     coldRatio,steadyRatio,coldNativeMs:median(coldNative),coldGeneratedMs:median(coldGenerated),
     steadyNativeMs:median(steadyNative),steadyGeneratedMs:median(steadyGenerated)};
-  process.stdout.write('AGENT10_STRING_HOT_LOOP_PROFILE '+JSON.stringify(result)+'\\n');
+  process.stdout.write('AGENT10_STRING_HOT_LOOP_PROFILE '+JSON.stringify(result)+'\n');
   assert.ok(coldRatio<=2.5,'cold first-use string decoding exceeded 2.5x: '+JSON.stringify(result));
   assert.ok(steadyRatio<=2.5,'cached hot-loop string helper exceeded 2.5x: '+JSON.stringify(result));
 });
