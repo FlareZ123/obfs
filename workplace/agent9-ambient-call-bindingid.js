@@ -1468,6 +1468,136 @@ function summarizeAmbientCallEffects(ast,sourceType) {
       addThisReceiver(target,receiver);
   });
 
+  /**
+   * Resolve accessor functions for one statically named property. Unlike the
+   * value resolver, this returns the getter/setter function nodes themselves so
+   * the receiver can be bound before their bodies are inspected.
+   * @param {AstNode} value
+   * @param {string} propertyKey
+   * @param {'get'|'set'} kind
+   * @param {Set<number>} [seen]
+   * @returns {AstNode[]}
+   */
+  function accessorFunctionsForProperty(value,propertyKey,kind,seen=new Set()) {
+    if(value.type==='ThisExpression') {
+      const fn=thisBindingFunction(value);
+      const receivers=fn?thisReceiverValuesByFunction.get(fn)??[]:[];
+      return [...new Set(receivers.flatMap(receiver=>
+        accessorFunctionsForProperty(receiver,propertyKey,kind,seen)))];
+    }
+    if(value.type==='Identifier') {
+      const reference=resolved.at(value.start);
+      if(reference?.resolution.kind!=='local')return [];
+      const bindingId=reference.resolution.bindingId;
+      if(seen.has(bindingId))return [];
+      const next=new Set(seen);
+      next.add(bindingId);
+      const values=bindingValueExpressions.get(bindingId)??[];
+      if(values.length)
+        return [...new Set(values.flatMap(candidate=>
+          accessorFunctionsForProperty(candidate,propertyKey,kind,next)))];
+      const initializer=constInitializersByBinding.get(bindingId);
+      return initializer?
+        accessorFunctionsForProperty(initializer,propertyKey,kind,next):[];
+    }
+    if(value.type==='ObjectExpression') {
+      const matching=value.properties.filter((/** @type {AstNode} */ property)=>
+        property.type==='Property'&&
+        staticPropertyKey(property.key,property.computed)===propertyKey);
+      if(matching.length)
+        return matching.filter((/** @type {AstNode} */ property)=>property.kind===kind)
+          .map((/** @type {AstNode} */ property)=>property.value);
+      return value.properties.flatMap((/** @type {AstNode} */ property)=>
+        property.type==='SpreadElement'?
+          accessorFunctionsForProperty(property.argument,propertyKey,kind,seen):[]);
+    }
+    if(value.type==='NewExpression') {
+      const classes=classNodesForValue(value.callee,seen);
+      return [...new Set(classes.flatMap(classNode=>
+        classAccessorFunctionsForProperty(classNode,propertyKey,kind)))];
+    }
+    if(value.type==='ClassDeclaration'||value.type==='ClassExpression')
+      return classAccessorFunctionsForProperty(value,propertyKey,kind);
+    if(value.type==='ConditionalExpression')
+      return [...new Set([
+        ...accessorFunctionsForProperty(value.consequent,propertyKey,kind,seen),
+        ...accessorFunctionsForProperty(value.alternate,propertyKey,kind,seen)
+      ])];
+    if(value.type==='LogicalExpression')
+      return [...new Set([
+        ...accessorFunctionsForProperty(value.left,propertyKey,kind,seen),
+        ...accessorFunctionsForProperty(value.right,propertyKey,kind,seen)
+      ])];
+    if(value.type==='SequenceExpression'&&value.expressions.length)
+      return accessorFunctionsForProperty(value.expressions[value.expressions.length-1],propertyKey,kind,seen);
+    if(value.type==='AssignmentExpression')
+      return accessorFunctionsForProperty(value.right,propertyKey,kind,seen);
+    if(value.type==='ChainExpression')
+      return accessorFunctionsForProperty(value.expression,propertyKey,kind,seen);
+    if(value.type==='SpreadElement')
+      return accessorFunctionsForProperty(value.argument,propertyKey,kind,seen);
+    if(value.type==='AwaitExpression'&&value.argument)
+      return accessorFunctionsForProperty(value.argument,propertyKey,kind,seen);
+    if(value.type==='CallExpression')
+      return [...new Set(callReturnExpressions(value,seen).flatMap(candidate=>
+        accessorFunctionsForProperty(candidate,propertyKey,kind,seen)))];
+    if(value.type==='MemberExpression') {
+      const innerKey=staticPropertyKey(value.property,value.computed);
+      if(innerKey===null)return [];
+      const intermediate=memberValueExpressionsForProperty(value.object,innerKey,seen);
+      return [...new Set(intermediate.flatMap(candidate=>
+        accessorFunctionsForProperty(candidate,propertyKey,kind,seen)))];
+    }
+    return [];
+  }
+
+  /**
+   * Resolve an accessor in a class hierarchy. Any own member with this key
+   * shadows the inherited accessor, even if it is a data field or method.
+   * @param {AstNode} classNode
+   * @param {string} propertyKey
+   * @param {'get'|'set'} kind
+   * @param {Set<AstNode>} [seen]
+   * @returns {AstNode[]}
+   */
+  function classAccessorFunctionsForProperty(classNode,propertyKey,kind,seen=new Set()) {
+    if(!['ClassDeclaration','ClassExpression'].includes(classNode.type)||seen.has(classNode))return [];
+    const next=new Set(seen);
+    next.add(classNode);
+    const matching=classNode.body.body.filter((/** @type {AstNode} */ element)=>
+      (element.type==='MethodDefinition'||element.type==='PropertyDefinition')&&
+      staticPropertyKey(element.key,element.computed)===propertyKey);
+    if(matching.length)
+      return matching.filter((/** @type {AstNode} */ element)=>
+        element.type==='MethodDefinition'&&element.kind===kind&&element.value)
+        .map((/** @type {AstNode} */ element)=>element.value);
+    const parents=classNodesForValue(classNode.superClass??{type:'UnknownExpression'},new Set());
+    return [...new Set(parents.flatMap(parent=>
+      classAccessorFunctionsForProperty(parent,propertyKey,kind,next)))];
+  }
+
+  // Property reads invoke getters and property writes invoke setters. Bind
+  // their receiver before the main AST walk so this-member reads can be
+  // resolved precisely inside accessor bodies.
+  walkAst(ast,node=>{
+    if(node.type==='MemberExpression') {
+      const key=staticPropertyKey(node.property,node.computed);
+      if(key!==null) {
+        const receiver=node.object;
+        for(const getter of accessorFunctionsForProperty(receiver,key,'get',new Set()))
+          addThisReceiver(getter,receiver);
+      }
+    }
+    if(node.type==='AssignmentExpression'&&node.left.type==='MemberExpression') {
+      const key=staticPropertyKey(node.left.property,node.left.computed);
+      if(key!==null) {
+        const receiver=node.left.object;
+        for(const setter of accessorFunctionsForProperty(receiver,key,'set',new Set()))
+          addThisReceiver(setter,receiver);
+      }
+    }
+  });
+
   /** @param {AstNode} value @param {number} start @param {number} end @returns {void} */
   function markExternalCallableValue(value,start,end) {
     for(const target of callableNodesForValue(value)) {
