@@ -25,7 +25,7 @@ function pageFor(scriptPath) {
     '<script src="'+scriptPath+'"></script>'+
     '<script>try{'+
       'var callback=publicFactory().callback;'+
-      'var result={value:callback(),source:Function.prototype.toString.call(callback)};'+
+      'var result={value:callback(),source:Function.prototype.toString.call(callback),error:null};'+
       'document.getElementById("result").textContent=btoa(JSON.stringify(result));'+
     '}catch(error){document.getElementById("failure").textContent=String(error&&error.stack||error);}</script>';
 }
