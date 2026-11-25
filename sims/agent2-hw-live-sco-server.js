@@ -42,6 +42,9 @@ async function start(payload) {
   assert.ok(machine && Array.isArray(machine.next) && Array.isArray(machine.output));
   assert.equal(typeof payload.canary, 'string');
   assert.equal(typeof payload.partition_seed, 'string');
+  assert.equal(typeof payload.session_token, 'string');
+  assert.ok(payload.session_token.length >= 32);
+  const sessionCookie = 'session=' + payload.session_token;
 
   const privateSource = [
     'const privateTable=' + JSON.stringify(machine) + ';',
@@ -73,9 +76,9 @@ async function start(payload) {
 
   const handler = createScoHandler([partition.clientFile], {
     remoteMethods,
-    authorizeRpc: request => request.headers.cookie === 'session=approved',
+    authorizeRpc: request => request.headers.cookie === sessionCookie,
     authorizeOperation: (request, method, args) =>
-      request.headers.cookie === 'session=approved' &&
+      request.headers.cookie === sessionCookie &&
       method === partition.methodNames.step &&
       args.length === 1 &&
       typeof args[0] === 'number' &&
@@ -89,6 +92,10 @@ async function start(payload) {
     const pathname = new URL(request.url || '/', 'http://127.0.0.1').pathname;
     if (pathname === '/obfs/client.mjs') {
       stats.client_module_requests += 1;
+      response.setHeader(
+        'Set-Cookie',
+        sessionCookie + '; HttpOnly; SameSite=Strict; Path=/obfs',
+      );
     }
     if (pathname === '/obfs/rpc') {
       stats.rpc_requests += 1;
