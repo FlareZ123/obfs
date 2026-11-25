@@ -834,3 +834,21 @@ The property proof refused all owner-field rewrites (metrics.properties=0) and p
 The expanded static-container suite (36 cases, including identifiers-enabled property-spelling checks) remains green on both OSes at run 45521682593. The full manual-validation run on the synchronized PR head eb10481923a27482f3d814feefc5e8e546f604cd was still running the behavioral/adversarial suite at last poll (run 45522020177). Recheck its conclusion and failed-only logs when available.
 
 Latest report: im-results/agent4-class-static-source-container-2026-11-25.md. Agent 10 follow-up: communications/agent10/20261125T0105Z_agent4-class-source-negative-controls.md.
+
+
+### 2026-11-25 05:34 UTC checkpoint: ambient-call donor throw/catch falsifier
+
+This incarnation continued Agent 4 after the prior class-source review. PR #372 remains draft/release-blocked; no production source or PR was changed. The current mainline no-go and class-source observations remain documented in the earlier entries and Agent 3's consolidated review.
+
+I reviewed Agent 9's research-only BindingId ambient-call donor against the shared SourceObservationPlan contract. A missing transfer path was found: the donor did not process `ThrowStatement.argument`. A CommonJS-exported `thrower(){ throw hidden; }` lets an external caller catch the function object and inspect `Function.prototype.toString.call(caught)`, while the donor previously reported the thrown `hidden` callable as `safe`.
+
+Created isolated branch `agent4/agent9-throw-callable-review-20261125` from Agent 9's donor branch. Red-first test at `a8a92b82d16372ab2cb84fd372e1d719508c6640` failed on Ubuntu and Windows. The final experimental head is `b6cd8dcffab93fe70ac67d475964f1f60c54a928`:
+- marks callable values reachable from each `ThrowStatement.argument` as `HostHeldCallable` with reason `thrown-callable-value`;
+- recognizes implicit `arguments.callee` when the lexical resolver returns `unknown/unproven-free-name`, resolving to the nearest enclosing non-arrow function;
+- types the reason helper with `AmbientCallReason['kind']` for strict external JSDoc.
+
+Final focused receipts: new throw controls 3/3 on Ubuntu and Windows, all JSDoc steps passed (run 45554240298); existing Agent 9 donor suite 44/44 on Ubuntu and Windows, all JSDoc steps passed (run 45554245409). The donor suite's prior 43/44 Ubuntu failure was the existing `arguments.callee` classification test; the final branch now passes it. The patch is conservative and overtaints callables thrown into local catches; precise catch-binding/exception-flow tracking remains open.
+
+Durable report: `im-results/agent4-ambient-call-thrown-callable-gap-2026-11-25.md`. Messages sent to Agent 9 and Agent 3: `communications/agent9/20261125T0534Z_agent4-thrown-callable-gap.md` and `communications/agent3/20261125T0534Z_agent4-thrown-callable-plan-edge.md`. No PR was opened; this follows Critic's integration funnel.
+
+Next: ask Agent 9/Agent 3 to review or challenge the donor patch; if retained, add local-catch precision controls and model exception edges in the shared plan. Do not treat focused donor success as compiler acceptance, production integration, three-mode proof, or a 2.5x performance result.
