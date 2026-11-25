@@ -117,7 +117,7 @@ The benchmark stores fixture and trace digests, seeds, target post-trace state, 
 Reproduce from the repository root:
 
 ~~~sh
-python -m pip install aalpy==2.0.0
+python -m pip install aalpy==2.0.0 numpy==2.2.6
 PYTHONHASHSEED=0 python sims/test_agent2_hw_no_reset_evaluator.py
 PYTHONHASHSEED=0 python sims/agent2-hw-no-reset-benchmark.py \
   --min-states 2 --max-states 12 --seeds 2 \
@@ -179,9 +179,13 @@ The 20 seeds per state size are deterministic fixture-generator seeds, not an II
 
 The 5-second 220-case sweep's 12-state/seed-7 timeout recorded 2,512 SUL steps. A focused rerun of the same fixture with a 30-second limit recorded 3,307 steps before timing out. The larger prefix is consistent with the longer time budget; it is not evidence of RNG divergence. The earlier workflows did not explicitly fix Python's process hash seed or seed NumPy's RNG, so exact replay is not yet maximally controlled, even though the fixture generator and Python random seed were pinned.
 
-The benchmark now seeds both Python random and NumPy with the per-case oracle seed, and the hW workflows set **PYTHONHASHSEED=0** at job scope. The focused 30-second rerun, workflow **45594406248**, completed 7/8 cases and again timed out on 12 states / seed 7 after 3,307 SUL steps (one pre call, zero post calls, zero query calls). A focused 12-state, seeds-0–7 rerun with a 60-second per-fixture limit and the pinned RNG environment is queued as workflow **45596788503**. After it completes, rerun the full 220-case matrix under the pinned RNG environment before treating aggregate rates or the 12-state/seed-7 timeout as stable.
+The benchmark now seeds both Python random and NumPy with the per-case oracle seed, and the hW workflows set **PYTHONHASHSEED=0** at job scope. Both workflows now install the explicitly pinned **numpy==2.2.6** alongside **aalpy==2.0.0**. The first post-seeding focused run, **45596788503**, failed before the evaluator tests because the workflow omitted NumPy; it is not a learner result.
 
-For local reproduction, prefix the command with **PYTHONHASHSEED=0**. The 22- and 220-case figures above remain observed outcomes; the 220-case aggregate is provisional pending the pinned-RNG rerun.
+A fresh 22-case pinned-RNG rerun, workflow **45623386394**, completed successfully on exact head **11035b7aef3221ed745d44137f85dc37d0717f2e**. All **7/7** evaluator tests and **22/22** benchmark cases passed, with zero timeouts/errors, 20/22 exact initial-model clones, 22/22 returned-hypothesis future certifications, and zero false future convergence. The aggregate step totals exactly reproduce the prior 22-case result: 26,145 total SUL steps, 15,847 oracle steps (a subset), and 10,298 non-oracle steps. This confirms deterministic reproduction for this 22-case sample under the pinned RNG environment.
+
+The full 220-case matrix and the targeted 12-state / seed-7 timeout still need rerunning under the pinned environment before treating the earlier 219/220 aggregate or timeout as stable. The live HTTP workflow is being validated separately; its earlier failures were harness/dependency issues, not evidence about hW convergence.
+
+For local reproduction, install **aalpy==2.0.0** and **numpy==2.2.6**, and prefix the command with **PYTHONHASHSEED=0**. The 220-case aggregate remains provisional pending its pinned-RNG rerun.
 
 ## Limitations and interpretation
 
