@@ -129,6 +129,12 @@ def seven_direction_check():
         "expected_face_tests_across_restarts_float": float(
             expected_face_tests_per_fresh_trial / (1 - failure_probability)
         ),
+        "expected_direction_draws_across_restarts": str(
+            Fraction(7, 1) / (1 - failure_probability)
+        ),
+        "expected_direction_draws_across_restarts_float": float(
+            Fraction(7, 1) / (1 - failure_probability)
+        ),
         "failure_probability_per_trial": str(failure_probability),
         "expected_queries_across_restarts": str(expected_restarted_queries),
         "expected_queries_across_restarts_float": float(expected_restarted_queries),
@@ -198,6 +204,12 @@ def six_direction_check():
         ),
         "expected_face_tests_across_restarts_float": float(
             expected_face_tests_per_fresh_trial / (1 - failure_probability)
+        ),
+        "expected_direction_draws_across_restarts": str(
+            Fraction(6, 1) / (1 - failure_probability)
+        ),
+        "expected_direction_draws_across_restarts_float": float(
+            Fraction(6, 1) / (1 - failure_probability)
         ),
         "failure_probability_per_trial": str(failure_probability),
         "expected_queries_across_restarts": str(expected_restarted_queries),
