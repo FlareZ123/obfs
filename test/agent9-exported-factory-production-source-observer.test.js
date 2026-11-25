@@ -40,7 +40,7 @@ function assertFactorySourceParity(mode) {
   const metrics=output.metrics;
   assert.ok(metrics.bindings>0||metrics.properties>0,
     mode+' fixture must exercise at least one production transformation');
-  const emittedFactory=/** @type {()=>{callback:()=>number}} */ (executeCommonJs(output.code));
+  const emittedFactory=/** @type {()=>{callback:()=>number}} */ (executeCommonJs(String(output.code)));
   const emittedInstance=emittedFactory();
   assert.equal(typeof emittedInstance.callback,'function',
     mode+' must preserve the externally consumed callback property');
