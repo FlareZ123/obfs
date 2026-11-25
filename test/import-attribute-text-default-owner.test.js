@@ -76,14 +76,3 @@ test('dynamic import attributes also refuse source transformations',()=>{
   assert.equal(output.crossFile.properties,0);
   assert.equal(output.files.find(file=>file.path==='state.mjs').code,files[0].code);
 });
-
-  const files=[
-    {path:'state.mjs',sourceType:'module',
-      code:'const privateValue=23;export default {length:privateValue};'},
-    {path:'main.mjs',sourceType:'module',
-      code:'const loaded=await import("./state.mjs",{with:{type:"text"}});console.log(loaded.default.length);'}
-  ];
-  const output=obfuscateFiles(files,{...options,properties:false,identifiers:true});
-  assert.equal(output.crossFile.properties,0);
-  assert.equal(output.files.find(file=>file.path==='state.mjs').code,files[0].code);
-});
