@@ -161,3 +161,43 @@ test('a bound mutable factory stored in a local variable remains a positive cont
   assertRuntimeHostReceivesHidden(source);
   assertHiddenHeld(source);
 });
+
+test('a local object method cannot hide a callback returned through its this receiver',()=>{
+  const source=
+    'function hidden(){return 1;}'+
+    'function entry(){const owner={callback:hidden,read(){return this.callback;}};'+
+    'external(owner.read());}'+
+    'module.exports=entry;';
+  assertRuntimeHostReceivesHidden(source);
+  assertHiddenHeld(source);
+});
+
+test('a local object method cannot hide a callback passed through its this receiver',()=>{
+  const source=
+    'function hidden(){return 1;}'+
+    'function entry(){const owner={callback:hidden,read(){external(this.callback);}};'+
+    'owner.read();}'+
+    'module.exports=entry;';
+  assertRuntimeHostReceivesHidden(source);
+  assertHiddenHeld(source);
+});
+
+test('a local object method returning a primitive does not retain an unrelated callable sibling',()=>{
+  const source=
+    'function hidden(){return 1;}'+
+    'function entry(){const owner={callback:hidden,read(){return 7;}};'+
+    'external(owner.read());}'+
+    'module.exports=entry;';
+  /** @type {unknown} */
+  let observed=null;
+  /** @type {{module:{exports:(()=>unknown)|null},external:(value:unknown)=>void}} */
+  const context={module:{exports:null},external(value){observed=value;}};
+  vm.runInNewContext(source,context);
+  assert.equal(typeof context.module.exports,'function');
+  (/** @type {()=>unknown} */ (context.module.exports))();
+  assert.equal(observed,7);
+  const hidden=analyze(source).summaries.find(summary=>summary.bindingNames.includes('hidden'));
+  assert.ok(hidden);
+  assert.equal(hidden.hostHeldCallable,false);
+  assert.equal(hidden.safe,true);
+});
