@@ -78,22 +78,22 @@ Agent 2's 10,000-replicate exact-source Node replay passed all source/oracle, fi
 
 ### Peer workflow
 
-Peer workflow [45526497607](https://github.com/FlareZ123/obfs/actions/runs/45526497607) passed on Ubuntu and Windows at branch head `889ed26ef59ccf91cb919b9685651ba5f0311866`. It ran the independent exact Python check (including the full-direction dependence correction bound), strict JSDoc/syntax, 32 seven-direction finite cases covering 3,840 truth-table outputs, and an 18-trial no-witness fallback that exactly reconstructed all 128 width-seven inputs. On Ubuntu it also fetched the exact pinned Agent 2 DP source blob `0daaa5cd167502de15702bad780f31f901a25e71`, compiled and ran the exhaustive 2^21-state C++ DP, and asserted the output `best_cutoff=10 best_expected_witness_queries=84.502917281728`. The pre-existing six-direction peer/simulation suites also passed; those simulations continue to use the default six-direction policy. The seven-direction tests explicitly assert that witnessFailureBound equals the configured cap-level miss bound for both early-success and no-witness fallback paths.
+Peer workflow [45529225313](https://github.com/FlareZ123/obfs/actions/runs/45529225313) passed on Ubuntu and Windows at branch head `ee2e800524584baec8f0c730882b325b8484df25`. It ran the independent exact Python check (including tight direction-dependence corrections, exact face-test counts, and expected direction draws), strict JSDoc/syntax, 32 seven-direction finite cases covering 3,840 truth-table outputs, and an 18-trial no-witness fallback that exactly reconstructed all 128 width-seven inputs. On Ubuntu it also fetched the pinned Agent 2 DP source blob `0daaa5cd167502de15702bad780f31f901a25e71`, compiled and ran the exhaustive 2^21-state C++ Bellman/Dinkelbach DP (double-precision objective), and asserted `best_cutoff=10 best_expected_witness_queries=84.502917281728`. The pre-existing six-direction peer/simulation suites also passed; those simulations continue to use the default six-direction policy. The seven-direction tests assert the per-trial witness probability and that witnessFailureBound equals the configured cap-level miss bound for both early-success and no-witness fallback paths.
 
-Artifacts: Ubuntu `14982801727`; Windows `14981244992`.
+Artifacts: Ubuntu `14982989886`; Windows `14984051866`.
 
 ### Live SCO/native HTTP workflow
 
-Live HTTP workflow [45523876057](https://github.com/FlareZ123/obfs/actions/runs/45523876057) passed on Ubuntu and Windows at implementation head `5bcc53fde5687fba948abbefaed995cf01f8157c`. The adapter explicitly selected `seven-direction-restart`; each platform ran ten live SCO/native HTTP replicates against the pinned source. Source-pin, fixed-pair, no-fallback, 726-verifier, candidate-ready tape-release, transcript, authorization, and heldout checks passed.
+Live HTTP workflow [45529231217](https://github.com/FlareZ123/obfs/actions/runs/45529231217) passed on Ubuntu and Windows at branch head `ee2e800524584baec8f0c730882b325b8484df25`. The adapter explicitly selected `seven-direction-restart`; each platform ran ten live SCO/native HTTP replicates against the pinned source. Source-pin, fixed-pair, no-fallback, 726-verifier, candidate-ready tape-release, transcript, authorization, heldout, and exact cap-level witness-diagnostic assertions passed.
 
 The reported means are descriptive baseline-versus-hybrid comparisons using independently generated CSPRNG tapes between arms. They are not matched-pair inference and do not isolate the seven-versus-six policy effect:
 
 | Platform | Baseline mean queries | Seven-direction hybrid mean | Descriptive mean difference |
 |---|---:|---:|---:|
-| Ubuntu (10 replicates) | 2,099.9 | 919.8 | 1,180.1 (56.20%) |
-| Windows (10 replicates) | 2,036.8 | 908.6 | 1,128.2 (55.39%) |
+| Ubuntu (10 replicates) | 2,042.9 | 946.8 | 1,096.1 (53.65%) |
+| Windows (10 replicates) | 2,047.4 | 902.4 | 1,145.0 (55.92%) |
 
-Artifacts: Ubuntu `14982095443`; Windows `14980613871`.
+Artifacts: Ubuntu `14983952737`; Windows `14984095981`.
 
 The live HTTP sample validates integration on the fixed fast path. It is too small and too noisy to resolve a roughly 1.5-query expected difference between six- and seven-direction policies. Pre-candidate exact ANF fallback is covered by local peer controls, not by this HTTP run.
 
