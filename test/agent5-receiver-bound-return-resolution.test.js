@@ -559,3 +559,26 @@ test('an ordinary function passed through a local parameter does not borrow gett
   assert.equal(hiddenSummary(source).hostHeldCallable,false);
   assert.equal(hiddenSummary(source).safe,true);
 });
+
+
+test('a returned accessor can expose a callable through an outer lexical-arrow receiver',()=>{
+  const source=
+    'function hidden(){return 1;}'+
+    'const owner={callback:hidden,get result(){const read=()=>this.callback;return {get exposed(){return read();}};}};'+
+    'external(owner.result);';
+  const [captured]=execute(source);
+  assert.equal(captured?.exposed?.name,'hidden');
+  assert.match(String(captured?.exposed),/return 1/);
+  assert.equal(hiddenSummary(source).hostHeldCallable,true);
+});
+
+test('a returned accessor reading a primitive through an outer lexical arrow stays precise',()=>{
+  const source=
+    'function hidden(){return 1;}'+
+    'const owner={callback:hidden,count:1,get result(){const read=()=>this.count;return {get exposed(){return read();}};}};'+
+    'external(owner.result);';
+  const [captured]=execute(source);
+  assert.equal(captured?.exposed,1);
+  assert.equal(hiddenSummary(source).hostHeldCallable,false);
+  assert.equal(hiddenSummary(source).safe,true);
+});
