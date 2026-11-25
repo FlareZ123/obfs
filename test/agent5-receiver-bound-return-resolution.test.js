@@ -168,3 +168,24 @@ test('a receiver-bound method chain can still resolve a primitive leaf',()=>{
   assert.equal(hiddenSummary(source).hostHeldCallable,false);
   assert.equal(hiddenSummary(source).safe,true);
 });
+
+
+test('a local object method sink resolves this.callback through its call receiver',()=>{
+  const source=
+    'function hidden(){return 1;}'+
+    'const owner={callback:hidden,leak(){external(this.callback);}};'+
+    'owner.leak();';
+  const [captured]=execute(source);
+  assert.equal(captured?.name,'hidden');
+  assert.equal(hiddenSummary(source).hostHeldCallable,true);
+});
+
+test('an object getter sink resolves this.callback through its property receiver',()=>{
+  const source=
+    'function hidden(){return 1;}'+
+    'const owner={callback:hidden,get value(){external(this.callback);return 0;}};'+
+    'const value=owner.value;';
+  const [captured]=execute(source);
+  assert.equal(captured?.name,'hidden');
+  assert.equal(hiddenSummary(source).hostHeldCallable,true);
+});
