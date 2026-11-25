@@ -111,7 +111,7 @@ For the seven-direction restart witness search:
 - 18 trials;
 - per-trial witness probability: `0.7307504117488861`;
 - probability of missing all 18 trials: `5.530837017611736e-11`;
-- worst-case witness-search query cap: 1,657.
+- worst-case witness-search query cap: 1,657. The ten tested faces cover 93 distinct subset masks; zero is present in every trial, so the first trial costs at most 93 new oracle points and each later trial at most 92: `93 + 17*92 = 1,657`.
 
 Additional coordinate recovery:
 - fixed-pair shift path: at most 96 probes, giving a fast-path cap of **1,753**;
@@ -146,6 +146,7 @@ The peer workflow ran 1,000 deterministic SHA-256-counter-tape trials against th
 - maximum: 542;
 - mean witness trials: 1.388;
 - fallbacks: 0;
+- independent holdout evaluations: 64,000 (64 per trial);
 - query cap: 1,753;
 - verifier samples: 0.
 
