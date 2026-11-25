@@ -179,6 +179,7 @@ for(const mode of /** @type {Array<'coo'|'sno'|'sco'>} */ (['coo','sno','sco']))
  * Import an exported class from a separate module and inspect both the class
  * and prototype method source while checking the module's own private use.
  * @param {string} code
+ * @param {string} [importer]
  * @returns {Promise<{classSource:string,methodSource:string,value:number,result:number}>}
  */
 async function inspectExportedClass(code,importer='import Reader,{result} from "./reader.mjs";'){
