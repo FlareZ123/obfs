@@ -161,7 +161,58 @@ def percentile(values: list[int], p: float) -> int:
     return ordered[min(len(ordered) - 1, math.floor(p * (len(ordered) - 1)))]
 
 
-def simulate_one(replicate: int) -> tuple[int, int, int]:
+def gf2_rank_vectors(vectors: list[int]) -> int:
+    pivots: dict[int, int] = {}
+    rank = 0
+    for value in vectors:
+        row = value
+        while row:
+            pivot = row.bit_length() - 1
+            if pivot in pivots:
+                row ^= pivots[pivot]
+            else:
+                pivots[pivot] = row
+                rank += 1
+                break
+    return rank
+
+
+def build_basis_solver(basis: list[int]):
+    """Return the coefficient mask of a vector in an ordered GF(2) basis."""
+    pivots: dict[int, tuple[int, int]] = {}
+    for index, vector in enumerate(basis):
+        row = vector & 0xFFFFFFFF
+        coefficients = 1 << index
+        for bit in range(31, -1, -1):
+            if (row >> bit) & 1:
+                if bit in pivots:
+                    pivot_row, pivot_coefficients = pivots[bit]
+                    row ^= pivot_row
+                    coefficients ^= pivot_coefficients
+                else:
+                    pivots[bit] = (row, coefficients)
+                    break
+        if row == 0:
+            raise AssertionError("input basis is linearly dependent")
+
+    def express(value: int) -> int:
+        row = value & 0xFFFFFFFF
+        coefficients = 0
+        for bit in range(31, -1, -1):
+            if (row >> bit) & 1:
+                if bit not in pivots:
+                    raise ValueError("vector is outside the input basis span")
+                pivot_row, pivot_coefficients = pivots[bit]
+                row ^= pivot_row
+                coefficients ^= pivot_coefficients
+        if row:
+            raise ValueError("vector is outside the input basis span")
+        return coefficients
+
+    return express
+
+
+def simulate_one(replicate: int, anchor_extended: bool = False) -> tuple[int, int, int]:
     witness_tape = CounterTape(0x55000000 + replicate)
     cache: dict[int, int] = {}
 
@@ -225,13 +276,31 @@ def simulate_one(replicate: int) -> tuple[int, int, int]:
             if along_one == 0 and along_two == 0:
                 raise AssertionError("frozen table failed fixed-pair separation")
 
-    coordinates: list[int] = []
-    corrections: list[int] = []
-    for bit in range(32):
-        basis = 1 << bit
-        f0 = ask(basis)
-        f1 = ask(basis ^ anchors[0])
-        f2 = ask(basis ^ anchors[1])
+    if anchor_extended:
+        input_basis = list(anchors)
+        for bit in range(32):
+            candidate = 1 << bit
+            if gf2_rank_vectors(input_basis + [candidate]) > len(input_basis):
+                input_basis.append(candidate)
+            if len(input_basis) == 32:
+                break
+        if len(input_basis) != 32:
+            raise AssertionError("could not extend anchors to a full input basis")
+        quotient_basis = [1 << bit for bit in range(5)]
+        correction_basis = [0] * 5
+        first_to_recover = 5
+    else:
+        input_basis = [1 << bit for bit in range(32)]
+        quotient_basis = []
+        correction_basis = []
+        first_to_recover = 0
+
+    express = build_basis_solver(input_basis)
+    for basis_index in range(first_to_recover, 32):
+        basis_vector = input_basis[basis_index]
+        f0 = ask(basis_vector)
+        f1 = ask(basis_vector ^ anchors[0])
+        f2 = ask(basis_vector ^ anchors[1])
         matches: list[tuple[int, int]] = []
         for candidate in range(32):
             correction = f0 ^ section[candidate]
@@ -242,19 +311,19 @@ def simulate_one(replicate: int) -> tuple[int, int, int]:
                 matches.append((candidate, correction))
         if len(matches) != 1:
             raise AssertionError(
-                f"replicate {replicate}, basis {bit}: expected one shift match, got {matches}"
+                f"replicate {replicate}, basis {basis_index}: expected one shift match, got {matches}"
             )
-        coordinates.append(matches[0][0])
-        corrections.append(matches[0][1])
+        quotient_basis.append(matches[0][0])
+        correction_basis.append(matches[0][1])
 
     def model(value: int) -> int:
+        coefficients = express(value)
         quotient = 0
         correction = 0
-        x = value & 0xFFFFFFFF
-        for bit in range(32):
-            if (x >> bit) & 1:
-                quotient ^= coordinates[bit]
-                correction ^= corrections[bit]
+        for index in range(32):
+            if (coefficients >> index) & 1:
+                quotient ^= quotient_basis[index]
+                correction ^= correction_basis[index]
         return (section[quotient] ^ correction) & 0xFFFFFFFF
 
     # Match the 64 deterministic independent holdouts per replicate.
@@ -292,11 +361,18 @@ def main() -> dict[str, object]:
     query_counts: list[int] = []
     trial_counts: list[int] = []
     fast_query_counts: list[int] = []
+    anchor_query_counts: list[int] = []
     for replicate in range(REPLICATES):
-        queries, trials, fast_queries = simulate_one(replicate)
+        queries, trials, fast_queries = simulate_one(replicate, anchor_extended=False)
+        anchor_queries, anchor_trials, anchor_fast_queries = simulate_one(replicate, anchor_extended=True)
+        if anchor_trials != trials or anchor_fast_queries != anchor_queries:
+            raise AssertionError("anchor extension changed witness search or fast-query accounting")
+        if queries - anchor_queries != 15:
+            raise AssertionError(f"replicate {replicate}: expected 15 saved queries, got {queries-anchor_queries}")
         query_counts.append(queries)
         trial_counts.append(trials)
         fast_query_counts.append(fast_queries)
+        anchor_query_counts.append(anchor_queries)
 
     summary = {
         "replicates": REPLICATES,
@@ -311,6 +387,21 @@ def main() -> dict[str, object]:
         "maxQueries": max(query_counts),
         "meanWitnessTrials": mean(trial_counts),
         "maxFastQueries": max(fast_query_counts),
+        "anchorExtendedMeanQueries": mean(anchor_query_counts),
+        "anchorExtendedMedianQueries": percentile(anchor_query_counts, 0.5),
+        "anchorExtendedP90Queries": percentile(anchor_query_counts, 0.9),
+        "anchorExtendedP95Queries": percentile(anchor_query_counts, 0.95),
+        "anchorExtendedMaxQueries": max(anchor_query_counts),
+        "anchorExtendedMaxFastQueries": max(anchor_query_counts),
+        "anchorExtendedSavingsPerReplicate": 15,
+        "anchorExtendedShiftProbeCap": 27 * 3,
+        "anchorExtendedSignatureProbeCap": 27 * 31,
+        "anchorExtendedNoVerifierShiftCap": witness_query_cap + 27 * 3,
+        "anchorExtendedVerifiedShiftCap": witness_query_cap + 27 * 3 + 726,
+        "anchorExtendedNoVerifierSignatureCap": witness_query_cap + 27 * 31,
+        "anchorExtendedVerifiedSignatureCap": witness_query_cap + 27 * 31 + 726,
+        "holdoutEvaluationsPerMode": REPLICATES * 64,
+        "totalHoldoutEvaluations": REPLICATES * 64 * 2,
         "faceSubsetPatternsPerTrial": face_patterns,
         "witnessQueryCap": witness_query_cap,
         "shiftQueryCap": shift_query_cap,
@@ -327,6 +418,14 @@ def main() -> dict[str, object]:
         raise AssertionError("tail percentile drift")
     if summary["maxQueries"] != 542 or summary["meanWitnessTrials"] != 1.388:
         raise AssertionError("max/trial mean drift")
+    if (
+        summary["anchorExtendedMeanQueries"] != 166.861
+        or summary["anchorExtendedMedianQueries"] != 137
+        or summary["anchorExtendedP90Queries"] != 251
+        or summary["anchorExtendedP95Queries"] != 297
+        or summary["anchorExtendedMaxQueries"] != 527
+    ):
+        raise AssertionError("anchor-extended replay drift")
     return summary
 
 
