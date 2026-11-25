@@ -559,15 +559,14 @@ test('two-module owner-reader cycle preserves reentrant TDZ before later success
     {path:'state.mjs',sourceType:'module',code:
       'import {early} from "./relay.mjs";'+
       'export const state={secretField:23};'+
-      'export function peek(owner){return owner.secretField;}'+
-      'export const result=peek(state);'},
+      'export function peek(owner){return owner.secretField;}'},
     {path:'relay.mjs',sourceType:'module',code:
       'import {state,peek} from "./state.mjs";'+
       'let early;try{early=peek(state);}catch(error){early=error.name;}'+
       'export {early};'},
     {path:'main.mjs',sourceType:'module',code:
-      'import {early} from "./relay.mjs";import {result} from "./state.mjs";'+
-      'console.log(early,result);'}
+      'import {state,peek} from "./state.mjs";import {early} from "./relay.mjs";'+
+      'console.log(early,peek(state));'}
   ];
   for(const mode of ['coo','sno','sco'])await preserves(files,1,mode);
 });
