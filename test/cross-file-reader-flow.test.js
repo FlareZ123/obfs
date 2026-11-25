@@ -625,7 +625,7 @@ test('self-import aliases of one owner share private carrier slots',async()=>{
       'export const result=inspect(left)+local(right);'},
     {path:'main.mjs',sourceType:'module',code:
       'import {result} from "./state.mjs";console.log(result);'}
-  ],[0,1]);
+  ],1);
 });
 
 test('self-import owner reads preserve the pre-initialization TDZ exception',async()=>{
