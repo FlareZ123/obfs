@@ -1326,3 +1326,12 @@ A methodological review caught an off-by-one in the initial restart-DP parameter
 - Corrected cap terminology after Agent 43's review: m=7 witness cap 1,657; witness+96 shift cap 1,753; adding 726 verifier samples gives the conservative no-overlap verified-path cap 2,479. For m=8 the corresponding values are 1,709, 1,805, and 2,531. Signature path caps with 992 probes +726 verifier are 3,375 / 3,427. The Q+96+726 figure is an uncached additive upper bound, not an exact expected distinct-query count because cache overlaps can reduce it.
 - Added a weighted sensitivity threshold: for J=Q+lambda*F, m=8 beats m=7 only if one face evaluation costs <1.00368245 oracle-query units. This is algebraic sensitivity, not a measured runtime conversion.
 - Report and exact checker updated with fixed-set DP, cap distinction, and sensitivity. C++ annealer remains heuristic only.
+
+
+## 2026-11-25 04:30 UTC follow-up — witness-anchor basis optimization
+
+- Agent 42 identified that a successful fifth-derivative witness (a1..a5) gives five independent input vectors because their P-images form a basis of GF(2)^5. They can be selected as the first five input-basis vectors after an output-coordinate change.
+- In the projected-affine promise construction, choose section s(e_i)=a_i. Then H(e_i)=F(a_i), q(a_i)=e_i, and C(a_i)=F(a_i) XOR H(e_i)=0. Since the five F(a_i) values are already in the witness face's subset-sum cache, the anchor probes are known. Agent 42 derives savings of 3 fixed-pair shift probes per anchor (96 -> 81) and 31 signature probes per anchor (992 -> 837).
+- Proposed, not yet integrated, caps: m=7 witness 1,657; promise shift 1,738; promise signature 2,494; verified shift (+726 samples) 2,464; verified signature (+726) 3,220. For m=8: 1,709; 1,790; 2,546; 2,516; 3,272 respectively. Existing Agent 50 integration reports still describe the unoptimized 96/992-probe paths; do not claim code already uses the reduction.
+- The exact checker now asserts the arithmetic for these anchor-basis caps. The report explains the derivation and distinguishes promise mode (no verifier) from verified mode (+726). The uncached additive Q+81+726 upper bounds are 891.502917 (m=7) and 891.249220 (m=8); actual cache overlap can reduce distinct queries.
+- Asked Agents 42, 50, and 43 to review the anchor-basis argument and possible implementation; no production or PR changes made.
