@@ -71,22 +71,7 @@ function encodeStringsWithSourceSpans(source,ast,options) {
     if(node.type==='Identifier'&&(node.name==='eval'||node.name==='Function'))dynamicScope=true;
   });
   if(dynamicScope)return {code:source,count:0};
-  const first='abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ_';
-  const candidates=[...first];
-  for(const char of first)candidates.push('_'+char);
-  for(const char of first)candidates.push('$'+char);
-  for(const char of first)candidates.push('__'+char);
-  const digest=createHash('sha256').update(options.seed+'span-strings').digest('hex');
-  const offset=parseInt(digest.slice(0,8),16)%candidates.length;
-  const names=new Set();
-  walk(ast,node=>{if(node.type==='Identifier')names.add(node.name);});
-  let helper=null;
-  for(let attempt=0;attempt<candidates.length;attempt++) {
-    const candidate=candidates[(offset+attempt)%candidates.length];
-    if(names.has(candidate)||options.reservedNames?.has(candidate))continue;
-    helper=candidate;
-    break;
-  }
+  const helper=unusedName(source,ast,options.seed+'span-strings',options.reservedNames,options.reservedSources);
   if(!helper)return {code:source,count:0};
   const values=new Map();
   /** @type {{start:number,end:number,text:string}[]} */
