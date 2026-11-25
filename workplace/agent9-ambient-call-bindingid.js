@@ -976,8 +976,18 @@ function summarizeAmbientCallEffects(ast,sourceType) {
         .flatMap((/** @type {AstNode} */ property)=>
           property.kind==='init'?[property.value]:
           property.kind==='get'?functionReturnExpressions(property.value):[]);
+      const prototypeSetter=value.properties.find((/** @type {AstNode} */ property)=>
+        property.type==='Property'&&property.kind==='init'&&!property.method&&
+        !property.computed&&staticPropertyKey(property.key,false)==='__proto__');
+      const prototypeValues=prototypeSetter?
+        memberValueExpressionsForProperty(prototypeSetter.value,propertyKey,seen):[];
       if(matching.length||laterComputedValues.length)
-        return [...new Set([...explicitValues,...laterSpreadValues,...laterComputedValues])];
+        return [...new Set([
+          ...explicitValues,...laterSpreadValues,...laterComputedValues,
+          ...(matching.length?[]:prototypeValues)
+        ])];
+      if(prototypeValues.length)
+        return [...new Set([...laterSpreadValues,...prototypeValues])];
       if(value.properties.some((/** @type {AstNode} */ property)=>property.type==='SpreadElement'))
         return value.properties.flatMap((/** @type {AstNode} */ property)=>
           property.type==='SpreadElement'?[property.argument]:
