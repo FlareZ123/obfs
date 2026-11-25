@@ -116,6 +116,89 @@ def generate_fixture(state_count: int, seed: int) -> Fixture:
     )
 
 
+def pair_distinguishing_metrics(transitions, outputs):
+    """Return exact shortest distinguishing-word lengths for all state pairs."""
+    state_count = len(transitions)
+    pairs = [
+        (left, right)
+        for left in range(state_count)
+        for right in range(left + 1, state_count)
+    ]
+    reverse_edges = {pair: [] for pair in pairs}
+    distances = {}
+    queue = deque()
+
+    for left, right in pairs:
+        if any(outputs[left][symbol] != outputs[right][symbol] for symbol in range(2)):
+            distances[(left, right)] = 1
+            queue.append((left, right))
+        for symbol in range(2):
+            next_pair = tuple(sorted((
+                transitions[left][symbol],
+                transitions[right][symbol],
+            )))
+            if next_pair[0] != next_pair[1]:
+                reverse_edges[next_pair].append((left, right))
+
+    while queue:
+        next_pair = queue.popleft()
+        next_distance = distances[next_pair] + 1
+        for previous_pair in reverse_edges[next_pair]:
+            if previous_pair not in distances:
+                distances[previous_pair] = next_distance
+                queue.append(previous_pair)
+
+    maximum_pair = None
+    maximum_length = None
+    if distances:
+        maximum_length = max(distances.values())
+        maximum_pair = min(
+            pair for pair, distance in distances.items()
+            if distance == maximum_length
+        )
+    return {
+        "distinguishable_pair_count": len(distances),
+        "total_pair_count": len(pairs),
+        "max_pair_distinguishing_length": maximum_length,
+        "max_distinguishing_pair": maximum_pair,
+    }
+
+
+def generate_delayed_pair_fixture(state_count: int, seed: int) -> Fixture:
+    """Construct a strongly connected machine with a deliberately rare output split.
+
+    Input 0 is an n-cycle. Input 1 swaps states 0 and 1 and fixes all others.
+    Outputs are identical everywhere except that state 1 emits '1' on input 0.
+    The two permutations generate a transitive action on unordered state pairs;
+    all states are minimal, but some pairs require long distinguishing words.
+    """
+    if state_count < 3:
+        raise ValueError("delayed-pair fixtures require at least 3 states")
+    transitions = []
+    outputs = []
+    for state in range(state_count):
+        next_one = 1 if state == 0 else 0 if state == 1 else state
+        transitions.append([(state + 1) % state_count, next_one])
+        outputs.append(["1" if state == 1 else "0", "0"])
+
+    metrics = pair_distinguishing_metrics(transitions, outputs)
+    expected_pairs = state_count * (state_count - 1) // 2
+    if metrics["distinguishable_pair_count"] != expected_pairs:
+        raise AssertionError("delayed-pair fixture is not minimal")
+    if not is_strongly_connected(transitions):
+        raise AssertionError("delayed-pair fixture is not strongly connected")
+
+    rng = random.Random(seed)
+    initial_state = metrics["max_distinguishing_pair"][rng.randrange(2)]
+    return Fixture(
+        state_count=state_count,
+        transitions=tuple(tuple(row) for row in transitions),
+        outputs=tuple(tuple(row) for row in outputs),
+        initial_state=initial_state,
+        generation_attempts=1,
+    )
+
+
 class NoResetMealySUL(SUL):
     """Duck-compatible AALpy SUL that permits one initialization only."""
 
@@ -371,8 +454,13 @@ def run_one(
     timeout_seconds: int,
     random_walk_length: int,
     origin_states: int,
+    fixture_family: str,
 ):
-    fixture = generate_fixture(state_count, seed)
+    if fixture_family == "delayed-pair":
+        fixture = generate_delayed_pair_fixture(state_count, seed)
+    else:
+        fixture = generate_fixture(state_count, seed)
+    pair_metrics = pair_distinguishing_metrics(fixture.transitions, fixture.outputs)
     sul, trace, counters = make_sul(fixture)
     oracle_seed = (seed * 0x9E3779B1 + state_count * 0x85EBCA77) & 0xFFFFFFFF
     random.seed(oracle_seed)
@@ -400,6 +488,9 @@ def run_one(
             "state_count": state_count,
             "seed": seed,
             "oracle_seed": oracle_seed,
+            "fixture_family": fixture_family,
+            "max_pair_distinguishing_length": pair_metrics["max_pair_distinguishing_length"],
+            "max_distinguishing_pair": pair_metrics["max_distinguishing_pair"],
             "status": "timeout",
             "elapsed_seconds": round(time.monotonic() - started, 3),
             "pre_calls": counters["pre_calls"],
@@ -414,6 +505,9 @@ def run_one(
             "state_count": state_count,
             "seed": seed,
             "oracle_seed": oracle_seed,
+            "fixture_family": fixture_family,
+            "max_pair_distinguishing_length": pair_metrics["max_pair_distinguishing_length"],
+            "max_distinguishing_pair": pair_metrics["max_distinguishing_pair"],
             "status": "error",
             "error": f"{type(error).__name__}: {error}",
             "elapsed_seconds": round(time.monotonic() - started, 3),
@@ -457,6 +551,9 @@ def run_one(
         "state_count": state_count,
         "seed": seed,
         "oracle_seed": oracle_seed,
+        "fixture_family": fixture_family,
+        "max_pair_distinguishing_length": pair_metrics["max_pair_distinguishing_length"],
+        "max_distinguishing_pair": pair_metrics["max_distinguishing_pair"],
         "status": "completed",
         "target_initial_state": fixture.initial_state,
         "target_post_trace_state": evaluation["target_post_trace_state"],
@@ -516,9 +613,17 @@ def main():
     parser.add_argument("--timeout-seconds", type=int, default=60)
     parser.add_argument("--random-walk-length", type=int, default=30)
     parser.add_argument("--origin-states", type=int, default=20)
+    parser.add_argument(
+        "--fixture-family",
+        choices=("random", "delayed-pair"),
+        default="random",
+    )
     args = parser.parse_args()
-    if not (2 <= args.min_states <= args.max_states <= 12):
-        raise SystemExit("state range must be within [2,12]")
+    if args.fixture_family == "random":
+        if not (2 <= args.min_states <= args.max_states <= 12):
+            raise SystemExit("random fixture state range must be within [2,12]")
+    elif not (3 <= args.min_states <= args.max_states <= 64):
+        raise SystemExit("delayed-pair fixture state range must be within [3,64]")
     if args.seeds < 1 or args.seeds > 20:
         raise SystemExit("--seeds must be in [1,20]")
 
@@ -532,6 +637,7 @@ def main():
                 args.timeout_seconds,
                 args.random_walk_length,
                 args.origin_states,
+                args.fixture_family,
             )
             results.append(result)
             print(
@@ -544,8 +650,12 @@ def main():
     output = {
         "experiment": "AALpy 2.0.0 hW with no-reset RandomWphWOracle",
         "scope": {
+            "fixture_family": args.fixture_family,
             "state_counts": [args.min_states, args.max_states],
             "seeds_per_state_count": args.seeds,
+            "pair_distinguishing_metric": (
+                "exact shortest distinguishing input-word length over all unordered target-state pairs"
+            ),
             "input_alphabet": list(ALPHABET),
             "output_alphabet": list(OUTPUTS),
             "strong_connectivity": "input 0 forms a directed cycle",
