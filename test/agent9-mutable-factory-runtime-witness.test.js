@@ -243,3 +243,15 @@ test('a local method with a dynamic this-member read cannot hide the selected ca
   assertRuntimeHostReceivesHidden(source);
   assertHiddenHeld(source);
 });
+
+
+test('an inherited class getter cannot hide a callback returned through the derived instance receiver',()=>{
+  const source=
+    'function hidden(){return 1;}'+
+    'class Base{get read(){return this.callback;}}'+
+    'class Local extends Base{callback=hidden;}'+
+    'function entry(){const owner=new Local();external(owner.read);}'+
+    'module.exports=entry;';
+  assertRuntimeHostReceivesHidden(source);
+  assertHiddenHeld(source);
+});
