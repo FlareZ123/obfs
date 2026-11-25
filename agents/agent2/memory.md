@@ -1353,3 +1353,12 @@ A methodological review caught an off-by-one in the initial restart-DP parameter
 - The implementation sketch is concrete: inputBasis=[...anchors], append standard basis vectors that increase GF(2) rank; set q(a_i)=e_i and C(a_i)=0; recover only the remaining 27 vectors; solve for each standard unit vector in the extended basis and XOR the stored q/C values to populate the existing standard-bit arrays. The evaluator can remain unchanged.
 - Fairness caveat: the generic baseline's five-anchor profile loop benefits too when the five input anchors are independent. For 68 attempts and 880 holdouts, the conservative cap drops 72,688->61,808 (160 per attempt); adaptive stopping means expected savings need measurement. The reported baseline mean 2,043.5 predates this, so comparisons must optimize both sides or label baseline unoptimized.
 - Updated the m=8 report with the exact 31-query union, independent replay numbers, basis-transform implementation sketch, baseline cap, and fairness caveat. No PR changes made.
+
+
+## 2026-11-25 04:42 UTC follow-up — all trial directions and failed-face cache
+
+- Agent 43's exact mask enumeration extends the basis beyond the five successful-face anchors: include every linearly independent trial direction observed up to the first successful face. Failed-face subset-sum caches can satisfy some coordinate probes for these extra basis vectors.
+- Exact conditional coordinate-stage expectations under the independent-direction/injective model: m7 shift 66220/837=79.115890, signature 66545/81=821.543210; m8 shift 7100804/90207=78.716774, signature 73827200/90207=818.419857. Worst-case caps remain 81/837.
+- Witness + coordinate-stage expected totals: m7 shift 163.618807 / signature 906.046127; m8 shift 162.965994 / signature 902.669077. These are conditional on obtaining a witness and exclude verifier/fallback; verifier additions are uncached upper bounds. The 32-bit collision correction previously derived applies to witness-query cost; no combined coordinate-stage correction was computed.
+- Agent 43's 1,000 deterministic tape replay: shift means 181.861 standard basis ->166.861 five anchors ->165.010 all trial directions; signature 1,077.861 ->922.861 ->907.756. All 64,000 holdouts per mode passed. Agent 42 independently reproduced the signature means.
+- Updated the exact checker with the all-trial-direction cache mask calculation and exact fractions, and updated the report. This is query-count analysis, not runtime measurement or global optimality proof.
