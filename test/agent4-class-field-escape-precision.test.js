@@ -205,3 +205,17 @@ test('a reassigned function binding is not treated as a stable class field initi
     'the class field reads the reassigned function binding value');
   assert.equal(other.safe,false);
 });
+
+
+test('a field closure publishing this.callback keeps the field callable held',()=>{
+  const source=
+    'function hidden(){return 1;}'+
+    'class Local{callback=hidden;leak=()=>external(this.callback);}'+
+    'function entry(){const instance=new Local();instance.leak();}'+
+    'module.exports=entry;';
+  const hidden=named(analyze(source),'hidden')[0];
+  assert.ok(hidden);
+  assert.equal(hidden.hostHeldCallable,true,
+    'the field closure can publish this.callback when invoked locally');
+  assert.equal(hidden.safe,false);
+});
