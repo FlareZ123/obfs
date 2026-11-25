@@ -33,15 +33,21 @@ async function preserves(files,expected) {
     const output=obfuscateFiles(files,{
       mode:'coo',seed:'cross-file-reader-proof',closedWorld:true,strings:false,identifiers:false
     });
-    assert.equal(output.crossFile.properties,expected,
-      JSON.stringify(output.files.map(f=>({path:f.path,code:f.code}))));
+    if(Array.isArray(expected)) {
+      assert.ok(expected.includes(output.crossFile.properties),
+        `expected one of ${expected.join(', ')}, got ${output.crossFile.properties}: `+
+        JSON.stringify(output.files.map(f=>({path:f.path,code:f.code}))));
+    } else {
+      assert.equal(output.crossFile.properties,expected,
+        JSON.stringify(output.files.map(f=>({path:f.path,code:f.code}))));
+    }
     assert.equal(await run(output.files),baseline);
   }finally{
     await fs.rm(dir,{recursive:true,force:true});
   }
 }
 
-/** @param {string} exporter @param {string} main @param {number} expected */
+/** @param {string} exporter @param {string} main @param {number|number[]} expected */
 async function check(exporter,main,expected) {
   await preserves([
     {path:'state.mjs',sourceType:'module',code:exporter},
@@ -600,4 +606,84 @@ test('one escaped sibling owner alias vetoes shared-owner renaming',async()=>{
     'import {state as left,state as right,peek} from "./state.mjs";'+
     'globalThis.escapedOwner=right;'+
     'console.log(peek(left));',0);
+});
+
+
+// Cyclic module identity and initialization-order controls for the joint-root
+// proof. The range assertions intentionally allow either a safe rename or a
+// conservative refusal; native/emitted output equality is mandatory.
+
+test('self-import aliases of one owner share private carrier slots',async()=>{
+  await preserves([
+    {path:'state.mjs',sourceType:'module',code:
+      'import {state as first,state as second,peek as inspect} from "./state.mjs";'+
+      'export const state={secretField:23};'+
+      'export function peek(x){return x.secretField;}'+
+      'const carrier={left:first,right:second};'+
+      'const local=value=>value.secretField;'+
+      'const left=carrier.left;const right=carrier.right;'+
+      'export const result=inspect(left)+local(right);'},
+    {path:'main.mjs',sourceType:'module',code:
+      'import {result} from "./state.mjs";console.log(result);'}
+  ],[0,1]);
+});
+
+test('self-import owner reads preserve the pre-initialization TDZ exception',async()=>{
+  await preserves([
+    {path:'state.mjs',sourceType:'module',code:
+      'import {state as self} from "./state.mjs";'+
+      'let early=false;'+
+      'try{void self.secretField;}catch(error){early=error instanceof ReferenceError;}'+
+      'export const state={secretField:23};'+
+      'export const result=[early,self.secretField];'},
+    {path:'main.mjs',sourceType:'module',code:
+      'import {result} from "./state.mjs";console.log(JSON.stringify(result));'}
+  ],[0,1]);
+});
+
+test('two-module reentrant owner reads preserve TDZ before later initialization',async()=>{
+  await preserves([
+    {path:'a.mjs',sourceType:'module',code:
+      'import {read} from "./b.mjs";'+
+      'export let early;'+
+      'try{early=read();}catch(error){early=error instanceof ReferenceError?"tdz":"other";}'+
+      'export const state={secretField:23};'+
+      'export const late=read();'},
+    {path:'b.mjs',sourceType:'module',code:
+      'import {state} from "./a.mjs";'+
+      'export function read(){return state.secretField;}'},
+    {path:'main.mjs',sourceType:'module',code:
+      'import {early,late} from "./a.mjs";console.log(early,late);'}
+  ],[0,1]);
+});
+
+test('late imported key in a cyclic graph is not folded across its TDZ',async()=>{
+  await preserves([
+    {path:'a.mjs',sourceType:'module',code:
+      'import {read} from "./b.mjs";'+
+      'export const state={secretField:23};'+
+      'export let early;'+
+      'try{early=read();}catch(error){early=error instanceof ReferenceError?"tdz":"other";}'+
+      'export const key="secretField";'+
+      'export const late=read();'},
+    {path:'b.mjs',sourceType:'module',code:
+      'import {state,key} from "./a.mjs";'+
+      'export function read(){return state[key];}'},
+    {path:'main.mjs',sourceType:'module',code:
+      'import {early,late} from "./a.mjs";console.log(early,late);'}
+  ],0);
+});
+
+test('owner re-export cycle refuses joint-root property rewriting',async()=>{
+  await preserves([
+    {path:'a.mjs',sourceType:'module',code:
+      'import {publicState,inspect} from "./relay.mjs";'+
+      'export const state={secretField:23};'+
+      'export function peek(x){return x.secretField;}'+
+      'export const result=inspect(publicState);'},
+    {path:'relay.mjs',sourceType:'module',code:
+      'export {state as publicState,peek as inspect} from "./a.mjs";'},
+    {path:'main.mjs',sourceType:'module',code:
+      'import {result} from "./a.mjs";console.log(result);'}
+  ],0);
 });
