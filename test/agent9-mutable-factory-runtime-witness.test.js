@@ -61,6 +61,52 @@ test('a mutable local factory alias to a function declaration cannot hide its re
   assertHiddenHeld(source);
 });
 
+test('a mutable factory return exposes only the selected callable sibling',()=>{
+  const source=
+    'function hidden(){return 1;}function safe(){return 2;}'+
+    'class Local{callback=hidden;unrelated=safe;}'+
+    'function entry(){let owner;let create;create=()=>new Local();'+
+    'owner=create();external(owner.callback);}'+
+    'module.exports=entry;';
+  assertRuntimeHostReceivesHidden(source);
+  const result=analyze(source);
+  const hidden=result.summaries.find(summary=>summary.bindingNames.includes('hidden'));
+  const safe=result.summaries.find(summary=>summary.bindingNames.includes('safe'));
+  assert.ok(hidden);
+  assert.ok(safe);
+  assert.equal(hidden.hostHeldCallable,true);
+  assert.equal(safe.hostHeldCallable,false,
+    'a sibling callable that is not selected by the host read remains unheld');
+  assert.equal(safe.safe,true,
+    'property-specific value flow must preserve unrelated private field yield');
+});
+
+test('multiple mutable factory assignments conservatively union all returned field callables',()=>{
+  const source=
+    'function hiddenA(){return 1;}function hiddenB(){return 2;}'+
+    'class First{callback=hiddenA;}class Second{callback=hiddenB;}'+
+    'function entry(){let owner;let create;create=()=>new First();create=()=>new Second();'+
+    'owner=create();external(owner.callback);}'+
+    'module.exports=entry;';
+  /** @type {unknown} */
+  let observed=null;
+  /** @type {{module:{exports:(()=>unknown)|null},external:(value:unknown)=>void}} */
+  const context={module:{exports:null},external(value){observed=value;}};
+  vm.runInNewContext(source,context);
+  assert.equal(typeof context.module.exports,'function');
+  (/** @type {()=>unknown} */ (context.module.exports))();
+  assert.equal(typeof observed,'function');
+  assert.match(Function.prototype.toString.call(observed),/function hiddenB/u,
+    'the last assignment is the runtime factory used by this execution');
+  const result=analyze(source);
+  for(const name of ['hiddenA','hiddenB']) {
+    const summary=result.summaries.find(row=>row.bindingNames.includes(name));
+    assert.ok(summary, name+' must have an analysis summary');
+    assert.equal(summary.hostHeldCallable,true,
+      'all possible mutable factory return branches must be retained conservatively');
+  }
+});
+
 test('a recursive mutable factory return retains its concrete class-field branch',()=>{
   const source=
     'function hidden(){return 1;}'+
