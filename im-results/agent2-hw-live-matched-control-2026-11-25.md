@@ -44,6 +44,28 @@ The 64-state delayed-pair family is the same family used in the earlier in-proce
 
 The earlier 22-case in-process oracle sensitivity sweep reports this exact 8-state/seed-zero/30-walk/one-origin setting as a false future convergence, with shortest post-trace future counterexample 00. The live matched run independently reproduces failure of the future certification in both server arms. The matched harness's full per-case candidate results are preserved in its workflow artifact.
 
+## Additional live oracle-parameter sensitivity
+
+The same three random fixtures (state counts 6, 7, and 8; seed 0) were paired under two additional oracle settings. These runs demonstrate why the evaluator must distinguish initial-model equivalence from post-trace future equivalence.
+
+| Fixture batch | Random walk | Origin states | Cases | Exact initial clone (SCO / ordinary) | Future certification (SCO / ordinary) | False future convergence | SUL steps per arm | HTTP requests per arm |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|
+| Random, 6–8 states, seed 0 | 30 | 5 | 3 | 2/3 / 2/3 | 3/3 / 3/3 | 0/3 / 0/3 | 2,715 | 2,730 |
+| Random, 6–8 states, seed 0 | 5 | 1 | 3 | 0/3 / 0/3 | 0/3 / 0/3 | 3/3 / 3/3 | 630 | 645 |
+| Random, 8 states, seed 0 | 30 | 1 | 1 | 0/1 / 0/1 | 0/1 / 0/1 | 1/1 / 1/1 | 300 | 305 |
+
+For the 30-walk / 5-origin batch, the 8-state fixture had two trace-matching initial candidates, so exact initial-model cloning was not certified. Both candidates reached one post-trace future-equivalence class, however, so future behavior was certified. This is a concrete case where initial ambiguity does not imply future ambiguity.
+
+For the 5-walk / 1-origin batch, all three fixtures produced false future convergence in both arms. The exact evaluator found these post-trace future counterexamples:
+
+- 6 states: 000
+- 7 states: 0
+- 8 states: 00
+
+The 30-walk / 1-origin 8-state case also produced false future convergence in both arms, with post-trace counterexample 00. The candidate count was one in each false-convergence case; these were wrong single-candidate conjectures, not ambiguous future candidate sets.
+
+Across all baseline and sensitivity batches there were **20 completed paired runs**, zero timeouts/errors, **445,306 SUL steps per arm**, and **445,406 HTTP requests per arm**. Exact initial-model certification succeeded in 15/20 runs per arm; post-trace future certification succeeded in 16/20 per arm. All 20 pairs retained identical learner traces, conjectures, selected RPC records, server counters, and evaluator outcomes between SCO and ordinary HTTP.
+
 ## What was actually matched
 
 For each pair, the harness checked:
@@ -95,6 +117,9 @@ Successful workflow runs:
 - [45664689387 — eight random fixtures](https://github.com/FlareZ123/obfs/actions/runs/45664689387), artifact ID 15045569031.
 - [45665036435 — 64-state delayed-pair seed zero](https://github.com/FlareZ123/obfs/actions/runs/45665036435), artifact ID 15046802792.
 - [45665532924 — four 64-state delayed-pair seeds](https://github.com/FlareZ123/obfs/actions/runs/45665532924), artifact ID 15045779827, ZIP SHA-256 94b59ee419cb9914ab0fed85719eb379e3b4de12ce9c594ca2418aa4e2aff6fe.
+- [45668408694 — 30-walk / 5-origin fixtures, states 6–8](https://github.com/FlareZ123/obfs/actions/runs/45668408694), artifact ID 15048168100, ZIP SHA-256 f68f1e1c34a026e96a188fc684fa99664cbe41f3dbe60d26691a8b0fe08ff7aa.
+- [45669036998 — 5-walk / 1-origin fixtures, states 6–8](https://github.com/FlareZ123/obfs/actions/runs/45669036998), artifact ID 15048352816, ZIP SHA-256 50c0e06e3e9046cabfb23bcde7e5974d4015840d54a45693a4a308afdff541fd.
+- [45669659354 — 30-walk / 1-origin 8-state repeat with per-case logs](https://github.com/FlareZ123/obfs/actions/runs/45669659354), artifact ID 15048234265, ZIP SHA-256 b76362ac15d9f8ed62080624393000468afd89ba041cf383122b8ebf343041a2.
 - [45666180612 — weak-oracle 8-state case](https://github.com/FlareZ123/obfs/actions/runs/45666180612), artifact ID 15045769218, ZIP SHA-256 3b6cf537f0ed46f845d1dd406be93eb09053ec3771b676f9252d2feac28c9128.
 
 Reproduce the baseline random batch from the repository root on the experiment branch:
