@@ -129,9 +129,11 @@ const CALLABLE_OBSERVER_PROPERTIES=new Set([
  *
  * @param {AstNode} ast
  * @param {SourceType} sourceType
+ * @param {{trustedPrototypeSemantics?:boolean}} [options] Caller asserts a pristine Object.prototype and no hostile preloader when enabling local prototype-shadow precision.
  * @returns {{summaries:AmbientCallSummary[],ambientBindingIds:number[],hostHeldCallableBindingIds:number[],externallyReachableBindingIds:number[],unsafeBindingIds:number[],safeBindingIds:number[]}}
  */
-function summarizeAmbientCallEffects(ast,sourceType) {
+function summarizeAmbientCallEffects(ast,sourceType,options) {
+  const trustedPrototypeSemantics=options?.trustedPrototypeSemantics===true;
   const resolved=resolveLexicalReferences(ast,sourceType);
   /** @type {Map<AstNode,typeof resolved.declarations[number]>} */
   const declarationByNode=new Map();
@@ -625,6 +627,196 @@ function summarizeAmbientCallEffects(ast,sourceType) {
   }
 
   /** @param {AstNode} classNode @returns {number|null} */
+  /**
+   * Prove one deliberately narrow local prototype write is shadowed at every
+   * observed instance read. This optimization is disabled unless the caller
+   * explicitly supplies the trusted-prototype-semantics contract.
+   * @param {AstNode} assignment
+   * @returns {boolean}
+   */
+  function isProvenShadowedLocalPrototypeWrite(assignment) {
+    if(!trustedPrototypeSemantics||assignment.type!=='AssignmentExpression'||
+      assignment.operator!=='='||assignment.left.type!=='MemberExpression') return false;
+    const target=assignment.left;
+    const prototypeAccess=target.object;
+    if(prototypeAccess.type!=='MemberExpression'||prototypeAccess.optional||
+      prototypeAccess.object.type!=='Identifier'||
+      staticPropertyKey(prototypeAccess.property,prototypeAccess.computed)!=='prototype') return false;
+    const propertyKey=staticPropertyKey(target.property,target.computed);
+    if(propertyKey===null||propertyKey==='__proto__') return false;
+    const constructorReference=resolved.at(prototypeAccess.object.start);
+    if(constructorReference?.resolution.kind!=='local') return false;
+    const constructorBindingId=constructorReference.resolution.bindingId;
+    const classNode=classNodeByBinding.get(constructorBindingId);
+    const constructorFunction=resolveFunctionNode(constructorBindingId);
+    if(!classNode&&(!constructorFunction||
+      !['FunctionDeclaration','FunctionExpression'].includes(constructorFunction.type))) return false;
+    if(classNode&&(classNode.type!=='ClassDeclaration'&&classNode.type!=='ClassExpression')) return false;
+    if(classNode?.superClass) return false;
+
+    // Only accept an empty constructor, one same-key class field, or a
+    // straight-line function constructor consisting solely of same-key
+    // this assignments. Other members/statements fail closed.
+    let constructorModelValid=false;
+    let constructorOwnWrite=false;
+    if(classNode) {
+      const elements=classNode.body.body;
+      if(elements.length===0) {
+        constructorModelValid=true;
+      } else if(elements.length===1) {
+        const element=elements[0];
+        if(element.type==='PropertyDefinition'&&!element.static&&
+          staticPropertyKey(element.key,element.computed)===propertyKey) {
+          constructorModelValid=true;
+          constructorOwnWrite=true;
+        }
+      }
+    } else if(constructorFunction&&
+      (constructorFunction.type==='FunctionDeclaration'||constructorFunction.type==='FunctionExpression')) {
+      const body=constructorFunction.body;
+      if(body.type==='BlockStatement') {
+        if(body.body.length===0) {
+          constructorModelValid=true;
+        } else {
+          constructorOwnWrite=body.body.every(statement=>{
+            if(statement.type!=='ExpressionStatement') return false;
+            const expression=statement.expression;
+            return expression.type==='AssignmentExpression'&&expression.operator==='='&&
+              expression.left.type==='MemberExpression'&&expression.left.object.type==='ThisExpression'&&
+              staticPropertyKey(expression.left.property,expression.left.computed)===propertyKey;
+          });
+          constructorModelValid=constructorOwnWrite;
+        }
+      }
+    }
+    if(!constructorModelValid) return false;
+
+    // The constructor may be referenced only by this prototype write and by
+    // the single local new-expression. Exports, aliases, reflection, and
+    // additional prototype operations invalidate the proof.
+    let constructorUsesValid=true;
+    walkAst(ast,node=>{
+      if(node.type!=='Identifier') return;
+      const reference=resolved.at(node.start);
+      if(reference?.resolution.kind!=='local'||
+        reference.resolution.bindingId!==constructorBindingId) return;
+      const parent=parentByNode.get(node);
+      if((parent?.type==='FunctionDeclaration'||parent?.type==='FunctionExpression'||
+        parent?.type==='ClassDeclaration'||parent?.type==='ClassExpression')&&parent.id===node) return;
+      if(parent?.type==='NewExpression'&&parent.callee===node) return;
+      if(parent?.type==='MemberExpression'&&parent.object===node&&
+        staticPropertyKey(parent.property,parent.computed)==='prototype') {
+        const outer=parentByNode.get(parent);
+        if(outer===target&&parentByNode.get(outer)===assignment) return;
+      }
+      constructorUsesValid=false;
+    });
+    if(!constructorUsesValid) return false;
+
+    const allocations=[];
+    walkAst(ast,node=>{
+      if(node.type!=='NewExpression'||node.callee.type!=='Identifier') return;
+      const reference=resolved.at(node.callee.start);
+      if(reference?.resolution.kind==='local'&&
+        reference.resolution.bindingId===constructorBindingId) allocations.push(node);
+    });
+    if(allocations.length!==1) return false;
+    const allocation=allocations[0];
+    if(assignment.start>=allocation.start) return false;
+    const declarator=parentByNode.get(allocation);
+    if(declarator?.type!=='VariableDeclarator'||declarator.init!==allocation||
+      declarator.id.type!=='Identifier') return false;
+    const declaration=parentByNode.get(declarator);
+    if(declaration?.type!=='VariableDeclaration'||declaration.kind!=='const') return false;
+    const ownerId=declarator.id;
+    const ownerReference=resolved.at(ownerId.start);
+    if(ownerReference?.resolution.kind!=='local') return false;
+    const ownerBindingId=ownerReference.resolution.bindingId;
+    const fn=enclosingFunction(allocation);
+    if(!fn||fn!==enclosingFunction(assignment)||fn.body.type!=='BlockStatement') return false;
+
+    /** @param {AstNode} node @returns {AstNode|null} */
+    const topLevelStatement=node=>{
+      let current=node;
+      while(current&&parentByNode.get(current)!==fn.body) current=parentByNode.get(current);
+      return current&&parentByNode.get(current)===fn.body?current:null;
+    };
+    const bodyStatements=fn.body.body;
+    const prototypeStatement=topLevelStatement(assignment);
+    const allocationStatement=topLevelStatement(allocation);
+    if(prototypeStatement?.type!=='ExpressionStatement'||
+      prototypeStatement.expression!==assignment||allocationStatement?.type!=='VariableDeclaration') return false;
+    const prototypeIndex=bodyStatements.indexOf(prototypeStatement);
+    const allocationIndex=bodyStatements.indexOf(allocationStatement);
+    // Require adjacency and declaration-only setup before the prototype write:
+    // no source-local call can interpose a mutation of Object.prototype.
+    if(prototypeIndex<0||allocationIndex!==prototypeIndex+1) return false;
+    for(let i=0;i<prototypeIndex;i++) {
+      const statement=bodyStatements[i];
+      if(statement.type!=='FunctionDeclaration'&&statement.type!=='ClassDeclaration') return false;
+    }
+
+    const ownerReads=[];
+    const ownerWrites=[];
+    let ownerUsesValid=true;
+    walkAst(ast,node=>{
+      if(node.type!=='Identifier') return;
+      const reference=resolved.at(node.start);
+      if(reference?.resolution.kind!=='local'||reference.resolution.bindingId!==ownerBindingId) return;
+      if(enclosingFunction(node)!==fn) {
+        ownerUsesValid=false;
+        return;
+      }
+      const parent=parentByNode.get(node);
+      if(parent?.type==='VariableDeclarator'&&parent.id===node) return;
+      if(parent?.type!=='MemberExpression'||parent.object!==node||parent.optional||
+        staticPropertyKey(parent.property,parent.computed)!==propertyKey) {
+        ownerUsesValid=false;
+        return;
+      }
+      const use=parentByNode.get(parent);
+      if(use?.type==='AssignmentExpression'&&use.left===parent&&use.operator==='=') {
+        ownerWrites.push(use);
+        return;
+      }
+      if(use?.type==='CallExpression'&&use.arguments.includes(parent)&&
+        use.callee.type==='Identifier'&&!use.optional) {
+        const calleeReference=resolved.at(use.callee.start);
+        if(calleeReference?.resolution.kind==='local') {
+          ownerUsesValid=false;
+          return;
+        }
+        ownerReads.push(use);
+        return;
+      }
+      ownerUsesValid=false;
+    });
+    if(!ownerUsesValid||ownerReads.length===0) return false;
+
+    const operationStatements=[...ownerWrites,...ownerReads].map(topLevelStatement);
+    if(operationStatements.some(statement=>statement?.type!=='ExpressionStatement')) return false;
+    for(let i=0;i<ownerWrites.length;i++) {
+      const statement=operationStatements[i];
+      if(statement?.type!=='ExpressionStatement'||statement.expression!==ownerWrites[i]) return false;
+    }
+    for(let i=0;i<ownerReads.length;i++) {
+      const statement=operationStatements[ownerWrites.length+i];
+      if(statement?.type!=='ExpressionStatement'||statement.expression!==ownerReads[i]) return false;
+    }
+    const lastIndex=Math.max(...operationStatements.map(statement=>
+      statement?bodyStatements.indexOf(statement):-1));
+    if(lastIndex<=allocationIndex) return false;
+    for(let i=allocationIndex+1;i<=lastIndex;i++) {
+      if(!operationStatements.includes(bodyStatements[i])) return false;
+    }
+    for(const read of ownerReads) {
+      if(read.start<=allocation.start) return false;
+      if(!constructorOwnWrite&&!ownerWrites.some(write=>
+        write.start>allocation.start&&write.start<read.start)) return false;
+    }
+    return true;
+  }
+
   function classBindingId(classNode) {
     if(classNode.type==='ClassDeclaration'&&classNode.id?.type==='Identifier')
       return declarationByNode.get(classNode.id)?.bindingId??null;
@@ -2431,7 +2623,7 @@ function summarizeAmbientCallEffects(ast,sourceType) {
       // Unknown object-field writes may publish a callable into host-owned
       // or aliased storage. A same-function, own-data local record write is
       // tracked as a private field value and is held only if that value escapes.
-      if(!isLocalRecordMemberAccess(node.left))
+      if(!isLocalRecordMemberAccess(node.left)&&!isProvenShadowedLocalPrototypeWrite(node))
         markCallableValuesHeld(node.right,'host-held-callable',node.start,node.end);
     }
   });
