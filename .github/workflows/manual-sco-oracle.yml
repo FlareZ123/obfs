@@ -81,6 +81,22 @@ jobs:
         run: node --test test/sco-step-only-version-space.test.js
       - name: Certify canonical five-state step-only continuation
         run: node --test test/sco-step-only-five-state.test.js
+      - name: Compare weighted two-state oracle over authenticated generated SCO and ordinary ESM clients
+        run: node --test test/sco-step-only-two-state-live.test.js
+      - name: Confirm posterior-weighted two-state online learner on all model tables
+        run: node --test test/sco-step-only-two-state-online.test.js
+      - name: Verify executable robust cross-prior SCO public-only continuation clone
+        run: node --test test/sco-step-only-two-state-robust.test.js
+      - name: Verify exact cross-prior Pareto frontier for nine- and ten-query policies
+        run: node --test test/sco-step-only-two-state-pareto.test.js
+      - name: Verify constructive eight-query adversarial lower bound and nine-query optimal strategy
+        run: node --test test/sco-step-only-two-state-game-certificate.test.js
+      - name: Falsify attacker-prior generalization with exact two-state prior sensitivity
+        run: node --test test/sco-step-only-two-state-prior-sensitivity.test.js
+      - name: Independently verify source-labelled two-state Bellman optimum without semantic compression
+        run: node --test test/sco-step-only-two-state-independent.test.js
+      - name: Verify exact two-state no-reset oracle minimax bound
+        run: node --test test/sco-step-only-two-state-minimax.test.js
       - name: Exhaust all two-state and sampled three-state public continuation attacks
         run: node sims/sco-step-only-version-space-report.js
       - name: Challenge bounded continuation attack on independent SHA holdouts
