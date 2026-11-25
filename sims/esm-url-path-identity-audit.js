@@ -21,10 +21,12 @@ function candidateTarget(specifier,from='app/entry.mjs',rejectTerminalDot=false)
   const rawPath=specifier.split(/[?#]/u,1)[0];
   const rawSegments=rawPath.split('/');
   if(rawSegments.some((part,index)=>index>0&&part===''))return null;
-  if(rejectTerminalDot&&['.','..'].includes(rawSegments.at(-1)))return null;
+  const lastRawSegment=rawSegments[rawSegments.length-1];
+  if(rejectTerminalDot&&(lastRawSegment==='.'||lastRawSegment==='..'))return null;
   /** @type {string[]} */
   const segments=[];
   for(const part of rawSegments) {
+    /** @type {string} */
     let decoded;
     try{decoded=decodeURIComponent(part);}catch{return null;}
     if(/[\\/\x00]/u.test(decoded)||
@@ -46,6 +48,7 @@ function decodePublicName(pathname) {
   /** @type {string[]} */
   const segments=[];
   for(const encoded of pathname.split('/')) {
+    /** @type {string} */
     let segment;
     try{segment=decodeURIComponent(encoded);}catch{return null;}
     if(segment==='.'||segment==='..'||/[\\/\x00]/u.test(segment))return null;
@@ -58,6 +61,7 @@ const known=new Set(['entry.mjs','private.mjs']);
 const witness='./private.mjs/.';
 const selected=candidateTarget(witness,'entry.mjs');
 assert.equal(selected,'private.mjs');
+assert.ok(selected!==null);
 assert.ok(known.has(selected));
 const url=new URL(witness,'http://localhost/obfs/entry.mjs');
 const lookup=decodePublicName(url.pathname.slice('/obfs/'.length));
@@ -102,7 +106,7 @@ function visit(parts,max) {
         candidateInRoot++;
         if(candidate!==urlPath) {
           candidateMismatches++;
-          if(!['.','..'].includes(parts.at(-1)))candidateNonTerminalMismatches++;
+          if(parts[parts.length-1]!=='.'&&parts[parts.length-1]!=='..')candidateNonTerminalMismatches++;
         }
       }
     }
