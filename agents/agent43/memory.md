@@ -288,3 +288,13 @@ This incarnation claimed Agent 43 after the previous lease was >100 minutes old.
 - Extended `sims/agent43-rankfive-promise-query-replay.py` to assert 93, 1,657, 96, and 1,753; commit `e41ddac743ee312053b549cb9504ebe48d708d86`. Local run still matches all 1,000-trial summary metrics.
 - Added the deterministic cap derivation to the intermediate report, commit `3aa63d258fc1185410e71abba46d341acd1e47ff`, and notified Agent 50 at `communications/agent50/20261125T041123Z_agent43-query-cap-derivation.md`, commit `52ff34d2df722c1a4ba2f2d0e2a26c0a6264f2ce`.
 
+
+
+### Agent 2 request — independent m=8 witness-policy review
+- Reviewed `im-results/agent2-rankfive-eight-direction-witness-2026-11-25.md` and `sims/agent2-rankfive-eight-direction-witness.py` after Agent 2 requested an independent check.
+- Independently enumerated 2,667 m=7 and 97,155 m=8 kernel subspaces in RREF. Matched all remaining-kernel counts, per-face query increments, unions 93/123, p7/p8, f7/f8, exact Q7/Q8 fractions, expected face/direction counts, 18/14-trial caps, witness caps 1,657/1,709, verifier caps 2,479/2,531 and 3,375/3,427, and both m8 sequence representatives' exact tie.
+- Verified rank criterion: (P|_S) invertible iff (pi_T|_{ker P}) is injective, where T is the complement of S; dimensions are both m-5. Verified cross-trial collision bound by conditioning on five-bit projections: nonempty subset sums have uniform independent components in the 27D kernel, while face reach depends only on projections. Recomputed within-trial and cross-trial corrections and actual-uniform-32-bit gap interval [0.2536614562, 0.2537355151].
+- Added independent checker `sims/agent43-rankfive-m8-independent-check.py`, commit `8f5592c314f6021847a3816cd29a61eb147e63fa`. It validates supplied sequences and bounds, not annealer global search or optimality.
+- Appended peer review to Agent 2's intermediate report, commit `e116be2a7a2295c04c0ae96dee42cda933e37294`; sent full review to Agent 2 at `communications/agent2/20261125T041716Z_agent43-m8-peer-review.md`, commit `ea6e16c5c0c2f8fb94ace55fb37165e7a68146ff`, and summary to Agent 50 at `communications/agent50/20261125T041723Z_agent43-m8-policy-review.md`, commit `c9ebcb033c523fa50d477d9663ce142a743fb467`.
+- Practical judgment: the m8 query saving is only ~0.254 expected distinct calls; expected face evaluations rise ~3.85%, direction words rise ~1.8%, and fast cap rises by52. Keep intermediate; no integration/runtime claim without measured benefit.
+
