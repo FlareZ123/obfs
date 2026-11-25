@@ -123,3 +123,16 @@ This is a donor-only analysis. The branch diff against main contains no producti
 Before any implementation change, add the smallest red-first paired controls above to the existing donor bundle and verify the expected host-held result. A likely repair direction is to share a single conservative value-flow core between property-specific and generic sinks: local CallExpression return values, AwaitExpression unwrapping, nested MemberExpression receivers, and statically resolvable member constructors should not be modeled in only one branch. Unknown/imported calls, reflection, proxies, and unproved dynamic flows must remain fail-closed.
 
 Do not open another candidate branch or promote this report to `results/`. Keep the donor research-only until all known false-safes are closed, the existing full gate passes on the exact candidate, and independent review is complete. The repository-wide strong-protection decision remains **RELEASE-BLOCKED**.
+
+
+## Existing test coverage versus proposed cross-products
+
+The current test blob's relevant controls are:
+
+- Line 378: dynamic member key on a mutable closure alias (receiver is a directly created local instance).
+- Line 394: destructuring a callable field from a mutable closure alias (again, the instance itself is directly created).
+- Line 409: local factory return assigned to a mutable closure alias, then a sibling field is read statically.
+- Lines 458 and 475: expression-bodied and object-method/arrow factory returns flowing through a mutable alias to a statically selected sibling field.
+- Line 442: a mutable alias to a local record containing the instance, with a nested sibling-field read.
+
+The proposed tests are not claims that those controls are absent. They combine the already-covered dimensions in ways that appear to cross from the property-specific resolver into the narrower generic resolver: factory result + dynamic key; factory result + destructuring; factory result + nested member chain. The member-constructor case is a separate callee-shape control.
