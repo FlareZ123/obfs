@@ -39,9 +39,9 @@ async function compare(seed,policy,expectedQueries){
   assert.equal(result.rpcResponseTraceMatched,true);
   assert.equal(result.sourceDeliveryMetadataMatched,true);
   assert.equal(result.httpApplicationTraceMatched,true);
-  assert.equal(result.scoHttpRequests,result.queries+18);
+  assert.equal(result.scoHttpRequests,result.queries+19);
   assert.equal(result.ordinaryControlHttpRequests,result.scoHttpRequests);
-  assert.equal(result.scoRpcRequests,result.queries+17);
+  assert.equal(result.scoRpcRequests,result.queries+18);
   assert.equal(result.ordinaryControlRpcRequests,result.scoRpcRequests);
   assert.ok(result.scoPublishedBytes>0);
   assert.ok(result.ordinaryPublishedBytes>0);
