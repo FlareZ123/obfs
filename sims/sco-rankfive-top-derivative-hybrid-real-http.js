@@ -18,7 +18,6 @@ const {evaluateHybridModel}=require('./rankfive-top-derivative-projected-affine-
   replicate:number,
   baseline:{scoQueries:number,nativeQueries:number,transcriptSha256:string,drawCount:number,drawTapeSha256:string,draws:number[]},
   hybrid:{scoQueries:number,nativeQueries:number,transcriptSha256:string,diagnostics:HybridDiagnostics,witnessDrawTapeSha256:string,verifyDrawTapeSha256:string,witnessDraws:number[],verifyDraws:number[]},
-  queryDifference:number
 }} ReplicateRecord */
 
 class NeedHttpQuery extends Error {
@@ -37,6 +36,7 @@ class NeedHttpQuery extends Error {
  * @param {Access} access
  * @param {number[]} witnessDraws
  * @param {number[]} verifyDraws
+ * @param {'six-direction'|'seven-direction-restart'} [witnessStrategy]
  * @returns {Promise<CloneResult>}
  */
 async function cloneHybridFromHttp(access,witnessDraws,verifyDraws,witnessStrategy='six-direction'){
@@ -168,8 +168,9 @@ function percentile(values,p){
 }
 
 /**
- * Execute paired baseline and hybrid reconstructions over identical frozen
- * SCO/native HTTP servers for each independent random-tape replicate.
+ * Execute baseline and hybrid reconstructions over the same frozen SCO/native
+ * HTTP source for each replicate. Tapes are shared across SCO/native within an
+ * arm, but independently generated between the baseline and hybrid arms.
  *
  * @returns {Promise<object>}
  */
@@ -262,7 +263,6 @@ async function compare(){
         witnessDraws:witnessDraws.slice(0,diagnostics.witnessDrawCount),
         verifyDraws:verifyDraws.slice(0,diagnostics.verificationSamples)
       },
-      queryDifference:baselineSco.queries-hybridSco.queries
     });
   }
 
