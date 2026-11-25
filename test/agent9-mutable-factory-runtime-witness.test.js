@@ -201,3 +201,43 @@ test('a local object method returning a primitive does not retain an unrelated c
   assert.equal(hidden.hostHeldCallable,false);
   assert.equal(hidden.safe,true);
 });
+
+test('a classic-script global IIFE factory exposes its returned class-field callable to the host',()=>{
+  const source=
+    'var create=(()=>{const hidden=function hidden(){return 1;};'+
+    'class Local{callback=hidden;}return ()=>new Local();})();';
+  /** @type {unknown} */
+  let observed=null;
+  /** @type {{create?:()=>{callback:unknown},external:(value:unknown)=>void}} */
+  const context={external(value){observed=value;}};
+  vm.runInNewContext(source,context);
+  assert.equal(typeof context.create,'function');
+  const owner=context.create();
+  context.external(owner.callback);
+  assert.equal(typeof observed,'function');
+  assert.match(Function.prototype.toString.call(observed),/function hidden/u);
+  const result=summarizeAmbientCallEffects(parse(source,'script'),'script');
+  const hidden=result.summaries.find(summary=>summary.bindingNames.includes('hidden'));
+  assert.ok(hidden,'the IIFE-local callable must have an analysis summary');
+  assert.equal(hidden.hostHeldCallable,true);
+});
+
+test('a host-controlled dynamic member call binds this to the local receiver',()=>{
+  const source=
+    'function hidden(){return 1;}'+
+    'function entry(key){const owner={callback:hidden,read(){external(this.callback);}};'+
+    'owner[key]();}'+
+    'module.exports=entry;';
+  /** @type {unknown} */
+  let observed=null;
+  /** @type {{module:{exports:((key:string)=>unknown)|null},external:(value:unknown)=>void}} */
+  const context={module:{exports:null},external(value){observed=value;}};
+  vm.runInNewContext(source,context);
+  assert.equal(typeof context.module.exports,'function');
+  (/** @type {(key:string)=>unknown} */ (context.module.exports))('read');
+  assert.equal(typeof observed,'function');
+  assert.match(Function.prototype.toString.call(observed),/function hidden/u);
+  const hidden=analyze(source).summaries.find(summary=>summary.bindingNames.includes('hidden'));
+  assert.ok(hidden);
+  assert.equal(hidden.hostHeldCallable,true);
+});
