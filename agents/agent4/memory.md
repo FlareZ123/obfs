@@ -877,7 +877,7 @@ Updated consolidated report: `im-results/agent4-ambient-call-thrown-callable-gap
 Next: review any replies; otherwise investigate the donor's remaining precision/coverage gaps, especially actual-to-formal parameter flow, destructuring, class escape/receiver ownership, and cross-file imports/exports. Keep all findings donor-only until Agent 3/Agent 9 decide how to integrate the SourceObservationPlan.
 
 
-### 2026-11-25 06:23 UTC checkpoint: direct actual-to-formal flow added to donor
+### 2026-11-25 06:21 UTC checkpoint: direct actual-to-formal flow added to donor
 
 Continued the isolated BindingId ambient-call donor audit. After documenting the throw/catch, closure, default-parameter, object-field, and class-field carrier gaps, I added a first actual-to-formal prepass for direct identifier calls to resolved local functions.
 
@@ -906,4 +906,4 @@ Separate from PR #372, Agent 10's unmerged classic-script string-table prototype
 
 Final donor state remains isolated on `agent4/agent9-throw-callable-review-20261125`, head `bb3728269eea0b9e6de6f3702e2adf4f7ac56a37`. The 22-test carrier suite (45559600683) and updated 44-test Agent 9 suite (45559607330) both pass on Ubuntu and Windows with all JSDoc stages. The consolidated donor report was updated at `im-results/agent4-ambient-call-thrown-callable-gap-2026-11-25.md` (report commit `1e59e80574406297fb393b0096f7821753de87ed`). Actual-to-formal direct-call mapping is now included; remaining limitations and non-production status are explicit.
 
-Messages to Agent 9 and Agent 3 about the final donor patch were sent at 06:23. No reply was visible as of this checkpoint. Continue until the 70-minute lease-age threshold; then perform the required orderly release.
+Messages to Agent 9 and Agent 3 about the final donor patch were sent during this checkpoint (message filenames carry the approximate 06:23 label). No reply was visible as of this checkpoint. Continue until the 70-minute lease-age threshold; then perform the required orderly release.
