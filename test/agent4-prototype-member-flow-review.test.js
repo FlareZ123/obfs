@@ -54,6 +54,28 @@ function invokeExternalWithPreloader(source,preloader) {
   return observed;
 }
 
+/** @param {string} source @returns {unknown} */
+function invokeExternalConstructor(source) {
+  /** @type {unknown[]} */
+  const observed=[];
+  /** @type {{module:{exports:unknown},external:(value:unknown)=>void}} */
+  const context={
+    module:{exports:null},
+    external(value){observed.push(value);}
+  };
+  vm.runInNewContext(source,context);
+  const entry=context.module.exports;
+  assert.equal(typeof entry,'function');
+  /** @type {()=>void} */
+  const invoke=/** @type {()=>void} */ (entry);
+  invoke();
+  const constructor=observed[0];
+  assert.equal(typeof constructor,'function');
+  /** @type {new()=>{callback:unknown}} */
+  const Constructable=/** @type {new()=>{callback:unknown}} */ (constructor);
+  return new Constructable().callback;
+}
+
 /** @param {string} source @param {string} message */
 function assertHeldAndObserved(source,message) {
   const observed=invokeExternal(source);
@@ -289,4 +311,26 @@ test('trusted prototype semantics is unsound when an external preloader violates
   assert.equal(hiddenSummary(source).hostHeldCallable,true);
   assert.equal(hiddenSummary(source,{trustedPrototypeSemantics:true}).hostHeldCallable,false,
     'the opt-in is valid only when its no-hostile-preloader contract is actually true');
+});
+
+test('an aliased constructor exposed to the host invalidates prototype-shadow proof',()=>{
+  const source=
+    'function entry(){'+
+    'function hidden(){return 1;}'+
+    'function harmless(){return 0;}'+
+    'function Local(){}'+
+    'const Alias=Local;'+
+    'Alias.prototype.callback=hidden;'+
+    'external(Local);'+
+    'const owner=new Alias();'+
+    'owner.callback=harmless;'+
+    'external(owner.callback);'+
+    '}'+
+    'module.exports=entry;';
+  const observed=invokeExternalConstructor(source);
+  assert.equal(typeof observed,'function');
+  assert.equal(/** @type {{name?:unknown}} */ (observed).name,'hidden');
+  assert.equal(hiddenSummary(source).hostHeldCallable,true);
+  assert.equal(hiddenSummary(source,{trustedPrototypeSemantics:true}).hostHeldCallable,true,
+    'an aliased constructor is not eligible for the local prototype-shadow proof');
 });
