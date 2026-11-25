@@ -129,7 +129,9 @@ def seven_direction_check():
         "fast_path_cap": 93 + 17 * 92 + 96 + 726,
         "signature_path_cap": 93 + 17 * 92 + 992 + 726,
         "direction_dependence_probability": str(direction_dependence),
-        "max_unconditional_expectation_correction_bound": str(18 * 93 * direction_dependence),
+        "max_unconditional_expectation_correction_bound": str(
+            Fraction(93) * direction_dependence / (1 - failure_probability)
+        ),
     }
 
 
@@ -183,7 +185,9 @@ def six_direction_check():
         "expected_queries_across_restarts": str(expected_restarted_queries),
         "expected_queries_across_restarts_float": float(expected_restarted_queries),
         "direction_dependence_probability": str(direction_dependence),
-        "max_unconditional_expectation_correction_bound": str(27 * 63 * direction_dependence),
+        "max_unconditional_expectation_correction_bound": str(
+            Fraction(63) * direction_dependence / (1 - failure_probability)
+        ),
     }
 
 
@@ -199,8 +203,19 @@ def main():
         ),
         "unconditional_gap_lower_bound": (
             six["expected_queries_across_restarts_float"]
-            - float(27 * 63 * Fraction(six["direction_dependence_probability"]))
+            - float(
+                Fraction(63) * Fraction(six["direction_dependence_probability"])
+                / (1 - Fraction(six["failure_probability_per_trial"]))
+            )
             - seven["expected_queries_across_restarts_float"]
+        ),
+        "unconditional_gap_upper_bound": (
+            six["expected_queries_across_restarts_float"]
+            - seven["expected_queries_across_restarts_float"]
+            + float(
+                Fraction(93) * Fraction(seven["direction_dependence_probability"])
+                / (1 - Fraction(seven["failure_probability_per_trial"]))
+            )
         ),
         "scope": (
             "Independent exact check of the specified face orders and restart "
