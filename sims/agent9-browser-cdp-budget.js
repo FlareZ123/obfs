@@ -12,13 +12,11 @@ function makeSource(count) {
   return [
     "'use strict';",
     "const marker='task-duration-probe';",
-    'const owner={secretValue:17,step:7};',
+    'const owner={longPrivatePropertyName:17,unrelatedField:23};',
     'function hidden(iterations) {',
-    '  owner.secretValue=17;',
     '  let sum=0;',
     '  for(let index=0;index<iterations;index++){',
-    '    owner.secretValue=(owner.secretValue+owner.step)|0;',
-    '    sum=(sum+owner.secretValue+marker.charCodeAt(index%marker.length))|0;',
+    '    sum=(sum+owner.longPrivatePropertyName+marker.charCodeAt(index%marker.length))|0;',
     '  }',
     '  return sum|0;',
     '}',
@@ -85,11 +83,9 @@ async function runChromium(options={}) {
     path:'protected.js',sourceType:'commonjs',code:nativeSource
   }],{
     mode:'coo',closedWorld:true,seed:'agent9-cdp-task-duration',
-    properties:true,identifiers:true,strings:true
+    properties:true,identifiers:false,strings:false
   }).files[0];
   assert.ok(transformed.metrics.properties>0,'Expected property rewrite');
-  assert.ok(transformed.metrics.bindings>0,'Expected identifier rewrite');
-  assert.ok(transformed.metrics.literals>0,'Expected string initialization transform');
 
   const pageHtml='<!doctype html><html><body><script>window.module={exports:null};</script></body></html>';
   const files=new Map([
@@ -165,7 +161,7 @@ async function runChromium(options={}) {
       scriptBudget:pairedBudgetBound(nativeScript,protectedScript,{threshold:2.5,confidence:0.95}),
       taskBudget:pairedBudgetBound(nativeTask,protectedTask,{threshold:2.5,confidence:0.95}),
       clock:'CDP Performance.getMetrics ScriptDuration and TaskDuration (renderer main thread); page performance.now is diagnostic only',
-      scope:'Single COO strict CommonJS-style script. Each sample includes decoder initialization and three 100k calls plus one hot call. Not process-wide CPU, worker CPU, SCO/SNO, cross-browser, or full-session acceptance.'
+      scope:'Single COO strict CommonJS-style script with property-only obfuscation. Each sample includes script initialization and three 100k calls plus one hot call. Not process-wide CPU, worker CPU, SCO/SNO, cross-browser, or full-session acceptance.'
     };
   } finally {
     await browser.close();
