@@ -115,6 +115,35 @@ test('an unknown computed key after an explicit property cannot hide an overwrit
   assert.equal(summary.safe,false);
 });
 
+test('an unknown computed key alone can supply the observed property',()=>{
+  const source=
+    'function hidden(){const state={secret:7};return state.secret;}'+
+    'const key=readKey();'+
+    'const owner={[key]:hidden};'+
+    'external(owner.callback);';
+  const summary=hiddenSummary(source);
+  const [captured]=execute(source);
+  assert.equal(captured?.name,'hidden');
+  assert.equal(summary.hostHeldCallable,true,
+    'a dynamic computed key may produce the statically read property');
+  assert.equal(summary.safe,false);
+});
+
+test('an unknown computed key before an explicit property is shadowed',()=>{
+  const source=
+    'function hidden(){const state={secret:7};return state.secret;}'+
+    'function harmless(){return 0;}'+
+    'const key=readKey();'+
+    'const owner={[key]:hidden,callback:harmless};'+
+    'external(owner.callback);';
+  const summary=hiddenSummary(source);
+  const [captured]=execute(source);
+  assert.equal(captured?.name,'harmless',
+    'the later explicit property wins over the earlier computed property');
+  assert.equal(summary.hostHeldCallable,false);
+  assert.equal(summary.safe,true);
+});
+
 test('a later spread getter cannot hide the callable value it returns',()=>{
   const source=
     'function hidden(){const state={secret:7};return state.secret;}'+
