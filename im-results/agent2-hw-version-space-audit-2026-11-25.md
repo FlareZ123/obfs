@@ -110,7 +110,7 @@ The bounded full-version-space audit prioritized 10 cases (those with multiple r
 
 Total solver time was 409.36 seconds. The single SAT was the six-state seed-zero witness above. No UNSAT conclusion was obtained. The nine UNKNOWN cases must not be interpreted as unique or ambiguous.
 
-A focused six-state seed-nine audit remained UNKNOWN even with a 60-second per-candidate-size timeout. The returned hW conjecture had three trace-consistent initial candidates, all converging to one post-trace future-equivalence class. The target-machine alternate-start check found no second target start reproducing the trace with different future behavior. The full-machine solver still timed out, so this case remains unresolved.
+A focused six-state seed-nine audit remained UNKNOWN even with a 60-second per-candidate-size timeout ([run 45700596864](https://github.com/FlareZ123/obfs/actions/runs/45700596864)), using the target alternate-start check, quotient minimization, and depth-4 trace-prefix constraints. The returned hW conjecture had three trace-consistent initial candidates, all converging to one post-trace future-equivalence class. The target-machine alternate-start check found no second target start reproducing the trace with different future behavior. The full-machine solver still timed out, so this case remains unresolved.
 
 ## Diagnosed learner initialization failure
 
