@@ -366,3 +366,69 @@ test('an object getter returning a primitive this member does not retain unrelat
     'a getter returning a known primitive receiver field must not retain a sibling callable');
   assert.equal(hidden.safe,true);
 });
+
+
+test('mutually recursive local return expressions terminate with their callable base case',()=>{
+  const source=
+    'function hidden(){return 1;}'+
+    'function first(flag){if(flag)return hidden;return second();}'+
+    'function second(){return first(true);}'+
+    'function entry(){external(first(false));}'+
+    'module.exports=entry;';
+  assertHeld(hiddenSummary(source),
+    'mutually recursive return graphs must terminate and retain all reachable callable values');
+});
+
+test('a recursive factory return remains resolvable through a static member read',()=>{
+  const source=
+    'function hidden(){return 1;}'+
+    'class Local{callback=hidden;}'+
+    'function create(flag){if(flag)return new Local();return create(true);}'+
+    'function entry(){external(create(false).callback);}'+
+    'module.exports=entry;';
+  assertHeld(hiddenSummary(source),
+    'recursive factory-return paths must terminate without losing the instance field value');
+});
+
+test('an object method resolves nested this member chains to the callable field',()=>{
+  const source=
+    'function hidden(){return 1;}'+
+    'const owner={nested:{callback:hidden},expose(){return this.nested.callback;}};'+
+    'function entry(){external(owner.expose());}'+
+    'module.exports=entry;';
+  assertHeld(hiddenSummary(source),
+    'nested this member chains in object methods must preserve the receiver field callable');
+});
+
+test('an object method returning a primitive this member does not retain unrelated callables',()=>{
+  const source=
+    'function hidden(){return 1;}'+
+    'const owner={callback:hidden,count:1,read(){return this.count;}};'+
+    'function entry(){external(owner.read());}'+
+    'module.exports=entry;';
+  const hidden=hiddenSummary(source);
+  assert.equal(hidden.hostHeldCallable,false,
+    'a method returning a known primitive receiver field must not retain a sibling callable');
+  assert.equal(hidden.safe,true);
+});
+
+test('an object getter with a dynamic this key conservatively retains receiver callables',()=>{
+  const source=
+    'let key;'+
+    'function hidden(){return 1;}'+
+    'const owner={callback:hidden,get exposed(){return this[key];}};'+
+    'function entry(){key="callback";external(owner.exposed);}'+
+    'module.exports=entry;';
+  assertHeld(hiddenSummary(source),
+    'a dynamic this member key must fail closed over every callable reachable from the receiver');
+});
+
+test('an object getter returning an arrow that captures this preserves receiver callables',()=>{
+  const source=
+    'function hidden(){return 1;}'+
+    'const owner={callback:hidden,get reader(){return ()=>this.callback;}};'+
+    'function entry(){external(owner.reader());}'+
+    'module.exports=entry;';
+  assertHeld(hiddenSummary(source),
+    'a returned arrow closure that captures the getter receiver can expose its callable fields');
+});
