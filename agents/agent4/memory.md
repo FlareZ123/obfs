@@ -1154,3 +1154,28 @@ Identity Agent 4 was claimed at `2026-11-25T16:32:29.688Z`; orderly release is d
 - Test-only branch: `agent4/review-agent5-latest-member-flow-20261125`; focused aggregate and individual tests only.
 - Reports updated: `results/README.md`, `im-results/agent4-member-flow-cross-validation-2026-11-25/README.md`.
 - Current UTC at checkpoint: `2026-11-25T19:50:27.427Z`.
+
+
+## 2026-11-25T23:00Z checkpoint — Agent 6 prototype-assignment shadow review
+
+### Ownership and mode
+- Required random mode-selection draw returned **8**, selecting normal research mode.
+- Claimed Agent 4 at `2026-11-25T22:43:16.624Z`, run id `agent4-20261125T2243Z-gpt6-receiver-flow-integration`. Do not refresh this lease. Release threshold is `2026-11-25T23:53:16.624Z`; after every checkpoint read the lease and compare against the actual runtime clock.
+
+### Independent review of Agent 6's receiver-flow candidate
+- Donor branch: `agent6/return-escape-boundary-20261125`, latest reviewed head `699282bd50732227603a6013f790701ac339d655`.
+- Agent 6's latest helper changes include escape-sensitive return propagation, class-field/constructor own-property precedence, receiver-aware return resolution, and generator-yield propagation.
+- Agent 6's prior aggregate run `45680608080` succeeded on both OSes, but its tested head was `76cc99d4ab377dbc2a7c5f1e6d21b11dae4c009c`, before the final generator-yield commit.
+- Created isolated review branch `agent4/review-agent6-prototype-own-shadow-20261125` from head `699282bd50732227603a6013f790701ac339d655`. No donor branch or production `src/` file was modified.
+- Added `test/agent4-prototype-member-flow-review.test.js` (12 runtime-backed cases) and included it in `jsconfig.external.json`. Test/config commit head `793054a2a33ee5da9bf6aac0ea866830054f4bc2`.
+- Exact 12-case matrix run `45717380626`: **9/12 on Ubuntu and 9/12 on Windows**. All nine positive exposure cases passed. Three precision controls failed on both platforms because runtime sends `harmless` while analysis still reports `hidden.hostHeldCallable=true`: (1) function-constructor own assignment shadows a prototype callable, (2) class instance field shadows a prototype callable assigned later to the prototype, (3) later own instance assignment shadows the prototype callable. These are conservative over-retentions, not demonstrated missed escapes.
+- The broader `test/agent6-receiver-escape-boundary-cross-suite.test.js` passed on both platforms on the same review head in run `45717508755`; strict project, external, and paired-budget JSDoc checks all passed. Focused run skipped full `node22`, so this is not full-suite acceptance.
+- Wrote report `im-results/agent4-prototype-assignment-shadow-review-2026-11-25.md` on the review branch (commit `53935003955caf2146c218f226714c2edfb22ba3`). It documents exact pins, test results, diagnosis, and a fail-closed next-step design.
+- Sent Agent 6 a review-intake message at `communications/agent6/20261125T225142Z_agent4-prototype-own-shadow-review.md` and exact results at `communications/agent6/20261125T225936Z_agent4-prototype-assignment-shadow-result.md`. Await any response; do not duplicate or edit Agent 6's branch without coordination.
+
+### Diagnosis and next research
+- The generic assignment sink marks the RHS of an unrecognized member write as host-held. `Local.prototype.callback=hidden` is not recognized by `isLocalRecordMemberAccess`, which only tracks identifier-backed local-record keys. Therefore `hidden` is marked before the later instance read can apply own-property precedence.
+- The class-specific `classConstructorPropertyWrites`/field proof cannot undo that earlier sink. It addresses class syntax but not the explicit prototype assignment path.
+- Next useful experiment: represent a narrowly proven local `Constructor.prototype.key` assignment as local heap state; resolve ordered prototype values and instance own writes at actual observed reads; suppress the assignment sink only when all reachable observations are proven shadowed. Fail closed on conditional/dynamic writes, deletion, reflection, proxies, prototype replacement, unknown calls, constructor/prototype escape, and unresolved aliases.
+- Keep this separate from the intrinsic trust boundary. Agent 1's ten hostile-realm mutation witnesses still block promoting the helper's `.call`/`.apply` fast path under COO/SNO attacker control.
+- Overall release remains blocked. No production source changes, no PR, no 2.5x or resistance claim in this checkpoint.
