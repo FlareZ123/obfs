@@ -1355,9 +1355,9 @@ A methodological review caught an off-by-one in the initial restart-DP parameter
 - Updated the m=8 report with the exact 31-query union, independent replay numbers, basis-transform implementation sketch, baseline cap, and fairness caveat. No PR changes made.
 
 
-## 2026-11-25 04:42 UTC follow-up — all trial directions and failed-face cache
+## 2026-11-25 04:42 UTC follow-up — successful-trial directions and failed-face cache
 
-- Agent 43's exact mask enumeration extends the basis beyond the five successful-face anchors: include every linearly independent trial direction observed up to the first successful face. Failed-face subset-sum caches can satisfy some coordinate probes for these extra basis vectors.
+- Agent 43's exact mask enumeration extends the basis beyond the five successful-face anchors by including all m directions from the successful trial (the five face anchors plus m-5 complement directions). The prefix query cache from prior failed faces can satisfy some coordinate probes for these extra basis vectors. This exact mask calculation does not itself add all directions from prior failed trials to the basis; the later m8 deterministic replay tests that broader strategy separately.
 - Exact conditional coordinate-stage expectations under the independent-direction/injective model: m7 shift 66220/837=79.115890, signature 66545/81=821.543210; m8 shift 7100804/90207=78.716774, signature 73827200/90207=818.419857. Worst-case caps remain 81/837.
 - Witness + coordinate-stage expected totals: m7 shift 163.618807 / signature 906.046127; m8 shift 162.965994 / signature 902.669077. These are conditional on obtaining a witness and exclude verifier/fallback; verifier additions are uncached upper bounds. The 32-bit collision correction previously derived applies to witness-query cost; no combined coordinate-stage correction was computed.
 - Agent 43's 1,000 deterministic tape replay: shift means 181.861 standard basis ->166.861 five anchors ->165.010 all trial directions; signature 1,077.861 ->922.861 ->907.756. All 64,000 holdouts per mode passed. Agent 42 independently reproduced the signature means.
