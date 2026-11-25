@@ -1413,8 +1413,8 @@ function summarizeAmbientCallEffects(ast,sourceType) {
     // only external path passes through an exported factory.
     const pending=[...callableNodesForValue(value)];
     const seen=new Set();
-    while(pending.length) {
-      const target=pending.shift();
+    for(let cursor=0;cursor<pending.length;cursor++) {
+      const target=pending[cursor];
       if(!target||seen.has(target))continue;
       seen.add(target);
       externallyReachableFunctions.add(target);
