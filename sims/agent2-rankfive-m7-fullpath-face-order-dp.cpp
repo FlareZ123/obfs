@@ -34,11 +34,12 @@ struct Candidate {
     double coordinate = 0.0;
     double miss = 0.0;
     int remaining = 0;
+    int uncacheable_vertices = 0;
     uint32_t graph_mask = 0;
     std::vector<int> order_edges;
 };
 
-static long double a_k[KMAX + 1];
+static long double a_k[3][KMAX + 1];
 static long double b_k[2][KMAX + 1];
 
 static void rank_distribution(int dimension, int vector_count, long double out[28]) {
@@ -59,11 +60,15 @@ static void rank_distribution(int dimension, int vector_count, long double out[2
 
 static void precompute_rank_coefficients() {
     for (int k = 0; k <= KMAX; ++k) {
-        long double prior[28];
-        rank_distribution(27, 7 * k, prior);
-        long double a = 0.0L, b0 = 0.0L, b1 = 0.0L;
+        // All prior trial directions determine the span against which the
+        // successful-trial extras are tested. Only directions whose singleton
+        // value was queried in at least one face can save one coordinate probe.
+        long double prior_total[28];
+        rank_distribution(27, 7 * k, prior_total);
+        long double expected_extra_rank = 0.0L;
+        long double b0 = 0.0L, b1 = 0.0L;
         for (int r = 0; r <= 27; ++r) {
-            long double mass = prior[r];
+            long double mass = prior_total[r];
             if (mass == 0.0L) continue;
             int d = 27 - r;
             long double p1 = 1.0L - std::ldexp(1.0L, -d);
@@ -74,12 +79,26 @@ static void precompute_rank_coefficients() {
                    + (1.0L - zero_first)
                      * (1.0L - std::ldexp(1.0L, 1 - d));
             }
-            long double expected_extra_rank = p1 + p2;
-            a += mass * (81.0L - r - 3.0L * expected_extra_rank);
+            expected_extra_rank += mass * (p1 + p2);
             b0 += mass * p1;
             b1 += mass * p2;
         }
-        a_k[k] = a;
+
+        // A vertex incident to every selected face-complement edge is omitted
+        // from every tested face. Its singleton F(v) is therefore not in the
+        // cache after a failed trial. There can be at most two such vertices
+        // (only when the graph has one edge). Process cached prior directions
+        // first: their expected rank is the rank of (7 - uncacheable) * k
+        // independent uniform vectors in the 27-dimensional quotient.
+        for (int uncacheable = 0; uncacheable <= 2; ++uncacheable) {
+            long double cached[28];
+            rank_distribution(27, (7 - uncacheable) * k, cached);
+            long double expected_cached_rank = 0.0L;
+            for (int r = 0; r <= 27; ++r)
+                expected_cached_rank += static_cast<long double>(r) * cached[r];
+            a_k[uncacheable][k] =
+                81.0L - expected_cached_rank - 3.0L * expected_extra_rank;
+        }
         b_k[0][k] = b0;
         b_k[1][k] = b1;
     }
@@ -149,6 +168,18 @@ static Candidate optimize_graph(
     result.graph_mask = graph_mask;
     if (k == 0) return result;
 
+    int degree[7] = {};
+    for (int face : edges) {
+        ++degree[edge_u[face]];
+        ++degree[edge_v[face]];
+    }
+    int uncacheable_vertices = 0;
+    for (int value : degree)
+        if (value == k) ++uncacheable_vertices;
+    if (uncacheable_vertices > 2)
+        throw std::runtime_error("impossible number of universally omitted directions");
+    result.uncacheable_vertices = uncacheable_vertices;
+
     int states = 1 << k;
     std::vector<uint32_t> global_mask(states, 0);
     std::vector<__uint128_t> covered(states, 0);
@@ -171,7 +202,7 @@ static Candidate optimize_graph(
     long double power = 1.0L;
     for (int kfail = 0; kfail <= KMAX; ++kfail) {
         long double weight = (1.0L - miss) * power;
-        A += weight * a_k[kfail];
+        A += weight * a_k[uncacheable_vertices][kfail];
         beta[0] += weight * b_k[0][kfail];
         beta[1] += weight * b_k[1][kfail];
         power *= miss;
@@ -358,8 +389,9 @@ int main(int argc, char** argv) {
         std::cout << "k=" << k << " graph_reps=" << graphs_by_k[k]
                   << " total=" << c.total << " witness=" << c.witness
                   << " coordinate=" << c.coordinate << " miss=" << c.miss
-                  << " remaining=" << c.remaining << " graph_mask=" << c.graph_mask
-                  << " order=";
+                  << " remaining=" << c.remaining
+                  << " uncacheable_vertices=" << c.uncacheable_vertices
+                  << " graph_mask=" << c.graph_mask << " order=";
         for (size_t i = 0; i < c.order_edges.size(); ++i) {
             if (i) std::cout << ",";
             std::cout << c.order_edges[i];
