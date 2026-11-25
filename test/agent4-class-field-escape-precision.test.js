@@ -45,7 +45,7 @@ test('exporting the class publishes public instance field callables',()=>{
     'export class Local{callback=hidden;}';
   const hidden=named(analyze(source,'module'),'hidden')[0];
   assert.ok(hidden);
-  assert.equal(hidden.hostHeldCallable,true);
+  assert.equal(hidden.hostHeldCallable,true,JSON.stringify(hidden));
   assert.equal(hidden.safe,false);
 });
 
