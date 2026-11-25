@@ -424,3 +424,36 @@ test('an arrow nested inside a bare ordinary function keeps that function dynami
   assert.equal(hiddenSummary(source).hostHeldCallable,false);
   assert.equal(hiddenSummary(source).safe,true);
 });
+
+
+test('a local alias of a lexical-arrow return preserves the getter receiver',()=>{
+  const source=
+    'function hidden(){return 1;}'+
+    'const owner={callback:hidden,get result(){const read=()=>this.callback;const value=read();return value;}};'+
+    'external(owner.result);';
+  const [captured]=execute(source);
+  assert.equal(captured?.name,'hidden');
+  assert.match(String(captured),/return 1/);
+  assert.equal(hiddenSummary(source).hostHeldCallable,true);
+});
+
+test('a lexical-arrow return stored in a local alias remains held when passed to a host call',()=>{
+  const source=
+    'function hidden(){return 1;}'+
+    'const owner={callback:hidden,get result(){const read=()=>this.callback;const value=read();external(value);return 0;}};'+
+    'external(owner.result);';
+  const [captured]=execute(source);
+  assert.equal(captured?.name,'hidden');
+  assert.equal(hiddenSummary(source).hostHeldCallable,true);
+});
+
+test('a lexical-arrow return nested in an object result preserves the getter receiver',()=>{
+  const source=
+    'function hidden(){return 1;}'+
+    'const owner={callback:hidden,get result(){const read=()=>this.callback;return {callback:read()};}};'+
+    'external(owner.result);';
+  const [captured]=execute(source);
+  assert.equal(captured?.callback?.name,'hidden');
+  assert.match(String(captured?.callback),/return 1/);
+  assert.equal(hiddenSummary(source).hostHeldCallable,true);
+});
