@@ -5,13 +5,13 @@ const {test} = require('node:test');
 const {obfuscateFiles} = require('../src');
 
 /**
- * @typedef {{name:string|null,source:string|null}} ObservedFrame
+ * @typedef {{name:string|null,functionType:string,source:string|null,thisIsUndefined:boolean}} ObservedFrame
  */
 
 /**
  * Execute a CommonJS source in the same V8 realm as a host-owned stack
  * formatter, which attempts to recover the active function through
- * CallSite#getFunction.
+ * CallSite#getFunction and its receiver through CallSite#getThis.
  * @param {string} code
  * @returns {{value:unknown,frames:ObservedFrame[]}}
  */
@@ -25,7 +25,9 @@ function runWithCallSiteObserver(code) {
       const fn = hidden.getFunction();
       frames.push({
         name: hidden.getFunctionName(),
-        source: typeof fn === 'function' ? Function.prototype.toString.call(fn) : null
+        functionType: typeof fn,
+        source: typeof fn === 'function' ? Function.prototype.toString.call(fn) : null,
+        thisIsUndefined: hidden.getThis() === undefined
       });
     }
     return 'captured';
@@ -37,7 +39,6 @@ function runWithCallSiteObserver(code) {
       void error.stack;
     };
     // Function creates the fixture in the same realm as Error.prepareStackTrace.
-    // A leading directive makes the wrapper and nested hidden function strict.
     new Function('getExternal', 'module', code)(getExternal, module);
     return {value: module.exports, frames};
   } finally {
@@ -49,7 +50,7 @@ const modes = /** @type {const} */ (['coo', 'sco', 'sno']);
 
 for (const mode of modes) {
   for (const strict of [false, true]) {
-    test(mode + ' V8 CallSite source access is available to sloppy functions but not strict functions (' + strict + ')', () => {
+    test(mode + ' V8 CallSite function and receiver visibility (' + strict + ')', () => {
       const source = [
         strict ? "'use strict';" : '',
         'const owner = {secretField: 17, unrelatedField: 23};',
@@ -80,17 +81,28 @@ for (const mode of modes) {
       assert.deepEqual(emitted.frames.map(frame => frame.name), ['hidden'], mode);
 
       if (strict) {
-        // V8 exposes frame metadata but withholds the strict function object.
-        assert.deepEqual(native.frames, [{name: 'hidden', source: null}], mode);
-        assert.deepEqual(emitted.frames, [{name: 'hidden', source: null}], mode);
+        // Strict frames expose names but not their function object or receiver.
+        assert.deepEqual(native.frames, [{
+          name: 'hidden', functionType: 'undefined', source: null, thisIsUndefined: true
+        }], mode);
+        assert.deepEqual(emitted.frames, native.frames, mode);
       } else {
-        // The same host-owned CallSite API recovers sloppy function source.
-        assert.match(native.frames[0].source || '', /owner\.secretField/, mode);
-        assert.notEqual(emitted.frames[0].source, native.frames[0].source, mode);
-        assert.doesNotMatch(emitted.frames[0].source || '', /owner\.secretField/, mode);
+        // Record whether this V8 build exposes sloppy function objects.
+        assert.equal(native.frames[0].thisIsUndefined, false, mode);
+        assert.equal(emitted.frames[0].thisIsUndefined, false, mode);
+        if (native.frames[0].functionType === 'function') {
+          assert.match(native.frames[0].source || '', /owner\.secretField/, mode);
+          assert.notEqual(emitted.frames[0].source, native.frames[0].source, mode);
+          assert.doesNotMatch(emitted.frames[0].source || '', /owner\.secretField/, mode);
+        } else {
+          assert.equal(native.frames[0].source, null, mode);
+          assert.equal(emitted.frames[0].source, null, mode);
+        }
       }
 
-      console.log('AGENT9_STRICT_CALLSITE ' + JSON.stringify({
+      console.log('AGENT9_CALLSITE_VISIBILITY ' + JSON.stringify({
+        node: process.version,
+        v8: process.versions.v8,
         mode,
         strict,
         propertyRewrites: output.metrics.properties,
