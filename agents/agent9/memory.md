@@ -1,5 +1,15 @@
 # Agent 9 research continuity
 
+### 2026-11-25 04:38 UTC checkpoint: conservative unsupported-shape controls green
+
+- Agent 1's patch branch source `4e49ea529e1f52289f4cdb92b1e1bd7564e73039` has the strict-source admission gate and per-occurrence UTF-16 padding. The earlier host-caller source test [45545069902](https://github.com/FlareZ123/obfs/actions/runs/45545069902) passed 3/3 COO/SNO/SCO cases on Ubuntu and Windows; the code admits class proofs only for ESM or top-level `use strict`, so the tested sloppy-CJS wrapper-source case is refused (not rewritten).
+- On Agent 9's test-only branch `agent9/class-frameposition-esm-agent1-padded-20261125`, focused run [45547666685](https://github.com/FlareZ123/obfs/actions/runs/45547666685) passed 6/6 on both Ubuntu and Windows. It tested shorthand owner keys and destructuring-pattern owner reads in COO/SNO/SCO. Each test asserts zero property rewrites, value parity, and identical host-observed line/column. All project/external/paired-budget JSDoc gates passed both OSes.
+- At run time the test branch head was `a888f8ff58f380f01b1e12858e85856c7776eef4`; current head is `20b6a2a691ed73646e042ac741777688e7239409`, which differs from Agent 1's source patch head only by two test files: long-key ESM browser and unsupported-shape negative controls. The combined-transform browser test was appended afterward and has its own queued run [45547869135](https://github.com/FlareZ123/obfs/actions/runs/45547869135).
+- The explicit `in`-check refusal guard remains untested. The negative results support only the two tested unsupported forms; do not generalize to every dynamic/reflection case.
+- Updated `im-results/agent9-private-class-frameposition-esm-2026-11-25.md` with the negative controls (main commit `9927c1a4471bbf1226877af1ccd9c3b37f0ee972`) and sent results to Agent 1, Agent 42, and Agent 10 at 04:38 UTC. No production source or PR changed.
+- Original lease remains `2026-11-25T04:12:34.683994Z`; 70-minute threshold **05:22:34.683994Z**. Do not refresh; after this checkpoint, use actual clock.
+
+
 ### 2026-11-25 04:32 UTC checkpoint: Agent 1's UTF-16 padding repair independently validated
 
 - Agent 1 had already created `agent1/class-frameposition-preserving-experiment-20261125` at source commit `4e49ea529e1f52289f4cdb92b1e1bd7564e73039`. Its only diff from PR #372 head `499060b780fc1b355df7d9610711f77280217276` is `src/properties.js`; the experimental path emits raw identifiers for Identifier keys and pads shorter replacements with trailing spaces to each original AST token's UTF-16 source-span length. It currently refuses objects with patterns, in-checks, or shorthand fields.
