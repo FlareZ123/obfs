@@ -187,7 +187,7 @@ def trace_matching_candidates(hypothesis, trace):
 def product_equivalent(fixture: Fixture, target_start: int, hypothesis_start):
     """Exact BFS product equivalence from arbitrary target/hypothesis states."""
     queue = deque([(target_start, hypothesis_start, tuple())])
-    seen = {(target_start, hypothesis_start)}
+    seen = {(target_start, id(hypothesis_start))}
     while queue:
         target_state, hypothesis_state, prefix = queue.popleft()
         for input_index, letter in enumerate(ALPHABET):
@@ -199,7 +199,7 @@ def product_equivalent(fixture: Fixture, target_start: int, hypothesis_start):
             if next_hypothesis is None:
                 return False, prefix + (letter,)
             next_target = fixture.transitions[target_state][input_index]
-            pair = (next_target, next_hypothesis)
+            pair = (next_target, id(next_hypothesis))
             if pair not in seen:
                 seen.add(pair)
                 queue.append((next_target, next_hypothesis, prefix + (letter,)))
