@@ -65,6 +65,26 @@ const fixtures=[
       '};',
       'module.exports=Outer;'
     ].join('\n')
+  },
+  {
+    label:'outer owner read in static block',
+    code:[
+      'const owner={secretField:7};',
+      'class Outer{',
+      '  static{this.value=owner.secretField;}',
+      '}',
+      'module.exports=Outer;'
+    ].join('\n')
+  },
+  {
+    label:'outer owner read in class-expression static block',
+    code:[
+      'const owner={secretField:7};',
+      'const Outer=class Outer{',
+      '  static{this.value=owner.secretField;}',
+      '};',
+      'module.exports=Outer;'
+    ].join('\n')
   }
 ];
 
@@ -85,6 +105,28 @@ for(const mode of /** @type {Array<'coo'|'sno'|'sco'>} */ (['coo','sno','sco']))
         mode+'/'+fixture.label+': class source and behavior must remain identical');
       assert.equal(output.metrics.properties,0,
         mode+'/'+fixture.label+': owner reads inside observable class source must not be renamed');
+    });
+  }
+}
+
+// The default identifier pass must obey the same externally observable class-source boundary.
+for(const mode of /** @type {Array<'coo'|'sno'|'sco'>} */ (['coo','sno','sco'])){
+  for(const fixture of fixtures){
+    test(mode+' '+fixture.label+' must preserve class source with identifier renaming enabled',()=>{
+      const native=inspectOuter(fixture.code);
+      const result=obfuscateFiles([{
+        path:'entry.cjs',sourceType:'commonjs',code:fixture.code
+      }],{
+        mode,seed:'class-source-static-identifiers/'+mode+'/'+fixture.label,
+        properties:true,identifiers:true,strings:false
+      });
+      const output=result.files.find(file=>file.path==='entry.cjs');
+      assert.ok(output,'transformed CommonJS entry must remain present');
+      const emitted=inspectOuter(String(output.code));
+      assert.deepEqual(emitted,native,
+        mode+'/'+fixture.label+': identifier rewriting must preserve class source');
+      assert.equal(output.metrics.properties,0,
+        mode+'/'+fixture.label+': no class-source property may be rewritten');
     });
   }
 }
