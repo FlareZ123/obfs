@@ -8,7 +8,7 @@ const {evaluateProjectedAffineModel} = require('./projected-affine-coset-profile
 /** @typedef {{kind:'anf',bits:number,lower:Array<[number,number]>,top:Array<[number,number]>,degree:4|5}} AnfModel */
 /** @typedef {ProjectedModel|AnfModel} HybridModel */
 /** @typedef {'six-direction'|'seven-direction-restart'} WitnessStrategy */
-/** @typedef {{fastPathSuccess:boolean,witnessStrategy:WitnessStrategy,witnessTrials:number,witnessTrialCap:number,witnessDrawCount:number,witnessProbability:number,witnessFailureBound:number,quotientRank:number|null,coordinateStrategy:'shift'|'signature'|null,fixedPairPassed:boolean|null,fastQueries:number,verificationQueries:number,verificationSamples:number,verificationCap:number,verificationDelta:number|null,falseAcceptanceBound:number|null,verificationPassed:boolean|null,verificationMode:'verify-degree-five'|'assume-projected-affine',promiseAssumed:boolean,fallbackUsed:boolean,fallbackReason:string|null,fallbackQueries:number,exactByInterpolation:boolean}} Diagnostics */
+/** @typedef {{fastPathSuccess:boolean,witnessStrategy:WitnessStrategy,witnessTrials:number,witnessTrialCap:number,witnessDrawCount:number,witnessProbability:number,witnessFailureBound:number,quotientRank:number|null,coordinateStrategy:'shift'|'signature'|null,fixedPairPassed:boolean|null,fastQueries:number,verificationQueries:number,verificationSamples:number,verificationCap:number,verificationDelta:number|null,falseAcceptanceBound:number|null,verificationPassed:boolean|null,verificationMode:'verify-degree-five'|'assume-projected-affine',promiseAssumed:boolean,verificationAttempted:boolean,fallbackUsed:boolean,fallbackReason:string|null,fallbackQueries:number,exactByInterpolation:boolean}} Diagnostics */
 /** @typedef {{model:HybridModel,queries:number,diagnostics:Diagnostics}} CloneResult */
 
 /** @returns {number} */
@@ -256,10 +256,11 @@ function cloneTopDerivativeProjectedAffine(
         verificationSamples,
         verificationMode,
         promiseAssumed:verificationMode==='assume-projected-affine',
+        verificationAttempted:verificationSamples>0,
         verificationCap:verificationMode==='verify-degree-five'?verificationCap:0,
-        verificationDelta:verificationMode==='verify-degree-five'?delta:null,
-        falseAcceptanceBound:verificationMode==='verify-degree-five'?0:null,
-        verificationPassed:verificationMode==='verify-degree-five'?false:null,
+        verificationDelta:verificationSamples>0?delta:null,
+        falseAcceptanceBound:verificationSamples>0?delta:null,
+        verificationPassed:verificationSamples>0?false:null,
         fallbackUsed:true,
         fallbackReason:reason,
         fallbackQueries:cache.size-beforeFallback,
@@ -391,6 +392,7 @@ function cloneTopDerivativeProjectedAffine(
         verificationPassed:null,
         verificationMode,
         promiseAssumed:true,
+        verificationAttempted:false,
         fallbackUsed:false,
         fallbackReason:null,
         fallbackQueries:0,
@@ -432,6 +434,7 @@ function cloneTopDerivativeProjectedAffine(
       verificationPassed:true,
       verificationMode,
       promiseAssumed:false,
+      verificationAttempted:true,
       fallbackUsed:false,
       fallbackReason:null,
       fallbackQueries:0,
@@ -617,6 +620,7 @@ function main() {
   assert.equal(promiseNoWitness.diagnostics.verificationSamples,0);
   assert.equal(promiseNoWitness.diagnostics.verificationQueries,0);
   assert.equal(promiseNoWitness.diagnostics.verificationPassed,null);
+  assert.equal(promiseNoWitness.diagnostics.verificationAttempted,false);
   assert.equal(promiseNoWitness.diagnostics.falseAcceptanceBound,null);
   assert.equal(promiseNoWitness.diagnostics.promiseAssumed,true);
   assert.equal(promiseNoWitnessVerifierCalls,0);
@@ -683,6 +687,7 @@ function main() {
   );
   assert.equal(unsafePromiseModel.diagnostics.promiseAssumed,true);
   assert.equal(unsafePromiseModel.diagnostics.verificationPassed,null);
+  assert.equal(unsafePromiseModel.diagnostics.verificationAttempted,false);
   assert.equal(unsafePromiseModel.diagnostics.verificationSamples,0);
   assert.equal(unsafePromiseModel.diagnostics.fallbackUsed,false);
   assert.equal(unsafeVerifierCalls,0);
@@ -745,6 +750,8 @@ function main() {
     'verify-degree-five'
   );
   assert.equal(boundaryVerified.diagnostics.fallbackReason,'verification-mismatch');
+  assert.equal(boundaryVerified.diagnostics.verificationAttempted,true);
+  assert.equal(boundaryVerified.diagnostics.verificationPassed,false);
   assert.equal(boundaryVerified.diagnostics.fallbackUsed,true);
   assert.equal(boundaryVerified.diagnostics.exactByInterpolation,true);
   for(let input=0;input<256;input++) {
