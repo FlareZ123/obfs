@@ -373,7 +373,6 @@
     "test/agent1-host-held-callback-browser.test.js",
     "test/agent1-host-held-callback-browser.js",
     "test/agent1-property-frameposition-span.test.js",
-    "test/agent1-private-class-proof-debug.test.js",
   ],
   "exclude": [
     "node_modules"
