@@ -1186,6 +1186,87 @@ function summarizeAmbientCallEffects(ast,sourceType) {
       .flatMap(candidate=>callableNodesForValue(candidate,seen)))];
   }
 
+  /**
+   * Resolve getter functions that may execute for a local property read.
+   * @param {AstNode} value
+   * @param {string} propertyKey
+   * @param {Set<number>} [seen]
+   * @returns {AstNode[]}
+   */
+  function getterNodesForMemberValue(value,propertyKey,seen=new Set()) {
+    if(value.type==='Identifier') {
+      const reference=resolved.at(value.start);
+      if(reference?.resolution.kind!=='local')return [];
+      const bindingId=reference.resolution.bindingId;
+      if(seen.has(bindingId))return [];
+      const next=new Set(seen);
+      next.add(bindingId);
+      const values=bindingValueExpressions.get(bindingId)??[];
+      if(values.length)return [...new Set(values.flatMap(candidate=>
+        getterNodesForMemberValue(candidate,propertyKey,next)))];
+      const initializer=constInitializersByBinding.get(bindingId);
+      return initializer?getterNodesForMemberValue(initializer,propertyKey,next):[];
+    }
+    if(value.type==='ObjectExpression') {
+      const matching=value.properties.filter((/** @type {AstNode} */ property)=>
+        property.type==='Property'&&
+        staticPropertyKey(property.key,property.computed)===propertyKey);
+      if(matching.length) {
+        const last=matching[matching.length-1];
+        return last.kind==='get'?[last.value]:[];
+      }
+      const prototypeSetter=value.properties.find((/** @type {AstNode} */ property)=>
+        property.type==='Property'&&property.kind==='init'&&!property.method&&
+        !property.computed&&staticPropertyKey(property.key,false)==='__proto__');
+      return prototypeSetter?
+        getterNodesForMemberValue(prototypeSetter.value,propertyKey,seen):[];
+    }
+    if(value.type==='NewExpression') {
+      const classes=classNodesForValue(value.callee,seen);
+      return [...new Set(classes.flatMap(classNode=>
+        classGetterNodesForProperty(classNode,propertyKey)))];
+    }
+    if(value.type==='ConditionalExpression')
+      return [...new Set([...getterNodesForMemberValue(value.consequent,propertyKey,seen),
+        ...getterNodesForMemberValue(value.alternate,propertyKey,seen)])];
+    if(value.type==='LogicalExpression')
+      return [...new Set([...getterNodesForMemberValue(value.left,propertyKey,seen),
+        ...getterNodesForMemberValue(value.right,propertyKey,seen)])];
+    if(value.type==='SequenceExpression'&&value.expressions.length)
+      return getterNodesForMemberValue(value.expressions[value.expressions.length-1],propertyKey,seen);
+    if(value.type==='AssignmentExpression')
+      return getterNodesForMemberValue(value.right,propertyKey,seen);
+    if(value.type==='ChainExpression')
+      return getterNodesForMemberValue(value.expression,propertyKey,seen);
+    if(value.type==='AwaitExpression'&&value.argument)
+      return getterNodesForMemberValue(value.argument,propertyKey,seen);
+    if(value.type==='MemberExpression') {
+      const innerKey=staticPropertyKey(value.property,value.computed);
+      if(innerKey===null)return [];
+      return [...new Set(memberValueExpressionsForProperty(value.object,innerKey,seen).flatMap(candidate=>
+        getterNodesForMemberValue(candidate,propertyKey,seen)))];
+    }
+    if(value.type==='CallExpression')
+      return [...new Set(callReturnExpressions(value,seen).flatMap(candidate=>
+        getterNodesForMemberValue(candidate,propertyKey,seen)))];
+    return [];
+  }
+
+  /** @param {AstNode} classNode @param {string} propertyKey @param {Set<AstNode>} [seen] @returns {AstNode[]} */
+  function classGetterNodesForProperty(classNode,propertyKey,seen=new Set()) {
+    if(seen.has(classNode))return [];
+    const next=new Set(seen);
+    next.add(classNode);
+    const matching=classNode.body.body.filter((/** @type {AstNode} */ element)=>
+      ['MethodDefinition','PropertyDefinition'].includes(element.type)&&!element.static&&
+      staticPropertyKey(element.key,element.computed)===propertyKey);
+    if(matching.length)return matching.filter((/** @type {AstNode} */ element)=>
+      element.type==='MethodDefinition'&&element.kind==='get').map((/** @type {AstNode} */ element)=>element.value);
+    if(!classNode.superClass)return [];
+    const parents=classNodesForValue(classNode.superClass,new Set());
+    return [...new Set(parents.flatMap(parent=>classGetterNodesForProperty(parent,propertyKey,next)))];
+  }
+
   /** @param {AstNode} value @param {Set<number>} [seen] @returns {AstNode[]} */
   function callableNodesForValue(value,seen=new Set()) {
     if(['FunctionDeclaration','FunctionExpression','ArrowFunctionExpression'].includes(value.type))
@@ -1469,10 +1550,32 @@ function summarizeAmbientCallEffects(ast,sourceType) {
     else if(effect==='HostHeldCallable')hostHeldFunctions.add(fn);
   }
 
+  /** @type {Map<AstNode,AstNode[]>} */
+  const receiverExpressionsByFunction=new Map();
+  /** @param {AstNode} fn @param {AstNode} receiver @returns {boolean} */
+  function addReceiverExpression(fn,receiver) {
+    const receivers=receiverExpressionsByFunction.get(fn)??[];
+    if(receivers.includes(receiver))return false;
+    receivers.push(receiver);
+    receiverExpressionsByFunction.set(fn,receivers);
+    return true;
+  }
+  /** @param {AstNode|null|undefined} value @param {AstNode|null} fn @returns {AstNode[]} */
+  function callableNodesForValueWithReceiver(value,fn) {
+    if(!value)return [];
+    let usesThis=false;
+    walkAst(value,node=>{if(node.type==='ThisExpression')usesThis=true;});
+    if(!usesThis)return callableNodesForValue(value);
+    const receivers=fn?receiverExpressionsByFunction.get(fn)??[]:[];
+    if(!receivers.length)return callableNodesForValue(value);
+    return [...new Set(receivers.flatMap(receiver=>
+      memberReturnExpressionsWithReceiver(value,receiver,new Set()).flatMap(candidate=>
+        callableNodesForValue(candidate))))];
+  }
   /** @param {AstNode|null|undefined} value @param {AmbientCallReason['kind']} kind @param {number} start @param {number} end @returns {void} */
   function markCallableValuesHeld(value,kind,start,end) {
     if(!value)return;
-    for(const target of callableNodesForValue(value))
+    for(const target of callableNodesForValueWithReceiver(value,enclosingFunction(value)))
       addReason(target,{kind,start,end},'HostHeldCallable');
   }
 
@@ -1581,6 +1684,57 @@ function summarizeAmbientCallEffects(ast,sourceType) {
     return root.name==='module'&&(keys.length===0||keys[0]==='exports'||keys[0]===null);
   }
 
+  // Bind method/getter function nodes to every statically known receiver at their
+  // call/read sites. Iterate to a fixed point so this.method() and this.getter
+  // chains inside a known method inherit the outer method's receiver.
+  let receiverMapChanged=true;
+  while(receiverMapChanged) {
+    receiverMapChanged=false;
+    walkAst(ast,node=>{
+      if(node.type==='ArrowFunctionExpression') {
+        const outer=enclosingFunction(node);
+        for(const receiver of outer?receiverExpressionsByFunction.get(outer)??[]:[])
+          if(addReceiverExpression(node,receiver))receiverMapChanged=true;
+      }
+      if(node.type==='CallExpression'&&node.callee.type==='MemberExpression') {
+        const ownerFunction=enclosingFunction(node);
+        const receiverCandidates=node.callee.object.type==='ThisExpression'||node.callee.object.type==='Super'?
+          ownerFunction?receiverExpressionsByFunction.get(ownerFunction)??[]:[]:[node.callee.object];
+        const key=staticPropertyKey(node.callee.property,node.callee.computed);
+        for(const receiver of receiverCandidates) {
+          const targets=key===null?callableNodesForValue(receiver):callableNodesForMemberValue(receiver,key);
+          for(const target of targets) {
+            if(target.type==='ArrowFunctionExpression')continue;
+            if(addReceiverExpression(target,receiver))receiverMapChanged=true;
+          }
+        }
+      }
+      if(node.type==='NewExpression') {
+        const classes=classNodesForValue(node.callee);
+        if(classes.length) {
+          for(const classNode of classes) {
+            const constructors=classNode.body.body.filter((/** @type {AstNode} */ element)=>
+              element.type==='MethodDefinition'&&element.kind==='constructor');
+            for(const constructor of constructors)
+              if(addReceiverExpression(constructor.value,node))receiverMapChanged=true;
+          }
+        } else {
+          for(const target of callableNodesForValue(node.callee))
+            if(target.type!=='ArrowFunctionExpression'&&addReceiverExpression(target,node))receiverMapChanged=true;
+        }
+      }
+      if(node.type==='MemberExpression') {
+        const ownerFunction=enclosingFunction(node);
+        const receiverCandidates=node.object.type==='ThisExpression'||node.object.type==='Super'?
+          ownerFunction?receiverExpressionsByFunction.get(ownerFunction)??[]:[]:[node.object];
+        const key=staticPropertyKey(node.property,node.computed);
+        if(key===null)return;
+        for(const receiver of receiverCandidates)
+          for(const getter of getterNodesForMemberValue(receiver,key))
+            if(addReceiverExpression(getter,receiver))receiverMapChanged=true;
+      }
+    });
+  }
   /** @param {AstNode} value @param {number} start @param {number} end @returns {void} */
   function markExternalCallableValue(value,start,end) {
     for(const target of callableNodesForValue(value)) {
@@ -1681,7 +1835,7 @@ function summarizeAmbientCallEffects(ast,sourceType) {
       }
       for(const argument of node.arguments) {
         if(node.type==='CallExpression'&&knownLocalTarget&&locallyMappedCallArguments.has(argument))continue;
-        for(const target of callableNodesForValue(argument))
+        for(const target of callableNodesForValueWithReceiver(argument,enclosingFunction(node)))
           addReason(target,{
             kind:knownLocalTarget?'unresolved-callable-argument-flow':'host-held-callable',
             start:node.start,end:node.end
