@@ -168,6 +168,18 @@ const productionMutationCases=[
     setup:'Object.setPrototypeOf(read,{call:function(receiver){return receiver.secretField;}});',
     invoke:'if(read.call(state)!==59)throw new Error("receiver property changed");'
   }
+
+  ,
+  {
+    name:'direct own apply property assignment',
+    setup:'read.apply=function(receiver,args){return receiver.secretField;};',
+    invoke:'if(read.apply(state,[])!==59)throw new Error("receiver property changed");'
+  },
+  {
+    name:'direct own bind property assignment',
+    setup:'read.bind=function(receiver){return function(){return receiver.secretField;};};',
+    invoke:'if(read.bind(state)()!==59)throw new Error("receiver property changed");'
+  }
 ];
 
 for(const fixture of productionMutationCases) {
