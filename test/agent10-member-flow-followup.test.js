@@ -432,3 +432,38 @@ test('an object getter returning an arrow that captures this preserves receiver 
   assertHeld(hiddenSummary(source),
     'a returned arrow closure that captures the getter receiver can expose its callable fields');
 });
+
+
+test('a mutable local factory binding preserves its returned class-field callable',()=>{
+  const source=
+    'let owner,create;'+
+    'function hidden(){return 1;}'+
+    'class Local{callback=hidden;}'+
+    'create=()=>new Local();'+
+    'function leak(){external(owner.callback);}'+
+    'function entry(){owner=create();leak();}'+
+    'module.exports=entry;';
+  assertHeld(hiddenSummary(source),
+    'a factory assigned through a mutable local binding must resolve its callable return target');
+});
+
+test('multiple mutable factory assignments retain every possible returned callable field',()=>{
+  const source=
+    'let owner,create;'+
+    'function hiddenA(){return 1;}'+
+    'function hiddenB(){return 2;}'+
+    'class First{callback=hiddenA;}'+
+    'class Second{callback=hiddenB;}'+
+    'function entry(flag){if(flag){create=()=>new First();}else{create=()=>new Second();}owner=create();external(owner.callback);}'+
+    'module.exports=entry;';
+  const result=analyze(source);
+  assert.equal(named(result,'hiddenA')[0].hostHeldCallable,true,
+    'the first assigned factory target must remain in the possible-call set');
+  assert.equal(named(result,'hiddenB')[0].hostHeldCallable,true,
+    'the second assigned factory target must remain in the possible-call set');
+});
+
+// The private mutator parameter precision boundary remains deliberately
+// conservative: the donor does not yet prove caller-owned record privacy
+// through a local function parameter, so member writes stay fail-closed.
+test.todo('prove a private object remains private when mutated through a known local function parameter');
