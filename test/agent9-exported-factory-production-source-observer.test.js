@@ -20,7 +20,7 @@ function executeCommonJs(source) {
 
 test('exported factory instance preserves host-visible class field and callback source in all modes',()=>{
   const source=
-    'function hidden(){return helper();}'+
+    'function hidden(){const local=helper();return local;}'+
     'function helper(){return 19;}'+
     'class Local{callback=hidden;}'+
     'const create=()=>new Local();'+
