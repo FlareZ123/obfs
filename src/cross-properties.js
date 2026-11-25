@@ -2767,9 +2767,9 @@ function renameCrossFileProperties(files,seed) {
           let hasDynamic=false;
           walk(importer.ast,node=>{if(node.type==='ImportExpression')hasDynamic=true;});
           if (hasDynamic) {failed=true;break;}
-          // A reader imported without the candidate state, or alongside two
-          // separately proved state bindings, has insufficient call ownership
-          // evidence. Refuse rather than treating the reader as a free alias.
+          // A reader imported without any candidate state alias has
+          // insufficient call ownership evidence. Multiple exact aliases of
+          // this same export are grouped and validated as one root set below.
           if(readerAliases.size && importedAliases.length===0) {failed=true;break;}
           const consumerIndices=new Map([...readerAliases].map(([name,exported])=>
             [name,/** @type {{member:AstNode,property:string,argIndex:number}} */ (readers.get(exported)).argIndex]));
