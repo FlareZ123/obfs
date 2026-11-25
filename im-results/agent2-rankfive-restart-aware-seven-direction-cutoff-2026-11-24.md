@@ -105,7 +105,7 @@ g++ -O3 -std=c++20 sims/agent2-rankfive-witness-restart-dp.cpp -o /tmp/rank7rest
 /tmp/rank7restartdp
 ~~~
 
-The local run completed in 3.39 seconds with maximum resident memory 728,576 KiB. Dinkelbach converged in two or three iterations for each cutoff.
+The local run completed in 3.10 seconds with maximum resident memory 728,576 KiB. Dinkelbach converged in two or three iterations for each cutoff.
 
 This result is optimal only among restart policies that draw seven random directions, query complete fifth-derivative faces sequentially, and restart after a fixed cutoff. It does not prove optimality over other direction counts, partial-face queries, nonuniform/adaptive direction generation, or different algebraic witness methods. The result should be peer-reviewed and benchmarked before any production change.
 
