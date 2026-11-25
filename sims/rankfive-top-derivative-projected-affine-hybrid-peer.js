@@ -636,6 +636,35 @@ function main() {
     assert.equal(evaluateHybridModel(silentFallback.model,input),silentRankSeven(input));
   }
 
+  // Explicitly demonstrate the promise boundary: the same rank-seven oracle
+  // is intentionally mis-reconstructed if the caller lies and selects the
+  // no-verifier projected-affine mode. The default verified mode above catches it.
+  let unsafeWitnessIndex=0;
+  let unsafeVerifierCalls=0;
+  let unsafeCandidateReadyCalls=0;
+  const unsafePromiseModel=cloneTopDerivativeProjectedAffine(
+    silentRankSeven,7,
+    () => forcedDirections[unsafeWitnessIndex++ % forcedDirections.length],
+    () => {unsafeVerifierCalls++;throw new Error('invalid promise mode must not request verifier randomness');},
+    1e-10,
+    () => {unsafeCandidateReadyCalls++;},
+    'six-direction',
+    'assume-projected-affine'
+  );
+  assert.equal(unsafePromiseModel.diagnostics.promiseAssumed,true);
+  assert.equal(unsafePromiseModel.diagnostics.verificationPassed,null);
+  assert.equal(unsafePromiseModel.diagnostics.verificationSamples,0);
+  assert.equal(unsafePromiseModel.diagnostics.fallbackUsed,false);
+  assert.equal(unsafeVerifierCalls,0);
+  assert.equal(unsafeCandidateReadyCalls,0);
+  let promiseBoundaryMismatches=0;
+  for(let input=0;input<128;input++) {
+    if(evaluateHybridModel(unsafePromiseModel.model,input)!==silentRankSeven(input))
+      promiseBoundaryMismatches++;
+  }
+  assert.ok(promiseBoundaryMismatches>0,
+    'the no-verifier mode must not be mistaken for a general degree-five learner');
+
   // Codimension-six top derivative: a nonzero five-form can still produce a
   // witness, but its six-dimensional quotient cannot be represented by the
   // five-coordinate signature. The learner must fail closed to exact ANF.
@@ -713,6 +742,13 @@ function main() {
   }
 
   const summary = {
+    promiseBoundary:{
+      outsidePromise:'silent-rank-seven',
+      mismatches:promiseBoundaryMismatches,
+      outputs:128,
+      verifierSamples:0,
+      expectedUnsafe:true
+    },
     promisedProjectedAffine:{
       cases:promiseCases,
       outputs:promiseOutputs,
@@ -767,7 +803,7 @@ function main() {
       lazySignatureCapN32:63+62*26+31*32+726,
       shiftCapN32:63+62*26+3*32+726
     },
-    note:'Seeded tests exercise implementation paths only. The default RM verifier guarantee requires independent uniform verification draws and a fixed degree<=5 oracle. The opt-in assume-projected-affine mode skips verification and is exact only under its explicit F=A+b+h(Px), rank-five, nonzero-top-coefficient promise.'
+    note:'Seeded tests exercise implementation paths only. The default RM verifier guarantee requires independent uniform verification draws and a fixed degree<=5 oracle. The opt-in assume-projected-affine mode skips verification and is exact only under its explicit F=A+b+h(Px), rank-five, nonzero-top-coefficient promise. A deliberate silent-rank-seven misuse test confirms that this mode can return a wrong model outside that promise; the default verified mode catches the same source.'
   };
   console.log('TOP_DERIVATIVE_PROJECTED_AFFINE_HYBRID ' + JSON.stringify(summary));
   return summary;
