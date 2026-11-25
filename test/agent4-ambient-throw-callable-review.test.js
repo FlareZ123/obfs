@@ -248,16 +248,72 @@ test('an exported class field closure propagates its captured callable',()=>{
 });
 
 
-test('a known local consumer that discards its argument is conservatively overtainted',()=>{
+test('a known local consumer that discards its argument preserves the callable',()=>{
   const source=
     'function hidden(){return 1;}'+
     'function consume(callback){return 2;}'+
     'function entry(){return consume(hidden);}'+
     'module.exports=entry;';
+  /** @type {{module:{exports:()=>unknown}}} */
+  const context={module:{exports:null}};
+  vm.runInNewContext(source,context);
+  assert.equal(context.module.exports(),2);
   const result=analyze(source);
   const hidden=named(result,'hidden')[0];
   assert.ok(hidden);
-  assert.equal(hidden.hostHeldCallable,true,
-    'the donor currently vetoes callable actuals before proving whether the local formal escapes');
+  assert.equal(hidden.hostHeldCallable,false);
+  assert.equal(hidden.safe,true);
+});
+
+test('a local formal passed to a host call propagates the actual callable',()=>{
+  const source=
+    'function hidden(){return 1;}'+
+    'function consume(callback){external(callback);}'+
+    'function entry(){consume(hidden);}'+
+    'module.exports=entry;';
+  const result=analyze(source);
+  const hidden=named(result,'hidden')[0];
+  assert.ok(hidden);
+  assert.equal(hidden.hostHeldCallable,true);
+  assert.equal(hidden.safe,false);
+});
+
+test('actual-to-formal values propagate through nested local calls',()=>{
+  const source=
+    'function hidden(){return 1;}'+
+    'function inner(callback){external(callback);}'+
+    'function outer(value){inner(value);}'+
+    'function entry(){outer(hidden);}'+
+    'module.exports=entry;';
+  const result=analyze(source);
+  const hidden=named(result,'hidden')[0];
+  assert.ok(hidden);
+  assert.equal(hidden.hostHeldCallable,true);
+  assert.equal(hidden.safe,false);
+});
+
+test('rest parameter bindings receive callable actuals',()=>{
+  const source=
+    'function hidden(){return 1;}'+
+    'function consume(...callbacks){external(callbacks[0]);}'+
+    'function entry(){consume(hidden);}'+
+    'module.exports=entry;';
+  const result=analyze(source);
+  const hidden=named(result,'hidden')[0];
+  assert.ok(hidden);
+  assert.equal(hidden.hostHeldCallable,true);
+  assert.equal(hidden.safe,false);
+});
+
+test('implicit arguments access keeps local call actuals fail-closed',()=>{
+  const source=
+    'function hidden(){return 1;}'+
+    'function consume(){external(arguments[0]);}'+
+    'function entry(){consume(hidden);}'+
+    'module.exports=entry;';
+  const result=analyze(source);
+  const hidden=named(result,'hidden')[0];
+  assert.ok(hidden);
+  assert.equal(hidden.hostHeldCallable,true);
   assert.equal(hidden.safe,false);
 });
