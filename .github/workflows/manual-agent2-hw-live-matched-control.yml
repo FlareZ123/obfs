@@ -1,0 +1,156 @@
+name: Manual Agent 2 hW live HTTP matched control
+
+on:
+  workflow_dispatch:
+    inputs:
+      fixture_family:
+        description: "Target fixture family"
+        required: false
+        default: random
+        type: choice
+        options:
+          - random
+          - delayed-pair
+      min_states:
+        description: "Minimum target states (random: 2-12; delayed-pair: 3-64)"
+        required: false
+        default: 2
+        type: number
+      max_states:
+        description: "Maximum target states (random: 2-12; delayed-pair: 3-64)"
+        required: false
+        default: 5
+        type: number
+      seeds:
+        description: "Deterministic seeds per state count (1-20)"
+        required: false
+        default: 2
+        type: number
+      timeout_seconds:
+        description: "Per-arm hW learner timeout"
+        required: false
+        default: 120
+        type: number
+      random_walk_length:
+        description: "RandomWphWOracle random walk length"
+        required: false
+        default: 30
+        type: number
+      origin_states:
+        description: "RandomWphWOracle test origin-state count"
+        required: false
+        default: 20
+        type: number
+
+permissions:
+  contents: read
+
+jobs:
+  matched-control:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      PYTHONHASHSEED: "0"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install Node dependencies
+        run: npm ci
+      - name: Install pinned hW implementation
+        run: python -m pip install --disable-pip-version-check aalpy==2.0.0 numpy==2.2.6
+      - name: Check server and harness syntax
+        run: |
+          node --check sims/agent2-hw-live-sco-server.js
+          node --check sims/agent2-hw-live-ordinary-server.js
+          python -m py_compile \
+            sims/agent2-hw-live-sco-client.py \
+            sims/agent2-hw-live-sco-benchmark.py \
+            sims/agent2-hw-live-matched-control.py \
+            sims/agent2-hw-no-reset-benchmark.py
+      - name: Test exact evaluator semantics
+        run: python sims/test_agent2_hw_no_reset_evaluator.py
+      - name: Run paired live HTTP hW benchmark
+        env:
+          FIXTURE_FAMILY: ${{ inputs.fixture_family || 'random' }}
+          MIN_STATES: ${{ inputs.min_states || 2 }}
+          MAX_STATES: ${{ inputs.max_states || 5 }}
+          SEEDS: ${{ inputs.seeds || 2 }}
+          TIMEOUT_SECONDS: ${{ inputs.timeout_seconds || 120 }}
+          RANDOM_WALK_LENGTH: ${{ inputs.random_walk_length || 30 }}
+          ORIGIN_STATES: ${{ inputs.origin_states || 20 }}
+        run: |
+          python sims/agent2-hw-live-matched-control.py \
+            --fixture-family "$FIXTURE_FAMILY" \
+            --min-states "$MIN_STATES" --max-states "$MAX_STATES" \
+            --seeds "$SEEDS" --timeout-seconds "$TIMEOUT_SECONDS" \
+            --random-walk-length "$RANDOM_WALK_LENGTH" \
+            --origin-states "$ORIGIN_STATES" \
+            > live-hw-matched-results.json
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          result = json.loads(Path("live-hw-matched-results.json").read_text())
+          family = os.environ["FIXTURE_FAMILY"]
+          minimum = int(os.environ["MIN_STATES"])
+          maximum = int(os.environ["MAX_STATES"])
+          seeds = int(os.environ["SEEDS"])
+          expected = (maximum - minimum + 1) * seeds
+          assert result["benchmark"] == "agent2-live-http-no-reset-hW-matched-control"
+          assert result["aalpy_version"] == "2.0.0"
+          assert result["scope"]["fixture_family"] == family
+          assert result["scope"]["state_counts"] == [minimum, maximum]
+          assert result["total_runs"] == expected
+          assert result["completed_runs"] + result["timeouts"] + result["errors"] == expected
+          assert result["completed_runs"] > 0
+          assert result["errors"] == 0, result["results"]
+          assert result["matched_pairs"] == result["completed_runs"]
+          assert result["total_sco_sul_steps"] == result["total_ordinary_sul_steps"]
+          assert result["total_sco_http_requests"] == result["total_ordinary_http_requests"]
+          for row in result["results"]:
+              if row["status"] != "completed":
+                  continue
+              assert row["comparison"]["matched"], row
+              assert row["comparison"]["learner_trace_equal"], row
+              assert row["comparison"]["hypothesis_equal"], row
+              assert row["comparison"]["rpc_request_response_trace_equal"], row
+              assert row["comparison"]["client_module_public_metadata_equal"], row
+              assert row["comparison"]["client_module_source_bodies_differ"], row
+              assert row["comparison"]["authorized_invalid_argument_probe_equal"], row
+              assert row["comparison"]["server_request_counts_equal"], row
+              assert row["comparison"]["exact_evaluation_equal"], row
+              assert row["sco"]["steps_total"] == row["ordinary"]["steps_total"], row
+              assert row["sco"]["rpc_trace_sha256"] == row["ordinary"]["rpc_trace_sha256"], row
+              assert row["sco"]["server_stats"] == row["ordinary"]["server_stats"], row
+              assert row["sco"]["source_disclosed"] is False, row
+              assert row["ordinary"]["source_disclosed"] is False, row
+          print("LIVE_HW_MATCHED_CONTROL_SUMMARY", json.dumps({
+              "fixture_family": family,
+              "runs": result["total_runs"],
+              "completed": result["completed_runs"],
+              "timeouts": result["timeouts"],
+              "errors": result["errors"],
+              "matched_pairs": result["matched_pairs"],
+              "sco_exact_initial_clones": result["sco_exact_initial_clones"],
+              "sco_future_clone_successes": result["sco_future_clone_successes"],
+              "ordinary_exact_initial_clones": result["ordinary_exact_initial_clones"],
+              "ordinary_future_clone_successes": result["ordinary_future_clone_successes"],
+              "sco_sul_steps": result["total_sco_sul_steps"],
+              "ordinary_sul_steps": result["total_ordinary_sul_steps"],
+              "sco_http_requests": result["total_sco_http_requests"],
+              "ordinary_http_requests": result["total_ordinary_http_requests"],
+              "elapsed_seconds": result["elapsed_seconds"],
+          }, sort_keys=True))
+          PY
+      - name: Preserve matched-control evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: agent2-live-hw-matched-control
+          path: live-hw-matched-results.json
