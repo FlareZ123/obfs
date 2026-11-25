@@ -14,6 +14,10 @@ const TOKEN='authorized-arbitrary-table-study';
 
 /** @typedef {{origin:string,method:string,credential:string}} Access */
 /** @typedef {ReturnType<typeof learnProjectedAffineOracle>} Model */
+/** @typedef {{model:unknown,queries:number,transcriptSha256:string,diagnostics?:object}} CloneResult */
+/** @typedef {(access:Access,draws:number[])=>Promise<CloneResult>} CloneRunner */
+/** @typedef {(model:unknown,input:number)=>number} ModelEvaluator */
+/** @typedef {{cloneRunner?:CloneRunner,modelEvaluator?:ModelEvaluator,maxQueries?:number}} ExecuteArmOptions */
 
 /**
  * The hidden source has an arbitrary 32-word vector table behind five
@@ -135,12 +139,13 @@ async function cloneFromHttp(access,draws){
  * @param {'sco'|'native'} arm
  * @param {string} source
  * @param {number[]} draws Same random candidate input tape in both arms
+ * @param {ExecuteArmOptions} [options] Optional learner adapter; default preserves the original projected-affine experiment.
  * @returns {Promise<{arm:'sco'|'native',sourceHash:string,queries:number,
  *   heldouts:number,privateExecutions:number,deniedStatus:number,
  *   publishedPrivateNames:boolean,transcriptSha256:string,
- *   offlineAfterServerClosed:boolean}>}
+ *   offlineAfterServerClosed:boolean,learnerDiagnostics:object|null}>}
  */
-async function executeArm(arm,source,draws){
+async function executeArm(arm,source,draws,options={}){
   const privateModule=await import(
     'data:text/javascript,'+encodeURIComponent(source));
   /** @type {import('node:http').Server|undefined} */
@@ -240,9 +245,14 @@ async function executeArm(arm,source,draws){
       assert.ok(route?.[1],'The published facade did not expose its RPC route');
       method=route[1];
     }
-    const clone=await cloneFromHttp({origin,method,credential:TOKEN},draws);
+    const cloneRunner=options.cloneRunner??cloneFromHttp;
+    const clone=/** @type {CloneResult} */ (await cloneRunner({origin,method,credential:TOKEN},draws));
+    assert.ok(clone.queries<=(options.maxQueries??72688),
+      'HTTP clone exceeded the declared distinct-query cap');
     assert.equal(privateExecutions,clone.queries);
-    const model=/** @type {Model} */ (JSON.parse(JSON.stringify(clone.model)));
+    const model=JSON.parse(JSON.stringify(clone.model));
+    const modelEvaluator=options.modelEvaluator??((candidate,input)=>
+      evaluateProjectedAffineModel(/** @type {Model} */ (candidate),input));
     const stopped=server;
     /** @type {Promise<void>} */
     const stoppedPromise=new Promise((resolve,reject)=>
@@ -254,7 +264,7 @@ async function executeArm(arm,source,draws){
       const x=createHash('sha256').update('rankfive-live-heldout/'+i)
         .digest().readUInt32BE(0);
       const expected=await privateModule.protectedGenericFive(x);
-      assert.equal(evaluateProjectedAffineModel(model,x),expected,
+      assert.equal(modelEvaluator(model,x),expected,
         'Offline reconstruction mismatch on an unqueried held-out input');
       heldouts++;
     }
@@ -265,7 +275,8 @@ async function executeArm(arm,source,draws){
       queries:clone.queries,heldouts,privateExecutions,
       deniedStatus:denied.status,publishedPrivateNames,
       transcriptSha256:clone.transcriptSha256,
-      offlineAfterServerClosed:true
+      offlineAfterServerClosed:true,
+      learnerDiagnostics:clone.diagnostics??null
     };
   }finally{
     if(server){
