@@ -192,3 +192,52 @@ test('a spread-only property still resolves its callable value',()=>{
     'the spread supplies the observed callback property');
   assert.equal(summary.safe,false);
 });
+
+
+test('an inherited getter resolves this against the receiving object',()=>{
+  const source=
+    'function hidden(){const state={secret:7};return state.secret;}'+
+    'const prototype={get callback(){return this.hidden;}};'+
+    'const owner={__proto__:prototype,hidden:hidden};'+
+    'external(owner.callback);';
+  const summary=hiddenSummary(source);
+  const [captured]=execute(source);
+  assert.equal(captured?.name,'hidden');
+  assert.equal(summary.hostHeldCallable,true,
+    'an inherited getter executes with owner as this and exposes owner.hidden');
+  assert.equal(summary.safe,false);
+});
+
+test('a prototype callable remains reachable when a later unknown computed key may not override it',()=>{
+  const source=
+    'function hidden(){const state={secret:7};return state.secret;}'+
+    'function harmless(){return 0;}'+
+    'const key=readKey();'+
+    'const prototype={callback:hidden};'+
+    'const owner={__proto__:prototype,[key]:harmless};'+
+    'external(owner.callback);';
+  const summary=hiddenSummary(source);
+  const [captured]=execute(source);
+  assert.equal(captured?.name,'hidden',
+    'the runtime key is other, so callback is inherited from the prototype');
+  assert.equal(summary.hostHeldCallable,true,
+    'the unknown computed property cannot justify dropping the inherited callable');
+  assert.equal(summary.safe,false);
+});
+
+test('a prototype callable remains reachable when a later spread has no matching own key',()=>{
+  const source=
+    'function hidden(){const state={secret:7};return state.secret;}'+
+    'function harmless(){return 0;}'+
+    'const prototype={callback:hidden};'+
+    'const later={other:harmless};'+
+    'const owner={__proto__:prototype,...later};'+
+    'external(owner.callback);';
+  const summary=hiddenSummary(source);
+  const [captured]=execute(source);
+  assert.equal(captured?.name,'hidden',
+    'object spread copies no inherited callback, so prototype lookup remains active');
+  assert.equal(summary.hostHeldCallable,true,
+    'a later spread without callback must not hide the inherited callable');
+  assert.equal(summary.safe,false);
+});
