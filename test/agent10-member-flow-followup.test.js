@@ -165,6 +165,20 @@ test('a dynamic key after a nested factory-call member cannot hide a field calla
     'a dynamic key on a factory-call result must retain all callables in the known nested receiver');
 });
 
+test('a callable field behind an unknown Proxy constructor is conservatively held',()=>{
+  const source=
+    'let owner;'+
+    'function hidden(){return 1;}'+
+    'class Local{callback=hidden;}'+
+    'function entry(){'+
+      'owner=new Proxy(new Local(),{get(target,key,receiver){return Reflect.get(target,key,receiver);}});'+
+      'external(owner.callback);'+
+    '}'+
+    'module.exports=entry;';
+  assertHeld(hiddenSummary(source),
+    'an unknown constructor may wrap the receiver and must not erase callable arguments');
+});
+
 test('an object-literal primitive getter does not retain an unrelated callable sibling',()=>{
   const source=
     'function hidden(){return 1;}'+
