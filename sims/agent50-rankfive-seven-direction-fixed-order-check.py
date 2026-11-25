@@ -3,10 +3,10 @@
 
 This enumerates all 2D kernels of full-rank 5x7 binary matrices and recomputes
 the query-union expectation for the reported ten-face K_{2,5} order. Coordinate
-subset masks are treated as distinct query points, so the exact expectation is
-conditional on the sampled 32-bit direction vectors being linearly independent.
-When directions are dependent, subset-sum collisions only reduce distinct
-queries, so the values remain unconditional upper bounds. It checks the fixed
+subset masks are treated as distinct query points, defining an injective
+subset-sum query-cost model. Actual uniform 32-bit directions can be dependent;
+those collisions only reduce distinct queries, so the model values are
+unconditional upper bounds. It checks the fixed
 order and restart arithmetic; it does not re-prove the C++ DP's global
 optimality over all 21-face orders and cutoffs.
 """
