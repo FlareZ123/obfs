@@ -229,3 +229,17 @@ test('an expression-bodied factory passed to a host cannot hide its returned fie
   assertHeld(hiddenSummary(source),
     'an unknown host can invoke the escaping factory and inspect its returned instance field');
 });
+
+
+test('an exported expression-bodied factory cannot hide its returned class-field callable',()=>{
+  const source=
+    'function hidden(){return 1;}'+
+    'class Local{callback=hidden;}'+
+    'const create=()=>new Local();'+
+    'module.exports=create;';
+  const hidden=hiddenSummary(source);
+  assert.equal(hidden.safe,false,
+    'an external module can invoke the exported factory and inspect the returned instance field');
+  assert.ok(hidden.hostHeldCallable||hidden.externallyReachable,
+    'the returned callable must inherit an external observation/escape effect');
+});
