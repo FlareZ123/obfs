@@ -91,6 +91,33 @@ test('a statically named namespace constructor preserves its instance field call
     'a statically resolved namespace constructor must preserve its known class field');
 });
 
+test('an unknown local function constructor remains conservatively held when its instance member escapes',()=>{
+  const source=
+    'let owner;'+
+    'function hidden(){return 1;}'+
+    'function Local(){this.callback=hidden;}'+
+    'function entry(){owner=new Local();external(owner.callback);}'+
+    'entry();';
+  const constructor=named(analyze(source),'Local')[0];
+  assert.ok(constructor,'the constructor must have an analysis summary');
+  assert.equal(constructor.hostHeldCallable,true,
+    'without a class-instance proof, retain the local constructor callable');
+});
+
+test('a namespace-qualified function constructor remains conservatively held',()=>{
+  const source=
+    'let owner;'+
+    'function hidden(){return 1;}'+
+    'function Local(){this.callback=hidden;}'+
+    'const namespace={Local};'+
+    'function entry(){owner=new namespace.Local();external(owner.callback);}'+
+    'entry();';
+  const constructor=named(analyze(source),'Local')[0];
+  assert.ok(constructor,'the constructor must have an analysis summary');
+  assert.equal(constructor.hostHeldCallable,true,
+    'a namespace-qualified unknown constructor must retain the callable fallback');
+});
+
 test('a callable returned from a class getter remains held by the generic return sink',()=>{
   const source=
     'let owner;'+
