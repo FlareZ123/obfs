@@ -172,6 +172,34 @@ test('an array mutator return can expose a host-held callable',()=>{
   assert.equal(summary.safe,false);
 });
 
+test('a local member call with an unresolved this-return retains receiver callables',()=>{
+  const source=
+    'function hidden(){const state={secret:7};return state.secret;}'+
+    'const owner={callback:hidden,get(){return this.callback;}};'+
+    'external(owner.get());';
+  const summary=hiddenSummary(source);
+  const [captured]=execute(source);
+  assert.equal(captured?.name,'hidden',
+    'the local method returns the callback stored on its receiver');
+  assert.equal(summary.hostHeldCallable,true,
+    'an unresolved this-member return must conservatively retain receiver callables');
+  assert.equal(summary.safe,false);
+});
+
+test('a known primitive-returning local member call does not retain unrelated callables',()=>{
+  const source=
+    'function hidden(){const state={secret:7};return state.secret;}'+
+    'const owner={callback:hidden,getIndex(){return 0;}};'+
+    'external(owner.getIndex());';
+  const summary=hiddenSummary(source);
+  const [captured]=execute(source);
+  assert.equal(captured,undefined,
+    'the host receives the primitive return, not the stored callback');
+  assert.equal(summary.hostHeldCallable,false,
+    'a proven primitive return does not require receiver fallback');
+  assert.equal(summary.safe,true);
+});
+
 test('an object-literal prototype setter can supply the observed callable',()=>{
   const source=
     'function hidden(){const state={secret:7};return state.secret;}'+
