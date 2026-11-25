@@ -390,3 +390,37 @@ test('lexical-arrow this.count primitive return does not retain callable sibling
   assert.equal(hiddenSummary(source).hostHeldCallable,false);
   assert.equal(hiddenSummary(source).safe,true);
 });
+
+
+test('nested lexical arrows preserve the outer getter receiver through local calls',()=>{
+  const source=
+    'function hidden(){return 1;}'+
+    'const owner={callback:hidden,get result(){const outer=()=>{const inner=()=>this.callback;return inner();};return outer();}};'+
+    'external(owner.result);';
+  const [captured]=execute(source);
+  assert.equal(captured?.name,'hidden');
+  assert.match(String(captured),/return 1/);
+  assert.equal(hiddenSummary(source).hostHeldCallable,true);
+});
+
+test('a bare ordinary function call does not inherit the enclosing getter receiver',()=>{
+  const source=
+    'function hidden(){return 1;}'+
+    'const owner={callback:hidden,get result(){function read(){return this.callback;}return read();}};'+
+    'external(owner.result);';
+  const [captured]=execute(source);
+  assert.equal(captured,undefined);
+  assert.equal(hiddenSummary(source).hostHeldCallable,false);
+  assert.equal(hiddenSummary(source).safe,true);
+});
+
+test('an arrow nested inside a bare ordinary function keeps that function dynamic this',()=>{
+  const source=
+    'function hidden(){return 1;}'+
+    'const owner={callback:hidden,get result(){function read(){const nested=()=>this.callback;return nested();}return read();}};'+
+    'external(owner.result);';
+  const [captured]=execute(source);
+  assert.equal(captured,undefined);
+  assert.equal(hiddenSummary(source).hostHeldCallable,false);
+  assert.equal(hiddenSummary(source).safe,true);
+});
