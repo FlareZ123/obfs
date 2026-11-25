@@ -247,7 +247,9 @@ def exact_order_dp(model, sequence):
 
     dp = [None] * states
     parent = [-1] * states
+    optimal_counts = [0] * states
     dp[0] = 0
+    optimal_counts[0] = 1
     transitions = 0
     for subset in range(states):
         base = dp[subset]
@@ -262,6 +264,9 @@ def exact_order_dp(model, sequence):
             if dp[target] is None or candidate < dp[target]:
                 dp[target] = candidate
                 parent[target] = position
+                optimal_counts[target] = optimal_counts[subset]
+            elif candidate == dp[target]:
+                optimal_counts[target] += optimal_counts[subset]
 
     full = states - 1
     order = []
@@ -291,6 +296,7 @@ def exact_order_dp(model, sequence):
     )
     return {
         "optimal_order": order,
+        "optimal_order_count": optimal_counts[full],
         "optimal_q": optimal_q,
         "input_order_q": input_q,
         "expected_query_numerator": dp[full],
@@ -313,6 +319,7 @@ def main():
     result7 = evaluate(model7, seq7)
     result8 = evaluate(model8, seq8)
     result8_cpp = evaluate(model8, seq8_cpp)
+    order_dp7 = exact_order_dp(model7, M7_SEQUENCE)
     order_dp8 = exact_order_dp(model8, M8_SEQUENCE)
     order_dp8_cpp = exact_order_dp(model8, M8_CPP_SEQUENCE)
 
@@ -323,6 +330,11 @@ def main():
     assert result7["expected_repeated_trial_queries"] == Fraction(2072004349, 24519915)
     assert [row["new_queries"] for row in result7["rows"]] == [32,16,8,4,2,16,8,4,2,1]
     assert result7["query_union"] == 93
+    assert order_dp7["optimal_q"] == result7["expected_repeated_trial_queries"]
+    assert order_dp7["input_order_q"] == order_dp7["optimal_q"]
+    assert order_dp7["optimal_order_count"] == 28800
+    assert order_dp7["states"] == 1024
+    assert order_dp7["transitions"] == 5120
 
     assert result8["expected_one_trial_queries"] == Fraction(37202797641, 536870912)
     assert result8["failure_probability"] == Fraction(192870469, 1073741824)
@@ -340,6 +352,7 @@ def main():
         assert order_dp["expected_query_numerator"] == 7228875609622710
         assert order_dp["reach_denominator"] == 104319386910720
         assert order_dp["failure_numerator"] == 18738330415695
+        assert order_dp["optimal_order_count"] == 138240
         assert order_dp["states"] == 16384
         assert order_dp["transitions"] == 114688
         assert order_dp["remaining_kernels"] == 6948
@@ -404,8 +417,9 @@ def main():
     face_delta = float(result8["expected_total_faces"] - result7["expected_total_faces"])
     print("  extra expected face evaluations (m8 - m7):", face_delta)
     print("  break-even face-evaluation cost in query units:", float(gap) / face_delta)
-    print("  fixed-set exact ordering DP:", order_dp8["states"], "states,",
-          order_dp8["transitions"], "transitions; input order is optimal")
+    print("  fixed-set exact ordering DP (m7,m8):",
+          order_dp7["optimal_order_count"], order_dp8["optimal_order_count"],
+          "optimal orders; states:", order_dp7["states"], order_dp8["states"])
     face_delta = float(result8["expected_total_faces"] - result7["expected_total_faces"])
     print("  extra expected face evaluations (m8 - m7):", face_delta)
     print("  break-even face-evaluation cost in query units:", float(gap) / face_delta)
