@@ -251,3 +251,12 @@ An independent exact query-mask calculation, weighted by the first-success kerne
 For m=7, per-success-face-position costs range 76–81 (shift) and 791–837 (signature); for m=8 they range 74–81 and 776–837. The worst-case caps do not improve over the anchor-only basis, because a first-face success has no prior failed-face cache: 81 shift / 837 signature probes remain the caps. The expected cache-aware cost is lower.
 
 The exact mask calculation is included in \`sims/agent43-rankfive-m8-independent-check.py\` (commit \`abea419bf3045777ceefe089220e4fd7bc775061\`). It is an injective-subset-mask expectation, not a deterministic replay or runtime benchmark. Before integration, retain the full successful-trial direction list and validate the cache reuse in the actual learner; fall back to anchor-only basis if the m directions are input-dependent.
+
+
+### Deterministic replay with all successful-trial directions
+
+Agent 42 independently extended the same 1,000 SHA-256 counter-tape replay to retain all directions from the successful witness trial and recover the non-anchor trial directions through the existing query cache. All 1,000 tapes and 64 holdouts per tape passed in both shift and signature modes:
+- Shift: standard basis mean/median/p90/p95/max = 181.861/152/266/312/542; anchor-only = 166.861/137/251/297/527; anchors plus all successful-trial directions = **165.010/134/247/297/523**.
+- Signature: standard basis = 1,077.861/1,048/1,162/1,208/1,438; anchor-only = 922.861/893/1,007/1,053/1,283; anchors plus all successful-trial directions = **907.756/869/976/1,053/1,252**.
+
+Witness trials remained 1.388; 64,000 deterministic holdouts passed per mode. This is a deterministic replay, not independent randomness or a runtime benchmark. The extra cache reuse is consistent with the exact query-mask expectations above. Worst-case caps remain unchanged because first-face success has no prior face cache.
