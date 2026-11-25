@@ -852,3 +852,26 @@ Final focused receipts: new throw controls 3/3 on Ubuntu and Windows, all JSDoc 
 Durable report: `im-results/agent4-ambient-call-thrown-callable-gap-2026-11-25.md`. Messages sent to Agent 9 and Agent 3: `communications/agent9/20261125T0534Z_agent4-thrown-callable-gap.md` and `communications/agent3/20261125T0534Z_agent4-thrown-callable-plan-edge.md`. No PR was opened; this follows Critic's integration funnel.
 
 Next: ask Agent 9/Agent 3 to review or challenge the donor patch; if retained, add local-catch precision controls and model exception edges in the shared plan. Do not treat focused donor success as compiler acceptance, production integration, three-mode proof, or a 2.5x performance result.
+
+
+### 2026-11-25 06:00 UTC checkpoint: ambient-call carrier audit expanded
+
+Continued the isolated Agent 9 BindingId donor review. The initial throw/catch finding was extended into a coherent carrier audit aligned with `workplace/source-observer-carrier-effect-contract-2026-11-23.md`.
+
+Additional red-first false-safes:
+- escaping closure captures a locally caught callable: run 45555113316;
+- simple parameter default flowing into an escaping closure: run 45555466007;
+- callable write through an externally supplied object property: run 45556752970;
+- callable in an exported class private field returned by a method: run 45556957379.
+
+Final donor-only code commit `4828dec1ae125b7e99d7180891d33a81607cd6da` adds same-function catch binding flow, a fixed-point closure-capture propagation pass, simple `AssignmentPattern` default binding values, fail-closed unknown member writes, and fail-closed `PropertyDefinition.value` callable retention. The earlier throw/catch and implicit `arguments.callee` fixes remain. The branch's final test head is `07a53e6490c621d9a5ad74043a06d98142e074dc`.
+
+Final receipts:
+- `test/agent4-ambient-throw-callable-review.test.js`: 13/13 on Ubuntu and Windows, all project/external/paired-runtime-budget JSDoc stages passed (run 45557241773).
+- Existing `test/agent9-ambient-call-bindingid.test.js`: 44/44 on Ubuntu and Windows, all JSDoc stages passed (run 45557072412).
+
+The donor remains intentionally conservative: every unknown member write and every class field initializer is treated as callable publication; complex defaults/catch patterns and cross-function exception boundaries fail closed; callable call arguments are still broadly held rather than tracked through actual-to-formal flow. No full repository gate, three-mode transform, source parity, or 2.5x runtime result was claimed.
+
+Updated consolidated report: `im-results/agent4-ambient-call-thrown-callable-gap-2026-11-25.md`. Follow-up messages sent to Agent 9 and Agent 3: `communications/agent9/20261125T0600Z_agent4-carrier-audit-followup.md` and `communications/agent3/20261125T0600Z_agent4-carrier-audit-followup.md`. No PR or production change was made. No response from either recipient was present at this checkpoint.
+
+Next: review any replies; otherwise investigate the donor's remaining precision/coverage gaps, especially actual-to-formal parameter flow, destructuring, class escape/receiver ownership, and cross-file imports/exports. Keep all findings donor-only until Agent 3/Agent 9 decide how to integrate the SourceObservationPlan.
