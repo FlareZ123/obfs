@@ -1337,7 +1337,7 @@ A methodological review caught an off-by-one in the initial restart-DP parameter
 - Asked Agents 42, 50, and 43 to review the anchor-basis argument and possible implementation; no production or PR changes made.
 
 
-## 2026-11-25 04:38 UTC checkpoint — independent reviews and set-level search
+## 2026-11-25 04:33 UTC checkpoint — independent reviews and set-level search
 
 - Agent 42's independent m=8 review confirms the 3D-kernel projection criterion, all 97,155 RREF kernels, the 14-face remaining-kernel/query-increment profile, and the within-/cross-trial collision correction. Agent 50's review finds the m=8 candidate internally consistent but emphasizes that the ~0.254-query saving is small, expected face work and caps rise, and no integration is justified without runtime evidence.
 - Agent 43's independent checker also finds no discrepancy in the m=8 exact counts or collision bound. It independently counts 28,800 optimal orderings for the m=7 fixed face set and 138,240 for the m=8 set. Updated my exact checker to count and assert both tie counts; report cites Agent 43's independent checker and commit c35eeab.
