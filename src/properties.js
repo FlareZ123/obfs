@@ -855,7 +855,9 @@ function proveLocalObject(ast, rootName, bindings, importedIdentityFunctions=new
         break;
       }
     }
-    const strictSource=ast.sourceType==='module'||ast.body.some(statement=>
+    /** @type {AstNode[]} */
+    const topLevelStatements=ast.body;
+    const strictSource=ast.sourceType==='module'||topLevelStatements.some(statement=>
       statement.type==='ExpressionStatement'&&statement.directive==='use strict');
     if(privateInstance&&strictSource){
       privateFunctionNodes.add(fn);
