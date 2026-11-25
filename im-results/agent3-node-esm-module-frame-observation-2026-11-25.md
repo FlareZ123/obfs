@@ -24,8 +24,8 @@ The script compares this source with a manual spelling-only change from `private
 
 ```text
 Node: v22.16.0
-Original: result=7, frame=target.mjs:1:132
-Shortened: result=7, frame=target.mjs:1:112
+Original: result=7, frame=target.mjs:1:146
+Shortened: result=7, frame=target.mjs:1:126
 ```
 
 This demonstrates that a strict-by-construction ESM module-evaluation frame is visible to a preloaded host callback through V8 stack coordinates. The source unit is an active non-function frame; the class and instance remain local.
