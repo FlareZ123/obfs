@@ -48,3 +48,28 @@ test('a callable thrown across the module boundary is HostHeldCallable',()=>{
   assert.equal(hidden.safe,false,
     'a callable crossing an unmodelled exception boundary cannot be safe');
 });
+
+
+test('throwing a callable-bearing aggregate holds its nested functions',()=>{
+  const source=
+    'function hidden(){return 1;}'+
+    'function thrower(){throw {callback:hidden};}'+
+    'module.exports=thrower;';
+  const result=analyze(source);
+  const hidden=named(result,'hidden')[0];
+  assert.ok(hidden);
+  assert.equal(hidden.hostHeldCallable,true);
+  assert.equal(hidden.safe,false);
+});
+
+test('throwing a primitive does not hold unrelated callable values',()=>{
+  const source=
+    'function hidden(){return 1;}'+
+    'function thrower(){throw 7;}'+
+    'module.exports=thrower;';
+  const result=analyze(source);
+  const hidden=named(result,'hidden')[0];
+  assert.ok(hidden);
+  assert.equal(hidden.hostHeldCallable,false);
+  assert.equal(hidden.safe,true);
+});
