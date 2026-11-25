@@ -174,3 +174,18 @@ test('a local record with an accessor is not admitted as an own-data receiver',(
   assert.equal(hidden.hostHeldCallable,true);
   assert.equal(hidden.safe,false);
 });
+
+
+test('a with-body name lookup invalidates the local receiver ownership proof',()=>{
+  const source=
+    'function hidden(){return 1;}'+
+    'function entry(proxy){const owner={callback:0};'+
+    'with(proxy){owner.callback=hidden;}return 2;}'+
+    'module.exports=entry;';
+  const result=analyze(source);
+  const hidden=named(result,'hidden')[0];
+  assert.ok(hidden);
+  assert.equal(hidden.hostHeldCallable,true,
+    'a Proxy-backed with environment can redirect the owner binding to host-owned storage');
+  assert.equal(hidden.safe,false);
+});
