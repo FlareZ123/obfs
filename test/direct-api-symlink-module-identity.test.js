@@ -30,16 +30,19 @@ test('negative control: direct API treats lexical symlink aliases as distinct mo
   const targetAbs=path.join(dir,'lib/state.mjs');
   /**
    * @param {Array<{path:string,code:string}>} sources
+   * @param {boolean} preserveAliasSymlink
    * @returns {string}
    */
-  async function run(sources) {
+  async function run(sources,preserveAliasSymlink) {
     await fs.rm(aliasAbs,{force:true});
     for(const file of sources) {
-      if(file.path==='app/alias.mjs')continue;
+      if(preserveAliasSymlink&&file.path==='app/alias.mjs')continue;
       await atomicWrite(path.join(dir,file.path),file.code);
     }
-    await fs.mkdir(path.dirname(aliasAbs),{recursive:true});
-    await fs.symlink(path.relative(path.dirname(aliasAbs),targetAbs),aliasAbs,'file');
+    if(preserveAliasSymlink) {
+      await fs.mkdir(path.dirname(aliasAbs),{recursive:true});
+      await fs.symlink(path.relative(path.dirname(aliasAbs),targetAbs),aliasAbs,'file');
+    }
     const child=spawnSync(process.execPath,[path.join(dir,'main.mjs')],{
       encoding:'utf8',timeout:10000
     });
@@ -49,7 +52,7 @@ test('negative control: direct API treats lexical symlink aliases as distinct mo
   try {
     let baseline;
     try {
-      baseline=await run(files);
+      baseline=await run(files,true);
     } catch(error) {
       if(['EPERM','EACCES','ENOTSUP','ENOSYS'].includes(
         /** @type {NodeJS.ErrnoException} */(error).code??'')) {
@@ -62,7 +65,11 @@ test('negative control: direct API treats lexical symlink aliases as distinct mo
       mode:'coo',seed:'direct-api-symlink-identity',closedWorld:true,
       strings:false,identifiers:false
     });
-    const emitted=await run(output.files);
+    const emitted=await run(output.files,true);
+    const separateBaseline=await run(files,false);
+    const separateEmitted=await run(output.files,false);
+    assert.equal(separateBaseline,'23 23');
+    assert.equal(separateEmitted,separateBaseline);
     assert.equal(baseline,'23 23');
     assert.equal(output.crossFile.properties,2);
     // This is an intentional negative-control assertion: the caller's
