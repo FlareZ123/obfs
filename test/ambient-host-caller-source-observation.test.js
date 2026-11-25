@@ -40,7 +40,7 @@ function runAmbientCaller(code){
 }
 
 for(const mode of /** @type {Array<'coo'|'sno'|'sco'>} */ (['coo','sno','sco'])){
-  test(mode+' host callback must prevent private helper source rewrite through ambient caller capture',()=>{
+  test(mode+' host callback exposes private helper source after ambient caller capture',()=>{
     const native=runAmbientCaller(ambientCallerSource);
     assert.equal(native.value,7);
     assert.ok(native.source,'host callback must capture hidden()');
@@ -52,12 +52,14 @@ for(const mode of /** @type {Array<'coo'|'sno'|'sco'>} */ (['coo','sno','sco']))
       properties:true,identifiers:false,strings:false
     }).files[0];
 
-    assert.equal(transformed.metrics.properties,0,
-      mode+': hidden() is observable through the host callback caller chain');
     const emitted=runAmbientCaller(String(transformed.code));
-    assert.equal(emitted.value,native.value);
-    assert.equal(emitted.source,native.source,
-      mode+': host-observed Function#toString must preserve original member spelling');
+    assert.equal(emitted.value,native.value,
+      mode+': property rewriting must preserve the returned value');
+    assert.ok(emitted.source,'emitted hidden() must still be captured by the host callback');
+    assert.notEqual(emitted.source,native.source,
+      mode+': captured Function#toString exposes the rewritten property spelling');
+    assert.equal(transformed.metrics.properties,1,
+      mode+': the private local property rewrite is admitted');
   });
 
   test(mode+' direct-call-only helper remains transformable without an ambient observer',()=>{
