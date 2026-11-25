@@ -129,9 +129,15 @@ const CALLABLE_OBSERVER_PROPERTIES=new Set([
  *
  * @param {AstNode} ast
  * @param {SourceType} sourceType
+ * @param {{assumeTrustedRealm?:boolean}} [options] Explicit trust assertion for precision-only prototype shadowing.
  * @returns {{summaries:AmbientCallSummary[],ambientBindingIds:number[],hostHeldCallableBindingIds:number[],externallyReachableBindingIds:number[],unsafeBindingIds:number[],safeBindingIds:number[]}}
  */
-function summarizeAmbientCallEffects(ast,sourceType) {
+function summarizeAmbientCallEffects(ast,sourceType,options={}) {
+  // Source text cannot prove that host intrinsics or Object.prototype were not
+  // modified by a preloader. Keep the optimization disabled unless the caller
+  // explicitly asserts a trusted realm; this option is not valid by default
+  // for COO/SNO hostile-runtime threat models.
+  const assumeTrustedRealm=options.assumeTrustedRealm===true;
   const resolved=resolveLexicalReferences(ast,sourceType);
   /** @type {Map<AstNode,typeof resolved.declarations[number]>} */
   const declarationByNode=new Map();
@@ -2529,7 +2535,7 @@ function summarizeAmbientCallEffects(ast,sourceType) {
       // or aliased storage. A same-function, own-data local record write is
       // tracked as a private field value and is held only if that value escapes.
       if(!isLocalRecordMemberAccess(node.left)&&
-         !isDefinitelyShadowedLocalPrototypeWrite(node))
+         !(assumeTrustedRealm&&isDefinitelyShadowedLocalPrototypeWrite(node)))
         markCallableValuesHeld(node.right,'host-held-callable',node.start,node.end);
     }
   });
