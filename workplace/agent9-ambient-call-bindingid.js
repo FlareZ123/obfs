@@ -585,12 +585,28 @@ function summarizeAmbientCallEffects(ast,sourceType) {
     return null;
   }
 
+  /** @param {AstNode|null} value @returns {boolean} */
+  function isSafeClassFieldInitializer(value) {
+    if(!value)return true;
+    if(value.type==='Literal')
+      return value.value===null||['string','number','boolean','bigint'].includes(typeof value.value);
+    if(['FunctionExpression','ArrowFunctionExpression'].includes(value.type))return true;
+    if(value.type==='Identifier') {
+      const reference=resolved.at(value.start);
+      return reference?.resolution.kind==='local'&&
+        !classNodeByBinding.has(reference.resolution.bindingId)&&
+        resolveFunctionNode(reference.resolution.bindingId)!==null;
+    }
+    return false;
+  }
+
   /** @param {AstNode} classNode @returns {boolean} */
   function classHasOnlyPublicInstanceFields(classNode) {
     if(classNode.superClass||classNode.body.body.length===0)return false;
     return classNode.body.body.every(element=>
       element.type==='PropertyDefinition'&&!element.static&&!element.computed&&
-      element.key.type!=='PrivateIdentifier');
+      element.key.type!=='PrivateIdentifier'&&
+      isSafeClassFieldInitializer(element.value));
   }
 
   /** @param {AstNode} field @returns {boolean} */
