@@ -123,7 +123,7 @@ function encodeStrings(source, ast, options) {
     const original = source.slice(node.start, node.end);
     // A continued string literal can span lines. Decline it rather than
     // replacing its internal line terminators with padding spaces.
-    if (text.length > original.length || /[\\r\\n\\u2028\\u2029]/u.test(original)) return;
+    if (text.length > original.length || /[\r\n\u2028\u2029]/u.test(original)) return;
     if (!values.has(value)) values.set(value, index);
     edits.push({
       start:node.start,end:node.end,
