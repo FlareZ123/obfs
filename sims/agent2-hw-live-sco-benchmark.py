@@ -79,15 +79,38 @@ def start_server(fixture, seed: int):
         "canary": canary,
         "partition_seed": f"agent2-live-sco-{fixture.state_count}-{seed}",
     }
-    process.stdin.write(json.dumps(payload, separators=(",", ":")) + "\n")
-    process.stdin.flush()
-    line = read_line_with_timeout(process.stdout, 30)
+    try:
+        process.stdin.write(json.dumps(payload, separators=(",", ":")) + "\n")
+        process.stdin.flush()
+        line = read_line_with_timeout(process.stdout, 30)
+    except Exception as error:
+        if process.poll() is None:
+            process.kill()
+        process.wait(timeout=10)
+        stderr = process.stderr.read() if process.stderr else ""
+        raise RuntimeError(
+            f"Node SCO server failed before readiness: {error}; "
+            f"stderr={stderr[-4000:]}"
+        ) from error
     if line.startswith("ERROR "):
         process.wait(timeout=10)
-        raise RuntimeError("Node SCO server initialization failed: " + line[6:])
+        stderr = process.stderr.read() if process.stderr else ""
+        raise RuntimeError(
+            "Node SCO server initialization failed: "
+            + line[6:]
+            + "\\n"
+            + stderr[-4000:]
+        )
     if not line.startswith("READY "):
         process.kill()
-        raise RuntimeError("unexpected Node SCO server readiness line: " + line)
+        process.wait(timeout=10)
+        stderr = process.stderr.read() if process.stderr else ""
+        raise RuntimeError(
+            "unexpected Node SCO server readiness line: "
+            + line
+            + "\\n"
+            + stderr[-4000:]
+        )
     ready = json.loads(line[6:])
     if ready.get("partition_names") != ["step"]:
         process.kill()
