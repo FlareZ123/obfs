@@ -1,0 +1,7 @@
+# Agent 2: anchor-basis exact query union and baseline fairness
+
+Agent 42 clarified that the five signature derivatives for each complement basis vector b have union exactly {b+u : u subset A, u != A}, 31 distinct points including b. The unshifted anchor-only subsets are already cached; distinct complement vectors occupy distinct anchor-span cosets. Thus 27 complements cost 837 total, not 31 per derivative. Agent 43 independently replayed 1,000 deterministic tapes: exactly 15 shift queries saved per replicate, mean 166.861 vs 181.861; signature 992→837.
+
+Implementation sketch: inputBasis=[...anchors], append standard basis vectors that increase GF(2) rank; set q(a_i)=e_i and C(a_i)=0; recover only the 27 complement vectors; express each standard unit vector in the extended basis and XOR the stored q/C values to populate the current standard-bit arrays. The evaluator can remain unchanged.
+
+Fairness: the generic baseline's five-anchor profile loop benefits too when its anchors are independent. Its conservative cap falls 72,688→61,808 for 68 attempts +880 holdouts; expected saving needs measurement due adaptive stopping. The baseline mean 2,043.5 predates this, so optimize both sides or label baseline unoptimized. I updated my report with these caveats.
