@@ -61,8 +61,8 @@ test('real Chromium strict ESM private-object rewrites preserve later FramePosit
     'window.captureHostStack=function captureHostStack(){window.__stacks.push(new Error("frame probe").stack||"");};',
     '(async()=>{try{const native=await import("/native.mjs");const generated=await import("/generated.mjs");',
     'const result={values:[native.value,generated.value],stacks:window.__stacks};',
-    'document.getElementById("result").textContent=btoa(JSON.stringify(result));',
-    '}catch(error){document.getElementById("result").textContent=btoa(JSON.stringify({error:String(error),stack:error&&error.stack}));}})();',
+    'document.getElementById("result").textContent=btoa(unescape(encodeURIComponent(JSON.stringify(result))));',
+    '}catch(error){document.getElementById("result").textContent=btoa(unescape(encodeURIComponent(JSON.stringify({error:String(error),stack:error&&error.stack}))));}})();',
     '</script></body></html>'
   ].join('\n');
   const pages=new Map([
