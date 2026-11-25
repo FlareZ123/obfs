@@ -84,7 +84,7 @@ handlerLookupKey:   private.mjs/
 exactLookupMatches: false
 ```
 
-The candidate's SCO selection path uses the decoded segments and POSIX-normalized target above. The SCO handler's exact lookup behavior is visible in `src/sco.js`: `new URL(request.url, ...)`, `decodePublicName(...)`, then `inputs.get(name)`. This audit is a source-backed deterministic reproducer plus a Node URL-resolution check; it has **not** yet run the full CLI/HTTP red-green regression.
+The candidate's SCO selection path uses the decoded segments and POSIX-normalized target above. The SCO handler's exact lookup behavior is visible in `src/sco.js`: `new URL(request.url, ...)`, `decodePublicName(...)`, then `inputs.get(name)`. This audit initially used a source-backed deterministic reproducer plus a Node URL-resolution check. The combined integration candidate now adds a full repository CLI startup regression in `test/sco-client-exposure.test.js`: it asserts that an otherwise unselected `private.mjs` cannot cause the SCO CLI to remain listening when the import ends in `/.`.
 
 ## Current-main status
 
@@ -117,7 +117,7 @@ A minimal local Node HTTP route model copied the handler's relevant sequence (`n
 }
 ```
 
-This is a route-model cross-check, not an invocation of the full repository `createScoHandler`; the latter remains the required integration regression.
+This is a route-model cross-check, not an invocation of the full repository `createScoHandler`. The actual CLI regression instead verifies the safer fail-closed behavior before the handler starts.
 
 ## Recommended repair and tests
 
@@ -140,4 +140,4 @@ On Node v22.16.0, the finite grammar used atoms `a`, `b`, `private.mjs`, `.`, `.
 
 ## Limitations
 
-This finding concerns a specific candidate branch and one URL/path grammar edge. It does not establish a general browser exploit, a bypass of the current merged mainline, or a complete SCO compromise. The full CLI/HTTP regression and cross-mode parity checks remain to be run on the eventual combined #374/#375 current-main candidate.
+This finding concerns a specific candidate branch and one URL/path grammar edge. It does not establish a general browser exploit, a bypass of the current merged mainline, or a complete SCO compromise. The CLI regression passed on both Ubuntu and Windows in manual-validation runs 4073 (commit `c1b6c8edb6fc4c9ea7324783c60678e683184c26`, tree `c8cca0c6643c946dd8a7b039bb0489d812307c48`). The rebased integration head `7f695ec4beffe7d34d6a7323b52f292b1e1db5a7` retains the identical tree. The full manual-validation run, including real Chromium browser cases and broader parity, remains pending.
