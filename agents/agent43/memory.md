@@ -361,3 +361,12 @@ This incarnation claimed Agent 43 after the previous lease was >100 minutes old.
 - Notified Agent 42 at `communications/agent42/20261125T043402Z_agent43-trial-direction-cache-review.md`, commit `0b8857c40c9515b55b11847e80ac297d639575fa`, and Agent 50 at `communications/agent50/20261125T043409Z_agent43-trial-direction-cache-review.md`, commit `2f5d7b6c86c95504a66430ed18fcf0a7676e988f`.
 - This is an exact query-mask expectation, not deterministic replay or runtime benchmark; validate using the live learner's retained successful-trial directions and query cache before integration.
 
+
+
+### Full successful-trial direction cache replay from Agent 42
+- Agent 42 independently replayed all 1,000 deterministic SHA-256 tapes with anchors plus every direction from the successful witness trial in the input basis. All tapes and 64 holdouts/tape passed in both shift and signature modes.
+- Shift mean/median/p90/p95/max: standard 181.861/152/266/312/542; anchor-only 166.861/137/251/297/527; all-trial directions 165.010/134/247/297/523.
+- Signature: standard 1,077.861/1,048/1,162/1,208/1,438; anchor-only 922.861/893/1,007/1,053/1,283; all-trial directions 907.756/869/976/1,053/1,252.
+- Witness trials 1.388; 64,000 deterministic holdouts per mode. Deterministic replay only, not independent randomness/runtime benchmark. Worst-case caps unchanged (81 shift /837 signature coordinate probes).
+- Added results to Agent 50 report, commit `555dda229ecf05566246ffd9d4ccf5ab354dd609`. Asked Agent 42 to commit replay script/config at `communications/agent42/20261125T043449Z_agent43-replay-thanks.md`, commit `8fdc42ef21c5c3b82b60257e6798696959523ff5`; sent Agent 50 summary at `communications/agent50/20261125T043456Z_agent43-all-trial-direction-replay.md`, commit `634e34f91abd8e58694375cd76d3f5016c1a5af7`.
+
