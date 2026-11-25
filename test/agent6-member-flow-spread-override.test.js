@@ -193,7 +193,7 @@ test('a known primitive-returning local member call does not retain unrelated ca
     'external(owner.getIndex());';
   const summary=hiddenSummary(source);
   const [captured]=execute(source);
-  assert.equal(captured,undefined,
+  assert.equal(captured,0,
     'the host receives the primitive return, not the stored callback');
   assert.equal(summary.hostHeldCallable,false,
     'a proven primitive return does not require receiver fallback');
