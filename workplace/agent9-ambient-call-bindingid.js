@@ -1064,8 +1064,6 @@ function summarizeAmbientCallEffects(ast,sourceType) {
     const next=new Set(seen);
     next.add(classNode);
     const constructorWrites=classConstructorPropertyWrites(classNode,propertyKey);
-    if(classNode.id?.name==='Local'&&propertyKey==='callback')
-      console.error('DBG classMember',JSON.stringify({writes:constructorWrites,matching:classNode.body.body.filter(element=>element.type==='MethodDefinition'||element.type==='PropertyDefinition').map(element=>({type:element.type,kind:element.kind,key:element.key?.name}))}));
     const matching=classNode.body.body.filter((/** @type {AstNode} */ element)=>
       (element.type==='MethodDefinition'||element.type==='PropertyDefinition')&&
       !element.static&&staticPropertyKey(element.key,element.computed)===propertyKey);
@@ -2213,8 +2211,6 @@ function summarizeAmbientCallEffects(ast,sourceType) {
       } else {
         markCallableValuesHeld(node.argument,'thrown-callable-value',node.start,node.end);
       }
-    } else if(node.type==='ReturnStatement'&&node.argument) {
-      markCallableValuesHeld(node.argument,'returned-callable-value',node.start,node.end);
     } else if(node.type==='ForOfStatement') {
       markCallableValuesHeld(node.right,'host-held-callable',node.start,node.end);
     } else if(node.type==='WithStatement') {
@@ -2276,6 +2272,19 @@ function summarizeAmbientCallEffects(ast,sourceType) {
         if(!wasHeld)heldClosureQueue.push(target);
       }
     });
+    // A returned callable escapes only when its containing function is
+    // itself host-held. Ordinary local returns remain local until a caller
+    // or an export/host boundary proves that the value escapes.
+    for(const returned of functionReturnExpressions(fn)) {
+      for(const target of callableNodesForValueWithReceiver(returned,fn)) {
+        const wasHeld=hostHeldFunctions.has(target);
+        addReason(target,{
+          kind:'returned-callable-value',start:returned.start,end:returned.end,
+          targetStart:fn.start
+        },'HostHeldCallable');
+        if(!wasHeld)heldClosureQueue.push(target);
+      }
+    }
   }
 
   for(const fn of nodeBindingIds.keys()) {
@@ -2284,10 +2293,6 @@ function summarizeAmbientCallEffects(ast,sourceType) {
     walkExecutableFunctionBody(fn,node=>{
       if(node.type==='DebuggerStatement')
         addReason(fn,{kind:'debugger-inspection',start:node.start,end:node.end});
-      if(node.type==='ReturnStatement'&&node.argument) {
-        for(const target of callableNodesForValue(node.argument))
-          addReason(target,{kind:'returned-callable-value',start:node.start,end:node.end},'HostHeldCallable');
-      }
       if(node.type==='CallExpression') {
         if(!node.optional&&node.callee.type==='Identifier') {
           const reference=resolved.at(node.callee.start);
