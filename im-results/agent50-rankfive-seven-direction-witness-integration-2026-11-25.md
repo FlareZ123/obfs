@@ -38,13 +38,15 @@ The repeated-trial objective accounts for the zero vertex being cached across tr
 
 `Q = (E - f) / (1 - f)`.
 
-The six-direction full-face policy has injective-model repeated-trial expectation `1,706,867 / 19,845 = 86.00992693373645` under the same injective-subset-sum model. The specified seven-direction order therefore saves 1.50700965200852 expected witness queries in that model. This is a modest, narrow query-count improvement.
+The six-direction full-face policy has injective-model repeated-trial expectation `1,706,867 / 19,845 = 86.00992693373645` under the same injective-subset-sum model. The specified seven-direction order has exact injective-model cost `5,526,035,598,783 / 65,394,613,305 = 2,072,004,349 / 24,519,915 = 84.50291728172793`, saving 1.50700965200852 expected witness queries in that model. This is a modest, narrow query-count improvement.
 
-The exhaustive double-precision cutoff sweep over all 21 possible face counts selects k=10. The closest neighboring cutoffs are k=9 at 84.694318982044 and k=11 at 84.776281468001 in the injective query-cost model; the ten-face optimum is lower by 0.191401700316 and 0.273364186273 respectively.
+The exact-integer cutoff sweep over all 21 possible face counts selects k=10. The closest neighboring cutoffs are k=9 at 84.694318982044 and k=11 at 84.776281468001 in the injective query-cost model; the ten-face optimum is lower by 0.191401700316 and 0.273364186273 respectively.
 
 A separate exact work-count diagnostic shows the seven-direction policy performs `32,232,190 / 4,903,983 = 6.572655` expected face tests across restarts versus `1,257,362 / 205,065 = 6.131529` for six directions (increase `37,857,328 / 526,205,997 = 7.19%`). It uses fewer expected direction draws: `33,554,432 / 3,502,845 = 9.579194` versus `2,097,152 / 205,065 = 10.226767`. This is an operation-count comparison, not a wall-clock benchmark; the seven-direction query advantage is not evidence of lower local CPU time.
 
-For unconditional uniform 32-bit direction draws, a linear dependence among seven directions has probability `1 - product_{i=0..6}(1 - 2^(i-32)) = 2.9569491454884723e-8`. Such dependencies can only merge subset-sum points, so the DP values remain unconditional upper bounds on query cost. For a fresh trial, the query-count correction is at most `Cmax * Pdep`; because the witness failure probability f is unchanged, the repeated-trial correction is at most `Cmax * Pdep / (1-f)`. This gives <3.7633e-6 expected queries for seven directions and <1.5752e-6 for six. The injective-model gap of 1.50700965200852 therefore implies an unconditional gap between 1.5070080769 and 1.5070134153 under these conservative bounds. The stated worst-case caps remain valid upper bounds.
+For unconditional uniform 32-bit direction draws, a linear dependence among seven directions has probability `1 - product_{i=0..6}(1 - 2^(i-32)) = 2.9569491454884723e-8`; for six directions it is `1.46683304796122e-8`. Such dependencies only merge subset-sum points. The within-trial correction is at most `Cmax * Pdep / (1-f)` after accounting for restarts: <3.7632038e-6 queries for seven directions and <1.5751008e-6 for six.
+
+There is also a cross-trial cache-collision correction because the learner retains nonzero query points between trials. For each nonempty subset mask, the 27-bit component in `ker(P)` is uniform conditional on the five-bit projection, and face reach depends only on those projections. Thus collision with any fixed prior nonzero query point has probability at most `2^-27`. With at most `Cmax-1` nonzero points per trial and trial-j reach probability `f^(j-1)`, a pairwise union bound gives `Delta_cross <= (Cmax-1)^2 / 2^27 * f / (1-f)^2`. This contributes <3.1796747e-5 queries for seven directions and <3.4388853e-5 for six. Total correction bounds are <3.5559951e-5 (seven) and <3.5963954e-5 (six). Therefore the injective-model gap of 1.50700965200852 implies the unconditional interval `1.506973688055 < Q6_actual - Q7_actual < 1.507045211959`. The stated worst-case caps remain valid upper bounds.
 
 At delta = 1e-10, 18 seven-direction trials are required: `f^18 = 5.5308370176e-11`, while 17 trials do not meet the target. For n=32:
 
@@ -58,19 +60,20 @@ The six-direction caps remain 1,675 witness / 2,497 shift / 3,393 signature quer
 
 ## Reproducibility and evidence
 
-### Exhaustive DP and independent exact fixed-order check
+### Exact-integer DP and independent exact checks
 
-Agent 2's C++ DP enumerates all 2^21 face states and all 2,667 2D kernels, optimizing fixed cutoffs with a Bellman/Dinkelbach recurrence using double-precision objective comparisons. It is the source for the exhaustive best-policy result within the fixed-cutoff face-search family; it is not an exact-rational optimization proof. See:
+Agent 2's new C++ DP enumerates all `2^21` face states and all 2,667 2D kernels. It uses unsigned 128-bit integer arithmetic for every Bellman transition, Dinkelbach convergence comparison, and cutoff comparison; floating point is used only to format the final decimal. It exhaustively optimizes all fixed cutoffs and complete-face orders in the injective-subset-sum query-cost model. The exact best fraction is `5,526,035,598,783 / 65,394,613,305`, reducing to `2,072,004,349 / 24,519,915`; k=10 is best across all 21 cutoffs. The neighboring cutoffs k=9 and k=11 are 84.694318982044 and 84.776281468001. This is an exact result within the specified fixed-cutoff complete-face search family, not a proof over other witness algorithms. See:
 
-- `sims/agent2-rankfive-witness-restart-dp.cpp`
+- `sims/agent2-rankfive-witness-restart-dp-exact.cpp`
+- `sims/agent2-rankfive-witness-independent-check.py`
 - `im-results/agent2-rankfive-restart-aware-seven-direction-cutoff-2026-11-24.md`
 
-Agent 50 added an independent standard-library Python check on the PR branch:
+Agent 50's independent standard-library Python checker remains on the PR branch:
 
 - `sims/agent50-rankfive-seven-direction-fixed-order-check.py`
 - Branch: `agent50/rankfive-top-quintic-http-20261124`
 
-It independently enumerates the 2,667 RREF kernels and recomputes the six- and seven-direction fixed-order expectations with exact Fractions. Its coordinate-mask query union has the same injective-subset-sum condition; the reported expectations are exact values in the injective query-cost model and unconditional upper bounds for actual 32-bit draws. It checks the face-union increments, E7, f7, Q7, the six-direction comparator, the 18-trial threshold, and the 1,657 / 2,479 / 3,375 caps. It explicitly does not claim to re-prove global optimality over all face orders.
+The two Python checkers independently enumerate the 2,667 RREF kernels and verify the selected order's exact Fraction values, six-direction comparator, caps, and collision bounds. Agent 2's checker additionally derives the within-trial and cross-trial cache-collision corrections and the unconditional gap interval.
 
 ### Exact-source Node replay
 
@@ -99,7 +102,7 @@ The live HTTP sample validates integration on the fixed fast path. It is too sma
 
 ## Limitations and disposition
 
-- The DP result is a narrow combinatorial statement about this fixed rank-five projected-affine witness family, not arbitrary JavaScript. Its query-cost optimum is found by exhaustive double-precision optimization in the injective-subset-sum query-cost model; for unrestricted 32-bit draws the values are conservative upper bounds because rare full-direction dependencies only merge queried points.
+- The DP result is a narrow combinatorial statement about this fixed rank-five projected-affine witness family, not arbitrary JavaScript. The fixed-cutoff complete-face optimization is exact-integer in the injective-subset-sum query-cost model; the unconditional 32-bit query-cost interval additionally accounts for within-trial and cross-trial collisions.
 - The Node replay is deterministic simulation; the live HTTP test validates the selected fast path and does not establish a statistical seven-versus-six advantage.
 - No CPU, wall-clock target-runtime, memory, initialization, or 2.5x compute-budget measurement was added.
 - No conclusion follows for COO/SNO, static reconstruction, dynamic instrumentation resistance, tamper resistance, domain locking, or product release readiness.
