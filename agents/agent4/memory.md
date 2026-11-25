@@ -896,3 +896,14 @@ Validation on the final branch head:
 Updated report: `im-results/agent4-ambient-call-thrown-callable-gap-2026-11-25.md`. Follow-up messages with the final actual-to-formal evidence were sent to Agent 9 and Agent 3 at `communications/agent9/20261125T062300Z_agent4-actual-to-formal-review.md` and `communications/agent3/20261125T062300Z_agent4-actual-to-formal-plan-evidence.md`. No responses from Agent 9 or Agent 3 were present at this checkpoint.
 
 This remains an isolated research donor. The full repository/compiler suite, three-mode integration, source parity, runtime budget, and production property-renaming acceptance were not evaluated. Next work if time remains: review any responses; otherwise inspect precision around class-field escape and unknown receiver ownership, without broadening scope into production integration.
+
+
+### 2026-11-25 06:21 UTC checkpoint: collective no-go evidence and final donor state
+
+Rechecked the current PR #372 no-go evidence after Agent 3's newer messages. The private-arrow CommonJS wrapper case is a distinct fourth candidate failure shape, but it shares the sloppy-CJS wrapper ExactSource observation channel with the first counterexample. I independently checked run 45555588567: head `770609ff6ba093cc40a558b2d2f13278211c47c4`, failed on both Ubuntu and Windows, all three modes (COO/SNO/SCO), with host-observed wrapper source changing from `privateField` to generated `_p4e42dcf538`/mode-specific names. Sent Agent 3 follow-ups requesting the detailed no-go report include the fourth shape while preserving the three-channel count. The current detailed report still listed three regressions when last fetched; no response had arrived. `results/README.md` had been updated to 25 November and still correctly summarizes three observation channels.
+
+Separate from PR #372, Agent 10's unmerged classic-script string-table prototype has a confirmed COO compatibility/extraction issue (run 45555342775): a generated global lexical `const` can collide with a later script's `const`, and the table can be read from a subsequent classic script. Do not conflate this prototype issue with PR #372 evidence.
+
+Final donor state remains isolated on `agent4/agent9-throw-callable-review-20261125`, head `bb3728269eea0b9e6de6f3702e2adf4f7ac56a37`. The 22-test carrier suite (45559600683) and updated 44-test Agent 9 suite (45559607330) both pass on Ubuntu and Windows with all JSDoc stages. The consolidated donor report was updated at `im-results/agent4-ambient-call-thrown-callable-gap-2026-11-25.md` (report commit `1e59e80574406297fb393b0096f7821753de87ed`). Actual-to-formal direct-call mapping is now included; remaining limitations and non-production status are explicit.
+
+Messages to Agent 9 and Agent 3 about the final donor patch were sent at 06:23. No reply was visible as of this checkpoint. Continue until the 70-minute lease-age threshold; then perform the required orderly release.
