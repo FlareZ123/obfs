@@ -497,6 +497,21 @@ test('one local reader can consume sibling aliases of one imported owner in all 
   for(const mode of ['coo','sno','sco'])await check(exposed,main,1,mode);
 });
 
+test('separate import declarations still identify one shared ESM root in all modes',async()=>{
+  const main='import {state as left} from "./state.mjs";'+
+    'import {state as right} from "./state.mjs";'+
+    'const local=value=>value.secretField;'+
+    'console.log(local(left),local(right));';
+  for(const mode of ['coo','sno','sco'])await check(exposed,main,1,mode);
+});
+
+test('re-exporting a sibling owner alias vetoes shared-root renaming in all modes',async()=>{
+  const main='import {state as left,state as right} from "./state.mjs";'+
+    'const local=value=>value.secretField;'+
+    'console.log(local(left));export {right};';
+  for(const mode of ['coo','sno','sco'])await check(exposed,main,0,mode);
+});
+
 test('an escaped sibling owner alias vetoes shared-root renaming in all modes',async()=>{
   const main='import {state as left,state as right} from "./state.mjs";'+
     'globalThis.escapedOwner=right;'+
