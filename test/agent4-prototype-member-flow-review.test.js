@@ -221,3 +221,90 @@ test('a later own assignment shadows its prototype callable',()=>{
   assert.equal(summary.hostHeldCallable,false);
   assert.equal(summary.safe,true);
 });
+
+/** @param {string} source @param {string} message */
+function assertRetainedButNotObserved(source,message) {
+  const observed=invokeExternal(source);
+  assert.equal(typeof observed,'function',message);
+  assert.equal(/** @type {{name?:unknown}} */ (observed).name,'harmless',message);
+  const summary=hiddenSummary(source);
+  assert.equal(summary.hostHeldCallable,true,message);
+  assert.equal(summary.safe,false,message);
+}
+
+test('one shadowed instance does not hide a second unshadowed instance',()=>{
+  const source=
+    'function entry(){'+
+    'function hidden(){return 1;}'+
+    'function harmless(){return 0;}'+
+    'function Local(){}'+
+    'Local.prototype.callback=hidden;'+
+    'const shadowed=new Local();'+
+    'shadowed.callback=harmless;'+
+    'const exposed=new Local();'+
+    'external(exposed.callback);'+
+    '}'+
+    'module.exports=entry;';
+  assertHeldAndObserved(source,'the second instance still inherits the prototype callable');
+});
+
+test('conditional own write does not prove a prototype shadow',()=>{
+  const source=
+    'function entry(){'+
+    'function hidden(){return 1;}'+
+    'function harmless(){return 0;}'+
+    'function Local(){}'+
+    'Local.prototype.callback=hidden;'+
+    'const owner=new Local();'+
+    'if(false){owner.callback=harmless;}'+
+    'external(owner.callback);'+
+    '}'+
+    'module.exports=entry;';
+  assertHeldAndObserved(source,'a conditional own write may not execute');
+});
+
+test('an own write after the read does not shadow the earlier prototype observation',()=>{
+  const source=
+    'function entry(){'+
+    'function hidden(){return 1;}'+
+    'function harmless(){return 0;}'+
+    'function Local(){}'+
+    'Local.prototype.callback=hidden;'+
+    'const owner=new Local();'+
+    'external(owner.callback);'+
+    'owner.callback=harmless;'+
+    '}'+
+    'module.exports=entry;';
+  assertHeldAndObserved(source,'the prototype callable was observed before the later own write');
+});
+
+test('a dynamic own write remains conservative even when runtime key matches',()=>{
+  const source=
+    'function entry(){'+
+    'function hidden(){return 1;}'+
+    'function harmless(){return 0;}'+
+    'function Local(){}'+
+    'Local.prototype.callback=hidden;'+
+    'globalThis.FIELD_NAME="callback";'+
+    'const owner=new Local();'+
+    'owner[globalThis.FIELD_NAME]=harmless;'+
+    'external(owner.callback);'+
+    '}'+
+    'module.exports=entry;';
+  assertRetainedButNotObserved(source,'unknown computed instance write is not proof of a static shadow');
+});
+
+test('a constructor call after its own write invalidates the shadow proof',()=>{
+  const source=
+    'function entry(){'+
+    'function hidden(){return 1;}'+
+    'function harmless(){return 0;}'+
+    'function mutate(owner){delete owner.callback;}'+
+    'function Local(){this.callback=harmless;mutate(this);}'+
+    'Local.prototype.callback=hidden;'+
+    'const owner=new Local();'+
+    'external(owner.callback);'+
+    '}'+
+    'module.exports=entry;';
+  assertHeldAndObserved(source,'constructor call may delete the own property and expose the prototype value');
+});
