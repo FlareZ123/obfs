@@ -59,11 +59,11 @@ test('escaped identifier spellings with unequal source-token widths retain exact
 });
 
 test('CRLF and astral identifier tokens preserve UTF-16 source positions',()=>{
-  const crlf='const longOperandName=20;\\r\\nconst value=longOperandName;\\r\\ncaptureHostStack();\\r\\nexport {value};\\r\\n';
+  const crlf='const longOperandName=20;\r\nconst value=longOperandName;\r\ncaptureHostStack();\r\nexport {value};\r\n';
   const crlfResult=rename(crlf,'agent10-identifier-crlf');
   assert.equal(crlfResult.bindings,1);
   assert.equal(crlfResult.code.length,crlf.length);
-  assert.equal(crlfResult.code.split('\\r\\n').length,crlf.split('\\r\\n').length);
+  assert.equal(crlfResult.code.split('\r\n').length,crlf.split('\r\n').length);
   assert.equal(crlfResult.code.indexOf('captureHostStack'),crlf.indexOf('captureHostStack'));
   assert.doesNotThrow(()=>parse(crlfResult.code,'module'));
 
