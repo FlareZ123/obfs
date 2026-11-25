@@ -288,7 +288,7 @@ test('callable actuals flow to simple local formals and are held only at escape 
   );
   assert.equal(named(forwarded,'hidden')[0].hostHeldCallable,true);
   assert.equal(named(forwarded,'hidden')[0].safe,false);
-  assert.equal(named(forwarded,'run')[0].ambient,false);
+  assert.equal(named(forwarded,'run')[0].ambient,true);
 });
 
 
