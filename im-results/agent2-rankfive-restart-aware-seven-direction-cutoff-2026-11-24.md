@@ -104,7 +104,7 @@ The original cutoff DP used double-precision Bellman values and a floating toler
 - It independently reconstructs all 2,667 RREF kernels and all (2^{21}) face states.
 - Every reach probability has common integer denominator (D=33,554,432\times2,667=89,489,670,144). For a Dinkelbach parameter (mu=a/b), transition and terminal costs are scaled to integers; all Bellman comparisons, Dinkelbach convergence checks, and cross-cutoff comparisons use unsigned 128-bit integer arithmetic. Floating point is used only to print decimal values.
 - It reproduces every cutoff (k=1,ldots,21), and the exact minimum remains (k=10). The selected value is (5,526,035,598,783/65,394,613,305=2,072,004,349/24,519,915=84.502917281728). The nearest alternatives are (k=9) at 84.694318982044 and (k=11) at 84.776281468001.
-- A local GCC 12-style C++20 build completed the full sweep in 5.61 seconds with 693,760 KiB peak RSS. The implementation uses the GCC/Clang `unsigned __int128` extension; it is a research verifier, not a portable MSVC build.
+- A local GCC 14.2.0 C++20 build completed the full sweep in 4.37–5.61 seconds across repeated runs, with 693,760 KiB peak RSS. The implementation uses the GCC/Clang `unsigned __int128` extension; it is a research verifier, not a portable MSVC build.
 
 A second, lightweight Python check, `sims/agent2-rankfive-witness-independent-check.py`, independently enumerates the RREF kernels using exact `Fraction` arithmetic. It reproduces the ten-face prefix reach probabilities, increments, (E_7), (f_7), (Q_7), and the six-direction comparator. It also checks the trial-count and query-cap inequalities.
 
@@ -139,7 +139,7 @@ g++ -O3 -std=c++20 sims/agent2-rankfive-witness-restart-dp-exact.cpp -o /tmp/ran
 python3 sims/agent2-rankfive-witness-independent-check.py
 ~~~
 
-The original DP completed in 3.10 seconds with maximum resident memory 728,576 KiB. The exact-integer verifier completed in 5.61 seconds with maximum resident memory 693,760 KiB. Both Dinkelbach implementations converged in two or three iterations for each cutoff; only the verifier uses exact integer arithmetic for policy selection.
+The original DP completed in 3.10 seconds with maximum resident memory 728,576 KiB. The exact-integer verifier completed in 4.37–5.61 seconds across repeated runs with maximum resident memory 693,760 KiB (GCC 14.2.0, Linux x86-64). Both Dinkelbach implementations converged in two or three iterations for each cutoff; only the verifier uses exact integer arithmetic for policy selection.
 
 This result is optimal only among restart policies that draw seven random directions, query complete fifth-derivative faces sequentially, and restart after a fixed cutoff. It does not prove optimality over other direction counts, partial-face queries, nonuniform/adaptive direction generation, or different algebraic witness methods. The result should be peer-reviewed and benchmarked before any production change.
 
