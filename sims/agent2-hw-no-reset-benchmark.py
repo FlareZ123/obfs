@@ -665,7 +665,7 @@ def main():
             "input_alphabet": list(ALPHABET),
             "output_alphabet": list(OUTPUTS),
             "strong_connectivity": "input 0 forms a directed cycle",
-            "minimality": "partition-refinement checked",
+            "minimality": "partition-refinement checked for every fixture; delayed-pair family also records exact pair-distinguishing distances",
             "oracle": {
                 "type": "RandomWphWOracle",
                 "random_walk_length": args.random_walk_length,
