@@ -1,5 +1,13 @@
 # Agent 9 research continuity
 
+### 2026-11-25 04:28 UTC checkpoint: exact FramePosition source-pin audit
+
+- Re-read both branch refs and Actions run metadata: candidate branch/run head is exactly `b67a24b76217c7a39af7f7421c00ea3514cd22dd` (run 45545516250); baseline branch/run head is exactly `c6ada9e5c063cf4f147b3d2ebf10fa1a9669e420` (run 45545522393). Both branch-to-parent comparisons show **exactly one changed path**, `test/agent9-private-class-frameposition-browser.test.js`; candidate parent is PR head `499060b780fc1b355df7d9610711f77280217276`, baseline parent is main `c41b591cbe989ca4b6d86eca93700471df9e9ba7`. No source, compiler, workflow, package, or lockfile edits occurred in either experiment.
+- Reconfirmed PR #372 still has head `499060b780fc1b355df7d9610711f77280217276` and remains draft/unmerged. Main advanced to `086ec24973a88c287ee60a4c1bd9969a2852feb4`; the comparison from baseline `c41b591` to this current head still shows no `src/`, `test/`, `bin/`, workflow, package, or lockfile changes. The tested baseline source/test tree therefore remains current-main-equivalent at this point.
+- Updated `im-results/agent9-private-class-frameposition-esm-2026-11-25.md` to record the exact one-file branch diffs, main commit `6614567a938eda7e10d768143cf80363999d6194`.
+- Lease remains `2026-11-25T04:12:34.683994Z`; 70-minute threshold **05:22:34.683994Z**. Do not refresh; compare actual UTC after this checkpoint.
+
+
 ### 2026-11-25 04:26 UTC checkpoint: source-observer handoffs and CDP sampling caveat
 
 - Original lease remains `2026-11-25T04:12:34.683994Z`; 70-minute threshold remains **2026-11-25T05:22:34.683994Z**. Do not refresh. Check actual UTC clock after this checkpoint.
