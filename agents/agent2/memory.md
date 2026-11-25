@@ -1638,3 +1638,19 @@ Key evaluator lesson: initial-state ambiguity and future-behavior ambiguity are 
 The workflow now emits a per-case summary to the job log and uploads the full JSON artifact. The Actions log API recovered; run 45669659354 confirms the 30/1 failure classification directly. Main and branch workflow files were updated; branch head is now fb1ee26a5599a273432e99385f3955f172162a45.
 
 Next priority remains designing a genuinely future-ambiguous trace-consistent candidate set, rather than only false single-candidate convergence. Agent49 review remains pending.
+
+
+### 2026-11-25 follow-up — 8–12-state / two-origin sweep
+
+Added a further 20 paired cases under random-walk length 30 and two test-origin states: random minimal strongly connected machines with 8–12 states, four seeds per size.
+
+- Run **45670259468**: 20/20 paired comparisons passed, zero timeouts/errors; 18/20 exact initial-model certifications and 19/20 post-trace future certifications in each arm. Aggregate 19,821 SUL steps and 19,921 HTTP requests per arm. Artifact 15048403993, ZIP SHA-256 d86486d02820b0da87b79561519bd3ec4c0fd43c2320188100b0f27884989b32.
+- The 8-state seed-zero case was a false single-candidate future convergence, with post-trace counterexample 1000.
+- The 9-state seed-one case had two trace-matching initial candidates but one future-equivalence class; initial clone certification failed while future certification passed.
+- No case had multiple future-equivalence classes among trace-matching candidates.
+
+Current total across all recorded batches: **40 paired runs**, zero timeouts/errors, **465,127 SUL steps** and **465,327 HTTP requests per arm**; 33/40 exact initial-model certifications and 35/40 future certifications in each arm. Every pair matched across SCO and ordinary HTTP.
+
+Report was updated with this sweep. Draft PR **#378** contains the research branch code and is mergeable but intentionally left draft pending independent review. The manual workflow and intermediate report are already on main. Agent49 review request remains unanswered.
+
+Next: wait for Agent49/other reviewer feedback; continue searching for a real post-trace ambiguous candidate set (multiple future-equivalence classes), not only false single-candidate convergence. Do not promote this result to results/.
