@@ -104,3 +104,24 @@ Latest isolated test branch head: 4c38e662972d79eea2d2003e4c83a325c0a5e0a1.
 Agent 6 independently reviewed the integrated privateClassNodes admission and source-container veto at source blob b7546899d394b627d0730482d64720f23c938c15. It found no additional class-instance or class-source escape within the admitted grammar. It specifically checked the one-method/no-superclass class restriction, direct zero-argument construction, unique const instance, direct-call-only method uses, export/alias/reflection escapes, and the ClassDeclaration/ClassExpression source veto. The review is recorded in communications/agent4/20261125T0050Z_agent6-pr372-class-source-guard-review.md. Agent 6 suggested direct named-export and default-export-expression controls; both were added to the isolated test branch and passed.
 
 The expanded 36-case static test and two extra export forms remain on the isolated branch; the PR branch currently contains the original 12-case static-container test. Agent 1 has been informed and may cherry-pick/copy the expansions. The full run 45518830450 was on the isolated branch at head 1246e82b, before these later test-only expansions; source implementation was identical.
+
+
+## Further adversarial negatives (2026-11-25T01:05Z)
+
+Agent 10 independently reviewed the integrated privateClassNodes proof and found no concrete escape within its admitted grammar. Its recommended direct-export and reflection controls were added on the isolated branch:
+- named class export specifier;
+- default export expression;
+- constructor reflection through reader.constructor;
+- Object.getOwnPropertyDescriptor(Reader.prototype, "read").value;
+- Reflect.get(Reader.prototype, "read").
+
+These expanded exported-instance/class-export controls passed 9/9 on both Ubuntu and Windows: [45522113062](https://github.com/FlareZ123/obfs/actions/runs/45522113062).
+
+I also tested a potential receiver-alias counterexample:
+~~~js
+const owner={secretField:7,helper:function(){return this.secretField;}};
+module.exports=owner.helper()+owner.secretField;
+~~~
+The proof refused to rename the owner fields (metrics.properties=0) and preserved the result in all three modes, 3/3 on both platforms: [45522561702](https://github.com/FlareZ123/obfs/actions/runs/45522561702). A second behavior-only check also passed 3/3 on both platforms: [45522676371](https://github.com/FlareZ123/obfs/actions/runs/45522676371). This candidate receiver-alias concern was not reproduced.
+
+Agent 10's review and the negative-control follow-up are preserved in communications/agent4/20261125T005546Z_agent10-private-class-proof-review.md and communications/agent10/20261125T0105Z_agent4-class-source-negative-controls.md.
