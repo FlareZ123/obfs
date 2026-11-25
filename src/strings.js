@@ -70,10 +70,14 @@ function mayAppearInFailedOperand(node,ancestors) {
  * All JS UTF-16 code units are retained, including isolated surrogates.
  * @param {string} source
  * @param {AstNode} ast
- * @param {{seed:string, minimumLength?:number, reservedNames?:Set<string>, reservedSources?:string[], fixedArity?:boolean}} options
+ * @param {{seed:string, minimumLength?:number, reservedNames?:Set<string>, reservedSources?:string[], fixedArity?:boolean, sourceType?:'script'|'module'|'commonjs'}} options
  * @returns {{code:string, count:number}}
  */
 function encodeStringsPreservingFramePositions(source, ast, options) {
+  // A Program-level function declaration becomes a shared global binding in
+  // classic scripts, exposing its cache and allowing page scripts to collide
+  // with or overwrite it. Keep this experimental helper module-scoped only.
+  if(options.sourceType==='script') return {code:source,count:0};
   if(observesFunctionSource(ast)) return {code:source,count:0};
   // The decoder uses the ambient String intrinsic. A file-level or nested
   // lexical binding with this name can shadow it, including before TDZ init.
@@ -187,7 +191,7 @@ function encodeStringsPreservingFramePositions(source, ast, options) {
  * effects are evaluated together.
  * @param {string} source
  * @param {AstNode} ast
- * @param {{seed:string, minimumLength?:number, reservedNames?:Set<string>, reservedSources?:string[], fixedArity?:boolean, preserveFramePositions?:boolean}} options
+ * @param {{seed:string, minimumLength?:number, reservedNames?:Set<string>, reservedSources?:string[], fixedArity?:boolean, preserveFramePositions?:boolean, sourceType?:'script'|'module'|'commonjs'}} options
  * @returns {{code:string,count:number}}
  */
 function encodeStrings(source,ast,options) {
