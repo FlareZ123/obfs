@@ -107,6 +107,8 @@ def seven_direction_check():
     assert expected_fresh_trial_queries == Fraction(1040519433, 16777216)
     assert failure_probability == Fraction(9034517, 33554432)
     assert expected_restarted_queries == Fraction(2072004349, 24519915)
+    assert expected_face_tests_per_fresh_trial / (1 - failure_probability) == Fraction(32232190, 4903983)
+    assert Fraction(7, 1) / (1 - failure_probability) == Fraction(33554432, 3502845)
 
     failure_after_17 = failure_probability ** 17
     failure_after_18 = failure_probability ** 18
@@ -192,6 +194,8 @@ def six_direction_check():
     assert increments == [32, 16, 8, 4, 2, 1]
     assert len(queried_vertices) == 63
     assert expected_restarted_queries == Fraction(1706867, 19845)
+    assert expected_face_tests_per_fresh_trial / (1 - failure_probability) == Fraction(1257362, 205065)
+    assert Fraction(6, 1) / (1 - failure_probability) == Fraction(2097152, 205065)
 
     return {
         "rank5_probability": str(full_rank_probability),
@@ -247,7 +251,11 @@ def main():
                 / (1 - Fraction(seven["failure_probability_per_trial"]))
             )
         ),
-        "expected_face_test_increase_fraction": (
+        "injective_model_expected_face_test_increase_fraction": str(
+            Fraction(seven["expected_face_tests_across_restarts"])
+            / Fraction(six["expected_face_tests_across_restarts"]) - 1
+        ),
+        "expected_face_test_increase_float": (
             seven["expected_face_tests_across_restarts_float"]
             / six["expected_face_tests_across_restarts_float"] - 1
         ),
