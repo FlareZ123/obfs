@@ -11,6 +11,7 @@ import selectors
 import shutil
 import subprocess
 import sys
+import tempfile
 import time
 import urllib.error
 import urllib.request
@@ -58,16 +59,35 @@ def start_server(fixture, seed: int):
             + identity.stderr.strip()
         )
 
-    server_script = Path(__file__).with_name("agent2-hw-live-sco-server.js")
-    command = [sudo_path, "-n", "-u", "nobody", "--", node_path, str(server_script)]
-    process = subprocess.Popen(
-        command,
-        stdin=subprocess.PIPE,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        text=True,
-        bufsize=1,
-    )
+    # GitHub-hosted runners keep /home/runner/work non-traversable to
+    # unprivileged users. Mirror only the public compiler/runtime code into a
+    # world-readable temporary tree so uid nobody can load the server entry;
+    # the private application module remains in the server's 0700 temp root.
+    repository_root = Path(__file__).resolve().parents[1]
+    mirror_root = Path(tempfile.mkdtemp(prefix="obfs-agent2-live-server-"))
+    mirror_root.chmod(0o755)
+    process = None
+    try:
+        shutil.copytree(repository_root / "src", mirror_root / "src")
+        shutil.copytree(repository_root / "node_modules", mirror_root / "node_modules")
+        mirrored_sims = mirror_root / "sims"
+        mirrored_sims.mkdir()
+        shutil.copy2(
+            Path(__file__).with_name("agent2-hw-live-sco-server.js"),
+            mirrored_sims / "agent2-hw-live-sco-server.js",
+        )
+        server_script = mirrored_sims / "agent2-hw-live-sco-server.js"
+        command = [
+            sudo_path, "-n", "-u", "nobody", "--", node_path, str(server_script)
+        ]
+        process = subprocess.Popen(
+            command,
+            stdin=subprocess.PIPE,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            bufsize=1,
+        )
     machine = {
         "next": [list(row) for row in fixture.transitions],
         "output": [list(row) for row in fixture.outputs],
@@ -79,19 +99,19 @@ def start_server(fixture, seed: int):
         "canary": canary,
         "partition_seed": f"agent2-live-sco-{fixture.state_count}-{seed}",
     }
-    try:
-        process.stdin.write(json.dumps(payload, separators=(",", ":")) + "\n")
-        process.stdin.flush()
-        line = read_line_with_timeout(process.stdout, 30)
-    except Exception as error:
-        if process.poll() is None:
-            process.kill()
-        process.wait(timeout=10)
-        stderr = process.stderr.read() if process.stderr else ""
-        raise RuntimeError(
-            f"Node SCO server failed before readiness: {error}; "
-            f"stderr={stderr[-4000:]}"
-        ) from error
+        try:
+            process.stdin.write(json.dumps(payload, separators=(",", ":")) + "\n")
+            process.stdin.flush()
+            line = read_line_with_timeout(process.stdout, 30)
+        except Exception as error:
+            if process.poll() is None:
+                process.kill()
+            process.wait(timeout=10)
+            stderr = process.stderr.read() if process.stderr else ""
+            raise RuntimeError(
+                f"Node SCO server failed before readiness: {error}; "
+                f"stderr={stderr[-4000:]}"
+            ) from error
     if line.startswith("ERROR "):
         process.wait(timeout=10)
         stderr = process.stderr.read() if process.stderr else ""
@@ -111,11 +131,17 @@ def start_server(fixture, seed: int):
             + "\\n"
             + stderr[-4000:]
         )
-    ready = json.loads(line[6:])
-    if ready.get("partition_names") != ["step"]:
-        process.kill()
-        raise AssertionError(f"unexpected public SCO methods: {ready!r}")
-    return process, ready, canary
+        ready = json.loads(line[6:])
+        if ready.get("partition_names") != ["step"]:
+            raise AssertionError(f"unexpected public SCO methods: {ready!r}")
+        return process, ready, canary, mirror_root
+    except Exception:
+        if process is not None:
+            if process.poll() is None:
+                process.kill()
+            process.wait(timeout=10)
+        shutil.rmtree(mirror_root, ignore_errors=True)
+        raise
 
 
 def preflight(origin: str, public_path: str, rpc_path: str, canary: str):
@@ -224,10 +250,11 @@ def run_one(state_count: int, seed: int, args):
         seed * 0x9E3779B1 + state_count * 0x85EBCA77
     ) & 0xFFFFFFFF
     server_process = None
+    server_root = None
     server_stats = None
     server_stderr = ""
     try:
-        server_process, ready, canary = start_server(fixture, seed)
+        server_process, ready, canary, server_root = start_server(fixture, seed)
         preflight_result = preflight(
             ready["origin"],
             ready["public_module_path"],
@@ -382,6 +409,8 @@ def run_one(state_count: int, seed: int, args):
                 stop_server(server_process)
             except Exception:
                 pass
+        if server_root is not None:
+            shutil.rmtree(server_root, ignore_errors=True)
 
 
 def main():
