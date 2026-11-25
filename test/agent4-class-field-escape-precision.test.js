@@ -356,3 +356,20 @@ test('a captured mutable object property cannot publish a sibling field through 
     'a captured object property assigned the instance must preserve the sibling field escape');
   assert.equal(hidden.safe,false);
 });
+
+
+test('a captured accessor-backed holder cannot publish a sibling field through an identifier field function',()=>{
+  const source=
+    'let stored;'+
+    'const holder={get current(){return stored;},set current(value){stored=value;}};'+
+    'function hidden(){return 1;}'+
+    'function leak(){external(holder.current.callback);}'+
+    'class Local{callback=hidden;leak=leak;}'+
+    'function entry(){const instance=new Local();holder.current=instance;instance.leak();}'+
+    'module.exports=entry;';
+  const hidden=named(analyze(source),'hidden')[0];
+  assert.ok(hidden);
+  assert.equal(hidden.hostHeldCallable,true,
+    'an accessor-backed holder that returns the instance must preserve the sibling field escape');
+  assert.equal(hidden.safe,false);
+});
