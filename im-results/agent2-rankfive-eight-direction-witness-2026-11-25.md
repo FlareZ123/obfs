@@ -192,9 +192,9 @@ Using the same \(10^{-10}\) per-run witness-miss target:
 | Required fresh trials | 18 | 14 |
 | Witness-miss probability at cap | \(5.53084\times10^{-11}\) | \(3.64017\times10^{-11}\) |
 | Maximum witness query union | 1,657 | 1,709 |
-| Witness + 96 shift probes cap | 1,753 | 1,805 |
-| Verified fast-path cap incl. 726 verifier samples | 2,479 | 2,531 |
-| Signature-path cap incl. 992 probes + 726 verifier samples | 3,375 | 3,427 |
+| Unoptimized witness + 96 shift probes cap | 1,753 | 1,805 |
+| Unoptimized verified fast-path cap incl. 726 verifier samples | 2,479 | 2,531 |
+| Unoptimized signature-path cap incl. 992 probes + 726 verifier samples | 3,375 | 3,427 |
 | Uncached additive (Q+96+726) query upper bound | 906.502917 | 906.249220 |
 
 The eight-direction policy's expected total face evaluations over repeated trials are **6.825422**, versus **6.572655** for seven directions. Its expected direction-word count is **9.751633**, versus **9.579194**. Thus the candidate saves only about 0.254 expected distinct witness queries while using about 3.85% more expected face evaluations and having a 52-query higher fast-path cap. The witness-plus-shift caps (1,753 and 1,805) exclude verifier samples; the larger verified-path caps add the 726-sample verifier (or 992 signature probes plus 726 samples). The Q+96+726 row is an uncached additive upper bound, not an exact expected distinct-query count: shift and verifier points can overlap the query cache, which can only reduce the actual count.
@@ -202,6 +202,21 @@ The eight-direction policy's expected total face evaluations over repeated trial
 For a simple weighted sensitivity model J=Q+lambda*F, where F is expected total face evaluations and lambda is the cost of one face evaluation measured in oracle-query units, the m=8 candidate beats the m=7 baseline only when lambda<1.00368245. This is a break-even calculation, not a measured CPU/network cost conversion.
 
 For a simple weighted sensitivity model \(J=Q+\lambda F\), where \(F\) is expected total face evaluations and \(\lambda\) is the cost of one face evaluation measured in oracle-query units, the m=8 candidate beats the m=7 baseline only when \(\lambda<1.00368245\). This is a break-even calculation, not a measured CPU/network cost conversion. No CPU, wall-time, memory, initialization, or 2.5× runtime measurement was performed.
+
+## Post-witness anchor-basis probe reduction (not yet integrated)
+
+Agent 42 identified an additional coordinate-recovery optimization. A successful fifth-derivative witness \((a_1,\ldots,a_5)\) implies that \(P a_1,\ldots,P a_5\) form a basis of \(\mathbb F_2^5\); therefore the input vectors \(a_i\) are linearly independent and can be chosen as the first five vectors of the input basis. After changing output coordinates, \(P a_i=e_i\). In the projected-affine promise construction, the section can use \(s(e_i)=a_i\), so \(H(e_i)=F(a_i)\) and \(q(a_i)=e_i\). Hence the correction value \(C(a_i)=F(a_i)\oplus H(e_i)=0\) is already known from the witness queries.
+
+This can eliminate the three fixed-pair shift probes per anchor (15 total) and the 31 derivative-signature probes per anchor (155 total). The resulting **proposed** caps are:
+
+| Coordinate-recovery path | Seven directions | Eight directions |
+|---|---:|---:|
+| Promise-mode fixed-pair shift (witness + 81 probes) | 1,738 | 1,790 |
+| Promise-mode signature (witness + 837 probes) | 2,494 | 2,546 |
+| Verified shift (+726 verifier samples) | 2,464 | 2,516 |
+| Verified signature (+726 verifier samples) | 3,220 | 3,272 |
+
+These are algebraic cap reductions, not implemented measurements. The existing Agent 50 integration reports still use the unoptimized 96/992-probe caps until the anchor reuse is implemented and tested. Promise mode has no verifier samples; verified mode adds 726. The optimization is independent of the m=7 versus m=8 witness-query comparison.
 
 ## Search method and optimality boundary
 
@@ -219,7 +234,9 @@ The eight-direction candidate was found by a bounded simulated-annealing search 
 | 17 | 84.560930 |
 | 18 | 84.738884 |
 
-This is **not** an exhaustive search over the \(2^{56}\) face subsets or all ordered 14-face sequences. The candidate is exact once selected, but its optimality among eight-direction sequences, cutoffs, other direction counts, or alternative witness algorithms is unproved. The seven-direction result remains the exact optimum only within its previously specified seven-direction complete-face/restart family.
+A second set-level annealer evaluates every proposed 14-face set using the exact subset DP above, so each set is scored at its optimal ordering. One 500-move run seeded from the current candidate and a four-restart, 100-move run (one seeded, three random) found no lower-scoring set. The best observed set remained at Q8=84.24922026554036. This is limited local-search evidence, not a proof that no better face set exists.
+
+This is **not** an exhaustive search over the \(2^{56}\) face subsets or all ordered 14-face sequences. The candidate is exact once selected, and its ordering is optimal for its selected face set, but global optimality among eight-direction sequences, cutoffs, other direction counts, or alternative witness algorithms is unproved. The seven-direction result remains the exact optimum only within its previously specified seven-direction complete-face/restart family.
 
 ## Reproduction
 
