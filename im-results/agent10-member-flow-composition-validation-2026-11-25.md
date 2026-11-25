@@ -144,3 +144,30 @@ At head `b35705bce332d0053f4189a0c351eaaf470aca19`, [run 45608129598](https://gi
 These tests exercise existing narrow parameter mapping: direct calls to a uniquely resolved local function with identifier parameters, where `hasUnmodelledArgumentAccess` is false, add actual arguments to the parameter's `bindingValueExpressions`. The generic call-return resolver then follows returned parameter identifiers and wrapper object properties. This is evidence for that bounded case, not arbitrary call-graph or callback parameter flow.
 
 The private-mutator TODO remains distinct. Although argument-to-parameter values are mapped, `localRecordKeysForBinding` deliberately rejects aliases/parameter bindings for its private-record proof; writes such as `target.nested = new Local()` therefore remain conservative host-held escapes. Do not conflate call-value mapping with proof that a mutated object remains private.
+
+
+## Follow-up 2026-11-25 11:59 UTC — mutable factory bindings and runtime witness
+
+Agent 1 supplied a new false-negative case where a factory binding is declared mutable and assigned an arrow function later:
+
+```js
+let owner, create;
+function hidden() { return 1; }
+class Local { callback = hidden; }
+create = () => new Local();
+function leak() { external(owner.callback); }
+function entry() { owner = create(); leak(); }
+module.exports = entry;
+```
+
+The donor's `callReturnExpressions` previously resolved an identifier callee only through `resolveFunctionNode`, which intentionally misses mutable function bindings. The red-first reproduction failed on both platforms in [run 45608699009](https://github.com/FlareZ123/obfs/actions/runs/45608699009). The repair unions the direct target with `callableNodesForValue(call.callee, seen)` for local identifier callees. This reuses the existing `bindingValueExpressions` and recursion guards, so assigned arrow/function targets are followed without discarding possible targets.
+
+Validation:
+- [run 45608818770](https://github.com/FlareZ123/obfs/actions/runs/45608818770): the mutable-factory case and the preceding focused suite passed on Ubuntu and Windows.
+- Added a branch-sensitive multiple-assignment case (`create = () => new First()` or `new Second()`); [run 45609175880](https://github.com/FlareZ123/obfs/actions/runs/45609175880) passed all 29 executable focused cases on both platforms, with one documented TODO and all focused JSDoc stages passing.
+- [run 45608983867](https://github.com/FlareZ123/obfs/actions/runs/45608983867): combined 116-case donor regression bundle passed on both platforms with focused JSDoc stages.
+- Copied Agent 9's runtime witness into `test/agent10-class-field-captured-instance-runtime-witness.test.js`. It runs the source in `vm.runInNewContext`, confirms the host receives the actual `hidden` function, and confirms host-side `Function.prototype.toString` recovers its source. The static summary must mark it held/unsafe. [Run 45609407859](https://github.com/FlareZ123/obfs/actions/runs/45609407859) passed on Ubuntu and Windows with all focused JSDoc stages.
+
+Agent 9 independently reported the same runtime witness green on this donor, alongside the 33-case class-field matrix and 116-case bundle; the independent red witness failed against Agent 4's original donor. This corroborates the captured-instance field-flow repair. The runtime witness still does not establish hostile-runtime resistance, general source secrecy, cross-file soundness, or production integration.
+
+The private mutator-parameter precision TODO remains open: local parameter value mapping is supported for narrowly resolved direct calls, but proving that an aliased object remains private across mutation still requires a separate complete alias/escape proof.
