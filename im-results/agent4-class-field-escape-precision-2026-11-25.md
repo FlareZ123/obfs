@@ -79,3 +79,10 @@ The donor now scans deferred function/arrow field initializers and refuses defer
 **Current donor code head:** ca4e3c34451bc4ff01d5f6f6f0f9ab54c8f2e981
 
 A combined regression entry point, test/agent4-ambient-call-regression-bundle.test.js, now loads the local-record matrix, class-field matrix, existing Agent 4 ambient-throw/callable suite, and existing Agent 9 BindingId suite. Its Ubuntu/Windows validation is queued in [run 45583159063](https://github.com/FlareZ123/obfs/actions/runs/45583159063). Do not claim the combined regression bundle passed until its jobs complete.
+
+
+## Final combined donor validation (2026-11-25 09:14 UTC)
+
+The combined regression entry point, test/agent4-ambient-call-regression-bundle.test.js, passed on Ubuntu and Windows with all focused JSDoc stages in [run 45583159063](https://github.com/FlareZ123/obfs/actions/runs/45583159063). It loads both the local-record and class-field matrices plus the existing Agent 4 ambient-throw/callable and Agent 9 BindingId ambient-call suites. This supersedes the queued status stated above. The focused Node 22 job is skipped by the workflow design.
+
+The this-capturing field adversary was red in 45582098744 and green after the ThisExpression/Super guard in 45582981871. No production integration, full repository acceptance, cross-file flow, runtime budget, or 2.5x result is claimed.
