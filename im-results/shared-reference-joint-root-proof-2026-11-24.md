@@ -26,6 +26,8 @@ Both Ubuntu and Windows logs contain and pass the new controls:
 
 The workflow's cross-file differential/negative command passed **443/443** on both OS. The separate host-lock test command passed **38/38** on both OS.
 
+Compared with current main `51f98a6ee580ed62857ec3796da52c81205b0772`, this tested donor is **26 commits ahead / 121 behind**, with merge base `bd8ff7245b2bde60186927e0c5ae39ff82b0b8f1`. Only three files differ from that merge base: `src/cross-properties.js`, `src/properties.js`, and `test/cross-file-reader-flow.test.js`. The focused green therefore applies only to the older source-pinned tree.
+
 These are Node test results. They establish useful source-pinned behavioral evidence for the joint-root proof, but not browser parity or full release acceptance.
 
 ## Separate workflow failure
