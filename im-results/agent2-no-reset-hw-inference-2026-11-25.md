@@ -191,9 +191,9 @@ For local reproduction, install **aalpy==2.0.0** and **numpy==2.2.6**, and prefi
 
 ## Live authenticated HTTP SCO follow-up
 
-The no-reset learner was then moved out of the evaluator process and exercised against an actual local Node SCO handler. The Node server runs under the unprivileged `nobody` account; the Python learner is a separate subprocess and receives only the HTTP origin, public method identifier, and session cookie. The target transition/output table is supplied to the server over stdin and retained in its server-side module. The evaluator remains in the parent process and does not pass the target table to the learner.
+The no-reset learner was moved out of the evaluator process and exercised against an actual local Node SCO handler. The Node server runs under the unprivileged `nobody` account; the Python learner is a separate subprocess. The parent evaluator supplies the private transition/output table and per-run random session token to the server over stdin, but the learner receives only the HTTP origin. It fetches the public module itself and obtains both the RPC method identifier (`X-SCO-Method`) and the per-run session cookie (`Set-Cookie`) from the public HTTP response headers. The parent does not pass either value to the learner.
 
-The final eight-case live run used workflow **45624637784**, exact source head **ca2d86e9d8807c0954c992e860e5583ece612faa**, AALpy 2.0.0, random-walk length 30, 20 test origin states, target sizes 2–5, and two deterministic seeds per size.
+The final eight-case live run used workflow **45629276182**, exact source head **7511229e86c15f2944dbef0ff59ce6cc2824f5e8**, artifact ID **15029653538**, AALpy 2.0.0, random-walk length 30, 20 test origin states, target sizes 2–5, and two deterministic seeds per size.
 
 | Measure | Result |
 |---|---:|
@@ -204,14 +204,44 @@ The final eight-case live run used workflow **45624637784**, exact source head *
 | Ambiguous initial / future behavior | 0 / 0 |
 | False future convergence | 0 |
 | Public state-transition RPC calls | 7,091 |
-| Total HTTP requests | 7,115 |
-| Elapsed benchmark wall time | 5.067 s |
+| Total HTTP requests | 7,123 |
+| Elapsed benchmark wall time | 9.440 s |
 
-For each case the harness separately checked one public client-module GET, one unauthenticated RPC denial (403), and one absent reset route (404). Each state-transition step used one authenticated `POST /obfs/rpc`; the per-run accounting was `HTTP requests = SUL steps + 3` and `RPC requests = SUL steps + 1`. The public client module did not contain the fixture canary or the tested private-source identifiers (`privateTable`, `serverCanary`). These are finite marker checks, not a proof that arbitrary source or all semantic information is undiscoverable.
+Each case used two client-module GETs (one parent-side source preflight and one learner-side fetch), one unauthenticated RPC denial (403), one absent reset route check (404), and one authenticated `POST /obfs/rpc` per state-transition step. Thus `HTTP requests = SUL steps + 4` and `RPC requests = SUL steps + 1`. The learner-side request observed the random session cookie and public method identifier in response headers; the workflow verified both matched the server's values. The session token was not present in the public module body. The public module also did not contain the fixture canary or tested private-source identifiers (`privateTable`, `serverCanary`). These are finite marker checks, not a proof that arbitrary source or all semantic information is undiscoverable.
 
-The live harness and artifact are **sims/agent2-hw-live-sco-server.js**, **sims/agent2-hw-live-sco-client.py**, **sims/agent2-hw-live-sco-benchmark.py**, and workflow **.github/workflows/manual-agent2-hw-live-sco.yml**; artifact ID **15026098578**. The server's public compiler/runtime tree is mirrored to a world-readable temporary directory so the unprivileged process can load it despite the runner's private checkout path. The private application module remains in a separate server-created temporary directory. The learner cannot call a reset or membership-query API; its SUL enforces one `pre()`, one no-op `post()`, and zero `query()` calls.
+The earlier 8-case run **45624637784** (7,115 HTTP requests) is superseded: that first version passed a fixed cookie and method identifier from the evaluator to the learner. The current run removes that side channel by making the learner discover both values through public HTTP response headers.
 
-This is a stronger process/transport boundary than the in-process SUL, but it remains a small synthetic binary Mealy-machine test. It does not establish WAN/TLS behavior, concurrency, a matched ordinary-HTTP comparison, arbitrary JavaScript/EFSM learnability, complete source confidentiality, or the obfuscator's 2.5× compute budget. The exact evaluator certifies only trace-matching states inside the returned conjecture, not every possible machine consistent with the observed trace; the attacker's randomized hW equivalence oracle remains heuristic.
+The live harness is **sims/agent2-hw-live-sco-server.js**, **sims/agent2-hw-live-sco-client.py**, **sims/agent2-hw-live-sco-benchmark.py**, and workflow **.github/workflows/manual-agent2-hw-live-sco.yml**. The server's public compiler/runtime tree is mirrored to a world-readable temporary directory so uid `nobody` can load it despite the runner's private checkout path. The private application module remains in a separate server-created temporary directory. The learner cannot call a reset or membership-query API; its SUL enforces one `pre()`, one no-op `post()`, and zero `query()` calls.
+
+This is a process/transport experiment, not a full browser execution test: the learner fetches and inspects the public module but calls the public RPC protocol directly rather than executing the generated JavaScript module. It remains a small synthetic binary Mealy-machine test. It does not establish WAN/TLS behavior, concurrency, a matched ordinary-HTTP comparison, arbitrary JavaScript/EFSM learnability, complete source confidentiality, or the obfuscator's 2.5× compute budget. The exact evaluator certifies only trace-matching states inside the returned conjecture, not every possible machine consistent with the observed trace; the attacker's randomized hW equivalence oracle remains heuristic.
+
+## Equivalence-oracle budget sensitivity
+
+A deterministic 22-case sensitivity sweep (two fixture seeds at each target size 2–12) varied `RandomWphWOracle` parameters while holding the fixture family and per-case RNG seeds fixed. The oracle is heuristic: each equivalence check chooses random hypothesis origin states, reaches them by shortest paths, probes a random characterization suffix, and then performs a bounded random walk. See the pinned AALpy implementation at [resetless_oracles.py](https://github.com/DES-Lab/AALpy/blob/38ea38c47cff8fd6cd1f03f3c3c8b77ffaed3316/aalpy/learning_algs/resetless/resetless_oracles.py).
+
+| Random walk length | Origin states | Completed | Errors | Future-certified | False future convergence | Total SUL steps |
+|---:|---:|---:|---:|---:|---:|---:|
+| 1 | 1 | 5/22 | 17 | 4/5 | **1** | 3,245 |
+| 5 | 1 | 16/22 | 6 | 13/16 | **3** | 9,630 |
+| 30 | 1 | 22/22 | 0 | 21/22 | **1** | 10,421 |
+| 30 | 5 | 22/22 | 0 | 22/22 | **0** | 14,663 |
+| 30 | 20 | 22/22 | 0 | 22/22 | **0** | 26,145 |
+
+Run/artifact pairs: 1/1 **45625611512 / 15028762156**; 5/1 **45625631875 / 15027613788**; 30/1 **45625640298 / 15026404334**; 30/5 **45625648287 / 15028653154**; baseline 30/20 **45623386394 / 15027470646**.
+
+The most important observation is not merely a lower exact-clone rate: weak oracle settings produced **complete hypotheses with exactly one trace-consistent initial candidate that were nevertheless behaviorally wrong**. For 30/1, target size 8 / seed 0 returned a complete 6-state hypothesis with one candidate and a shortest post-trace future counterexample of `00` (300 total SUL steps, only 40 oracle steps). For 5/1, three false futures occurred at sizes 6, 7, and 8 (future counterexamples `000`, `0`, and `00`). For 1/1, size 6 / seed 0 had future counterexample `00`.
+
+The 1/1 and 5/1 error rows all failed during hW bootstrap with `TypeError: 'NoneType' object is not subscriptable` after 3 or 7 SUL steps. The resetless oracle had returned no counterexample to the initial one-state daisy hypothesis, but AALpy's hW bootstrap then indexed `counter_example[-1]` without handling `None`; see [hW.py](https://github.com/DES-Lab/AALpy/blob/0f0e6042ed93533691a5461fb71a9956cf7d81f0/aalpy/learning_algs/resetless/hW.py). These are bootstrap-contract failures, not certified clones or target-machine errors.
+
+Within this small sample, increasing origin coverage from one to five removed the observed false future convergences at walk length 30 while using 14,663 rather than 26,145 total SUL steps. This is a promising query-cost tradeoff, not a proven threshold: only 22 cases per configuration were tested. A single origin is demonstrably unsafe as a certification policy for this fixture family.
+
+## Delayed-distinguishability fixture
+
+A second fixture family was added to make state-pair distinguishability explicit. Its input-0 transition is an n-cycle; input 1 swaps states 0 and 1; only state 1 emits output 1 on input 0. The generator verifies strong connectivity and minimality, and an exact reverse-BFS over the unordered product-state graph reports the maximum shortest distinguishing input-word length.
+
+For 40 states there are 780 distinguishable pairs and the maximum shortest distinguishing word is **39** symbols, exceeding the 30-symbol random walk. Workflow **45628124674** nevertheless learned the target exactly in its single run: 40-state hypothesis, one trace-consistent initial candidate, exact initial and future certification, no ambiguity, **44,201** total SUL steps (1,423 oracle and 42,778 non-oracle), a 52-symbol homing sequence, and 0.084 seconds of benchmark wall time. This shows that the tested hW configuration can overcome this particular delayed-pair construction; it is one fixture/seed, not a general hardness result. The new fixture generator and regression test are in **sims/agent2-hw-no-reset-benchmark.py** and **sims/test_agent2_hw_no_reset_evaluator.py**; the manual workflow accepts `fixture_family=delayed-pair`.
+
+The same construction at 64 states has 2,016 distinguishable pairs and maximum shortest distinguishing word **63**. Workflow **45629294451**, artifact **15028893186**, learned it exactly with a 64-state hypothesis, one trace-consistent initial candidate, no ambiguity or false convergence, **62,274** SUL steps (2,035 oracle and 60,239 non-oracle), a 72-symbol homing sequence, five learning rounds, and 0.12 seconds of benchmark wall time. This is still one seed per size; it establishes that this specific delayed-pair family is not a blocker for the tested hW configuration at 64 states, not a general scalability bound.
 
 ## Limitations and interpretation
 
