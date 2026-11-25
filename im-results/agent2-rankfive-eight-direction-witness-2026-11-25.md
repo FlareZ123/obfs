@@ -115,7 +115,7 @@ The integer DP recurrence is
 \right).
 \]
 
-It evaluates exactly **114,688 transitions**. For both the representative sequence above and the coordinate-permutation-equivalent C++ annealer sequence, the annealed order is returned as the exact optimum for that selected face set. The exact numerator for \(E_8\) is 7,228,875,609,622,710 over denominator 104,319,386,910,720; the final failure numerator is 18,738,330,415,695 over the same denominator.
+It evaluates exactly **114,688 transitions** for m=8. The checker also runs the corresponding m=7 DP over 1,024 states and 5,120 transitions. It counts **28,800 optimal m=7 orders** and **138,240 optimal m=8 orders**; thus the reported sequences are optimal for their respective fixed face sets but are not unique. For both m=8 representatives, the annealed order is one of the exact optima. The exact numerator for E_8 is 7,228,875,609,622,710 over denominator 104,319,386,910,720; the final failure numerator is 18,738,330,415,695 over the same denominator.
 
 This proves optimal ordering **within each selected 14-face set**. It does not prove that the selected face set is globally optimal among all \(\binom{56}{14}\) sets, nor that 14 is the globally optimal cutoff.
 
@@ -216,7 +216,9 @@ This can eliminate the three fixed-pair shift probes per anchor (15 total) and t
 | Verified shift (+726 verifier samples) | 2,464 | 2,516 |
 | Verified signature (+726 verifier samples) | 3,220 | 3,272 |
 
-These are algebraic cap reductions, not implemented measurements. The existing Agent 50 integration reports still use the unoptimized 96/992-probe caps until the anchor reuse is implemented and tested. Promise mode has no verifier samples; verified mode adds 726. With the 81-probe shift path, the uncached additive upper bound Q+81+726 is 891.502917 for m=7 and 891.249220 for m=8; cache overlaps can only lower the actual distinct-query count. The optimization is independent of the m=7 versus m=8 witness-query comparison.
+To preserve the current model format (arrays indexed by standard input bits), an implementation can extend the five anchors to a full input basis B, measure quotient coordinates and affine corrections only on the remaining 27 basis vectors, invert B over GF(2), and derive each standard-basis entry by linear combination. This changes no oracle semantics and needs no extra probes; it is a required basis-transform step rather than simply skipping five loop iterations.
+
+These are algebraic cap reductions, not implemented measurements. The existing Agent 50 integration reports still use the unoptimized 96/992-probe caps until the anchor reuse and basis transform are implemented and tested. Promise mode has no verifier samples; verified mode adds 726. With the 81-probe shift path, the uncached additive upper bound Q+81+726 is 891.502917 for m=7 and 891.249220 for m=8; cache overlaps can only lower the actual distinct-query count. The optimization is independent of the m=7 versus m=8 witness-query comparison.
 
 ## Search method and optimality boundary
 
