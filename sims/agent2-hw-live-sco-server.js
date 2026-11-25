@@ -35,7 +35,7 @@ const stats = {
  * Start one generated server-controlled step-only Mealy service.
  * The private machine is supplied over stdin and remains in this process.
  * @param {{machine:{next:number[][],output:number[][],initial_state:number},
- *   canary:string,partition_seed:string}} payload
+ *   canary:string,partition_seed:string,session_token:string}} payload
  */
 async function start(payload) {
   const machine = payload.machine;
@@ -99,7 +99,7 @@ async function start(payload) {
     }
     if (pathname === '/obfs/rpc') {
       stats.rpc_requests += 1;
-      if (request.headers.cookie === 'session=approved') {
+      if (request.headers.cookie === sessionCookie) {
         stats.authorized_rpc_requests += 1;
       } else {
         stats.unauthorized_rpc_requests += 1;
