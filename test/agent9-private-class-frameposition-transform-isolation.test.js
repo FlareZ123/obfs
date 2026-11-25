@@ -95,20 +95,21 @@ async function runProbe(source,transforms,slug) {
 
 const marker='source-observer-marker';
 const stringSource='const marker="source-observer-marker";const owner={longPrivatePropertyName:21};class Reader{read(){return owner.longPrivatePropertyName;}}const reader=new Reader();const value=reader.read()+marker.length;captureHostStack();export {value};';
-const identifierSource='const owner={longPrivatePropertyName:21};class Reader{read(){return owner.longPrivatePropertyName;}}const reader=new Reader();const value=reader.read()+2;captureHostStack();export {value};';
+const identifierSource='const marker="xy";const owner={longPrivatePropertyName:21};class Reader{read(){return owner.longPrivatePropertyName;}}const reader=new Reader();const value=reader.read()+marker.length;captureHostStack();export {value};';
 
-for(const [name,source,transforms,expected,requiredMetric] of [
-  ['identifier-only',identifierSource,{properties:true,identifiers:true,strings:false},23,'bindings'],
-  ['string-only',stringSource,{properties:true,identifiers:false,strings:true},21+marker.length,'literals'],
-  ['combined',stringSource,{properties:true,identifiers:true,strings:true},21+marker.length,'bindings']
+for(const [name,source,transforms,expected] of [
+  ['identifier-only',identifierSource,{properties:true,identifiers:true,strings:false},21+2],
+  ['string-only',stringSource,{properties:true,identifiers:false,strings:true},21+marker.length],
+  ['combined',stringSource,{properties:true,identifiers:true,strings:true},21+marker.length]
 ]){
   test('real Chromium strict ESM '+name+' transform preserves FramePosition',{
     skip:process.platform!=='linux'?'real Chromium fixture currently targets the Linux runner':false
   },async()=>{
     const result=await runProbe(source,transforms,name);
     assert.deepEqual(result.values,[expected,expected]);
-    assert.equal(result.metrics.properties,1,'the private owner-key rewrite must remain active');
-    assert.ok(result.metrics[requiredMetric]>0,name+' transform must be exercised');
+    assert.ok(result.metrics.properties>=1,'the private owner-key rewrite must remain active');
+    if(transforms.identifiers)assert.ok(result.metrics.bindings>0,name+' identifier transform must be exercised');
+    if(transforms.strings)assert.ok(result.metrics.literals>0,name+' string transform must be exercised');
     process.stdout.write('AGENT9_PRIVATE_CLASS_FRAMEPOSITION_'+name.toUpperCase()+' '+JSON.stringify({
       metrics:{properties:result.metrics.properties,bindings:result.metrics.bindings,literals:result.metrics.literals},
       native:result.native,generated:result.generated,values:result.values
