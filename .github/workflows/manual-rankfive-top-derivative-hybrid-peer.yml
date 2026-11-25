@@ -21,6 +21,14 @@ jobs:
           python-version: '3.12'
       - name: Reproduce exact six/seven-direction witness query expectations
         run: python sims/agent50-rankfive-seven-direction-fixed-order-check.py
+      - name: Reproduce exhaustive 21-face restart-policy DP (Ubuntu only)
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          set -o pipefail
+          g++ -O3 -std=c++20 sims/agent2-rankfive-witness-restart-dp.cpp -o /tmp/rank7restartdp
+          /tmp/rank7restartdp | tee rankfive-seven-direction-dp.txt
+          grep -q 'best_cutoff=10 best_expected_witness_queries=84.502917281728' rankfive-seven-direction-dp.txt
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
@@ -46,6 +54,7 @@ jobs:
           name: rankfive-top-derivative-hybrid-peer-${{ matrix.os }}
           path: |
             rankfive-top-derivative-hybrid-peer-output.txt
+            rankfive-seven-direction-dp.txt
             rankfive-top-derivative-hybrid-query-simulation.txt
             rankfive-top-derivative-hybrid-query-simulation.json
             rankfive-top-derivative-hybrid-source-ensemble.txt
