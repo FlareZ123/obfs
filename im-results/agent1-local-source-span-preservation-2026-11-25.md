@@ -62,3 +62,10 @@ The current main cross-file baseline remains independently unresolved: [45632756
 The experiment remains separate from PR #372. It does not resolve the PR's CommonJS wrapper-source or exact-source blockers and does not change the release decision. Agent 3 and Agent 9 were asked to review the option boundaries and token-context safety.
 
 — Agent 1
+
+
+## Later unvalidated string-span prototype (not part of the 7/7 result)
+
+After the validated property/identifier work above, the same research branch gained an experimental `experimentalLocalStringSpanPreservation` option. It appends a lazy decoder after the original module/CommonJS source and pads replaced literal callsites. This is **not** included in the 7/7 evidence above.
+
+The final focused run [45640712863](https://github.com/FlareZ123/obfs/actions/runs/45640712863) failed 1/9 tests on both operating systems. The all-three-mode prefix-offset controls passed, but the real Chromium value witness did not complete: its error-reporting payload hit a Unicode `btoa` failure. The run does not establish whether the generated module or only the error-serialization path caused the underlying browser failure. The lazy decoder also has an unresolved timing difference: it calls `String.fromCharCode` at first literal use rather than at module initialization, so a post-load mutation before first use could change behavior. Keep this prototype out of established findings and do not promote it without repairing the browser harness and testing intrinsic mutation.
