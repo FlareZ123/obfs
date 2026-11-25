@@ -40,6 +40,8 @@ The repeated-trial objective accounts for the zero vertex being cached across tr
 
 The six-direction full-face policy has injective-model repeated-trial expectation `1,706,867 / 19,845 = 86.00992693373645` under the same injective-subset-sum model. The specified seven-direction order therefore saves 1.50700965200852 expected witness queries in that model. This is a modest, narrow query-count improvement.
 
+The exhaustive cutoff sweep over all 21 possible face counts selects k=10. The closest neighboring cutoffs are k=9 at 84.694318982044 and k=11 at 84.776281468001 in the injective query-cost model; the ten-face optimum is lower by 0.191401700316 and 0.273364186273 respectively.
+
 For unconditional uniform 32-bit direction draws, a linear dependence among seven directions has probability `1 - product_{i=0..6}(1 - 2^(i-32)) = 2.9569491454884723e-8`. Such dependencies can only merge subset-sum points, so the DP values remain unconditional upper bounds on query cost. A crude bound on the seven-direction expectation correction is `18 * 93 * 2.9569492e-8 < 4.95e-5` queries; the six-direction analogue is `< 2.50e-5`. The correction is far smaller than the 1.507-query gap and cannot affect the stated worst-case caps, which also remain upper bounds.
 
 At delta = 1e-10, 18 seven-direction trials are required: `f^18 = 5.5308370176e-11`, while 17 trials do not meet the target. For n=32:
