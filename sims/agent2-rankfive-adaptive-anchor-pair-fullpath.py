@@ -125,7 +125,7 @@ def exact_order_dp(model, face_set, m: int, extra_count: int, kmax: int):
     states = 1 << face_count
     kernel_count = len(model["kernels"])
     all_kernels = (1 << kernel_count) - 1
-    p_rank5 = model["p"]
+    p_rank5 = model["rank_probability"]
 
     remaining = [0] * states
     covered = [0] * states
@@ -247,7 +247,7 @@ def face_data_for_order(model, order):
 def expected_coordinate(model, order, m: int, extra_count: int, kmax: int):
     face_data, final_remaining = face_data_for_order(model, order)
     kernel_count = len(model["kernels"])
-    miss = 1 - model["p"] + model["p"] * Fraction(final_remaining, kernel_count)
+    miss = 1 - model["rank_probability"] + model["rank_probability"] * Fraction(final_remaining, kernel_count)
     expected = Fraction(0)
     by_failed_trials = {}
     for failed_trials in range(kmax + 1):
@@ -553,20 +553,21 @@ def main():
         expected_faces = Fraction(0)
         for face in result["order"]:
             face_index = model["faces"].index(face)
-            reach = 1 - model["p"] + model["p"] * Fraction(remaining.bit_count(), len(model["kernels"]))
+            reach = 1 - model["rank_probability"] + model["rank_probability"] * Fraction(remaining.bit_count(), len(model["kernels"]))
             expected_faces += reach
             remaining &= model["fail_masks"][face_index]
-        miss_check = 1 - model["p"] + model["p"] * Fraction(remaining.bit_count(), len(model["kernels"]))
+        miss_check = 1 - model["rank_probability"] + model["rank_probability"] * Fraction(remaining.bit_count(), len(model["kernels"]))
         # Expected witness query count is obtained from the checker evaluator.
         eval_metrics = checker.evaluate(model, [
             model["faces"].index(face) for face in result["order"]
         ])
-        if eval_metrics["Q"] + coordinate != result["total"]:
+        witness_queries = eval_metrics["expected_repeated_trial_queries"]
+        if witness_queries + coordinate != result["total"]:
             raise AssertionError("order-DP total does not match direct expectation")
         return {
-            "witness_queries": float(eval_metrics["Q"]),
+            "witness_queries": float(witness_queries),
             "coordinate_queries": float(coordinate),
-            "total_queries": float(eval_metrics["Q"] + coordinate),
+            "total_queries": float(witness_queries + coordinate),
             "miss_probability": float(miss_check),
             "expected_face_evaluations": float(expected_faces / (1 - miss_check)),
             "expected_direction_words": float(m / (1 - miss_check)),
