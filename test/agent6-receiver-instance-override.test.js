@@ -191,3 +191,32 @@ test('an exported unbound function does not inherit an unrelated local receiver'
     'module.exports=outer;';
   assert.equal(hiddenSummary(source).hostHeldCallable,false);
 });
+
+
+test('a constructor callable write is not a host escape while its instance stays local',()=>{
+  const source=
+    'function hidden(){return 1;}'+
+    'class Local{constructor(){this.callback=hidden;}}'+
+    'const instance=new Local();instance.callback();';
+  execute(source);
+  assert.equal(hiddenSummary(source).hostHeldCallable,false);
+});
+
+test('a later primitive constructor write cancels an earlier callable own value',()=>{
+  const source=
+    'function hidden(){return 1;}'+
+    'class Local{constructor(){this.callback=hidden;this.callback=1;}}'+
+    'const instance=new Local();external(instance.callback);';
+  const [actual]=execute(source);
+  assert.equal(actual,1);
+  assert.equal(hiddenSummary(source).hostHeldCallable,false);
+});
+
+test('an escaping instance publishes its final constructor callable property',()=>{
+  const source=
+    'function hidden(){return 1;}'+
+    'class Local{constructor(){this.callback=hidden;}}'+
+    'const instance=new Local();external(instance);';
+  execute(source);
+  assert.equal(hiddenSummary(source).hostHeldCallable,true);
+});
