@@ -41,6 +41,16 @@ on:
         required: false
         default: 20
         type: number
+      version_space_max_cases:
+        description: "Maximum prioritized traces for exact version-space audit"
+        required: false
+        default: 10
+        type: number
+      version_space_timeout_ms:
+        description: "Per-candidate-state Z3 timeout in milliseconds"
+        required: false
+        default: 15000
+        type: number
 
 permissions:
   contents: read
@@ -71,6 +81,8 @@ jobs:
           RANDOM_WALK_LENGTH: ${{ inputs.random_walk_length || 30 }}
           ORIGIN_STATES: ${{ inputs.origin_states || 20 }}
           FIXTURE_FAMILY: ${{ inputs.fixture_family || 'random' }}
+          VERSION_SPACE_MAX_CASES: ${{ inputs.version_space_max_cases || 10 }}
+          VERSION_SPACE_TIMEOUT_MS: ${{ inputs.version_space_timeout_ms || 15000 }}
         run: |
           python sims/agent2-hw-no-reset-benchmark.py \
             --min-states "$MIN_STATES" --max-states "$MAX_STATES" --seeds "$SEEDS" \
@@ -82,7 +94,7 @@ jobs:
           python sims/agent2-hw-version-space-audit.py \
             --input hw-no-reset-results.json \
             --output hw-version-space-audit.json \
-            --max-cases 10 --timeout-ms 15000
+            --max-cases "$VERSION_SPACE_MAX_CASES" --timeout-ms "$VERSION_SPACE_TIMEOUT_MS"
           python - <<'PY'
           import json
           import os
@@ -130,6 +142,8 @@ jobs:
               "timeout_seconds": int(os.environ["TIMEOUT_SECONDS"]),
               "random_walk_length": int(os.environ["RANDOM_WALK_LENGTH"]),
               "origin_states": int(os.environ["ORIGIN_STATES"]),
+              "version_space_max_cases": int(os.environ["VERSION_SPACE_MAX_CASES"]),
+              "version_space_timeout_ms": int(os.environ["VERSION_SPACE_TIMEOUT_MS"]),
               "completed": result["completed_runs"],
               "timeouts": result["timeouts"],
               "errors": result["errors"],
