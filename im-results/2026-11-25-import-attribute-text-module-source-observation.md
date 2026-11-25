@@ -8,22 +8,22 @@ The cross-file default-export object proof originally treated a default import a
 
 That is unsound for modern browsers. A request such as:
 
-\`\`\`js
+~~~js
 import source from "./state.mjs" with { type: "text" };
-\`\`\`
+~~~
 
 loads the response as a text module whose default export is the UTF-8 source string. It is not the JavaScript module's default object, even though the URL pathname is the same. A source transform can also change the bytes observed by this text module.
 
 ## Minimal differential
 
-\`\`\`js
+~~~js
 // state.mjs
 export default { length: 23 };
 
 // entry.mjs
 import source from "./state.mjs" with { type: "text" };
 export const value = source.length ?? -1;
-\`\`\`
+~~~
 
 Before the fix, the compiler's default-object proof renamed length in the producer and the consumer. Chromium then returned 27 for the original source-string length and -1 for the emitted program.
 
@@ -36,7 +36,8 @@ A second fixture disables property rewriting and enables identifier rewriting in
 - Candidate fix branch: agent7/import-attribute-text-default-owner-20261125.
 - Candidate focused Node regression run: https://github.com/FlareZ123/obfs/actions/runs/45661160566, passed.
 - Candidate focused real-Chromium run: https://github.com/FlareZ123/obfs/actions/runs/45661176448, passed, including static and dynamic text imports and an identifier-rewrite source-observation fixture.
-- Full manual-validation run: https://github.com/FlareZ123/obfs/actions/runs/45661636541, in progress when this note was written.
+- Full manual-validation run: https://github.com/FlareZ123/obfs/actions/runs/45661636541, completed with 12 behavioral-suite failures; all typechecks, benchmark checks, and the dedicated 9-case Chromium differential passed. Ten source-observer failures overlap the earlier main baseline; two SCO/private-session failures differ by snapshot. This run also included an extra browser wrapper inside the parallel Node test suite, so it is not treated as final validation.
+- Latest full manual-validation run after removing that wrapper and adding a text re-export fixture: https://github.com/FlareZ123/obfs/actions/runs/45664437737, in progress when this note was last updated.
 
 ## Candidate fix
 
@@ -50,6 +51,7 @@ Tests cover:
 - direct cross-file proof refusal;
 - host-lock refusal;
 - dynamic import attributes;
+- text re-exports;
 - actual browser parity for source length and identifier rewrites.
 
 ## Scope and remaining questions
