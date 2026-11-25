@@ -260,18 +260,20 @@ test('an exported ESM expression-bodied factory cannot hide its returned class-f
 });
 
 
-test('a classic-script global expression-bodied factory cannot hide its returned field callable',()=>{
+test('a classic-script global factory produced by an IIFE cannot hide its returned field callable',()=>{
   const source=
-    'function hidden(){return 1;}'+
-    'class Local{callback=hidden;}'+
-    'var create=()=>new Local();';
+    'var create=(()=>{'+
+      'function hidden(){return 1;}'+
+      'class Local{callback=hidden;}'+
+      'return ()=>new Local();'+
+    '})();';
   const result=summarizeAmbientCallEffects(parse(source,'script'),'script');
   const hidden=named(result,'hidden')[0];
   assert.ok(hidden,'the hidden function must have an analysis summary');
   assert.equal(hidden.safe,false,
-    'a classic-script global factory can be invoked by the host and expose its returned field');
+    'a global factory value produced by an IIFE can be invoked by the host and expose its returned field');
   assert.equal(hidden.hostHeldCallable,true,
-    'callable values returned by global script functions must be held');
+    'callable values returned by script-global binding initializers must be held');
 });
 
 test('a host-global expression-bodied factory cannot hide its returned field callable',()=>{
