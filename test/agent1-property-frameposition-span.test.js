@@ -372,7 +372,7 @@ test('real Chromium strict ESM lazy string-span decoding preserves later FramePo
 });
 
 test('experimental lazy string-span mode preserves source prefix in all three modes',()=>{
-  const stringSource="'use strict';const value='abcd';captureHostStack();export {value};";
+  const stringSource="'use strict';const value='This string is long enough to fit the generated decoder call';captureHostStack();export {value};";
   for(const mode of /** @type {Array<'coo'|'sco'|'sno'>} */(['coo','sco','sno'])) {
     const span=obfuscateFiles([{
       path:'string-'+mode+'.mjs',sourceType:'module',code:stringSource
