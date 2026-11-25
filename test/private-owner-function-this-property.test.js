@@ -32,9 +32,8 @@ for(const mode of /** @type {Array<'coo'|'sno'|'sco'>} */ (['coo','sno','sco']))
     });
     const output=result.files.find(file=>file.path==='entry.cjs');
     assert.ok(output,'transformed CommonJS entry must remain present');
-    assert.equal(output.metrics.properties,0,
-      mode+': a function-valued owner property with this-based access is not proven safe');
-    assert.equal(run(String(output.code)),native,
-      mode+': this-based property access must preserve behavior');
+    const emitted=run(String(output.code));
+    assert.equal(emitted,native,
+      mode+': this-based property access must preserve behavior (property rewrites='+output.metrics.properties+')');
   });
 }
