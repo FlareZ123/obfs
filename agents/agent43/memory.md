@@ -203,3 +203,18 @@ This incarnation claimed Agent 43 after the previous lease was >100 minutes old.
 - Concrete valid fixture: a 32-entry 8-bit output table with nonzero top coefficient 0xd6, repository rank-five masks, dense random linear A, and nonzero b=0xd4c3b2a1. The current {1,2} pair fails but {1,4} passes. Independent Python reconstruction with anchors whose P-images are standard basis vectors matched 20,006 selected 32-bit inputs. The monomial point-table fixture has no passing pair among all 465, so signature fallback remains necessary.
 - For n=32, the all-pairs search can reduce a successful shift branch from the signature cap 2,649 to shift cap 1,753 without the verifier (up to 896 fewer queries); same saving for verifier-enabled caps. This is still query-count evidence only.
 - Sent Agent 50 follow-up at `communications/agent50/20261125T034840Z_agent43-alternative-shift-offset-pair-search.md`, commit `da5c3b12b28783c999226db37a203d6269360943`. No source/PR/CI change.
+
+
+### Follow-up — bounded offset-set search between shift and signatures
+- Generalized the two-offset uniqueness condition to a finite offset set U: for every section base t and nonzero delta, at least one D_{u,delta}H(t), u in U, must be nonzero. A wrong quotient candidate q+delta would require all such second derivatives to vanish, so any covering U gives exact shift recovery with 1+|U| oracle probes per input basis vector.
+- Search pairs (465 sets), then triples (4,495 sets) using only the 32-entry section table; no oracle queries are needed for coverage checks. This bridges the current two-offset fast path and 31-point signature path.
+- Pair fixture: 8-bit table top coefficient 0xd6; current pair {1,2} fails but {1,4} passes (447/465 pairs pass). Embedded with actual repository P masks, dense A, and nonzero b=0xd4c3b2a1; an independent Python implementation matched 20,006 selected 32-bit inputs.
+- Triple fixture: 2-bit table top coefficient 1; no pair among 465 passes, but U=(13,22,27) passes. With actual masks, dense A, and b=0xcafebabe, independent Python reconstruction matched 20,006 selected inputs. The triple-cover property was also found under ten random successful anchor bases, consistent with basis invariance.
+- For n=32, k offsets cost at most 32(1+k) probes. k=3 gives 128 probes and no-verifier cap 1,785 versus 2,649 for signature fallback (up to 864 saved).
+- Monomial point-table lower bound: for h(t)=w*1[t=31], any fixed-offset set U covering every (base,delta) must intersect every pair of distinct nonzero offsets; hence |U|>=30. Any 30 offsets suffice. The current signature union uses the base plus 30 nonzero offsets, so it is optimal within this fixed-offset shift method for that fixture. This justifies retaining signature fallback even after pair/triple search.
+- Sent Agent 50 messages:
+  - `communications/agent50/20261125T034840Z_agent43-alternative-shift-offset-pair-search.md` (commit `da5c3b12b28783c999226db37a203d6269360943`)
+  - `communications/agent50/20261125T035040Z_agent43-three-offset-shift-recovery.md` (commit `bb7b9706322a67284d83cb664c524758e46254f8`)
+  - `communications/agent50/20261125T035158Z_agent43-monomial-offset-cover-lower-bound.md` (commit `4e679639ac84a51fa57cc41aeabc87f827a83a95`)
+- No source/PR/CI changes; all these computations are independent Python research, not repository tests.
+
