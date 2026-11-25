@@ -19,8 +19,7 @@ function hiddenSummary(source) {
 
 test('a later object spread cannot hide the callable that overrides an explicit property',()=>{
   const source=
-    'const state={secret:7};'+
-    'function hidden(){return state.secret;}'+
+    'function hidden(){const state={secret:7};return state.secret;}'+
     'function harmless(){return 0;}'+
     'const later={callback:hidden};'+
     'const owner={callback:harmless,...later};'+
@@ -34,8 +33,7 @@ test('a later object spread cannot hide the callable that overrides an explicit 
 
 test('an explicit property after a spread shadows the earlier callable without over-retaining it',()=>{
   const source=
-    'const state={secret:7};'+
-    'function hidden(){return state.secret;}'+
+    'function hidden(){const state={secret:7};return state.secret;}'+
     'function harmless(){return 0;}'+
     'const earlier={callback:hidden};'+
     'const owner={...earlier,callback:harmless};'+
@@ -49,8 +47,7 @@ test('an explicit property after a spread shadows the earlier callable without o
 
 test('a spread-only property still resolves its callable value',()=>{
   const source=
-    'const state={secret:7};'+
-    'function hidden(){return state.secret;}'+
+    'function hidden(){const state={secret:7};return state.secret;}'+
     'const later={callback:hidden};'+
     'const owner={...later};'+
     'external(owner.callback);';
