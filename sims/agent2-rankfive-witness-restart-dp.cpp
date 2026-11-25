@@ -139,10 +139,10 @@ int main() {
 
   // For a sequence with per-trial expected cost E and failure probability f,
   // repeated trials with a globally cached zero input cost
-  // Q=(E-f)/(1-f). For a trial sequence, minimizing Q is fractional
-  // optimization. Dinkelbach iterates lambda -> Q(sequence minimizing E+lambda*f).
+  // Q=(E-f)/(1-f). Let mu=Q-1; Dinkelbach minimizes E+mu*f and updates
+  // mu <- Q-1. At the optimum, the terminal penalty is mu times reach(A).
   for (int cutoff = 1; cutoff <= face_count; cutoff++) {
-    double lambda = 110.0;  // Above every feasible Q for these 21 cutoffs.
+    double mu = 109.0;  // Above every feasible Q-1 for these 21 cutoffs.
     double best_trial_cost = 0.0;
     double best_fail_probability = 1.0;
     double best_q = 0.0;
@@ -155,7 +155,7 @@ int main() {
       fill(dp.begin(), dp.end(), 0.0);
       fill(choice.begin(), choice.end(), 255);
 
-      // Minimize E + lambda*f over all ordered sequences of this length.
+      // Minimize E + mu*f over all ordered sequences of this length.
       for (int state = state_count - 1; state >= 0; state--) {
         const int d = depth[state];
         if (d > cutoff) continue;
@@ -164,7 +164,7 @@ int main() {
           rank5_probability * (static_cast<double>(remaining_count[state]) / kernel_count);
 
         if (d == cutoff) {
-          dp[state] = lambda * reach_probability;
+          dp[state] = mu * reach_probability;
           continue;
         }
 
@@ -215,11 +215,11 @@ int main() {
       best_fail_probability = fail_probability;
       best_q = q;
 
-      if (fabs(q - lambda) < 1e-11) {
+      if (fabs((q - 1.0) - mu) < 1e-11) {
         converged = true;
         break;
       }
-      lambda = q;
+      mu = q - 1.0;
     }
 
     if (!converged) {
