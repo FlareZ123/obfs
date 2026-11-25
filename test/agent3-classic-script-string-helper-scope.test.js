@@ -46,7 +46,6 @@ test('classic-script string table must not expose decoded strings to later page 
   const context=vm.createContext({});
   vm.runInContext(emitted,context);
   assert.equal(context.result,message);
-  const table=vm.runInContext(tableName,context);
-  assert.ok(Array.isArray(table),'the generated top-level lexical table must be visible to later classic scripts');
-  assert.ok(table.includes(message),'the decoded plaintext string is directly recoverable from the global lexical table');
+  assert.throws(()=>vm.runInContext(tableName,context),/not defined/,
+    'later classic scripts must not be able to read the decoded string table by its generated global lexical name');
 });
