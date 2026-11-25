@@ -912,6 +912,20 @@ function summarizeAmbientCallEffects(ast,sourceType) {
       classMemberValueExpressionsForProperty(parent,propertyKey,next)))];
   }
 
+  /** @type {Map<AstNode,AstNode[]>} */
+  const thisReceiverValuesByFunction=new Map();
+  /** @param {AstNode} node @returns {AstNode|null} */
+  function thisBindingFunction(node) {
+    let current=node;
+    while(parentByNode.has(current)) {
+      const parent=parentByNode.get(current);
+      if(!parent)return null;
+      current=parent;
+      if(['FunctionDeclaration','FunctionExpression'].includes(current.type))return current;
+    }
+    return null;
+  }
+
   /**
    * Resolve a statically named property through aliases, object literals,
    * class instances, factory returns, and nested member chains.
@@ -920,17 +934,6 @@ function summarizeAmbientCallEffects(ast,sourceType) {
    * @param {Set<number>} [seen]
    * @returns {AstNode[]}
    */
-  const thisReceiverValuesByFunction=new Map();
-  /** @param {AstNode} node @returns {AstNode|null} */
-  function thisBindingFunction(node) {
-    let current=node;
-    while(parentByNode.has(current)) {
-      current=parentByNode.get(current);
-      if(['FunctionDeclaration','FunctionExpression'].includes(current.type))return current;
-    }
-    return null;
-  }
-
   function memberValueExpressionsForProperty(value,propertyKey,seen=new Set()) {
     if(value.type==='ThisExpression') {
       const fn=thisBindingFunction(value);
@@ -1521,6 +1524,7 @@ function summarizeAmbientCallEffects(ast,sourceType) {
   // by returning them. Follow that return closure from every external root,
   // including ESM/CommonJS exports, host-global exports and classic-script
   // globals. Concise arrow bodies have no ReturnStatement sink of their own.
+  /** @type {Array<{target:AstNode,source:AstNode}>} */
   const externalReturnQueue=[];
   for(const source of externallyReachableFunctions) {
     for(const returned of functionReturnExpressions(source)) {
