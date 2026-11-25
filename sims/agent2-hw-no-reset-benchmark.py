@@ -461,6 +461,12 @@ def run_one(
     else:
         fixture = generate_fixture(state_count, seed)
     pair_metrics = pair_distinguishing_metrics(fixture.transitions, fixture.outputs)
+    target_transitions = [list(row) for row in fixture.transitions]
+    target_outputs = [list(row) for row in fixture.outputs]
+    target_minimal = is_minimal_mealy(target_transitions, target_outputs)
+    target_strongly_connected = is_strongly_connected(target_transitions)
+    if not target_minimal or not target_strongly_connected:
+        raise AssertionError("generated target must be minimal and strongly connected")
     sul, trace, counters = make_sul(fixture)
     oracle_seed = (seed * 0x9E3779B1 + state_count * 0x85EBCA77) & 0xFFFFFFFF
     random.seed(oracle_seed)
@@ -559,8 +565,8 @@ def run_one(
         "target_post_trace_state": evaluation["target_post_trace_state"],
         "candidate_end_equivalence_classes": evaluation["candidate_end_equivalence_classes"],
         "candidate_end_behavior_unambiguous": evaluation["candidate_end_behavior_unambiguous"],
-        "target_minimal": True,
-        "target_strongly_connected": True,
+        "target_minimal": target_minimal,
+        "target_strongly_connected": target_strongly_connected,
         "fixture_generation_attempts": fixture.generation_attempts,
         "fixture_digest": fixture_hash,
         "trace_digest": trace_hash,
