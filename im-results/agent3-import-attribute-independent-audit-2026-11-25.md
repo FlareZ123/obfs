@@ -41,9 +41,18 @@ The repaired diagnostic branch added two more mode-path checks:
 - `obfuscateFiles` in COO and SNO modes leaves the text-imported module byte-identical.
 - The standard `createScoHandler` serves the attributed module byte-for-byte and refuses `allowedHosts` host locking when the source-observer edge is present.
 
-The expanded focused workflow [45674122129](https://github.com/FlareZ123/obfs/actions/runs/45674122129) passed 8/8 tests on both Ubuntu and Windows, including project, external and paired-budget JSDoc/typechecks. The test additions are commit `01a3263fe92bc84cbad885700d7843d44362c76b`, following syntax-fix commit `c1e0d687252adbab88aa7491e77195c6fe14ac53`.
+The expanded focused workflow [45674122129](https://github.com/FlareZ123/obfs/actions/runs/45674122129) passed 8/8 tests on both Ubuntu and Windows. A further source-observer-island regression test passed in [45675474624](https://github.com/FlareZ123/obfs/actions/runs/45675474624), bringing that focused file to 9/9 on both platforms, including project, external and paired-budget JSDoc/typechecks. The test additions are commit `01a3263fe92bc84cbad885700d7843d44362c76b`, following syntax-fix commit `c1e0d687252adbab88aa7491e77195c6fe14ac53`.
 
 This verifies the shared `obfuscateFiles` pipeline for COO/SNO and the standard SCO handler. It does not fully exercise the separate SCO private graph/partition APIs. Those APIs keep private source server-side and do not rewrite those bytes, but their import-attribute admission behavior should remain an explicit review item.
+
+## Specialized SCO private-graph boundary
+
+Two additional diagnostics distinguish private graph admission from source-mutating SCO delivery:
+
+- `partitionScoAsyncGraph` accepts a private `type:"text"` default-import edge, but the generated graph retains SHA-256 digests for both the entry source and target source, and publishes only one RPC facade. The client facade contains neither the original import nor the target's source canary. This was checked in [45675391908](https://github.com/FlareZ123/obfs/actions/runs/45675391908), 3/3 tests passed on Ubuntu and Windows.
+- `partitionScoSelectedAsyncExports` rejects attributed default imports. A used imported string property is rejected as shared imported member state; even an unused default import is rejected by the partitioner's named-import-only contract.
+
+The specialized private graph does not rewrite or publish the imported private source bytes, so this particular byte-observation hazard is not the same as the standard SCO handler path. The graph still assumes native, closed server-side module resolution; custom loader semantics were not exercised. The selective partitioner is fail-closed for the tested default-import form. No specialized SCO graph code was changed.
 
 ## Integration constraints
 
