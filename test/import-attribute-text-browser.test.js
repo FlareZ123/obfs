@@ -11,5 +11,5 @@ test('real Chromium preserves a default JavaScript object versus a text import o
   }
   const report=await main();
   assert.equal(report.nativeBrowserParity,true);
-  assert.equal(report.cases,9);
+  assert.equal(report.cases,10);
 });
