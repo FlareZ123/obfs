@@ -280,9 +280,10 @@ This is **not** an exhaustive search over the \(2^{56}\) face subsets or all ord
 
 ## Reproduction
 
-Run the exact checker:
+Run the exact checker and m=8 deterministic replay:
 
     python3 sims/agent2-rankfive-eight-direction-witness.py
+    python3 sims/agent2-rankfive-m8-query-replay.py
 
 Run the sequence-level heuristic search (C++20):
 
