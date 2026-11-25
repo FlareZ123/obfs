@@ -70,7 +70,7 @@ The fixed-pair path is exact for the projected-affine promise. The signature pat
 
 Branch: `agent50/rankfive-top-quintic-http-20261124`
 
-Current branch head at this report: `8df4190e394a0ff6c79e7ff7d894fa2b3baab7ba`.
+Current branch head at this report: `61dd5dbe11aa7ff7ba3e17b5b003e507464cb460`.
 
 Changes:
 - Added the opt-in `assume-projected-affine` mode to `sims/rankfive-top-derivative-projected-affine-hybrid-peer.js`.
@@ -100,7 +100,7 @@ These are oracle-query caps, not CPU-runtime measurements. The 2.5× compute-tim
 
 ### Peer workflow
 
-Run: [45543609767](https://github.com/FlareZ123/obfs/actions/runs/45543609767)  
+Run: [45544565765](https://github.com/FlareZ123/obfs/actions/runs/45544565765)  
 Conclusion: success on Ubuntu and Windows.
 
 The peer output recorded:
@@ -109,10 +109,12 @@ The peer output recorded:
 - one fixed-pair shift case and one derivative-signature case;
 - zero verifier callback calls and zero candidate-ready calls;
 - both positive fixtures exactly matched all 256 inputs;
-- a deliberate out-of-promise silent-rank-seven misuse produced 4 mismatches across 128 inputs with no verifier, demonstrating why the opt-in promise must not be generalized;
-- the default verified mode caught that same rank-seven source and returned an exact interpolation fallback on all 128 inputs.
+- a deliberate out-of-promise silent-rank-seven misuse produced 4 mismatches across 128 inputs with no verifier;
+- a sharper rank-five lower-degree residual case passed the fixed-pair predicate, misidentified the fifth coordinate as 3, and produced 112 mismatches across 256 inputs in no-verifier mode;
+- the default verified mode caught both invalid-promise cases and returned exact interpolation fallbacks on every input;
+- a no-witness promise-mode run exhausted all 18 trials/126 direction draws, requested no verifier or candidate-ready event, and returned an exact 256-point interpolation fallback.
 
-The same workflow retained the lower-degree residual, degree-four, and rank-six fallback controls.
+These tests pin the promise boundary. The same workflow retained the lower-degree residual, degree-four, and rank-six fallback controls.
 
 ### Deterministic query simulation
 
