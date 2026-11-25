@@ -221,7 +221,7 @@ test('an exported factory returning a class instance exposes the instance field 
   const instance=create();
   assertHiddenFunction(instance.callback,'the exported-factory instance field');
   const hidden=hiddenSummary(analyzeCommonJs(source));
-  assert.equal(hidden.externallyReachable,true,
-    'exporting a factory must propagate external reachability through its returned instance fields');
+  assert.equal(hidden.hostHeldCallable,true,
+    'an exported factory must mark callable values reachable through its returned instance as host-held');
   assert.equal(hidden.safe,false);
 });
