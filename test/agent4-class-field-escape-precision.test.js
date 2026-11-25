@@ -174,3 +174,17 @@ test('a static field keeps its callable initializer conservatively held',()=>{
   assert.equal(hidden.hostHeldCallable,true);
   assert.equal(hidden.safe,false);
 });
+
+
+test('an eager side-effecting sibling field prevents deferral of callable fields',()=>{
+  const source=
+    'function hidden(){return 1;}'+
+    'class Local{callback=hidden;leak=(globalThis.saved=this);}'+
+    'function entry(){const instance=new Local();return 2;}'+
+    'module.exports=entry;';
+  const hidden=named(analyze(source),'hidden')[0];
+  assert.ok(hidden);
+  assert.equal(hidden.hostHeldCallable,true,
+    'an eager field initializer can publish the instance before later field reads');
+  assert.equal(hidden.safe,false);
+});
