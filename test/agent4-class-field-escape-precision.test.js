@@ -188,3 +188,20 @@ test('an eager side-effecting sibling field prevents deferral of callable fields
     'an eager field initializer can publish the instance before later field reads');
   assert.equal(hidden.safe,false);
 });
+
+
+test('a reassigned function binding is not treated as a stable class field initializer',()=>{
+  const source=
+    'function hidden(){return 1;}'+
+    'function other(){return 2;}'+
+    'hidden=other;'+
+    'class Local{callback=hidden;}'+
+    'function entry(){const instance=new Local();return instance;}'+
+    'module.exports=entry;';
+  const result=analyze(source);
+  const other=named(result,'other')[0];
+  assert.ok(other);
+  assert.equal(other.hostHeldCallable,true,
+    'the class field reads the reassigned function binding value');
+  assert.equal(other.safe,false);
+});
