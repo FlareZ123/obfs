@@ -75,7 +75,8 @@ function fixtures() {
     {name:'named-owner-cycle-earlier',expectedFields:1,expectedText:'15',
       files:graph('import {probe} from "./main.mjs";const hidden="secretField";'+
           'export {hidden as key};export const bag={secretField:15};console.log(probe());',
-        'import {bag,key} from "./state.mjs";export function probe(){return bag[key];}')},
+        'import {bag,key} from "./state.mjs";function privateProbe(){return bag[key];}'+
+          'export function probe(){return privateProbe();}')},
     {name:'named-owner-cycle-tdz',expectedFields:0,expectedText:'ReferenceError:15',
       files:graph('import {probe} from "./main.mjs";export const bag={secretField:15};'+
           'let early="none";try{probe();}catch(error){early=error.name;}'+
@@ -85,7 +86,8 @@ function fixtures() {
     {name:'esm-cycle-safe',expectedFields:1,expectedText:'15',
       files:graph('import {probe} from "./main.mjs";export const key="secretField";'+
         'export const bag={secretField:15};console.log(probe());',
-        'import {bag,key} from "./state.mjs";export function probe(){return bag[key];}')},
+        'import {bag,key} from "./state.mjs";function privateProbe(){return bag[key];}'+
+          'export function probe(){return privateProbe();}')},
     {name:'esm-cycle-refused',expectedFields:0,expectedText:'15',
       files:graph('import {probe} from "./main.mjs";export const bag={secretField:15};'+
         'export const key="secretField";console.log(probe());',
