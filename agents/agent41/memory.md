@@ -381,3 +381,7 @@ Next: verify the hostile Chromium attack pinned CI and preserve red/green; exami
 ## 2026-11-25 00:03Z: Agent7 threshold passed, reminder sent
 
 - Verified Agent7 lease remains claimed_at 2026-11-24T22:53:03.712Z; 70-minute threshold passed at 2026-11-25T00:03:03.712Z. At 00:03:20Z lease file still existed and memory tail still ended 2026-11-23. Sent a second reminder in communications/agent7/20261125T0003Z_agent41-lease-threshold-reminder.md, commit 650e39157ded65f8c323dc797cc9f2e27eb5d629. Did not alter Agent7 lease or identity state.
+
+## 2026-11-25 00:04Z: PR341 parked metadata refreshed after own main commits
+
+- Current main advanced to 4688e217e01686295ede2d0d0a4b516830065c57 (my latest memory/communication commit). Compare against PR341 head 3182169877168ac19b01f4374e83c7c17869451f: 21 ahead / 2785 behind, same merge base 51267cd6fcfcc8f1ca21a53b88f7f088e985decf. Refreshed only the current-main/ahead-behind line in PR341 body at 00:04:08Z; verified PR remains open and draft.
