@@ -481,3 +481,38 @@ Claimed Agent 9 lease at `2026-11-25T14:03:17.442Z` (`agent9-20261125T1403Z-gpt6
 3. If full suite passes, update the intermediate report with that result; do not promote it to established results.
 4. Continue with alias chains, conditional factory returns, inheritance/accessors, inter-file ESM/CommonJS factory exports, and performance under the 2.5× budget.
 5. At every checkpoint, compare current system time against the original lease `claimed_at`; do not refresh the lease. The 70-minute release threshold is `2026-11-25T15:13:17.442Z`.
+
+
+## 2026-11-25 — source-observation correction and full-suite baseline
+
+Important correction to the previous production interpretation: the repository's established contract requires exact `Function#toString` preservation when the host can obtain and inspect a callable. Treating rewritten source as a successful obfuscation effect was wrong. The exported-factory production tests are **red controls** for a source-observation compatibility defect; exact-source-preservation acceptance tests are explicit TODOs.
+
+- Current-main helper still correctly marks returned factory callables `HostHeldCallable`; it already contains `externalReturnQueue`. My earlier assertion expected `ExternalReachability` and was corrected. Do not repeat the false claim that current-main lacked return closure.
+- Node/CommonJS red controls now cover identifier rewriting and string encoding inside a callback returned from an exported factory. The callback's value and public `callback` property remain correct, but `Function#toString` source changes. Both matrices (COO/SCO/SNO) plus TODO acceptance checks passed as red controls on Ubuntu/Windows with JSDoc: [run 45635205211](https://github.com/FlareZ123/obfs/actions/runs/45635205211).
+- Chromium browser-global factory red control (COO/SCO) also shows the callback source is rewritten; exact-source acceptance is TODO. Earlier focused run: [45632580720](https://github.com/FlareZ123/obfs/actions/runs/45632580720). The current full branch run includes the updated TODO form.
+- This source-observation gap exists because the helper's `HostHeldCallable` closure is not consumed by production identifier/string transformation decisions. Existing direct-host-held tests also expose a broad file-level veto that blocks unrelated private rewrites. The integration requirement is a per-callable/per-object source-protection plan, not a file-wide veto and not an ignored factory-return closure.
+- Agent 3 and Agent 1 were notified with the integration asymmetry and red-control evidence. Agent 1 was asked to include the exported-factory red controls in PR #372's callable-span work.
+
+### Full-suite baseline
+
+- Full manual validation on the review branch at `413797b`: [run 45633142987](https://github.com/FlareZ123/obfs/actions/runs/45633142987), 12 behavioral-suite failures on both OSes.
+- Full manual validation on current `main`: [run 45634926207](https://github.com/FlareZ123/obfs/actions/runs/45634926207), same 12 named behavioral-suite failures on both OSes. This confirms the failures are current-main baseline, not introduced by my helper patch or tests.
+- Failures include bound-runtime interception, source-stable bound export, factory object flow, function-declaration reader proof, inter-file property flow, private class owner renaming, private tuple session, SNO bound interception, and SCO dense hybrid admission. Several expect 1–2 private key rewrites but observe zero. Do not claim the full suite is green.
+- Both full runs completed strict JSDoc, benchmark, paired profiles and browser integration. Observed benchmark/profile ratios were approximately 0.57–1.04×, well below 2.5×, with paired outputs equal. Main Ubuntu browser integration passed 21 pages, 64 verified-record cases, and 6 ESM-observation cases.
+- A new full manual validation run on the latest review branch is queued/running: [run 45637422356](https://github.com/FlareZ123/obfs/actions/runs/45637422356). Poll it; it includes the added spread/mutator tests and red-control TODOs.
+
+### Additional helper boundary validation
+
+- Agent 6's 18-case spread/member-flow suite passes on the current-main helper on Ubuntu/Windows with JSDoc: [run 45633663860](https://github.com/FlareZ123/obfs/actions/runs/45633663860).
+- Local mutator-parameter boundary suite passes 2/2 on Ubuntu/Windows with JSDoc: [run 45634146889](https://github.com/FlareZ123/obfs/actions/runs/45634146889). A private holder passed through a local mutator remains conservatively held even without host escape; the real host sink is also held. This is a precision limitation, not a false-safe.
+- Agent 6 and Agent 10 were notified of the fail-closed boundary. Agent 6 was also sent the spread cross-validation result and production gate observation.
+
+### Updated report
+
+`im-results/agent9-host-held-callable-runtime-review-2026-11-25.md` now distinguishes helper validation from production red controls, records the current-main full-suite baseline, and explicitly leaves source-observation integration unresolved.
+
+Next actions:
+1. Poll full branch run `45637422356`; inspect failed jobs only.
+2. If it has the same 12 failures, record that new Agent 9 tests added no extra suite failures; do not promote any claim of full-suite success.
+3. Follow up with Agent 1 on the per-callable source-observation plan and TODO acceptance cases.
+4. Continue productive work until the lease-age threshold; after every checkpoint compare actual system time with the original `claimed_at`. Release threshold remains `2026-11-25T15:13:17.442Z`.
