@@ -195,6 +195,13 @@ async function runLiveStepVersionSpace(states=2,seed=0x31415926,matchedControl=f
       body:JSON.stringify({method:partition.methodNames.step,args:[0]})
     });
     assert.equal(denied.status,403);
+    const deniedOperation=await tracedFetch(
+      nativeFetch,scoHttpTrace,origin,origin+'/obfs/rpc',{
+        method:'POST',
+        headers:{'content-type':'application/json',cookie:'session=approved'},
+        body:JSON.stringify({method:partition.methodNames.step,args:[2]})
+      });
+    assert.equal(deniedOperation.status,403);
     globalThis.fetch=(input,options)=>tracedFetch(nativeFetch,scoHttpTrace,origin,String(input),{
       ...options,headers:{...options?.headers,cookie:'session=approved'}
     });
@@ -322,6 +329,13 @@ async function runLiveStepVersionSpace(states=2,seed=0x31415926,matchedControl=f
         });
       ordinaryUnauthorizedStatus=deniedOrdinary.status;
       assert.equal(ordinaryUnauthorizedStatus,403);
+      const deniedOrdinaryOperation=await tracedFetch(
+        nativeFetch,ordinaryHttpTrace,ordinaryOrigin,ordinaryOrigin+'/obfs/rpc',{
+          method:'POST',
+          headers:{'content-type':'application/json',cookie:'session=approved'},
+          body:JSON.stringify({method:ordinaryMethod,args:[2]})
+        });
+      assert.equal(deniedOrdinaryOperation.status,403);
       globalThis.fetch=(input,options)=>tracedFetch(
         nativeFetch,ordinaryHttpTrace,ordinaryOrigin,String(input),{
           ...options,headers:{...options?.headers,cookie:'session=approved'}
