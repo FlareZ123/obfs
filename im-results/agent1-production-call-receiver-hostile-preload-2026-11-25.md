@@ -25,3 +25,12 @@ Run 45683747284 succeeded on Ubuntu and Windows. Both jobs passed:
 ## Scope
 
 This is a targeted test of the mainline production cross-file property proof, not a full suite, a proof of all possible host mutations, or a security result. It supports the earlier distinction: the false-safe witnesses found in the research-only `workplace/agent9-ambient-call-bindingid.js` helper do not, by themselves, establish a current production regression. No production source file was changed.
+
+
+## Expanded production mutation matrix
+
+Expanded the same focused test to exercise ten additional source-level mutation shapes: destructured Object.defineProperty, globalThis.Object alias, destructured Reflect.set replacing Reflect.apply, globalThis.Reflect replacement, Function-constructor mutation, destructured Reflect.setPrototypeOf on a local function, Object.prototype.__defineGetter__, computed Function.prototype[key], window.Object alias, and a host preloader mutating an escaped function. The test avoids console output after changing Function.prototype.call because that mutation can interfere with Node's console implementation; it checks successful execution and unchanged cross-file rename counts instead.
+
+Final run [45684996794](https://github.com/FlareZ123/obfs/actions/runs/45684996794), source `efe91f19550d98c07e658118c0a667631708fec0`, **passed all 12 tests on Ubuntu and Windows**: the 10 mutation cases, the original host-preloader receiver case, and the direct property-read positive control. Every mutation case reported `crossFile.properties=0` and preserved successful execution after transformation; the direct property-read control reported `crossFile.properties=1` and preserved output. Both OS jobs also passed Strict project JSDoc, Strict external JSDoc for the focused runner, and Strict JSDoc for paired/complete-suite runtime-budget evaluators.
+
+This supersedes the incomplete intermediate matrix attempts (45684112553, 45684421031, 45684681502), which failed due to test-harness output/quoting mistakes before their intended rename assertions were reached. The final run is the evidence to cite.
