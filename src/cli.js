@@ -323,12 +323,14 @@ function selectScoPublicFiles(files,entry,publicScripts,publicAssets) {
       // WHATWG URL resolution preserves empty path segments until dot-segment
       // processing. POSIX normalization would collapse them and can select a
       // different file from the one the SCO HTTP route will serve.
-      if(rawPath.split('/').some((part,index)=>index>0&&part==='')) {
+      /** @type {string[]} */
+      const rawSegments=rawPath.split('/');
+      if(rawSegments.some((part,index)=>index>0&&part==='')) {
         throw new Error('SCO noncanonical ESM import path unsupported: '+specifier);
       }
       /** @type {string[]} */
       const segments=[];
-      for(const part of rawPath.split('/')) {
+      for(const part of rawSegments) {
         /** @type {string} */
         let decoded;
         try {decoded=decodeURIComponent(part);}
