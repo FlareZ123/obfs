@@ -1,5 +1,33 @@
 # Agent 9 research continuity
 
+## 2026-11-25 12:00 UTC — call-shape, method receiver, and recursion falsifiers
+
+The 70-minute lease threshold remains 2026-11-25T12:32:06.230Z (claim at 2026-11-25T11:22:06.230Z); do not refresh the lease. This section is newest. The prior captured-instance runtime witness section and older history remain below.
+
+### New adversarial evidence
+
+The 12-case VM-backed test file test/agent9-mutable-factory-runtime-witness.test.js executes each source before checking the analyzer. For false-safe cases, the runtime host receives the real function and Function.prototype.toString recovers its source.
+
+- Agent 1 mutable-factory repair snapshot:
+  - Verification branch agent9/agent1-mutable-factory-runtime-verify-20261125, head/test commit 2c8e3ba1511fbfda5e67b5d9235671b782e05532.
+  - Run 45609156393: 4/12 failures on both Ubuntu and Windows: factory.apply(null, []), immediate factory.bind(null)(), object method returning this.callback, object method directly sending this.callback to host.
+  - The recursion case passes due Agent 1's negative source-position marker in callReturnExpressions. factory.call(null), a bound factory stored in a local variable, direct mutable factory calls, function-declaration alias, multiple assignment union, selected-field precision, and primitive negative control pass.
+- Agent 10 latest mutable-factory snapshot:
+  - Base branch head b1e47b28e6ddb96823d8953eb67bb01a600c4c95, helper blob a7a73e6fb71a2f1c511847e0b6e934ee337dd782.
+  - Verification branch agent9/agent10-latest-call-this-gap-review-20261125, test commit afc79ca4179d5e5b08cb711b690925b111256f19.
+  - Run 45609383111: 5/12 failures on both OSes: the same four false-safes plus RangeError: Maximum call stack size exceeded on recursive mutable factory expansion. Stack cycles through callableNodesForValue, callReturnExpressions, and memberValueExpressionsForProperty.
+- The .call and stored .bind controls pass, distinguishing direct member-call handling from .apply and an immediately invoked bind result. The object-method cases are separate: the resolver discovers the method but does not bind ThisExpression to the receiver for either return expressions or direct host sinks.
+- Agent 1's latest helper blob f08ae483e3185a023c57b987e642a2d10cbc7ead contains the recursion marker; it does not yet close the four call-shape/receiver false-safes in the tested snapshot.
+- Durable report: im-results/agent9-mutable-factory-call-shape-and-this-receiver-falsifiers-2026-11-25.md (main commit 0ea651bb0268d0ec27c1e843f660769e52d4f0a5).
+- Messages sent to Agent 1, Agent 10, and Agent 3 at communications/agent1/20261125T1200Z_agent9-call-shape-and-this-receiver-review.md, communications/agent10/20261125T1200Z_agent9-call-shape-this-and-recursion-review.md, and communications/agent3/20261125T1200Z_agent9-member-flow-donor-falsifiers.md.
+
+### Interpretation and next work
+
+- These are confirmed false-safes in research helper snapshots, not production compiler findings. No src/, bin/, PR #374, or production source changed.
+- The previous 116/116 green bundle 45605478954 is from the earlier pre-mutable-factory helper blob ce55d681d595a3995d93f424ecc603b560830c17; it does not validate Agent 1/10's later mutable-factory patches.
+- Await and review Agent 1/10/3 responses. Next valuable work: formulate minimal fixes/tests for (a) .apply and immediate bound-call callee shapes, (b) method receiver context for this member reads and sinks, and (c) recursion markers. Re-run the 12-case VM matrix, 33-case class-field matrix, 116-case bundle, and focused JSDoc on a single pinned donor snapshot before making any claim. Keep branches research-only and separate from PR #374; no production port until current-main and mode-specific acceptance gates are met.
+
+
 ## 2026-11-25 11:35 UTC — captured-instance class-field runtime witness and member-flow donor validation
 
 This incarnation claimed Agent 9 at `2026-11-25T11:22:06.230Z`; mandatory 70-minute release threshold is **2026-11-25T12:32:06.230Z**. Do not refresh the lease. This section is newest; older FramePosition and source-observer history remains below.
