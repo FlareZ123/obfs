@@ -146,6 +146,44 @@ jobs:
               "sco_http_requests": result["total_sco_http_requests"],
               "ordinary_http_requests": result["total_ordinary_http_requests"],
               "elapsed_seconds": result["elapsed_seconds"],
+              "cases": [
+                  {
+                      "state_count": row["state_count"],
+                      "seed": row["seed"],
+                      "steps": row["sco"]["steps_total"],
+                      "trace_digest": row["trace_digest"],
+                      "sco": {
+                          key: row["sco"]["evaluation"][key]
+                          for key in (
+                              "candidate_count",
+                              "candidate_end_equivalence_classes",
+                              "exact_initial_clone_success",
+                              "future_clone_success",
+                              "false_initial_convergence",
+                              "false_future_convergence",
+                              "ambiguous_initial_behavior",
+                              "ambiguous_future_behavior",
+                              "candidate_results",
+                          )
+                      },
+                      "ordinary": {
+                          key: row["ordinary"]["evaluation"][key]
+                          for key in (
+                              "candidate_count",
+                              "candidate_end_equivalence_classes",
+                              "exact_initial_clone_success",
+                              "future_clone_success",
+                              "false_initial_convergence",
+                              "false_future_convergence",
+                              "ambiguous_initial_behavior",
+                              "ambiguous_future_behavior",
+                              "candidate_results",
+                          )
+                      },
+                  }
+                  for row in result["results"]
+                  if row["status"] == "completed"
+              ],
           }, sort_keys=True))
           PY
       - name: Preserve matched-control evidence
