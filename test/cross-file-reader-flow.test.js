@@ -511,6 +511,21 @@ test('an imported reader can consume both sibling owner aliases in all modes',as
   for(const mode of ['coo','sno','sco'])await check(exposed+reader,main,1,mode);
 });
 
+test('secondary root aliases flow through local aliases and zero-argument return helpers',async()=>{
+  const main='import {state as left,state as right} from "./state.mjs";'+
+    'const alias=right;const getLeft=()=>left;'+
+    'const local=value=>value.secretField;'+
+    'console.log(local(alias),local(getLeft()));';
+  for(const mode of ['coo','sno','sco'])await check(exposed,main,1,mode);
+});
+
+test('secondary root aliases flow through identity-return calls',async()=>{
+  const main='import {state as left,state as right} from "./state.mjs";'+
+    'const identity=value=>value;const local=value=>value.secretField;'+
+    'console.log(local(identity(left)),local(identity(right)));';
+  for(const mode of ['coo','sno','sco'])await check(exposed,main,1,mode);
+});
+
 test('source observation of an imported reader vetoes grouped owner roots in all modes',async()=>{
   const main='import {state as left,state as right,peek} from "./state.mjs";'+
     'console.log(peek.toString().includes("secretField"),peek(left),peek(right));';
