@@ -5,7 +5,7 @@ const {test}=require('node:test');
 const {obfuscateFiles}=require('../src/core');
 const {compareBrowser,parseFrame}=require('./agent10-frameposition-browser-helper');
 
-test('string-only encoding exposes a strict-ESM FramePosition shift in Chromium',{
+test('string-only encoding preserves later strict-ESM FramePosition in Chromium',{
   skip:process.platform!=='linux'?'real Chromium fixture currently targets the Linux runner':false
 },async()=>{
   const source='const message="This sufficiently long string literal tests whether encoding preserves source positions.";const value=message.length;captureHostStack();export {value};';
@@ -23,6 +23,6 @@ test('string-only encoding exposes a strict-ESM FramePosition shift in Chromium'
   process.stdout.write('AGENT10_STRING_FRAMEPOSITION '+JSON.stringify({
     literals:output.metrics.literals,native,generated,values:payload.values
   })+'\n');
-  assert.notEqual(generated.column,native.column,
-    'this negative control expects the expanding string edit to shift the later module frame');
+  assert.equal(generated.column,native.column,
+    'the padded literal edit must preserve the later module frame column');
 });
