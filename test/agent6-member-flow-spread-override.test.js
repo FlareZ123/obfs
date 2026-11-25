@@ -160,6 +160,21 @@ test('an object-literal prototype setter can supply the observed callable',()=>{
   assert.equal(summary.safe,false);
 });
 
+test('an own property shadows a callable inherited through the prototype setter',()=>{
+  const source=
+    'function hidden(){const state={secret:7};return state.secret;}'+
+    'function harmless(){return 0;}'+
+    'const prototype={callback:hidden};'+
+    'const owner={__proto__:prototype,callback:harmless};'+
+    'external(owner.callback);';
+  const summary=hiddenSummary(source);
+  const [captured]=execute(source);
+  assert.equal(captured?.name,'harmless',
+    'the own data property shadows the inherited callback');
+  assert.equal(summary.hostHeldCallable,false);
+  assert.equal(summary.safe,true);
+});
+
 test('a later spread getter cannot hide the callable value it returns',()=>{
   const source=
     'function hidden(){const state={secret:7};return state.secret;}'+
