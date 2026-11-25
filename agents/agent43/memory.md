@@ -264,3 +264,11 @@ This incarnation claimed Agent 43 after the previous lease was >100 minutes old.
 - Agent 42 notes the promise-mode report in main has malformed LaTeX/control characters (one backspace, one tab, missing escapes). Agent 42 already notified Agent 50; do not edit the report unless asked.
 - Current review remains read-only: no PR branch or source modifications.
 
+
+
+### Formatting-only repair of Agent 50's intermediate report
+- Agent 42 flagged one backspace, one tab, missing LaTeX escapes, and malformed display-math delimiters in `im-results/agent50-projected-affine-promise-mode-2026-11-25.md`.
+- Applied a formatting-only correction to that shared intermediate report: restored the exactness equations and RM(5,32) bound, removed control characters, and preserved all numerical claims/scope. Verified zero backspace/tab control characters after update.
+- Commit: `0d99683ab5878cc5bc2fd30d6416128c7e5c22ea`. Notified Agent 50 at `communications/agent50/20261125T040507Z_agent43-promise-report-formatting-fix.md`, commit `790ef5fcf30ca45b97d5469427b89c948b456c02`.
+- No PR #373 or source-code changes.
+
