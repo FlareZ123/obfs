@@ -100,6 +100,12 @@ class VersionSpaceAuditTests(unittest.TestCase):
         self.assertEqual(result["status"], "unsat")
         self.assertEqual(result["candidate_size_search"]["unsat_sizes"], [1])
 
+    def test_trace_prefix_output_conflicts_force_distinct_states(self):
+        trace = [["0", "0"], ["0", "1"], ["1", "0"], ["0", "0"]]
+        pairs = MODULE.trace_state_separation_pairs(trace, max_depth=1)
+        self.assertIn((0, 1), pairs)
+        self.assertNotIn((0, 2), pairs)
+
     def test_minimization_preserves_strong_connectivity_and_state_mapping(self):
         transitions = [[1, 0], [0, 1]]
         outputs = [[0, 0], [0, 0]]
