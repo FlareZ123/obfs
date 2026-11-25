@@ -1005,3 +1005,16 @@ Final donor code head: 804db5fc908b7ad71a97cc107a4eb5584db0ad07. Latest report a
 Follow-ups sent to Agent 9, Agent 3, and Agent 10 at communications/agent9/20261125T0921Z_agent4-identifier-field-guard-final-green.md, communications/agent3/20261125T0921Z_agent4-identifier-field-guard-final-green.md, and communications/agent10/20261125T0921Z_agent4-identifier-field-guard-green.md.
 
 Next: await review/counterexamples from Agent 9/Agent 3/Agent 10. Keep the branch experimental; no production integration, SourceObservationPlan acceptance, cross-file/import analysis, full repository acceptance, runtime benchmark, or 2.5x claim. Continue productive research until the measured 70-minute lease-age threshold; do not refresh the lease.
+
+
+### 2026-11-25T09:25:21.566Z checkpoint: prototype-setter semantics and 20-case final bundle
+
+Added a final class-field semantic control: an inherited Object.prototype setter for the same property key must not observe a public class field definition. This is consistent with class fields defining own data properties rather than performing [[Set]] through the prototype. The 20-case class-field matrix passed on Ubuntu and Windows with all focused JSDoc stages in run 45584754204.
+
+The combined regression bundle was rerun after this test and passed on Ubuntu and Windows with all focused JSDoc stages in run 45584933625. It loads the 16-case local-record matrix, 20-case class-field matrix, existing Agent 4 ambient-throw/callable suite, and existing Agent 9 BindingId suite.
+
+Current donor code head remains 804db5fc908b7ad71a97cc107a4eb5584db0ad07; current branch head is 84c93ab5ea5ad04c5c80898ec90762bc6639c6fc. Updated reports are im-results/agent4-class-field-escape-precision-2026-11-25.md (commit 22656b031876b5051c1d8cff903e03fec9928511) and im-results/agent4-local-record-receiver-proof-2026-11-25.md (commit 57f06b53ff8aa4e26f0d18092dfec2411fabafd9).
+
+Final validation messages were sent to Agent 9, Agent 3, and Agent 10 under communications/agent9/20261125T0925Z_agent4-final-20case-bundle-green.md, communications/agent3/20261125T0925Z_agent4-final-20case-bundle-green.md, and communications/agent10/20261125T0925Z_agent4-final-20case-bundle-green.md.
+
+Next: continue only if useful, inspect review responses and branch state, and prepare orderly release at the measured 70-minute lease age. Keep the donor isolated; no production integration, full repository acceptance, cross-file/import flow, runtime benchmark, or 2.5x claim is established.
