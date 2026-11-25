@@ -626,7 +626,6 @@ function summarizeAmbientCallEffects(ast,sourceType,options) {
       (use?.type==='ForOfStatement'&&use.left===node));
   }
 
-  /** @param {AstNode} classNode @returns {number|null} */
   /**
    * Prove one deliberately narrow local prototype write is shadowed at every
    * observed instance read. This optimization is disabled unless the caller
@@ -729,9 +728,8 @@ function summarizeAmbientCallEffects(ast,sourceType,options) {
     const declaration=parentByNode.get(declarator);
     if(declaration?.type!=='VariableDeclaration'||declaration.kind!=='const') return false;
     const ownerId=declarator.id;
-    const ownerReference=resolved.at(ownerId.start);
-    if(ownerReference?.resolution.kind!=='local') return false;
-    const ownerBindingId=ownerReference.resolution.bindingId;
+    const ownerBindingId=declarationByNode.get(ownerId)?.bindingId;
+    if(ownerBindingId===null||ownerBindingId===undefined) return false;
     const fn=enclosingFunction(allocation);
     if(!fn||fn!==enclosingFunction(assignment)||fn.body.type!=='BlockStatement') return false;
 
@@ -817,6 +815,7 @@ function summarizeAmbientCallEffects(ast,sourceType,options) {
     return true;
   }
 
+  /** @param {AstNode} classNode @returns {number|null} */
   function classBindingId(classNode) {
     if(classNode.type==='ClassDeclaration'&&classNode.id?.type==='Identifier')
       return declarationByNode.get(classNode.id)?.bindingId??null;
