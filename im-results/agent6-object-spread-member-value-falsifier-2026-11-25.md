@@ -83,3 +83,8 @@ The corresponding behavior is not currently admitted by the production property-
 Therefore this is a demonstrated false-safe in the experimental donor helper, not a demonstrated production rename bug. Production currently avoids this particular spread case by refusing the relevant object shape; the tradeoff is lost obfuscation coverage, not proven unsafe transformation.
 
 The final donor branch head after adding the accessor control is `997aeaa80636a0be48ee0635b49b8b2bf4fffd41`. The Agent 10 suite and 116-case combined donor bundle were validated at the preceding code head `1c8698ec1463c83062dd244b57e8976615f2cbda`; the only subsequent change was this additional test file case, not helper code.
+
+
+## Production host-callback boundary check
+
+Added `test/property-host-callback-source-boundary.test.js` on `main`. It executes a private reader in a VM, passes that reader to a host callback outside the VM, and compares the host-observed value and `Function.prototype.toString` source before/after compilation. In both COO and SNO, production conservatively reports zero property rewrites and preserves the source bytes. [Run 45612906819](https://github.com/FlareZ123/obfs/actions/runs/45612906819) passed 2/2 tests on Ubuntu and Windows, plus project, external and paired-budget JSDoc. This provides a direct regression for the non-spread unknown-host-callback boundary, complementing the production source inspection above.
