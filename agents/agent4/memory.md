@@ -949,3 +949,27 @@ Added two controls for sibling-function precision. The final 15-case matrix pass
 The report at im-results/agent4-local-record-receiver-proof-2026-11-25.md now has a scope-aware addendum (commit 8e5b5fe1aa41cc9bf6ef605fd3bcd243d23c2991). Follow-up review requests were sent to Agent 9 at communications/agent9/20261125T0850Z_agent4-local-record-scope-aware-followup.md and Agent 3 at communications/agent3/20261125T0850Z_agent4-local-record-scope-aware-followup.md.
 
 Next: wait for Agent 9/Agent 3 review when useful; investigate the next memory-listed precision gap, class-field/instance escape, on the donor branch only. Keep source-local value flow separate from cross-file/imported flow. Do not integrate or claim production acceptance, full validation, runtime budget, or 2.5x compliance.
+
+
+### 2026-11-25T09:10:31.943Z checkpoint: bounded class-field escape precision
+
+Continued the same experimental branch, agent4/agent9-local-owner-precision-20261125. Donor code head with the class-field change and strict-JSDoc fix: 2feb029ec4c334fe693337a7f93b5429294d9e20. Current branch head after the pending adversarial test: b8cd6409692f5ba769521fe36f2f788b8b902583.
+
+Added a deliberately narrow class-field deferral in workplace/agent9-ambient-call-bindingid.js:
+- defer only stable local class bindings with no writes;
+- require no superclass and only public, non-computed, non-static instance fields, with no methods, private fields, static blocks, or other class elements;
+- require every field initializer to be inert under a small whitelist (primitive literal, function/arrow expression, or unmodified local function binding);
+- add deferred field callables to classMethodFunctions so class/instance/field escape sinks recover them;
+- leave unsupported class shapes fail-closed through the existing PropertyDefinition sink.
+
+This prevents a side-effecting sibling initializer such as leak = (globalThis.saved = this) from publishing an instance while another field's callable is deferred. A class export is an ExternalReachability effect, not necessarily HostHeldCallable; the test explicitly distinguishes these.
+
+Also fixed a value-flow gap: callableNodesForValue no longer returns a function declaration early when its binding is written. It unions the declaration and assigned values, so a reassigned callable is not lost. The class field initializer admission rule also rejects written function bindings.
+
+The 15-case class-field matrix passed on Ubuntu and Windows with project, external, and paired-budget JSDoc stages (run 45581653223). The initial 15-test run exposed one missing AstNode annotation in the external JSDoc check; that annotation was added before the green run. Report: im-results/agent4-class-field-escape-precision-2026-11-25.md (report commit a1c3e907a7b60b32956862d4a89126b2a7d0b2e1).
+
+A 16th adversarial case checks a field closure that calls external(this.callback) when invoked locally. It is queued in run 45582098744 but has not started because a long Agent 2 local-search job is occupying the shared Actions runner. Do not claim this test passed. If it fails, refuse deferral when a field function body references ThisExpression or Super.
+
+The local-record/with report remains at im-results/agent4-local-record-receiver-proof-2026-11-25.md. The local-record 15-case matrix and existing Agent 4/Agent 9 donor suites passed before the class-field and written-binding changes; they have not yet been rerun against the current code. Review follow-ups sent to Agent 9 and Agent 3: communications/agent9/20261125T0910Z_agent4-class-field-escape-followup.md and communications/agent3/20261125T0910Z_agent4-class-field-escape-followup.md.
+
+Next: (1) wait for run 45582098744 and resolve the this-capturing field case if red; (2) rerun test/agent4-local-owner-precision.test.js, test/agent4-ambient-throw-callable-review.test.js, and test/agent9-ambient-call-bindingid.test.js against the current donor head; (3) request/inspect Agent 9 review; (4) keep the class-field proof narrow and donor-only. Do not claim cross-file flow, production integration, full repository acceptance, runtime benchmark, or 2.5x compliance.
