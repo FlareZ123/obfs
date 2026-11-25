@@ -15,7 +15,10 @@ function analyze(source) {
 function execute(source) {
   /** @type {Function[]} */
   const captured=[];
-  vm.runInNewContext(source,{external(value){captured.push(value);}});
+  vm.runInNewContext(source,{
+    external(value){captured.push(value);},
+    readKey(){return 'callback';}
+  });
   return captured;
 }
 
@@ -93,6 +96,23 @@ test('an array spread after a fixed index does not affect that index',()=>{
   assert.equal(summary.hostHeldCallable,false,
     'a later spread cannot overwrite an earlier array index');
   assert.equal(summary.safe,true);
+});
+
+test('an unknown computed key after an explicit property cannot hide an overwrite',()=>{
+  const source=
+    'function hidden(){const state={secret:7};return state.secret;}'+
+    'function harmless(){return 0;}'+
+    'const key=readKey();'+
+    'const owner={callback:harmless,[key]:hidden};'+
+    'external(owner.callback);';
+  const summary=hiddenSummary(source);
+  const [captured]=execute(source);
+  assert.equal(captured?.name,'hidden',
+    'the host-provided computed key overwrites callback at runtime');
+  assert.match(String(captured),/state\.secret/);
+  assert.equal(summary.hostHeldCallable,true,
+    'an unknown later computed key may alias the statically requested key');
+  assert.equal(summary.safe,false);
 });
 
 test('a later spread getter cannot hide the callable value it returns',()=>{
