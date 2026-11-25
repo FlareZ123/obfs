@@ -5,3 +5,4 @@ require('./agent4-local-owner-precision.test.js');
 require('./agent4-class-field-escape-precision.test.js');
 require('./agent4-ambient-throw-callable-review.test.js');
 require('./agent9-ambient-call-bindingid.test.js');
+require('./agent10-member-flow-followup.test.js');
