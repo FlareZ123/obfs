@@ -639,3 +639,17 @@ test('a shadowed sibling import is not grouped with the imported owner',async()=
     'const local=value=>value.secretField;'+
     '{const right={secretField:99};console.log(local(left),local(right));}',0);
 });
+
+test('query-distinct owner module URL refuses direct-read renaming',async()=>{
+  await check(exposed,
+    'import {state as left} from "./state.mjs";'+
+    'import {state as right} from "./state.mjs?other";'+
+    'console.log(left.secretField,right.secretField);',0);
+});
+
+test('query-distinct owner module URL refuses imported-reader alias grouping',async()=>{
+  await check(exposed+reader,
+    'import {state as left,peek} from "./state.mjs";'+
+    'import {state as right} from "./state.mjs?other";'+
+    'console.log(peek(left),peek(right));',0);
+});
