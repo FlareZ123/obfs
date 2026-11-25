@@ -29,6 +29,14 @@ const CASES=[
       'const local=value=>value.secretField;'+
       'export const value=local(left)+local(right);'}
   ]},
+  {name:'sibling-alias-imported-reader',renamed:1,files:[
+    {path:'state.mjs',sourceType:'module',code:
+      'export const state={secretField:29};'+
+      'export const peek=value=>value.secretField;'},
+    {path:'entry.mjs',sourceType:'module',code:
+      'import {state as left,state as right,peek} from "./state.mjs";'+
+      'export const value=peek(left)+peek(right);'}
+  ]},
   {name:'sibling-alias-escape',renamed:0,files:[
     {path:'state.mjs',sourceType:'module',code:'export const state={secretField:29};'},
     {path:'entry.mjs',sourceType:'module',code:
