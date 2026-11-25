@@ -682,39 +682,314 @@ function summarizeAmbientCallEffects(ast,sourceType) {
   }
 
   /**
-   * Resolve callable values stored at one statically named member. Unlike
-   * callableNodesForValue(NewExpression), this preserves the member key so a
-   * primitive sibling field does not retain unrelated callable fields.
+   * Return only values explicitly returned by one resolved function.
+   * @param {AstNode} fn
+   * @returns {AstNode[]}
+   */
+  function functionReturnExpressions(fn) {
+    if(!fn.body)return [];
+    if(fn.body.type!=='BlockStatement')return [fn.body];
+    /** @type {AstNode[]} */
+    const returns=[];
+    walkAst(fn.body,node=>{
+      if(node.type==='ReturnStatement'&&node.argument&&enclosingFunction(node)===fn)
+        returns.push(node.argument);
+    });
+    return returns;
+  }
+
+  /**
+   * Resolve a local call target and expose its possible return expressions.
+   * Unknown calls deliberately produce no local-value proof.
+   * @param {AstNode} call
+   * @param {Set<number>} [seen]
+   * @returns {AstNode[]}
+   */
+  function callReturnExpressions(call,seen=new Set()) {
+    if(call.type!=='CallExpression')return [];
+    if(call.callee.type==='MemberExpression'&&
+       staticPropertyKey(call.callee.property,call.callee.computed)==='bind')return [];
+    /** @type {AstNode[]} */
+    let targets=[];
+    if(call.callee.type==='Identifier') {
+      const reference=resolved.at(call.callee.start);
+      if(reference?.resolution.kind==='local') {
+        const target=resolveFunctionNode(reference.resolution.bindingId);
+        if(target)targets=[target];
+      }
+    } else if(call.callee.type==='MemberExpression') {
+      const calleeKey=staticPropertyKey(call.callee.property,call.callee.computed);
+      targets=calleeKey===null?
+        callableNodesForValue(call.callee.object,seen):
+        callableNodesForMemberValue(call.callee.object,calleeKey,seen);
+    } else if(['FunctionExpression','ArrowFunctionExpression'].includes(call.callee.type)) {
+      targets=[call.callee];
+    }
+    return [...new Set(targets.flatMap(target=>functionReturnExpressions(target)))];
+  }
+
+  /**
+   * Resolve class constructor values through local aliases and static object
+   * members. This is intentionally limited to statically named local values.
+   * @param {AstNode} value
+   * @param {Set<number>} [seen]
+   * @returns {AstNode[]}
+   */
+  function classNodesForValue(value,seen=new Set()) {
+    if(['ClassDeclaration','ClassExpression'].includes(value.type))return [value];
+    if(value.type==='Identifier') {
+      const reference=resolved.at(value.start);
+      if(reference?.resolution.kind!=='local')return [];
+      const bindingId=reference.resolution.bindingId;
+      if(seen.has(bindingId))return [];
+      const next=new Set(seen);
+      next.add(bindingId);
+      const direct=writtenBindings.has(bindingId)?null:classNodeByBinding.get(bindingId);
+      if(direct)return [direct];
+      const values=bindingValueExpressions.get(bindingId)??[];
+      const initializer=constInitializersByBinding.get(bindingId);
+      return [...new Set([
+        ...values,
+        ...(initializer?[initializer]:[])
+      ].flatMap(candidate=>classNodesForValue(candidate,next)))];
+    }
+    if(value.type==='MemberExpression') {
+      const propertyKey=staticPropertyKey(value.property,value.computed);
+      return propertyKey===null?[]:
+        classNodesForMemberValue(value.object,propertyKey,seen);
+    }
+    if(value.type==='ConditionalExpression')
+      return [...new Set([
+        ...classNodesForValue(value.consequent,seen),
+        ...classNodesForValue(value.alternate,seen)
+      ])];
+    if(value.type==='LogicalExpression')
+      return [...new Set([
+        ...classNodesForValue(value.left,seen),
+        ...classNodesForValue(value.right,seen)
+      ])];
+    if(value.type==='SequenceExpression'&&value.expressions.length)
+      return classNodesForValue(value.expressions[value.expressions.length-1],seen);
+    if(value.type==='AssignmentExpression')
+      return classNodesForValue(value.right,seen);
+    if(value.type==='ChainExpression')
+      return classNodesForValue(value.expression,seen);
+    if(value.type==='AwaitExpression'&&value.argument)
+      return classNodesForValue(value.argument,seen);
+    if(value.type==='CallExpression')
+      return [...new Set(callReturnExpressions(value,seen).flatMap(candidate=>
+        classNodesForValue(candidate,seen)))];
+    return [];
+  }
+
+  /**
+   * Resolve a class-valued property through a local object/record value.
+   * @param {AstNode} value
+   * @param {string} propertyKey
+   * @param {Set<number>} [seen]
+   * @returns {AstNode[]}
+   */
+  function classNodesForMemberValue(value,propertyKey,seen=new Set()) {
+    if(value.type==='Identifier') {
+      const reference=resolved.at(value.start);
+      if(reference?.resolution.kind!=='local')return [];
+      const bindingId=reference.resolution.bindingId;
+      if(seen.has(bindingId))return [];
+      const next=new Set(seen);
+      next.add(bindingId);
+      const localValues=localRecordMemberValues.get(bindingId)?.get(propertyKey);
+      if(localValues?.length)
+        return [...new Set(localValues.flatMap(candidate=>classNodesForValue(candidate,next)))];
+      const assignedValues=bindingValueExpressions.get(bindingId)??[];
+      if(assignedValues.length)
+        return [...new Set(assignedValues.flatMap(candidate=>
+          classNodesForMemberValue(candidate,propertyKey,next)))];
+      const initializer=constInitializersByBinding.get(bindingId);
+      if(initializer)return classNodesForMemberValue(initializer,propertyKey,next);
+      return [];
+    }
+    if(value.type==='ObjectExpression') {
+      const matching=value.properties.filter((/** @type {AstNode} */ property)=>
+        property.type==='Property'&&
+        staticPropertyKey(property.key,property.computed)===propertyKey);
+      if(matching.length)
+        return [...new Set(matching.flatMap((/** @type {AstNode} */ property)=>
+          property.kind==='init'?classNodesForValue(property.value,seen):
+          property.kind==='get'?functionReturnExpressions(property.value).flatMap(candidate=>
+            classNodesForValue(candidate,seen)):[]))];
+      if(value.properties.some((/** @type {AstNode} */ property)=>property.type==='SpreadElement'))
+        return [...new Set(value.properties.flatMap((/** @type {AstNode} */ property)=>
+          property.type==='SpreadElement'?classNodesForValue(property.argument,seen):
+          property.type==='Property'?classNodesForValue(property.value,seen):[]))];
+      return [];
+    }
+    if(value.type==='ArrayExpression') {
+      const index=Number(propertyKey);
+      if(Number.isInteger(index)&&index>=0&&index<value.elements.length) {
+        const element=value.elements[index];
+        return element?classNodesForValue(element,seen):[];
+      }
+      return [];
+    }
+    if(value.type==='ConditionalExpression')
+      return [...new Set([
+        ...classNodesForMemberValue(value.consequent,propertyKey,seen),
+        ...classNodesForMemberValue(value.alternate,propertyKey,seen)
+      ])];
+    if(value.type==='LogicalExpression')
+      return [...new Set([
+        ...classNodesForMemberValue(value.left,propertyKey,seen),
+        ...classNodesForMemberValue(value.right,propertyKey,seen)
+      ])];
+    if(value.type==='SequenceExpression'&&value.expressions.length)
+      return classNodesForMemberValue(value.expressions[value.expressions.length-1],propertyKey,seen);
+    if(value.type==='AssignmentExpression')
+      return classNodesForMemberValue(value.right,propertyKey,seen);
+    if(value.type==='ChainExpression')
+      return classNodesForMemberValue(value.expression,propertyKey,seen);
+    if(value.type==='SpreadElement')
+      return classNodesForMemberValue(value.argument,propertyKey,seen);
+    if(value.type==='AwaitExpression'&&value.argument)
+      return classNodesForMemberValue(value.argument,propertyKey,seen);
+    if(value.type==='CallExpression')
+      return [...new Set(callReturnExpressions(value,seen).flatMap(candidate=>
+        classNodesForMemberValue(candidate,propertyKey,seen)))];
+    if(value.type==='MemberExpression') {
+      const innerKey=staticPropertyKey(value.property,value.computed);
+      if(innerKey===null)return [];
+      const intermediate=memberValueExpressionsForProperty(value.object,innerKey,seen);
+      return [...new Set(intermediate.flatMap(candidate=>
+        classNodesForMemberValue(candidate,propertyKey,seen)))];
+    }
+    return [];
+  }
+
+  /**
+   * Resolve the runtime value(s) produced by one statically named property
+   * read. Accessors contribute their return expressions, not the getter
+   * function itself; this preserves precision for primitive-returning getters.
+   * @param {AstNode} classNode
+   * @param {string} propertyKey
+   * @param {Set<AstNode>} [seen]
+   * @returns {AstNode[]}
+   */
+  function classMemberValueExpressionsForProperty(classNode,propertyKey,seen=new Set()) {
+    if(!['ClassDeclaration','ClassExpression'].includes(classNode.type)||seen.has(classNode))return [];
+    const next=new Set(seen);
+    next.add(classNode);
+    const matching=classNode.body.body.filter((/** @type {AstNode} */ element)=>
+      (element.type==='MethodDefinition'||element.type==='PropertyDefinition')&&
+      !element.static&&staticPropertyKey(element.key,element.computed)===propertyKey);
+    if(matching.length)
+      return [...new Set(matching.flatMap((/** @type {AstNode} */ element)=>{
+        if(element.type==='PropertyDefinition')return element.value?[element.value]:[];
+        if(element.type==='MethodDefinition'&&element.value) {
+          if(element.kind==='method')return [element.value];
+          if(element.kind==='get')return functionReturnExpressions(element.value);
+        }
+        return [];
+      }))];
+    const parents=classNodesForValue(classNode.superClass??{type:'UnknownExpression'},new Set());
+    return [...new Set(parents.flatMap(parent=>
+      classMemberValueExpressionsForProperty(parent,propertyKey,next)))];
+  }
+
+  /**
+   * Resolve a statically named property through aliases, object literals,
+   * class instances, factory returns, and nested member chains.
+   * @param {AstNode} value
+   * @param {string} propertyKey
+   * @param {Set<number>} [seen]
+   * @returns {AstNode[]}
+   */
+  function memberValueExpressionsForProperty(value,propertyKey,seen=new Set()) {
+    if(value.type==='Identifier') {
+      const reference=resolved.at(value.start);
+      if(reference?.resolution.kind!=='local')return [];
+      const bindingId=reference.resolution.bindingId;
+      if(seen.has(bindingId))return [];
+      const next=new Set(seen);
+      next.add(bindingId);
+      const localValues=localRecordMemberValues.get(bindingId)?.get(propertyKey);
+      if(localValues?.length)return localValues;
+      const assignedValues=bindingValueExpressions.get(bindingId)??[];
+      if(assignedValues.length)
+        return [...new Set(assignedValues.flatMap(candidate=>
+          memberValueExpressionsForProperty(candidate,propertyKey,next)))];
+      const initializer=constInitializersByBinding.get(bindingId);
+      if(initializer)return memberValueExpressionsForProperty(initializer,propertyKey,next);
+      return [];
+    }
+    if(value.type==='NewExpression') {
+      const classes=classNodesForValue(value.callee,seen);
+      return [...new Set(classes.flatMap(classNode=>
+        classMemberValueExpressionsForProperty(classNode,propertyKey)))];
+    }
+    if(value.type==='ObjectExpression') {
+      const matching=value.properties.filter((/** @type {AstNode} */ property)=>
+        property.type==='Property'&&
+        staticPropertyKey(property.key,property.computed)===propertyKey);
+      if(matching.length)
+        return [...new Set(matching.flatMap((/** @type {AstNode} */ property)=>
+          property.kind==='init'?[property.value]:
+          property.kind==='get'?functionReturnExpressions(property.value):[]))];
+      if(value.properties.some((/** @type {AstNode} */ property)=>property.type==='SpreadElement'))
+        return value.properties.flatMap((/** @type {AstNode} */ property)=>
+          property.type==='SpreadElement'?[property.argument]:
+          property.type==='Property'?[property.value]:[]);
+      return [];
+    }
+    if(value.type==='ArrayExpression') {
+      const index=Number(propertyKey);
+      if(Number.isInteger(index)&&index>=0&&index<value.elements.length) {
+        const element=value.elements[index];
+        return element?[element]:[];
+      }
+      return [];
+    }
+    if(value.type==='ConditionalExpression')
+      return [...new Set([
+        ...memberValueExpressionsForProperty(value.consequent,propertyKey,seen),
+        ...memberValueExpressionsForProperty(value.alternate,propertyKey,seen)
+      ])];
+    if(value.type==='LogicalExpression')
+      return [...new Set([
+        ...memberValueExpressionsForProperty(value.left,propertyKey,seen),
+        ...memberValueExpressionsForProperty(value.right,propertyKey,seen)
+      ])];
+    if(value.type==='SequenceExpression'&&value.expressions.length)
+      return memberValueExpressionsForProperty(value.expressions[value.expressions.length-1],propertyKey,seen);
+    if(value.type==='AssignmentExpression')
+      return memberValueExpressionsForProperty(value.right,propertyKey,seen);
+    if(value.type==='ChainExpression')
+      return memberValueExpressionsForProperty(value.expression,propertyKey,seen);
+    if(value.type==='SpreadElement')
+      return memberValueExpressionsForProperty(value.argument,propertyKey,seen);
+    if(value.type==='AwaitExpression'&&value.argument)
+      return memberValueExpressionsForProperty(value.argument,propertyKey,seen);
+    if(value.type==='CallExpression')
+      return [...new Set(callReturnExpressions(value,seen).flatMap(candidate=>
+        memberValueExpressionsForProperty(candidate,propertyKey,seen)))];
+    if(value.type==='MemberExpression') {
+      const innerKey=staticPropertyKey(value.property,value.computed);
+      if(innerKey===null)return [];
+      const intermediate=memberValueExpressionsForProperty(value.object,innerKey,seen);
+      return [...new Set(intermediate.flatMap(candidate=>
+        memberValueExpressionsForProperty(candidate,propertyKey,seen)))];
+    }
+    return [];
+  }
+
+  /**
+   * Resolve callable values stored at one statically named member.
    * @param {AstNode} classNode
    * @param {string} propertyKey
    * @param {Set<AstNode>} [seen]
    * @returns {AstNode[]}
    */
   function classFieldCallablesForProperty(classNode,propertyKey,seen=new Set()) {
-    if(!['ClassDeclaration','ClassExpression'].includes(classNode.type)||seen.has(classNode))return [];
-    const next=new Set(seen);
-    next.add(classNode);
-    const own=classNode.body.body.flatMap((/** @type {AstNode} */ element)=>{
-      if(element.type==='MethodDefinition'&&!element.static&&element.kind==='method'&&
-         staticPropertyKey(element.key,element.computed)===propertyKey&&element.value)
-        return [element.value];
-      if(element.type==='PropertyDefinition'&&!element.static&&
-         staticPropertyKey(element.key,element.computed)===propertyKey&&element.value)
-        return callableNodesForValue(element.value);
-      return [];
-    });
-    /** @type {AstNode[]} */
-    let inherited=[];
-    if(classNode.superClass?.type==='Identifier') {
-      const reference=resolved.at(classNode.superClass.start);
-      if(reference?.resolution.kind==='local') {
-        const parentClass=classNodeByBinding.get(reference.resolution.bindingId);
-        if(parentClass)inherited=classFieldCallablesForProperty(parentClass,propertyKey,next);
-      }
-    } else if(['ClassExpression','ClassDeclaration'].includes(classNode.superClass?.type)) {
-      inherited=classFieldCallablesForProperty(classNode.superClass,propertyKey,next);
-    }
-    return [...new Set([...own,...inherited])];
+    return [...new Set(classMemberValueExpressionsForProperty(classNode,propertyKey,seen)
+      .flatMap(value=>callableNodesForValue(value)))];
   }
 
   /**
@@ -726,105 +1001,8 @@ function summarizeAmbientCallEffects(ast,sourceType) {
    * @returns {AstNode[]}
    */
   function callableNodesForMemberValue(value,propertyKey,seen=new Set()) {
-    if(value.type==='Identifier') {
-      const reference=resolved.at(value.start);
-      if(reference?.resolution.kind!=='local')return [];
-      const bindingId=reference.resolution.bindingId;
-      if(seen.has(bindingId))return [];
-      const next=new Set(seen);
-      next.add(bindingId);
-      const localValues=localRecordMemberValues.get(bindingId)?.get(propertyKey);
-      if(localValues?.length)
-        return [...new Set(localValues.flatMap(candidate=>callableNodesForValue(candidate,next)))];
-      const assignedValues=bindingValueExpressions.get(bindingId)??[];
-      if(assignedValues.length)
-        return [...new Set(assignedValues.flatMap(candidate=>callableNodesForMemberValue(candidate,propertyKey,next)))];
-      const initializer=constInitializersByBinding.get(bindingId);
-      if(initializer)return callableNodesForMemberValue(initializer,propertyKey,next);
-      return [];
-    }
-    if(value.type==='NewExpression'&&value.callee.type==='Identifier') {
-      const reference=resolved.at(value.callee.start);
-      if(reference?.resolution.kind!=='local')return [];
-      const bindingId=reference.resolution.bindingId;
-      const classNode=writtenBindings.has(bindingId)?null:classNodeByBinding.get(bindingId);
-      if(classNode)return classFieldCallablesForProperty(classNode,propertyKey);
-      const assignedValues=bindingValueExpressions.get(bindingId)??[];
-      return [...new Set(assignedValues.flatMap(candidate=>callableNodesForMemberValue(candidate,propertyKey,seen)))];
-    }
-    if(['ClassDeclaration','ClassExpression'].includes(value.type))
-      return classFieldCallablesForProperty(value,propertyKey);
-    if(value.type==='ObjectExpression') {
-      const matching=value.properties.filter((/** @type {AstNode} */ property)=>
-        property.type==='Property'&&staticPropertyKey(property.key,property.computed)===propertyKey);
-      if(matching.length)
-        return [...new Set(matching.flatMap((/** @type {AstNode} */ property)=>
-          property.kind==='init'?callableNodesForValue(property.value,seen):
-            callableNodesForValue(value,seen)))];
-      if(value.properties.some((/** @type {AstNode} */ property)=>property.type==='SpreadElement'))
-        return callableNodesForValue(value,seen);
-      return [];
-    }
-    if(value.type==='ArrayExpression') {
-      const index=Number(propertyKey);
-      if(Number.isInteger(index)&&index>=0&&index<value.elements.length) {
-        const element=value.elements[index];
-        return element?callableNodesForValue(element,seen):[];
-      }
-      return [];
-    }
-    if(value.type==='ConditionalExpression')
-      return [...new Set([
-        ...callableNodesForMemberValue(value.consequent,propertyKey,seen),
-        ...callableNodesForMemberValue(value.alternate,propertyKey,seen)
-      ])];
-    if(value.type==='LogicalExpression')
-      return [...new Set([
-        ...callableNodesForMemberValue(value.left,propertyKey,seen),
-        ...callableNodesForMemberValue(value.right,propertyKey,seen)
-      ])];
-    if(value.type==='SequenceExpression'&&value.expressions.length)
-      return callableNodesForMemberValue(value.expressions[value.expressions.length-1],propertyKey,seen);
-    if(value.type==='AssignmentExpression')
-      return callableNodesForMemberValue(value.right,propertyKey,seen);
-    if(value.type==='ChainExpression')
-      return callableNodesForMemberValue(value.expression,propertyKey,seen);
-    if(value.type==='SpreadElement')
-      return callableNodesForMemberValue(value.argument,propertyKey,seen);
-    if(value.type==='CallExpression') {
-      /** @type {AstNode[]} */
-      let targets=[];
-      if(value.callee.type==='Identifier') {
-        const reference=resolved.at(value.callee.start);
-        if(reference?.resolution.kind==='local') {
-          const target=resolveFunctionNode(reference.resolution.bindingId);
-          if(target)targets=[target];
-        }
-      } else if(value.callee.type==='MemberExpression') {
-        const calleeKey=staticPropertyKey(value.callee.property,value.callee.computed);
-        targets=calleeKey===null?
-          callableNodesForValue(value.callee.object,seen):
-          callableNodesForMemberValue(value.callee.object,calleeKey,seen);
-      } else if(['FunctionExpression','ArrowFunctionExpression'].includes(value.callee.type)) {
-        targets=[value.callee];
-      }
-      /** @type {AstNode[]} */
-      const returns=[];
-      for(const target of targets) {
-        if(target.body?.type==='BlockStatement') {
-          walkAst(target.body,node=>{
-            if(node.type==='ReturnStatement'&&node.argument&&enclosingFunction(node)===target)
-              returns.push(node.argument);
-          });
-        } else if(target.body) {
-          returns.push(target.body);
-        }
-      }
-      return [...new Set(returns.flatMap(candidate=>callableNodesForMemberValue(candidate,propertyKey,seen)))];
-    }
-    if(value.type==='AwaitExpression'&&value.argument)
-      return callableNodesForMemberValue(value.argument,propertyKey,seen);
-    return callableNodesForValue(value,seen);
+    return [...new Set(memberValueExpressionsForProperty(value,propertyKey,seen)
+      .flatMap(candidate=>callableNodesForValue(candidate,seen)))];
   }
 
   /** @param {AstNode} value @param {Set<number>} [seen] @returns {AstNode[]} */
@@ -873,52 +1051,23 @@ function summarizeAmbientCallEffects(ast,sourceType) {
       return callableNodesForValue(value.expressions[value.expressions.length-1],seen);
     if(value.type==='AssignmentExpression')return callableNodesForValue(value.right,seen);
     if(value.type==='ChainExpression')return callableNodesForValue(value.expression,seen);
-    if(value.type==='CallExpression'&&value.callee.type==='MemberExpression'&&
-       staticPropertyKey(value.callee.property,value.callee.computed)==='bind')
-      return callableNodesForValue(value.callee.object,seen);
+    if(value.type==='AwaitExpression'&&value.argument)
+      return callableNodesForValue(value.argument,seen);
+    if(value.type==='CallExpression') {
+      if(value.callee.type==='MemberExpression'&&
+         staticPropertyKey(value.callee.property,value.callee.computed)==='bind')
+        return callableNodesForValue(value.callee.object,seen);
+      return [...new Set(callReturnExpressions(value,seen).flatMap(candidate=>
+        callableNodesForValue(candidate,seen)))];
+    }
     if(value.type==='NewExpression') {
-      if(value.callee.type==='Identifier') {
-        const reference=resolved.at(value.callee.start);
-        if(reference?.resolution.kind==='local') {
-          const bindingId=reference.resolution.bindingId;
-          const classNode=writtenBindings.has(bindingId)?null:classNodeByBinding.get(bindingId);
-          if(classNode)return classMethodFunctions(classNode);
-          const values=bindingValueExpressions.get(bindingId)??[];
-          return [...new Set(values.flatMap(candidate=>callableNodesForValue(candidate,seen)))];
-        }
-      }
+      const classes=classNodesForValue(value.callee,seen);
+      if(classes.length)
+        return [...new Set(classes.flatMap(classNode=>classMethodFunctions(classNode)))];
       return [];
     }
     if(value.type==='MemberExpression') {
       const propertyKey=staticPropertyKey(value.property,value.computed);
-      if(value.object.type==='Identifier') {
-        const reference=resolved.at(value.object.start);
-        if(reference?.resolution.kind==='local') {
-          const bindingId=reference.resolution.bindingId;
-          if(propertyKey!==null) {
-            const values=localRecordMemberValues.get(bindingId)?.get(propertyKey);
-            if(values?.length) {
-              if(seen.has(bindingId))return [];
-              const next=new Set(seen);
-              next.add(bindingId);
-              return [...new Set(values.flatMap(candidate=>callableNodesForValue(candidate,next)))];
-            }
-          }
-          // A mutable lexical alias may be assigned a local class instance
-          // after its declaration and then read through a member expression
-          // inside a closure. Preserve the specific property when it is known;
-          // computed keys remain conservative and retain every callable.
-          const assignedValues=bindingValueExpressions.get(bindingId)??[];
-          if(assignedValues.length) {
-            if(seen.has(bindingId))return [];
-            const next=new Set(seen);
-            next.add(bindingId);
-            return [...new Set(assignedValues.flatMap(candidate=>
-              propertyKey===null?callableNodesForValue(candidate,next):
-                callableNodesForMemberValue(candidate,propertyKey,next)))];
-          }
-        }
-      }
       if(value.object.type==='Identifier'&&value.object.name==='arguments'&&propertyKey==='callee') {
         const reference=resolved.at(value.object.start);
         if(reference?.resolution.kind==='unknown'&&
@@ -930,6 +1079,23 @@ function summarizeAmbientCallEffects(ast,sourceType) {
             if(parent.type==='FunctionDeclaration'||parent.type==='FunctionExpression')return [parent];
             current=parent;
           }
+        }
+      }
+      if(propertyKey!==null)
+        return callableNodesForMemberValue(value.object,propertyKey,seen);
+      if(value.object.type==='Identifier') {
+        const reference=resolved.at(value.object.start);
+        if(reference?.resolution.kind==='local') {
+          const bindingId=reference.resolution.bindingId;
+          if(seen.has(bindingId))return [];
+          const next=new Set(seen);
+          next.add(bindingId);
+          const assignedValues=bindingValueExpressions.get(bindingId)??[];
+          const stored=[...(localRecordMemberValues.get(bindingId)?.values()??[])].flat();
+          const initializer=constInitializersByBinding.get(bindingId);
+          const values=[...assignedValues,...stored,...(initializer?[initializer]:[])];
+          if(values.length)
+            return [...new Set(values.flatMap(candidate=>callableNodesForValue(candidate,next)))];
         }
       }
       /** @type {AstNode[]} */
