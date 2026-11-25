@@ -709,6 +709,46 @@ function summarizeAmbientCallEffects(ast,sourceType) {
     if(expression.type==='ThisExpression')return [receiver];
     if(expression.type==='ChainExpression')
       return memberReturnExpressionsWithReceiver(expression.expression,receiver,seen);
+    if(expression.type==='CallExpression'&&expression.callee.type==='MemberExpression') {
+      /** @type {string[]} */
+      const keys=[];
+      let root=expression.callee;
+      while(root.type==='MemberExpression') {
+        const key=staticPropertyKey(root.property,root.computed);
+        if(key===null)return [receiver];
+        keys.unshift(key);
+        root=root.object;
+      }
+      if(root.type==='ThisExpression'&&keys.length) {
+        const marker=-2000000000-(receiver.start??0);
+        if(seen.has(marker))return [receiver];
+        const next=new Set(seen);
+        next.add(marker);
+        let objects=[receiver];
+        for(const key of keys.slice(0,-1)) {
+          const propertySeen=new Set();
+          for(const item of next)if(typeof item==='number')propertySeen.add(item);
+          const resolvedValues=objects.flatMap(candidate=>
+            memberValueExpressionsForProperty(candidate,key,propertySeen));
+          if(!resolvedValues.length)return [receiver];
+          objects=[...new Set(resolvedValues)];
+        }
+        /** @type {AstNode[]} */
+        const returned=[];
+        for(const object of objects) {
+          const propertySeen=new Set();
+          for(const item of next)if(typeof item==='number')propertySeen.add(item);
+          const methodValues=memberValueExpressionsForProperty(object,keys[keys.length-1],propertySeen);
+          const methods=methodValues.flatMap(methodValue=>callableNodesForValue(methodValue,propertySeen));
+          if(!methods.length)return [receiver];
+          for(const method of methods) {
+            for(const returnedExpression of functionReturnExpressions(method))
+              returned.push(...memberReturnExpressionsWithReceiver(returnedExpression,object,next));
+          }
+        }
+        return returned.length?[...new Set(returned)]:[];
+      }
+    }
     if(expression.type==='MemberExpression') {
       /** @type {string[]} */
       const keys=[];
