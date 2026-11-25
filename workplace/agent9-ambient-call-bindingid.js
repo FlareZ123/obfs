@@ -479,23 +479,23 @@ function summarizeAmbientCallEffects(ast,sourceType) {
   walkAst(ast,node=>{
     if(node.type==='AssignmentExpression'&&node.left.type==='MemberExpression') {
       const key=staticPropertyKey(node.left.property,node.left.computed);
-      if(['call','apply','bind','__proto__'].includes(key))
+      if(key!==null&&['call','apply','bind','__proto__'].includes(key))
         callLikeIntrinsicsUnmodified=false;
     } else if(node.type==='UpdateExpression'&&node.argument.type==='MemberExpression') {
       const key=staticPropertyKey(node.argument.property,node.argument.computed);
-      if(['call','apply','bind','__proto__'].includes(key))
+      if(key!==null&&['call','apply','bind','__proto__'].includes(key))
         callLikeIntrinsicsUnmodified=false;
     } else if(node.type==='UnaryExpression'&&node.operator==='delete'&&
               node.argument.type==='MemberExpression') {
       const key=staticPropertyKey(node.argument.property,node.argument.computed);
-      if(['call','apply','bind','__proto__'].includes(key))
+      if(key!==null&&['call','apply','bind','__proto__'].includes(key))
         callLikeIntrinsicsUnmodified=false;
     } else if(node.type==='CallExpression'&&node.callee.type==='MemberExpression') {
       const objectName=node.callee.object.type==='Identifier'?node.callee.object.name:null;
       const key=staticPropertyKey(node.callee.property,node.callee.computed);
-      if((objectName==='Object'&&
+      if((objectName==='Object'&&key!==null&&
           ['defineProperty','defineProperties','assign','setPrototypeOf'].includes(key))||
-         (objectName==='Reflect'&&
+         (objectName==='Reflect'&&key!==null&&
           ['defineProperty','set','setPrototypeOf'].includes(key)))
         callLikeIntrinsicsUnmodified=false;
     } else if(node.type==='WithStatement') {
@@ -938,6 +938,7 @@ function summarizeAmbientCallEffects(ast,sourceType) {
     })))];
   }
 
+  /** @param {AstNode} value @param {Set<number>} [seen] @returns {AstNode[]} */
   function classNodesForValue(value,seen=new Set()) {
     if(['ClassDeclaration','ClassExpression'].includes(value.type))return [value];
     if(value.type==='Identifier') {
@@ -1676,7 +1677,7 @@ function summarizeAmbientCallEffects(ast,sourceType) {
         candidate=initializerForBinding(reference.resolution.bindingId)??value;
     }
     if(candidate.type!=='ArrayExpression'||
-       candidate.elements.some(element=>!element||element.type==='SpreadElement'))
+       candidate.elements.some((/** @type {AstNode|null} */ element)=>!element||element.type==='SpreadElement'))
       return {known:false,actuals:[]};
     return {known:true,actuals:candidate.elements};
   }
@@ -1691,6 +1692,7 @@ function summarizeAmbientCallEffects(ast,sourceType) {
    */
   function localInvocationDetails(call) {
     if(call.type!=='CallExpression'||!callLikeIntrinsicsUnmodified)return null;
+    /** @type {'call'|'apply'|'bind'|'reflect-apply'|null} */
     let kind=null;
     /** @type {AstNode|null} */
     let targetValue=null;
@@ -1715,7 +1717,7 @@ function summarizeAmbientCallEffects(ast,sourceType) {
         targetValue=targetArgument;
         receiverArgument=call.arguments[1]??null;
         argumentList=call.arguments[2]??null;
-      } else if(['call','apply','bind'].includes(key)) {
+      } else if(key!==null&&['call','apply','bind'].includes(key)) {
         kind=key;
         targetValue=call.callee.object;
         receiverArgument=call.arguments[0]??null;
@@ -1775,6 +1777,7 @@ function summarizeAmbientCallEffects(ast,sourceType) {
     return null;
   }
 
+  /** @param {AstNode} fn @returns {boolean} */
   function hasUnmodelledArgumentAccess(fn) {
     let found=false;
     walkAst(fn,node=>{
