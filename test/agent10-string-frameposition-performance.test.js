@@ -26,7 +26,7 @@ function median(values) {
 }
 
 test('cached span-preserving string helper stays within the 2.5x hot-loop budget',async()=>{
-  const source='function run(iterations){let total=0;for(let i=0;i<iterations;i++){const text='+JSON.stringify(message)+';total+=text.length;}return total;}const result=run(200000)+run(200000)+run(200000)+run(200000)+run(200000);export {result};';
+  const source='function read(){const text='+JSON.stringify(message)+';return text.length;}let total=0;for(let i=0;i<1000000;i++)total+=read();export {total};';
   const output=obfuscateFiles([{path:'generated.mjs',sourceType:'module',code:source}],{
     mode:'coo',closedWorld:true,seed:'agent10-string-hot-loop-budget',
     identifiers:false,strings:true,properties:false
@@ -62,8 +62,8 @@ test('cached span-preserving string helper stays within the 2.5x hot-loop budget
       native=await import(nativeUrl);
       nativeMs=performance.now()-start;
     }
-    assert.equal(native.result,expected);
-    assert.equal(generated.result,native.result);
+    assert.equal(native.total,expected);
+    assert.equal(generated.total,native.total);
     nativeTimes.push(nativeMs);
     generatedTimes.push(generatedMs);
   }
