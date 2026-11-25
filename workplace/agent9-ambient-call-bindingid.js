@@ -313,6 +313,12 @@ function summarizeAmbientCallEffects(ast,sourceType) {
   const externallyReachableFunctions=new Set();
   if(sourceType==='script') {
     walkAst(ast,(node,parent)=>{
+      if(node.type==='ClassDeclaration'&&node.id?.type==='Identifier'&&parent===ast) {
+        // Top-level class declarations live in the classic-script global
+        // lexical environment and can be instantiated by the host.
+        const id=declarationByNode.get(node.id)?.bindingId??null;
+        if(id!==null)topLevelScriptBindings.add(id);
+      }
       if(node.type==='FunctionDeclaration'&&node.id?.type==='Identifier'&&
          !isWithinFunctionOrClass(node)) {
         externallyReachableFunctions.add(node);
@@ -1224,6 +1230,37 @@ function summarizeAmbientCallEffects(ast,sourceType) {
    * @param {AstNode} fn
    * @returns {boolean}
    */
+  // In classic scripts, global lexical and var bindings are readable by host
+  // code (including DevTools/eval). Their known values therefore publish any
+  // nested callables even when no in-file escape sink exists. This includes
+  // class declarations, class-expression bindings, object/array records, and
+  // instances assigned through a top-level mutable alias.
+  if(sourceType==='script') {
+    for(const bindingId of topLevelScriptBindings) {
+      const values=bindingValueExpressions.get(bindingId)??[];
+      for(const value of values) {
+        for(const target of callableNodesForValue(value))
+          externallyReachableFunctions.add(target);
+        // Object-literal accessors/methods can return sibling callables through
+        // their dynamic this receiver. Resolve those returns against the
+        // globally reachable object, preserving property-specific negatives.
+        walkAst(value,node=>{
+          if(node.type!=='ObjectExpression')return;
+          for(const property of node.properties) {
+            if(property.type!=='Property'||
+               (property.kind!=='get'&&!property.method)||!property.value)continue;
+            for(const expression of functionReturnExpressions(property.value)) {
+              for(const candidate of resolveThisReturnExpression(expression,node)) {
+                for(const target of callableNodesForValue(candidate))
+                  externallyReachableFunctions.add(target);
+              }
+            }
+          }
+        });
+      }
+    }
+  }
+
   function hasUnmodelledArgumentAccess(fn) {
     let found=false;
     walkAst(fn,node=>{
