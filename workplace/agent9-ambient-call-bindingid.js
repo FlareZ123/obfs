@@ -4,7 +4,7 @@ const {resolveLexicalReferences}=require('./agent1-lexical-reference-resolver');
 
 /** @typedef {import('../src/ast').AstNode} AstNode */
 /** @typedef {'module'|'script'|'commonjs'} SourceType */
-/** @typedef {{kind:'unknown-call'|'unresolved-local-call'|'new-expression'|'tagged-template'|'await'|'yield'|'dynamic-import'|'transitive-local-call'|'with-binding-lookup'|'implicit-iterator'|'implicit-object-enumeration'|'implicit-proxy-has'|'implicit-instanceof'|'implicit-delete'|'implicit-destructuring'|'implicit-spread'|'to-primitive'|'to-property-key'|'promise-thenable-assimilation'|'host-held-callable'|'unresolved-callable-argument-flow'|'returned-callable-value'|'callable-metadata-observer'|'callable-coercion-observer'|'direct-eval-local-scope'|'debugger-local-scope'|'debugger-inspection'|'classic-script-global-lexical'|'module-exported-callable'|'host-global-exported-callable'|'unknown-this-callable-escape'|'unknown-member-access',start:number,end:number,targetStart?:number,effect?:'DynamicFrame'|'HostHeldCallable'|'ExternalReachability'}} AmbientCallReason */
+/** @typedef {{kind:'unknown-call'|'unresolved-local-call'|'new-expression'|'tagged-template'|'await'|'yield'|'dynamic-import'|'transitive-local-call'|'with-binding-lookup'|'implicit-iterator'|'implicit-object-enumeration'|'implicit-proxy-has'|'implicit-instanceof'|'implicit-delete'|'implicit-destructuring'|'implicit-spread'|'to-primitive'|'to-property-key'|'promise-thenable-assimilation'|'host-held-callable'|'thrown-callable-value'|'unresolved-callable-argument-flow'|'returned-callable-value'|'callable-metadata-observer'|'callable-coercion-observer'|'direct-eval-local-scope'|'debugger-local-scope'|'debugger-inspection'|'classic-script-global-lexical'|'module-exported-callable'|'host-global-exported-callable'|'unknown-this-callable-escape'|'unknown-member-access',start:number,end:number,targetStart?:number,effect?:'DynamicFrame'|'HostHeldCallable'|'ExternalReachability'}} AmbientCallReason */
 /** @typedef {{node:AstNode,start:number,end:number,bindingIds:number[],bindingNames:string[],ambient:boolean,dynamicFrame:boolean,hostHeldCallable:boolean,externallyReachable:boolean,safe:boolean,reasons:AmbientCallReason[]}} AmbientCallSummary */
 
 /**
@@ -529,8 +529,8 @@ function summarizeAmbientCallEffects(ast,sourceType) {
       const propertyKey=staticPropertyKey(value.property,value.computed);
       if(value.object.type==='Identifier'&&value.object.name==='arguments'&&propertyKey==='callee') {
         const reference=resolved.at(value.object.start);
-        if(reference?.resolution.kind==='local'&&
-           !(declarationsByBinding.get(reference.resolution.bindingId)?.length)) {
+        if(reference?.resolution.kind==='unknown'&&
+           reference.resolution.reason==='unproven-free-name') {
           let current=value;
           while(parentByNode.has(current)) {
             const parent=parentByNode.get(current);
@@ -815,6 +815,10 @@ function summarizeAmbientCallEffects(ast,sourceType) {
       markCallableValuesHeld(node.argument,'callable-coercion-observer',node.start,node.end);
     } else if(node.type==='YieldExpression'&&node.argument) {
       markCallableValuesHeld(node.argument,'returned-callable-value',node.start,node.end);
+    } else if(node.type==='ThrowStatement'&&node.argument) {
+      // A thrown callable can cross the module/function boundary through a
+      // catch handler even when it is never returned or passed as an argument.
+      markCallableValuesHeld(node.argument,'thrown-callable-value',node.start,node.end);
     } else if(node.type==='ReturnStatement'&&node.argument) {
       markCallableValuesHeld(node.argument,'returned-callable-value',node.start,node.end);
     } else if(node.type==='ForOfStatement') {
