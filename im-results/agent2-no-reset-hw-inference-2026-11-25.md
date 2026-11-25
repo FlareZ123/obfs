@@ -213,6 +213,32 @@ The live harness and artifact are **sims/agent2-hw-live-sco-server.js**, **sims/
 
 This is a stronger process/transport boundary than the in-process SUL, but it remains a small synthetic binary Mealy-machine test. It does not establish WAN/TLS behavior, concurrency, a matched ordinary-HTTP comparison, arbitrary JavaScript/EFSM learnability, complete source confidentiality, or the obfuscator's 2.5× compute budget. The exact evaluator certifies only trace-matching states inside the returned conjecture, not every possible machine consistent with the observed trace; the attacker's randomized hW equivalence oracle remains heuristic.
 
+## Equivalence-oracle budget sensitivity
+
+A deterministic 22-case sensitivity sweep (two fixture seeds at each target size 2–12) varied `RandomWphWOracle` parameters while holding the fixture family and per-case RNG seeds fixed. The oracle is heuristic: each equivalence check chooses random hypothesis origin states, reaches them by shortest paths, probes a random characterization suffix, and then performs a bounded random walk. See the pinned AALpy implementation at [resetless_oracles.py](https://github.com/DES-Lab/AALpy/blob/38ea38c47cff8fd6cd1f03f3c3c8b77ffaed3316/aalpy/learning_algs/resetless/resetless_oracles.py).
+
+| Random walk length | Origin states | Completed | Errors | Future-certified | False future convergence | Total SUL steps |
+|---:|---:|---:|---:|---:|---:|---:|
+| 1 | 1 | 5/22 | 17 | 4/5 | **1** | 3,245 |
+| 5 | 1 | 16/22 | 6 | 13/16 | **3** | 9,630 |
+| 30 | 1 | 22/22 | 0 | 21/22 | **1** | 10,421 |
+| 30 | 5 | 22/22 | 0 | 22/22 | **0** | 14,663 |
+| 30 | 20 | 22/22 | 0 | 22/22 | **0** | 26,145 |
+
+Run/artifact pairs: 1/1 **45625611512 / 15028762156**; 5/1 **45625631875 / 15027613788**; 30/1 **45625640298 / 15026404334**; 30/5 **45625648287 / 15028653154**; baseline 30/20 **45623386394 / 15027470646**.
+
+The most important observation is not merely a lower exact-clone rate: weak oracle settings produced **complete hypotheses with exactly one trace-consistent initial candidate that were nevertheless behaviorally wrong**. For 30/1, target size 8 / seed 0 returned a complete 6-state hypothesis with one candidate and a shortest post-trace future counterexample of `00` (300 total SUL steps, only 40 oracle steps). For 5/1, three false futures occurred at sizes 6, 7, and 8 (future counterexamples `000`, `0`, and `00`). For 1/1, size 6 / seed 0 had future counterexample `00`.
+
+The 1/1 and 5/1 error rows all failed during hW bootstrap with `TypeError: 'NoneType' object is not subscriptable` after 3 or 7 SUL steps. The resetless oracle had returned no counterexample to the initial one-state daisy hypothesis, but AALpy's hW bootstrap then indexed `counter_example[-1]` without handling `None`; see [hW.py](https://github.com/DES-Lab/AALpy/blob/0f0e6042ed93533691a5461fb71a9956cf7d81f0/aalpy/learning_algs/resetless/hW.py). These are bootstrap-contract failures, not certified clones or target-machine errors.
+
+Within this small sample, increasing origin coverage from one to five removed the observed false future convergences at walk length 30 while using 14,663 rather than 26,145 total SUL steps. This is a promising query-cost tradeoff, not a proven threshold: only 22 cases per configuration were tested. A single origin is demonstrably unsafe as a certification policy for this fixture family.
+
+## Delayed-distinguishability fixture
+
+A second fixture family was added to make state-pair distinguishability explicit. Its input-0 transition is an n-cycle; input 1 swaps states 0 and 1; only state 1 emits output 1 on input 0. The generator verifies strong connectivity and minimality, and an exact reverse-BFS over the unordered product-state graph reports the maximum shortest distinguishing input-word length.
+
+For 40 states there are 780 distinguishable pairs and the maximum shortest distinguishing word is **39** symbols, exceeding the 30-symbol random walk. Workflow **45628124674** nevertheless learned the target exactly in its single run: 40-state hypothesis, one trace-consistent initial candidate, exact initial and future certification, no ambiguity, **44,201** total SUL steps (1,423 oracle and 42,778 non-oracle), a 52-symbol homing sequence, and 0.084 seconds of benchmark wall time. This shows that the tested hW configuration can overcome this particular delayed-pair construction; it is one fixture/seed, not a general hardness result. The new fixture generator and regression test are in **sims/agent2-hw-no-reset-benchmark.py** and **sims/test_agent2_hw_no_reset_evaluator.py**; the manual workflow accepts `fixture_family=delayed-pair`.
+
 ## Limitations and interpretation
 
 1. **Small deterministic sample.** Two seeds per state count do not characterize the distribution of strongly connected Mealy machines, the probability of convergence, or adversarially selected targets.
