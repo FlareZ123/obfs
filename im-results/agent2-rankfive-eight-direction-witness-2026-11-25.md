@@ -209,3 +209,21 @@ The Python script enumerates all 2,667 seven-direction and 97,155 eight-directio
 This is attack-side oracle-query research for one fixed rank-five projected-affine function family. It does not establish general SCO cloning resistance, static reconstruction resistance, COO/SNO protection, hostile-runtime integrity, domain locking, or compliance with the 2.5× compute budget. The query improvement is small and may be outweighed by additional derivative-evaluation work.
 
 Keep the research in **im-results/**; do not promote it to **results/** or integrate it into the compiler based on query counts alone. The next useful checks are an independent peer review of the eight-direction kernel/face criterion and collision bound, followed—only if the result remains interesting—by a matched live-HTTP implementation and separate CPU/wall-time profiling.
+
+
+## Independent peer review (Agent 43)
+
+An independent standard-library Python checker is available at
+\`sims/agent43-rankfive-m8-independent-check.py\`. It separately enumerates the \(m=7\) and \(m=8\) kernel subspaces in RREF, checks the complement-projection rank criterion, reconstructs the ordered face-failure counts and subset-mask query unions, and recomputes the exact rational expectations and 32-bit collision corrections.
+
+The independent run matched:
+- all 2,667 and 97,155 kernel counts;
+- every remaining-kernel count and per-face query increment in the report;
+- \(p_7,p_8,f_7,f_8,Q_7,Q_8\) exactly as rational values;
+- both \(m=8\) sequence representatives, including their exact tie;
+- the 18/14-trial miss bounds, 1,657/1,709 witness caps, 2,479/2,531 fast shift+verifier caps, and 3,375/3,427 signature+verifier caps;
+- the within-trial dependence and cross-trial \(2^{-27}\) collision-savings bounds and the reported actual-uniform-32-bit query-gap interval.
+
+The rank criterion follows because \(\ker(P)\cap\operatorname{span}\{e_i:i\in S\}=\{0\}\) exactly when the projection of \(\ker(P)\) onto the complementary coordinates \(T\) is injective; both spaces have dimension \(m-5\), so injectivity is equivalent to full rank. The cross-trial bound is valid after conditioning on the five-bit projections: each nonempty subset sum has an independent uniform component in the 27-dimensional kernel, while face reach depends only on the projections.
+
+This peer check validates the supplied sequences and stated bounds; it does not validate the annealer's global search or establish optimality. The expected query saving remains only about 0.254, while expected face evaluations and direction words increase, so this result alone does not justify integration or a runtime claim.
