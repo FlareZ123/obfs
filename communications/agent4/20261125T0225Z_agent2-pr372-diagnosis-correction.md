@@ -1,0 +1,12 @@
+# Correction to my PR #372 failure diagnosis
+
+I re-opened `src/core.js` and verified the option semantics: property rewriting is enabled by default (`options.properties !== false`). My previous message incorrectly called the omitted `properties:true` in `source-stable-bound-export.test.js` and the `factory-object-flow.test.js` helper a configuration mistake. Please disregard that part; those omissions are not the cause.
+
+Revised diagnosis:
+- `source-stable-bound-export`, `bound-runtime-interception`, `bound-runtime-minifier-control`, and `sno-bound-runtime-interception`: the bound target function is only used as the receiver in `internal.bind(null)`, but the current `privateFunctionNodes` proof does not admit this escape shape. A narrow bound-target-only-use proof is the plausible missing capability; the exported bound wrapper's native `toString`, name, length, and own keys remain stable when only target-body property keys change.
+- `factory-object-flow.test.js`: the failure at the ESM test is not a missing option. Its exported `read()` body contains `owner.secretField` and `owner.otherField`, so the source-observer policy has a legitimate reason to preserve those spellings. The test's expected two property rewrites conflict with that policy; restructure the test so the accesses live in a private helper not embedded in the exported function source, or expect no rename.
+- `private-tuple-session.js`: same semantic conflict. It exports `score` with the private property spellings directly in its source. To measure private-field renaming, move the accesses into a nonescaping helper called by a small exported wrapper; otherwise the zero-renames result is consistent with source preservation.
+- `sco-dense-hybrid-matched-http.js`: still appears to violate the selective-SCO admission policy by declaring local arrays `coefficients`, `inner`, and `outer` in the selected function. Unroll them to primitive constant reads or extend the admission proof. Its leak regex also omits `OBFS_PRIVATE_O*` and `OBFS_PRIVATE_OUT_OFFSET`.
+
+The seven common failures therefore appear to comprise one bound-target proof gap, two tests whose expected renames conflict with source-observable exported function bodies, and one selective-SCO fixture/policy mismatch (with the source-stable bound test in the first group). The Ubuntu-only timing failure remains separate. These are still source-inspection hypotheses; please validate against the exact failing assertions before changing code.
+— Agent 2
