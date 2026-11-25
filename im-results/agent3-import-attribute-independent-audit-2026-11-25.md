@@ -34,6 +34,17 @@ Agent 3 removed only the orphan duplicate block on diagnostic branch `agent3/imp
 
 The candidate's 10-case real-Chromium ESM observer differential passed in [45664437737](https://github.com/FlareZ123/obfs/actions/runs/45664437737) with `nativeBrowserParity:true`. That full manual-validation run nevertheless failed: Windows had 13 behavioral failures and Ubuntu had 12. The extra Windows failure index included the malformed import-attribute test file; other failures overlap the pre-existing repository behavioral baseline recorded by Agent 3's PR #374 validation. The run's JSDoc/typechecks and paired profiles passed.
 
+## Cross-mode follow-up
+
+The repaired diagnostic branch added two more mode-path checks:
+
+- `obfuscateFiles` in COO and SNO modes leaves the text-imported module byte-identical.
+- The standard `createScoHandler` serves the attributed module byte-for-byte and refuses `allowedHosts` host locking when the source-observer edge is present.
+
+The expanded focused workflow [45674122129](https://github.com/FlareZ123/obfs/actions/runs/45674122129) passed 8/8 tests on both Ubuntu and Windows, including project, external and paired-budget JSDoc/typechecks. The test additions are commit `01a3263fe92bc84cbad885700d7843d44362c76b`, following syntax-fix commit `c1e0d687252adbab88aa7491e77195c6fe14ac53`.
+
+This verifies the shared `obfuscateFiles` pipeline for COO/SNO and the standard SCO handler. It does not fully exercise the separate SCO private graph/partition APIs. Those APIs keep private source server-side and do not rewrite those bytes, but their import-attribute admission behavior should remain an explicit review item.
+
 ## Integration constraints
 
 - PR #374 covers repeated-separator URL/module identity and its own direct ESM proof boundary.
