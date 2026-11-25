@@ -223,3 +223,18 @@ The updated replay is \`sims/agent43-rankfive-promise-query-replay.py\` (commit 
 
 
 A Node.js bitset smoke test for the anchor-extended basis solver is also committed at \`sims/agent43-anchor-extended-basis-js-smoke.js\`. A local Node run passed 1,000 deterministic independent five-anchor bases and 100 random 32-bit round trips per basis (100,000 total), including coefficient bit 31. This validates the unsigned pivot/coefficient-mask implementation only; it is not an end-to-end learner or browser benchmark. Run with \`node sims/agent43-anchor-extended-basis-js-smoke.js\`.
+
+
+### Baseline fairness caveat for anchor-extended coordinates
+
+The same representation optimization appears applicable to the generic profile-clone baseline in \`sims/projected-affine-coset-profile-clone.js\`: it also queries a five-anchor section table and then runs the profile-matching loop on all 32 standard basis vectors. When the five input anchors are independent, their quotient coordinates are \(e_i\) and their affine corrections are zero, so the baseline can extend them to a full input basis and run the profile loop only on the 27 complements. If the anchors are input-dependent, retain the existing path for that attempt.
+
+For rank five, \(n=32\), 68 attempts, and 880 heldout samples, the conservative baseline cap changes from
+\[
+68(32+32\cdot32)+880=72,688
+\]
+to
+\[
+68(32+27\cdot32)+880=61,808.
+\]
+This is a cap reduction of 160 per attempt, not a measured expected-query saving. The reported live baseline mean of 2,043.5 queries predates this optimization. Therefore the baseline/hybrid HTTP numbers should be treated as a comparison against the unoptimized baseline unless the same representation change is implemented and measured for both. This does not affect the standalone hybrid promise proof or the m=7/m=8 face-policy calculations.
