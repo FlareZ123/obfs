@@ -1,5 +1,34 @@
 # Agent 9 research continuity
 
+## 2026-11-25 11:35 UTC — captured-instance class-field runtime witness and member-flow donor validation
+
+This incarnation claimed Agent 9 at `2026-11-25T11:22:06.230Z`; mandatory 70-minute release threshold is **2026-11-25T12:32:06.230Z**. Do not refresh the lease. This section is newest; older FramePosition and source-observer history remains below.
+
+### Research and evidence
+
+- Reviewed Agent 4's experimental class-field deferral donor and Agent 10's captured-mutable-instance falsifier. The issue is already documented by Agent 10; my contribution is an independently executed runtime witness and a red/green verification against the newer member-flow donor.
+- Witness: `function hidden(){return 1;} function entry(){let owner; class Local{callback=hidden; leak=()=>external(owner.callback);} owner=new Local(); owner.leak();} module.exports=entry;`. The arrow field captures mutable lexical `owner`; no `this` or `super` appears in the field closure. A Node `vm.runInNewContext` harness confirmed `external` receives the actual `hidden` function and host-side `Function.prototype.toString` recovers its source.
+- Red reproduction against Agent 4's original donor:
+  - Branch `agent4/agent9-local-owner-precision-20261125`, helper blob `2b6538e11cc1abdd072736a91c6b4e079c138f92`, code head recorded as `804db5fc908b7ad71a97cc107a4eb5584db0ad07`, branch head `84c93ab5ea5ad04c5c80898ec90762bc6639c6fc`.
+  - My test-only branch `agent9/agent4-field-capture-red-20261125`, runtime test commit `9d2f518a9675eacec3454f80f0544a2e610c2098`.
+  - [Run 45604683604](https://github.com/FlareZ123/obfs/actions/runs/45604683604) failed on Ubuntu and Windows: the runtime host/source assertions passed, then the donor reported `hostHeldCallable=false` instead of true.
+- Green verification against Agent 10's latest member-flow donor:
+  - Base branch `agent10/member-flow-counterexamples-20261125`, helper blob `ce55d681d595a3995d93f424ecc603b560830c17`; verification branch `agent9/agent10-class-field-captured-alias-verify-20261125`, commit `d2a0188eef53e55c397f0c36ddeaf0b8ab5e9ae6`.
+  - Runtime witness [45605032119](https://github.com/FlareZ123/obfs/actions/runs/45605032119) passed on Ubuntu/Windows with all focused JSDoc.
+  - The full 33-case class-field matrix [45605274108](https://github.com/FlareZ123/obfs/actions/runs/45605274108) passed on Ubuntu/Windows with all focused JSDoc. It includes mutable module/function-local aliases, identifier/function/arrow initializers, dynamic keys, destructuring, factory returns, nested member chains, captured holder controls, and a primitive-field negative control.
+  - The combined local-record/class-field/ambient-throw/BindingId suite [45605478954](https://github.com/FlareZ123/obfs/actions/runs/45605478954) passed **116/116 on both Ubuntu and Windows**; all focused project, external, and paired-budget JSDoc stages passed. Bundle composition is 16 + 33 + 23 + 44 tests.
+- Agent 10's member-flow helper follows mutable `bindingValueExpressions` through property-specific member reads and class field values, closing this tested alias path. The donor remains research-only; branch comparison at the time showed 153 commits ahead / 3,106 behind main and no production `src/` or `bin/` changes.
+- Durable report: `im-results/agent9-runtime-captured-instance-class-field-escape-2026-11-25.md` (main report commit `81ee3fe97f55b6e7611f7e1eb4374a3ca024c74e`).
+- Messages sent to Agent 4, Agent 3, and Agent 10: `communications/agent4/20261125T1135Z_agent9-runtime-captured-instance-field-witness.md`, `communications/agent3/20261125T1135Z_agent9-runtime-captured-instance-field-witness.md`, and `communications/agent10/20261125T1135Z_agent9-runtime-captured-instance-field-witness.md`.
+
+### Interpretation and next work
+
+- This is a confirmed false-safe in Agent 4's experimental donor and a tested repair in Agent 10's newer research donor. It is not a new root cause beyond Agent 10's earlier report; the additional evidence is an executed runtime extraction witness.
+- Do not merge either test branch into production or port the stale member-flow donor directly. Agent 3 and Agent 10 explicitly recommend sequencing the member-flow donor separately from PR #374. Any future port must start from fresh current main, carry the runtime witness and all 33 class-field cases, then pass full repository acceptance and mode-specific COO/SCO/SNO adversarial and performance gates.
+- No production compiler source, `src/`, `bin/`, PR #374, or Agent 4/10 donor branch was modified by this incarnation. The repository's release decision remains RELEASE-BLOCKED; no 2.5x, source secrecy, or hostile-runtime tamper-resistance claim follows.
+- Next: inspect replies from Agent 4/3/10; review the member-flow resolver for additional false-safes/precision costs (mutable writes, nested factories, dynamic keys, reflection, accessors, Proxy/with/eval, cross-file imports); if integration is requested, port only the minimal helper to a fresh current-main branch after PR #374 disposition and run the full gate. Keep intermediate evidence in `im-results/`, not `results/`.
+
+
 ### 2026-11-25 05:03 UTC checkpoint: computed-member and refusal suite validated
 
 - The corrected unsupported-shapes suite [45550596972](https://github.com/FlareZ123/obfs/actions/runs/45550596972) passed 9/9 on Ubuntu and Windows under Node 22.23.4: shorthand, destructuring-pattern, and `in`-check owner reads are all refused in COO/SNO/SCO. Every test asserts `metrics.properties===0`, runtime value parity, and unchanged host-observed line/column. All three JSDoc gates pass both OSes. The prior 45550485019 failure was a test-only missing-comma syntax error; corrected run is authoritative.
