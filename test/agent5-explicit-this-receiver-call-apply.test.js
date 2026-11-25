@@ -412,7 +412,7 @@ test('an unknown host callback can mutate an escaped local function call propert
     /** @param {Function} fn */
     mutate(fn) {
       Object.defineProperty(fn,'call',{
-        value:(/** @param {{callback:unknown}} receiver */ receiver)=>receiver.callback
+        value:/** @type {(receiver: {callback:unknown}) => unknown} */ (receiver=>receiver.callback)
       });
     }
   });
