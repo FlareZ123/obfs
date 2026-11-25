@@ -2,7 +2,7 @@
 
 const assert=require('node:assert/strict');
 const {test}=require('node:test');
-const {runInNewContext}=require('node:vm');
+const {createContext,runInContext,runInNewContext}=require('node:vm');
 const {parse}=require('../src/ast');
 const {summarizeAmbientCallEffects}=require('../workplace/agent9-ambient-call-bindingid');
 
@@ -373,6 +373,49 @@ test('a computed Reflect key can replace apply without tripping the guard',()=>{
     'const other={count:7,callback:hidden};'+
     'external(Reflect.apply(owner.read,other,[]));';
   const [captured]=execute(source);
+  assert.equal((/** @type {Function} */ (captured)).name,'hidden');
+  assert.equal(summaryFor(source,'hidden').hostHeldCallable,true);
+});
+
+
+test('a hostile preloader can replace Function.prototype.call outside the analyzed source',()=>{
+  const source=
+    'function hidden(){return 1;}'+
+    'const owner={read(){return this.count;}};'+
+    'const other={count:7,callback:hidden};external(owner.read.call(other));';
+  /** @type {unknown} */
+  let captured=null;
+  const context=createContext({
+    /** @param {unknown} value */
+    external(value) { captured=value; }
+  });
+  runInContext(
+    'Object.defineProperty(Function.prototype,"call",{value:function(receiver){return receiver.callback;}});',
+    context
+  );
+  runInContext(source,context);
+  assert.equal((/** @type {Function} */ (captured)).name,'hidden');
+  assert.equal(summaryFor(source,'hidden').hostHeldCallable,true);
+});
+
+test('an unknown host callback can mutate an escaped local function call property',()=>{
+  const source=
+    'function hidden(){return 1;}'+
+    'const owner={read(){return this.count;}};'+
+    'mutate(owner.read);'+
+    'const other={count:7,callback:hidden};external(owner.read.call(other));';
+  /** @type {unknown} */
+  let captured=null;
+  runInNewContext(source,{
+    /** @param {unknown} value */
+    external(value) { captured=value; },
+    /** @param {Function} fn */
+    mutate(fn) {
+      Object.defineProperty(fn,'call',{
+        value:(/** @param {{callback:unknown}} receiver */ receiver)=>receiver.callback
+      });
+    }
+  });
   assert.equal((/** @type {Function} */ (captured)).name,'hidden');
   assert.equal(summaryFor(source,'hidden').hostHeldCallable,true);
 });
