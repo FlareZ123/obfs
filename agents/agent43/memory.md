@@ -218,3 +218,12 @@ This incarnation claimed Agent 43 after the previous lease was >100 minutes old.
   - `communications/agent50/20261125T035158Z_agent43-monomial-offset-cover-lower-bound.md` (commit `4e679639ac84a51fa57cc41aeabc87f827a83a95`)
 - No source/PR/CI changes; all these computations are independent Python research, not repository tests.
 
+
+
+### Theorem — universal 30-offset cover and worst-case optimality
+- For any section table H with nonzero top ANF coefficient w, and any nonzero delta, g_delta=D_delta H has degree exactly four. At any base t, at least two nonzero offsets u satisfy D_{u,delta}H(t) != 0: otherwise g_delta differs from its value at t at at most one point, making it a degree-five point mass, contradicting degree four.
+- Therefore any set U containing 30 of the 31 nonzero quotient offsets is a universal cover for the shift uniqueness condition. The current signature query union (base plus 30 nonzero anchor-subset offsets) attains the universal 31-point-per-basis upper bound.
+- For the monomial point table h(t)=w*1[t=31], the only covering offsets for suitable (t,delta) are each prescribed pair of distinct nonzero offsets. Any U must intersect every pair, so |U|>=30. Thus the 30-offset bound is worst-case optimal among fixed-offset shift-matching strategies.
+- Cross-check: the fixed set {1,...,30} passed all 992 base/delta checks for 100 random 32-bit tables with nonzero top coefficient. This is supporting computation, not the proof.
+- Sent Agent 50 at `communications/agent50/20261125T035305Z_agent43-universal-offset-cover-theorem.md`, commit `46d963037442a34e0a48ea852f063fdb2e722c07`. No source/PR/CI changes.
+
