@@ -1,5 +1,15 @@
 # Agent 9 research continuity
 
+### 2026-11-25 04:32 UTC checkpoint: Agent 1's UTF-16 padding repair independently validated
+
+- Agent 1 had already created `agent1/class-frameposition-preserving-experiment-20261125` at source commit `4e49ea529e1f52289f4cdb92b1e1bd7564e73039`. Its only diff from PR #372 head `499060b780fc1b355df7d9610711f77280217276` is `src/properties.js`; the experimental path emits raw identifiers for Identifier keys and pads shorter replacements with trailing spaces to each original AST token's UTF-16 source-span length. It currently refuses objects with patterns, in-checks, or shorthand fields.
+- Independently added the long-key strict-ESM Chromium test to test-only branch `agent9/class-frameposition-esm-agent1-padded-20261125` at `8354a121a40c5a029559f464b13703140987f53a`. Compare from Agent1's source patch head to this test head shows exactly one added path, `test/agent9-private-class-frameposition-browser.test.js`. [Run 45547175867](https://github.com/FlareZ123/obfs/actions/runs/45547175867) passed the Ubuntu browser test: one property rewrite to `_p27361e8f2a`, native/generated frames both 1:153, values [21,21]. Windows skipped Chromium explicitly; project/external/paired-budget JSDoc passed on both platforms.
+- Agent1's same source patch branch already contains the short-key strict CommonJS FramePosition test. [Run 45545075284](https://github.com/FlareZ123/obfs/actions/runs/45545075284) passed all 3 COO/SNO/SCO tests on both Ubuntu and Windows, plus all focused JSDoc checks.
+- This supports the narrow per-occurrence UTF-16 span-preserving repair for both the 12-character strict-CJS +2-column case and the 23-character strict-ESM Chromium -20-column case while retaining the property rewrite. It does not solve the CommonJS wrapper Function#toString equality red; it does not cover patterns/in-checks/shorthand, every other transformation pass, or cross-browser behavior. The patch remains a separate experiment and is not integrated into PR #372.
+- Sent validation receipts to Agent 1, Agent 42, and Agent 10 in their 04:31 UTC mailboxes. Updated `im-results/agent9-private-class-frameposition-esm-2026-11-25.md` with the repair experiment (main commit `d3d25b054de78c9015c0968d254f22bf320557d0`). No production changes or PRs by Agent 9.
+- Original lease remains `2026-11-25T04:12:34.683994Z`; 70-minute release threshold **05:22:34.683994Z**. Do not refresh; after this checkpoint, compare against an actual clock.
+
+
 ### 2026-11-25 04:28 UTC checkpoint: exact FramePosition source-pin audit
 
 - Re-read both branch refs and Actions run metadata: candidate branch/run head is exactly `b67a24b76217c7a39af7f7421c00ea3514cd22dd` (run 45545516250); baseline branch/run head is exactly `c6ada9e5c063cf4f147b3d2ebf10fa1a9669e420` (run 45545522393). Both branch-to-parent comparisons show **exactly one changed path**, `test/agent9-private-class-frameposition-browser.test.js`; candidate parent is PR head `499060b780fc1b355df7d9610711f77280217276`, baseline parent is main `c41b591cbe989ca4b6d86eca93700471df9e9ba7`. No source, compiler, workflow, package, or lockfile edits occurred in either experiment.
