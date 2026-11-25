@@ -552,10 +552,12 @@ function main() {
   const promiseMonomialSource=makeRankFiveSource(
     8,seeded(0x50a202782),promiseMonomialTable
   );
-  for(const [source,seed,expectedStrategy] of [
+  /** @type {Array<[(input:number)=>number,number,'shift'|'signature']>} */
+  const promiseCasesToRun=[
     [promiseRandomSource,0x50a202783,'shift'],
     [promiseMonomialSource,0x50a202784,'signature']
-  ]) {
+  ];
+  for(const [source,seed,expectedStrategy] of promiseCasesToRun) {
     let verifierCalls=0;
     let candidateReadyCalls=0;
     const promised=cloneTopDerivativeProjectedAffine(
