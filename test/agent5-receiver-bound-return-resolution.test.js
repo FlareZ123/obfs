@@ -126,3 +126,45 @@ test('optional object getter access preserves receiver-bound callable flow',()=>
   assert.equal(captured?.name,'hidden');
   assert.equal(hiddenSummary(source).hostHeldCallable,true);
 });
+
+
+test('an object getter can delegate through a receiver-bound method',()=>{
+  const source=
+    'function hidden(){return 1;}'+
+    'const owner={callback:hidden,getCallback(){return this.callback;},get result(){return this.getCallback();}};'+
+    'external(owner.result);';
+  const [captured]=execute(source);
+  assert.equal(captured?.name,'hidden');
+  assert.equal(hiddenSummary(source).hostHeldCallable,true);
+});
+
+test('a class getter can delegate through a receiver-bound method',()=>{
+  const source=
+    'function hidden(){return 1;}'+
+    'class Owner{getCallback(){return hidden;}get result(){return this.getCallback();}}'+
+    'const owner=new Owner();external(owner.result);';
+  const [captured]=execute(source);
+  assert.equal(captured?.name,'hidden');
+  assert.equal(hiddenSummary(source).hostHeldCallable,true);
+});
+
+test('a class method can delegate through another receiver-bound method',()=>{
+  const source=
+    'function hidden(){return 1;}'+
+    'class Owner{getCallback(){return hidden;}read(){return this.getCallback();}}'+
+    'const owner=new Owner();external(owner.read());';
+  const [captured]=execute(source);
+  assert.equal(captured?.name,'hidden');
+  assert.equal(hiddenSummary(source).hostHeldCallable,true);
+});
+
+test('a receiver-bound method chain can still resolve a primitive leaf',()=>{
+  const source=
+    'function hidden(){return 1;}'+
+    'const owner={callback:hidden,count:1,getCount(){return this.count;},read(){return this.getCount();}};'+
+    'external(owner.read());';
+  const [captured]=execute(source);
+  assert.equal(captured,1);
+  assert.equal(hiddenSummary(source).hostHeldCallable,false);
+  assert.equal(hiddenSummary(source).safe,true);
+});
