@@ -61,12 +61,8 @@ function mayAppearInFailedOperand(node,ancestors) {
  * @returns {{code:string,count:number}}
  */
 function encodeStringsWithSourceSpans(source,ast,options) {
-  const spanObserved=observesFunctionSource(ast);
-  const spanStringShadowed=collectBindings(ast).has('String');
-  if(ast.sourceType==='script'||spanObserved||spanStringShadowed) {
-    console.log('SPANSTR_EARLY',JSON.stringify({sourceType:ast.sourceType,spanObserved,spanStringShadowed}));
+  if(ast.sourceType==='script'||observesFunctionSource(ast)||collectBindings(ast).has('String'))
     return {code:source,count:0};
-  }
   // A direct eval/Function constructor can introduce a binding that shadows
   // the appended helper. With-scope lookup can do the same dynamically.
   let dynamicScope=false;
@@ -74,9 +70,9 @@ function encodeStringsWithSourceSpans(source,ast,options) {
     if(node.type==='WithStatement')dynamicScope=true;
     if(node.type==='Identifier'&&(node.name==='eval'||node.name==='Function'))dynamicScope=true;
   });
-  if(dynamicScope){console.log('SPANSTR_DYNAMIC');return {code:source,count:0};}
+  if(dynamicScope)return {code:source,count:0};
   const helper=unusedName(source,ast,options.seed+'span-strings',options.reservedNames,options.reservedSources);
-  if(!helper){console.log('SPANSTR_NO_HELPER');return {code:source,count:0};}
+  if(!helper)return {code:source,count:0};
   const values=new Map();
   /** @type {{start:number,end:number,text:string}[]} */
   const edits=[];
@@ -103,7 +99,7 @@ function encodeStringsWithSourceSpans(source,ast,options) {
     edits.push({start:node.start,end:node.end,
       text:replacement+' '.repeat(oldText.length-replacement.length)});
   });
-  if(!edits.length){console.log('SPANSTR_NO_EDITS',JSON.stringify({helper,minimumLength,sourceType:ast.sourceType}));return {code:source,count:0};}
+  if(!edits.length)return {code:source,count:0};
   options.reservedNames?.add(helper);
   const key=(parseInt(createHash('sha256').update(options.seed).digest('hex').slice(0,4),16)%65535)+1;
   const encoded=[...values.keys()].map(value=>{
