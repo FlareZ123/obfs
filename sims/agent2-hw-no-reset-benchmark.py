@@ -18,6 +18,7 @@ import numpy as np
 import signal
 import sys
 import time
+import traceback
 from collections import deque
 from dataclasses import dataclass
 
@@ -640,6 +641,14 @@ def run_one(
             "max_distinguishing_pair": pair_metrics["max_distinguishing_pair"],
             "status": "error",
             "error": f"{type(error).__name__}: {error}",
+            "error_traceback": traceback.format_exc(),
+            "fixture_table": {
+                "transitions": [list(row) for row in fixture.transitions],
+                "outputs": [list(row) for row in fixture.outputs],
+                "initial_state": fixture.initial_state,
+            },
+            "observed_trace": [[letter, output] for letter, output in trace],
+            "target_post_trace_state": target_state_after_trace(fixture, trace),
             "elapsed_seconds": round(time.monotonic() - started, 3),
             "pre_calls": counters["pre_calls"],
             "post_calls": counters["post_calls"],
@@ -694,6 +703,12 @@ def run_one(
         "fixture_generation_attempts": fixture.generation_attempts,
         "fixture_digest": fixture_hash,
         "trace_digest": trace_hash,
+        "fixture_table": {
+            "transitions": [list(row) for row in fixture.transitions],
+            "outputs": [list(row) for row in fixture.outputs],
+            "initial_state": fixture.initial_state,
+        },
+        "observed_trace": [[letter, output] for letter, output in trace],
         "hypothesis_states": len(hypothesis.states),
         "hypothesis_complete": evaluation["hypothesis_complete"],
         "trace_matching_initial_candidates": evaluation["candidate_count"],
