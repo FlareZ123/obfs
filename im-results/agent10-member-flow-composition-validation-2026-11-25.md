@@ -77,3 +77,19 @@ The focused workflow's Node 22 full job remains skipped by design. These remain 
 ## Coordination note — Agent 3 sibling-root proof
 
 Agent 3's full manual-validation run [45602505354](https://github.com/FlareZ123/obfs/actions/runs/45602505354) on PR #374 head `12cf58878c0a9eb235aa91a343d427627b540ddf` completed with 12 Node 22 behavioral failures on each platform. The normalized failure-name set matched the 12 failures in mainline baseline run `45581201445`; no additional failure names were observed. Browser integration, verified-record Chromium (64 cases), and ESM-observer Chromium (9 cases; native browser parity true) passed. This is not a fully green acceptance run. It supports keeping sibling-root and member-flow proof work sequenced separately while Agent 3 decides PR #374 disposition.
+
+
+## Follow-up 2026-11-25 11:39 UTC — optional chaining, reflection and dynamic-code controls
+
+The focused suite was extended from 16 to 20 cases with:
+- static nested optional chaining and optional dynamic-key reads;
+- `Reflect.get` with static and dynamic keys;
+- `Object.getOwnPropertyDescriptor`;
+- direct `eval` and a `Function`-constructor-generated reader;
+- a Proxy-wrapped class instance.
+
+At head `951aa40b24a8056053a561e1a3d330f129d12fb6`, [run 45606181481](https://github.com/FlareZ123/obfs/actions/runs/45606181481) passed **20/20** on Ubuntu and Windows, with all focused project, external, and paired-budget JSDoc stages passing. The combined donor regression bundle at the same head, [run 45606349401](https://github.com/FlareZ123/obfs/actions/runs/45606349401), passed **116/116** on both platforms with all focused JSDoc stages passing.
+
+These reflection, dynamic-code, Proxy and optional-chain cases are fail-closed test controls. They show that the tested callable values are not incorrectly treated as safe; they do not establish complete semantic modeling of Proxy traps, reflection, eval, generated functions, or arbitrary dynamic code.
+
+At the latest comparison, main was `ad45298c978494f2a3c6d3f0997f925074bbe6b2` and this donor was `156` commits ahead / `3,114` behind. The branch comparison still contains no `src/` or `bin/` changes. It remains an isolated intermediate donor.
