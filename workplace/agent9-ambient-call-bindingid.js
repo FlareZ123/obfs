@@ -181,6 +181,18 @@ function summarizeAmbientCallEffects(ast,sourceType) {
     }
     return null;
   }
+
+  /** @param {AstNode} node @returns {boolean} */
+  function isInsideWithBody(node) {
+    let current=node;
+    while(parentByNode.has(current)) {
+      const parent=parentByNode.get(current);
+      if(!parent)break;
+      if(parent.type==='WithStatement'&&parent.body===current)return true;
+      current=parent;
+    }
+    return false;
+  }
   /** @param {AstNode} node @returns {boolean} */
   function hasAnnexBBlockFunctionScope(node) {
     if(sourceType==='module')return false;
@@ -492,7 +504,8 @@ function summarizeAmbientCallEffects(ast,sourceType) {
       if(member?.type!=='MemberExpression'||member.object!==reference.node||member.optional)
         return null;
       const key=staticPropertyKey(member.property,member.computed);
-      if(key===null||!keys.has(key)||enclosingFunction(reference.node)!==ownerFunction)
+      if(key===null||!keys.has(key)||enclosingFunction(reference.node)!==ownerFunction||
+         isInsideWithBody(reference.node))
         return null;
       const use=parentByNode.get(member);
       if((use?.type==='CallExpression'&&use.callee===member)||
