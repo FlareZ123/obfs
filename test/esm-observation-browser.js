@@ -22,7 +22,7 @@ const CASES=[
   {name:'unrelated-descriptor-positive',kind:20,renamed:2},
   {name:'external-numeric-positive',kind:23,renamed:2},
   {name:'sibling-alias-local-reader',renamed:1,files:[
-    {path:'state.mjs',sourceType:'module',code:'export const state={secretField:29};'},
+    {path:'state.mjs',sourceType:'module',code:'export const state={secretField:29,auxiliaryField:13};'},
     {path:'entry.mjs',sourceType:'module',code:
       'import {state as left} from "./state.mjs";'+
       'import {state as right} from "./state.mjs";'+
@@ -32,14 +32,14 @@ const CASES=[
   ]},
   {name:'sibling-alias-imported-reader',renamed:1,files:[
     {path:'state.mjs',sourceType:'module',code:
-      'export const state={secretField:29};'+
+      'export const state={secretField:29,auxiliaryField:13};'+
       'export function peek(value){return value.secretField;}'},
     {path:'entry.mjs',sourceType:'module',code:
       'import {state as left,state as right,peek} from "./state.mjs";'+
       'export const value=peek(left)+peek(right);'}
   ]},
   {name:'sibling-alias-escape',renamed:0,files:[
-    {path:'state.mjs',sourceType:'module',code:'export const state={secretField:29};'},
+    {path:'state.mjs',sourceType:'module',code:'export const state={secretField:29,auxiliaryField:13};'},
     {path:'entry.mjs',sourceType:'module',code:
       'import {state as left,state as right} from "./state.mjs";'+
       'globalThis.escapedOwner=right;'+
