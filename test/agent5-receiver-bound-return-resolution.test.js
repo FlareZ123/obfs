@@ -525,3 +525,37 @@ test('an async method preserves lexical-arrow receiver flow through await',async
   assert.match(String(captured),/return 1/);
   assert.equal(hiddenSummary(source).hostHeldCallable,true);
 });
+
+
+test('a lexical-arrow receiver survives invocation through a local function parameter',()=>{
+  const source=
+    'function hidden(){return 1;}'+
+    'const owner={callback:hidden,get result(){const read=()=>this.callback;function invoke(callback){return callback();}return invoke(read);}};'+
+    'external(owner.result);';
+  const [captured]=execute(source);
+  assert.equal(captured?.name,'hidden');
+  assert.match(String(captured),/return 1/);
+  assert.equal(hiddenSummary(source).hostHeldCallable,true);
+});
+
+test('a lexical-arrow receiver survives two layers of local-function parameter forwarding',()=>{
+  const source=
+    'function hidden(){return 1;}'+
+    'const owner={callback:hidden,get result(){const read=()=>this.callback;function forward(callback){return callback();}function invoke(callback){return forward(callback);}return invoke(read);}};'+
+    'external(owner.result);';
+  const [captured]=execute(source);
+  assert.equal(captured?.name,'hidden');
+  assert.match(String(captured),/return 1/);
+  assert.equal(hiddenSummary(source).hostHeldCallable,true);
+});
+
+test('an ordinary function passed through a local parameter does not borrow getter this',()=>{
+  const source=
+    'function hidden(){return 1;}'+
+    'const owner={callback:hidden,get result(){function read(){return this.callback;}function invoke(callback){return callback();}return invoke(read);}};'+
+    'external(owner.result);';
+  const [captured]=execute(source);
+  assert.equal(captured,undefined);
+  assert.equal(hiddenSummary(source).hostHeldCallable,false);
+  assert.equal(hiddenSummary(source).safe,true);
+});
