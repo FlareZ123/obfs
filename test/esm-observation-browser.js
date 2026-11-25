@@ -28,7 +28,7 @@ const CASES=[
       'import {state as right} from "./state.mjs";'+
       'const alias=right;const getLeft=()=>left;'+
       'const local=value=>value.secretField;'+
-      'export const value=[local(alias),local(getLeft())];'}
+      'console.log(local(alias),local(getLeft()));'}
   ]},
   {name:'sibling-alias-imported-reader',renamed:1,files:[
     {path:'state.mjs',sourceType:'module',code:
@@ -36,7 +36,7 @@ const CASES=[
       'export function peek(value){return value.secretField;}'},
     {path:'entry.mjs',sourceType:'module',code:
       'import {state as left,state as right,peek} from "./state.mjs";'+
-      'export const value=[peek(left),peek(right)];'}
+      'console.log(peek(left),peek(right));'}
   ]},
   {name:'sibling-alias-escape',renamed:0,files:[
     {path:'state.mjs',sourceType:'module',code:'export const state={secretField:29};'},
@@ -44,7 +44,7 @@ const CASES=[
       'import {state as left,state as right} from "./state.mjs";'+
       'globalThis.escapedOwner=right;'+
       'const local=value=>value.secretField;'+
-      'export const value=local(left);'}
+      'console.log(local(left));'}
   ]}
 ];
 
@@ -73,15 +73,22 @@ function page(entryUrl) {
   return [
     '<!doctype html><html><head><meta charset="utf-8"></head><body>',
     '<script type="module">',
+    'let capturedArgs;',
+    'let logged=false;',
+    'const originalLog=console.log;',
+    'console.log=(...args)=>{if(logged)throw Error("Multiple fixture outputs");logged=true;capturedArgs=args;};',
     'try {',
     `const mod=await import(${JSON.stringify(entryUrl)});`,
-    'if(!Object.hasOwn(mod,"value"))throw Error("Missing fixture value export");',
-    'const encoded=JSON.stringify(mod.value);',
+    'console.log=originalLog;',
+    'const hasValue=Object.hasOwn(mod,"value");',
+    'if(!hasValue&&!logged)throw Error("Missing fixture output");',
+    'const encoded=JSON.stringify(hasValue?mod.value:capturedArgs);',
     'if(typeof encoded!=="string")throw Error("Fixture value is not JSON serializable");',
     'const pre=document.createElement("pre");',
     'pre.id="result";pre.textContent=btoa(encoded);',
     'document.body.appendChild(pre);',
     '} catch(error) {',
+    'console.log=originalLog;',
     'const pre=document.createElement("pre");pre.id="failure";',
     'pre.textContent=String(error.stack||error);',
     'document.body.appendChild(pre);',
