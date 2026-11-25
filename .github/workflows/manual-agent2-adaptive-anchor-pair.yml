@@ -45,7 +45,7 @@ jobs:
           g++ -O3 -std=c++17 sims/agent2-rankfive-m7-fullpath-face-order-dp.cpp -o /tmp/agent2-m7-fullpath-dp
           /tmp/agent2-m7-fullpath-dp sims/data/m7-fullpath | tee m7-fullpath-dp-output.txt
           grep -q '^graphs=1044 states=12490035 transitions=105195413 ' m7-fullpath-dp-output.txt
-          grep -q '^GLOBAL total=160.549864623622 .* k=10 ' m7-fullpath-dp-output.txt
+          grep -q '^GLOBAL total=160.549864623622 .* k=10 uncacheable_vertices=0 ' m7-fullpath-dp-output.txt
       - name: Preserve reproducibility artifacts
         if: always()
         uses: actions/upload-artifact@v4
