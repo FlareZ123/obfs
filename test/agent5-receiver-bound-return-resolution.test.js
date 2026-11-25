@@ -201,3 +201,37 @@ test('a dynamic getter read conservatively binds the getter receiver for side-ef
   assert.equal(captured?.name,'hidden');
   assert.equal(hiddenSummary(source).hostHeldCallable,true);
 });
+
+
+test('an escaped object getter exposes its returned callable to the host',()=>{
+  const source=
+    'function hidden(){return 1;}'+
+    'const owner={get value(){return hidden;}};'+
+    'external(owner);';
+  const [captured]=execute(source);
+  const observed=/** @type {any} */(captured).value;
+  assert.equal(observed?.name,'hidden');
+  assert.equal(hiddenSummary(source).hostHeldCallable,true);
+});
+
+test('an escaped object method exposes its returned callable to the host',()=>{
+  const source=
+    'function hidden(){return 1;}'+
+    'const owner={getCallback(){return hidden;}};'+
+    'external(owner);';
+  const [captured]=execute(source);
+  const observed=/** @type {any} */(captured).getCallback();
+  assert.equal(observed?.name,'hidden');
+  assert.equal(hiddenSummary(source).hostHeldCallable,true);
+});
+
+test('an escaped class instance method exposes its returned callable to the host',()=>{
+  const source=
+    'function hidden(){return 1;}'+
+    'class Owner{getCallback(){return hidden;}}'+
+    'const owner=new Owner();external(owner);';
+  const [captured]=execute(source);
+  const observed=/** @type {any} */(captured).getCallback();
+  assert.equal(observed?.name,'hidden');
+  assert.equal(hiddenSummary(source).hostHeldCallable,true);
+});
