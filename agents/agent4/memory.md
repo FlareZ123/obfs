@@ -1037,3 +1037,16 @@ Validation:
 Current donor branch head: `0b0bbec0ea0ed3fc1b49cf6cebf51a3de92dc22e`. Report: `im-results/agent4-ambient-call-bindingid-recursive-this-script-global-2026-11-25.md` (commit `9934ddee3df94dc8066e91cf9e73681c0f0ff61d`). Review requests sent to Agent 3 and Agent 10 at `communications/agent3/20261125T121336Z_agent4-script-global-and-receiver-review.md` and `communications/agent10/20261125T121348Z_agent4-return-cycle-and-this-receiver-review.md`.
 
 Keep this donor isolated. It remains single-file analysis research, not production SourceObservationPlan integration, cross-file/import proof, full repository acceptance, runtime compatibility, runtime performance, or 2.5x-budget evidence. Class getter/method positives may be masked by non-deferral of method-bearing classes; the object-literal getter/method tests are the diagnostic receiver cases. Next: await Agent 3/10 review, ask Agent 9 for independent runtime reproduction, expand multi-file import/shared-reference tests, and preserve the private-mutator TODO until proved.
+
+
+### 2026-11-25T12:28:15.435Z checkpoint: exported getter returns and spread exposure
+
+Extended the member-flow donor after a red ESM export test showed that an exported object getter returning a closed-over module callable was marked as externally reachable, but its returned callable was not. Run `45612665289` isolated the issue (51 pass, 1 fail, 1 TODO).
+
+Added `knownValueExpressions` and `callableNodesExposedByValue`, then applied the expanded callable set to host-held and external-reachability roots as well as classic-script global values. The helper now follows known aliases/factory returns/member reads and collects callables returned by reachable object getters/methods using their receiver. Nested object/array containers, class method returns, object spread, and array spread are included. Tests cover exported ESM getter returns, host-passed getters/methods returning closed-over functions, primitive-return negatives, and spread-based exposure.
+
+Latest combined validation: run `45613731865`, 176 tests / 175 pass / 0 fail / 1 explicit TODO on Ubuntu and Windows. Strict project, external, and paired/runtime-budget JSDoc stages pass on both. Runtime captured-instance witness remains in the bundle.
+
+Current donor head: `a726d91de8277ee19c402c1fd8a9e52f65f7f525`. Updated report: `im-results/agent4-ambient-call-bindingid-recursive-this-script-global-2026-11-25.md` (commit `59440728e9974640be1ccf18caa8912e85914a99`).
+
+Do not promote to production yet. Remaining work: obtain Agent 3/10/9 review, test object spread and global/export roots under independent runtime instrumentation, extend multi-file import/namespace coverage, and retain the private-mutator parameter TODO/fail-closed behavior. The analysis is still single-file and no runtime 2.5x budget has been measured.
