@@ -48,3 +48,14 @@ Alexandre Petrenko, Florent Avellaneda, Roland Groz, and Catherine Oriat, “Fro
 - The 2019 hW-inference paper's related-work section summarizes this SAT approach as oracle-free, shortest-trace-oriented, and empirically scaling to roughly a dozen states. See the 2019 paper, Section 5: https://proceedings.mlr.press/v93/groz19a/groz19a.pdf
 
 This is the closest located algorithmic antecedent for the current experiment's trusted-state-bound, no-reset setting. The repository's explicit belief-state Bellman/minimax certificate may differ from the SAT-based conjecture-elimination method, but a novelty claim requires a direct comparison of assumptions, objective (per-machine shortest trace versus global worst-case minimax policy), and resulting query guarantees.
+
+### Groz et al. (2023): non-resettable extended finite-state inference
+
+Roland Groz, Catherine Oriat, Germán Vega, Adenilso Simao, Michael Foster, and Neil Walkinshaw, “Active Inference of Extended Finite State Models of Software Systems,” *Proceedings of the 16th International Conference on Grammatical Inference*, PMLR 217:265–269 (2023).
+
+- Paper: https://proceedings.mlr.press/v217/groz23a.html
+- PDF: https://proceedings.mlr.press/v217/groz23a/groz23a.pdf
+- This extends hW-inference from Mealy FSMs to extended finite-state machines with input/output parameters, guards, internal registers, and data-update functions, without a reliable reset.
+- The stated tractability assumptions concern observability and determinism; control flow must remain finite, while data types may be infinite.
+
+This is closer to parameterized server APIs than a binary-input Mealy model. A future SCO attack study should consider whether a realistic exposed operation is better modeled as an EFSM (finite control plus data registers) and should distinguish recoverable control/update structure from cryptographic secrets or high-entropy state.
