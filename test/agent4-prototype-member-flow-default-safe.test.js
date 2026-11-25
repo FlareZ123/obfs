@@ -319,7 +319,7 @@ test('an aliased constructor exposed to the host invalidates prototype-shadow pr
   assert.equal(typeof observed,'function');
   assert.equal(/** @type {{name?:unknown}} */ (observed).name,'hidden');
   assert.equal(hiddenSummary(source).hostHeldCallable,true);
-  assert.equal(hiddenSummary(source,{:true}).hostHeldCallable,true,
+  assert.equal(hiddenSummary(source).hostHeldCallable,true,
     'an aliased constructor is not eligible for the local prototype-shadow proof');
 });
 
