@@ -3,6 +3,7 @@
 const {createHash} = require('node:crypto');
 const {walk,applyEdits,observesFunctionSource,sourceSpelledErrorOperand} = require('./ast');
 const {collectBindings} = require('./properties');
+const {renameLocalIdentifiers: renameLocalIdentifiersLegacy} = require('./identifiers-legacy');
 
 /** @typedef {import('./ast').AstNode} AstNode */
 
@@ -40,7 +41,7 @@ function classifyIdentifier(node,parent,key) {
  * @param {{seed:string,sourceType:'script'|'module'|'commonjs'}} options
  * @returns {{code:string,bindings:number}}
  */
-function renameLocalIdentifiers(source,ast,options) {
+function renameLocalIdentifiersPreservingFramePositions(source,ast,options) {
   if(observesFunctionSource(ast)) return {code:source,bindings:0};
   const counts=collectBindings(ast);
   /** @type {{identifier:AstNode,name:string,scope:AstNode}[]} */
@@ -235,6 +236,21 @@ function renameLocalIdentifiers(source,ast,options) {
     edits.push(...local);
   }
   return {code:applyEdits(source,edits),bindings};
+}
+
+/**
+ * Preserve the established renamer by default. Source-span-preserving
+ * renaming is an explicit experiment until a shared source-observation plan
+ * can select it automatically and account for shorthand expansion.
+ * @param {string} source
+ * @param {AstNode} ast
+ * @param {{seed:string,sourceType:'script'|'module'|'commonjs',preserveFramePositions?:boolean}} options
+ * @returns {{code:string,bindings:number}}
+ */
+function renameLocalIdentifiers(source,ast,options) {
+  return options.preserveFramePositions ?
+    renameLocalIdentifiersPreservingFramePositions(source,ast,options) :
+    renameLocalIdentifiersLegacy(source,ast,options);
 }
 
 module.exports={renameLocalIdentifiers};
