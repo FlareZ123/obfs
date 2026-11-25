@@ -177,3 +177,29 @@ test('an escaping closure propagates a callable from a captured parameter defaul
     'a returned closure exposes the function selected by its default parameter');
   assert.equal(hidden.safe,false);
 });
+
+
+test('writing a callable into a host-owned object property marks it held',()=>{
+  const source=
+    'function hidden(){return 1;}'+
+    'function entry(owner){owner.callback=hidden;}'+
+    'module.exports=entry;';
+  /** @type {{module:{exports:((owner:Record<string,unknown>)=>unknown)|null}}} */
+  const context={module:{exports:null}};
+  vm.runInNewContext(source,context);
+  const entry=context.module.exports;
+  assert.equal(typeof entry,'function');
+  /** @type {Record<string,unknown>} */
+  const owner={};
+  (/** @type {(owner:Record<string,unknown>)=>unknown} */ (entry))(owner);
+  const caught=owner.callback;
+  assert.equal(typeof caught,'function');
+  assert.match(Function.prototype.toString.call(caught),/function hidden/u);
+
+  const result=analyze(source);
+  const hidden=named(result,'hidden')[0];
+  assert.ok(hidden);
+  assert.equal(hidden.hostHeldCallable,true,
+    'a callable assigned through an externally supplied object reference escapes to its owner');
+  assert.equal(hidden.safe,false);
+});
