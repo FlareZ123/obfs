@@ -117,7 +117,7 @@ The benchmark stores fixture and trace digests, seeds, target post-trace state, 
 Reproduce from the repository root:
 
 ~~~sh
-python -m pip install aalpy==2.0.0
+python -m pip install aalpy==2.0.0 numpy==2.2.6
 PYTHONHASHSEED=0 python sims/test_agent2_hw_no_reset_evaluator.py
 PYTHONHASHSEED=0 python sims/agent2-hw-no-reset-benchmark.py \
   --min-states 2 --max-states 12 --seeds 2 \
@@ -179,9 +179,39 @@ The 20 seeds per state size are deterministic fixture-generator seeds, not an II
 
 The 5-second 220-case sweep's 12-state/seed-7 timeout recorded 2,512 SUL steps. A focused rerun of the same fixture with a 30-second limit recorded 3,307 steps before timing out. The larger prefix is consistent with the longer time budget; it is not evidence of RNG divergence. The earlier workflows did not explicitly fix Python's process hash seed or seed NumPy's RNG, so exact replay is not yet maximally controlled, even though the fixture generator and Python random seed were pinned.
 
-The benchmark now seeds both Python random and NumPy with the per-case oracle seed, and the hW workflows set **PYTHONHASHSEED=0** at job scope. The focused 30-second rerun, workflow **45594406248**, completed 7/8 cases and again timed out on 12 states / seed 7 after 3,307 SUL steps (one pre call, zero post calls, zero query calls). A focused 12-state, seeds-0–7 rerun with a 60-second per-fixture limit and the pinned RNG environment is queued as workflow **45596788503**. After it completes, rerun the full 220-case matrix under the pinned RNG environment before treating aggregate rates or the 12-state/seed-7 timeout as stable.
+The benchmark now seeds both Python random and NumPy with the per-case oracle seed, and the hW workflows set **PYTHONHASHSEED=0** at job scope. Both workflows now install the explicitly pinned **numpy==2.2.6** alongside **aalpy==2.0.0**. The first post-seeding focused run, **45596788503**, failed before the evaluator tests because the workflow omitted NumPy; it is not a learner result.
 
-For local reproduction, prefix the command with **PYTHONHASHSEED=0**. The 22- and 220-case figures above remain observed outcomes; the 220-case aggregate is provisional pending the pinned-RNG rerun.
+A fresh 22-case pinned-RNG rerun, workflow **45623386394**, completed successfully on exact head **11035b7aef3221ed745d44137f85dc37d0717f2e**. All **7/7** evaluator tests and **22/22** benchmark cases passed, with zero timeouts/errors, 20/22 exact initial-model clones, 22/22 returned-hypothesis future certifications, and zero false future convergence. The aggregate step totals exactly reproduce the prior 22-case result: 26,145 total SUL steps, 15,847 oracle steps (a subset), and 10,298 non-oracle steps. This confirms deterministic reproduction for this 22-case sample under the pinned RNG environment.
+
+The full 220-case matrix was rerun under the pinned RNG environment in workflow **45624840365**, exact head **b43c300e88ba153345d6a0e2a577199cc53272b6**, artifact ID **15028537115**. It completed **219/220** cases with one timeout and zero errors; exact initial-model clones were **177/219**, future-behavior certifications **219/219**, ambiguous initial behavior **42/219**, ambiguous future behavior **0/219**, and false future convergence **0/219**. Aggregate step totals exactly match the earlier 220-case run: 317,161 total SUL steps, 162,639 oracle steps, and 154,522 non-oracle steps. The pinned run took 6.568 seconds of benchmark wall time.
+
+The one timeout remains target size 12 / seed 7, but the pinned run's partial trace differs from the earlier unpinned observations: it stopped after **2,342** SUL steps with fixture digest **2fdddf7ab2ad825045e81e500b8096329e861334a216c8725492862eedae0b3c** and trace digest **a9b65d876fa4369703dbd7389f96025f3d502ed15ebe8e0d47c03d8f485790e4**. The earlier unpinned 5-second run stopped at 2,512 steps and the 30-second focused run at 3,307; those partial traces are not interchangeable. The pinned run is now the reproducible reference. A focused 12-state, seeds-0–7 run with a 60-second per-fixture limit has been dispatched to determine whether the seed-7 case completes with a larger budget.
+
+For local reproduction, install **aalpy==2.0.0** and **numpy==2.2.6**, and prefix the command with **PYTHONHASHSEED=0**. The pinned 220-case aggregate is reproduced; only the isolated 12-state / seed-7 timeout's behavior under a longer budget remains unresolved.
+
+## Live authenticated HTTP SCO follow-up
+
+The no-reset learner was then moved out of the evaluator process and exercised against an actual local Node SCO handler. The Node server runs under the unprivileged `nobody` account; the Python learner is a separate subprocess and receives only the HTTP origin, public method identifier, and session cookie. The target transition/output table is supplied to the server over stdin and retained in its server-side module. The evaluator remains in the parent process and does not pass the target table to the learner.
+
+The final eight-case live run used workflow **45624637784**, exact source head **ca2d86e9d8807c0954c992e860e5583ece612faa**, AALpy 2.0.0, random-walk length 30, 20 test origin states, target sizes 2–5, and two deterministic seeds per size.
+
+| Measure | Result |
+|---|---:|
+| Completed live HTTP cases | **8/8** |
+| Timeouts / errors | 0 / 0 |
+| Exact initial-model clone success | **8/8** |
+| Offline future-behavior certifications | **8/8** |
+| Ambiguous initial / future behavior | 0 / 0 |
+| False future convergence | 0 |
+| Public state-transition RPC calls | 7,091 |
+| Total HTTP requests | 7,115 |
+| Elapsed benchmark wall time | 5.067 s |
+
+For each case the harness separately checked one public client-module GET, one unauthenticated RPC denial (403), and one absent reset route (404). Each state-transition step used one authenticated `POST /obfs/rpc`; the per-run accounting was `HTTP requests = SUL steps + 3` and `RPC requests = SUL steps + 1`. The public client module did not contain the fixture canary or the tested private-source identifiers (`privateTable`, `serverCanary`). These are finite marker checks, not a proof that arbitrary source or all semantic information is undiscoverable.
+
+The live harness and artifact are **sims/agent2-hw-live-sco-server.js**, **sims/agent2-hw-live-sco-client.py**, **sims/agent2-hw-live-sco-benchmark.py**, and workflow **.github/workflows/manual-agent2-hw-live-sco.yml**; artifact ID **15026098578**. The server's public compiler/runtime tree is mirrored to a world-readable temporary directory so the unprivileged process can load it despite the runner's private checkout path. The private application module remains in a separate server-created temporary directory. The learner cannot call a reset or membership-query API; its SUL enforces one `pre()`, one no-op `post()`, and zero `query()` calls.
+
+This is a stronger process/transport boundary than the in-process SUL, but it remains a small synthetic binary Mealy-machine test. It does not establish WAN/TLS behavior, concurrency, a matched ordinary-HTTP comparison, arbitrary JavaScript/EFSM learnability, complete source confidentiality, or the obfuscator's 2.5× compute budget. The exact evaluator certifies only trace-matching states inside the returned conjecture, not every possible machine consistent with the observed trace; the attacker's randomized hW equivalence oracle remains heuristic.
 
 ## Limitations and interpretation
 

@@ -24,14 +24,18 @@ ALPHABET = ("0", "1")
 class HttpNoResetMealySUL(SUL):
     """One-session HTTP SUL; no reset and no membership-query operation."""
 
-    def __init__(self, origin: str, method_name: str, cookie: str):
+    def __init__(
+        self,
+        origin: str,
+        method_name: str,
+        cookie: str,
+        connection: http.client.HTTPConnection,
+    ):
         super().__init__()
         parsed = urlsplit(origin)
         if parsed.scheme != "http" or not parsed.hostname or parsed.port is None:
             raise ValueError("expected an explicit local http origin")
-        self.connection = http.client.HTTPConnection(
-            parsed.hostname, parsed.port, timeout=20
-        )
+        self.connection = connection
         self.method_name = method_name
         self.cookie = cookie
         self.counters = {"pre_calls": 0, "post_calls": 0, "query_calls": 0}
@@ -80,7 +84,7 @@ class HttpNoResetMealySUL(SUL):
                 f"{raw[:200]!r}"
             )
         payload = json.loads(raw)
-        if payload.get("ok") is not True or payload.get("value") not in (0, 1):
+        if payload.get("ok") is not True or payload.get("value") not in ("0", "1"):
             raise RuntimeError(f"unexpected SCO RPC response: {payload!r}")
         output = str(payload["value"])
         self.trace.append([letter, output])
@@ -100,21 +104,71 @@ def percentile(sorted_values, fraction):
     return sorted_values[index]
 
 
+
+def fetch_client_module(origin: str):
+    parsed = urlsplit(origin)
+    if parsed.scheme != "http" or not parsed.hostname or parsed.port is None:
+        raise ValueError("expected an explicit local http origin")
+    connection = http.client.HTTPConnection(
+        parsed.hostname, parsed.port, timeout=20
+    )
+    try:
+        connection.request(
+            "GET",
+            "/obfs/client.mjs",
+            headers={"Cache-Control": "no-store"},
+        )
+        response = connection.getresponse()
+        source_bytes = response.read()
+        if response.status != 200:
+            raise RuntimeError(
+                f"public client module returned HTTP {response.status}"
+            )
+        set_cookie = response.getheader("Set-Cookie")
+        if not set_cookie:
+            raise RuntimeError("public client module did not issue a session cookie")
+        method_name = response.getheader("X-SCO-Method")
+        if not method_name:
+            raise RuntimeError("public client module did not publish an RPC method identifier")
+        cookie = set_cookie.split(";", 1)[0]
+        if not cookie.startswith("session="):
+            raise RuntimeError("public client module issued an unexpected cookie")
+        source = source_bytes.decode("utf-8")
+        token = cookie.split("=", 1)[1]
+        source_disclosed = (
+            "privateTable" in source
+            or "serverCanary" in source
+            or token in source
+        )
+        if source_disclosed:
+            raise RuntimeError("public client module contains a private-source marker")
+        return connection, cookie, method_name, response.status, len(source_bytes), source_disclosed
+    except Exception:
+        connection.close()
+        raise
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--origin", required=True)
-    parser.add_argument("--method-name", required=True)
-    parser.add_argument("--cookie", default="session=approved")
     parser.add_argument("--oracle-seed", type=int, required=True)
     parser.add_argument("--random-walk-length", type=int, default=30)
     parser.add_argument("--origin-states", type=int, default=20)
     args = parser.parse_args()
 
-    sul = HttpNoResetMealySUL(args.origin, args.method_name, args.cookie)
+    (
+        connection,
+        cookie,
+        method_name,
+        module_status,
+        module_bytes,
+        module_disclosed,
+    ) = fetch_client_module(args.origin)
+    sul = HttpNoResetMealySUL(
+        args.origin, method_name, cookie, connection
+    )
     random.seed(args.oracle_seed)
     np.random.seed(args.oracle_seed)
     oracle = RandomWphWOracle(
-        sul,
         random_walk_length=args.random_walk_length,
         num_test_origin_states=args.origin_states,
     )
@@ -123,11 +177,13 @@ def main():
     try:
         with contextlib.redirect_stdout(sys.stderr):
             hypothesis, info = run_hW(
+                list(ALPHABET),
                 sul,
                 oracle,
                 automaton_type="mealy",
                 query_for_initial_state=False,
                 return_data=True,
+                print_level=0,
             )
         elapsed = time.perf_counter() - started
         if sul.counters["pre_calls"] != 1 or sul.counters["post_calls"] != 1:
@@ -159,6 +215,11 @@ def main():
         latencies = sorted(sul.latencies_ms)
         result = {
             "status": "completed",
+            "client_module_fetch_status": module_status,
+            "client_cookie_present": bool(cookie),
+            "client_method_name": method_name,
+            "client_module_source_bytes": module_bytes,
+            "client_module_source_disclosed": module_disclosed,
             "trace": sul.trace,
             "hypothesis_states": serialized_states,
             "pre_calls": sul.counters["pre_calls"],

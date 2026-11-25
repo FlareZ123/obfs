@@ -3,13 +3,21 @@ name: Manual Agent 2 no-reset hW inference benchmark
 on:
   workflow_dispatch:
     inputs:
+      fixture_family:
+        description: "Target fixture family"
+        required: false
+        default: random
+        type: choice
+        options:
+          - random
+          - delayed-pair
       min_states:
-        description: "Minimum target state count (2-12)"
+        description: "Minimum target state count (random: 2-12; delayed-pair: 3-64)"
         required: false
         default: 2
         type: number
       max_states:
-        description: "Maximum target state count (2-12)"
+        description: "Maximum target state count (random: 2-12; delayed-pair: 3-64)"
         required: false
         default: 12
         type: number
@@ -60,12 +68,14 @@ jobs:
           TIMEOUT_SECONDS: ${{ inputs.timeout_seconds || 45 }}
           RANDOM_WALK_LENGTH: ${{ inputs.random_walk_length || 30 }}
           ORIGIN_STATES: ${{ inputs.origin_states || 20 }}
+          FIXTURE_FAMILY: ${{ inputs.fixture_family || 'random' }}
         run: |
           python sims/agent2-hw-no-reset-benchmark.py \
             --min-states "$MIN_STATES" --max-states "$MAX_STATES" --seeds "$SEEDS" \
             --timeout-seconds "$TIMEOUT_SECONDS" \
             --random-walk-length "$RANDOM_WALK_LENGTH" \
             --origin-states "$ORIGIN_STATES" \
+            --fixture-family "$FIXTURE_FAMILY" \
             > hw-no-reset-results.json
           python - <<'PY'
           import json
@@ -75,10 +85,16 @@ jobs:
           seeds = int(os.environ["SEEDS"])
           min_states = int(os.environ["MIN_STATES"])
           max_states = int(os.environ["MAX_STATES"])
+          fixture_family = os.environ["FIXTURE_FAMILY"]
           expected_runs = (max_states - min_states + 1) * seeds
-          assert 2 <= min_states <= max_states <= 12
+          if fixture_family == "random":
+              assert 2 <= min_states <= max_states <= 12
+          else:
+              assert fixture_family == "delayed-pair"
+              assert 3 <= min_states <= max_states <= 64
           assert 1 <= seeds <= 20
           assert result["aalpy_version"] == "2.0.0"
+          assert result["scope"]["fixture_family"] == fixture_family
           assert result["scope"]["state_counts"] == [min_states, max_states]
           assert result["total_runs"] == expected_runs
           assert result["completed_runs"] + result["timeouts"] + result["errors"] == expected_runs
@@ -96,8 +112,13 @@ jobs:
                   assert len(row["trace_digest"]) == 64, row
           print("NO_RESET_HW_SUMMARY", json.dumps({
               "runs": result["total_runs"],
+              "fixture_family": fixture_family,
               "min_states": min_states,
               "max_states": max_states,
+              "max_pair_distinguishing_length_max": max(
+                  (row.get("max_pair_distinguishing_length") or 0 for row in result["results"]),
+                  default=0,
+              ),
               "seeds_per_state_count": seeds,
               "timeout_seconds": int(os.environ["TIMEOUT_SECONDS"]),
               "random_walk_length": int(os.environ["RANDOM_WALK_LENGTH"]),

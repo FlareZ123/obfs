@@ -5,10 +5,10 @@
 ## Reproduction pins
 
 - Experimental branch: `agent5/member-this-precision-review-20261125`
-- Receiver-aware helper: `workplace/agent9-ambient-call-bindingid.js` at `6c5d8c3ef55080d315f6a1116781bb33f3ece586`
-- Focused test snapshot: `test/agent5-receiver-bound-return-resolution.test.js` at `6239ce55b9587f4ae207e3cd8ef58629282c8688`
-- Validation: [manual-validation run 45622822777](https://github.com/FlareZ123/obfs/actions/runs/45622822777)
-- Result: 19 focused tests passed on Ubuntu and Windows, including strict project and external JSDoc checks.
+- Refined receiver-aware helper: `workplace/agent9-ambient-call-bindingid.js` at `ab278461dee1c7114ef67536ffc92806cdd78d77`
+- Focused test snapshot: `test/agent5-receiver-bound-return-resolution.test.js` at `1a5dbe236e80b06e902bba629c6a647fcdfe590a`
+- Validation: [manual-validation run 45624035114](https://github.com/FlareZ123/obfs/actions/runs/45624035114) passed 26 focused tests on Ubuntu and Windows, including strict project/external JSDoc.
+- Donor regression suite: [run 45624529135](https://github.com/FlareZ123/obfs/actions/runs/45624529135) passed `test/agent6-member-flow-spread-override.test.js` on Ubuntu and Windows with strict JSDoc.
 
 The test source is self-contained: it analyzes each program with `summarizeAmbientCallEffects(parse(source,'commonjs'),'commonjs')` and executes relevant examples in Node's VM to verify what the host actually receives.
 
@@ -24,6 +24,7 @@ The test source is self-contained: it analyzes each program with `summarizeAmbie
 8. **Dynamic getter side effects:** an unresolved computed property read conservatively maps all known getter functions on the receiver, so getter-internal `this` sinks are not silently missed.
 9. **Escaped-object lexical returns:** object getters/methods and class-instance methods returning lexically captured callables are covered by the existing held-closure propagation.
 
+\n\n## Additional validation and current full-suite comparison\n\n- The 26-case focused suite also covers `super` getter return and side-effect paths. Super-rooted expressions currently use a conservative receiver fallback rather than a precise superclass-only member evaluator.\n- The full manual-validation run at the earlier helper snapshot `6239ce55` (run [45623338737](https://github.com/FlareZ123/obfs/actions/runs/45623338737)) had 13 Ubuntu behavioral/adversarial failures. Twelve matched the existing main-branch full-run failures in [45596380389](https://github.com/FlareZ123/obfs/actions/runs/45596380389); the additional failure was the Agent 6 class-getter primitive precision case, which is now green on the refined helper in run 45624529135. The old-snapshot full run's strict JSDoc, performance, and Chromium jobs passed. The Windows full job was still running at the time of this report update, so this is not a full-suite green claim.\n- No production `src/` or `bin/` files were changed. The 2.5x runtime budget and browser/SCO/SNO adversarial requirements remain unproven by this helper-focused work.\n
 ## Main technical observations
 
 The earlier failure had two distinct dimensions:
@@ -37,7 +38,7 @@ Dynamic getter reads use a broader getter enumeration, deliberately trading prec
 
 ## Boundaries and unresolved questions
 
-- Class-field deferral remains conservative when accessors or methods are present. The prototype does not yet prove that every class getter/method is side-effect-free, so callable sibling fields may remain host-held even when a getter returns a primitive.
+- Class-field deferral now admits a deliberately narrow getter case: all class elements must be public instance fields or pure, nonstatic, noncomputed getters whose body is exactly one `return this.<static-member>`. The equivalent Agent 6 class-getter primitive false-positive test now passes in run 45624529135. Side-effecting getters, ordinary methods, setters, computed/private getters, superclasses, and more complex getter bodies remain conservative. A separate escape control confirms that the same instance still retains callable fields when the instance itself escapes.
 - Arbitrary proxies, reflection, descriptor-defined getters, `Object.create`/prototype factories, mutable prototype replacement, and every function-constructor prototype pattern have not been exhaustively modeled.
 - The fixed-point receiver map is based on statically resolvable local calls and property reads. Calls through unknown aliases, dynamic receiver sources, or external frameworks require additional tests and may fall back conservatively.
 - Nested normal functions do not inherit `this`; arrows do. The prototype propagates lexical receiver context to arrows, but deeper closure and `super` combinations need additional adversarial coverage.
