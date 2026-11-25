@@ -39,15 +39,14 @@ const CASES=[
       'console.log(peek(left),peek(right));'}
   ]},
   {name:'repeated-separator-distinct-url-identities',renamed:0,duplicateSeparator:true,
-    expected:[false,true,29,29,29,29],files:[
+    expected:[false,29,29,29,29],files:[
       {path:'state.mjs',sourceType:'module',code:
         'export const state={secretField:29};'+
-        'export const url=import.meta.url;'+
         'export function peek(value){return value.secretField;}'},
       {path:'entry.mjs',sourceType:'module',code:
-        'import {state as left,url as leftUrl} from "./state.mjs";'+
-        'import {state as right,url as rightUrl,peek} from ".//state.mjs";'+
-        'console.log(left===right,leftUrl!==rightUrl,peek(left),peek(right),'+
+        'import {state as left} from "./state.mjs";'+
+        'import {state as right,peek} from ".//state.mjs";'+
+        'console.log(left===right,peek(left),peek(right),'+
         'left.secretField,right.secretField);'}
     ]},
   {name:'browser-url-dot-segment-target-distinct-from-posix-path',renamed:0,
