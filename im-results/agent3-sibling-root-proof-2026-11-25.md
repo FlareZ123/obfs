@@ -16,7 +16,7 @@ Within one importer module, two named import specifiers that resolve to the exac
 
 Branch: `agent3/joint-root-single-reader-20261125`
 
-Current candidate head at this checkpoint: `2fbff7504e509b0c245ec3bb356b60e06167eb58`
+Current candidate head at this checkpoint: `20657dac130925c415211754a3794522317dae66`
 
 Changes are limited to `src/properties.js`, `src/cross-properties.js`, `test/cross-file-reader-flow.test.js`, and `test/esm-observation-browser.js`.
 
@@ -30,10 +30,13 @@ Changes are limited to `src/properties.js`, `src/cross-properties.js`, `test/cro
 ## Tests added or strengthened
 
 - One local reader receives both sibling aliases; expected one owner-property rewrite in COO, SNO, and SCO.
+- An imported reader receives both sibling aliases; the same-export reader case is tested in all three modes.
 - The same owner is imported using separate import declarations; expected one rewrite in all three modes.
 - Publishing the second alias to `globalThis` vetoes the rewrite in all three modes.
 - Re-exporting the second alias vetoes the rewrite in all three modes.
 - A shadowed sibling import is not grouped with the imported owner.
+- Secondary roots are followed through a local alias and a zero-argument root-return helper; an identity-return chain into an imported reader is also tested. A local-reader identity-return chain remains a conservative zero-edit case.
+- Reflection through a sibling alias and same-named exports from different modules are explicit negative controls.
 - Two owner aliases placed in separate private carrier slots remain refused.
 - Real Chromium ESM fixtures compare original, emitted, and statically normalized module graphs for the positive local-reader case and an escaped-alias refusal.
 
@@ -46,8 +49,9 @@ Changes are limited to `src/properties.js`, `src/cross-properties.js`, `test/cro
 - The 12 known baseline failures are classified in `im-results/agent1-452835-yield-failure-classification-2026-11-24.md`: four valid fail-closed cases, four attacker-side extraction/normalization witnesses, three genuine positive-yield gaps, and one SCO fixture source-shape defect. They are not evidence of a regression in this candidate.
 - A focused baseline run of `test/private-class-source-yield.test.js` on unmodified current main also failed, independently confirming that this is a pre-existing gap.
 - The initial candidate's later performance and browser steps completed. Existing paired Node session profiles reported `within2point5:true` on both platforms; this does not establish the universal 2.5× budget or measure the exact new sibling-alias fixture.
-- Expanded focused Node coverage and strict JSDoc for the current candidate head are being checked in run `45582714439`.
-- The Chromium sibling-alias fixtures now cover a private local reader, an imported reader, and an escaped alias. They compare original, emitted, and public-field-normalized module graphs; the full current-candidate run is still required to execute them.
+- Expanded focused run `45583089001` on candidate head `20657dac130925c415211754a3794522317dae66` passed 66/66 tests on Ubuntu and Windows. Project JSDoc, external JSDoc, and paired-budget typechecks passed on both platforms.
+- The Chromium sibling-alias fixtures cover a private local reader (including secondary-root alias/zero-argument return flow), an imported reader, and an escaped-alias refusal. The harness compares original, emitted, and public-field-normalized module graphs and asserts that the normalizer recovers every renamed field.
+- Full manual-validation run `45583289136` is running on the current candidate head. It is expected to reproduce the known baseline 12 failures; its additional Node and Chromium fixtures must still pass before review.
 
 ## Security and performance interpretation
 
