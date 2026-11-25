@@ -174,43 +174,60 @@ function renameLocalIdentifiers(source,ast,options) {
     const local=[];
     let safe=true;
     const checksum=createHash('sha256').update(`${options.seed}/${identifier.start}/${name}`).digest('hex');
+    // Every renamed token must retain its original UTF-16 source span so later
+    // Error.stack/CallSite FramePosition observations remain stable. The
+    // shortest spelling among all rewritten occurrences bounds the candidate.
+    const candidateSpans=identifiers.filter(item=>
+      item.node===identifier || item.node.name===name &&
+        classifyIdentifier(item.node,item.parent,item.key)!=='ignore');
+    const maxSpan=candidateSpans.reduce((minimum,item)=>
+      Math.min(minimum,source.slice(item.node.start,item.node.end).length),Infinity);
     let replacement='';
-    for(let n=0;n<12;n++) {
-      const proposed=`_v${checksum.slice(n,n+12)}`;
-      if (!used.has(proposed) && !new RegExp(`\\b${proposed}\\b`,'u').test(source)) {
-        replacement=proposed;
-        break;
+    if(maxSpan===1) {
+      const firstChars='abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ';
+      const first=parseInt(checksum.slice(0,2),16)%firstChars.length;
+      for(let offset=0;offset<firstChars.length;offset++) {
+        const proposed=firstChars[(first+offset)%firstChars.length];
+        if(!used.has(proposed) && !new RegExp(`\\b${proposed}\\b`,'u').test(source)) {
+          replacement=proposed;
+          break;
+        }
+      }
+    } else {
+      for(let length=Math.min(14,maxSpan);length>=2&&!replacement;length--) {
+        for(let salt=0;salt<64;salt++) {
+          const digest=createHash('sha256').update(`${checksum}/${salt}`).digest('hex');
+          const prefix=length===2?'_':'_v';
+          const proposed=prefix+digest.slice(0,length-prefix.length);
+          if(!used.has(proposed) && !new RegExp(`\\b${proposed}\\b`,'u').test(source)) {
+            replacement=proposed;
+            break;
+          }
+        }
       }
     }
     if (!replacement) continue;
-    /** @type {Set<string>} */
-    const shorthandSpans=new Set();
     for(const item of identifiers) {
       if(item.node.name!==name) continue;
       if (item.node===identifier) {
-        local.push({start:identifier.start,end:identifier.end,text:replacement});
+        const oldText=source.slice(identifier.start,identifier.end);
+        if(replacement.length>oldText.length){safe=false;break;}
+        local.push({start:identifier.start,end:identifier.end,
+          text:replacement+' '.repeat(oldText.length-replacement.length)});
         continue;
       }
       const role=classifyIdentifier(item.node,item.parent,item.key);
       if(role==='ignore') continue;
       if(role==='ambiguous' || !item.ancestors.includes(scope) ||
-          item.ancestors.some(a=>a.type==='ObjectPattern')) {safe=false;break;}
-      if(role==='shorthand') {
-        const parent=item.parent;
-        if(parent?.type!=='Property' || !item.ancestors.some(a=>a.type==='ObjectExpression')) {safe=false;break;}
-        const span=`${item.node.start}:${item.node.end}`;
-        if(!shorthandSpans.has(span)) {
-          // Shorthand __proto__ creates an ordinary own data property, while
-          // a noncomputed colon property invokes the object-literal prototype
-          // setter. Keep the original data-property semantics after expansion.
-          const keyText=name==='__proto__'?
-            '['+JSON.stringify(name)+']' : JSON.stringify(name);
-          local.push({start:item.node.start,end:item.node.end,text:`${keyText}:${replacement}`});
-          shorthandSpans.add(span);
-        }
-        continue;
-      }
-      local.push({start:item.node.start,end:item.node.end,text:replacement});
+          item.ancestors.some(a=>a.type==='ObjectPattern') ||
+          item.parent?.type==='TaggedTemplateExpression'&&item.key==='tag') {safe=false;break;}
+      // Expanding shorthand requires a key:value edit longer than the original
+      // identifier token. Refuse rather than move subsequent source positions.
+      if(role==='shorthand') {safe=false;break;}
+      const oldText=source.slice(item.node.start,item.node.end);
+      if(replacement.length>oldText.length){safe=false;break;}
+      local.push({start:item.node.start,end:item.node.end,
+        text:replacement+' '.repeat(oldText.length-replacement.length)});
     }
     if(!safe) continue;
     used.add(replacement);
