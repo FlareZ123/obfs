@@ -2,9 +2,13 @@
 """Independent exact check of the fixed six- and seven-direction face orders.
 
 This enumerates all 2D kernels of full-rank 5x7 binary matrices and recomputes
-the query-union expectation for the reported ten-face K_{2,5} order. It checks
-the fixed order and restart arithmetic; it does not re-prove the C++ DP's
-global optimality over all 21-face orders and cutoffs.
+the query-union expectation for the reported ten-face K_{2,5} order. Coordinate
+subset masks are treated as distinct query points, so the exact expectation is
+conditional on the sampled 32-bit direction vectors being linearly independent.
+When directions are dependent, subset-sum collisions only reduce distinct
+queries, so the values remain unconditional upper bounds. It checks the fixed
+order and restart arithmetic; it does not re-prove the C++ DP's global
+optimality over all 21-face orders and cutoffs.
 """
 from fractions import Fraction
 import json
@@ -37,6 +41,14 @@ def rank5_probability(width):
     for i in range(5):
         probability *= 1 - Fraction(1, 1 << (width - i))
     return probability
+
+
+def direction_dependency_probability(width, count):
+    """Probability that count uniform width-bit vectors are dependent."""
+    full_rank = Fraction(1, 1)
+    for i in range(count):
+        full_rank *= 1 - Fraction(1, 1 << (width - i))
+    return 1 - full_rank
 
 
 def seven_direction_check():
@@ -96,6 +108,7 @@ def seven_direction_check():
 
     failure_after_17 = failure_probability ** 17
     failure_after_18 = failure_probability ** 18
+    direction_dependence = direction_dependency_probability(32, 7)
     assert failure_after_17 > Fraction(1, 10**10)
     assert failure_after_18 < Fraction(1, 10**10)
 
@@ -115,6 +128,8 @@ def seven_direction_check():
         "witness_query_cap": 93 + 17 * 92,
         "fast_path_cap": 93 + 17 * 92 + 96 + 726,
         "signature_path_cap": 93 + 17 * 92 + 992 + 726,
+        "direction_dependence_probability": str(direction_dependence),
+        "max_unconditional_expectation_correction_bound": str(18 * 93 * direction_dependence),
     }
 
 
@@ -153,6 +168,7 @@ def six_direction_check():
         expected_fresh_trial_queries - failure_probability
     ) / (1 - failure_probability)
 
+    direction_dependence = direction_dependency_probability(32, 6)
     assert full_rank_probability == Fraction(615195, 1048576)
     assert increments == [32, 16, 8, 4, 2, 1]
     assert len(queried_vertices) == 63
@@ -166,6 +182,8 @@ def six_direction_check():
         "failure_probability_per_trial": str(failure_probability),
         "expected_queries_across_restarts": str(expected_restarted_queries),
         "expected_queries_across_restarts_float": float(expected_restarted_queries),
+        "direction_dependence_probability": str(direction_dependence),
+        "max_unconditional_expectation_correction_bound": str(27 * 63 * direction_dependence),
     }
 
 
@@ -175,14 +193,21 @@ def main():
     print(json.dumps({
         "six_direction": six,
         "seven_direction": seven,
-        "expected_witness_query_saving": (
+        "conditional_expected_witness_query_saving": (
             six["expected_queries_across_restarts_float"]
+            - seven["expected_queries_across_restarts_float"]
+        ),
+        "unconditional_gap_lower_bound": (
+            six["expected_queries_across_restarts_float"]
+            - float(27 * 63 * Fraction(six["direction_dependence_probability"]))
             - seven["expected_queries_across_restarts_float"]
         ),
         "scope": (
             "Independent exact check of the specified face orders and restart "
-            "accounting; global optimality is supplied separately by the "
-            "exhaustive 2^21-state C++ Bellman/Dinkelbach DP."
+            "accounting under injective subset sums. Unconditional values are "
+            "upper bounds because direction dependencies only merge points; "
+            "global optimality under the injective model is supplied separately "
+            "by the exhaustive 2^21-state C++ Bellman/Dinkelbach DP."
         ),
     }, indent=2))
 
