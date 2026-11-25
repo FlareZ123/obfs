@@ -75,6 +75,7 @@ Current branch head at this report: `61dd5dbe11aa7ff7ba3e17b5b003e507464cb460`.
 Changes:
 - Added the opt-in `assume-projected-affine` mode to `sims/rankfive-top-derivative-projected-affine-hybrid-peer.js`.
 - Added explicit diagnostics: `promiseAssumed`, `verificationMode`, zero verifier samples, and null (not zero) statistical false-acceptance bound.
+- Added `verificationAttempted` so pre-verifier fallbacks report `verificationPassed: null` and `falseAcceptanceBound: null`; actual verifier-mismatch fallbacks report an attempted check and the configured delta.
 - Preserved the default `verify-degree-five` mode and its 726 independent uniform verifier samples.
 - Updated the worker and HTTP adapter so promise mode requests no verifier tape and emits no candidate-ready/release event.
 - Added regression fixtures for both shift and signature paths; the verifier callback throws if invoked.
@@ -169,7 +170,7 @@ Keep this material in `im-results/`. Do not promote it to `results/`, change the
 ## Independent cross-language replay
 
 Agent 43 added a standard-library-only Python replay at
-\`sims/agent43-rankfive-promise-query-replay.py\`. It independently reconstructs the emitted ESM source string and checks the pinned SHA-256, rank-five mask matrix, and nonzero table top coefficient. It then replays the 1,000 deterministic SHA-256 counter-tape witness trials and the 64 holdouts per replicate using an independent Python implementation of the oracle and shift learner.
+`sims/agent43-rankfive-promise-query-replay.py`. It independently reconstructs the emitted ESM source string and checks the pinned SHA-256, rank-five mask matrix, and nonzero table top coefficient. It then replays the 1,000 deterministic SHA-256 counter-tape witness trials and the 64 holdouts per replicate using an independent Python implementation of the oracle and shift learner.
 
 The replay matched the JavaScript simulation's promise-mode query statistics exactly:
 - mean: 181.861 queries;
@@ -184,9 +185,9 @@ The replay matched the JavaScript simulation's promise-mode query statistics exa
 It also reports p10 = 128. This is an independent implementation cross-check, but it uses the same deterministic SHA-256 counter-tape construction; it is not an independent random sample or a cryptographic independence claim. It reproduces only the promised hybrid arm, not the generic baseline arm.
 
 Run with:
-\`\`\`sh
+```sh
 python3 sims/agent43-rankfive-promise-query-replay.py
-\`\`\`
+```
 
 
 The replay also checks the deterministic query-cap derivation. The ten selected five-faces of seven witness directions cover 93 distinct subset patterns per trial, including the empty subset. The empty input is shared by all trials, so 18 trials require at most \(1+18(93-1)=1,657\) witness queries. The shift stage adds at most \(32\times3=96\), giving the HTTP fast-path cap of 1,753. Direction dependencies or cross-trial collisions can only reduce the actual unique-query count.
