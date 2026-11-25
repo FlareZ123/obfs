@@ -104,3 +104,10 @@ This is still not full repository acceptance, SourceObservationPlan integration,
 After the identifier-resolved class-field receiver guard, the combined regression entry point passed on Ubuntu and Windows with all focused JSDoc stages in [run 45584385411](https://github.com/FlareZ123/obfs/actions/runs/45584385411). The bundle loads the 16-case local-record matrix, 19-case class-field matrix, existing Agent 4 ambient-throw/callable suite, and existing Agent 9 BindingId ambient-call suite.
 
 This is still focused donor validation, not full repository acceptance, SourceObservationPlan integration, cross-file/import flow, runtime benchmarking, or 2.5x compliance.
+
+
+## Final 20-case post-class-field validation (2026-11-25 09:25 UTC)
+
+The combined regression entry point passed on Ubuntu and Windows with all focused JSDoc stages in [run 45584933625](https://github.com/FlareZ123/obfs/actions/runs/45584933625). It loads the 16-case local-record matrix, 20-case class-field matrix (including inherited prototype-setter semantics and identifier-resolved this receiver adversaries), existing Agent 4 ambient-throw/callable suite, and existing Agent 9 BindingId ambient-call suite.
+
+This is focused donor validation only, not full repository acceptance, SourceObservationPlan integration, cross-file/import flow, runtime benchmarking, or 2.5x compliance.
