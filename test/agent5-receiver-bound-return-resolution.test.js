@@ -582,3 +582,16 @@ test('a returned accessor reading a primitive through an outer lexical arrow sta
   assert.equal(hiddenSummary(source).hostHeldCallable,false);
   assert.equal(hiddenSummary(source).safe,true);
 });
+
+
+test('a later object property shadows an earlier lexical-arrow callable result',()=>{
+  const source=
+    'function hidden(){return 1;}'+
+    'function harmless(){return 0;}'+
+    'const owner={callback:hidden,get result(){const read=()=>this.callback;return {callback:read(),callback:harmless};}};'+
+    'external(owner.result);';
+  const [captured]=execute(source);
+  assert.equal(captured?.callback?.name,'harmless');
+  assert.equal(hiddenSummary(source).hostHeldCallable,false);
+  assert.equal(hiddenSummary(source).safe,true);
+});
