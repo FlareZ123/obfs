@@ -30,12 +30,12 @@ test('host preloader can recover decoded string units by intercepting String.fro
     '  if(stack.includes("generated.mjs"))globalThis.__decodedUnits.push(...units);',
     '  return Reflect.apply(native,this,units);',
     '};'
-  ].join('\\n');
+  ].join('\n');
   const runner=[
     'const generated=await import("./generated.mjs");',
     'const decoded=Reflect.apply(String.fromCharCode,String,globalThis.__decodedUnits);',
     'process.stdout.write(JSON.stringify({value:generated.value,decoded}));'
-  ].join('\\n');
+  ].join('\n');
   fs.writeFileSync(preloadPath,preload);
   fs.writeFileSync(generatedPath,String(output.code));
   fs.writeFileSync(runnerPath,runner);
