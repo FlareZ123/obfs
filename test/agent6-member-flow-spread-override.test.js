@@ -212,7 +212,7 @@ test('a prototype callable remains reachable when a later unknown computed key m
   const source=
     'function hidden(){const state={secret:7};return state.secret;}'+
     'function harmless(){return 0;}'+
-    'const key=readKey();'+
+    'const key=\"other\";'+
     'const prototype={callback:hidden};'+
     'const owner={__proto__:prototype,[key]:harmless};'+
     'external(owner.callback);';
