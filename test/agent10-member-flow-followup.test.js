@@ -176,3 +176,17 @@ test('an object-literal primitive getter does not retain an unrelated callable s
     'the getter returns a primitive, so the unrelated callback property is not observed');
   assert.equal(hidden.safe,true);
 });
+
+
+test('a mutable local factory binding cannot hide a returned class-field callable',()=>{
+  const source=
+    'let owner;let create;'+
+    'function hidden(){return 1;}'+
+    'class Local{callback=hidden;}'+
+    'create=()=>new Local();'+
+    'function leak(){external(owner.callback);}'+
+    'function entry(){owner=create();leak();}'+
+    'module.exports=entry;';
+  assertHeld(hiddenSummary(source),
+    'callable return analysis must resolve a locally assigned mutable factory binding');
+});
