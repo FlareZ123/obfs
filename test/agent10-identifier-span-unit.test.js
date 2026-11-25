@@ -11,7 +11,7 @@ const {renameLocalIdentifiers}=require('../src/identifiers');
  * @returns {{code:string,bindings:number}}
  */
 function rename(source,seed) {
-  return renameLocalIdentifiers(source,parse(source,'module'),{seed,sourceType:'module'});
+  return renameLocalIdentifiers(source,parse(source,'module'),{seed,sourceType:'module',preserveFramePositions:true});
 }
 
 test('identifier edits preserve UTF-16 width for short and long ordinary bindings',()=>{
