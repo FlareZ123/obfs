@@ -16,6 +16,7 @@ const {atomicWrite}=require('../src/atomic');
  * @param {Source[]} files
  * @param {number} expected
  * @param {'coo'|'sno'|'sco'} [mode]
+ * @param {string} [expectedOutput]
  * @returns {Promise<void>}
  */
 async function preserves(files,expected,mode='coo') {
@@ -31,6 +32,7 @@ async function preserves(files,expected,mode='coo') {
       return child.stdout;
     }
     const baseline=await run(files);
+    if(expectedOutput!==undefined)assert.equal(baseline.trim(),expectedOutput);
     const output=obfuscateFiles(files,{
       mode,seed:'cross-file-reader-proof',closedWorld:true,strings:false,identifiers:false
     });
@@ -554,7 +556,7 @@ test('self-imported owner alias preserves TDZ and post-initialization reader beh
   for(const mode of ['coo','sno','sco'])await preserves(files,0,mode);
 });
 
-test('two-module owner-reader cycle preserves reentrant TDZ before later successful read',async()=>{
+test('two-module owner-reader cycle retains native TDZ by refusing property rewrite',async()=>{
   const files=[
     {path:'state.mjs',sourceType:'module',code:
       'import {early} from "./relay.mjs";'+
@@ -568,7 +570,8 @@ test('two-module owner-reader cycle preserves reentrant TDZ before later success
       'import {state,peek} from "./state.mjs";import {early} from "./relay.mjs";'+
       'console.log(early,peek(state));'}
   ];
-  for(const mode of ['coo','sno','sco'])await preserves(files,1,mode);
+  for(const mode of ['coo','sno','sco'])
+    await preserves(files,0,mode,'ReferenceError 23');
 });
 
 test('late imported key in a cyclic graph preserves TDZ and is not folded',async()=>{
