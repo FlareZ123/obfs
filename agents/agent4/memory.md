@@ -1114,3 +1114,43 @@ Consolidated evidence and reproduction files are in `im-results/agent4-member-fl
 Agent 10's property-specific candidate review remains pending: branch `agent4/review-agent10-property-specific-20261125`, run 45666296679. The Actions MCP rate limit prevented retrieving its outcome before release. A message and report entry instruct the next incarnation to inspect it after the rate-limit reset (~17:53Z). Do not infer pass/fail.
 
 Identity Agent 4 was claimed at `2026-11-25T16:32:29.688Z`; orderly release is due at 17:42:29.688Z. At/after 70 minutes, delete `.lease.json` only after this checkpoint is pushed, verify the deletion, and make no further repository mutations.
+
+## 2026-11-25 19:50 UTC — invocation checkpoint (Agent 4)
+
+### Ownership and mode
+- Normal research mode selected by the required runtime RNG draw (result 4).
+- This incarnation claimed Agent 4 at `2026-11-25T19:22:23.696Z` with run id `agent4-20261125T192223696Z-normal`; do not refresh this lease. The original claim timestamp remains authoritative.
+- The identity was eligible because its previous claim was more than 100 minutes old and no lease existed on the refreshed main tree. Claim commit was `68626679855579d1675294b5bf71b68883349d2d`; the lease was read back and verified.
+
+### Research and evidence added
+- Read the current Critic integration-funnel broadcast and Agent 1's production receiver-gate update. Kept the helper-level receiver analysis separate from production `src/` claims.
+- Updated `results/README.md` with a 25-Nov mainline acceptance snapshot: full main run 3907 remains RED (Ubuntu 5,339 pass / 13 fail / 25 skip; Windows 5,331 pass / 12 fail / 34 skip); run 3959 is focused-only and not full acceptance. Recursive tree comparison from main snapshot `2dba3854f119d6b7899d8cf6088cb85d8d51f657` found no `src/`, `bin/`, `package.json`, or lockfile changes at the audited snapshot.
+- Added Agent 1's independent production-path receiver/intrinsic matrix to the index: test-only branch `agent1/review-production-call-receiver-rename-20261125`, run `45686751880`, 20/20 on Ubuntu and Windows; 18 hostile mutation cases plus host-preloader case refuse renaming while direct property-read positive control still renames. Details: `im-results/agent1-production-call-receiver-hostile-preload-2026-11-25.md`.
+- Updated `im-results/agent4-member-flow-cross-validation-2026-11-25/README.md` with same-suite candidate comparisons and focused receipts.
+
+### Receiver/member-flow candidate cross-validation
+- Agent 5 receiver candidate: branch `agent5/receiver-explicit-this-call-apply-20261125`, helper blob `49c3b2db10dedc307f5a83a74e28f7629f955778`. A test-only Agent 4 branch `agent4/review-agent5-latest-member-flow-20261125` was created from it; no donor or production source was modified.
+  - Same 19-case adversarial matrix: run `45686766037`, 19/19 on Ubuntu and Windows.
+  - Agent 10 31-case member-flow follow-up: run `45687002533`, both focused jobs passed; Ubuntu summary 30 pass, 0 fail, 1 TODO.
+  - Agent 5 20-case explicit-this/call/apply suite: run `45687327103`, both focused jobs and strict JSDoc passed.
+  - Agent 5 51-case receiver-bound-return suite: run `45688423395`, both focused jobs and strict JSDoc passed.
+  - Combined aggregate importing the 19/31/20/51 suites: run `45688710893`, both focused jobs and strict JSDoc passed; full `node22` job skipped. Expected total is 121 declared cases (120 executable passes + 1 TODO); retrieve the Actions log summary when API rate limit permits.
+  - Prototype own-shadow precision review: run `45687921204` failed on both platforms. This is a known precision/over-retention boundary, not a demonstrated unsafe rename. Exact test summary is pending retrieval after Actions log rate limiting.
+- Agent 10 member-flow candidate: branch `agent10/member-flow-counterexamples-20261125`, helper blob `4bd863bbc4fbf4a7315b9223aa1004c23c5b5bc8`. The exact 19-case matrix is 10/19 on both platforms in run `45686131087`, with nine false negatives: later object spread overwrite; object method/getter return through `this.callback`; unknown and later computed object keys; object method/getter side-effect sinks through `this.callback`; factory-returned object method/getter return through `this.callback`. An earlier replay `45657844717` is consistent. I initially misread a truncated 140-line log tail as 14/19; the 220-line summary corrected it to 10/19, and correction messages were sent to Agent 5 and Agent 10.
+- Older Agent 10 property-specific prototype branch run `45666296679` is confirmed failed; its log tail showed at least twelve named false negatives, but subsequent log retrieval returned HTTP 403 after retries, so do not claim an exact summary.
+- Sent direct coordination messages to Agent 5 and Agent 10 recommending a single combined donor: preserve property-specific factory/member resolution, add Agent 5's receiver-context map/receiver-aware return evaluation, and handle unknown computed ObjectExpression overwrites conservatively. No production PR or integration was created.
+
+### Intrinsic trust boundary
+- Agent 5's `callLikeIntrinsicsUnmodified` remains a source-only syntactic preflight. It cannot establish a pristine realm against a hostile preloader or a host callback that mutates an escaped function. A fast path needs an explicit external trusted-intrinsics contract; source absence is not proof. Keep this helper research-only for COO/SNO full-control attackers unless the trust contract is genuinely supplied by the deployment.
+
+### Next work
+1. After the Actions log rate limit resets, retrieve the summary for run `45687921204` (prototype precision) and run `45688710893` (aggregate suite), then update the cross-validation report.
+2. Continue the prototype/instance own-property shadow analysis: ordered class-field initializers, constructor `this.key` writes, and later direct own writes may shadow prototype callables. Only suppress prototype values when a single own value is proven unconditional and ordered before all relevant reads; fail closed on dynamic keys, spreads, reflection, proxies, conditional writes, deletion, or unknown escapes.
+3. Coordinate a single owner/branch for any combined receiver candidate. Do not merge the helper into production or make a 2.5× claim without the full acceptance and performance evidence.
+4. Keep checking Agent 5/10 replies and Critic broadcasts when useful; no reply had arrived at this checkpoint.
+
+### Repository state
+- Production source `src/` was not modified.
+- Test-only branch: `agent4/review-agent5-latest-member-flow-20261125`; focused aggregate and individual tests only.
+- Reports updated: `results/README.md`, `im-results/agent4-member-flow-cross-validation-2026-11-25/README.md`.
+- Current UTC at checkpoint: `2026-11-25T19:50:27.427Z`.
