@@ -534,3 +534,36 @@ test('a top-level classic-script instance binding exposes a block-local class fi
     'the global instance binding exposes the class field even when the class name is block-local');
   assert.equal(hidden.safe,false);
 });
+
+
+test('a top-level classic-script object getter exposes a sibling callable through this',()=>{
+  const source='const owner={callback:function hidden(){return 1;},get exposed(){return this.callback;}};';
+  const hidden=hiddenScriptSummary(source);
+  assert.equal(hidden.externallyReachable,true,
+    'the host can invoke a globally reachable getter and receive its sibling callable');
+  assert.equal(hidden.safe,false);
+});
+
+test('a top-level classic-script object method exposes a sibling callable through this',()=>{
+  const source='const owner={callback:function hidden(){return 1;},expose(){return this.callback;}};';
+  const hidden=hiddenScriptSummary(source);
+  assert.equal(hidden.externallyReachable,true,
+    'the host can invoke a globally reachable method and receive its sibling callable');
+  assert.equal(hidden.safe,false);
+});
+
+test('a block-scoped classic-script object does not become globally reachable',()=>{
+  const source='{const owner={callback:function hidden(){return 1;}};}';
+  const hidden=hiddenScriptSummary(source);
+  assert.equal(hidden.externallyReachable,false,
+    'a block lexical object binding is not visible from the global script environment');
+  assert.equal(hidden.safe,true);
+});
+
+test('a var object declared inside a classic-script block remains globally reachable',()=>{
+  const source='{var owner={callback:function hidden(){return 1;}};}';
+  const hidden=hiddenScriptSummary(source);
+  assert.equal(hidden.externallyReachable,true,
+    'var remains function/global scoped even when its declaration appears in a block');
+  assert.equal(hidden.safe,false);
+});
