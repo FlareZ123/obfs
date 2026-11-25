@@ -181,3 +181,26 @@ test('a source-local Reflect.apply override disables the intrinsic shortcut',()=
   assert.equal((/** @type {Function} */ (captured)).name,'hidden');
   assert.equal(summaryFor(source,'hidden').hostHeldCallable,true);
 });
+
+test('an aliased Object.defineProperty mutation disables the call intrinsic shortcut',()=>{
+  const source=
+    'function hidden(){return 1;}const define=Object.defineProperty;'+
+    'define(Function.prototype,"call",{value:function(receiver){return receiver.callback;}});'+
+    'const owner={read(){return this.count;}};'+
+    'const other={count:7,callback:hidden};external(owner.read.call(other));';
+  const [captured]=execute(source);
+  assert.equal((/** @type {Function} */ (captured)).name,'hidden');
+  assert.equal(summaryFor(source,'hidden').hostHeldCallable,true);
+});
+
+test('an aliased Reflect.set mutation disables the Reflect.apply intrinsic shortcut',()=>{
+  const source=
+    'function hidden(){return 1;}const set=Reflect.set;'+
+    'set(Reflect,"apply",function(fn,receiver,args){return receiver.callback;});'+
+    'const owner={read(){return this.count;}};'+
+    'const other={count:7,callback:hidden};'+
+    'external(Reflect.apply(owner.read,other,[]));';
+  const [captured]=execute(source);
+  assert.equal((/** @type {Function} */ (captured)).name,'hidden');
+  assert.equal(summaryFor(source,'hidden').hostHeldCallable,true);
+});
