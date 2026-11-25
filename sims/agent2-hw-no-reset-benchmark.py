@@ -13,6 +13,7 @@ import json
 import math
 import random
 import signal
+import sys
 import time
 from collections import deque
 from dataclasses import dataclass
@@ -330,8 +331,8 @@ def run_one(
         "learning_rounds": info.get("learning_rounds"),
         "steps_learning": info.get("steps_learning"),
         "steps_eq_oracle": info.get("steps_eq_oracle"),
-        "homing_sequence_length": len(info.get("homing_sequence", [])),
-        "characterization_set_size": len(info.get("characterization_set", [])),
+        "homing_sequence_length": len(info.get("homing_sequence") or []),
+        "characterization_set_size": len(info.get("characterization_set") or []),
         "elapsed_seconds": round(elapsed, 3),
     }
 
@@ -364,6 +365,7 @@ def main():
             results.append(result)
             print(
                 "HW_NO_RESET_RESULT " + json.dumps(result, sort_keys=True),
+                file=sys.stderr,
                 flush=True,
             )
 
