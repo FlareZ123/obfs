@@ -61,20 +61,24 @@ test('negative control: direct API treats lexical symlink aliases as distinct mo
       }
       throw error;
     }
-    const output=obfuscateFiles(files,{
-      mode:'coo',seed:'direct-api-symlink-identity',closedWorld:true,
-      strings:false,identifiers:false
-    });
-    const emitted=await run(output.files,true);
     const separateBaseline=await run(files,false);
-    const separateEmitted=await run(output.files,false);
     assert.equal(separateBaseline,'23 23');
-    assert.equal(separateEmitted,separateBaseline);
     assert.equal(baseline,'23 23');
-    assert.equal(output.crossFile.properties,2);
-    // This is an intentional negative-control assertion: the caller's
-    // symlink makes Node load one module while the API proved two path keys.
-    assert.equal(emitted,'23 undefined');
+    /** @type {Array<'coo'|'sco'|'sno'>} */
+    const modes=['coo','sco','sno'];
+    for(const mode of modes) {
+      const output=obfuscateFiles(files,{
+        mode,seed:'direct-api-symlink-identity-'+mode,closedWorld:true,
+        strings:false,identifiers:false
+      });
+      const emitted=await run(output.files,true);
+      const separateEmitted=await run(output.files,false);
+      assert.equal(output.crossFile.properties,2,mode);
+      assert.equal(separateEmitted,separateBaseline,mode);
+      // This is an intentional negative-control assertion: the caller's
+      // symlink makes Node load one module while the API proved two path keys.
+      assert.equal(emitted,'23 undefined',mode);
+    }
   } finally {
     await fs.rm(dir,{recursive:true,force:true});
   }
