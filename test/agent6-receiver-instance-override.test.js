@@ -43,7 +43,7 @@ test('constructor primitive write shadows a prototype method without holding its
     'const instance=new Local();external(instance.callback);';
   const [actual]=execute(source);
   assert.equal(actual,1);
-  assert.equal(hiddenSummary(source).hostHeldCallable,false);
+  const summary=hiddenSummary(source);assert.equal(summary.hostHeldCallable,false,JSON.stringify(summary.reasons));
 });
 
 test('conditional constructor callable write remains held when its branch executes',()=>{
@@ -63,7 +63,7 @@ test('an own class field shadows a same-named prototype method',()=>{
     'const instance=new Local();external(instance.callback);';
   const [actual]=execute(source);
   assert.equal(actual,1);
-  assert.equal(hiddenSummary(source).hostHeldCallable,false);
+  const summary=hiddenSummary(source);assert.equal(summary.hostHeldCallable,false,JSON.stringify(summary.reasons));
 });
 
 test('a post-construction callable write overrides a prototype method and must be held',()=>{
@@ -84,7 +84,7 @@ test('a child constructor primitive write shadows an inherited callable method',
     'const instance=new Local();external(instance.callback);';
   const [actual]=execute(source);
   assert.equal(actual,1);
-  assert.equal(hiddenSummary(source).hostHeldCallable,false);
+  const summary=hiddenSummary(source);assert.equal(summary.hostHeldCallable,false,JSON.stringify(summary.reasons));
 });
 
 test('a child constructor callable write shadows an inherited method and must be held',()=>{
@@ -137,5 +137,5 @@ test('a base constructor own write shadows its prototype method for derived inst
     'const instance=new Local();external(instance.callback);';
   const [actual]=execute(source);
   assert.equal(actual,1);
-  assert.equal(hiddenSummary(source).hostHeldCallable,false);
+  const summary=hiddenSummary(source);assert.equal(summary.hostHeldCallable,false,JSON.stringify(summary.reasons));
 });
