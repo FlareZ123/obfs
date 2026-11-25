@@ -104,3 +104,73 @@ test('an aliased local receiver is not treated as privately owned',()=>{
     'an unproved alias prevents the local receiver ownership proof');
   assert.equal(hidden.safe,false);
 });
+
+
+test('a callable read from a local record remains tracked through a local alias',()=>{
+  const source=
+    'function hidden(){return 1;}'+
+    'function entry(){const owner={callback:0};owner.callback=hidden;'+
+    'const callback=owner.callback;external(callback);}'+
+    'module.exports=entry;';
+  const result=analyze(source);
+  const hidden=named(result,'hidden')[0];
+  assert.ok(hidden);
+  assert.equal(hidden.hostHeldCallable,true);
+  assert.equal(hidden.safe,false);
+});
+
+test('a local consumer may discard a callable read from a private record',()=>{
+  const source=
+    'function hidden(){return 1;}'+
+    'function consume(callback){return 2;}'+
+    'function entry(){const owner={callback:0};owner.callback=hidden;'+
+    'return consume(owner.callback);}'+
+    'module.exports=entry;';
+  const result=analyze(source);
+  const hidden=named(result,'hidden')[0];
+  assert.ok(hidden);
+  assert.equal(hidden.hostHeldCallable,false,
+    'the local consumer is known to discard the actual callable');
+  assert.equal(hidden.safe,true);
+});
+
+test('a local consumer returning a record field propagates the callable escape',()=>{
+  const source=
+    'function hidden(){return 1;}'+
+    'function consume(callback){return callback;}'+
+    'function entry(){const owner={callback:0};owner.callback=hidden;'+
+    'return consume(owner.callback);}'+
+    'module.exports=entry;';
+  const result=analyze(source);
+  const hidden=named(result,'hidden')[0];
+  assert.ok(hidden);
+  assert.equal(hidden.hostHeldCallable,true);
+  assert.equal(hidden.safe,false);
+});
+
+test('a closure returned by a local consumer exposes a callable read from a record',()=>{
+  const source=
+    'function hidden(){return 1;}'+
+    'function make(callback){return ()=>callback;}'+
+    'function entry(){const owner={callback:0};owner.callback=hidden;'+
+    'return make(owner.callback);}'+
+    'module.exports=entry;';
+  const result=analyze(source);
+  const hidden=named(result,'hidden')[0];
+  assert.ok(hidden);
+  assert.equal(hidden.hostHeldCallable,true);
+  assert.equal(hidden.safe,false);
+});
+
+test('a local record with an accessor is not admitted as an own-data receiver',()=>{
+  const source=
+    'function hidden(){return 1;}'+
+    'function entry(){const owner={get callback(){return 0;}};'+
+    'owner.callback=hidden;return 2;}'+
+    'module.exports=entry;';
+  const result=analyze(source);
+  const hidden=named(result,'hidden')[0];
+  assert.ok(hidden);
+  assert.equal(hidden.hostHeldCallable,true);
+  assert.equal(hidden.safe,false);
+});
