@@ -14,7 +14,7 @@ async function dumpDom(url) {
     '--headless','--no-sandbox','--disable-gpu','--disable-dev-shm-usage',
     '--no-first-run','--virtual-time-budget=8000','--dump-dom',url
   ],{timeout:45000,maxBuffer:4*1024*1024,encoding:'utf8'});
-  const encoded=stdout.match(/<pre id="result">([A-Za-z0-9+/=]+)<\\/pre>/u)?.[1];
+  const encoded=stdout.match(/<pre id="result">([A-Za-z0-9+/=]+)<\/pre>/u)?.[1];
   if(!encoded)throw new Error('Chromium did not expose the observation payload');
   return Buffer.from(encoded,'base64').toString('utf8');
 }
@@ -25,9 +25,9 @@ async function dumpDom(url) {
  * @returns {{line:number,column:number,frame:string}}
  */
 function parseFrame(stack,pathname) {
-  const frame=stack.split('\\n').find(line=>line.includes(pathname))??'';
+  const frame=stack.split('\n').find(line=>line.includes(pathname))??'';
   if(!frame)throw new Error('Missing module frame for '+pathname+': '+stack);
-  const match=frame.match(/:(\\d+):(\\d+)\\)?$/u);
+  const match=frame.match(/:(\d+):(\d+)\)?$/u);
   if(!match)throw new Error('Missing source coordinates in '+frame);
   return {line:Number(match[1]),column:Number(match[2]),frame};
 }
@@ -50,7 +50,7 @@ async function compareBrowser(source,generatedCode,suffix) {
     'document.getElementById("result").textContent=btoa(JSON.stringify(result));',
     '}catch(error){document.getElementById("result").textContent=btoa(JSON.stringify({error:String(error),stack:error&&error.stack}));}})();',
     '</script></body></html>'
-  ].join('\\n');
+  ].join('\n');
   const pages=new Map([
     ['/',{type:'text/html; charset=utf-8',body:html}],
     [nativePath,{type:'text/javascript; charset=utf-8',body:source}],
