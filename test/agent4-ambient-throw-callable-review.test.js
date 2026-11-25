@@ -246,3 +246,18 @@ test('an exported class field closure propagates its captured callable',()=>{
   assert.equal(hidden.hostHeldCallable,true);
   assert.equal(hidden.safe,false);
 });
+
+
+test('a known local consumer that discards its argument is conservatively overtainted',()=>{
+  const source=
+    'function hidden(){return 1;}'+
+    'function consume(callback){return 2;}'+
+    'function entry(){return consume(hidden);}'+
+    'module.exports=entry;';
+  const result=analyze(source);
+  const hidden=named(result,'hidden')[0];
+  assert.ok(hidden);
+  assert.equal(hidden.hostHeldCallable,true,
+    'the donor currently vetoes callable actuals before proving whether the local formal escapes');
+  assert.equal(hidden.safe,false);
+});
