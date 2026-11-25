@@ -174,7 +174,7 @@ function encodeStrings(source, ast, options) {
   const init = `function ${helper}(${argument}){let ${cache}=${helper}.c;if(!${cache}){${cache}=${JSON.stringify(encoded)};for(let ${i}=0;${i}<${cache}.length;${i}++){const ${raw}=${cache}[${i}];let ${decoded}='';${decoder}${cache}[${i}]=${decoded};}${helper}.c=${cache};}return ${cache}[${argument}];}`;
   const transformed = applyEdits(source, edits);
   return {
-    code:transformed + (transformed.endsWith('\\n') ? '' : '\\n') + init + '\\n',
+    code:transformed + (transformed.endsWith('\n') ? '' : '\n') + init + '\n',
     count:edits.length
   };
 }
