@@ -8,7 +8,7 @@ const {evaluateProjectedAffineModel} = require('./projected-affine-coset-profile
 /** @typedef {{kind:'anf',bits:number,lower:Array<[number,number]>,top:Array<[number,number]>,degree:4|5}} AnfModel */
 /** @typedef {ProjectedModel|AnfModel} HybridModel */
 /** @typedef {'six-direction'|'seven-direction-restart'} WitnessStrategy */
-/** @typedef {{fastPathSuccess:boolean,witnessStrategy:WitnessStrategy,witnessTrials:number,witnessTrialCap:number,witnessDrawCount:number,witnessProbability:number,witnessFailureBound:number,quotientRank:number|null,coordinateStrategy:'shift'|'signature'|null,fixedPairPassed:boolean|null,fastQueries:number,verificationQueries:number,verificationSamples:number,verificationCap:number,verificationDelta:number,falseAcceptanceBound:number,verificationPassed:boolean,fallbackUsed:boolean,fallbackReason:string|null,fallbackQueries:number,exactByInterpolation:boolean}} Diagnostics */
+/** @typedef {{fastPathSuccess:boolean,witnessStrategy:WitnessStrategy,witnessTrials:number,witnessTrialCap:number,witnessDrawCount:number,witnessProbability:number,witnessFailureBound:number,quotientRank:number|null,coordinateStrategy:'shift'|'signature'|null,fixedPairPassed:boolean|null,fastQueries:number,verificationQueries:number,verificationSamples:number,verificationCap:number,verificationDelta:number|null,falseAcceptanceBound:number|null,verificationPassed:boolean|null,verificationMode:'verify-degree-five'|'assume-projected-affine',promiseAssumed:boolean,fallbackUsed:boolean,fallbackReason:string|null,fallbackQueries:number,exactByInterpolation:boolean}} Diagnostics */
 /** @typedef {{model:HybridModel,queries:number,diagnostics:Diagnostics}} CloneResult */
 
 /** @returns {number} */
@@ -145,6 +145,7 @@ function evaluateHybridModel(model, input) {
  * @param {number} [delta]
  * @param {()=>void} [onCandidateReady] Called after candidate construction and before verifier draws are requested.
  * @param {WitnessStrategy} [witnessStrategy] Selects the six-direction or exact seven-direction restart policy.
+ * @param {'verify-degree-five'|'assume-projected-affine'} [verificationMode] The second mode assumes the exact projected-affine rank-five source promise and skips postfit queries.
  * @returns {CloneResult}
  */
 function cloneTopDerivativeProjectedAffine(
@@ -154,7 +155,8 @@ function cloneTopDerivativeProjectedAffine(
   drawVerify = secureWord,
   delta = 1e-10,
   onCandidateReady = () => {},
-  witnessStrategy = 'six-direction'
+  witnessStrategy = 'six-direction',
+  verificationMode = 'verify-degree-five'
 ) {
   assert.ok(Number.isInteger(n) && n >= 5 && n <= 32);
   assert.ok(Number.isFinite(delta) && delta > 0 && delta < 1);
@@ -190,6 +192,8 @@ function cloneTopDerivativeProjectedAffine(
 
   assert.ok(witnessStrategy === 'six-direction' ||
     witnessStrategy === 'seven-direction-restart');
+  assert.ok(verificationMode === 'verify-degree-five' ||
+    verificationMode === 'assume-projected-affine');
   const directionCount = witnessStrategy === 'six-direction' ? 6 : 7;
   /** @type {number[][]} */
   const faceComplements = witnessStrategy === 'six-direction'
@@ -250,10 +254,12 @@ function cloneTopDerivativeProjectedAffine(
         fastQueries,
         verificationQueries,
         verificationSamples,
-        verificationCap,
-        verificationDelta:delta,
-        falseAcceptanceBound:0,
-        verificationPassed:false,
+        verificationMode,
+        promiseAssumed:verificationMode==='assume-projected-affine',
+        verificationCap:verificationMode==='verify-degree-five'?verificationCap:0,
+        verificationDelta:verificationMode==='verify-degree-five'?delta:null,
+        falseAcceptanceBound:verificationMode==='verify-degree-five'?0:null,
+        verificationPassed:verificationMode==='verify-degree-five'?false:null,
         fallbackUsed:true,
         fallbackReason:reason,
         fallbackQueries:cache.size-beforeFallback,
@@ -356,6 +362,42 @@ function cloneTopDerivativeProjectedAffine(
   /** @type {ProjectedModel} */
   const model = {kind:'projected-affine',bits:n,rank:5,table,coordinates,affineCorrections};
   const fastQueries = cache.size;
+  if (verificationMode === 'assume-projected-affine') {
+    // Under F(x)=A(x) XOR b XOR h(Px), rank(P)=5 and a nonzero top
+    // table coefficient, the recovered quotient coordinates are exact.
+    // The section table plus basis-fitted linear correction therefore
+    // reconstructs every input; no statistical verifier is required.
+    // This mode is deliberately unsafe outside that explicit promise.
+    return {
+      model,
+      queries:cache.size,
+      diagnostics:{
+        fastPathSuccess:true,
+        witnessTrials,
+        witnessTrialCap,
+        witnessStrategy,
+        witnessDrawCount:witnessTrials * directionCount,
+        witnessProbability,
+        witnessFailureBound:Math.pow(1-witnessProbability,witnessTrialCap),
+        quotientRank:5,
+        coordinateStrategy,
+        fixedPairPassed,
+        fastQueries,
+        verificationQueries:0,
+        verificationSamples:0,
+        verificationCap:0,
+        verificationDelta:null,
+        falseAcceptanceBound:null,
+        verificationPassed:null,
+        verificationMode,
+        promiseAssumed:true,
+        fallbackUsed:false,
+        fallbackReason:null,
+        fallbackQueries:0,
+        exactByInterpolation:false
+      }
+    };
+  }
   onCandidateReady();
   const beforeVerification = cache.size;
   let verificationSamples = 0;
@@ -388,6 +430,8 @@ function cloneTopDerivativeProjectedAffine(
       verificationDelta:delta,
       falseAcceptanceBound:delta,
       verificationPassed:true,
+      verificationMode,
+      promiseAssumed:false,
       fallbackUsed:false,
       fallbackReason:null,
       fallbackQueries:0,
@@ -396,8 +440,8 @@ function cloneTopDerivativeProjectedAffine(
   };
 }
 
-/** @param {number} n @param {()=>number} draw @returns {(input:number)=>number} */
-function makeRankFiveSource(n, draw) {
+/** @param {number} n @param {()=>number} draw @param {number[]|null} [tableOverride] @returns {(input:number)=>number} */
+function makeRankFiveSource(n, draw, tableOverride=null) {
   const mask = n === 32 ? 0xffffffff : (2 ** n - 1);
   /** @type {number[]} */
   const projections = [];
@@ -407,7 +451,8 @@ function makeRankFiveSource(n, draw) {
   }
   const affine = Array.from({length:n},() => draw() >>> 0);
   const offset = draw() >>> 0;
-  const table = Array.from({length:32},() => draw() >>> 0);
+  const table = tableOverride ? tableOverride.map(value=>value>>>0) :
+    Array.from({length:32},() => draw() >>> 0);
   if (table.reduce((value,word)=>(value^word)>>>0,0) === 0) table[31] ^= 1;
   return input => {
     const x = (input & mask) >>> 0;
@@ -491,6 +536,62 @@ function main() {
       sevenDirectionPositiveCases++;
       sevenDirectionMaxQueries = Math.max(sevenDirectionMaxQueries,result.queries);
     }
+  }
+
+  // Exact projected-affine promise mode skips the statistical verifier.
+  // Exercise both the fixed-pair shift branch and the derivative-signature
+  // branch, with a verifier callback that fails if it is ever invoked.
+  let promiseCases=0;
+  let promiseOutputs=0;
+  let promiseShiftCases=0;
+  let promiseSignatureCases=0;
+  let promiseMaxQueries=0;
+  const promiseRandomSource=makeRankFiveSource(8,seeded(0x50a202781));
+  const promiseMonomialTable=Array.from({length:32},(_,index)=>
+    index===31?0x80000000:0);
+  const promiseMonomialSource=makeRankFiveSource(
+    8,seeded(0x50a202782),promiseMonomialTable
+  );
+  for(const [source,seed,expectedStrategy] of [
+    [promiseRandomSource,0x50a202783,'shift'],
+    [promiseMonomialSource,0x50a202784,'signature']
+  ]) {
+    let verifierCalls=0;
+    let candidateReadyCalls=0;
+    const promised=cloneTopDerivativeProjectedAffine(
+      source,8,seeded(seed),
+      () => {verifierCalls++;throw new Error('promise mode must not request verifier randomness');},
+      1e-10,
+      () => {candidateReadyCalls++;},
+      'seven-direction-restart',
+      'assume-projected-affine'
+    );
+    assert.equal(promised.diagnostics.verificationMode,'assume-projected-affine');
+    assert.equal(promised.diagnostics.promiseAssumed,true);
+    assert.equal(promised.diagnostics.verificationSamples,0);
+    assert.equal(promised.diagnostics.verificationQueries,0);
+    assert.equal(promised.diagnostics.verificationCap,0);
+    assert.equal(promised.diagnostics.verificationPassed,null);
+    assert.equal(promised.diagnostics.falseAcceptanceBound,null);
+    assert.equal(promised.diagnostics.fallbackUsed,false);
+    assert.equal(promised.diagnostics.fastPathSuccess,true);
+    assert.equal(promised.diagnostics.coordinateStrategy,expectedStrategy);
+    assert.equal(verifierCalls,0);
+    assert.equal(candidateReadyCalls,0);
+    if(expectedStrategy==='shift') {
+      assert.equal(promised.diagnostics.fixedPairPassed,true);
+      promiseShiftCases++;
+    } else {
+      assert.equal(promised.diagnostics.fixedPairPassed,false);
+      promiseSignatureCases++;
+    }
+    for(let input=0;input<256;input++) {
+      assert.equal(evaluateHybridModel(promised.model,input),source(input),
+        'assumed projected-affine model differs on complete 8-bit domain');
+      promiseOutputs++;
+    }
+    promiseCases++;
+    promiseMaxQueries=Math.max(promiseMaxQueries,promised.queries);
   }
 
   // The lower-degree residual is deliberately outside the recovered quotient.
@@ -610,6 +711,16 @@ function main() {
   }
 
   const summary = {
+    promisedProjectedAffine:{
+      cases:promiseCases,
+      outputs:promiseOutputs,
+      shiftCases:promiseShiftCases,
+      signatureCases:promiseSignatureCases,
+      maxQueries:promiseMaxQueries,
+      verifierSamples:0,
+      verifierCallbackCalls:0,
+      exactAll256:true
+    },
     sevenDirectionRestart:{
       cases:sevenDirectionPositiveCases,
       outputs:sevenDirectionPositiveOutputs,
@@ -654,7 +765,7 @@ function main() {
       lazySignatureCapN32:63+62*26+31*32+726,
       shiftCapN32:63+62*26+3*32+726
     },
-    note:'Seeded tests exercise implementation paths only. The RM verifier guarantee requires independent uniform verification draws and a fixed degree<=5 oracle; the HTTP worker releases verifier randomness only after candidate construction.'
+    note:'Seeded tests exercise implementation paths only. The default RM verifier guarantee requires independent uniform verification draws and a fixed degree<=5 oracle. The opt-in assume-projected-affine mode skips verification and is exact only under its explicit F=A+b+h(Px), rank-five, nonzero-top-coefficient promise.'
   };
   console.log('TOP_DERIVATIVE_PROJECTED_AFFINE_HYBRID ' + JSON.stringify(summary));
   return summary;
