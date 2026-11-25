@@ -45,3 +45,21 @@ The direct `obfuscateFiles` API accepts caller-constructed `SourceFile` entries.
 This branch is **test-only evidence**, not a current-main candidate. Current main still lacks the donor's joint-root additions (`additionalRootNames` is absent from its property proof), while the donor is 744 commits behind and predates later mainline source-observer/class-source changes. Do not cherry-pick the donor wholesale or open a parallel PR. Any future integration requires an explicit owner decision, a fresh current-main rebase, real Chromium parity for sibling aliases/carriers, focused exact-head validation, and the existing unfocused full `manual-validation.yml` gate.
 
 The product release decision remains **RELEASE-BLOCKED**. These tests establish bounded semantic behavior/refusals only; they do not demonstrate additional static-deobfuscation resistance, tamper resistance, environment locking, or compliance with the 2.5× compute ceiling.
+
+
+## Additional direct-API symlink module-identity negative control
+
+A separate test file, test/direct-api-symlink-module-identity.test.js, was added at commit 1c1d98d01bc75352385c16cd5d60ef54336e8d52. Focused manual-validation run [45567293260](https://github.com/FlareZ123/obfs/actions/runs/45567293260) passed on Ubuntu and Windows, including strict project, external, and paired-budget JSDoc.
+
+The test supplies two identical ESM SourceFile entries at lib/state.mjs and app/alias.mjs, plus a main module that imports and reads the same exported object's field through both paths. The test runs two deployment layouts:
+
+1. **Two independent regular files:** native output is 23 23 and transformed output remains 23 23.
+2. **app/alias.mjs preserved as a symlink to lib/state.mjs:** native Node output is 23 23, while the transformed output is 23 undefined. The compiler reports two property rewrites. Both Linux and Windows runners reproduce the result.
+
+This is a concrete direct-API module-identity compatibility counterexample, not merely an unverified precondition. The API's cross-file mapping includes the lexical exporter path (SHA-256 input is seed/exporterName/exportName/propertyName), while relative imports are resolved lexically. Node's default ESM loader realpaths the symlink and therefore loads one module record. The analyzer has proved two owners; runtime has one.
+
+The normal CLI is protected from this particular input shape: src/cli.js readSourceTree rejects any symlink in the input tree. The issue is limited to callers that manually construct obfuscateFiles source arrays and later emit/deploy multiple lexical aliases as one symlinked runtime module. This does not show an arbitrary attack against the CLI or a hostile filesystem escape.
+
+**Required disposition:** make the direct API contract explicit and/or add caller-supplied canonical module identity metadata. Do not silently call realpath inside the synchronous in-memory API: paths can be virtual and the compiler cannot infer how a caller will deploy them. A caller using closedWorld must provide one canonical path per runtime ESM module and emit the graph with the same module-identity mapping. If this precondition is not acceptable, the API needs an explicit identity/alias model and proof grouping by that identity. The CLI's symlink rejection remains a positive guard.
+
+The donor is still 744 commits behind current main. This negative control was run on the donor implementation; current main's core API also uses lexical safePath/registerFilePath and lexical relative-import resolution, so a current-main focused reproduction is warranted before changing the public API contract. No production code was changed in this audit.
