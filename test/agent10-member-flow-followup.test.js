@@ -654,3 +654,35 @@ test('a host-reachable object getter returning a primitive does not retain an un
     'a known primitive getter return does not expose an unrelated module-local function');
   assert.equal(hidden.safe,true);
 });
+
+
+test('object spread preserves callable values returned by a source getter',()=>{
+  const source=
+    'function hidden(){return 1;}'+
+    'const base={get exposed(){return hidden;}};'+
+    'function entry(){external({...base});}'+
+    'module.exports=entry;';
+  assertHeld(hiddenSummary(source),
+    'object spread invokes the source getter and copies its returned callable into the host-visible object');
+});
+
+test('an exported ESM object spread preserves callable values returned by a source getter',()=>{
+  const source=
+    'function hidden(){return 1;}'+
+    'const base={get exposed(){return hidden;}};'+
+    'export const owner={...base};';
+  const hidden=hiddenModuleSummary(source);
+  assert.equal(hidden.externallyReachable,true,
+    'the exported spread result exposes the getter-produced callable');
+  assert.equal(hidden.safe,false);
+});
+
+test('array spread preserves callable elements from a local array alias',()=>{
+  const source=
+    'function hidden(){return 1;}'+
+    'const base=[hidden];'+
+    'function entry(){external([...base]);}'+
+    'module.exports=entry;';
+  assertHeld(hiddenSummary(source),
+    'array spread copies the local callable element into the host-visible array');
+});
