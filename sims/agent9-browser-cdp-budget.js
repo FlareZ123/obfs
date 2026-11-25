@@ -6,24 +6,20 @@ const puppeteer=require('puppeteer-core');
 const {obfuscateFiles}=require('../src/core');
 const {pairedBudgetBound}=require('./paired-budget-bound');
 
-/** @typedef {{scriptMs:number,taskMs:number,wallMs:number,values:number[]}} TimedSample */
+/** @typedef {{scriptMs:number,taskMs:number,result:number}} TimedSample */
 
 function makeSource(count) {
   return [
     "'use strict';",
-    "const marker='task-duration-probe';",
     'const owner={longPrivatePropertyName:17,unrelatedField:23};',
     'function hidden(iterations) {',
     '  let sum=0;',
     '  for(let index=0;index<iterations;index++){',
-    '    sum=(sum+owner.longPrivatePropertyName+marker.charCodeAt(index%marker.length))|0;',
+    '    sum=(sum+owner.longPrivatePropertyName+index)|0;',
     '  }',
     '  return sum|0;',
     '}',
-    'const started=performance.now();',
-    'const values=[hidden(100000),hidden(100000),hidden(100000),hidden('+count+')];',
-    'globalThis.__wallMs=performance.now()-started;',
-    'module.exports=values;'
+    'module.exports=hidden(100000)+hidden(100000)+hidden(100000)+hidden('+count+');'
   ].join('\n');
 }
 
@@ -43,25 +39,24 @@ async function readMetrics(session) {
 
 /**
  * @param {import('puppeteer-core').CDPSession} session
- * @param {()=>Promise<number[]>} operation
+ * @param {()=>Promise<number>} operation
  * @returns {Promise<TimedSample>}
  */
 async function measureScript(session,operation) {
   const before=await readMetrics(session);
-  const values=await operation();
+  const result=await operation();
   const after=await readMetrics(session);
   return {
     scriptMs:(after.scriptSeconds-before.scriptSeconds)*1000,
     taskMs:(after.taskSeconds-before.taskSeconds)*1000,
-    wallMs:0,
-    values
+    result
   };
 }
 
 /**
  * Prototype measurement of current-compiler COO initialization plus repeated
- * runtime use in one strict script evaluation. ScriptDuration and TaskDuration
- * are renderer-main-thread metrics; performance.now is diagnostic only.
+ * property-heavy runtime use in one strict script evaluation. ScriptDuration
+ * and TaskDuration are renderer-main-thread metrics, not process CPU.
  *
  * @param {{count?:number,trials?:number}} [options]
  * @returns {Promise<{
@@ -85,7 +80,8 @@ async function runChromium(options={}) {
     mode:'coo',closedWorld:true,seed:'agent9-cdp-task-duration',
     properties:true,identifiers:false,strings:false
   }).files[0];
-  assert.ok(transformed.metrics.properties>0,'Expected property rewrite');
+  assert.ok(transformed.metrics.properties>0,
+    'Expected property rewrite: '+JSON.stringify(transformed.metrics));
 
   const pageHtml='<!doctype html><html><body><script>window.module={exports:null};</script></body></html>';
   const files=new Map([
@@ -135,10 +131,6 @@ async function runChromium(options={}) {
               return globals.module.exports;
             });
           });
-          sample.wallMs=await page.evaluate(()=>{
-            const globals=/** @type {Record<string,any>} */ (globalThis);
-            return globals.__wallMs;
-          });
           assert.ok(sample.scriptMs>0&&sample.taskMs>0,lane+' renderer deltas must be positive');
           samples[lane]=sample;
         } finally {
@@ -149,7 +141,7 @@ async function runChromium(options={}) {
       const native=samples.native;
       const protectedSample=samples.protected;
       assert.ok(native&&protectedSample,'Both lanes must be measured');
-      assert.deepEqual(native.values,protectedSample.values,'native/protected result parity');
+      assert.equal(native.result,protectedSample.result,'native/protected result parity');
       rows.push({trial,order,native,protected:protectedSample});
     }
     const nativeScript=rows.map(row=>row.native.scriptMs);
@@ -160,8 +152,8 @@ async function runChromium(options={}) {
       chrome,node:process.version,count,trials,compilerMetrics:transformed.metrics,rows,
       scriptBudget:pairedBudgetBound(nativeScript,protectedScript,{threshold:2.5,confidence:0.95}),
       taskBudget:pairedBudgetBound(nativeTask,protectedTask,{threshold:2.5,confidence:0.95}),
-      clock:'CDP Performance.getMetrics ScriptDuration and TaskDuration (renderer main thread); page performance.now is diagnostic only',
-      scope:'Single COO strict CommonJS-style script with property-only obfuscation. Each sample includes script initialization and three 100k calls plus one hot call. Not process-wide CPU, worker CPU, SCO/SNO, cross-browser, or full-session acceptance.'
+      clock:'CDP Performance.getMetrics ScriptDuration and TaskDuration (renderer main thread)',
+      scope:'Single COO strict CommonJS-style property-only workload. Each sample includes script initialization and three 100k calls plus one hot call. Not process-wide CPU, worker CPU, SCO/SNO, cross-browser, or full-session acceptance.'
     };
   } finally {
     await browser.close();
