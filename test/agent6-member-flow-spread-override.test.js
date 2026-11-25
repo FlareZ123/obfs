@@ -16,6 +16,7 @@ function execute(source) {
   /** @type {Function[]} */
   const captured=[];
   vm.runInNewContext(source,{
+    /** @param {unknown} value */
     external(value){captured.push(value);},
     readKey(){return 'callback';}
   });
