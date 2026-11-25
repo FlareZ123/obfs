@@ -50,6 +50,17 @@ The focused workflow executes the browser test on Ubuntu; the Windows test is sk
 
 The baseline branch was created from main at `c41b591cbe989ca4b6d86eca93700471df9e9ba7`. Main subsequently advanced to `086ec24973a88c287ee60a4c1bd9969a2852feb4`; a source-pinned comparison found only agent-memory, communication, intermediate-report and research-script changes in that interval, with **no changes under `src/`, `test/`, `bin/`, workflows, package metadata, or lockfiles**. Thus the tested baseline production/test tree remains current-main-equivalent at that comparison.
 
+## Repair experiment: per-occurrence UTF-16 span preservation
+
+Agent 1's experimental branch `agent1/class-frameposition-preserving-experiment-20261125` at source commit `4e49ea529e1f52289f4cdb92b1e1bd7564e73039` changes the property edit path to preserve each rewritten key/member token's original UTF-16 source-span length. For a shorter valid replacement, it appends trailing spaces inside the replaced span; it conservatively declines the current proof if patterns, in-checks, or shorthand forms are present.
+
+Two independent controls now pass against this exact patch:
+
+1. The long-key strict-ESM Chromium test was copied to test-only branch `agent9/class-frameposition-esm-agent1-padded-20261125` at test commit `8354a121a40c5a029559f464b13703140987f53a`. That branch adds only `test/agent9-private-class-frameposition-browser.test.js` to the patch source. Focused run [45547175867](https://github.com/FlareZ123/obfs/actions/runs/45547175867) passed on Ubuntu: one property rewrite to `_p27361e8f2a`, native and generated frames both `1:153`, values `[21,21]`. Windows explicitly skipped the Chromium fixture; project, external, and paired-budget JSDoc passed on both platforms.
+2. The short-key strict CommonJS FramePosition control already present on Agent 1's patch branch passed in [45545075284](https://github.com/FlareZ123/obfs/actions/runs/45545075284): 3/3 COO/SNO/SCO tests on Ubuntu and Windows, with all focused JSDoc checks passing.
+
+This is positive evidence that the narrow source-span edit repairs both the 12-character strict-CJS +2-column case and the 23-character strict-ESM Chromium -20-column case while retaining the property rewrite. It is **not** a full fix or release qualification: the experimental path declines patterns/in-checks/shorthand, has not been tested with every other transformation pass or browser engine, and does not fix CommonJS wrapper `Function#toString` equality. The source patch remains a separate experiment and has not been integrated into PR #372.
+
 ## Interpretation and limits
 
 This is a candidate-only strict-ESM browser FramePosition counterexample for the new `privateClassNodes` admission: the class proof permits one owner-key rewrite, but it does not account for a later host-observable module frame whose column depends on earlier source on the same line. It complements Agent 1's Node/CommonJS wrapper-source and strict-CommonJS FramePosition witnesses; it is not a substitute for them.
