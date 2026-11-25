@@ -211,7 +211,6 @@ def exact_order_dp(model, face_set, m: int, extra_count: int, kmax: int):
 def face_data_for_order(model, order):
     width = model["m"]
     sequence_indices = [model["faces"].index(face) for face in order]
-    metrics = model["evaluate"](sequence_indices) if "evaluate" in model else None
     remaining = (1 << len(model["kernels"])) - 1
     covered = 0
     previous_count = len(model["kernels"])
@@ -477,18 +476,17 @@ def simulate_one(replay, master_seed, width, face_sequence, trial_cap,
     }
 
 
-def randomized_replay(replay, replicates: int, seed_hex: str):
+def randomized_replay(replay, replicates: int, seed_hex: str,
+                      m7_order, m8_order):
     master_seed = bytes.fromhex(seed_hex)
     if len(master_seed) != 32:
         raise ValueError("seed must contain exactly 64 hex characters")
     configurations = {
-        "m7": (7, None, M7_TRIAL_CAP, 0x57000000, 0x58000000),
-        "m8": (8, M8_FACE_SET, M8_TRIAL_CAP, 0x55000000, 0x56000000),
+        "m7": (7, m7_order, M7_TRIAL_CAP, 0x57000000, 0x58000000),
+        "m8": (8, m8_order, M8_TRIAL_CAP, 0x55000000, 0x56000000),
     }
     summaries = {}
     for policy, (width, face_sequence, trial_cap, direction_domain, holdout_domain) in configurations.items():
-        if face_sequence is None:
-            face_sequence = replay_checker.M7_SEQUENCE
         modes = {}
         for mode in ("standard", "anchor", "all-trial"):
             rows = [
@@ -540,9 +538,6 @@ def main():
     replay = load_sibling(
         "agent2-rankfive-m8-query-replay.py", "agent2_m7_m8_replay"
     )
-    global replay_checker
-    replay_checker = checker
-
     pair_count = pair_signature_check(replay.TABLE)
     model7 = checker.build_model(7)
     model8 = checker.build_model(8)
@@ -553,25 +548,21 @@ def main():
         coordinate, _, miss = expected_coordinate(
             model, result["order"], m, extra_count, kmax
         )
-        metrics = checker.evaluate([
-            model["faces"].index(face) for face in result["order"]
-        ], model=model) if False else None
         # The witness expectation is evaluated with the same exact face order.
         remaining = (1 << len(model["kernels"])) - 1
         expected_faces = Fraction(0)
-        covered = 0
-        previous = len(model["kernels"])
         for face in result["order"]:
             face_index = model["faces"].index(face)
             reach = 1 - model["p"] + model["p"] * Fraction(remaining.bit_count(), len(model["kernels"]))
             expected_faces += reach
             remaining &= model["fail_masks"][face_index]
-            covered |= model["cover_masks"][face_index]
         miss_check = 1 - model["p"] + model["p"] * Fraction(remaining.bit_count(), len(model["kernels"]))
         # Expected witness query count is obtained from the checker evaluator.
         eval_metrics = checker.evaluate(model, [
             model["faces"].index(face) for face in result["order"]
         ])
+        if eval_metrics["Q"] + coordinate != result["total"]:
+            raise AssertionError("order-DP total does not match direct expectation")
         return {
             "witness_queries": float(eval_metrics["Q"]),
             "coordinate_queries": float(coordinate),
@@ -595,7 +586,7 @@ def main():
     if args.replay_replicates:
         seed = args.seed or secrets.token_hex(32)
         output["randomized_replay"] = randomized_replay(
-            replay, args.replay_replicates, seed
+            replay, args.replay_replicates, seed, m7["order"], m8["order"]
         )
     print(json.dumps(output, indent=2, sort_keys=True))
 
