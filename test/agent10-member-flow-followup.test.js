@@ -218,3 +218,14 @@ test('recursive mutable factory returns terminate while retaining known branch v
   assertHeld(hiddenSummary(source),
     'recursive factory return graphs must terminate without dropping known callable branches');
 });
+
+
+test('an expression-bodied factory passed to a host cannot hide its returned field callable',()=>{
+  const source=
+    'function hidden(){return 1;}'+
+    'class Local{callback=hidden;}'+
+    'const create=()=>new Local();'+
+    'external(create);';
+  assertHeld(hiddenSummary(source),
+    'an unknown host can invoke the escaping factory and inspect its returned instance field');
+});
