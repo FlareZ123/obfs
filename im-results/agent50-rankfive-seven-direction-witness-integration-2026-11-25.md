@@ -40,7 +40,7 @@ The repeated-trial objective accounts for the zero vertex being cached across tr
 
 The six-direction full-face policy has injective-model repeated-trial expectation `1,706,867 / 19,845 = 86.00992693373645` under the same injective-subset-sum model. The specified seven-direction order therefore saves 1.50700965200852 expected witness queries in that model. This is a modest, narrow query-count improvement.
 
-The exhaustive cutoff sweep over all 21 possible face counts selects k=10. The closest neighboring cutoffs are k=9 at 84.694318982044 and k=11 at 84.776281468001 in the injective query-cost model; the ten-face optimum is lower by 0.191401700316 and 0.273364186273 respectively.
+The exhaustive double-precision cutoff sweep over all 21 possible face counts selects k=10. The closest neighboring cutoffs are k=9 at 84.694318982044 and k=11 at 84.776281468001 in the injective query-cost model; the ten-face optimum is lower by 0.191401700316 and 0.273364186273 respectively.
 
 A separate work-count diagnostic shows the seven-direction policy performs about 6.572655 expected face tests across restarts versus 6.131529 for six directions (+7.19%), while using fewer expected direction draws (9.579194 versus 10.226767). This is an operation-count comparison, not a wall-clock benchmark; the seven-direction query advantage is not evidence of lower local CPU time.
 
@@ -58,9 +58,9 @@ The six-direction caps remain 1,675 witness / 2,497 shift / 3,393 signature quer
 
 ## Reproducibility and evidence
 
-### Exact DP and independent fixed-order check
+### Exhaustive DP and independent exact fixed-order check
 
-Agent 2's C++ DP enumerates all 2^21 face states and all 2,667 2D kernels, optimizing fixed cutoffs with a Bellman/Dinkelbach recurrence. It is the source for the global-optimality claim within the fixed-cutoff face-search family. See:
+Agent 2's C++ DP enumerates all 2^21 face states and all 2,667 2D kernels, optimizing fixed cutoffs with a Bellman/Dinkelbach recurrence using double-precision objective comparisons. It is the source for the exhaustive best-policy result within the fixed-cutoff face-search family; it is not an exact-rational optimization proof. See:
 
 - `sims/agent2-rankfive-witness-restart-dp.cpp`
 - `im-results/agent2-rankfive-restart-aware-seven-direction-cutoff-2026-11-24.md`
@@ -99,7 +99,7 @@ The live HTTP sample validates integration on the fixed fast path. It is too sma
 
 ## Limitations and disposition
 
-- The DP result is a narrow combinatorial statement about this fixed rank-five projected-affine witness family, not arbitrary JavaScript. Its query-cost optimum is exact in the injective-subset-sum query-cost model; for unrestricted 32-bit draws the values are conservative upper bounds because rare full-direction dependencies only merge queried points.
+- The DP result is a narrow combinatorial statement about this fixed rank-five projected-affine witness family, not arbitrary JavaScript. Its query-cost optimum is found by exhaustive double-precision optimization in the injective-subset-sum query-cost model; for unrestricted 32-bit draws the values are conservative upper bounds because rare full-direction dependencies only merge queried points.
 - The Node replay is deterministic simulation; the live HTTP test validates the selected fast path and does not establish a statistical seven-versus-six advantage.
 - No CPU, wall-clock target-runtime, memory, initialization, or 2.5x compute-budget measurement was added.
 - No conclusion follows for COO/SNO, static reconstruction, dynamic instrumentation resistance, tamper resistance, domain locking, or product release readiness.
