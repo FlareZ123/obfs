@@ -54,7 +54,7 @@ jobs:
       - name: Install Node dependencies
         run: npm ci
       - name: Install pinned hW implementation
-        run: python -m pip install --disable-pip-version-check aalpy==2.0.0
+        run: python -m pip install --disable-pip-version-check aalpy==2.0.0 numpy==2.2.6
       - name: Verify isolated server user
         run: |
           test "$(sudo -n -u nobody -- /usr/bin/id -u)" = "65534"
