@@ -1090,21 +1090,103 @@ function summarizeAmbientCallEffects(ast,sourceType) {
    * @param {AstNode|null} [receiver]
    * @returns {AstNode[]}
    */
-  function classMemberValueExpressionsForProperty(classNode,propertyKey,seen=new Set(),receiver=null) {
+  /**
+   * Recognize a narrow straight-line constructor write to one instance key.
+   * Unknown control flow, calls, writes to other keys, or receiver-dependent
+   * values remain opaque; callers then retain constructor and prototype
+   * candidates rather than treating a possible override as proven.
+   * @param {AstNode} classNode
+   * @param {string} propertyKey
+   * @returns {{opaque:boolean,values:AstNode[]}}
+   */
+  function classConstructorPropertyWrites(classNode,propertyKey) {
+    const constructor=classNode.body.body.find((/** @type {AstNode} */ element)=>
+      element.type==='MethodDefinition'&&element.kind==='constructor'&&
+      !element.static&&element.value);
+    if(!constructor)return {opaque:false,values:[]};
+    const body=constructor.value.body;
+    if(!body||body.type!=='BlockStatement')return {opaque:true,values:[]};
+    /** @type {AstNode[]} */
+    const values=[];
+    for(const statement of body.body) {
+      if(statement.type!=='ExpressionStatement')return {opaque:true,values};
+      const expression=statement.expression;
+      if(expression.type==='CallExpression'&&expression.callee.type==='Super'&&
+         expression.arguments.length===0)continue;
+      if(expression.type!=='AssignmentExpression'||expression.operator!=='='||
+         expression.left.type!=='MemberExpression'||
+         expression.left.object.type!=='ThisExpression')return {opaque:true,values};
+      const key=staticPropertyKey(expression.left.property,expression.left.computed);
+      if(key!==propertyKey)return {opaque:true,values};
+      let receiverDependent=false;
+      walkAst(expression.right,(/** @type {AstNode} */ node)=>{
+        if(node.type==='ThisExpression'||node.type==='Super')receiverDependent=true;
+      });
+      if(receiverDependent||
+         (!isDefinitelyPrimitive(expression.right)&&
+          callableNodesForValue(expression.right).length===0))
+        return {opaque:true,values};
+      values.push(expression.right);
+    }
+    return {opaque:false,values};
+  }
+
+  /**
+   * Resolve one instance property using JavaScript own-property precedence:
+   * constructor writes run after fields, fields shadow prototype methods, and
+   * only otherwise does lookup continue through the prototype chain.
+   * @param {AstNode} classNode
+   * @param {string} propertyKey
+   * @param {Set<AstNode>} [seen]
+   * @param {AstNode|null} [receiver]
+   * @returns {AstNode[]}
+   */
+  function classMemberValueExpressionsForProperty(classNode,propertyKey,seen=newAstSeenSet(),receiver=null) {
     if(!['ClassDeclaration','ClassExpression'].includes(classNode.type)||seen.has(classNode))return [];
     const next=new Set(seen);
     next.add(classNode);
+    const constructorWrites=classConstructorPropertyWrites(classNode,propertyKey);
     const matching=classNode.body.body.filter((/** @type {AstNode} */ element)=>
       (element.type==='MethodDefinition'||element.type==='PropertyDefinition')&&
       !element.static&&staticPropertyKey(element.key,element.computed)===propertyKey);
-    if(matching.length)
-      return [...new Set(matching.flatMap((/** @type {AstNode} */ element)=>{
+    const fields=matching.filter((/** @type {AstNode} */ element)=>
+      element.type==='PropertyDefinition');
+    const methods=matching.filter((/** @type {AstNode} */ element)=>
+      element.type==='MethodDefinition');
+    if(!constructorWrites.opaque&&constructorWrites.values.length)
+      return [constructorWrites.values[constructorWrites.values.length-1]];
+    if(constructorWrites.opaque) {
+      const ownCandidates=matching.flatMap((/** @type {AstNode} */ element)=>{
         if(element.type==='PropertyDefinition')return element.value?[element.value]:[];
         if(element.type==='MethodDefinition'&&element.value) {
           if(element.kind==='method')return [element.value];
           if(element.kind==='get')return functionReturnExpressions(element.value).flatMap(expression=>
             receiver?memberReturnExpressionsWithReceiver(expression,receiver,newNumericSeenSet()):[expression]);
         }
+        return [];
+      });
+      const parents=classNodesForValue(classNode.superClass??{type:'UnknownExpression'},newNumericSeenSet());
+      const inherited=parents.flatMap(parent=>
+        classMemberValueExpressionsForProperty(parent,propertyKey,next,receiver));
+      const constructor=classNode.body.body.find((/** @type {AstNode} */ element)=>
+        element.type==='MethodDefinition'&&element.kind==='constructor'&&
+        !element.static&&element.value);
+      return [...new Set([
+        ...ownCandidates,
+        ...(constructor?.value?[constructor.value]:[]),
+        ...inherited
+      ])];
+    }
+    if(fields.length) {
+      const field=fields[fields.length-1];
+      return field.value?[field.value]:[];
+    }
+    if(methods.length)
+      return [...new Set(methods.flatMap((/** @type {AstNode} */ element)=>{
+        if(!element.value)return [];
+        if(element.kind==='method')return [element.value];
+        if(element.kind==='get')return functionReturnExpressions(element.value).flatMap(expression=>
+          receiver?memberReturnExpressionsWithReceiver(expression,receiver,newNumericSeenSet()):[expression]);
         return [];
       }))];
     const parents=classNodesForValue(classNode.superClass??{type:'UnknownExpression'},newNumericSeenSet());
@@ -2462,8 +2544,6 @@ function summarizeAmbientCallEffects(ast,sourceType) {
       } else {
         markCallableValuesHeld(node.argument,'thrown-callable-value',node.start,node.end);
       }
-    } else if(node.type==='ReturnStatement'&&node.argument) {
-      markCallableValuesHeld(node.argument,'returned-callable-value',node.start,node.end);
     } else if(node.type==='ForOfStatement') {
       markCallableValuesHeld(node.right,'host-held-callable',node.start,node.end);
     } else if(node.type==='WithStatement') {
@@ -2525,6 +2605,19 @@ function summarizeAmbientCallEffects(ast,sourceType) {
         if(!wasHeld)heldClosureQueue.push(target);
       }
     });
+    // Returned callables escape only when their containing function is
+    // itself host-held. Local returns remain local until a caller or an
+    // export/host boundary proves that the value escapes.
+    for(const returned of functionReturnExpressions(fn)) {
+      for(const target of callableNodesForValueWithReceiver(returned,fn)) {
+        const wasHeld=hostHeldFunctions.has(target);
+        addReason(target,{
+          kind:'returned-callable-value',start:returned.start,end:returned.end,
+          targetStart:fn.start
+        },'HostHeldCallable');
+        if(!wasHeld)heldClosureQueue.push(target);
+      }
+    }
   }
 
   for(const fn of nodeBindingIds.keys()) {
@@ -2533,10 +2626,6 @@ function summarizeAmbientCallEffects(ast,sourceType) {
     walkExecutableFunctionBody(fn,node=>{
       if(node.type==='DebuggerStatement')
         addReason(fn,{kind:'debugger-inspection',start:node.start,end:node.end});
-      if(node.type==='ReturnStatement'&&node.argument) {
-        for(const target of callableNodesForValue(node.argument))
-          addReason(target,{kind:'returned-callable-value',start:node.start,end:node.end},'HostHeldCallable');
-      }
       if(node.type==='CallExpression') {
         if(!node.optional&&node.callee.type==='Identifier') {
           const reference=resolved.at(node.callee.start);
