@@ -62,6 +62,7 @@ async function main(){
   assert.equal(observesFunctionSource(parse(entry,'module')),false,
     'consumer Storage WebIDL sink is currently missed');
 
+  /** @type {Array<{path:string,sourceType:'module',code:string}>} */
   const files=[
     {path:'logic.mjs',sourceType:'module',code:logic},
     {path:'entry.mjs',sourceType:'module',code:entry}
