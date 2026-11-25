@@ -722,9 +722,15 @@ function summarizeAmbientCallEffects(ast,sourceType) {
         targets=callableNodesForValue(call.callee,seen);
     } else if(call.callee.type==='MemberExpression') {
       const calleeKey=staticPropertyKey(call.callee.property,call.callee.computed);
-      targets=calleeKey===null?
+      targets=calleeKey==='call'||calleeKey==='apply'?
         callableNodesForValue(call.callee.object,seen):
-        callableNodesForMemberValue(call.callee.object,calleeKey,seen);
+        calleeKey===null?
+          callableNodesForValue(call.callee.object,seen):
+          callableNodesForMemberValue(call.callee.object,calleeKey,seen);
+    } else if(call.callee.type==='CallExpression') {
+      // Immediate invocation of a bound function or another locally resolved
+      // callable result. callableNodesForValue handles Function.prototype.bind.
+      targets=callableNodesForValue(call.callee,seen);
     } else if(['FunctionExpression','ArrowFunctionExpression'].includes(call.callee.type)) {
       targets=[call.callee];
     }
@@ -914,7 +920,24 @@ function summarizeAmbientCallEffects(ast,sourceType) {
    * @param {Set<number>} [seen]
    * @returns {AstNode[]}
    */
+  const thisReceiverValuesByFunction=new Map();
+  /** @param {AstNode} node @returns {AstNode|null} */
+  function thisBindingFunction(node) {
+    let current=node;
+    while(parentByNode.has(current)) {
+      current=parentByNode.get(current);
+      if(['FunctionDeclaration','FunctionExpression'].includes(current.type))return current;
+    }
+    return null;
+  }
+
   function memberValueExpressionsForProperty(value,propertyKey,seen=new Set()) {
+    if(value.type==='ThisExpression') {
+      const fn=thisBindingFunction(value);
+      const receivers=fn?thisReceiverValuesByFunction.get(fn)??[]:[];
+      return [...new Set(receivers.flatMap(receiver=>
+        memberValueExpressionsForProperty(receiver,propertyKey,seen)))];
+    }
     if(value.type==='Identifier') {
       const reference=resolved.at(value.start);
       if(reference?.resolution.kind!=='local')return [];
