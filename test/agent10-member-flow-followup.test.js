@@ -120,7 +120,7 @@ test('reading a primitive-returning getter does not retain another getter callab
     'function hidden(){return 1;}'+
     'class Local{get callback(){return hidden;}get value(){return 1;}}'+
     'function entry(){owner=new Local();external(owner.value);}'+
-    'module.exports=entry;';
+    'entry();';
   const hidden=hiddenSummary(source);
   assert.equal(hidden.hostHeldCallable,false,
     'the unobserved callable-returning getter must not be retained when only a primitive getter is read');
