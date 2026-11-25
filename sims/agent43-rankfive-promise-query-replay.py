@@ -142,6 +142,20 @@ def gf2_rank(vectors: list[int], width: int) -> int:
     return rank
 
 
+def face_subset_union_size() -> int:
+    """Count distinct subset patterns queried by the ten five-faces of seven directions."""
+    patterns: set[int] = set()
+    for complement in FACE_COMPLEMENTS:
+        face = [index for index in range(7) if index not in complement]
+        for subset in range(1 << 5):
+            mask = 0
+            for bit, direction_index in enumerate(face):
+                if (subset >> bit) & 1:
+                    mask ^= 1 << direction_index
+            patterns.add(mask)
+    return len(patterns)
+
+
 def percentile(values: list[int], p: float) -> int:
     ordered = sorted(values)
     return ordered[min(len(ordered) - 1, math.floor(p * (len(ordered) - 1)))]
@@ -266,6 +280,14 @@ def main() -> dict[str, object]:
         raise AssertionError(f"top coefficient mismatch: {top:#x}")
     if math.ceil(math.log(1e-10) / math.log(1 - WITNESS_PROBABILITY)) != 18:
         raise AssertionError("unexpected seven-direction trial cap")
+    face_patterns = face_subset_union_size()
+    if face_patterns != 93:
+        raise AssertionError(f"unexpected face subset union size: {face_patterns}")
+    witness_query_cap = 1 + WITNESS_TRIAL_CAP * (face_patterns - 1)
+    shift_query_cap = 32 * 3
+    query_cap = witness_query_cap + shift_query_cap
+    if witness_query_cap != 1657 or shift_query_cap != 96 or query_cap != 1753:
+        raise AssertionError("worst-case query-cap derivation drift")
 
     query_counts: list[int] = []
     trial_counts: list[int] = []
@@ -289,9 +311,12 @@ def main() -> dict[str, object]:
         "maxQueries": max(query_counts),
         "meanWitnessTrials": mean(trial_counts),
         "maxFastQueries": max(fast_query_counts),
+        "faceSubsetPatternsPerTrial": face_patterns,
+        "witnessQueryCap": witness_query_cap,
+        "shiftQueryCap": shift_query_cap,
         "fallbacks": 0,
         "holdoutEvaluations": REPLICATES * 64,
-        "queryCap": 1753,
+        "queryCap": query_cap,
         "drawMethod": "deterministic SHA-256 counter tapes; reproducible replay only",
     }
     if summary["meanQueries"] != 181.861:
