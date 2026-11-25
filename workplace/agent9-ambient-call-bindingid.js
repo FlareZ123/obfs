@@ -1717,7 +1717,7 @@ function summarizeAmbientCallEffects(ast,sourceType) {
         targetValue=targetArgument;
         receiverArgument=call.arguments[1]??null;
         argumentList=call.arguments[2]??null;
-      } else if(key!==null&&['call','apply','bind'].includes(key)) {
+      } else if(key==='call'||key==='apply'||key==='bind') {
         kind=key;
         targetValue=call.callee.object;
         receiverArgument=call.arguments[0]??null;
@@ -1742,6 +1742,7 @@ function summarizeAmbientCallEffects(ast,sourceType) {
       actuals=resolvedArguments.actuals;
       actualsKnown=resolvedArguments.known;
     }
+    if(kind===null)return null;
     return {
       kind,
       targets,
