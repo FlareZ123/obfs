@@ -722,6 +722,11 @@ function summarizeAmbientCallEffects(ast,sourceType) {
     return new Set();
   }
 
+  /** @returns {Set<AstNode>} */
+  function newAstSeenSet() {
+    return new Set();
+  }
+
   /**
    * Resolve a direct this-rooted member chain against a known getter/method receiver.
    * Unknown or dynamic chains fall back to the receiver so callers fail closed.
@@ -1016,7 +1021,7 @@ function summarizeAmbientCallEffects(ast,sourceType) {
    * function itself; this preserves precision for primitive-returning getters.
    * @param {AstNode} classNode
    * @param {string} propertyKey
-   * @param {Set<number>} [seen]
+   * @param {Set<AstNode>} [seen]
    * @param {AstNode|null} [receiver]
    * @returns {AstNode[]}
    */
@@ -1077,7 +1082,7 @@ function summarizeAmbientCallEffects(ast,sourceType) {
       const classes=classNodesForValue(value.callee,numericSeen);
       if(classes.length)
         return [...new Set(classes.flatMap(classNode=>
-          classMemberValueExpressionsForProperty(classNode,propertyKey,numericSeen,actualReceiver)))];
+          classMemberValueExpressionsForProperty(classNode,propertyKey,newAstSeenSet(),actualReceiver)))];
       // Unknown constructor forms retain the constructor callable itself.
       // This is deliberately conservative until their instance-field writes
       // can be resolved with the same property-specific proof as class fields.
