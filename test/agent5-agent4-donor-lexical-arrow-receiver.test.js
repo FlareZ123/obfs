@@ -1,0 +1,597 @@
+'use strict';
+
+const assert=require('node:assert/strict');
+const {test}=require('node:test');
+const {runInNewContext}=require('node:vm');
+const {parse}=require('../src/ast');
+const {summarizeAmbientCallEffects}=require('../workplace/agent9-ambient-call-bindingid');
+
+/** @param {string} source @returns {ReturnType<typeof summarizeAmbientCallEffects>} */
+function analyze(source) {
+  return summarizeAmbientCallEffects(parse(source,'commonjs'),'commonjs');
+}
+
+/** @param {ReturnType<typeof analyze>} result @param {string} name */
+function named(result,name) {
+  return result.summaries.filter(summary=>summary.bindingNames.includes(name));
+}
+
+/** @param {string} source @param {Record<string,unknown>} [extra] @returns {unknown[]} */
+function execute(source,extra={}) {
+  /** @type {unknown[]} */
+  const captured=[];
+  runInNewContext(source,{...extra,external(value){captured.push(value);}});
+  return captured;
+}
+
+/** @param {string} source @returns {ReturnType<ReturnType<typeof analyze>['summaries']['slice']>[number]} */
+function hiddenSummary(source) {
+  const summary=named(analyze(source),'hidden')[0];
+  assert.ok(summary,'the hidden function must have an analysis summary');
+  return summary;
+}
+
+test('object getter resolves this.callback against its actual receiver',()=>{
+  const source=
+    'function hidden(){return 1;}'+
+    'const owner={callback:hidden,get result(){return this.callback;}};'+
+    'external(owner.result);';
+  const [captured]=execute(source);
+  assert.equal(captured?.name,'hidden');
+  assert.match(String(captured),/return 1/);
+  assert.equal(hiddenSummary(source).hostHeldCallable,true);
+});
+
+test('object method resolves this.callback against its actual receiver',()=>{
+  const source=
+    'function hidden(){return 1;}'+
+    'const owner={callback:hidden,getCallback(){return this.callback;}};'+
+    'external(owner.getCallback());';
+  const [captured]=execute(source);
+  assert.equal(captured?.name,'hidden');
+  assert.match(String(captured),/return 1/);
+  assert.equal(hiddenSummary(source).hostHeldCallable,true);
+});
+
+test('object getter resolves a primitive this-field without retaining callable siblings',()=>{
+  const source=
+    'function hidden(){return 1;}'+
+    'const owner={callback:hidden,count:1,get result(){return this.count;}};'+
+    'external(owner.result);';
+  const [captured]=execute(source);
+  assert.equal(captured,1);
+  assert.equal(hiddenSummary(source).hostHeldCallable,false);
+  assert.equal(hiddenSummary(source).safe,true);
+});
+
+test('object method resolves a primitive this-field without retaining callable siblings',()=>{
+  const source=
+    'function hidden(){return 1;}'+
+    'const owner={callback:hidden,count:1,getCount(){return this.count;}};'+
+    'external(owner.getCount());';
+  const [captured]=execute(source);
+  assert.equal(captured,1);
+  assert.equal(hiddenSummary(source).hostHeldCallable,false);
+  assert.equal(hiddenSummary(source).safe,true);
+});
+
+test('nested static this-member chains resolve through receiver records',()=>{
+  const source=
+    'function hidden(){return 1;}'+
+    'const owner={state:{callback:hidden},get result(){return this.state.callback;}};'+
+    'external(owner.result);';
+  const [captured]=execute(source);
+  assert.equal(captured?.name,'hidden');
+  assert.equal(hiddenSummary(source).hostHeldCallable,true);
+});
+
+test('an inherited object getter keeps the original object as its receiver',()=>{
+  const source=
+    'function hidden(){return 1;}'+
+    'const prototype={get result(){return this.callback;}};'+
+    'const owner={__proto__:prototype,callback:hidden};'+
+    'external(owner.result);';
+  const [captured]=execute(source);
+  assert.equal(captured?.name,'hidden');
+  assert.equal(hiddenSummary(source).hostHeldCallable,true);
+});
+
+test('a literal-computed this-member key resolves precisely',()=>{
+  const source=
+    'function hidden(){return 1;}'+
+    'const owner={callback:hidden,get result(){return this["callback"];}};'+
+    'external(owner.result);';
+  const [captured]=execute(source);
+  assert.equal(captured?.name,'hidden');
+  assert.equal(hiddenSummary(source).hostHeldCallable,true);
+});
+
+test('an unresolved computed this-member key fails closed over receiver callables',()=>{
+  const source=
+    'function hidden(){return 1;}'+
+    'const key=selectKey();'+
+    'const owner={callback:hidden,get result(){return this[key];}};'+
+    'external(owner.result);';
+  const [captured]=execute(source,{selectKey:()=> 'callback'});
+  assert.equal(captured?.name,'hidden');
+  assert.equal(hiddenSummary(source).hostHeldCallable,true);
+});
+
+test('optional object getter access preserves receiver-bound callable flow',()=>{
+  const source=
+    'function hidden(){return 1;}'+
+    'const owner={callback:hidden,get result(){return this.callback;}};'+
+    'external(owner?.result);';
+  const [captured]=execute(source);
+  assert.equal(captured?.name,'hidden');
+  assert.equal(hiddenSummary(source).hostHeldCallable,true);
+});
+
+
+test('an object getter can delegate through a receiver-bound method',()=>{
+  const source=
+    'function hidden(){return 1;}'+
+    'const owner={callback:hidden,getCallback(){return this.callback;},get result(){return this.getCallback();}};'+
+    'external(owner.result);';
+  const [captured]=execute(source);
+  assert.equal(captured?.name,'hidden');
+  assert.equal(hiddenSummary(source).hostHeldCallable,true);
+});
+
+test('a class getter can delegate through a receiver-bound method',()=>{
+  const source=
+    'function hidden(){return 1;}'+
+    'class Owner{getCallback(){return hidden;}get result(){return this.getCallback();}}'+
+    'const owner=new Owner();external(owner.result);';
+  const [captured]=execute(source);
+  assert.equal(captured?.name,'hidden');
+  assert.equal(hiddenSummary(source).hostHeldCallable,true);
+});
+
+test('a class method can delegate through another receiver-bound method',()=>{
+  const source=
+    'function hidden(){return 1;}'+
+    'class Owner{getCallback(){return hidden;}read(){return this.getCallback();}}'+
+    'const owner=new Owner();external(owner.read());';
+  const [captured]=execute(source);
+  assert.equal(captured?.name,'hidden');
+  assert.equal(hiddenSummary(source).hostHeldCallable,true);
+});
+
+test('a receiver-bound method chain can still resolve a primitive leaf',()=>{
+  const source=
+    'function hidden(){return 1;}'+
+    'const owner={callback:hidden,count:1,getCount(){return this.count;},read(){return this.getCount();}};'+
+    'external(owner.read());';
+  const [captured]=execute(source);
+  assert.equal(captured,1);
+  assert.equal(hiddenSummary(source).hostHeldCallable,false);
+  assert.equal(hiddenSummary(source).safe,true);
+});
+
+
+test('a local object method sink resolves this.callback through its call receiver',()=>{
+  const source=
+    'function hidden(){return 1;}'+
+    'const owner={callback:hidden,leak(){external(this.callback);}};'+
+    'owner.leak();';
+  const [captured]=execute(source);
+  assert.equal(captured?.name,'hidden');
+  assert.equal(hiddenSummary(source).hostHeldCallable,true);
+});
+
+test('an object getter sink resolves this.callback through its property receiver',()=>{
+  const source=
+    'function hidden(){return 1;}'+
+    'const owner={callback:hidden,get value(){external(this.callback);return 0;}};'+
+    'const value=owner.value;';
+  const [captured]=execute(source);
+  assert.equal(captured?.name,'hidden');
+  assert.equal(hiddenSummary(source).hostHeldCallable,true);
+});
+
+
+test('a dynamic getter read conservatively binds the getter receiver for side-effect sinks',()=>{
+  const source=
+    'function hidden(){return 1;}'+
+    'const key=selectKey();'+
+    'const owner={callback:hidden,get value(){external(this.callback);return 0;}};'+
+    'const result=owner[key];';
+  const [captured]=execute(source,{selectKey:()=> 'value'});
+  assert.equal(captured?.name,'hidden');
+  assert.equal(hiddenSummary(source).hostHeldCallable,true);
+});
+
+
+test('an escaped object getter exposes its returned callable to the host',()=>{
+  const source=
+    'function hidden(){return 1;}'+
+    'const owner={get value(){return hidden;}};'+
+    'external(owner);';
+  const [captured]=execute(source);
+  const observed=/** @type {any} */(captured).value;
+  assert.equal(observed?.name,'hidden');
+  assert.equal(hiddenSummary(source).hostHeldCallable,true);
+});
+
+test('an escaped object method exposes its returned callable to the host',()=>{
+  const source=
+    'function hidden(){return 1;}'+
+    'const owner={getCallback(){return hidden;}};'+
+    'external(owner);';
+  const [captured]=execute(source);
+  const observed=/** @type {any} */(captured).getCallback();
+  assert.equal(observed?.name,'hidden');
+  assert.equal(hiddenSummary(source).hostHeldCallable,true);
+});
+
+test('an escaped class instance method exposes its returned callable to the host',()=>{
+  const source=
+    'function hidden(){return 1;}'+
+    'class Owner{getCallback(){return hidden;}}'+
+    'const owner=new Owner();external(owner);';
+  const [captured]=execute(source);
+  const observed=/** @type {any} */(captured).getCallback();
+  assert.equal(observed?.name,'hidden');
+  assert.equal(hiddenSummary(source).hostHeldCallable,true);
+});
+
+
+test('a class method returning a super getter fails closed over its receiver',()=>{
+  const source=
+    'function hidden(){return 1;}'+
+    'class Base{get result(){return hidden;}}'+
+    'class Child extends Base{read(){return super.result;}}'+
+    'const owner=new Child();external(owner.read());';
+  const [captured]=execute(source);
+  assert.equal(captured?.name,'hidden');
+  assert.equal(hiddenSummary(source).hostHeldCallable,true);
+});
+
+test('a super getter side-effect sink resolves through the child receiver',()=>{
+  const source=
+    'function hidden(){return 1;}'+
+    'class Base{get callback(){return hidden;}}'+
+    'class Child extends Base{read(){external(super.callback);}}'+
+    'const owner=new Child();owner.read();';
+  const [captured]=execute(source);
+  assert.equal(captured?.name,'hidden');
+  assert.equal(hiddenSummary(source).hostHeldCallable,true);
+});
+
+
+test('a pure class getter returning a primitive field avoids retaining callable siblings',()=>{
+  const source=
+    'function hidden(){return 1;}'+
+    'class Owner{callback=hidden;count=1;get result(){return this.count;}}'+
+    'const owner=new Owner();external(owner.result);';
+  const [captured]=execute(source);
+  assert.equal(captured,1);
+  assert.equal(hiddenSummary(source).hostHeldCallable,false);
+  assert.equal(hiddenSummary(source).safe,true);
+});
+
+test('a pure class getter returning a callable field retains that field',()=>{
+  const source=
+    'function hidden(){return 1;}'+
+    'class Owner{callback=hidden;get result(){return this.callback;}}'+
+    'const owner=new Owner();external(owner.result);';
+  const [captured]=execute(source);
+  assert.equal(captured?.name,'hidden');
+  assert.equal(hiddenSummary(source).hostHeldCallable,true);
+});
+
+test('a side-effecting class getter does not qualify for field deferral',()=>{
+  const source=
+    'function hidden(){return 1;}'+
+    'class Owner{callback=hidden;count=1;get result(){external(this.callback);return this.count;}}'+
+    'const owner=new Owner();external(owner.result);';
+  const [captured]=execute(source);
+  assert.equal(captured?.name,'hidden');
+  assert.equal(hiddenSummary(source).hostHeldCallable,true);
+});
+
+test('an ordinary class method prevents pure-getter field deferral',()=>{
+  const source=
+    'function hidden(){return 1;}'+
+    'class Owner{callback=hidden;count=1;get result(){return this.count;}read(){return this.count;}}'+
+    'const owner=new Owner();external(owner.result);';
+  const [captured]=execute(source);
+  assert.equal(captured,1);
+  assert.equal(hiddenSummary(source).hostHeldCallable,true);
+});
+
+
+test('a simple-getter class instance escaping still retains its callable field',()=>{
+  const source=
+    'function hidden(){return 1;}'+
+    'class Owner{callback=hidden;count=1;get result(){return this.count;}}'+
+    'const owner=new Owner();external(owner);';
+  const [captured]=execute(source);
+  const callback=/** @type {any} */(captured).callback;
+  assert.equal(callback?.name,'hidden');
+  assert.equal(hiddenSummary(source).hostHeldCallable,true);
+});
+
+
+test('a pure class getter returning a primitive literal can defer callable siblings',()=>{
+  const source=
+    'function hidden(){return 1;}'+
+    'class Owner{callback=hidden;get result(){return 7;}}'+
+    'const owner=new Owner();external(owner.result);';
+  const [captured]=execute(source);
+  assert.equal(captured,7);
+  assert.equal(hiddenSummary(source).hostHeldCallable,false);
+  assert.equal(hiddenSummary(source).safe,true);
+});
+
+test('a class getter reading an undeclared prototype member does not qualify for field deferral',()=>{
+  const source=
+    'function hidden(){return 1;}'+
+    'class Owner{callback=hidden;get result(){return this.toString;}}'+
+    'const owner=new Owner();external(owner.result);';
+  const [captured]=execute(source);
+  assert.equal(captured?.name,'toString');
+  assert.equal(hiddenSummary(source).hostHeldCallable,true);
+});
+
+
+test('object getter resolves lexical-arrow this.callback through a local invocation',()=>{
+  const source=
+    'function hidden(){return 1;}'+
+    'const owner={callback:hidden,get result(){const read=()=>this.callback;return read();}};'+
+    'external(owner.result);';
+  const [captured]=execute(source);
+  assert.equal(captured?.name,'hidden');
+  assert.match(String(captured),/return 1/);
+  assert.equal(hiddenSummary(source).hostHeldCallable,true);
+});
+
+test('object method resolves lexical-arrow this.callback through a local invocation',()=>{
+  const source=
+    'function hidden(){return 1;}'+
+    'const owner={callback:hidden,getCallback(){const read=()=>this.callback;return read();}};'+
+    'external(owner.getCallback());';
+  const [captured]=execute(source);
+  assert.equal(captured?.name,'hidden');
+  assert.match(String(captured),/return 1/);
+  assert.equal(hiddenSummary(source).hostHeldCallable,true);
+});
+
+test('class getter resolves lexical-arrow this.callback through a local invocation',()=>{
+  const source=
+    'function hidden(){return 1;}'+
+    'class Owner{callback=hidden;get result(){const read=()=>this.callback;return read();}}'+
+    'const owner=new Owner();external(owner.result);';
+  const [captured]=execute(source);
+  assert.equal(captured?.name,'hidden');
+  assert.match(String(captured),/return 1/);
+  assert.equal(hiddenSummary(source).hostHeldCallable,true);
+});
+
+test('class method resolves lexical-arrow this.callback through a local invocation',()=>{
+  const source=
+    'function hidden(){return 1;}'+
+    'class Owner{callback=hidden;getCallback(){const read=()=>this.callback;return read();}}'+
+    'const owner=new Owner();external(owner.getCallback());';
+  const [captured]=execute(source);
+  assert.equal(captured?.name,'hidden');
+  assert.match(String(captured),/return 1/);
+  assert.equal(hiddenSummary(source).hostHeldCallable,true);
+});
+
+test('lexical-arrow this.count primitive return does not retain callable siblings',()=>{
+  const source=
+    'function hidden(){return 1;}'+
+    'const owner={callback:hidden,count:1,get result(){const read=()=>this.count;return read();}};'+
+    'external(owner.result);';
+  const [captured]=execute(source);
+  assert.equal(captured,1);
+  assert.equal(hiddenSummary(source).hostHeldCallable,false);
+  assert.equal(hiddenSummary(source).safe,true);
+});
+
+
+test('nested lexical arrows preserve the outer getter receiver through local calls',()=>{
+  const source=
+    'function hidden(){return 1;}'+
+    'const owner={callback:hidden,get result(){const outer=()=>{const inner=()=>this.callback;return inner();};return outer();}};'+
+    'external(owner.result);';
+  const [captured]=execute(source);
+  assert.equal(captured?.name,'hidden');
+  assert.match(String(captured),/return 1/);
+  assert.equal(hiddenSummary(source).hostHeldCallable,true);
+});
+
+test('a bare ordinary function call does not inherit the enclosing getter receiver',()=>{
+  const source=
+    'function hidden(){return 1;}'+
+    'const owner={callback:hidden,get result(){function read(){return this.callback;}return read();}};'+
+    'external(owner.result);';
+  const [captured]=execute(source);
+  assert.equal(captured,undefined);
+  assert.equal(hiddenSummary(source).hostHeldCallable,false);
+  assert.equal(hiddenSummary(source).safe,true);
+});
+
+test('an arrow nested inside a bare ordinary function keeps that function dynamic this',()=>{
+  const source=
+    'function hidden(){return 1;}'+
+    'const owner={callback:hidden,get result(){function read(){const nested=()=>this.callback;return nested();}return read();}};'+
+    'external(owner.result);';
+  const [captured]=execute(source);
+  assert.equal(captured,undefined);
+  assert.equal(hiddenSummary(source).hostHeldCallable,false);
+  assert.equal(hiddenSummary(source).safe,true);
+});
+
+
+test('a local alias of a lexical-arrow return preserves the getter receiver',()=>{
+  const source=
+    'function hidden(){return 1;}'+
+    'const owner={callback:hidden,get result(){const read=()=>this.callback;const value=read();return value;}};'+
+    'external(owner.result);';
+  const [captured]=execute(source);
+  assert.equal(captured?.name,'hidden');
+  assert.match(String(captured),/return 1/);
+  assert.equal(hiddenSummary(source).hostHeldCallable,true);
+});
+
+test('a lexical-arrow return stored in a local alias remains held when passed to a host call',()=>{
+  const source=
+    'function hidden(){return 1;}'+
+    'const owner={callback:hidden,get result(){const read=()=>this.callback;const value=read();external(value);return 0;}};'+
+    'external(owner.result);';
+  const [captured]=execute(source);
+  assert.equal(captured?.name,'hidden');
+  assert.equal(hiddenSummary(source).hostHeldCallable,true);
+});
+
+test('a lexical-arrow return nested in an object result preserves the getter receiver',()=>{
+  const source=
+    'function hidden(){return 1;}'+
+    'const owner={callback:hidden,get result(){const read=()=>this.callback;return {callback:read()};}};'+
+    'external(owner.result);';
+  const [captured]=execute(source);
+  assert.equal(captured?.callback?.name,'hidden');
+  assert.match(String(captured?.callback),/return 1/);
+  assert.equal(hiddenSummary(source).hostHeldCallable,true);
+});
+
+
+test('a lexical-arrow return nested in an array result preserves the getter receiver',()=>{
+  const source=
+    'function hidden(){return 1;}'+
+    'const owner={callback:hidden,get result(){const read=()=>this.callback;return [read()];}};'+
+    'external(owner.result);';
+  const [captured]=execute(source);
+  assert.equal(captured?.[0]?.name,'hidden');
+  assert.match(String(captured?.[0]),/return 1/);
+  assert.equal(hiddenSummary(source).hostHeldCallable,true);
+});
+
+test('a conditional lexical-arrow return preserves the getter receiver',()=>{
+  const source=
+    'function hidden(){return 1;}'+
+    'const owner={callback:hidden,get result(){const read=()=>this.callback;return true?read():undefined;}};'+
+    'external(owner.result);';
+  const [captured]=execute(source);
+  assert.equal(captured?.name,'hidden');
+  assert.match(String(captured),/return 1/);
+  assert.equal(hiddenSummary(source).hostHeldCallable,true);
+});
+
+test('a logical lexical-arrow return preserves the getter receiver',()=>{
+  const source=
+    'function hidden(){return 1;}'+
+    'const owner={callback:hidden,get result(){const read=()=>this.callback;return true&&read();}};'+
+    'external(owner.result);';
+  const [captured]=execute(source);
+  assert.equal(captured?.name,'hidden');
+  assert.match(String(captured),/return 1/);
+  assert.equal(hiddenSummary(source).hostHeldCallable,true);
+});
+
+test('a sequence lexical-arrow return preserves the getter receiver',()=>{
+  const source=
+    'function hidden(){return 1;}'+
+    'const owner={callback:hidden,get result(){const read=()=>this.callback;return (0,read());}};'+
+    'external(owner.result);';
+  const [captured]=execute(source);
+  assert.equal(captured?.name,'hidden');
+  assert.match(String(captured),/return 1/);
+  assert.equal(hiddenSummary(source).hostHeldCallable,true);
+});
+
+test('a spread-object lexical-arrow return preserves the getter receiver',()=>{
+  const source=
+    'function hidden(){return 1;}'+
+    'const owner={callback:hidden,get result(){const read=()=>this.callback;return {...{callback:read()}};}};'+
+    'external(owner.result);';
+  const [captured]=execute(source);
+  assert.equal(captured?.callback?.name,'hidden');
+  assert.match(String(captured?.callback),/return 1/);
+  assert.equal(hiddenSummary(source).hostHeldCallable,true);
+});
+
+test('an async method preserves lexical-arrow receiver flow through await',async()=>{
+  const source=
+    'function hidden(){return 1;}'+
+    'const owner={callback:hidden,async getCallback(){const read=()=>this.callback;return await read();}};'+
+    'external(owner.getCallback());';
+  const [pending]=execute(source);
+  const captured=await pending;
+  assert.equal(captured?.name,'hidden');
+  assert.match(String(captured),/return 1/);
+  assert.equal(hiddenSummary(source).hostHeldCallable,true);
+});
+
+
+test('a lexical-arrow receiver survives invocation through a local function parameter',()=>{
+  const source=
+    'function hidden(){return 1;}'+
+    'const owner={callback:hidden,get result(){const read=()=>this.callback;function invoke(callback){return callback();}return invoke(read);}};'+
+    'external(owner.result);';
+  const [captured]=execute(source);
+  assert.equal(captured?.name,'hidden');
+  assert.match(String(captured),/return 1/);
+  assert.equal(hiddenSummary(source).hostHeldCallable,true);
+});
+
+test('a lexical-arrow receiver survives two layers of local-function parameter forwarding',()=>{
+  const source=
+    'function hidden(){return 1;}'+
+    'const owner={callback:hidden,get result(){const read=()=>this.callback;function forward(callback){return callback();}function invoke(callback){return forward(callback);}return invoke(read);}};'+
+    'external(owner.result);';
+  const [captured]=execute(source);
+  assert.equal(captured?.name,'hidden');
+  assert.match(String(captured),/return 1/);
+  assert.equal(hiddenSummary(source).hostHeldCallable,true);
+});
+
+test('an ordinary function passed through a local parameter does not borrow getter this',()=>{
+  const source=
+    'function hidden(){return 1;}'+
+    'const owner={callback:hidden,get result(){function read(){return this.callback;}function invoke(callback){return callback();}return invoke(read);}};'+
+    'external(owner.result);';
+  const [captured]=execute(source);
+  assert.equal(captured,undefined);
+  assert.equal(hiddenSummary(source).hostHeldCallable,false);
+  assert.equal(hiddenSummary(source).safe,true);
+});
+
+
+test('a returned accessor can expose a callable through an outer lexical-arrow receiver',()=>{
+  const source=
+    'function hidden(){return 1;}'+
+    'const owner={callback:hidden,get result(){const read=()=>this.callback;return {get exposed(){return read();}};}};'+
+    'external(owner.result);';
+  const [captured]=execute(source);
+  assert.equal(captured?.exposed?.name,'hidden');
+  assert.match(String(captured?.exposed),/return 1/);
+  assert.equal(hiddenSummary(source).hostHeldCallable,true);
+});
+
+test('a returned accessor reading a primitive through an outer lexical arrow stays precise',()=>{
+  const source=
+    'function hidden(){return 1;}'+
+    'const owner={callback:hidden,count:1,get result(){const read=()=>this.count;return {get exposed(){return read();}};}};'+
+    'external(owner.result);';
+  const [captured]=execute(source);
+  assert.equal(captured?.exposed,1);
+  assert.equal(hiddenSummary(source).hostHeldCallable,false);
+  assert.equal(hiddenSummary(source).safe,true);
+});
+
+
+test('a later object property shadows an earlier lexical-arrow callable result',()=>{
+  const source=
+    'function hidden(){return 1;}'+
+    'function harmless(){return 0;}'+
+    'const owner={callback:hidden,get result(){const read=()=>this.callback;return {callback:read(),callback:harmless};}};'+
+    'external(owner.result);';
+  const [captured]=execute(source);
+  assert.equal(captured?.callback?.name,'harmless');
+  assert.equal(hiddenSummary(source).hostHeldCallable,false);
+  assert.equal(hiddenSummary(source).safe,true);
+});
