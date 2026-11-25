@@ -1433,6 +1433,34 @@ function summarizeAmbientCallEffects(ast,sourceType) {
     return root.name==='module'&&(keys.length===0||keys[0]==='exports'||keys[0]===null);
   }
 
+  /** @param {AstNode} fn @param {AstNode} receiver @returns {void} */
+  function addThisReceiver(fn,receiver) {
+    if(fn.type==='ArrowFunctionExpression')return;
+    const receivers=thisReceiverValuesByFunction.get(fn)??[];
+    if(!receivers.includes(receiver))receivers.push(receiver);
+    thisReceiverValuesByFunction.set(fn,receivers);
+  }
+
+  // Bind this for statically resolved local member calls. Function.prototype
+  // call/apply/bind use their first argument as the receiver; ordinary member
+  // calls use the member's base object. Arrow functions keep lexical this.
+  walkAst(ast,node=>{
+    if(node.type!=='CallExpression'||node.callee.type!=='MemberExpression')return;
+    const key=staticPropertyKey(node.callee.property,node.callee.computed);
+    if(key==='call'||key==='apply'||key==='bind') {
+      const receiver=node.arguments[0];
+      if(receiver) {
+        for(const target of callableNodesForValue(node.callee.object))
+          addThisReceiver(target,receiver);
+      }
+      return;
+    }
+    if(key===null)return;
+    const receiver=node.callee.object;
+    for(const target of callableNodesForMemberValue(receiver,key,new Set()))
+      addThisReceiver(target,receiver);
+  });
+
   /** @param {AstNode} value @param {number} start @param {number} end @returns {void} */
   function markExternalCallableValue(value,start,end) {
     for(const target of callableNodesForValue(value)) {
