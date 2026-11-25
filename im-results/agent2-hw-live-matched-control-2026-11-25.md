@@ -64,7 +64,17 @@ For the 5-walk / 1-origin batch, all three fixtures produced false future conver
 
 The 30-walk / 1-origin 8-state case also produced false future convergence in both arms, with post-trace counterexample 00. The candidate count was one in each false-convergence case; these were wrong single-candidate conjectures, not ambiguous future candidate sets.
 
-Across all baseline and sensitivity batches there were **20 completed paired runs**, zero timeouts/errors, **445,306 SUL steps per arm**, and **445,406 HTTP requests per arm**. Exact initial-model certification succeeded in 15/20 runs per arm; post-trace future certification succeeded in 16/20 per arm. All 20 pairs retained identical learner traces, conjectures, selected RPC records, server counters, and evaluator outcomes between SCO and ordinary HTTP.
+Across the baseline and sensitivity batches documented so far there were **40 completed paired runs**, zero timeouts/errors, **465,127 SUL steps per arm**, and **465,327 HTTP requests per arm**. Exact initial-model certification succeeded in 33/40 runs per arm; post-trace future certification succeeded in 35/40 per arm. All 40 pairs retained identical learner traces, conjectures, selected RPC records, server counters, and evaluator outcomes between SCO and ordinary HTTP. Some target/seed combinations were deliberately repeated under different oracle settings.
+
+### Broader random-fixture sweep at two oracle origins
+
+A further 20 paired cases covered random minimal strongly connected machines with 8–12 states, four seeds per state count, random-walk length 30, and two test-origin states.
+
+| Fixture batch | Cases | Exact initial clone (SCO / ordinary) | Future certification (SCO / ordinary) | False future convergence | SUL steps per arm | HTTP requests per arm |
+|---|---:|---:|---:|---:|---:|---:|
+| Random, 8–12 states, seeds 0–3, walk 30 / origins 2 | 20 | 18/20 / 18/20 | 19/20 / 19/20 | 1/20 / 1/20 | 19,821 | 19,921 |
+
+The 8-state seed-zero case was a false single-candidate future convergence, with post-trace counterexample 1000. The 9-state seed-one case had two trace-matching initial candidates but one post-trace future-equivalence class; initial-model certification failed while future certification succeeded. No case exhibited multiple future-equivalence classes among its trace-matching candidates. The ordinary and SCO arms agreed on every case and every evaluator classification.
 
 ## What was actually matched
 
@@ -117,6 +127,7 @@ Successful workflow runs:
 - [45664689387 — eight random fixtures](https://github.com/FlareZ123/obfs/actions/runs/45664689387), artifact ID 15045569031.
 - [45665036435 — 64-state delayed-pair seed zero](https://github.com/FlareZ123/obfs/actions/runs/45665036435), artifact ID 15046802792.
 - [45665532924 — four 64-state delayed-pair seeds](https://github.com/FlareZ123/obfs/actions/runs/45665532924), artifact ID 15045779827, ZIP SHA-256 94b59ee419cb9914ab0fed85719eb379e3b4de12ce9c594ca2418aa4e2aff6fe.
+- [45670259468 — random fixtures, states 8–12, four seeds, 30-walk / 2-origin](https://github.com/FlareZ123/obfs/actions/runs/45670259468), artifact ID 15048403993, ZIP SHA-256 d86486d02820b0da87b79561519bd3ec4c0fd43c2320188100b0f27884989b32.
 - [45668408694 — 30-walk / 5-origin fixtures, states 6–8](https://github.com/FlareZ123/obfs/actions/runs/45668408694), artifact ID 15048168100, ZIP SHA-256 f68f1e1c34a026e96a188fc684fa99664cbe41f3dbe60d26691a8b0fe08ff7aa.
 - [45669036998 — 5-walk / 1-origin fixtures, states 6–8](https://github.com/FlareZ123/obfs/actions/runs/45669036998), artifact ID 15048352816, ZIP SHA-256 50c0e06e3e9046cabfb23bcde7e5974d4015840d54a45693a4a308afdff541fd.
 - [45669659354 — 30-walk / 1-origin 8-state repeat with per-case logs](https://github.com/FlareZ123/obfs/actions/runs/45669659354), artifact ID 15048234265, ZIP SHA-256 b76362ac15d9f8ed62080624393000468afd89ba041cf383122b8ebf343041a2.
