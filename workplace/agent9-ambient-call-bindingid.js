@@ -2308,8 +2308,9 @@ function summarizeAmbientCallEffects(ast,sourceType) {
     const propertyKey=staticPropertyKey(left.property,left.computed);
     if(propertyKey===null)return false;
     const constructorReference=resolved.at(prototypeMember.object.start);
-    if(constructorReference?.resolution.kind!=='local')return false;
-    const constructorBindingId=constructorReference.resolution.bindingId;
+    const constructorResolution=constructorReference?.resolution;
+    if(!constructorResolution||constructorResolution.kind!=='local')return false;
+    const constructorBindingId=constructorResolution.bindingId;
     const constructorNode=resolveFunctionNode(constructorBindingId);
     const classNodes=classNodesForValue(prototypeMember.object);
     const classNode=classNodes.length===1?classNodes[0]:null;
@@ -2322,7 +2323,8 @@ function summarizeAmbientCallEffects(ast,sourceType) {
     walkAst(ast,node=>{
       if(node.type!=='NewExpression'||node.callee.type!=='Identifier')return;
       const reference=resolved.at(node.callee.start);
-      if(reference?.resolution.kind!=='local'||reference.resolution.bindingId!==constructorBindingId)return;
+      const resolution=reference?.resolution;
+      if(!resolution||resolution.kind!=='local'||resolution.bindingId!==constructorBindingId)return;
       const parent=parentByNode.get(node);
       if(parent?.type!=='VariableDeclarator'||parent.init!==node||parent.id.type!=='Identifier') {
         instances.push({node,bindingId:null,id:null});
@@ -2346,7 +2348,8 @@ function summarizeAmbientCallEffects(ast,sourceType) {
     let dynamicInstanceAccess=false;
     walkAst(ast,node=>{
       if(node.type!=='MemberExpression'||node.object.type!=='Identifier')return;
-      if(resolved.at(node.object.start)?.resolution.bindingId!==instanceBindingId)return;
+      const objectResolution=resolved.at(node.object.start)?.resolution;
+      if(!objectResolution||objectResolution.kind!=='local'||objectResolution.bindingId!==instanceBindingId)return;
       const key=staticPropertyKey(node.property,node.computed);
       const parent=parentByNode.get(node);
       if(key===null) {
@@ -2387,12 +2390,14 @@ function summarizeAmbientCallEffects(ast,sourceType) {
       if(objectReturn)return false;
     }
     if(classNode) {
-      for(const element of classNode.body.body) {
+      /** @type {AstNode[]} */
+      const classElements=classNode.body.body;
+      for(const element of classElements) {
         if(element.type==='PropertyDefinition'&&!element.static&&
            staticPropertyKey(element.key,element.computed)===propertyKey&&element.value)
           writes.push({node:element,value:element.value,kind:'class-field'});
       }
-      const classConstructor=classNode.body.body.find(element=>
+      const classConstructor=classElements.find(element=>
         element.type==='MethodDefinition'&&element.kind==='constructor');
       if(classConstructor?.value?.body) {
         let objectReturn=false;
@@ -2422,17 +2427,21 @@ function summarizeAmbientCallEffects(ast,sourceType) {
 
     let constructorReferences=0;
     walkAst(ast,node=>{
-      if(node.type==='Identifier'&&
-         resolved.at(node.start)?.resolution.bindingId===constructorBindingId&&
-         !declarationByNode.has(node))constructorReferences++;
+      const reference=node.type==='Identifier'?resolved.at(node.start):null;
+      const resolution=reference?.resolution;
+      if(node.type==='Identifier'&&resolution?.kind==='local'&&
+         resolution.bindingId===constructorBindingId&&!declarationByNode.has(node))
+        constructorReferences++;
     });
     if(constructorReferences!==2)return false;
 
     let instanceReferences=0;
     walkAst(ast,node=>{
-      if(node.type==='Identifier'&&
-         resolved.at(node.start)?.resolution.bindingId===instanceBindingId&&
-         !declarationByNode.has(node))instanceReferences++;
+      const reference=node.type==='Identifier'?resolved.at(node.start):null;
+      const resolution=reference?.resolution;
+      if(node.type==='Identifier'&&resolution?.kind==='local'&&
+         resolution.bindingId===instanceBindingId&&!declarationByNode.has(node))
+        instanceReferences++;
     });
     const expectedInstanceReferences=ownWrite.kind==='instance'?2:1;
     if(instanceReferences!==expectedInstanceReferences)return false;
