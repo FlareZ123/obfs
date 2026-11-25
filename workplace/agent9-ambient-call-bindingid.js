@@ -565,6 +565,68 @@ function summarizeAmbientCallEffects(ast,sourceType) {
     return [];
   }
 
+  /**
+   * @param {AstNode} fn
+   * @returns {boolean}
+   */
+  function hasUnmodelledArgumentAccess(fn) {
+    let found=false;
+    walkAst(fn,node=>{
+      if(node.type==='WithStatement')found=true;
+      if(node.type==='CallExpression'&&node.callee.type==='Identifier'&&node.callee.name==='eval') {
+        const reference=resolved.at(node.callee.start);
+        if(reference?.resolution.kind==='unknown'&&reference.resolution.reason==='unproven-free-name')found=true;
+      }
+      if(node.type==='Identifier'&&node.name==='arguments') {
+        const reference=resolved.at(node.start);
+        if(reference?.resolution.kind!=='unknown'||reference.resolution.reason!=='unproven-free-name')return;
+        let current=node;
+        while(parentByNode.has(current)) {
+          const parent=parentByNode.get(current);
+          if(!parent)break;
+          if(parent.type==='FunctionDeclaration'||parent.type==='FunctionExpression') {
+            if(parent===fn)found=true;
+            break;
+          }
+          current=parent;
+        }
+      }
+    });
+    return found;
+  }
+
+  /** @type {WeakSet<AstNode>} */
+  const locallyMappedCallArguments=new WeakSet();
+  walkAst(ast,node=>{
+    if(node.type!=='CallExpression'||node.callee.type!=='Identifier')return;
+    const reference=resolved.at(node.callee.start);
+    if(reference?.resolution.kind!=='local')return;
+    const target=resolveFunctionNode(reference.resolution.bindingId);
+    if(!target||hasUnmodelledArgumentAccess(target))return;
+    const params=target.params??[];
+    const restIndex=params.findIndex(param=>param.type==='RestElement');
+    for(let i=0;i<node.arguments.length;i++) {
+      const argument=node.arguments[i];
+      if(argument.type==='SpreadElement')continue;
+      let param=params[i]??null;
+      if(restIndex>=0&&i>=restIndex)param=params[restIndex];
+      if(!param) {
+        // Extra arguments are not observable without an implicit arguments object.
+        locallyMappedCallArguments.add(argument);
+        continue;
+      }
+      let bindingNode=param;
+      if(param.type==='AssignmentPattern')bindingNode=param.left;
+      if(param.type==='RestElement')bindingNode=param.argument;
+      if(bindingNode.type!=='Identifier')continue;
+      const bindingId=declarationByNode.get(bindingNode)?.bindingId??null;
+      if(bindingId!==null) {
+        addBindingValueExpression(bindingId,argument);
+        locallyMappedCallArguments.add(argument);
+      }
+    }
+  });
+
   /** @param {AstNode} value @param {Set<number>} [seen] @returns {boolean} */
   function isDefinitelyObjectExpression(value,seen=new Set()) {
     if(['ObjectExpression','ArrayExpression','FunctionDeclaration','FunctionExpression',
@@ -824,12 +886,14 @@ function summarizeAmbientCallEffects(ast,sourceType) {
             addReason(target,{kind:'direct-eval-local-scope',start:node.start,end:node.end},'HostHeldCallable');
         }
       }
-      for(const argument of node.arguments)
+      for(const argument of node.arguments) {
+        if(node.type==='CallExpression'&&knownLocalTarget&&locallyMappedCallArguments.has(argument))continue;
         for(const target of callableNodesForValue(argument))
           addReason(target,{
             kind:knownLocalTarget?'unresolved-callable-argument-flow':'host-held-callable',
             start:node.start,end:node.end
           },'HostHeldCallable');
+      }
     } else if(node.type==='TaggedTemplateExpression') {
       for(const expression of node.quasi.expressions)
         markCallableValuesHeld(expression,'host-held-callable',node.start,node.end);
