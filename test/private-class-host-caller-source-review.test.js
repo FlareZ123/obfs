@@ -21,19 +21,19 @@ async function observeWrapper(source) {
     const runner=path.join(directory,'runner.cjs');
     const target=path.join(directory,'target.cjs');
     await writeFile(preload,
-      "const nativeIsArray=Array.isArray;\\n"+
-      "Array.isArray=function observedIsArray(value){\\n"+
-      "  if(globalThis.__obfsPrivateClassArmed){\\n"+
-      "    const caller=arguments.callee.caller;\\n"+
-      "    globalThis.__obfsPrivateClassObserved=caller?Function.prototype.toString.call(caller):null;\\n"+
-      "  }\\n"+
-      "  return nativeIsArray(value);\\n"+
-      "};\\n",'utf8');
+      "const nativeIsArray=Array.isArray;\n"+
+      "Array.isArray=function observedIsArray(value){\n"+
+      "  if(globalThis.__obfsPrivateClassArmed){\n"+
+      "    const caller=arguments.callee.caller;\n"+
+      "    globalThis.__obfsPrivateClassObserved=caller?Function.prototype.toString.call(caller):null;\n"+
+      "  }\n"+
+      "  return nativeIsArray(value);\n"+
+      "};\n",'utf8');
     await writeFile(runner,
-      "globalThis.__obfsPrivateClassArmed=false;\\n"+
-      "globalThis.__obfsPrivateClassObserved=null;\\n"+
-      "const value=require(process.argv[2]);\\n"+
-      "process.stdout.write(JSON.stringify({value,observed:globalThis.__obfsPrivateClassObserved}));\\n",
+      "globalThis.__obfsPrivateClassArmed=false;\n"+
+      "globalThis.__obfsPrivateClassObserved=null;\n"+
+      "const value=require(process.argv[2]);\n"+
+      "process.stdout.write(JSON.stringify({value,observed:globalThis.__obfsPrivateClassObserved}));\n",
       'utf8');
     await writeFile(target,source,'utf8');
     const child=spawnSync(process.execPath,['-r',preload,runner,target],{
