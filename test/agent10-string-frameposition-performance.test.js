@@ -41,10 +41,12 @@ test('cached span-preserving string helper stays within the 2.5x hot-loop budget
   for(let sample=0;sample<7;sample++) {
     const nativeUrl=dataUrl(source,'native-'+sample);
     const generatedUrl=dataUrl(generatedCode,'generated-'+sample);
+    /** @type {{result:number}} */
     let native;
+    /** @type {{result:number}} */
     let generated;
-    let nativeMs;
-    let generatedMs;
+    let nativeMs=0;
+    let generatedMs=0;
     if(sample%2===0) {
       let start=performance.now();
       native=await import(nativeUrl);
@@ -68,6 +70,6 @@ test('cached span-preserving string helper stays within the 2.5x hot-loop budget
   const ratio=median(generatedTimes)/median(nativeTimes);
   const result={node:process.version,platform:process.platform,iterations:1000000,samples:7,
     ratio,nativeMs:median(nativeTimes),generatedMs:median(generatedTimes)};
-  process.stdout.write('AGENT10_STRING_HOT_LOOP_PROFILE '+JSON.stringify(result)+'\\n');
+  process.stdout.write('AGENT10_STRING_HOT_LOOP_PROFILE '+JSON.stringify(result)+'\n');
   assert.ok(ratio<=2.5,'hot-loop string helper exceeded 2.5x: '+JSON.stringify(result));
 });
