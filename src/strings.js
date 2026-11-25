@@ -20,6 +20,7 @@ function unusedName(source, ast, seed, reservedNames, reservedSources) {
   const names = new Set();
   walk(ast, node => {if (node.type === 'Identifier') names.add(node.name);});
   const digest = createHash('sha256').update(seed).digest('hex');
+  /** @param {string} name */
   const available = name => {
     const pattern = new RegExp(`\\b${name}\\b`, 'u');
     return !names.has(name) && !reservedNames?.has(name) && !pattern.test(source) &&
