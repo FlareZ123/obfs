@@ -47,7 +47,7 @@ async function observeWrapper(source) {
   }
 }
 
-for(const mode of /** @type {Array<'coo'|'sno'>} */ (['coo','sno'])) {
+for(const mode of /** @type {Array<'coo'|'sno'>} */ (['coo','sno','sco'])) {
   test(mode+' private class must preserve source visible through sloppy CommonJS wrapper',async()=>{
     const source=[
       'const owner={privateField:7};',
