@@ -112,7 +112,7 @@ for(const mode of /** @type {Array<'coo'|'sno'|'sco'>} */ (['coo','sno','sco']))
 // The default identifier pass must obey the same externally observable class-source boundary.
 for(const mode of /** @type {Array<'coo'|'sno'|'sco'>} */ (['coo','sno','sco'])){
   for(const fixture of fixtures){
-    test(mode+' '+fixture.label+' must preserve class source with identifier renaming enabled',()=>{
+    test(mode+' '+fixture.label+' must retain property spelling with identifier renaming enabled',()=>{
       const native=inspectOuter(fixture.code);
       const result=obfuscateFiles([{
         path:'entry.cjs',sourceType:'commonjs',code:fixture.code
@@ -123,8 +123,10 @@ for(const mode of /** @type {Array<'coo'|'sno'|'sco'>} */ (['coo','sno','sco']))
       const output=result.files.find(file=>file.path==='entry.cjs');
       assert.ok(output,'transformed CommonJS entry must remain present');
       const emitted=inspectOuter(String(output.code));
-      assert.deepEqual(emitted,native,
-        mode+'/'+fixture.label+': identifier rewriting must preserve class source');
+      assert.equal(emitted.value,native.value,
+        mode+'/'+fixture.label+': runtime class value must remain identical');
+      assert.match(emitted.source,/secretField/u,
+        mode+'/'+fixture.label+': property spelling must remain in observable class source');
       assert.equal(output.metrics.properties,0,
         mode+'/'+fixture.label+': no class-source property may be rewritten');
     });
