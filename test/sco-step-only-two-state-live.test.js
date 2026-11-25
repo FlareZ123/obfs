@@ -34,6 +34,18 @@ async function compare(seed,policy,expectedQueries){
   assert.equal(result.ordinaryControlQueries,result.queries);
   assert.equal(result.ordinaryControlNetworkSteps,result.networkSteps);
   assert.equal(result.attackerTranscriptMatched,true);
+  assert.equal(result.httpRequestCountMatched,true);
+  assert.equal(result.httpRequestShapeMatched,true);
+  assert.equal(result.rpcResponseTraceMatched,true);
+  assert.equal(result.sourceDeliveryMetadataMatched,true);
+  assert.equal(result.httpApplicationTraceMatched,true);
+  assert.equal(result.scoHttpRequests,result.queries+18);
+  assert.equal(result.ordinaryControlHttpRequests,result.scoHttpRequests);
+  assert.equal(result.scoRpcRequests,result.queries+17);
+  assert.equal(result.ordinaryControlRpcRequests,result.scoRpcRequests);
+  assert.ok(result.scoPublishedBytes>0);
+  assert.ok(result.ordinaryPublishedBytes>0);
+  assert.equal(result.ordinaryPublishedBytes,result.ordinaryMinifiedBytes);
   assert.ok(result.ordinaryMinifiedBytes<result.ordinarySourceBytes);
   console.log('SCO_TWO_STATE_LIVE_WEIGHTED '+JSON.stringify({
     seed:'0x'+seed.toString(16),policy,queries:result.queries,
