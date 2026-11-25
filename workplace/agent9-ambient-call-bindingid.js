@@ -604,7 +604,7 @@ function summarizeAmbientCallEffects(ast,sourceType) {
   /** @param {AstNode} classNode @returns {boolean} */
   function classHasOnlyPublicInstanceFields(classNode) {
     if(classNode.superClass||classNode.body.body.length===0)return false;
-    return classNode.body.body.every(element=>
+    return classNode.body.body.every((/** @type {AstNode} */ element)=>
       element.type==='PropertyDefinition'&&!element.static&&!element.computed&&
       element.key.type!=='PrivateIdentifier'&&
       isSafeClassFieldInitializer(element.value));
