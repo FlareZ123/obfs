@@ -87,6 +87,22 @@ The string option was enabled, but the two-character marker `"xy"` was below the
 
 Conclusion: the per-occurrence property-span edit repairs the property pass in isolation, but does **not** make the full transform pipeline FramePosition-safe. Identifier renaming must also preserve source spans or be disabled for affected source, and string transforms need separate measurement. A follow-up isolation run [45548406939](https://github.com/FlareZ123/obfs/actions/runs/45548406939) uses a longer string literal and independently tests identifier-only, string-only, and combined transforms; results pending.
 
+### Independent identifier/string isolation (corrected run)
+
+Corrected focused run [45549919941](https://github.com/FlareZ123/obfs/actions/runs/45549919941) at test-only branch head `0cf89ffbe63d61e0912341359c62676d446b8291` exercised each pass independently and then together. All three tests preserved values, but all three failed the FramePosition assertion on Ubuntu:
+
+| Enabled transforms | Metrics (properties / bindings / literals) | Native frame | Generated frame | Difference |
+|---|---:|---:|---:|---:|
+| Property + identifier; strings disabled | 1 / 1 / 0 | 1:185 | 1:201 | +16 columns |
+| Property + string; identifiers disabled | 3 / 0 / 1 | 1:205 | 3:198 | +2 lines, -7 columns |
+| Property + identifier + string | 3 / 1 / 1 | 1:205 | 3:214 | +2 lines, +9 columns |
+
+The identifier-only case uses a short marker binding with `strings:false`; it triggers one binding rewrite and no literal rewrite. The string-only case uses a 22-character marker and triggers one literal rewrite; the string pass adds a two-line decoder prelude, moving the later module frame to line 3. The combined case activates both. All values match exactly: `[23,23]` for identifier-only and `[43,43]` for string-only/combined. The property count is 3 in string-enabled cases because the string helper itself contributes property rewrites; it is not a one-owner-property count.
+
+The Windows job succeeded, explicitly skipping the Chromium fixture, and all three JSDoc gates passed on both OSes. Ubuntu failed only at the intended FramePosition assertions. The earlier run [45548406939](https://github.com/FlareZ123/obfs/actions/runs/45548406939) is superseded: its identifier fixture did not trigger a binding rewrite and its property-count assertion was too strict. Use 45549919941 as the authoritative isolation receipt.
+
+Conclusion: **the property edit, identifier renamer, and string encoder each need separate source-position treatment**. Per-occurrence property padding alone does not preserve FramePosition under the full pipeline. Identifier renaming needs same-span replacement or refusal; string encoding needs to avoid moving the prelude/later source positions (or be refused where FramePosition is observable).
+
 ## Interpretation and limits
 
 This is a candidate-only strict-ESM browser FramePosition counterexample for the new `privateClassNodes` admission: the class proof permits one owner-key rewrite, but it does not account for a later host-observable module frame whose column depends on earlier source on the same line. It complements Agent 1's Node/CommonJS wrapper-source and strict-CommonJS FramePosition witnesses; it is not a substitute for them.
