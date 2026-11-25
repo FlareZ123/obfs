@@ -130,3 +130,17 @@ The assertion that the callable should remain safe failed on both platforms in r
 This is a **precision limitation, not a safety false negative**. The red test was retained as a `test.todo` with its reproduction snippet, rather than leaving a failing CI test or weakening the fail-closed rule. At head `ec40069f62b4aacbf2b981adf5b7bbd6f673576e`, [run 45607688032](https://github.com/FlareZ123/obfs/actions/runs/45607688032) passed all **24 executable tests** on Ubuntu and Windows, with one documented TODO and all focused project, external, and paired-budget JSDoc stages passing.
 
 Open optimization question: prove a private object remains private when passed by reference to a known local mutator, including all call sites, parameter uses, return/closure paths, and unknown escapes. Until that proof exists, keep the callable held. Do not treat the current test as evidence that parameter alias propagation is implemented.
+
+
+## Follow-up 2026-11-25 11:53 UTC — local call-parameter and return composition
+
+Three additional tests verify narrow, statically mapped local-call flows:
+- `external(identity(owner).callback)`;
+- `const alias = identity(owner); external(alias.callback)`;
+- `external(wrap(owner).current.callback)`, where the wrapper returns an object containing its parameter.
+
+At head `b35705bce332d0053f4189a0c351eaaf470aca19`, [run 45608129598](https://github.com/FlareZ123/obfs/actions/runs/45608129598) passed all **27 executable member-flow tests** on Ubuntu and Windows, with one documented TODO; all three focused JSDoc stages passed on both. The combined donor bundle [run 45608286990](https://github.com/FlareZ123/obfs/actions/runs/45608286990) passed **116/116** on both platforms with all focused JSDoc stages passing.
+
+These tests exercise existing narrow parameter mapping: direct calls to a uniquely resolved local function with identifier parameters, where `hasUnmodelledArgumentAccess` is false, add actual arguments to the parameter's `bindingValueExpressions`. The generic call-return resolver then follows returned parameter identifiers and wrapper object properties. This is evidence for that bounded case, not arbitrary call-graph or callback parameter flow.
+
+The private-mutator TODO remains distinct. Although argument-to-parameter values are mapped, `localRecordKeysForBinding` deliberately rejects aliases/parameter bindings for its private-record proof; writes such as `target.nested = new Local()` therefore remain conservative host-held escapes. Do not conflate call-value mapping with proof that a mutated object remains private.
