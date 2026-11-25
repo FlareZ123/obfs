@@ -479,8 +479,16 @@ function summarizeAmbientCallEffects(ast,sourceType) {
   // boundary, or unproved key falls back to the existing fail-closed rule.
   /** @type {Map<number,Set<string>>} */
   const localRecordOwnerKeys=new Map();
+  // A with environment can intercept even a lexically resolved identifier
+  // through its HasBinding trap. Until that environment is modeled per scope,
+  // disable this local-owner proof for the whole source unit.
+  let hasWithStatement=false;
+  walkAst(ast,node=>{
+    if(node.type==='WithStatement')hasWithStatement=true;
+  });
   /** @param {number} bindingId @returns {Set<string>|null} */
   function localRecordKeysForBinding(bindingId) {
+    if(hasWithStatement)return null;
     const cached=localRecordOwnerKeys.get(bindingId);
     if(cached)return cached;
     const rows=declarationsByBinding.get(bindingId)??[];
