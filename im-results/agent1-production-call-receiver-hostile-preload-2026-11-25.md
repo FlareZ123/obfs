@@ -46,3 +46,8 @@ This is the strongest current production receipt for the reviewed call-receiver 
 ## Additional mutator-alias follow-up
 
 Added destructured Object.assign and destructured Reflect.defineProperty mutation cases. Final run [45685960233](https://github.com/FlareZ123/obfs/actions/runs/45685960233), source `efbcf6c27b616ef8a14cd2ea089c2330cd80013e`, **passed all 16 tests on Ubuntu and Windows**. The 14 prior cases plus these two new mutator aliases all preserve execution and report crossFile.properties=0; the direct property-read positive control remains crossFile.properties=1. Both OS jobs also pass Strict project JSDoc, Strict external JSDoc, and runtime-budget evaluator JSDoc. This is the strongest current production receipt for the tested receiver/intrinsic mutation family.
+
+
+## Direct function-object mutation follow-up
+
+Added direct assignment to a local function's own `.call` property and direct `Object.setPrototypeOf(read, ...)` shadowing. Final run [45686396972](https://github.com/FlareZ123/obfs/actions/runs/45686396972), source `c29dc9d449f59107554226a020c69d38b7b9d4a6`, **passed all 18 tests on Ubuntu and Windows**. The 16 prior cases plus these two direct function-object mutation shapes report `crossFile.properties=0` and preserve execution after transformation; the direct property-read positive control remains `crossFile.properties=1`. Both OS jobs pass all strict JSDoc and runtime-budget evaluator checks.
