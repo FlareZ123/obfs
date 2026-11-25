@@ -74,6 +74,19 @@ Each case asserts zero property rewrites, native/emitted value parity, and uncha
 
 This verifies conservative refusal for shorthand and destructuring patterns in the tested source shapes. The explicit `in`-check refusal guard is not yet covered by a negative test.
 
+## Full-pipeline FramePosition check: identifier renaming remains unsafe
+
+Focused run [45547869135](https://github.com/FlareZ123/obfs/actions/runs/45547869135) at test branch head `20b6a2a691ed73646e042ac741777688e7239409` first passed the property-only browser case, then failed the next case with property and identifier transforms enabled:
+
+- metrics: `properties=1`, `bindings=1`, `literals=0`;
+- values: `[23,23]`;
+- native strict-ESM frame: `1:185`;
+- generated strict-ESM frame: `1:201` (**+16 columns**).
+
+The string option was enabled, but the two-character marker `"xy"` was below the current string-transform threshold; no literal rewrite occurred. This failure therefore isolates the identifier/binding pass, not the string pass. Windows explicitly skipped the browser tests and passed all three JSDoc checks; the Ubuntu job failed only at the intended FramePosition assertion.
+
+Conclusion: the per-occurrence property-span edit repairs the property pass in isolation, but does **not** make the full transform pipeline FramePosition-safe. Identifier renaming must also preserve source spans or be disabled for affected source, and string transforms need separate measurement. A follow-up isolation run [45548406939](https://github.com/FlareZ123/obfs/actions/runs/45548406939) uses a longer string literal and independently tests identifier-only, string-only, and combined transforms; results pending.
+
 ## Interpretation and limits
 
 This is a candidate-only strict-ESM browser FramePosition counterexample for the new `privateClassNodes` admission: the class proof permits one owner-key rewrite, but it does not account for a later host-observable module frame whose column depends on earlier source on the same line. It complements Agent 1's Node/CommonJS wrapper-source and strict-CommonJS FramePosition witnesses; it is not a substitute for them.
