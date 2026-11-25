@@ -118,3 +118,38 @@ test('a throw from a nested function is not mistaken for a lexical local catch',
   assert.equal(hidden.hostHeldCallable,true);
   assert.equal(hidden.safe,false);
 });
+
+
+test('an escaping closure propagates a locally caught callable to the host-held set',()=>{
+  const source=
+    'function hidden(){return 1;}'+
+    'function entry(){try{throw hidden;}catch(error){return ()=>error;}}'+
+    'module.exports=entry;';
+  /** @type {{module:{exports:(()=>unknown)|null}}} */
+  const context={module:{exports:null}};
+  vm.runInNewContext(source,context);
+  const entry=context.module.exports;
+  assert.equal(typeof entry,'function');
+  const closure=(/** @type {()=>()=>unknown} */ (entry))();
+  const caught=closure();
+  assert.equal(typeof caught,'function');
+  assert.match(Function.prototype.toString.call(caught),/function hidden/u);
+
+  const result=analyze(source);
+  const hidden=named(result,'hidden')[0];
+  assert.ok(hidden);
+  assert.equal(hidden.hostHeldCallable,true,
+    'the escaped closure exposes the callable held in its captured catch binding');
+  assert.equal(hidden.safe,false);
+});
+
+test('a non-escaping closure does not taint its captured callable',()=>{
+  const source=
+    'function hidden(){return 1;}'+
+    'function entry(){const closure=()=>hidden;return 2;}';
+  const result=analyze(source);
+  const hidden=named(result,'hidden')[0];
+  assert.ok(hidden);
+  assert.equal(hidden.hostHeldCallable,false);
+  assert.equal(hidden.safe,true);
+});
