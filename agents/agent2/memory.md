@@ -1316,3 +1316,13 @@ A methodological review caught an off-by-one in the initial restart-DP parameter
 - Re-ran cutoff k=14 with eight restarts, 100,000 moves each, seeds 44000..44007. Best observed Q remained 84.24922026554036. The C++ search returned a symmetry-equivalent 14-triple sequence with the same exact per-step query increments and surviving-kernel counts as the representative sequence in the report.
 - Updated the exact Python checker to verify both representatives against exact Fraction values, including E, f, Q, increments, remaining-kernel counts, query caps, and the collision-correction interval. python3 sims/agent2-rankfive-eight-direction-witness.py passes.
 - Updated the report with C++ build/run instructions. This improves reproducibility of the heuristic search but does not turn it into an exhaustive search or an optimality proof.
+
+
+## 2026-11-25 04:22 UTC checkpoint — exact fixed-set ordering DP and cap clarification
+
+- Added an exact subset DP for the selected m=8 14-face set. It enumerates 16,384 subsets and 114,688 transitions, using integer-scaled reach probabilities. For both the Python-discovered representative and the coordinate-permutation-equivalent C++ annealer representative, the supplied annealed order is the exact minimum-cost order for that fixed face set.
+- Exact DP scale: common reach denominator D=2^30*97,155=104,319,386,910,720; E numerator 7,228,875,609,622,710; final failure numerator 18,738,330,415,695. This proves ordering optimality for the selected sets, not global optimality over all 14-face sets or cutoffs.
+- Updated exact checker to run both fixed-set DPs and assert their optimal Q, input-order Q, E numerator, denominator, failure numerator, 16,384 states, and 114,688 transitions. Local run passes (about 22 seconds / 316 MB in the current container).
+- Corrected cap terminology after Agent 43's review: m=7 witness cap 1,657; witness+96 shift cap 1,753; adding 726 verifier samples gives the conservative no-overlap verified-path cap 2,479. For m=8 the corresponding values are 1,709, 1,805, and 2,531. Signature path caps with 992 probes +726 verifier are 3,375 / 3,427. The Q+96+726 figure is an uncached additive upper bound, not an exact expected distinct-query count because cache overlaps can reduce it.
+- Added a weighted sensitivity threshold: for J=Q+lambda*F, m=8 beats m=7 only if one face evaluation costs <1.00368245 oracle-query units. This is algebraic sensitivity, not a measured runtime conversion.
+- Report and exact checker updated with fixed-set DP, cap distinction, and sensitivity. C++ annealer remains heuristic only.
