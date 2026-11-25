@@ -49,3 +49,14 @@ node sims/node-esm-module-frame-observation.js
 ```
 
 Expected invariant: both results equal 7; the native and manually shortened ESM frame columns differ. Exact column values are runtime/path dependent.
+
+
+## Cross-platform focused validation
+
+Focused `manual-validation.yml` run [45551053941](https://github.com/FlareZ123/obfs/actions/runs/45551053941) completed successfully on the exact main head `fb9eb60fa1427c2d2511ceba188118c31fa1bed0`, Node 22.23.4:
+- `focused (ubuntu-latest)`: success;
+- `focused (windows-latest)`: success;
+- focused test step and strict project, external and paired-budget JSDoc steps all succeeded on both platforms;
+- the full `node22` job was skipped as expected for a focused dispatch.
+
+This validates the runtime probe and its helper on both CI operating systems. It remains an environmental observation control, not a compiler differential or release acceptance.
