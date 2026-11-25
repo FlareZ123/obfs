@@ -32,6 +32,24 @@ const {canonicalAllowedHosts}=require('./hosts');
  */
 
 /**
+ * Import attributes can change a URL's module type or request semantics.
+ * A browser text-module edge observes the target's source bytes, so source
+ * rewrites elsewhere in the closed group can change program output. Dynamic
+ * import options can carry the same attributes.
+ * @param {import('./ast').AstNode} ast
+ * @returns {boolean}
+ */
+function hasAttributedModuleRequest(ast) {
+  let attributed=false;
+  walk(ast,node=>{
+    if(node.type==='ImportExpression' && node.options) attributed=true;
+    if(['ImportDeclaration','ExportNamedDeclaration','ExportAllDeclaration'].includes(node.type) &&
+       node.source && (node.attributes?.length || node.assertions?.length)) attributed=true;
+  });
+  return attributed;
+}
+
+/**
  * A body-level ESM host guard can precede every executable module statement
  * only if every statically imported dependency is present in the same guarded
  * output group. A dependency outside that group would run before its importer
@@ -50,6 +68,7 @@ function completeGuardedModuleGraph(files) {
   const known=new Set(files.map(file=>file.path));
   for (const file of files) {
     const ast=parse(/** @type {string} */ (file.code),'module');
+    if(hasAttributedModuleRequest(ast))return false;
     for (const statement of ast.body) {
       if(!['ImportDeclaration','ExportNamedDeclaration','ExportAllDeclaration'].includes(statement.type) ||
           !statement.source)continue;
@@ -2008,7 +2027,8 @@ function obfuscateFiles(files, options = {}) {
   const remoteSourceObserver=hasPinnedLocalJavaScriptIntegrity(prepared) ||
     prepared.some(file=>
     file.sourceType!=='asset' && typeof file.code==='string' &&
-    (observesDistributedSource(parse(file.code,file.sourceType),importedStringProof.get(file.path)) ||
+    (hasAttributedModuleRequest(parse(file.code,file.sourceType)) ||
+      observesDistributedSource(parse(file.code,file.sourceType),importedStringProof.get(file.path)) ||
       prepared.length>1 && observesFunctionSource(parse(file.code,file.sourceType),
         importedStringProof.get(file.path),importedCloneProof.get(file.path),
         importedFunctionArrays.get(file.path),importedPrimitiveProof.get(file.path),
