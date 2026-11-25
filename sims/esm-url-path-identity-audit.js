@@ -129,7 +129,7 @@ assert.equal(fixedMismatches,0);
 
 console.log(JSON.stringify({
   runtime:process.version,
-  witness:{specifier:witness,selectedTarget:selected,browserUrl:url.href,handlerLookupKey:lookup,publicFileSelected:known.has(selected),routeKeysMatch:lookup===selected},
+  witness:{specifier:witness,selectedTarget:selected,browserUrl:url.href,handlerLookupKey:lookup,publicFileSelected:known.has(selected),routeKeysMatch:String(lookup)===String(selected)},
   canonicalControl:{specifier:canonical,target:canonicalTarget,handlerLookupKey:canonicalLookup},
   boundedGrammar:{atoms,maxSegments:5,generated,candidateAccepted,candidateInRoot,candidateMismatches,candidateNonTerminalMismatches,fixedAccepted,fixedInRoot,fixedMismatches}
 },null,2));
