@@ -144,6 +144,22 @@ test('an unknown computed key before an explicit property is shadowed',()=>{
   assert.equal(summary.safe,true);
 });
 
+test('an object-literal prototype setter can supply the observed callable',()=>{
+  const source=
+    'function hidden(){const state={secret:7};return state.secret;}'+
+    'const prototype={callback:hidden};'+
+    'const owner={__proto__:prototype};'+
+    'external(owner.callback);';
+  const summary=hiddenSummary(source);
+  const [captured]=execute(source);
+  assert.equal(captured?.name,'hidden',
+    'the object inherits callback from its explicit prototype');
+  assert.match(String(captured),/state\.secret/);
+  assert.equal(summary.hostHeldCallable,true,
+    'the prototype-provided callable is reachable through the member read');
+  assert.equal(summary.safe,false);
+});
+
 test('a later spread getter cannot hide the callable value it returns',()=>{
   const source=
     'function hidden(){const state={secret:7};return state.secret;}'+
