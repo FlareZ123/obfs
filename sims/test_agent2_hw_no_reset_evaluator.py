@@ -69,6 +69,8 @@ class EvaluatorTests(unittest.TestCase):
         self.assertTrue(result["all_trace_candidates_future_equivalent"])
         self.assertTrue(result["returned_hypothesis_future_behavior_certified"])
         self.assertTrue(result["future_clone_success"])
+        self.assertEqual(result["candidate_end_equivalence_classes"], 1)
+        self.assertTrue(result["candidate_end_behavior_unambiguous"])
         self.assertFalse(result["ambiguous_future_behavior"])
 
     def test_one_wrong_post_trace_candidate_blocks_future_clone(self):
@@ -81,6 +83,8 @@ class EvaluatorTests(unittest.TestCase):
         self.assertTrue(result["target_future_behavior_present"])
         self.assertFalse(result["all_trace_candidates_future_equivalent"])
         self.assertFalse(result["future_clone_success"])
+        self.assertEqual(result["candidate_end_equivalence_classes"], 2)
+        self.assertFalse(result["candidate_end_behavior_unambiguous"])
         self.assertTrue(result["ambiguous_future_behavior"])
         self.assertFalse(result["false_future_convergence"])
 
@@ -100,6 +104,8 @@ class EvaluatorTests(unittest.TestCase):
         self.assertFalse(result["target_future_behavior_present"])
         self.assertTrue(result["false_initial_convergence"])
         self.assertTrue(result["false_future_convergence"])
+        self.assertEqual(result["candidate_end_equivalence_classes"], 1)
+        self.assertTrue(result["candidate_end_behavior_unambiguous"])
         self.assertFalse(result["future_clone_success"])
 
     def test_no_trace_consistent_candidate_is_not_false_convergence(self):
