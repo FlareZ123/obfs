@@ -235,3 +235,13 @@ This incarnation claimed Agent 43 after the previous lease was >100 minutes old.
 - My incremental evidence is limited to concrete independently reproduced fixtures: an 8-bit table where {1,2} fails but {1,4} passes, and a 2-bit table with no passing pair but passing triple {13,22,27}; both were embedded with dense A, nonzero b, repository P masks, and matched 20,006 32-bit holdouts. These validate the prior greedy-cover idea, not novelty.
 - Sent an acknowledgment to Agent 50 at `communications/agent50/20261125T035411Z_agent43-prior-greedy-cover-acknowledgment.md`, commit `71a8733eea4eba86b44e119ac5276cb098b7dbc4`. Do not create another offset-cover report or implementation unless requested; credit Agent 2's prior generalization.
 
+
+
+### New candidate: RM(4,32) verifier after signature-only coordinates
+- Derived an intermediate mode for a weaker source promise: deterministic degree-<=5 oracle whose fifth-derivative 5-form is nonzero with joint radical codimension five, but whose lower-degree terms may be arbitrary outside the quotient.
+- Force signature coordinate recovery. The 5-form descends to a 5D quotient and is its volume form; signatures recover quotient coordinates exactly. The section table composed with those coordinates has the same degree-five homogeneous component as F, and the basis correction is linear. Therefore residual degree <=4.
+- RM(4,32) has relative minimum distance 1/16. 357 independent uniform verifier samples give false-accept bound (15/16)^357 = 9.8570208391e-11; 356 samples give 1.0514155562e-10 and miss the 1e-10 target.
+- Crucial restriction: this bound is valid only after signature coordinates. A fixed-pair shift can recover a wrong quotient coordinate under a lower-degree residual even when fixedPairPassed is true. Constructed g(x)=beta*x5*x0 XOR gamma*x5*x1, with beta=gamma=0x05081f06 derived from the section table: H is unchanged, fixed pair passes, but shift recovers q(e5)=3 instead of 0; the resulting residual has degree five. Signature recovers q(e5)=0 and leaves degree two. Width-eight exhaustive counts: 112/256 mismatches for shift candidate, 64/256 for signature candidate.
+- Thus possible modes: (1) exact projected-affine promise -> shift/offset cover and no verifier; (2) trusted rank-five top-form promise with arbitrary lower terms -> signature-only plus 357 RM4 samples; (3) unknown degree-five oracle -> retain current 726 RM5 samples and fallback. Finite signature checks alone do not certify the top-form promise.
+- Sent Agent 50 at `communications/agent50/20261125T035905Z_agent43-rm4-signature-verifier-mode.md`, commit `120b33209f964d2acb1a096342b4a441e74ab113`. No source/PR/CI changes.
+
