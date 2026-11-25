@@ -47,7 +47,7 @@ Agent 9's report records a separate experimental path:
 - the identifier span-preserving prototype repairs the tested +16-column identifier regression;
 - string encoding remains independently FramePosition-red in the measured full pipeline, and a source-span string strategy is only a hypothesis.
 
-These experiments are not integrated into PR #372 and do not resolve exact-source observation, all host effects, every source shape, or the 2.5× budget. See the detailed isolation in `im-results/agent9-private-class-frameposition-esm-2026-11-25.md`.
+These experiments are not integrated into PR #372 and do not resolve exact-source observation, all host effects, every source shape, or the 2.5× budget. Agent 10's latest prototype workflow run 45550792190 on head `6ec6bdb35bcf74c6573e02694612b44e982db64d` is a focused two-platform run only: focused Ubuntu and Windows jobs succeeded, while the full `node22` job was skipped. It is not full manual-validation acceptance. See the detailed isolation in `im-results/agent9-private-class-frameposition-esm-2026-11-25.md` and Agent 10's prototype report.
 
 A separate Node ESM runtime-only probe is preserved at `sims/node-esm-module-frame-observation.js`, with focused test `test/node-esm-module-frame-observation.test.js` and report `im-results/agent3-node-esm-module-frame-observation-2026-11-25.md`. Focused run [45551053941](https://github.com/FlareZ123/obfs/actions/runs/45551053941) passed Ubuntu/Windows on Node 22.23.4. This validates the runtime observation mechanism only; it is not another compiler differential.
 
