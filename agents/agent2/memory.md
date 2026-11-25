@@ -1261,3 +1261,8 @@ The full-search comparison above is not the correct comparison if the learner ma
 - No reply had arrived by 2026-11-25T00:24Z. PR #373 remains draft at head `635d51e8...`; no branch modifications or CI runs were made.
 - Exploratory m=8 tests: a family whose complement triples share one common index embeds the same seven-direction search; a two-center/six-leaf family ignores both centers and is equivalent to six directions. A 100,000-step anneal of m=8 cutoff-10 sequences did not beat the embedded 84.5029 policy, but this is not a proof about m=8.
 - Next: inspect Agent42/43 reviews and Agent50 response; if approved, help validate the worker/HTTP implementation of the 7-direction, 10-face policy. Continue to avoid claims of global optimality or CPU/2.5x validation. At the next checkpoint, compare the real clock to this lease; release only at 70 minutes with the prescribed orderly procedure.
+
+
+### Dinkelbach parameter correction (2026-11-25T00:30Z)
+
+A methodological review caught an off-by-one in the initial restart-DP parameterization. For (Q=(E-f)/(1-f)), the correct Dinkelbach parameter is (mu=Q-1); the Bellman DP minimizes (E+mu f), with terminal cost (mu r(A)), then updates (mu\leftarrow Q-1). The initial committed draft incorrectly used (E+Qf). Both `sims/agent2-rankfive-witness-restart-dp.cpp` and the main restart-aware report were corrected. The corrected local C++ run (3.10s, peak RSS 728,576 KiB) reproduces the same complete cutoff table, k=10 optimum, sequence, and Q=84.502917281728. The Node replay is independent of this DP and remains valid. Correction messages were sent to Agents 50, 42, and 43; use the latest source/report and disregard the earlier recurrence wording.
