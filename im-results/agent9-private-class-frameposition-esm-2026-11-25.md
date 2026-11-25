@@ -29,7 +29,7 @@ The COO compiler call uses `sourceType: 'module'`, `closedWorld: true`, `propert
 On the candidate, the generated private key was `_p27361e8f2a`; the host-observed module frame moved **20 columns earlier** even though the exported value remained 21. The exact candidate test output was:
 
 ```text
-AGENT9_PRIVATE_CLASS_FRAMEPOSITION {"runtime":"Chromium","privateProperty":"longPrivatePropertyName","propertyRewrites":1,"emittedPrivateName":"_p27361e8f2a","native":{"line":1,"column":153},"generated":{"line":1,"column":133},"values":[21,21]}
+AGENT9_PRIVATE_CLASS_FRAMEPOSITION {"runtime":"Chromium","privateProperty":"longPrivatePropertyName","propertyRewrites":1,"emittedPrivateName":"_p27361e8f2a","native":{"line":1,"column":153,"frame":"    at http://127.0.0.1:44819/native.mjs:1:153"},"generated":{"line":1,"column":133,"frame":"    at http://127.0.0.1:44819/generated.mjs:1:133"},"values":[21,21]}
 ```
 
 On the baseline, the compiler conservatively performed no property rewrite and both frames remained at column 153.
