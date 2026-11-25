@@ -2291,6 +2291,173 @@ function summarizeAmbientCallEffects(ast,sourceType) {
       }
     });
   }
+  /**
+   * Narrowly prove that a local constructor's prototype member assignment is
+   * unobservable because the only local instance read is definitely shadowed
+   * by one unconditional own-property write. Unknown cases remain host-held.
+   * @param {AstNode} assignment
+   * @returns {boolean}
+   */
+  function isDefinitelyShadowedLocalPrototypeWrite(assignment) {
+    if(assignment.type!=='AssignmentExpression'||assignment.operator!=='=')return false;
+    const left=assignment.left;
+    if(left.type!=='MemberExpression'||left.object.type!=='MemberExpression')return false;
+    const prototypeMember=left.object;
+    if(staticPropertyKey(prototypeMember.property,prototypeMember.computed)!=='prototype'||
+       prototypeMember.object.type!=='Identifier')return false;
+    const propertyKey=staticPropertyKey(left.property,left.computed);
+    if(propertyKey===null)return false;
+    const constructorReference=resolved.at(prototypeMember.object.start);
+    if(constructorReference?.resolution.kind!=='local')return false;
+    const constructorBindingId=constructorReference.resolution.bindingId;
+    const constructorNode=resolveFunctionNode(constructorBindingId);
+    const classNodes=classNodesForValue(prototypeMember.object);
+    const classNode=classNodes.length===1?classNodes[0]:null;
+    if(!constructorNode&&!classNode)return false;
+    if(constructorNode&&externallyReachableFunctions.has(constructorNode))return false;
+    if(classNode&&externallyReachableFunctions.has(classNode))return false;
+
+    /** @type {Array<{node:AstNode,bindingId:number|null,id:AstNode|null}>} */
+    const instances=[];
+    walkAst(ast,node=>{
+      if(node.type!=='NewExpression'||node.callee.type!=='Identifier')return;
+      const reference=resolved.at(node.callee.start);
+      if(reference?.resolution.kind!=='local'||reference.resolution.bindingId!==constructorBindingId)return;
+      const parent=parentByNode.get(node);
+      if(parent?.type!=='VariableDeclarator'||parent.init!==node||parent.id.type!=='Identifier') {
+        instances.push({node,bindingId:null,id:null});
+        return;
+      }
+      const declaration=declarationByNode.get(parent.id);
+      if(!declaration||declaration.bindingId===null||declaration.bindingId===undefined) {
+        instances.push({node,bindingId:null,id:null});
+        return;
+      }
+      instances.push({node,bindingId:declaration.bindingId,id:parent.id});
+    });
+    if(instances.length!==1||instances[0].bindingId===null)return false;
+    const instance=instances[0];
+    const instanceBindingId=instance.bindingId;
+
+    /** @type {AstNode[]} */
+    const reads=[];
+    /** @type {Array<{node:AstNode,value:AstNode,kind:'instance'|'constructor'|'class-field'}>} */
+    const writes=[];
+    let dynamicInstanceAccess=false;
+    walkAst(ast,node=>{
+      if(node.type!=='MemberExpression'||node.object.type!=='Identifier')return;
+      if(resolved.at(node.object.start)?.resolution.bindingId!==instanceBindingId)return;
+      const key=staticPropertyKey(node.property,node.computed);
+      const parent=parentByNode.get(node);
+      if(key===null) {
+        dynamicInstanceAccess=true;
+        return;
+      }
+      if(key!==propertyKey)return;
+      if(parent?.type==='AssignmentExpression'&&parent.left===node) {
+        if(parent.operator!=='=') {
+          dynamicInstanceAccess=true;
+          return;
+        }
+        writes.push({node:parent,value:parent.right,kind:'instance'});
+      } else if(parent?.type==='UnaryExpression'&&parent.operator==='delete') {
+        dynamicInstanceAccess=true;
+      } else {
+        reads.push(node);
+      }
+    });
+    if(dynamicInstanceAccess||reads.length!==1)return false;
+    const read=reads[0];
+    if(read.start<=instance.node.start)return false;
+
+    if(constructorNode) {
+      if(!constructorNode.body)return false;
+      walkAst(constructorNode.body,node=>{
+        if(node.type==='AssignmentExpression'&&node.left.type==='MemberExpression'&&
+           node.left.object.type==='ThisExpression'&&
+           staticPropertyKey(node.left.property,node.left.computed)===propertyKey)
+          writes.push({node,value:node.right,kind:'constructor'});
+      });
+      let objectReturn=false;
+      walkAst(constructorNode.body,node=>{
+        if(node.type==='ReturnStatement'&&node.argument&&
+           node.argument.type!=='ThisExpression'&&!isDefinitelyPrimitive(node.argument))
+          objectReturn=true;
+      });
+      if(objectReturn)return false;
+    }
+    if(classNode) {
+      for(const element of classNode.body.body) {
+        if(element.type==='PropertyDefinition'&&!element.static&&
+           staticPropertyKey(element.key,element.computed)===propertyKey&&element.value)
+          writes.push({node:element,value:element.value,kind:'class-field'});
+      }
+      const classConstructor=classNode.body.body.find(element=>
+        element.type==='MethodDefinition'&&element.kind==='constructor');
+      if(classConstructor?.value?.body) {
+        let objectReturn=false;
+        walkAst(classConstructor.value.body,node=>{
+          if(node.type==='ReturnStatement'&&node.argument&&
+             node.argument.type!=='ThisExpression'&&!isDefinitelyPrimitive(node.argument))
+            objectReturn=true;
+        });
+        if(objectReturn)return false;
+      }
+    }
+    if(writes.length!==1)return false;
+    const ownWrite=writes[0];
+    if(ownWrite.kind==='instance') {
+      if(ownWrite.node.start<=instance.node.start||ownWrite.node.start>=read.start)return false;
+      const rootFunction=enclosingFunction(ownWrite.node);
+      if(!rootFunction?.body||!isUnconditionalWithin(ownWrite.node,rootFunction.body))return false;
+    } else if(ownWrite.kind==='constructor') {
+      if(!constructorNode?.body||!isUnconditionalWithin(ownWrite.node,constructorNode.body))return false;
+    }
+
+    const ownCallables=callableNodesForValue(ownWrite.value);
+    const prototypeCallables=callableNodesForValue(assignment.right);
+    if(prototypeCallables.length===0)return false;
+    if(!isDefinitelyPrimitive(ownWrite.value)&&ownCallables.length===0)return false;
+    if(prototypeCallables.some(target=>ownCallables.includes(target)))return false;
+
+    let constructorReferences=0;
+    walkAst(ast,node=>{
+      if(node.type==='Identifier'&&
+         resolved.at(node.start)?.resolution.bindingId===constructorBindingId&&
+         !declarationByNode.has(node))constructorReferences++;
+    });
+    if(constructorReferences!==2)return false;
+
+    let instanceReferences=0;
+    walkAst(ast,node=>{
+      if(node.type==='Identifier'&&
+         resolved.at(node.start)?.resolution.bindingId===instanceBindingId&&
+         !declarationByNode.has(node))instanceReferences++;
+    });
+    const expectedInstanceReferences=ownWrite.kind==='instance'?2:1;
+    if(instanceReferences!==expectedInstanceReferences)return false;
+    return true;
+  }
+
+  /**
+   * @param {AstNode} node
+   * @param {AstNode} boundary
+   * @returns {boolean}
+   */
+  function isUnconditionalWithin(node,boundary) {
+    let current=node;
+    while(parentByNode.has(current)) {
+      const parent=parentByNode.get(current);
+      if(!parent)return false;
+      if(parent===boundary)return true;
+      if(['IfStatement','SwitchStatement','SwitchCase','ConditionalExpression','LogicalExpression',
+          'ForStatement','ForInStatement','ForOfStatement','WhileStatement','DoWhileStatement',
+          'TryStatement','CatchClause'].includes(parent.type))return false;
+      current=parent;
+    }
+    return false;
+  }
+
   /** @param {AstNode} value @param {number} start @param {number} end @returns {void} */
   function markExternalCallableValue(value,start,end) {
     for(const target of callableNodesForValue(value)) {
@@ -2328,7 +2495,8 @@ function summarizeAmbientCallEffects(ast,sourceType) {
       // Unknown object-field writes may publish a callable into host-owned
       // or aliased storage. A same-function, own-data local record write is
       // tracked as a private field value and is held only if that value escapes.
-      if(!isLocalRecordMemberAccess(node.left))
+      if(!isLocalRecordMemberAccess(node.left)&&
+         !isDefinitelyShadowedLocalPrototypeWrite(node))
         markCallableValuesHeld(node.right,'host-held-callable',node.start,node.end);
     }
   });
