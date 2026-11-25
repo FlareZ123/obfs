@@ -107,9 +107,11 @@ The focused run [45632580720](https://github.com/FlareZ123/obfs/actions/runs/456
 
 ## Full-suite validation and baseline comparison
 
-A full manual validation run was dispatched on the review branch at `413797b`: [run 45633142987](https://github.com/FlareZ123/obfs/actions/runs/45633142987). It completed with 12 behavioral-suite failures on both Ubuntu and Windows (5,468/5,480 and 5,458/5,470 non-skipped tests passed respectively); strict JSDoc, benchmark, paired profile and browser integration steps completed. The current-main baseline run [45634926207](https://github.com/FlareZ123/obfs/actions/runs/45634926207) is still in progress.
+A full manual validation run on the review branch at `413797b` completed with 12 behavioral-suite failures on both Ubuntu and Windows: [run 45633142987](https://github.com/FlareZ123/obfs/actions/runs/45633142987). A full current-main run also completed with the same 12 named behavioral failures on both operating systems: [run 45634926207](https://github.com/FlareZ123/obfs/actions/runs/45634926207). This confirms the failures are present on current `main`, not introduced by the review branch or its helper patch.
 
-The review branch and current `main` have identical `src/` files and identical versions of the 12 failing test files. The review branch adds test files and Agent 2 simulation/workflow artifacts but does not alter those failing tests or production sources. However, the full current-main baseline is not yet complete, so do not attribute the 12 failures to the helper patch or call them baseline failures until run `45634926207` finishes.
+The common failures concern existing boundary/source-observation expectations: bound-runtime interception, source-stable bound export, factory object flow, function declaration reader proof, inter-file property flow, private class owner renaming, private tuple session, SNO bound interception, and the SCO dense hybrid admission fixture. Several expect one or two private keys to be rewritten but observe zero; the source-observer policy currently over-vetoes some transformations. The SCO fixture also rejects its selected server form. These are baseline issues to address in the broader integration program, not failures in the new Agent 9 focused witnesses.
+
+Both full runs completed strict JSDoc and performance/profile steps successfully. The benchmark samples, six-module own-key/null-prototype session profiles, and local-parameter profiles remained within the 2.5× budget (observed ratios roughly 0.57–1.04×), with output equality. The main Ubuntu full run also passed 21 Chromium integration pages, 64 verified-record browser cases, and 6 ESM-observation browser cases.
 
 ## Communications
 
