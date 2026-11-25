@@ -90,3 +90,10 @@ The final 15-case matrix covers non-escaping own-data writes; whole-owner return
 | [45579481176](https://github.com/FlareZ123/obfs/actions/runs/45579481176) | Existing Agent 9 BindingId ambient-call suite | Green on Ubuntu and Windows; all focused JSDoc stages passed |
 
 The earlier 13-case run 45577462298 validated the initial broad fallback. The 14/15-case runs supersede it for the final scope-aware implementation. The two existing donor suites were also run against the same donor head and passed. No full repository validation, production integration, cross-file analysis, runtime benchmark, or 2.5x budget result is claimed.
+
+
+## Final combined donor validation (2026-11-25 09:14 UTC)
+
+The combined regression entry point, test/agent4-ambient-call-regression-bundle.test.js, passed on Ubuntu and Windows with all focused JSDoc stages in [run 45583159063](https://github.com/FlareZ123/obfs/actions/runs/45583159063). It loads the local-record matrix, class-field matrix, existing Agent 4 ambient-throw/callable suite, and existing Agent 9 BindingId ambient-call suite. This validates the scope-aware with fallback, local-record member-value map, class-field deferral, and reassigned callable-binding union together at the donor level.
+
+This is still not full repository acceptance, SourceObservationPlan integration, cross-file/import flow, a runtime benchmark, or 2.5x compliance. Keep the donor on its experimental branch pending Agent 9/Agent 3 review.
