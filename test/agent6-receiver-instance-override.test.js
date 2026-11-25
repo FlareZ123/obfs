@@ -173,3 +173,21 @@ test('a host-held wrapper propagates call-return values transitively',()=>{
     'external(outer);';
   assert.equal(hiddenSummary(source).hostHeldCallable,true);
 });
+
+
+test('an exported bound function exposes callable values returned through its receiver',()=>{
+  const source=
+    'function hidden(){return 1;}'+
+    'function outer(){return this.callback;}'+
+    'const bound=outer.bind({callback:hidden});'+
+    'module.exports=bound;';
+  assert.equal(hiddenSummary(source).hostHeldCallable,true);
+});
+
+test('an exported unbound function does not inherit an unrelated local receiver',()=>{
+  const source=
+    'function hidden(){return 1;}'+
+    'function outer(){return this.callback;}'+
+    'module.exports=outer;';
+  assert.equal(hiddenSummary(source).hostHeldCallable,false);
+});
