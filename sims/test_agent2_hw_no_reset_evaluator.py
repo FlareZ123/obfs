@@ -131,6 +131,28 @@ class EvaluatorTests(unittest.TestCase):
         self.assertEqual(len(BENCHMARK.digest_fixture(fixture)), 64)
         self.assertEqual(len(BENCHMARK.digest_trace(trace)), 64)
 
+    def test_delayed_pair_fixture_is_minimal_and_has_long_distinguishing_words(self):
+        fixture = BENCHMARK.generate_delayed_pair_fixture(40, 0)
+        transitions = [list(row) for row in fixture.transitions]
+        outputs = [list(row) for row in fixture.outputs]
+        metrics = BENCHMARK.pair_distinguishing_metrics(
+            fixture.transitions, fixture.outputs
+        )
+
+        self.assertTrue(BENCHMARK.is_strongly_connected(transitions))
+        self.assertTrue(BENCHMARK.is_minimal_mealy(transitions, outputs))
+        self.assertEqual(metrics["distinguishable_pair_count"], 780)
+        self.assertEqual(metrics["total_pair_count"], 780)
+        self.assertEqual(metrics["max_pair_distinguishing_length"], 39)
+        self.assertGreater(metrics["max_pair_distinguishing_length"], 30)
+        self.assertIn(fixture.initial_state, metrics["max_distinguishing_pair"])
+
+        same_fixture = BENCHMARK.generate_delayed_pair_fixture(40, 0)
+        self.assertEqual(
+            BENCHMARK.digest_fixture(fixture),
+            BENCHMARK.digest_fixture(same_fixture),
+        )
+
     def test_oracle_steps_are_a_subset_of_total_sul_steps(self):
         metrics = BENCHMARK.derive_step_metrics(1188, 720)
 
