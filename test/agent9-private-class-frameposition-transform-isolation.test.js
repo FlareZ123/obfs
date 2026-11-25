@@ -98,9 +98,9 @@ const stringSource='const marker="source-observer-marker";const owner={longPriva
 const identifierSource='const owner={longPrivatePropertyName:21};class Reader{read(){return owner.longPrivatePropertyName;}}const reader=new Reader();const value=reader.read()+2;captureHostStack();export {value};';
 
 for(const [name,source,transforms,expected,requiredMetric] of [
-  ['identifier-only',identifierSource,{properties:true,identifiers:true,strings:false},23,'bindings'],
-  ['string-only',stringSource,{properties:true,identifiers:false,strings:true},21+marker.length,'literals'],
-  ['combined',stringSource,{properties:true,identifiers:true,strings:true},21+marker.length,'bindings']
+  ['identifier-only',identifierSource,{properties:true,identifiers:true,strings:false,experimentalPreserveFramePositions:true},23,'bindings'],
+  ['string-only',stringSource,{properties:true,identifiers:false,strings:true,experimentalPreserveFramePositions:true},21+marker.length,'literals'],
+  ['combined',stringSource,{properties:true,identifiers:true,strings:true,experimentalPreserveFramePositions:true},21+marker.length,'bindings']
 ]){
   test('real Chromium strict ESM '+name+' transform preserves FramePosition',{
     skip:process.platform!=='linux'?'real Chromium fixture currently targets the Linux runner':false
