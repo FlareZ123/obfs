@@ -573,6 +573,58 @@ function summarizeAmbientCallEffects(ast,sourceType) {
       (use?.type==='ForOfStatement'&&use.left===node));
   }
 
+  /** @param {AstNode} classNode @returns {number|null} */
+  function classBindingId(classNode) {
+    if(classNode.type==='ClassDeclaration'&&classNode.id?.type==='Identifier')
+      return declarationByNode.get(classNode.id)?.bindingId??null;
+    if(classNode.type==='ClassExpression') {
+      const parent=parentByNode.get(classNode);
+      if(parent?.type==='VariableDeclarator'&&parent.id.type==='Identifier')
+        return declarationByNode.get(parent.id)?.bindingId??null;
+    }
+    return null;
+  }
+
+  /** @param {AstNode} classNode @returns {boolean} */
+  function classHasOnlyPublicInstanceFields(classNode) {
+    if(classNode.superClass||classNode.body.body.length===0)return false;
+    return classNode.body.body.every(element=>
+      element.type==='PropertyDefinition'&&!element.static&&!element.computed&&
+      element.key.type!=='PrivateIdentifier');
+  }
+
+  /** @param {AstNode} field @returns {boolean} */
+  function isDeferredClassField(field) {
+    if(field.type!=='PropertyDefinition'||!field.value)return false;
+    let current=field;
+    /** @type {AstNode|null} */
+    let classNode=null;
+    while(parentByNode.has(current)) {
+      const parent=parentByNode.get(current);
+      if(!parent)break;
+      if(parent.type==='ClassDeclaration'||parent.type==='ClassExpression') {
+        classNode=parent;
+        break;
+      }
+      if(['FunctionDeclaration','FunctionExpression','ArrowFunctionExpression'].includes(parent.type))
+        return false;
+      current=parent;
+    }
+    if(!classNode||!classHasOnlyPublicInstanceFields(classNode))return false;
+    const bindingId=classBindingId(classNode);
+    if(bindingId===null||writtenBindings.has(bindingId)||
+       (declarationsByBinding.get(bindingId)?.length??0)!==1)return false;
+    if(['FunctionExpression','ArrowFunctionExpression'].includes(field.value.type))
+      return true;
+    if(field.value.type==='Identifier') {
+      const reference=resolved.at(field.value.start);
+      return reference?.resolution.kind==='local'&&
+        !classNodeByBinding.has(reference.resolution.bindingId)&&
+        resolveFunctionNode(reference.resolution.bindingId)!==null;
+    }
+    return false;
+  }
+
   /** @param {AstNode} classNode @param {Set<AstNode>} [seen] @returns {AstNode[]} */
   function classMethodFunctions(classNode,seen=new Set()) {
     if(!['ClassDeclaration','ClassExpression'].includes(classNode.type)||seen.has(classNode))return [];
@@ -580,9 +632,10 @@ function summarizeAmbientCallEffects(ast,sourceType) {
     next.add(classNode);
     const own=classNode.body.body.flatMap((/** @type {AstNode} */ element)=>{
       if(element.type==='MethodDefinition'&&element.value)return [element.value];
-      if(element.type==='PropertyDefinition'&&
-         ['FunctionExpression','ArrowFunctionExpression'].includes(element.value?.type))
-        return [element.value];
+      if(element.type==='PropertyDefinition'&&element.value&&
+         (['FunctionExpression','ArrowFunctionExpression'].includes(element.value.type)||
+          isDeferredClassField(element)))
+        return callableNodesForValue(element.value);
       return [];
     });
     /** @type {AstNode[]} */
@@ -1049,9 +1102,10 @@ function summarizeAmbientCallEffects(ast,sourceType) {
       if(node.computed&&!isDefinitelyPrimitive(node.property))
         markCallableValuesHeld(node.property,'callable-coercion-observer',node.start,node.end);
     } else if(node.type==='PropertyDefinition') {
-      // Class field initializers can publish callable values on instances or
-      // constructors; private fields are included because methods may expose them.
-      if(node.value)
+      // Most class fields remain fail-closed. Defer only public own-data
+      // instance fields on an immutable, method-free class with no superclass;
+      // class/instance escape sinks recover their callable initializers.
+      if(node.value&&!isDeferredClassField(node))
         markCallableValuesHeld(node.value,'host-held-callable',node.start,node.end);
       if(node.computed&&!isDefinitelyPrimitive(node.key))
         markCallableValuesHeld(node.key,'callable-coercion-observer',node.start,node.end);
