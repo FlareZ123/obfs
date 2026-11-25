@@ -118,7 +118,7 @@ Final experiment head: `bb3728269eea0b9e6de6f3702e2adf4f7ac56a37`.
 
 - Final focused carrier suite: [45559600683](https://github.com/FlareZ123/obfs/actions/runs/45559600683), 22/22 functional tests on Ubuntu and Windows. Project, external, and paired/runtime-budget JSDoc checks all passed on both platforms.
 - Updated Agent 9 donor suite: [45559607330](https://github.com/FlareZ123/obfs/actions/runs/45559607330), all 44 tests passed on Ubuntu and Windows. All three JSDoc validation stages passed on both platforms.
-- The suite now includes a precision control where a known local consumer ignores its simple formal: the callable actual remains safe. Forwarding the formal to a host call, return, throw, property write, or escaping closure correctly marks the actual held. Rest-element, implicit-`arguments`, spread, destructuring, and unresolved call paths remain fail-closed.
+- The suite now includes a precision control where a known local consumer ignores its simple formal: the callable actual remains safe. Tests verify propagation when the formal reaches a host call, throw, property write, or escaping closure. The existing `ReturnStatement` sink consumes the same mapped binding values, but a dedicated direct actual-to-formal return fixture remains desirable. Rest-element, implicit-`arguments`, spread, destructuring, and unresolved call paths remain fail-closed.
 
 These were focused runs through the existing manual-validation workflow. The full `node22` repository suite was skipped by the focused workflow input; this is not a full repository/compiler gate.
 ## Precision costs and unresolved limits
