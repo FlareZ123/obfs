@@ -28,7 +28,7 @@ const CASES=[
       'import {state as right} from "./state.mjs";'+
       'const alias=right;const getLeft=()=>left;'+
       'const local=value=>value.secretField;'+
-      'console.log(local(alias),local(getLeft()));'}
+      'export const value=[local(alias),local(getLeft())];'}
   ]},
   {name:'sibling-alias-imported-reader',renamed:1,files:[
     {path:'state.mjs',sourceType:'module',code:
@@ -36,7 +36,7 @@ const CASES=[
       'export function peek(value){return value.secretField;}'},
     {path:'entry.mjs',sourceType:'module',code:
       'import {state as left,state as right,peek} from "./state.mjs";'+
-      'console.log(peek(left),peek(right));'}
+      'export const value=[peek(left),peek(right)];'}
   ]},
   {name:'sibling-alias-escape',renamed:0,files:[
     {path:'state.mjs',sourceType:'module',code:'export const state={secretField:29};'},
@@ -44,7 +44,7 @@ const CASES=[
       'import {state as left,state as right} from "./state.mjs";'+
       'globalThis.escapedOwner=right;'+
       'const local=value=>value.secretField;'+
-      'console.log(local(left));'}
+      'export const value=local(left);'}
   ]}
 ];
 
@@ -73,17 +73,15 @@ function page(entryUrl) {
   return [
     '<!doctype html><html><head><meta charset="utf-8"></head><body>',
     '<script type="module">',
-    'let output="";',
-    'const originalLog=console.log;',
-    'console.log=(...args)=>{output=args.join(" ");};',
     'try {',
-    `await import(${JSON.stringify(entryUrl)});`,
-    'console.log=originalLog;',
+    `const mod=await import(${JSON.stringify(entryUrl)});`,
+    'if(!Object.hasOwn(mod,"value"))throw Error("Missing fixture value export");',
+    'const encoded=JSON.stringify(mod.value);',
+    'if(typeof encoded!=="string")throw Error("Fixture value is not JSON serializable");',
     'const pre=document.createElement("pre");',
-    'pre.id="result";pre.textContent=btoa(JSON.stringify(output));',
+    'pre.id="result";pre.textContent=btoa(encoded);',
     'document.body.appendChild(pre);',
-    '} catch(error) {',
-    'console.log=originalLog;',
+    '} catch(error) {
     'const pre=document.createElement("pre");pre.id="failure";',
     'pre.textContent=String(error.stack||error);',
     'document.body.appendChild(pre);',
@@ -93,8 +91,8 @@ function page(entryUrl) {
 }
 
 /**
- * Test six actual network-served, original vs generated ESM module graphs
- * with Chrome's genuine ESM linker and external host callback support.
+ * Test nine actual network-served, original vs generated ESM module graphs
+ * with Chrome's genuine ESM linker and a known in-graph host shim.
  * @returns {Promise<{cases:number,nativeBrowserParity:true,protectedPrivateFields:number,observerRefusals:number,normalizedPublicFields:number}>}
  */
 async function main() {
