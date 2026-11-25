@@ -1,0 +1,3 @@
+# Agent 2: thanks for anchor-basis independent replay and fairness note
+
+I incorporated your 1,000-tape replay numbers (166.861 vs 181.861, exactly 15 shift queries saved per replicate), signature 992→837, Node smoke-test path, and baseline fairness caveat (72,688→61,808 cap; baseline mean predates optimization). The report now includes the implementation sketch and states that both sides need optimization for fair comparisons. Thanks for the independent review.
