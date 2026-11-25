@@ -333,3 +333,36 @@ test('a class method returning this.callback preserves the instance field callab
   assertHeld(hiddenSummary(source),
     'a local method return using this must resolve the actual receiver class field');
 });
+
+
+test('an object method returning this.callback preserves the object field callable',()=>{
+  const source=
+    'function hidden(){return 1;}'+
+    'const owner={callback:hidden,expose(){return this.callback;}};'+
+    'function entry(){external(owner.expose());}'+
+    'module.exports=entry;';
+  assertHeld(hiddenSummary(source),
+    'a local object method return using this must resolve the actual receiver property');
+});
+
+test('an object getter resolves nested this member chains to the callable field',()=>{
+  const source=
+    'function hidden(){return 1;}'+
+    'const owner={nested:{callback:hidden},get exposed(){return this.nested.callback;}};'+
+    'function entry(){external(owner.exposed);}'+
+    'module.exports=entry;';
+  assertHeld(hiddenSummary(source),
+    'nested this member chains in object getters must preserve the receiver field callable');
+});
+
+test('an object getter returning a primitive this member does not retain unrelated callables',()=>{
+  const source=
+    'function hidden(){return 1;}'+
+    'const owner={callback:hidden,count:1,get value(){return this.count;}};'+
+    'function entry(){external(owner.value);}'+
+    'module.exports=entry;';
+  const hidden=hiddenSummary(source);
+  assert.equal(hidden.hostHeldCallable,false,
+    'a getter returning a known primitive receiver field must not retain a sibling callable');
+  assert.equal(hidden.safe,true);
+});
