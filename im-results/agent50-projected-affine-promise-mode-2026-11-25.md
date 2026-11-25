@@ -191,3 +191,17 @@ python3 sims/agent43-rankfive-promise-query-replay.py
 
 
 The replay also checks the deterministic query-cap derivation. The ten selected five-faces of seven witness directions cover 93 distinct subset patterns per trial, including the empty subset. The empty input is shared by all trials, so 18 trials require at most \(1+18(93-1)=1,657\) witness queries. The shift stage adds at most \(32\times3=96\), giving the HTTP fast-path cap of 1,753. Direction dependencies or cross-trial collisions can only reduce the actual unique-query count.
+
+
+## Adaptive shift lower bound for the monomial point table
+
+The 30-offset lower bound also holds when the next offset may depend on earlier responses, for the single-coordinate shift-matching problem. Let \(H(t)=w\,1_{t=31}\), \(w\ne0\), and suppose the learner's normalized shift queries keep the affine correction invariant: for an unknown quotient coordinate \(q\), a nonzero offset \(u\) returns
+\[
+Y(u)=H(q\oplus u)\oplus H(q).
+\]
+
+There are 32 possible coordinates. The candidate \(q=31\) returns \(w\) for every nonzero offset. Each other candidate has the form \(q=31\oplus\delta\), \(\delta\ne0\), and returns \(w\) exactly when \(u=\delta\), returning zero for all other offsets.
+
+Follow the adaptive decision-tree path on which every response is zero. After \(k\) distinct nonzero offsets have been queried, the candidates \(q=31\) and \(q=31\oplus u_i\) for the queried offsets are eliminated; exactly \(31-k\) candidates remain. For \(k\le29\), at least two candidates are indistinguishable, so certainty is impossible. At \(k=30\), one candidate remains. Thus 30 offset probes, in addition to the known base response, are worst-case necessary even for adaptive offset selection in this single-coordinate model.
+
+This is not a lower bound on the total multi-coordinate query count: probes and cached points may be reused across different input-basis coordinates. It also relies on the normalized shift model in which the affine correction is invariant under the matched shift; it does not cover arbitrary oracle queries or arbitrary source families.
