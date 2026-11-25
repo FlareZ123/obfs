@@ -24,7 +24,8 @@ function makeSource(count) {
     '}',
     'const started=performance.now();',
     'const values=[hidden(100000),hidden(100000),hidden(100000),hidden('+count+')];',
-    'globalThis.__budgetResult={values,wallMs:performance.now()-started};'
+    'globalThis.__wallMs=performance.now()-started;',
+    'module.exports=values;'
   ].join('\n');
 }
 
@@ -90,7 +91,7 @@ async function runChromium(options={}) {
   assert.ok(transformed.metrics.bindings>0,'Expected identifier rewrite');
   assert.ok(transformed.metrics.literals>0,'Expected string initialization transform');
 
-  const pageHtml='<!doctype html><html><body>CDP task-duration fixture</body></html>';
+  const pageHtml='<!doctype html><html><body><script>window.module={exports:null};</script></body></html>';
   const files=new Map([
     ['/',{type:'text/html; charset=utf-8',body:pageHtml}],
     ['/native.js',{type:'text/javascript; charset=utf-8',body:nativeSource}],
@@ -119,43 +120,41 @@ async function runChromium(options={}) {
     if(!address||typeof address==='string')throw new Error('Missing CDP fixture port');
     const base='http://127.0.0.1:'+address.port;
     const chrome=await browser.version();
-    const page=await browser.newPage();
-    const session=await page.createCDPSession();
-    try {
-      await page.goto(base+'/');
-      await session.send('Performance.enable');
-      for(let trial=0;trial<trials;trial++) {
-        /** @type {('native'|'protected')[]} */
-        const order=trial%2===0?['native','protected']:['protected','native'];
-        /** @type {{native?:TimedSample,protected?:TimedSample}} */
-        const samples={};
-        for(const lane of order) {
+    for(let trial=0;trial<trials;trial++) {
+      /** @type {('native'|'protected')[]} */
+      const order=trial%2===0?['native','protected']:['protected','native'];
+      /** @type {{native?:TimedSample,protected?:TimedSample}} */
+      const samples={};
+      for(const lane of order) {
+        const page=await browser.newPage();
+        const session=await page.createCDPSession();
+        try {
+          await page.goto(base+'/');
+          await session.send('Performance.enable');
           const scriptPath='/'+lane+'.js?trial='+trial;
           const sample=await measureScript(session,async()=>{
             await page.addScriptTag({url:base+scriptPath});
-            const result=await page.evaluate(()=>{
+            return page.evaluate(()=>{
               const globals=/** @type {Record<string,any>} */ (globalThis);
-              return globals.__budgetResult;
+              return globals.module.exports;
             });
-            return result.values;
           });
-          const wall=await page.evaluate(()=>{
+          sample.wallMs=await page.evaluate(()=>{
             const globals=/** @type {Record<string,any>} */ (globalThis);
-            return globals.__budgetResult.wallMs;
+            return globals.__wallMs;
           });
-          sample.wallMs=wall;
           assert.ok(sample.scriptMs>0&&sample.taskMs>0,lane+' renderer deltas must be positive');
           samples[lane]=sample;
+        } finally {
+          await session.detach();
+          await page.close();
         }
-        const native=samples.native;
-        const protectedSample=samples.protected;
-        assert.ok(native&&protectedSample,'Both lanes must be measured');
-        assert.deepEqual(native.values,protectedSample.values,'native/protected result parity');
-        rows.push({trial,order,native,protected:protectedSample});
       }
-    } finally {
-      await session.detach();
-      await page.close();
+      const native=samples.native;
+      const protectedSample=samples.protected;
+      assert.ok(native&&protectedSample,'Both lanes must be measured');
+      assert.deepEqual(native.values,protectedSample.values,'native/protected result parity');
+      rows.push({trial,order,native,protected:protectedSample});
     }
     const nativeScript=rows.map(row=>row.native.scriptMs);
     const protectedScript=rows.map(row=>row.protected.scriptMs);
@@ -166,7 +165,7 @@ async function runChromium(options={}) {
       scriptBudget:pairedBudgetBound(nativeScript,protectedScript,{threshold:2.5,confidence:0.95}),
       taskBudget:pairedBudgetBound(nativeTask,protectedTask,{threshold:2.5,confidence:0.95}),
       clock:'CDP Performance.getMetrics ScriptDuration and TaskDuration (renderer main thread); page performance.now is diagnostic only',
-      scope:'Single COO strict CommonJS-style script. Each sample includes decoder initialization, function creation, three 100k calls and one hot call. Not process-wide CPU, worker CPU, SCO/SNO, cross-browser, or full-session acceptance.'
+      scope:'Single COO strict CommonJS-style script. Each sample includes decoder initialization and three 100k calls plus one hot call. Not process-wide CPU, worker CPU, SCO/SNO, cross-browser, or full-session acceptance.'
     };
   } finally {
     await browser.close();
