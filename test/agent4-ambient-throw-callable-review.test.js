@@ -317,3 +317,17 @@ test('implicit arguments access keeps local call actuals fail-closed',()=>{
   assert.equal(hidden.hostHeldCallable,true);
   assert.equal(hidden.safe,false);
 });
+
+
+test('nested arrow access to the enclosing arguments object remains fail-closed',()=>{
+  const source=
+    'function hidden(){return 1;}'+
+    'function consume(){return ()=>arguments[0];}'+
+    'function entry(){return consume(hidden);}'+
+    'module.exports=entry;';
+  const result=analyze(source);
+  const hidden=named(result,'hidden')[0];
+  assert.ok(hidden);
+  assert.equal(hidden.hostHeldCallable,true);
+  assert.equal(hidden.safe,false);
+});
