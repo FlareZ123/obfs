@@ -990,3 +990,63 @@ The combined regression bundle passed on Ubuntu and Windows with all focused JSD
 Current code head: ca4e3c34451bc4ff01d5f6f6f0f9ab54c8f2e981. The report addenda are at im-results/agent4-local-record-receiver-proof-2026-11-25.md (commit b8ea52e75680e484a2327ee4039549d6b1c2068a) and im-results/agent4-class-field-escape-precision-2026-11-25.md (commit 5364085e25180e3e2e5dabde73af3c33bc264eed). Follow-ups to Agent 9 and Agent 3 were sent at communications/agent9/20261125T0914Z_agent4-combined-regression-green.md and communications/agent3/20261125T0914Z_agent4-combined-regression-green.md.
 
 Next: await Agent 9/Agent 3 review when useful; keep the donor isolated. The combined bundle is focused validation only, not full repository acceptance, SourceObservationPlan integration, cross-file/import flow, runtime performance, or 2.5x compliance.
+
+
+### 2026-11-25T09:21:36.093Z checkpoint: identifier-resolved class-field receiver falsifiers and final bundle
+
+Agent 10 contributed two more adversarial controls: a function-declaration field initializer and a const-bound function-expression field initializer whose function body uses this.callback to publish a sibling field. The prior helper scanned inline function/arrow field values but did not inspect function bodies reached through identifier initializers. This was a remaining false-safe.
+
+Updated isSafeClassFieldInitializer to resolve identifier initializers to their function node and scan that function body for ThisExpression/Super. This now applies to both direct function/arrow expressions and identifier-resolved function values. Added Agent 10's two controls to test/agent4-class-field-escape-precision.test.js.
+
+The resulting 19-case class-field matrix passed on Ubuntu and Windows with focused JSDoc stages in run 45583899687. The final combined regression bundle passed on Ubuntu and Windows with focused JSDoc stages in run 45584385411. It loads the 16-case local-record matrix, 19-case class-field matrix, existing Agent 4 ambient-throw/callable suite, and existing Agent 9 BindingId suite.
+
+Final donor code head: 804db5fc908b7ad71a97cc107a4eb5584db0ad07. Latest report addenda: im-results/agent4-class-field-escape-precision-2026-11-25.md (commit b78a37f12665002577dbf8c394578e7c63bfb94f) and im-results/agent4-local-record-receiver-proof-2026-11-25.md (commit b5c24beefe7dccece070ecd17e6b4918749e6ee0).
+
+Follow-ups sent to Agent 9, Agent 3, and Agent 10 at communications/agent9/20261125T0921Z_agent4-identifier-field-guard-final-green.md, communications/agent3/20261125T0921Z_agent4-identifier-field-guard-final-green.md, and communications/agent10/20261125T0921Z_agent4-identifier-field-guard-green.md.
+
+Next: await review/counterexamples from Agent 9/Agent 3/Agent 10. Keep the branch experimental; no production integration, SourceObservationPlan acceptance, cross-file/import analysis, full repository acceptance, runtime benchmark, or 2.5x claim. Continue productive research until the measured 70-minute lease-age threshold; do not refresh the lease.
+
+
+### 2026-11-25T09:25:21.566Z checkpoint: prototype-setter semantics and 20-case final bundle
+
+Added a final class-field semantic control: an inherited Object.prototype setter for the same property key must not observe a public class field definition. This is consistent with class fields defining own data properties rather than performing [[Set]] through the prototype. The 20-case class-field matrix passed on Ubuntu and Windows with all focused JSDoc stages in run 45584754204.
+
+The combined regression bundle was rerun after this test and passed on Ubuntu and Windows with all focused JSDoc stages in run 45584933625. It loads the 16-case local-record matrix, 20-case class-field matrix, existing Agent 4 ambient-throw/callable suite, and existing Agent 9 BindingId suite.
+
+Current donor code head remains 804db5fc908b7ad71a97cc107a4eb5584db0ad07; current branch head is 84c93ab5ea5ad04c5c80898ec90762bc6639c6fc. Updated reports are im-results/agent4-class-field-escape-precision-2026-11-25.md (commit 22656b031876b5051c1d8cff903e03fec9928511) and im-results/agent4-local-record-receiver-proof-2026-11-25.md (commit 57f06b53ff8aa4e26f0d18092dfec2411fabafd9).
+
+Final validation messages were sent to Agent 9, Agent 3, and Agent 10 under communications/agent9/20261125T0925Z_agent4-final-20case-bundle-green.md, communications/agent3/20261125T0925Z_agent4-final-20case-bundle-green.md, and communications/agent10/20261125T0925Z_agent4-final-20case-bundle-green.md.
+
+Next: continue only if useful, inspect review responses and branch state, and prepare orderly release at the measured 70-minute lease age. Keep the donor isolated; no production integration, full repository acceptance, cross-file/import flow, runtime benchmark, or 2.5x claim is established.
+
+
+### 2026-11-25T12:17:35.525Z checkpoint: recursive return guards, receiver-aware getters/methods, and classic-script globals
+
+Fast-forwarded the donor branch from Agent 10's `951aa40b24a8056053a561e1a3d330f129d12fb6` snapshot, then added three further soundness layers:
+
+- `callReturnExpressions` now carries a path-local visited-function set using negative source-offset sentinels (disjoint from nonnegative BindingIds), preventing self/mutual recursion from expanding indefinitely while preserving sibling return alternatives.
+- Local member-call returns carry their dynamic receiver; object getters/methods and nested static `this` member paths resolve against that receiver. Known primitive receiver reads stay negative controls; dynamic/opaque `this`/`super` cases fail closed over receiver callables.
+- Carried Agent 10's mutable-local-callee union so reassigned factory bindings contribute all possible callable targets.
+- Reproduced and fixed classic-script global reachability gaps: top-level class declarations were omitted, and known top-level binding values were not traversed. The donor now accounts for top-level class declarations/class-expression bindings, object values, and instances stored through global bindings. Block-scoped class/object and CommonJS module-local negatives remain safe.
+
+Validation:
+- Focused follow-up run `45611473486`: 43 pass / 0 fail / 1 explicit TODO on Ubuntu and Windows; strict project, external, and paired/runtime-budget JSDoc all pass on both.
+- Final combined donor bundle run `45611999779`: 165 tests / 164 pass / 0 fail / 1 TODO on Ubuntu and Windows; all three strict JSDoc stages pass on both. Bundle includes the Agent 10 captured-instance runtime witness; its Node vm test confirms the external host receives the hidden function and `Function.prototype.toString` matches `function hidden`.
+- The only TODO is private-object ownership through a known local function parameter; keep it fail-closed.
+
+Current donor branch head: `0b0bbec0ea0ed3fc1b49cf6cebf51a3de92dc22e`. Report: `im-results/agent4-ambient-call-bindingid-recursive-this-script-global-2026-11-25.md` (commit `9934ddee3df94dc8066e91cf9e73681c0f0ff61d`). Review requests sent to Agent 3 and Agent 10 at `communications/agent3/20261125T121336Z_agent4-script-global-and-receiver-review.md` and `communications/agent10/20261125T121348Z_agent4-return-cycle-and-this-receiver-review.md`.
+
+Keep this donor isolated. It remains single-file analysis research, not production SourceObservationPlan integration, cross-file/import proof, full repository acceptance, runtime compatibility, runtime performance, or 2.5x-budget evidence. Class getter/method positives may be masked by non-deferral of method-bearing classes; the object-literal getter/method tests are the diagnostic receiver cases. Next: await Agent 3/10 review, ask Agent 9 for independent runtime reproduction, expand multi-file import/shared-reference tests, and preserve the private-mutator TODO until proved.
+
+
+### 2026-11-25T12:28:15.435Z checkpoint: exported getter returns and spread exposure
+
+Extended the member-flow donor after a red ESM export test showed that an exported object getter returning a closed-over module callable was marked as externally reachable, but its returned callable was not. Run `45612665289` isolated the issue (51 pass, 1 fail, 1 TODO).
+
+Added `knownValueExpressions` and `callableNodesExposedByValue`, then applied the expanded callable set to host-held and external-reachability roots as well as classic-script global values. The helper now follows known aliases/factory returns/member reads and collects callables returned by reachable object getters/methods using their receiver. Nested object/array containers, class method returns, object spread, and array spread are included. Tests cover exported ESM getter returns, host-passed getters/methods returning closed-over functions, primitive-return negatives, and spread-based exposure.
+
+Latest combined validation: run `45613731865`, 176 tests / 175 pass / 0 fail / 1 explicit TODO on Ubuntu and Windows. Strict project, external, and paired/runtime-budget JSDoc stages pass on both. Runtime captured-instance witness remains in the bundle.
+
+Current donor head: `a726d91de8277ee19c402c1fd8a9e52f65f7f525`. Updated report: `im-results/agent4-ambient-call-bindingid-recursive-this-script-global-2026-11-25.md` (commit `59440728e9974640be1ccf18caa8912e85914a99`).
+
+Do not promote to production yet. Remaining work: obtain Agent 3/10/9 review, test object spread and global/export roots under independent runtime instrumentation, extend multi-file import/namespace coverage, and retain the private-mutator parameter TODO/fail-closed behavior. The analysis is still single-file and no runtime 2.5x budget has been measured.

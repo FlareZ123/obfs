@@ -8,10 +8,13 @@ AALpy. AALpy is pinned to 2.0.0 by the manual workflow.
 from __future__ import annotations
 
 import argparse
+import hashlib
 import importlib.metadata
 import json
 import math
 import random
+
+import numpy as np
 import signal
 import sys
 import time
@@ -167,7 +170,8 @@ def make_sul(fixture: Fixture):
     return NoResetMealySUL(initialize, step_impl, counters), trace, counters
 
 
-def trace_matching_starts(hypothesis, trace):
+def trace_matching_candidates(hypothesis, trace):
+    """Return every trace-consistent hypothesis start and its post-trace state."""
     matches = []
     for start in hypothesis.states:
         state = start
@@ -178,14 +182,14 @@ def trace_matching_starts(hypothesis, trace):
             if state is None:
                 break
         else:
-            matches.append(start)
+            matches.append({"start": start, "end": state})
     return matches
 
 
-def product_equivalent(fixture: Fixture, hypothesis, hypothesis_start):
-    """Exact BFS product-equivalence check from target initial / candidate start."""
-    queue = deque([(fixture.initial_state, hypothesis_start, tuple())])
-    seen = {(fixture.initial_state, hypothesis_start)}
+def product_equivalent(fixture: Fixture, target_start: int, hypothesis_start):
+    """Exact BFS product equivalence from arbitrary target/hypothesis states."""
+    queue = deque([(target_start, hypothesis_start, tuple())])
+    seen = {(target_start, id(hypothesis_start))}
     while queue:
         target_state, hypothesis_state, prefix = queue.popleft()
         for input_index, letter in enumerate(ALPHABET):
@@ -197,13 +201,170 @@ def product_equivalent(fixture: Fixture, hypothesis, hypothesis_start):
             if next_hypothesis is None:
                 return False, prefix + (letter,)
             next_target = fixture.transitions[target_state][input_index]
-            pair = (next_target, next_hypothesis)
+            pair = (next_target, id(next_hypothesis))
             if pair not in seen:
                 seen.add(pair)
                 queue.append((next_target, next_hypothesis, prefix + (letter,)))
     return True, None
 
 
+def target_state_after_trace(fixture: Fixture, trace):
+    """Replay only the observed input word in the held-out target fixture."""
+    state = fixture.initial_state
+    for letter, _observed_output in trace:
+        state = fixture.transitions[state][ALPHABET.index(letter)]
+    return state
+
+
+def digest_fixture(fixture: Fixture) -> str:
+    payload = {
+        "state_count": fixture.state_count,
+        "transitions": fixture.transitions,
+        "outputs": fixture.outputs,
+        "initial_state": fixture.initial_state,
+    }
+    encoded = json.dumps(payload, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    return hashlib.sha256(encoded).hexdigest()
+
+
+def digest_trace(trace) -> str:
+    encoded = json.dumps(
+        [[letter, output] for letter, output in trace],
+        separators=(",", ":"),
+    ).encode("utf-8")
+    return hashlib.sha256(encoded).hexdigest()
+
+
+def derive_step_metrics(total_steps: int, oracle_steps):
+    """AALpy oracle steps are a subset of total SUL steps, never additive."""
+    if not isinstance(total_steps, int) or total_steps < 0:
+        raise ValueError("total_steps must be a nonnegative integer")
+    if oracle_steps is None:
+        return {
+            "steps_total": total_steps,
+            "steps_oracle": None,
+            "steps_non_oracle": None,
+        }
+    if not isinstance(oracle_steps, int) or oracle_steps < 0 or oracle_steps > total_steps:
+        raise ValueError("oracle_steps must be an integer within total SUL steps")
+    return {
+        "steps_total": total_steps,
+        "steps_oracle": oracle_steps,
+        "steps_non_oracle": total_steps - oracle_steps,
+    }
+
+
+def hypothesis_states_equivalent(left_state, right_state):
+    """Exact product equivalence between two states in the returned conjecture."""
+    queue = [(left_state, right_state)]
+    seen = {(id(left_state), id(right_state))}
+    while queue:
+        left, right = queue.pop(0)
+        for letter in ALPHABET:
+            if left.output_fun.get(letter) != right.output_fun.get(letter):
+                return False
+            left_next = left.transitions.get(letter)
+            right_next = right.transitions.get(letter)
+            if left_next is None or right_next is None:
+                return False
+            pair = (id(left_next), id(right_next))
+            if pair not in seen:
+                seen.add(pair)
+                queue.append((left_next, right_next))
+    return True
+
+
+def evaluate_hypothesis(fixture: Fixture, hypothesis, trace):
+    """Offline-certify the returned conjecture's initial and future behavior.
+
+    Candidate enumeration is limited to states in this returned hypothesis;
+    it is not an enumeration of every machine consistent with the observed trace.
+    The exact product checks are evaluator-only, not learner-side proofs.
+    """
+    matches = trace_matching_candidates(hypothesis, trace)
+    target_post_trace = target_state_after_trace(fixture, trace)
+    candidate_results = []
+    for match in matches:
+        initial_equivalent, initial_counterexample = product_equivalent(
+            fixture, fixture.initial_state, match["start"]
+        )
+        future_equivalent, future_counterexample = product_equivalent(
+            fixture, target_post_trace, match["end"]
+        )
+        candidate_results.append({
+            "initial_state_id": repr(match["start"].state_id),
+            "post_trace_state_id": repr(match["end"].state_id),
+            "full_initial_model_equivalent": initial_equivalent,
+            "initial_counterexample": (
+                list(initial_counterexample) if initial_counterexample else None
+            ),
+            "post_trace_future_equivalent": future_equivalent,
+            "future_counterexample": (
+                list(future_counterexample) if future_counterexample else None
+            ),
+        })
+
+    complete = all(
+        letter in state.transitions and letter in state.output_fun
+        for state in hypothesis.states
+        for letter in ALPHABET
+    )
+    initial_flags = [
+        item["full_initial_model_equivalent"] for item in candidate_results
+    ]
+    future_flags = [
+        item["post_trace_future_equivalent"] for item in candidate_results
+    ]
+    candidate_count = len(matches)
+    target_initial_present = any(initial_flags)
+    target_future_present = any(future_flags)
+    all_initial_equivalent = candidate_count > 0 and all(initial_flags)
+    all_future_equivalent = candidate_count > 0 and all(future_flags)
+    end_representatives = []
+    for match in matches:
+        if not any(
+            hypothesis_states_equivalent(representative, match["end"])
+            for representative in end_representatives
+        ):
+            end_representatives.append(match["end"])
+    candidate_end_classes = len(end_representatives)
+    candidate_end_unambiguous = (
+        complete and candidate_count > 0 and candidate_end_classes == 1
+    )
+    exact_initial_clone = candidate_count == 1 and initial_flags[0]
+
+    return {
+        "matches": matches,
+        "candidate_results": candidate_results,
+        "hypothesis_complete": complete,
+        "target_post_trace_state": target_post_trace,
+        "candidate_count": candidate_count,
+        "candidate_end_equivalence_classes": candidate_end_classes,
+        "candidate_end_behavior_unambiguous": candidate_end_unambiguous,
+        "attacker_initial_state_identified": candidate_count == 1,
+        "target_initial_behavior_present": target_initial_present,
+        "all_trace_candidates_initial_equivalent": all_initial_equivalent,
+        "returned_hypothesis_initial_behavior_certified": all_initial_equivalent,
+        "target_future_behavior_present": target_future_present,
+        "all_trace_candidates_future_equivalent": all_future_equivalent,
+        "returned_hypothesis_future_behavior_certified": all_future_equivalent,
+        "exact_initial_clone_success": exact_initial_clone,
+        "future_clone_success": all_future_equivalent,
+        "ambiguous_initial_state": candidate_count > 1,
+        "ambiguous_initial_behavior": (
+            target_initial_present and not all_initial_equivalent
+        ),
+        "ambiguous_future_behavior": (
+            target_future_present and not all_future_equivalent
+        ),
+        "no_trace_matching_candidate": candidate_count == 0,
+        "false_initial_convergence": (
+            complete and candidate_count > 0 and not target_initial_present
+        ),
+        "false_future_convergence": (
+            complete and candidate_count > 0 and not target_future_present
+        ),
+    }
 def run_one(
     state_count: int,
     seed: int,
@@ -215,6 +376,7 @@ def run_one(
     sul, trace, counters = make_sul(fixture)
     oracle_seed = (seed * 0x9E3779B1 + state_count * 0x85EBCA77) & 0xFFFFFFFF
     random.seed(oracle_seed)
+    np.random.seed(oracle_seed)
     oracle = RandomWphWOracle(
         random_walk_length=random_walk_length,
         num_test_origin_states=origin_states,
@@ -244,6 +406,8 @@ def run_one(
             "post_calls": counters["post_calls"],
             "query_calls": counters["query_calls"],
             "trace_steps": len(trace),
+            "fixture_digest": digest_fixture(fixture),
+            "trace_digest": digest_trace(trace),
         }
     except Exception as error:
         return {
@@ -263,36 +427,22 @@ def run_one(
         signal.signal(signal.SIGALRM, old_handler)
 
     elapsed = time.monotonic() - started
-    candidates = trace_matching_starts(hypothesis, trace)
-    candidate_results = []
-    for candidate in candidates:
-        equivalent, counterexample = product_equivalent(
-            fixture, hypothesis, candidate
+    evaluation = evaluate_hypothesis(fixture, hypothesis, trace)
+    candidates = evaluation["matches"]
+    if len(candidates) == 1:
+        hypothesis.initial_state = candidates[0]["start"]
+        hypothesis.current_state = candidates[0]["start"]
+
+    step_metrics = derive_step_metrics(
+        sul.num_steps, getattr(oracle, "num_steps", None)
+    )
+    if info.get("steps_learning") != sul.num_steps:
+        raise AssertionError(
+            "AALpy steps_learning is expected to equal total SUL steps: "
+            f"{info.get('steps_learning')} != {sul.num_steps}"
         )
-        candidate_results.append({
-            "state_id": repr(candidate.state_id),
-            "product_equivalent": equivalent,
-            "counterexample": list(counterexample) if counterexample else None,
-        })
-
-    complete = all(
-        letter in state.transitions and letter in state.output_fun
-        for state in hypothesis.states
-        for letter in ALPHABET
-    )
-    equivalent_count = sum(
-        1 for item in candidate_results if item["product_equivalent"]
-    )
-    unique_trace_start = len(candidates) == 1
-    exact_clone = (
-        unique_trace_start
-        and equivalent_count == 1
-        and candidate_results[0]["product_equivalent"]
-    )
-
-    if unique_trace_start:
-        hypothesis.initial_state = candidates[0]
-        hypothesis.current_state = candidates[0]
+    fixture_hash = digest_fixture(fixture)
+    trace_hash = digest_trace(trace)
 
     if counters["pre_calls"] != 1 or counters["post_calls"] != 1:
         raise AssertionError(f"unexpected SUL lifecycle: {counters}")
@@ -309,28 +459,49 @@ def run_one(
         "oracle_seed": oracle_seed,
         "status": "completed",
         "target_initial_state": fixture.initial_state,
+        "target_post_trace_state": evaluation["target_post_trace_state"],
+        "candidate_end_equivalence_classes": evaluation["candidate_end_equivalence_classes"],
+        "candidate_end_behavior_unambiguous": evaluation["candidate_end_behavior_unambiguous"],
         "target_minimal": True,
         "target_strongly_connected": True,
         "fixture_generation_attempts": fixture.generation_attempts,
+        "fixture_digest": fixture_hash,
+        "trace_digest": trace_hash,
         "hypothesis_states": len(hypothesis.states),
-        "hypothesis_complete": complete,
-        "trace_matching_initial_candidates": len(candidates),
+        "hypothesis_complete": evaluation["hypothesis_complete"],
+        "trace_matching_initial_candidates": evaluation["candidate_count"],
         "trace_matching_candidate_ids": [
-            repr(candidate.state_id) for candidate in candidates
+            repr(candidate["start"].state_id) for candidate in candidates
         ],
-        "candidate_product_results": candidate_results,
-        "attacker_initial_state_identified": unique_trace_start,
-        "exact_clone_success": exact_clone,
+        "candidate_product_results": evaluation["candidate_results"],
+        "attacker_initial_state_identified": evaluation["attacker_initial_state_identified"],
+        "target_initial_behavior_present": evaluation["target_initial_behavior_present"],
+        "all_trace_candidates_initial_equivalent": evaluation["all_trace_candidates_initial_equivalent"],
+        "returned_hypothesis_initial_behavior_certified": evaluation["returned_hypothesis_initial_behavior_certified"],
+        "target_future_behavior_present": evaluation["target_future_behavior_present"],
+        "all_trace_candidates_future_equivalent": evaluation["all_trace_candidates_future_equivalent"],
+        "returned_hypothesis_future_behavior_certified": evaluation["returned_hypothesis_future_behavior_certified"],
+        "exact_initial_clone_success": evaluation["exact_initial_clone_success"],
+        "exact_clone_success": evaluation["exact_initial_clone_success"],
+        "future_clone_success": evaluation["future_clone_success"],
+        "ambiguous_initial_state": evaluation["ambiguous_initial_state"],
+        "ambiguous_initial_behavior": evaluation["ambiguous_initial_behavior"],
+        "ambiguous_future_behavior": evaluation["ambiguous_future_behavior"],
+        "no_trace_matching_candidate": evaluation["no_trace_matching_candidate"],
+        "false_initial_convergence": evaluation["false_initial_convergence"],
+        "false_future_convergence": evaluation["false_future_convergence"],
         "pre_calls": counters["pre_calls"],
         "post_calls": counters["post_calls"],
         "query_calls": counters["query_calls"],
         "sul_num_queries": sul.num_queries,
         "sul_num_steps": sul.num_steps,
         "trace_steps": len(trace),
-        "oracle_num_steps": getattr(oracle, "num_steps", None),
+        "steps_total": step_metrics["steps_total"],
+        "steps_oracle": step_metrics["steps_oracle"],
+        "steps_non_oracle": step_metrics["steps_non_oracle"],
+        "aalpy_steps_learning_raw": info.get("steps_learning"),
+        "aalpy_steps_eq_oracle_raw": info.get("steps_eq_oracle"),
         "learning_rounds": info.get("learning_rounds"),
-        "steps_learning": info.get("steps_learning"),
-        "steps_eq_oracle": info.get("steps_eq_oracle"),
         "homing_sequence_length": len(info.get("homing_sequence") or []),
         "characterization_set_size": len(info.get("characterization_set") or []),
         "elapsed_seconds": round(elapsed, 3),
@@ -386,8 +557,10 @@ def main():
             },
             "query_for_initial_state": False,
             "reset_policy": "one pre() initialization; post() is a no-op; query() raises",
-            "initial_state_recovery": "match the entire observed continuous trace against every hypothesis state",
-            "evaluator": "exact BFS product equivalence; target is not passed to learner",
+            "initial_state_recovery": "retain every trace-consistent (start, post-trace) hypothesis-state pair",
+            "evaluator": "offline exact BFS product equivalence from target initial and post-trace states; target is not passed to learner",
+            "candidate_scope": "trace-consistent states in the returned conjecture only; not all machines consistent with the observation",
+            "learner_equivalence_oracle": "bounded randomized random-walk tests; heuristic, not exact",
         },
         "aalpy_version": importlib.metadata.version("aalpy"),
         "total_runs": len(results),
@@ -399,6 +572,15 @@ def main():
         ),
         "initial_state_identified": sum(
             bool(r.get("attacker_initial_state_identified")) for r in completed
+        ),
+        "future_clone_successes": sum(
+            bool(r.get("future_clone_success")) for r in completed
+        ),
+        "ambiguous_future_behavior_runs": sum(
+            bool(r.get("ambiguous_future_behavior")) for r in completed
+        ),
+        "false_future_convergences": sum(
+            bool(r.get("false_future_convergence")) for r in completed
         ),
         "results": results,
         "elapsed_seconds": round(time.monotonic() - started, 3),
