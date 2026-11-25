@@ -8,7 +8,7 @@ const {evaluateProjectedAffineModel} = require('./projected-affine-coset-profile
 /** @typedef {{kind:'anf',bits:number,lower:Array<[number,number]>,top:Array<[number,number]>,degree:4|5}} AnfModel */
 /** @typedef {ProjectedModel|AnfModel} HybridModel */
 /** @typedef {'six-direction'|'seven-direction-restart'} WitnessStrategy */
-/** @typedef {{fastPathSuccess:boolean,witnessStrategy:WitnessStrategy,witnessTrials:number,witnessDrawCount:number,witnessProbability:number,witnessFailureBound:number,quotientRank:number|null,coordinateStrategy:'shift'|'signature'|null,fixedPairPassed:boolean|null,fastQueries:number,verificationQueries:number,verificationSamples:number,verificationCap:number,verificationDelta:number,falseAcceptanceBound:number,verificationPassed:boolean,fallbackUsed:boolean,fallbackReason:string|null,fallbackQueries:number,exactByInterpolation:boolean}} Diagnostics */
+/** @typedef {{fastPathSuccess:boolean,witnessStrategy:WitnessStrategy,witnessTrials:number,witnessTrialCap:number,witnessDrawCount:number,witnessProbability:number,witnessFailureBound:number,quotientRank:number|null,coordinateStrategy:'shift'|'signature'|null,fixedPairPassed:boolean|null,fastQueries:number,verificationQueries:number,verificationSamples:number,verificationCap:number,verificationDelta:number,falseAcceptanceBound:number,verificationPassed:boolean,fallbackUsed:boolean,fallbackReason:string|null,fallbackQueries:number,exactByInterpolation:boolean}} Diagnostics */
 /** @typedef {{model:HybridModel,queries:number,diagnostics:Diagnostics}} CloneResult */
 
 /** @returns {number} */
@@ -239,10 +239,11 @@ function cloneTopDerivativeProjectedAffine(
       diagnostics:{
         fastPathSuccess:false,
         witnessTrials,
+        witnessTrialCap,
         witnessStrategy,
         witnessDrawCount:witnessTrials * directionCount,
         witnessProbability,
-        witnessFailureBound:Math.pow(1-witnessProbability,witnessTrials),
+        witnessFailureBound:Math.pow(1-witnessProbability,witnessTrialCap),
         quotientRank:null,
         coordinateStrategy,
         fixedPairPassed,
@@ -471,6 +472,7 @@ function main() {
         1e-10,() => {},'seven-direction-restart'
       );
       assert.equal(result.diagnostics.witnessStrategy,'seven-direction-restart');
+      assert.equal(result.diagnostics.witnessTrialCap,18);
       assert.equal(result.diagnostics.fastPathSuccess,true);
       assert.equal(result.diagnostics.fallbackUsed,false);
       assert.equal(result.diagnostics.witnessDrawCount,result.diagnostics.witnessTrials * 7);
