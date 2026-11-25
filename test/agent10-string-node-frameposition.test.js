@@ -72,7 +72,7 @@ test('strict ESM Node host callback observes stable module FramePosition after s
   for(const mode of modes) {
     const output=obfuscateFiles([{path:'generated.mjs',sourceType:'module',code:source}],{
       mode,closedWorld:true,seed:'agent10-string-node-frame-'+mode,
-      identifiers:false,strings:true,properties:false
+      identifiers:false,strings:true,properties:false,experimentalPreserveFramePositions:true
     }).files[0];
     assert.ok(output.metrics.literals>0,mode+' must transform the long string literal');
     const payload=await runProbe(source,String(output.code),mode);
