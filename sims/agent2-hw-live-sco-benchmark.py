@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import importlib.metadata
 import hashlib
 import importlib.util
 import json
@@ -385,7 +386,7 @@ def main():
     errors = [row for row in results if row["status"] == "error"]
     output = {
         "benchmark": "agent2-live-http-no-reset-hW",
-        "aalpy_version": __import__("importlib.metadata").metadata.version("aalpy"),
+        "aalpy_version": importlib.metadata.version("aalpy"),
         "scope": {
             "state_counts": [args.min_states, args.max_states],
             "seeds_per_state_count": args.seeds,
