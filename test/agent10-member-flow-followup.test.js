@@ -243,3 +243,18 @@ test('an exported expression-bodied factory cannot hide its returned class-field
   assert.ok(hidden.hostHeldCallable||hidden.externallyReachable,
     'the returned callable must inherit an external observation/escape effect');
 });
+
+
+test('an exported ESM expression-bodied factory cannot hide its returned class-field callable',()=>{
+  const source=
+    'function hidden(){return 1;}'+
+    'class Local{callback=hidden;}'+
+    'export const create=()=>new Local();';
+  const result=summarizeAmbientCallEffects(parse(source,'module'),'module');
+  const hidden=named(result,'hidden')[0];
+  assert.ok(hidden,'the hidden function must have an analysis summary');
+  assert.equal(hidden.safe,false,
+    'an ESM importer can invoke the exported concise factory and inspect the returned field');
+  assert.equal(hidden.hostHeldCallable,true,
+    'the returned class-field callable must be marked held across the ESM export boundary');
+});
