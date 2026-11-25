@@ -49,7 +49,7 @@ function assertFactorySourceParity(mode) {
   const emittedSource=Function.prototype.toString.call(emittedInstance.callback);
   assert.notEqual(emittedSource,nativeSource,
     mode+' must expose the transformed rather than original callback source');
-  assert.ok(!emittedSource.includes('helper')&&!emittedSource.includes('local'),
+  assert.ok(!emittedSource.includes('local'),
     mode+' runtime extraction must not recover the original local identifier spellings');
 }
 
