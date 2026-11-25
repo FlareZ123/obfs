@@ -2375,12 +2375,22 @@ function summarizeAmbientCallEffects(ast,sourceType) {
 
     if(constructorNode) {
       if(!constructorNode.body)return false;
+      let constructorHasCallOrRead=false;
       walkAst(constructorNode.body,node=>{
+        if(node.type==='CallExpression'||node.type==='NewExpression')
+          constructorHasCallOrRead=true;
+        if(node.type==='MemberExpression'&&node.object.type==='ThisExpression'&&
+           staticPropertyKey(node.property,node.computed)===propertyKey) {
+          const parent=parentByNode.get(node);
+          if(!(parent?.type==='AssignmentExpression'&&parent.left===node))
+            constructorHasCallOrRead=true;
+        }
         if(node.type==='AssignmentExpression'&&node.left.type==='MemberExpression'&&
            node.left.object.type==='ThisExpression'&&
            staticPropertyKey(node.left.property,node.left.computed)===propertyKey)
           writes.push({node,value:node.right,kind:'constructor'});
       });
+      if(constructorHasCallOrRead)return false;
       let objectReturn=false;
       walkAst(constructorNode.body,node=>{
         if(node.type==='ReturnStatement'&&node.argument&&
@@ -2401,12 +2411,21 @@ function summarizeAmbientCallEffects(ast,sourceType) {
         element.type==='MethodDefinition'&&element.kind==='constructor');
       if(classConstructor?.value?.body) {
         let objectReturn=false;
+        let constructorHasCallOrRead=false;
         walkAst(classConstructor.value.body,node=>{
+          if(node.type==='CallExpression'||node.type==='NewExpression')
+            constructorHasCallOrRead=true;
+          if(node.type==='MemberExpression'&&node.object.type==='ThisExpression'&&
+             staticPropertyKey(node.property,node.computed)===propertyKey) {
+            const parent=parentByNode.get(node);
+            if(!(parent?.type==='AssignmentExpression'&&parent.left===node))
+              constructorHasCallOrRead=true;
+          }
           if(node.type==='ReturnStatement'&&node.argument&&
              node.argument.type!=='ThisExpression'&&!isDefinitelyPrimitive(node.argument))
             objectReturn=true;
         });
-        if(objectReturn)return false;
+        if(objectReturn||constructorHasCallOrRead)return false;
       }
     }
     if(writes.length!==1)return false;
@@ -2419,6 +2438,11 @@ function summarizeAmbientCallEffects(ast,sourceType) {
       if(!constructorNode?.body||!isUnconditionalWithin(ownWrite.node,constructorNode.body))return false;
     }
 
+    let ownValueHasCall=false;
+    walkAst(ownWrite.value,node=>{
+      if(node.type==='CallExpression'||node.type==='NewExpression')ownValueHasCall=true;
+    });
+    if(ownValueHasCall)return false;
     const ownCallables=callableNodesForValue(ownWrite.value);
     const prototypeCallables=callableNodesForValue(assignment.right);
     if(prototypeCallables.length===0)return false;
