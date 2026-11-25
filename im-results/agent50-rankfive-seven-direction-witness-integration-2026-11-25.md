@@ -98,7 +98,7 @@ The reported means are descriptive baseline-versus-hybrid comparisons using inde
 
 Artifacts: Ubuntu `14983952737`; Windows `14984095981`.
 
-The live HTTP sample validates integration on the fixed fast path. It is too small and too noisy to resolve a roughly 1.5-query expected difference between six- and seven-direction policies. Pre-candidate exact ANF fallback is covered by local peer controls, not by this HTTP run.
+The live HTTP sample validates integration on the fixed fast path. It is too small and too noisy to resolve a roughly 1.5-query expected difference between six- and seven-direction policies. The live HTTP adapter is currently fast-path-only: its result handler requires candidate-ready verifier-tape release, and it applies the 2,479 fast-path query cap unconditionally. A fallback result (no candidate-ready event and potentially up to 242,825 ANF basis queries) is therefore rejected by the HTTP wrapper. Exact fallback is validated only in the pure learner/peer harness, not over HTTP. Supporting fallback through this adapter is deferred; it would require conditional verifier-release assertions and a separate fallback query budget.
 
 ## Limitations and disposition
 
