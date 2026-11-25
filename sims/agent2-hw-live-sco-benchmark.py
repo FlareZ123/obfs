@@ -149,16 +149,25 @@ def start_server(fixture, seed: int):
         raise
 
 def preflight(
-    origin: str, public_path: str, rpc_path: str, canary: str, session_token: str
+    origin: str,
+    public_path: str,
+    rpc_path: str,
+    canary: str,
+    session_token: str,
+    method_name: str,
 ):
     with urllib.request.urlopen(origin + public_path, timeout=10) as response:
         if response.status != 200:
             raise AssertionError(f"public module returned HTTP {response.status}")
         public_source = response.read().decode("utf-8")
         set_cookie = response.headers.get("Set-Cookie")
+        published_method_name = response.headers.get("X-SCO-Method")
 
     cookie_value = set_cookie.split(";", 1)[0] if set_cookie else None
     session_cookie_issued = cookie_value == "session=" + session_token
+    method_name_published = published_method_name == method_name
+    if not method_name_published:
+        raise AssertionError("public module response did not publish its RPC method identifier")
     session_token_in_public_module = session_token in public_source
     source_disclosed = any(
         token in public_source
@@ -166,6 +175,8 @@ def preflight(
     )
     if not session_cookie_issued:
         raise AssertionError("public module response did not issue the expected session cookie")
+    if not method_name_published:
+        raise AssertionError("public module response did not publish the expected RPC method")
     if source_disclosed:
         raise AssertionError("private source marker or session token appeared in public module")
 
@@ -199,6 +210,7 @@ def preflight(
         "source_disclosed": source_disclosed,
         "session_cookie_issued": session_cookie_issued,
         "session_token_in_public_module": session_token_in_public_module,
+        "method_name_published": method_name_published,
         "source_bytes": len(public_source.encode("utf-8")),
         "source_sha256": hashlib.sha256(public_source.encode("utf-8")).hexdigest(),
         "unauthorized_status": unauthorized_status,
@@ -276,13 +288,13 @@ def run_one(state_count: int, seed: int, args):
             ready["rpc_path"],
             canary,
             session_token,
+            ready["method_name"],
         )
         client_script = Path(__file__).with_name("agent2-hw-live-sco-client.py")
         command = [
             sys.executable,
             str(client_script),
             "--origin", ready["origin"],
-            "--method-name", ready["method_name"],
             "--oracle-seed", str(oracle_seed),
             "--random-walk-length", str(args.random_walk_length),
             "--origin-states", str(args.origin_states),
@@ -354,6 +366,8 @@ def run_one(state_count: int, seed: int, args):
             raise AssertionError("learner did not fetch the public client module")
         if not client_result["client_cookie_present"]:
             raise AssertionError("learner did not obtain a session cookie from HTTP")
+        if client_result["client_method_name"] != ready["method_name"]:
+            raise AssertionError("learner did not obtain the public RPC method identifier")
         if server_stats["authorized_rpc_requests"] != expected_steps:
             raise AssertionError(f"unexpected authorized RPC requests: {server_stats}")
         if server_stats["unauthorized_rpc_requests"] != 1:
@@ -374,6 +388,9 @@ def run_one(state_count: int, seed: int, args):
             "session_token_in_public_module": preflight_result["session_token_in_public_module"],
             "client_module_fetch_status": client_result["client_module_fetch_status"],
             "client_cookie_present": client_result["client_cookie_present"],
+            "method_name_published": preflight_result["method_name_published"],
+            "client_method_name": client_result["client_method_name"],
+            "client_method_name_matches": client_result["client_method_name"] == ready["method_name"],
             "client_module_source_disclosed": client_result["client_module_source_disclosed"],
             "source_bytes": preflight_result["source_bytes"],
             "source_sha256": preflight_result["source_sha256"],
@@ -473,7 +490,7 @@ def main():
             "random_walk_length": args.random_walk_length,
             "origin_states": args.origin_states,
             "timeout_seconds": args.timeout_seconds,
-            "learner_process": "separate Python subprocess; receives only HTTP origin and method name, fetches the public module, and obtains its session cookie from Set-Cookie",
+            "learner_process": "separate Python subprocess; receives only HTTP origin, fetches the public module, and obtains its RPC method identifier and session cookie from response headers",
             "server_process": "Node SCO process run as uid nobody; private fixture and per-run session token supplied over stdin and held in server memory/private temp directory",
             "evaluator": "parent process only; target fixture is not passed to learner subprocess",
             "candidate_scope": "trace-matching states in the returned conjecture only, not the full model version space",
