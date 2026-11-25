@@ -311,7 +311,7 @@ def exact_order_dp(model, sequence):
 
 
 def trial_direction_cache_costs(model, sequence, metrics):
-    """Exact coordinate-stage query expectation with all trial directions in the basis."""
+    """Exact coordinate-stage query expectation with the successful trial's m directions in the basis."""
     width = model["m"]
     kernel_count = len(model["kernels"])
     prefix_caches = []
