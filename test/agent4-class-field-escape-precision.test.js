@@ -219,3 +219,17 @@ test('a field closure publishing this.callback keeps the field callable held',()
     'the field closure can publish this.callback when invoked locally');
   assert.equal(hidden.safe,false);
 });
+
+
+test('a field initializer function that uses this is not deferred through its binding',()=>{
+  const source=
+    'function hidden(){external(this.callback);}'+
+    'class Local{callback=hidden;}'+
+    'function entry(){const instance=new Local();instance.callback();}'+
+    'module.exports=entry;';
+  const hidden=named(analyze(source),'hidden')[0];
+  assert.ok(hidden);
+  assert.equal(hidden.hostHeldCallable,true,
+    'the field function can publish its own instance field through this.callback');
+  assert.equal(hidden.safe,false);
+});
