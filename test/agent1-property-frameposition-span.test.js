@@ -137,7 +137,7 @@ test('experimental local property-span mode is opt-in and works in all three mod
 test('strict CommonJS Module._compile frame positions survive local property-span rewrites',()=>{
   const cjsSource="'use strict';const owner={longPrivatePropertyName:21};const value=owner.longPrivatePropertyName;captureHostStack();module.exports=value;";
   const output=obfuscateFiles([{
-    path:'generated.cjs',sourceType:'script',code:cjsSource
+    path:'generated.cjs',sourceType:'commonjs',code:cjsSource
   }],{
     mode:'coo',closedWorld:false,seed:'agent1-cjs-property-frameposition',
     identifiers:false,strings:false,properties:true,
