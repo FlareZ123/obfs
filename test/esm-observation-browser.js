@@ -11,7 +11,7 @@ const {normalizePublicFields}=require('../sims/public-token-normalizer');
 const runBrowser=promisify(execFile);
 
 /** @typedef {{path:string,sourceType:'module',code:string}} BrowserSource */
-/** @typedef {{name:string,kind?:number,renamed:number,files?:BrowserSource[]}} BrowserCase */
+/** @typedef {{name:string,kind?:number,renamed:number,files?:BrowserSource[],properties?:boolean,identifiers?:boolean}} BrowserCase */
 
 /** @type {BrowserCase[]} */
 const CASES=[
@@ -25,6 +25,12 @@ const CASES=[
     {path:'state.mjs',sourceType:'module',code:'export default {length:23};'},
     {path:'entry.mjs',sourceType:'module',code:
       'import source from "./state.mjs" with {type:"text"};export const value=source.length??-1;'}
+  ]},
+  {name:'text-import-observes-identifier-rewrite',renamed:0,properties:false,identifiers:true,files:[
+    {path:'state.mjs',sourceType:'module',code:
+      'const privateValue=23;export default {length:privateValue};'},
+    {path:'entry.mjs',sourceType:'module',code:
+      'import source from "./state.mjs" with {type:"text"};export const value=source.length;'}
   ]}
 ];
 
@@ -79,7 +85,8 @@ async function main() {
       makeFixture(7,item.kind??0);
     if(item.kind!==undefined)assert.equal(fixture.scenario,SCENARIOS[item.kind]);
     const protectedFiles=obfuscateFiles(fixture.files,{
-      mode:'coo',closedWorld:true,identifiers:false,strings:false,
+      mode:'coo',closedWorld:true,properties:item.properties,
+      identifiers:item.identifiers??false,strings:false,
       seed:'esm-observer-browser-'+item.name
     });
     assert.equal(protectedFiles.crossFile.properties,item.renamed,
