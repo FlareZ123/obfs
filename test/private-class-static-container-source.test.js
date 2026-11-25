@@ -43,6 +43,28 @@ const fixtures=[
       '}',
       'module.exports=Outer;'
     ].join('\n')
+  },
+  {
+    label:'direct owner read in class-expression static block',
+    code:[
+      'const Outer=class Outer{',
+      '  static{',
+      '    const owner={secretField:7};',
+      '    this.value=owner.secretField;',
+      '  }',
+      '};',
+      'module.exports=Outer;'
+    ].join('\n')
+  },
+  {
+    label:'direct owner read in class-expression static field initializer',
+    code:[
+      'const owner={secretField:7};',
+      'const Outer=class Outer{',
+      '  static value=owner.secretField;',
+      '};',
+      'module.exports=Outer;'
+    ].join('\n')
   }
 ];
 
