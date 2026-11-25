@@ -22,7 +22,7 @@ test('string-only encoding preserves later strict-ESM FramePosition',{
   const generated=parseFrame(payload.stacks[1],'/generated-string.mjs');
   process.stdout.write('AGENT10_STRING_FRAMEPOSITION '+JSON.stringify({
     literals:output.metrics.literals,native,generated,values:payload.values
-  })+'\\n');
+  })+'\n');
   assert.equal(generated.line,native.line);
   assert.equal(generated.column,native.column);
 });
