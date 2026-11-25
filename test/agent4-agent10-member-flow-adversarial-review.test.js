@@ -168,3 +168,70 @@ test('a function constructor assignment exposes its callable instance field',()=
   assertHeldAndObserved(source,
     'the function constructor assigns hidden to the instance callback field');
 });
+
+
+test('an unknown computed object key can supply a callable property',()=>{
+  const source=
+    'function entry(){'+
+    'function hidden(){return 1;}'+
+    'const owner={[globalThis.FIELD_NAME]:hidden};'+
+    'external(owner.callback);'+
+    '}'+
+    'module.exports=entry;';
+  assertHeldAndObserved(source,
+    'the runtime computed key is callback and supplies the observed callable',
+    {FIELD_NAME:'callback'});
+});
+
+test('a later unknown computed object key can overwrite an explicit callable property',()=>{
+  const source=
+    'function entry(){'+
+    'function hidden(){return 1;}'+
+    'const owner={callback:()=>0,[globalThis.FIELD_NAME]:hidden};'+
+    'external(owner.callback);'+
+    '}'+
+    'module.exports=entry;';
+  assertHeldAndObserved(source,
+    'a later computed key evaluates to callback and overwrites the earlier value',
+    {FIELD_NAME:'callback'});
+});
+
+test('an earlier unknown computed key is overwritten by a later explicit property',()=>{
+  const source=
+    'function entry(){'+
+    'function hidden(){return 1;}'+
+    'const owner={[globalThis.FIELD_NAME]:hidden,callback:()=>0};'+
+    'external(owner.callback);'+
+    '}'+
+    'module.exports=entry;';
+  const observed=invokeExternal(source,{FIELD_NAME:'callback'});
+  assert.equal(typeof observed,'function');
+  assert.notEqual(/** @type {{name?:unknown}} */ (observed).name,'hidden');
+  const summary=hiddenSummary(source);
+  assert.equal(summary.hostHeldCallable,false);
+  assert.equal(summary.safe,true);
+});
+
+test('an object method side-effect sink resolves this.callback through its call receiver',()=>{
+  const source=
+    'function entry(){'+
+    'function hidden(){return 1;}'+
+    'const owner={callback:hidden,publish(){external(this.callback);}};'+
+    'owner.publish();'+
+    '}'+
+    'module.exports=entry;';
+  assertHeldAndObserved(source,
+    'the method side effect publishes the callback field of its actual receiver');
+});
+
+test('an object getter side-effect sink resolves this.callback through its property receiver',()=>{
+  const source=
+    'function entry(){'+
+    'function hidden(){return 1;}'+
+    'const owner={callback:hidden,get publish(){external(this.callback);return 1;}};'+
+    'void owner.publish;'+
+    '}'+
+    'module.exports=entry;';
+  assertHeldAndObserved(source,
+    'the getter side effect publishes the callback field of its actual receiver');
+});
