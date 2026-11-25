@@ -1455,6 +1455,31 @@ function summarizeAmbientCallEffects(ast,sourceType) {
   for(const fn of externallyReachableFunctions)
     addReason(fn,{kind:'classic-script-global-lexical',start:fn.start,end:fn.end},'ExternalReachability');
 
+  // An externally reachable function may expose additional callable values
+  // by returning them. Follow that return closure from exports and global
+  // roots; concise arrow bodies have no ReturnStatement sink of their own.
+  const externalReturnQueue=[];
+  for(const source of externallyReachableFunctions) {
+    for(const returned of functionReturnExpressions(source)) {
+      for(const target of callableNodesForValue(returned))
+        externalReturnQueue.push({target,source});
+    }
+  }
+  const externalReturnSeen=new Set();
+  for(let cursor=0;cursor<externalReturnQueue.length;cursor++) {
+    const item=externalReturnQueue[cursor];
+    if(!item||externalReturnSeen.has(item.target))continue;
+    externalReturnSeen.add(item.target);
+    addReason(item.target,{
+      kind:'returned-callable-value',start:item.source.start,end:item.source.end,
+      targetStart:item.source.start
+    },'HostHeldCallable');
+    for(const returned of functionReturnExpressions(item.target)) {
+      for(const target of callableNodesForValue(returned))
+        externalReturnQueue.push({target,source:item.target});
+    }
+  }
+
   // Callable values may escape through host calls, return values, wrappers,
   // coercion hooks, thenable assimilation, and reflection. Keep these value
   // edges separate from DynamicFrame propagation.
