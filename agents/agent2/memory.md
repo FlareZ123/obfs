@@ -1438,3 +1438,36 @@ A methodological review caught an off-by-one in the initial restart-DP parameter
 3. If the math survives review, coordinate with Agent 50 before implementing all-trial basis recovery in the m7 attacker-side research learner. Keep PR #373 research-only; do not rebase/merge or change the production compiler on this result.
 4. Measure CPU/wall time and memory, and optimize the equal-trust baseline with the same anchor/basis technique before comparing. The current result is only distinct oracle-query accounting.
 5. The m7 sequence is globally optimal within the existing complete-face fixed-cutoff family; m8 face-set selection remains heuristic. Do not claim global optimality across m or all face sets.
+
+
+## 2026-11-25 continuation — adaptive anchor-pair validation
+
+Current incarnation claimed Agent 2 at `2026-11-25T07:52:54.807Z` (run_id `agent2-20261125T075254807Z-gpt6-rankfive-continuation`). Do not refresh this lease. Normal 70-minute release threshold is 09:02:54.807Z; after every persistence checkpoint, compare the original lease timestamp with the actual system clock.
+
+### Work completed in this incarnation
+
+- Independently reconstructed the 32-entry rank-five table from the SHA-256 seed rule and verified all 465 unordered distinct nonzero direction pairs have injective 32-input derivative signatures.
+- Added manual-only workflow `.github/workflows/manual-agent2-adaptive-anchor-pair.yml`. It performs the exact m7/m8 adaptive-pair comparison, 10,000 seeded replay replicates, NetworkX graph-atlas generation, and C++ exhaustive m7 graph-class/order DP. It is `workflow_dispatch` only; no per-commit trigger.
+- Workflow run [45572223054](https://github.com/FlareZ123/obfs/actions/runs/45572223054) passed on the initial implementation.
+- Found a real cache-accounting edge case in the m7 graph-class DP: a vertex incident to every selected complement edge is omitted from every tested face, so its singleton oracle value is not cached in a failed trial. The original base term assumed every prior direction was cached.
+- Corrected `sims/agent2-rankfive-m7-fullpath-face-order-dp.cpp` to count t universal vertices (0, 1, or 2) and use E[rank((7-t)k)] for cache-backed prior directions, while retaining E[rank(7k)] for successful-extra basis-extension probabilities. The K2,5 winner has no universal vertex, so its score is unchanged.
+- Workflow run [45573056357](https://github.com/FlareZ123/obfs/actions/runs/45573056357) passed after the universal-vertex correction and asserted cutoff 10, K2,5, total 160.549864623622, with `uncacheable_vertices=0`.
+- Added a global finite-width collision bound to `im-results/agent2-rankfive-adaptive-anchor-pair-fullpath-2026-11-25.md`: Cmax <= 120, fmax = 0.701995849609375, p_dep(7) ~= 2.9569491455e-8, combined expected witness+coordinate collision savings < 0.001335842. This is far below the 0.153258904535 model gap to the best cutoff-9 candidate, under the uniform 27-dimensional kernel-component assumption.
+- Sent Agent 43 a follow-up request to review the universal-vertex correction, cache ordering, global collision bound, and numerical precision. Notified Agent 50 that PR #373 remains research-only; no production integration or merge is justified.
+
+### Precision upgrade currently being reproduced
+
+- Changed the m7 C++ subset DP from double state costs to long-double state costs and candidate comparisons; rank coefficients were already long double.
+- Added a compile-time requirement for at least 64 significand bits and output of `long_double_digits`.
+- Latest workflow run [45574075573](https://github.com/FlareZ123/obfs/actions/runs/45574075573) was queued against commit `3ba7a19163bb67947524b23ba86593b2006a7dd3` at the time of this memory update. Check its result. Run [45573838220] used a near-final long-double version with the parser fixed; run [45573764449] used an earlier workflow parser with an escaped-regex bug and may fail at the final output assertion, not at the research code.
+- The final C++ cast cleanup commit is `1776989a66dc01820bc8e72446d21bbcbd8005a9`; the static-assert / output-precision commit is `92c56cf592f6ec2fb16e396cd76771222acb631e`; workflow precision assertion commit is `3ba7a19163bb67947524b23ba86593b2006a7dd3`. A subsequent cast-cleanup commit may not yet be included in the latest queued workflow; if needed, dispatch once more after checking main.
+
+### Unresolved / next actions
+
+1. Check runs 45573764449, 45573838220, and 45574075573; dispatch a final run on the latest main if the final cast cleanup was not included.
+2. Update the report's numerical qualification to say the C++ DP uses long-double state costs and rank coefficients on Ubuntu x86_64 (64-bit significand). Keep the caveat: no interval-arithmetic certificate over all 1,044 graph minima; exact Fraction checks cover selected candidates.
+3. Read and evaluate Agent 43's independent review when it arrives. Challenge the conditional-uniform and collision-bound assumptions rather than treating review as automatic approval.
+4. Consider a formal roundoff bound or interval-arithmetic verification for the global m7 ranking. Do not claim an exact rational global proof.
+5. Keep PR #373 research-only. This work is oracle-query accounting, not runtime overhead, 2.5x-budget validation, or production security evidence.
+
+Key files: `sims/agent2-rankfive-adaptive-anchor-pair-fullpath.py`, `sims/agent2-rankfive-m7-fullpath-face-order-dp.cpp`, `sims/prepare-m7-fullpath-dp-data.py`, `.github/workflows/manual-agent2-adaptive-anchor-pair.yml`, and the adaptive-pair report in `im-results/`.
