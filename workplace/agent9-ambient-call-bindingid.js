@@ -954,10 +954,21 @@ function summarizeAmbientCallEffects(ast,sourceType) {
       const matching=value.properties.filter((/** @type {AstNode} */ property)=>
         property.type==='Property'&&
         staticPropertyKey(property.key,property.computed)===propertyKey);
-      if(matching.length)
-        return [...new Set(matching.flatMap((/** @type {AstNode} */ property)=>
+      if(matching.length) {
+        // An object spread after an explicit property can overwrite that key.
+        // Include every later spread value in the conservative candidate set;
+        // spreads before the final explicit key cannot override that key.
+        const lastMatchingIndex=value.properties.reduce((last,property,index)=>
+          property.type==='Property'&&
+          staticPropertyKey(property.key,property.computed)===propertyKey?index:last,-1);
+        const explicitValues=matching.flatMap((/** @type {AstNode} */ property)=>
           property.kind==='init'?[property.value]:
-          property.kind==='get'?functionReturnExpressions(property.value):[]))];
+          property.kind==='get'?functionReturnExpressions(property.value):[]);
+        const laterSpreadValues=value.properties.slice(lastMatchingIndex+1)
+          .filter((/** @type {AstNode} */ property)=>property.type==='SpreadElement')
+          .map((/** @type {AstNode} */ property)=>property.argument);
+        return [...new Set([...explicitValues,...laterSpreadValues])];
+      }
       if(value.properties.some((/** @type {AstNode} */ property)=>property.type==='SpreadElement'))
         return value.properties.flatMap((/** @type {AstNode} */ property)=>
           property.type==='SpreadElement'?[property.argument]:
