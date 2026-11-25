@@ -51,14 +51,95 @@ function mayAppearInFailedOperand(node,ancestors) {
 }
 
 /**
+ * Experimental lazy decoder appended after the original source. Replacements
+ * are padded to their original UTF-16 spans so later frame coordinates do not
+ * move. Only module/CommonJS scopes are supported; classic scripts would gain
+ * a new global function binding.
+ * @param {string} source
+ * @param {AstNode} ast
+ * @param {{seed:string,minimumLength?:number,reservedNames?:Set<string>,reservedSources?:string[]}} options
+ * @returns {{code:string,count:number}}
+ */
+function encodeStringsWithSourceSpans(source,ast,options) {
+  if(ast.sourceType==='script'||observesFunctionSource(ast)||collectBindings(ast).has('String'))
+    return {code:source,count:0};
+  // A direct eval/Function constructor can introduce a binding that shadows
+  // the appended helper. With-scope lookup can do the same dynamically.
+  let dynamicScope=false;
+  walk(ast,node=>{
+    if(node.type==='WithStatement')dynamicScope=true;
+    if(node.type==='Identifier'&&(node.name==='eval'||node.name==='Function'))dynamicScope=true;
+  });
+  if(dynamicScope)return {code:source,count:0};
+  const first='abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ_';
+  const candidates=[...first];
+  for(const char of first)candidates.push('_'+char);
+  for(const char of first)candidates.push('$'+char);
+  for(const char of first)candidates.push('__'+char);
+  const digest=createHash('sha256').update(options.seed+'span-strings').digest('hex');
+  const offset=parseInt(digest.slice(0,8),16)%candidates.length;
+  const names=new Set();
+  walk(ast,node=>{if(node.type==='Identifier')names.add(node.name);});
+  let helper=null;
+  for(let attempt=0;attempt<candidates.length;attempt++) {
+    const candidate=candidates[(offset+attempt)%candidates.length];
+    if(names.has(candidate)||options.reservedNames?.has(candidate)||
+       options.reservedSources?.some(text=>text.includes(candidate)))continue;
+    helper=candidate;
+    break;
+  }
+  if(!helper)return {code:source,count:0};
+  const values=new Map();
+  /** @type {{start:number,end:number,text:string}[]} */
+  const edits=[];
+  const minimumLength=options.minimumLength??4;
+  walk(ast,(node,parent,key,ancestors)=>{
+    if(node.type!=='Literal'||typeof node.value!=='string'||
+       node.value.length<minimumLength||!parent)return;
+    if(parent.type==='ExpressionStatement'&&parent.directive)return;
+    if((parent.type==='Property'||parent.type==='MethodDefinition'||
+        parent.type==='PropertyDefinition')&&key==='key'&&!parent.computed)return;
+    if(parent.type==='ImportSpecifier'||parent.type==='ExportSpecifier')return;
+    if(/^(ImportDeclaration|ImportExpression|ExportNamedDeclaration|ExportAllDeclaration|ImportAttribute)$/.test(parent.type))return;
+    if((parent.type==='CallExpression'||parent.type==='NewExpression')&&key==='arguments'&&
+       parent.callee.type==='Identifier'&&['require','eval','Function'].includes(parent.callee.name))return;
+    if(ancestors.some(ancestor=>/^(ForStatement|ForInStatement|ForOfStatement|WhileStatement|DoWhileStatement)$/.test(ancestor.type)))return;
+    if(mayAppearInFailedOperand(node,ancestors))return;
+    const value=/** @type {string} */ (node.value);
+    let index=values.get(value);
+    if(index===undefined)index=values.size;
+    const replacement=helper+'('+index+')';
+    const oldText=source.slice(node.start,node.end);
+    if(replacement.length>oldText.length)return;
+    if(!values.has(value))values.set(value,index);
+    edits.push({start:node.start,end:node.end,
+      text:replacement+' '.repeat(oldText.length-replacement.length)});
+  });
+  if(!edits.length)return {code:source,count:0};
+  options.reservedNames?.add(helper);
+  const key=(parseInt(createHash('sha256').update(options.seed).digest('hex').slice(0,4),16)%65535)+1;
+  const encoded=[...values.keys()].map(value=>{
+    let data='';
+    for(let index=0;index<value.length;index++)
+      data+=String.fromCharCode(value.charCodeAt(index)^key);
+    return data;
+  });
+  const decoder='function '+helper+'(i){const t='+helper+'.t||('+helper+'.t='+JSON.stringify(encoded)+');let r=t[i];if(typeof r!=="string")return r;let d="";for(let o=0;o<r.length;o+=4096){const u=[];for(let j=o;j<r.length&&j<o+4096;j++)u.push(r.charCodeAt(j)^'+key+');d+=String.fromCharCode(...u);}t[i]=d;return d;}\n';
+  const transformed=applyEdits(source,edits);
+  return {code:transformed+'\n'+decoder,count:edits.length};
+}
+
+/**
  * Encode immutable literal strings with one-time runtime decoding.
  * All JS UTF-16 code units are retained, including isolated surrogates.
  * @param {string} source
  * @param {AstNode} ast
- * @param {{seed:string, minimumLength?:number, reservedNames?:Set<string>, reservedSources?:string[], fixedArity?:boolean}} options
+ * @param {{seed:string, minimumLength?:number, reservedNames?:Set<string>, reservedSources?:string[], fixedArity?:boolean, experimentalLocalStringSpanPreservation?:boolean}} options
  * @returns {{code:string, count:number}}
  */
 function encodeStrings(source, ast, options) {
+  if(options.experimentalLocalStringSpanPreservation===true)
+    return encodeStringsWithSourceSpans(source,ast,options);
   if(observesFunctionSource(ast)) return {code:source,count:0};
   // The decoder uses the ambient String intrinsic. A file-level or nested
   // lexical binding with this name can shadow it, including before TDZ init.
