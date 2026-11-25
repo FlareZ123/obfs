@@ -66,15 +66,15 @@ async function run() {
     '</script></body></html>'
   ].join('\n');
   const pages=new Map([
-    ['/','text/html; charset=utf-8',html],
-    ['/native.mjs','text/javascript; charset=utf-8',source],
-    ['/generated.mjs','text/javascript; charset=utf-8',String(output.code)]
+    ['/',{type:'text/html; charset=utf-8',body:html}],
+    ['/native.mjs',{type:'text/javascript; charset=utf-8',body:source}],
+    ['/generated.mjs',{type:'text/javascript; charset=utf-8',body:String(output.code)}]
   ]);
   const server=http.createServer((request,response)=>{
     const entry=pages.get((request.url??'/').split('?')[0])??pages.get('/');
     if(!entry){response.writeHead(404);response.end();return;}
-    response.writeHead(200,{'content-type':entry[0]});
-    response.end(entry[1]);
+    response.writeHead(200,{'content-type':entry.type});
+    response.end(entry.body);
   });
   try {
     await new Promise((resolve,reject)=>{
