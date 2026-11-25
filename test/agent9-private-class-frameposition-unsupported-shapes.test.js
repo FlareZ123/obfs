@@ -75,7 +75,7 @@ const fixtures=[
       'globalThis.__obfsPrivateClassArmed=true;Array.isArray([1,2]);globalThis.__obfsPrivateClassArmed=false;',
       'module.exports=reader.read()+copy;'
     ].join('')
-  }
+  },
   {
     name:'in-check owner read',
     expected:7,
