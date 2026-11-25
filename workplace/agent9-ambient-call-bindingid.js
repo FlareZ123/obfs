@@ -1646,7 +1646,7 @@ function summarizeAmbientCallEffects(ast,sourceType) {
     return true;
   }
   /** @param {AstNode|null|undefined} value @param {AstNode|null} fn @returns {AstNode[]} */
-  function callableNodesForValueWithReceiver(value,fn) {
+  function callableNodesForValueWithReceiver(value,fn,seen=new Set()) {
     if(!value)return [];
     // A local arrow call can expose a this-bound value even when the call
     // expression itself contains no ThisExpression. Resolve its return under
@@ -1654,16 +1654,24 @@ function summarizeAmbientCallEffects(ast,sourceType) {
     // site; ordinary functions keep their dynamic-this semantics.
     if(value.type==='CallExpression') {
       const targets=callableNodesForValue(value.callee);
-      const receiverBoundReturns=targets.flatMap(target=>{
-        if(target.type!=='ArrowFunctionExpression')return [];
+      let hasReceiverBoundTarget=false;
+      const receiverBoundCallables=targets.flatMap(target=>{
+        if(target.type!=='ArrowFunctionExpression'||seen.has(target))return [];
         const receivers=receiverExpressionsByFunction.get(target)??[];
+        if(!receivers.length)return [];
+        hasReceiverBoundTarget=true;
+        const next=new Set(seen);
+        next.add(target);
         return receivers.flatMap(receiver=>
           functionReturnExpressions(target).flatMap(expression=>
-            memberReturnExpressionsWithReceiver(expression,receiver,new Set())));
+            memberReturnExpressionsWithReceiver(expression,receiver,new Set()).flatMap(candidate=>
+              candidate.type==='CallExpression'?
+                callableNodesForValueWithReceiver(candidate,target,next):
+                callableNodesForValue(candidate))));
       });
-      if(receiverBoundReturns.length) {
+      if(hasReceiverBoundTarget) {
         return [...new Set([
-          ...receiverBoundReturns.flatMap(candidate=>callableNodesForValue(candidate)),
+          ...receiverBoundCallables,
           ...callableNodesForValue(value)
         ])];
       }
