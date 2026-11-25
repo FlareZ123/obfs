@@ -1,5 +1,18 @@
 # Agent 9 research continuity
 
+### 2026-11-25 01:35 UTC checkpoint: CDP browser CPU measurement prototype
+
+- Current incarnation claimed Agent 9 with immutable lease timestamp `2026-11-25T01:02:40.537274Z`, run ID `agent9-20261125T010240Z-gpt6-callable-source-closure`. Mandatory 70-minute orderly-release threshold: **2026-11-25T02:12:40.537274Z**. Do not refresh the lease. After every checkpoint, read the original lease and compare with an actual system clock; continue while elapsed <70 minutes.
+- A first CDP browser CPU prototype is on branch `agent9/browser-cpu-cdp-prototype-20261125`, test pin `95750b589a67bd0bc55cf7e3f9919bfb68c6c686`. Harness `sims/agent9-browser-cdp-budget.js`; test `test/agent9-browser-cdp-budget.test.js`.
+- Focused run [45526670103](https://github.com/FlareZ123/obfs/actions/runs/45526670103) passed on Ubuntu and Windows (browser work only ran on Ubuntu; Windows skips it). Node `v22.23.4`, Chrome `157.0.8103.78`; project, external-corpus and paired-budget JSDoc passed on both platforms.
+- The harness measures CDP `Performance.getMetrics` deltas for `ScriptDuration` and `TaskDuration` around a fresh script evaluation. It alternates native/protected order, uses 15 pairs, and retains per-pair samples. This is renderer-main-thread JavaScript/task time, not process-wide CPU.
+- One strict CommonJS-style COO property-only workload, 1,000,000 loop iterations plus three 100,000-iteration calls; `closedWorld:true`, `properties:true`, `identifiers:false`, `strings:false`; two property rewrites and result parity.
+- ScriptDuration: native median 9.506 ms, protected 9.177 ms, ratio of medians 0.965x, median paired ratio 0.970x, 95% upper median bound 1.055x, 14/15 observed pairs under 2.5x. One 3.43x pair is retained (native 2.683 ms, protected 9.204 ms).
+- TaskDuration: native median 12.412 ms, protected 12.106 ms, ratio of medians 0.975x, median paired ratio 0.968x, 95% upper median bound 1.032x, all 15 observed pairs under 2.5x.
+- Durable report: `im-results/agent9-browser-cdp-taskduration-prototype-2026-11-25.md`. Agent 39 notified. This establishes that CDP metrics are usable for browser renderer measurements; it does **not** establish process-wide CPU, worker CPU, full transform stack, multiple workloads, SCO/SNO, or full 2.5x acceptance.
+- Earlier in this incarnation, strict Node CallSite across COO/SCO/SNO passed 6/6 on both platforms in [45523964863](https://github.com/FlareZ123/obfs/actions/runs/45523964863), and real Chromium strict ESM Error.stack passed in [45524759755](https://github.com/FlareZ123/obfs/actions/runs/45524759755). The combined evidence and communications are in `im-results/agent9-strict-callsite-frame-position-2026-11-25.md`.
+- Next: validate combined identifier/string/property transforms on a fixture that retains safe property rewrites, then coordinate with Agent 39 on whether to fold CDP metrics into the broader browser budget harness. Do not turn this one-workload result into a release claim.
+
 ### 2026-11-25 01:20 UTC checkpoint: strict Node and Chromium FramePosition confirmed
 
 - Current incarnation claimed Agent 9 with immutable lease timestamp `2026-11-25T01:02:40.537274Z`, run ID `agent9-20261125T010240Z-gpt6-callable-source-closure`. Mandatory 70-minute orderly-release threshold: **2026-11-25T02:12:40.537274Z**. Do not refresh the lease. After every checkpoint, read the original lease and compare with an actual system clock; continue while elapsed <70 minutes.
