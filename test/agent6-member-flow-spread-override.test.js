@@ -62,6 +62,24 @@ test('an explicit property after a spread shadows the earlier callable without o
     'the overwritten callable is not reachable through the observed property');
 });
 
+test('a later spread getter cannot hide the callable value it returns',()=>{
+  const source=
+    'function hidden(){const state={secret:7};return state.secret;}'+
+    'function harmless(){return 0;}'+
+    'const later={get callback(){return hidden;}};'+
+    'const owner={callback:harmless,...later};'+
+    'external(owner.callback);';
+  const summary=hiddenSummary(source);
+  const [captured]=execute(source);
+  assert.equal(captured?.name,'hidden',
+    'object spread invokes the getter and copies its returned callable');
+  assert.match(String(captured),/state\.secret/,
+    'the copied callable retains its original source spelling');
+  assert.equal(summary.hostHeldCallable,true,
+    'the held getter closure must also retain the callable it returns');
+  assert.equal(summary.safe,false);
+});
+
 test('a spread-only property still resolves its callable value',()=>{
   const source=
     'function hidden(){const state={secret:7};return state.secret;}'+
