@@ -1064,6 +1064,8 @@ function summarizeAmbientCallEffects(ast,sourceType) {
     const next=new Set(seen);
     next.add(classNode);
     const constructorWrites=classConstructorPropertyWrites(classNode,propertyKey);
+    if(classNode.id?.name==='Local'&&propertyKey==='callback')
+      console.error('DBG classMember',JSON.stringify({writes:constructorWrites,matching:classNode.body.body.filter(element=>element.type==='MethodDefinition'||element.type==='PropertyDefinition').map(element=>({type:element.type,kind:element.kind,key:element.key?.name}))}));
     const matching=classNode.body.body.filter((/** @type {AstNode} */ element)=>
       (element.type==='MethodDefinition'||element.type==='PropertyDefinition')&&
       !element.static&&staticPropertyKey(element.key,element.computed)===propertyKey);
