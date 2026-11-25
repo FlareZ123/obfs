@@ -30,10 +30,10 @@ static constexpr int KMAX = 20;
 static constexpr int GLOBAL_STATES = 1 << N_FACES;
 
 struct Candidate {
-    double total = std::numeric_limits<double>::infinity();
-    double witness = 0.0;
-    double coordinate = 0.0;
-    double miss = 0.0;
+    long double total = std::numeric_limits<long double>::infinity();
+    long double witness = 0.0L;
+    long double coordinate = 0.0L;
+    long double miss = 0.0L;
     int remaining = 0;
     int uncacheable_vertices = 0;
     uint32_t graph_mask = 0;
@@ -159,7 +159,7 @@ static Candidate optimize_graph(
     const std::vector<__uint128_t>& cover_masks,
     const int edge_u[N_FACES],
     const int edge_v[N_FACES],
-    double rank5_probability
+    long double rank5_probability
 ) {
     std::vector<int> edges;
     for (int i = 0; i < N_FACES; ++i)
@@ -196,8 +196,8 @@ static Candidate optimize_graph(
     int final_remaining = remaining_count[global_mask[states - 1]];
     int successful_kernels = KERNELS - final_remaining;
     if (successful_kernels <= 0) return result;
-    double miss = 1.0 - rank5_probability
-        + rank5_probability * static_cast<double>(final_remaining) / KERNELS;
+    long double miss = 1.0L - rank5_probability
+        + rank5_probability * static_cast<long double>(final_remaining) / KERNELS;
 
     long double A = 0.0L, beta[2] = {0.0L, 0.0L};
     long double power = 1.0L;
@@ -212,17 +212,17 @@ static Candidate optimize_graph(
 
     int probes[21][2][10][3] = {};
     make_probes(edges, edge_u, edge_v, probes);
-    std::vector<double> dp(states, std::numeric_limits<double>::infinity());
+    std::vector<long double> dp(states, std::numeric_limits<long double>::infinity());
     std::vector<uint8_t> parent(states, 255);
     dp[0] = 0.0;
 
     for (int mask = 0; mask < states; ++mask) {
-        double base = dp[mask];
+        long double base = dp[mask];
         if (!std::isfinite(base)) continue;
         uint32_t gm = global_mask[mask];
         int rem = remaining_count[gm];
-        double reach = 1.0 - rank5_probability
-            + rank5_probability * static_cast<double>(rem) / KERNELS;
+        long double reach = 1.0L - rank5_probability
+            + rank5_probability * static_cast<long double>(rem) / KERNELS;
         for (int j = 0; j < k; ++j) {
             int bit = 1 << j;
             if (mask & bit) continue;
@@ -245,9 +245,9 @@ static Candidate optimize_graph(
             long double coordinate_transition =
                 (1.0L - miss) / successful_kernels
                 * newly_succeeded * (beta[0] * c0 + beta[1] * c1);
-            double transition = reach * new_queries
-                + static_cast<double>(coordinate_transition);
-            double candidate = base + transition;
+            long double transition = reach * new_queries
+                + coordinate_transition;
+            long double candidate = base + transition;
             if (candidate < dp[next]) {
                 dp[next] = candidate;
                 parent[next] = static_cast<uint8_t>(j);
@@ -256,9 +256,9 @@ static Candidate optimize_graph(
     }
 
     int full = states - 1;
-    double total = (
-        dp[full] - miss + (1.0 - miss) * static_cast<double>(A)
-    ) / (1.0 - miss);
+    long double total = (
+        dp[full] - miss + (1.0L - miss) * A
+    ) / (1.0L - miss);
 
     std::vector<int> reverse_order;
     int mask = full;
@@ -271,8 +271,8 @@ static Candidate optimize_graph(
     std::reverse(reverse_order.begin(), reverse_order.end());
 
     // Re-evaluate the chosen order into witness and coordinate components.
-    double witness_E = 0.0;
-    double coordinate_variable = 0.0;
+    long double witness_E = 0.0L;
+    long double coordinate_variable = 0.0L;
     mask = 0;
     for (int face : reverse_order) {
         int local = -1;
@@ -280,7 +280,7 @@ static Candidate optimize_graph(
         int next = mask | (1 << local);
         int rem = remaining_count[global_mask[mask]];
         int rem_next = remaining_count[global_mask[next]];
-        double reach = 1.0 - rank5_probability
+        long double reach = 1.0L - rank5_probability
             + rank5_probability * static_cast<double>(rem) / KERNELS;
         int new_queries = static_cast<int>(covered_count[next])
             - static_cast<int>(covered_count[mask]);
@@ -298,16 +298,14 @@ static Candidate optimize_graph(
         }
         witness_E += reach * new_queries;
         if (c0 > c1) std::swap(c0, c1);
-        coordinate_variable += static_cast<double>(
-            static_cast<long double>(newly_succeeded) / successful_kernels
-            * (beta[0] * c0 + beta[1] * c1)
-        );
+        coordinate_variable += static_cast<long double>(newly_succeeded) / successful_kernels
+            * (beta[0] * c0 + beta[1] * c1);
         mask = next;
     }
 
     result.total = total;
-    result.witness = (witness_E - miss) / (1.0 - miss);
-    result.coordinate = static_cast<double>(A) + coordinate_variable;
+    result.witness = (witness_E - miss) / (1.0L - miss);
+    result.coordinate = A + coordinate_variable;
     result.miss = miss;
     result.remaining = final_remaining;
     result.order_edges = std::move(reverse_order);
@@ -353,7 +351,7 @@ int main(int argc, char** argv) {
         }
 
     precompute_rank_coefficients();
-    const double p = 26043255.0 / 33554432.0;
+    const long double p = 26043255.0L / 33554432.0L;
 
     Candidate best_global;
     std::array<Candidate, 22> best_by_k;
@@ -379,7 +377,7 @@ int main(int argc, char** argv) {
             best_global = candidate;
     }
 
-    std::cout << std::setprecision(15);
+    std::cout << std::setprecision(20);
     std::cout << "graphs=" << graph_masks.size()
               << " states=" << total_states
               << " transitions=" << total_transitions
