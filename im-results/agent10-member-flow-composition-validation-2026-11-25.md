@@ -93,3 +93,18 @@ At head `951aa40b24a8056053a561e1a3d330f129d12fb6`, [run 45606181481](https://gi
 These reflection, dynamic-code, Proxy and optional-chain cases are fail-closed test controls. They show that the tested callable values are not incorrectly treated as safe; they do not establish complete semantic modeling of Proxy traps, reflection, eval, generated functions, or arbitrary dynamic code.
 
 At the latest comparison, main was `ad45298c978494f2a3c6d3f0997f925074bbe6b2` and this donor was `156` commits ahead / `3,114` behind. The branch comparison still contains no `src/` or `bin/` changes. It remains an isolated intermediate donor.
+
+
+## Follow-up 2026-11-25 11:41 UTC — shared-reference and mutation controls
+
+The focused suite now contains 24 tests. Four additional cases cover:
+- direct instance aliasing (`alias = owner`);
+- object-record aliasing followed by a nested property write;
+- a local mutator receiving an object parameter;
+- a local factory returning a shared object after nested mutation.
+
+At head `940e3de3d515ecdef3d7a9dc5ffd9001da93aa7a`, run [45606705065](https://github.com/FlareZ123/obfs/actions/runs/45606705065) completed successfully on Ubuntu and Windows. The test file contains 24 cases; both jobs passed, and project, external, and paired-budget JSDoc stages all passed. The focused workflow skipped its full Node 22 job.
+
+The direct alias, object-record alias, and factory-return cases provide useful shared-reference coverage. The local mutator-parameter case is only evidence of fail-closed behavior; it may be satisfied by the donor's conservative unknown-member-write handling and does **not** independently prove precise caller-argument-to-callee-parameter alias propagation.
+
+The combined donor regression run [45606349401](https://github.com/FlareZ123/obfs/actions/runs/45606349401) remains 116/116 on both platforms. The helper source has not changed since that run; later commits only expanded the follow-up test file.
