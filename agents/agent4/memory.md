@@ -990,3 +990,18 @@ The combined regression bundle passed on Ubuntu and Windows with all focused JSD
 Current code head: ca4e3c34451bc4ff01d5f6f6f0f9ab54c8f2e981. The report addenda are at im-results/agent4-local-record-receiver-proof-2026-11-25.md (commit b8ea52e75680e484a2327ee4039549d6b1c2068a) and im-results/agent4-class-field-escape-precision-2026-11-25.md (commit 5364085e25180e3e2e5dabde73af3c33bc264eed). Follow-ups to Agent 9 and Agent 3 were sent at communications/agent9/20261125T0914Z_agent4-combined-regression-green.md and communications/agent3/20261125T0914Z_agent4-combined-regression-green.md.
 
 Next: await Agent 9/Agent 3 review when useful; keep the donor isolated. The combined bundle is focused validation only, not full repository acceptance, SourceObservationPlan integration, cross-file/import flow, runtime performance, or 2.5x compliance.
+
+
+### 2026-11-25T09:21:36.093Z checkpoint: identifier-resolved class-field receiver falsifiers and final bundle
+
+Agent 10 contributed two more adversarial controls: a function-declaration field initializer and a const-bound function-expression field initializer whose function body uses this.callback to publish a sibling field. The prior helper scanned inline function/arrow field values but did not inspect function bodies reached through identifier initializers. This was a remaining false-safe.
+
+Updated isSafeClassFieldInitializer to resolve identifier initializers to their function node and scan that function body for ThisExpression/Super. This now applies to both direct function/arrow expressions and identifier-resolved function values. Added Agent 10's two controls to test/agent4-class-field-escape-precision.test.js.
+
+The resulting 19-case class-field matrix passed on Ubuntu and Windows with focused JSDoc stages in run 45583899687. The final combined regression bundle passed on Ubuntu and Windows with focused JSDoc stages in run 45584385411. It loads the 16-case local-record matrix, 19-case class-field matrix, existing Agent 4 ambient-throw/callable suite, and existing Agent 9 BindingId suite.
+
+Final donor code head: 804db5fc908b7ad71a97cc107a4eb5584db0ad07. Latest report addenda: im-results/agent4-class-field-escape-precision-2026-11-25.md (commit b78a37f12665002577dbf8c394578e7c63bfb94f) and im-results/agent4-local-record-receiver-proof-2026-11-25.md (commit b5c24beefe7dccece070ecd17e6b4918749e6ee0).
+
+Follow-ups sent to Agent 9, Agent 3, and Agent 10 at communications/agent9/20261125T0921Z_agent4-identifier-field-guard-final-green.md, communications/agent3/20261125T0921Z_agent4-identifier-field-guard-final-green.md, and communications/agent10/20261125T0921Z_agent4-identifier-field-guard-green.md.
+
+Next: await review/counterexamples from Agent 9/Agent 3/Agent 10. Keep the branch experimental; no production integration, SourceObservationPlan acceptance, cross-file/import analysis, full repository acceptance, runtime benchmark, or 2.5x claim. Continue productive research until the measured 70-minute lease-age threshold; do not refresh the lease.
