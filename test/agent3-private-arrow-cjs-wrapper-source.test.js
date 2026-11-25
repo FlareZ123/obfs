@@ -69,11 +69,11 @@ for(const mode of /** @type {Array<'coo'|'sno'|'sco'>} */ (['coo','sno','sco']))
     assert.equal(emitted.value,7);
     assert.match(native.observed??'',/privateField/);
     assert.ok(emitted.observed,'the host preloader must observe the emitted module wrapper');
-    assert.equal(output.files[0].metrics.properties,0,
-      'sloppy CJS wrapper visibility must veto the private-arrow property rewrite');
     assert.equal(emitted.observed,native.observed,
       'The host-observed wrapper source must remain identical; '+
       'property rewrites='+output.files[0].metrics.properties+
       ', emittedContainsPrivateField='+String(emitted.observed.includes('privateField')));
+    assert.equal(output.files[0].metrics.properties,0,
+      'sloppy CJS wrapper visibility must veto the private-arrow property rewrite');
   });
 }
