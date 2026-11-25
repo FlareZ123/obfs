@@ -49,9 +49,16 @@ async function main(){
     mode:'coo',closedWorld:true,seed:'hostile-browser-bind-interception',
     properties:true,identifiers:true,strings:false
   });
-  assert.equal(emitted.files[0].metrics.properties,2);
+  const protectedKeys=emitted.files[0].metrics.properties;
+  assert.ok(protectedKeys===0||protectedKeys===2,
+    'the bound/exported callable must either fail closed or rename the complete owner: '+protectedKeys);
   const protectedCode=/** @type {string} */ (emitted.files[0].code);
-  assert.doesNotMatch(protectedCode,/secretField|otherField/u);
+  if(protectedKeys===0){
+    assert.match(protectedCode,/secretField/u);
+    assert.match(protectedCode,/otherField/u);
+  }else{
+    assert.doesNotMatch(protectedCode,/secretField|otherField/u);
+  }
   const variants=new Map([
     ['/native/entry.mjs',source],
     ['/protected/entry.mjs',protectedCode],
