@@ -5,9 +5,9 @@
 ## Exact source and test pins
 
 - Research branch: `agent5/lexical-this-arrow-return-review-20261125`
-- Current branch commit: `7972cdd3a15bdf5967f04275368528e4f4484643`
+- Current branch commit: `4e7ad335f0d2b0f68bc88d50beda5c2924d0d6b8`
 - Helper: `workplace/agent9-ambient-call-bindingid.js`, blob `4bc72229bf8b58e65369eec35ce9283f6f8102f8`
-- Focused test: `test/agent5-receiver-bound-return-resolution.test.js`, blob `6af7a33a8c1603bf08eb298ba7b5769ee990da7b`
+- Focused test: `test/agent5-receiver-bound-return-resolution.test.js`, blob `22f32df077eb566e05044d21d97caebe699aea06`
 - The test file runs `summarizeAmbientCallEffects(parse(source,'commonjs'),'commonjs')` and compares the analysis summary with the value actually received by a host callback in Node's VM.
 
 ## Red-first evidence
@@ -33,28 +33,30 @@ The research branch now extends `callableNodesForValueWithReceiver` to:
 
 The negative controls are important: a bare ordinary function call does **not** inherit the enclosing getter's receiver, and an arrow nested inside that ordinary function retains the ordinary function's dynamic `this` rather than receiving the outer getter's receiver. Primitive `this.count` controls remain unheld.
 
-At current exact branch head `7972cdd3a15bdf5967f04275368528e4f4484643`, [focused manual-validation run 45641341707](https://github.com/FlareZ123/obfs/actions/runs/45641341707) passed:
+The focused matrix also exercises the repository's existing narrow local call-parameter value mapping: an arrow capturing the getter receiver survives invocation through one and two layers of local ordinary-function parameter forwarding. A normal function passed through the same parameter path does not borrow the getter receiver. This does not establish arbitrary call-graph or cross-module parameter flow.
 
-- **45/45** focused tests on Ubuntu;
-- **45/45** focused tests on Windows;
+At current exact branch head `4e7ad335f0d2b0f68bc88d50beda5c2924d0d6b8`, [focused manual-validation run 45641775217](https://github.com/FlareZ123/obfs/actions/runs/45641775217) passed:
+
+- **48/48** focused tests on Ubuntu;
+- **48/48** focused tests on Windows;
 - `npm run typecheck` on both platforms;
 - `npm run typecheck:external` on both platforms;
 - `tsc -p jsconfig.paired-budget.json` on both platforms.
 
-The expanded tests now explicitly cover array results, conditional and logical branches, sequence expressions, object spread, and async/await. The earlier 39-case checkpoint also passed at [run 45640745472](https://github.com/FlareZ123/obfs/actions/runs/45640745472).
+The expanded tests explicitly cover array results, conditional and logical branches, sequence expressions, object spread, async/await, local aliases, and one-/two-hop local parameter forwarding. Earlier checkpoints passed 45/45 at [run 45641341707](https://github.com/FlareZ123/obfs/actions/runs/45641341707) and 39/39 at [run 45640745472](https://github.com/FlareZ123/obfs/actions/runs/45640745472).
 
 ## Scope and limitations
 
 - The helper is research-only under `workplace/`; no production `src/` or `bin/` files changed.
 - The fixed-point receiver map depends on statically recognized local call/property-read sites. It does not prove arbitrary receiver aliasing, external factories, cross-module receiver flow, or dynamic dispatch.
 - Proxies, descriptor-created accessors, `Object.create` factories, prototype mutation, all `super`/nested-closure combinations, returned accessor objects, and reflection remain incompletely modeled.
-- Formal-parameter forwarding across arbitrary normal-function call chains has not yet been validated by this test suite.
-- The 45-case suite is focused semantic evidence, not the full ambient-call suite, browser differential, production emitted-code acceptance, source-observation runtime proof, anti-reconstruction result, or a measurement of the global 2.5× compute budget.
+- Parameter propagation is limited to the existing direct local-call mapping; rest/destructuring, `arguments`, eval/with, arbitrary callback registration, and cross-file call graphs remain unproven.
+- The 48-case suite is focused semantic evidence, not the full ambient-call suite, browser differential, production emitted-code acceptance, source-observation runtime proof, anti-reconstruction result, or a measurement of the global 2.5× compute budget.
 - A green focused helper suite does not establish the release criteria. The repository's strong-protection release remains blocked.
 
 ## Next validation
 
 1. Independently review the receiver-map fixed point and alias/container recursion for both false negatives and over-retention.
-2. Add red-first tests for local formal-parameter forwarding, returned accessor objects, descriptor/proxy cases, and cross-module receiver flow.
+2. Add red-first tests for returned accessor objects, descriptor/proxy cases, and cross-module receiver flow.
 3. Cross-check Agent 6's spread/override helper and Agent 10's member-flow donor; prefer one canonical receiver abstraction instead of parallel implementations.
 4. Run the full ambient-call and source-observation/runtime suites on both platforms before any production proposal. Do not promote this result to `results/` or describe it as a security improvement without compiler-level evidence.
