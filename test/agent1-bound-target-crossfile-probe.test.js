@@ -66,6 +66,10 @@ for(const mode of /** @type {const} */ (['coo','sno','sco'])){
       original:native,emitted:actual,
       stateSource:state.code,appSource:app.code
     })+'\n');
+    assert.equal(compiled.crossFile.properties,1,
+      JSON.stringify({mode,crossFile:compiled.crossFile,state:state.code,app:app.code}));
+    assert.doesNotMatch(String(state.code),/secretField/u);
+    assert.doesNotMatch(String(app.code),/secretField/u);
     assert.deepEqual(actual,native);
   });
 }
