@@ -314,10 +314,10 @@ function selectScoPublicFiles(files,entry,publicScripts,publicAssets) {
       if(!['ImportDeclaration','ExportNamedDeclaration','ExportAllDeclaration'].includes(node.type) ||
           node.source?.type!=='Literal' || typeof node.source.value!=='string')return;
       const specifier=node.source.value;
-      if(!specifier.startsWith('./')&&!specifier.startsWith('../'))return;
       if(hasPathnameControlCharacter(specifier)) {
         throw new Error('SCO noncanonical ESM import path unsupported: '+specifier);
       }
+      if(!specifier.startsWith('./')&&!specifier.startsWith('../'))return;
       // Module resolution is URL-based. Resolve a single percent-decoding
       // layer per segment so ordinary encoded Unicode, spaces and # names
       // remain reachable, while encoded separators/dot segments cannot
