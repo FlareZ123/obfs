@@ -118,6 +118,21 @@ function verifyGuard(fixture) {
 
 const carrierFixtures = [
   {
+    name: 'arrow-factory-return',
+    setup: 'const makeCarrier=()=>({instance:new WeakMap()}); const protoCarrier=makeCarrier();',
+    access: 'protoCarrier.instance'
+  },
+  {
+    name: 'arrow-map-return',
+    setup: 'const makeMap=()=>new WeakMap(); const protoCarrier={instance:makeMap()};',
+    access: 'protoCarrier.instance'
+  },
+  {
+    name: 'class-static-block',
+    setup: 'class Carrier { static { this.instance=new WeakMap(); } } const protoCarrier=Carrier;',
+    access: 'protoCarrier.instance'
+  },
+  {
     name: 'dynamic-array-index',
     setup: 'const protoCarrier=[new WeakMap()]; const dynamicKey=globalThis.dynamicKey;',
     access: 'protoCarrier[dynamicKey]'
