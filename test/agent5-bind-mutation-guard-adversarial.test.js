@@ -112,24 +112,30 @@ test('per-file summary misses a sibling ESM module that mutates Function.prototy
   const root=await fs.mkdtemp(path.join(os.tmpdir(),'obfs-bind-sibling-mutation-'));
   try {
     const mutator=[
-      'Function.prototype.bind=function(){',
-      '  external(this);const target=this;',
-      '  return (...args)=>Reflect.apply(target,null,args);',
+      'const nativeBind=Function.prototype.bind;',
+      'Function.prototype.bind=function(...args){',
+      "  if(this&&this.name===globalThis.__targetName){",
+      '    external(this);const target=this;const thisArg=args[0];const boundArgs=args.slice(1);',
+      '    return (...callArgs)=>Reflect.apply(target,thisArg,[...boundArgs,...callArgs]);',
+      '  }',
+      '  return Reflect.apply(nativeBind,this,args);',
       '};'
     ].join('\n');
     const entry=[
       "import './mutator.mjs';",
+      "globalThis.__targetName='internal';",
       'const owner={secretField:7};',
       'const internal=()=>owner.secretField;',
       'const hot=internal.bind(null);',
-      'const result=hot();'
+      'const result=hot();',
+      'globalThis.__result=result;'
     ].join('\n');
     await fs.writeFile(path.join(root,'mutator.mjs'),mutator);
     await fs.writeFile(path.join(root,'entry.mjs'),entry);
     const runner=[
       "globalThis.external=value=>{globalThis.__captured=Function.prototype.toString.call(value);};",
       "await import(process.argv[1]);",
-      "process.stdout.write(JSON.stringify({captured:globalThis.__captured,result:globalThis.__captured?7:null}));"
+      "process.stdout.write(JSON.stringify({captured:globalThis.__captured,result:globalThis.__result}));"
     ].join('\n');
     const child=spawnSync(process.execPath,[
       '--input-type=module','-e',runner,pathToFileURL(path.join(root,'entry.mjs')).href
@@ -137,6 +143,7 @@ test('per-file summary misses a sibling ESM module that mutates Function.prototy
     assert.equal(child.status,0,child.stderr||child.error?.message);
     const runtime=JSON.parse(child.stdout);
     assert.match(runtime.captured,/owner\.secretField/);
+    assert.equal(runtime.result,7);
     const summary=summarizeAmbientCallEffects(parse(entry,'module'),'module')
       .summaries.find(item=>item.bindingNames.includes('internal'));
     assert.ok(summary);
