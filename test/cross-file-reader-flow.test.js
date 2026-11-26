@@ -748,3 +748,21 @@ test('private closure reader over imported owner is conservatively refused',asyn
   for(const mode of ['coo','sno','sco'])
     await preserves(files,0,mode,'23 23');
 });
+
+test('deferred imported-owner parameter reader after initialization supports benign ESM cycle',async()=>{
+  const files=[
+    {path:'state.mjs',sourceType:'module',code:
+      'import {ready} from "./relay.mjs";'+
+      'export const state={secretField:23};'+
+      'const localCheck=state.secretField;'+
+      'export const result=ready()+localCheck-23;'},
+    {path:'relay.mjs',sourceType:'module',code:
+      'import {state} from "./state.mjs";'+
+      'function peek(owner){return owner.secretField;}'+
+      'export function ready(){return peek(state);}'},
+    {path:'main.mjs',sourceType:'module',code:
+      'import {result} from "./state.mjs";console.log(result);'}
+  ];
+  for(const mode of ['coo','sno','sco'])
+    await preserves(files,1,mode,'23');
+});
