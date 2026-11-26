@@ -1,6 +1,7 @@
 'use strict';
 
 const {parse}=require('parse5');
+const path=require('node:path');
 const {createHash}=require('node:crypto');
 const {SaxesParser}=require('saxes');
 const {portableKeys}=require('./portable-paths');
@@ -443,13 +444,26 @@ function hasPinnedLocalJavaScriptIntegrity(files,routePrefix='') {
   }
   /** @param {string} candidate @returns {boolean} */
   function matchesDistributedScript(candidate) {
-    // A Windows-style filesystem-backed route may discard trailing ASCII
-    // dots or spaces from each segment after decoding the request pathname.
-    // Test both spellings, since other hosts may preserve them exactly.
-    const win32Candidate=candidate.split('/')
-      .map(segment=>segment.replace(/[. ]+$/u,'')).join('/');
-    return [candidate,win32Candidate].some(path=>
-      portableKeys(path).some(key=>distributedKeys.has(key)));
+    // A host may decode %2F or %5C before mapping the URL to a filesystem
+    // path. The URL parser deliberately preserves encoded separators, so
+    // compare safe post-decode POSIX and Win32 normalizations as well.
+    const slashCandidate=candidate.replace(/\\/gu,'/');
+    const posixCandidate=path.posix.normalize(slashCandidate);
+    const win32Candidate=path.win32.normalize(candidate.replace(/\//gu,'\\'))
+      .replace(/\\/gu,'/');
+    const candidates=[candidate,slashCandidate,posixCandidate,win32Candidate];
+    return candidates.some(candidatePath=>{
+      // Do not let normalization turn an above-root or rooted URL into a
+      // match for a distributed file at an unrelated inventory location.
+      if(candidatePath==='..'||candidatePath.startsWith('../')||
+          path.posix.isAbsolute(candidatePath)||path.win32.isAbsolute(candidatePath)||
+          /^[A-Za-z]:/u.test(candidatePath))return false;
+      // Some Win32 filesystems also discard trailing ASCII dots and spaces.
+      const trailingCandidate=candidatePath.split('/')
+        .map(segment=>segment.replace(/[. ]+$/u,'')).join('/');
+      return [candidatePath,trailingCandidate].some(pathCandidate=>
+        portableKeys(pathCandidate).some(key=>distributedKeys.has(key)));
+    });
   }
 
   /**
@@ -481,7 +495,7 @@ function hasPinnedLocalJavaScriptIntegrity(files,routePrefix='') {
       const encodedPath=url.pathname.slice(1);
       if(matchesDistributedScript(encodedPath))return encodedPath;
       const pathname=decodeURIComponent(url.pathname);
-      if(!pathname.startsWith('/')||pathname.includes('\\'))return null;
+      if(!pathname.startsWith('/'))return null;
       return pathname.slice(1);
     }catch(error){return null;}
   }
