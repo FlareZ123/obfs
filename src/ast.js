@@ -810,7 +810,15 @@ function hasWeakMapPrototypeExposure(ast) {
       const info=nearestFunctionInfo(ancestors);
       if(info&&node.argument)info.returnValues.push(node.argument);
     }
-    if(isWeakMapPrototypeExpression(node))exposed=true;
+    const unknownGlobalSlotAssignment=
+      node.type==='MemberExpression'&&parent?.type==='AssignmentExpression'&&key==='left'&&
+      (()=> {
+        const globalProperty=globalRootProperty(node);
+        return globalProperty!==null&&globalProperty!=='*'&&
+          !knownGlobalConstructorNames.has(globalProperty)&&
+          !['prototype','__proto__'].includes(memberKey(node)??'');
+      })();
+    if(!unknownGlobalSlotAssignment&&isWeakMapPrototypeExpression(node))exposed=true;
     // Direct arguments to opaque calls escape. A unique private local reader
     // is exempt only for parameters whose complete body proves a native
     // get/has/delete receiver-only use.
@@ -944,17 +952,30 @@ function hasWeakMapPrototypeExposure(ast) {
    * @param {AstNode|null|undefined} node
    * @returns {boolean}
    */
-  function containsExportedWeakMapCapability(node) {
+  /**
+   * @param {AstNode|null|undefined} node
+   * @param {Set<AstNode|string>} [seen=new Set()]
+   * @returns {boolean}
+   */
+  function containsExportedWeakMapCapability(node,seen=new Set()) {
     if(!node)return false;
+    const visitKey=node.type==='Identifier'?'identifier:'+node.name:node;
+    if(seen.has(visitKey))return false;
+    seen.add(visitKey);
     if(node.type==='Identifier') {
-      return weakMapInstances.has(node.name)||
-        weakMapContainerInstances.has(node.name)||
-        weakMapContainerOwners.has(node.name)||
-        weakMapFactories.has(node.name)||
-        weakMapConstructors.has(node.name)||
-        weakMapDerivedConstructors.has(node.name)||
-        prototypeAliases.has(node.name)||
-        importedLocalNames.has(node.name);
+      if(weakMapInstances.has(node.name)||
+         weakMapContainerInstances.has(node.name)||
+         weakMapContainerOwners.has(node.name)||
+         weakMapFactories.has(node.name)||
+         weakMapConstructors.has(node.name)||
+         weakMapDerivedConstructors.has(node.name)||
+         prototypeAliases.has(node.name)||
+         importedLocalNames.has(node.name))return true;
+      const exportedValue=exportedValueNodes.get(node.name);
+      if(exportedValue&&containsExportedWeakMapCapability(exportedValue,seen))return true;
+      const alias=objectAliases.get(node.name);
+      return Boolean(alias&&containsExportedWeakMapCapability(
+        {type:'Identifier',name:alias},seen));
     }
     if(node.type==='ClassDeclaration'||node.type==='ClassExpression')
       return weakMapDerivedDepth(node)!==undefined||containsWeakMapInstanceValue(node);
@@ -966,13 +987,13 @@ function hasWeakMapPrototypeExposure(ast) {
     if(node.type==='ObjectExpression') {
       return (node.properties??[]).some((/** @type {AstNode} */ property)=>
         property.type==='SpreadElement'?
-          containsExportedWeakMapCapability(property.argument):
+          containsExportedWeakMapCapability(property.argument,seen):
         property.type==='Property'?
-          containsExportedWeakMapCapability(property.value):false);
+          containsExportedWeakMapCapability(property.value,seen):false);
     }
     if(node.type==='ArrayExpression')
       return (node.elements??[]).some((/** @type {AstNode|null} */ element)=>
-        containsExportedWeakMapCapability(element));
+        containsExportedWeakMapCapability(element,seen));
     if(node.type==='CallExpression') {
       if(node.callee.type==='Identifier'&&
          (weakMapFactories.has(node.callee.name)||importedLocalNames.has(node.callee.name)))return true;
@@ -983,19 +1004,20 @@ function hasWeakMapPrototypeExposure(ast) {
             importedLocalNames.has(rootIdentifier(node.callee.object)??''))))return true;
       return containsWeakMapInstanceValue(node);
     }
-    if(node.type==='AssignmentExpression')return containsExportedWeakMapCapability(node.right);
+    if(node.type==='AssignmentExpression')
+      return containsExportedWeakMapCapability(node.right,seen);
     if(node.type==='ConditionalExpression')
-      return containsExportedWeakMapCapability(node.consequent)||
-        containsExportedWeakMapCapability(node.alternate);
+      return containsExportedWeakMapCapability(node.consequent,seen)||
+        containsExportedWeakMapCapability(node.alternate,seen);
     if(node.type==='LogicalExpression')
-      return containsExportedWeakMapCapability(node.left)||
-        containsExportedWeakMapCapability(node.right);
+      return containsExportedWeakMapCapability(node.left,seen)||
+        containsExportedWeakMapCapability(node.right,seen);
     if(node.type==='SequenceExpression')
-      return containsExportedWeakMapCapability(node.expressions.at(-1));
+      return containsExportedWeakMapCapability(node.expressions.at(-1),seen);
     if(node.type==='AwaitExpression'||node.type==='YieldExpression')
-      return containsExportedWeakMapCapability(node.argument);
+      return containsExportedWeakMapCapability(node.argument,seen);
     if(node.type==='ChainExpression')
-      return containsExportedWeakMapCapability(node.expression);
+      return containsExportedWeakMapCapability(node.expression,seen);
     if(node.type==='MemberExpression') {
       const root=rootIdentifier(node);
       return Boolean(root&&importedLocalNames.has(root))||
@@ -1007,14 +1029,35 @@ function hasWeakMapPrototypeExposure(ast) {
    * @param {AstNode|null|undefined} node
    * @returns {boolean}
    */
+  /**
+   * @param {AstNode|null|undefined} node
+   * @param {Set<string>} [seen=new Set()]
+   * @returns {boolean}
+   */
+  function isCommonJsExportObject(node,seen=new Set()) {
+    if(!node)return false;
+    if(node.type==='MemberExpression') {
+      return node.object?.type==='Identifier'&&node.object.name==='module'&&
+        memberKey(node)==='exports';
+    }
+    if(node.type!=='Identifier')return false;
+    if(node.name==='exports')return true;
+    if(seen.has(node.name))return false;
+    seen.add(node.name);
+    const alias=objectAliases.get(node.name);
+    if(alias&&isCommonJsExportObject({type:'Identifier',name:alias},seen))return true;
+    const value=exportedValueNodes.get(node.name);
+    return Boolean(value&&isCommonJsExportObject(value,seen));
+  }
+  /**
+   * @param {AstNode|null|undefined} node
+   * @returns {boolean}
+   */
   function isCommonJsExportTarget(node) {
     if(node?.type!=='MemberExpression')return false;
-    if(node.object?.type==='Identifier'&&node.object.name==='exports')return true;
     if(node.object?.type==='Identifier'&&node.object.name==='module'&&
        memberKey(node)==='exports')return true;
-    return node.object?.type==='MemberExpression'&&
-      node.object.object?.type==='Identifier'&&node.object.object.name==='module'&&
-      memberKey(node.object)==='exports';
+    return isCommonJsExportObject(node.object);
   }
   walk(ast,node=>{
     if(node.type==='AssignmentExpression'&&isCommonJsExportTarget(node.left)&&
