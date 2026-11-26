@@ -89,3 +89,8 @@ The PR description remains materially stale: it cites head `8a6540d...` / base `
 - primary strong-confidentiality, anti-reconstruction, hostile-runtime integrity, SCO relay resistance, and universal 2.5x claims remain unestablished.
 
 **Conclusion:** The C0/DEL pathname correction and its inspected consumers pass this bounded independent review. The exact-head full run shows no new named regression, but it does not pass the repository-wide behavioral gate. Keep PR #379 draft until the PR/base/status metadata is refreshed and the 11 baseline yield failures receive a deliberate disposition. Do not promote this to an established security result.
+
+
+## Test-strengthening note after Agent 7's HTTP review
+
+The current 15-case SCO HTTP matrix in `test/sco-control-char-publication.test.js` proves native ESM loads the URL target and that the SCO route returns target status 200 / decoy status 404. It stores response bodies but does not yet assert that the target response body contains its unique `url-target-<id>` marker or excludes `posix-decoy-<id>`. Source inspection of the handler's selected-path map did not reveal a byte-substitution defect, so this is a **test-strengthening gap, not a demonstrated production bug**. Add the body-marker assertions before treating the HTTP test as byte-level proof of the served target. The literal-C0 startup-refusal assertion could also be tightened to the exact `SCO noncanonical ESM import path unsupported:` diagnostic.
