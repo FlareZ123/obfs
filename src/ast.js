@@ -2138,6 +2138,7 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
     let reassigned=false;
     let methodMutated=false;
     let escaped=false;
+    let weakMapIntrinsicEscaped=false;
     const allowedMapReferences=new WeakSet();
     walk(ast,node=>{
       if(node.type==='CallExpression'&&node.callee.type==='MemberExpression'&&
@@ -2147,6 +2148,9 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
       }
     });
     walk(ast,(node,parent)=>{
+      if(node.type==='Identifier'&&node.name==='WeakMap'&&
+         !(parent?.type==='NewExpression'&&parent.callee===node))
+        weakMapIntrinsicEscaped=true;
       if(node.type==='VariableDeclarator'&&node.id.type==='Identifier'&&
          node.id.name===name) {
         declarations++;
@@ -2181,7 +2185,8 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
         escaped=true;
       }
     });
-    return declarations===1&&nativeConstruction&&!reassigned&&!methodMutated&&!escaped;
+    return declarations===1&&nativeConstruction&&!reassigned&&!methodMutated&&
+      !escaped&&!weakMapIntrinsicEscaped;
   }
   /**
    * A Storage.prototype override that only stores its receiver/value pair in
