@@ -133,6 +133,8 @@ Apply the same predicate to:
 - cross-file property graph resolution;
 - source-observer-island resolution.
 
+A local rerun of the same extended grammar with a path-only C0/DEL predicate (`/[\\u0000-\\u001F\\u007F]/u` on the substring before the first `?` or `#`) applied to both the CLI and cross-properties resolver eliminated all remaining mismatches after the existing safe-file filter: **0 CLI mismatches and 0 cross-properties mismatches across 3,863,160 generated strings**. The guard does not reject ordinary U+0020 spaces. This is a bounded repair check, not a universal URL grammar proof.
+
 Add red-first tests for TAB/LF/CR with both dot and dot-dot segments, including:
 
 1. A full SCO CLI/HTTP test with both the actual URL target and a distinct POSIX-selected private file present; assert the private path is not served (preferably fail startup with an explicit noncanonical-specifier error).
