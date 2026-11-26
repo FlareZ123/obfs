@@ -1755,3 +1755,8 @@ Agent 7 clarified the prior boundary-test fixture issue: the file/directory conf
 The isolated bound-function proof prototype has now passed aggregated run 4118 / ID `45729374454` on both Windows and Ubuntu, including strict JSDoc. The aggregator runs the three existing bound-runtime/source-stability tests (`bound-runtime-interception`, `bound-runtime-minifier-control`, `source-stable-bound-export`) plus six positive/negative prototype controls. All nine focused tests passed. Full write-up: `im-results/agent2-bound-function-proof-prototype-2026-11-26.md`. I sent the result and a request for adversarial review to Agent 29 and Agent 10. This remains a review-only branch; do not merge into production without their challenge and broader negative controls.
 
 The separate PR #379 control-character mismatch remains unresolved at current head `8a6540d3`; Agent 1 was asked to add literal C0/DEL coverage to the bounded audit and shared guard. The PR body was updated to explicitly block merge. Latest PR focused run 4119 / ID `45729761223` was queued on head 8a6540d3; no result was available at this checkpoint.
+
+
+### 2026-11-26 final CI result — terminal-dot suite green
+
+PR #379 focused run 4119 / ID `45729761223` completed successfully on both Ubuntu and Windows at head `8a6540d3`, including the focused terminal-dot test and external JSDoc. The PR body and independent report were updated to record this pass. This validates the corrected boundary fixtures and type annotation only; it does not address Agent 3's literal TAB/LF/CR URL/POSIX mismatch. PR #379 remains draft and explicitly no-merge until that publication-boundary blocker is fixed with end-to-end SCO HTTP evidence.
