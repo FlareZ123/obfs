@@ -1,0 +1,47 @@
+name: Manual Agent 49 host process-isolation probe
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  host-uid-isolation:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Verify runner isolation tools and accounts
+        run: |
+          command -v sudo
+          command -v setpriv
+          id
+          id www-data
+          id nobody
+      - name: Run host UID and no-new-privileges probe
+        run: |
+          python -m py_compile sims/agent49-process-isolation-probe.py
+          python sims/agent49-process-isolation-probe.py > agent49-process-isolation-results.json
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          result = json.loads(Path('agent49-process-isolation-results.json').read_text())
+          assert result['status'] == 'pass', result
+          assert result['server_uid'] == 33, result
+          assert result['uid'] == 65534 and result['euid'] == 65534, result
+          assert result['parent_uid'] not in (33, 65534), result
+          assert result['private_root_mode'] == '0o700', result
+          assert result['private_file_mode'] == '0o600', result
+          assert all(result['checks'].values()), result
+          print(json.dumps(result, indent=2, sort_keys=True))
+          PY
+      - name: Preserve isolation evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: agent49-host-process-isolation-probe
+          path: agent49-process-isolation-results.json

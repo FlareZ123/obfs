@@ -10,7 +10,7 @@
 
 I independently inspected `sims/agent2-hw-version-space-audit.py`, its unit tests, and the method-correction note at the reviewed branch head. Within the stated finite model—complete deterministic binary Mealy machines, candidate sizes `1..N`, one continuous public trace, and a minimal strongly connected candidate—I found no soundness defect in the current version-space encoding or its post-SAT witness validation.
 
-This is a positive review of the mathematical construction, **not** an endorsement of the hW benchmark as an isolated hostile-client experiment. The seed disclosure, small public prior, Python closure access, same-UID live client, inherited runner environment, and passwordless-sudo boundary remain decisive limitations. The PR should remain draft until those are repaired and the experiment is rerun.
+This is a positive review of the mathematical construction, **not** an endorsement of the hW benchmark as an isolated hostile-client experiment. The seed disclosure, small public prior, Python closure access, runner-UID live learner with passwordless sudo; the server runs as uid nobody, inherited runner environment, and passwordless-sudo boundary remain decisive limitations. The PR should remain draft until those are repaired and the experiment is rerun.
 
 ## Review of the proof obligations
 
@@ -90,7 +90,7 @@ The benchmark's hostile-client interpretation is separately invalidated by the a
 - the random offline family contains only 70 public deterministic fixtures, and the prior-aware learner identifies those in at most nine queries;
 - the live family contains only eight candidates and is identifiable in at most four queries;
 - the offline Python SUL closes over the target fixture;
-- the live learner runs under the runner UID, shares the host with the server, inherits runner environment, and can reach passwordless sudo.
+- the live learner runs under the GitHub runner UID (the same UID as the parent orchestrator), while the server runs as uid nobody; the runner account has passwordless sudo, so the learner can elevate and inspect the server's 0700 private temp root/process; the learner also inherits runner environment.
 
 The delayed-pair family is different: 1,240 parameter pairs collapse to 124 distinct behaviors, with an exact prior-aware minimax bound of 126 queries. That is a useful known-prior benchmark after removing the seed disclosure, but it does not repair process isolation or establish a production SCO attack.
 
