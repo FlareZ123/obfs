@@ -468,9 +468,10 @@ function collectDirectCarrierFactories(ast) {
  * @param {Set<string>} [importedPrimitives] Proven immutable ESM primitive imports.
  * @param {Set<string>} [importedUrlStaticMethods] Proven native URL parser ESM imports.
  * @param {Set<string>} [importedStorageMethodAliases] Proven native Storage method ESM imports.
+ * @param {boolean} [groupWeakMapPrototypeEscape] A prototype escape found in any supplied file.
  * @returns {boolean}
  */
-function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunctions=new Set(),importedFunctionArrays=new Set(),importedPrimitives=new Set(),importedUrlStaticMethods=new Set(),importedStorageMethodAliases=new Set()) {
+function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunctions=new Set(),importedFunctionArrays=new Set(),importedPrimitives=new Set(),importedUrlStaticMethods=new Set(),importedStorageMethodAliases=new Set(),groupWeakMapPrototypeEscape=false) {
   // A cached opaque-import result does not apply when imported keys have
   // been independently verified against the supplied ESM files.
   if(!importedStrings.size&&!importedCloneFunctions.size&&
@@ -2292,7 +2293,7 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
     let reassigned=false;
     let methodMutated=false;
     let escaped=false;
-    let weakMapIntrinsicEscaped=false;
+    let weakMapIntrinsicEscaped=groupWeakMapPrototypeEscape||hasWeakMapPrototypeEscape(ast,bindingCounts);
     const allowedMapReferences=new WeakSet();
     walk(ast,node=>{
       if(node.type==='CallExpression'&&node.callee.type==='MemberExpression'&&
@@ -2302,15 +2303,6 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
       }
     });
     walk(ast,(node,parent)=>{
-      if(node.type==='Identifier'&&node.name==='WeakMap'&&
-         !(parent?.type==='NewExpression'&&parent.callee===node))
-        weakMapIntrinsicEscaped=true;
-      if(node.type==='MemberExpression') {
-        const property=memberName(node);
-        if(property==='getPrototypeOf'||property==='__proto__')weakMapIntrinsicEscaped=true;
-      }
-      if(node.type==='Property'&&sourceStringKey(node.key)==='getPrototypeOf')
-        weakMapIntrinsicEscaped=true;
       if(node.type==='MemberExpression'&&memberName(node)==='WeakMap'&&
          isGlobal(node.object))weakMapIntrinsicEscaped=true;
       if(node.type==='VariableDeclarator'&&node.init?.type==='Identifier'&&
