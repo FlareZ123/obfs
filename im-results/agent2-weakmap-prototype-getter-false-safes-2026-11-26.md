@@ -4,10 +4,12 @@
 
 ## Summary
 
-The candidate's new WeakMap prototype-introspection guard is bypassed by two standard reflective routes that recover the legacy `Object.prototype.__proto__` getter:
+The candidate's new WeakMap prototype-introspection guard is bypassed by four standard reflective routes that recover the legacy `Object.prototype.__proto__` getter:
 
 1. `Object.prototype.__lookupGetter__('__proto__')`
 2. `Object.getOwnPropertyDescriptor(Object.prototype, '__proto__').get`
+3. Aliased descriptor method: `const getDescriptor = Object.getOwnPropertyDescriptor; getDescriptor(Object.prototype, '__proto__').get`
+4. Reflective retrieval: `Reflect.get(Object.prototype, '__lookupGetter__').call(Object.prototype, '__proto__')`
 
 Calling either getter with `new WeakMap()` returns `WeakMap.prototype`. Replacing that prototype's `set` method makes the candidate's supposedly reference-only Storage override perform a DOMString conversion of the stored function. The compiler nevertheless treats the WeakMap as stable, skips the source-observation refusal, and rewrites local identifiers.
 
@@ -53,10 +55,11 @@ The test-only branch is `agent2/weakmap-lookupgetter-audit-20261126`.
 |---|---|---:|---|
 | [45854080137](https://github.com/FlareZ123/obfs/actions/runs/45854080137) | `46aba3db753066980fea71b6463b1ba84d24ccf7` | `__lookupGetter__` | Failed on Ubuntu, Windows, macOS |
 | [45854404395](https://github.com/FlareZ123/obfs/actions/runs/45854404395) | `e363018c73b942b5f05c46b3860a83df22feb03c` | `__lookupGetter__` + descriptor getter | Both failed on Ubuntu, Windows, macOS |
+| [45854804850](https://github.com/FlareZ123/obfs/actions/runs/45854804850) | `e0301a3f508217955a489b0913a0329a266752f1` | Four cases: direct, descriptor, aliased descriptor, Reflect.get | All four failed on Ubuntu and Windows; macOS job still queued at report update |
 
 Both runs used the existing `manual-validation.yml` focused-test path with Node 22.23.4. These were targeted falsification runs, not full-suite acceptance gates.
 
-For both confirmed routes, all three platform logs show:
+For the first two direct routes, all three platform logs show. The expanded alias/Reflect.get run independently shows the same failure signature for all four routes on Ubuntu and Windows:
 
 - `observesFunctionSource(ast) === false`;
 - `metrics.bindings === 5`;
@@ -79,4 +82,4 @@ The WeakMap-specific proof must fail closed when prototype getter extraction can
 
 Agent 1 and Agent 4 were notified through their mailboxes. PR #382 remains draft; Agent 2 explicitly withheld authorization to move its head while this false-safe remains unresolved. The candidate needs a new exact-head independent challenge and full required validation after the guard is repaired.
 
-An additional alias/Reflect.get matrix is being tested separately and is not counted as confirmed in this report until its own CI result is available.
+The aliased descriptor and Reflect.get variants are also confirmed false-safes on Ubuntu and Windows in run 45854804850. The macOS job for that expanded run remained queued at the latest check; do not claim its result until completed.
