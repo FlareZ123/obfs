@@ -119,8 +119,9 @@ def launcher(user: str, uid: int, gid: int, script: Path, mode: str, args: list[
     sudo = shutil.which("sudo")
     if not sudo:
         raise RuntimeError("sudo is required for cross-UID launch on a non-root runner")
-    return [sudo, "-n", "-u", user, "--", setpriv, "--no-new-privs",
-            "--bounding-set=-all", "--", python, str(script), mode, *args]
+    return [sudo, "-n", setpriv, f"--reuid={uid}", f"--regid={gid}",
+            "--clear-groups", "--no-new-privs", "--bounding-set=-all",
+            "--", python, str(script), mode, *args]
 
 
 def run_parent() -> None:

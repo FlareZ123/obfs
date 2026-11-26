@@ -57,3 +57,8 @@ The local run validates the mechanics in this container, not the GitHub-hosted r
 6. Keep the client/server on distinct UIDs; test that the learner cannot read the private file or inspect server/parent memory, and can still reach the intended HTTP endpoint.
 
 This host-UID design is materially stronger than a same-runner-UID learner with passwordless sudo. A separate Docker/container boundary with no shared volumes, no Docker socket, a dedicated internal network, read-only filesystems, and dropped capabilities would be stronger still. The current probe does not test network egress restrictions, kernel exploits, arbitrary ptrace edge cases, browser execution, or the 2.5x runtime budget.
+
+
+## Hosted-runner attempt 1: launcher correction
+
+Workflow run 45765593586 reached the Ubuntu runner and confirmed the expected accounts (runner UID 1001, www-data UID 33, nobody UID 65534), but failed before starting the server: the launcher first used sudo to drop to www-data and then invoked setpriv with --bounding-set=-all. An unprivileged www-data process cannot change its capability bounding set, so setpriv returned EPERM. This was a launcher-order defect, not a failed isolation assertion. The launcher is corrected to invoke setpriv under sudo/root and let setpriv atomically set the UID/GID, clear groups, drop the capability bounding set, and set no-new-privileges before exec. The local root-container probe passes after this correction; hosted-runner rerun is pending.
