@@ -84,6 +84,29 @@ def build_candidates(min_states: int, max_states: int) -> tuple[Candidate, ...]:
     return tuple(candidates)
 
 
+def shortest_distinguishing_word(left: Candidate, right: Candidate) -> tuple[int, ...] | None:
+    """BFS the product machine for a shortest word separating two candidates."""
+    start = (left.initial_state, right.initial_state)
+    queue = deque([(start, ())])
+    visited = {start}
+    while queue:
+        (left_state, right_state), prefix = queue.popleft()
+        for symbol in (0, 1):
+            left_output = left.outputs[left_state][symbol]
+            right_output = right.outputs[right_state][symbol]
+            word = prefix + (symbol,)
+            if left_output != right_output:
+                return word
+            next_pair = (
+                left.transitions[left_state][symbol],
+                right.transitions[right_state][symbol],
+            )
+            if next_pair not in visited:
+                visited.add(next_pair)
+                queue.append((next_pair, word))
+    return None
+
+
 class MinimaxPriorLearner:
     """Exact worst-case decision-tree policy over candidate/current-state beliefs."""
 
@@ -199,6 +222,15 @@ def main() -> None:
     print(f"query_count_histogram={histogram}")
     print(f"belief_states_memoized={len(learner.memo)}")
     print(f"max_pair_distinguishing_length={max(c.max_pair_distinguishing_length for c in candidates)}")
+
+    pair_left = next((c for c in candidates if (c.state_count, c.initial_state) == (64, 3)), None)
+    pair_right = next((c for c in candidates if (c.state_count, c.initial_state) == (63, 2)), None)
+    if pair_left is not None and pair_right is not None:
+        witness = shortest_distinguishing_word(pair_left, pair_right)
+        if witness is None:
+            raise AssertionError("expected the N=64/3 and N=63/2 candidates to be distinguishable")
+        print(f"pair_lower_bound_queries={len(witness)}")
+        print(f"pair_lower_bound_witness={list(witness)}")
 
     try:
         n_text, state_text = args.show_target.split(":", 1)
