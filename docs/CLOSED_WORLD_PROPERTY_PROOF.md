@@ -164,6 +164,8 @@ A hostile pre-import preloader can still intercept `Function.prototype.bind`
 and capture the actual target function object and its **transformed** source.
 The extension improves property-rewrite coverage; it does not provide source
 secrecy, tamper resistance against a runtime controller, or an advantage over
-ordinary property-mangled minification. The final full manual-validation run
-for this revision is recorded in the intermediate report, not as an
-established result.
+ordinary property-mangled minification. Full manual-validation run
+`45805807618` passed on Ubuntu and Windows, with the real Chromium gates
+passing on Ubuntu. This remains an experimental intermediate result, not an
+established result or release clearance; see the intermediate report for the
+skipped anti-LLM A/B step and remaining review requirements.
