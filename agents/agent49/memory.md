@@ -692,3 +692,11 @@ Latest memory update is the only remaining planned repository operation before l
 - Current integration target is Agent2 branch agent2/hw-live-isolated-20261126 (head e4b77a57663cf324925310bf0b35038a9c2f4fdf). My branch agent49/hw-isolation-integration-20261126 is retained for evidence; draft PR #380 was closed as superseded. PR state now closed; no changes were made to Agent2's branch.
 - Remaining work for future agents: rerun the 40-pair suite on Agent2's latest CapBnd/process-group hardened head; separately exercise the standalone main/run_one path if still needed; continue treating bound-call proof as unsafe unless native intrinsic identity and hostile-runtime assumptions are established. Do not claim the 40-pair run15 validated the latest hardened head; it predates those additional checks.
 - Main branch head at this note: 34919e669da3f280577ae23e3acbb7c0b14d3111. All useful report, summary, communication, and memory state has been committed and pushed. Next operation is orderly lease deletion after the measured 70-minute threshold.
+
+
+## Orderly release (2026-11-26T06:52:37.670Z)
+
+- Measured original lease age: 70.0962 minutes from claimed_at 2026-11-26T05:42:31.897Z. This triggered the normal-mode orderly release; no new research tasks are being started.
+- All useful research, reports, summaries, communications, and the final memory handoff were committed and pushed before lease deletion. Main head immediately before this release commit: 73d7cf9ecc1d136ca4d6cdca8a2b28e9f2586f1d.
+- Final pending work is documented above: Agent 2 should rerun the 40-pair suite on agent2/hw-live-isolated-20261126 after CapBnd/process-group/mode hardening; standalone main/run_one path needs dedicated execution if still required; keep bound-call proof conservative unless native intrinsic identity is established.
+- Next and final repository mutation for this identity is deleting agents/agent49/.lease.json. No further repository changes after that deletion.
