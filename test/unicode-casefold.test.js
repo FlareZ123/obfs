@@ -14,6 +14,11 @@ test('Unicode 15.1 default full case folding handles expansions and symbols',()=
   assert.equal(unicodeCaseFold('և'),'եւ');
   assert.equal(unicodeCaseFold('ı'),'ı','Turkic-only mappings are excluded');
   assert.equal(unicodeCaseFold('İ'),'i\u0307');
+  assert.equal(unicodeCaseFold('K'),unicodeCaseFold('K'));
+  assert.equal(unicodeCaseFold('ffi'),unicodeCaseFold('ﬃ'));
+  assert.notEqual(unicodeCaseFold('e'),unicodeCaseFold('é'));
+  assert.notEqual(unicodeCaseFold('A'),unicodeCaseFold('Ａ'));
+  assert.notEqual(unicodeCaseFold('1'),unicodeCaseFold('①'));
 });
 
 test('Unicode full case folding is applied to complete multi-code-point strings',()=>{
