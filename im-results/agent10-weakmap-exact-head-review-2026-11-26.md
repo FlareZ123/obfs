@@ -1,0 +1,130 @@
+# Agent 10 exact-head WeakMap candidate review — 2026-11-26
+
+**Classification:** Intermediate reproducibility and candidate-review evidence. Not an established academic result.  
+**Candidate branch:** agent1/weakmap-exported-container-review-20261126  
+**Exact candidate SHA:** 070bc11594fc44e41e496302cf5458152b33538a  
+**Reviewer identity:** Agent 10
+
+## Executive disposition
+
+The candidate has useful exact-head browser evidence, but it is **not full-gate green** and should remain **RELEASE-BLOCKED / NO-GO**.
+
+- Exact-head focused validation run 45905444702 succeeded, but its jobs were focused tests and the node22 full-suite job was skipped. Do not call this full acceptance.
+- Exact-head Chromium safe-mode run 45909349979 succeeded with weakmap_source_falsifiers=true and weakmap_expect_safe=true.
+- Exact-head full manual validation run 45909023258 completed failure on both Node 22 platforms:
+  - Ubuntu: 5,675 passed, 1 failed, 25 skipped (5,701 total).
+  - Windows: 5,664 passed, 2 failed, 35 skipped (5,701 total).
+- Both platforms fail the same deterministic positive-control test: test/agent1-weakmap-exported-container-review.test.js:209, “private local WeakMap storage and non-exported factories do not disable the Storage proof”. The expected Storage binding rewrite count is nonzero; actual count is zero.
+- Windows additionally failed test/sco-step-only-live-rpc.test.js:58 with fetch failed. This is an intermittent harness/service issue: the prior full run 45888992628 on candidate fcec2e0 had the same local live-RPC failure on Ubuntu, but not Windows. Keep it separate from the deterministic candidate regression.
+- JSDoc/typecheck, benchmark, paired process profiles, and browser integration steps shown in the full-run logs completed successfully. Sampled native/emitted ratios were approximately 0.94–1.05×. This is evidence only for the sampled workloads; it does not prove the 2.5× bound for all applications.
+
+## Confirmed full-gate precision regression
+
+The failing test includes a primitive result publication:
+
+~~~js
+globalThis.__privateWeakMapValue = cache.get('answer');
+~~~
+
+The candidate calls isWeakMapPrototypeExpression(node) for every AST node. That reaches weakMapPrototypeChainDepth. In its MemberExpression branch, the current source first evaluates globalRootProperty(node) and returns depth zero for any unknown global property before checking whether the member is actually a prototype or parent-prototype access.
+
+Consequently globalThis.__privateWeakMapValue is classified as WeakMap.prototype, even though it is an ordinary application result slot. The shared group exposure veto then suppresses Storage transformations across all supplied files. This explains the deterministic positive-control failure on both platforms.
+
+The broad unknown-global fallback can be useful when an unknown global property is used as a possible constructor/superclass. It is not valid for every arbitrary global member expression. Keep constructor uncertainty scoped to actual constructor/prototype positions, including the relevant prototype and __proto__ chain cases. Do not remove the conservative unknown-constructor handling wholesale.
+
+The diagnosis was sent to Agent 1 in communications/agent1/20261126T2317Z_agent10-correction-global-property-positive-control.md and the full-run disposition in communications/agent1/20261126T2320Z_agent10-full-gate-459090-disposition.md.
+
+## Exact-head browser evidence
+
+Run 45909349979 checked out candidate SHA 070bc11594fc44e41e496302cf5458152b33538a and passed the existing manual Chromium WeakMap workflow with:
+- weakmap_source_falsifiers = true
+- weakmap_expect_safe = true
+
+This is a real-browser safe-mode receipt for the existing five-case browser matrix and its positive controls. It does not validate the additional reflection/loop/CJS hypotheses below.
+
+## Additional code-derived hypotheses — not runtime receipts on 070bc
+
+These are separate candidate paths identified by source inspection. They must be added as red-first differentials on the existing candidate branch before being described as confirmed false-safes.
+
+### 1. Extracted/bound reflection functions
+
+The candidate recognizes direct Reflect.get and Object/Reflect.getPrototypeOf expressions, but the current prototype-chain helper does not appear to track an extracted Reflect.get function alias:
+
+~~~js
+const reflectGet = Reflect.get;
+const nativePrototype = reflectGet(globalThis.WeakMap, 'prototype');
+~~~
+
+The same issue may occur with destructuring, .call/.apply/.bind indirection, and extraction of Object.prototype.__proto__'s getter through Object.getOwnPropertyDescriptor(...).get. The previous Agent 2 audit documents five concrete getter-extraction forms on an older donor in im-results/agent2-weakmap-prototype-getter-false-safes-2026-11-26.md. Those exact forms should be replayed against 070bc rather than assumed fixed by direct Reflect.get support.
+
+### 2. For-of target binding
+
+The loop visitor handles statement.right and statement.body but does not bind statement.left. A VariableDeclarator under the ForOf left has no initializer, and traversing the iterable's array/NewExpression does not associate its element with the loop binding:
+
+~~~js
+for (const instance of [new WeakMap()]) {
+  const nativePrototype = Object.getPrototypeOf(instance);
+  // mutate nativePrototype.set and use the existing source sink
+}
+~~~
+
+Inside the loop body, instance may resolve to carrierOther, losing the native WeakMap prototype. Test all three obfuscation modes with a primitive iterable positive control.
+
+### 3. ClassDeclaration method closure capture
+
+A function-local object container can be captured by a class method:
+
+~~~js
+function outer() {
+  const carrier = { instance: new WeakMap() };
+  class Mutator {
+    patch() {
+      const nativePrototype = Object.getPrototypeOf(carrier.instance);
+      // mutate nativePrototype.set and use the existing source sink
+    }
+  }
+  new Mutator().patch();
+}
+outer();
+~~~
+
+The ClassDeclaration visitor handles PropertyDefinition and StaticBlock, but does not appear to capture MethodDefinition.value environments. The later method-body pass can therefore fall back to module carrierEnvironment. The object-property form matters: a direct captured variable declared with new WeakMap can be masked by the global weakMapInstances name set. This needs a red-first differential and a local class-method primitive-container positive control.
+
+### 4. CommonJS export-object aliases
+
+The current CJS export check appears to recognize direct exports.foo and module.exports.foo assignments, but not publication through an alias:
+
+~~~js
+const out = exports;
+out.Derived = class Derived extends globalThis.WeakMap {};
+~~~
+
+Likewise, an object value assigned to module.exports through a local identifier can lose its capability edge:
+
+~~~js
+class Derived extends globalThis.WeakMap {}
+const api = { Derived };
+module.exports = api;
+~~~
+
+The prepass stores exportedValueNodes for api, but containsExportedWeakMapCapability's Identifier branch does not appear to follow that stored object value. An external require consumer can obtain the class/factory and mutate native WeakMap.prototype. Add external-consumer differentials while preserving direct-export and local non-exported controls.
+
+Messages to Agent 1:
+- communications/agent1/20261126T2309Z_agent10-weakmap-reflection-alias-falsifiers.md
+- communications/agent1/20261126T2311Z_agent10-weakmap-forof-carrier-falsifier.md
+- communications/agent1/20261126T2312Z_agent10-class-method-closure-carrier-falsifier.md
+- communications/agent1/20261126T2315Z_agent10-commonjs-export-alias-falsifier.md
+- communications/agent1/20261126T2316Z_agent10-cjs-exported-object-alias.md
+
+## Candidate architecture boundary
+
+The current helper remains a bounded local analyzer with identifier-spelling-keyed WeakMap constructor/instance/factory/container/prototype sets and a group-level boolean. It is not the canonical shared ValueRef / HostEffectRecord / FunctionSummary graph. Keep it explicitly intermediate. Do not generalize a successful targeted run into claims about complete reflection, external module boundaries, anti-static reconstruction, anti-dynamic instrumentation, domain locking, or the 2.5× bound for arbitrary code.
+
+## Next actions
+
+1. Wait for Agent 1's response and inspect whether the single candidate branch advances. Do not create another implementation branch or workflow.
+2. Fix the arbitrary-global-member false positive while preserving unknown-global-constructor handling.
+3. Add the four proposed red-first test groups plus the prior Agent 2 getter-extraction forms to the existing candidate branch. Use exact candidate SHA in every focused, Chromium, and full run.
+4. Require positive-yield controls for local/private WeakMap use, ordinary global properties, primitive iteration, local class-method containers, and non-exported factories.
+5. Re-run the focused falsifier suite, exact-head Chromium safe-mode workflow, then the complete manual-validation workflow. A focused green is not full acceptance.
+6. Keep the release state blocked until the full behavioral suite and all three mode boundaries are supported by reproducible evidence.
