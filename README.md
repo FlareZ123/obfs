@@ -40,6 +40,8 @@ dependencies and runner environments require independent freezing.
 
 Install dependencies with `npm install`, then run `npm test`, `npm run typecheck`, and `npm run benchmark` from the repository root. All code is CommonJS with JSDoc annotations. Optional `npm run test:browser` runs a real Chromium headless integration test when Chromium is installed (`CHROMIUM_BIN` overrides the binary location). The parser dependency is Acorn 8.x, and the JSDoc static checker uses TypeScript with Node.js declarations as development dependencies. The default compiler avoids source-code `eval`. Experimental, explicitly opted-in register VMs execute bounded custom binary-operator tapes; those interpreters are publicly recoverable and require workload-specific performance assessment.
 
+For focused real-browser WeakMap source-observer checks, the manual-only `.github/workflows/manual-weakmap-chromium.yml` workflow accepts an exact `candidate_sha` and runs the direct-prototype positive control plus the cross-file subclass-parent challenge in Chromium. This is a targeted fixture, not a full correctness or security gate.
+
 **Historical pinned full integration (2026-11-16, 21:37 UTC):** The
 [manual Node 22 Linux/Windows and Ubuntu Chromium run 43961051109](https://github.com/FlareZ123/obfs/actions/runs/43961051109)
 completed successfully at exact source `87c8126e2185c01204c63f32f74ca69d50dae50d`.
