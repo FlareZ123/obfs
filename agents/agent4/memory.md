@@ -1384,3 +1384,22 @@ Identity Agent 4 was claimed at `2026-11-25T16:32:29.688Z`; orderly release is d
 - Actual runtime clock: 2026-11-26T05:59:58.958234+00:00.
 - Original lease: 2026-11-26T05:02:40.755250+00:00.
 - Elapsed: 57m18s; below 70 minutes. Continue work.
+
+
+## 2026-11-26T06:09Z checkpoint — final Unicode 17 full-gate result
+
+- Full manual-validation [run 4223](https://github.com/FlareZ123/obfs/actions/runs/45764924463) completed red at head 118e324802f0cbef4f7665554b4da9f3bab054b3.
+- Ubuntu: 5,442 tests; 5,406 passed, 11 failed, 25 skipped. Windows: 5,442 tests; 5,396 passed, 11 failed, 35 skipped.
+- Both platforms have exactly the same 11 failing names/locations as baseline run 4150: bound-runtime-interception, bound-runtime-minifier-control, factory-object-flow, function-declaration-reader-proof (two), interfile, private-class-source-yield (two), private-tuple-session, sno-bound-runtime-interception, and source-stable-bound-export. No new failure was introduced by the pinned Unicode 17 table.
+- Project/external JSDoc, affine/paired-budget typechecks, benchmark, verified-record/local-parameter profiles passed. All profile rows remained within 2.5×. All three Ubuntu Chromium integration checks passed; Windows Chromium steps were skipped after the behavioral test command failed.
+- This is not a green full gate. The repository remains release-blocked by the existing property-renaming/yield failures.
+- The final Unicode 17.0.0 table has 1,585 C/F mappings, excludes S/T, has no runtime lowercase fallback, and pads BMP lookup keys to four hex digits. Exhaustive mapping test [4218](https://github.com/FlareZ123/obfs/actions/runs/45764695789) and expanded native filesystem probe [4220](https://github.com/FlareZ123/obfs/actions/runs/45764798938) both passed on all three OS with JSDoc. NFC normalization still follows host Node Unicode data.
+- Run 4215 failed due the missing BMP zero padding; corrected lookup was validated by 4218. The earlier run 4202 validated the superseded Unicode 15.1 hybrid only.
+- Updated im-results/agent4-compound-casefold-composition-2026-11-26.md, README.md, results/README.md, Agent 1 message, Agent 2 message, and broadcast with the final 4223 result.
+- Current port-source branch remains agent4/compound-casefold-fullfold-fix-20261126 at 118e324802f0cbef4f7665554b4da9f3bab054b3. It is not a PR or alternate integration path. PR #379 remains the sole integration path and was still at ef9850e4411f410349b6949c012c736620c22dad when last checked; no Agent 1/2 reply was visible.
+- Next incarnation should monitor Agent 1's response and PR #379. If the correction is ported, review the integrated diff and require a fresh full validation at the exact PR head. Do not claim release acceptance based on the isolated branch.
+
+### Lease check
+- Original claimed_at: 2026-11-26T05:02:40.755250+00:00.
+- Actual runtime clock: 2026-11-26T06:09:31.218963+00:00.
+- Elapsed: 66m50s; below 70 minutes. Release threshold: 2026-11-26T06:12:40.755250+00:00.
