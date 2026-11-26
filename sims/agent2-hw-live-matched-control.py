@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import os
 import importlib.util
 import json
 import shutil
@@ -31,22 +32,25 @@ def sha256_bytes(value: bytes) -> str:
 def start_ordinary_server(fixture, canary: str, session_token: str,
                           method_name: str, mirror_root: Path):
     node_path = shutil.which("node")
-    sudo_path = shutil.which("sudo")
-    if not node_path or not sudo_path:
-        raise RuntimeError("node and sudo are required for the ordinary control")
+    if not node_path:
+        raise RuntimeError("node is required for the ordinary control")
 
     script_source = Path(__file__).with_name("agent2-hw-live-ordinary-server.js")
     script_path = mirror_root / "sims" / script_source.name
     shutil.copy2(script_source, script_path)
 
+    command, child_env = BASE.launch_as_user(
+        "www-data", node_path, [str(script_path)]
+    )
     process = subprocess.Popen(
-        [sudo_path, "-n", "-u", "nobody", "--", node_path, str(script_path)],
+        command,
         stdin=subprocess.PIPE,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
         text=True,
         bufsize=1,
         cwd=mirror_root,
+        env=child_env,
     )
     machine = {
         "next": [list(row) for row in fixture.transitions],
@@ -74,6 +78,13 @@ def start_ordinary_server(fixture, canary: str, session_token: str,
             raise AssertionError(f"unexpected ordinary server identity: {ready!r}")
         if ready.get("method_name") != method_name:
             raise AssertionError("ordinary control did not retain the public method identifier")
+        expected_uid = BASE.pwd.getpwnam("www-data").pw_uid
+        if ready.get("server_uid") != expected_uid:
+            raise AssertionError(f"ordinary server UID mismatch: {ready!r}")
+        if os.stat(f"/proc/{ready['server_pid']}").st_uid != expected_uid:
+            raise AssertionError("ordinary server /proc owner does not match www-data")
+        if set(ready.get("server_env_keys", [])) != set(child_env):
+            raise AssertionError(f"ordinary server environment was not scrubbed: {ready!r}")
         return process, ready
     except Exception:
         if process.poll() is None:
@@ -128,16 +139,19 @@ def invalid_operation_probe(origin: str, method_name: str, session_token: str):
     }
 
 
-def run_client(origin: str, oracle_seed: int, args):
-    client_script = Path(__file__).with_name("agent2-hw-live-sco-client.py")
-    command = [
-        sys.executable,
-        str(client_script),
-        "--origin", origin,
-        "--oracle-seed", str(oracle_seed),
-        "--random-walk-length", str(args.random_walk_length),
-        "--origin-states", str(args.origin_states),
-    ]
+def run_client(origin: str, learner_seed: int, args, mirror_root: Path):
+    client_source = Path(__file__).with_name("agent2-hw-live-sco-client.py")
+    client_script = mirror_root / "sims" / client_source.name
+    shutil.copy2(client_source, client_script)
+    command, child_env = BASE.launch_as_user(
+        "nobody", sys.executable, [
+            str(client_script),
+            "--learner-seed", str(learner_seed),
+            "--origin", origin,
+            "--random-walk-length", str(args.random_walk_length),
+            "--origin-states", str(args.origin_states),
+        ]
+    )
     try:
         completed = subprocess.run(
             command,
@@ -145,6 +159,8 @@ def run_client(origin: str, oracle_seed: int, args):
             text=True,
             timeout=args.timeout_seconds + 10,
             check=False,
+            cwd=mirror_root,
+            env=child_env,
         )
     except subprocess.TimeoutExpired as error:
         return {
@@ -160,6 +176,16 @@ def run_client(origin: str, oracle_seed: int, args):
             "hW client failed: " + json.dumps(result, sort_keys=True)
             + "\n" + completed.stderr[-3000:]
         )
+    process_state = result.get("client_process", {})
+    expected_uid = BASE.pwd.getpwnam("nobody").pw_uid
+    if process_state.get("Uid") != expected_uid or process_state.get("Euid") != expected_uid:
+        raise AssertionError(f"learner UID mismatch: {process_state!r}")
+    if process_state.get("NoNewPrivs") != "1" or process_state.get("CapEff") != "0000000000000000":
+        raise AssertionError(f"learner privilege state is unsafe: {process_state!r}")
+    if process_state.get("SudoBlocked") is not True:
+        raise AssertionError(f"learner retained sudo privilege: {process_state!r}")
+    if set(process_state.get("EnvironmentKeys", [])) != set(child_env):
+        raise AssertionError(f"learner environment was not scrubbed: {process_state!r}")
     return result
 
 
@@ -237,7 +263,7 @@ def run_one(state_count: int, seed: int, args):
         fixture = BENCHMARK.generate_fixture(state_count, seed)
     else:
         fixture = BENCHMARK.generate_delayed_pair_fixture(state_count, seed)
-    oracle_seed = (seed * 0x9E3779B1 + state_count * 0x85EBCA77) & 0xFFFFFFFF
+    learner_seed = args.learner_seed
 
     sco_process = None
     ordinary_process = None
@@ -281,24 +307,24 @@ def run_one(state_count: int, seed: int, args):
         if sco_invalid["response"]["status"] != 403:
             raise AssertionError("authorized invalid-argument probe did not return HTTP 403")
 
-        sco_client = run_client(sco_ready["origin"], oracle_seed, args)
+        sco_client = run_client(sco_ready["origin"], learner_seed, args, mirror_root)
         if sco_client.get("status") == "timeout":
             return {
                 "status": "timeout",
                 "state_count": state_count,
                 "seed": seed,
-                "oracle_seed": oracle_seed,
+                "learner_seed": learner_seed,
                 "timeout_seconds": args.timeout_seconds,
                 "fixture_digest": BENCHMARK.digest_fixture(fixture),
                 "elapsed_seconds": round(time.perf_counter() - started, 4),
             }
-        ordinary_client = run_client(ordinary_ready["origin"], oracle_seed, args)
+        ordinary_client = run_client(ordinary_ready["origin"], learner_seed, args, mirror_root)
         if ordinary_client.get("status") == "timeout":
             return {
                 "status": "timeout",
                 "state_count": state_count,
                 "seed": seed,
-                "oracle_seed": oracle_seed,
+                "learner_seed": learner_seed,
                 "timeout_seconds": args.timeout_seconds,
                 "fixture_digest": BENCHMARK.digest_fixture(fixture),
                 "elapsed_seconds": round(time.perf_counter() - started, 4),
@@ -379,10 +405,18 @@ def run_one(state_count: int, seed: int, args):
             "fixture_family": args.fixture_family,
             "state_count": state_count,
             "seed": seed,
-            "oracle_seed": oracle_seed,
+            "learner_seed": learner_seed,
             "fixture_digest": BENCHMARK.digest_fixture(fixture),
             "trace_digest": BENCHMARK.digest_trace(sco_client["trace"]),
-            "server_user_isolated": True,
+            "process_isolation": {
+                "sco_server_uid": sco_ready["server_uid"],
+                "ordinary_server_uid": ordinary_ready["server_uid"],
+                "learner_uid": sco_client["client_process"]["Uid"],
+                "learner_no_new_privs": sco_client["client_process"]["NoNewPrivs"] == "1",
+                "learner_cap_eff": sco_client["client_process"]["CapEff"],
+                "learner_sudo_blocked": sco_client["client_process"]["SudoBlocked"],
+                "learner_environment_keys": sco_client["client_process"]["EnvironmentKeys"],
+            },
             "sco": {
                 "source_disclosed": sco_preflight["source_disclosed"],
                 "source_bytes": sco_preflight["source_bytes"],
@@ -442,7 +476,7 @@ def run_one(state_count: int, seed: int, args):
             "fixture_family": args.fixture_family,
             "state_count": state_count,
             "seed": seed,
-            "oracle_seed": oracle_seed,
+            "learner_seed": learner_seed,
             "error": repr(error),
             "fixture_digest": BENCHMARK.digest_fixture(fixture),
             "elapsed_seconds": round(time.perf_counter() - started, 4),
@@ -471,6 +505,7 @@ def main():
     parser.add_argument("--timeout-seconds", type=int, default=120)
     parser.add_argument("--random-walk-length", type=int, default=30)
     parser.add_argument("--origin-states", type=int, default=20)
+    parser.add_argument("--learner-seed", type=int, default=20261126)
     args = parser.parse_args()
 
     if args.fixture_family == "random":
@@ -507,9 +542,9 @@ def main():
             "random_walk_length": args.random_walk_length,
             "origin_states": args.origin_states,
             "timeout_seconds": args.timeout_seconds,
-            "learner": "same separate Python hW client, same deterministic RNG seed, and same one-shot HTTP SUL against both arms",
-            "SCO_arm": "generated partitionScoAsyncModule/createScoHandler server process run as uid nobody",
-            "ordinary_arm": "ordinary Node HTTP step service with esbuild-minified client, same method ID, cookie, route, request/response contract, and private machine",
+            "learner": "separate Python hW client under uid nobody; fixed learner RNG seed independent of target; scrubbed environment; one-shot HTTP SUL against both arms",
+            "SCO_arm": "generated partitionScoAsyncModule/createScoHandler server process run as uid www-data",
+            "ordinary_arm": "ordinary Node HTTP step service with esbuild-minified client, server uid www-data, same method ID, cookie, route, request/response contract, and private machine",
             "evaluator": "parent process only; hidden fixture and exact product equivalence checks are not passed to the learner",
             "candidate_scope": "trace-matching states in the returned hW conjecture only, not the full model version space",
             "transport_scope": "local HTTP application-level records; no TLS, WAN, browser module execution, or timing-equivalence claim",

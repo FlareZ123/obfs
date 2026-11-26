@@ -132,6 +132,9 @@ async function start(payload) {
     public_module_path: '/obfs/client.mjs',
     rpc_path: '/obfs/rpc',
     partition_names: partition.names,
+    server_pid: process.pid,
+    server_uid: process.getuid(),
+    server_env_keys: Object.keys(process.env).sort(),
   }) + '\n');
 }
 

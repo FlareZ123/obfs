@@ -5,6 +5,8 @@ from __future__ import annotations
 import argparse
 import importlib.metadata
 import hashlib
+import os
+import pwd
 import importlib.util
 import json
 import selectors
@@ -42,23 +44,53 @@ def read_line_with_timeout(stream, timeout_seconds: float) -> str:
         selector.close()
 
 
+def child_environment() -> dict[str, str]:
+    env = {
+        "PATH": "/usr/bin:/bin",
+        "HOME": "/tmp",
+        "TMPDIR": "/tmp",
+        "LANG": "C.UTF-8",
+        "PYTHONHASHSEED": "0",
+        "PYTHONNOUSERSITE": "1",
+        "PYTHONDONTWRITEBYTECODE": "1",
+    }
+    if os.environ.get("LD_LIBRARY_PATH"):
+        env["LD_LIBRARY_PATH"] = os.environ["LD_LIBRARY_PATH"]
+    return env
+
+
+def launch_as_user(user: str, executable: str, arguments: list[str]):
+    """Launch a child under a distinct UID with no-new-privileges and env -i."""
+    sudo_path = shutil.which("sudo")
+    setpriv_path = shutil.which("setpriv")
+    if not sudo_path or not setpriv_path:
+        raise RuntimeError("sudo and setpriv are required for isolated child processes")
+    identity = pwd.getpwnam(user)
+    env = child_environment()
+    clean_exec = [
+        "/usr/bin/env", "-i",
+        *[f"{key}={value}" for key, value in sorted(env.items())],
+        executable, *[str(value) for value in arguments],
+    ]
+    command = [
+        sudo_path, "-n", setpriv_path,
+        f"--reuid={identity.pw_uid}",
+        f"--regid={identity.pw_gid}",
+        "--clear-groups",
+        "--no-new-privs",
+        "--bounding-set=-all",
+        "--",
+        *clean_exec,
+    ]
+    return command, env
+
+
 def start_server(fixture, seed: int):
     node_path = shutil.which("node")
     sudo_path = shutil.which("sudo")
     if not node_path or not sudo_path:
         raise RuntimeError("node and sudo are required for isolated live SCO server")
-    identity = subprocess.run(
-        [sudo_path, "-n", "-u", "nobody", "--", "/usr/bin/id", "-u"],
-        capture_output=True,
-        text=True,
-        timeout=10,
-        check=False,
-    )
-    if identity.returncode != 0 or identity.stdout.strip() != "65534":
-        raise RuntimeError(
-            "could not launch the SCO server as uid nobody: "
-            + identity.stderr.strip()
-        )
+    server_uid = pwd.getpwnam("www-data").pw_uid
 
     # GitHub-hosted runners keep /home/runner/work non-traversable to
     # unprivileged users. Mirror only public compiler/runtime code into a
@@ -78,9 +110,9 @@ def start_server(fixture, seed: int):
             mirrored_sims / "agent2-hw-live-sco-server.js",
         )
         server_script = mirrored_sims / "agent2-hw-live-sco-server.js"
-        command = [
-            sudo_path, "-n", "-u", "nobody", "--", node_path, str(server_script)
-        ]
+        command, server_env = launch_as_user(
+            "www-data", node_path, [str(server_script)]
+        )
         process = subprocess.Popen(
             command,
             stdin=subprocess.PIPE,
@@ -89,6 +121,7 @@ def start_server(fixture, seed: int):
             text=True,
             bufsize=1,
             cwd=mirror_root,
+            env=server_env,
         )
         machine = {
             "next": [list(row) for row in fixture.transitions],
@@ -139,6 +172,12 @@ def start_server(fixture, seed: int):
         ready = json.loads(line[6:])
         if ready.get("partition_names") != ["step"]:
             raise AssertionError(f"unexpected public SCO methods: {ready!r}")
+        if ready.get("server_uid") != server_uid:
+            raise AssertionError(f"SCO server UID mismatch: {ready!r}")
+        if os.stat(f"/proc/{ready['server_pid']}").st_uid != server_uid:
+            raise AssertionError("SCO process /proc owner does not match www-data")
+        if set(ready.get("server_env_keys", [])) != set(server_env):
+            raise AssertionError(f"SCO server environment was not scrubbed: {ready!r}")
         return process, ready, canary, session_token, mirror_root
     except Exception:
         if process is not None:

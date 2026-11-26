@@ -7,7 +7,10 @@ import contextlib
 import hashlib
 import http.client
 import json
+import os
 import random
+import shutil
+import subprocess
 import sys
 import time
 from urllib.parse import urlsplit
@@ -20,6 +23,28 @@ from aalpy.learning_algs.resetless.resetless_oracles import RandomWphWOracle
 
 
 ALPHABET = ("0", "1")
+
+
+def process_security_state():
+    fields = {}
+    with open("/proc/self/status", encoding="utf-8") as status_file:
+        for line in status_file:
+            if line.startswith(("NoNewPrivs:", "CapEff:")):
+                key, value = line.split(":", 1)
+                fields[key] = value.strip()
+    sudo_path = shutil.which("sudo")
+    if sudo_path:
+        attempt = subprocess.run(
+            [sudo_path, "-n", "true"], capture_output=True, text=True, timeout=5
+        )
+        fields["SudoBlocked"] = attempt.returncode != 0
+    else:
+        fields["SudoBlocked"] = True
+    fields["Uid"] = os.getuid()
+    fields["Euid"] = os.geteuid()
+    fields["Pid"] = os.getpid()
+    fields["EnvironmentKeys"] = sorted(os.environ)
+    return fields
 
 
 class HttpNoResetMealySUL(SUL):
@@ -191,10 +216,26 @@ def fetch_client_module(origin: str):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--origin", required=True)
-    parser.add_argument("--oracle-seed", type=int, required=True)
+    parser.add_argument("--learner-seed", type=int, required=True)
     parser.add_argument("--random-walk-length", type=int, default=30)
     parser.add_argument("--origin-states", type=int, default=20)
     args = parser.parse_args()
+    security_state = process_security_state()
+    required_env = {"PATH", "HOME", "TMPDIR", "LANG", "PYTHONHASHSEED",
+                    "PYTHONNOUSERSITE", "PYTHONDONTWRITEBYTECODE"}
+    allowed_env = required_env | {"LD_LIBRARY_PATH"}
+    if not required_env.issubset(security_state["EnvironmentKeys"]):
+        raise RuntimeError("client environment is missing required allowlist entries")
+    if not set(security_state["EnvironmentKeys"]).issubset(allowed_env):
+        raise RuntimeError("client environment contains non-allowlisted variables")
+    if security_state["Uid"] != 65534 or security_state["Euid"] != 65534:
+        raise RuntimeError(f"client did not run as nobody: {security_state}")
+    if security_state.get("NoNewPrivs") != "1":
+        raise RuntimeError(f"client lacks no-new-privileges: {security_state}")
+    if security_state.get("CapEff") != "0000000000000000":
+        raise RuntimeError(f"client has effective capabilities: {security_state}")
+    if not security_state["SudoBlocked"]:
+        raise RuntimeError("client unexpectedly retained sudo privilege")
 
     (
         connection,
@@ -208,8 +249,8 @@ def main():
     sul = HttpNoResetMealySUL(
         args.origin, method_name, cookie, connection
     )
-    random.seed(args.oracle_seed)
-    np.random.seed(args.oracle_seed)
+    random.seed(args.learner_seed)
+    np.random.seed(args.learner_seed)
     oracle = RandomWphWOracle(
         random_walk_length=args.random_walk_length,
         num_test_origin_states=args.origin_states,
@@ -257,6 +298,7 @@ def main():
         latencies = sorted(sul.latencies_ms)
         result = {
             "status": "completed",
+            "client_process": security_state,
             "client_module_fetch_status": module_status,
             "client_cookie_present": bool(cookie),
             "client_method_name": method_name,
@@ -295,6 +337,7 @@ def main():
         sul.connection.close()
         failure = {
             "status": "error",
+            "client_process": security_state,
             "error": repr(error),
             "trace": sul.trace,
             "pre_calls": sul.counters["pre_calls"],
