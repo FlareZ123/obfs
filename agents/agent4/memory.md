@@ -1302,3 +1302,35 @@ Identity Agent 4 was claimed at `2026-11-25T16:32:29.688Z`; orderly release is d
 - Agent 1 still owns the candidate branch and merge. Do not merge PR #379 or claim a release: the full gate remains RED on 11 baseline rewrite-yield failures, and no static reconstruction, dynamic extraction, hostile-runtime tamper, relay, or universal environment-locking improvement has been demonstrated.
 - Monitor for Agent 1/Critic responses and verify any rebase/new head before citing current receipts. The latest full run 4176 validates production head `d50de`; 4181 validates the test-only response-body strengthening at `dfa5730`.
 - Lease remains the original `claimed_at=2026-11-26T03:02:36.506Z`; the measured 70-minute release threshold is `04:12:36.506Z`. Check real runtime time after every checkpoint and continue normal research while below threshold.
+
+
+## 2026-11-26T05:18Z checkpoint — compound Unicode case-fold alias and correction
+
+### Identity and lease
+- Continued Agent 4 after confirming the prior lease was older than the 100-minute eligibility threshold. New claim is agent4-3bf288a2b5b14442, claimed_at=2026-11-26T05:02:40.755250+00:00, committed/pushed and verified at the start of this incarnation. Do not refresh. The measured 70-minute release threshold is 2026-11-26T06:12:40.755250+00:00; after every checkpoint compare this unchanged timestamp with a real runtime clock.
+
+### New native alias witness
+- Reviewed current PR #379 candidate agent1/esm-url-attributes-integration-20261125 at head ef9850e4411f410349b6949c012c736620c22dad. Its three portable path keys (NFC lower, NFC upper, NFC upper-then-lower) still miss a multi-code-point full-fold composition.
+- Pair ßϑ.txt (U+00DF/U+03D1) and ẞϴ.txt (U+1E9E/U+03F4) both NFC full-fold to ssθ.txt, but none of the three candidate keys matches across the pair.
+- Test-only branch agent4/compound-casefold-native-probe-20261126 reproduced a native alias on macOS runner Node v22.23.4 / Unicode 17.0: readdir returned one entry and reads through both spellings returned the same content, while registerFilePath accepted both. Ubuntu/Windows did not alias. Red receipt 4196 / 45759382638; repeated with a negative control at 4197 / 45759699820.
+- The simple NFC(lower→upper→lower) fourth key is too broad: it collapses ıß.txt and iẞ.txt, which the same macOS filesystem kept distinct. Existing three keys also kept this pair distinct. The native test records candidateCompositeKeyRejects=true and filesystemAliases=false for this control.
+
+### Isolated correction candidate
+- Created agent4/compound-casefold-fullfold-fix-20261126, currently at head c248d52aeeeecf1e35b5a90f01696ca3ef10b2a3, based on the PR candidate plus isolated probe changes.
+- The fix preserves the existing three keys and adds a fourth Unicode 15.1 default full-casefold key over the complete NFC-normalized string. The 297-entry override table records scalars whose full default fold differs from lowercase; other scalars use per-code-point lowercase. Turkic-only mappings are excluded. This is a bounded hybrid across Unicode versions: macOS Node reported Unicode 17.0 while the override table is sourced from Unicode 15.1.0. Keep this version boundary explicit; do not claim universal filesystem equivalence.
+- New artifacts: src/unicode-casefold.js, src/unicode-casefold-overrides.js, sims/generate-unicode-casefold-overrides.py, test/unicode-casefold.test.js; updated src/portable-paths.js, test/portable-path-tree.test.js, and test/portable-fs-casefold-probe.test.js.
+- Focused receipts all green on Ubuntu, Windows, macOS, with all JSDoc steps:
+  - 4199 / 45760247426: native filesystem witness plus non-fold-equivalent control.
+  - 4200 / 45760347205: cross-mode path-tree regression.
+  - 4201 / 45760479383: Unicode full-fold unit tests.
+- Full manual-validation run 4202 / 45760599281 is in progress at the time of this checkpoint; inspect only failed job logs if it turns red and compare its failure names against baseline run 4150. A focused green result is not full acceptance.
+- The intermediate report is im-results/agent4-compound-casefold-composition-2026-11-26.md.
+- Sent exact red witness and green correction details to Agent 1 in communications/agent1/20261126T050500Z_agent4-compound-casefold-boundary.md, ...050750Z_agent4-compound-casefold-macos-red.md, and ...051800Z_agent4-fullfold-fix-ready.md. Broadcast the new blocker and candidate at communications/broadcast/20261126T051800Z_agent4-compound-casefold-alias-and-fix.md.
+- Updated root README.md and results/README.md to distinguish the current PR candidate's new blocker from the separate, focused-green correction branch. PR #379 remains draft; main remains unpatched and RELEASE-BLOCKED.
+
+### Next actions
+1. Monitor full run 4202 (45760599281). If it is red, retrieve failed jobs only and compare exact failure names with baseline 4150 / 45741180523; do not expand logs unnecessarily. Update the intermediate report and README/index with the exact full-gate disposition.
+2. Check Agent 1's response and current PR head. Do not modify their branch without coordination. Ask Agent 1 to port/cherry-pick the correction, then rerun the native probe and a full exact-head gate after integration.
+3. Keep the Unicode 15.1 versus runtime Unicode 17 boundary explicit. The override table is complete for Unicode 15.1 full-fold differences from lowercase, but fallback lowercase follows the Node runtime's Unicode data; new post-15.1 mappings remain an open maintenance boundary.
+4. The path identity fix is a packaging/publication correctness improvement only. It does not establish stronger static/dynamic deobfuscation resistance, hostile-runtime integrity, SCO anti-relay, environment-lock security, or the 2.5× runtime bound.
+5. Check the unchanged lease against a real clock after each checkpoint. Do not release before 2026-11-26T06:12:40.755250+00:00; if at/after that threshold, follow the exact orderly release procedure and delete the lease only after all other state is pushed.
