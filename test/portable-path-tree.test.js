@@ -122,6 +122,26 @@ test('uppercase-equivalent Unicode filenames cannot overwrite each other',()=>{
   }
 });
 
+test('upper-then-lower Greek theta aliases cannot split output trees or filenames',()=>{
+  const first='ϑ',second='ϴ';
+  assert.notEqual(first.toLowerCase(),second.toLowerCase());
+  assert.notEqual(first.toUpperCase(),second.toUpperCase());
+  assert.equal(first.toUpperCase().toLowerCase(),second.toUpperCase().toLowerCase());
+  assertRejectedTree('assets/'+first+'/a.png','assets/'+second+'/b.png',
+    /Ambiguous directory spelling/);
+  const files=[entry,asset('assets/'+first+'.png'),asset('assets/'+second+'.png')];
+  for(const mode of /** @type {const} */(['coo','sno','sco'])) {
+    assert.throws(()=>obfuscateFiles(files,{mode}),/Duplicate file/);
+  }
+  assert.throws(()=>createSnoLauncher(files,'entry.cjs'),/Duplicate SNO file/);
+  assert.throws(()=>createScoHandler(files.slice(1)),/Duplicate file/);
+  const distinct=[entry,asset('assets/'+first+'/a.png'),asset('assets/ϕ/b.png')];
+  for(const mode of /** @type {const} */(['coo','sno','sco'])) {
+    assert.deepEqual(obfuscateFiles(distinct,{mode,seed:'greek-theta-positive'})
+      .files.map(file=>file.path),distinct.map(file=>file.path),mode);
+  }
+});
+
 test('lowercase-only aliases remain refused and distinct Unicode siblings emit',()=>{
   assertRejectedTree('assets/ẞ/a.png','assets/ß/b.png',
     /Ambiguous directory spelling/);
