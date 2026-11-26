@@ -138,6 +138,21 @@ const carrierFixtures = [
     access: 'protoCarrier.instance'
   },
   {
+    name: 'dynamic-object-key',
+    setup: 'const protoCarrier={instance:new WeakMap()}; const dynamicKey=globalThis.dynamicKey;',
+    access: 'protoCarrier[dynamicKey]'
+  },
+  {
+    name: 'class-static-dynamic-key',
+    setup: 'class Carrier { static [globalThis.dynamicKey]=new WeakMap(); } const protoCarrier=Carrier;',
+    access: 'protoCarrier[globalThis.dynamicKey]'
+  },
+  {
+    name: 'class-static-block-dynamic-key',
+    setup: 'class Carrier { static { this[globalThis.dynamicKey]=new WeakMap(); } } const protoCarrier=Carrier;',
+    access: 'protoCarrier[globalThis.dynamicKey]'
+  },
+  {
     name: 'dynamic-array-index',
     setup: 'const protoCarrier=[new WeakMap()]; const dynamicKey=globalThis.dynamicKey;',
     access: 'protoCarrier[dynamicKey]'
