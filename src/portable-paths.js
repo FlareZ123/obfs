@@ -17,21 +17,23 @@ function createPathInventory() {
 }
 
 /**
- * Two conservative name-equivalence keys for cross-platform output trees.
- * Some names (for example Greek final sigma) share an uppercase mapping
- * but differ when lowercased. Some other names share a lowercase mapping
- * but differ when uppercased. Retain both checks to avoid dropping either
- * previously rejected alias family. Uppercase expansion may intentionally
+ * Three conservative name-equivalence keys for cross-platform output trees.
+ * Lowercase and uppercase keys retain the existing sigma/long-s alias families.
+ * An upper-then-lower key additionally catches APFS aliases such as U+03D1
+ * GREEK THETA SYMBOL and U+03F4 GREEK CAPITAL THETA SYMBOL, whose direct
+ * lowercase and uppercase mappings both differ. These keys may intentionally
  * reject names that a particular filesystem would keep distinct.
  *
  * @param {string} filename
- * @returns {[string,string]}
+ * @returns {[string,string,string]}
  */
 function portableKeys(filename) {
   const normalized=filename.normalize('NFC');
+  const upper=normalized.toUpperCase().normalize('NFC');
   return [
     'lower:'+normalized.toLowerCase().normalize('NFC'),
-    'upper:'+normalized.toUpperCase().normalize('NFC')
+    'upper:'+upper,
+    'upper-lower:'+upper.toLowerCase().normalize('NFC')
   ];
 }
 
@@ -56,7 +58,7 @@ function registerFilePath(inventory,filename,duplicateLabel='Duplicate file ') {
 
   const segments=filename.split('/');
   let directory='';
-  /** @type {{name:string,keys:[string,string]}[]} */
+  /** @type {{name:string,keys:[string,string,string]}[]} */
   const ancestors=[];
   for(let index=0;index<segments.length-1;index++) {
     directory=directory?directory+'/'+segments[index]:segments[index];
