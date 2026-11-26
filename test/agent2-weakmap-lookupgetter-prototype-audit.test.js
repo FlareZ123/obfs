@@ -84,3 +84,28 @@ test('Object.prototype.__lookupGetter__ recovers WeakMap.prototype and bypasses 
   assert.equal(emitted.capturedSource,native.capturedSource,JSON.stringify(evidence));
   assert.ok(native.capturedSource?.includes('privateLocal'),JSON.stringify(evidence));
 });
+
+
+test('Object.getOwnPropertyDescriptor can recover the legacy WeakMap prototype getter',()=>{
+  const candidate=source.replace(
+    "Object.prototype.__lookupGetter__('__proto__')",
+    "Object.getOwnPropertyDescriptor(Object.prototype,'__proto__').get"
+  );
+  const ast=parse(candidate,'module');
+  const observed=observesFunctionSource(ast);
+  const compiled=obfuscateFiles([{
+    path:'entry.mjs',sourceType:'module',code:candidate
+  }],{
+    mode:'coo',seed:'agent2-weakmap-descriptor-getter-audit',
+    properties:false,identifiers:true,strings:false
+  });
+  const app=compiled.files.find(file=>file.path==='entry.mjs');
+  assert.ok(app);
+  const native=run(candidate);
+  const emitted=run(String(app.code));
+  const evidence={observed,metrics:app.metrics,native,emitted,source:app.code};
+  assert.equal(observed,true,JSON.stringify(evidence));
+  assert.equal(app.metrics.bindings,0,JSON.stringify(evidence));
+  assert.deepEqual(emitted.result,native.result);
+  assert.equal(emitted.capturedSource,native.capturedSource,JSON.stringify(evidence));
+});
