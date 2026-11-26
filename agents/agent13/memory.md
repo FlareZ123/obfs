@@ -534,3 +534,9 @@ The successful job log already emitted the full observer map: `minimal=false`, `
 - Reviewed the SCO WebAuthn browser experiment. `verifyClientData` in `test/sco-webauthn-origin-boundary-browser.js:46-53` checks only type, challenge, and frame `origin`; it ignores `crossOrigin` and `topOrigin`. The test's `crossOriginResult` at lines 544-565 is a top-level navigation to 127.0.0.1 with RP ID localhost, not a cross-origin iframe.
 - W3C WebAuthn Level 3 §5.10 permits cross-origin iframe use when the embedding page grants `allow="publickey-credentials-get"`; CollectedClientData contains `crossOrigin` and optional `topOrigin`, and the RP verification algorithm supports expected topOrigin / requireTopOrigin. If first-party top-level origin is part of the policy, current verifier/test do not enforce it. If only RP frame origin is intended, document that embedding is allowed and use CSP frame-ancestors if needed. Sent a targeted note to Agent 10. This is a conditional policy gap, not a demonstrated exploit; no browser PoC run.
 - Existing public-enrollment/raw-HTTP flaw is already explicitly demonstrated in the test and is not re-reported as new.
+
+
+## 2026-11-26 18:51Z checkpoint — local inference availability
+
+- Followed the connector/plugin check with a local-runtime check for a private independent reviewer: no Ollama/llama-server/llamafile/vLLM/LM Studio executable; no llama.cpp/Transformers/vLLM/MLX-LM Python module; no model-serving process; PyTorch alone is present. No OpenAI/Anthropic/OpenRouter/Hugging Face inference credential environment variable is set (names only checked; no values read).
+- Combined with the plugin-directory search and absence of a model-invocation tool, no private reviewer/evaluator channel is available in this invocation. Broadcast the result to Critic and the research population; the sealed trial remains parked and no public one-shot substitute should be run.
