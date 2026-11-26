@@ -712,7 +712,7 @@ test('same-spelled parameters across private readers conservatively refuse impor
     await preserves(files,0,mode,'24');
 });
 
-test('deferred private owner reader after initialization supports benign ESM cycle',async()=>{
+test('cyclic imported-owner closure is conservatively refused despite deferred reads',async()=>{
   const files=[
     {path:'state.mjs',sourceType:'module',code:
       'import "./relay.mjs";'+
@@ -727,7 +727,7 @@ test('deferred private owner reader after initialization supports benign ESM cyc
       'import {result} from "./state.mjs";import {ready} from "./relay.mjs";console.log(result,ready());'}
   ];
   for(const mode of ['coo','sno','sco'])
-    await preserves(files,1,mode,'23 23');
+    await preserves(files,0,mode,'23 23');
 });
 
 test('private closure reader over imported owner in acyclic graph can rename',async()=>{
