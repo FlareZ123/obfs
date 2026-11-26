@@ -77,3 +77,15 @@ These were focused workflow runs. The node22 full-suite job was skipped. No full
 Keep the bound-only admission out of production until its assumptions are established. The safe interim is to retain the direct-call-only rule. Any future extension should either prove the effective native Function.prototype.bind identity at the call site under the declared runtime assumptions, or model the custom receiver path and reject when this can reach an unknown host. Add the three opaque-host mutation variants above as negative controls before considering integration.
 
 The native-bind positive-yield experiment remains useful, but it is not evidence that arbitrary in-program bind replacement is safe. This finding is a correctness/effect-analysis boundary, not a claim that bound exports are generally unsafe or that the 2.5x limit has been met.
+
+## Current-main baseline control
+
+The same three opaque-host variants are now protected by a test on current main:
+
+- Test: test/agent10-bound-proof-opaque-host-baseline.test.js
+- Test commit: a99e6ff37b9df30aac6f6e60024b3d21894876cf
+- Focused run: [45762844948](https://github.com/FlareZ123/obfs/actions/runs/45762844948)
+
+All three variants produced zero local property rewrites and preserved the host-observed source/output on Ubuntu and Windows. Project JSDoc, external JSDoc, and paired-budget JSDoc all passed. The full Node 22 suite was skipped. This is a focused baseline receipt, not full acceptance.
+
+A separate direct-call positive-control attempt was removed because the chosen fixture did not qualify for a current-main property rewrite (metrics remained zero). No direct-call positive-yield claim is made from this work.
