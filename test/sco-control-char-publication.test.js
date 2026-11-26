@@ -136,3 +136,41 @@ test('SCO publishes the WHATWG URL target and withholds POSIX decoys for C0 spec
     await fs.rm(root,{recursive:true,force:true});
   }
 });
+
+
+test('SCO publishes a POSIX trailing-space decoy instead of the WHATWG-trimmed URL target', {
+  skip:process.platform==='win32'?'Win32 does not preserve trailing-space filenames':false
+},async()=>{
+  const root=await fs.mkdtemp(path.join(os.tmpdir(),'obfs-sco-trailing-space-red-'));
+  try {
+    await atomicWrite(path.join(root,'index.mjs'),
+      'import {value} from "./a/../secret.mjs ";globalThis.value=value;');
+    await atomicWrite(path.join(root,'secret.mjs'),
+      'globalThis.__urlTargets.push("url-target");export const value="url-target";');
+    await atomicWrite(path.join(root,'secret.mjs '),
+      'globalThis.__posixDecoys.push("posix-decoy");export const value="posix-decoy";');
+    await atomicWrite(path.join(root,'native-check.mjs'),
+      'globalThis.__urlTargets=[];globalThis.__posixDecoys=[];'+
+      'await import("./index.mjs");'+
+      'process.stdout.write(JSON.stringify({urlTargets:globalThis.__urlTargets,'+
+      'posixDecoys:globalThis.__posixDecoys}));');
+    const native=spawnSync(process.execPath,[path.join(root,'native-check.mjs')],{
+      cwd:root,encoding:'utf8',timeout:8000,windowsHide:true
+    });
+    if(native.error)throw native.error;
+    assert.equal(native.status,0,native.stderr);
+    assert.deepEqual(JSON.parse(native.stdout),{
+      urlTargets:['url-target'],posixDecoys:[]
+    });
+
+    const probe=await probeSco(root,['index.mjs','secret.mjs','secret.mjs ']);
+    assert.equal(probe.listening,true,probe.stderr);
+    assert.deepEqual({
+      actual:probe.results?.get('secret.mjs')?.status,
+      decoy:probe.results?.get('secret.mjs ')?.status
+    },{actual:200,decoy:404},
+    'SCO must serve the URL-resolved target and withhold the POSIX trailing-space decoy');
+  } finally {
+    await fs.rm(root,{recursive:true,force:true});
+  }
+});
