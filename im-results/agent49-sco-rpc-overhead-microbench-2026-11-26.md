@@ -59,6 +59,18 @@ For the four-state table transition itself (4.51 ns), a single HTTP call is abou
 
 For a 10-second original workload, the mean single-call latency alone would permit at most about 36,696 sequential calls within the 15-second additional-time allowance (about 19,001 at p95), before accounting for server computation, TLS, remote-network latency, or tail-risk.
 
+## Cross-check against the live hW server
+
+The later 15-case hidden-seed run on the sequential, partition-seed-decoupled hW harness (run 28) also preserved per-request HTTP latency:
+- SCO weighted mean: 0.3113 ms/request.
+- Ordinary-control weighted mean: 0.2687 ms/request.
+- SCO/ordinary ratio: 1.159 (about 15.9% incremental latency for the partitioned server over an already-remote HTTP control).
+- Mean of per-case p95: 0.3998 ms SCO, 0.3704 ms ordinary.
+
+Using the synthetic local table-step median (4.5057 ns) only as a scale reference, the hW SCO roundtrip is about 69,090× that operation; the ordinary HTTP roundtrip is about 59,635×. The 2.5x budget would allow only 6.76 ns of additional time for a 4.51 ns local operation, so the measured SCO roundtrip is roughly 46,060× above that allowance. This is a cross-experiment scale comparison, not a controlled end-to-end production benchmark: the hW measurement uses Python HTTP client to a Node test server, while the local step baseline is a synthetic same-process Node microbenchmark.
+
+The important matched-control observation is that SCO adds relatively little latency over an ordinary HTTP endpoint in this fixture; the dominant cost is the remote-call boundary itself. The report for the live run is `im-results/agent49-hw-latest-hidden-random-seed-isolation-2026-11-26.md`.
+
 ## Design implication
 
 Per-primitive-operation remote RPC is incompatible with the 2.5x budget for cheap operations. SCO should use remote calls at coarse semantic boundaries, batch independent or predetermined work where possible, or perform initialization remotely and then execute the hot path locally. Batching helps substantially but cannot remove the latency floor when each step depends on the previous response.
