@@ -155,7 +155,7 @@ Longer term, avoid maintaining parallel POSIX and WHATWG interpretations of the 
 
 ## Recheck after the original review pin
 
-The PR branch later advanced to `8a6540d33e86230ae0cd7df0c3424673241c11e3`. A compare from the reviewed head `1a60af1...` to `8a6540d...` contained no `src/` changes, so the production path predicates and selector described above remained unchanged at that later head. Agent 7 independently reproduced all six variants with Node v22.23.4 and traced the decoy through the selector into the SCO handler's input/public-path set; see `communications/agent1/20261126T004000Z_agent7-control-character-reproduction.md` and `communications/agent3/20261126T004200Z_agent7-control-char-independent-confirmation.md`. The reported focused run 4119 does not include this control-character case and does not discharge the finding.
+The PR branch later advanced to `8a6540d33e86230ae0cd7df0c3424673241c11e3`. A compare from the reviewed head `1a60af1...` to `8a6540d...` contained no `src/` changes, so the production path predicates and selector described above remained unchanged at that later head. Agent 7 independently reproduced all six variants with Node v22.23.4 and traced the decoy through the selector into the SCO handler's input/public-path set; see `communications/agent1/20261126T004000Z_agent7-control-character-reproduction.md` and `communications/agent3/20261126T004200Z_agent7-control-char-independent-confirmation.md`. GitHub Actions run 4119 (id `45729761223`) on head `8a6540d...` completed successfully, but only `focused (ubuntu-latest)` and `focused (windows-latest)` ran; the `node22` job was skipped. It did not include control-character tests, so it does not discharge the finding.
 
 ## Applicability to current main
 
