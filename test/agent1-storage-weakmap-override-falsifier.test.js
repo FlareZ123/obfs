@@ -167,7 +167,7 @@ const globalWeakMapPropertyReplacement=fixtures.prototypeOverride.replace(
     '  return {set:function(key,value){return value;},get:function(){return undefined;}};',
     '};',
     'const captured=new WeakMap();'
-  ].join('\\n')
+  ].join('\n')
 );
 
 test('globalThis WeakMap replacement invalidates reference-only override',()=>{
