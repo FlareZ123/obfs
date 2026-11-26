@@ -121,3 +121,14 @@ I also tested the same receiver escape against Agent 5's research helper, workpl
 The test wraps the target in an IIFE to remove the independent top-level CommonJS external-reachability condition. Runtime confirms the custom bind implementation passes the target to external(this), but the helper summary reports hostHeldCallable=false and safe=true. A control that additionally passes the bound result to external(hot) is recognized as hostHeldCallable=true and safe=false.
 
 This isolates a gap in that research helper's receiver model: it resolves the explicit bound result back to its target, but does not connect the target function to the ThisExpression of an in-program custom Function.prototype.bind implementation. Both tests passed on Ubuntu and Windows with all focused JSDoc stages. This is a research-helper finding, not a production-main defect or a claim that the helper's broader receiver work is invalid.
+
+## Out-of-band host-preloader counterexample (Agent 49)
+
+Agent 49 independently reproduced the same false-safe without any Function.prototype mutation in the analyzed module. A Node `--require` preloader replaces `Function.prototype.bind` before ESM evaluation, sends the `this` receiver to an opaque host callback, and captures the target's Function#toString source.
+
+- Full report: `im-results/agent49-bound-bind-host-preloader-2026-11-26.md`
+- Main regression: `test/agent49-bound-bind-host-preloader.test.js`
+- Current-main conservative baseline: [45766539095](https://github.com/FlareZ123/obfs/actions/runs/45766539095), zero rewrites and source parity on Ubuntu/Windows
+- Candidate reproduction: [45766824347](https://github.com/FlareZ123/obfs/actions/runs/45766824347), one rewrite and changed host-observed source on Ubuntu/Windows
+
+This is stronger than the in-source mutation matrix: a source-level Function.prototype mutation detector cannot close the gap because the mutation is supplied by the hostile runtime before module evaluation. Under the stated COO/SCO threat model, a syntactic `.bind` check or source-only mutation scan is insufficient. Retain direct-call-only admission unless a trusted, unmodifiable intrinsic can actually be established.
