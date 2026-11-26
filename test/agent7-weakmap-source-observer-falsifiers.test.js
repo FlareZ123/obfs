@@ -241,6 +241,88 @@ for(const fixture of fixtures) {
   });
 }
 
+
+/**
+ * Run a supplied module group while an external consumer imports the exported
+ * WeakMap-derived class and mutates its native parent prototype.
+ * @param {Array<{path:string,code:string}>} files
+ * @returns {{result:{value:number,independent:number},capturedSource:string}}
+ */
+function runEsmWithExternalDerivedConsumer(files) {
+  const directory=fs.mkdtempSync(path.join(os.tmpdir(),'obfs-agent7-weakmap-export-'));
+  const externalRunner=[
+    'class Storage {',
+    '  constructor(){this.data=new Map();}',
+    '  setItem(key,value){this.data.set(String(key),String(value));}',
+    '}',
+    'globalThis.Storage=Storage;',
+    'globalThis.localStorage=new Storage();',
+    'let documentTitle="";',
+    'globalThis.document={};',
+    'Object.defineProperty(globalThis.document,"title",{',
+    '  get(){return documentTitle;},',
+    '  set(value){documentTitle=String(value);}',
+    '});',
+    "const {Derived}=await import('./producer.mjs');",
+    'const nativePrototype=Object.getPrototypeOf(Derived.prototype);',
+    'const nativeSet=nativePrototype.set;',
+    'nativePrototype.set=function(key,value){',
+    '  document.title=value;',
+    '  return Reflect.apply(nativeSet,this,[key,value]);',
+    '};',
+    "const {sample}=await import('./entry.mjs');",
+    'const result=sample();',
+    'process.stdout.write(JSON.stringify({result,capturedSource:document.title})+"\\n");'
+  ].join('\n');
+  try {
+    for(const file of files) {
+      fs.writeFileSync(path.join(directory,file.path),file.code,'utf8');
+    }
+    fs.writeFileSync(path.join(directory,'external-runner.mjs'),externalRunner,'utf8');
+    const child=spawnSync(process.execPath,[path.join(directory,'external-runner.mjs')],{
+      cwd:directory,encoding:'utf8',timeout:15000
+    });
+    assert.equal(child.status,0,child.stderr||child.error?.message);
+    return JSON.parse(child.stdout);
+  } finally {
+    fs.rmSync(directory,{recursive:true,force:true});
+  }
+}
+
+test('exported WeakMap-derived class external consumer source-capture differential',()=>{
+  const producerSource='export class Derived extends globalThis.WeakMap {}';
+  const sourceFiles=[
+    {path:'producer.mjs',sourceType:'module',code:producerSource},
+    {path:'entry.mjs',sourceType:'module',code:"export {sample} from './storage.mjs';"},
+    {path:'storage.mjs',sourceType:'module',code:storageSource}
+  ];
+  const analysis=hasWeakMapPrototypeExposure(parse(producerSource,'module'));
+  const native=runEsmWithExternalDerivedConsumer(sourceFiles.map(file=>({path:file.path,code:file.code})));
+  assert.ok(native.capturedSource.includes('privateLocal'),JSON.stringify(native));
+  const failures=[];
+  for(const mode of ['coo','sno','sco']) {
+    try {
+      const compiled=obfuscateFiles(sourceFiles,{
+        mode,seed:'agent7-exported-derived-'+mode,
+        properties:false,identifiers:true,strings:false,closedWorld:true
+      });
+      const storage=compiled.files.find(file=>file.path==='storage.mjs');
+      assert.ok(storage,'missing storage.mjs for '+mode);
+      const emitted=runEsmWithExternalDerivedConsumer(
+        compiled.files.map(file=>({path:file.path,code:String(file.code)}))
+      );
+      if(!analysis || storage.metrics.bindings!==0 ||
+         emitted.capturedSource!==native.capturedSource ||
+         JSON.stringify(emitted.result)!==JSON.stringify(native.result)) {
+        failures.push({mode,analysis,storageMetrics:storage.metrics,native,emitted});
+      }
+    } catch(error) {
+      failures.push({mode,analysis,error:String(error)});
+    }
+  }
+  assert.deepEqual(failures,[],JSON.stringify({analysis,native,failures}));
+});
+
 test('exported WeakMap-derived class is a group escape',()=>{
   const source='export class Derived extends globalThis.WeakMap {}';
   assert.equal(hasWeakMapPrototypeExposure(parse(source,'module')),true);
