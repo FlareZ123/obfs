@@ -1,6 +1,10 @@
 'use strict';
 
 const assert=require('node:assert/strict');
+const fs=require('node:fs');
+const os=require('node:os');
+const path=require('node:path');
+const {spawnSync}=require('node:child_process');
 const {test}=require('node:test');
 const {obfuscateFiles}=require('../src');
 
@@ -66,4 +70,30 @@ test('aliased Function.prototype mutation remains outside the bound-only proof',
     'return function(){return target().secretField;};};';
   assert.equal(properties(customBind+ownerPrefix+
     'const internal=()=>owner;export const hot=internal.bind(null);'),0);
+});
+
+function runEsm(source){
+  const root=fs.mkdtempSync(path.join(os.tmpdir(),'obfs-bound-bind-'));
+  try{
+    const file=path.join(root,'entry.mjs');
+    fs.writeFileSync(file,source);
+    const child=spawnSync(process.execPath,[file],{encoding:'utf8',timeout:8000});
+    return {status:child.status,stdout:child.stdout,stderr:child.stderr};
+  }finally{
+    fs.rmSync(root,{recursive:true,force:true});
+  }
+}
+
+test('custom bind replacement preserves native/emitted execution and prevents owner rewrite',()=>{
+  const customBind='Function.prototype.bind=function(){'+
+    'const target=this;return function(){return target().secretField;};};';
+  const source=customBind+ownerPrefix+
+    'const internal=()=>owner;export const hot=internal.bind(null);'+
+    'process.stdout.write(String(hot())+"\\n");';
+  const output=obfuscateFiles([{path:'entry.mjs',sourceType:'module',code:source}],{
+    mode:'coo',closedWorld:true,seed:'bound-function-proof-prototype',
+    properties:true,identifiers:false,strings:false
+  });
+  assert.equal(output.files[0].metrics.properties,0);
+  assert.deepEqual(runEsm(output.files[0].code),runEsm(source));
 });
