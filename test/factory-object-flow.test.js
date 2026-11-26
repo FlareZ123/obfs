@@ -214,10 +214,10 @@ test('private ESM factory preserves two-file native Node execution',async()=>{
 
 test('in-program source observation blocks an exported closure-owner rewrite',()=>{
   const files=[
-    moduleFile('state.mjs',
-      'const owner={secretField:17};export function read(){return owner.secretField;}'),
-    moduleFile('entry.mjs',
-      'import {read} from "./state.mjs";console.log(Function.prototype.toString.call(read));')
+    {path:'state.mjs',sourceType:'module',
+      code:'const owner={secretField:17};export function read(){return owner.secretField;}'},
+    {path:'entry.mjs',sourceType:'module',
+      code:'import {read} from "./state.mjs";console.log(Function.prototype.toString.call(read));'}
   ];
   const output=obfuscateFiles(files,{
     mode:'coo',closedWorld:true,seed:'exported-closure-source-observer',
@@ -229,10 +229,10 @@ test('in-program source observation blocks an exported closure-owner rewrite',()
 
 test('exported generic reader does not make a caller-supplied owner private',()=>{
   const files=[
-    moduleFile('state.mjs',
-      'export const state={secretField:17};export function read(owner){return owner.secretField;}'),
-    moduleFile('entry.mjs',
-      'import {state,read} from "./state.mjs";console.log(read(state));')
+    {path:'state.mjs',sourceType:'module',
+      code:'export const state={secretField:17};export function read(owner){return owner.secretField;}'},
+    {path:'entry.mjs',sourceType:'module',
+      code:'import {state,read} from "./state.mjs";console.log(read(state));'}
   ];
   const output=obfuscateFiles(files,{
     mode:'coo',closedWorld:true,seed:'exported-generic-reader',
