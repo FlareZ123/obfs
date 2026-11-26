@@ -94,7 +94,7 @@ const fixtures=[
       '  patchWeakMap();',
       '}',
       'outer();'
-    ].join('\\n')
+    ].join('\n')
   },
   {
     name:'throw-catch-parameter',
