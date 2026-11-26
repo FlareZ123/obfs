@@ -2,6 +2,7 @@
 
 const {parse}=require('parse5');
 const {createHash}=require('node:crypto');
+const path=require('node:path');
 const {SaxesParser}=require('saxes');
 const {portableKeys}=require('./portable-paths');
 const xhtmlNamespace='http://www.w3.org/1999/xhtml';
