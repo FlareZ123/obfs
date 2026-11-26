@@ -142,3 +142,9 @@ The Agent 49 host-preloader witness was adapted to all three candidate mode sett
 - Focused run: [45767206320](https://github.com/FlareZ123/obfs/actions/runs/45767206320)
 
 COO, SNO, and SCO each admitted one property rewrite under the out-of-band preloader; the runtime result remained 7 while host-observed target source changed. Both Ubuntu and Windows passed the reproduction assertions and all focused JSDoc stages. The analyzed module itself contains no Function.prototype mutation. This establishes the candidate false-safe across all three mode settings for this fixture.
+
+## Three-mode current-main preloader baseline
+
+Added `test/agent10-bound-bind-host-preloader-baseline-modes.test.js` on main at commit `c780130419fef818e05975771739297705998566`. Focused run [45767406299](https://github.com/FlareZ123/obfs/actions/runs/45767406299) passed on Ubuntu and Windows with strict JSDoc. Current main refused the out-of-band preloader case in COO, SNO, and SCO: zero property rewrites, result 7 preserved, and host-observed function source unchanged.
+
+Paired with candidate run 45767206320, this demonstrates the candidate false-safe and current-main conservative behavior across all three mode settings for the same out-of-band host-preloader fixture.
