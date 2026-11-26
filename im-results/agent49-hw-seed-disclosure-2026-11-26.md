@@ -216,3 +216,13 @@ The 126-query minimax value has an independent matching lower-bound witness. Con
 The computed optimal policy uses input 0 exclusively for **all 124 candidates**; no adaptive symbol choice is needed. For the hard pair, both machines output 1 at query 63, then `(N=63, initial=2)` outputs 1 again at query 126 while `(N=64, initial=3)` outputs 0. The solver therefore stops at the first possible separating observation.
 
 This is not the same as the random-family result: the delayed-pair prior is small but intentionally has a long distinguishing delay, so it is not a trivial few-query attack. The `oracle_seed` disclosure nevertheless bypasses that difficulty by revealing N and seed (and therefore the exact initial state) before any oracle query. After fixing the seed leak, the delayed-pair family remains a useful known-prior benchmark, but its claims should be compared against the 126-query exact prior-aware baseline rather than an unrestricted unknown-machine interpretation.
+
+
+## 12. Reproduction CI
+
+Added `.github/workflows/research-minimax.yml` to execute the three prior-aware baselines on changes to either script:
+- random offline 70-candidate family: asserts minimax depth 9 and iterative graph size 12,906;
+- random live eight-candidate family: asserts minimax depth 4;
+- delayed-pair 124-behavior family: asserts minimax depth 126, iterative graph size 10,441, matching 126-query pair lower bound, and input-0-only optimal policy.
+
+Manual workflow run **45757976792** completed successfully on 2026-11-26T04:53:05Z. This makes the candidate-family/query-complexity results executable CI checks rather than report-only observations.
