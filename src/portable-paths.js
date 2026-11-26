@@ -19,7 +19,7 @@ function createPathInventory() {
 /**
  * Three conservative name-equivalence keys for cross-platform output trees.
  * Lowercase and uppercase keys retain the existing sigma/long-s alias families.
- * An upper-then-lower key additionally catches APFS aliases such as U+03D1
+ * An upper-then-lower key additionally catches observed macOS filesystem aliases such as U+03D1
  * GREEK THETA SYMBOL and U+03F4 GREEK CAPITAL THETA SYMBOL, whose direct
  * lowercase and uppercase mappings both differ. These keys may intentionally
  * reject names that a particular filesystem would keep distinct.
