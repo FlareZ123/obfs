@@ -44,6 +44,7 @@ Reproduction/generation artifacts:
 - `src/unicode-casefold.js`
 - `src/unicode-casefold-overrides.js`
 - `sims/generate-unicode-casefold-overrides.py`
+- `sims/audit-compound-casefold-witness.py`
 - `test/unicode-casefold.test.js`
 - `test/portable-path-tree.test.js`
 - `test/portable-fs-casefold-probe.test.js`
