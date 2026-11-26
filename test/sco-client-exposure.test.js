@@ -155,7 +155,7 @@ test('SCO CLI rejects an explicitly selected DEL filename before listening',asyn
   try {
     await atomicWrite(path.join(root,'index.mjs'),'export const ready=true;');
     await assert.rejects(main('sco',[
-      '--root',root,'--entry','index.mjs','--client','del\\u007f.mjs'
+      '--root',root,'--entry','index.mjs','--client','del'+String.fromCharCode(0x7f)+'.mjs'
     ]),/Unsafe file path:/u);
   } finally {
     await fs.rm(root,{recursive:true,force:true});
