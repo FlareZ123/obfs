@@ -525,8 +525,8 @@ def main():
     args = parser.parse_args()
 
     if args.fixture_family == "random":
-        if not (2 <= args.min_states <= args.max_states <= 12):
-            raise ValueError("random fixture range must satisfy 2 <= min <= max <= 12")
+        if not (2 <= args.min_states <= args.max_states <= 24):
+            raise ValueError("random fixture range must satisfy 2 <= min <= max <= 24")
     else:
         if not (3 <= args.min_states <= args.max_states <= 64):
             raise ValueError("delayed-pair fixture range must satisfy 3 <= min <= max <= 64")
