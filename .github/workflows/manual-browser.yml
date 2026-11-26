@@ -36,6 +36,10 @@ jobs:
         env:
           CHROMIUM_BIN: google-chrome
         run: node test/storage-value-coercion-controls-browser.js
+      - name: Verify cross-file WeakMap prototype exposure fails closed in Chromium
+        env:
+          CHROMIUM_BIN: google-chrome
+        run: node test/agent10-weakmap-prototype-cross-file-browser.js
       - name: Compare asynchronous cross-file shared-reference graphs under Chromium CSP
         env:
           CHROMIUM_BIN: google-chrome
