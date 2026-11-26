@@ -181,21 +181,19 @@ class MinimaxPriorLearner:
         return self.candidates[candidate_id], transcript
 
     def simulate_all(self) -> dict[tuple[int, int], list[tuple[int, str]]]:
-        """Validate the policy against every candidate as a simulated oracle."""
+        """Validate the public query callback interface against every candidate."""
         traces = {}
         for target in self.candidates:
-            belief = self.initial_belief()
-            transcript: list[tuple[int, str]] = []
-            while len(belief) > 1:
-                symbol, groups = self.best_action(belief)
-                state = next(
-                    state for candidate_id, state in belief
-                    if candidate_id == target.candidate_id
-                )
-                output = target.outputs[state][symbol]
-                transcript.append((symbol, output))
-                belief = groups[output]
-            if belief[0][0] != target.candidate_id:
+            state = [target.initial_state]
+
+            def oracle(symbol: int, candidate: Candidate = target, current=state) -> str:
+                old_state = current[0]
+                output = candidate.outputs[old_state][symbol]
+                current[0] = candidate.transitions[old_state][symbol]
+                return output
+
+            identified, transcript = self.identify(oracle)
+            if identified.candidate_id != target.candidate_id:
                 raise AssertionError(f"policy misidentified {target.state_count}:{target.seed}")
             traces[(target.state_count, target.seed)] = transcript
         return traces
