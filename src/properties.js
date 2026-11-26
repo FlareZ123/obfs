@@ -681,6 +681,71 @@ function proveLocalObject(ast, rootName, bindings, importedIdentityFunctions=new
   // Conversely, a value stored, returned, exported, or passed elsewhere can
   // expose its original body through Function#toString.
   const privateFunctionNodes=new Set(directInvokedArrows);
+  // Class methods are usually source-observable through their prototype.
+  // Admit a bounded class only when every ordinary method is a single
+  // immutable-owner read, and the sole instance can only invoke those methods
+  // directly without arguments. Never infer arbitrary class control flow.
+  if(!dynamicScope)for(const statement of ast.body) {
+    if(statement.type!=='ClassDeclaration'||statement.superClass||
+       statement.id?.type!=='Identifier'||
+       statement.body.body.length<1||statement.body.body.length>8||
+       bindings.get(statement.id.name)!==1)continue;
+    const methods=statement.body.body;
+    /** @type {Set<string>} */
+    const methodNames=new Set();
+    let safeMethods=true;
+    for(const method of methods) {
+      if(method.type!=='MethodDefinition'||method.kind!=='method'||
+         method.static||method.computed||method.key.type!=='Identifier'||
+         method.key.name==='constructor'||methodNames.has(method.key.name)||
+         method.value?.type!=='FunctionExpression'||
+         method.value.async||method.value.generator||method.value.params.length!==0||
+         method.value.body.body.length!==1){
+        safeMethods=false;break;
+      }
+      const returned=method.value.body.body[0];
+      if(returned.type!=='ReturnStatement'||
+         returned.argument?.type!=='MemberExpression'||
+         returned.argument.optional||
+         returned.argument.object.type!=='Identifier'||
+         returned.argument.object.name!==rootName ||
+         (returned.argument.computed?
+           staticString(returned.argument.property)===null:
+           returned.argument.property.type!=='Identifier')){
+        safeMethods=false;break;
+      }
+      methodNames.add(method.key.name);
+    }
+    if(!safeMethods)continue;
+    const classUses=identifierUses.get(statement.id.name)??[];
+    if(classUses.length!==2)continue;
+    const classUse=classUses.find(use=>use.node!==statement.id);
+    if(classUse?.parent?.type!=='NewExpression'||
+       classUse.parent.callee!==classUse.node||
+       classUse.parent.arguments.length!==0)continue;
+    const newDeclaration=parents.get(classUse.parent);
+    const newStatement=newDeclaration?parents.get(newDeclaration):null;
+    if(newDeclaration?.type!=='VariableDeclarator'||
+       newDeclaration.init!==classUse.parent||
+       newDeclaration.id.type!=='Identifier'||
+       newStatement?.type!=='VariableDeclaration'||
+       newStatement.kind!=='const'||newStatement.declarations.length!==1||
+       parents.get(newStatement)!==ast||
+       bindings.get(newDeclaration.id.name)!==1)continue;
+    const instanceUses=identifierUses.get(newDeclaration.id.name)??[];
+    if(instanceUses.length<2 || instanceUses.some(use=>{
+      if(use.node===newDeclaration.id)return false;
+      const receiver=use.parent;
+      if(receiver?.type!=='MemberExpression'||receiver.object!==use.node||
+         receiver.computed||receiver.optional||
+         receiver.property.type!=='Identifier'||
+         !methodNames.has(receiver.property.name))return true;
+      const invoked=parents.get(receiver);
+      return invoked?.type!=='CallExpression'||invoked.callee!==receiver||
+        invoked.optional||invoked.arguments.length!==0;
+    }))continue;
+    for(const method of methods)privateFunctionNodes.add(method.value);
+  }
   /** @type {{name:string,node:AstNode,decl:AstNode}[]} */
   const callableBindings=[];
   for(const node of functionDeclarations) {
@@ -940,9 +1005,30 @@ function proveLocalObject(ast, rootName, bindings, importedIdentityFunctions=new
     // A property spelling inside an unproven callable body is part of that
     // callable's externally observable source. Private direct-call-only
     // functions survive the escape analysis above and remain eligible.
-    if(ancestors.some(ancestor=>
+    //
+    // A public wrapper's *unchanged* expression `read(owner)` does not
+    // itself spell an own key. Admit this one boundary only if the owner is
+    // the sole actual parameter to a locally proven private direct-call-only
+    // reader, and the corresponding formal is a closed alias of this owner.
+    // The reader's own body still receives full member/use/source checks.
+    // This is not an exemption for member reads, arbitrary arguments,
+    // identity-forwarding calls, imported functions, or exported helpers.
+    const sourceVisibleAncestor=ancestors.some(ancestor=>
       ['FunctionDeclaration','FunctionExpression','ArrowFunctionExpression'].includes(ancestor.type)&&
-      !privateFunctionNodes.has(ancestor)))return null;
+      !privateFunctionNodes.has(ancestor));
+    if(sourceVisibleAncestor) {
+      const helper=parent?.type==='CallExpression'&&
+        parent.callee.type==='Identifier'?
+          functions.get(parent.callee.name):undefined;
+      const formal=helper?.params[0];
+      const safePrivateReaderActual=parent?.type==='CallExpression'&&
+        key==='arguments' && !parent.optional &&
+        parent.arguments.length===1 && parent.arguments[0]===node &&
+        helper?.forwardIndex===-1 && !helper.external &&
+        helper.params.length===1 && privateFunctionNodes.has(helper.node) &&
+        formal?.type==='Identifier' && aliases.has(formal.name);
+      if(!safePrivateReaderActual)return null;
+    }
     const scope=scopes.get(node.name);
     if (!scope || !ancestors.includes(scope)) return null;
     if (!parent) return null;

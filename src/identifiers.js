@@ -135,6 +135,139 @@ function renameLocalIdentifiers(source,ast,options) {
     }
   });
   if (dynamic) return {code:source,bindings:0};
+
+  // Native Function.prototype.toString exposes every local identifier in a
+  // publicly exported function's body, not just its name or parameter count.
+  // Rewriting a parameter inside a public wrapper otherwise changes its
+  // externally observable source while preserving its numeric output.
+  // This is intentionally a bounded direct-export grammar, not a claim that
+  // all indirect exports or runtime-generated callable aliases are proved.
+  /** @type {Set<AstNode>} */
+  const publicCallables=new Set();
+  /** @type {Set<string>} */
+  const exportedFunctionNames=new Set();
+  /** @type {string[]} */
+  const pendingExportedNames=[];
+  /** @param {string} name @returns {void} */
+  function markExportedName(name){
+    if(exportedFunctionNames.has(name))return;
+    exportedFunctionNames.add(name);
+    pendingExportedNames.push(name);
+  }
+  /** @param {AstNode|null|undefined} expression @returns {void} */
+  function markExportedValue(expression){
+    if(!expression)return;
+    if(['FunctionDeclaration','FunctionExpression','ArrowFunctionExpression'].includes(expression.type)){
+      publicCallables.add(expression);
+      return;
+    }
+    if(expression.type==='Identifier'){
+      markExportedName(expression.name);
+      return;
+    }
+    if(expression.type==='ObjectExpression'){
+      for(const prop of expression.properties){
+        if(prop.type==='Property'&&prop.value)markExportedValue(prop.value);
+        // Object spread can publish arbitrary functions through dynamic
+        // exports. This narrow analyzer does not infer their source.
+      }
+    }
+  }
+  /** @param {AstNode} node @returns {boolean} */
+  function isModuleExports(node){
+    return node.type==='MemberExpression'&&!node.computed&&
+      node.object.type==='Identifier'&&node.object.name==='module'&&
+      node.property.type==='Identifier'&&node.property.name==='exports';
+  }
+  /** @param {AstNode} node @returns {boolean} */
+  function isCommonJsExportTarget(node){
+    if(node.type==='Identifier')return node.name==='exports';
+    if(isModuleExports(node))return true;
+    return node.type==='MemberExpression'&&
+      (isModuleExports(node.object)||node.object.type==='Identifier'&&
+        node.object.name==='exports');
+  }
+  walk(ast,node=>{
+    if(node.type==='ExportNamedDeclaration'&&!node.source){
+      const decl=node.declaration;
+      if(decl?.type==='FunctionDeclaration')markExportedValue(decl);
+      if(decl?.type==='VariableDeclaration'){
+        for(const entry of decl.declarations)markExportedValue(entry.init);
+      }
+      for(const spec of node.specifiers??[]){
+        if(spec.type==='ExportSpecifier'&&spec.local.type==='Identifier')
+          markExportedName(spec.local.name);
+      }
+    }
+    if(node.type==='ExportDefaultDeclaration')markExportedValue(node.declaration);
+    if(node.type==='AssignmentExpression'&&node.operator==='='&&
+       isCommonJsExportTarget(node.left))markExportedValue(node.right);
+  });
+  // An exported function can flow through several immutable top-level
+  // aliases, including objects that hold the callable as a data-property
+  // value. Resolve the finite exact name graph as a work queue, not a
+  // source-order-sensitive single AST walk.
+  if(pendingExportedNames.length) {
+    /** @type {Map<string,AstNode>} */
+    const topLevelValues=new Map();
+    for(const statement of ast.body) {
+      const declaration=statement.type==='ExportNamedDeclaration'?
+        statement.declaration:statement;
+      if(declaration?.type==='FunctionDeclaration'&&
+         declaration.id?.type==='Identifier') {
+        topLevelValues.set(declaration.id.name,declaration);
+      }else if(declaration?.type==='VariableDeclaration'){
+        for(const item of declaration.declarations) {
+          if(item.id.type==='Identifier'&&item.init)
+            topLevelValues.set(item.id.name,item.init);
+        }
+      }
+    }
+    for(let at=0;at<pendingExportedNames.length;at++){
+      const value=topLevelValues.get(pendingExportedNames[at]);
+      if(value)markExportedValue(value);
+    }
+  }
+  // Opaque exports can expose callables through mutation, spread,
+  // assigning object fields, or runtime value replacement. The name worklist
+  // above only reasons about immutable literal aliases. When these dynamic
+  // carriers coexist with a syntactic export, we have no complete source
+  // visibility proof. Decline identifier rewriting for that file rather than
+  // preserve numerics at the cost of an observable native function source.
+  let hasExportSyntax=false;
+  let hasOpaqueExportFlow=false;
+  walk(ast,(node,parent)=>{
+    if(['ExportNamedDeclaration','ExportDefaultDeclaration',
+      'ExportAllDeclaration'].includes(node.type))hasExportSyntax=true;
+    if(node.type==='AssignmentExpression'){
+      if(isCommonJsExportTarget(node.left))hasExportSyntax=true;
+      else hasOpaqueExportFlow=true;
+    }
+    if(node.type==='UpdateExpression')hasOpaqueExportFlow=true;
+    if(node.type==='VariableDeclaration'&&node.kind!=='const')
+      hasOpaqueExportFlow=true;
+    if(node.type==='SpreadElement'&&parent?.type==='ObjectExpression')
+      hasOpaqueExportFlow=true;
+    if(node.type==='CallExpression'&&
+       node.callee.type==='MemberExpression'&&
+       node.callee.object.type==='Identifier'&&
+       node.callee.object.name==='Object'&&
+       (node.callee.computed ? node.callee.property.type==='Literal'&&
+         node.callee.property.value==='assign':
+         node.callee.property.type==='Identifier'&&
+         node.callee.property.name==='assign'))
+      hasOpaqueExportFlow=true;
+  });
+  if(hasExportSyntax&&hasOpaqueExportFlow)return {code:source,bindings:0};
+
+  /** @param {AstNode} identifier @returns {boolean} */
+  function isPublicSourceIdentifier(identifier) {
+    for(const callable of publicCallables){
+      if(callable.start<=identifier.start&&identifier.end<=callable.end)return true;
+    }
+    return false;
+  }
+
   /** @type {import('./ast').Edit[]} */
   const edits=[];
   // A free identifier can be captured by a newly introduced local binding,
@@ -144,6 +277,7 @@ function renameLocalIdentifiers(source,ast,options) {
   for(const candidate of candidates) {
     const {name,scope,identifier}=candidate;
     if (counts.get(name)!==1 || inferredNames.has(name) || errorSpellingNames.has(name) ||
+        isPublicSourceIdentifier(identifier) ||
         ['arguments','eval','require','module','exports','globalThis','window'].includes(name)) continue;
     // TDZ ReferenceError messages expose the original binding spelling.
     // Until a control-flow dominance proof exists, reject a candidate when a
