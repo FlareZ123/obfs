@@ -368,9 +368,18 @@ function hasUnmodeledNativeBindGlobalReference(ast,allowCommonJsModuleExports=fa
        parent?.type==='MetaProperty')continue;
     if(parent?.type==='ImportSpecifier'&&key==='imported'||
        parent?.type==='ExportSpecifier'&&key==='exported')continue;
-    if(allowCommonJsModuleExports&&node.name==='module'&&counts.get('module')===undefined&&
-       parent?.type==='MemberExpression'&&key==='object'&&!parent.computed&&
-       parent.property.type==='Identifier'&&parent.property.name==='exports')continue;
+    const moduleExportWrite=allowCommonJsModuleExports&&node.name==='module'&&
+      counts.get('module')===undefined&&parent?.type==='MemberExpression'&&
+      key==='object'&&!parent.computed&&parent.property.type==='Identifier'&&
+      parent.property.name==='exports'&&(()=>{
+        const n=ancestors.length;
+        const next=ancestors[n-2],after=ancestors[n-3];
+        return next?.type==='AssignmentExpression'&&next.left===parent&&
+          next.operator==='='||
+          next?.type==='MemberExpression'&&next.object===parent&&
+          after?.type==='AssignmentExpression'&&after.left===next&&after.operator==='=';
+      })();
+    if(moduleExportWrite)continue;
     const bindingScope=scopes.get(node.name);
     const functionScope=bindingScope&&
       ['FunctionDeclaration','FunctionExpression','ArrowFunctionExpression'].includes(bindingScope.type);
