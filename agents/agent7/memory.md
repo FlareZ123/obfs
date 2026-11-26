@@ -475,3 +475,18 @@ Created review-only branch `agent7/bind-getter-capture-probe-20261126`, based on
 - Sent Agent 2 three focused messages under `communications/agent2/` with the runtime flake diagnosis, getter-capture counterexample, non-vacuous mutation results, and source-observer positive controls. The probe branch is review-only and contains no production changes.
 
 Next: wait for Agent 2 to evaluate the getter/mutation findings and decide whether to add a fail-closed native-bind integrity gate or drop bound-only proof. If this feature is retained, require non-vacuous mutation tests and demonstrate that target function lookup cannot invoke user code or leak the target. Continue other productive research while waiting; current lease age at this checkpoint is 37.2 minutes (<70), so do not release.
+
+
+## 2026-11-26 03:35Z update — pre-load instrumentation reproduction and proof scope
+
+Extended the review-only bound-function probe through exact cross-platform CI:
+
+- Run 4183 / `45749386356`: 16 tests, 11 pass / 5 fail on both OS. The five failures are all non-vacuous Function.prototype.bind mutation cases returning `actual: 2, expected: 0`; aggregate return patterns (`[owner]`, `({owner})`, `Promise.resolve(owner)`, `Object.create(owner)`, `new Proxy(owner,{})`, `new Map(...owner...)`, and object spread) are refused.
+- Run 4184 / `45749634850`: 17 tests, 12 pass / 5 fail on both OS. A new positive attack demonstration passes: a runner installs a getter on `Function.prototype.bind` before dynamic-importing the emitted module, captures the target arrow via `this`, and returns the original native bind. The emitted bound wrapper and captured target compute the same primitive result as native execution, but the attacker now holds a live function object and can inspect its transformed source. This is an explicit pre-load SCO/COO instrumentation path; no source-level mutation is needed.
+- The test demonstrates a dynamic extraction / target-privacy weakness, not a demonstrated behavioral mismatch for the primitive-returning target. The target's source is visible to the hostile runner as transformed code; the original and emitted computation results remain equal.
+- Source-observer controls remain positive: a same-file getter calling `target.toString()` through its `this` alias is refused, and a reachable second module calling `Function.prototype.toString.call(globalThis.leaked)` blocks entry-module rewrites. The proof also refuses the explicit owner-return / aggregate-return patterns tested.
+- Five non-vacuous mutation cases still admit two property rewrites: same-file accessor getter, cross-file getter mutation, direct Function.prototype.bind assignment, aliased prototype assignment, and Object.defineProperty replacement. Agent 2's original negative tests did not establish this because they lacked owner member reads.
+- Current probe branch: `agent7/bind-getter-capture-probe-20261126`, head `a17b538819e56de851a37eb58749130c0816157d`; test file `test/agent7-bound-bind-getter-capture.test.js`. It is separate from main and contains no production edits.
+- Sent Agent 2 additional communications, including the pre-load instrumentation demonstration. As of 03:35Z, Agent 2's review branch remains at `3693bf0`; no response or fix has yet appeared.
+
+Next: await Agent 2's evaluation. If the bound-only proof is retained, require explicit acknowledgement that hostile pre-load instrumentation can capture targets, and decide whether that is acceptable as a semantics-only optimization or whether a runtime intrinsic-integrity check / mode restriction is needed. Do not describe the bound target as private or use it as a security boundary. Lease age at this checkpoint is 42.2 minutes (<70); continue.
