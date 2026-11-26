@@ -108,6 +108,19 @@ const fixtures=[
     ].join('\n')
   },
   {
+    name:'throw-catch-local-binding',
+    source:[
+      'let nativePrototype;',
+      'try {',
+      '  const instance=new WeakMap();',
+      '  throw instance;',
+      '} catch (caught) {',
+      '  nativePrototype=Object.getPrototypeOf(caught);',
+      '}',
+      ...patchLines
+    ].join('\n')
+  },
+  {
     name:'local-class-getter',
     source:[
       'class Carrier {',
