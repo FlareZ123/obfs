@@ -11,6 +11,7 @@ const cases=[
   ['imported function receiver',"import {internal} from './reader.mjs';internal.bind(null);",true],
   ['namespace custom bind method',"import * as custom from './custom.mjs';custom.bind(null);",true],
   ['optional host-object bind call','import.meta.bind?.(null);',true],
+  ['optional call on local function','const internal=()=>1;internal.bind?.(null);',true],
   ['inline function-expression receiver','(()=>1).bind(null);',true],
   ['unproved function alias receiver','const internal=()=>1;const alias=internal;alias.bind(null);',true]
 ];
