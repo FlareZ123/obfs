@@ -81,7 +81,7 @@ def main():
         child_env = BASE.safe_environment()
 
         # First run the SCO arm alone.
-        sco_process, sco_ready, sco_canary, sco_token, mirror_root = BASE.start_server(fixture, 0)
+        sco_process, sco_ready, sco_canary, sco_token, mirror_root = BASE.start_server(fixture)
         sco_probe = run_single_arm_probe(
             sco_ready["origin"], mirror_root, child_env, learner_user, "SCO"
         )
