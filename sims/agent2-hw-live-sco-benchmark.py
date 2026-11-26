@@ -364,7 +364,7 @@ def run_one(state_count: int, seed: int, args):
     server_stats = None
     server_stderr = ""
     try:
-        server_process, ready, canary, session_token, server_root = start_server(fixture, seed)
+        server_process, ready, canary, session_token, server_root = start_server(fixture)
         preflight_result = preflight(
             ready["origin"],
             ready["public_module_path"],
