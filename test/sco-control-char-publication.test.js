@@ -169,3 +169,37 @@ test('SCO CLI rejects percent-decoded C0 and DEL path segments',async()=>{
     }
   }
 });
+
+
+test('SCO refuses a trailing pathname space trimmed by WHATWG URL resolution', {
+  skip:process.platform==='win32'?'Win32 does not preserve trailing-space filenames':false
+},async()=>{
+  const root=await fs.mkdtemp(path.join(os.tmpdir(),'obfs-sco-trailing-space-'));
+  try {
+    await atomicWrite(path.join(root,'index.mjs'),
+      'import {value} from "./a/../secret.mjs ";globalThis.value=value;');
+    await atomicWrite(path.join(root,'secret.mjs'),
+      'globalThis.__urlTargets.push("url-target");export const value="url-target";');
+    await atomicWrite(path.join(root,'secret.mjs '),
+      'globalThis.__posixDecoys.push("posix-decoy");export const value="posix-decoy";');
+    await atomicWrite(path.join(root,'native-check.mjs'),
+      'globalThis.__urlTargets=[];globalThis.__posixDecoys=[];'+
+      'await import("./index.mjs");'+
+      'process.stdout.write(JSON.stringify({urlTargets:globalThis.__urlTargets,'+
+      'posixDecoys:globalThis.__posixDecoys}));');
+    const native=spawnSync(process.execPath,[path.join(root,'native-check.mjs')],{
+      cwd:root,encoding:'utf8',timeout:8000,windowsHide:true
+    });
+    if(native.error)throw native.error;
+    assert.equal(native.status,0,native.stderr);
+    assert.deepEqual(JSON.parse(native.stdout),{
+      urlTargets:['url-target'],posixDecoys:[]
+    });
+
+    const probe=await probeSco(root,['index.mjs','secret.mjs','secret.mjs ']);
+    assert.equal(probe.listening,false,'SCO must refuse the URL-trimmed pathname');
+    assert.match(probe.stderr,/SCO noncanonical ESM import path unsupported/u);
+  } finally {
+    await fs.rm(root,{recursive:true,force:true});
+  }
+});
