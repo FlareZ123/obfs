@@ -87,3 +87,67 @@ test('WeakMap prototype mutation through Object.getPrototypeOf misses Storage so
     observed,metrics:app.metrics,native,emitted
   })+'\\n');
 });
+
+
+test('WeakMap prototype access aliases also bypass the reference-only guard',()=>{
+  const variants=[
+    {
+      name:'Reflect.getPrototypeOf',
+      setup:'const weakMapPrototype=Reflect.getPrototypeOf(new WeakMap());'
+    },
+    {
+      name:'new WeakMap().__proto__',
+      setup:'const weakMapPrototype=new WeakMap().__proto__;'
+    },
+    {
+      name:'aliased Object.getPrototypeOf',
+      setup:'const getPrototypeOf=Object.getPrototypeOf; const weakMapPrototype=getPrototypeOf(new WeakMap());'
+    },
+    {
+      name:'aliased Reflect.getPrototypeOf',
+      setup:'const getPrototypeOf=Reflect.getPrototypeOf; const weakMapPrototype=getPrototypeOf(new WeakMap());'
+    }
+  ];
+  for(const [index,variant] of variants.entries()) {
+    const candidate=[
+      variant.setup,
+      'const nativeWeakMapSet=weakMapPrototype.set;',
+      'weakMapPrototype.set=function(key,value){',
+      '  document.title=value;',
+      '  return Reflect.apply(nativeWeakMapSet,this,[key,value]);',
+      '};',
+      'const descriptor=Object.getOwnPropertyDescriptor(Storage.prototype,"setItem");',
+      'const captured=new WeakMap();',
+      'function inspect(){const privateLocal=29;return privateLocal;}',
+      'function independent(){const independentLocal=7;return independentLocal;}',
+      'export function sample(){',
+      '  Object.defineProperty(Storage.prototype,"setItem",{',
+      '    ...descriptor,',
+      '    value:function(_key,value){captured.set(this,value);}',
+      '  });',
+      '  localStorage.setItem("storage-prototype-override",inspect);',
+      '  return {value:inspect(),independent:independent()};',
+      '}'
+    ].join('\\n');
+    assert.equal(observesFunctionSource(parse(candidate,'module')),false,variant.name);
+    const compiled=obfuscateFiles([{
+      path:'entry.mjs',sourceType:'module',code:candidate
+    }],{
+      mode:'coo',seed:'agent4-weakmap-prototype-variant-'+index,
+      properties:false,identifiers:true,strings:false
+    });
+    const app=compiled.files.find(file=>file.path==='entry.mjs');
+    assert.ok(app);
+    assert.ok(app.metrics.bindings>=2,
+      JSON.stringify({variant:variant.name,metrics:app.metrics,code:app.code}));
+    const native=run(candidate);
+    const emitted=run(String(app.code));
+    assert.deepEqual(emitted.result,native.result,variant.name);
+    assert.ok(native.capturedSource?.includes('privateLocal'),variant.name);
+    assert.ok(emitted.capturedSource&&!emitted.capturedSource.includes('privateLocal'),
+      JSON.stringify({variant:variant.name,native,emitted,metrics:app.metrics}));
+  }
+  process.stdout.write('WEAKMAP_PROTOTYPE_ACCESS_VARIANTS_FALSE_SAFE '+JSON.stringify(
+    variants.map(variant=>variant.name)
+  )+'\\n');
+});
