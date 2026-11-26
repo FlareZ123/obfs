@@ -60,6 +60,19 @@ def serve() -> None:
         httpd.server_close()
 
 
+def proc_status(pid: int) -> dict[str, str]:
+    wanted = {"NoNewPrivs", "CapEff", "CapBnd"}
+    state = {}
+    with open(f"/proc/{pid}/status", "r", encoding="ascii") as handle:
+        for line in handle:
+            key, separator, value = line.partition(":")
+            if separator and key in wanted:
+                state[key] = value.strip().split()[0]
+    if wanted - set(state):
+        raise RuntimeError(f"missing privilege status fields for pid {pid}: {state}")
+    return state
+
+
 def denied(path: str) -> bool:
     fd = None
     try:
@@ -79,6 +92,8 @@ def client(args) -> None:
         cmdline_safe = args.private_file not in server_cmdline and "not-for-learner" not in server_cmdline
     except OSError:
         cmdline_safe = True  # Hiding cmdline entirely is also acceptable.
+    own_status = proc_status(os.getpid())
+    server_status = proc_status(args.server_pid)
     checks = {
         "uid_is_nobody": os.getuid() == args.expected_client_uid,
         "euid_is_nobody": os.geteuid() == args.expected_client_uid,
@@ -88,8 +103,16 @@ def client(args) -> None:
         "server_memory_denied": denied(f"/proc/{args.server_pid}/mem"),
         "server_fd_directory_denied": denied(f"/proc/{args.server_pid}/fd/0"),
         "parent_environ_denied": denied(f"/proc/{args.parent_pid}/environ"),
+        "parent_memory_denied": denied(f"/proc/{args.parent_pid}/mem"),
+        "parent_fd_directory_denied": denied(f"/proc/{args.parent_pid}/fd/0"),
+        "no_new_privs": own_status["NoNewPrivs"] == "1",
+        "cap_eff_empty": own_status["CapEff"] == "0000000000000000",
+        "cap_bnd_empty": own_status["CapBnd"] == "0000000000000000",
+        "server_no_new_privs": server_status["NoNewPrivs"] == "1",
+        "server_cap_eff_empty": server_status["CapEff"] == "0000000000000000",
+        "server_cap_bnd_empty": server_status["CapBnd"] == "0000000000000000",
     }
-    required_env = {"PATH", "HOME", "TMPDIR", "LANG", "PYTHONNOUSERSITE", "PYTHONHASHSEED"}
+    required_env = {"PATH", "HOME", "TMPDIR", "LANG", "PYTHONNOUSERSITE", "PYTHONHASHSEED", "PYTHONDONTWRITEBYTECODE"}
     allowed_env = required_env | {"LD_LIBRARY_PATH"}
     checks["environment_scrubbed"] = required_env.issubset(os.environ) and set(os.environ).issubset(allowed_env)
     sudo_path = shutil.which("sudo")
@@ -141,7 +164,8 @@ def run_parent() -> None:
     public_script.chmod(0o644)
 
     safe_env = {"PATH": "/usr/bin:/bin", "HOME": "/tmp", "TMPDIR": "/tmp",
-                "LANG": "C.UTF-8", "PYTHONNOUSERSITE": "1", "PYTHONHASHSEED": "0"}
+                "LANG": "C.UTF-8", "PYTHONNOUSERSITE": "1", "PYTHONHASHSEED": "0",
+                "PYTHONDONTWRITEBYTECODE": "1"}
     if os.environ.get("LD_LIBRARY_PATH"):
         safe_env["LD_LIBRARY_PATH"] = os.environ["LD_LIBRARY_PATH"]
     os.environ["TARGET_SEED_SENTINEL"] = "must-not-reach-client"
