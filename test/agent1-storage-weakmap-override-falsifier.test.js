@@ -149,7 +149,7 @@ const globalWeakMapReplacement=fixtures.prototypeOverride.replace(
     '  return map;',
     '};',
     'const captured=new WeakMap();'
-  ].join('\\n')
+  ].join('\n')
 );
 
 test('global WeakMap constructor replacement invalidates reference-only override',()=>{
