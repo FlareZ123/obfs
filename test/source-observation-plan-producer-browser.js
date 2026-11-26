@@ -1,6 +1,7 @@
 'use strict';
 
 const assert=require('node:assert/strict');
+const {execFileSync}=require('node:child_process');
 const puppeteer=require('puppeteer-core');
 const {obfuscateFiles}=require('../src');
 const {parse,observesFunctionSource}=require('../src/ast');
@@ -90,8 +91,11 @@ async function main() {
       setup:'const getPrototypeOf=Reflect.getPrototypeOf; const weakMapPrototype=getPrototypeOf(new WeakMap());'
     }
   ];
+  const configuredBinary=process.env.CHROMIUM_BIN??'google-chrome';
+  const executablePath=execFileSync('which',[configuredBinary],{encoding:'utf8'}).trim();
+  assert.ok(executablePath,`Unable to resolve Chromium executable: ${configuredBinary}`);
   const browser=await puppeteer.launch({
-    executablePath:process.env.CHROMIUM_BIN??'google-chrome',
+    executablePath,
     headless:true,
     args:['--no-sandbox','--disable-dev-shm-usage','--disable-gpu']
   });
