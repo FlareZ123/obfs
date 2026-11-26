@@ -1353,3 +1353,34 @@ Identity Agent 4 was claimed at `2026-11-25T16:32:29.688Z`; orderly release is d
 3. Keep the Unicode table/version qualification explicit. The override table is derived from Unicode 15.1 default full-fold differences from lowercase, while fallback lowercase follows the Node runtime's Unicode database. New post-15.1 case-fold differences remain a known open boundary.
 4. This work is packaging/publication correctness only; it does not advance static/dynamic deobfuscation resistance, hostile-runtime integrity, SCO anti-relay, or prove the 2.5× budget across all programs.
 5. After every checkpoint, re-read this unchanged lease timestamp and obtain a real runtime clock. The 70-minute threshold remains 2026-11-26T06:12:40.755250+00:00.
+
+
+## 2026-11-26T06:00Z checkpoint — pinned Unicode 17 full-fold table
+
+### Correction upgrade
+- The initial Unicode 15.1 override + Node-lowercase hybrid was replaced by a complete pinned Unicode 17.0.0 default full-casefold table. The generated data file is src/unicode-casefold-data.js with 1,585 common/full (C/F) mappings; simple-only (S) and Turkic-only (T) mappings are excluded; unlisted codepoints remain unchanged. No runtime lowercase fallback remains.
+- Source: Unicode 17.0.0 CaseFolding.txt at https://www.unicode.org/Public/17.0.0/ucd/CaseFolding.txt. Attribution/license note: resources/unicode-casefold-data-source.md. Generator: sims/generate-unicode-casefold-data.py; it parses a local UCD file, checks the version header and 1,585 mapping count, and emits sorted ASCII-escaped JSON.
+- unicodeCaseFold now looks up padded four-digit BMP hex keys (codePoint.toString(16).toUpperCase().padStart(4,'0')). Run 4215 / 45763722686 exposed the missing zero-padding: the table used keys such as 00DF and 03A9 while the lookup produced DF and 3A9. Fixed and verified by exhaustive run 4218.
+- The full-fold mapping table is pinned to Unicode 17.0.0. NFC normalization before/after still uses the host Node runtime's Unicode data; this remains a compatibility boundary. The three legacy keys also use runtime lower/upper. Older filesystems may conservatively refuse names covered by newer Unicode 17 mappings.
+- The compound witness ßϑ.txt / ẞϴ.txt still maps to ssθ.txt; the negative control ıß / iẞ remains distinct. The fullfold key is more precise than the rejected NFC(lower→upper→lower) composite.
+
+### Unicode 17 validation
+- [4218](https://github.com/FlareZ123/obfs/actions/runs/45764695789): exhaustive 1,585-entry table/unit test, including Unicode 16 Cyrillic Tje U+1C89/U+1C8A and accent/compatibility controls; pass on Ubuntu, Windows, macOS and all JSDoc.
+- [4220](https://github.com/FlareZ123/obfs/actions/runs/45764798938): expanded native filesystem probe including compound witness, eight default-ignorable pairs, accent/compatibility pairs, Kelvin/ligature positive folds, and Cyrillic Tje; pass on all three OS and all JSDoc.
+- Full manual-validation [run 4223](https://github.com/FlareZ123/obfs/actions/runs/45764924463), head 118e324802f0cbef4f7665554b4da9f3bab054b3, started 2026-11-26T05:57:28Z and is in progress at this checkpoint. It supersedes historical full run 4202, which validated the earlier Unicode 15.1 hybrid only.
+- Updated im-results/agent4-compound-casefold-composition-2026-11-26.md, README.md, results/README.md, and messages to Agent 1/2. The previous communication mistakenly called the full run 4224 and used run ID 45765013827; corrected everywhere to run 4223 / 45764924463.
+- Agent 1 was sent the pinned-table upgrade, current branch head, and run link. Agent 2's earlier request about the 15.1 hybrid was superseded with a review request for the Unicode17 C/F table and NFC boundary. No response from Agent 1 or Agent 2 was visible at last mailbox check.
+- The port-source branch is agent4/compound-casefold-fullfold-fix-20261126 at 118e324802f0cbef4f7665554b4da9f3bab054b3. It is not a PR or alternate integration path. PR #379 remains the sole integration path; do not edit Agent 1's branch without coordination.
+
+### Current next actions
+1. Monitor full run 4223. If red, retrieve failed jobs only with a small tail and compare exact failure names against baseline run 4150; do not expand logs unnecessarily. A focused pass is not full acceptance.
+2. If full run 4223 shows only the same 11 baseline property-renaming/yield failures, update the report/index with exact counts and explicitly keep the full gate red. If any new failure appears, inspect the specific test and fix before claiming no regression.
+3. After run 4223 completes, check Agent 1's response and PR #379 head. If the correction is ported, review the integrated diff and require a fresh exact-head full gate.
+4. Keep the Unicode 17 table's conservative behavior and the runtime NFC boundary explicit. The Unicode 17 full-fold table is pinned, but older filesystem versions may refuse more names; normalization still follows Node's Unicode data.
+5. Path identity work is packaging/publication correctness only. It does not establish stronger static/dynamic deobfuscation resistance, hostile-runtime integrity, SCO anti-relay, or the 2.5× budget across all programs.
+6. Check the unchanged lease against a real runtime clock after every checkpoint. claimed_at remains 2026-11-26T05:02:40.755250+00:00; 70-minute release threshold remains 2026-11-26T06:12:40.755250+00:00.
+
+### Lease check
+- Actual runtime clock: 2026-11-26T05:59:58.958234+00:00.
+- Original lease: 2026-11-26T05:02:40.755250+00:00.
+- Elapsed: 57m18s; below 70 minutes. Continue work.
