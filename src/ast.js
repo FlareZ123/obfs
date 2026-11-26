@@ -74,18 +74,17 @@ function hasUnsafeNativeBindMutationSurface(ast) {
     '__defineGetter__','__defineSetter__','require','createRequire','getBuiltinModule'
   ]);
   const functionTypes=new Set(['FunctionDeclaration','FunctionExpression','ArrowFunctionExpression']);
-  // The bound-target proof only consumes a function object whose binding is
-  // locally established by a declaration or an immutable direct function
-  // initializer. A member merely named "bind" is not evidence of native bind:
-  // namespace exports, host metadata, aliases and inline expressions can
-  // supply unrelated methods or unproved receivers.
+  // Only nonconstructible arrow targets are admitted. An ordinary function
+  // declaration/expression remains reachable through new boundTarget() and
+  // instance.constructor, so its source is externally observable even when
+  // the target binding itself is not exported. A member merely named "bind"
+  // is not evidence of native bind: namespace exports, host metadata, aliases
+  // and inline expressions can supply unrelated methods or unproved receivers.
   const localCallableBindings=new Set();
   walk(ast,(node,parent)=>{
-    if(node.type==='FunctionDeclaration'&&node.id?.type==='Identifier')
-      localCallableBindings.add(node.id.name);
     if(node.type==='VariableDeclarator'&&node.id?.type==='Identifier'&&
        parent?.type==='VariableDeclaration'&&parent.kind==='const'&&
-       ['FunctionExpression','ArrowFunctionExpression'].includes(node.init?.type))
+       node.init?.type==='ArrowFunctionExpression')
       localCallableBindings.add(node.id.name);
   });
   /**
@@ -107,7 +106,9 @@ function hasUnsafeNativeBindMutationSurface(ast) {
     // Constructing an exported bound wrapper forwards the original target as
     // new.target. Coercing that function (for example in < or +) can invoke
     // Function#toString without an explicit source-observer call.
-    if(node.type==='MetaProperty'&&node.meta?.name==='new'&&node.property?.name==='target') {
+    if(node.type==='MetaProperty') {
+      // new.target exposes the underlying target; import.meta is host-provided
+      // and may carry effectful accessors or loader capabilities.
       unsafe=true;
       return;
     }
