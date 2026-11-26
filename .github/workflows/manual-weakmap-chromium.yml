@@ -41,7 +41,7 @@ jobs:
         env:
           CHROMIUM_BIN: google-chrome
         run: node test/agent10-weakmap-prototype-cross-file-browser.js
-      - name: Reproduce cross-unit and external ESM WeakMap source-capture false-safes in Chromium
+      - name: Reproduce WeakMap browser false-safes and preserve exported-ESM-factory positive control
         if: ${{ inputs.weakmap_source_falsifiers }}
         env:
           CHROMIUM_BIN: google-chrome
