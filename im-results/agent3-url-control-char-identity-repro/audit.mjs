@@ -138,12 +138,20 @@ visit([], 4);
 counts.preGuardCross.uniqueSafePairs = safePairs.size;
 const ordinarySpacePathnamesAllowed = ['./a/my file.mjs', './a/my%20file.mjs']
   .every((specifier) => !hasPathControl(specifier));
+const auditAssertionsPassed =
+  counts.generated === 3863160 &&
+  counts.preGuardCross.mismatches === 804 &&
+  counts.preGuardCross.uniqueSafePairs === 85 &&
+  counts.controlGuardSco.mismatches === 0 &&
+  counts.controlGuardCross.mismatches === 0 &&
+  ordinarySpacePathnamesAllowed;
 console.log(JSON.stringify({
   runtime: process.version,
   ordinarySpacePathnamesAllowed,
+  auditAssertionsPassed,
   atoms: atoms.length,
   suffixes: suffixes.length,
   maxSegments: 4,
   counts,
 }, null, 2));
-if (!ordinarySpacePathnamesAllowed) process.exitCode = 1;
+if (!auditAssertionsPassed) process.exitCode = 1;
