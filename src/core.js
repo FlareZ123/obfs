@@ -2023,36 +2023,32 @@ function obfuscateFiles(files, options = {}) {
     collectImportedFunctionArrays(prepared) : new Map();
   const importedStorageMethodAliases=prepared.length>1 ?
     collectImportedStorageMethodAliases(prepared) : new Map();
-  // A shared WeakMap prototype can be mutated by any supplied module before
-  // another module's reference-only Storage override executes. Compute this
-  // once for the complete file group and feed it into each source proof.
-  const sharedWeakMapPrototypeExposure=prepared.some(file=>
-    file.sourceType!=='asset'&&typeof file.code==='string'&&
-      hasWeakMapPrototypeExposure(parse(file.code,file.sourceType)));
+  // Parse the supplied JavaScript files once for source-observer analysis.
+  // The WeakMap prototype is shared across modules, so an exposure in any
+  // supplied file must invalidate reference-only Storage proofs in siblings.
+  const sourceObserverFiles=prepared.filter(file=>
+    file.sourceType!=='asset'&&typeof file.code==='string').map(file=>({
+      file,ast:parse(file.code,file.sourceType)
+    }));
+  const sharedWeakMapPrototypeExposure=sourceObserverFiles.some(({ast})=>
+    hasWeakMapPrototypeExposure(ast));
+  const sourceObserverFacts=sourceObserverFiles.map(({file,ast})=>({
+    distributed:observesDistributedSource(ast,importedStringProof.get(file.path)),
+    functionSource:observesFunctionSource(ast,
+      importedStringProof.get(file.path),importedCloneProof.get(file.path),
+      importedFunctionArrays.get(file.path),importedPrimitiveProof.get(file.path),
+      importedUrlStaticProof.get(file.path),
+      importedStorageMethodAliases.get(file.path),sharedWeakMapPrototypeExposure)
+  }));
   // Declared HTML script/modulepreload SRI metadata also observes the exact
   // served JavaScript bytes. If the HTML asset is preserved, every emitted
   // integrity-pinned script must retain its source hash.
-  const remoteSourceObserver=hasPinnedLocalJavaScriptIntegrity(prepared) ||
-    prepared.some(file=>
-    file.sourceType!=='asset' && typeof file.code==='string' &&
-    (observesDistributedSource(parse(file.code,file.sourceType),importedStringProof.get(file.path)) ||
-      observesFunctionSource(parse(file.code,file.sourceType),
-        importedStringProof.get(file.path),importedCloneProof.get(file.path),
-        importedFunctionArrays.get(file.path),importedPrimitiveProof.get(file.path),
-        importedUrlStaticProof.get(file.path),
-        importedStorageMethodAliases.get(file.path),sharedWeakMapPrototypeExposure)));
-  // A single-file host lock is still a source-coordinate rewrite. Local AST
-  // transforms can independently decline Function/source observers, but the
-  // wrapper itself has no later per-transform guard. Reuse the same broad
-  // source-observer proof used for multi-file publication so Error.stack,
-  // console/native stack formatting and related observers fail closed.
-  const hostLockSourceObserver=Boolean(allowedHosts?.length) &&
-    prepared.some(file=>file.sourceType!=='asset' && typeof file.code==='string' &&
-      observesFunctionSource(parse(file.code,file.sourceType),
-        importedStringProof.get(file.path),importedCloneProof.get(file.path),
-        importedFunctionArrays.get(file.path),importedPrimitiveProof.get(file.path),
-        importedUrlStaticProof.get(file.path),
-        importedStorageMethodAliases.get(file.path),sharedWeakMapPrototypeExposure));
+  const remoteSourceObserver=hasPinnedLocalJavaScriptIntegrity(prepared)||
+    sourceObserverFacts.some(fact=>fact.distributed||fact.functionSource);
+  // A single-file host lock is still a source-coordinate rewrite. Reuse the
+  // already-computed per-file source-observer facts rather than reparsing.
+  const hostLockSourceObserver=Boolean(allowedHosts?.length)&&
+    sourceObserverFacts.some(fact=>fact.functionSource);
   // Only explicitly selected, proved primitive-returning ESM leaves can
   // retain local property renaming despite a separate source observer.
   // No other backend is enabled by this exception, and it is opt-in.
