@@ -80,7 +80,7 @@ def start_ordinary_server(fixture, canary, session_token, method_name, mirror_ro
             raise AssertionError(f"ordinary server UID mismatch: {ready!r}")
         if set(ready.get("environment_keys", [])) != set(child_env):
             raise AssertionError(f"ordinary server environment was not scrubbed: {ready!r}")
-        BASE.assert_process_uid(ready["pid"], server_user.pw_uid, "ordinary server")
+        ready["security_state"] = BASE.assert_process_security_state(ready["pid"], server_user.pw_uid, "ordinary server")
         return process, ready
     except Exception:
         BASE.terminate_process_group(process)
@@ -373,6 +373,9 @@ def run_one(state_count: int, seed: int, args):
                     "pid": sco_ready["pid"],
                     "uid": sco_ready["uid"],
                     "environment_keys": sco_ready["environment_keys"],
+                    "no_new_privs": sco_ready["security_state"]["NoNewPrivs"],
+                    "cap_eff": sco_ready["security_state"]["CapEff"],
+                    "cap_bnd": sco_ready["security_state"]["CapBnd"],
                     "private_root_mode": sco_ready["private_root_mode"],
                     "private_file_mode": sco_ready["private_file_mode"],
                 },
@@ -381,6 +384,10 @@ def run_one(state_count: int, seed: int, args):
                     "uid": sco_client["uid"],
                     "euid": sco_client["euid"],
                     "environment_keys": sco_client["environment_keys"],
+                    "no_new_privs": sco_client["no_new_privs"],
+                    "cap_eff": sco_client["cap_eff"],
+                    "cap_bnd": sco_client["cap_bnd"],
+                    "sudo_blocked": sco_client["sudo_blocked"],
                     "learner_seed": sco_client["learner_seed"],
                 },
                 "source_disclosed": sco_preflight["source_disclosed"],
@@ -404,12 +411,19 @@ def run_one(state_count: int, seed: int, args):
                     "pid": ordinary_ready["pid"],
                     "uid": ordinary_ready["uid"],
                     "environment_keys": ordinary_ready["environment_keys"],
+                    "no_new_privs": ordinary_ready["security_state"]["NoNewPrivs"],
+                    "cap_eff": ordinary_ready["security_state"]["CapEff"],
+                    "cap_bnd": ordinary_ready["security_state"]["CapBnd"],
                 },
                 "learner_process": {
                     "pid": ordinary_client["pid"],
                     "uid": ordinary_client["uid"],
                     "euid": ordinary_client["euid"],
                     "environment_keys": ordinary_client["environment_keys"],
+                    "no_new_privs": ordinary_client["no_new_privs"],
+                    "cap_eff": ordinary_client["cap_eff"],
+                    "cap_bnd": ordinary_client["cap_bnd"],
+                    "sudo_blocked": ordinary_client["sudo_blocked"],
                     "learner_seed": ordinary_client["learner_seed"],
                 },
                 "source_disclosed": ordinary_preflight["source_disclosed"],
