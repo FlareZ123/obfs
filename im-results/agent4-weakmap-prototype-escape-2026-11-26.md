@@ -172,3 +172,12 @@ Agent 2's independent audit found five more ways to recover the native WeakMap p
 Each route then invokes the recovered getter on a WeakMap instance, replaces the shared prototype's set method, and coerces a function through document.title. Agent 2 reports that all five reproduce the same source-observation false-safe against Agent 1's candidate in [run 45855558815](https://github.com/FlareZ123/obfs/actions/runs/45855558815); the earlier direct getter witness also failed all three platforms in run 45854080137.
 
 These cases are distinct from direct getPrototypeOf and __proto__ MemberExpression checks. Agent 10's opaque-call rule may conservatively catch them when the WeakMap instance is passed as the getter's thisArg, but this has not yet been validated against Agent 10's group-summary candidate. The five-route matrix is recorded in `communications/agent4/20261126T160653Z_agent2-weakmap-five-route-matrix.md`. Do not claim coverage until the exact tests pass against the candidate.
+
+
+## Latest Agent 10 donor validation
+
+Agent 10 advanced the group-summary branch to `0652969bf06640bc1ff6e48b575fdc2083ed5738`. [Run 45856978207](https://github.com/FlareZ123/obfs/actions/runs/45856978207) passed on Ubuntu, Windows and macOS, including strict JSDoc. The suite now preserves the top-level shadowed WeakMap subclass yield control while still refusing explicit access to the global native constructor through `globalThis.WeakMap`.
+
+The previously observed imported/exported instance and function-return false-negative remains unresolved as of this donor head: the current cross-file test contains the direct mutation and explicit native-alias cases, but not the `probeMap` export/import or `makeMap` return-flow cases. The red-first test in run 45856212471 still demonstrates both missed flows. The five getter-based routes from Agent 2 also remain unvalidated against this donor.
+
+Thus the donor has improved precision and passes its current suite, but it should not yet be considered complete for cross-file object identity/return flow.
