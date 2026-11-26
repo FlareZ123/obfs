@@ -89,7 +89,7 @@ function run(files) {
 }
 
 for (const mode of ['coo', 'sco', 'sno']) {
-  test('cross-file WeakMap container bypass preserves an unsafe identifier rewrite in ' + mode.toUpperCase(), () => {
+  test('cross-file WeakMap container exposure blocks unsafe rewrite in ' + mode.toUpperCase(), () => {
     const compiled = obfuscateFiles(sourceFiles, {
       mode,
       seed: 'agent3-weakmap-cross-file-container-' + mode,
@@ -105,7 +105,7 @@ for (const mode of ['coo', 'sco', 'sno']) {
       metrics: storage.metrics,
       files: compiled.files.map(file => ({ path: file.path, metrics: file.metrics }))
     };
-    assert.ok(storage.metrics.bindings > 0, JSON.stringify(evidence));
+    assert.equal(storage.metrics.bindings, 0, JSON.stringify(evidence));
     if (mode === 'coo') {
       const native = run(sourceFiles.map(file => ({ path: file.path, code: file.code })));
       const emitted = run(compiled.files.map(file => ({
@@ -114,11 +114,11 @@ for (const mode of ['coo', 'sco', 'sno']) {
       })));
       assert.deepEqual(emitted.result, native.result);
       assert.ok(native.capturedSource.includes('privateLocal'), JSON.stringify({ native, emitted }));
-      assert.notEqual(emitted.capturedSource, native.capturedSource,
+      assert.equal(emitted.capturedSource, native.capturedSource,
         JSON.stringify({ native, emitted, evidence }));
-      assert.ok(!emitted.capturedSource.includes('privateLocal'),
+      assert.ok(emitted.capturedSource.includes('privateLocal'),
         JSON.stringify({ native, emitted, evidence }));
-      process.stdout.write('CROSS_FILE_WEAKMAP_CONTAINER_FALSE_SAFE ' + JSON.stringify({
+      process.stdout.write('CROSS_FILE_WEAKMAP_CONTAINER_GUARD_PASS ' + JSON.stringify({
         mode, storageMetrics: storage.metrics, native, emitted
       }) + '\n');
     }
