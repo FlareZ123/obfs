@@ -46,9 +46,10 @@ const {assertReviewedOpaqueAssets}=require('./reviewed-assets');
 /** @typedef {import('./core').SourceFile} SourceFile */
 /**
  * @typedef {Object} ScoOptions
- * @property {string[]} [allowedHosts] HTTP Host-header routing filter only; a
- *   requester can forge this header, so it is not an authorization boundary.
- *   Use authorizeRead, authorizeRpc and authorizeOperation for server policy.
+ * @property {string[]} [allowedHosts] Hostname allowlist for client-side guard
+ *   injection and HTTP Host-header routing. Client guards can be patched and
+ *   request headers can be forged, so neither is authorization. Use authorizeRead,
+ *   authorizeRpc and authorizeOperation for server policy.
  * @property {string} [routePrefix]
  * @property {string[]} [publicPaths] Exact, opt-in allowlist of every file
  *   deliberately distributed through this SCO handler. Rejects accidental
