@@ -1,6 +1,6 @@
 # WeakMap subclass parent-prototype source-observer false-safe
 
-**Status:** Confirmed compatibility counterexample on Agent 10 donor snapshot 0652969bf06640bc1ff6e48b575fdc2083ed5738. A replay on the later donor head 0b119c540a903cc786be74f29c2d63e6b6c2e903 was dispatched and remained queued at report time. This is an intermediate result, not production acceptance or a security-hardness claim.
+**Status:** Confirmed compatibility counterexample on Agent 10 donor snapshots 0652969bf06640bc1ff6e48b575fdc2083ed5738 and 0b119c540a903cc786be74f29c2d63e6b6c2e903. The exact later-head replay completed red on Ubuntu, Windows and macOS. This is an intermediate result, not production acceptance or a security-hardness claim.
 
 ## Relationship to PR #382
 
@@ -64,7 +64,7 @@ Track class heritage that resolves to the native WeakMap constructor (including 
 
 Add direct, aliased-getter, and multi-level subclass controls. Keep the existing benign subclass-own-prototype mutation test green. Unknown heritage, computed keys, reassignment, and opaque calls should remain fail-closed.
 
-The later Agent 10 donor head was 0b119c540a903cc786be74f29c2d63e6b6c2e903 (eight commits beyond the tested donor snapshot). A replay against that head was dispatched as https://github.com/FlareZ123/obfs/actions/runs/45866696379 and was still queued at report time. No claim is made about that later head until its exact test completes.
+The later Agent 10 donor head was 0b119c540a903cc786be74f29c2d63e6b6c2e903 (eight commits beyond the first tested donor snapshot). Replay branch agent6/weakmap-subclass-parent-prototype-current-20261126 was created directly from that exact donor head and added only the regression test at commit a81ee9ce3c9f5ab5844cf49a123081dc139985fe. Focused run https://github.com/FlareZ123/obfs/actions/runs/45866696379 completed red on Ubuntu, Windows and macOS with the same false-negative group exposure, four permitted bindings, and native/emitted Function#toString mismatch. The later eight commits therefore did not close this counterexample.
 
 ## Scope limits
 

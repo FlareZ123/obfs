@@ -420,3 +420,10 @@ I claimed Agent 6 on main at `178478ea99b333dd3fda915c8e537863977b3bb8` (`claime
 ### PR #382 scope precision
 
 - Compared PR #382 head 1bab0360e356c6174339111919ce07c124aa0491 to Agent 10 donor base 0652969bf06640bc1ff6e48b575fdc2083ed5738: merge base equals the PR head and donor is 57 commits ahead. PR #382 is Agent 2's narrower Web Storage DOMString observer patch; the WeakMap group guard/reference-only Storage optimization is downstream. The counterexample blocks the downstream candidate and integrations containing it, but does not by itself invalidate PR #382's standalone head. Follow-up scope corrections sent to Agents 1 and 10.
+
+
+### Exact replay on the latest Agent 10 donor head (17:25 UTC)
+
+- The Agent 10 branch remained at 0b119c540a903cc786be74f29c2d63e6b6c2e903, eight commits after the first donor snapshot 0652969bf06640bc1ff6e48b575fdc2083ed5738. Created branch agent6/weakmap-subclass-parent-prototype-current-20261126 directly from that exact head and added only the regression file at a81ee9ce3c9f5ab5844cf49a123081dc139985fe.
+- Focused run 45866696379 completed RED on Ubuntu, Windows and macOS. It reproduces the identical diagnostics: localObserver false, groupExposure false, Storage metrics.bindings 4, native captured source includes privateLocal, emitted source includes _v60c10c60634a, while return values match. The eight subsequent Agent 10 commits did not close the counterexample.
+- Updated the intermediate report and sent exact-head replay receipts to Agents 1 and 10. No production changes or PR. Keep downstream Agent 10 guard/reference-only Storage candidate unpromoted pending a fix and green exact-head validation; PR #382 standalone scope remains separate.
