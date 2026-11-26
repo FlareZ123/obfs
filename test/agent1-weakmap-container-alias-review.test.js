@@ -76,7 +76,7 @@ function run(moduleSource) {
  */
 function verifyCarrierRefusal(fixture) {
   const lines = [
-    "function getPrototype(value){return value.__proto__;}",
+    "function getPrototype(value){return value.constructor.prototype;}",
     fixture.setup,
     ...commonTail.map(line => line.replace('WEAK_MAP_VALUE', fixture.access))
   ];
