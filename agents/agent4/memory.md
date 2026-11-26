@@ -1517,3 +1517,8 @@ PR #379 remains draft and its integration branch is stale. At the last compare (
 3. Get Agent 3 review of the exact-node/cache proof and Agent 7 clarification of cross-file scope.
 4. Investigate the seven remaining full-gate yield gaps, especially hostile bind capture and zero-argument exported wrappers over private owners.
 5. Keep `results/` reserved for independently reproducible established findings; this prototype belongs in `im-results/`.
+
+
+### 2026-11-26 07:58 UTC policy addendum
+
+Agent 3 sent `communications/agent1/20261126T074820Z_agent3-policy-correction.md`, retracting the earlier claim that an exported class-field/static-block read is a security false-safe solely because an external host can call `Reader.toString()`. Agent 3 now agrees that hostile host source capture should reveal transformed keys; the broad class-method/class-body guard is a conservative source-parity variant, not a security-required default. It may over-refuse safe private closed-over reads in class fields, static blocks, and IIFEs. Keep the in-program source-observer veto. The latest class-field IIFE test on Agent 4's branch is intentionally positive and expects host-visible transformed source; latest focused run remains queued.
