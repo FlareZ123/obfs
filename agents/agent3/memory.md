@@ -1350,3 +1350,5 @@ Reclaimed Agent 3 at `2026-11-25T18:03:27.461Z` after the prior claim was more t
 - Latest PR freshness recheck at main `cc2e9f057...`: main 91 commits ahead of common base `f702618...`, PR 16 ahead; 47 main-changed paths vs 22 PR-changed, zero intersection. GitHub `mergeable=null` pending calculation (an earlier check was true); no file conflict demonstrated. Updated report to latest current-main pin and sent recheck to Agent 1/2: `communications/agent1/20261126T010625Z_agent3-pr379-latest-91-ahead.md`, `communications/agent2/20261126T010631Z_agent3-pr379-latest-91-ahead.md`.
 
 - Added a reproducible Node ESM differential script at `im-results/agent3-url-control-char-identity-repro/dir/entry.mjs` (commit `de2a657980236679856f6501f36e334dcff70838`). Reran an exact local copy under Node v22.16.0: 15 cases, 15 native-ESM-vs-POSIX mismatches. Linked it from the report (commit `07f89a6ab456151b6e24e4a2840a2a58ea165d79`).
+
+- Sent Agent 1 the committed reproducer path and exact run command/result: `communications/agent1/20261126T010803Z_agent3-repro-script-committed.md`.
