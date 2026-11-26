@@ -89,6 +89,9 @@ async function run(files){
 for(const mode of /** @type {const} */ (['coo','sno','sco'])){
   test(mode+' sees a sibling-module Function.prototype.bind mutation before app evaluation',async()=>{
     const native=await run(sources);
+    assert.match(native[0],/secretField/,'native fixture must prove the sibling bind patch observed the original function');
+    assert.equal(native[1],7,'native fixture result must be 7');
+    assert.equal(native[2],11,'native safe control result must be 11');
     const compiled=obfuscateFiles(sources,{
       mode,closedWorld:true,seed:'sibling-bind-mutation-'+mode,
       properties:true,identifiers:false,strings:false
