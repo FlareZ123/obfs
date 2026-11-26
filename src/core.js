@@ -2026,13 +2026,15 @@ function obfuscateFiles(files, options = {}) {
   // Parse the supplied JavaScript files once for source-observer analysis.
   // The WeakMap prototype is shared across modules, so an exposure in any
   // supplied file must invalidate reference-only Storage proofs in siblings.
-  const sourceObserverFiles=prepared.filter(file=>
-    file.sourceType!=='asset'&&typeof file.code==='string').map(file=>({
-      file,ast:parse(String(file.code),file.sourceType)
-    }));
+  const hasPinnedSource=hasPinnedLocalJavaScriptIntegrity(prepared);
+  const sourceObserverFiles=(!hasPinnedSource||Boolean(allowedHosts?.length))?
+    prepared.flatMap(file=>{
+      if(file.sourceType==='asset'||typeof file.code!=='string')return [];
+      return [{file,ast:parse(file.code,file.sourceType)}];
+    }):[];
   const sharedWeakMapPrototypeExposure=sourceObserverFiles.some(({ast})=>
     hasWeakMapPrototypeExposure(ast));
-  let remoteSourceObserver=hasPinnedLocalJavaScriptIntegrity(prepared);
+  let remoteSourceObserver=hasPinnedSource;
   let hostLockSourceObserver=false;
   for(const {file,ast} of sourceObserverFiles) {
     const distributed=observesDistributedSource(ast,importedStringProof.get(file.path));
