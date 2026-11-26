@@ -1637,6 +1637,11 @@ function hasWeakMapPrototypeExposure(ast) {
         } else if(element.type==='StaticBlock') {
           const staticEnvironment=new Map(environment);
           visitCarrierStatement(element,staticEnvironment,staticValue,throwCollector);
+        } else if(element.type==='MethodDefinition'&&element.value?.body) {
+          // Class methods close over the lexical environment at the class
+          // declaration site. Preserve it for the later interprocedural pass.
+          if(!functionClosureEnvironments.has(element.value))
+            functionClosureEnvironments.set(element.value,new Map(environment));
         }
       }
       if(statement.id?.type==='Identifier'&&carrierMayContainWeakMap(staticValue))
@@ -1696,6 +1701,7 @@ function hasWeakMapPrototypeExposure(ast) {
       // Loops can mutate an arbitrary number of container slots. Preserve
       // statically known values but mark any touched container as unknown.
       const loopEnv=new Map(environment);
+      const loopScopedNames=new Set();
       for(const value of loopEnv.values())if(value.kind==='container')value.unknown=true;
       if(statement.init) {
         if(statement.init.type==='VariableDeclaration')
@@ -1703,10 +1709,33 @@ function hasWeakMapPrototypeExposure(ast) {
         else visitCarrierExpression(statement.init,loopEnv,thisValue);
       }
       if(statement.test)visitCarrierExpression(statement.test,loopEnv,thisValue);
+      if(statement.type==='ForOfStatement'||statement.type==='ForInStatement') {
+        let iterationValue=carrierOther;
+        if(statement.type==='ForOfStatement') {
+          const iterableValue=evaluateCarrierValue(statement.right,loopEnv,thisValue);
+          if(iterableValue.kind==='container') {
+            for(const value of iterableValue.properties.values())
+              iterationValue=mergeCarrierValues(iterationValue,value);
+            if(iterableValue.unknown)
+              iterationValue=mergeCarrierValues(iterationValue,carrierMaybe);
+          } else if(iterableValue.kind==='maybe') {
+            iterationValue=carrierMaybe;
+          }
+        }
+        if(statement.left?.type==='VariableDeclaration') {
+          for(const declaration of statement.left.declarations??[]) {
+            bindCarrierPattern(declaration.id,iterationValue,loopEnv);
+            if(statement.left.kind!=='var')addPatternBindings(declaration.id,loopScopedNames);
+          }
+        } else if(statement.left) {
+          bindCarrierPattern(statement.left,iterationValue,loopEnv);
+        }
+      }
       if(statement.right)visitCarrierExpression(statement.right,loopEnv,thisValue);
       visitCarrierStatement(statement.body,loopEnv,thisValue,throwCollector);
       if(statement.update)visitCarrierExpression(statement.update,loopEnv,thisValue);
-      for(const [name,value] of loopEnv)environment.set(name,value);
+      for(const [name,value] of loopEnv)
+        if(!loopScopedNames.has(name))environment.set(name,value);
       return;
     }
     if(statement.type==='SwitchStatement') {
