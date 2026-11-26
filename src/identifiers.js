@@ -73,14 +73,14 @@ function collectBoundTargetSourceExposedBodies(ast,allowBoundFunctionTargets) {
       functionNodes.add(node);
       if(node.type==='FunctionDeclaration'&&node.id?.type==='Identifier')
         functionBindings.set(node.id.name,node);
-      if(parent?.type==='VariableDeclarator'&&parent.id?.type==='Identifier'&&parent.init===node) {
-        functionBindings.set(parent.id.name,node);
-        if(parent.kind==='const'&&node.type==='ArrowFunctionExpression')
-          constArrowBindings.add(parent.id.name);
-      }
     }
-    if(node.type==='VariableDeclarator'&&node.id?.type==='Identifier'&&node.init?.type==='Identifier')
-      aliases.set(node.id.name,node.init.name);
+    if(node.type==='VariableDeclarator'&&node.id?.type==='Identifier') {
+      if(isFunctionNode(node.init))functionBindings.set(node.id.name,node.init);
+      if(node.init?.type==='Identifier')aliases.set(node.id.name,node.init.name);
+      if(parent?.type==='VariableDeclaration'&&parent.kind==='const'&&
+         node.init?.type==='ArrowFunctionExpression')
+        constArrowBindings.add(node.id.name);
+    }
     if(node.type==='AssignmentExpression'&&node.left?.type==='Identifier'&&node.right?.type==='Identifier')
       aliases.set(node.left.name,node.right.name);
     if(node.type==='ExportSpecifier'&&node.local?.type==='Identifier')
