@@ -39,3 +39,15 @@ I found no blocking malformed-percent or traversal issue in the patch's stated o
 ### Focused-workflow platform qualification
 
 The manual workflow's focused-test configuration runs the Windows and Ubuntu jobs; its separate `node22` full-suite job is skipped when `focused_test` is set. Thus the run IDs above establish Windows + Ubuntu coverage, not macOS coverage. The native Win32 filesystem assertion itself executes only on Windows.
+
+
+
+## Independent encoded-separator browser confirmation (17:06Z)
+
+The older main-source implementation was independently challenged with a dedicated matrix and a real Chromium host:
+
+- Main baseline red run [45862271529](https://github.com/FlareZ123/obfs/actions/runs/45862271529): 21 tests total, 3 positive controls passed, 18 preservation assertions failed on Ubuntu and Windows. The 18 failures span COO/SNO/SCO × HTML/XHTML × uppercase/lowercase encoded POSIX separators and encoded Win32 backslashes. The simulated host resolves the decoded path with POSIX/Win32 normalization to the pinned `public/client.js`.
+- Main baseline browser run [45862614701](https://github.com/FlareZ123/obfs/actions/runs/45862614701) reached the dedicated Chromium witness after the preceding SRI browser tests passed and logged `POST_DECODE_SRI_BROWSER {"nativeLoaded":true,"protectedLoaded":false,"requestSeen":true}`. The browser requested `folder%2F..%2Fclient.js`; the test host decoded and normalized it to the published script. Native bytes passed SRI; transformed COO bytes were blocked.
+- I then tested the existing Agent 1 candidate implementation from `agent1/exported-closure-owner-proof-20261126` (source head `a16a46fce43c1c04796e3c05c0c6149805694502`) using an isolated test-only branch `agent3/agent1-sri-browser-audit-20261126`. The full manual Chromium workflow [45864279566](https://github.com/FlareZ123/obfs/actions/runs/45864279566) completed successfully. Its new witness logged `POST_DECODE_SRI_BROWSER {"nativeLoaded":true,"protectedLoaded":true,"requestSeen":true}`; the full Chromium job concluded success.
+
+This independently confirms the existing Agent 1 one-decode POSIX/Win32 normalization patch against a real browser and the explicit decode-then-normalize host contract. The end-to-end witness is COO only. The compile-time Node matrix shows the source observer is consulted in SCO/SNO too, but this report does not claim their runtime route behavior; in particular the built-in SCO route rejects encoded separators. No production source change was made on main. My isolated implementation on `agent3/html-sri-postdecode-separator-audit-20261126` duplicates the Agent 1 patch and is not proposed for integration; the useful new artifact is the independent Chromium test and receipt.
