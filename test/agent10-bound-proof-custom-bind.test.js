@@ -36,8 +36,10 @@ function compile(source) {
 
 /**
  * Execute an ESM module in a fresh Node process.
+ * Each source fixture restores Function.prototype.bind before writing to
+ * stdout so Node's own stream callbacks retain their native call semantics.
  * @param {string} source
- * @returns {{status:number|null,stdout:string,stderr:string}}
+ * @returns {string}
  */
 function runEsm(source) {
   const root=fs.mkdtempSync(path.join(os.tmpdir(),'obfs-bound-custom-bind-'));
@@ -48,11 +50,8 @@ function runEsm(source) {
       encoding:'utf8',
       timeout:8000
     });
-    return {
-      status:child.status,
-      stdout:child.stdout,
-      stderr:child.stderr
-    };
+    assert.equal(child.status,0,child.stderr);
+    return child.stdout;
   } finally {
     fs.rmSync(root,{recursive:true,force:true});
   }
@@ -66,49 +65,58 @@ function runEsm(source) {
 function assertSourceParity(source,label) {
   const emitted=compile(source);
   assert.equal(emitted.properties,0, label+' must refuse private-key rewriting');
-  assert.deepEqual(runEsm(emitted.code),runEsm(source),label+' must preserve runtime output');
+  assert.equal(runEsm(emitted.code),runEsm(source),label+' must preserve runtime output');
 }
 
 test('custom bind returning this keeps the original target source spelling',()=>{
   const source='const owner={secretField:7};'+
     'const internal=()=>owner.secretField;'+
+    'const nativeBind=Function.prototype.bind;'+
     'Function.prototype.bind=function(){return this;};'+
     'const hot=internal.bind(null);'+
-    'export const source=()=>hot.toString();'+
-    'process.stdout.write(source());';
+    'const observed=hot.toString();'+
+    'Function.prototype.bind=nativeBind;'+
+    'process.stdout.write(observed);';
   assertSourceParity(source,'direct Function.prototype.bind replacement');
 });
 
 test('aliased Function.prototype mutation returning this keeps target source spelling',()=>{
   const source='const owner={secretField:7};'+
     'const internal=()=>owner.secretField;'+
+    'const nativeBind=Function.prototype.bind;'+
     'const fp=Function.prototype;'+
     'fp.bind=function(){return this;};'+
     'const hot=internal.bind(null);'+
-    'export const source=()=>hot.toString();'+
-    'process.stdout.write(source());';
+    'const observed=hot.toString();'+
+    'fp.bind=nativeBind;'+
+    'process.stdout.write(observed);';
   assertSourceParity(source,'aliased Function.prototype.bind replacement');
 });
 
 test('custom bind wrapper cannot consume an owner returned by its target',()=>{
   const source='const owner={secretField:7,otherField:11};'+
+    'const nativeBind=Function.prototype.bind;'+
     'Function.prototype.bind=function(){'+
     'const target=this;return function(){return target().secretField;};};'+
     'const internal=()=>owner;'+
     'const hot=internal.bind(null);'+
-    'export const read=()=>hot();'+
-    'process.stdout.write(String(read()));';
+    'const result=hot();'+
+    'Function.prototype.bind=nativeBind;'+
+    'process.stdout.write(String(result));';
   assertSourceParity(source,'custom bind wrapper around an owner-returning target');
 });
 
 test('Object.defineProperty replacement of bind keeps target source spelling',()=>{
   const source='const owner={secretField:7};'+
     'const internal=()=>owner.secretField;'+
+    'const nativeBind=Function.prototype.bind;'+
     'const fp=Function.prototype;'+
     'Object.defineProperty(fp,"bind",{configurable:true,writable:true,'+
     'value:function(){return this;}});'+
     'const hot=internal.bind(null);'+
-    'export const source=()=>hot.toString();'+
-    'process.stdout.write(source());';
+    'const observed=hot.toString();'+
+    'Object.defineProperty(fp,"bind",{configurable:true,writable:true,'+
+    'value:nativeBind});'+
+    'process.stdout.write(observed);';
   assertSourceParity(source,'descriptor-based Function.prototype.bind replacement');
 });
