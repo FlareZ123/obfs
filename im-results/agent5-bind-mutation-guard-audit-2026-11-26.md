@@ -46,7 +46,7 @@ Four paired controls expose over-refusal:
 
 The no-mutation native-bind baseline passed. The initial focused run therefore had 10 failing assertions out of 11 on both platforms.
 
-A follow-up ESM cross-file fixture did not establish a per-file false-safe: the helper rejected the entry's `owner.secretField` read as `unknown-member-access`, independently of the imported mutator. A CommonJS fixture was then prepared to isolate that variable; its focused run **45874089249** was queued at the time of this report. Do not claim a cross-file result until that run completes.
+A follow-up ESM cross-file fixture did not establish a per-file false-safe: the helper rejected the entry's `owner.secretField` read as `unknown-member-access`, independently of the imported mutator. The first CommonJS fixture's runtime witness succeeded, but focused run **45874089249** completed red because the entry's top-level `require('./mutator.cjs')` was itself classified as `unknown-call`; this is a conservative refusal, not a cross-file false-safe. A cleaner ESM fixture with a constant-returning target (to avoid unrelated member-read noise) is on the test branch at commit `e0c9e0b62bff597dbd076efce17ab3ab0a909360`; its run has not yet been dispatched. Do not claim a cross-file false-safe unless that isolated fixture produces one.
 
 ## Existing three-mode candidate counterexample
 
