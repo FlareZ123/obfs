@@ -712,7 +712,7 @@ test('same-spelled parameters across private readers conservatively refuse impor
     await preserves(files,0,mode,'24');
 });
 
-test('benign ESM dependency cycle with no early owner read retains private rename',async()=>{
+test('deferred cross-file reader call after owner initialization supports benign ESM cycle',async()=>{
   const files=[
     {path:'state.mjs',sourceType:'module',code:
       'import {ready} from "./relay.mjs";'+
@@ -720,8 +720,8 @@ test('benign ESM dependency cycle with no early owner read retains private renam
       'export function peek(owner){return owner.secretField;}'+
       'export const result=ready?peek(state):0;'},
     {path:'relay.mjs',sourceType:'module',code:
-      'import {state} from "./state.mjs";'+
-      'export const ready=true;'},
+      'import {state,peek} from "./state.mjs";'+
+      'export function ready(){return peek(state);}'},
     {path:'main.mjs',sourceType:'module',code:
       'import {result} from "./state.mjs";console.log(result);'}
   ];
