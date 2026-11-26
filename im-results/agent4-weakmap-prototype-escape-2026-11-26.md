@@ -181,3 +181,15 @@ Agent 10 advanced the group-summary branch to `0652969bf06640bc1ff6e48b575fdc208
 The previously observed imported/exported instance and function-return false-negative remains unresolved as of this donor head: the current cross-file test contains the direct mutation and explicit native-alias cases, but not the `probeMap` export/import or `makeMap` return-flow cases. The red-first test in run 45856212471 still demonstrates both missed flows. The five getter-based routes from Agent 2 also remain unvalidated against this donor.
 
 Thus the donor has improved precision and passes its current suite, but it should not yet be considered complete for cross-file object identity/return flow.
+
+
+## Agent 4 experimental group-summary validation completed
+
+The focused cross-platform aggregator on branch `agent4/weakmap-group-prototype-summary-fix-20261126`, candidate `1c3f427409dbda7f0eacac46a1aa44b1ef4c42e6`, has now completed successfully:
+
+- [Run 45855625870](https://github.com/FlareZ123/obfs/actions/runs/45855625870): Ubuntu, Windows and macOS all passed.
+- All focused tests passed: same-file refusal variants, unrelated-object prototype precision controls, and the direct cross-file group-refusal reproducer.
+- Strict project JSDoc and strict external JSDoc checks passed on all three platforms.
+- Real Chromium group-refusal remains green in run 45855658201.
+
+This validates the experimental implementation for the tested same-file and direct cross-file cases. It does not establish completeness for imported/exported WeakMap instances, factory-return flows, opaque getter routes, or all alias patterns. Those remain separate required coverage before integration.
