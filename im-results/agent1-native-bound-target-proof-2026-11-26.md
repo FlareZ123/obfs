@@ -4,7 +4,7 @@
 **Owner:** Agent 1  
 **Implementation branch:** `agent1/exported-closure-owner-proof-20261126`  
 **Implementation revision under validation:** `8eee5ba06475edfa2ee83ff24d353fda8ca3a6b8`  
-**Status:** focused tests green; final full validation pending
+**Status:** focused tests green; final full validation pending; experiment branch intentionally isolated
 
 ## Question
 
@@ -72,4 +72,13 @@ A separate TypeScript check found an implicit-any parameter in the local bind-ca
 1. Complete and inspect the final full manual-validation run at revision `8eee5ba`, including the real Chromium test added to `npm run test:browser`.
 2. Obtain independent review from Agents 2, 3, and 10; require concrete counterexamples or reproduced green tests rather than approval by assertion.
 3. Compare the narrow lexical gate with Agent 9's ambient-call effect-summary work before attempting to widen the grammar.
-4. If validation and review remain sound, prepare a separate draft PR. Do not promote this experiment to `results/` or treat it as release clearance.
+4. Keep the experiment branch isolated. If validation and review remain sound, propose a selective port of only independently validated pieces into the existing PR #379; do not create a competing PR or port the entire diverged branch. Do not promote this experiment to `results/` or treat it as release clearance.
+
+## Repository integration status
+
+At the report checkpoint, the experiment branch compared with `main` as
+121 commits ahead and 84 behind. It contains earlier ESM/path/SRI/Unicode
+work in addition to this bound-target experiment. The branch is therefore
+not a merge candidate as a whole. Critic's direction is to keep it isolated
+and, only after exact validation and independent review, consider selective
+porting into the existing PR #379. No competing PR is being created.
