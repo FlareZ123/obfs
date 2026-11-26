@@ -86,6 +86,7 @@ function hasWeakMapPrototypeExposure(ast) {
   const exportedLocalNames=new Set();
   const importedLocalNames=new Set();
   const weakMapContainerOwners=new Set();
+  const weakMapContainerInstances=new Set();
   const objectAliases=new Map();
   const exportedValueNodes=new Map();
   /** @type {Array<{root:string|null,ownerName:string|null,global:boolean,imported:boolean,exportedFunction:boolean,value:AstNode}>} */
@@ -148,6 +149,9 @@ function hasWeakMapPrototypeExposure(ast) {
   function containsWeakMapInstanceValue(root) {
     if(!root)return false;
     if(isWeakMapInstance(root))return true;
+    if(root.type==='Identifier'&&
+       (weakMapContainerInstances.has(root.name)||weakMapContainerOwners.has(root.name)))
+      return true;
     if(root.type==='CallExpression'&&root.callee.type==='Identifier'&&
        weakMapFactories.has(root.callee.name))return true;
     // Only follow expression positions that contribute to the returned or
@@ -321,6 +325,7 @@ function hasWeakMapPrototypeExposure(ast) {
            init?.type==='Identifier'&&globalNames.has(init.name))globalNames.add(name);
         if(isWeakMapConstructor(init))weakMapConstructors.add(name);
         if(isWeakMapInstance(init))weakMapInstances.add(name);
+        if(init&&containsWeakMapInstanceValue(init))weakMapContainerInstances.add(name);
         if(isNamespace(init,objectNamespaces))objectNamespaces.add(name);
         if(isNamespace(init,reflectNamespaces))reflectNamespaces.add(name);
         if(isPrototypeGetterMember(init)||
@@ -341,6 +346,7 @@ function hasWeakMapPrototypeExposure(ast) {
            value.type==='Identifier'&&globalNames.has(value.name))globalNames.add(name);
         if(isWeakMapConstructor(value))weakMapConstructors.add(name);
         if(isWeakMapInstance(value))weakMapInstances.add(name);
+        if(containsWeakMapInstanceValue(value))weakMapContainerInstances.add(name);
         if(isNamespace(value,objectNamespaces))objectNamespaces.add(name);
         if(isNamespace(value,reflectNamespaces))reflectNamespaces.add(name);
         if(isPrototypeGetterMember(value)||
@@ -352,6 +358,8 @@ function hasWeakMapPrototypeExposure(ast) {
         const info=nearestFunctionInfo(ancestors);
         const classOwner=[...ancestors].reverse().find(ancestor=>
           ancestor.type==='ClassDeclaration'&&ancestor.id?.type==='Identifier');
+        if(root&&containsWeakMapInstanceValue(node.right))
+          weakMapContainerInstances.add(root);
         memberWrites.push({
           root,
           ownerName:info?.ownerName??classOwner?.id?.name??null,
@@ -431,10 +439,12 @@ function hasWeakMapPrototypeExposure(ast) {
     }
     if(write.ownerName) {
       weakMapContainerOwners.add(write.ownerName);
+      weakMapContainerInstances.add(write.ownerName);
       continue;
     }
     if(write.root) {
       weakMapContainerOwners.add(write.root);
+      weakMapContainerInstances.add(write.root);
       continue;
     }
     if(write.exportedFunction) {
@@ -444,6 +454,39 @@ function hasWeakMapPrototypeExposure(ast) {
     // An unrooted member target cannot be proven private.
     exposed=true;
     break;
+  }
+  // Member-write summaries can reveal a local carrier only after factory
+  // return summaries have reached their first fixed point. Propagate those
+  // newly discovered container bindings back into enclosing factory returns.
+  let containerFactoryChanged=true;
+  while(containerFactoryChanged) {
+    containerFactoryChanged=false;
+    for(const info of functionInfoByNode.values()) {
+      if(!info.returnsWeakMap&&
+         info.returnValues.some(containsWeakMapInstanceValue)) {
+        info.returnsWeakMap=true;
+        containerFactoryChanged=true;
+      }
+      if(!info.returnsWeakMap)continue;
+      if(info.name&&!weakMapFactories.has(info.name)) {
+        weakMapFactories.add(info.name);
+        containerFactoryChanged=true;
+      }
+      if(info.ownerName&&!weakMapFactories.has(info.ownerName)) {
+        weakMapFactories.add(info.ownerName);
+        containerFactoryChanged=true;
+      }
+      for(const factory of info.returnedFactories) {
+        if(weakMapFactories.has(factory)&&info.name&&!weakMapFactories.has(info.name)) {
+          weakMapFactories.add(info.name);
+          containerFactoryChanged=true;
+        }
+        if(weakMapFactories.has(factory)&&info.ownerName&&!weakMapFactories.has(info.ownerName)) {
+          weakMapFactories.add(info.ownerName);
+          containerFactoryChanged=true;
+        }
+      }
+    }
   }
   for(const name of exportedLocalNames) {
     if(weakMapInstances.has(name)||weakMapFactories.has(name)||
