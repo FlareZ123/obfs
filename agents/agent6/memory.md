@@ -427,3 +427,11 @@ I claimed Agent 6 on main at `178478ea99b333dd3fda915c8e537863977b3bb8` (`claime
 - The Agent 10 branch remained at 0b119c540a903cc786be74f29c2d63e6b6c2e903, eight commits after the first donor snapshot 0652969bf06640bc1ff6e48b575fdc2083ed5738. Created branch agent6/weakmap-subclass-parent-prototype-current-20261126 directly from that exact head and added only the regression file at a81ee9ce3c9f5ab5844cf49a123081dc139985fe.
 - Focused run 45866696379 completed RED on Ubuntu, Windows and macOS. It reproduces the identical diagnostics: localObserver false, groupExposure false, Storage metrics.bindings 4, native captured source includes privateLocal, emitted source includes _v60c10c60634a, while return values match. The eight subsequent Agent 10 commits did not close the counterexample.
 - Updated the intermediate report and sent exact-head replay receipts to Agents 1 and 10. No production changes or PR. Keep downstream Agent 10 guard/reference-only Storage candidate unpromoted pending a fix and green exact-head validation; PR #382 standalone scope remains separate.
+
+
+### Five-form parent-prototype matrix (17:28 UTC)
+
+- Expanded the current-donor test file with five source forms: non-shadowing LocalMap subclass + Object.getPrototypeOf; shadowed WeakMap subclass + .prototype.__proto__; aliased Reflect.getPrototypeOf; aliased Object.getPrototypeOf; and a two-level subclass chain with two prototype lookups.
+- Exact source remained Agent 10 donor head 0b119c540a903cc786be74f29c2d63e6b6c2e903. Test-only commit 57a3f26cc872e9dec0200cb7d46b488eb9213707. Focused run 45867880661 completed RED on Ubuntu, Windows and macOS for both tests; all five variants report localObserver=false, groupExposure=false, bindings=4, and native/emitted captured Function#toString source mismatch while values match.
+- This is five syntax/control-flow forms of the same semantic gap: deriving the native WeakMap prototype through a WeakMap-derived class's prototype chain. It is not five independent runtime vulnerabilities. Existing benign own-subclass-prototype control must remain green.
+- Updated the report and sent variant matrix to Agents 1 and 10, plus a complementary-review note to Agent 4. No production code changed.

@@ -1,6 +1,6 @@
 # WeakMap subclass parent-prototype source-observer false-safe
 
-**Status:** Confirmed compatibility counterexample on Agent 10 donor snapshots 0652969bf06640bc1ff6e48b575fdc2083ed5738 and 0b119c540a903cc786be74f29c2d63e6b6c2e903. The exact later-head replay completed red on Ubuntu, Windows and macOS. This is an intermediate result, not production acceptance or a security-hardness claim.
+**Status:** Confirmed compatibility counterexample on Agent 10 donor snapshots 0652969bf06640bc1ff6e48b575fdc2083ed5738 and 0b119c540a903cc786be74f29c2d63e6b6c2e903. The exact later-head replay and a five-form parent-prototype matrix completed red on Ubuntu, Windows and macOS. This is an intermediate result, not production acceptance or a security-hardness claim.
 
 ## Relationship to PR #382
 
@@ -65,6 +65,19 @@ Track class heritage that resolves to the native WeakMap constructor (including 
 Add direct, aliased-getter, and multi-level subclass controls. Keep the existing benign subclass-own-prototype mutation test green. Unknown heritage, computed keys, reassignment, and opaque calls should remain fail-closed.
 
 The later Agent 10 donor head was 0b119c540a903cc786be74f29c2d63e6b6c2e903 (eight commits beyond the first tested donor snapshot). Replay branch agent6/weakmap-subclass-parent-prototype-current-20261126 was created directly from that exact donor head and added only the regression test at commit a81ee9ce3c9f5ab5844cf49a123081dc139985fe. Focused run https://github.com/FlareZ123/obfs/actions/runs/45866696379 completed red on Ubuntu, Windows and macOS with the same false-negative group exposure, four permitted bindings, and native/emitted Function#toString mismatch. The later eight commits therefore did not close this counterexample.
+
+
+## Five-form parent-prototype matrix on the later donor head
+
+The expanded test at commit 57a3f26cc872e9dec0200cb7d46b488eb9213707 was run against the same exact donor source head 0b119c540a903cc786be74f29c2d63e6b6c2e903. Focused run https://github.com/FlareZ123/obfs/actions/runs/45867880661 completed red on Ubuntu, Windows and macOS. All five mutation forms reproduced the same mismatch:
+
+1. A non-shadowing class LocalMap extending globalThis.WeakMap, then Object.getPrototypeOf(LocalMap.prototype).
+2. A shadowed class WeakMap extending globalThis.WeakMap, then WeakMap.prototype.__proto__.
+3. A shadowed class using an aliased Reflect.getPrototypeOf.
+4. A shadowed class using an aliased Object.getPrototypeOf.
+5. A two-level subclass chain using two Object.getPrototypeOf operations to reach the native prototype.
+
+For every form, both local and group observer checks were false, Storage metrics.bindings was 4, the native host-captured function source contained privateLocal, and the emitted source contained a renamed identifier. Application return values stayed equal. The diagnostic matrix is emitted under WEAKMAP_PARENT_PROTOTYPE_VARIANTS in the failed focused job logs. This is five source-shape variants of one shared semantic boundary, not five unrelated runtime mechanisms.
 
 ## Scope limits
 
