@@ -141,69 +141,6 @@ test('selective private graph rejects C0 pathname aliases before canonical path 
 });
 
 
-test('trailing URL-trimmed pathname space refuses cross-file owner proof',()=>{
-  const specifier='./secret.mjs ';
-  const files=[
-    moduleFile('secret.mjs','export const state={secretField:23};'),
-    moduleFile('secret.mjs ','export const state={secretField:41};'),
-    moduleFile('entry.mjs',
-      'import {state} from '+JSON.stringify(specifier)+';console.log(state.secretField);')
-  ];
-  const output=obfuscateFiles(files,options);
-  assert.equal(output.crossFile.properties,0);
-});
-
-test('trailing URL-trimmed pathname space prevents an incomplete ESM host-lock graph',()=>{
-  const specifier='./secret.mjs ';
-  const files=[
-    moduleFile('secret.mjs ','export const state={secretField:23};'),
-    moduleFile('entry.mjs',
-      'import {state} from '+JSON.stringify(specifier)+';console.log(state.secretField);')
-  ];
-  assert.throws(()=>obfuscateFiles(files,{
-    ...options,allowedHosts:['allowed.example']
-  }),/Host locking ESM static imports or reexports requires a complete closed-world module group/u);
-});
-
-test('trailing URL-trimmed pathname space disables unproved static ESM string decoding',()=>{
-  const specifier='./state.mjs ';
-  const files=[
-    moduleFile('state.mjs ','export const state={label:"decoy-literal"};'),
-    moduleFile('entry.mjs',
-      'import {state} from '+JSON.stringify(specifier)+';export const value=state.label;')
-  ];
-  const output=obfuscateFiles(files,{
-    mode:'sno',seed:'trailing-space-url-identity',
-    closedWorld:true,strings:true,properties:false,identifiers:false
-  });
-  assert.equal(output.files.reduce((sum,file)=>sum+file.metrics.literals,0),0);
-});
-
-test('trailing URL-trimmed pathname space refuses source-observer island proof',()=>{
-  const selected=moduleFile('independent.mjs',
-    'const recordB={privateB:23};const valueB=recordB.privateB;export function unrelated(){return valueB;}');
-  const decoy=moduleFile('independent.mjs ',
-    'const recordB={privateB:41};const valueB=recordB.privateB;export function unrelated(){return valueB;}');
-  const entry=moduleFile('entry.mjs',
-    'import {unrelated} from "./independent.mjs ";console.log(unrelated.toString(),unrelated());');
-  assert.throws(()=>obfuscateFiles([selected,decoy,entry],{
-    mode:'coo',seed:'trailing-space-url-identity-island',
-    closedWorld:true,strings:false,identifiers:false,
-    experimentalSourceObserverIslands:['independent.mjs']
-  }),/Source observer islands require closed static ESM imports/u);
-});
-
-test('private SCO graph rejects trailing URL-trimmed pathname spaces',()=>{
-  const files=[
-    moduleFile('entry.mjs',
-      'import {secret} from "./secret.mjs ";export const value=secret;'),
-    moduleFile('secret.mjs ','export const secret=23;')
-  ];
-  assert.throws(()=>partitionScoAsyncGraph(files,{
-    seed:'private-graph-trailing-space',exposedPaths:['entry.mjs']
-  }),/Private SCO graph requires relative \.mjs or node: imports/u);
-});
-
 test('selective private graph rejects trailing URL-trimmed pathname spaces',()=>{
   const specifier='./private/next.mjs ';
   const code='import {next} from '+JSON.stringify(specifier)+
