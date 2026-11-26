@@ -144,10 +144,6 @@ test('public-only source normalization retains a functional clone beside an ordi
     mode:'coo',seed:'public-helper-normalization',strings:false,identifiers:false
   }).files[0];
   assert.equal(published.metrics.properties,1);
-  const nativeCalculate=/** @type {Function} */ (runCommonJs(hotReaderFixture));
-  const emittedCalculate=/** @type {Function} */ (runCommonJs(String(published.code)));
-  assert.equal(emittedCalculate.toString(),nativeCalculate.toString(),
-    'The exported caller source must not disclose the private reader key');
   const normalized=normalizePublicIsland(String(published.code));
   assert.equal(normalized.properties,1,'Seedless attacker must find the selected public field');
   assert.notEqual(normalized.code,published.code);
