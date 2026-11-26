@@ -19,7 +19,7 @@ const constructibleSources=[{
     'const owner={secretField:7};',
     'function internal(){return owner.secretField;}',
     'export const hot=internal.bind(null);'
-  ].join('\\n')
+  ].join('\n')
 }];
 
 /**
@@ -38,7 +38,7 @@ async function run(files){
       'const source=Function.prototype.toString.call(recovered);',
       'const result=recovered();',
       'process.stdout.write(JSON.stringify({result,source,recoveredName:recovered.name,wrapperName:hot.name,wrapperLength:hot.length}));'
-    ].join('\\n');
+    ].join('\n');
     const child=spawnSync(process.execPath,[
       '--input-type=module','-e',script,pathToFileURL(path.join(root,'app.mjs')).href
     ],{encoding:'utf8',timeout:15000});
@@ -53,7 +53,7 @@ for(const mode of /** @type {const} */ (['coo','sno','sco'])){
   test(mode+' constructible bound wrapper exposes its private target via prototype.constructor',async()=>{
     const native=await run(constructibleSources);
     assert.equal(native.result,7);
-    assert.match(native.source,/owner\\.secretField/u);
+    assert.match(native.source,/owner\.secretField/u);
     assert.equal(native.recoveredName,'internal');
     assert.equal(native.wrapperName,'bound internal');
 
@@ -71,7 +71,7 @@ for(const mode of /** @type {const} */ (['coo','sno','sco'])){
     })));
     process.stdout.write('BOUND_CONSTRUCTOR_TARGET_EXTRACTION '+JSON.stringify({
       mode,native,actual,properties:app.metrics.properties,emittedSource:app.code
-    })+'\\n');
+    })+'\n');
 
     assert.equal(actual.result,7,'the extracted target still computes the original value');
     assert.match(actual.source,/_p[0-9a-f]{10}/u,
