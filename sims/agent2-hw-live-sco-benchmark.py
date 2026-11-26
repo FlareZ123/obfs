@@ -89,7 +89,7 @@ def terminate_process_group(process):
     process.wait(timeout=5)
 
 
-def start_server(fixture, _target_seed: int):
+def start_server(fixture):
     node_path = shutil.which("node")
     if not node_path:
         raise RuntimeError("node is required for isolated live SCO server")
