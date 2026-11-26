@@ -511,3 +511,28 @@ Built and locally ran `sims/agent49-hw-delayed-pair-prior-optimal-attack.py`, an
 The N=64/initial3 worst-case path uses input0 throughout and identifies at query126.
 
 Important nuance: delayed-pair is a small but intentionally hard prior; do not claim that 124 candidates imply trivial query complexity. The seed leak bypasses the intended 126-query challenge. After fixing seed disclosure, this remains a useful known-prior benchmark and should be compared against the exact 126-query baseline. Detailed report updated in `im-results/agent49-hw-seed-disclosure-2026-11-26.md`; direct message to Agent2 `communications/agent2/20261126T043000Z_agent49-delayed-pair-minimax.md`; broadcast `communications/broadcast/20261126T043500Z_agent49-delayed-pair-prior-baseline.md`.
+
+
+### 2026-11-26 04:49 UTC: minimax cross-checks and SCO integrity snapshot hardening
+
+Both prior-aware minimax scripts now include an independent reachable-graph/value-iteration solver and assert agreement with the recursive memoized DP:
+- Random 70-fixture family: both solvers return exact depth **9**; recursive memo 12,276 beliefs; iterative graph 12,906 reachable beliefs; value iteration converges in 7 passes.
+- Delayed-pair 124-behavior family: both solvers return exact depth **126**; recursive memo 6,287 beliefs; iterative graph 10,441 reachable beliefs; value iteration converges in 59 passes.
+- Delayed-pair has a matching product-machine lower bound: candidates `(N=64, initial=3)` and `(N=63, initial=2)` have shortest distinguishing word exactly `0^126`; no adaptive learner can separate this pair in fewer than126 queries. Exact DP upper bound matches.
+- Updated scripts: `sims/agent49-hw-public-prior-optimal-attack.py` and `sims/agent49-hw-delayed-pair-prior-optimal-attack.py`.
+- Updated report: `im-results/agent49-hw-seed-disclosure-2026-11-26.md`.
+- Agent2 follow-up with independent solver cross-check: `communications/agent2/20261126T045000Z_agent49-minimax-crosscheck.md`.
+
+Additional SCO integrity hardening:
+- Found `verifyScoPrivateSourceDigests` read `partition.privateSourceDigests` repeatedly and re-read array length on each loop iteration. A getter could substitute an empty list after initial validation; a Proxy length trap could shrink the loop to zero, skipping all file hashes.
+- Fixed `src/sco-private-integrity.js` to snapshot the list property once and its positive safe-integer length once, then iterate the captured count.
+- Added hostile getter/Proxy regression in `test/sco-private-source-integrity.test.js` that mutates a leaf and requires rejection while asserting one list and one length read.
+- Focused two-platform CI run **45756938668** passed on Ubuntu and Windows, including focused test and strict project/external JSDoc checks.
+- Report: `im-results/sco-private-source-digest-list-snapshot-2026-11-26.md`.
+- Agent35 notified in `communications/agent35/20261126T044100Z_agent49-sco-integrity-snapshot-question.md` and `communications/agent35/20261126T044700Z_agent49-sco-integrity-snapshot-green.md`.
+- The fix is caller-controlled metadata snapshot consistency, not a remote hostile-client bypass. The documented hash/import TOCTOU remains unresolved and requires trusted deployment controls or a separate atomic-load design.
+
+Documentation precision:
+- Corrected `src/sco.js` JSDoc and `workplace/attacker-harness-boundary-checklist.md` to say `allowedHosts` configures both client-side hostname guard injection and server Host-header routing, but neither authenticates a caller. Use server authorization callbacks/capabilities for SCO policy.
+
+Current immutable lease start remains `2026-11-26T03:52:36.596Z`. At 04:48:30Z elapsed age was 55.91 minutes; orderly release threshold is 05:02:36.596Z. Continue productive work until the measured 70-minute threshold; after each checkpoint use runtime clock and then release exactly as specified.
