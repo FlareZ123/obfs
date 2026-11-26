@@ -42,6 +42,37 @@ for(const name of caseNames) {
   bodies.set('/compiled-'+name+'.mjs',emitted);
 }
 
+const sourceObserverCases=[
+  {name:'destructuredLocal',setup:'const {setItem}=localStorage;'},
+  {name:'destructuredPrototype',setup:'const {setItem}=Storage.prototype;'},
+  {name:'descriptorValue',setup:"const setItem=Object.getOwnPropertyDescriptor(Storage.prototype,'setItem').value;"},
+  {name:'reflectGet',setup:"const setItem=Reflect.get(Storage.prototype,'setItem');"}
+];
+for(const {name,setup:methodSetup} of sourceObserverCases) {
+  const source=[
+    'const owner={secretField:7};',
+    methodSetup,
+    'export function outer(){',
+    " const internal=()=>{const x=owner.secretField;setItem.call(localStorage,'agent10-'+name,new.target);return x;};",
+    ' return {result:internal()};',
+    '}'
+  ].join('\n');
+  const result=obfuscateFiles([{
+    path:'entry.mjs',sourceType:'module',code:source
+  }],{
+    mode:'coo',seed:'storage-source-observer/'+name,
+    properties:true,identifiers:false,strings:false
+  });
+  const file=result.files[0];
+  if(!file)throw Error('Expected emitted Storage source-observer '+name+' module');
+  assert.equal(file.metrics.properties,0,
+    name+': source-observer must decline owner property renaming');
+  bodies.set('/native-source-'+name+'.mjs',source);
+  bodies.set('/compiled-source-'+name+'.mjs',String(file.code));
+  metrics['sourceObserver/'+name]=file.metrics;
+}
+const sourceObserverNames=sourceObserverCases.map(item=>item.name);
+
 async function main() {
   const html=[
     '<!doctype html><html><head><meta charset="utf-8"></head><body>',
@@ -54,6 +85,24 @@ async function main() {
     '  if(!Function.prototype.toString.call(nativeSetItem).includes("[native code]"))',
     '    throw Error("Storage.setItem was not native in the witness realm");',
     '  const report={nativeStorageIdentity:true,cases:{}};',
+    '  report.sourceObservers={};',
+    '  const observerNames='+JSON.stringify(sourceObserverCases.map(item=>item.name))+';',
+    '  for(const name of observerNames){',
+    '    localStorage.clear();',
+    '    const nativeModule=await import("/native-source-"+name+".mjs");',
+    '    const nativeResult=new nativeModule.outer();',
+    '    const nativeStored=localStorage.getItem("agent10-"+name);',
+    '    localStorage.clear();',
+    '    const compiledModule=await import("/compiled-source-"+name+".mjs");',
+    '    const compiledResult=new compiledModule.outer();',
+    '    const compiledStored=localStorage.getItem("agent10-"+name);',
+    '    const equal=nativeResult.result===7&&compiledResult.result===7&&',
+    '      nativeStored===compiledStored&&nativeStored.includes("secretField")&&',
+    '      compiledStored.includes("secretField");',
+    '    report.sourceObservers[name]={nativeResult:nativeResult.result,compiledResult:compiledResult.result,',
+    '      nativeHasOriginal:nativeStored.includes("secretField"),compiledHasOriginal:compiledStored.includes("secretField"),equal};',
+    '    if(!equal)throw Error("Storage source-observer mismatch "+name+" "+JSON.stringify(report.sourceObservers[name]));',
+    '  }',
     '  for(const name of names){',
     '    const nativeModule=await import("/native-"+name+".mjs");',
     '    const compiledModule=await import("/compiled-"+name+".mjs");',
