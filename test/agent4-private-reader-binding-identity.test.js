@@ -254,3 +254,56 @@ test('directly-invoked class-field arrow is rewritten and exposes transformed so
     assert.doesNotMatch(actual[1],/secretAlpha/u,mode+': host-visible class source must not reveal original key');
   }
 });
+
+
+/**
+ * @param {SourceFile[]|ReturnType<typeof obfuscateFiles>['files']} files
+ * @returns {Promise<string>}
+ */
+async function runClassObservedEsm(files){
+  const root=await fs.mkdtemp(path.join(os.tmpdir(),'obfs-class-observer-'));
+  try{
+    for(const file of files)await atomicWrite(path.join(root,file.path),file.code);
+    await atomicWrite(path.join(root,'host-probe.mjs'),[
+      'import {result,source} from "./entry.mjs";',
+      'import {Reader} from "./state.mjs";',
+      'process.stdout.write(JSON.stringify([result,source,Function.prototype.toString.call(Reader)]));'
+    ].join('\n'));
+    const child=spawnSync(process.execPath,[path.join(root,'host-probe.mjs')],{
+      cwd:root,encoding:'utf8',timeout:15000
+    });
+    assert.equal(child.status,0,child.stderr||child.error?.message);
+    return child.stdout.trim();
+  }finally{
+    await fs.rm(root,{recursive:true,force:true});
+  }
+}
+
+test('in-program class toString observation blocks a source-changing private read',async()=>{
+  /** @type {SourceFile[]} */
+  const files=[
+    {path:'state.mjs',sourceType:'module',code:[
+      'const privateRecord={secretAlpha:23};',
+      'export class Reader {',
+      '  static value=(()=>privateRecord.secretAlpha)();',
+      '  static source=Reader.toString();',
+      '}'
+    ].join('\n')},
+    {path:'entry.mjs',sourceType:'module',code:[
+      'import {Reader} from "./state.mjs";',
+      'export const result=Reader.value;',
+      'export const source=Reader.source;'
+    ].join('\n')}
+  ];
+  const native=JSON.parse(await runClassObservedEsm(files));
+  for(const mode of /** @type {const} */ (['coo','sno','sco'])){
+    const transformed=obfuscateFiles(files,{mode,closedWorld:true,
+      seed:'class-in-program-source-observer-'+mode,strings:false,identifiers:false});
+    const state=transformed.files.find(file=>file.path==='state.mjs');
+    assert.ok(state,mode+': state module must be retained');
+    assert.equal(state.metrics.objects,0,mode+': in-program source observation must refuse the rename');
+    assert.equal(state.metrics.properties,0,mode+': observed source spelling must remain unchanged');
+    assert.deepEqual(JSON.parse(await runClassObservedEsm(transformed.files)),native,
+      mode+': in-program result and source string must remain identical');
+  }
+});
