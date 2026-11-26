@@ -215,6 +215,70 @@ const scenarios = /** @type {Scenario[]} */ ([
     ]
   },
   {
+    name: 'dynamic-global-weakmap-heritage',
+    expectedVulnerable: true,
+    storagePath: 'storage.mjs',
+    pageSource: esmImportedFactoryPage,
+    extraFiles: [],
+    sourceFiles: [
+      {
+        path: 'mutate.mjs',
+        sourceType: 'module',
+        code: [
+          "const constructorKey='WeakMap';",
+          'class Derived extends globalThis[constructorKey] {}',
+          'const nativePrototype=Object.getPrototypeOf(Derived.prototype);',
+          ...patchLines
+        ].join('\n')
+      },
+      {
+        path: 'entry.mjs',
+        sourceType: 'module',
+        code: [
+          "import './mutate.mjs';",
+          "export {sample} from './storage.mjs';"
+        ].join('\n')
+      },
+      {
+        path: 'storage.mjs',
+        sourceType: 'module',
+        code: storageModuleSource
+      }
+    ]
+  },
+  {
+    name: 'reflect-get-weakmap-prototype-chain',
+    expectedVulnerable: true,
+    storagePath: 'storage.mjs',
+    pageSource: esmImportedFactoryPage,
+    extraFiles: [],
+    sourceFiles: [
+      {
+        path: 'mutate.mjs',
+        sourceType: 'module',
+        code: [
+          'class Derived extends globalThis.WeakMap {}',
+          "const derivedPrototype=Reflect.get(Derived,'prototype');",
+          "const nativePrototype=Reflect.get(derivedPrototype,'__proto__');",
+          ...patchLines
+        ].join('\n')
+      },
+      {
+        path: 'entry.mjs',
+        sourceType: 'module',
+        code: [
+          "import './mutate.mjs';",
+          "export {sample} from './storage.mjs';"
+        ].join('\n')
+      },
+      {
+        path: 'storage.mjs',
+        sourceType: 'module',
+        code: storageModuleSource
+      }
+    ]
+  },
+  {
     name: 'unresolved-external-esm-factory',
     expectedVulnerable: true,
     storagePath: 'storage.mjs',
@@ -335,7 +399,11 @@ async function main() {
             ? 'agent7-exported-derived'
             : scenario.name === 'esm-exported-factory-positive-control'
               ? 'agent7-esm-exported-factory'
-              : 'agent7-esm-imported-factory') + '-' + mode,
+              : scenario.name === 'dynamic-global-weakmap-heritage'
+                ? 'agent10-dynamic-global-heritage'
+                : scenario.name === 'reflect-get-weakmap-prototype-chain'
+                  ? 'agent10-reflect-get-prototype-chain'
+                  : 'agent7-esm-imported-factory') + '-' + mode,
         properties: false,
         identifiers: true,
         strings: false,
@@ -467,8 +535,10 @@ async function main() {
       assert.equal(unsafeCases.length, 0, JSON.stringify(unsafeCases));
       assert.equal(protectedCases, scenarios.length * 2);
     } else {
-      assert.equal(falseSafes, 3 * 2);
-      assert.equal(protectedCases, 1 * 2);
+      assert.equal(falseSafes,
+        scenarios.filter(scenario => scenario.expectedVulnerable).length * 2);
+      assert.equal(protectedCases,
+        scenarios.filter(scenario => !scenario.expectedVulnerable).length * 2);
       assert.equal(unsafeCases.length, 0);
     }
     process.stdout.write('WEAKMAP_BROWSER_FALSE_SAFE_AND_POSITIVE_CONTROL_MATRIX_CONFIRMED ' +
