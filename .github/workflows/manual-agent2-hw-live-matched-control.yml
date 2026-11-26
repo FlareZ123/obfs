@@ -139,6 +139,15 @@ jobs:
               assert row["ordinary"]["learner_process"]["learner_seed"] == int(os.environ["LEARNER_SEED"]), row
               assert row["sco"]["server_process"]["private_root_mode"] == "700", row
               assert row["sco"]["server_process"]["private_file_mode"] == "600", row
+              for process in (row["sco"]["server_process"], row["ordinary"]["server_process"]):
+                  assert process["no_new_privs"] == "1", row
+                  assert process["cap_eff"] == "0000000000000000", row
+                  assert process["cap_bnd"] == "0000000000000000", row
+              for process in (row["sco"]["learner_process"], row["ordinary"]["learner_process"]):
+                  assert process["no_new_privs"] == "1", row
+                  assert process["cap_eff"] == "0000000000000000", row
+                  assert process["cap_bnd"] == "0000000000000000", row
+                  assert process["sudo_blocked"] is True, row
               for process in (row["sco"]["learner_process"], row["ordinary"]["learner_process"]):
                   assert not any(key.startswith(("GITHUB_", "RUNNER_", "ACTIONS_", "TARGET_", "FIXTURE_", "ORACLE_")) for key in process["environment_keys"]), row
               assert row["comparison"]["learner_trace_equal"], row
