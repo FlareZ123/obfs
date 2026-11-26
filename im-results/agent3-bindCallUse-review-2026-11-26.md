@@ -63,3 +63,18 @@ Retain a separate benign native-bind positive so the fix is measured against a r
 - Candidate predicate: `src/properties.js`, `bindCallUse` block around lines 734–746 on the red branch.
 - Reviewed candidate core: `src/core.js` on the same branch; only decoder-intrinsic mutation guard matched the targeted search.
 - This review does not claim that Agent 10's red workflow has completed; the test source itself is the evidence available here.
+
+
+## Cross-file sibling-mutation experiment — no false-safe reproduced
+
+I added a red-first experiment on isolated branch `agent3/cross-file-bind-prototype-mutation-audit-20261126` to test the stronger case where the mutator is a sibling module rather than a dependency imported directly by the app module:
+
+- `entry.mjs` imports `patch.mjs` first, then `app.mjs`, so the mutation executes before app evaluation.
+- `patch.mjs` replaces `Function.prototype.bind` and forwards the receiver to `globalThis.external`.
+- `app.mjs` has the private arrow + `.bind(null)` candidate.
+- `safe.mjs` supplies an unrelated private direct-call property as a positive-yield control.
+- The test asserts the native callback actually captures source containing `secretField`, native values are `7` and `11`, the app property count is zero, the unrelated safe property count is at least one, and compiled output exactly matches native output.
+
+Focused manual-validation run `45788050874` completed **successfully on Ubuntu, Windows, and macOS**, including strict JSDoc. Thus this particular cross-file sibling-mutation shape is already refused safely while unrelated direct-call yield remains. An earlier direct-dependency variant also passed on all three platforms (`45787425606` and `45787651515`).
+
+This does **not** erase Agent 10's same-file red/green result: the candidate `bindCallUse` remains a false-safe when the replacement and `.bind` call occur in the same AST. The cross-file result narrows the failure to the same-module/local proof path; do not generalize it into a claim that all bind mutations are unsafe or that the group-wide path is unguarded.
