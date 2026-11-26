@@ -53,3 +53,27 @@ test('cross-file Function.prototype.bind getter mutation invalidates the bound-o
     properties:true,identifiers:false,strings:false});
   assert.equal(output.files.find(file=>file.path==='entry.mjs').metrics.properties,0);
 });
+
+test('direct Function.prototype.bind replacement is refused when owner reads are present',()=>{
+  const replacement='Function.prototype.bind=function(){const target=this;'+
+    'return function(){return target().secretField;};};';
+  const target='const internal=(a,b)=>((a+owner.secretField)^owner.otherField)+b;';
+  assert.equal(propertyCount(ownerPrefix+replacement+target+
+    'export const hot=internal.bind(null);'),0);
+});
+
+test('aliased Function.prototype.bind replacement is refused when owner reads are present',()=>{
+  const replacement='const fp=Function.prototype;fp.bind=function(){const target=this;'+
+    'return function(){return target().secretField;};};';
+  const target='const internal=(a,b)=>((a+owner.secretField)^owner.otherField)+b;';
+  assert.equal(propertyCount(ownerPrefix+replacement+target+
+    'export const hot=internal.bind(null);'),0);
+});
+
+test('Object.defineProperty bind replacement is refused when owner reads are present',()=>{
+  const replacement='Object.defineProperty(Function.prototype,"bind",{configurable:true,'+
+    'value:function(){const target=this;return function(){return target().secretField;};}});';
+  const target='const internal=(a,b)=>((a+owner.secretField)^owner.otherField)+b;';
+  assert.equal(propertyCount(ownerPrefix+replacement+target+
+    'export const hot=internal.bind(null);'),0);
+});
