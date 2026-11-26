@@ -321,8 +321,7 @@ function hasWeakMapPrototypeExposure(ast) {
       if(parent?.type==='AssignmentExpression'&&parent.left?.type==='Identifier')
         classNames.add(parent.left.name);
       if(node.superClass&&(
-        isWeakMapConstructor(node.superClass)||
-        node.superClass.type==='Identifier'&&weakMapSubclasses.has(node.superClass.name))) {
+        isWeakMapConstructor(node.superClass))) {
         for(const className of classNames)weakMapSubclasses.add(className);
       }
     }
