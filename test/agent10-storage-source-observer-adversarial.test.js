@@ -198,6 +198,48 @@ test('cross-file imported Storage method alias retains source-observer provenanc
   assert.deepEqual(actual,native);
 });
 
+test('cross-file Storage method provenance survives named reexports',async()=>{
+  const files=[
+    {
+      path:'storage.mjs',sourceType:'module',
+      code:'const {setItem}=localStorage; export {setItem};'
+    },
+    {
+      path:'relay.mjs',sourceType:'module',
+      code:"export {setItem as write} from './storage.mjs';"
+    },
+    {
+      path:'app.mjs',sourceType:'module',
+      code:[
+        "import {write} from './relay.mjs';",
+        'const owner={secretField:7};',
+        'export function outer(){',
+        " const internal=()=>{const x=owner.secretField;write.call(localStorage,'k',new.target);return x;};",
+        ' return {result:internal()};',
+        '}'
+      ].join('\n')
+    }
+  ];
+  const native=await run(files);
+  assert.deepEqual(native,{result:7,storedHasOriginal:true});
+  const compiled=obfuscateFiles(files,{
+    mode:'coo',closedWorld:true,seed:'agent10-storage-cross-file-reexport',
+    properties:true,identifiers:false,strings:false
+  });
+  const app=compiled.files.find(file=>file.path==='app.mjs');
+  assert.ok(app);
+  const emitted=compiled.files.map(file=>({
+    path:file.path,sourceType:'module',code:String(file.code)
+  }));
+  const actual=await run(emitted);
+  process.stdout.write('STORAGE_OBSERVER_CROSS_FILE_REEXPORT '+JSON.stringify({
+    native,emitted:actual,propertyRenames:app.metrics.properties,source:app.code
+  })+'\n');
+  assert.equal(app.metrics.properties,0,
+    JSON.stringify({native,actual,propertyRenames:app.metrics.properties,source:app.code}));
+  assert.deepEqual(actual,native);
+});
+
 test('destructured Storage.getItem alias is a source observer',async()=>{
   await assertStorageObserver(
     'const {getItem}=localStorage;',
