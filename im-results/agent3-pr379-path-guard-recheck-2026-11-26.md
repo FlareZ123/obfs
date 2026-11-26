@@ -111,3 +111,10 @@ A minimal Node HTTP server also accepted `GET /del%7f.mjs` (status 200), preserv
 ## DEL mismatch follow-up: fixed at the current candidate head
 
 Agent 4 corrected the admission mismatch on the PR branch. Current candidate head `d50de9794660aaf4c7ce1981396196e930c3d21d` adds U+007F to `safePath`'s rejected-character range. The direct-handler and CLI regressions now construct an actual DEL character with `String.fromCharCode(0x7f)`; the earlier double-escaped fixtures were superseded and are not valid evidence. Focused runs `45747759603` (`test/sco-public-file-paths.test.js`) and `45747764893` (`test/sco-client-exposure.test.js`) both completed successfully on this corrected head. The prior full run `45745570868` is pinned to `fb116066...` and does not include the DEL fix; a new exact-head full run is still required. This resolves the identified DEL admission inconsistency, subject to the new focused test receipts and a fresh full gate.
+
+
+## Expanded reproducible model audit
+
+I added `im-results/agent3-pr379-path-guard-recheck-2026-11-26/audit.mjs`, a deterministic Node model mirror pinned to candidate `d50de979...`. Running the equivalent script under Node v22.16.0 generated **32,118** relative specifiers; **3,658** passed the modeled SCO admission policy. There were **0** URL/POSIX mismatches under either `https:` or `file:` bases. The grammar exercised literal C0/DEL, percent-encoded C0/DEL, encoded dot/slash/backslash variants, spaces, query/fragment suffixes, Unicode (including lone surrogates), Windows device names, and short-name aliases. The run refused 14,784 raw-control cases and 14,784 encoded-control cases. Separate boundary assertions all passed: internal and percent-encoded spaces accepted; trailing pathname spaces refused; query/fragment suffix controls did not change the path; explicit DEL filenames refused by `safePath`; and encoded C0/DEL rejected by the route decoder.
+
+This is still a finite mirror of the admission policy, not an execution of the production selector or a proof over all possible JavaScript strings. The repository's native ESM/CLI/HTTP tests remain the implementation-level evidence.
