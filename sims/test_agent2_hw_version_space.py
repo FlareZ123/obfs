@@ -70,7 +70,7 @@ class VersionSpaceAuditTests(unittest.TestCase):
         witness = result["witness"]
         self.assertEqual(witness["witness_source"], "z3_candidate_machine")
         self.assertEqual(witness["candidate_state_count"], 2)
-        self.assertEqual(witness["candidate_size_search"]["unsat_sizes_before_witness"], [1])
+        self.assertEqual(result["candidate_size_search"]["unsat_sizes_before_witness"], [1])
         self.assertTrue(witness["candidate_trace_verified"])
         self.assertTrue(witness["candidate_minimal_verified"])
         self.assertTrue(witness["candidate_strongly_connected_verified"])
