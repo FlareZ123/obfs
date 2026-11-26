@@ -1,0 +1,218 @@
+'use strict';
+
+const {test}=require('node:test');
+const assert=require('node:assert/strict');
+const fs=require('node:fs/promises');
+const os=require('node:os');
+const path=require('node:path');
+const net=require('node:net');
+const {spawn,spawnSync}=require('node:child_process');
+const {atomicWrite}=require('../src/atomic');
+
+/** @typedef {{id:number,specifier:string,target:string,decoy:string}} ControlCase */
+/** @typedef {{listening:boolean,stderr:string,results?:Map<string,{status:number,body:string}>}} ProbeResult */
+
+/** @returns {Promise<number>} */
+async function unusedPort() {
+  const server=net.createServer();
+  await new Promise(resolve=>server.listen({port:0,host:'127.0.0.1'},()=>resolve(null)));
+  const address=server.address();
+  if(!address||typeof address==='string')throw new Error('Expected TCP address');
+  await new Promise(resolve=>server.close(resolve));
+  return address.port;
+}
+
+/**
+ * Start the actual SCO CLI and request each selected source path.
+ * A startup refusal is returned with stderr so a future pathname guard can
+ * satisfy the regression without exposing the decoy.
+ * @param {string} root
+ * @param {string[]} names
+ * @returns {Promise<ProbeResult>}
+ */
+async function probeSco(root,names) {
+  const port=await unusedPort();
+  const child=spawn(process.execPath,[
+    path.join(__dirname,'../bin/sco.js'),'--root',root,'--entry','index.mjs',
+    '--port',String(port)
+  ],{stdio:['ignore','pipe','pipe']});
+  let stderr='';
+  child.stderr.setEncoding('utf8');
+  child.stderr.on('data',chunk=>{stderr+=chunk;});
+
+  const startup=await new Promise(/** @type {(resolve:(value:{listening:boolean,stderr:string})=>void)=>void} */ (resolve=>{
+    let settled=false;
+    /** @param {{listening:boolean,stderr:string}} value */
+    const finish=value=>{
+      if(settled)return;
+      settled=true;
+      clearTimeout(timer);
+      resolve(value);
+    };
+    child.stdout.on('data',chunk=>{
+      if(String(chunk).includes('SCO listening'))finish({listening:true,stderr});
+    });
+    child.once('error',error=>finish({listening:false,stderr:stderr+'\n'+String(error)}));
+    child.once('exit',()=>finish({listening:false,stderr}));
+    const timer=setTimeout(()=>finish({listening:false,stderr:stderr+'\nSCO startup timed out'}),8000);
+    timer.unref();
+  }));
+
+  if(!startup.listening) {
+    if(child.exitCode===null)child.kill();
+    return startup;
+  }
+
+  try {
+    /** @type {Map<string,{status:number,body:string}>} */
+    const results=new Map();
+    for(const name of names) {
+      const encoded=name.split('/').map(encodeURIComponent).join('/');
+      const response=await fetch('http://127.0.0.1:'+port+'/obfs/'+encoded);
+      results.set(name,{status:response.status,body:await response.text()});
+    }
+    return {...startup,results};
+  } finally {
+    child.kill();
+    if(child.exitCode===null)await new Promise(resolve=>child.once('exit',resolve));
+  }
+}
+
+test('SCO publishes the WHATWG URL target and withholds POSIX decoys for C0 specifiers',async()=>{
+  const root=await fs.mkdtemp(path.join(os.tmpdir(),'obfs-sco-url-c0-publication-'));
+  try {
+    /** @type {ControlCase[]} */
+    const cases=[];
+    const controls=['\t','\n','\r'];
+    let id=0;
+    for(const control of controls) {
+      for(const dotSegment of ['.','..']) {
+        for(let offset=0;offset<=dotSegment.length;offset++) {
+          const segment=dotSegment.slice(0,offset)+control+dotSegment.slice(offset);
+          cases.push({
+            id,
+            specifier:'./a/'+segment+'/../secret-'+id+'.mjs',
+            target:(dotSegment==='.'?'dir/':'')+'secret-'+id+'.mjs',
+            decoy:'dir/a/secret-'+id+'.mjs'
+          });
+          id++;
+        }
+      }
+    }
+    assert.equal(cases.length,15,'The matrix covers every insertion position in . and .. for TAB/LF/CR');
+
+    await atomicWrite(path.join(root,'index.mjs'),'import "./dir/entry.mjs";');
+    const imports=cases.map(item=>
+      'import {value as value'+item.id+'} from '+JSON.stringify(item.specifier)+';'
+    ).join('\n');
+    await atomicWrite(path.join(root,'dir','entry.mjs'),imports+'\n');
+
+    /** @type {string[]} */
+    const requestNames=['index.mjs','dir/entry.mjs'];
+    for(const item of cases) {
+      await atomicWrite(path.join(root,item.target),
+        'globalThis.__urlTargets.push("'+item.id+'");export const value="url-target-'+item.id+'";');
+      await atomicWrite(path.join(root,item.decoy),
+        'globalThis.__posixDecoys.push("'+item.id+'");export const value="posix-decoy-'+item.id+'";');
+      requestNames.push(item.target,item.decoy);
+    }
+
+    await atomicWrite(path.join(root,'native-check.mjs'),
+      'globalThis.__urlTargets=[];globalThis.__posixDecoys=[];'+
+      'await import("./index.mjs");'+
+      'process.stdout.write(JSON.stringify({urlTargets:globalThis.__urlTargets.sort(),'+
+      'posixDecoys:globalThis.__posixDecoys.sort()}));');
+    const native=spawnSync(process.execPath,[path.join(root,'native-check.mjs')],{
+      cwd:root,encoding:'utf8',timeout:8000,windowsHide:true
+    });
+    if(native.error)throw native.error;
+    assert.equal(native.status,0,native.stderr);
+    assert.deepEqual(JSON.parse(native.stdout),{
+      urlTargets:cases.map(item=>String(item.id)).sort(),
+      posixDecoys:[]
+    },'Native ESM must load the URL-resolved target, never the POSIX decoy');
+
+    const probe=await probeSco(root,requestNames);
+    if(!probe.listening) {
+      assert.match(probe.stderr,/SCO noncanonical ESM import path unsupported:/u,
+        'A fail-closed startup refusal must identify the noncanonical ESM pathname');
+      return;
+    }
+
+    const observed=cases.map(item=>{
+      const target=probe.results?.get(item.target);
+      const targetBody=target?.body??'';
+      return {
+        id:item.id,
+        target:target?.status,
+        targetHasUrlMarker:targetBody.includes('__urlTargets'),
+        targetHasNoDecoyMarker:!targetBody.includes('__posixDecoys'),
+        decoy:probe.results?.get(item.decoy)?.status
+      };
+    });
+    const expected=cases.map(item=>({
+      id:item.id,target:200,targetHasUrlMarker:true,targetHasNoDecoyMarker:true,decoy:404
+    }));
+    assert.deepEqual(observed,expected,
+      'Native ESM resolves the URL target; SCO must return URL-target bytes and never the POSIX decoy');
+  } finally {
+    await fs.rm(root,{recursive:true,force:true});
+  }
+});
+
+
+test('SCO CLI rejects every percent-decoded C0 and DEL path segment',async()=>{
+  const root=await fs.mkdtemp(path.join(os.tmpdir(),'obfs-sco-encoded-control-'));
+  /** @type {string[]} */
+  const encodedControls=[];
+  for(let code=0;code<=0x1f;code++)
+    encodedControls.push('%'+code.toString(16).padStart(2,'0'));
+  encodedControls.push('%7F');
+  try {
+    await atomicWrite(path.join(root,'secret.mjs'),'export const value="url-target";');
+    await atomicWrite(path.join(root,'a','secret.mjs'),'export const value="posix-decoy";');
+    for(const encoded of encodedControls) {
+      await atomicWrite(path.join(root,'index.mjs'),
+        'import {value} from "./a/'+encoded+'/../secret.mjs";globalThis.value=value;');
+      const probe=await probeSco(root,[]);
+      assert.equal(probe.listening,false,encoded+' must be refused before SCO starts');
+      assert.match(probe.stderr,/SCO encoded import path unsupported/u,encoded);
+    }
+  } finally {
+    await fs.rm(root,{recursive:true,force:true});
+  }
+});
+
+
+test('SCO refuses a trailing pathname space trimmed by WHATWG URL resolution', {
+  skip:process.platform==='win32'?'Win32 does not preserve trailing-space filenames':false
+},async()=>{
+  const root=await fs.mkdtemp(path.join(os.tmpdir(),'obfs-sco-trailing-space-'));
+  try {
+    await atomicWrite(path.join(root,'index.mjs'),
+      'import {value} from "./a/../secret.mjs ";globalThis.value=value;');
+    await atomicWrite(path.join(root,'secret.mjs'),
+      'globalThis.__urlTargets.push("url-target");export const value="url-target";');
+    await atomicWrite(path.join(root,'secret.mjs '),
+      'globalThis.__posixDecoys.push("posix-decoy");export const value="posix-decoy";');
+    await atomicWrite(path.join(root,'native-check.mjs'),
+      'globalThis.__urlTargets=[];globalThis.__posixDecoys=[];'+
+      'await import("./index.mjs");'+
+      'process.stdout.write(JSON.stringify({urlTargets:globalThis.__urlTargets,'+
+      'posixDecoys:globalThis.__posixDecoys}));');
+    const native=spawnSync(process.execPath,[path.join(root,'native-check.mjs')],{
+      cwd:root,encoding:'utf8',timeout:8000,windowsHide:true
+    });
+    if(native.error)throw native.error;
+    assert.equal(native.status,0,native.stderr);
+    assert.deepEqual(JSON.parse(native.stdout),{
+      urlTargets:['url-target'],posixDecoys:[]
+    });
+
+    const probe=await probeSco(root,['index.mjs','secret.mjs','secret.mjs ']);
+    assert.equal(probe.listening,false,'SCO must refuse the URL-trimmed pathname');
+    assert.match(probe.stderr,/SCO noncanonical ESM import path unsupported/u);
+  } finally {
+    await fs.rm(root,{recursive:true,force:true});
+  }
+});
