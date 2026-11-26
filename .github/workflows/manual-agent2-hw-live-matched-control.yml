@@ -256,6 +256,23 @@ jobs:
             --input live-hw-matched-results.json \
             --output hw-version-space-audit.json \
             --max-cases 4 --timeout-ms 10000
+      - name: Print bounded version-space uncertainty details
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          result = json.loads(Path("hw-version-space-audit.json").read_text())
+          for case in result["cases"]:
+              audit = case["audit"]
+              print("VERSION_SPACE_CASE", json.dumps({
+                  "state_count": case["state_count"],
+                  "seed": case["seed"],
+                  "status": audit["status"],
+                  "elapsed_seconds": audit.get("elapsed_seconds"),
+                  "candidate_size_search": audit.get("candidate_size_search"),
+                  "witness": audit.get("witness"),
+              }, sort_keys=True))
+          PY
       - name: Preserve matched-control evidence
         if: always()
         uses: actions/upload-artifact@v4
