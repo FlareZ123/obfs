@@ -743,6 +743,79 @@ function proveLocalObject(ast, rootName, bindings, importedIdentityFunctions=new
     if(privateValue)privateFunctionNodes.add(binding.node);
   }
 
+  // A single private class method may read the closed owner when its class
+  // and every constructed instance remain local and immutable. This is
+  // deliberately narrower than general method/receiver flow.
+  for(const ownerName of rootNames) {
+    let ownerInitializationEnd=-1;
+    for(const use of identifierUses.get(ownerName)??[]) {
+      if(use.parent?.type==='VariableDeclarator'&&
+         use.parent.id===use.node&&use.parent.init?.type==='ObjectExpression'){
+        ownerInitializationEnd=use.parent.init.end;
+        break;
+      }
+    }
+    if(ownerInitializationEnd<0)continue;
+    const localClassUses=new Set();
+    for(const use of identifierUses.get(ownerName)??[]) {
+      for(const ancestor of use.ancestors) {
+        if(ancestor.type==='ClassDeclaration')localClassUses.add(ancestor);
+      }
+    }
+    for(const cls of localClassUses) {
+      if(cls.start<ownerInitializationEnd)continue;
+      if(parents.get(cls)!==ast || cls.superClass || cls.id?.type!=='Identifier' ||
+         bindings.get(cls.id.name)!==1 || cls.body.body.length!==1)continue;
+      const method=cls.body.body[0];
+      if(method.type!=='MethodDefinition' || method.kind!=='method' ||
+         method.static || method.computed || method.key.type!=='Identifier' ||
+         method.value?.type!=='FunctionExpression' ||
+         method.value.async || method.value.generator || method.value.params.length!==0 ||
+         method.value.body.body.length!==1)continue;
+      const returned=method.value.body.body[0];
+      const member=returned.type==='ReturnStatement' ? returned.argument : null;
+      if(member?.type!=='MemberExpression' || member.optional ||
+         member.object.type!=='Identifier' || member.object.name!==ownerName ||
+         (member.computed ? staticString(member.property) : staticName(member.property))===null)
+        continue;
+      const className=cls.id.name;
+      const methodName=method.key.name;
+      let constructed=0, safe=true;
+      for(const use of identifierUses.get(className)??[]) {
+        if(use.node===cls.id)continue;
+        const construction=use.parent;
+        const variable=construction?.type==='NewExpression' &&
+          construction.callee===use.node && construction.arguments.length===0 ?
+          parents.get(construction):null;
+        const declaration=variable?.type==='VariableDeclarator' ?
+          parents.get(variable):null;
+        if(variable?.type!=='VariableDeclarator' || variable.start<cls.end ||
+           variable.init!==construction || variable.id.type!=='Identifier' ||
+           variable.id.name===ownerName || bindings.get(variable.id.name)!==1 ||
+           declaration?.type!=='VariableDeclaration' || declaration.kind!=='const' ||
+           parents.get(declaration)!==ast) {
+          safe=false;
+          break;
+        }
+        constructed++;
+        for(const instanceUse of identifierUses.get(variable.id.name)??[]) {
+          if(instanceUse.node===variable.id)continue;
+          const read=instanceUse.parent;
+          const call=read?.type==='MemberExpression' ? parents.get(read) : null;
+          if(read?.type!=='MemberExpression' || read.object!==instanceUse.node ||
+             read.computed || read.optional || staticName(read.property)!==methodName ||
+             call?.type!=='CallExpression' || call.callee!==read ||
+             call.optional || call.arguments.length!==0) {
+            safe=false;
+            break;
+          }
+        }
+        if(!safe)break;
+      }
+      if(safe && constructed>0)privateFunctionNodes.add(method.value);
+    }
+  }
+
   const aliases = new Set([...rootNames]);
   /**
    * Return the only alias fact needed to resolve an expression. A null result
