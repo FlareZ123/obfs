@@ -731,13 +731,13 @@ function proveLocalObject(ast, rootName, bindings, importedIdentityFunctions=new
       const directCall=use.parent?.type==='CallExpression'&&
         use.parent.callee===use.node&&!use.parent.optional;
       const member=use.parent;
+      const bindCallNode=member?parents.get(member):undefined;
       const bindCall=binding.node.type==='ArrowFunctionExpression'&&
         member?.type==='MemberExpression'&&member.object===use.node&&
         !member.computed&&!member.optional&&member.property.type==='Identifier'&&
         member.property.name==='bind'&&
-        parents.get(member)?.type==='CallExpression'&&
-        parents.get(member).callee===member&&!parents.get(member).optional&&
-        parents.get(member).arguments.every(argument=>
+        bindCallNode?.type==='CallExpression'&&bindCallNode.callee===member&&
+        !bindCallNode.optional&&bindCallNode.arguments.every(argument=>
           argument.type==='Literal'&&
           (argument.value===null||
            ['string','number','boolean','bigint'].includes(typeof argument.value)));
