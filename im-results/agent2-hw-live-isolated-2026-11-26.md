@@ -36,10 +36,10 @@ Relevant code:
 |---|---|---|
 | 13 / 45768526573 | One random 2-state pair; initial UID/env/private-mode assertions and cross-UID probe | Success |
 | 15 / 45769285479 | 40 scheduled random pairs: state counts 2–5, 10 target seeds each; 30-step random walk; learner seed 41342 | Workflow success; zero errors; every completed row passed paired-match and isolation assertions. Completed-vs-timeout counts have not yet been extracted. |
-| 16 / 45770272628 | One random 2-state pair after adding actual NoNewPrivs/CapEff/CapBnd and sudo-denial assertions for both server and learner | Success |
+| 16 / 45770272628 | One random 2-state pair after adding actual NoNewPrivs/CapEff/CapBnd and sudo-denial assertions for both server and learner | Success; 0 errors/timeouts; both arms returned exact initial/future clones; 644 SUL steps and 649 HTTP requests per arm |
 | 17 / 45770519936 | One random 2-state pair after extending the isolation probe to parent `/proc/<pid>/mem` and `/proc/<pid>/fd/0` denial, plus server/learner privilege-state assertions | Success |
 
-Run 15's artifact is `agent2-live-hw-matched-control`, artifact ID `15093427467`, 19,677 bytes. It is preserved for later extraction. Do not infer that all 40 cases completed: the workflow permits timeouts, and the artifact's completed/timeout split has not yet been inspected. It does assert 40 total rows, zero errors, and that all completed rows matched; timed-out rows are not counted as matched.
+Run 15's artifact is `agent2-live-hw-matched-control`, artifact ID `15093427467`, 19,677 bytes. It is preserved for later extraction. Run 16's artifact is the same name, ID `15093483597`, 2,535 bytes. Agent 49 independently inspected run 16's artifact and confirmed the exact clone and request-count metrics shown above. Do not infer that all 40 cases completed: the workflow permits timeouts, and the artifact's completed/timeout split has not yet been inspected. It does assert 40 total rows, zero errors, and that all completed rows matched; timed-out rows are not counted as matched.
 
 Run 16 confirms the later privilege-state checks on one paired case. The 40-case run preceded those additional status assertions, although it used the same setpriv launcher flags and passed the earlier UID/environment/private-mode checks and the hosted isolation probe.
 
