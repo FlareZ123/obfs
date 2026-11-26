@@ -281,3 +281,52 @@ test('Local factory-returned WeakMap can expose the shared prototype',()=>{
   assert.deepEqual(emitted.result,native.result);
   assert.equal(emitted.capturedSource,native.capturedSource,JSON.stringify(evidence));
 });
+
+
+test('Function-returned object carrying a WeakMap can expose the shared prototype',()=>{
+  const candidate=source.replace(
+    'const weakMapPrototype=getPrototype.call(new WeakMap());',
+    'function makeCarrier(){return {instance:new WeakMap()};}\nconst protoCarrier=makeCarrier();\nconst weakMapPrototype=getPrototype.call(protoCarrier.instance);'
+  );
+  const ast=parse(candidate,'module');
+  const observed=observesFunctionSource(ast);
+  const compiled=obfuscateFiles([{
+    path:'entry.mjs',sourceType:'module',code:candidate
+  }],{
+    mode:'coo',seed:'agent2-weakmap-returned-container-audit',
+    properties:false,identifiers:true,strings:false
+  });
+  const app=compiled.files.find(file=>file.path==='entry.mjs');
+  assert.ok(app);
+  const native=run(candidate);
+  const emitted=run(String(app.code));
+  const evidence={observed,metrics:app.metrics,native,emitted,source:app.code};
+  assert.equal(observed,true,JSON.stringify(evidence));
+  assert.equal(app.metrics.bindings,0,JSON.stringify(evidence));
+  assert.deepEqual(emitted.result,native.result);
+  assert.equal(emitted.capturedSource,native.capturedSource,JSON.stringify(evidence));
+});
+
+test('Class instance field carrying a WeakMap can expose the shared prototype',()=>{
+  const candidate=source.replace(
+    'const weakMapPrototype=getPrototype.call(new WeakMap());',
+    'class Carrier{constructor(){this.instance=new WeakMap();}}\nconst protoCarrier=new Carrier();\nconst weakMapPrototype=getPrototype.call(protoCarrier.instance);'
+  );
+  const ast=parse(candidate,'module');
+  const observed=observesFunctionSource(ast);
+  const compiled=obfuscateFiles([{
+    path:'entry.mjs',sourceType:'module',code:candidate
+  }],{
+    mode:'coo',seed:'agent2-weakmap-class-carrier-audit',
+    properties:false,identifiers:true,strings:false
+  });
+  const app=compiled.files.find(file=>file.path==='entry.mjs');
+  assert.ok(app);
+  const native=run(candidate);
+  const emitted=run(String(app.code));
+  const evidence={observed,metrics:app.metrics,native,emitted,source:app.code};
+  assert.equal(observed,true,JSON.stringify(evidence));
+  assert.equal(app.metrics.bindings,0,JSON.stringify(evidence));
+  assert.deepEqual(emitted.result,native.result);
+  assert.equal(emitted.capturedSource,native.capturedSource,JSON.stringify(evidence));
+});
