@@ -71,6 +71,8 @@ async function start(payload) {
   root = await fs.mkdtemp(pathModule.join(os.tmpdir(), 'obfs-agent2-hw-live-'));
   const privateFile = pathModule.join(root, 'private', 'actual.mjs');
   await atomicWrite(privateFile, privateSource);
+  await fs.chmod(pathModule.dirname(privateFile), 0o700);
+  await fs.chmod(privateFile, 0o600);
   const privateModule = await import(pathToFileURL(privateFile).href);
   const remoteMethods = bindScoModuleExports(partition, privateModule);
 
