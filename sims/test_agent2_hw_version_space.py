@@ -46,6 +46,40 @@ class VersionSpaceAuditTests(unittest.TestCase):
             witness["candidate_future_outputs"],
         )
 
+    def test_z3_finds_two_state_strongly_connected_alternative(self):
+        # Repeated input 0 is observed with outputs 0 and 1, forcing at least
+        # two states. The target's initial state is uniquely trace-consistent,
+        # but a different two-state minimal strongly connected machine matches
+        # the trace and differs on the first future input 1.
+        row = {
+            "status": "completed",
+            "state_count": 2,
+            "seed": 2,
+            "fixture_table": {
+                "transitions": [[1, 0], [0, 1]],
+                "outputs": [["0", "0"], ["1", "1"]],
+                "initial_state": 0,
+            },
+            "observed_trace": [["0", "0"], ["1", "1"], ["0", "1"]],
+            "target_post_trace_state": 0,
+            "fixture_digest": "fixture-two-state-z3",
+            "trace_digest": "trace-two-state-z3",
+        }
+        result = MODULE.audit_row(row, timeout_ms=5000)
+        self.assertEqual(result["status"], "sat")
+        witness = result["witness"]
+        self.assertEqual(witness["witness_source"], "z3_candidate_machine")
+        self.assertEqual(witness["candidate_state_count"], 2)
+        self.assertEqual(witness["candidate_size_search"]["unsat_sizes_before_witness"], [1])
+        self.assertTrue(witness["candidate_trace_verified"])
+        self.assertTrue(witness["candidate_minimal_verified"])
+        self.assertTrue(witness["candidate_strongly_connected_verified"])
+        self.assertEqual(witness["future_counterexample"], ["1"])
+        self.assertNotEqual(
+            witness["target_future_outputs"],
+            witness["candidate_future_outputs"],
+        )
+
     def test_finds_alternate_initial_state_inside_target_machine(self):
         # Both target states emit 0 on input 0 and loop there, so the same
         # public trace is consistent with either initial state. Input 1
