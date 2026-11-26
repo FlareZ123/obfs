@@ -1012,7 +1012,13 @@ function proveLocalObject(ast, rootName, bindings, importedIdentityFunctions=new
     return member.object;
   }
   const aliasUses=[...aliases].flatMap(name=>identifierUses.get(name)??[]);
+  // Keep the proof's two exceptional edges by AST identity, never by spelling:
+  // accepted call arguments are already checked across every reader call site,
+  // and accepted owner references are the exact member-object nodes in its
+  // body-checked one-read implementation.
+  /** @type {Set<AstNode>} */
   const privateReaderArgumentNodes=new Set();
+  /** @type {Set<AstNode>} */
   const privateReaderOwnerNodes=new Set();
   const aliasUseNodes=new Set(aliasUses.map(use=>use.node));
   for(const use of [...aliasUses]) {
@@ -1041,11 +1047,15 @@ function proveLocalObject(ast, rootName, bindings, importedIdentityFunctions=new
     // A property spelling inside an unproven callable body is part of that
     // callable's externally observable source. Private direct-call-only
     // functions survive the escape analysis above and remain eligible.
+    // The call argument itself contributes no property access; its reader
+    // proof has already established that every call supplies this owner.
     if(privateReaderArgumentNodes.has(node))continue;
     if(ancestors.some(ancestor=>
       ['FunctionDeclaration','FunctionExpression','ArrowFunctionExpression'].includes(ancestor.type)&&
       !privateFunctionNodes.has(ancestor)))return null;
     const scope=scopes.get(node.name);
+    // A proven reader's exact owner-reference node is binding-specific even
+    // when another function declares a same-spelled formal parameter.
     if(!privateReaderOwnerNodes.has(node)&&(!scope||!ancestors.includes(scope)))return null;
     if (!parent) return null;
     if (key === 'id' && /^(VariableDeclarator|FunctionDeclaration|FunctionExpression|ClassDeclaration|ClassExpression)$/.test(parent.type)) continue;
