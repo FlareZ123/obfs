@@ -38,7 +38,7 @@ const runnerSource=[
   '});',
   "const {sample}=await import('./entry.mjs');",
   'const result=sample();',
-  'process.stdout.write(JSON.stringify({result,capturedSource:document.title})+"\n");'
+  'process.stdout.write(JSON.stringify({result,capturedSource:document.title})+"\\n");'
 ].join('\n');
 
 /**
