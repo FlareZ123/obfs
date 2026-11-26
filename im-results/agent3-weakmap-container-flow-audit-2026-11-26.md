@@ -66,3 +66,9 @@ Focused run [45860917341](https://github.com/FlareZ123/obfs/actions/runs/4586091
 - SNO: the Storage file received identifier bindings; this run checked the compile-time metrics, not server execution.
 
 Thus the same group-level source-observer gate allowed the unsafe transformation in all three compile modes. The end-to-end source-capture witness is established here for COO only; SCO/SNO runtime execution remains untested.
+
+## Review against the current Agent 1 candidate
+
+The same nine-case suite was run against Agent 1's latest review branch head `439dcb0a9272cb9c8a5a534d7077c7d0f986bebe` (audit branch `agent3/weakmap-container-agent1-latest-audit-20261126`, test commit `b194f7acffc7bf4a00af173dd72a52fd2e768a4b`). All 10 behavioral assertions passed on Ubuntu, Windows, and macOS: the nine container forms still returned `observed=false` and changed captured function source, while the direct-instance positive control was detected. The overall workflow [45860994167](https://github.com/FlareZ123/obfs/actions/runs/45860994167) nevertheless failed strict project JSDoc on all three platforms because `debugReasons` at `src/ast.js:260,439` had implicit `any[]` typing. This is not a green candidate receipt.
+
+Separately, Agent 1's focused candidate run [45860885642](https://github.com/FlareZ123/obfs/actions/runs/45860885642) passed 7/8 behavioral tests but failed the private-local WeakMap positive control on all three platforms: the expected Storage-file binding rewrites were zero. The current candidate therefore has both an unresolved local container-flow false-safe and a precision/over-refusal regression. Neither run is a full acceptance gate.
