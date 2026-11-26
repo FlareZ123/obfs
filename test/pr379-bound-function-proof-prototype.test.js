@@ -45,3 +45,10 @@ test('in-program bind source observation remains outside the bound-only proof',(
   assert.equal(properties(observer+ownerPrefix+target+
     'export const hot=internal.bind(null);'),0);
 });
+
+test('custom Function.prototype.bind replacement remains outside the bound-only proof',()=>{
+  const customBind='Function.prototype.bind=function(){'+
+    'const target=this;return function(){return target().secretField;};};';
+  assert.equal(properties(customBind+ownerPrefix+
+    'const internal=()=>owner;export const hot=internal.bind(null);'),0);
+});
