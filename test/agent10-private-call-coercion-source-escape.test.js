@@ -74,7 +74,7 @@ for(const mode of /** @type {const} */ (['coo','sno','sco'])) {
     const emitted=compile(mode);
     const native=runWithHost(source);
     const transformed=runWithHost(/** @type {string} */(emitted.code));
-    assert.match(native[0],/owner\.hiddenCount/);
+    assert.match(native[0],/alias\.hiddenCount/);
     assert.match(native[0],/owner\.privateDelta/);
     assert.equal(native[1],16);
     assert.equal(transformed[1],native[1]);
