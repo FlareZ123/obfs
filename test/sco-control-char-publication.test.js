@@ -83,7 +83,7 @@ test('SCO independently refuses or correctly publishes each of 15 native URL/POS
   try {
     /** @type {ControlCase[]} */
     const cases=[];
-    const controls=['\\t','\\n','\\r'];
+    const controls=['\t','\n','\r'];
     let id=0;
     for(const control of controls) {
       for(const dotSegment of ['.','..']) {
@@ -104,8 +104,8 @@ test('SCO independently refuses or correctly publishes each of 15 native URL/POS
     await atomicWrite(path.join(root,'index.mjs'),'import "./dir/entry.mjs";');
     const imports=cases.map(item=>
       'import {value as value'+item.id+'} from '+JSON.stringify(item.specifier)+';'
-    ).join('\\n');
-    await atomicWrite(path.join(root,'dir','entry.mjs'),imports+'\\n');
+    ).join('\n');
+    await atomicWrite(path.join(root,'dir','entry.mjs'),imports+'\n');
 
     for(const item of cases) {
       await atomicWrite(path.join(root,item.target),
