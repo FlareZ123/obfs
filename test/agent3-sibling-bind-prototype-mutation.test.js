@@ -136,6 +136,10 @@ test('native-bind proof rejects ambient calls but accepts the CommonJS export ro
   const esmWithAmbientModule=parse("const owner={secretField:7};const internal=()=>owner.secretField;"+
     "module.exports.hot=internal.bind(null);",'module');
   assert.equal(hasUnmodeledNativeBindGlobalReference(esmWithAmbientModule),true);
+  const commonjsRead=parse("'use strict';const owner={secretField:7};"+
+    "const internal=()=>owner.secretField;module.exports.hot=internal.bind(null);"+
+    "const leaked=module.exports.hot;",'script');
+  assert.equal(hasUnmodeledNativeBindGlobalReference(commonjsRead,true),true);
 });
 
 test('same-file custom bind replacement refuses target while preserving unrelated direct yield',async()=>{
