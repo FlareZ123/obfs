@@ -28,7 +28,7 @@ const source=[
 ].join('\\n');
 
 /**
- * Run a module with a DOMString-compatible Document.createTextNode host shim.
+ * Run a module with a DOMString-compatible Document.title host shim.
  * @param {string} moduleSource
  * @returns {{result:{value:number,independent:number},capturedSource:string|null}}
  */
