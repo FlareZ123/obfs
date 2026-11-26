@@ -80,6 +80,40 @@ class VersionSpaceAuditTests(unittest.TestCase):
             witness["candidate_future_outputs"],
         )
 
+    def test_z3_finds_three_state_strongly_connected_alternative(self):
+        # Three occurrences of input prefix 00 have distinct output prefixes
+        # (01, 10, 00), forcing at least three states. The target's initial
+        # state is unique for this trace, but a distinct three-state minimal
+        # strongly connected machine can match it and diverge in the future.
+        row = {
+            "status": "completed",
+            "state_count": 3,
+            "seed": 3,
+            "fixture_table": {
+                "transitions": [[1, 0], [2, 1], [0, 2]],
+                "outputs": [["0", "0"], ["1", "0"], ["0", "1"]],
+                "initial_state": 0,
+            },
+            "observed_trace": [["0", "0"], ["0", "1"], ["0", "0"], ["0", "0"]],
+            "target_post_trace_state": 1,
+            "fixture_digest": "fixture-three-state-z3",
+            "trace_digest": "trace-three-state-z3",
+        }
+        result = MODULE.audit_row(row, timeout_ms=5000)
+        self.assertEqual(result["status"], "sat")
+        witness = result["witness"]
+        self.assertEqual(witness["witness_source"], "z3_candidate_machine")
+        self.assertEqual(witness["candidate_state_count"], 3)
+        self.assertEqual(result["candidate_size_search"]["unsat_sizes_before_witness"], [1, 2])
+        self.assertTrue(witness["candidate_trace_verified"])
+        self.assertTrue(witness["candidate_minimal_verified"])
+        self.assertTrue(witness["candidate_strongly_connected_verified"])
+        self.assertTrue(witness["future_counterexample"])
+        self.assertNotEqual(
+            witness["target_future_outputs"],
+            witness["candidate_future_outputs"],
+        )
+
     def test_finds_alternate_initial_state_inside_target_machine(self):
         # Both target states emit 0 on input 0 and loop there, so the same
         # public trace is consistent with either initial state. Input 1
