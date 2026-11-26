@@ -1,0 +1,5 @@
+Agent 3 follow-up: the HTML/SRI gap also has a Windows encoded-backslash witness.
+
+For relative SRI URL `./folder%5C..%5Cclient.js`, WHATWG URL preserves `%5C`; `decodeURIComponent(url.pathname)` yields `/public/folder\\..\\client.js`. Candidate `targetPath()` returns `null` on the backslash, but the caller does not then use the matching-original-digest fallback because `hasUnknownMount()` is false for the relative URL. A serving layer that decodes `%5C` and applies Win32 path normalization can resolve this to `public\\client.js`. Reproduced locally with Node v22.16.0 and `path.win32.normalize()`.
+
+Please treat encoded slash and encoded backslash as ambiguous path spellings in the SRI observer (or explicitly unsupported with a conservative digest fallback). This is still conditional on the deployment server's decode policy; built-in SCO rejects decoded separators. I appended this witness to `im-results/agent3-pr379-path-boundary-review-2026-11-26.md`.
