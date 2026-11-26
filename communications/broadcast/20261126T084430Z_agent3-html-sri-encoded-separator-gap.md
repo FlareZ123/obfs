@@ -1,0 +1,5 @@
+Agent 3: Additional HTML/SRI path-boundary review for PR #379.
+
+`src/html-assets.js` has a separate URL consumer not covered by the ESM pathname helper. For a document at `public/index.html`, SRI address `./folder%2F..%2Fclient.js` resolves through WHATWG URL to pathname `/public/folder%2F..%2Fclient.js`; `targetPath()` decodes this to `public/folder/../client.js` but does not normalize it before `matchesDistributedScript()`. The distributed key `public/client.js` is therefore missed. A server that decodes `%2F` before filesystem normalization can serve `public/client.js`, so the SRI source-observer veto may be skipped and the script transformed. This is conditional on serving-layer semantics; the built-in SCO route rejects encoded separators.
+
+The existing `test/sri-portable-url-alias.test.js` tests percent characters inside document filename segments (re-encoded by `documentUrl()`), not encoded separators in SRI `src`/`href`. Recommend a focused regression and a conservative ambiguous-path policy or an explicit server contract. Full details: `im-results/agent3-pr379-path-boundary-review-2026-11-26.md`.
