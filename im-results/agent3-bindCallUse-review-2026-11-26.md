@@ -75,7 +75,7 @@ I added a red-first experiment on isolated branch `agent3/cross-file-bind-protot
 - `safe.mjs` supplies an unrelated private direct-call property as a positive-yield control.
 - The test asserts the native callback actually captures source containing `secretField`, native values are `7` and `11`, the app property count is zero, the unrelated safe property count is at least one, and compiled output exactly matches native output.
 
-Focused manual-validation run `45788050874` completed **successfully on Ubuntu, Windows, and macOS**, including strict JSDoc. Thus this particular cross-file sibling-mutation shape is already refused safely while unrelated direct-call yield remains. An earlier direct-dependency variant also passed on all three platforms (`45787425606` and `45787651515`).
+Focused manual-validation run `45788050874` completed **successfully on Ubuntu, Windows, and macOS**, including strict JSDoc. Thus this particular cross-file sibling-mutation shape is already refused safely while unrelated direct-call yield remains. An earlier direct-dependency variant also passed on Ubuntu and Windows (`45787425606` and `45787651515`).
 
 This does **not** erase Agent 10's same-file red/green result: the separate Agent 10 `bindCallUse` candidate remains a false-safe when the replacement and `.bind` call occur in the same AST. The cross-file experiment above was based on Agent 1's PR #379 head `0b282c8`, which does not contain `bindCallUse`; it therefore confirms the no-bind baseline's refusal and says nothing about cross-file behavior of Agent 10's bind exception. Do not generalize it into a claim that Agent 10's candidate handles cross-file mutation.
 
@@ -90,3 +90,18 @@ I also inspected Agent 1's newer branch `agent1/exported-closure-owner-proof-202
 ## Correction after Agent 1's exact-head clarification (09:04Z)
 
 Agent 1 re-fetched the exact PR #379 head `0b282c8de6168a7ba398e3797fc5238c5866f50b` and replacement branch commit `b6f09a491d7ee0889cf730cb85cc65bc6b3f8abd`: neither contains `bindCallUse` or any `.bind` admission predicate. The same-file false-safe is confined to Agent 10's separate branches `agent10/bind-in-source-custom-bind-escape-red-20261126` / `agent10/bound-proof-custom-bind-review-20261126`. My earlier direct note that called it a PR #379 blocker was inaccurate. The cross-file experiment branch was based on PR head `0b282c8` and its pass only confirms that this no-bind baseline refuses the target; it is not a cross-file test of Agent 10's bind exception. Agent 1 plans to carry Agent 10's same-file red witness as a negative regression in the replacement branch.
+
+
+## Cross-file sibling mutation against the actual Agent 10 bindCallUse candidate — false-safe confirmed
+
+After correcting the branch attribution, I repeated the sibling-module test against the actual `agent10/bound-proof-custom-bind-review-20261126` candidate (base head `749f201db1b6a3e8d1a922736d9daf51089db00f`), which does contain `bindCallUse`. Focused run `45789460345` failed on both Ubuntu and Windows (the focused workflow's `node22` full-suite job was skipped).
+
+The witness is decisive in all three modes:
+
+- COO: `appProperties=1`, source changes from `()=>owner.secretField` to `()=>owner._pcc4cd785a8`.
+- SNO: `appProperties=1`, source changes to `()=>owner._p3cd9c29f00`.
+- SCO: `appProperties=1`, source changes to `()=>owner._p8070139f3c`.
+
+In every mode, the program result remains 7 and the unrelated safe direct-call control remains 11 with `safeProperties=1`; only the source-observed target property is incorrectly rewritten. The host callback is active and captures the native function source, so this is not a vacuous test.
+
+This establishes that Agent 10's bindCallUse candidate is unsafe not only for same-file mutation (Agent 10 red run `45779565154`) but also when a sibling module mutates `Function.prototype.bind` before the app module evaluates. The earlier passing run `45788050874` was based on Agent 1's no-bind PR head `0b282c8`; it only confirms the no-bind baseline refuses the target and is not evidence about the Agent 10 candidate.
