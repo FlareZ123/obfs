@@ -16,17 +16,17 @@ from agent2_hw_process_isolation import process_security_state
 
 
 def _connect_host_v4(address_hex: str) -> str | None:
-    """Decode Linux /proc/net/tcp's little-endian IPv4 address."""
+    """Decode a connectable local IPv4 bind address from /proc/net/tcp."""
     address = ipaddress.IPv4Address(bytes.fromhex(address_hex)[::-1])
-    if address.is_loopback:
-        return str(address)
     if address.is_unspecified:
         return "127.0.0.1"
-    return None
+    if address.is_multicast or address.is_broadcast:
+        return None
+    return str(address)
 
 
 def _connect_host_v6(address_hex: str) -> str | None:
-    """Decode Linux /proc/net/tcp6's per-word little-endian IPv6 address."""
+    """Decode a connectable local IPv6 bind address from /proc/net/tcp6."""
     raw = bytes.fromhex(address_hex)
     if len(raw) != 16:
         return None
@@ -34,20 +34,22 @@ def _connect_host_v6(address_hex: str) -> str | None:
     address = ipaddress.IPv6Address(network_order)
     mapped = address.ipv4_mapped
     if mapped is not None:
-        if mapped.is_loopback:
-            return str(mapped)
         if mapped.is_unspecified:
             return "127.0.0.1"
-        return None
-    if address.is_loopback:
-        return str(address)
+        if mapped.is_multicast or mapped.is_broadcast:
+            return None
+        return str(mapped)
     if address.is_unspecified:
         return "::1"
-    return None
+    if address.is_multicast or address.is_link_local:
+        # /proc/net/tcp6 does not provide the interface scope ID required by
+        # link-local IPv6 connect() calls. Do not invent one.
+        return None
+    return str(address)
 
 
-def loopback_listeners() -> list[tuple[str, int]]:
-    """List connectable IPv4/IPv6 loopback and wildcard TCP listener endpoints."""
+def local_tcp_listeners() -> list[tuple[str, int]]:
+    """List connectable local IPv4/IPv6 TCP listener endpoints, including interface binds."""
     endpoints: set[tuple[str, int]] = set()
     sources = (
         ("/proc/net/tcp", _connect_host_v4),
@@ -121,7 +123,7 @@ def main():
     if candidate is None:
         raise RuntimeError("active service did not issue a usable public module")
 
-    visible_endpoints = loopback_listeners()
+    visible_endpoints = local_tcp_listeners()
     if candidate_endpoint not in visible_endpoints:
         raise RuntimeError("active service listener was not visible in /proc/net/tcp or tcp6")
 
@@ -144,10 +146,10 @@ def main():
         "sudo_blocked": sudo_blocked,
         "candidate_host": candidate_host,
         "candidate_port": candidate_port,
-        "visible_loopback_listeners": [
+        "visible_local_listeners": [
             {"host": host, "port": port} for host, port in visible_endpoints
         ],
-        "visible_loopback_listener_ports": sorted({port for _host, port in visible_endpoints}),
+        "visible_local_listener_ports": sorted({port for _host, port in visible_endpoints}),
         "candidate_module": candidate,
         "alternate_services": alternate_services,
     }
