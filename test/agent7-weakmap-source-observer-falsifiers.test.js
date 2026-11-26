@@ -228,8 +228,7 @@ const fixtures=[
       'const nativePrototype=Object.getPrototypeOf(Derived.prototype);',
       ...patchLines
     ].join('\n')
-  }
-
+  },
   {
     name:'reflect-get-function-alias',
     source:[
