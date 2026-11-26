@@ -1097,7 +1097,7 @@ function hasWeakMapPrototypeExposure(ast) {
     if(!functionTypes.has(node.type))return true;
     const info=functionInfoByNode.get(node);
     if(!info)return true;
-    return Boolean(info.returnsWeakMap||info.returnMaybeParameters.size>0||
+    return Boolean(info.returnsWeakMap||
       [...info.returnedFactories].some(name=>
         weakMapFactories.has(name)||importedLocalNames.has(name)));
   }
