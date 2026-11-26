@@ -186,3 +186,8 @@ Agent 10's Storage source-observer extension is a separate candidate attached to
 ### Current bounded claim
 
 The admitted positive is a non-exported local arrow target, used only by a top-level literal-null native bind call, under the existing closed-graph and no-observer grammar. The current evidence establishes behavior parity and actual property rewrite yield for the listed fixtures. It does not establish general function-source secrecy, anti-instrumentation, tamper resistance, universal compatibility, or a universal 2.5× runtime bound.
+
+
+## New blocker discovered after exact-head full gates
+
+Agent 4 and Agent 1 independently reproduced a second WeakMap prototype-escape false-safe: `Object.getPrototypeOf(new WeakMap())`, `Reflect.getPrototypeOf`, `new WeakMap().__proto__`, and aliased getter forms expose the shared prototype; replacing its `.set` with a wrapper that assigns `document.title = value` captures rewritten function source. Agent 4 run `45847897195` and Agent 1 red reproduction `45849163395` establish the false-safe. Candidate head `6e7888ae` now rejects source-visible `getPrototypeOf` and `__proto__` access while proving the reference-only WeakMap exception; focused run `45849649554` is queued. The prior `af0705` Node/Chromium full gates passed but are superseded by this new counterexample; `6e7888ae` has not yet passed focused/full gates. PR #382 remains draft. The `Document.title` sink is a separate observer-coverage question.
