@@ -61,7 +61,7 @@ test('unrelated prototype inspection should not invalidate the native WeakMap St
     },
     {
       name:'unrelated object-literal getPrototypeOf data key',
-      extra:'const unrelated={getPrototypeOf:1};'
+      extra:'const unrelated={"getPrototypeOf":1};'
     }
   ];
   for(const [index,variant] of unrelated.entries()) {
