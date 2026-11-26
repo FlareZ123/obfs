@@ -23,6 +23,30 @@ const fixtures=[
     path:'state.cjs',
     sourceType:'commonjs',
     code:'const owner={secretAlpha:7};module.exports=class Reader{static value=owner.secretAlpha;};'
+  },
+  {
+    name:'exported class with a computed method key reading the owner',
+    path:'state.mjs',
+    sourceType:'module',
+    code:'const owner={secretAlpha:\'read\'};export class Reader{[owner.secretAlpha](){}}'
+  },
+  {
+    name:'exported class static block reading the owner',
+    path:'state.mjs',
+    sourceType:'module',
+    code:'const owner={secretAlpha:7};export class Reader{static{this.value=owner.secretAlpha;}}'
+  },
+  {
+    name:'exported class static field with a private IIFE reading the owner',
+    path:'state.mjs',
+    sourceType:'module',
+    code:'const owner={secretAlpha:7};export class Reader{static value=(()=>owner.secretAlpha)();}'
+  },
+  {
+    name:'exported class containing a nested class expression reading the owner',
+    path:'state.mjs',
+    sourceType:'module',
+    code:'const owner={secretAlpha:7};export class Reader{static value=class Nested{static value=owner.secretAlpha;};}'
   }
 ];
 
