@@ -119,3 +119,20 @@ test('exported WeakMap host mutation is observed and preserves function source',
     metrics:app.metrics,native,emitted
   })+'\\n');
 });
+
+
+const weakMapPrototypeIdentityWrapper=fixtures.prototypeOverride.replace(
+  'const captured=new WeakMap();',
+  [
+    'const captured=new WeakMap();',
+    'const nativeWeakMapSet=WeakMap.prototype.set;',
+    'WeakMap.prototype.set=function(key,value){return nativeWeakMapSet.call(this,key,value);};'
+  ].join('\\n')
+);
+
+test('any source-visible WeakMap prototype replacement invalidates reference-only override',()=>{
+  const ast=parse(weakMapPrototypeIdentityWrapper,'module');
+  assert.equal(observesFunctionSource(ast),true);
+  const app=compile(weakMapPrototypeIdentityWrapper,'agent1-weakmap-prototype-identity-wrapper');
+  assert.equal(app.metrics.bindings,0,JSON.stringify({metrics:app.metrics,code:app.code}));
+});
