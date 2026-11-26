@@ -99,3 +99,13 @@ The same direct-assignment opaque-host witness was also executed through all thr
 - Focused run: [45763097057](https://github.com/FlareZ123/obfs/actions/runs/45763097057)
 
 COO, SNO, and SCO each admitted one property rewrite; the emitted function still returned 7, while the host-observed source differed from the original. Both Ubuntu and Windows passed the witness assertions and all focused JSDoc stages. The three mutation-route matrix (direct/alias/descriptor) remains COO-only; the all-mode check uses direct assignment. The full Node 22 suite was skipped, and this is not a full mode acceptance or 2.5x runtime result.
+
+## Expanded current-main mutation baseline
+
+The current-main regression guard was expanded from three to seven in-program mutation paths: direct assignment, alias assignment, descriptor-based defineProperty, computed-key assignment, Reflect.set, Object.assign, and Object.defineProperties.
+
+- Test: test/agent10-bound-proof-opaque-host-baseline.test.js
+- Test commit: cffc6987a0194e45d2d84830f2ac5666a85e4344
+- Focused run: [45765037038](https://github.com/FlareZ123/obfs/actions/runs/45765037038)
+
+All seven variants were refused with zero property rewrites and source/output parity on Ubuntu and Windows. Project JSDoc, external JSDoc, and paired-budget JSDoc passed on both platforms. The full Node 22 suite was skipped.
