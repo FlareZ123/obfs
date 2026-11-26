@@ -117,7 +117,7 @@ test('exported WeakMap host mutation is observed and preserves function source',
     JSON.stringify({native,emitted,metrics:app.metrics}));
   process.stdout.write('EXPORTED_WEAKMAP_SOURCE_PRESERVED '+JSON.stringify({
     metrics:app.metrics,native,emitted
-  })+'\\n');
+  })+'\n');
 });
 
 
@@ -127,7 +127,7 @@ const weakMapPrototypeIdentityWrapper=fixtures.prototypeOverride.replace(
     'const captured=new WeakMap();',
     'const nativeWeakMapSet=WeakMap.prototype.set;',
     'WeakMap.prototype.set=function(key,value){return nativeWeakMapSet.call(this,key,value);};'
-  ].join('\\n')
+  ].join('\n')
 );
 
 test('any source-visible WeakMap prototype replacement invalidates reference-only override',()=>{
