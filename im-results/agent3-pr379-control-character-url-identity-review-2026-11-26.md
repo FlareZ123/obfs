@@ -106,6 +106,12 @@ Depending on which other files are supplied, these can attribute an import to th
 
 The private SCO graph helpers in `src/sco-graph.js` and `src/sco-selective-partition.js` use stricter canonical-spelling comparisons and reject this exact noncanonical spelling; that does not repair the general CLI or the other graph resolvers.
 
+## Performance and compatibility
+
+The proposed admission predicate runs during obfuscation-time/static graph analysis, not in emitted application code. It therefore adds no client/server runtime instructions and does not consume the 2.5× transformed-runtime budget; its static cost is one linear scan of each relative import pathname. I did not benchmark build-time cost.
+
+The conservative policy rejects valid JavaScript import strings containing literal C0/DEL characters in the pathname, even though native ESM can resolve them. This is an explicit fail-closed compatibility tradeoff; ordinary U+0020 spaces remain accepted. A mode-aware canonical URL resolver is the longer-term option if preserving these unusual valid specifiers is required. Any implementation that injects a guard into emitted code would need a separate runtime-performance evaluation.
+
 ## Mode-specific impact
 
 - **SCO:** concrete publication-boundary failure. The CLI can select the POSIX decoy, and the handler serves selected files by canonical request pathname. The actual URL-resolved dependency may be absent while the wrong private file is addressable.
