@@ -2141,9 +2141,10 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
     const allowedMapReferences=new WeakSet();
     walk(ast,node=>{
       if(node.type==='CallExpression'&&node.callee.type==='MemberExpression'&&
-         node.callee.object.type==='Identifier'&&node.callee.object.name===name&&
-         ['set','get'].includes(memberName(node.callee)))
-        allowedMapReferences.add(node.callee.object);
+         node.callee.object.type==='Identifier'&&node.callee.object.name===name) {
+        const method=memberName(node.callee);
+        if(method==='set'||method==='get')allowedMapReferences.add(node.callee.object);
+      }
     });
     walk(ast,(node,parent)=>{
       if(node.type==='VariableDeclarator'&&node.id.type==='Identifier'&&
@@ -2164,11 +2165,12 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
          sourceStringKey(node.arguments[1])==='set')methodMutated=true;
       if(node.type==='ExportNamedDeclaration') {
         const declaration=node.declaration;
-        if(declaration?.type==='VariableDeclaration'&&
-           declaration.declarations.some(item=>item.id.type==='Identifier'&&
-             item.id.name===name))escaped=true;
-        if(node.specifiers.some(specifier=>specifier.local?.type==='Identifier'&&
-           specifier.local.name===name))escaped=true;
+        if(declaration?.type==='VariableDeclaration') {
+          for(const item of declaration.declarations)
+            if(item.id.type==='Identifier'&&item.id.name===name)escaped=true;
+        }
+        for(const specifier of node.specifiers)
+          if(specifier.local?.type==='Identifier'&&specifier.local.name===name)escaped=true;
       }
       if(node.type==='ExportDefaultDeclaration'&&
          node.declaration?.type==='Identifier'&&node.declaration.name===name)
