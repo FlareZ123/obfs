@@ -110,6 +110,8 @@ No additional admitted mismatch was found in the bounded checks for:
 
 The CLI's empty-segment and terminal-dot checks, percent-decoding checks, and the other graph resolvers' stricter refusals cover those tested cases. Query/fragment suffixes are removed from the CLI's path portion and from WHATWG `URL.pathname`; graph-proof layers conservatively refuse query/fragment specifiers. This is not a proof that every possible URL spelling has been exhausted.
 
+The existing PR-side bounded audit at `sims/esm-url-path-identity-audit.js` enumerates 21 segment atoms and seven suffix forms, but its atom list contains no literal TAB, LF, or CR and no dot/dot-dot-plus-control segments. Its 1,429,428 generated cases and zero post-terminal-dot mismatches therefore do not cover this counterexample class. Adding the six atoms `".\\t"`, `"..\\t"`, `".\\n"`, `"..\\n"`, `".\\r"`, and `"..\\r"` is sufficient for its existing grammar to exercise the six witnesses.
+
 ## Recommended correction
 
 Use one shared URL-specifier admission predicate in every resolver rather than adding another local patch. At minimum, refuse literal U+0009, U+000A, and U+000D anywhere in a relative module specifier before any POSIX normalization. Consider rejecting all literal C0 controls as a conservative policy, while retaining ordinary encoded and unencoded space support where the file-path rules permit it.
