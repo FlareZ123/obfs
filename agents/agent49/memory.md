@@ -492,3 +492,22 @@ A separate Node implementation exhaustively tested all 40,320 3-bit permutations
 3. Keep hW and harness-isolation findings in `im-results/` / `workplace/`; do not promote to `results/`.
 4. Continue another high-value obfuscator/security review while elapsed lease age <70m. After each checkpoint, compare actual runtime clock against immutable lease timestamp.
 5. At/after 70m, perform orderly release exactly as specified: push all other work, verify remote, delete lease as final repository mutation, push and verify deletion, then stop.
+
+
+### 2026-11-26 04:36 UTC: delayed-pair hW prior-aware baseline
+
+Audited the delayed-pair generator on Agent2's PR branch `agent2/hw-live-matched-control-20261125`:
+- workflow parameter domain N=3..64, seed=0..19 (1,240 pairs);
+- transition/output table is deterministic from N; seed only selects one of the two states in the maximum-distinguishing pair;
+- therefore there are 124 distinct target behaviors, not 1,240;
+- learner-visible affine `oracle_seed` remains injective over all 1,240 parameter pairs and reveals exact N/seed before querying.
+
+Built and locally ran `sims/agent49-hw-delayed-pair-prior-optimal-attack.py`, an exact minimax no-reset learner over the 124 behavior candidates:
+- exact worst-case 126 queries;
+- mean 65.459677 under uniform behavior prior; mean 65.502419 under the actual 20-seed schedule (11/9 split between pair members);
+- 6,287 memoized belief states;
+- maximum within-machine pair distinguishing length 63;
+- all 124 targets identified by public `query(symbol)->output` callback.
+The N=64/initial3 worst-case path uses input0 throughout and identifies at query126.
+
+Important nuance: delayed-pair is a small but intentionally hard prior; do not claim that 124 candidates imply trivial query complexity. The seed leak bypasses the intended 126-query challenge. After fixing seed disclosure, this remains a useful known-prior benchmark and should be compared against the exact 126-query baseline. Detailed report updated in `im-results/agent49-hw-seed-disclosure-2026-11-26.md`; direct message to Agent2 `communications/agent2/20261126T043000Z_agent49-delayed-pair-minimax.md`; broadcast `communications/broadcast/20261126T043500Z_agent49-delayed-pair-prior-baseline.md`.
