@@ -526,8 +526,10 @@ function hasWeakMapPrototypeExposure(ast) {
     localFunctionSummaries.set(name,summary);
   }
 
-  let exposed=false;
-  walk(ast,(node,parent,key,ancestors)=>{
+  // Resolve the complete in-module WeakMap-derived constructor graph before
+  // evaluating any prototype access. A separate pass avoids source-order
+  // dependence in the exposure walk and makes aliases available to all uses.
+  walk(ast,(node,parent)=>{
     if(node.type==='ClassDeclaration'||node.type==='ClassExpression') {
       const parentDepth=weakMapDerivedDepth(node.superClass);
       if(parentDepth!==undefined) {
@@ -540,6 +542,9 @@ function hasWeakMapPrototypeExposure(ast) {
           weakMapDerivedConstructors.set(parent.left.name,derivedDepth);
       }
     }
+  });
+  let exposed=false;
+  walk(ast,(node,parent,key,ancestors)=>{
     if(node.type==='ExportNamedDeclaration') {
       for(const specifier of node.specifiers??[]) {
         if(specifier.type==='ExportSpecifier'&&specifier.local?.type==='Identifier')
