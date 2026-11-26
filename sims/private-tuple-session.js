@@ -37,7 +37,7 @@ function executeCold(code,count){
   const context=createContext({operations:count});
   const module={exports:{}};
   const require=()=>{throw new Error('Unexpected require in private tuple profile');};
-  const wrapperSource='(function(exports,require,module,__filename,__dirname){\\n'+code+'\\n})';
+  const wrapperSource='(function(exports,require,module,__filename,__dirname){\n'+code+'\n})';
   const script=new Script(wrapperSource,{filename:'tuple-session.cjs'});
   const wrapper=/** @type {Function} */(script.runInContext(context,{timeout:15000}));
   wrapper.call(module.exports,module.exports,require,module,'/virtual/tuple-session.cjs','/virtual');
