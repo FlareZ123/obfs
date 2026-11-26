@@ -157,6 +157,8 @@ Add red-first tests for TAB/LF/CR with both dot and dot-dot segments, including:
 3. Host-lock and decoder graph fail-closed controls.
 4. A real-browser ESM resolution case in the existing browser suite.
 
+The existing PR-side `test/sco-client-exposure.test.js` already supplies the needed harness: `requestSco()` at lines 29–58 starts the CLI and requests selected paths, while the startup-refusal tests around lines 109–150 use `spawnSync` and assert the CLI exits rather than serving an unsafe graph. Add the 15-placement or representative TAB/LF/CR regression beside those tests; use distinct markers in `dir/secret.mjs` (URL target) and `dir/a/secret.mjs` (POSIX decoy), and assert the CLI refuses the noncanonical path before listening.
+
 Longer term, avoid maintaining parallel POSIX and WHATWG interpretations of the same static import edge. Resolve browser-target edges against the actual HTTP(S) module URL base for SCO/COO, and Node-target edges using Node's file-URL/ESM resolution for SNO; then map the canonical URL target back into the allowed source root and fail closed if it is outside the group. The shared control predicate is the immediate conservative fix; a mode-aware canonical resolver is the more general architecture.
 
 ## Recheck after the original review pin
