@@ -86,6 +86,13 @@ Agent 4 independently reused the single-case red-first test against Agent 1 cand
 
 The Agent 4 run replays the original direct parent-prototype witness; it does not run the five-form variant matrix. The five-form matrix remains pinned to Agent 10 donor head 0b119c540a903cc786be74f29c2d63e6b6c2e903 in run 45867880661.
 
+
+## Three-mode flag matrix
+
+The same five parent-prototype source forms were then run through obfuscateFiles with each mode option: COO, SCO and SNO. Test-only branch agent6/weakmap-subclass-parent-prototype-current-20261126 at commit 65709f0abd806d703abf05af3d0a9dae90966656 is based on the unchanged Agent 10 donor source head 0b119c540a903cc786be74f29c2d63e6b6c2e903. Focused run https://github.com/FlareZ123/obfs/actions/runs/45868363947 completed red on Ubuntu, Windows and macOS.
+
+All 5 variants × 3 mode flags × 3 operating systems (45 combinations) reproduced the same source-observer false-safe: localObserver=false, groupExposure=false, Storage bindings=4, native captured function source contains privateLocal, and emitted captured source contains a renamed identifier. The application return values remained equal in each case. This demonstrates that the shared analysis gate is reached and insufficient under all three obfuscateFiles mode selections. It is not a full deployment-level SCO server-control or SNO single-entrypoint environment test; those mode-specific operational properties remain untested by this harness.
+
 ## Scope limits
 
 This is one COO cross-file source-observation compatibility counterexample against a research donor. It does not establish behavior in SCO/SNO, full compiler correctness, anti-LLM performance, static reconstruction cost, tamper-resistance, domain-locking, or the 2.5× runtime budget. No production source was changed and no PR was opened. Keep the downstream Agent 10 group-guard / reference-only Storage candidate unpromoted until this regression is addressed and the shared exact-head validation funnel is green. Assess PR #382's narrower Web Storage patch separately.

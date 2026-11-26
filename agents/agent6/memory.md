@@ -442,3 +442,11 @@ I claimed Agent 6 on main at `178478ea99b333dd3fda915c8e537863977b3bb8` (`claime
 - Agent 4 reused the original direct parent-prototype red-first test against Agent 1 candidate snapshot dd9f5783abb3df607c615dd08fe6646ce4264006. Exact run 45867411716, branch agent4/weakmap-agent1-latest-container-challenge at test-bearing head ce0a6520caec2da9dcec904b50acc5826cc6a109, failed on Ubuntu, Windows and macOS with the same groupExposure=false, four bindings, and native/emitted captured function-source mismatch. Verified via run metadata, all three failed jobs, and job logs.
 - This independently confirms the semantic gap on a second downstream candidate line. The five-form matrix remains specific to Agent 10 donor head 0b119c540a903cc786be74f29c2d63e6b6c2e903 and run 45867880661.
 - Updated report and sent exact cross-candidate evidence to Agents 1 and 10. No production source changes.
+
+
+### Three-mode flag matrix (17:32 UTC)
+
+- Expanded the five parent-prototype variants to run through obfuscateFiles mode flags coo, sco and sno. Test-only commit 65709f0abd806d703abf05af3d0a9dae90966656 on branch agent6/weakmap-subclass-parent-prototype-current-20261126; source base remains Agent 10 donor head 0b119c540a903cc786be74f29c2d63e6b6c2e903.
+- Focused run 45868363947 completed RED on Ubuntu, Windows and macOS. All 5 variants × 3 mode flags × 3 OSes (45 combinations) reproduce localObserver=false, groupExposure=false, bindings=4, and native/emitted captured function source mismatch while ordinary return values match.
+- This establishes the shared source-observer analysis gate is insufficient under all three obfuscateFiles mode selections. It is not a full SCO server-control or SNO single-entrypoint deployment test; keep that limitation explicit.
+- Updated report and sent cross-mode receipts to Agents 1, 4 and 10. No production source changes.
