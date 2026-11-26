@@ -86,6 +86,43 @@ async function run(files){
   }
 }
 
+test('same-file custom bind replacement refuses target while preserving unrelated direct yield',async()=>{
+  const sameFile=[{
+    path:'entry.mjs',
+    sourceType:'module',
+    code:[
+      'Function.prototype.bind=function(thisArg,...boundArgs){',
+      '  globalThis.external(this);',
+      '  const target=this;',
+      '  return (...callArgs)=>Reflect.apply(target,thisArg,[...boundArgs,...callArgs]);',
+      '};',
+      'const owner={secretField:7};',
+      'const internal=()=>owner.secretField;',
+      'export const hot=internal.bind(null);',
+      'const safeOwner={safeField:11};',
+      'const direct=()=>safeOwner.safeField;',
+      'const safeValue=direct();',
+      'process.stdout.write(JSON.stringify([globalThis.__capturedSource,hot(),safeValue]));'
+    ].join('\\n')
+  }];
+  const native=await run(sameFile);
+  assert.match(native[0],/owner\\.secretField/u);
+  const compiled=obfuscateFiles(sameFile,{
+    mode:'coo',closedWorld:true,seed:'same-file-bind-mutation-refusal',
+    properties:true,identifiers:false,strings:false
+  });
+  assert.equal(compiled.files[0].metrics.properties,1,
+    'the bound target must refuse while the unrelated direct-call owner still rewrites');
+  const emitted=await run(compiled.files.map(file=>({
+    path:file.path,code:String(file.code)
+  })));
+  assert.deepEqual(emitted,native);
+  assert.match(emitted[0],/owner\\.secretField/u,
+    'the in-graph custom bind observer must retain the original target source');
+  assert.doesNotMatch(String(compiled.files[0].code),/safeField/u,
+    'the unrelated direct-call owner should still be transformed');
+});
+
 for(const mode of /** @type {const} */ (['coo','sno','sco'])){
   test(mode+' sees a sibling-module Function.prototype.bind mutation before app evaluation',async()=>{
     const native=await run(sources);
