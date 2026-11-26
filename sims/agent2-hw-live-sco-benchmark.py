@@ -22,7 +22,7 @@ from pathlib import Path
 from types import SimpleNamespace
 
 from agent2_hw_process_isolation import (
-    assert_process_uid,
+    assert_process_security_state,
     command_as,
     isolation_accounts,
     safe_environment,
@@ -160,7 +160,7 @@ def start_server(fixture, seed: int):
             raise AssertionError(f"SCO server UID mismatch: {ready!r}")
         if set(ready.get("environment_keys", [])) != set(child_env):
             raise AssertionError(f"SCO server environment was not scrubbed: {ready!r}")
-        assert_process_uid(ready["pid"], server_user.pw_uid, "SCO server")
+        ready["security_state"] = assert_process_security_state(ready["pid"], server_user.pw_uid, "SCO server")
         if int(ready.get("private_root_mode", "0"), 8) != 0o700:
             raise AssertionError(f"SCO private root is not mode 0700: {ready!r}")
         if int(ready.get("private_file_mode", "0"), 8) != 0o600:
@@ -224,6 +224,10 @@ def run_client(origin: str, learner_seed: int, args, mirror_root: Path):
         raise AssertionError(f"learner did not run as nobody: {result!r}")
     if set(result.get("environment_keys", [])) != set(child_env):
         raise AssertionError(f"learner environment was not scrubbed: {result!r}")
+    if result.get("no_new_privs") != "1" or result.get("cap_eff") != "0000000000000000":
+        raise AssertionError(f"learner privilege state is unsafe: {result!r}")
+    if result.get("cap_bnd") != "0000000000000000" or result.get("sudo_blocked") is not True:
+        raise AssertionError(f"learner retained capabilities or sudo: {result!r}")
     result["process_isolated"] = True
     result["learner_seed"] = learner_seed
     return result
@@ -455,6 +459,9 @@ def run_one(state_count: int, seed: int, args):
                 "pid": ready["pid"],
                 "uid": ready["uid"],
                 "environment_keys": ready["environment_keys"],
+                "no_new_privs": ready["security_state"]["NoNewPrivs"],
+                "cap_eff": ready["security_state"]["CapEff"],
+                "cap_bnd": ready["security_state"]["CapBnd"],
                 "private_root_mode": ready["private_root_mode"],
                 "private_file_mode": ready["private_file_mode"],
             },
@@ -463,6 +470,10 @@ def run_one(state_count: int, seed: int, args):
                 "uid": client_result["uid"],
                 "euid": client_result["euid"],
                 "environment_keys": client_result["environment_keys"],
+                "no_new_privs": client_result["no_new_privs"],
+                "cap_eff": client_result["cap_eff"],
+                "cap_bnd": client_result["cap_bnd"],
+                "sudo_blocked": client_result["sudo_blocked"],
                 "learner_seed": client_result["learner_seed"],
             },
             "server_stats": server_stats,
