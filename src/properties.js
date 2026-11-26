@@ -318,9 +318,10 @@ function collectBindingScopes(ast) {
  * language constants and the ordinary CommonJS module.exports root are exempt.
  *
  * @param {AstNode} ast
+ * @param {boolean} [allowCommonJsModuleExports] Permit only the standard CommonJS module.exports publication root.
  * @returns {boolean}
  */
-function hasUnmodeledNativeBindGlobalReference(ast) {
+function hasUnmodeledNativeBindGlobalReference(ast,allowCommonJsModuleExports=false) {
   const counts=collectBindings(ast);
   const scopes=collectBindingScopes(ast);
   const {identifiers}=collectProofInventory(ast);
@@ -367,7 +368,7 @@ function hasUnmodeledNativeBindGlobalReference(ast) {
        parent?.type==='MetaProperty')continue;
     if(parent?.type==='ImportSpecifier'&&key==='imported'||
        parent?.type==='ExportSpecifier'&&key==='exported')continue;
-    if(node.name==='module'&&counts.get('module')===undefined&&
+    if(allowCommonJsModuleExports&&node.name==='module'&&counts.get('module')===undefined&&
        parent?.type==='MemberExpression'&&key==='object'&&!parent.computed&&
        parent.property.type==='Identifier'&&parent.property.name==='exports')continue;
     if(immutableGlobals.has(node.name))continue;
