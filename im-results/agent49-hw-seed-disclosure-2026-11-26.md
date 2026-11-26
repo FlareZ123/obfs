@@ -166,3 +166,26 @@ It queries the actual oracle, keeps the matching output group, advances the cand
 This is a simple prior-aware adaptive no-reset learner, not hW and not an optimal decision-tree proof. It nevertheless demonstrates that the current public generator family can be learned almost immediately. The 77-step hW trace is unnecessary once the attacker uses the known finite prior.
 
 The version-space SAT witness remains mathematically valid for the broad class of all minimal strongly connected Mealy machines with at most N states. The candidate alternative is outside the benchmark's 70-machine generator prior; the prior-aware attack selects the actual target. Do not treat the SAT witness as practical ambiguity under the current benchmark's full attacker-visible context.
+
+
+## 10. Exact minimax decision tree: at most nine public-oracle queries
+
+The earlier greedy prior-aware discriminator (maximum 11 queries) can be improved. I implemented an exact minimax decision-tree solver over belief states `(candidate_id, current_state)`. For each of the two input symbols, it partitions the current candidate belief by predicted output and computes
+
+`D(B) = min_a (1 + max_y D(B[a,y]))`
+
+with singleton beliefs as the zero-query base case. Returning to an identical belief without eliminating a candidate is a useless cycle and is excluded. The solver explores all reachable belief states and returns the exact optimal worst-case depth for this finite prior.
+
+Reproduction script: `sims/agent49-hw-public-prior-optimal-attack.py` (standard-library Python only; it also exposes `identify(query)`, an adaptive no-reset learner that needs only a public `query(symbol) -> output` callback).
+
+For the actual offline family:
+- candidate count: 70;
+- exact minimax worst-case depth: **9 queries**;
+- simulated maximum: 9;
+- mean under uniform candidate prior: **6.528571**;
+- query-count histogram: `{4:1, 5:8, 6:26, 7:25, 8:8, 9:2}`;
+- memoized belief states: 12,276.
+
+For target `N=6, seed=0`, the optimal policy asks input `0` five times and observes outputs `11010`, identifying the exact fixture in five queries.
+
+This is an exact optimal policy for the finite public 70-fixture prior, not for the unrestricted class of Mealy machines. It is a much stronger practical benchmark audit than the hW learner's 77-step run.
