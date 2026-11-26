@@ -2151,6 +2151,15 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
       if(node.type==='Identifier'&&node.name==='WeakMap'&&
          !(parent?.type==='NewExpression'&&parent.callee===node))
         weakMapIntrinsicEscaped=true;
+      if(node.type==='MemberExpression'&&memberName(node)==='WeakMap'&&
+         isGlobal(node.object))weakMapIntrinsicEscaped=true;
+      if(node.type==='VariableDeclarator'&&node.init?.type==='Identifier'&&
+         isGlobal(node.init))weakMapIntrinsicEscaped=true;
+      if(node.type==='CallExpression'&&node.callee.type==='MemberExpression'&&
+         isReflectiveReceiver(node.callee.object)&&isGlobal(node.arguments[0]))
+        weakMapIntrinsicEscaped=true;
+      if(node.type==='Identifier'&&isGlobal(node)&&parent?.type==='CallExpression'&&
+         parent.arguments.includes(node))weakMapIntrinsicEscaped=true;
       if(node.type==='VariableDeclarator'&&node.id.type==='Identifier'&&
          node.id.name===name) {
         declarations++;
