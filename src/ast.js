@@ -1350,6 +1350,13 @@ function hasWeakMapPrototypeExposure(ast) {
    * @param {Map<string,CarrierValue>} environment
    * @param {CarrierValue} [thisValue]
    */
+  /**
+   * @param {AstNode} statement
+   * @param {Map<string,CarrierValue>} environment
+   * @param {CarrierValue} [thisValue=carrierOther]
+   * @param {boolean} [includeVarBindings=true]
+   * @returns {void}
+   */
   function visitScopedCarrierBlock(statement,environment,thisValue=carrierOther,includeVarBindings=true) {
     const scopedEnvironment=new Map(environment);
     const blockScopedNames=new Set();
