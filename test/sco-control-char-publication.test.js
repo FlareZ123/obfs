@@ -78,12 +78,12 @@ async function probeSco(root,names) {
   }
 }
 
-test('SCO publishes the WHATWG URL target and withholds POSIX decoys for C0 specifiers',async()=>{
+test('SCO independently refuses or correctly publishes each of 15 native URL/POSIX C0 dot-segment cases',async()=>{
   const root=await fs.mkdtemp(path.join(os.tmpdir(),'obfs-sco-url-c0-publication-'));
   try {
     /** @type {ControlCase[]} */
     const cases=[];
-    const controls=['\t','\n','\r'];
+    const controls=['\\t','\\n','\\r'];
     let id=0;
     for(const control of controls) {
       for(const dotSegment of ['.','..']) {
@@ -104,17 +104,14 @@ test('SCO publishes the WHATWG URL target and withholds POSIX decoys for C0 spec
     await atomicWrite(path.join(root,'index.mjs'),'import "./dir/entry.mjs";');
     const imports=cases.map(item=>
       'import {value as value'+item.id+'} from '+JSON.stringify(item.specifier)+';'
-    ).join('\n');
-    await atomicWrite(path.join(root,'dir','entry.mjs'),imports+'\n');
+    ).join('\\n');
+    await atomicWrite(path.join(root,'dir','entry.mjs'),imports+'\\n');
 
-    /** @type {string[]} */
-    const requestNames=['index.mjs','dir/entry.mjs'];
     for(const item of cases) {
       await atomicWrite(path.join(root,item.target),
         'globalThis.__urlTargets.push("'+item.id+'");export const value="url-target-'+item.id+'";');
       await atomicWrite(path.join(root,item.decoy),
         'globalThis.__posixDecoys.push("'+item.id+'");export const value="posix-decoy-'+item.id+'";');
-      requestNames.push(item.target,item.decoy);
     }
 
     await atomicWrite(path.join(root,'native-check.mjs'),
@@ -130,36 +127,31 @@ test('SCO publishes the WHATWG URL target and withholds POSIX decoys for C0 spec
     assert.deepEqual(JSON.parse(native.stdout),{
       urlTargets:cases.map(item=>String(item.id)).sort(),
       posixDecoys:[]
-    },'Native ESM must load the URL-resolved target, never the POSIX decoy');
+    },'Native ESM must load every URL-resolved target, never a POSIX decoy');
 
-    const probe=await probeSco(root,requestNames);
-    if(!probe.listening) {
-      assert.match(probe.stderr,/SCO noncanonical ESM import path unsupported:/u,
-        'A fail-closed startup refusal must identify the noncanonical ESM pathname');
-      return;
-    }
-
-    const observed=cases.map(item=>{
+    // Exercise every malformed specifier in its own SCO process. A single
+    // failing static import must not mask the other 14 placements.
+    for(const item of cases) {
+      await atomicWrite(path.join(root,'dir','entry.mjs'),
+        'import {value} from '+JSON.stringify(item.specifier)+';globalThis.__loaded=value;');
+      const probe=await probeSco(root,['index.mjs','dir/entry.mjs',item.target,item.decoy]);
+      if(!probe.listening) {
+        assert.match(probe.stderr,/SCO noncanonical ESM import path unsupported:/u,
+          'A fail-closed startup refusal must identify case '+item.id);
+        continue;
+      }
       const target=probe.results?.get(item.target);
       const targetBody=target?.body??'';
-      return {
-        id:item.id,
-        target:target?.status,
-        targetHasUrlMarker:targetBody.includes('__urlTargets'),
-        targetHasNoDecoyMarker:!targetBody.includes('__posixDecoys'),
-        decoy:probe.results?.get(item.decoy)?.status
-      };
-    });
-    const expected=cases.map(item=>({
-      id:item.id,target:200,targetHasUrlMarker:true,targetHasNoDecoyMarker:true,decoy:404
-    }));
-    assert.deepEqual(observed,expected,
-      'Native ESM resolves the URL target; SCO must return URL-target bytes and never the POSIX decoy');
+      assert.equal(target?.status,200,'SCO target status for case '+item.id);
+      assert.ok(targetBody.includes('__urlTargets'),'SCO must publish URL-target bytes for case '+item.id);
+      assert.ok(!targetBody.includes('__posixDecoys'),'SCO must not publish POSIX-decoy bytes for case '+item.id);
+      assert.equal(probe.results?.get(item.decoy)?.status,404,
+        'SCO must withhold the POSIX decoy for case '+item.id);
+    }
   } finally {
     await fs.rm(root,{recursive:true,force:true});
   }
 });
-
 
 test('SCO CLI rejects every percent-decoded C0 and DEL path segment',async()=>{
   const root=await fs.mkdtemp(path.join(os.tmpdir(),'obfs-sco-encoded-control-'));
