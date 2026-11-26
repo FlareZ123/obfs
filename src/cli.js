@@ -9,7 +9,7 @@ const {atomicWrite,withDirectoryLock} = require('./atomic');
 const {safePath} = require('./core');
 const {parse,walk}=require('./ast');
 const {portableKeys}=require('./portable-paths');
-const {hasTerminalUrlDotSegment,hasPathnameControlCharacter}=require('./esm-url-paths');
+const {hasTerminalUrlDotSegment,hasUrlPathnameNormalizationHazard}=require('./esm-url-paths');
 const {assertSnoDirectBareRequireParity}=require('./sno-bare-audit');
 
 /** @typedef {import('./core').SourceFile} SourceFile */
@@ -314,7 +314,7 @@ function selectScoPublicFiles(files,entry,publicScripts,publicAssets) {
       if(!['ImportDeclaration','ExportNamedDeclaration','ExportAllDeclaration'].includes(node.type) ||
           node.source?.type!=='Literal' || typeof node.source.value!=='string')return;
       const specifier=node.source.value;
-      if(hasPathnameControlCharacter(specifier)) {
+      if(hasUrlPathnameNormalizationHazard(specifier)) {
         throw new Error('SCO noncanonical ESM import path unsupported: '+specifier);
       }
       if(!specifier.startsWith('./')&&!specifier.startsWith('../'))return;
