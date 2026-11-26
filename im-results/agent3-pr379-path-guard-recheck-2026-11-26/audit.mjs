@@ -6,8 +6,8 @@
 // This intentionally mirrors the admission rules; it is not a substitute for
 // the repository's native ESM, CLI, HTTP, or cross-platform test suites.
 
-const path = require('node:path');
-const assert = require('node:assert/strict');
+import path from 'node:path';
+import assert from 'node:assert/strict';
 
 function hasUrlPathnameNormalizationHazard(specifier) {
   const pathname = specifier.split(/[?#]/u, 1)[0];
