@@ -64,7 +64,7 @@ function makeSource(prototypeSetup) {
     '  localStorage.setItem("storage-prototype-override",inspect);',
     '  return {value:inspect(),independent:independent()};',
     '}'
-  ].join('\\n');
+  ].join('\n');
 }
 
 async function main() {
@@ -123,13 +123,13 @@ async function main() {
       });
     }
     process.stdout.write('REAL_CHROMIUM_WEAKMAP_PROTOTYPE_ESCAPE_FALSE_SAFE '+
-      JSON.stringify(receipts)+'\\n');
+      JSON.stringify(receipts)+'\n');
   } finally {
     await browser.close();
   }
 }
 
 main().catch(error=>{
-  process.stderr.write(String(error?.stack??error)+'\\n');
+  process.stderr.write(String(error?.stack??error)+'\n');
   process.exitCode=1;
 });
