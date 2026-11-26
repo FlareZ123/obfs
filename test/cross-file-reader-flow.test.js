@@ -662,3 +662,107 @@ test('browser URL dot-segment resolution is not collapsed by POSIX path normaliz
       'import {state} from "./a//../state.mjs";console.log(state.secretField);'}
   ],0,'coo','42');
 });
+
+test('owner re-export cycle preserves self-import TDZ and declines shared-root renaming',async()=>{
+  const files=[
+    {path:'state.mjs',sourceType:'module',code:
+      'import {state as self,peek as inspect} from "./relay.mjs";'+
+      'let early;try{early=self.secretField;}catch(error){early=error.name;}'+
+      'export const state={secretField:23};'+
+      'export function peek(owner){return owner.secretField;}'+
+      'export const result=early+" "+inspect(self);'},
+    {path:'relay.mjs',sourceType:'module',code:
+      'export {state,peek} from "./state.mjs";'},
+    {path:'main.mjs',sourceType:'module',code:
+      'import {result} from "./state.mjs";console.log(result);'}
+  ];
+  for(const mode of ['coo','sno','sco'])
+    await preserves(files,0,mode,'ReferenceError 23');
+});
+
+test('exported wrapper can pass an imported owner to private field readers in all modes',async()=>{
+  const files=[
+    {path:'state.mjs',sourceType:'module',code:
+      'export const state={privateMetric:17,weightedFactor:7};'},
+    {path:'logic.mjs',sourceType:'module',code:
+      'import {state} from "./state.mjs";'+
+      'function metric(metricOwner){return metricOwner.privateMetric;}'+
+      'function weight(weightOwner){return weightOwner.weightedFactor;}'+
+      'export function read(){return metric(state)+weight(state);}'},
+    {path:'main.mjs',sourceType:'module',code:
+      'import {read} from "./logic.mjs";console.log(read());'}
+  ];
+  for(const mode of ['coo','sno','sco'])
+    await preserves(files,2,mode,'24');
+});
+
+test('same-spelled parameters across private readers are disambiguated by binding identity',async()=>{
+  const files=[
+    {path:'state.mjs',sourceType:'module',code:
+      'export const state={privateMetric:17,weightedFactor:7};'},
+    {path:'logic.mjs',sourceType:'module',code:
+      'import {state} from "./state.mjs";'+
+      'function metric(owner){return owner.privateMetric;}'+
+      'function weight(owner){return owner.weightedFactor;}'+
+      'export function read(){return metric(state)+weight(state);}'},
+    {path:'main.mjs',sourceType:'module',code:
+      'import {read} from "./logic.mjs";console.log(read());'}
+  ];
+  for(const mode of ['coo','sno','sco'])
+    await preserves(files,2,mode,'24');
+});
+
+test('cyclic imported-owner closure is conservatively refused despite deferred reads',async()=>{
+  const files=[
+    {path:'state.mjs',sourceType:'module',code:
+      'import "./relay.mjs";'+
+      'export const state={secretField:23};'+
+      'const localCheck=state.secretField;'+
+      'export const result=localCheck;'},
+    {path:'relay.mjs',sourceType:'module',code:
+      'import {state} from "./state.mjs";'+
+      'function peek(){return state.secretField;}'+
+      'export function ready(){return peek();}'},
+    {path:'main.mjs',sourceType:'module',code:
+      'import {result} from "./state.mjs";import {ready} from "./relay.mjs";console.log(result,ready());'}
+  ];
+  for(const mode of ['coo','sno','sco'])
+    await preserves(files,0,mode,'23 23');
+});
+
+test('private closure reader over imported owner is conservatively refused',async()=>{
+  const files=[
+    {path:'state.mjs',sourceType:'module',code:
+      'export const state={secretField:23};'+
+      'const localCheck=state.secretField;'+
+      'export const result=localCheck;'},
+    {path:'relay.mjs',sourceType:'module',code:
+      'import {state} from "./state.mjs";'+
+      'function peek(){return state.secretField;}'+
+      'export function ready(){return peek();}'},
+    {path:'main.mjs',sourceType:'module',code:
+      'import {result} from "./state.mjs";'+
+      'import {ready} from "./relay.mjs";'+
+      'console.log(result,ready());'}
+  ];
+  for(const mode of ['coo','sno','sco'])
+    await preserves(files,0,mode,'23 23');
+});
+
+test('deferred imported-owner parameter reader after initialization supports benign ESM cycle',async()=>{
+  const files=[
+    {path:'state.mjs',sourceType:'module',code:
+      'import {ready} from "./relay.mjs";'+
+      'export const state={secretField:23};'+
+      'const localCheck=state.secretField;'+
+      'export const result=ready()+localCheck-23;'},
+    {path:'relay.mjs',sourceType:'module',code:
+      'import {state} from "./state.mjs";'+
+      'function peek(owner){return owner.secretField;}'+
+      'export function ready(){return peek(state);}'},
+    {path:'main.mjs',sourceType:'module',code:
+      'import {result} from "./state.mjs";console.log(result);'}
+  ];
+  for(const mode of ['coo','sno','sco'])
+    await preserves(files,1,mode,'23');
+});
