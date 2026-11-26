@@ -100,7 +100,7 @@ function hasWeakMapPrototypeExposure(ast) {
   function recordWeakMapDerivedConstructor(name,depth) {
     const prior=weakMapDerivedConstructors.get(name);
     if(prior!==undefined&&prior<=depth)return false;
-    recordWeakMapDerivedConstructor(name,depth);
+    weakMapDerivedConstructors.set(name,depth);
     return true;
   }
   /** @type {Map<string,number>} */
