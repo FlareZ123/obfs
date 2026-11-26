@@ -148,13 +148,18 @@ function hasWeakMapPrototypeExposure(ast) {
          (isNamespace(init,objectNamespaces)||isNamespace(init,reflectNamespaces))) {
         prototypeGetters.add(property.value.name);
       }
+      if(isGlobalRoot(init)) {
+        if(key==='WeakMap')weakMapConstructors.add(property.value.name);
+        if(key==='Object')objectNamespaces.add(property.value.name);
+        if(key==='Reflect')reflectNamespaces.add(property.value.name);
+      }
       if(key==='prototype'&&isWeakMapConstructor(init)) {
         prototypeAliases.add(property.value.name);
       }
     }
   }
   let exposed=false;
-  walk(ast,(node)=>{
+  walk(ast,(node,parent,key,ancestors)=>{
     if(node.type==='VariableDeclarator') {
       if(node.id.type==='Identifier') {
         const name=node.id.name,init=node.init;
@@ -189,6 +194,10 @@ function hasWeakMapPrototypeExposure(ast) {
     // Passing any concrete WeakMap instance to an opaque call can let that
     // callee obtain and mutate the shared prototype through the instance.
     if(node.type==='CallExpression'&&node.arguments.some(isWeakMapInstance))
+      exposed=true;
+    if(node.type==='NewExpression'&&isWeakMapConstructor(node.callee)&&
+       ancestors.some(ancestor=>ancestor.type==='CallExpression'&&
+         ancestor.arguments.some(argument=>argument.start<=node.start&&argument.end>=node.end)))
       exposed=true;
   });
   return exposed;
@@ -458,11 +467,11 @@ function collectDirectCarrierFactories(ast) {
  * @param {boolean} [sharedWeakMapPrototypeExposure] Group-wide WeakMap prototype exposure.
  * @returns {boolean}
  */
-function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunctions=new Set(),importedFunctionArrays=new Set(),importedPrimitives=new Set(),importedUrlStaticMethods=new Set(),importedStorageMethodAliases=new Set(),sharedWeakMapPrototypeExposure=false) {
+function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunctions=new Set(),importedFunctionArrays=new Set(),importedPrimitives=new Set(),importedUrlStaticMethods=new Set(),importedStorageMethodAliases=new Set(),sharedWeakMapPrototypeExposure) {
   // A sibling module can expose the shared WeakMap prototype before this
   // file evaluates, so that group-wide fact also invalidates the cache.
-  const weakMapPrototypeExposed=sharedWeakMapPrototypeExposure||
-    hasWeakMapPrototypeExposure(ast);
+  const weakMapPrototypeExposed=sharedWeakMapPrototypeExposure===undefined?
+    hasWeakMapPrototypeExposure(ast):sharedWeakMapPrototypeExposure;
   // A cached opaque-import result does not apply when imported keys have
   // been independently verified against the supplied ESM files.
   if(!weakMapPrototypeExposed&&!importedStrings.size&&!importedCloneFunctions.size&&

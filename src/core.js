@@ -2032,23 +2032,20 @@ function obfuscateFiles(files, options = {}) {
     }));
   const sharedWeakMapPrototypeExposure=sourceObserverFiles.some(({ast})=>
     hasWeakMapPrototypeExposure(ast));
-  const sourceObserverFacts=sourceObserverFiles.map(({file,ast})=>({
-    distributed:observesDistributedSource(ast,importedStringProof.get(file.path)),
-    functionSource:observesFunctionSource(ast,
+  let remoteSourceObserver=hasPinnedLocalJavaScriptIntegrity(prepared);
+  let hostLockSourceObserver=false;
+  for(const {file,ast} of sourceObserverFiles) {
+    const distributed=observesDistributedSource(ast,importedStringProof.get(file.path));
+    const functionSource=observesFunctionSource(ast,
       importedStringProof.get(file.path),importedCloneProof.get(file.path),
       importedFunctionArrays.get(file.path),importedPrimitiveProof.get(file.path),
       importedUrlStaticProof.get(file.path),
-      importedStorageMethodAliases.get(file.path),sharedWeakMapPrototypeExposure)
-  }));
-  // Declared HTML script/modulepreload SRI metadata also observes the exact
-  // served JavaScript bytes. If the HTML asset is preserved, every emitted
-  // integrity-pinned script must retain its source hash.
-  const remoteSourceObserver=hasPinnedLocalJavaScriptIntegrity(prepared)||
-    sourceObserverFacts.some(fact=>fact.distributed||fact.functionSource);
-  // A single-file host lock is still a source-coordinate rewrite. Reuse the
-  // already-computed per-file source-observer facts rather than reparsing.
-  const hostLockSourceObserver=Boolean(allowedHosts?.length)&&
-    sourceObserverFacts.some(fact=>fact.functionSource);
+      importedStorageMethodAliases.get(file.path),sharedWeakMapPrototypeExposure);
+    if(distributed||functionSource)remoteSourceObserver=true;
+    if(functionSource)hostLockSourceObserver=true;
+    if(remoteSourceObserver&&(!allowedHosts?.length||hostLockSourceObserver))break;
+  }
+  hostLockSourceObserver=Boolean(allowedHosts?.length)&&hostLockSourceObserver;
   // Only explicitly selected, proved primitive-returning ESM leaves can
   // retain local property renaming despite a separate source observer.
   // No other backend is enabled by this exception, and it is opt-in.
