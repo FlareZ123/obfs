@@ -95,27 +95,7 @@ test('SCO request-path decoder rejects percent-encoded C0 and DEL before lookup'
   if(!address||typeof address==='string')throw new Error('Expected TCP address');
   try {
     for(const encoded of ['%09','%7F']) {
-      const response=await fetch('http://127.0.0.1:'+address.port+'/obfs/'+encoded+'safe.mjs');
-      assert.equal(response.status,400,encoded);
-    }
-  } finally {
-    await new Promise(resolve=>server.close(()=>resolve(null)));
-  }
-});
-
-
-test('SCO request-path decoder rejects percent-encoded C0 and DEL before lookup',async()=>{
-  const server=createServer(createScoHandler([{
-    path:'safe.mjs',sourceType:'module',code:'export const value=23;'
-  }]));
-  await new Promise(resolve=>server.listen(
-    {port:0,host:'127.0.0.1'},()=>resolve(null)));
-  const address=server.address();
-  if(!address||typeof address==='string')throw new Error('Expected TCP address');
-  try {
-    for(const encoded of ['%09','%7F']) {
-      const response=await fetch('http://127.0.0.1:'+address.port+'/obfs/'+encoded+'safe.mjs');
-      assert.equal(response.status,400,encoded);
+      assert.equal((await fetch('http://127.0.0.1:'+address.port+'/obfs/'+encoded+'safe.mjs')).status,400,encoded);
     }
   } finally {
     await new Promise(resolve=>server.close(()=>resolve(null)));
