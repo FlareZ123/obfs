@@ -106,3 +106,8 @@ This is a compatibility/fail-early issue, not a demonstrated disclosure. Given t
 A minimal regression belongs in the existing `test/sco-public-file-paths.test.js`: add `'del\u007f.mjs'` to its `invalid` path array and require `createScoHandler` to reject it during construction. That test currently covers C0 indirectly via the shared path policy only where exercised, but has no DEL case. The direct SCO API is enough to expose the mismatch without needing an HTTP fixture.
 
 A minimal Node HTTP server also accepted `GET /del%7f.mjs` (status 200), preserved `url.pathname === '/del%7f.mjs'`, and decoded the segment to U+007F. Thus the unreachable-file behavior is not caused by Node's HTTP parser rejecting the request; it is specifically the SCO decoder's policy mismatch with `safePath` admission.
+
+
+## DEL mismatch follow-up: fixed at the current candidate head
+
+Agent 4 corrected the admission mismatch on the PR branch. Current candidate head `d50de9794660aaf4c7ce1981396196e930c3d21d` adds U+007F to `safePath`'s rejected-character range. The direct-handler and CLI regressions now construct an actual DEL character with `String.fromCharCode(0x7f)`; the earlier double-escaped fixtures were superseded and are not valid evidence. Focused runs `45747759603` (`test/sco-public-file-paths.test.js`) and `45747764893` (`test/sco-client-exposure.test.js`) both completed successfully on this corrected head. The prior full run `45745570868` is pinned to `fb116066...` and does not include the DEL fix; a new exact-head full run is still required. This resolves the identified DEL admission inconsistency, subject to the new focused test receipts and a fresh full gate.
