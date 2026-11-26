@@ -1,0 +1,65 @@
+# Agent 3 review: source-level custom Function.prototype.bind escape (26 November 2026)
+
+**Status:** Independent review of Agent 10's red witness; not a fix or release authorization.
+
+## Candidate predicate
+
+In `agent10/bind-in-source-custom-bind-escape-red-20261126` and `agent10/bound-proof-custom-bind-review-20261126`, `src/properties.js` admits `bindCallUse` when:
+
+- the tracked callable is an arrow function;
+- the identifier is the object of a noncomputed, nonoptional `.bind` member;
+- that member is directly called, nonoptional; and
+- all bind arguments are literal primitive values or null.
+
+This establishes a syntactic `.bind` shape, not that the property lookup resolves to the native `Function.prototype.bind`.
+
+## Same-file false-safe confirmed by source inspection
+
+The red test `test/agent10-bind-in-source-custom-bind-escape.test.js` uses:
+
+```js
+const owner={secretField:7};
+const nativeBind=Function.prototype.bind;
+Function.prototype.bind=function(...args){
+  globalThis.external(this);
+  const target=this;
+  return (...callArgs)=>Reflect.apply(target,args[0],callArgs);
+};
+const internal=()=>owner.secretField;
+const hot=internal.bind(null);
+const result=hot();
+Function.prototype.bind=nativeBind;
+```
+
+A Node preloader supplies `globalThis.external(value)` and records `Function.prototype.toString.call(value)`. The source explicitly forwards the receiver function to an opaque host callback through the custom bind implementation. Rewriting `owner.secretField` changes the function's source text, even though the numeric result remains 7.
+
+The current `bindCallUse` exception makes the `internal` arrow appear private because its only source-level use is `internal.bind(null)`. It does not inspect the source's mutation of `Function.prototype.bind`, so this is a real false-safe in the candidate proof. The test correctly requires zero property rewrites and exact source/result parity in COO, SNO, and SCO.
+
+A direct own override such as `internal.bind = custom` is not the same witness: the `internal` identifier is then used as an assignment target, so the current private-value scan should already reject it. Do not spend a test slot on that redundant shape.
+
+## Cross-file extension worth testing
+
+The reviewed `src/core.js` contains `mutatesDecoderIntrinsic`, but I found no corresponding group-wide `Function.prototype.bind` mutation gate in the candidate `src/core.js` or `src/properties.js`. The `bindCallUse` proof is local-AST based. A likely stronger witness is:
+
+1. `patch.mjs` replaces `Function.prototype.bind` with the custom forwarding implementation.
+2. `app.mjs` defines `const internal=()=>owner.secretField` and uses `internal.bind(null)`.
+3. `entry.mjs` imports `patch.mjs` before `app.mjs`, then invokes the app.
+4. The same preload callback records the function source.
+
+With the complete three-file group supplied and `closedWorld:true`, the mutation is in the declared source graph, but the app's per-file bind proof may not see it. This is a hypothesis pending a red run, not a reproduced result.
+
+## Recommended acceptance rule
+
+Do not treat syntactic `.bind` as proof of native binding. Either:
+
+- require a conservative proof that the relevant intrinsic lookup is native and unmodified across the entire declared source graph (including aliases, descriptors, `Reflect.set`, `Object.assign`, and unknown calls that can mutate/retain the prototype); or
+- remove the `bindCallUse` privacy exception until that proof exists.
+
+Retain a separate benign native-bind positive so the fix is measured against a real safe-yield denominator. The group-wide check must not assume that `closedWorld:true` means the host preloader is part of the input; rather, the source itself explicitly invokes an opaque host callback, so the callable receiver is observable.
+
+## Reproducible source references
+
+- Red test: `test/agent10-bind-in-source-custom-bind-escape.test.js` on `agent10/bind-in-source-custom-bind-escape-red-20261126`.
+- Candidate predicate: `src/properties.js`, `bindCallUse` block around lines 734–746 on the red branch.
+- Reviewed candidate core: `src/core.js` on the same branch; only decoder-intrinsic mutation guard matched the targeted search.
+- This review does not claim that Agent 10's red workflow has completed; the test source itself is the evidence available here.
