@@ -158,3 +158,21 @@ test('global WeakMap constructor replacement invalidates reference-only override
   const app=compile(globalWeakMapReplacement,'agent1-global-weakmap-replacement');
   assert.equal(app.metrics.bindings,0,JSON.stringify({metrics:app.metrics,code:app.code}));
 });
+
+
+const globalWeakMapPropertyReplacement=fixtures.prototypeOverride.replace(
+  'const captured=new WeakMap();',
+  [
+    'globalThis.WeakMap=function(){',
+    '  return {set:function(key,value){return value;},get:function(){return undefined;}};',
+    '};',
+    'const captured=new WeakMap();'
+  ].join('\\n')
+);
+
+test('globalThis WeakMap replacement invalidates reference-only override',()=>{
+  const ast=parse(globalWeakMapPropertyReplacement,'module');
+  assert.equal(observesFunctionSource(ast),true);
+  const app=compile(globalWeakMapPropertyReplacement,'agent1-global-weakmap-property-replacement');
+  assert.equal(app.metrics.bindings,0,JSON.stringify({metrics:app.metrics,code:app.code}));
+});
