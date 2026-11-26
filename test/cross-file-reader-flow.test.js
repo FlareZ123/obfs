@@ -711,3 +711,20 @@ test('same-spelled parameters across private readers conservatively refuse impor
   for(const mode of ['coo','sno','sco'])
     await preserves(files,0,mode,'24');
 });
+
+test('benign ESM dependency cycle with no early owner read retains private rename',async()=>{
+  const files=[
+    {path:'state.mjs',sourceType:'module',code:
+      'import {ready} from "./relay.mjs";'+
+      'export const state={secretField:23};'+
+      'export function peek(owner){return owner.secretField;}'+
+      'export const result=ready?peek(state):0;'},
+    {path:'relay.mjs',sourceType:'module',code:
+      'import {state} from "./state.mjs";'+
+      'export const ready=true;'},
+    {path:'main.mjs',sourceType:'module',code:
+      'import {result} from "./state.mjs";console.log(result);'}
+  ];
+  for(const mode of ['coo','sno','sco'])
+    await preserves(files,1,mode,'23');
+});
