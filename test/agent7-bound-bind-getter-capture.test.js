@@ -77,3 +77,13 @@ test('Object.defineProperty bind replacement is refused when owner reads are pre
   assert.equal(propertyCount(ownerPrefix+replacement+target+
     'export const hot=internal.bind(null);'),0);
 });
+
+test('bound-only arrow returning owner inside an array cannot make owner properties private',()=>{
+  const source=ownerPrefix+'const probe=owner.secretField;const internal=()=>[owner];export const hot=internal.bind(null);';
+  assert.equal(propertyCount(source),0);
+});
+
+test('bound-only arrow returning owner inside an object cannot make owner properties private',()=>{
+  const source=ownerPrefix+'const probe=owner.secretField;const internal=()=>({owner});export const hot=internal.bind(null);';
+  assert.equal(propertyCount(source),0);
+});
