@@ -84,3 +84,15 @@ If isolation is absent, say:
 If seed/metadata is exposed, state exactly what the learner can infer and whether the full target is reconstructible. Do not say "unknown state count" or "fixture hidden" without testing the actual learner-visible interface.
 
 This checklist is a research-method aid, not a security proof. Passing it is necessary for an attacker-isolation claim, not sufficient for a production security claim.
+
+
+## 8. Domain/URL locking is not automatically authentication
+
+- [ ] Treat `allowedHosts` as a Host-header routing filter only; it is not caller authentication.
+- [ ] Do not trust `Host`, `Origin`, `Referer`, `Sec-Fetch-Site`, user-agent or client-side `location.hostname` as unforgeable proof of the caller's domain. A non-browser HTTP client can choose request headers, and a hostile client can patch browser-side checks.
+- [ ] For SCO protected reads/RPC, use server-side `authorizeRead` / `authorizeRpc` callbacks that validate a server-issued capability or authenticated session. Keep signing keys server-side; never embed a shared secret in the distributed client.
+- [ ] Treat origin/CORS checks as browser defense-in-depth, not as a substitute for authentication against raw HTTP clients.
+- [ ] For COO/SNO, where the attacker controls all files/runtime/memory, URL/domain checks are tamper-resistance friction rather than a hard security boundary. Report this limitation explicitly.
+- [ ] Test both the intended browser flow and a raw HTTP client that forges the allowed Host/Origin headers. The latter must still fail without valid server authorization.
+
+The repository's `src/sco.js` documentation explicitly says `allowedHosts` is routing-only. This checklist makes the consequence operational: domain locking needs an independent server-verifiable identity/capability.
