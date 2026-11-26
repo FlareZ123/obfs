@@ -1949,6 +1949,105 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
     }
     return true;
   }
+  /**
+   * A local own Symbol.toPrimitive/toString hook can prevent Function's
+   * inherited native toString from participating in Web IDL DOMString
+   * conversion. Prove only tiny inline hooks whose statements cannot forward
+   * the function object and whose every explicit return is primitive.
+   * @param {AstNode|null|undefined} node
+   * @param {number} [depth]
+   * @returns {boolean}
+   */
+  function isPrimitiveCoercionResult(node,depth=0) {
+    if(!node)return true;
+    if(depth>16)return false;
+    if(node.type==='ConditionalExpression')
+      return isPrimitiveCoercionResult(node.consequent,depth+1)&&
+        isPrimitiveCoercionResult(node.alternate,depth+1);
+    if(node.type==='LogicalExpression')
+      return isPrimitiveCoercionResult(node.left,depth+1)&&
+        isPrimitiveCoercionResult(node.right,depth+1);
+    return isDefinitelyPrimitive(node);
+  }
+  /**
+   * Whitelist the side-effect shapes used by a local conversion hook. Calls,
+   * member reads/writes, and arbitrary control flow remain unproved.
+   * @param {AstNode} statement
+   * @param {string} functionName
+   * @returns {boolean}
+   */
+  function isSafeCoercionHookStatement(statement,functionName) {
+    if(statement.type==='EmptyStatement')return true;
+    if(statement.type==='ReturnStatement')
+      return isPrimitiveCoercionResult(statement.argument);
+    if(statement.type!=='ExpressionStatement')return false;
+    const expression=statement.expression;
+    if(expression.type==='UpdateExpression')
+      return expression.argument.type==='Identifier';
+    if(expression.type!=='AssignmentExpression'||expression.operator!=='='||
+       expression.left.type!=='Identifier')return false;
+    const value=expression.right;
+    if(value.type==='Literal')return isDefinitelyPrimitive(value);
+    if(value.type==='Identifier')return !functions.has(value.name);
+    if(value.type==='BinaryExpression'&&['===','!=='].includes(value.operator)) {
+      return value.left.type==='ThisExpression'&&
+          value.right.type==='Identifier'&&value.right.name===functionName ||
+        value.right.type==='ThisExpression'&&
+          value.left.type==='Identifier'&&value.left.name===functionName;
+    }
+    return false;
+  }
+  /**
+   * Prove a function-valued Storage key/value is converted by a preceding
+   * local primitive-returning own hook rather than Function.prototype.toString.
+   * The nearest function/Program body is inspected in source order; branches,
+   * aliases and hooks with opaque behavior are intentionally not inferred.
+   * @param {AstNode|null|undefined} value
+   * @param {AstNode} use
+   * @param {AstNode[]} ancestors
+   * @returns {boolean}
+   */
+  function hasSafeOwnFunctionStringCoercion(value,use,ancestors) {
+    if(value?.type!=='Identifier'||!isFunctionValue(value))return false;
+    const functionTypes=['FunctionDeclaration','FunctionExpression',
+      'ArrowFunctionExpression'];
+    const scope=[...ancestors].reverse().find(node=>functionTypes.includes(node.type))??ast;
+    const statements=scope.type==='Program'?scope.body:
+      scope.body?.type==='BlockStatement'?scope.body.body:[];
+    let symbolHook;
+    let stringHook;
+    for(const statement of statements) {
+      if(statement.start>=use.start)break;
+      if(statement.type!=='ExpressionStatement'||
+         statement.expression.type!=='AssignmentExpression')continue;
+      const assignment=statement.expression;
+      const left=assignment.left;
+      if(left.type!=='MemberExpression'||left.object.type!=='Identifier'||
+         left.object.name!==value.name)continue;
+      const isSymbolHook=left.computed&&left.property.type==='MemberExpression'&&
+        left.property.object.type==='Identifier'&&left.property.object.name==='Symbol'&&
+        memberName(left.property)==='toPrimitive';
+      const isStringHook=!left.computed&&left.property.type==='Identifier'&&
+        left.property.name==='toString';
+      if(!isSymbolHook&&!isStringHook)continue;
+      const hook=assignment.right;
+      const safe=Boolean((hook.type==='FunctionExpression'||
+        hook.type==='ArrowFunctionExpression')&&!hook.async&&!hook.generator&&
+        (hook.body.type==='BlockStatement'?
+          hook.body.body.every(statement=>
+            isSafeCoercionHookStatement(statement,value.name)):
+          isPrimitiveCoercionResult(hook.body)));
+      if(isSymbolHook)symbolHook=safe;
+      else stringHook=safe;
+    }
+    if(symbolHook!==undefined)return symbolHook;
+    return stringHook===true;
+  }
+  /** @param {AstNode|null|undefined} value @param {AstNode} use @param {AstNode[]} ancestors @returns {boolean} */
+  function isUnsafeStorageStringValue(value,use,ancestors) {
+    return Boolean(value&&!isDefinitelyPrimitive(value)&&
+      !hasSafeOwnFunctionStringCoercion(value,use,ancestors));
+  }
   let observed=false;
   // ToPropertyKey applies ToPrimitive with a string hint. Functions with
   // ordinary prototype methods stringify to their source text. Restrict the
@@ -3244,7 +3343,7 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
           const positions=method==='append'||method==='set'?
             node.arguments.slice(0,3):node.arguments.slice(0,1);
           if(positions.some((/** @type {AstNode} */ value)=>
-            !isDefinitelyPrimitive(value)))observed=true;
+            isUnsafeStorageStringValue(value,node,ancestors)))observed=true;
         }
         // Headers and URLSearchParams string-coerce names and values in
         // mutators/readers, even when their constructors had inert inputs.
@@ -3263,7 +3362,7 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
             method==='getItem'||method==='removeItem' ? node.arguments.slice(0,1) :
               node.arguments.slice(0,2);
           if(positions.some((/** @type {AstNode} */ value)=>
-            !isDefinitelyPrimitive(value)))observed=true;
+            isUnsafeStorageStringValue(value,node,ancestors)))observed=true;
         }
         // Extracted/bound Storage methods and call/apply forms retain the same
         // DOMString coercion contract. Conservatively inspect the first two
@@ -3275,10 +3374,10 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
             const values=node.arguments[1];
             if(values?.type==='ArrayExpression') {
               if(values.elements.some((/** @type {AstNode|null} */ value)=>
-                value!==null && !isDefinitelyPrimitive(value)))observed=true;
-            } else if(values && !isDefinitelyPrimitive(values))observed=true;
+                value!==null && isUnsafeStorageStringValue(value,node,ancestors)))observed=true;
+            } else if(isUnsafeStorageStringValue(values,node,ancestors))observed=true;
           } else if(node.arguments.slice(1,3).some((/** @type {AstNode} */ value)=>
-            !isDefinitelyPrimitive(value)))observed=true;
+            isUnsafeStorageStringValue(value,node,ancestors)))observed=true;
         }
         if(callee.type==='MemberExpression' && memberName(callee)==='apply' &&
            isReflectiveReceiver(callee.object) &&
