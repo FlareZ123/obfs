@@ -54,3 +54,15 @@ The nine fixtures are research falsifiers, not an exhaustive JavaScript points-t
 - Branch: `agent3/weakmap-container-alias-audit-20261126`
 - Validated commit: `30e946d4d73334d134031d8fa9c718e4cc447ca8`
 - Focused run: [45860451899](https://github.com/FlareZ123/obfs/actions/runs/45860451899)
+
+## Cross-file and mode coverage
+
+A second focused suite, `test/agent3-weakmap-container-crossfile-modes.test.js`, uses three ESM files: `mutate.mjs` creates and mutates the shared WeakMap prototype through an object-carried instance; `storage.mjs` owns the private Storage backing WeakMap and the source-observed function; `entry.mjs` imports the mutator before re-exporting the Storage entry. This checks the group-level scan rather than only a single AST.
+
+Focused run [45860917341](https://github.com/FlareZ123/obfs/actions/runs/45860917341) passed 3/3 mode tests on Ubuntu, Windows, and macOS; strict project/external/paired-budget JSDoc passed on all three. The full Node 22 job was skipped by the focused workflow.
+
+- COO: the Storage file received 4 identifier bindings. Runtime execution preserved ordinary return values but changed captured source from `privateLocal` to `_v3374bcfe8331`.
+- SCO: the Storage file received identifier bindings; this run checked the compile-time metrics, not server execution.
+- SNO: the Storage file received identifier bindings; this run checked the compile-time metrics, not server execution.
+
+Thus the same group-level source-observer gate allowed the unsafe transformation in all three compile modes. The end-to-end source-capture witness is established here for COO only; SCO/SNO runtime execution remains untested.
