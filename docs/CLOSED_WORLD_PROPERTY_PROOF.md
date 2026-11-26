@@ -1,6 +1,6 @@
 # Closed-world property transformation: proof envelope and release lanes
 
-**Research state: through 18 November 2026.** This document describes what the experimental property compiler has checked and what remains unproved. It is an engineering acceptance contract, not a theorem of soundness or obfuscation security. See [threat-model boundaries](SECURITY.md), the [research index](../results/README.md), and the executable source under `src/cross-properties.js`, `src/properties.js`.
+**Research state: through 26 November 2026.** This document describes what the experimental property compiler has checked and what remains unproved. It is an engineering acceptance contract, not a theorem of soundness or obfuscation security. See [threat-model boundaries](SECURITY.md), the [research index](../results/README.md), and the executable source under `src/cross-properties.js`, `src/properties.js`.
 
 ## 1. Scope of the declared program
 
@@ -133,3 +133,28 @@ browser test retains existing six positive transformed fixtures,
 while the additional reflection cases conservatively decline to
 rewrite. No hostile-runtime security, full-application performance
 or universal property-safety result follows from this finite corpus.
+
+
+## 26 November 2026: experimental native-bound arrow target lane
+
+The isolated branch `agent1/exported-closure-owner-proof-20261126` contains a narrow extension of the closed-world property proof. It is not merged into main and is not release clearance.
+
+The candidate admits a non-exported local `const` arrow function only when every use of that binding is a top-level, noncomputed, nonoptional `target.bind(null)` call and the complete supplied graph passes the existing conservative gate. The exported value is the native bound wrapper; the target binding is not exported. A bounded cross-file ESM fixture also proves one positive owner flow: an entry imports a plain record from a sibling module, a private local arrow reads one field, and only its bound wrapper is exported. The fixture asserts one actual cross-file property rename in COO, SNO, and SCO, plus original/generated result and wrapper metadata parity.
+
+The target gate was tightened after an external constructor-extraction counterexample. Ordinary FunctionDeclaration and FunctionExpression targets are now refused: an external consumer can call `new hot()` and recover a constructible target through `Object.getPrototypeOf(instance).constructor`. Any `import.meta` use is also refused because a host-provided getter can mutate `Function.prototype.bind` before the top-level bind operation. A bound arrow is nonconstructible, so this restriction blocks the specific constructor/prototype recovery path; it does not block an out-of-band host preloader from intercepting native `bind` and capturing the **transformed** target source.
+
+Exact focused evidence on candidate revision `7558e44c2492478c142ccf979e0ae33e27558dea`:
+
+| Test | Workflow run | Platforms | Outcome |
+|---|---:|---|---|
+| `agent1-native-bind-call-target-shape` | [45839483365](https://github.com/FlareZ123/obfs/actions/runs/45839483365) | Ubuntu, Windows, macOS | Passed |
+| `agent1-bound-constructor-target-extraction` | [45839491149](https://github.com/FlareZ123/obfs/actions/runs/45839491149) | Ubuntu, Windows, macOS | Passed |
+| `agent1-native-bind-import-meta-host-getter` | [45839499605](https://github.com/FlareZ123/obfs/actions/runs/45839499605) | Ubuntu, Windows, macOS | Passed |
+| `agent1-bound-target-crossfile-probe` | [45839778770](https://github.com/FlareZ123/obfs/actions/runs/45839778770) | Ubuntu, Windows, macOS | Passed |
+| `source-stable-bound-export` | [45839787982](https://github.com/FlareZ123/obfs/actions/runs/45839787982) | Ubuntu, Windows, macOS | Passed |
+
+The first three focused runs include the focused runner's project and external JSDoc checks. The cross-file and source-stable positives demonstrate that the arrow-only restriction retains the intended narrow yield. The earlier full manual gate `45805807618` validated only the older `8eee5ba` revision; a fresh full manual gate on `7558e44` is still required. The exact current branch should remain experimental until that gate and independent review complete.
+
+The separate Agent 10 Storage source-observer work on PR #382 is not included in these receipts. It addresses Web Storage DOMString coercion and cross-file method provenance; its full Node rerun and an adversarial review question about the reference-only WeakMap override are tracked separately. Do not combine the two branches' focused results or infer a complete security boundary from either.
+
+This lane establishes only behavior parity and property-rewrite yield for the enumerated fixtures. It does not establish general source secrecy, anti-instrumentation, runtime integrity, domain locking, resistance to a hostile runtime controller, universal compatibility, or a universal 2.5× runtime bound.
