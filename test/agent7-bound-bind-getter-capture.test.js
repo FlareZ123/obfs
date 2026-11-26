@@ -38,3 +38,18 @@ test('inherited bind getter cannot leak a bound-only target while owner reads ar
   assert.equal(propertyCount(ownerPrefix+target+getter+
     'export const hot=internal.bind(null);'+restore),0);
 });
+
+test('cross-file Function.prototype.bind getter mutation invalidates the bound-only proof',()=>{
+  const setup='const nativeBind=Function.prototype.bind;'+
+    'Object.defineProperty(Function.prototype,"bind",{configurable:true,'+
+    'get(){globalThis.leaked=this;return nativeBind;}});';
+  const entry='import "./setup.mjs";'+ownerPrefix+
+    'const internal=(a,b)=>((a+owner.secretField)^owner.otherField)+b;'+
+    'export const hot=internal.bind(null);';
+  const output=obfuscateFiles([
+    {path:'setup.mjs',sourceType:'module',code:setup},
+    {path:'entry.mjs',sourceType:'module',code:entry}
+  ],{mode:'coo',closedWorld:true,seed:'agent7-cross-file-bind-getter',
+    properties:true,identifiers:false,strings:false});
+  assert.equal(output.files.find(file=>file.path==='entry.mjs').metrics.properties,0);
+});
