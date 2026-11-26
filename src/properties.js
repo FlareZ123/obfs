@@ -311,6 +311,74 @@ function collectBindingScopes(ast) {
 }
 
 /**
+ * Reject native-bound-target admission when any executable identifier
+ * reference escapes the unique lexical bindings in the supplied source graph.
+ * This catches ambient callbacks/getters that could mutate intrinsics without
+ * spelling Function, globalThis, Object, or Reflect directly. Only immutable
+ * language constants and the ordinary CommonJS module.exports root are exempt.
+ *
+ * @param {AstNode} ast
+ * @returns {boolean}
+ */
+function hasUnmodeledNativeBindGlobalReference(ast) {
+  const counts=collectBindings(ast);
+  const scopes=collectBindingScopes(ast);
+  const {identifiers}=collectProofInventory(ast);
+  /** @type {WeakSet<AstNode>} */
+  const declarationNodes=new WeakSet();
+  /** @param {AstNode|null|undefined} pattern */
+  function markPattern(pattern) {
+    if(!pattern)return;
+    if(pattern.type==='Identifier')declarationNodes.add(pattern);
+    else if(pattern.type==='RestElement')markPattern(pattern.argument);
+    else if(pattern.type==='AssignmentPattern')markPattern(pattern.left);
+    else if(pattern.type==='ArrayPattern')for(const element of pattern.elements)markPattern(element);
+    else if(pattern.type==='ObjectPattern')for(const property of pattern.properties)
+      markPattern(property.type==='RestElement'?property.argument:property.value);
+  }
+  walk(ast,node=>{
+    switch(node.type) {
+      case 'VariableDeclarator': markPattern(node.id); break;
+      case 'FunctionDeclaration': case 'FunctionExpression':
+        markPattern(node.id);
+        for(const param of node.params)markPattern(param);
+        break;
+      case 'ArrowFunctionExpression':
+        for(const param of node.params)markPattern(param);
+        break;
+      case 'ClassDeclaration': case 'ClassExpression': markPattern(node.id); break;
+      case 'CatchClause': markPattern(node.param); break;
+      case 'ImportSpecifier': case 'ImportDefaultSpecifier': case 'ImportNamespaceSpecifier':
+        markPattern(node.local); break;
+      default: break;
+    }
+  });
+  const immutableGlobals=new Set(['undefined','NaN','Infinity']);
+  for(const use of identifiers) {
+    const {node,parent,key,ancestors}=use;
+    if(declarationNodes.has(node))continue;
+    if(parent?.type==='MemberExpression'&&key==='property'&&!parent.computed)continue;
+    if((parent?.type==='Property'||parent?.type==='MethodDefinition'||
+        parent?.type==='PropertyDefinition')&&key==='key'&&!parent.computed&&
+       !parent.shorthand)continue;
+    if(parent?.type==='LabeledStatement'&&key==='label'||
+       parent?.type==='BreakStatement'&&key==='label'||
+       parent?.type==='ContinueStatement'&&key==='label'||
+       parent?.type==='MetaProperty')continue;
+    if(parent?.type==='ImportSpecifier'&&key==='imported'||
+       parent?.type==='ExportSpecifier'&&key==='exported')continue;
+    if(node.name==='module'&&counts.get('module')===undefined&&
+       parent?.type==='MemberExpression'&&key==='object'&&!parent.computed&&
+       parent.property.type==='Identifier'&&parent.property.name==='exports')continue;
+    if(immutableGlobals.has(node.name))continue;
+    if(node.name==='module'||counts.get(node.name)!==1)return true;
+    const scope=scopes.get(node.name);
+    if(!scope||!ancestors.includes(scope))return true;
+  }
+  return false;
+}
+
+/**
  * Resolve bounded compile-time computed own keys only when a same-scope
  * immutable key initializer executes before the private owner is created.
  * The scope must be a sequential Program or BlockStatement: a SwitchStatement
@@ -1522,4 +1590,4 @@ function renameLocalProperties(source, ast, options) {
   return {code:applyEdits(source,edits),objects,properties};
 }
 
-module.exports = {renameLocalProperties,collectBindings,proveLocalObject,staticName,patternPropertyEdits,inOperatorPropertyEdits,isLiteralValue,isPrimitiveConstantExpression,ownPropertyName,singleUseFactoryObject};
+module.exports = {renameLocalProperties,collectBindings,proveLocalObject,staticName,patternPropertyEdits,inOperatorPropertyEdits,isLiteralValue,isPrimitiveConstantExpression,ownPropertyName,singleUseFactoryObject,hasUnmodeledNativeBindGlobalReference};
