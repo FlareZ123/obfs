@@ -7,6 +7,7 @@ import hashlib
 import importlib.util
 import json
 import shutil
+import secrets
 import subprocess
 import sys
 import time
@@ -149,7 +150,6 @@ def module_public_metadata(trace):
                 "cache_control",
                 "nosniff",
                 "set_cookie_present",
-                "set_cookie_value_sha256",
                 "set_cookie_attributes",
                 "method_name",
             )
@@ -205,6 +205,18 @@ def validate_server_stats(stats, steps: int, label: str):
             )
 
 
+def comparable_invalid_probe(result):
+    """Compare public request/response semantics without requiring shared cookies."""
+    return {
+        "request": {
+            key: value
+            for key, value in result["request"].items()
+            if key != "cookie_sha256"
+        },
+        "response": result["response"],
+    }
+
+
 def run_one(state_count: int, seed: int, args):
     server_user, learner_user = BASE.isolation_accounts()
     learner_seed = args.learner_seed
@@ -217,44 +229,22 @@ def run_one(state_count: int, seed: int, args):
     ordinary_process = None
     mirror_root = None
     try:
-        sco_process, sco_ready, canary, session_token, mirror_root = BASE.start_server(fixture, seed)
-        ordinary_process, ordinary_ready = start_ordinary_server(
-            fixture,
-            canary,
-            session_token,
-            sco_ready["method_name"],
-            mirror_root,
-        )
-        if ordinary_ready["method_name"] != sco_ready["method_name"]:
-            raise AssertionError("matched arms published different method identifiers")
-
+        # Run exactly one service at a time. The other arm must not be available
+        # as an alternate localhost oracle to the untrusted learner.
+        sco_process, sco_ready, sco_canary, sco_session_token, mirror_root = BASE.start_server(fixture, seed)
         sco_preflight = BASE.preflight(
             sco_ready["origin"],
             sco_ready["public_module_path"],
             sco_ready["rpc_path"],
-            canary,
-            session_token,
+            sco_canary,
+            sco_session_token,
             sco_ready["method_name"],
         )
-        ordinary_preflight = BASE.preflight(
-            ordinary_ready["origin"],
-            ordinary_ready["public_module_path"],
-            ordinary_ready["rpc_path"],
-            canary,
-            session_token,
-            ordinary_ready["method_name"],
-        )
         sco_invalid = invalid_operation_probe(
-            sco_ready["origin"], sco_ready["method_name"], session_token
+            sco_ready["origin"], sco_ready["method_name"], sco_session_token
         )
-        ordinary_invalid = invalid_operation_probe(
-            ordinary_ready["origin"], ordinary_ready["method_name"], session_token
-        )
-        if sco_invalid != ordinary_invalid:
-            raise AssertionError("authorized invalid-argument response traces differ")
         if sco_invalid["response"]["status"] != 403:
-            raise AssertionError("authorized invalid-argument probe did not return HTTP 403")
-
+            raise AssertionError("SCO authorized invalid-argument probe did not return HTTP 403")
         sco_client = run_client(sco_ready["origin"], learner_seed, args, mirror_root)
         if sco_client.get("status") == "timeout":
             return {
@@ -266,6 +256,37 @@ def run_one(state_count: int, seed: int, args):
                 "fixture_digest": BENCHMARK.digest_fixture(fixture),
                 "elapsed_seconds": round(time.perf_counter() - started, 4),
             }
+        sco_eval = evaluate_client(fixture, sco_client)
+        sco_stats, sco_stderr = BASE.stop_server(sco_process)
+        sco_process = None
+        validate_server_stats(sco_stats, sco_client["sul_num_steps"], "SCO")
+
+        # The ordinary arm gets a fresh cookie. The same fixture and learner RNG
+        # seed preserve the paired experiment without sharing an auth capability.
+        ordinary_canary = secrets.token_urlsafe(24)
+        ordinary_session_token = secrets.token_urlsafe(32)
+        ordinary_process, ordinary_ready = start_ordinary_server(
+            fixture,
+            ordinary_canary,
+            ordinary_session_token,
+            sco_ready["method_name"],
+            mirror_root,
+        )
+        if ordinary_ready["method_name"] != sco_ready["method_name"]:
+            raise AssertionError("matched arms published different method identifiers")
+        ordinary_preflight = BASE.preflight(
+            ordinary_ready["origin"],
+            ordinary_ready["public_module_path"],
+            ordinary_ready["rpc_path"],
+            ordinary_canary,
+            ordinary_session_token,
+            ordinary_ready["method_name"],
+        )
+        ordinary_invalid = invalid_operation_probe(
+            ordinary_ready["origin"], ordinary_ready["method_name"], ordinary_session_token
+        )
+        if ordinary_invalid["response"]["status"] != 403:
+            raise AssertionError("ordinary authorized invalid-argument probe did not return HTTP 403")
         ordinary_client = run_client(ordinary_ready["origin"], learner_seed, args, mirror_root)
         if ordinary_client.get("status") == "timeout":
             return {
@@ -277,20 +298,13 @@ def run_one(state_count: int, seed: int, args):
                 "fixture_digest": BENCHMARK.digest_fixture(fixture),
                 "elapsed_seconds": round(time.perf_counter() - started, 4),
             }
-
-        sco_eval = evaluate_client(fixture, sco_client)
         ordinary_eval = evaluate_client(fixture, ordinary_client)
-
-        sco_stats, sco_stderr = BASE.stop_server(sco_process)
-        sco_process = None
         ordinary_stats, ordinary_stderr = BASE.stop_server(ordinary_process)
         ordinary_process = None
+        validate_server_stats(ordinary_stats, ordinary_client["sul_num_steps"], "ordinary")
 
         sco_steps = sco_client["sul_num_steps"]
         ordinary_steps = ordinary_client["sul_num_steps"]
-        validate_server_stats(sco_stats, sco_steps, "SCO")
-        validate_server_stats(ordinary_stats, ordinary_steps, "ordinary")
-
         sco_module_trace = sco_client["client_module_trace"]
         ordinary_module_trace = ordinary_client["client_module_trace"]
         module_metadata_equal = (
@@ -307,7 +321,10 @@ def run_one(state_count: int, seed: int, args):
             sco_client["rpc_record_count"] == ordinary_client["rpc_record_count"]
             and sco_client["rpc_trace_sha256"] == ordinary_client["rpc_trace_sha256"]
         )
-        invalid_probe_equal = sco_invalid == ordinary_invalid
+        invalid_probe_equal = (
+            comparable_invalid_probe(sco_invalid)
+            == comparable_invalid_probe(ordinary_invalid)
+        )
         preflight_equal = (
             sco_preflight["unauthorized_status"] == ordinary_preflight["unauthorized_status"]
             and sco_preflight["reset_status"] == ordinary_preflight["reset_status"]
@@ -318,6 +335,7 @@ def run_one(state_count: int, seed: int, args):
         )
         stats_equal = sco_stats == ordinary_stats
         evaluation_equal = sco_eval == ordinary_eval
+        session_tokens_distinct = sco_session_token != ordinary_session_token
 
         matched = all((
             trace_equal,
@@ -330,6 +348,7 @@ def run_one(state_count: int, seed: int, args):
             stats_equal,
             evaluation_equal,
             sco_steps == ordinary_steps,
+            session_tokens_distinct,
             sco_ready.get("uid") == server_user.pw_uid,
             ordinary_ready.get("uid") == server_user.pw_uid,
             server_user.pw_uid != learner_user.pw_uid,
@@ -348,8 +367,8 @@ def run_one(state_count: int, seed: int, args):
                     "preflight_equal": preflight_equal,
                     "stats_equal": stats_equal,
                     "evaluation_equal": evaluation_equal,
-                    "sco_steps": sco_steps,
-                    "ordinary_steps": ordinary_steps,
+                    "steps_equal": sco_steps == ordinary_steps,
+                    "session_tokens_distinct": session_tokens_distinct,
                 }, sort_keys=True)
             )
 
@@ -400,6 +419,7 @@ def run_one(state_count: int, seed: int, args):
                 "steps_non_oracle": sco_steps - sco_client["oracle_num_steps"],
                 "rpc_record_count": sco_client["rpc_record_count"],
                 "rpc_trace_sha256": sco_client["rpc_trace_sha256"],
+                "rpc_trace_full_sha256": sco_client["rpc_trace_full_sha256"],
                 "learner_elapsed_seconds": sco_client["elapsed_seconds"],
                 "server_stats": sco_stats,
                 "preflight": sco_preflight,
@@ -436,6 +456,7 @@ def run_one(state_count: int, seed: int, args):
                 "steps_non_oracle": ordinary_steps - ordinary_client["oracle_num_steps"],
                 "rpc_record_count": ordinary_client["rpc_record_count"],
                 "rpc_trace_sha256": ordinary_client["rpc_trace_sha256"],
+                "rpc_trace_full_sha256": ordinary_client["rpc_trace_full_sha256"],
                 "learner_elapsed_seconds": ordinary_client["elapsed_seconds"],
                 "server_stats": ordinary_stats,
                 "preflight": ordinary_preflight,
@@ -454,6 +475,7 @@ def run_one(state_count: int, seed: int, args):
                 "server_request_counts_equal": stats_equal,
                 "exact_evaluation_equal": evaluation_equal,
                 "steps_equal": sco_steps == ordinary_steps,
+                "session_tokens_distinct": session_tokens_distinct,
             },
             "elapsed_seconds": round(time.perf_counter() - started, 4),
             "server_stderr": {
