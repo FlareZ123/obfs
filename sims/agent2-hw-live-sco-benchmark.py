@@ -113,6 +113,7 @@ def start_server(fixture, seed: int):
             "agent2-hw-live-sco-server.js",
             "agent2-hw-live-sco-client.py",
             "agent2-hw-no-reset-benchmark.py",
+            "agent2_hw_process_isolation.py",
         ):
             shutil.copy2(Path(__file__).with_name(name), mirrored_sims / name)
         server_script = mirrored_sims / "agent2-hw-live-sco-server.js"
