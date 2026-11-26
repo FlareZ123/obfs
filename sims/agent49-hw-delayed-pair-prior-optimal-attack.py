@@ -264,6 +264,7 @@ def main() -> None:
     print(f"observed_max_queries={max(lengths)}")
     print(f"mean_queries={sum(lengths) / len(lengths):.6f}")
     print(f"query_count_histogram={histogram}")
+    print(f"optimal_policy_uses_only_input0={all(all(symbol == 0 for symbol, _ in trace) for trace in traces.values())}")
     print(f"belief_states_memoized={len(learner.memo)}")
     print(f"iterative_reachable_beliefs={reachable_beliefs}")
     print(f"iterative_value_iteration_passes={value_iteration_passes}")
