@@ -732,16 +732,18 @@ function proveLocalObject(ast, rootName, bindings, importedIdentityFunctions=new
         use.parent.callee===use.node&&!use.parent.optional;
       const member=use.parent;
       const bindCallNode=member?parents.get(member):undefined;
-      const bindCall=binding.node.type==='ArrowFunctionExpression'&&
+      const bindCall=bindCallNode?.type==='CallExpression'
+        ? /** @type {AstNode & {type:'CallExpression',callee:AstNode,arguments:AstNode[],optional?:boolean}} */ (bindCallNode)
+        : null;
+      const bindCallUse=binding.node.type==='ArrowFunctionExpression'&&
         member?.type==='MemberExpression'&&member.object===use.node&&
         !member.computed&&!member.optional&&member.property.type==='Identifier'&&
-        member.property.name==='bind'&&
-        bindCallNode?.type==='CallExpression'&&bindCallNode.callee===member&&
-        !bindCallNode.optional&&bindCallNode.arguments.every(argument=>
+        member.property.name==='bind'&&bindCall!==null&&bindCall.callee===member&&
+        !bindCall.optional&&bindCall.arguments.every(argument=>
           argument.type==='Literal'&&
           (argument.value===null||
            ['string','number','boolean','bigint'].includes(typeof argument.value)));
-      if(!use.ancestors.includes(scope)||(!directCall&&!bindCall)) {
+      if(!use.ancestors.includes(scope)||(!directCall&&!bindCallUse)) {
         privateValue=false;
         break;
       }
