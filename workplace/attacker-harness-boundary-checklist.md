@@ -40,6 +40,7 @@ A deterministic seed encoding can leak more than the state count: if the public 
 - [ ] The generator does not impose a highly recognizable public transition template (e.g. a fixed input-0 cycle) unless that structure is intentionally part of the attacker model.
 - [ ] Enumerate the full public fixture family under the workflow's actual state/seed/family ranges.
 - [ ] Replay each observed trace against every candidate fixture; report how many candidates remain and whether the target is unique.
+- [ ] Compute a prior-aware adaptive query baseline (exact minimax when tractable, otherwise a documented heuristic); a small candidate count alone does not imply easy identification.
 - [ ] Use a large evaluator-only seed space or direct cryptographic randomness for target generation; do not expose the target seed or any deterministic encoding of it.
 - [ ] Record the exact fixture privately after the learner run for reproducibility.
 
