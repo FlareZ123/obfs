@@ -54,6 +54,147 @@ function walk(root, visit) {
 }
 
 /**
+ * Detect source-visible exposure of the shared WeakMap prototype.
+ *
+ * A supplied ESM module can mutate WeakMap.prototype before another supplied
+ * module evaluates. This fact must be shared across the compilation group:
+ * checking each file in isolation can incorrectly admit a reference-only
+ * Storage override in a sibling file. Reads of unrelated object prototypes
+ * and data properties named "getPrototypeOf" are not evidence of this hazard.
+ *
+ * This is intentionally a conservative, bounded syntactic exposure check.
+ * @param {AstNode} ast
+ * @returns {boolean}
+ */
+function hasWeakMapPrototypeExposure(ast) {
+  const globalNames=new Set(['globalThis','window','self','global']);
+  const weakMapConstructors=new Set(['WeakMap']);
+  const weakMapInstances=new Set();
+  const objectNamespaces=new Set(['Object']);
+  const reflectNamespaces=new Set(['Reflect']);
+  const prototypeGetters=new Set();
+  const prototypeAliases=new Set();
+
+  /** @param {AstNode|null|undefined} node @returns {string|null} */
+  function memberKey(node) {
+    if(node?.type!=='MemberExpression')return null;
+    if(node.computed)return staticString(node.property);
+    return node.property.type==='Identifier'?node.property.name:null;
+  }
+  /** @param {AstNode|null|undefined} node @returns {boolean} */
+  function isGlobalRoot(node) {
+    return node?.type==='Identifier'&&globalNames.has(node.name);
+  }
+  /** @param {AstNode|null|undefined} node @param {Set<string>} names @returns {boolean} */
+  function isNamespace(node,names) {
+    return Boolean(node&&(
+      node.type==='Identifier'&&names.has(node.name)||
+      node.type==='MemberExpression'&&isGlobalRoot(node.object)&&
+        names.has(memberKey(node)??'')
+    ));
+  }
+  /** @param {AstNode|null|undefined} node @returns {boolean} */
+  function isWeakMapConstructor(node) {
+    return Boolean(node&&(
+      node.type==='Identifier'&&weakMapConstructors.has(node.name)||
+      node.type==='MemberExpression'&&isGlobalRoot(node.object)&&
+        memberKey(node)==='WeakMap'
+    ));
+  }
+  /** @param {AstNode|null|undefined} node @returns {boolean} */
+  function isWeakMapInstance(node) {
+    return Boolean(node&&(
+      node.type==='NewExpression'&&isWeakMapConstructor(node.callee)||
+      node.type==='Identifier'&&weakMapInstances.has(node.name)
+    ));
+  }
+  /** @param {AstNode|null|undefined} node @returns {boolean} */
+  function isPrototypeGetterMember(node) {
+    return Boolean(node?.type==='MemberExpression'&&
+      memberKey(node)==='getPrototypeOf'&&
+      (isNamespace(node.object,objectNamespaces)||
+       isNamespace(node.object,reflectNamespaces)));
+  }
+  /** @param {AstNode|null|undefined} node @returns {boolean} */
+  function isPrototypeGetterCall(node) {
+    return Boolean(node?.type==='CallExpression'&&(
+      node.callee.type==='Identifier'&&prototypeGetters.has(node.callee.name)||
+      isPrototypeGetterMember(node.callee)
+    ));
+  }
+  /** @param {AstNode|null|undefined} node @returns {boolean} */
+  function isWeakMapPrototypeExpression(node) {
+    if(!node)return false;
+    if(node.type==='Identifier')return prototypeAliases.has(node.name);
+    if(node.type==='MemberExpression') {
+      const key=memberKey(node);
+      return key==='prototype'&&isWeakMapConstructor(node.object)||
+        key==='__proto__'&&isWeakMapInstance(node.object);
+    }
+    return node.type==='CallExpression'&&isPrototypeGetterCall(node)&&
+      isWeakMapInstance(node.arguments[0]);
+  }
+  /**
+   * @param {AstNode} pattern
+   * @param {AstNode|null|undefined} init
+   */
+  function collectDestructuredAliases(pattern,init) {
+    if(pattern.type!=='ObjectPattern')return;
+    for(const property of pattern.properties) {
+      if(property.type!=='Property'||property.value.type!=='Identifier')continue;
+      const key=property.computed?staticString(property.key):
+        property.key.type==='Identifier'?property.key.name:staticString(property.key);
+      if(key==='getPrototypeOf'&&
+         (isNamespace(init,objectNamespaces)||isNamespace(init,reflectNamespaces))) {
+        prototypeGetters.add(property.value.name);
+      }
+      if(key==='prototype'&&isWeakMapConstructor(init)) {
+        prototypeAliases.add(property.value.name);
+      }
+    }
+  }
+  let exposed=false;
+  walk(ast,(node)=>{
+    if(node.type==='VariableDeclarator') {
+      if(node.id.type==='Identifier') {
+        const name=node.id.name,init=node.init;
+        if(isGlobalRoot(init)||
+           init?.type==='Identifier'&&globalNames.has(init.name))globalNames.add(name);
+        if(isWeakMapConstructor(init))weakMapConstructors.add(name);
+        if(isWeakMapInstance(init))weakMapInstances.add(name);
+        if(isNamespace(init,objectNamespaces))objectNamespaces.add(name);
+        if(isNamespace(init,reflectNamespaces))reflectNamespaces.add(name);
+        if(isPrototypeGetterMember(init)||
+           init?.type==='Identifier'&&prototypeGetters.has(init.name))
+          prototypeGetters.add(name);
+        if(isWeakMapPrototypeExpression(init))prototypeAliases.add(name);
+      } else if(node.id.type==='ObjectPattern') {
+        collectDestructuredAliases(node.id,node.init);
+      }
+    }
+    if(node.type==='AssignmentExpression'&&node.left.type==='Identifier') {
+      const name=node.left.name,value=node.right;
+      if(isGlobalRoot(value)||
+         value.type==='Identifier'&&globalNames.has(value.name))globalNames.add(name);
+      if(isWeakMapConstructor(value))weakMapConstructors.add(name);
+      if(isWeakMapInstance(value))weakMapInstances.add(name);
+      if(isNamespace(value,objectNamespaces))objectNamespaces.add(name);
+      if(isNamespace(value,reflectNamespaces))reflectNamespaces.add(name);
+      if(isPrototypeGetterMember(value)||
+         value.type==='Identifier'&&prototypeGetters.has(value.name))
+        prototypeGetters.add(name);
+      if(isWeakMapPrototypeExpression(value))prototypeAliases.add(name);
+    }
+    if(isWeakMapPrototypeExpression(node))exposed=true;
+    // Passing any concrete WeakMap instance to an opaque call can let that
+    // callee obtain and mutate the shared prototype through the instance.
+    if(node.type==='CallExpression'&&node.arguments.some(isWeakMapInstance))
+      exposed=true;
+  });
+  return exposed;
+}
+
+/**
  * Admit only a tiny source-visible grammar for native-bound targets:
  * top-level fn.bind(null) calls, no opaque calls, dynamic evaluation, host
  * capabilities, prototype access, computed member paths, getters, or member
@@ -314,12 +455,17 @@ function collectDirectCarrierFactories(ast) {
  * @param {Set<string>} [importedPrimitives] Proven immutable ESM primitive imports.
  * @param {Set<string>} [importedUrlStaticMethods] Proven native URL parser ESM imports.
  * @param {Set<string>} [importedStorageMethodAliases] Proven native Storage method ESM imports.
+ * @param {boolean} [sharedWeakMapPrototypeExposure] Group-wide WeakMap prototype exposure.
  * @returns {boolean}
  */
-function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunctions=new Set(),importedFunctionArrays=new Set(),importedPrimitives=new Set(),importedUrlStaticMethods=new Set(),importedStorageMethodAliases=new Set()) {
+function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunctions=new Set(),importedFunctionArrays=new Set(),importedPrimitives=new Set(),importedUrlStaticMethods=new Set(),importedStorageMethodAliases=new Set(),sharedWeakMapPrototypeExposure=false) {
+  // A sibling module can expose the shared WeakMap prototype before this
+  // file evaluates, so that group-wide fact also invalidates the cache.
+  const weakMapPrototypeExposed=sharedWeakMapPrototypeExposure||
+    hasWeakMapPrototypeExposure(ast);
   // A cached opaque-import result does not apply when imported keys have
   // been independently verified against the supplied ESM files.
-  if(!importedStrings.size&&!importedCloneFunctions.size&&
+  if(!weakMapPrototypeExposed&&!importedStrings.size&&!importedCloneFunctions.size&&
      !importedFunctionArrays.size&&!importedPrimitives.size&&
      !importedUrlStaticMethods.size&&!importedStorageMethodAliases.size) {
     const cached=sourceObservationCache.get(ast);
@@ -2138,7 +2284,7 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
     let reassigned=false;
     let methodMutated=false;
     let escaped=false;
-    let weakMapIntrinsicEscaped=false;
+    let weakMapIntrinsicEscaped=weakMapPrototypeExposed;
     const allowedMapReferences=new WeakSet();
     walk(ast,node=>{
       if(node.type==='CallExpression'&&node.callee.type==='MemberExpression'&&
@@ -2150,12 +2296,6 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
     walk(ast,(node,parent)=>{
       if(node.type==='Identifier'&&node.name==='WeakMap'&&
          !(parent?.type==='NewExpression'&&parent.callee===node))
-        weakMapIntrinsicEscaped=true;
-      if(node.type==='MemberExpression') {
-        const property=memberName(node);
-        if(property==='getPrototypeOf'||property==='__proto__')weakMapIntrinsicEscaped=true;
-      }
-      if(node.type==='Property'&&sourceStringKey(node.key)==='getPrototypeOf')
         weakMapIntrinsicEscaped=true;
       if(node.type==='MemberExpression'&&memberName(node)==='WeakMap'&&
          isGlobal(node.object))weakMapIntrinsicEscaped=true;
@@ -4646,4 +4786,4 @@ function observesDistributedSource(ast,importedStrings=new Map()) {
   return observed;
 }
 
-module.exports = {parse, walk, applyEdits, observesFunctionSource, observesDistributedSource, staticString, collectDirectCarrierFactories, sourceSpelledErrorOperand, hasUnsafeNativeBindMutationSurface};
+module.exports = {parse, walk, applyEdits, observesFunctionSource, observesDistributedSource, staticString, collectDirectCarrierFactories, sourceSpelledErrorOperand, hasUnsafeNativeBindMutationSurface, hasWeakMapPrototypeExposure};
