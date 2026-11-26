@@ -23,6 +23,14 @@ test('report native filesystem aliasing for candidate Unicode case-fold pairs',a
     // A default-casefold negative control: the new composite heuristic below
     // would collapse this pair even though full case folding keeps it distinct.
     {label:'dotless-I plus sharp-s non-fold-equivalent control',a:'ıß.txt',b:'iẞ.txt'},
+    {label:'zero-width space versus absent',a:'ab.txt',b:'a\u200Bb.txt'},
+    {label:'soft hyphen versus absent',a:'ab.txt',b:'a\u00ADb.txt'},
+    {label:'zero-width non-joiner versus absent',a:'ab.txt',b:'a\u200Cb.txt'},
+    {label:'zero-width joiner versus absent',a:'ab.txt',b:'a\u200Db.txt'},
+    {label:'word joiner versus absent',a:'ab.txt',b:'a\u2060b.txt'},
+    {label:'combining grapheme joiner versus absent',a:'ab.txt',b:'a\u034Fb.txt'},
+    {label:'byte-order mark versus absent',a:'ab.txt',b:'a\uFEFFb.txt'},
+    {label:'Mongolian vowel separator versus absent',a:'ab.txt',b:'a\u180Eb.txt'},
     {label:'dotless I',a:'I.txt',b:'ı.txt'}
   ];
   const root=await fs.mkdtemp(path.join(os.tmpdir(),'obfs-casefold-'));
