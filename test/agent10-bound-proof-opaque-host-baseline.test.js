@@ -77,6 +77,36 @@ const replacements=[
       'return (...args)=>Reflect.apply(target,null,args);}});',
     restore:'Object.defineProperty(fp,"bind",{configurable:true,writable:true,'+
       'value:nativeBind});'
+  },
+  {
+    label:'computed Function.prototype assignment',
+    install:'Function.prototype["bind"]=function(){'+
+      'external(this);const target=this;'+
+      'return (...args)=>Reflect.apply(target,null,args);};',
+    restore:'Function.prototype["bind"]=nativeBind;'
+  },
+  {
+    label:'Reflect.set Function.prototype mutation',
+    install:'Reflect.set(Function.prototype,"bind",function(){'+
+      'external(this);const target=this;'+
+      'return (...args)=>Reflect.apply(target,null,args);});',
+    restore:'Reflect.set(Function.prototype,"bind",nativeBind);'
+  },
+  {
+    label:'Object.assign Function.prototype mutation',
+    install:'Object.assign(Function.prototype,{bind:function(){'+
+      'external(this);const target=this;'+
+      'return (...args)=>Reflect.apply(target,null,args);}});',
+    restore:'Object.assign(Function.prototype,{bind:nativeBind});'
+  },
+  {
+    label:'Object.defineProperties Function.prototype mutation',
+    install:'const fp=Function.prototype;'+
+      'Object.defineProperties(fp,{bind:{configurable:true,writable:true,'+
+      'value:function(){external(this);const target=this;'+
+      'return (...args)=>Reflect.apply(target,null,args);}}});',
+    restore:'Object.defineProperties(fp,{bind:{configurable:true,writable:true,'+
+      'value:nativeBind}});'
   }
 ];
 
