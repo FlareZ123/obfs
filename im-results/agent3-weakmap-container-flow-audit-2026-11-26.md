@@ -104,3 +104,9 @@ This also remains false-safe. The run passed 14/17 across all three platforms; t
 ### Related inherited-prototype cross-file false-safe
 
 The passing object-container cross-file matrix must not be generalized to subclass prototype inheritance. Agent 4's independent review of candidate head `dd9f5783` reports that `class WeakMap extends globalThis.WeakMap {}` followed by `Object.getPrototypeOf(WeakMap.prototype)` still reaches the shared native parent prototype while group exposure remains false, four bindings are permitted, and captured source changes ([45867411716](https://github.com/FlareZ123/obfs/actions/runs/45867411716)). Agent 6's five-form parent-prototype matrix independently reproduces the same donor gap on all three platforms ([45867880661](https://github.com/FlareZ123/obfs/actions/runs/45867880661)). See `im-results/agent6-weakmap-subclass-parent-prototype-source-observer-2026-11-26.md` for the full variant matrix. Thus the positive cross-file container result here is narrow; native WeakMap heritage and shadowed class bindings remain a separate unresolved source-observation path.
+
+
+
+### Latest-head known-local-call precision rerun
+
+The queued reader precision test has now completed against the `c55f1d1` candidate source: [45867389597](https://github.com/FlareZ123/obfs/actions/runs/45867389597) failed on Ubuntu, Windows, and macOS. The exact known-local reader `consume(map) { return map.get("key"); }` still yields `observed=true` and zero identifier bindings, despite not returning or escaping the private WeakMap. This confirms the over-refusal persists on the latest audited head, not just the earlier `6160d16` snapshot. The broad call-argument veto remains a concrete precision regression.
