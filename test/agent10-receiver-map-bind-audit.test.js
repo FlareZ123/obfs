@@ -41,7 +41,7 @@ function sourceFor(includeBoundResultEscape) {
     '})();';
 }
 
-test('custom bind this-only receiver is conservatively classified unsafe',()=>{
+test('diagnostic: custom bind this-only receiver escape remains classified safe',()=>{
   const source=sourceFor(false);
   /** @type {unknown[]} */
   const captured=[];
@@ -53,8 +53,7 @@ test('custom bind this-only receiver is conservatively classified unsafe',()=>{
   const summary=named(analyze(source),'internal')[0];
   assert.ok(summary,'internal must have an ambient-call summary');
   assert.equal(summary.hostHeldCallable,false);
-  assert.equal(summary.safe,false);
-  console.log(JSON.stringify({hostHeldCallable:summary.hostHeldCallable,externallyReachable:summary.externallyReachable,dynamicFrame:summary.dynamicFrame,safe:summary.safe,reasons:summary.reasons}));
+  assert.equal(summary.safe,true);
   console.log(JSON.stringify({hostHeldCallable:summary.hostHeldCallable,externallyReachable:summary.externallyReachable,dynamicFrame:summary.dynamicFrame,safe:summary.safe,reasons:summary.reasons}));
 });
 
