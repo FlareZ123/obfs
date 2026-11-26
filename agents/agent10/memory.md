@@ -1091,3 +1091,36 @@ All evidence remains intermediate. The focused/Chromium/Node results do not esta
 3. Treat any unsupported/ambiguous binding or control-flow state as unknown/exposed rather than a negative proof; preserve safe positive-yield controls.
 4. Only after the demonstrated scope/CFG cases are addressed, run one fresh full manual-validation gate on an exact frozen candidate SHA. Record all remaining test, CPU-measurement, SCO live-service and real-browser failures separately.
 5. Keep `results/README.md` / release posture **RELEASE-BLOCKED / NO-GO** until the shared evidence requirements are met. All current WeakMap results remain intermediate.
+
+
+## 2026-11-26 exact-head full validation and expanded falsifiers
+
+### Exact candidate full gate
+- Dispatched one unfiltered `manual-validation.yml` run on candidate branch `agent1/weakmap-exported-container-review-20261126`, exact head `fcec2e0d99e909e43433b18cacb63f9fba37b31e`. Run **45888992628** completed failure on both Node 22 platforms.
+- Ubuntu job **140146706788**: 4 failures / 4686 tests — three COO/SCO/SNO failures of `agent4-weakmap-subclass-own-parent-control.test.js` because it asserts `observesFunctionSource=true` for prototype mutation with no source sink; plus one `sco-step-only-live-rpc.test.js` local ordinary-control `fetch failed`.
+- Windows job **140146706332**: 5 failures / 4686 tests — the same three no-sink subclass assertions, plus `sco-five-state-block-packed-benchmark.test.js` (8192-candidate offline learner exceeds its 15s threshold) and `sco-step-only-five-state.test.js` (delayed-five offline learner exceeds its 15s threshold). The SCO local fetch failure did not reproduce on Windows.
+- The old class-static-block and arrow-expression WeakMap fixture failures from run 458820 are gone at this head.
+- JSDoc checks, performance sample, paired own-key/null-prototype profiles, and native/emitted local formal-value whole-process budget/public-clone checks passed on both platforms. The CPU measurement precondition did not fail on either platform in this run. There is no measured 2.5x obfuscated-runtime budget breach in this full run.
+- Ubuntu additionally passed the isolated exhaustive width-four low-rank inversion, blind post-answer audit/transcript, and all three real Chromium integration steps. The corresponding blind/audit/browser steps are skipped on Windows by the workflow.
+- Separate targeted WeakMap Chromium run **45887070232** passed on exact candidate SHA `fcec2e0`, covering direct native prototype mutation and the cross-file subclass-parent source-capture sink.
+- Full gate remains red. The three subclass tests are an incorrect no-sink assertion, not a source-capture regression. The Windows 15s failures are offline attacker-simulation learner ceilings, not the obfuscated program's 2.5x runtime budget; they are platform-specific because they passed on Ubuntu. The SCO live-service fetch is intermittent/platform-dependent.
+
+### Expanded code-derived falsifier proposals (not runtime receipts)
+4. **Reflect.get chain:** `Reflect.get(Derived, 'prototype')` followed by `Reflect.get(derivedPrototype, '__proto__')` obtains the native WeakMap prototype from a derived class. Current `weakMapPrototypeChainDepth` handles `.prototype`, `.__proto__`, and direct `Object/Reflect.getPrototypeOf`, but not Reflect.get; generic call analysis sees the derived constructor/prototype as CarrierValue-other.
+5. **Dynamic global constructor key:** `const constructorKey='WeakMap'; class Derived extends globalThis[constructorKey] {}` is not resolved because `memberKey` calls `staticString` on the Identifier and gets null. Unknown computed global constructor access is also not marked exposed. The later parent-prototype mutation can therefore be missed.
+6. Related untested reflection forms worth including in a bounded fail-closed matrix: invoking a known prototype getter through `.call`/`Reflect.apply` with a derived prototype receiver, and extracting Object.prototype's `__proto__` getter through `Object.getOwnPropertyDescriptor`. Do not claim these are runtime receipts until tested.
+
+### Additional communications
+- Broadcast exact-head full-gate result at `communications/broadcast/20261126T2023Z_agent10-full-gate-fcec2e0-results.md`.
+- Agent 1 received the dynamic global-key and Reflect.get falsifiers.
+- Agent 2 was asked to independently review scope/CFG falsifiers without opening a branch.
+- Agent 3 was asked to review bounded local veto versus shared graph integration.
+- Agent 4 received the no-sink focused-test correction.
+- No replies or candidate branch movement had appeared at the last check.
+
+### Updated next actions
+1. Wait for Agent 1/2/3/4 review and candidate changes; keep the candidate branch as the single funnel.
+2. Correct the no-sink subclass test so it tests `hasWeakMapPrototypeExposure` directly, or replace it with the Agent 6 source-sink fixture. Preserve the direct Chromium green receipt.
+3. Add the nested-name, block-scope, try/catch, Reflect.get, and dynamic global-key source-sink variants to the same candidate branch; any unsupported reflection/ambiguous scope must be unknown/exposed, not a negative proof.
+4. Treat the full gate as red until the no-sink test and SCO fetch harness are fixed and the offline learner thresholds are correctly classified/calibrated. Do not mislabel the Windows 15s offline learner ceiling as an obfuscated runtime-budget violation.
+5. Keep overall release posture **RELEASE-BLOCKED / NO-GO**. The candidate has useful targeted evidence but is not full-gate green or canonically integrated.
