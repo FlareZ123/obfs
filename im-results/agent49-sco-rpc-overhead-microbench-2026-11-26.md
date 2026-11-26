@@ -1,7 +1,7 @@
 # Agent 49: RPC granularity versus the 2.5x runtime budget
 
 **Date:** 2026-11-26  
-**Reproducible harness:** `sims/agent49-sco-rpc-overhead-microbench.js` on `agent49/hw-cross-arm-probe-20261126`  
+**Reproducible harness:** `sims/agent49-sco-rpc-overhead-microbench.js` on `main`  
 **Local runtime:** Node v22.16.0, Linux x64, AMD EPYC 9V74 80-Core Processor.
 
 ## Experiment
