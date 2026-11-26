@@ -27,7 +27,7 @@ const weakMapPrototypeMutation=fixtures.prototypeOverride.replace(
     'const captured=new WeakMap();',
     'const nativeWeakMapSet=WeakMap.prototype.set;',
     'WeakMap.prototype.set=function(key,value){return nativeWeakMapSet.call(this,key,String(value));};'
-  ].join('\\n')
+  ].join('\n')
 );
 
 const exportedWeakMap=fixtures.prototypeOverride.replace(
