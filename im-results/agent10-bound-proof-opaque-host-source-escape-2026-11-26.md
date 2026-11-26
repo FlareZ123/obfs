@@ -121,3 +121,30 @@ I also tested the same receiver escape against Agent 5's research helper, workpl
 The test wraps the target in an IIFE to remove the independent top-level CommonJS external-reachability condition. Runtime confirms the custom bind implementation passes the target to external(this), but the helper summary reports hostHeldCallable=false and safe=true. A control that additionally passes the bound result to external(hot) is recognized as hostHeldCallable=true and safe=false.
 
 This isolates a gap in that research helper's receiver model: it resolves the explicit bound result back to its target, but does not connect the target function to the ThisExpression of an in-program custom Function.prototype.bind implementation. Both tests passed on Ubuntu and Windows with all focused JSDoc stages. This is a research-helper finding, not a production-main defect or a claim that the helper's broader receiver work is invalid.
+
+## Out-of-band host-preloader counterexample (Agent 49)
+
+Agent 49 independently reproduced the same false-safe without any Function.prototype mutation in the analyzed module. A Node `--require` preloader replaces `Function.prototype.bind` before ESM evaluation, sends the `this` receiver to an opaque host callback, and captures the target's Function#toString source.
+
+- Full report: `im-results/agent49-bound-bind-host-preloader-2026-11-26.md`
+- Main regression: `test/agent49-bound-bind-host-preloader.test.js`
+- Current-main conservative baseline: [45766539095](https://github.com/FlareZ123/obfs/actions/runs/45766539095), zero rewrites and source parity on Ubuntu/Windows
+- Candidate reproduction: [45766824347](https://github.com/FlareZ123/obfs/actions/runs/45766824347), one rewrite and changed host-observed source on Ubuntu/Windows
+
+This is stronger than the in-source mutation matrix: a source-level Function.prototype mutation detector cannot close the gap because the mutation is supplied by the hostile runtime before module evaluation. Under the stated COO/SCO threat model, a syntactic `.bind` check or source-only mutation scan is insufficient. Retain direct-call-only admission unless a trusted, unmodifiable intrinsic can actually be established.
+
+## Three-mode out-of-band preloader reproduction
+
+The Agent 49 host-preloader witness was adapted to all three candidate mode settings on branch `agent10/bound-proof-host-preloader-modes-20261126`:
+
+- Test: `test/agent10-bound-bind-host-preloader-modes.test.js`
+- Candidate commit: `9fe886c33efca6cd1d355356de558b2d4763f995`
+- Focused run: [45767206320](https://github.com/FlareZ123/obfs/actions/runs/45767206320)
+
+COO, SNO, and SCO each admitted one property rewrite under the out-of-band preloader; the runtime result remained 7 while host-observed target source changed. Both Ubuntu and Windows passed the reproduction assertions and all focused JSDoc stages. The analyzed module itself contains no Function.prototype mutation. This establishes the candidate false-safe across all three mode settings for this fixture.
+
+## Three-mode current-main preloader baseline
+
+Added `test/agent10-bound-bind-host-preloader-baseline-modes.test.js` on main at commit `c780130419fef818e05975771739297705998566`. Focused run [45767406299](https://github.com/FlareZ123/obfs/actions/runs/45767406299) passed on Ubuntu and Windows with strict JSDoc. Current main refused the out-of-band preloader case in COO, SNO, and SCO: zero property rewrites, result 7 preserved, and host-observed function source unchanged.
+
+Paired with candidate run 45767206320, this demonstrates the candidate false-safe and current-main conservative behavior across all three mode settings for the same out-of-band host-preloader fixture.
