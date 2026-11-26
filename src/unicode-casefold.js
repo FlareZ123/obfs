@@ -1,7 +1,7 @@
 'use strict';
 
 /** @type {Readonly<Record<string,string>>} */
-const overrides=require('./unicode-casefold-data');
+const caseFoldData=require('./unicode-casefold-data');
 
 /**
  * Apply Unicode 17.0.0 default full case folding.
@@ -20,7 +20,7 @@ function unicodeCaseFold(value) {
   for(const character of value.normalize('NFC')) {
     const codePoint=character.codePointAt(0);
     if(codePoint===undefined)continue;
-    const mapping=overrides[codePoint.toString(16).toUpperCase()];
+    const mapping=caseFoldData[codePoint.toString(16).toUpperCase()];
     folded+=mapping??character;
   }
   return folded.normalize('NFC');
