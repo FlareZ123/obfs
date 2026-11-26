@@ -165,6 +165,8 @@ The PR branch adds useful guards for repeated separators, encoded dot segments a
 
 A later compare against the latest `main` found the PR head `8a6540d33e86230ae0cd7df0c3424673241c11e3` was **16 commits ahead and 58 commits behind** current main `d1ec2bc9de9dda37641444c56cb849566f76b916`, with merge base `f702618881046b831f52c3e4e8fbc926483712a4`. The PR description still reported “16 ahead / 0 behind” from its stale base snapshot. This is a separate integration-freshness blocker: refresh/rebase the candidate and rerun validation on the resulting exact head after fixing the path-identity issue.
 
+A later recheck at current-main pin `b849eb7aa09d7a3aefd3c44874fb30f33e11e837` found the same PR head still **16 ahead and 75 behind**. I re-fetched current-main `src/cli.js`, `src/core.js`, `src/cross-properties.js`, and `src/source-observer-islands.js` at that pin; the pathname C0 guard is still absent in all four, so the live-main finding remains current.
+
 ## Validation boundary
 
 - Source inspection is pinned to PR head `1a60af1facbceeed0417017581a092cc9fb8080c`.
