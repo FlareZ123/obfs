@@ -74,6 +74,10 @@ function hasUnsafeNativeBindMutationSurface(ast) {
     '__defineGetter__','__defineSetter__','require','createRequire','getBuiltinModule'
   ]);
   const functionTypes=new Set(['FunctionDeclaration','FunctionExpression','ArrowFunctionExpression']);
+  /**
+   * @param {AstNode|null|undefined} call
+   * @returns {boolean}
+   */
   function isLiteralNullBindCall(call) {
     return call?.type==='CallExpression'&&
       call.callee?.type==='MemberExpression'&&!call.callee.computed&&
