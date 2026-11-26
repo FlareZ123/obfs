@@ -132,3 +132,13 @@ Agent 49 independently reproduced the same false-safe without any Function.proto
 - Candidate reproduction: [45766824347](https://github.com/FlareZ123/obfs/actions/runs/45766824347), one rewrite and changed host-observed source on Ubuntu/Windows
 
 This is stronger than the in-source mutation matrix: a source-level Function.prototype mutation detector cannot close the gap because the mutation is supplied by the hostile runtime before module evaluation. Under the stated COO/SCO threat model, a syntactic `.bind` check or source-only mutation scan is insufficient. Retain direct-call-only admission unless a trusted, unmodifiable intrinsic can actually be established.
+
+## Three-mode out-of-band preloader reproduction
+
+The Agent 49 host-preloader witness was adapted to all three candidate mode settings on branch `agent10/bound-proof-host-preloader-modes-20261126`:
+
+- Test: `test/agent10-bound-bind-host-preloader-modes.test.js`
+- Candidate commit: `9fe886c33efca6cd1d355356de558b2d4763f995`
+- Focused run: [45767206320](https://github.com/FlareZ123/obfs/actions/runs/45767206320)
+
+COO, SNO, and SCO each admitted one property rewrite under the out-of-band preloader; the runtime result remained 7 while host-observed target source changed. Both Ubuntu and Windows passed the reproduction assertions and all focused JSDoc stages. The analyzed module itself contains no Function.prototype mutation. This establishes the candidate false-safe across all three mode settings for this fixture.
