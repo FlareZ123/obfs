@@ -198,3 +198,31 @@ test('bound-only arrow cannot leak the owner through a global side effect',()=>{
     'export const hot=internal.bind(null);';
   assert.equal(propertyCount(source),0);
 });
+
+test('bound-only arrow cannot leak owner through Object.defineProperty on globalThis',()=>{
+  const source=ownerPrefix+'const probe=owner.secretField;'+
+    'const internal=()=>{Object.defineProperty(globalThis,"leaked",{value:owner,configurable:true});return 1;};'+
+    'export const hot=internal.bind(null);';
+  assert.equal(propertyCount(source),0);
+});
+
+test('bound-only arrow cannot leak owner through Reflect.defineProperty on globalThis',()=>{
+  const source=ownerPrefix+'const probe=owner.secretField;'+
+    'const internal=()=>{Reflect.defineProperty(globalThis,"leaked",{value:owner,configurable:true});return 1;};'+
+    'export const hot=internal.bind(null);';
+  assert.equal(propertyCount(source),0);
+});
+
+test('bound-only arrow cannot leak owner through Object.assign to globalThis',()=>{
+  const source=ownerPrefix+'const probe=owner.secretField;'+
+    'const internal=()=>{Object.assign(globalThis,{leaked:owner});return 1;};'+
+    'export const hot=internal.bind(null);';
+  assert.equal(propertyCount(source),0);
+});
+
+test('bound-only arrow cannot leak owner through Reflect.set on globalThis',()=>{
+  const source=ownerPrefix+'const probe=owner.secretField;'+
+    'const internal=()=>{Reflect.set(globalThis,"leaked",owner);return 1;};'+
+    'export const hot=internal.bind(null);';
+  assert.equal(propertyCount(source),0);
+});
