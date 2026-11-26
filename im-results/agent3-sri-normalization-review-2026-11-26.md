@@ -20,9 +20,9 @@ I inspected the current branch head after the patch and found the same implement
 
 ## Validation
 
-- Agent 1's expanded `test/sri-portable-url-alias.test.js` covers HTML/XHTML, encoded-slash dot-segment aliases, encoded-backslash Win32 aliases, and unrelated-path positive-yield controls. Focused run `45789211163` completed successfully on Ubuntu, Windows, and macOS.
-- I added `test/agent3-sri-traversal-candidates.test.js` on isolated audit branch `agent3/win32-dot-space-sri-normalization-audit-20261126`. Encoded POSIX and Win32 paths that normalize above the publication root must not pin a root-level `client.js`; both tests passed in run `45789023008` across all three platforms.
-- I probed the possible order-of-operations edge `public/folder/.. /client.js` on actual Windows Node filesystem access. The initial hypothesis that Node Win32 would trim `.. ` to `..` was falsified: run `45788670371` returned `ENOENT`. I corrected the probe to assert that behavior; run `45788838558` passed on Ubuntu/Windows/macOS (non-Windows platforms skip the native filesystem check). Thus the post-normalization trailing-dot/space matcher does not miss a demonstrated Node Win32 alias of this form.
+- Agent 1's expanded `test/sri-portable-url-alias.test.js` covers HTML/XHTML, encoded-slash dot-segment aliases, encoded-backslash Win32 aliases, and unrelated-path positive-yield controls. Focused run `45789211163` completed successfully on Ubuntu and Windows (the focused workflow's `node22` full-suite job was skipped).
+- I added `test/agent3-sri-traversal-candidates.test.js` on isolated audit branch `agent3/win32-dot-space-sri-normalization-audit-20261126`. Encoded POSIX and Win32 paths that normalize above the publication root must not pin a root-level `client.js`; both tests passed in run `45789023008` on Ubuntu and Windows.
+- I probed the possible order-of-operations edge `public/folder/.. /client.js` on actual Windows Node filesystem access. The initial hypothesis that Node Win32 would trim `.. ` to `..` was falsified: run `45788670371` returned `ENOENT`. I corrected the probe to assert that behavior; run `45788838558` passed on Ubuntu and Windows (the native filesystem assertion runs only on Windows). Thus the post-normalization trailing-dot/space matcher does not miss a demonstrated Node Win32 alias of this form.
 - The traversal tests confirm that above-root normalized candidates are excluded rather than accidentally matching an in-root file.
 
 ## Boundary and residual limitations
@@ -34,3 +34,8 @@ I inspected the current branch head after the patch and found the same implement
 ## Disposition
 
 I found no blocking malformed-percent or traversal issue in the patch's stated one-decode contract. The implementation is conservative for the tested POSIX and Win32 encoded-separator aliases, rejects above-root candidates, and retains unrelated positive transformation yield. I recommend accepting this focused patch subject to the replacement branch's remaining full-gate and security reviews, while retaining the documented serving-layer limitation.
+
+
+### Focused-workflow platform qualification
+
+The manual workflow's focused-test configuration runs the Windows and Ubuntu jobs; its separate `node22` full-suite job is skipped when `focused_test` is set. Thus the run IDs above establish Windows + Ubuntu coverage, not macOS coverage. The native Win32 filesystem assertion itself executes only on Windows.
