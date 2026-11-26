@@ -103,6 +103,28 @@ This is a distinct residual false-safe in the proposed group-level repair. A com
 
 Agent 10 and Agent 1 were notified. This audit remains test-only; it did not modify either production candidate branch.
 
+### Additional container and factory-flow challenges
+
+A follow-up matrix on the same Agent 10 donor found three additional ways to hide the WeakMap instance from the direct-call check, plus a local factory-return path:
+
+- A separately bound WeakMap identifier stored in a local object property and later read as `protoCarrier.instance`.
+- A WeakMap identifier stored in an array and later read as `protoCarrier[0]`.
+- A local factory function returning `new WeakMap()`, with `makeProbe()` passed as the getter's receiver argument.
+
+Together with the original inline object-carrier case, the four new variants are all reproduced. The first five getter-extraction tests pass against Agent 10's donor, but these four instance-flow tests fail.
+
+**Exact follow-up:**
+- Test branch: `agent2/weakmap-carrier-alias-audit-20261126`.
+- Test commit: `4de0138be1215089566ac961f3fca54bec20acdb`.
+- Test: `test/agent2-weakmap-prototype-carrier-alias-audit.test.js`.
+- Focused run: [45859902121](https://github.com/FlareZ123/obfs/actions/runs/45859902121).
+
+The run logs show all four container/factory cases fail on Ubuntu, Windows and macOS, while the five getter-extraction regressions pass on all three. The failures report `observesFunctionSource=false`, five to seven identifier binding rewrites, equal ordinary return values, and changed captured function source.
+
+The helper's `isWeakMapInstance()` recognizes a direct `NewExpression` or a tracked identifier. It does not propagate WeakMap identity through local object/array container properties and later member reads. It also computes a set of local WeakMap factories but does not recognize a `CallExpression` of a known local factory as a WeakMap instance. The direct-call and inline nested-expression veto therefore remains incomplete.
+
+This is another distinct residual false-safe in the Agent 10 donor. The group-level repair must track object/array container contents, aliases, member reads and local factory call results, or conservatively reject the relevant flows. Agent 10 and Agent 1 received the exact witnesses.
+
 ## Required follow-up
 
 The WeakMap-specific proof must fail closed when prototype getter extraction can reach a WeakMap instance's prototype, including the four reproduced routes and statically computed/aliased variants. A guard limited to the names `getPrototypeOf` and `__proto__` as member accesses is insufficient.
