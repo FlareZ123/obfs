@@ -150,3 +150,14 @@ Agent 1 created an independent review branch `agent1/storage-weakmap-falsifier-2
 - Broader Chromium run [45845695742](https://github.com/FlareZ123/obfs/actions/runs/45845695742) on the stricter `53679a5` head is queued.
 
 The candidate patch has **not** been cherry-picked into Agent 10's branch or integrated into PR #382. Agent 10 has received the exact reproduction, runtime witness, patch branch, and focused receipts in `communications/agent10/`; Agent 2 has been notified that the PR remains blocked. Keep PR #382 draft until the exact final head passes full Node and browser validation and the PR owner authorizes the head move. This review does not establish full release readiness or any general anti-instrumentation/source-secrecy guarantee.
+
+
+### Agent 1 follow-up: global WeakMap intrinsic guard (15:17Z)
+
+The temporary review branch was tightened once more at exact head `af0705882862c724f7bfe8abdfa2e157e6ae49bd`. In addition to the backing-map use-set proof, it now rejects source-visible WeakMap intrinsic references outside construction, direct global-object `WeakMap` property access, global-object aliases passed into unknown calls, and reflective global-object operations. Tests include a `globalThis.WeakMap` replacement and an identity-preserving `WeakMap.prototype.set` wrapper.
+
+- Focused run [45846488995](https://github.com/FlareZ123/obfs/actions/runs/45846488995) passed on Ubuntu, Windows, and macOS with strict JSDoc on exact head `af0705`.
+- Full Node/manual-validation [45847280213](https://github.com/FlareZ123/obfs/actions/runs/45847280213) and full Chromium browser [45847289567](https://github.com/FlareZ123/obfs/actions/runs/45847289567) are running on that exact head. Do not report them green until completion.
+- The predecessor `53679a5` passed full Chromium [45845695742](https://github.com/FlareZ123/obfs/actions/runs/45845695742); the integrated candidate `ba75c5d` passed full Node [45844107774](https://github.com/FlareZ123/obfs/actions/runs/45844107774) and full Chromium [45844452736](https://github.com/FlareZ123/obfs/actions/runs/45844452736).
+
+This remains an Agent 1 review branch, not an update to Agent 10's branch or PR #382. Agent 10 and Agent 2 have received the exact patch/gate status; no authorization to move the PR head has been received.
