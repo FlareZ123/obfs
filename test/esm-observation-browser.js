@@ -10,7 +10,8 @@ const {normalizePublicFields}=require('../sims/public-token-normalizer');
 
 const runBrowser=promisify(execFile);
 
-/** @typedef {{name:string,kind:number,renamed:number}} BrowserCase */
+/** @typedef {{path:string,sourceType:'module',code:string}} BrowserSource */
+/** @typedef {{name:string,kind?:number,renamed:number,files?:BrowserSource[],properties?:boolean,identifiers?:boolean}} BrowserCase */
 
 /** @type {BrowserCase[]} */
 const CASES=[
@@ -19,7 +20,32 @@ const CASES=[
   {name:'external-key-callback',kind:13,renamed:0},
   {name:'inherited-prototype-getter',kind:17,renamed:0},
   {name:'unrelated-descriptor-positive',kind:20,renamed:2},
-  {name:'external-numeric-positive',kind:23,renamed:2}
+  {name:'external-numeric-positive',kind:23,renamed:2},
+  {name:'text-import-default-owner-module-type',renamed:0,files:[
+    {path:'state.mjs',sourceType:'module',code:'export default {length:23};'},
+    {path:'entry.mjs',sourceType:'module',code:
+      'import source from "./state.mjs" with {type:"text"};export const value=source.length??-1;'}
+  ]},
+  {name:'text-import-observes-identifier-rewrite',renamed:0,properties:false,identifiers:true,files:[
+    {path:'state.mjs',sourceType:'module',code:
+      'const privateValue=23;export default {length:privateValue};'},
+    {path:'entry.mjs',sourceType:'module',code:
+      'import source from "./state.mjs" with {type:"text"};export const value=source.length;'}
+  ]},
+  {name:'dynamic-text-import-observes-source-rewrite',renamed:0,properties:false,identifiers:true,files:[
+    {path:'state.mjs',sourceType:'module',code:
+      'const privateValue=23;export default {length:privateValue};'},
+    {path:'entry.mjs',sourceType:'module',code:
+      'const loaded=await import("./state.mjs",{with:{type:"text"}});export const value=loaded.default.length;'}
+  ]},
+  {name:'text-reexport-observes-module-source',renamed:0,properties:false,identifiers:true,files:[
+    {path:'state.mjs',sourceType:'module',code:
+      'const privateValue=23;export default {length:privateValue};'},
+    {path:'relay.mjs',sourceType:'module',code:
+      'export {default as source} from "./state.mjs" with {type:"text"};'},
+    {path:'entry.mjs',sourceType:'module',code:
+      'import {source} from "./relay.mjs";export const value=source.length;'}
+  ]}
 ];
 
 /**
@@ -68,10 +94,13 @@ async function main() {
   const files=new Map();
   let normalizedPublicFields=0;
   for(const item of CASES) {
-    const fixture=makeFixture(7,item.kind);
-    assert.equal(fixture.scenario,SCENARIOS[item.kind]);
+    const fixture=item.files ?
+      {scenario:'custom-import-attribute',files:item.files} :
+      makeFixture(7,item.kind??0);
+    if(item.kind!==undefined)assert.equal(fixture.scenario,SCENARIOS[item.kind]);
     const protectedFiles=obfuscateFiles(fixture.files,{
-      mode:'coo',closedWorld:true,identifiers:false,strings:false,
+      mode:'coo',closedWorld:true,properties:item.properties,
+      identifiers:item.identifiers??false,strings:false,
       seed:'esm-observer-browser-'+item.name
     });
     assert.equal(protectedFiles.crossFile.properties,item.renamed,
