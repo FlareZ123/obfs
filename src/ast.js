@@ -3329,7 +3329,7 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
       if(node.type==='CallExpression' && callee.type==='Identifier' &&
          storageMethodAliases.has(callee.name) &&
          node.arguments.slice(0,2).some((/** @type {AstNode} */ value)=>
-           !isDefinitelyPrimitive(value)))observed=true;
+           isUnsafeStorageStringValue(value,node,ancestors)))observed=true;
       // Web IDL receiver methods accept USVString/DOMString arguments. Check
       // the receiver's local constructor provenance before considering a
       // function-valued argument an implicit source-text observer.
@@ -3343,7 +3343,7 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
           const positions=method==='append'||method==='set'?
             node.arguments.slice(0,3):node.arguments.slice(0,1);
           if(positions.some((/** @type {AstNode} */ value)=>
-            isUnsafeStorageStringValue(value,node,ancestors)))observed=true;
+            !isDefinitelyPrimitive(value)))observed=true;
         }
         // Headers and URLSearchParams string-coerce names and values in
         // mutators/readers, even when their constructors had inert inputs.
@@ -3385,8 +3385,8 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
           const values=node.arguments[2];
           if(values?.type==='ArrayExpression') {
             if(values.elements.some((/** @type {AstNode|null} */ value)=>
-              value!==null && !isDefinitelyPrimitive(value)))observed=true;
-          } else if(values && !isDefinitelyPrimitive(values))observed=true;
+              value!==null && isUnsafeStorageStringValue(value,node,ancestors)))observed=true;
+          } else if(isUnsafeStorageStringValue(values,node,ancestors))observed=true;
         }
       }
       // Bound, extracted and reflective native method invocations hide the
