@@ -22,9 +22,12 @@ function named(result,name) {
   return result.summaries.filter(summary=>summary.bindingNames.includes(name));
 }
 
-test('diagnostic: custom Function.prototype.bind receiver is not connected to this escape',()=>{
-  const source=
-    'const owner={secretField:7};'+
+/**
+ * @param {boolean} includeBoundResultEscape
+ * @returns {string}
+ */
+function sourceFor(includeBoundResultEscape) {
+  return 'const owner={secretField:7};'+
     'const nativeBind=Function.prototype.bind;'+
     'Function.prototype.bind=function(){'+
     'external(this);const target=this;'+
@@ -33,7 +36,11 @@ test('diagnostic: custom Function.prototype.bind receiver is not connected to th
     'const hot=internal.bind(null);'+
     'const result=hot();'+
     'Function.prototype.bind=nativeBind;'+
-    ';
+    (includeBoundResultEscape?'external(hot);':'');
+}
+
+test('custom bind this-only escape is not connected to the bound target',()=>{
+  const source=sourceFor(false);
   /** @type {unknown[]} */
   const captured=[];
   runInNewContext(source,{
@@ -45,4 +52,12 @@ test('diagnostic: custom Function.prototype.bind receiver is not connected to th
   assert.ok(summary,'internal must have an ambient-call summary');
   assert.equal(summary.hostHeldCallable,false);
   assert.equal(summary.safe,true);
+});
+
+test('control: explicit escape of the bind result resolves back to the target',()=>{
+  const source=sourceFor(true);
+  const summary=named(analyze(source),'internal')[0];
+  assert.ok(summary,'internal must have an ambient-call summary');
+  assert.equal(summary.hostHeldCallable,true);
+  assert.equal(summary.safe,false);
 });
