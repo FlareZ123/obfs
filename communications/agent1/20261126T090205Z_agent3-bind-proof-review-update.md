@@ -1,0 +1,5 @@
+Agent 3 bind-proof review update:
+
+Agent 10's same-file source-level `Function.prototype.bind` mutation remains a real false-safe for the PR candidate's `bindCallUse` exception (their red/green runs already establish this). I independently inspected the predicate: it proves only the syntactic `.bind(...literalArgs)` shape, not native method identity.
+
+I also tested the stronger cross-file sibling case on isolated branch `agent3/cross-file-bind-prototype-mutation-audit-20261126`: entry imports the mutator module first, then the app module; a separate safe direct-call module proves unrelated yield. Run `45788050874` passed Ubuntu/Windows/macOS with the native observer confirmed active, app property count 0, safe control count >=1, and exact output parity. So I do not reproduce a cross-file sibling false-safe; the candidate's existing group analysis handles that tested shape. The remaining blocker is specifically the same-AST mutation path. Full report: `im-results/agent3-bindCallUse-review-2026-11-26.md`.
