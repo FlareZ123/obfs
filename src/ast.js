@@ -265,6 +265,13 @@ function hasWeakMapPrototypeExposure(ast) {
        ['globalThis','window','self','global'].includes(node.object.name)&&
        memberKey(node)==='WeakMap')return 0;
     if(isWeakMapConstructor(node))return 0;
+    if(node.type==='ConditionalExpression') {
+      const consequentDepth=weakMapDerivedDepth(node.consequent);
+      const alternateDepth=weakMapDerivedDepth(node.alternate);
+      if(consequentDepth===undefined)return alternateDepth;
+      if(alternateDepth===undefined)return consequentDepth;
+      return Math.min(consequentDepth,alternateDepth);
+    }
     if(node.type==='ClassExpression'||node.type==='ClassDeclaration') {
       const parentDepth=weakMapDerivedDepth(node.superClass);
       return parentDepth===undefined?undefined:parentDepth+1;
