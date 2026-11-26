@@ -108,8 +108,7 @@ function hasUnsafeNativeBindMutationSurface(ast) {
       if(node.kind!=='init'||node.method||propertyKey==='bind'||
          node.computed&&propertyKey===null)unsafe=true;
     }
-    if(node.type==='AssignmentExpression'&&node.left.type==='MemberExpression'||
-       node.type==='UpdateExpression'&&node.argument.type==='MemberExpression'||
+    if(node.type==='UpdateExpression'&&node.argument.type==='MemberExpression'||
        node.type==='UnaryExpression'&&node.operator==='delete'&&
          node.argument.type==='MemberExpression')unsafe=true;
     if(node.type==='MemberExpression') {
