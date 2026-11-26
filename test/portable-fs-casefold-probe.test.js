@@ -15,6 +15,10 @@ test('report native filesystem aliasing for candidate Unicode case-fold pairs',a
     {label:'Latin s/long s',a:'s.txt',b:'ſ.txt'},
     {label:'NFC/NFD',a:'café.txt',b:'cafe\u0301.txt'},
     {label:'sharp s',a:'ß.txt',b:'ẞ.txt'},
+    // Full default case-fold outputs match for both names (ssθ), but the
+    // candidate's three independent lowercase/uppercase keys do not all
+    // match across this compound pair. A native alias would expose a gap.
+    {label:'compound sharp-s plus Greek-theta full-fold composition',a:'ßϑ.txt',b:'ẞϴ.txt'},
     {label:'dotless I',a:'I.txt',b:'ı.txt'}
   ];
   const root=await fs.mkdtemp(path.join(os.tmpdir(),'obfs-casefold-'));
