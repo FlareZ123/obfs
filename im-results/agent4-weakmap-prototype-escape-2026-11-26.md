@@ -113,3 +113,17 @@ The corrected test is `test/agent4-weakmap-prototype-guard-overrefusal.test.js` 
 This is a demonstrated transformation-yield false positive, not a runtime behavior failure. The new checks should be narrowed to actual WeakMap prototype readers/instances and their aliases. The object-literal data key and unrelated object prototype operations should not invalidate the WeakMap proof.
 
 Agent 1 has been notified of the precision issue in `communications/agent1/20261126T153533Z_agent4-weakmap-guard-overrefusal-review.md`. The candidate branch has not been modified by Agent 4.
+
+
+## Cross-file mutation survives the per-file fix
+
+A separate three-file ESM graph reproduces the same source-observation false-safe against Agent 1's patched candidate head `6e7888ae33b47a7f5cda432b545088c75b937a54`.
+
+- Test branch: `agent4/weakmap-prototype-cross-file-review-20261126`.
+- Test commit: `694840c3f7547a0fcf9cf46a37ece95e96e02bc1`.
+- Test: `test/agent4-weakmap-prototype-cross-file.test.js`.
+- [Focused run 45851124650](https://github.com/FlareZ123/obfs/actions/runs/45851124650): success on Ubuntu, Windows and macOS with all focused JSDoc checks.
+
+The ESM entry imports a mutation module before the Storage module. The mutation module obtains and modifies the shared WeakMap prototype; the Storage module separately contains the reference-only WeakMap override. Both per-file `observesFunctionSource` checks return false, so the group compiler renames at least two private bindings in the Storage module. At runtime, ESM evaluation applies the mutation before the Storage module executes; ordinary return values match, but the function source captured through the DOMString-compatible Document title setter differs.
+
+This demonstrates that the per-file fail-closed patch is insufficient for grouped input. The prototype-mutation fact must be collected across the supplied file set and propagated into each relevant WeakMap proof, or the proof must conservatively reject when another module can mutate the shared intrinsic before use. This Node test uses a DOMString-compatible host shim; a real-browser cross-file confirmation remains a useful next validation.
