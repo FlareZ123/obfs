@@ -945,16 +945,39 @@ function proveLocalObject(ast, rootName, bindings, importedIdentityFunctions=new
     const fn=functions.get(parent.callee.name);
     const reader=fn?.node;
     if(!fn||fn.external||fn.forwardIndex!==-1||fn.returnsRoot||
-      !reader||reader.type!=='FunctionDeclaration'||!privateFunctionNodes.has(reader)||
-      reader.async||reader.generator||reader.params.length!==1)return false;
+      !reader||!['FunctionDeclaration','FunctionExpression','ArrowFunctionExpression'].includes(reader.type)||
+      !privateFunctionNodes.has(reader)||reader.async||reader.generator||
+      reader.params.length!==1)return false;
     const parameter=reader.params[0];
     if(parameter.type!=='Identifier'||!aliases.has(parameter.name))return false;
-    const body=reader.body?.body;
-    if(!Array.isArray(body)||body.length!==1||body[0]?.type!=='ReturnStatement')return false;
-    const value=body[0].argument;
-    return value?.type==='MemberExpression'&&!value.optional&&
-      value.object?.type==='Identifier'&&value.object.name===parameter.name&&
-      !value.computed&&staticName(value.property)!==null;
+    /** @type {AstNode|null} */
+    let member=null;
+    if(reader.type==='ArrowFunctionExpression'&&reader.body?.type==='MemberExpression') {
+      member=reader.body;
+    } else {
+      const body=reader.body?.body;
+      if(!Array.isArray(body))return false;
+      if(body.length===1&&body[0]?.type==='ReturnStatement') {
+        member=body[0].argument??null;
+      } else if(body.length===2&&body[0]?.type==='VariableDeclaration'&&
+        body[0].kind==='const'&&body[0].declarations.length===1&&
+        body[0].declarations[0].id?.type==='Identifier'&&
+        body[1]?.type==='ReturnStatement'&&
+        body[1].argument?.type==='Identifier'&&
+        body[1].argument.name===body[0].declarations[0].id.name) {
+        const declaration=body[0].declarations[0];
+        const name=declaration.id.name;
+        const uses=identifierUses.get(name)??[];
+        if(bindings.get(name)!==1||uses.length!==2||
+          !uses.some(use=>use.node===declaration.id&&use.parent===declaration&&use.key==='id')||
+          !uses.some(use=>use.node===body[1].argument&&use.parent===body[1]&&use.key==='argument'))
+          return false;
+        member=declaration.init??null;
+      } else return false;
+    }
+    return member?.type==='MemberExpression'&&!member.optional&&
+      member.object?.type==='Identifier'&&member.object.name===parameter.name&&
+      !member.computed&&staticName(member.property)!==null;
   }
   const aliasUses=[...aliases].flatMap(name=>identifierUses.get(name)??[]);
   aliasUses.sort((a,b)=>a.order-b.order);
