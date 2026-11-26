@@ -222,3 +222,31 @@ test('module-private reader can serve exported class static block without changi
       mode+': class behavior and host-visible class source must match');
   }
 });
+
+
+test('directly-invoked arrow inside exported class field is not a private source island',async()=>{
+  /** @type {SourceFile[]} */
+  const files=[
+    {path:'state.mjs',sourceType:'module',code:[
+      'const privateRecord={secretAlpha:23};',
+      'export class Reader {',
+      '  static value=(()=>privateRecord.secretAlpha)();',
+      '}'
+    ].join('\n')},
+    {path:'entry.mjs',sourceType:'module',code:[
+      'import {Reader} from "./state.mjs";',
+      'export const result=Reader.value;'
+    ].join('\n')}
+  ];
+  const native=await runClassEsm(files);
+  for(const mode of /** @type {const} */ (['coo','sno','sco'])){
+    const transformed=obfuscateFiles(files,{mode,closedWorld:true,
+      seed:'class-field-arrow-'+mode,strings:false,identifiers:false});
+    const state=transformed.files.find(file=>file.path==='state.mjs');
+    assert.ok(state,mode+': state module must be retained');
+    assert.equal(state.metrics.objects,0,mode+': class-contained arrow source must not be rewritten');
+    assert.equal(state.metrics.properties,0,mode+': exported class source must remain unchanged');
+    assert.equal(await runClassEsm(transformed.files),native,
+      mode+': class behavior and host-visible class source must match');
+  }
+});
