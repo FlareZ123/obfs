@@ -4,7 +4,7 @@
 **Owner:** Agent 1  
 **Implementation branch:** `agent1/exported-closure-owner-proof-20261126`  
 **Implementation revision under validation:** `8eee5ba06475edfa2ee83ff24d353fda8ca3a6b8`  
-**Status:** focused tests and full manual validation green; experiment branch intentionally isolated
+**Status:** full manual validation green only at the older `8eee5ba` revision; current head `7558e44` has five focused test files green on Ubuntu/Windows/macOS, but a fresh full manual gate is pending; experiment branch intentionally isolated
 
 ## Question
 
@@ -20,7 +20,7 @@ The candidate is enabled only when the caller sets `closedWorld:true` and every 
 
 A candidate target must satisfy all of the following:
 
-1. The target binding is a local, non-exported callable binding.
+1. The target binding is a local, non-exported `const` initialized directly with an `ArrowFunctionExpression`. Ordinary FunctionDeclaration and FunctionExpression targets are refused because an externally constructed bound wrapper exposes the target through `Object.getPrototypeOf(new hot()).constructor`.
 2. Every use of that target binding is a direct, noncomputed, nonoptional `target.bind(null)` call.
 3. Each bind call has exactly one argument, the literal `null`; partial application and dynamic receivers are refused.
 4. Every bind call is at top level, not nested in a function body.
@@ -29,6 +29,7 @@ A candidate target must satisfy all of the following:
 7. Global capabilities such as `Function`, `globalThis`, `Object`, `Reflect`, `Proxy`, `eval`, `require`, `process`, browser globals, and runtime-specific globals are refused.
 8. Unresolved ambient identifier references and parameter-derived host receiver/alias flows are refused. The only global exceptions are immutable language constants and the ordinary CommonJS `module.exports` publication write.
 9. Static imports must resolve within the supplied JavaScript graph; unresolved CommonJS requires and non-source executable assets prevent admission.
+10. Any `import.meta` use is refused. Its host-provided object may expose effectful getters that run before the top-level bind call and mutate the realm's `Function.prototype.bind`.
 
 The gate is intentionally conservative. The target's private owner-property reads remain subject to the existing local-object proof. A bound wrapper may be exported; the target binding itself may not be exported.
 
@@ -158,3 +159,30 @@ The regression fixture is now ported as test/agent1-newtarget-bound-source-obser
 ### Current validation boundary
 
 The prior full manual gate 45805807618 validates source revision 8eee5ba06475edfa2ee83ff24d353fda8ca3a6b8, before the receiver-provenance and new.target hardening. It does not validate the current source. The focused runs above establish only their exact test files and commits. A fresh full manual validation on the hardened branch is required before any promotion or porting. No security-strength claim follows from these parity/yield tests; hostile runtime extraction of the transformed target remains an acknowledged limitation.
+
+
+## 26 November follow-up: constructibility and import.meta false-safe correction
+
+**Implementation revision:** `7558e44c2492478c142ccf979e0ae33e27558dea` on `agent1/exported-closure-owner-proof-20261126`.
+
+Agent 3 supplied a concrete external extraction counterexample to the earlier target grammar. When the exported bound wrapper targets a constructible ordinary function, an external consumer can call `new hot()`, then recover the target with `Object.getPrototypeOf(instance).constructor` and obtain its source with `Function.prototype.toString`. The earlier grammar admitted FunctionDeclaration and FunctionExpression targets, so the target could not be treated as private. The gate now admits only a local `const` arrow target; ordinary function declarations and expressions fail closed. This blocks that particular constructor/prototype extraction path because a bound arrow is nonconstructible. It does **not** block a hostile preloader from intercepting native `bind` and capturing the already-transformed target source.
+
+A second Agent 3 witness showed that `import.meta` is not inert lexical metadata: the host can install an effectful getter on `import.meta.env` that mutates `Function.prototype.bind` before the module's top-level `internal.bind(null)` executes. The gate now rejects any `import.meta` use in the supplied graph.
+
+Exact focused validation on revision `7558e44`:
+
+| Test | Workflow run | Platforms | Outcome |
+|---|---:|---|---|
+| `test/agent1-native-bind-call-target-shape.test.js` | `45839483365` | Ubuntu, Windows, macOS | Passed |
+| `test/agent1-bound-constructor-target-extraction.test.js` | `45839491149` | Ubuntu, Windows, macOS | Passed |
+| `test/agent1-native-bind-import-meta-host-getter.test.js` | `45839499605` | Ubuntu, Windows, macOS | Passed |
+| `test/agent1-bound-target-crossfile-probe.test.js` | `45839778770` | Ubuntu, Windows, macOS | Passed |
+| `test/source-stable-bound-export.test.js` | `45839787982` | Ubuntu, Windows, macOS | Passed |
+
+The first three runs include the focused runner's project and external JSDoc checks. The latter two preserve the narrow cross-file arrow-target positive and the source-stable bound-export positive after the new restrictions. These are exact test-file receipts only; the full manual validation workflow has **not** yet been rerun on `7558e44`. The prior full run `45805807618` remains evidence only for its older source revision `8eee5ba`.
+
+Agent 10's Storage source-observer extension is a separate candidate attached to PR #382. Its full Node rerun and a review question about the reference-only Storage override's dependence on unmodified `WeakMap.prototype.set` remain outstanding. Do not combine its focused receipts with this branch's tests or treat either as a complete release gate.
+
+### Current bounded claim
+
+The admitted positive is a non-exported local arrow target, used only by a top-level literal-null native bind call, under the existing closed-graph and no-observer grammar. The current evidence establishes behavior parity and actual property rewrite yield for the listed fixtures. It does not establish general function-source secrecy, anti-instrumentation, tamper resistance, universal compatibility, or a universal 2.5× runtime bound.
