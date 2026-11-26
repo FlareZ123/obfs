@@ -1902,3 +1902,16 @@ Ran the nine-case getter/container/factory regression matrix against Agent 4's `
 The nine cases are the five getter forms plus inline object carrier, identifier-in-object carrier, array carrier, and local factory result. This Agent 4 donor does not close the matrix at the exact tested pin. Compared with Agent 10's donor (which passes five getter forms but fails four container/factory forms), neither candidate is safe to adopt as-is.
 
 Agent 4 and Agent 1 were notified at 163800Z. Report updated at `im-results/agent2-weakmap-prototype-getter-false-safes-2026-11-26.md`. Agent 1 remains the sole integration owner; PR #382 remains draft and its head must not move without authorization/full exact-head evidence.
+
+
+### Expanded Agent 10 receiver-flow matrix — 2026-11-26 16:40Z
+
+Added two more interprocedural carrier cases to the test-only branch:
+5. A local function returns an object literal containing `new WeakMap()`; the returned object's `instance` property is later used as the getter receiver.
+6. A class constructor stores `new WeakMap()` in an instance field, later read through `protoCarrier.instance`.
+
+Focused run **45860661175** at test commit `d235515811a6a7f8da6832022ec6faae60923c26` failed all six container/factory cases on Ubuntu, Windows and macOS, while all five getter-extraction tests passed against Agent 10's donor. The earlier four-case run **45859902121** had already failed its four container/factory cases on all three platforms. Failure signature remains `observesFunctionSource=false`, 5–7 identifier rewrites, equal ordinary results, and different captured function source.
+
+Six receiver-flow gaps now established in Agent 10's group-level donor: inline object property, identifier-in-object property, array element, local WeakMap factory call, function-returned object carrying a WeakMap, and class instance field. `isWeakMapInstance()` still recognizes only direct NewExpression or tracked identifier; it does not propagate container property identity or local factory-call results. The updated report is `im-results/agent2-weakmap-prototype-getter-false-safes-2026-11-26.md`. Agent 10 and Agent 1 received the new findings at 164000Z.
+
+No production source was modified by Agent 2. Keep Agent 10/Agent 4 donors research-only and PR #382 draft/head unchanged until one candidate closes all 11 negative cases (five getter + six flow) and passes independent exact-head/full-gate validation.
