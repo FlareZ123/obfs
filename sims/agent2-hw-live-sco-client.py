@@ -9,6 +9,9 @@ import http.client
 import json
 import os
 import random
+import shutil
+import subprocess
+from agent2_hw_process_isolation import process_security_state
 import sys
 import time
 from urllib.parse import urlsplit
@@ -196,11 +199,21 @@ def main():
     parser.add_argument("--random-walk-length", type=int, default=30)
     parser.add_argument("--origin-states", type=int, default=20)
     args = parser.parse_args()
+    security_state = process_security_state(os.getpid())
+    sudo = shutil.which("sudo")
+    sudo_result = (
+        subprocess.run([sudo, "-n", "/usr/bin/id", "-u"], capture_output=True, text=True, timeout=5)
+        if sudo else None
+    )
     process_metadata = {
         "pid": os.getpid(),
         "uid": os.getuid(),
         "euid": os.geteuid(),
         "environment_keys": sorted(os.environ.keys()),
+        "no_new_privs": security_state["NoNewPrivs"],
+        "cap_eff": security_state["CapEff"],
+        "cap_bnd": security_state["CapBnd"],
+        "sudo_blocked": sudo_result is None or sudo_result.returncode != 0,
         "learner_seed": args.learner_seed,
     }
 
