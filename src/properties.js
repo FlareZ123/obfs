@@ -810,8 +810,10 @@ function proveLocalObject(ast, rootName, bindings, importedIdentityFunctions=new
         bindMember.property.type==='Identifier'&&bindMember.property.name==='bind'?
           parents.get(bindMember):null;
       const isNativeBindTarget=allowBoundFunctionTargets&&
+        use.ancestors.includes(scope)&&
         bindCall?.type==='CallExpression'&&bindCall.callee===bindMember&&
-        !bindCall.optional;
+        !bindCall.optional&&bindCall.arguments.length===1&&
+        bindCall.arguments[0].type==='Literal'&&bindCall.arguments[0].value===null;
       if(isNativeBindTarget) {
         boundTargetUse=true;
         continue;
