@@ -31,6 +31,13 @@ test('report native filesystem aliasing for candidate Unicode case-fold pairs',a
     {label:'combining grapheme joiner versus absent',a:'ab.txt',b:'a\u034Fb.txt'},
     {label:'byte-order mark versus absent',a:'ab.txt',b:'a\uFEFFb.txt'},
     {label:'Mongolian vowel separator versus absent',a:'ab.txt',b:'a\u180Eb.txt'},
+    {label:'ASCII e versus accented e',a:'e.txt',b:'é.txt'},
+    {label:'ASCII a versus accented a',a:'a.txt',b:'á.txt'},
+    {label:'ASCII n versus accented n',a:'n.txt',b:'ñ.txt'},
+    {label:'ASCII A versus fullwidth A',a:'A.txt',b:'Ａ.txt'},
+    {label:'ASCII 1 versus circled one',a:'1.txt',b:'①.txt'},
+    {label:'ASCII ffi versus ligature ffi',a:'ffi.txt',b:'ﬃ.txt'},
+    {label:'ASCII K versus Kelvin sign',a:'K.txt',b:'K.txt'},
     {label:'dotless I',a:'I.txt',b:'ı.txt'}
   ];
   const root=await fs.mkdtemp(path.join(os.tmpdir(),'obfs-casefold-'));
