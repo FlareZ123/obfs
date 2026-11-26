@@ -13,6 +13,7 @@ const run = promisify(execFile);
  * @typedef {{path:string,code:string}} ExtraFile
  * @typedef {{
  *   name:string,
+ *   expectedVulnerable:boolean,
  *   sourceFiles:SourceFile[],
  *   extraFiles:ExtraFile[],
  *   storagePath:string,
@@ -96,6 +97,25 @@ const esmClassPage = [
   '</script></body></html>'
 ].join('');
 
+const esmExportedFactoryPage = [
+  '<!doctype html><html><head><meta charset="utf-8"></head><body>',
+  '<script type="module">',
+  'try{',
+  '  const {make}=await import("./producer.mjs");',
+  '  const nativePrototype=Object.getPrototypeOf(make());',
+  ...patchLines,
+  '  const {sample}=await import("./entry.mjs");',
+  '  const result=sample();',
+  '  const payload={result,capturedSource:document.title};',
+  '  const pre=document.createElement("pre");pre.id="result";',
+  '  pre.textContent=btoa(JSON.stringify(payload));document.body.appendChild(pre);',
+  '}catch(error){',
+  '  const pre=document.createElement("pre");pre.id="failure";',
+  '  pre.textContent=String(error.stack||error);document.body.appendChild(pre);',
+  '}',
+  '</script></body></html>'
+].join('');
+
 const esmImportedFactoryPage = [
   '<!doctype html><html><head><meta charset="utf-8"></head><body>',
   '<script type="importmap">{"imports":{"opaque-runtime":"./opaque-runtime.mjs"}}</script>',
@@ -116,6 +136,7 @@ const esmImportedFactoryPage = [
 const scenarios = /** @type {Scenario[]} */ ([
   {
     name: 'classic-cross-unit-lexical-carrier',
+    expectedVulnerable: true,
     storagePath: 'storage.js',
     pageSource: classicPage,
     extraFiles: [],
@@ -147,6 +168,7 @@ const scenarios = /** @type {Scenario[]} */ ([
   },
   {
     name: 'external-esm-derived-class',
+    expectedVulnerable: true,
     storagePath: 'storage.mjs',
     pageSource: esmClassPage,
     extraFiles: [],
@@ -169,7 +191,32 @@ const scenarios = /** @type {Scenario[]} */ ([
     ]
   },
   {
+    name: 'esm-exported-factory-positive-control',
+    expectedVulnerable: false,
+    storagePath: 'storage.mjs',
+    pageSource: esmExportedFactoryPage,
+    extraFiles: [],
+    sourceFiles: [
+      {
+        path: 'producer.mjs',
+        sourceType: 'module',
+        code: 'export function make(){return new WeakMap();}'
+      },
+      {
+        path: 'entry.mjs',
+        sourceType: 'module',
+        code: "export {sample} from './storage.mjs';"
+      },
+      {
+        path: 'storage.mjs',
+        sourceType: 'module',
+        code: storageModuleSource
+      }
+    ]
+  },
+  {
     name: 'unresolved-external-esm-factory',
+    expectedVulnerable: true,
     storagePath: 'storage.mjs',
     pageSource: esmImportedFactoryPage,
     extraFiles: [
@@ -285,7 +332,9 @@ async function main() {
           ? 'agent7-classic-script-realm'
           : scenario.name === 'external-esm-derived-class'
             ? 'agent7-exported-derived'
-            : 'agent7-esm-imported-factory') + '-' + mode,
+            : scenario.name === 'esm-exported-factory-positive-control'
+              ? 'agent7-esm-exported-factory'
+              : 'agent7-esm-imported-factory') + '-' + mode,
         properties: false,
         identifiers: true,
         strings: false,
@@ -297,9 +346,15 @@ async function main() {
       }));
       const storage = compiled.files.find(file => file.path === scenario.storagePath);
       assert.ok(storage, scenario.name + ' missing ' + scenario.storagePath + ' for ' + mode);
-      assert.ok(storage.metrics.bindings > 0,
-        scenario.name + ' did not transform a storage binding in ' + mode + ': ' +
-        JSON.stringify(storage.metrics));
+      if (scenario.expectedVulnerable) {
+        assert.ok(storage.metrics.bindings > 0,
+          scenario.name + ' did not transform a storage binding in ' + mode + ': ' +
+          JSON.stringify(storage.metrics));
+      } else {
+        assert.equal(storage.metrics.bindings, 0,
+          scenario.name + ' unexpectedly transformed Storage bindings in ' + mode + ': ' +
+          JSON.stringify(storage.metrics));
+      }
 
       const prefix = scenario.name + '/' + mode;
       addResources(
@@ -350,7 +405,8 @@ async function main() {
       nativeResults.set(job.scenario.name, result);
     }
 
-    let confirmed = 0;
+    let falseSafes = 0;
+    let positiveControls = 0;
     for (const job of jobs) {
       if (job.kind === 'native') continue;
       const native = nativeResults.get(job.scenario.name);
@@ -358,14 +414,8 @@ async function main() {
       const emitted = await runTarget(executable, origin, job.prefix);
       assert.deepEqual(emitted.result, native.result,
         JSON.stringify({ scenario: job.scenario.name, mode: job.kind, native, emitted }));
-      assert.notEqual(emitted.capturedSource, native.capturedSource,
-        JSON.stringify({ scenario: job.scenario.name, mode: job.kind, native, emitted }));
-      assert.ok(!emitted.capturedSource.includes('privateLocal'),
-        JSON.stringify({ scenario: job.scenario.name, mode: job.kind, native, emitted }));
       const storage = job.storage;
       assert.ok(storage, 'missing storage metrics for ' + job.scenario.name + '/' + job.kind);
-      assert.ok(storage.metrics.bindings > 0,
-        JSON.stringify({ scenario: job.scenario.name, mode: job.kind, storageMetrics: storage.metrics }));
       const evidence = {
         browser: version.stdout.trim(),
         scenario: job.scenario.name,
@@ -374,18 +424,38 @@ async function main() {
         native,
         emitted
       };
-      process.stdout.write('EXPECTED_WEAKMAP_BROWSER_SOURCE_CAPTURE_FALSE_SAFE ' +
-        JSON.stringify(evidence) + '\n');
-      confirmed++;
+      if (job.scenario.expectedVulnerable) {
+        assert.notEqual(emitted.capturedSource, native.capturedSource,
+          JSON.stringify({ scenario: job.scenario.name, mode: job.kind, native, emitted }));
+        assert.ok(!emitted.capturedSource.includes('privateLocal'),
+          JSON.stringify({ scenario: job.scenario.name, mode: job.kind, native, emitted }));
+        assert.ok(storage.metrics.bindings > 0,
+          JSON.stringify({ scenario: job.scenario.name, mode: job.kind, storageMetrics: storage.metrics }));
+        process.stdout.write('EXPECTED_WEAKMAP_BROWSER_SOURCE_CAPTURE_FALSE_SAFE ' +
+          JSON.stringify(evidence) + '\n');
+        falseSafes++;
+      } else {
+        assert.equal(emitted.capturedSource, native.capturedSource,
+          JSON.stringify({ scenario: job.scenario.name, mode: job.kind, native, emitted }));
+        assert.ok(emitted.capturedSource.includes('privateLocal'),
+          JSON.stringify({ scenario: job.scenario.name, mode: job.kind, native, emitted }));
+        assert.equal(storage.metrics.bindings, 0,
+          JSON.stringify({ scenario: job.scenario.name, mode: job.kind, storageMetrics: storage.metrics }));
+        process.stdout.write('WEAKMAP_BROWSER_EXPORTED_FACTORY_POSITIVE_CONTROL_PASSED ' +
+          JSON.stringify(evidence) + '\n');
+        positiveControls++;
+      }
     }
 
-    assert.equal(confirmed, scenarios.length * 2);
-    process.stdout.write('WEAKMAP_BROWSER_FALSE_SAFE_MATRIX_CONFIRMED ' +
+    assert.equal(falseSafes, 3 * 2);
+    assert.equal(positiveControls, 1 * 2);
+    process.stdout.write('WEAKMAP_BROWSER_FALSE_SAFE_AND_POSITIVE_CONTROL_MATRIX_CONFIRMED ' +
       JSON.stringify({
         browser: version.stdout.trim(),
         scenarios: scenarios.map(scenario => scenario.name),
         clientModes: ['coo', 'sco'],
-        confirmed
+        falseSafes,
+        positiveControls
       }) + '\n');
   } finally {
     await new Promise((resolve, reject) => {
