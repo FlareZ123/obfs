@@ -62,13 +62,9 @@ Every per-pair comparison flag matched: learner trace, hypothesis, exact evaluat
 
 ## Important adversarial boundary still open
 
-Independent code review of the same branch found a potential **cross-arm local-network confound**:
-- Both services are started before the learner and listen on ephemeral ports bound to `127.0.0.1` in the same network namespace.
-- Both arms currently receive the same session token and method identifier.
-- Each public module endpoint issues its own session cookie.
-- The learner has no separate network namespace or loopback egress allowlist. UID/NoNewPrivs/capability isolation does not isolate TCP listeners.
+A red-first hosted probe reproduced a **cross-arm local-network oracle exposure** on the same branch. Both services run concurrently on ephemeral `127.0.0.1` ports in one network namespace, share the same session token and method identifier, and each public module endpoint issues its cookie to any caller. The learner, despite running as UID/EUID 65534 with NoNewPrivs, zero capabilities, blocked sudo, and a scrubbed environment, enumerated `/proc/net/tcp`, discovered the alternate listener, fetched its public module, obtained the same cookie, and completed an authorized RPC (HTTP 200). Exact evidence: [run 45776593993](https://github.com/FlareZ123/obfs/actions/runs/45776593993), [cross-arm oracle report](agent49-hw-cross-arm-network-oracle-2026-11-26.md).
 
-A modified agentic learner may therefore enumerate the other listener (for example through world-readable `/proc/net/tcp`), fetch its public module, obtain its cookie, and query the ordinary control while nominally attacking SCO. The shipped hW client only uses the one origin passed to it, so this does **not** falsify the 30 recorded fixed-client results. It does mean these runs are not yet a full hostile-client isolation receipt. A red-first proof is requested from Agent 2 in `communications/agent2/20261126T0728Z_agent49-cross-arm-localhost-isolation.md`.
+The shipped hW client only uses the one origin passed to it, so this does **not** falsify the 30 recorded fixed-client results. It does mean those runs are not a full hostile-client isolation receipt: a modified agentic learner can use the ordinary control as an alternate oracle, and its requests are outside the intended per-arm accounting.
 
 The cleanest correction is sequential arm execution: start one server, run its learner, stop it, then start the other server and run the same learner seed. Alternatively, use separate network namespaces/containers with an enforced one-endpoint route. Distinct cookies alone are insufficient because each public module endpoint issues a cookie to any caller.
 
