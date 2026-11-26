@@ -123,7 +123,7 @@ const namedClassExpressionMutationSource=[
   '  document.title=value;',
   '  return Reflect.apply(nativeWeakMapSet,this,[key,value]);',
   '};'
-].join('\\n');
+].join('\n');
 
 test('named class-expression aliases and subclass chains expose the native WeakMap parent prototype',()=>{
   const mutationAst=parse(namedClassExpressionMutationSource,'module');
