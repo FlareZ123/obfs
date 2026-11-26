@@ -89,3 +89,13 @@ The same three opaque-host variants are now protected by a test on current main:
 All three variants produced zero local property rewrites and preserved the host-observed source/output on Ubuntu and Windows. Project JSDoc, external JSDoc, and paired-budget JSDoc all passed. The full Node 22 suite was skipped. This is a focused baseline receipt, not full acceptance.
 
 A separate direct-call positive-control attempt was removed because the chosen fixture did not qualify for a current-main property rewrite (metrics remained zero). No direct-call positive-yield claim is made from this work.
+
+## Three-mode candidate check
+
+The same direct-assignment opaque-host witness was also executed through all three candidate mode settings:
+
+- Test: test/agent10-bound-proof-mode-matrix.test.js
+- Candidate review head: e7bb4e02c407b28396fc497568a6461bcf63ba16
+- Focused run: [45763097057](https://github.com/FlareZ123/obfs/actions/runs/45763097057)
+
+COO, SNO, and SCO each admitted one property rewrite; the emitted function still returned 7, while the host-observed source differed from the original. Both Ubuntu and Windows passed the witness assertions and all focused JSDoc stages. The three mutation-route matrix (direct/alias/descriptor) remains COO-only; the all-mode check uses direct assignment. The full Node 22 suite was skipped, and this is not a full mode acceptance or 2.5x runtime result.
