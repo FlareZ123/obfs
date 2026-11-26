@@ -229,8 +229,6 @@ def run_client(origin: str, learner_seed: int, args, mirror_root: Path):
     return result
 
 def preflight(
-
-def preflight(
     origin: str,
     public_path: str,
     rpc_path: str,
@@ -352,6 +350,7 @@ def verify_target_trace(fixture, trace):
 
 
 def run_one(state_count: int, seed: int, args):
+    server_user, learner_user = isolation_accounts()
     started = time.perf_counter()
     fixture = BENCHMARK.generate_fixture(state_count, seed)
     learner_seed = args.learner_seed
