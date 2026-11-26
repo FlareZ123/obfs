@@ -662,3 +662,20 @@ test('browser URL dot-segment resolution is not collapsed by POSIX path normaliz
       'import {state} from "./a//../state.mjs";console.log(state.secretField);'}
   ],0,'coo','42');
 });
+
+test('owner re-export cycle preserves self-import TDZ and declines shared-root renaming',async()=>{
+  const files=[
+    {path:'state.mjs',sourceType:'module',code:
+      'import {state as self,peek as inspect} from "./relay.mjs";'+
+      'let early;try{early=self.secretField;}catch(error){early=error.name;}'+
+      'export const state={secretField:23};'+
+      'export function peek(owner){return owner.secretField;}'+
+      'export const result=early+" "+inspect(self);'},
+    {path:'relay.mjs',sourceType:'module',code:
+      'export {state,peek} from "./state.mjs";'},
+    {path:'main.mjs',sourceType:'module',code:
+      'import {result} from "./state.mjs";console.log(result);'}
+  ];
+  for(const mode of ['coo','sno','sco'])
+    await preserves(files,0,mode,'ReferenceError 23');
+});
