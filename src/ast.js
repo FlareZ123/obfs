@@ -115,6 +115,7 @@ function hasWeakMapPrototypeExposure(ast) {
   }
   /** @param {AstNode|null|undefined} node @returns {string|null} */
   function staticStringValue(node) {
+    if(!node)return null;
     const value=staticString(node);
     if(value!==null)return value;
     if(node?.type==='Identifier')return topLevelStringConstants.get(node.name)??null;
