@@ -11,7 +11,7 @@ The candidate's new WeakMap prototype-introspection guard is bypassed by four st
 3. Aliased descriptor method: `const getDescriptor = Object.getOwnPropertyDescriptor; getDescriptor(Object.prototype, '__proto__').get`
 4. Reflective retrieval: `Reflect.get(Object.prototype, '__lookupGetter__').call(Object.prototype, '__proto__')`
 
-Calling either getter with `new WeakMap()` returns `WeakMap.prototype`. Replacing that prototype's `set` method makes the candidate's supposedly reference-only Storage override perform a DOMString conversion of the stored function. The compiler nevertheless treats the WeakMap as stable, skips the source-observation refusal, and rewrites local identifiers.
+Calling the recovered getter with `new WeakMap()` returns `WeakMap.prototype`. Replacing that prototype's `set` method makes the candidate's supposedly reference-only Storage override perform a DOMString conversion of the stored function. The compiler nevertheless treats the WeakMap as stable, skips the source-observation refusal, and rewrites local identifiers.
 
 The original and transformed programs return the same application values, but the host-observable function source differs. This is a concrete false-safe in the reviewed candidate, not merely a theoretical instrumentation concern.
 
@@ -23,7 +23,7 @@ The original and transformed programs return the same application values, but th
 - Relevant code: `src/ast.js`, nested `isStableWeakMapInstance()` within `observesFunctionSource()`
 - Relevant existing regression: `test/agent4-weakmap-prototype-escape.test.js`
 
-The candidate guard added checks for `getPrototypeOf` and `__proto__` member access, plus a property key named `getPrototypeOf`. The two confirmed paths do not use either spelling as a member access.
+The candidate guard added checks for `getPrototypeOf` and `__proto__` member access, plus a property key named `getPrototypeOf`. These routes recover the accessor through legacy or reflective APIs instead of directly accessing the WeakMap instance's prototype.
 
 ## Reproducer
 
@@ -57,9 +57,9 @@ The test-only branch is `agent2/weakmap-lookupgetter-audit-20261126`.
 | [45854404395](https://github.com/FlareZ123/obfs/actions/runs/45854404395) | `e363018c73b942b5f05c46b3860a83df22feb03c` | `__lookupGetter__` + descriptor getter | Both failed on Ubuntu, Windows, macOS |
 | [45854804850](https://github.com/FlareZ123/obfs/actions/runs/45854804850) | `e0301a3f508217955a489b0913a0329a266752f1` | Four cases: direct, descriptor, aliased descriptor, Reflect.get | All four failed on Ubuntu and Windows; macOS job still queued at report update |
 
-Both runs used the existing `manual-validation.yml` focused-test path with Node 22.23.4. These were targeted falsification runs, not full-suite acceptance gates.
+All runs used the existing `manual-validation.yml` focused-test path with Node 22.23.4. These were targeted falsification runs, not full-suite acceptance gates. The first two runs completed on all three platforms; the expanded alias/Reflect.get run confirmed all four cases on Ubuntu and Windows, with macOS still queued at the report update.
 
-For the first two direct routes, all three platform logs show. The expanded alias/Reflect.get run independently shows the same failure signature for all four routes on Ubuntu and Windows:
+The platform logs show the following failure signature:
 
 - `observesFunctionSource(ast) === false`;
 - `metrics.bindings === 5`;
@@ -72,13 +72,13 @@ Thus ordinary return-value differential testing alone would miss the observation
 ## Scope and limitations
 
 - The reproduced compiler mode is COO with `properties:false`, `identifiers:true`, and `strings:false`, isolating identifier rewriting and the Storage observer.
-- The tests run Node ESM with explicit Storage and Document.title shims on three operating systems. They do not constitute real-browser Chromium validation.
+- The tests run Node ESM with explicit Storage and Document.title shims. The initial two-route tests completed on three operating systems; the expanded four-route run completed on Ubuntu and Windows, with its macOS job still queued at the report update. These tests do not constitute real-browser Chromium validation.
 - The result establishes a false-safe in the exact reviewed candidate at `6e7888a`. It does not claim that a later repaired candidate or current `main` has the same defect.
 - No production source file was modified by this audit; only test code was added on the isolated Agent 2 branch.
 
 ## Required follow-up
 
-The WeakMap-specific proof must fail closed when prototype getter extraction can reach a WeakMap instance's prototype, including the two confirmed routes and statically computed/aliased variants. A guard limited to the names `getPrototypeOf` and `__proto__` as member accesses is insufficient.
+The WeakMap-specific proof must fail closed when prototype getter extraction can reach a WeakMap instance's prototype, including the four reproduced routes and statically computed/aliased variants. A guard limited to the names `getPrototypeOf` and `__proto__` as member accesses is insufficient.
 
 Agent 1 and Agent 4 were notified through their mailboxes. PR #382 remains draft; Agent 2 explicitly withheld authorization to move its head while this false-safe remains unresolved. The candidate needs a new exact-head independent challenge and full required validation after the guard is repaired.
 
