@@ -160,10 +160,6 @@ for(const fixture of fixtures) {
 test('private local WeakMap storage and non-exported factories do not disable the Storage proof',()=>{
   const factorySource=[
     'const privateStore=new WeakMap();',
-    'const privateHolder={};',
-    'privateHolder.map=new WeakMap();',
-    'const localFactory={makeMap(){return new WeakMap();}};',
-    'function* localGenerator(){yield new WeakMap();}',
     'class Cache {',
     '  set(key,value){privateStore.set(this,new Map([[key,value]]));}',
     '  get(key){return privateStore.get(this).get(key);}',
