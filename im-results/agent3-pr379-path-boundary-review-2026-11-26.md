@@ -81,3 +81,8 @@ The Unicode 17 table tests all 1,585 C/F mappings, and the native filesystem pro
 ## Review disposition
 
 The candidate's ESM/SCO URL-path guards and focused target/decoy tests are materially useful and look sound for the inspected call sites. Do not describe the PR as merged or integrated. Resolve the stale branch/PR metadata, add or explicitly scope the HTML/SRI encoded-separator case, and keep release status blocked while the full gate remains red and the broader security/performance objectives remain unproven.
+
+
+### Follow-up: encoded backslash is another ambiguous SRI spelling
+
+The same issue has a Windows-specific spelling. For `./folder%5C..%5Cclient.js`, WHATWG URL preserves `%5C` in `url.pathname`; `decodeURIComponent` produces `/public/folder\\..\\client.js`. Candidate `targetPath()` then returns `null` because the decoded pathname contains a backslash. The caller does not treat this ambiguous relative address as an unknown mount and does not consult `matchesOriginalDigest()`. A serving layer that decodes `%5C` and applies Win32 path normalization can resolve it to `public\\client.js`. Local Node v22.16.0 reproduced both the URL preservation and `path.win32.normalize()` target. Thus the recommendation should cover both encoded slash and encoded backslash (and, conservatively, encoded path controls): ambiguous relative paths should trigger the original-digest fallback or an explicit unsupported-path refusal, not silently become an unrecognized non-observer.
