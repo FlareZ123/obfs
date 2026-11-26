@@ -58,3 +58,23 @@ The 36-target 16–24-state replication remains pinned to earlier source `a385fc
 The evaluator still checks the trace-consistent candidates in the learner's returned hW hypothesis. That does not establish uniqueness in the complete finite-state version space. Agent 2's separate bounded Z3 audit found 1 SAT and 9 UNKNOWN among ten prioritized offline traces; those outcomes are not results for these live targets. No 2.5× original-JavaScript compute comparison was performed.
 
 A follow-up experiment adds evaluator-only target fixtures and public traces to the post-run artifact and applies the existing bounded version-space solver to selected live cases. It is being validated separately; do not treat it as complete until its exact-head workflow succeeds.
+
+
+## Follow-up: exact SSH banner regression and live version-space audit
+
+The next branch revision added a stronger regression test that accepts a TCP connection and sends an actual OpenSSH-style `SSH-2.0-...` banner with CRLF. This exercises the exact `http.client.BadStatusLine` path from run 45792963990, rather than merely testing a silent/non-responsive socket.
+
+The live matched-control output now preserves `fixture_table`, `observed_trace`, `target_post_trace_state`, and `trace_matching_initial_candidates` in the trusted parent's post-run artifact. These fields are produced only after the learner exits and are not passed to learner argv, environment, or HTTP API. The workflow installs the existing pinned Z3 solver, runs its unit tests, audits prioritized live traces, and preserves the audit JSON alongside the matched-control artifact.
+
+Exact-head run [45815794381](https://github.com/FlareZ123/obfs/actions/runs/45815794381) passed all steps on Ubuntu at source head `c4c430991f9b0a4974063c7103dce097163a3ea7`:
+- 8/8 live pairs completed, zero timeouts/errors;
+- 8/8 future-behavior clones in both arms;
+- 6/8 exact initial clones in both arms; the other two each had two returned-hypothesis initial candidates but one future-behavior class;
+- 7,022 SUL steps and 7,062 HTTP requests per arm;
+- all process-isolation, IPv4/IPv6 listener, actual SSH-banner, sequential single-arm, and evaluator tests passed.
+
+The bounded full-version-space audit selected the two ambiguous four-state cases. With Z3 5.4.1.0 and a 10,000 ms timeout per candidate size, both audits returned `UNKNOWN`: candidate sizes 1, 2, and 3 were UNSAT, while the four-state candidate search timed out. The traces had 3,781 and 2,204 state-separation constraints respectively. Thus the audit excludes smaller machines for these cases but cannot establish whether a distinct four-state future-behavior candidate exists. There were zero SAT witnesses and zero final UNSAT results; do not describe this as version-space uniqueness.
+
+Artifact: `agent2-live-hw-matched-control`, ID `15114732787`, ZIP SHA-256 `3f7fcb296a2657e9a2b13b1924358e3d3490ae18826ab70c2b5feb5e39c363e0`.
+
+The 16–24-state / 36-target experiment with the same live version-space audit is queued separately as run 45815986225 at the later parameterized-workflow head. Its outcome is not included in this report until completed.
