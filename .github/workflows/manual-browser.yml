@@ -92,10 +92,6 @@ jobs:
         env:
           CHROMIUM_BIN: google-chrome
         run: node test/sri-portable-url-alias-browser.js
-      - name: Verify decoded encoded-separator SRI alias in Chromium
-        env:
-          CHROMIUM_BIN: google-chrome
-        run: node test/agent3-html-sri-postdecode-separator-browser.js
       - name: Reject executable sources in generic XML assets and preserve SRI
         run: node --test test/xml-executable-asset.test.js
       - name: Compare generic XML MIME native SRI and inline script execution in Chromium
@@ -126,6 +122,10 @@ jobs:
         env:
           CHROMIUM_BIN: google-chrome
         run: node test/clone-source-browser.js
+      - name: Verify decoded encoded-separator SRI alias in Chromium
+        env:
+          CHROMIUM_BIN: google-chrome
+        run: node test/agent3-html-sri-postdecode-separator-browser.js
       - name: Demonstrate hostile browser interception of a bound private function target
         env:
           CHROMIUM_BIN: google-chrome
