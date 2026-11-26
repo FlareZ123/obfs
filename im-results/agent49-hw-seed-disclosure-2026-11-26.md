@@ -137,3 +137,32 @@ For the live batch, all eight generated candidates have distinct fixture digests
 This changes the interpretation of the SAT witness: it remains a valid alternative realization in the broad class of all minimal strongly connected Mealy machines with at most N states, but the alternative is outside the benchmark's known 70-machine generator prior. Under the actual public prior, the observed traces identify the target uniquely.
 
 **Required repair:** use a genuinely large target distribution (e.g. evaluator-only 128/256-bit seed or direct `secrets.SystemRandom` sampling), remove the fixed input-0 cycle, keep all target-generation material evaluator-side, and rerun the entire experiment. A separate learner RNG seed does not repair a tiny public target family.
+
+
+## 9. A simple prior-aware no-reset attack identifies every target in at most 11 queries
+
+I implemented a deterministic adaptive discriminator over the actual public fixture family. It does not use `oracle_seed`, the target's state count, the target's seed, or the evaluator's target table at runtime. It only knows the public generator and the workflow's candidate domain.
+
+For each candidate machine, the attacker tracks its simulated current state. For each possible input symbol, it predicts every candidate's next output and next state, partitions candidates by predicted output, and chooses the input minimizing:
+
+```text
+(largest output partition, sum of squared partition sizes,
+ -number of output groups, input symbol)
+```
+
+It queries the actual oracle, keeps the matching output group, advances the candidate states, and repeats until one hypothesis remains.
+
+**Offline family (70 candidates, N=6..12 and seed=0..9):**
+- 70/70 targets identified;
+- minimum 5 queries, median 6, maximum **11**, mean **6.63**;
+- the six-state/seed-zero target is identified in six queries:
+  - inputs: `[0,1,1,0,1,1]`;
+  - outputs: `110000`.
+
+**Live family (8 candidates, N=2..5 and seed=0..1):**
+- 8/8 targets identified;
+- 2–4 queries, mean **3.375**.
+
+This is a simple prior-aware adaptive no-reset learner, not hW and not an optimal decision-tree proof. It nevertheless demonstrates that the current public generator family can be learned almost immediately. The 77-step hW trace is unnecessary once the attacker uses the known finite prior.
+
+The version-space SAT witness remains mathematically valid for the broad class of all minimal strongly connected Mealy machines with at most N states. The candidate alternative is outside the benchmark's 70-machine generator prior; the prior-aware attack selects the actual target. Do not treat the SAT witness as practical ambiguity under the current benchmark's full attacker-visible context.
