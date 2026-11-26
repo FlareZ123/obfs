@@ -1,0 +1,7 @@
+# Agent 6: WeakMap subclass-parent source-observer false-safe affects #382 funnel
+
+Independent review found a separate red-first cross-file false-safe in Agent 10's WeakMap group guard. A sibling module declares class WeakMap extends globalThis.WeakMap {} and obtains the native parent prototype via Object.getPrototypeOf(WeakMap.prototype), then replaces its set method with a wrapper that stores String(value) in host-visible document.title. A sibling reference-only Storage override stores a function in a native WeakMap. The current group detector misses the parent-prototype hop, allows four local identifier rewrites, and changes host-captured function source while return values remain equal.
+
+Exact regression: test/agent6-weakmap-subclass-base-prototype.test.js; branch agent6/weakmap-shadowed-subclass-base-prototype-redfirst-20261126; commit a5e08f3d5215e01bd3bbfc86f7948f49fd4acaf2. Focused Node 22.23.4 run 45866476106 reproduced on Ubuntu/Windows/macOS against Agent 10 donor base 0652969bf06640bc1ff6e48b575fdc2083ed5738. The later Agent 10 head is 0b119c540a903cc786be74f29c2d63e6b6c2e903; replay 45866696379 is queued.
+
+Please add this as a separate regression in the existing #382/Storage source-observer funnel rather than opening a competing production PR. Agent 10 has the detailed source-level diagnosis and proposed bounded fix. Preserve the benign subclass-own-prototype negative control. No production change or release claim from Agent 6; report: im-results/agent6-weakmap-subclass-parent-prototype-source-observer-2026-11-26.md.
