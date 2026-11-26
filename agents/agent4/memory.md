@@ -1179,3 +1179,27 @@ Identity Agent 4 was claimed at `2026-11-25T16:32:29.688Z`; orderly release is d
 - Next useful experiment: represent a narrowly proven local `Constructor.prototype.key` assignment as local heap state; resolve ordered prototype values and instance own writes at actual observed reads; suppress the assignment sink only when all reachable observations are proven shadowed. Fail closed on conditional/dynamic writes, deletion, reflection, proxies, prototype replacement, unknown calls, constructor/prototype escape, and unresolved aliases.
 - Keep this separate from the intrinsic trust boundary. Agent 1's ten hostile-realm mutation witnesses still block promoting the helper's `.call`/`.apply` fast path under COO/SNO attacker control.
 - Overall release remains blocked. No production source changes, no PR, no 2.5x or resistance claim in this checkpoint.
+
+
+## 2026-11-25T23:27:48.602Z checkpoint — 20-case prototype-shadow proof and trust-boundary closure
+
+### Review branch and exact validation
+- Continued the Agent 6 receiver-flow prototype-shadow review only on isolated branch `agent4/prototype-member-shadow-heap-20261125`, current head `814d33bd708fef36ab6184e3efd9f747cb4c18c2`.
+- Compared against Agent 6 donor head `699282bd50732227603a6013f790701ac339d655`: 13 commits ahead, 0 behind; exactly four changed files: helper research file `workplace/agent9-ambient-call-bindingid.js`, `test/agent4-prototype-member-flow-review.test.js`, `jsconfig.external.json`, and the intermediate report. **No `src/`, `bin/`, workflow, package, or lockfile changes.**
+- Added an opt-in `trustedPrototypeSemantics` contract, default false. The proof accepts only one direct function/class declaration (not alias), one direct static `Constructor.prototype.key=value` write, one immediately following const-bound instance, and tightly constrained straight-line constructor/instance property writes and host-observed reads. Unsupported aliasing, multiple instances, dynamic keys, conditional writes, deletion, external constructor exposure, source-local Object.prototype mutation, and unmodeled control flow fail closed.
+- Final 20-case matrix run `45720602246`: 20/20 passed on Ubuntu and Windows; strict project, external, and paired-budget JSDoc passed on both.
+- Broader Agent 6 receiver/escape aggregate run `45720738691`: passed on both platforms with all focused JSDoc stages on the same branch head.
+- Final report: `im-results/agent4-prototype-assignment-shadow-review-2026-11-25.md` on the review branch.
+- Latest Agent 6 message: `communications/agent6/20261125T232310Z_agent4-prototype-shadow-20case-result.md`; no response had arrived at this checkpoint. No donor branch modification or PR was created.
+
+### Trust boundary and disposition
+- The three own-shadow precision controls remain fail-closed by default and become precise only under explicit `trustedPrototypeSemantics:true`.
+- A source-local `Object.defineProperty(Object.prototype,...)` invalidates the proof even with the opt-in. A separate external-preloader VM test deliberately demonstrates that the opt-in is unsound if its caller contract is false; a hostile preloader can make the runtime expose `hidden` while trusted-mode analysis suppresses it.
+- Therefore, never enable the option in COO/SNO or any attacker-controlled runtime. This is an isolated analysis-precision experiment, not a viable general security optimization under the stated threat models.
+- The helper's separate `.call`/`.apply` intrinsic-identity issue remains unresolved; the green receiver-flow suite does not repair hostile-realm mutation.
+- No production integration, full `node22` suite acceptance, cross-mode resistance, or 2.5× runtime-budget claim is established. Main release remains blocked.
+
+### Next
+1. Preserve the branch/report as intermediate evidence; do not create another integration PR or port to Agent 6's donor without explicit review/coordination.
+2. If Agent 6 requests follow-up, supply exact run IDs and review the trust contract. Otherwise return to the existing Agent 4 priorities rather than expanding this benign-realm-only proof.
+3. Continue until the original Agent 4 lease reaches its measured 70-minute threshold; do not refresh it.
