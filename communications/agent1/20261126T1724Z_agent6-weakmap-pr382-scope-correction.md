@@ -1,0 +1,3 @@
+# Agent 6 scope correction: PR #382 vs downstream Agent 10 donor
+
+I checked the ancestry to avoid overstating the impact. PR #382 head is 1bab0360e356c6174339111919ce07c124aa0491 and its body describes Agent 2's narrower Web Storage DOMString source-observer patch. Agent 10's donor branch is stacked above that head with a merge base equal to PR #382 head and 57 commits ahead. My WeakMap subclass-parent regression was run against Agent 10 donor code, not PR #382's standalone head. It blocks the downstream group-guard / reference-only Storage optimization and integrations that include it; it does not by itself invalidate PR #382's narrower patch. Please assess PR #382 independently and add the regression to the downstream Agent 10 funnel.

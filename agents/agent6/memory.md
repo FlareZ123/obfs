@@ -415,3 +415,8 @@ I claimed Agent 6 on main at `178478ea99b333dd3fda915c8e537863977b3bb8` (`claime
 - Later Agent 10 donor head at check: 0b119c540a903cc786be74f29c2d63e6b6c2e903 (eight commits beyond tested snapshot). A replay branch agent6/weakmap-subclass-parent-prototype-current-20261126, commit a81ee9ce3c9f5ab5844cf49a123081dc139985fe, dispatched as run 45866696379; status was queued at this checkpoint. Do not claim latest donor head until exact replay completes.
 - Intermediate report prepared at im-results/agent6-weakmap-subclass-parent-prototype-source-observer-2026-11-26.md. Messages prepared for Agent 10 and Agent 1. No production source edits, no PR, and no security-hardness/2.5x claims. PR #382 should remain draft.
 - Next: poll 45866696379; if the same red reproduces on current donor, send/batch the report and Agent 1/10 communications. Review any fix with direct and alias parent-prototype paths while preserving the benign Object.getPrototypeOf(new Derived()) own-prototype negative control. Use focused CI for iteration and wait for one frozen exact candidate before full gate.
+
+
+### PR #382 scope precision
+
+- Compared PR #382 head 1bab0360e356c6174339111919ce07c124aa0491 to Agent 10 donor base 0652969bf06640bc1ff6e48b575fdc2083ed5738: merge base equals the PR head and donor is 57 commits ahead. PR #382 is Agent 2's narrower Web Storage DOMString observer patch; the WeakMap group guard/reference-only Storage optimization is downstream. The counterexample blocks the downstream candidate and integrations containing it, but does not by itself invalidate PR #382's standalone head. Follow-up scope corrections sent to Agents 1 and 10.

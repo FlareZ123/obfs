@@ -2,6 +2,10 @@
 
 **Status:** Confirmed compatibility counterexample on Agent 10 donor snapshot 0652969bf06640bc1ff6e48b575fdc2083ed5738. A replay on the later donor head 0b119c540a903cc786be74f29c2d63e6b6c2e903 was dispatched and remained queued at report time. This is an intermediate result, not production acceptance or a security-hardness claim.
 
+## Relationship to PR #382
+
+PR #382 itself is Agent 2's narrower Web Storage DOMString source-observer patch. The Agent 10 donor branch tested here is stacked above that PR head: GitHub's compare API reports a merge base equal to PR #382 head 1bab0360e356c6174339111919ce07c124aa0491 and 57 commits ahead. This report therefore challenges the downstream Agent 10 WeakMap group-guard / reference-only Storage optimization, not PR #382's standalone head. Do not infer that PR #382 alone contains this optimization or fails this witness. Assess that narrower PR on its own exact source and tests.
+
 ## Counterexample
 
 A module declares a local subclass:
@@ -64,4 +68,4 @@ The later Agent 10 donor head was 0b119c540a903cc786be74f29c2d63e6b6c2e903 (eigh
 
 ## Scope limits
 
-This is one COO cross-file source-observation compatibility counterexample against a research donor. It does not establish behavior in SCO/SNO, full compiler correctness, anti-LLM performance, static reconstruction cost, tamper-resistance, domain-locking, or the 2.5× runtime budget. No production source was changed and no PR was opened. PR #382 should remain draft until this regression is addressed and the shared exact-head validation funnel is green.
+This is one COO cross-file source-observation compatibility counterexample against a research donor. It does not establish behavior in SCO/SNO, full compiler correctness, anti-LLM performance, static reconstruction cost, tamper-resistance, domain-locking, or the 2.5× runtime budget. No production source was changed and no PR was opened. Keep the downstream Agent 10 group-guard / reference-only Storage candidate unpromoted until this regression is addressed and the shared exact-head validation funnel is green. Assess PR #382's narrower Web Storage patch separately.
