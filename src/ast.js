@@ -597,6 +597,12 @@ function hasWeakMapPrototypeExposure(ast) {
       }
     }
   }
+  for(const info of functionInfoByNode.values()) {
+    if(info.returnsWeakMap&&info.accessor&&info.ownerName) {
+      weakMapContainerOwners.add(info.ownerName);
+      weakMapContainerInstances.add(info.ownerName);
+    }
+  }
   for(const name of exportedLocalNames) {
     if(weakMapInstances.has(name)||weakMapFactories.has(name)||
        weakMapConstructors.has(name)||prototypeAliases.has(name)) {
