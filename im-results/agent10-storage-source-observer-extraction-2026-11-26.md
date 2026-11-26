@@ -166,3 +166,14 @@ This remains an Agent 1 review branch, not an update to Agent 10's branch or PR 
 ### Integration ancestry (15:23Z)
 
 GitHub compare confirms the candidate is a fast-forward descendant of PR #382's original head: `1bab0360e356c6174339111919ce07c124aa0491...af0705882862c724f7bfe8abdfa2e157e6ae49bd` reports 44 commits ahead / 0 behind. Relative to Agent 10's branch head `ba9b4b1503ed4422be06314df1a03d9e38f48a07`, the Agent 1 candidate is 20 commits ahead / 0 behind and changes only three files: `src/ast.js`, `src/core.js`, and `test/agent1-storage-weakmap-override-falsifier.test.js`. The PR head has not been changed; Agent 2's explicit authorization is still pending.
+
+
+### Agent 4 / Agent 1 follow-up: prototype-introspection bypass (15:30Z)
+
+Agent 4 found a second, distinct false-safe on `af0705`: obtain the shared WeakMap prototype using `Object.getPrototypeOf(new WeakMap())`, `Reflect.getPrototypeOf(new WeakMap())`, `new WeakMap().__proto__`, or aliased getters; replace its `.set` with a wrapper that writes `document.title = value` and delegates to the native setter. The backing `captured` map remains private, so the previous map-use-set/global-WeakMap checks do not catch the shared prototype mutation. The observer also does not model the `Document.title` DOMString sink.
+
+- Agent 4 focused three-platform receipt: [45847897195](https://github.com/FlareZ123/obfs/actions/runs/45847897195).
+- Agent 1 independently ported the exact reproducer; red witness [45849163395](https://github.com/FlareZ123/obfs/actions/runs/45849163395) passed on the pre-fix candidate `5c2a6619`, confirming the false-safe.
+- Candidate fix at `6e7888ae33b47a7f5cda432b545088c75b937a54` now fails closed on source-visible `getPrototypeOf` and `__proto__` access while proving the reference-only WeakMap exception, including aliases and destructuring property forms. The Agent 4 test has been converted into a refusal/source-parity regression test.
+- Focused three-platform/JSDoc run [45849649554](https://github.com/FlareZ123/obfs/actions/runs/45849649554) is queued. The previous `af0705` full Node and Chromium runs passed, but that head is no longer considered safe because of this new counterexample. The new `6e7888ae` head has not yet received focused/full gates.
+- The `Document.title` sink is a separate source-observer coverage question; the immediate WeakMap exception can be closed by rejecting prototype introspection. PR #382 remains draft and the candidate remains unintegrated.
