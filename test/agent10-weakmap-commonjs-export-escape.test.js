@@ -36,7 +36,9 @@ const runnerSource=[
   'class Storage{constructor(){this.values=new Map();}setItem(key,value){this.values.set(String(key),String(value));}}',
   'globalThis.Storage=Storage;',
   'globalThis.localStorage=new Storage();',
-  'globalThis.document={title:"initial"};',
+  'let title="initial";',
+  'globalThis.document={};',
+  'Object.defineProperty(globalThis.document,"title",{get(){return title;},set(value){title=String(value);}});',
   'const {sample}=require(process.argv[1]);',
   'const result=sample();',
   'process.stdout.write(JSON.stringify({result,capturedSource:document.title})+"\\n");'
