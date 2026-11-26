@@ -469,14 +469,15 @@ function hasWeakMapPrototypeExposure(ast) {
   // It intentionally models only statically resolvable object/array keys;
   // unresolved imported/dynamic values are treated as possibly carrying a
   // WeakMap when they reach an opaque call.
-  /** @typedef {{kind:'weakmap'}|{kind:'maybe'}|{kind:'other'}|{kind:'container',properties:Map<string,CarrierValue>,unknown:boolean}} CarrierValue */
+  /** @typedef {{kind:'container',properties:Map<string,CarrierValue>,unknown:boolean}} CarrierContainer */
+  /** @typedef {{kind:'weakmap'}|{kind:'maybe'}|{kind:'other'}|CarrierContainer} CarrierValue */
   /** @type {CarrierValue} */
   const carrierWeakMap={kind:'weakmap'};
   /** @type {CarrierValue} */
   const carrierMaybe={kind:'maybe'};
   /** @type {CarrierValue} */
   const carrierOther={kind:'other'};
-  /** @returns {CarrierValue} */
+  /** @returns {CarrierContainer} */
   function carrierContainer() {
     return {kind:'container',properties:new Map(),unknown:false};
   }
@@ -499,7 +500,7 @@ function hasWeakMapPrototypeExposure(ast) {
       for(const [key,value] of left.properties)merged.properties.set(key,value);
       for(const [key,value] of right.properties) {
         merged.properties.set(key,merged.properties.has(key)?
-          mergeCarrierValues(merged.properties.get(key),value):value);
+          mergeCarrierValues(merged.properties.get(key)??carrierOther,value):value);
       }
       return merged;
     }
@@ -517,7 +518,7 @@ function hasWeakMapPrototypeExposure(ast) {
   function evaluateCarrierValue(node,environment,thisValue=carrierOther) {
     if(!node)return carrierOther;
     if(node.type==='Identifier') {
-      if(environment.has(node.name))return environment.get(node.name);
+      if(environment.has(node.name))return environment.get(node.name)??carrierOther;
       if(weakMapInstances.has(node.name))return carrierWeakMap;
       if(importedLocalNames.has(node.name))return carrierMaybe;
       return carrierOther;
@@ -565,7 +566,7 @@ function hasWeakMapPrototypeExposure(ast) {
           const spread=evaluateCarrierValue(element.argument,environment,thisValue);
           if(spread.kind==='container') {
             const keys=[...spread.properties.keys()].sort((left,right)=>Number(left)-Number(right));
-            for(const key of keys)value.properties.set(String(index++),spread.properties.get(key));
+            for(const key of keys)value.properties.set(String(index++),spread.properties.get(key)??carrierOther);
             value.unknown=value.unknown||spread.unknown;
           } else if(carrierMayContainWeakMap(spread))value.unknown=true;
           continue;
@@ -580,7 +581,7 @@ function hasWeakMapPrototypeExposure(ast) {
         return carrierMaybe;
       const base=evaluateCarrierValue(node.object,environment,thisValue);
       if(base.kind==='container') {
-        if(key!==null&&base.properties.has(key))return base.properties.get(key);
+        if(key!==null&&base.properties.has(key))return base.properties.get(key)??carrierOther;
         return base.unknown?carrierMaybe:carrierOther;
       }
       return base.kind==='maybe'?carrierMaybe:carrierOther;
@@ -647,7 +648,7 @@ function hasWeakMapPrototypeExposure(ast) {
         const key=property.computed?staticString(property.key):
           property.key.type==='Identifier'?property.key.name:staticString(property.key);
         const nested=value.kind==='container'?
-          key!==null&&value.properties.has(key)?value.properties.get(key):
+          key!==null&&value.properties.has(key)?value.properties.get(key)??carrierOther:
             value.unknown?carrierMaybe:carrierOther:
           value.kind==='maybe'?carrierMaybe:carrierOther;
         bindCarrierPattern(property.value,nested,environment);
