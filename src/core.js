@@ -1964,7 +1964,7 @@ function obfuscateFiles(files, options = {}) {
       if(file.sourceType==='asset'||typeof file.code!=='string')return false;
       const inputAst=parse(file.code,file.sourceType);
       return !hasUnsafeNativeBindMutationSurface(inputAst)&&
-        !hasUnmodeledNativeBindGlobalReference(inputAst)&&
+        !hasUnmodeledNativeBindGlobalReference(inputAst,file.sourceType==='commonjs')&&
         !hasUnprovedModuleImport(inputAst,file.path,knownJavaScript)&&
         !(file.sourceType==='commonjs'&&
           hasUnprovedCommonJsRequire(inputAst,file.path,knownJavaScript));
