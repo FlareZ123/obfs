@@ -380,6 +380,17 @@ def run_one(state_count: int, seed: int, args):
             "learner_seed": learner_seed,
             "fixture_digest": BENCHMARK.digest_fixture(fixture),
             "trace_digest": BENCHMARK.digest_trace(sco_client["trace"]),
+            # Evaluator-only evidence for the bounded full-version-space audit.
+            # These fields are written by the trusted parent after the learner exits;
+            # they are never passed to the learner argv, environment, or HTTP API.
+            "fixture_table": {
+                "transitions": [list(row) for row in fixture.transitions],
+                "outputs": [list(row) for row in fixture.outputs],
+                "initial_state": fixture.initial_state,
+            },
+            "observed_trace": [list(item) for item in sco_client["trace"]],
+            "target_post_trace_state": sco_eval["target_post_trace_state"],
+            "trace_matching_initial_candidates": sco_eval["candidate_count"],
             "server_user_isolated": (
                 sco_ready.get("uid") == server_user.pw_uid
                 and ordinary_ready.get("uid") == server_user.pw_uid
