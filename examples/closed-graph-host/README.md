@@ -4,6 +4,11 @@
 which imports a private object. Each module body records a visible event;
 the final value is 24.
 
+The exported `read()` wrapper in the logic module delegates each field
+read to a separate private, direct-call-only reader. Their parameter
+bindings use distinct names so the conservative name-keyed alias inventory
+can prove each owner edge without merging unrelated function-scope bindings.
+
 `after/` contains **the actual compiler-emitted files** with opt-in
 `mode:'coo'`, `closedWorld:true`, `allowedHosts:['allowed.example']`,
 `seed:'agent15-closed-module-host'`, `strings:false`, and
