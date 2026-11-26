@@ -1,0 +1,103 @@
+'use strict';
+
+const assert=require('node:assert/strict');
+const {test}=require('node:test');
+const {runInNewContext}=require('node:vm');
+const {parse}=require('../src/ast');
+const {summarizeAmbientCallEffects}=require('../workplace/agent9-ambient-call-bindingid');
+
+/**
+ * @param {string} source
+ * @returns {ReturnType<typeof summarizeAmbientCallEffects>}
+ */
+function analyze(source) {
+  return summarizeAmbientCallEffects(parse(source,'commonjs'),'commonjs');
+}
+
+/**
+ * @param {string} source
+ * @returns {ReturnType<typeof analyze>['summaries'][number]}
+ */
+function hiddenSummary(source) {
+  const summary=analyze(source).summaries.find(item=>item.bindingNames.includes('internal'));
+  assert.ok(summary,'internal must have an ambient-call summary');
+  return summary;
+}
+
+/**
+ * @param {string} setup
+ * @returns {string}
+ */
+function mutationSource(setup) {
+  return '(function run(){'+
+    'const owner={secretField:7};'+
+    'const internal=()=>owner.secretField;'+
+    setup+
+    'const hot=internal.bind(null);'+
+    'hot();'+
+    '})();';
+}
+
+/** @type {string} */
+const customBind=
+  'function(){external(this);const target=this;'+
+  'return (...args)=>Reflect.apply(target,null,args);}';
+
+/**
+ * @param {string} source
+ * @returns {unknown[]}
+ */
+function execute(source) {
+  /** @type {unknown[]} */
+  const captured=[];
+  runInNewContext(source,{external(value){captured.push(value);}});
+  return captured;
+}
+
+for(const [label,setup] of [
+  ['Function constructor alias','const F=Function;F.prototype.bind='+customBind+';'],
+  ['global object alias','const g=globalThis;g.Function.prototype.bind='+customBind+';'],
+  ['destructured Function.prototype alias','const {prototype:fp}=Function;fp.bind='+customBind+';'],
+  ['object-carried Function.prototype alias','const box={prototype:Function.prototype};box.prototype.bind='+customBind+';'],
+  ['Reflect.apply argument array',
+    'Reflect.apply(Object.defineProperty,Object,[Function.prototype,"bind",{value:'+customBind+',configurable:true,writable:true}]);'],
+  ['inherited __defineGetter__ mutator',
+    "Function.prototype.__defineGetter__('bind',function(){return "+customBind+';});']
+]) {
+  test('fails closed for '+label,()=>{
+    const source=mutationSource(setup);
+    const [captured]=execute(source);
+    assert.equal(typeof captured,'function','runtime custom bind must receive the target as this');
+    assert.match(String(captured),/owner\.secretField/);
+    const summary=hiddenSummary(source);
+    assert.equal(summary.hostHeldCallable,true,JSON.stringify(summary.reasons));
+    assert.equal(summary.safe,false,JSON.stringify(summary.reasons));
+  });
+}
+
+for(const [label,setup] of [
+  ['unrelated Function.prototype property write','Function.prototype.unrelated=1;'],
+  ['read-only Function.prototype inspection','Object.getOwnPropertyNames(Function.prototype);'],
+  ['freezing the native Function.prototype','Object.freeze(Function.prototype);'],
+  ['bind call before later Function.prototype mutation',
+    'const hot=internal.bind(null);Function.prototype.bind='+customBind+';hot();']
+]) {
+  test('does not over-refuse '+label,()=>{
+    let source='(function run(){'+
+      'const owner={secretField:7};'+
+      'const internal=()=>owner.secretField;'+setup;
+    if(!setup.includes('const hot='))
+      source+='const hot=internal.bind(null);hot();';
+    source+='})();';
+    const summary=hiddenSummary(source);
+    assert.equal(summary.hostHeldCallable,false,JSON.stringify(summary.reasons));
+    assert.equal(summary.safe,true,JSON.stringify(summary.reasons));
+  });
+}
+
+test('native bind with no Function.prototype exposure remains safe',()=>{
+  const source=mutationSource('');
+  const summary=hiddenSummary(source);
+  assert.equal(summary.hostHeldCallable,false);
+  assert.equal(summary.safe,true);
+});
