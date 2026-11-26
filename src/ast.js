@@ -77,6 +77,7 @@ function hasWeakMapPrototypeExposure(ast) {
     return declaration?.type==='ClassDeclaration'&&declaration.id?.name==='WeakMap';
   });
   const weakMapConstructors=new Set(hasTopLevelWeakMapClass?[]:['WeakMap']);
+  const weakMapSubclasses=new Set();
   const weakMapInstances=new Set();
   const weakMapFactories=new Set();
   const objectNamespaces=new Set(['Object']);
@@ -206,6 +207,12 @@ function hasWeakMapPrototypeExposure(ast) {
     ));
   }
   /** @param {AstNode|null|undefined} node @returns {boolean} */
+  function isWeakMapSubclassPrototype(node) {
+    return Boolean(node?.type==='MemberExpression'&&
+      memberKey(node)==='prototype'&&node.object?.type==='Identifier'&&
+      weakMapSubclasses.has(node.object.name));
+  }
+  /** @param {AstNode|null|undefined} node @returns {boolean} */
   function isWeakMapPrototypeExpression(node) {
     if(!node)return false;
     if(node.type==='Identifier')return prototypeAliases.has(node.name);
@@ -215,7 +222,8 @@ function hasWeakMapPrototypeExposure(ast) {
         key==='__proto__'&&isWeakMapInstance(node.object);
     }
     return node.type==='CallExpression'&&isPrototypeGetterCall(node)&&
-      isWeakMapInstance(node.arguments[0]);
+      (isWeakMapInstance(node.arguments[0])||
+       isWeakMapSubclassPrototype(node.arguments[0]));
   }
   /**
    * @param {AstNode} pattern
@@ -292,6 +300,16 @@ function hasWeakMapPrototypeExposure(ast) {
     }
     if(node.type==='ClassDeclaration'&&node.id?.type==='Identifier')
       exportedValueNodes.set(node.id.name,node);
+    if(node.type==='ClassDeclaration'||node.type==='ClassExpression') {
+      const className=node.id?.type==='Identifier'?node.id.name:
+        parent?.type==='VariableDeclarator'&&parent.id?.type==='Identifier'?
+          parent.id.name:null;
+      if(className&&node.superClass&&(
+        isWeakMapConstructor(node.superClass)||
+        node.superClass.type==='Identifier'&&weakMapSubclasses.has(node.superClass.name))) {
+        weakMapSubclasses.add(className);
+      }
+    }
     if(functionTypes.has(node.type)) {
       const name=node.type==='FunctionDeclaration'&&node.id?.type==='Identifier'?
         node.id.name:
@@ -638,7 +656,8 @@ function hasWeakMapPrototypeExposure(ast) {
       const base=evaluateCarrierValue(node.object,environment,thisValue);
       if(base.kind==='container') {
         if(key!==null&&base.properties.has(key))return base.properties.get(key)??carrierOther;
-        return base.unknown?carrierMaybe:carrierOther;
+        if(base.unknown||key===null&&carrierMayContainWeakMap(base))return carrierMaybe;
+        return carrierOther;
       }
       return base.kind==='maybe'?carrierMaybe:carrierOther;
     }
@@ -836,18 +855,32 @@ function hasWeakMapPrototypeExposure(ast) {
     }
     if(statement.type==='ClassDeclaration') {
       if(statement.id?.type==='Identifier') {
+        const classStatic=carrierContainer();
         for(const element of statement.body.body??[]) {
           if(element.type==='PropertyDefinition') {
             visitCarrierExpression(element.value,environment);
-            if(carrierMayContainWeakMap(evaluateCarrierValue(element.value,environment)))
+            const fieldValue=evaluateCarrierValue(element.value,environment);
+            if(element.static) {
+              const propertyKey=carrierStaticKey(element.key,element.computed);
+              if(propertyKey===null) {
+                if(carrierMayContainWeakMap(fieldValue))classStatic.unknown=true;
+              } else {
+                classStatic.properties.set(propertyKey,fieldValue);
+              }
+            } else if(carrierMayContainWeakMap(fieldValue)) {
               weakMapContainerOwners.add(statement.id.name);
+            }
           } else if(element.type==='StaticBlock') {
             const staticEnvironment=new Map(environment);
             const staticThis=carrierContainer();
-            staticThis.unknown=true;
             visitCarrierStatement(element,staticEnvironment,staticThis);
+            for(const [propertyKey,value] of staticThis.properties)
+              classStatic.properties.set(propertyKey,value);
+            classStatic.unknown=classStatic.unknown||staticThis.unknown;
           }
         }
+        if(carrierMayContainWeakMap(classStatic))
+          environment.set(statement.id.name,classStatic);
       }
       return;
     }
