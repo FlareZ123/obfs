@@ -208,3 +208,76 @@ test('Object-property-carried WeakMap instance can still expose the shared proto
   assert.deepEqual(emitted.result,native.result);
   assert.equal(emitted.capturedSource,native.capturedSource,JSON.stringify(evidence));
 });
+
+
+test('WeakMap identifier carried through an object property can expose the shared prototype',()=>{
+  const candidate=source.replace(
+    'const weakMapPrototype=getPrototype.call(new WeakMap());',
+    'const storedProbe=new WeakMap();\nconst protoCarrier={instance:storedProbe};\nconst weakMapPrototype=getPrototype.call(protoCarrier.instance);'
+  );
+  const ast=parse(candidate,'module');
+  const observed=observesFunctionSource(ast);
+  const compiled=obfuscateFiles([{
+    path:'entry.mjs',sourceType:'module',code:candidate
+  }],{
+    mode:'coo',seed:'agent2-weakmap-object-identity-carrier-audit',
+    properties:false,identifiers:true,strings:false
+  });
+  const app=compiled.files.find(file=>file.path==='entry.mjs');
+  assert.ok(app);
+  const native=run(candidate);
+  const emitted=run(String(app.code));
+  const evidence={observed,metrics:app.metrics,native,emitted,source:app.code};
+  assert.equal(observed,true,JSON.stringify(evidence));
+  assert.equal(app.metrics.bindings,0,JSON.stringify(evidence));
+  assert.deepEqual(emitted.result,native.result);
+  assert.equal(emitted.capturedSource,native.capturedSource,JSON.stringify(evidence));
+});
+
+test('Array-carried WeakMap instance can expose the shared prototype',()=>{
+  const candidate=source.replace(
+    'const weakMapPrototype=getPrototype.call(new WeakMap());',
+    'const storedProbe=new WeakMap();\nconst protoCarrier=[storedProbe];\nconst weakMapPrototype=getPrototype.call(protoCarrier[0]);'
+  );
+  const ast=parse(candidate,'module');
+  const observed=observesFunctionSource(ast);
+  const compiled=obfuscateFiles([{
+    path:'entry.mjs',sourceType:'module',code:candidate
+  }],{
+    mode:'coo',seed:'agent2-weakmap-array-carrier-audit',
+    properties:false,identifiers:true,strings:false
+  });
+  const app=compiled.files.find(file=>file.path==='entry.mjs');
+  assert.ok(app);
+  const native=run(candidate);
+  const emitted=run(String(app.code));
+  const evidence={observed,metrics:app.metrics,native,emitted,source:app.code};
+  assert.equal(observed,true,JSON.stringify(evidence));
+  assert.equal(app.metrics.bindings,0,JSON.stringify(evidence));
+  assert.deepEqual(emitted.result,native.result);
+  assert.equal(emitted.capturedSource,native.capturedSource,JSON.stringify(evidence));
+});
+
+test('Local factory-returned WeakMap can expose the shared prototype',()=>{
+  const candidate=source.replace(
+    'const weakMapPrototype=getPrototype.call(new WeakMap());',
+    'function makeProbe(){return new WeakMap();}\nconst weakMapPrototype=getPrototype.call(makeProbe());'
+  );
+  const ast=parse(candidate,'module');
+  const observed=observesFunctionSource(ast);
+  const compiled=obfuscateFiles([{
+    path:'entry.mjs',sourceType:'module',code:candidate
+  }],{
+    mode:'coo',seed:'agent2-weakmap-local-factory-audit',
+    properties:false,identifiers:true,strings:false
+  });
+  const app=compiled.files.find(file=>file.path==='entry.mjs');
+  assert.ok(app);
+  const native=run(candidate);
+  const emitted=run(String(app.code));
+  const evidence={observed,metrics:app.metrics,native,emitted,source:app.code};
+  assert.equal(observed,true,JSON.stringify(evidence));
+  assert.equal(app.metrics.bindings,0,JSON.stringify(evidence));
+  assert.deepEqual(emitted.result,native.result);
+  assert.equal(emitted.capturedSource,native.capturedSource,JSON.stringify(evidence));
+});
