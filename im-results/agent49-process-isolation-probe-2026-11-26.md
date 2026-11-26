@@ -1,6 +1,6 @@
 # Host UID process-isolation probe (2026-11-26)
 
-**Status:** local proof-of-concept passed; GitHub-hosted runner validation is provided by the manual workflow and should be recorded after dispatch. This is an intermediate harness result, not a container-security proof or a production acceptance claim.
+**Status:** local proof-of-concept and GitHub-hosted Ubuntu runner validation passed (workflow run 45766047292, commit 3ab1be8227c8664d5b85e3fca92c2518c8b69821). This is an intermediate host-UID harness result, not a container-security proof or a production acceptance claim.
 
 ## Why this probe exists
 
@@ -67,3 +67,10 @@ Workflow run 45765593586 reached the Ubuntu runner and confirmed the expected ac
 ## Hosted-runner attempt 2: environment and cleanup correction
 
 Workflow run 45765743527 successfully started the server as UID 33 and the learner as UID/EUID 65534. The private-file, server /proc environment/memory/fd, parent /proc environment, sudo-block, HTTP-reachability, and command-line checks all passed. The run failed because sudo reconstructed runner variables after the initial subprocess env allowlist; the learner saw RUNNER_TOOL_CACHE and other hosted-image variables. Cleanup also attempted to signal the server directly from the unprivileged runner UID and received EPERM. The launcher is now changed to execute setpriv under sudo/root, drop UID/GID/capabilities and set no-new-privileges, then execute env -i with the explicit allowlist after the privilege transition. Parent cleanup now uses sudo to signal the server when required. A third hosted-runner dispatch is pending.
+
+
+## Hosted-runner result
+
+The manual workflow passed on ubuntu-latest in run [45766047292](https://github.com/FlareZ123/obfs/actions/runs/45766047292). Observed parent UID 1001 (runner), server UID 33 (www-data), and learner UID/EUID 65534 (nobody). The server private directory/file were 0700/0600. All checks passed: private-file denial; server /proc environment, memory, and fd denial; parent /proc environment denial; no private data in the server command line; no-new-privileges prevented sudo; the learner received only the explicit environment allowlist (HOME, LANG, LD_LIBRARY_PATH, PATH, PYTHONHASHSEED, PYTHONNOUSERSITE, TMPDIR); and the learner still reached the local HTTP endpoint. The workflow uploaded artifact 15092390228.
+
+The first hosted attempt failed because setpriv was invoked after sudo had already dropped to the target UID, preventing capability-set changes. The second attempt correctly dropped privileges but exposed that sudo reconstructed runner environment variables; it also exposed a cleanup signal-permission issue. The final implementation runs setpriv under sudo/root, performs UID/GID/group/capability/no-new-privileges changes, then execs env -i with the allowlist; parent cleanup signals the server with sudo when needed. The final hosted run verifies the corrected sequence end-to-end.
