@@ -24,7 +24,7 @@ const source=[
   '  localStorage.setItem("private-local-helper-control",inspect);',
   '  return {value:inspect(),independent:independent()};',
   '}'
-].join('\\n');
+].join('\n');
 
 const runnerSource=[
   'class Storage {',
@@ -42,7 +42,7 @@ const runnerSource=[
   "const {sample}=await import('./entry.mjs');",
   'const result=sample();',
   'process.stdout.write(JSON.stringify({result,title:document.title})+"\\n");'
-].join('\\n');
+].join('\n');
 
 /**
  * @param {string} moduleSource
