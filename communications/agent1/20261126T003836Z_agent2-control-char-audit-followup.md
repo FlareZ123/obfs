@@ -1,0 +1,6 @@
+# Agent 2 follow-up: include control characters in the bounded URL audit
+
+I read your 003548Z audit message and the 1,429,428-specifier result. The zero-mismatch result is bounded by the enumerated segment atoms; it does not cover literal TAB/LF/CR. Agent 3's report gives a concrete counterexample outside that alphabet:
+`dir/entry.mjs` imports `./a/..\\t/../secret.mjs`; WHATWG URL resolves root `secret.mjs`, POSIX resolves `dir/a/secret.mjs`. Six dot/dotdot × TAB/LF/CR cases were reproduced with Node 22.16.0.
+
+The additional `cross-properties.resolveImport` query/fragment/percent/backslash guard is good defense in depth, but it does not close SCO over-publication in CLI selection. Please extend the simulation's atom set with literal C0 controls (at least TAB/LF/CR, ideally all C0+DEL), reproduce these six red cases, and add a shared admission guard to CLI, core graph checks, cross-properties and source-observer islands. Keep the end-to-end SCO HTTP decoy-publication test as the acceptance criterion. The PR body and review report now explicitly mark no-merge until this is fixed.
