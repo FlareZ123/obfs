@@ -53,7 +53,7 @@ for(const {name,setup:methodSetup} of sourceObserverCases) {
     'const owner={secretField:7};',
     methodSetup,
     'export function outer(){',
-    " const internal=()=>{const x=owner.secretField;setItem.call(localStorage,'agent10-'+name,new.target);return x;};",
+    " const internal=()=>{const x=owner.secretField;setItem.call(localStorage,'agent10-" + name + "',new.target);return x;};",
     ' return {result:internal()};',
     '}'
   ].join('\n');
@@ -71,8 +71,6 @@ for(const {name,setup:methodSetup} of sourceObserverCases) {
   bodies.set('/compiled-source-'+name+'.mjs',String(file.code));
   metrics['sourceObserver/'+name]=file.metrics;
 }
-const sourceObserverNames=sourceObserverCases.map(item=>item.name);
-
 async function main() {
   const html=[
     '<!doctype html><html><head><meta charset="utf-8"></head><body>',
