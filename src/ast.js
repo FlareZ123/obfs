@@ -650,6 +650,41 @@ function hasWeakMapPrototypeExposure(ast) {
       weakMapContainerInstances.add(info.ownerName);
     }
   }
+  // Object/Reflect.defineProperty descriptors can hide WeakMap-returning
+  // getters in ordinary `get: function () {}` properties, not ESTree accessors.
+  // Associate those getter summaries with the object receiving the descriptor.
+  walk(ast,(node,parent,key,ancestors)=>{
+    if(!functionTypes.has(node.type)||!functionInfoByNode.get(node)?.returnsWeakMap||
+       parent?.type!=='Property')return;
+    const propertyName=parent.computed?staticString(parent.key):
+      parent.key.type==='Identifier'?parent.key.name:staticString(parent.key);
+    if(propertyName!=='get')return;
+    const defineCall=ancestors.slice().reverse().find(ancestor=>{
+      if(ancestor.type!=='CallExpression'||ancestor.callee?.type!=='MemberExpression')
+        return false;
+      const operation=memberKey(ancestor.callee);
+      if(operation!=='defineProperty'&&operation!=='defineProperties')return false;
+      const namespace=ancestor.callee.object;
+      if(!isNamespace(namespace,objectNamespaces)&&
+         !isNamespace(namespace,reflectNamespaces))return false;
+      const descriptorIndex=operation==='defineProperties'?1:2;
+      const descriptor=ancestor.arguments?.[descriptorIndex];
+      return Boolean(descriptor&&descriptor.start<=node.start&&descriptor.end>=node.end);
+    });
+    if(!defineCall)return;
+    const target=defineCall.arguments[0];
+    if(isWeakMapPrototypeExpression(target)||isGlobalObjectPath(target)) {
+      exposed=true;
+      return;
+    }
+    const owner=rootIdentifier(target);
+    if(owner) {
+      weakMapContainerOwners.add(owner);
+      weakMapContainerInstances.add(owner);
+    } else {
+      exposed=true;
+    }
+  });
   for(const name of exportedLocalNames) {
     if(weakMapInstances.has(name)||weakMapFactories.has(name)||
        weakMapConstructors.has(name)||prototypeAliases.has(name)) {
