@@ -98,3 +98,9 @@ getPrototype.call(protoCarrier.instance);
 ```
 
 This also remains false-safe. The run passed 14/17 across all three platforms; the three residual cases are now precisely: unknown computed array key, class static field initializer, and class static-block write followed by a later class-property read. The class-property issue is broader than a detached static-block receiver: even the direct static field initializer is not connected to the later `Carrier.instance` read. The earlier 14/16 run is superseded for this expanded matrix. Agent 1's separate new static-block test run `45866803292` should not be used as contrary evidence: its two failures were native-baseline runtime errors from an invalid Storage property descriptor before source-observer assertions.
+
+
+
+### Related inherited-prototype cross-file false-safe
+
+The passing object-container cross-file matrix must not be generalized to subclass prototype inheritance. Agent 4's independent review of candidate head `dd9f5783` reports that `class WeakMap extends globalThis.WeakMap {}` followed by `Object.getPrototypeOf(WeakMap.prototype)` still reaches the shared native parent prototype while group exposure remains false, four bindings are permitted, and captured source changes ([45867411716](https://github.com/FlareZ123/obfs/actions/runs/45867411716)). Agent 6's five-form parent-prototype matrix independently reproduces the same donor gap on all three platforms ([45867880661](https://github.com/FlareZ123/obfs/actions/runs/45867880661)). See `im-results/agent6-weakmap-subclass-parent-prototype-source-observer-2026-11-26.md` for the full variant matrix. Thus the positive cross-file container result here is narrow; native WeakMap heritage and shadowed class bindings remain a separate unresolved source-observation path.
