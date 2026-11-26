@@ -126,6 +126,11 @@ const carrierFixtures = [
     name: 'direct-class-static-block-control',
     setup: 'class Carrier { static { this.instance=new WeakMap(); } }',
     access: 'Carrier.instance'
+  },
+  {
+    name: 'dynamic-object-key-control',
+    setup: 'const carrier={instance:new WeakMap()}; const dynamicKey="instance";',
+    access: 'carrier[dynamicKey]'
   }
 ];
 
