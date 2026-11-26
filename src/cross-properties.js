@@ -1,7 +1,7 @@
 'use strict';
 
 const path = require('node:path');
-const {hasTerminalUrlDotSegment,hasPathnameControlCharacter}=require('./esm-url-paths');
+const {hasTerminalUrlDotSegment,hasUrlPathnameNormalizationHazard}=require('./esm-url-paths');
 const {createHash} = require('node:crypto');
 const {walk,applyEdits,parse,observesFunctionSource,observesDistributedSource,staticString,collectDirectCarrierFactories} = require('./ast');
 const {collectBindings,proveLocalObject,staticName,patternPropertyEdits,inOperatorPropertyEdits,isLiteralValue,isPrimitiveConstantExpression,ownPropertyName,singleUseFactoryObject} = require('./properties');
@@ -35,7 +35,7 @@ function resolveImport(from,specifier) {
   // Browser URL query/fragment and percent/backslash spellings are excluded
   // here too: POSIX normalization cannot prove their WHATWG URL identity.
   if ((!specifier.startsWith('./') && !specifier.startsWith('../')) ||
-      /[?#%\\]/u.test(specifier) || specifier.includes('//') || hasPathnameControlCharacter(specifier) || hasTerminalUrlDotSegment(specifier)) return null;
+      /[?#%\\]/u.test(specifier) || specifier.includes('//') || hasUrlPathnameNormalizationHazard(specifier) || hasTerminalUrlDotSegment(specifier)) return null;
   const normalized=path.posix.normalize(path.posix.join(path.posix.dirname(from),specifier));
   return normalized.startsWith('../') || normalized==='..' ? null : normalized;
 }
