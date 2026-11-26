@@ -2265,7 +2265,7 @@ function obfuscateFiles(files, options = {}) {
     }
     let bindings=0;
     if(!remoteSourceObserver && options.identifiers!==false) {
-      const renamed=renameLocalIdentifiers(code,ast,{seed:salt,sourceType});
+      const renamed=renameLocalIdentifiers(code,ast,{seed:salt,sourceType,allowBoundFunctionTargets});
       code=renamed.code;
       bindings=renamed.bindings;
       ast=parse(code,sourceType);
