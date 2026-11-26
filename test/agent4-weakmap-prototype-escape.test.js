@@ -10,8 +10,7 @@ const source=[
   'const weakMapPrototype=Object.getPrototypeOf(new WeakMap());',
   'const nativeWeakMapSet=weakMapPrototype.set;',
   'weakMapPrototype.set=function(key,value){',
-  '  const text=document.createTextNode(value);',
-  '  globalThis.__capturedSource=text.textContent;',
+  '  document.title=value;',
   '  return Reflect.apply(nativeWeakMapSet,this,[key,value]);',
   '};',
   'const descriptor=Object.getOwnPropertyDescriptor(Storage.prototype,"setItem");',
@@ -41,10 +40,12 @@ function run(moduleSource){
     '}',
     'globalThis.Storage=Storage;',
     'globalThis.localStorage=new Storage();',
-    'globalThis.document={createTextNode(value){return {textContent:String(value)};}};',
+    'let documentTitle="";',
+    'globalThis.document={};',
+    'Object.defineProperty(globalThis.document,"title",{get(){return documentTitle;},set(value){documentTitle=String(value);}});',
     'const {sample}=await import(process.argv[1]);',
     'const result=sample();',
-    'process.stdout.write(JSON.stringify({result,capturedSource:globalThis.__capturedSource??null}));'
+    'process.stdout.write(JSON.stringify({result,capturedSource:globalThis.document.title??null}));'
   ].join('\\n');
   const url='data:text/javascript;base64,'+Buffer.from(moduleSource).toString('base64');
   const child=spawnSync(process.execPath,['--input-type=module','-e',script,url],{
