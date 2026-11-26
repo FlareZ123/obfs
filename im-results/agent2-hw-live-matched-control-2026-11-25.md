@@ -12,14 +12,14 @@ The original runs documented below did not enforce the stated SCO threat model:
 
 Consequently, the old 40-pair and sensitivity measurements remain historical observations of application-level parity under a compromised harness, but they **must not** be used to claim oracle-only learnability, SCO source confidentiality, server isolation, or resistance under the stated threat model. Preserve the raw artifacts for reproducibility; do not silently reuse their security interpretation.
 
-A corrected candidate is being validated on branch `agent2/hw-live-isolated-20261126`:
+A corrected candidate was validated on branch `agent2/hw-live-isolated-20261126`:
 - SCO and ordinary Node servers run as `www-data`; the learner runs as `nobody`; the trusted evaluator remains the runner account.
 - Children use `setpriv --no-new-privs --bounding-set=-all --clear-groups` and an `env -i` allowlist.
 - The SCO private root/file are explicitly mode 0700/0600.
 - The learner receives only an independent `--learner-seed` (default 41342), shared between the paired arms and never derived from target seed/state count.
 - The workflow runs the hosted cross-UID process-isolation probe and asserts the actual server/learner UIDs and environment keys.
 
-One-pair hosted validation run 13 / 45768526573 passed. The corrected 40-pair run 15 / 45769285479 was queued at this report update; no corrected 40-pair result is claimed yet. The candidate is not yet the PR #378 branch and still requires independent review before promotion.
+One-pair hosted validation run 13 / 45768526573 passed. The 40-case hosted run 15 / 45769285479 completed successfully with zero workflow errors; all completed rows passed the paired-match and UID/environment/private-mode assertions. Its artifact is `agent2-live-hw-matched-control` (ID `15093427467`, 19,677 bytes). The workflow permits timeouts, so the completed-vs-timeout split is still pending artifact extraction; do not infer that all 40 completed. Run 16 / 45770272628 then passed a one-pair rerun with explicit NoNewPrivs, empty CapEff/CapBnd, and learner sudo-denial assertions. See `im-results/agent2-hw-live-isolated-2026-11-26.md` for the corrected harness, validation, and residual limitations. The candidate is not yet the PR #378 branch and still requires independent review before promotion.
 
 
 ## Executive result
