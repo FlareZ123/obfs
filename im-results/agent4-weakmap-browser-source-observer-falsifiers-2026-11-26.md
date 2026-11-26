@@ -137,3 +137,42 @@ Results:
 - Strict external JSDoc checking passes.
 
 The earlier false-safe-only run 45897924700 is superseded as the latest matrix receipt by 45898378264. The latter exact commit includes all six browser false-safe combinations plus the ESM exported-factory positive control. Production source blobs remain unchanged from candidate fcec2e0.
+
+
+## Addendum — independent challenge of Agent 10's group-guard donor
+
+Agent 10 requested an independent review of the donor's false-negative surface. I replayed the exact same browser matrix against donor head `0b119c540a903cc786be74f29c2d63e6b6c2e903`, without changing its production source.
+
+- Donor branch: `agent10/weakmap-group-prototype-guard-20261126`
+- Donor source blobs: `src/ast.js=87b0ae498f6928ccdb758b37ae14f19e22938bcb`; `src/core.js=cb88e06b726e7d6521db09bd080410dc1c1a49de`
+- Test-only challenge branch: `agent4/agent10-group-guard-cross-boundary-challenge-20261126`
+- Exact test/challenge commit: `5cc08f008dbf2b330e2ad9ff3bfe02b7580f14fb`
+- Test blob: `851949011e022523f12b2d61f949f60a078a7f96`
+- Chrome: Google Chrome 157.0.8103.78
+
+### Safe-mode acceptance attempt
+
+Run [45899017565](https://github.com/FlareZ123/obfs/actions/runs/45899017565) used `WEAKMAP_EXPECT_SAFE=1`, requiring zero rewrites and exact source parity for all four scenarios in both client modes.
+
+It failed with **6 unsafe cases**:
+- classic cross-unit lexical carrier: COO and SCO;
+- externally consumed ESM-derived class: COO and SCO;
+- unresolved external ESM factory: COO and SCO.
+
+The ESM exported-factory positive control remained protected in both modes: zero Storage rewrites and exact source parity. Both pre-existing direct-prototype and subclass-parent Chromium controls also passed. The failure is therefore not a broad loss of all WeakMap detection; it is a specific gap in the donor's cross-unit/export/import boundary handling.
+
+### Expected-vulnerability reproduction
+
+Run [45899117584](https://github.com/FlareZ123/obfs/actions/runs/45899117584) used the same exact donor/test commit with `WEAKMAP_EXPECT_SAFE=0`. It passed as an expected-vulnerability diagnostic with six false-safes and two protected ESM exported-factory controls. Strict external JSDoc passed.
+
+### Source-level explanation
+
+The donor's current structure explains these results:
+
+- `src/core.js:2035-2036` computes `sharedWeakMapPrototypeExposure` using `sourceObserverFiles.some(({ast}) => hasWeakMapPrototypeExposure(ast))`. This ORs per-AST results; it does not unify lexical bindings or carrier flow across classic script units.
+- `src/ast.js:69` begins the per-AST scanner. Its export-name summary at lines 375-376 marks exported instances, factories, constructors and prototype aliases, but does not include a derived-class constructor set. An exported `class Derived extends globalThis.WeakMap {}` is therefore not treated as the same escape as an exported native WeakMap factory.
+- The local function-return summary can recognize a supplied/exported factory such as `export function make(){return new WeakMap();}`. It cannot prove that an unresolved imported `make()` from an external package returns a WeakMap, and the external package is not in the supplied source group.
+
+The donor therefore retains a useful bounded local summary and the exported ESM factory positive control, but its per-AST Boolean is not a cross-file or external-import proof. The browser receipts falsify any claim that the current donor closes the three tested boundary classes. This is an independent test-only challenge; no donor source or branch was modified.
+
+The test branch and reports remain intermediate evidence. Agent 10 and Agent 1 were sent the exact run IDs, source locations, and suggested next boundary checks. Do not promote the donor or change the release decision on the strength of these targeted receipts.
