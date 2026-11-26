@@ -84,6 +84,8 @@ function hasWeakMapPrototypeExposure(ast) {
   const prototypeGetters=new Set();
   const prototypeAliases=new Set();
   const exportedLocalNames=new Set();
+  const commonJsExportObjects=new Set(['exports']);
+  const commonJsReturnedFactoryNames=new Set();
   const functionTypes=new Set(['FunctionDeclaration','FunctionExpression','ArrowFunctionExpression']);
   /** @type {Map<AstNode,{name:string|null,exported:boolean,returnedFactories:Set<string>,returnsWeakMap:boolean}>} */
   const functionInfoByNode=new Map();
@@ -183,6 +185,63 @@ function hasWeakMapPrototypeExposure(ast) {
     return undefined;
   }
 
+  /**
+   * @param {AstNode|null|undefined} node
+   * @returns {boolean}
+   */
+  function isCommonJsExportContainer(node) {
+    return Boolean(node&&(
+      node.type==='Identifier'&&commonJsExportObjects.has(node.name)||
+      node.type==='MemberExpression'&&node.object.type==='Identifier'&&
+        node.object.name==='module'&&memberKey(node)==='exports'
+    ));
+  }
+  /**
+   * @param {AstNode|null|undefined} node
+   * @returns {boolean}
+   */
+  function isCommonJsExportTarget(node) {
+    return Boolean(isCommonJsExportContainer(node)||
+      node?.type==='MemberExpression'&&isCommonJsExportContainer(node.object));
+  }
+  /**
+   * @param {AstNode|null|undefined} node
+   * @returns {boolean}
+   */
+  function isCommonJsExportCall(node) {
+    return Boolean(node?.type==='CallExpression'&&
+      isNamespace(node.callee.object,objectNamespaces)&&
+      (memberKey(node.callee)==='assign'||memberKey(node.callee)==='defineProperty')&&
+      isCommonJsExportContainer(node.arguments[0]));
+  }
+  /**
+   * @param {AstNode|null|undefined} value
+   */
+  function collectCommonJsExportValue(value) {
+    if(!value)return;
+    if(isWeakMapInstance(value)||isWeakMapPrototypeExpression(value)) {
+      exposed=true;
+      return;
+    }
+    if(value.type==='Identifier') {
+      exportedLocalNames.add(value.name);
+      return;
+    }
+    if(value.type==='ObjectExpression') {
+      for(const property of value.properties??[]) {
+        if(property.type==='Property')collectCommonJsExportValue(property.value);
+        else if(property.type==='SpreadElement')collectCommonJsExportValue(property.argument);
+      }
+      return;
+    }
+    if(value.type==='ArrayExpression') {
+      for(const element of value.elements??[])collectCommonJsExportValue(element);
+      return;
+    }
+    if(value.type==='CallExpression'&&value.callee.type==='Identifier')
+      commonJsReturnedFactoryNames.add(value.callee.name);
+  }
+
   let exposed=false;
   walk(ast,(node,parent,key,ancestors)=>{
     if(node.type==='ExportNamedDeclaration') {
@@ -214,7 +273,9 @@ function hasWeakMapPrototypeExposure(ast) {
       const info={
         name,
         exported:ancestors.some(ancestor=>
-          ancestor.type==='ExportNamedDeclaration'||ancestor.type==='ExportDefaultDeclaration'),
+          ancestor.type==='ExportNamedDeclaration'||ancestor.type==='ExportDefaultDeclaration'||
+          ancestor.type==='AssignmentExpression'&&isCommonJsExportTarget(ancestor.left)||
+          isCommonJsExportCall(ancestor)),
         returnedFactories:new Set(),
         returnsWeakMap:node.type==='ArrowFunctionExpression'&&
           node.body.type!=='BlockStatement'&&isWeakMapInstance(node.body)
@@ -224,6 +285,7 @@ function hasWeakMapPrototypeExposure(ast) {
     if(node.type==='VariableDeclarator') {
       if(node.id.type==='Identifier') {
         const name=node.id.name,init=node.init;
+        if(isCommonJsExportContainer(init))commonJsExportObjects.add(name);
         if(isGlobalRoot(init)||
            init?.type==='Identifier'&&globalNames.has(init.name))globalNames.add(name);
         if(isWeakMapConstructor(init))weakMapConstructors.add(name);
@@ -243,6 +305,7 @@ function hasWeakMapPrototypeExposure(ast) {
     }
     if(node.type==='AssignmentExpression'&&node.left.type==='Identifier') {
       const name=node.left.name,value=node.right;
+      if(isCommonJsExportContainer(value))commonJsExportObjects.add(name);
       if(isGlobalRoot(value)||
          value.type==='Identifier'&&globalNames.has(value.name))globalNames.add(name);
       if(isWeakMapConstructor(value))weakMapConstructors.add(name);
@@ -253,6 +316,15 @@ function hasWeakMapPrototypeExposure(ast) {
          value.type==='Identifier'&&prototypeGetters.has(value.name))
         prototypeGetters.add(name);
       if(isWeakMapPrototypeExpression(value))prototypeAliases.add(name);
+    }
+    if(node.type==='AssignmentExpression'&&isCommonJsExportTarget(node.left))
+      collectCommonJsExportValue(node.right);
+    if(node.type==='CallExpression'&&isCommonJsExportCall(node)) {
+      if(memberKey(node.callee)==='assign') {
+        for(const value of node.arguments.slice(1))collectCommonJsExportValue(value);
+      } else {
+        collectCommonJsExportValue(node.arguments[2]);
+      }
     }
     if(node.type==='ReturnStatement') {
       const info=nearestFunctionInfo(ancestors);
@@ -298,6 +370,8 @@ function hasWeakMapPrototypeExposure(ast) {
       if(info.returnsWeakMap&&info.exported)exposed=true;
     }
   }
+  if([...commonJsReturnedFactoryNames].some(name=>weakMapFactories.has(name)))
+    exposed=true;
   for(const name of exportedLocalNames) {
     if(weakMapInstances.has(name)||weakMapFactories.has(name)||
        weakMapConstructors.has(name)||prototypeAliases.has(name)) {
