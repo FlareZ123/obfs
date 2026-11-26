@@ -2700,7 +2700,7 @@ function renameCrossFileProperties(files,seed) {
         const localProof=proveLocalObject(exporter.ast,exportName,exporter.bindings,
           importedIdentities.get(exporterName),new Map(),new Map(),
           verifiedStrings.get(exporterName),verifiedPrimitives.get(exporterName),
-          allowDirectReflection);
+          allowDirectReflection,[],true);
         if(!localProof) continue;
         /** @type {{file:string,source:string,proof:NonNullable<ReturnType<typeof proveLocalObject>>}[]} */
         const users=[{file:exporterName,source:/** @type {string} */ (exporter.file.code),proof:localProof}];
@@ -2797,7 +2797,7 @@ function renameCrossFileProperties(files,seed) {
             const proof=proveLocalObject(importer.ast,primary,importer.bindings,
               importedIdentities.get(importerName),consumerIndices,importedKeys,
               verifiedStrings.get(importerName),verifiedPrimitives.get(importerName),
-              allowDirectReflection,additional);
+              allowDirectReflection,additional,true);
             if(!proof){failed=true;break;}
             users.push({file:importerName,source:/** @type {string} */ (importer.file.code),proof});
             readerProof=proof;
@@ -3024,7 +3024,7 @@ function renameCrossFileProperties(files,seed) {
         const proof=proveLocalObject(importer.ast,alias,importer.bindings,
           importedIdentities.get(importerName),undefined,importedKeys,
           verifiedStrings.get(importerName),verifiedPrimitives.get(importerName),
-          allowDirectReflection);
+          allowDirectReflection,[],true);
         if(!proof) {
           failed=true;
           break;
