@@ -412,6 +412,77 @@ test('exported WeakMap-derived class is a group escape',()=>{
   assert.equal(hasWeakMapPrototypeExposure(parse(source,'module')),true);
 });
 
+
+/**
+ * Execute the supplied ESM group with an external bare-specifier package that
+ * is deliberately not part of the obfuscator input.
+ * @param {Array<{path:string,code:string}>} files
+ * @returns {{result:{value:number,independent:number},capturedSource:string}}
+ */
+function runEsmWithExternalImportedFactory(files) {
+  const directory=fs.mkdtempSync(path.join(os.tmpdir(),'obfs-agent7-weakmap-esm-import-'));
+  try {
+    for(const file of files) {
+      fs.writeFileSync(path.join(directory,file.path),file.code,'utf8');
+    }
+    const packageDirectory=path.join(directory,'node_modules','opaque-runtime');
+    fs.mkdirSync(packageDirectory,{recursive:true});
+    fs.writeFileSync(path.join(packageDirectory,'package.json'),
+      JSON.stringify({type:'module',exports:'./index.js'}),'utf8');
+    fs.writeFileSync(path.join(packageDirectory,'index.js'),
+      'export function make(){return new WeakMap();}','utf8');
+    fs.writeFileSync(path.join(directory,'runner.mjs'),runnerSource,'utf8');
+    const child=spawnSync(process.execPath,[path.join(directory,'runner.mjs')],{
+      cwd:directory,encoding:'utf8',timeout:15000
+    });
+    assert.equal(child.status,0,child.stderr||child.error?.message);
+    return JSON.parse(child.stdout);
+  } finally {
+    fs.rmSync(directory,{recursive:true,force:true});
+  }
+}
+
+test('unresolved ESM imported factory external source-capture fails closed',()=>{
+  const mutateSource=[
+    "import {make} from 'opaque-runtime';",
+    'const nativePrototype=Object.getPrototypeOf(make());',
+    ...patchLines
+  ].join('\n');
+  const sourceFiles=[
+    {path:'entry.mjs',sourceType:'module',code:"import './mutate.mjs'; export {sample} from './storage.mjs';"},
+    {path:'mutate.mjs',sourceType:'module',code:mutateSource},
+    {path:'storage.mjs',sourceType:'module',code:storageSource}
+  ];
+  const analysis=hasWeakMapPrototypeExposure(parse(mutateSource,'module'));
+  const native=runEsmWithExternalImportedFactory(
+    sourceFiles.map(file=>({path:file.path,code:file.code}))
+  );
+  assert.ok(native.capturedSource.includes('privateLocal'),JSON.stringify(native));
+  const failures=[];
+  const refusals=[];
+  for(const mode of ['coo','sno','sco']) {
+    try {
+      const compiled=obfuscateFiles(sourceFiles,{
+        mode,seed:'agent7-esm-imported-factory-'+mode,
+        properties:false,identifiers:true,strings:false,closedWorld:true
+      });
+      const storage=compiled.files.find(file=>file.path==='storage.mjs');
+      assert.ok(storage,'missing storage.mjs for '+mode);
+      const emitted=runEsmWithExternalImportedFactory(
+        compiled.files.map(file=>({path:file.path,code:String(file.code)}))
+      );
+      if(storage.metrics.bindings!==0 ||
+         emitted.capturedSource!==native.capturedSource ||
+         JSON.stringify(emitted.result)!==JSON.stringify(native.result)) {
+        failures.push({mode,analysis,storageMetrics:storage.metrics,native,emitted});
+      }
+    } catch(error) {
+      refusals.push({mode,error:String(error)});
+    }
+  }
+  assert.deepEqual(failures,[],JSON.stringify({analysis,native,failures,refusals}));
+});
+
 test('unresolved imported factory result is not a definite non-WeakMap value',()=>{
   const source=[
     'import {make} from "opaque-runtime";',
