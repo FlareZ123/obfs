@@ -128,3 +128,42 @@ The current helper remains a bounded local analyzer with identifier-spelling-key
 4. Require positive-yield controls for local/private WeakMap use, ordinary global properties, primitive iteration, local class-method containers, and non-exported factories.
 5. Re-run the focused falsifier suite, exact-head Chromium safe-mode workflow, then the complete manual-validation workflow. A focused green is not full acceptance.
 6. Keep the release state blocked until the full behavioral suite and all three mode boundaries are supported by reproducible evidence.
+
+
+## Follow-up exact-head adversarial replay (23:29–23:30Z)
+
+**Test-only candidate head:** 0ce8357c36840f62a3a2af67272310f0f11a0cf1  
+**Focused run:** 45911194297 — failed on Ubuntu, Windows, and macOS (the node22 full-suite job was skipped). The Ubuntu and Windows failed-job logs show the same two test failures; the first macOS log retrieval also showed both before a later 503 on retry.
+
+The follow-up tests were added to the existing Agent 7 test file on the single candidate branch; no candidate source or workflow was changed.
+
+### Confirmed new false-safe: CommonJS factory publication
+
+Two tests fail in all three obfuscation modes:
+1. A named local factory returning new WeakMap(), placed in a local API object, then assigned to module.exports:
+   function make(){return new WeakMap();}
+   const api={make};
+   module.exports=api;
+2. A factory function published through an alias of the exports object:
+   const out=exports;
+   out.make=function make(){return new WeakMap();};
+
+For both forms, hasWeakMapPrototypeExposure returns false, the Storage file retains four transformable bindings, and the external consumer's native WeakMap.prototype.set interception captures emitted source with renamed privateLocal identifiers. The original source contains privateLocal; the emitted capture contains generated names such as _vb2309e52a2a8, _vf23e3d0a18e8, and _v30e96069cdd0. This is a demonstrated behavior-preserving source leak across COO/SNO/SCO.
+
+The derived-class variants through a local API object assigned to module.exports and through const out=exports passed. The missing edge is specifically the exported factory-return capability through CJS object publication, not a general failure to track derived classes.
+
+### Hypotheses cleared by the same exact-head run
+
+The following five ESM fixtures passed the existing three-mode source-capture differential:
+- extracted Reflect.get function alias using globalThis.WeakMap;
+- ForOfStatement iteration binding;
+- function-local object container captured by a ClassDeclaration method;
+- Object.prototype.__lookupGetter__('__proto__') with Derived.prototype;
+- Object.getOwnPropertyDescriptor(..., '__proto__').get with Derived.prototype.
+
+The CJS derived-class object-alias and exports-object-alias controls also passed. Withdraw these exact forms as false-safe claims for candidate 070bc/0ce8357; the helper's broader conservative flow catches them despite the initial local code trace. The earlier direct-WeakMap-instance getter tests may also be caught by the generic unknown-call argument rule.
+
+### Required next work
+- Extend CommonJS export analysis to follow factory-return summaries through local API object values and aliases of exports/module.exports, while retaining the non-exported local factory positive controls.
+- Independently fix the arbitrary-global-member precision regression from full run 45909023258 (globalThis.__privateWeakMapValue incorrectly treated as a prototype).
+- Re-run focused test/agent7-weakmap-source-observer-falsifiers.test.js, exact-head Chromium safe-mode, and the full manual-validation workflow after source changes. The focused run 45911194297 is a red-first receipt, not acceptance.
