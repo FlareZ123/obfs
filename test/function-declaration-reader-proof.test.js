@@ -170,6 +170,51 @@ test('public-only source normalization retains a functional clone beside an ordi
   }));
 });
 
+test('source-observed callers only transfer owners to exact private member readers',()=>{
+  const unsafe=[
+    [
+      'const root={secretAlpha:23};',
+      'function read(owner){const value=owner.secretAlpha;notify(value);return value;}',
+      'function notify(observed){return observed;}',
+      'const calculate=function calculate(){return read(root);};',
+      'module.exports={calculate,result:calculate()};'
+    ].join('\n'),
+    [
+      'const root={secretAlpha:23};',
+      'const read=(owner)=>{const value=owner.secretAlpha;notify(value);return value;};',
+      'function notify(observed){return observed;}',
+      'const calculate=function calculate(){return read(root);};',
+      'module.exports={calculate,result:calculate()};'
+    ].join('\n'),
+    [
+      'const root={secretAlpha:23};',
+      'function identity(owner){return owner;}',
+      'const calculate=function calculate(){return identity(root).secretAlpha;};',
+      'module.exports={calculate,result:calculate()};'
+    ].join('\n'),
+    [
+      'const root={secretAlpha:23};',
+      'function read(ignored,owner){return owner.secretAlpha;}',
+      'const calculate=function calculate(){return read(root,root);};',
+      'module.exports={calculate,result:calculate()};'
+    ].join('\n'),
+    [
+      'const root={secretAlpha:23};',
+      'function read(owner){return owner.secretAlpha;}',
+      'const calculate=function calculate(){return read?.(root);};',
+      'module.exports={calculate,result:calculate()};'
+    ].join('\n')
+  ];
+  for(const source of unsafe)for(const mode of /** @type {const} */ (['coo','sno','sco'])){
+    const result=obfuscateFiles([{path:'entry.cjs',sourceType:'commonjs',code:source}],{
+      mode,seed:'observed-caller-refusal-'+mode,strings:false,identifiers:false
+    }).files[0];
+    assert.equal(result.metrics.objects,0,mode+': non-reader transfer must retain original keys');
+    assert.deepEqual(JSON.stringify(runCommonJs(result.code)),
+      JSON.stringify(runCommonJs(source)));
+  }
+});
+
 test('source-observed and escaped declaration readers preserve their original source',()=>{
   const unsafe=[
     'const root={secretAlpha:23};function read(owner){return owner.secretAlpha;}' +
