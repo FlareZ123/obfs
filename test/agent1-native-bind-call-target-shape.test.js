@@ -6,8 +6,9 @@ const {parse,hasUnsafeNativeBindMutationSurface}=require('../src/ast');
 
 const cases=[
   ['local const arrow target','const internal=()=>1;internal.bind(null);',false],
-  ['local const function-expression target','const internal=function named(){return 1;};internal.bind(null);',false],
-  ['local function-declaration target','function internal(){return 1;}internal.bind(null);',false],
+  ['constructible const function-expression target','const internal=function named(){return 1;};internal.bind(null);',true],
+  ['constructible function-declaration target','function internal(){return 1;}internal.bind(null);',true],
+  ['host-provided import.meta property read','const host=import.meta;const env=host.env;const internal=()=>1;internal.bind(null);',true],
   ['imported function receiver',"import {internal} from './reader.mjs';internal.bind(null);",true],
   ['namespace custom bind method',"import * as custom from './custom.mjs';custom.bind(null);",true],
   ['optional host-object bind call','import.meta.bind?.(null);',true],
