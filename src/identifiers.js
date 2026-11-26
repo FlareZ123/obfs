@@ -35,9 +35,120 @@ function classifyIdentifier(node,parent,key) {
 }
 
 /**
+ * A bound wrapper around a constructible function can be constructed by an
+ * external consumer. The resulting instance exposes target.prototype.constructor,
+ * so Function#toString can observe every identifier spelling in the target body
+ * and in the outer bindings referenced by that body. Bound arrows are exempt
+ * only when the graph-wide proof explicitly admits their direct const binding.
+ * Exported function bodies are source-exposed to consumers regardless.
+ * @param {AstNode} ast
+ * @param {boolean} allowBoundFunctionTargets
+ * @returns {Set<AstNode>}
+ */
+function collectBoundTargetSourceExposedBodies(ast,allowBoundFunctionTargets) {
+  const functionNodes=new Set();
+  const functionBindings=new Map();
+  const aliases=new Map();
+  const constArrowBindings=new Set();
+  const exportedNames=new Set();
+  const exposed=new Set();
+  let unknownBoundReceiver=false;
+  let hasBindMember=false;
+  let hasImportMeta=false;
+  /** @param {AstNode|null|undefined} node @returns {boolean} */
+  function isFunctionNode(node) {
+    return Boolean(node&&['FunctionDeclaration','FunctionExpression',
+      'ArrowFunctionExpression','ClassDeclaration','ClassExpression'].includes(node.type));
+  }
+  /** @param {AstNode} node @returns {string|null} */
+  function staticMemberName(node) {
+    if(node.type!=='MemberExpression')return null;
+    if(!node.computed&&node.property.type==='Identifier')return node.property.name;
+    if(node.computed&&node.property.type==='Literal'&&typeof node.property.value==='string')
+      return node.property.value;
+    return null;
+  }
+  walk(ast,(node,parent,key)=>{
+    if(isFunctionNode(node)) {
+      functionNodes.add(node);
+      if(node.type==='FunctionDeclaration'&&node.id?.type==='Identifier')
+        functionBindings.set(node.id.name,node);
+      if(parent?.type==='VariableDeclarator'&&parent.id?.type==='Identifier'&&parent.init===node) {
+        functionBindings.set(parent.id.name,node);
+        if(parent.kind==='const'&&node.type==='ArrowFunctionExpression')
+          constArrowBindings.add(parent.id.name);
+      }
+    }
+    if(node.type==='VariableDeclarator'&&node.id?.type==='Identifier'&&node.init?.type==='Identifier')
+      aliases.set(node.id.name,node.init.name);
+    if(node.type==='AssignmentExpression'&&node.left?.type==='Identifier'&&node.right?.type==='Identifier')
+      aliases.set(node.left.name,node.right.name);
+    if(node.type==='ExportSpecifier'&&node.local?.type==='Identifier')
+      exportedNames.add(node.local.name);
+    if(node.type==='ExportDefaultDeclaration') {
+      if(node.declaration?.type==='Identifier')exportedNames.add(node.declaration.name);
+      if(isFunctionNode(node.declaration))exposed.add(node.declaration);
+    }
+    if(node.type==='ExportNamedDeclaration'&&node.declaration) {
+      if(isFunctionNode(node.declaration))exposed.add(node.declaration);
+      if(node.declaration.type==='VariableDeclaration') {
+        for(const declaration of node.declaration.declarations) {
+          if(declaration.id?.type==='Identifier'&&isFunctionNode(declaration.init))
+            exposed.add(declaration.init);
+        }
+      }
+    }
+    if(node.type==='MetaProperty'&&node.meta?.name==='import')hasImportMeta=true;
+    if(node.type==='AssignmentExpression'&&node.left?.type==='MemberExpression'&&
+       node.left.object?.type==='Identifier'&&node.left.object.name==='module'&&
+       staticMemberName(node.left)==='exports') {
+      // CommonJS export assignment makes any contained callable externally visible.
+      for(const fn of functionNodes)exposed.add(fn);
+    }
+  });
+  /**
+   * @param {string} name
+   * @param {Set<string>} [seen]
+   * @returns {AstNode|null}
+   */
+  function resolveFunction(name,seen=new Set()) {
+    if(functionBindings.has(name))return functionBindings.get(name);
+    if(seen.has(name)||!aliases.has(name))return null;
+    seen.add(name);
+    return resolveFunction(aliases.get(name),seen);
+  }
+  for(const name of exportedNames) {
+    const fn=resolveFunction(name);
+    if(fn)exposed.add(fn);
+  }
+  walk(ast,(node,parent)=>{
+    if(node.type!=='MemberExpression')return;
+    const name=staticMemberName(node);
+    if(name!=='bind'&&!(node.computed&&name===null))return;
+    hasBindMember=true;
+    const receiver=node.object;
+    const target=receiver?.type==='Identifier'?resolveFunction(receiver.name):null;
+    const provenArrow=allowBoundFunctionTargets&&name==='bind'&&!node.computed&&
+      parent?.type==='CallExpression'&&parent.callee===node&&!parent.optional&&
+      !node.optional&&parent.arguments.length===1&&
+      parent.arguments[0]?.type==='Literal'&&parent.arguments[0].value===null&&
+      receiver?.type==='Identifier'&&constArrowBindings.has(receiver.name)&&
+      target?.type==='ArrowFunctionExpression';
+    if(provenArrow)return;
+    if(target)exposed.add(target);
+    else if(isFunctionNode(receiver))exposed.add(receiver);
+    else unknownBoundReceiver=true;
+  });
+  if(unknownBoundReceiver||hasImportMeta&&hasBindMember&&!allowBoundFunctionTargets) {
+    for(const fn of functionNodes)exposed.add(fn);
+  }
+  return exposed;
+}
+
+/**
  * @param {string} source
  * @param {AstNode} ast
- * @param {{seed:string,sourceType:'script'|'module'|'commonjs'}} options
+ * @param {{seed:string,sourceType:'script'|'module'|'commonjs',allowBoundFunctionTargets?:boolean}} options
  * @returns {{code:string,bindings:number}}
  */
 function renameLocalIdentifiers(source,ast,options) {
@@ -135,6 +246,15 @@ function renameLocalIdentifiers(source,ast,options) {
     }
   });
   if (dynamic) return {code:source,bindings:0};
+  const sourceExposedBodies=collectBoundTargetSourceExposedBodies(
+    ast,options.allowBoundFunctionTargets===true);
+  /** @type {Set<string>} */
+  const sourceExposedNames=new Set();
+  for(const item of identifiers) {
+    if(item.ancestors.some(ancestor=>sourceExposedBodies.has(ancestor))&&
+       classifyIdentifier(item.node,item.parent,item.key)!=='ignore')
+      sourceExposedNames.add(item.node.name);
+  }
   /** @type {import('./ast').Edit[]} */
   const edits=[];
   // A free identifier can be captured by a newly introduced local binding,
@@ -143,7 +263,8 @@ function renameLocalIdentifiers(source,ast,options) {
   let bindings=0;
   for(const candidate of candidates) {
     const {name,scope,identifier}=candidate;
-    if (counts.get(name)!==1 || inferredNames.has(name) || errorSpellingNames.has(name) ||
+    if (counts.get(name)!==1 || sourceExposedNames.has(name) ||
+        inferredNames.has(name) || errorSpellingNames.has(name) ||
         ['arguments','eval','require','module','exports','globalThis','window'].includes(name)) continue;
     // TDZ ReferenceError messages expose the original binding spelling.
     // Until a control-flow dominance proof exists, reject a candidate when a
