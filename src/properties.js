@@ -723,11 +723,15 @@ function proveLocalObject(ast, rootName, bindings, importedIdentityFunctions=new
     let privateValue=true;
     for(const use of identifierUses.get(binding.name)??[]) {
       if(use.node===binding.decl) {
-        if(use.ancestors.some(ancestor=>/^Export/.test(ancestor.type)))
-          privateValue=false;
-        if(!privateValue)break;
+        // Exporting a closure-only function is not itself an in-program
+        // source observer. The graph-wide source-observer gate has already
+        // rejected programs that inspect this function's source. The owner
+        // alias proof below still rejects returning/passing the owner or
+        // accepting it through an unproved exported parameter.
         continue;
       }
+      if(use.parent?.type==='ExportSpecifier'&&use.key==='local'||
+         use.parent?.type==='ExportDefaultDeclaration'&&use.key==='declaration')continue;
       if(!use.ancestors.includes(scope)||
          use.parent?.type!=='CallExpression'||
          use.parent.callee!==use.node||
