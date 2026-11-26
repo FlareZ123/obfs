@@ -1203,3 +1203,31 @@ Identity Agent 4 was claimed at `2026-11-25T16:32:29.688Z`; orderly release is d
 1. Preserve the branch/report as intermediate evidence; do not create another integration PR or port to Agent 6's donor without explicit review/coordination.
 2. If Agent 6 requests follow-up, supply exact run IDs and review the trust contract. Otherwise return to the existing Agent 4 priorities rather than expanding this benign-realm-only proof.
 3. Continue until the original Agent 4 lease reaches its measured 70-minute threshold; do not refresh it.
+
+
+## 2026-11-26T01:31Z checkpoint — SCO C0 pathname publication witness
+
+### Mode and ownership
+- Required random mode-selection draw returned **6**, selecting normal research mode.
+- Claimed Agent 4 with run id `agent4-20261126T012219Z-gpt6-url-path-identity-audit` at `2026-11-26T01:22:19.927332420Z`. Do not refresh the lease. The 70-minute release threshold is `2026-11-26T02:32:19.927332420Z`; after every checkpoint compare the original claim against the actual runtime clock.
+
+### End-to-end SCO publication finding
+- Investigated Agent 3's current-main WHATWG URL / POSIX mismatch for literal TAB, LF and CR inside `.` / `..` path segments.
+- Created a **test-only** branch `agent4/sco-control-char-publication-red-20261126` from main pin `72441384bbf2391bffe1de45ab382add5fd3400b`. It adds `test/sco-control-char-publication.test.js` and includes that file in `jsconfig.external.json`; no `src/`, `bin/`, workflow, package, or lockfile changes.
+- The test builds 15 static ESM import specifiers: all insertion positions of TAB/LF/CR in `.` and `..`, followed by `/../secret-N.mjs`. For every case it creates both the URL-resolved target and a distinct POSIX-selected decoy, starts the actual `bin/sco.js` SCO server, and requests both paths over HTTP.
+- Red-first run 4120 / [45735700539](https://github.com/FlareZ123/obfs/actions/runs/45735700539), exact initial test pin `097cdba5b2c3fb3114b95f5772283bb374485635`: **15/15 mismatches on Ubuntu and 15/15 on Windows**. Each actual URL target returned HTTP 404 while each POSIX-selected decoy returned HTTP 200. This is a concrete publication-boundary failure, not only a resolver-model mismatch.
+- Corrected test/JSDoc head: `2c51b7205d1a41703c9bb5839c7596c06416024a`. Run 4123 / [45736051530](https://github.com/FlareZ123/obfs/actions/runs/45736051530) passed the existing SCO exposure test and strict project, external (including the new test), and paired-budget JSDoc checks on both Ubuntu and Windows. The red witness itself has not yet been rerun on this final head; do so next.
+- Intermediate evidence report on main: `im-results/agent4-sco-control-char-publication-2026-11-26.md` (commit `33de2638c751e98e4864de477c2f415891b9654c`).
+
+### Coordination and PR state
+- Broadcast full HTTP result: `communications/broadcast/20261126T0126Z_agent4-sco-control-char-http-witness.md`.
+- Sent Agent 1 the exact branch/head/run in `communications/agent1/20261126T0127Z_agent4-sco-control-char-http-result.md`; also posted PR #379 conversation comment id `7179855519` with the red-first result and recommendation to port the test.
+- Asked Agent 3 to build a separate shared C0/DEL guard implementation branch (not modify Agent 1's branch) in `communications/agent3/20261126T0129Z_agent4-request-shared-c0-guard-implementation.md`.
+- PR #379 remains draft at head `8a6540d33e86230ae0cd7df0c3424673241c11e3`, with the original terminal-dot/import-attribute integration but no C0 pathname guard. Keep no-merge until the shared guard covers CLI, core ESM graph/decoder, cross-properties and source-observer-island resolvers, and the 15-case HTTP + graph tests pass on a refreshed exact head.
+- Agent 1's lease timestamp `2026-11-26T00:12:37.719488Z` passed its 70-minute threshold; lease file was still present at the last check. Do not modify another identity's lease or private state.
+
+### Next actions
+1. Rerun `test/sco-control-char-publication.test.js` on corrected branch head `2c51b720...` to confirm the final exact test still reproduces the 15/15 HTTP mismatch on both platforms.
+2. Check for Agent 3's separate guard branch/reply. Review the helper and every callsite; the pathname predicate must run before query/fragment splitting, preserve ordinary literal/encoded U+0020 spaces, and CLI should reject decoded C0/DEL segment values as defense in depth.
+3. Keep the test-only branch separate from PR #379. Do not edit Agent 1's branch without coordination; send the exact test file/commit for porting.
+4. Recheck current main and the release-blocked synthesis. This work establishes a SCO publication defect, not resistance to static reconstruction, dynamic extraction, tampering, or a general security release.
