@@ -51,6 +51,7 @@ def serve() -> None:
         "private_file": str(private_file),
         "private_root_mode": oct(os.stat(private_root).st_mode & 0o777),
         "private_file_mode": oct(os.stat(private_file).st_mode & 0o777),
+        "environment_keys": sorted(os.environ),
     }
     print("READY " + json.dumps(ready), flush=True)
     try:
@@ -88,10 +89,9 @@ def client(args) -> None:
         "server_fd_directory_denied": denied(f"/proc/{args.server_pid}/fd/0"),
         "parent_environ_denied": denied(f"/proc/{args.parent_pid}/environ"),
     }
-    forbidden_prefixes = ("GITHUB_", "RUNNER_", "ACTIONS_", "TARGET_", "FIXTURE_", "ORACLE_")
-    checks["environment_scrubbed"] = not any(
-        key.startswith(forbidden_prefixes) for key in os.environ
-    )
+    required_env = {"PATH", "HOME", "TMPDIR", "LANG", "PYTHONNOUSERSITE", "PYTHONHASHSEED"}
+    allowed_env = required_env | {"LD_LIBRARY_PATH"}
+    checks["environment_scrubbed"] = required_env.issubset(os.environ) and set(os.environ).issubset(allowed_env)
     sudo_path = shutil.which("sudo")
     if sudo_path:
         attempt = subprocess.run(
@@ -110,18 +110,24 @@ def client(args) -> None:
         raise SystemExit(1)
 
 
-def launcher(user: str, uid: int, gid: int, script: Path, mode: str, args: list[str]):
+def launcher(user: str, uid: int, gid: int, script: Path, mode: str,
+            args: list[str], safe_env: dict[str, str]):
     setpriv = "/usr/bin/setpriv"
     python = sys.executable
+    clean_exec = ["/usr/bin/env", "-i",
+                  *[f"{key}={value}" for key, value in sorted(safe_env.items())],
+                  python, str(script), mode, *args]
     if os.geteuid() == 0:
         return [setpriv, f"--reuid={uid}", f"--regid={gid}", "--clear-groups",
-                "--no-new-privs", "--bounding-set=-all", "--", python, str(script), mode, *args]
+                "--no-new-privs", "--bounding-set=-all", "--", *clean_exec]
     sudo = shutil.which("sudo")
     if not sudo:
         raise RuntimeError("sudo is required for cross-UID launch on a non-root runner")
+    # Run setpriv as root so it can drop the capability bounding set before exec.
+    # env -i then clears variables that sudo may preserve or reconstruct.
     return [sudo, "-n", setpriv, f"--reuid={uid}", f"--regid={gid}",
             "--clear-groups", "--no-new-privs", "--bounding-set=-all",
-            "--", python, str(script), mode, *args]
+            "--", *clean_exec]
 
 
 def run_parent() -> None:
@@ -136,9 +142,11 @@ def run_parent() -> None:
 
     safe_env = {"PATH": "/usr/bin:/bin", "HOME": "/tmp", "TMPDIR": "/tmp",
                 "LANG": "C.UTF-8", "PYTHONNOUSERSITE": "1", "PYTHONHASHSEED": "0"}
+    if os.environ.get("LD_LIBRARY_PATH"):
+        safe_env["LD_LIBRARY_PATH"] = os.environ["LD_LIBRARY_PATH"]
     os.environ["TARGET_SEED_SENTINEL"] = "must-not-reach-client"
     server_cmd = launcher("www-data", server_user.pw_uid, server_user.pw_gid,
-                          public_script, "--server", [])
+                          public_script, "--server", [], safe_env)
     server = subprocess.Popen(server_cmd, cwd=public_root, env=safe_env,
                               stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
     private_root = None
@@ -153,6 +161,8 @@ def run_parent() -> None:
             raise RuntimeError(f"server uid mismatch: {ready['uid']}")
         if ready["private_root_mode"] != "0o700" or ready["private_file_mode"] != "0o600":
             raise RuntimeError(f"private path modes are too permissive: {ready}")
+        if set(ready["environment_keys"]) != set(safe_env):
+            raise RuntimeError(f"server environment was not scrubbed: {ready['environment_keys']}")
         server_proc_uid = os.stat(f"/proc/{ready['pid']}").st_uid
         if server_proc_uid != server_user.pw_uid:
             raise RuntimeError(f"server /proc uid mismatch: {server_proc_uid}")
@@ -164,7 +174,7 @@ def run_parent() -> None:
             "--server-pid", str(ready["pid"]),
             "--parent-pid", str(os.getpid()),
             "--expected-client-uid", str(client_user.pw_uid),
-        ])
+        ], safe_env)
         completed = subprocess.run(client_cmd, cwd=public_root, env=safe_env,
                                     capture_output=True, text=True, timeout=20)
         if completed.returncode != 0 or not completed.stdout.strip():
@@ -182,6 +192,12 @@ def run_parent() -> None:
         if server.poll() is None:
             try:
                 os.kill(ready["pid"], signal.SIGTERM)
+            except PermissionError:
+                sudo = shutil.which("sudo")
+                if sudo:
+                    subprocess.run([sudo, "-n", "kill", "-TERM", str(ready["pid"])], check=False)
+                else:
+                    server.terminate()
             except (ProcessLookupError, UnboundLocalError):
                 server.terminate()
             try:

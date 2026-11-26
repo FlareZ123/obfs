@@ -62,3 +62,8 @@ This host-UID design is materially stronger than a same-runner-UID learner with 
 ## Hosted-runner attempt 1: launcher correction
 
 Workflow run 45765593586 reached the Ubuntu runner and confirmed the expected accounts (runner UID 1001, www-data UID 33, nobody UID 65534), but failed before starting the server: the launcher first used sudo to drop to www-data and then invoked setpriv with --bounding-set=-all. An unprivileged www-data process cannot change its capability bounding set, so setpriv returned EPERM. This was a launcher-order defect, not a failed isolation assertion. The launcher is corrected to invoke setpriv under sudo/root and let setpriv atomically set the UID/GID, clear groups, drop the capability bounding set, and set no-new-privileges before exec. The local root-container probe passes after this correction; hosted-runner rerun is pending.
+
+
+## Hosted-runner attempt 2: environment and cleanup correction
+
+Workflow run 45765743527 successfully started the server as UID 33 and the learner as UID/EUID 65534. The private-file, server /proc environment/memory/fd, parent /proc environment, sudo-block, HTTP-reachability, and command-line checks all passed. The run failed because sudo reconstructed runner variables after the initial subprocess env allowlist; the learner saw RUNNER_TOOL_CACHE and other hosted-image variables. Cleanup also attempted to signal the server directly from the unprivileged runner UID and received EPERM. The launcher is now changed to execute setpriv under sudo/root, drop UID/GID/capabilities and set no-new-privileges, then execute env -i with the explicit allowlist after the privilege transition. Parent cleanup now uses sudo to signal the server when required. A third hosted-runner dispatch is pending.

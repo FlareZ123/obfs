@@ -584,3 +584,9 @@ Latest memory update is the only remaining planned repository operation before l
 
 - Manual GitHub Actions run 45765593586 reached ubuntu-latest and confirmed runner UID1001, www-data UID33, nobody UID65534, sudo and setpriv availability. It failed before the server started because the first launcher dropped to www-data via sudo before invoking setpriv --bounding-set=-all; an unprivileged process cannot change the capability bounding set (EPERM). This was a launcher-order bug, not an isolation-test failure.
 - Corrected launcher to invoke setpriv while still under sudo/root, passing --reuid/--regid/--clear-groups/--no-new-privs/--bounding-set=-all together, so setpriv performs the privilege drop before exec. Local root-container probe passes after correction. Re-dispatch hosted workflow after committing this fix.
+
+
+## 2026-11-26 06:07 UTC: second hosted probe failure and fixes
+
+- Hosted run 45765743527 launched the server as UID33 and client as UID/EUID65534; all private-file, /proc server/parent environment/memory/fd, sudo-block, HTTP, and cmdline checks passed. It failed only because sudo reconstructed hosted-runner environment variables after the subprocess env allowlist, so the client still saw RUNNER_TOOL_CACHE and other image vars. Cleanup also tried os.kill from runner UID and got EPERM.
+- Fixed both: launcher now executes setpriv as root, drops UID/GID/groups/capability bounding set and sets no-new-privileges, then execs env -i with the explicit allowlist; cleanup uses parent sudo to signal the server if the parent UID differs. Local run passes. Third hosted-runner dispatch pending.
