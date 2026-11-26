@@ -121,7 +121,7 @@ async function runSnoDifferential(source,seed,tempPrefix) {
   }
 }
 
-test('SNO Node Web Storage exposes changed callable source through native DOMString conversion',{
+test('SNO Node Web Storage native DOMString conversion preserves observed callable source',{
   skip:!supportsExperimentalWebStorage,
   timeout:30000
 },async()=>{
@@ -141,8 +141,8 @@ test('SNO Node Web Storage exposes changed callable source through native DOMStr
     '  value:inspect(),independent:independent()};',
     'process.stdout.write(JSON.stringify(result));'
   ].join('\n');
-  assert.equal(observesFunctionSource(parse(source,'commonjs')),false,
-    'the current AST observer does not classify this native Storage conversion');
+  assert.equal(observesFunctionSource(parse(source,'commonjs')),true,
+    'native Storage DOMString conversion exposes the callable source');
   const transformed=obfuscateFiles([{
     path:'entry.cjs',sourceType:'commonjs',code:source
   }],{
@@ -155,9 +155,9 @@ test('SNO Node Web Storage exposes changed callable source through native DOMStr
   const file=transformed.files[0];
   assert.ok(file,'expected one transformed SNO entry');
   const protectedCode=String(file.code);
-  assert.ok(file.metrics.bindings>=2,'expected nonzero identifier-transform yield');
-  assert.ok(!protectedCode.includes('privateLocal'),'expected the observed callable body to be changed');
-  assert.ok(!protectedCode.includes('independentLocal'),'expected unrelated positive-control yield');
+  assert.equal(file.metrics.bindings,0,'source observation must block identifier rewriting');
+  assert.ok(protectedCode.includes('privateLocal'),'observed callable source must remain unchanged');
+  assert.ok(protectedCode.includes('independentLocal'),'file-wide source observation must fail closed');
 
   const root=await fs.mkdtemp(path.join(os.tmpdir(),'obfs-sno-webstorage-'));
   try {
@@ -173,14 +173,14 @@ test('SNO Node Web Storage exposes changed callable source through native DOMStr
     assert.equal(emitted.independent,7);
     assert.ok(native.keySource?.includes('privateLocal'),'native Storage key conversion should retain original callable source');
     assert.ok(native.valueSource?.includes('privateLocal'),'native Storage value conversion should retain original callable source');
-    assert.ok(emitted.keySource && !emitted.keySource.includes('privateLocal'),
-      'captured native Storage key conversion should expose transformed callable source');
-    assert.ok(emitted.valueSource && !emitted.valueSource.includes('privateLocal'),
-      'native Storage value conversion should expose transformed callable source');
+    assert.ok(emitted.keySource?.includes('privateLocal'),
+      'native Storage key conversion must retain original callable source');
+    assert.ok(emitted.valueSource?.includes('privateLocal'),
+      'native Storage value conversion must retain original callable source');
     assert.equal(native.keySource,native.valueSource);
     assert.equal(emitted.keySource,emitted.valueSource);
-    assert.notEqual(native.keySource,emitted.keySource,
-      'SNO identifier edits must not silently change native Storage DOMString output');
+    assert.equal(native.keySource,emitted.keySource,
+      'SNO identifier edits must preserve native Storage DOMString output');
 
     console.log(JSON.stringify({
       mode:'sno',
@@ -196,7 +196,7 @@ test('SNO Node Web Storage exposes changed callable source through native DOMStr
       independent:native.independent,
       emittedIndependent:emitted.independent,
       renamedBindings:file.metrics.bindings,
-      sourceParity:false
+      sourceParity:true
     }));
   } finally {
     await fs.rm(root,{recursive:true,force:true});
@@ -540,7 +540,7 @@ test('SNO Node Web Storage immutable Symbol.toPrimitive alias remains conservati
 });
 
 
-test('SNO Node sessionStorage native DOMString conversion preserves runtime values but changes callable source',{
+test('SNO Node sessionStorage native DOMString conversion preserves callable source and runtime values',{
   skip:!supportsExperimentalWebStorage,
   timeout:30000
 },async()=>{
@@ -556,24 +556,24 @@ test('SNO Node sessionStorage native DOMString conversion preserves runtime valu
     'process.stdout.write(JSON.stringify(result));'
   ].join('\n');
   const pair=await runSnoDifferential(source,'sno-node-sessionstorage-source','obfs-sno-sessionstorage-');
-  assert.equal(pair.observes,false);
-  assert.ok(pair.bindings>=2);
-  assert.ok(!pair.protectedCode.includes('privateLocal'));
-  assert.ok(!pair.protectedCode.includes('independentLocal'));
+  assert.equal(pair.observes,true);
+  assert.equal(pair.bindings,0);
+  assert.ok(pair.protectedCode.includes('privateLocal'));
+  assert.ok(pair.protectedCode.includes('independentLocal'));
   assert.equal(pair.native.nativeDispatch,true);
   assert.equal(pair.emitted.nativeDispatch,true);
   assert.ok(pair.native.stored?.includes('privateLocal'));
-  assert.ok(pair.emitted.stored && !pair.emitted.stored.includes('privateLocal'));
-  assert.notEqual(pair.native.stored,pair.emitted.stored);
+  assert.ok(pair.emitted.stored?.includes('privateLocal'));
+  assert.equal(pair.native.stored,pair.emitted.stored);
   assert.equal(pair.native.value,73);
   assert.equal(pair.emitted.value,73);
   assert.equal(pair.native.independent,31);
   assert.equal(pair.emitted.independent,31);
-  console.log(JSON.stringify({mode:'sno',case:'sessionStorage-native-setItem',observer:pair.observes,bindings:pair.bindings,nativeDispatch:pair.native.nativeDispatch,sourceParity:false}));
+  console.log(JSON.stringify({mode:'sno',case:'sessionStorage-native-setItem',observer:pair.observes,bindings:pair.bindings,nativeDispatch:pair.native.nativeDispatch,sourceParity:true}));
 });
 
 
-test('SNO Node Web Storage cross-file factory return exposes helper callable source through one entrypoint',{
+test('SNO Node Web Storage cross-file factory return preserves helper callable source through one entrypoint',{
   skip:!supportsExperimentalWebStorage,
   timeout:30000
 },async()=>{
@@ -595,7 +595,7 @@ test('SNO Node Web Storage cross-file factory return exposes helper callable sou
     '  return inspect;',
     '};'
   ].join('\n');
-  assert.equal(observesFunctionSource(parse(entrySource,'commonjs')),false);
+  assert.equal(observesFunctionSource(parse(entrySource,'commonjs')),true);
   assert.equal(observesFunctionSource(parse(helperSource,'commonjs')),false);
   /** @type {{path:string,sourceType:'commonjs',code:string}[]} */
   const inputFiles=[
@@ -614,8 +614,9 @@ test('SNO Node Web Storage cross-file factory return exposes helper callable sou
   assert.ok(entryFile,'expected one SNO entry file');
   assert.ok(helperFile,'expected one SNO helper file');
   const protectedHelper=String(helperFile.code);
-  assert.ok(helperFile.metrics.bindings>=1,'expected helper-private identifier rewrite');
-  assert.ok(!protectedHelper.includes('privateLocal'),'expected returned callable source to change');
+  assert.equal(entryFile.metrics.bindings,0,'entry source observation must block file-group rewriting');
+  assert.equal(helperFile.metrics.bindings,0,'observed returned function source must not be rewritten');
+  assert.ok(protectedHelper.includes('privateLocal'),'returned callable source must remain unchanged');
 
   const root=await fs.mkdtemp(path.join(os.tmpdir(),'obfs-sno-webstorage-cross-file-'));
   try {
@@ -628,8 +629,8 @@ test('SNO Node Web Storage cross-file factory return exposes helper callable sou
     const native=runWithWebStorage(packages.nativeLauncher,packages.nativeStorage);
     const emitted=runWithWebStorage(packages.protectedLauncher,packages.protectedStorage);
     assert.ok(native.stored?.includes('privateLocal'));
-    assert.ok(emitted.stored && !emitted.stored.includes('privateLocal'));
-    assert.notEqual(native.stored,emitted.stored);
+    assert.ok(emitted.stored?.includes('privateLocal'));
+    assert.equal(native.stored,emitted.stored);
     assert.equal(native.value,83);
     assert.equal(emitted.value,83);
     assert.equal(native.independent,5);
@@ -646,7 +647,7 @@ test('SNO Node Web Storage cross-file factory return exposes helper callable sou
       nativeValue:native.value,
       emittedValue:emitted.value,
       unrelatedHelper:emitted.independent,
-      sourceParity:false
+      sourceParity:true
     }));
   } finally {
     await fs.rm(root,{recursive:true,force:true});
