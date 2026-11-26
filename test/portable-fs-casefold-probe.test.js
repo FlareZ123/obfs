@@ -6,6 +6,7 @@ const fs=require('node:fs/promises');
 const os=require('node:os');
 const path=require('node:path');
 const {createPathInventory,registerFilePath}=require('../src/portable-paths');
+const {unicodeCaseFold}=require('../src/unicode-casefold');
 
 test('report native filesystem aliasing for candidate Unicode case-fold pairs',async()=>{
   const pairs=[
@@ -52,6 +53,7 @@ test('report native filesystem aliasing for candidate Unicode case-fold pairs',a
         label:pair.label,a:pair.a,b:pair.b,entries,
         filesystemAliases:entries.length===1||a===b,
         candidateCompositeKeyRejects,
+        unicodeCaseFoldEquivalent:unicodeCaseFold(pair.a)===unicodeCaseFold(pair.b),
         portableInventoryRejects
       });
     }
