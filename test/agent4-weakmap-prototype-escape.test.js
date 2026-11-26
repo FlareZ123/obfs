@@ -60,8 +60,8 @@ function run(moduleSource){
 test('WeakMap prototype mutation through Object.getPrototypeOf misses Storage source-observer proof',()=>{
   const ast=parse(source,'module');
   const observed=observesFunctionSource(ast);
-  assert.equal(observed,false,
-    'the reference-only Storage proof should expose its current blind spot');
+  assert.equal(observed,true,
+    'prototype introspection must invalidate the reference-only Storage proof');
 
   const compiled=obfuscateFiles([{
     path:'entry.mjs',sourceType:'module',code:source
@@ -71,7 +71,7 @@ test('WeakMap prototype mutation through Object.getPrototypeOf misses Storage so
   });
   const app=compiled.files.find(file=>file.path==='entry.mjs');
   assert.ok(app);
-  assert.ok(app.metrics.bindings>=2,
+  assert.equal(app.metrics.bindings,0,
     JSON.stringify({metrics:app.metrics,code:app.code}));
 
   const native=run(source);
@@ -79,11 +79,9 @@ test('WeakMap prototype mutation through Object.getPrototypeOf misses Storage so
   assert.deepEqual(emitted.result,native.result);
   assert.ok(native.capturedSource?.includes('privateLocal'),
     JSON.stringify(native));
-  assert.ok(emitted.capturedSource);
-  assert.ok(!emitted.capturedSource.includes('privateLocal'),
+  assert.equal(emitted.capturedSource,native.capturedSource,
     JSON.stringify({native,emitted,metrics:app.metrics}));
-  assert.notEqual(emitted.capturedSource,native.capturedSource);
-  process.stdout.write('WEAKMAP_PROTOTYPE_ESCAPE_FALSE_SAFE '+JSON.stringify({
+  process.stdout.write('WEAKMAP_PROTOTYPE_ESCAPE_REFUSED '+JSON.stringify({
     observed,metrics:app.metrics,native,emitted
   })+'\\n');
 });
@@ -129,7 +127,7 @@ test('WeakMap prototype access aliases also bypass the reference-only guard',()=
       '  return {value:inspect(),independent:independent()};',
       '}'
     ].join('\n');
-    assert.equal(observesFunctionSource(parse(candidate,'module')),false,variant.name);
+    assert.equal(observesFunctionSource(parse(candidate,'module')),true,variant.name);
     const compiled=obfuscateFiles([{
       path:'entry.mjs',sourceType:'module',code:candidate
     }],{
@@ -138,16 +136,15 @@ test('WeakMap prototype access aliases also bypass the reference-only guard',()=
     });
     const app=compiled.files.find(file=>file.path==='entry.mjs');
     assert.ok(app);
-    assert.ok(app.metrics.bindings>=2,
+    assert.equal(app.metrics.bindings,0,
       JSON.stringify({variant:variant.name,metrics:app.metrics,code:app.code}));
     const native=run(candidate);
     const emitted=run(String(app.code));
     assert.deepEqual(emitted.result,native.result,variant.name);
     assert.ok(native.capturedSource?.includes('privateLocal'),variant.name);
-    assert.ok(emitted.capturedSource&&!emitted.capturedSource.includes('privateLocal'),
-      JSON.stringify({variant:variant.name,native,emitted,metrics:app.metrics}));
+    assert.equal(emitted.capturedSource,native.capturedSource,variant.name);
   }
-  process.stdout.write('WEAKMAP_PROTOTYPE_ACCESS_VARIANTS_FALSE_SAFE '+JSON.stringify(
+  process.stdout.write('WEAKMAP_PROTOTYPE_ACCESS_VARIANTS_REFUSED '+JSON.stringify(
     variants.map(variant=>variant.name)
   )+'\\n');
 });
