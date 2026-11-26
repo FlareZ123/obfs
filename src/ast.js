@@ -804,7 +804,8 @@ function hasWeakMapPrototypeExposure(ast) {
    * @param {CarrierValue} [thisValue]
    */
   function visitCarrierStatement(statement,environment,thisValue=carrierOther) {
-    if(statement.type==='Program'||statement.type==='BlockStatement') {
+    if(statement.type==='Program'||statement.type==='BlockStatement'||
+       statement.type==='StaticBlock') {
       for(const child of statement.body??[])visitCarrierStatement(child,environment,thisValue);
       return;
     }
@@ -834,9 +835,15 @@ function hasWeakMapPrototypeExposure(ast) {
     if(statement.type==='ClassDeclaration') {
       if(statement.id?.type==='Identifier') {
         for(const element of statement.body.body??[]) {
-          if(element.type==='PropertyDefinition'&&
-             carrierMayContainWeakMap(evaluateCarrierValue(element.value,environment))) {
-            weakMapContainerOwners.add(statement.id.name);
+          if(element.type==='PropertyDefinition') {
+            visitCarrierExpression(element.value,environment);
+            if(carrierMayContainWeakMap(evaluateCarrierValue(element.value,environment)))
+              weakMapContainerOwners.add(statement.id.name);
+          } else if(element.type==='StaticBlock') {
+            const staticEnvironment=new Map(environment);
+            const staticThis=carrierContainer();
+            staticThis.unknown=true;
+            visitCarrierStatement(element,staticEnvironment,staticThis);
           }
         }
       }
@@ -898,13 +905,16 @@ function hasWeakMapPrototypeExposure(ast) {
   // parameters and class/object receivers are unknown carriers; private
   // local WeakMaps remain ordinary values unless they reach an opaque call.
   for(const [functionNode,info] of functionInfoByNode) {
-    if(functionNode.body?.type!=='BlockStatement')continue;
+    if(!functionNode.body)continue;
     const localEnvironment=new Map(carrierEnvironment);
     for(const parameter of functionNode.params??[])
       bindCarrierPattern(parameter,carrierOther,localEnvironment);
     const thisValue=info.ownerName&&weakMapContainerOwners.has(info.ownerName)?
       (()=>{const value=carrierContainer();value.unknown=true;return value;})():carrierOther;
-    visitCarrierStatement(functionNode.body,localEnvironment,thisValue);
+    if(functionNode.body.type==='BlockStatement')
+      visitCarrierStatement(functionNode.body,localEnvironment,thisValue);
+    else
+      visitCarrierExpression(functionNode.body,localEnvironment,thisValue);
   }
   return exposed;
 }
