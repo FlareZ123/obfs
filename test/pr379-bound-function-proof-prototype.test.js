@@ -52,3 +52,18 @@ test('custom Function.prototype.bind replacement remains outside the bound-only 
   assert.equal(properties(customBind+ownerPrefix+
     'const internal=()=>owner;export const hot=internal.bind(null);'),0);
 });
+
+test('own bind property on the target function remains outside the bound-only proof',()=>{
+  const ownBind='const internal=()=>owner;'+
+    'Object.defineProperty(internal,"bind",{value:function(){'+
+    'const target=this;return function(){return target().secretField;};}});';
+  assert.equal(properties(ownerPrefix+ownBind+
+    'export const hot=internal.bind(null);'),0);
+});
+test('aliased Function.prototype mutation remains outside the bound-only proof',()=>{
+  const customBind='const functionPrototype=Function.prototype;'+
+    'functionPrototype.bind=function(){const target=this;'+
+    'return function(){return target().secretField;};};';
+  assert.equal(properties(customBind+ownerPrefix+
+    'const internal=()=>owner;export const hot=internal.bind(null);'),0);
+});
