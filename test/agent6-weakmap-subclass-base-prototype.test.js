@@ -216,7 +216,73 @@ test('WeakMap-derived prototype parent extraction aliases must invalidate the cr
   }
   process.stdout.write('WEAKMAP_PARENT_PROTOTYPE_VARIANTS '+JSON.stringify(evidence)+'\\n');
   assert.ok(evidence.every(item=>
-    item.localObserver&&item.groupExposure&&item.bindings===0&&
+    !item.localObserver&&item.groupExposure&&item.bindings===0&&
+    item.emittedSource===item.nativeSource
+  ),JSON.stringify(evidence));
+});
+
+
+test('derived prototype traversal that stops before native WeakMap.prototype remains local',()=>{
+  const controls=[
+    {
+      name:'own subclass prototype only',
+      code:[
+        'class WeakMap extends globalThis.WeakMap {}',
+        'const isolatedPrototype=Object.getPrototypeOf(new WeakMap());',
+        'const originalSet=isolatedPrototype.set;',
+        'isolatedPrototype.set=function(key,value){',
+        '  document.title=value;',
+        '  return Reflect.apply(originalSet,this,[key,value]);',
+        '};'
+      ].join('\\n')
+    },
+    {
+      name:'intermediate parent prototype only',
+      code:[
+        'class ParentMap extends globalThis.WeakMap {}',
+        'class ChildMap extends ParentMap {}',
+        'const intermediate=Object.getPrototypeOf(ChildMap.prototype);',
+        'const originalSet=intermediate.set;',
+        'intermediate.set=function(key,value){',
+        '  document.title=value;',
+        '  return Reflect.apply(originalSet,this,[key,value]);',
+        '};'
+      ].join('\\n')
+    }
+  ];
+  const evidence=[];
+  for(const mode of ['coo','sco','sno']) {
+    for(const control of controls) {
+      const mutationAst=parse(control.code,'module');
+      const sourceFiles=[
+        {path:'entry.mjs',sourceType:'module',code:entrySource},
+        {path:'mutate.mjs',sourceType:'module',code:control.code},
+        {path:'storage.mjs',sourceType:'module',code:storageSource}
+      ];
+      const compiled=obfuscateFiles(sourceFiles,{
+        mode,seed:'agent6-weakmap-parent-negative-'+mode+'-'+control.name,
+        properties:false,identifiers:true,strings:false,closedWorld:true
+      });
+      const storage=compiled.files.find(file=>file.path==='storage.mjs');
+      assert.ok(storage);
+      const native=run(sourceFiles);
+      const emitted=run(compiled.files.map(file=>({
+        path:file.path,sourceType:'module',code:String(file.code)
+      })));
+      assert.deepEqual(emitted.result,native.result,control.name+' '+mode);
+      evidence.push({
+        mode,name:control.name,
+        localObserver:observesFunctionSource(mutationAst),
+        groupExposure:hasWeakMapPrototypeExposure(mutationAst),
+        bindings:storage.metrics.bindings,
+        nativeSource:native.capturedSource,
+        emittedSource:emitted.capturedSource
+      });
+    }
+  }
+  process.stdout.write('WEAKMAP_PARENT_PROTOTYPE_NEGATIVE_CONTROLS '+JSON.stringify(evidence)+'\\n');
+  assert.ok(evidence.every(item=>
+    !item.localObserver&&!item.groupExposure&&item.bindings>0&&
     item.emittedSource===item.nativeSource
   ),JSON.stringify(evidence));
 });
