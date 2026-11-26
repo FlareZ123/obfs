@@ -935,6 +935,8 @@ function proveLocalObject(ast, rootName, bindings, importedIdentityFunctions=new
   const inChecks = [];
   /** @type {{call:AstNode,key:AstNode,property:string}[]} */
   const reflections = [];
+  /** @type {Map<AstNode,AstNode|null>} */
+  const privateReaderProofCache=new Map();
   /**
    * An exported wrapper may pass its private owner to a local, nonescaping
    * direct reader. The wrapper's own source contains only the call and owner
@@ -946,7 +948,8 @@ function proveLocalObject(ast, rootName, bindings, importedIdentityFunctions=new
    * Return the exact member-object Identifier node rather than its spelling.
    * This lets distinct reader scopes use the same formal/local names without
    * merging unrelated lexical bindings in the name-keyed alias inventory.
-   * Every direct call site must still pass a tracked owner alias.
+   * Every direct call site must still pass a tracked owner alias. Cache the
+   * result per reader so N call sites do not rescan the same N-use inventory.
    * @param {AstNode} node
    * @param {AstNode|null} parent
    * @param {string|null} key
@@ -962,6 +965,8 @@ function proveLocalObject(ast, rootName, bindings, importedIdentityFunctions=new
       !reader||!['FunctionDeclaration','FunctionExpression','ArrowFunctionExpression'].includes(reader.type)||
       !privateFunctionNodes.has(reader)||reader.async||reader.generator||
       reader.params.length!==1)return null;
+    if(privateReaderProofCache.has(reader))return privateReaderProofCache.get(reader)??null;
+    const reject=()=>{privateReaderProofCache.set(reader,null);return null;};
     const callSites=(identifierUses.get(parent.callee.name)??[]).filter(use=>
       use.parent?.type==='CallExpression'&&use.parent.callee===use.node);
     if(!callSites.length||!callSites.some(use=>use.parent===parent)||
@@ -971,16 +976,16 @@ function proveLocalObject(ast, rootName, bindings, importedIdentityFunctions=new
         const argument=call.arguments[0];
         return call.optional||call.arguments.length!==1||
           argument?.type!=='Identifier'||!aliases.has(argument.name);
-      }))return null;
+      }))return reject();
     const parameter=reader.params[0];
-    if(parameter.type!=='Identifier')return null;
+    if(parameter.type!=='Identifier')return reject();
     /** @type {AstNode|null} */
     let member=null;
     if(reader.type==='ArrowFunctionExpression'&&reader.body?.type==='MemberExpression') {
       member=reader.body;
     } else {
       const body=reader.body?.body;
-      if(!Array.isArray(body))return null;
+      if(!Array.isArray(body))return reject();
       if(body.length===1&&body[0]?.type==='ReturnStatement') {
         member=body[0].argument??null;
       } else if(body.length===2&&body[0]?.type==='VariableDeclaration'&&
@@ -996,13 +1001,14 @@ function proveLocalObject(ast, rootName, bindings, importedIdentityFunctions=new
         if(uses.length!==2||
           !uses.some(use=>use.node===declaration.id&&use.parent===declaration&&use.key==='id')||
           !uses.some(use=>use.node===body[1].argument&&use.parent===body[1]&&use.key==='argument'))
-          return null;
+          return reject();
         member=declaration.init??null;
-      } else return null;
+      } else return reject();
     }
     if(member?.type!=='MemberExpression'||member.optional||
       member.object?.type!=='Identifier'||member.object.name!==parameter.name||
-      member.computed||staticName(member.property)===null)return null;
+      member.computed||staticName(member.property)===null)return reject();
+    privateReaderProofCache.set(reader,member.object);
     return member.object;
   }
   const aliasUses=[...aliases].flatMap(name=>identifierUses.get(name)??[]);
