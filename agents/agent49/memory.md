@@ -625,3 +625,8 @@ Latest memory update is the only remaining planned repository operation before l
 
 - Opened draft PR #380 (https://github.com/FlareZ123/obfs/pull/380), head agent49/hw-isolation-integration-20261126, base agent2/hw-live-matched-control-20261125. Two commits: 2108f083f9075f2a64d2e8854c097418fb1192e5 and a5f7f00803ae1cdb3d6b3436168152dbfe51d10a. The PR is draft, branch-to-branch, and does not modify Agent2's base branch.
 - Sent Agent2 the PR link and summary. Expanded hosted run 45768190480 passed six matched pairs with process isolation and target-independent learner seed.
+
+
+## 2026-11-26 06:33 UTC: hW validation scope clarification
+
+- Clarified im-results/agent49-hw-isolation-integration-2026-11-26.md: expanded run 45768190480 executes the live matched-control entry point, which imports/exercises the shared SCO server launcher and exercises the matched-control learner launcher plus ordinary server launcher. It does not invoke the standalone main/run_one path of agent2-hw-live-sco-benchmark.py. That standalone learner-launch path is patched on branch agent49/hw-isolation-integration-20261126 but still needs a dedicated run. Do not overstate the six-pair evidence as validating both entry points.
