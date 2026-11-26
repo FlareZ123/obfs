@@ -717,7 +717,8 @@ test('deferred private owner reader after initialization supports benign ESM cyc
     {path:'state.mjs',sourceType:'module',code:
       'import {ready} from "./relay.mjs";'+
       'export const state={secretField:23};'+
-      'export const result=ready();'},
+      'const localCheck=state.secretField;'+
+      'export const result=ready()+localCheck-23;'},
     {path:'relay.mjs',sourceType:'module',code:
       'import {state} from "./state.mjs";'+
       'function peek(){return state.secretField;}'+
