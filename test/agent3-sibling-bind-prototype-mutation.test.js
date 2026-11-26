@@ -15,9 +15,10 @@ const sources=[
     code:[
       "import './patch.mjs';",
       "import {run} from './app.mjs';",
+      "import {safeValue} from './safe.mjs';",
       'Function.prototype.bind=globalThis.__nativeBind;',
       'const result=run();',
-      'process.stdout.write(JSON.stringify([globalThis.__capturedSource,result]));'
+      'process.stdout.write(JSON.stringify([globalThis.__capturedSource,result,safeValue]));'
     ].join('\n')
   },
   {
@@ -41,6 +42,15 @@ const sources=[
       'const hot=internal.bind(null);',
       'export function run(){return hot();}'
     ].join('\n')
+  },
+  {
+    path:'safe.mjs',
+    sourceType:'module',
+    code:[
+      'const safeOwner={safeField:11};',
+      'const direct=()=>safeOwner.safeField;',
+      'export const safeValue=direct();'
+    ].join('\n')
   }
 ];
 
@@ -54,7 +64,7 @@ const preloader=[
 /**
  * Run a complete ESM source group with the declared host callback preloaded.
  * @param {{path:string,code:string}[]} files
- * @returns {Promise<[string,number]>}
+ * @returns {Promise<[string,number,number]>}
  */
 async function run(files){
   const root=await fs.mkdtemp(path.join(os.tmpdir(),'obfs-sibling-bind-mutation-'));
@@ -70,7 +80,7 @@ async function run(files){
       cwd:root,encoding:'utf8',timeout:15000
     });
     assert.equal(child.status,0,child.stderr||child.error?.message);
-    return /** @type {[string,number]} */(JSON.parse(child.stdout.trim()));
+    return /** @type {[string,number,number]} */(JSON.parse(child.stdout.trim()));
   }finally{
     await fs.rm(root,{recursive:true,force:true});
   }
@@ -84,17 +94,22 @@ for(const mode of /** @type {const} */ (['coo','sno','sco'])){
       properties:true,identifiers:false,strings:false
     });
     const app=compiled.files.find(file=>file.path==='app.mjs');
+    const safe=compiled.files.find(file=>file.path==='safe.mjs');
     assert.ok(app,'app module must be present in compiled group');
+    assert.ok(safe,'safe control module must be present in compiled group');
     const actual=await run(compiled.files.map(file=>({
       path:file.path,code:String(file.code)
     })));
     process.stdout.write('SIBLING_BIND_MUTATION_WITNESS '+JSON.stringify({
-      mode,properties:app.metrics.properties,
+      mode,appProperties:app.metrics.properties,safeProperties:safe.metrics.properties,
       nativeSource:native[0],compiledSource:actual[0],
-      nativeResult:native[1],compiledResult:actual[1]
+      nativeResult:native[1],compiledResult:actual[1],
+      nativeSafe:native[2],compiledSafe:actual[2]
     })+'\n');
     assert.equal(app.metrics.properties,0,
       mode+': a prior sibling module replaces native bind and forwards the target to an opaque observer');
+    assert.ok(safe.metrics.properties>=1,
+      mode+': an unrelated private direct-call property remains eligible for transformation');
     assert.deepEqual(actual,native,
       mode+': cross-file intrinsic mutation must not invalidate the function-source observer');
   });
