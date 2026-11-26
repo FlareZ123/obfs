@@ -205,3 +205,37 @@ The same browser results can be traced to specific boundaries in candidate `fcec
 - **Reflect.get prototype chain:** `isPrototypeGetterMember` at `src/ast.js:207-211` recognizes `getPrototypeOf` on Object/Reflect namespaces. `weakMapPrototypeChainDepth` at `src/ast.js:250-270` follows direct `.prototype`, `.__proto__`, and recognized getter calls. It does not model `Reflect.get(Derived,'prototype')` or the subsequent `Reflect.get(...,'__proto__')` call, so the native WeakMap prototype result is not carried to the mutation.
 
 These are five distinct missing edges: cross-script lexical binding, exported derived-class escape, imported-call return uncertainty, computed-global constructor resolution, and Reflect.get-based prototype access. They should not be collapsed into one blanket "WeakMap unsafe" switch. A sound repair should preserve the ESM exported-factory positive control and existing local positive-yield tests while making unknown cross-boundary flows conservative.
+
+
+## Addendum — browser validation of Agent 1's cross-boundary patch
+
+Agent 1 committed source patch `2524a2a4852e7199bb20182a69849cd1ed4883cf`, which changes the WeakMap analysis and classic-script grouping. I added this independent browser suite on a test-only branch based on that exact source revision:
+
+- Test branch: `agent4/agent1-cross-boundary-fix-browser-challenge-20261126`
+- Exact test-only commit: `fed5a0062402a0720dbf66d37750b557d5b6f69c`
+- Test blob: `e6993fcb17e75cbdf31a0e3262c446d3646dd101`
+- Candidate production blobs: AST `c62192b0f5f5bf03558dc0ffd23cd0ec37fc45cb`; core `6bfa1e0a50d20b75f8a21a778192596594c409ee`
+- Safe-mode run: [45901694325](https://github.com/FlareZ123/obfs/actions/runs/45901694325)
+- Browser: Google Chrome 157.0.8103.78
+- Mode: `WEAKMAP_EXPECT_SAFE=1`
+
+### What the patch closes
+
+Six combinations are now protected (three scenarios × COO/SCO): classic cross-script lexical carrier, externally consumed ESM-derived class, and unresolved external ESM factory. Each has zero Storage binding rewrites and exact native/emitted captured-source parity.
+
+The ESM exported-factory positive control remains protected in both modes. Existing direct-prototype and subclass-parent Chromium controls also pass.
+
+### What remains open
+
+Four combinations remain unsafe (two scenarios × COO/SCO):
+
+1. **Dynamic global constructor heritage:** `class Derived extends globalThis[constructorKey] {}`, where `constructorKey` is an immutable local initialized to `'WeakMap'`.
+2. **Reflect.get prototype-chain extraction:** `Reflect.get(Derived,'prototype')` followed by `Reflect.get(derivedPrototype,'__proto__')`.
+
+Each remaining combination reports four Storage binding rewrites, preserves `{value:29, independent:7}`, and exposes the renamed `inspect` function source. The safe-mode test collects all four before failing.
+
+The new patch's code changes account for the first three closures: it merges classic script AST bodies for a shared lexical realm, includes derived constructors in exported escape checks, and preserves `carrierMaybe` through imported calls. It does not yet resolve local identifier constants in computed global heritage keys or carry WeakMap prototype identity through `Reflect.get` chains.
+
+The first workflow attempt [45901001167](https://github.com/FlareZ123/obfs/actions/runs/45901001167) is not a security result: it checked out the same source patch but the candidate did not yet contain this browser test file, so the test step failed with `MODULE_NOT_FOUND`. The valid exact-source challenge is 45901694325.
+
+This is meaningful partial progress, not completion. The two remaining browser paths must be closed while retaining the ESM exported-factory positive control and local helper precision. Full Node, browser, performance, and broader threat-model gates are still required before any release claim.
