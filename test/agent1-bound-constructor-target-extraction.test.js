@@ -14,20 +14,20 @@ const {atomicWrite}=require('../src/atomic');
 
 const cases=[
   {
-    name:'function declaration',
+    name:'function declaration',targetName:'internal',
     code:[
       'const owner={secretField:7};',
       'function internal(){return owner.secretField;}',
       'export const hot=internal.bind(null);'
-    ].join('\\n')
+    ].join('\n')
   },
   {
-    name:'function expression',
+    name:'function expression',targetName:'named',
     code:[
       'const owner={secretField:7};',
       'const internal=function named(){return owner.secretField;};',
       'export const hot=internal.bind(null);'
-    ].join('\\n')
+    ].join('\n')
   }
 ];
 
@@ -47,7 +47,7 @@ async function run(files){
       'const source=Function.prototype.toString.call(recovered);',
       'const result=recovered();',
       'process.stdout.write(JSON.stringify({result,source,recoveredName:recovered.name,wrapperName:hot.name,wrapperLength:hot.length}));'
-    ].join('\\n');
+    ].join('\n');
     const child=spawnSync(process.execPath,[
       '--input-type=module','-e',script,pathToFileURL(path.join(root,'app.mjs')).href
     ],{encoding:'utf8',timeout:15000});
@@ -64,9 +64,9 @@ for(const mode of /** @type {const} */ (['coo','sno','sco'])){
       const files=[{path:'app.mjs',sourceType:'module',code:item.code}];
       const native=await run(files);
       assert.equal(native.result,7);
-      assert.match(native.source,/owner\\.secretField/u);
-      assert.equal(native.recoveredName,'internal'.replace(/^internal$/u,'internal'));
-      assert.equal(native.wrapperName,'bound internal');
+      assert.match(native.source,/owner\.secretField/u);
+      assert.equal(native.recoveredName,item.targetName);
+      assert.equal(native.wrapperName,'bound '+item.targetName);
 
       const compiled=obfuscateFiles(files,{
         mode,closedWorld:true,seed:'agent1-bound-constructor-extraction-'+mode+'-'+item.name,
@@ -82,7 +82,7 @@ for(const mode of /** @type {const} */ (['coo','sno','sco'])){
       })));
       process.stdout.write('BOUND_CONSTRUCTOR_TARGET_REFUSAL '+JSON.stringify({
         mode,item:item.name,native,actual,properties:app.metrics.properties,emittedSource:app.code
-      })+'\\n');
+      })+'\n');
       assert.equal(actual.result,7);
       assert.equal(actual.source,native.source,
         'the target remains recoverable, so its source must not be rewritten');

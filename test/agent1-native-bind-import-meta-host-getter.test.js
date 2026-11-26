@@ -28,7 +28,7 @@ function runWithHostImportMetaGetter(source){
     '  await module.evaluate();',
     '  process.stdout.write(JSON.stringify({capturedSource:context.capturedSource,result:module.namespace.hot()}));',
     '})().catch(error=>{console.error(error);process.exit(1);});'
-  ].join('\\n');
+  ].join('\n');
   const child=spawnSync(process.execPath,['--experimental-vm-modules','-e',script],{
     encoding:'utf8',timeout:15000
   });
@@ -42,12 +42,12 @@ const source=[
   'const owner={secretField:7};',
   'const internal=()=>owner.secretField;',
   'export const hot=internal.bind(null);'
-].join('\\n');
+].join('\n');
 
 test('import.meta host getter prevents source-changing nonconstructible bound-target admission',()=>{
   const native=runWithHostImportMetaGetter(source);
   assert.equal(native.result,7);
-  assert.match(String(native.capturedSource),/owner\\.secretField/u);
+  assert.match(String(native.capturedSource),/owner\.secretField/u);
 
   const compiled=obfuscateFiles([{
     path:'app.mjs',sourceType:'module',code:source
@@ -63,7 +63,7 @@ test('import.meta host getter prevents source-changing nonconstructible bound-ta
   const actual=runWithHostImportMetaGetter(String(app.code));
   process.stdout.write('IMPORT_META_BOUND_TARGET_OBSERVER '+JSON.stringify({
     native,actual,properties:app.metrics.properties,emittedSource:app.code
-  })+'\\n');
+  })+'\n');
   assert.equal(actual.result,native.result);
   assert.equal(actual.capturedSource,native.capturedSource,
     'the host getter can observe the target, so the compiler must preserve its source');

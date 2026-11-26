@@ -55,7 +55,7 @@ function walk(root, visit) {
 
 /**
  * Admit only a tiny source-visible grammar for native-bound targets:
- * top-level fn.bind(null) calls, no opaque calls, dynamic evaluation, host
+ * top-level local-arrow.bind(null) calls, no opaque calls, dynamic evaluation, host
  * capabilities, prototype access, computed member paths, getters, or member
  * mutation. This gates only the narrow private-target proof. A hostile host
  * preloader can still observe the already-rewritten target source.
