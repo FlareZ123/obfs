@@ -87,9 +87,9 @@ function collectBoundTargetSourceExposedBodies(ast,allowBoundFunctionTargets) {
       exportedNames.add(node.local.name);
     if(node.type==='ExportDefaultDeclaration') {
       if(node.declaration?.type==='Identifier')exportedNames.add(node.declaration.name);
-      if(isFunctionNode(node.declaration))exposed.add(node.declaration);
+      if(!allowBoundFunctionTargets&&isFunctionNode(node.declaration))exposed.add(node.declaration);
     }
-    if(node.type==='ExportNamedDeclaration'&&node.declaration) {
+    if(!allowBoundFunctionTargets&&node.type==='ExportNamedDeclaration'&&node.declaration) {
       if(isFunctionNode(node.declaration))exposed.add(node.declaration);
       if(node.declaration.type==='VariableDeclaration') {
         for(const declaration of node.declaration.declarations) {
@@ -99,7 +99,7 @@ function collectBoundTargetSourceExposedBodies(ast,allowBoundFunctionTargets) {
       }
     }
     if(node.type==='MetaProperty'&&node.meta?.name==='import')hasImportMeta=true;
-    if(node.type==='AssignmentExpression'&&node.left?.type==='MemberExpression'&&
+    if(!allowBoundFunctionTargets&&node.type==='AssignmentExpression'&&node.left?.type==='MemberExpression'&&
        node.left.object?.type==='Identifier'&&node.left.object.name==='module'&&
        staticMemberName(node.left)==='exports') {
       // CommonJS export assignment makes any contained callable externally visible.
@@ -117,9 +117,11 @@ function collectBoundTargetSourceExposedBodies(ast,allowBoundFunctionTargets) {
     seen.add(name);
     return resolveFunction(aliases.get(name),seen);
   }
-  for(const name of exportedNames) {
-    const fn=resolveFunction(name);
-    if(fn)exposed.add(fn);
+  if(!allowBoundFunctionTargets) {
+    for(const name of exportedNames) {
+      const fn=resolveFunction(name);
+      if(fn)exposed.add(fn);
+    }
   }
   walk(ast,(node,parent)=>{
     if(node.type!=='MemberExpression')return;
