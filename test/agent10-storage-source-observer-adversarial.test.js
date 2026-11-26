@@ -26,8 +26,8 @@ async function run(files){
     const script=[
       'class Storage {',
       ' setItem(key,value){globalThis.__storedKey=String(key);globalThis.__stored=String(value);}',
-      ' getItem(key){return globalThis.__storedKey===String(key)?globalThis.__stored:null;}',
-      ' removeItem(key){if(globalThis.__storedKey===String(key)){globalThis.__storedKey=undefined;globalThis.__stored=undefined;}}',
+      ' getItem(key){globalThis.__observedKey=String(key);return globalThis.__storedKey===globalThis.__observedKey?globalThis.__stored:null;}',
+      ' removeItem(key){globalThis.__observedKey=String(key);if(globalThis.__storedKey===globalThis.__observedKey){globalThis.__storedKey=undefined;globalThis.__stored=undefined;}}',
       '}',
       'globalThis.Storage=Storage;',
       'globalThis.localStorage=new Storage();',
@@ -35,7 +35,7 @@ async function run(files){
       'globalThis.window=globalThis;',
       'const {outer}=await import(process.argv[1]);',
       'const result=new outer();',
-      "process.stdout.write(JSON.stringify({result:result.result,storedHasOriginal:String(globalThis.__stored).includes('secretField')}));"
+      "process.stdout.write(JSON.stringify({result:result.result,storedHasOriginal:String(globalThis.__stored).includes('secretField')||String(globalThis.__storedKey).includes('secretField')||String(globalThis.__observedKey).includes('secretField')}));"
     ].join('\n');
     const child=spawnSync(process.execPath,[
       '--input-type=module','-e',script,pathToFileURL(path.join(root,'app.mjs')).href
@@ -157,6 +157,22 @@ test('descriptor value destructuring retains Storage source-observer provenance'
     "const {value:setItem}=Object.getOwnPropertyDescriptor(Storage.prototype,'setItem');",
     "setItem.call(localStorage,'k',new.target)",
     'agent10-storage-descriptor-value-destructure'
+  );
+});
+
+test('destructured Storage.getItem alias is a source observer',async()=>{
+  await assertStorageObserver(
+    'const {getItem}=localStorage;',
+    'getItem.call(localStorage,new.target)',
+    'agent10-storage-getitem-destructure'
+  );
+});
+
+test('destructured Storage.removeItem alias is a source observer',async()=>{
+  await assertStorageObserver(
+    'const {removeItem}=Storage.prototype;',
+    'removeItem.call(localStorage,new.target)',
+    'agent10-storage-removeitem-destructure'
   );
 });
 
