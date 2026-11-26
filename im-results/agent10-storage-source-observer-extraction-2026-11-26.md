@@ -71,3 +71,24 @@ focused_test=test/agent10-storage-source-observer-adversarial.test.js
 Run the real-browser Storage controls through the existing `manual-browser.yml` workflow. Do not interpret a focused pass as a full release gate.
 
 **Disposition:** useful intermediate implementation and verified focused source-observer repair; awaiting integration review and completion of the full browser workflow. Overall repository release posture remains **RELEASE-BLOCKED**.
+
+
+## Follow-up: alias-chain coverage (14:04Z)
+
+A second red-first expansion found four more false-safe forms on the exact PR #382 head:
+
+1. assignment-pattern destructuring: `let setItem; ({setItem}=localStorage)`;
+2. descriptor alias chain: `const descriptor=Object.getOwnPropertyDescriptor(...); const setItem=descriptor.value`;
+3. aliased `Reflect.get`: `const get=Reflect.get; const setItem=get(...)`;
+4. aliased `Object.getOwnPropertyDescriptor`: `const descriptorReader=Object.getOwnPropertyDescriptor; const setItem=descriptorReader(...).value`.
+
+Red run [45834746030](https://github.com/FlareZ123/obfs/actions/runs/45834746030) reproduced all four on Ubuntu, Windows, and macOS. Descriptor-value destructuring was a passing control.
+
+The candidate now propagates descriptor-reader and Reflect.get aliases, descriptor provenance, and assignment-pattern destructuring. Updated branch head: `4bf2b7665eeaca075450c54561834bbf609554f1`.
+
+- Focused run [45834998110](https://github.com/FlareZ123/obfs/actions/runs/45834998110): all 10 tests passed on Ubuntu, Windows, and macOS; strict project JSDoc passed.
+- Full browser run [45834011704](https://github.com/FlareZ123/obfs/actions/runs/45834011704): completed successfully for the original four extraction cases and existing Storage compatibility controls.
+- Expanded browser run [45835170635](https://github.com/FlareZ123/obfs/actions/runs/45835170635): the Storage step passed all 9 browser variants and existing positive controls; the full browser workflow was still in progress at this update.
+- Full Node validation [45835473467](https://github.com/FlareZ123/obfs/actions/runs/45835473467): full Node 22 behavioral/adversarial suites running on Ubuntu and Windows.
+
+The candidate is still an intermediate review branch attached to PR #382, not an integrated release. It does not establish full mode-specific, runtime-budget, dynamic-analysis, or deobfuscation acceptance.
