@@ -1,18 +1,16 @@
 'use strict';
 
 /** @type {Readonly<Record<string,string>>} */
-const overrides=require('./unicode-casefold-overrides');
+const overrides=require('./unicode-casefold-data');
 
 /**
- * Apply Unicode 15.1 default full-casefold overrides over a per-code-point
- * lowercase fallback.
+ * Apply Unicode 17.0.0 default full case folding.
  *
- * The generated table contains every Unicode 15.1 scalar whose full default
- * fold differs from lowercase. Other scalars use String.prototype.toLowerCase
- * one code point at a time, so mappings for post-15.1 assignments follow the
- * Node runtime's Unicode database. Turkic-only T mappings are excluded. This
- * is therefore a versioned hybrid, not a runtime-independent Unicode 17 table.
- * NFC is applied before and after folding so canonical equivalents share a key.
+ * The pinned table contains all Unicode 17.0.0 common/full (C/F) mappings;
+ * unlisted scalars are unchanged. Turkic-only T mappings are excluded. This
+ * makes the fourth path key deterministic across Node versions and avoids
+ * relying on runtime-specific lowercase tables. NFC is applied before and
+ * after folding so canonical equivalents share a key.
  *
  * @param {string} value
  * @returns {string}
@@ -22,8 +20,8 @@ function unicodeCaseFold(value) {
   for(const character of value.normalize('NFC')) {
     const codePoint=character.codePointAt(0);
     if(codePoint===undefined)continue;
-    const override=overrides[codePoint.toString(16).toUpperCase()];
-    folded+=override??character.toLowerCase();
+    const mapping=overrides[codePoint.toString(16).toUpperCase()];
+    folded+=mapping??character;
   }
   return folded.normalize('NFC');
 }
