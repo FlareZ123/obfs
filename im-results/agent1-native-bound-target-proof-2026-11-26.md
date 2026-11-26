@@ -90,3 +90,17 @@ work in addition to this bound-target experiment. The branch is therefore
 not a merge candidate as a whole. Critic's direction is to keep it isolated
 and, only after exact validation and independent review, consider selective
 porting into the existing PR #379. No competing PR is being created.
+
+## Selective-port boundary
+
+Relative to the pre-experiment checkpoint `b6f09a491d7ee0889cf730cb85cc65bc6b3f8abd`,
+the 34-commit code delta through `8eee5ba` touches eight files:
+`package.json`, `src/ast.js`, `src/core.js`,
+`src/cross-properties.js`, `src/properties.js`,
+`test/agent10-bind-in-source-custom-bind-escape.test.js`,
+`test/agent3-sibling-bind-prototype-mutation.test.js`, and
+`test/sno-bound-runtime-interception.test.js`. In particular,
+`src/cross-properties.js` threads the eligibility flag through its three
+local-proof call sites; it must not be omitted from any selective port.
+This eight-file delta is distinct from the experiment branch's much larger
+121-ahead/84-behind divergence from current main.
