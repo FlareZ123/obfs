@@ -88,6 +88,25 @@ async function run(files){
   }
 }
 
+test('native-bind proof refuses dynamic receivers and partial application',()=>{
+  const sources=[
+    {path:'entry.mjs',sourceType:'module',
+      code:'const owner={secretField:7};const internal=()=>owner.secretField;'+
+        'const receiver=null;export const hot=internal.bind(receiver);'},
+    {path:'partial.mjs',sourceType:'module',
+      code:'const owner={secretField:7};const internal=()=>owner.secretField;'+
+        'export const hot=internal.bind(null,1);'}
+  ];
+  for(const source of sources) {
+    const result=obfuscateFiles([source],{
+      mode:'coo',closedWorld:true,seed:'native-bind-argument-veto',
+      properties:true,identifiers:false,strings:false
+    });
+    assert.equal(result.files[0].metrics.properties,0,
+      source.path+' must fail closed outside the literal-null no-partial-application grammar');
+  }
+});
+
 test('native-bind mutation gate rejects dynamically computed prototype paths',()=>{
   const source="function mutate(key){const proto=(()=>{})[key];proto.bind=function(){};}";
   assert.equal(hasUnsafeNativeBindMutationSurface(parse(source,'module')),true);
