@@ -45,7 +45,7 @@ for(const mode of modes) {
       assert.ok(output,'the input module should be emitted');
       assert.equal(output.metrics.properties,0,
         'a class object exported to the host exposes its class source');
-      assert.match(output.code,/owner\\.secretAlpha/u,
+      assert.match(output.code,/owner\.secretAlpha/u,
         'the source-visible field spelling must remain unchanged');
     });
   }
