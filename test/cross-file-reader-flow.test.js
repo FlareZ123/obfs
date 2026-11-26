@@ -724,8 +724,8 @@ test('deferred private owner reader after initialization supports benign ESM cyc
       'function peek(){return state.secretField;}'+
       'export function ready(){return peek();}'},
     {path:'main.mjs',sourceType:'module',code:
-      'import {result} from "./state.mjs";console.log(result);'}
+      'import {result} from "./state.mjs";import {ready} from "./relay.mjs";console.log(result,ready());'}
   ];
   for(const mode of ['coo','sno','sco'])
-    await preserves(files,1,mode,'23');
+    await preserves(files,1,mode,'23 23');
 });
