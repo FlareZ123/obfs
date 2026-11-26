@@ -3181,9 +3181,11 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
         // key/value and to getItem/removeItem's key. A function value here
         // exposes its exact source through localStorage/sessionStorage.
         if(isStorageCollection(callee.object) &&
-            ['setItem','getItem','removeItem'].includes(method??'')) {
+            (['setItem','getItem','removeItem'].includes(method??'') ||
+             callee.computed && method===null)) {
           const positions=method==='setItem' ? node.arguments.slice(0,2) :
-            node.arguments.slice(0,1);
+            method==='getItem'||method==='removeItem' ? node.arguments.slice(0,1) :
+              node.arguments.slice(0,2);
           if(positions.some((/** @type {AstNode} */ value)=>
             !isDefinitelyPrimitive(value)))observed=true;
         }
