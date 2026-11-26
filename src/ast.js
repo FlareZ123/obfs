@@ -257,12 +257,6 @@ function hasWeakMapPrototypeExposure(ast) {
   }
 
   let exposed=false;
-  const debugReasons=[];
-  /** @param {string} reason @param {AstNode|null|undefined} node */
-  function markExposed(reason,node) {
-    exposed=true;
-    debugReasons.push({reason,nodeType:node?.type??null,start:node?.start??null,end:node?.end??null});
-  }
   walk(ast,(node,parent,key,ancestors)=>{
     if(node.type==='ExportNamedDeclaration') {
       for(const specifier of node.specifiers??[]) {
@@ -281,7 +275,7 @@ function hasWeakMapPrototypeExposure(ast) {
     }
     if(node.type==='ExportDefaultDeclaration') {
       if(node.declaration?.type==='Identifier')exportedLocalNames.add(node.declaration.name);
-      else if(containsWeakMapInstanceValue(node.declaration))markExposed('default-export-value',node);
+      else if(containsWeakMapInstanceValue(node.declaration))exposed=true;
     }
     if(node.type==='ImportDeclaration') {
       for(const specifier of node.specifiers??[]) {
@@ -330,7 +324,7 @@ function hasWeakMapPrototypeExposure(ast) {
           prototypeGetters.add(name);
         if(isWeakMapPrototypeExpression(init))prototypeAliases.add(name);
         if(ancestors.some(ancestor=>ancestor.type==='ExportNamedDeclaration')&&
-           containsWeakMapInstanceValue(init))markExposed('direct-export-initializer',node);
+           containsWeakMapInstanceValue(init))exposed=true;
       } else if(node.id.type==='ObjectPattern') {
         collectDestructuredAliases(node.id,node.init);
       }
@@ -354,13 +348,13 @@ function hasWeakMapPrototypeExposure(ast) {
         const root=rootIdentifier(node.left.object);
         const info=nearestFunctionInfo(ancestors);
         if(isGlobalObjectPath(node.left.object)||root&&importedLocalNames.has(root)) {
-          markExposed('global-or-imported-member-assignment',node);
+          exposed=true;
         } else if(root) {
           weakMapContainerOwners.add(root);
         } else if(node.left.object.type==='ThisExpression'&&info?.ownerName) {
           weakMapContainerOwners.add(info.ownerName);
         } else if(node.left.object.type==='ThisExpression'&&info?.exported) {
-          markExposed('exported-this-member-assignment',node);
+          exposed=true;
         }
       }
     }
@@ -368,18 +362,18 @@ function hasWeakMapPrototypeExposure(ast) {
       const info=nearestFunctionInfo(ancestors);
       if(info&&node.argument)info.returnValues.push(node.argument);
     }
-    if(isWeakMapPrototypeExpression(node))markExposed('prototype-expression',node);
+    if(isWeakMapPrototypeExpression(node))exposed=true;
     // Passing any concrete WeakMap instance to a call can let an opaque
     // callee obtain and mutate the shared prototype through that instance.
     if(node.type==='CallExpression'&&node.arguments.some(isWeakMapInstance))
-      markExposed('weakmap-passed-to-call',node);
+      exposed=true;
     // Also cover a WeakMap nested in an array/object/factory expression passed
     // as a call argument, without treating unrelated prototype reads as escapes.
     if(node.type==='NewExpression'&&isWeakMapConstructor(node.callee)&&
        ancestors.some(ancestor=>ancestor.type==='CallExpression'&&
          ancestor.arguments.some((/** @type {AstNode} */ argument)=>
            argument.start<=node.start&&argument.end>=node.end)))
-      markExposed('weakmap-nested-in-call-argument',node);
+      exposed=true;
   });
 
   // Resolve return/yield values after the complete file has contributed its
@@ -413,30 +407,28 @@ function hasWeakMapPrototypeExposure(ast) {
             changed=true;
           }
         }
-        if(info.exported)markExposed('exported-function-returns-weakmap',null);
+        if(info.exported)exposed=true;
       }
     }
   }
   for(const name of exportedLocalNames) {
     if(weakMapInstances.has(name)||weakMapFactories.has(name)||
        weakMapConstructors.has(name)||prototypeAliases.has(name)) {
-      markExposed('exported-local-name:'+name,null);
+      exposed=true;
       break;
     }
     const exportedValue=exportedValueNodes.get(name);
     if(exportedValue&&containsWeakMapInstanceValue(exportedValue)) {
-      markExposed('exported-value-node:'+name,exportedValue);
+      exposed=true;
       break;
     }
   }
   for(const name of weakMapContainerOwners) {
     if(resolvesToEscapedContainer(name)) {
-      markExposed('escaped-container-owner:'+name,null);
+      exposed=true;
       break;
     }
   }
-  if(typeof process!=='undefined'&&process.env?.OBFS_DEBUG_WEAKMAP==='1'&&debugReasons.length)
-    console.error('WEAKMAP_EXPOSURE_DEBUG '+JSON.stringify(debugReasons));
   return exposed;
 }
 /**
