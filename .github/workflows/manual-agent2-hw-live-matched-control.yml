@@ -12,12 +12,12 @@ on:
           - random
           - delayed-pair
       min_states:
-        description: "Minimum target states (random: 2-12; delayed-pair: 3-64)"
+        description: "Minimum target states (random: 2-24; delayed-pair: 3-64)"
         required: false
         default: 2
         type: number
       max_states:
-        description: "Maximum target states (random: 2-12; delayed-pair: 3-64)"
+        description: "Maximum target states (random: 2-24; delayed-pair: 3-64)"
         required: false
         default: 5
         type: number
