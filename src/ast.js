@@ -63,6 +63,7 @@ function walk(root, visit) {
  * @returns {boolean}
  */
 function hasWeakMapPrototypeEscape(ast,boundNames=new Set()) {
+  /** @param {string} name @returns {boolean} */
   const hasBinding=name=>boundNames.has(name);
   const globalRootNames=new Set(['globalThis','window','self','global']);
   const reflectiveNames=new Set(['Object','Reflect']);
