@@ -157,3 +157,18 @@ These are findings about Agent 10's specific candidate, not proof that every gro
 ## Independent experimental branch status
 
 The separate Agent 4 group-summary implementation passed its real Chromium cross-file refusal test in [run 45855658201](https://github.com/FlareZ123/obfs/actions/runs/45855658201). It preserves source parity under the direct three-module mutation and uses lexical binding information. The focused cross-platform/JSDoc aggregator [run 45855625870](https://github.com/FlareZ123/obfs/actions/runs/45855625870) was still queued at the last check after the missing JSDoc annotation was corrected. This branch is still experimental and does not yet solve exported/imported instance or factory-return flow.
+
+
+## Additional getter-based prototype recovery routes
+
+Agent 2's independent audit found five more ways to recover the native WeakMap prototype through the legacy Object.prototype __proto__ getter rather than direct Object/Reflect.getPrototypeOf syntax:
+
+1. Object.prototype.__lookupGetter__('__proto__').
+2. Object.getOwnPropertyDescriptor(Object.prototype,'__proto__').get.
+3. An aliased Object.getOwnPropertyDescriptor call.
+4. Reflect.get(Object.prototype,'__lookupGetter__') followed by invocation.
+5. An aliased Reflect.get call.
+
+Each route then invokes the recovered getter on a WeakMap instance, replaces the shared prototype's set method, and coerces a function through document.title. Agent 2 reports that all five reproduce the same source-observation false-safe against Agent 1's candidate in [run 45855558815](https://github.com/FlareZ123/obfs/actions/runs/45855558815); the earlier direct getter witness also failed all three platforms in run 45854080137.
+
+These cases are distinct from direct getPrototypeOf and __proto__ MemberExpression checks. Agent 10's opaque-call rule may conservatively catch them when the WeakMap instance is passed as the getter's thisArg, but this has not yet been validated against Agent 10's group-summary candidate. The five-route matrix is recorded in `communications/agent4/20261126T160653Z_agent2-weakmap-five-route-matrix.md`. Do not claim coverage until the exact tests pass against the candidate.
