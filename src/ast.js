@@ -723,6 +723,12 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
   const webStringNames=new Set(['Headers','URLSearchParams']);
   const webStringConstructors=new Set(webStringNames);
   const webStringInstances=new Set();
+  // Web Storage stringifies both setItem arguments and the key argument of
+  // getItem/removeItem. Track its global roots and simple aliases separately
+  // from Headers/URLSearchParams so unrelated custom setItem methods are not
+  // treated as Web IDL coercion.
+  const storageNames=new Set(['localStorage','sessionStorage']);
+  const storageInstances=new Set(storageNames);
   // Native Request/Response headers and URL searchParams are collection
   // objects that expose the same coercion methods as directly created ones.
   const webRecordInstances=new Set();
@@ -1021,6 +1027,13 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
       isWebInstance(node.object,webScalarInstances,webScalars,webScalarNames);
   }
   /** @param {AstNode|null|undefined} node @returns {boolean} */
+  function isStorageCollection(node) {
+    if(!node)return false;
+    if(node.type==='Identifier')return storageInstances.has(node.name);
+    return node.type==='MemberExpression' && isGlobal(node.object) &&
+      storageNames.has(memberName(node)??'');
+  }
+  /** @param {AstNode|null|undefined} node @returns {boolean} */
   function isIntlNamespace(node) {
     return Boolean(node && (node.type==='Identifier' &&
       intlNamespaces.has(node.name) ||
@@ -1244,6 +1257,9 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
         }
         if(isWebStringCollection(value)) {
           changed=add(webStringInstances,name)||changed;
+        }
+        if(isStorageCollection(value)) {
+          changed=add(storageInstances,name)||changed;
         }
         if(value?.type==='MemberExpression' &&
            nativeLocaleNames.has(memberName(value)??'') ||
@@ -3161,6 +3177,16 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
              callee.computed && method===null) &&
             node.arguments.some((/** @type {AstNode} */ value)=>
               !isDefinitelyPrimitive(value)))observed=true;
+        // Storage methods apply Web IDL DOMString conversion to setItem's
+        // key/value and to getItem/removeItem's key. A function value here
+        // exposes its exact source through localStorage/sessionStorage.
+        if(isStorageCollection(callee.object) &&
+            ['setItem','getItem','removeItem'].includes(method??'')) {
+          const positions=method==='setItem' ? node.arguments.slice(0,2) :
+            node.arguments.slice(0,1);
+          if(positions.some((/** @type {AstNode} */ value)=>
+            !isDefinitelyPrimitive(value)))observed=true;
+        }
       }
       // Bound, extracted and reflective native method invocations hide the
       // actual string-valued options behind an extra function-call layer.
