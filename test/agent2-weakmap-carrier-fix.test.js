@@ -158,6 +158,26 @@ const carrierFixtures = [
     access: 'protoCarrier[dynamicKey]'
   },
   {
+    name: 'object-getter-carrier',
+    setup: 'const protoCarrier={get instance(){return new WeakMap();}};',
+    access: 'protoCarrier.instance'
+  },
+  {
+    name: 'class-static-getter-carrier',
+    setup: 'class Carrier { static get instance(){return new WeakMap();} } const protoCarrier=Carrier;',
+    access: 'protoCarrier.instance'
+  },
+  {
+    name: 'class-instance-getter-carrier',
+    setup: 'class Carrier { get instance(){return new WeakMap();} } const protoCarrier=new Carrier();',
+    access: 'protoCarrier.instance'
+  },
+  {
+    name: 'proxy-get-trap-carrier',
+    setup: 'const protoCarrier=new Proxy({}, {get(){return new WeakMap();}});',
+    access: 'protoCarrier.instance'
+  },
+  {
     name: 'object-member',
     setup: 'const protoCarrier={instance:new WeakMap()};',
     access: 'protoCarrier.instance'
