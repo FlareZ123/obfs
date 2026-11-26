@@ -77,6 +77,8 @@ function hasWeakMapPrototypeExposure(ast) {
     return declaration?.type==='ClassDeclaration'&&declaration.id?.name==='WeakMap';
   });
   const weakMapConstructors=new Set(hasTopLevelWeakMapClass?[]:['WeakMap']);
+  const weakMapDerivedConstructors=new Map();
+  const weakMapPrototypeChainDepths=new Map();
   const weakMapInstances=new Set();
   const weakMapFactories=new Set();
   const objectNamespaces=new Set(['Object']);
@@ -171,6 +173,12 @@ function hasWeakMapPrototypeExposure(ast) {
       if(key==='prototype'&&isWeakMapConstructor(init)) {
         prototypeAliases.add(property.value.name);
       }
+      if(key==='__proto__') {
+        const depth=weakMapPrototypeChainDepth(init);
+        if(depth===1)exposed=true;
+        else if(depth!==undefined&&depth>1)
+          weakMapPrototypeChainDepths.set(property.value.name,depth-1);
+      }
     }
   }
   /**
@@ -243,7 +251,78 @@ function hasWeakMapPrototypeExposure(ast) {
   }
 
   let exposed=false;
+
+  /**
+   * Return the number of prototype hops from a statically known WeakMap-derived
+   * constructor's .prototype to the native WeakMap.prototype. Native WeakMap
+   * constructors have depth zero; direct subclasses have depth one.
+   * @param {AstNode|null|undefined} node
+   * @returns {number|undefined}
+   */
+  function weakMapDerivedDepth(node) {
+    if(!node)return undefined;
+    if(node.type==='Identifier') {
+      const derivedDepth=weakMapDerivedConstructors.get(node.name);
+      if(derivedDepth!==undefined)return derivedDepth;
+    }
+    if(isWeakMapConstructor(node))return 0;
+    if(node.type==='ClassExpression'||node.type==='ClassDeclaration') {
+      const parentDepth=weakMapDerivedDepth(node.superClass);
+      return parentDepth===undefined?undefined:parentDepth+1;
+    }
+    return undefined;
+  }
+
+  /**
+   * Return the remaining prototype-chain distance for a value that is a
+   * WeakMap-derived class prototype or one of its ancestors. Reaching depth
+   * zero means the shared native prototype has been exposed.
+   * @param {AstNode|null|undefined} node
+   * @returns {number|undefined}
+   */
+  function weakMapPrototypeChainDepth(node) {
+    if(!node)return undefined;
+    if(node.type==='Identifier') {
+      if(prototypeAliases.has(node.name))return 0;
+      const aliasDepth=weakMapPrototypeChainDepths.get(node.name);
+      if(aliasDepth!==undefined)return aliasDepth;
+    }
+    if(node.type==='MemberExpression') {
+      const member=memberKey(node);
+      if(member==='prototype') {
+        const derivedDepth=weakMapDerivedDepth(node.object);
+        if(derivedDepth!==undefined&&derivedDepth>0)return derivedDepth;
+        if(isWeakMapConstructor(node.object))return 0;
+      }
+      if(member==='__proto__') {
+        const parentDepth=weakMapPrototypeChainDepth(node.object);
+        if(parentDepth===1)return 0;
+        if(parentDepth!==undefined&&parentDepth>1)return parentDepth-1;
+        if(isWeakMapInstance(node.object))return 0;
+      }
+    }
+    if(node.type==='CallExpression'&&isPrototypeGetterCall(node)) {
+      const parentDepth=weakMapPrototypeChainDepth(node.arguments[0]);
+      if(parentDepth===1)return 0;
+      if(parentDepth!==undefined&&parentDepth>1)return parentDepth-1;
+      if(isWeakMapInstance(node.arguments[0]))return 0;
+    }
+    return undefined;
+  }
+
   walk(ast,(node,parent,key,ancestors)=>{
+    if(node.type==='ClassDeclaration'||node.type==='ClassExpression') {
+      const parentDepth=weakMapDerivedDepth(node.superClass);
+      if(parentDepth!==undefined) {
+        const derivedDepth=parentDepth+1;
+        if(node.id?.type==='Identifier')
+          weakMapDerivedConstructors.set(node.id.name,derivedDepth);
+        if(parent?.type==='VariableDeclarator'&&parent.id?.type==='Identifier')
+          weakMapDerivedConstructors.set(parent.id.name,derivedDepth);
+        if(parent?.type==='AssignmentExpression'&&parent.left?.type==='Identifier')
+          weakMapDerivedConstructors.set(parent.left.name,derivedDepth);
+      }
+    }
     if(node.type==='ExportNamedDeclaration') {
       for(const specifier of node.specifiers??[]) {
         if(specifier.type==='ExportSpecifier'&&specifier.local?.type==='Identifier')
@@ -289,6 +368,13 @@ function hasWeakMapPrototypeExposure(ast) {
         if(isGlobalRoot(init)||
            init?.type==='Identifier'&&globalNames.has(init.name))globalNames.add(name);
         if(isWeakMapConstructor(init))weakMapConstructors.add(name);
+        const derivedDepth=weakMapDerivedDepth(init);
+        if(derivedDepth!==undefined&&derivedDepth>0)
+          weakMapDerivedConstructors.set(name,derivedDepth);
+        const prototypeDepth=weakMapPrototypeChainDepth(init);
+        if(prototypeDepth===0)exposed=true;
+        else if(prototypeDepth!==undefined)
+          weakMapPrototypeChainDepths.set(name,prototypeDepth);
         if(isWeakMapInstance(init))weakMapInstances.add(name);
         if(isNamespace(init,objectNamespaces))objectNamespaces.add(name);
         if(isNamespace(init,reflectNamespaces))reflectNamespaces.add(name);
@@ -309,6 +395,13 @@ function hasWeakMapPrototypeExposure(ast) {
       if(isGlobalRoot(value)||
          value.type==='Identifier'&&globalNames.has(value.name))globalNames.add(name);
       if(isWeakMapConstructor(value))weakMapConstructors.add(name);
+      const derivedDepth=weakMapDerivedDepth(value);
+      if(derivedDepth!==undefined&&derivedDepth>0)
+        weakMapDerivedConstructors.set(name,derivedDepth);
+      const prototypeDepth=weakMapPrototypeChainDepth(value);
+      if(prototypeDepth===0)exposed=true;
+      else if(prototypeDepth!==undefined)
+        weakMapPrototypeChainDepths.set(name,prototypeDepth);
       if(isWeakMapInstance(value))weakMapInstances.add(name);
       if(isNamespace(value,objectNamespaces))objectNamespaces.add(name);
       if(isNamespace(value,reflectNamespaces))reflectNamespaces.add(name);
@@ -335,7 +428,7 @@ function hasWeakMapPrototypeExposure(ast) {
           info.returnedFactories.add(node.argument.callee.name);
       }
     }
-    if(isWeakMapPrototypeExpression(node))exposed=true;
+    if(isWeakMapPrototypeExpression(node)||weakMapPrototypeChainDepth(node)===0)exposed=true;
     // Passing any concrete WeakMap instance to a call can let an opaque
     // callee obtain and mutate the shared prototype through that instance.
     if(node.type==='CallExpression'&&node.arguments.some(isWeakMapInstance))
