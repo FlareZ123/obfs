@@ -3,7 +3,7 @@
 const {test}=require('node:test');
 const assert=require('node:assert/strict');
 const {createServer}=require('node:http');
-const {createScoHandler}=require('../src');
+const {createScoHandler,partitionScoAsyncGraph,partitionScoSelectedAsyncExports}=require('../src');
 const {obfuscateFiles}=require('../src/core');
 const {hasPathnameControlCharacter}=require('../src/esm-url-paths');
 
@@ -100,4 +100,32 @@ test('SCO request-path decoder rejects percent-encoded C0 and DEL before lookup'
   } finally {
     await new Promise(resolve=>server.close(()=>resolve(null)));
   }
+});
+
+
+test('private SCO graph rejects C0 pathname aliases before POSIX canonicalization',()=>{
+  const files=[
+    moduleFile('entry.mjs',
+      'import {secret} from '+JSON.stringify('./a/.\t/../secret.mjs')+';export const value=secret;'),
+    moduleFile('a/secret.mjs','export const secret=23;')
+  ];
+  assert.throws(()=>partitionScoAsyncGraph(files,{
+    seed:'private-graph-c0-pathname',exposedPaths:['entry.mjs']
+  }),/Private SCO graph requires relative \.mjs or node: imports/u);
+});
+
+test('selective private graph rejects C0 pathname aliases before canonical path proof',()=>{
+  const specifier='./private/.\t/../next.mjs';
+  const code='import {next} from '+JSON.stringify(specifier)+
+    ';export async function secret(){return next();}export function local(){return 1;}';
+  assert.throws(()=>partitionScoSelectedAsyncExports({
+    path:'mixed.mjs',sourceType:'module',code
+  },{
+    seed:'selective-private-c0-pathname',
+    privateNames:['secret'],
+    privateModuleImports:[specifier],
+    privateModuleSources:[{
+      path:'private/next.mjs',code:'export function next(){return 7;}'
+    }]
+  }),/canonical relative \.mjs path/u);
 });
