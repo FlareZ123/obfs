@@ -221,6 +221,11 @@ function hasWeakMapPrototypeExposure(ast) {
       const depth=weakMapDerivedConstructors.get(node.name);
       if(depth!==undefined)return depth;
     }
+    // Explicit global constructors remain identifiable even when the local
+    // class deliberately shadows the bare WeakMap binding.
+    if(node.type==='MemberExpression'&&node.object?.type==='Identifier'&&
+       ['globalThis','window','self','global'].includes(node.object.name)&&
+       memberKey(node)==='WeakMap')return 0;
     if(isWeakMapConstructor(node))return 0;
     if(node.type==='ClassExpression'||node.type==='ClassDeclaration') {
       const parentDepth=weakMapDerivedDepth(node.superClass);
