@@ -2035,8 +2035,8 @@ function obfuscateFiles(files, options = {}) {
   // A different module can publish a WeakMap instance or a factory that
   // the source-observer module later imports. Summarize the complete supplied
   // graph, not only modules that independently look like source observers.
-  const sharedWeakMapPrototypeExposure=prepared.some(({ast})=>
-    Boolean(ast)&&hasWeakMapPrototypeExposure(ast));
+  const sharedWeakMapPrototypeExposure=sourceObserverFiles.some(({ast})=>
+    hasWeakMapPrototypeExposure(ast));
   let remoteSourceObserver=hasPinnedSource;
   let hostLockSourceObserver=false;
   for(const {file,ast} of sourceObserverFiles) {
