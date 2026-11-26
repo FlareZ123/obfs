@@ -83,3 +83,31 @@ At the time of review, current main `674db348a2b516519071e7008cb31a3a8614e95f` d
 ## Disposition
 
 The candidate closes the reproduced 15-case C0/DEL pathname mismatch in the reviewed CLI/HTTP path under the tested fail-closed policy, and no additional named regression was demonstrated against the baseline. Preserve the red-first evidence and the bounded scope. Do not merge or call this a security improvement until the integration owner refreshes PR metadata and the public decision index and the project resolves its separate full-suite baseline yield failures. This is intermediate engineering evidence in `im-results/`, not an established academic result or release authorization.
+
+
+## Latest candidate update and full validation (26 November 2026, 03:29 UTC)
+
+The PR #379 candidate was extended after the initial review to close the explicit DEL filename admission/decoder mismatch and strengthen the actual HTTP witness.
+
+### Exact pins and changes
+- Current PR head: `dfa5730edca515c0be112adf37523cb31d032582`.
+- Production/code head used for the full run: `d50de9794660aaf4c7ce1981396196e930c3d21d`; the later `dfa5730` commit changes only `test/sco-control-char-publication.test.js` to assert returned bytes and narrow the refusal diagnostic.
+- `src/portable-paths.js::safePath` now rejects U+007F DEL alongside C0 controls, matching the SCO request decoder and shared ESM URL-path predicate.
+- `test/sco-public-file-paths.test.js` adds a direct handler-construction rejection for a DEL-containing path.
+- `test/sco-client-exposure.test.js` calls the real exported `main('sco', ...)` with an explicit DEL-containing `--client` path and asserts rejection before server startup. Fixtures use `String.fromCharCode(0x7f)`; the earlier 4171/4172 attempts used an escaped literal and are not evidence for DEL.
+- The 15-case HTTP witness now checks the actual target response body contains the stable `__urlTargets` marker and excludes `__posixDecoys`. It also requires the precise `SCO noncanonical ESM import path unsupported:` diagnostic if startup is refused. Do not assert the `url-target-<id>` initializer literal: SCO's `varyLiteralSpellings` may rewrite that string.
+
+### Reproducible receipts
+- Full manual-validation run [4176 / 45747922463](https://github.com/FlareZ123/obfs/actions/runs/45747922463), exact code/test head `d50de979...`: **5,434 tests** on each platform. Ubuntu **5,398 passed / 11 failed / 25 skipped**; Windows **5,388 passed / 11 failed / 35 skipped**.
+- I parsed the failure indexes from all four failed jobs: baseline [4150 / 45741180523](https://github.com/FlareZ123/obfs/actions/runs/45741180523) Ubuntu/Windows and candidate 4176 Ubuntu/Windows. All four contain the same 11 names, in the same order. Candidate adds **56 tests**: all 56 pass on Ubuntu; Windows has 55 additional passes and one expected trailing-space filename skip. No candidate-only named failure was observed.
+- All strict project/external/specialized JSDoc steps, standalone performance sample, paired own-key/null-prototype profiles, and native/emitted whole-process budget checks passed on both OSes. All three Chromium integration steps passed on Ubuntu. Windows Chromium steps were skipped after the behavioral suite failed, matching the baseline workflow policy.
+- Focused direct handler regression [4174 / 45747759603](https://github.com/FlareZ123/obfs/actions/runs/45747759603) passed on Ubuntu/Windows with strict JSDoc.
+- Focused actual CLI regression [4175 / 45747764893](https://github.com/FlareZ123/obfs/actions/runs/45747764893) passed on Ubuntu/Windows with strict JSDoc.
+- Focused strengthened HTTP witness [4181 / 45748980669](https://github.com/FlareZ123/obfs/actions/runs/45748980669), exact test head `dfa5730...`, passed on Ubuntu/Windows with strict project/external/budget JSDoc.
+
+### Current repository and disposition
+- Current main snapshot at review: `ec4d55fcf0d189bb121d85848a2b041198aaf524`. A comparison from baseline source pin `59828dea0449a8284f7480225eca1e1a2e0443de` to this main snapshot shows 72 commits / 59 changed paths, but **zero changes under `src/`, `test/`, or `bin/`**, and no package/lockfile changes. Main still does not contain the path-identity production fix; it remains branch-only.
+- PR #379 is 7 commits ahead / 48 behind from merge base `7f82b51f06da445a4968027302743f87f57076a7`. Main-side changes since the baseline are documentation, agent state, communications and intermediate reports, not source/tests. The branch still needs ordinary base refresh before merge.
+- I refreshed PR #379's body to exact head/main pins and the full-gate disposition, and updated root `README.md` and `results/README.md` to 26 November with the draft-candidate status and this report link. The PR remains draft.
+- The corrected bounded audit remains **804 mismatches / 85 distinct safe target pairs**. The 3.86-million-case mirror remains historical and must not be presented as validation of encoded controls or trailing-space handling.
+- **Disposition:** no new named behavioral regression, and the SCO path-identity admission mismatch is fixed in the reviewed candidate. The full gate is still **RED** on the 11 baseline rewrite-yield failures. This is correctness hardening, not a confidentiality, anti-relay, tamper-resistance, environment-locking or universal 2.5× result. Main remains RELEASE-BLOCKED until the candidate is integrated and the separate acceptance failures/security gaps are resolved.
