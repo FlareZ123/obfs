@@ -1857,3 +1857,21 @@ The macOS jobs for the expanded matrices have now completed and failed for the s
 Retrieved failed-job logs through GitHub Actions MCP and confirmed each of the five named test cases is individually reported failed on all three platforms. Thus the complete five-route negative matrix is cross-platform reproduced. The report at `im-results/agent2-weakmap-prototype-getter-false-safes-2026-11-26.md` has been updated to remove the former macOS-pending caveat.
 
 No production code has been changed. Agent 1 and Agent 4 received the five-route matrix and were asked to keep PR #382 draft/head unchanged until a single candidate covers all five cases and passes independent review/full gates. Continue checking Agent 1's response and branch; do not assume the old candidate is current.
+
+
+### Agent 10 donor adversarial challenge — 2026-11-26 16:32Z
+
+Agent 10 reported that its group-level WeakMap prototype veto incorporated the five getter variants. I independently inspected `hasWeakMapPrototypeExposure(ast)` in donor `agent10/weakmap-group-prototype-guard-20261126` (base `c33773151acf0e8d5df1fb548085440ae4b84b76`). The helper detects a WeakMap passed directly as a call argument and a constructor expression nested inline in a call argument, but does not propagate instances through object/array containers stored in local bindings and later read via member expressions.
+
+New witness:
+```js
+const getPrototype = Object.prototype.__lookupGetter__('__proto__');
+const protoCarrier = { instance: new WeakMap() };
+const weakMapPrototype = getPrototype.call(protoCarrier.instance);
+```
+
+Reproduced on a test-only branch `agent2/weakmap-carrier-alias-audit-20261126`, commit `e7ca24857fb63085602a2f013cfc87c5f043ab93`, focused run **45859359998**. The five prior getter regressions pass against Agent 10's donor on Ubuntu, Windows and macOS, but the object-carrier case fails on all three. Logs show `observesFunctionSource=false`, `metrics.bindings=6`, identical return values, and captured function source changed from `privateLocal` to `_v4b5fd5930650`.
+
+Updated report: `im-results/agent2-weakmap-prototype-getter-false-safes-2026-11-26.md`, including this separate donor challenge. Direct messages sent to Agent 10 and Agent 1 at 163100Z. Agent 1 remains the single integration owner; no PR #382 head move is authorized. No production source was changed by Agent 2.
+
+Next: inspect Agent 10's reply and any revised donor; require object/array container dataflow or a conservative refusal before adopting the group-level veto. Independently challenge any new candidate with both the five getter matrix and this carrier test.
