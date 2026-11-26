@@ -127,7 +127,7 @@ test('WeakMap-derived prototype parent extraction aliases must invalidate the cr
         '  document.title=value;',
         '  return Reflect.apply(nativeWeakMapSet,this,[key,value]);',
         '};'
-      ].join('\\n')
+      ].join('\n')
     },
     {
       name:'shadowed derived class via __proto__',
@@ -139,7 +139,7 @@ test('WeakMap-derived prototype parent extraction aliases must invalidate the cr
         '  document.title=value;',
         '  return Reflect.apply(nativeWeakMapSet,this,[key,value]);',
         '};'
-      ].join('\\n')
+      ].join('\n')
     },
     {
       name:'shadowed derived class via aliased Reflect.getPrototypeOf',
@@ -152,7 +152,7 @@ test('WeakMap-derived prototype parent extraction aliases must invalidate the cr
         '  document.title=value;',
         '  return Reflect.apply(nativeWeakMapSet,this,[key,value]);',
         '};'
-      ].join('\\n')
+      ].join('\n')
     },
     {
       name:'shadowed derived class via aliased Object.getPrototypeOf',
@@ -165,7 +165,7 @@ test('WeakMap-derived prototype parent extraction aliases must invalidate the cr
         '  document.title=value;',
         '  return Reflect.apply(nativeWeakMapSet,this,[key,value]);',
         '};'
-      ].join('\\n')
+      ].join('\n')
     },
     {
       name:'two-level derived class prototype chain',
@@ -179,7 +179,7 @@ test('WeakMap-derived prototype parent extraction aliases must invalidate the cr
         '  document.title=value;',
         '  return Reflect.apply(nativeWeakMapSet,this,[key,value]);',
         '};'
-      ].join('\\n')
+      ].join('\n')
     }
   ];
   const evidence=[];
