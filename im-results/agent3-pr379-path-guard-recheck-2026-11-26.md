@@ -123,3 +123,17 @@ This is still a finite mirror of the admission policy, not an execution of the p
 ### Stable marker choice for the HTTP body assertion
 
 The SCO route does not serve raw script source: `src/sco.js` runs `varyLiteralSpellings` and per-request `obfuscateFiles` before responding with script output. Thus the fixture's variable-initializer string `"url-target-<id>"` may be rewritten to Unicode escapes and is not a stable raw substring. The existing side-effect markers `globalThis.__urlTargets.push("<id>")` and `globalThis.__posixDecoys.push("<id>")` are better: the call-argument string is not touched by the spelling-variation pass, and the external `globalThis` property names must remain intact. A robust body assertion should check that the target response contains `__urlTargets` and excludes `__posixDecoys` (or use unique public export names), rather than matching the initializer string.
+
+
+## Corrected-head full-gate receipt
+
+Full manual-validation run **45747922463** completed against exact candidate head `d50de9794660aaf4c7ce1981396196e930c3d21d` after the DEL admission fix and corrected fixtures:
+
+| Platform | Tests | Passed | Failed | Skipped |
+|---|---:|---:|---:|---:|
+| Ubuntu | 5,434 | 5,398 | 11 | 25 |
+| Windows | 5,434 | 5,388 | 11 | 35 |
+
+The 11 failure names are byte-for-byte the same set as refreshed baseline run **45741180523** on both platforms. There are no candidate-only failure names. Relative to baseline, 56 tests were added; all 56 passed on Ubuntu, and 55 passed with one expected Windows-only trailing-space skip. This includes the corrected DEL admission regressions.
+
+Strict/internal and external JSDoc, low-rank test JSDoc, runtime-budget evaluator JSDoc, performance sample, paired profiles, and whole-process budget checks all succeeded on both platforms. All three Chromium integration steps succeeded on Ubuntu; the Windows Chromium steps were skipped after the behavioral-suite failure, exactly as on baseline. The exhaustive inversion, A/B, seed-variation, and transcript steps were skipped after the same behavioral failure. Overall workflow conclusion remains **failure** because of the 11 existing rewrite-yield failures; do not call this a green full gate.
