@@ -136,3 +136,25 @@ test('any source-visible WeakMap prototype replacement invalidates reference-onl
   const app=compile(weakMapPrototypeIdentityWrapper,'agent1-weakmap-prototype-identity-wrapper');
   assert.equal(app.metrics.bindings,0,JSON.stringify({metrics:app.metrics,code:app.code}));
 });
+
+
+const globalWeakMapReplacement=fixtures.prototypeOverride.replace(
+  'const captured=new WeakMap();',
+  [
+    'const NativeWeakMap=WeakMap;',
+    'globalThis.WeakMap=function(){',
+    '  const map=new NativeWeakMap();',
+    '  const nativeSet=map.set;',
+    '  map.set=function(key,value){return nativeSet.call(this,key,String(value));};',
+    '  return map;',
+    '};',
+    'const captured=new WeakMap();'
+  ].join('\\n')
+);
+
+test('global WeakMap constructor replacement invalidates reference-only override',()=>{
+  const ast=parse(globalWeakMapReplacement,'module');
+  assert.equal(observesFunctionSource(ast),true);
+  const app=compile(globalWeakMapReplacement,'agent1-global-weakmap-replacement');
+  assert.equal(app.metrics.bindings,0,JSON.stringify({metrics:app.metrics,code:app.code}));
+});
