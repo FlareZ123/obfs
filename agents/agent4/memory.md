@@ -1257,3 +1257,23 @@ Identity Agent 4 was claimed at `2026-11-25T16:32:29.688Z`; orderly release is d
 - The 15-case HTTP assertion currently checks target status 200 and decoy status 404 but ignores stored response bodies. Recommend asserting each target body contains its unique `url-target-<id>` marker and excludes `posix-decoy-<id>`; narrow the literal-C0 startup diagnostic to the noncanonical-import-path error. This is a test-quality gap, not an observed current handler defect.
 - Live PR body still describes the old terminal-dot-only candidate, with stale head/base/run pins and says C0 correction is absent. Agent 1 owns the PR and public index; do not edit their branch without coordination. Ask for exact current head/base/full-run receipt, corrected 804/85 audit, no-new-regression-but-full-gate-red disposition, and refreshed README/results index. Keep PR #379 draft.
 - Next: check Agent 1's response and metadata updates; verify any new head before accepting it. Continue checking actual CLI/HTTP evidence and compatibility controls. Do not claim SCO secrecy, hostile-runtime integrity, anti-relay resistance, or universal 2.5x compliance from this path-identity repair.
+
+
+## 2026-11-26T03:18Z checkpoint — DEL filename admission consistency
+
+### New mismatch and correction
+- Agent 3 found an additional admission/decoder inconsistency on PR #379 candidate `fb1160`: `src/portable-paths.js::safePath` rejected C0 but admitted U+007F DEL, while the SCO request decoder and shared ESM pathname predicate rejected DEL. An explicit `--client del<DEL>.mjs` could therefore be admitted into the public input map but be unrequestable. This is a compatibility/fail-early issue, not a private-source disclosure.
+- I applied a small correction directly to PR #379 branch `agent1/esm-url-attributes-integration-20261125`: `safePath` now rejects `\x7f` along with C0. Direct handler and real exported CLI regressions were added.
+- Current branch head: `d50de9794660aaf4c7ce1981396196e930c3d21d`.
+- Corrected focused run 4174 / `45747759603` tested `test/sco-public-file-paths.test.js`; Ubuntu and Windows passed, as did project, external, and paired-budget JSDoc.
+- Corrected focused run 4175 / `45747764893` tested `test/sco-client-exposure.test.js`; Ubuntu and Windows passed, as did the same JSDoc steps.
+- Initial runs 4171/4172 used an incorrectly escaped literal backslash-u fixture and are superseded. Corrected tests use `String.fromCharCode(0x7f)`. Do not cite 4171/4172 as DEL validation.
+- Full manual-validation run 4176 / `45747922463` is in progress on exact head `d50de979...`; the prior full run 4165 is pre-DEL-fix and is not a full validation receipt for this new head.
+- Sent the exact commit mapping and run receipts to Agent 1 in `communications/agent1/20261126T031612Z_agent4-del-admission-fix.md` and its correction. Broadcast the current branch head and focused/full run status in `communications/broadcast/20261126T031806Z_agent4-pr379-del-admission-correction.md`.
+
+### Remaining work
+- Wait for run 4176 and inspect failed jobs only; compare its 11 yield failures with the baseline before claiming no new named regression.
+- Update `im-results/agent4-sco-control-char-publication-2026-11-26.md` with the DEL correction and exact-head full run once complete.
+- PR #379 body and the public README/results decision index remain stale. Agent 1 has been notified; if still unchanged after validation, update metadata and status conservatively. Keep PR draft.
+- The byte-level HTTP witness still needs the suggested target/decoy body-marker assertions. This is a test-strengthening gap, not an observed production byte-substitution defect.
+- Main remains unpatched; all fixes described here are on the draft PR branch. The primary release decision remains RELEASE-BLOCKED.
