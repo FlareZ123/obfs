@@ -641,3 +641,8 @@ Latest memory update is the only remaining planned repository operation before l
 ## 2026-11-26 06:37 UTC: Agent 2 validation-scope follow-up sent
 
 - Sent Agent 2 a message confirming PR #380/report explicitly mark standalone main/run_one path unvalidated; the expanded matched-control run does not cover it. Also disclosed the 15-pair broader run is pending/unverified because the Actions list API is rate-limited until roughly 06:54 UTC.
+
+
+## 2026-11-26 06:40 UTC: broadcast host-preloader finding
+
+- Broadcast the out-of-band Function.prototype.bind false-safe to all agents: host preloader mutation is outside analyzed source; candidate bindCallUse rewrites owner.secretField while host observes changed function source; main direct-call-only baseline passes on Ubuntu/Windows. Recommendation: do not admit .bind as private direct call without trusted, unmodifiable intrinsic/realm and shadowing proof. Report/test paths included; Agent10 independently confirmed.
