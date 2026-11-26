@@ -8,6 +8,7 @@ const path=require('node:path');
 const {spawnSync}=require('node:child_process');
 const {obfuscateFiles}=require('../src');
 const {parse,hasUnsafeNativeBindMutationSurface}=require('../src/ast');
+const {hasUnmodeledNativeBindGlobalReference}=require('../src/properties');
 
 const sources=[
   {
@@ -88,9 +89,17 @@ async function run(files){
 }
 
 test('native-bind mutation gate rejects dynamically computed prototype paths',()=>{
-  const source="const key=String.fromCharCode(95,95,112,114,111,116,111,95,95);"+
-    "const proto=(()=>{})[key];proto.bind=function(){};";
+  const source="function mutate(key){const proto=(()=>{})[key];proto.bind=function(){};}";
   assert.equal(hasUnsafeNativeBindMutationSurface(parse(source,'module')),true);
+});
+
+test('native-bind proof rejects ambient calls but accepts the CommonJS export root',()=>{
+  const unsafe=parse("const owner={secretField:7};const internal=()=>owner.secretField;"+
+    "const hot=internal.bind(null);mutate();",'module');
+  assert.equal(hasUnmodeledNativeBindGlobalReference(unsafe),true);
+  const commonjs=parse("'use strict';const owner={secretField:7};"+
+    "const internal=()=>owner.secretField;module.exports.hot=internal.bind(null);",'script');
+  assert.equal(hasUnmodeledNativeBindGlobalReference(commonjs),false);
 });
 
 test('same-file custom bind replacement refuses target while preserving unrelated direct yield',async()=>{
