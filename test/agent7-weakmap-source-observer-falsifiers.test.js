@@ -84,7 +84,7 @@ function mutation(prefix,prototypeExpression) {
 const fixtures=[
   {
     name:'closure-captured-container',
-    source:mutation([
+    source:[
       'function outer(){',
       '  const carrier={instance:new WeakMap()};',
       '  function patchWeakMap(){',
@@ -94,7 +94,7 @@ const fixtures=[
       '  patchWeakMap();',
       '}',
       'outer();'
-    ],'Object.getPrototypeOf(new WeakMap())')
+    ].join('\\n')
   },
   {
     name:'throw-catch-parameter',
@@ -212,6 +212,7 @@ for(const fixture of fixtures) {
     const mutationObserver=observesFunctionSource(parse(fixture.source,'module'));
     const storageObserver=observesFunctionSource(parse(storageSource,'module'));
     const native=runEsm(sourceFiles.map(file=>({path:file.path,code:file.code})));
+    assert.ok(native.capturedSource.includes('privateLocal'),JSON.stringify(native));
     const failures=[];
     for(const mode of ['coo','sno','sco']) {
       try {
@@ -222,7 +223,7 @@ for(const fixture of fixtures) {
         const storage=compiled.files.find(file=>file.path==='storage.mjs');
         assert.ok(storage,'missing storage.mjs for '+mode);
         const emitted=runEsm(compiled.files.map(file=>({path:file.path,code:String(file.code)})));
-        if(storage.metrics.bindings!==0 ||
+        if(!analysis || storage.metrics.bindings!==0 ||
            emitted.capturedSource!==native.capturedSource ||
            JSON.stringify(emitted.result)!==JSON.stringify(native.result)) {
           failures.push({
@@ -323,6 +324,7 @@ test('classic-script lexical WeakMap carrier is shared across source units in on
     {path:'entry.js',sourceType:'script',code:entryScriptSource}
   ];
   const native=runClassicScripts(sourceFiles.map(file=>({path:file.path,code:file.code})));
+  assert.ok(native.capturedSource.includes('privateLocal'),JSON.stringify(native));
   const analysisA=hasWeakMapPrototypeExposure(parse(carrierSource,'script'));
   const analysisB=hasWeakMapPrototypeExposure(parse(mutationSource,'script'));
   const failures=[];
