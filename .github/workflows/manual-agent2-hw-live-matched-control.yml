@@ -102,7 +102,7 @@ jobs:
             sims/agent2-hw-version-space-audit.py
       - name: Verify cross-UID process isolation
         run: python sims/agent49-process-isolation-probe.py
-      - name: Test IPv4/IPv6 loopback listener discovery
+      - name: Test IPv4/IPv6 local TCP listener discovery
         run: python sims/test_agent49-hw-single-arm-network-probe.py
       - name: Verify sequential single-arm localhost isolation
         run: python sims/agent49-hw-cross-arm-network-probe-runner.py
