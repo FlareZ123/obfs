@@ -89,6 +89,8 @@ function verifyGroupEscapeRefusal(factorySource,mutateSource,seed) {
   assert.ok(native.capturedSource.includes('privateLocal'),JSON.stringify(native));
   assert.ok(emitted.capturedSource.includes('privateLocal'),
     JSON.stringify({seed,native,emitted,storageMetrics:storage.metrics}));
+  assert.equal(emitted.capturedSource,native.capturedSource,
+    JSON.stringify({seed,native,emitted,storageMetrics:storage.metrics}));
   return {storageMetrics:storage.metrics,native,emitted};
 }
 
@@ -108,7 +110,7 @@ test('WeakMap instance export/import and function return flows must reach the gr
       "import {probeMap} from './factory.mjs';",
       mutation.replace('PROBE','probeMap')
     ].join('\n'),
-    'agent4-imported-weakmap-instance-prototype'
+    'agent10-imported-weakmap-instance-prototype'
   );
   const returned=verifyGroupEscapeRefusal(
     'export function makeMap(){return new WeakMap();}',
@@ -117,9 +119,27 @@ test('WeakMap instance export/import and function return flows must reach the gr
       'const probeMap=makeMap();',
       mutation.replace('PROBE','probeMap')
     ].join('\n'),
-    'agent4-returned-weakmap-instance-prototype'
+    'agent10-returned-weakmap-instance-prototype'
   );
-  process.stdout.write('IMPORTED_AND_RETURNED_WEAKMAP_INSTANCE_FALSE_SAFE '+JSON.stringify({
-    exported,returned
-  })+'\n');
+  const arrow=verifyGroupEscapeRefusal(
+    'export const makeMap=()=>new WeakMap();',
+    [
+      "import {makeMap} from './factory.mjs';",
+      'const probeMap=makeMap();',
+      mutation.replace('PROBE','probeMap')
+    ].join('\\n'),
+    'agent10-exported-arrow-weakmap-factory'
+  );
+  const aliasReturn=verifyGroupEscapeRefusal(
+    'export function makeMap(){const map=new WeakMap();return map;}',
+    [
+      "import {makeMap} from './factory.mjs';",
+      'const probeMap=makeMap();',
+      mutation.replace('PROBE','probeMap')
+    ].join('\\n'),
+    'agent10-exported-weakmap-factory-local-alias'
+  );
+  process.stdout.write('EXPORTED_WEAKMAP_INSTANCE_AND_FACTORY_REFUSAL '+JSON.stringify({
+    exported,returned,arrow,aliasReturn
+  })+'\\n');
 });
