@@ -333,6 +333,8 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
   // their source text. Track simple aliases and array-element ownership in
   // addition to direct String/RegExp coercers.
   const functions=new Set();
+  const boundFunctionAliases=new Set();
+  const mutatedBoundFunctionAliases=new Set();
   const arraysWithFunctions=new Set();
   // Native Array algorithms can implicitly stringify contained functions.
   // Track methods detached from Array.prototype through simple assignments;
@@ -439,6 +441,41 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
            ['Reflect','Object'].includes(memberName(node.callee.object)??'')) &&
         memberName(node.callee)==='getPrototypeOf' &&
         isFunctionValue(node.arguments[0])));
+  }
+  /**
+   * Function.prototype.bind creates an exotic callable whose native
+   * Function#toString result is the fixed native-code placeholder, not the
+   * target function's source. Treat only direct, unmodified bound functions
+   * as safe for Storage DOMString conversion.
+   * @param {AstNode|null|undefined} node
+   * @returns {boolean}
+   */
+  function isBoundFunctionExpression(node) {
+    return Boolean(node?.type==='CallExpression'&&
+      node.callee.type==='MemberExpression'&&memberName(node.callee)==='bind'&&
+      isFunctionValue(node.callee.object));
+  }
+  /**
+   * @param {AstNode|null|undefined} node
+   * @returns {boolean}
+   */
+  function isDefinitelyBoundFunction(node) {
+    if(isBoundFunctionExpression(node))return true;
+    if(node?.type!=='Identifier'||!boundFunctionAliases.has(node.name)||
+       mutatedBoundFunctionAliases.has(node.name))return false;
+    let mutated=false;
+    walk(ast,candidate=>{
+      if(candidate.type==='AssignmentExpression'&&
+         candidate.left.type==='MemberExpression'&&
+         candidate.left.object.type==='Identifier'&&
+         candidate.left.object.name===node.name)mutated=true;
+      if(candidate.type==='CallExpression'&&
+         candidate.callee.type==='MemberExpression'&&
+         ['defineProperty','defineProperties','assign','setPrototypeOf','set'].includes(memberName(candidate.callee)??'')&&
+         candidate.arguments[0]?.type==='Identifier'&&
+         candidate.arguments[0].name===node.name)mutated=true;
+    });
+    return !mutated;
   }
   /**
    * Recognize direct function-returning mapping callbacks. The result may
@@ -1334,6 +1371,10 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
         if(isWebStringCollection(value)) {
           changed=add(webStringInstances,name)||changed;
         }
+        if(isBoundFunctionExpression(value))
+          changed=add(boundFunctionAliases,name)||changed;
+        if(node.type==='AssignmentExpression'&&boundFunctionAliases.has(name))
+          changed=add(mutatedBoundFunctionAliases,name)||changed;
         if(isStorageCollection(value)) {
           changed=add(storageInstances,name)||changed;
         }
@@ -2082,6 +2123,7 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
   /** @param {AstNode|null|undefined} value @param {AstNode} use @param {AstNode[]} ancestors @returns {boolean} */
   function isUnsafeStorageStringValue(value,use,ancestors) {
     return Boolean(value&&!isDefinitelyPrimitive(value)&&
+      !isDefinitelyBoundFunction(value)&&
       !hasSafeOwnFunctionStringCoercion(value,use,ancestors));
   }
   /**
