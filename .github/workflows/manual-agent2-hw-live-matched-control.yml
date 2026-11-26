@@ -81,6 +81,8 @@ jobs:
             sims/agent2-hw-no-reset-benchmark.py
       - name: Verify cross-UID process isolation
         run: python sims/agent49-process-isolation-probe.py
+      - name: Probe cross-arm localhost oracle exposure (expected reproduction)
+        run: python sims/agent49-hw-cross-arm-network-probe-runner.py
       - name: Test exact evaluator semantics
         run: python sims/test_agent2_hw_no_reset_evaluator.py
       - name: Run paired live HTTP hW benchmark
