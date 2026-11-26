@@ -56,10 +56,10 @@ The test-only branch is `agent2/weakmap-lookupgetter-audit-20261126`.
 |---|---|---:|---|
 | [45854080137](https://github.com/FlareZ123/obfs/actions/runs/45854080137) | `46aba3db753066980fea71b6463b1ba84d24ccf7` | `__lookupGetter__` | Failed on Ubuntu, Windows, macOS |
 | [45854404395](https://github.com/FlareZ123/obfs/actions/runs/45854404395) | `e363018c73b942b5f05c46b3860a83df22feb03c` | `__lookupGetter__` + descriptor getter | Both failed on Ubuntu, Windows, macOS |
-| [45854804850](https://github.com/FlareZ123/obfs/actions/runs/45854804850) | `e0301a3f508217955a489b0913a0329a266752f1` | Four cases: direct, descriptor, aliased descriptor, Reflect.get | All four failed on Ubuntu and Windows; macOS job still queued at report update |
-| [45855558815](https://github.com/FlareZ123/obfs/actions/runs/45855558815) | `25ef2be99e4b6aefaf0d4f3a122f442b291540dc` | Five cases, adding aliased Reflect.get | All five failed on Ubuntu and Windows; macOS job still queued at report update |
+| [45854804850](https://github.com/FlareZ123/obfs/actions/runs/45854804850) | `e0301a3f508217955a489b0913a0329a266752f1` | Four cases: direct, descriptor, aliased descriptor, Reflect.get | All four failed on Ubuntu, Windows and macOS |
+| [45855558815](https://github.com/FlareZ123/obfs/actions/runs/45855558815) | `25ef2be99e4b6aefaf0d4f3a122f442b291540dc` | Five cases, adding aliased Reflect.get | All five failed on Ubuntu, Windows and macOS |
 
-All runs used the existing `manual-validation.yml` focused-test path with Node 22.23.4. These were targeted falsification runs, not full-suite acceptance gates. The first two runs completed on all three platforms. The four-case run confirmed all four cases on Ubuntu and Windows; the five-case run confirmed all five cases on Ubuntu and Windows. The macOS jobs for both expanded runs were still queued at the report update.
+All runs used the existing `manual-validation.yml` focused-test path with Node 22.23.4. These were targeted falsification runs, not full-suite acceptance gates. All three runs completed with the expected failing tests on Ubuntu, Windows and macOS. The expanded four-case and five-case matrices reproduced every included variant on all three platforms.
 
 The platform logs show the following failure signature:
 
@@ -74,7 +74,7 @@ Thus ordinary return-value differential testing alone would miss the observation
 ## Scope and limitations
 
 - The reproduced compiler mode is COO with `properties:false`, `identifiers:true`, and `strings:false`, isolating identifier rewriting and the Storage observer.
-- The tests run Node ESM with explicit Storage and Document.title shims. The initial two-route tests completed on three operating systems; the expanded four-route run completed on Ubuntu and Windows, with its macOS job still queued at the report update. These tests do not constitute real-browser Chromium validation.
+- The tests run Node ESM with explicit Storage and Document.title shims. The initial two-route, expanded four-route and final five-route tests completed on Ubuntu, Windows and macOS. These tests do not constitute real-browser Chromium validation.
 - The result establishes a false-safe in the exact reviewed candidate at `6e7888a`. It does not claim that a later repaired candidate or current `main` has the same defect.
 - No production source file was modified by this audit; only test code was added on the isolated Agent 2 branch.
 
@@ -84,4 +84,4 @@ The WeakMap-specific proof must fail closed when prototype getter extraction can
 
 Agent 1 and Agent 4 were notified through their mailboxes. PR #382 remains draft; Agent 2 explicitly withheld authorization to move its head while this false-safe remains unresolved. The candidate needs a new exact-head independent challenge and full required validation after the guard is repaired.
 
-The aliased descriptor, direct Reflect.get, and aliased Reflect.get variants are also confirmed false-safes on Ubuntu and Windows in runs 45854804850 and 45855558815. The macOS job for that expanded run remained queued at the latest check; do not claim its result until completed.
+The aliased descriptor, direct Reflect.get, and aliased Reflect.get variants are also confirmed false-safes on Ubuntu, Windows and macOS in runs 45854804850 and 45855558815.
