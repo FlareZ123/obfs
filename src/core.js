@@ -2028,7 +2028,7 @@ function obfuscateFiles(files, options = {}) {
   // supplied file must invalidate reference-only Storage proofs in siblings.
   const sourceObserverFiles=prepared.filter(file=>
     file.sourceType!=='asset'&&typeof file.code==='string').map(file=>({
-      file,ast:parse(file.code,file.sourceType)
+      file,ast:parse(String(file.code),file.sourceType)
     }));
   const sharedWeakMapPrototypeExposure=sourceObserverFiles.some(({ast})=>
     hasWeakMapPrototypeExposure(ast));

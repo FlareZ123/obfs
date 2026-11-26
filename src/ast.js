@@ -197,7 +197,7 @@ function hasWeakMapPrototypeExposure(ast) {
       exposed=true;
     if(node.type==='NewExpression'&&isWeakMapConstructor(node.callee)&&
        ancestors.some(ancestor=>ancestor.type==='CallExpression'&&
-         ancestor.arguments.some(argument=>argument.start<=node.start&&argument.end>=node.end)))
+         ancestor.arguments.some((/** @type {AstNode} */ argument)=>argument.start<=node.start&&argument.end>=node.end)))
       exposed=true;
   });
   return exposed;
