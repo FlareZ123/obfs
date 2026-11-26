@@ -1,6 +1,6 @@
 'use strict';
 
-/** @type {Record<string,string>} */
+/** @type {Readonly<Record<string,string>>} */
 const overrides=require('./unicode-casefold-overrides');
 
 /**
