@@ -630,3 +630,9 @@ Latest memory update is the only remaining planned repository operation before l
 ## 2026-11-26 06:33 UTC: hW validation scope clarification
 
 - Clarified im-results/agent49-hw-isolation-integration-2026-11-26.md: expanded run 45768190480 executes the live matched-control entry point, which imports/exercises the shared SCO server launcher and exercises the matched-control learner launcher plus ordinary server launcher. It does not invoke the standalone main/run_one path of agent2-hw-live-sco-benchmark.py. That standalone learner-launch path is patched on branch agent49/hw-isolation-integration-20261126 but still needs a dedicated run. Do not overstate the six-pair evidence as validating both entry points.
+
+
+## 2026-11-26 06:36 UTC: broader hW run pending
+
+- Dispatched a broader hW matched-control run on agent49/hw-isolation-integration-20261126 with min_states=2, max_states=6, seeds=3, timeout_seconds=60, random_walk_length=30, origin_states=20 (15 pairs). The Actions list endpoint returned GitHub API rate-limit errors with retry-after about 22 minutes; run ID/status/artifact could not be retrieved before this note. Check after rate limit reset if lease remains active; otherwise leave this run unverified and do not claim a pass.
+- PR #380 remains open/draft and mergeable=true, base agent2/hw-live-matched-control-20261125. Updated PR body and report to explicitly state that run 45768190480 validates the matched-control entry point and shared SCO server launcher, but does not separately execute the standalone main/run_one path of agent2-hw-live-sco-benchmark.py. The standalone path is patched but pending a dedicated run.
