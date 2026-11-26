@@ -21,7 +21,7 @@ const shadowedSubclassBasePrototypeMutationSource=[
   '  document.title=value;',
   '  return Reflect.apply(nativeWeakMapSet,this,[key,value]);',
   '};'
-].join('\\n');
+].join('\n');
 
 const storageSource=[
   'const descriptor=Object.getOwnPropertyDescriptor(Storage.prototype,"setItem");',
@@ -36,12 +36,12 @@ const storageSource=[
   '  localStorage.setItem("storage-prototype-override",inspect);',
   '  return {value:inspect(),independent:independent()};',
   '}'
-].join('\\n');
+].join('\n');
 
 const entrySource=[
   "import './mutate.mjs';",
   "export {sample} from './storage.mjs';"
-].join('\\n');
+].join('\n');
 
 const runnerSource=[
   'class Storage {',
@@ -59,7 +59,7 @@ const runnerSource=[
   "const {sample}=await import('./entry.mjs');",
   'const result=sample();',
   'process.stdout.write(JSON.stringify({result,capturedSource:document.title})+"\\n");'
-].join('\\n');
+].join('\n');
 
 /** @typedef {{path:string,sourceType:'module',code:string}} Source */
 
