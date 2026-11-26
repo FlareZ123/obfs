@@ -119,6 +119,23 @@ const fixtures=[
     ].join('\n')
   },
   {
+    name:'object-literal-getter',
+    source:[
+      'const carrier={get instance(){return new WeakMap();}};',
+      'const nativePrototype=Object.getPrototypeOf(carrier.instance);',
+      ...patchLines
+    ].join('\n')
+  },
+  {
+    name:'define-property-getter',
+    source:[
+      'const carrier={};',
+      'Object.defineProperty(carrier,"instance",{get(){return new WeakMap();}});',
+      'const nativePrototype=Object.getPrototypeOf(carrier.instance);',
+      ...patchLines
+    ].join('\n')
+  },
+  {
     name:'switch-fallthrough',
     source:[
       'let carrier={};',
@@ -241,6 +258,15 @@ for(const fixture of fixtures) {
   });
 }
 
+
+for(const [name,source] of [
+  ['object-literal-getter-primitive','const carrier={get instance(){return 7;}};Object.getPrototypeOf(carrier.instance);'],
+  ['define-property-getter-primitive','const carrier={};Object.defineProperty(carrier,"instance",{get(){return 7;}});Object.getPrototypeOf(carrier.instance);']
+]) {
+  test('WeakMap source-observer positive control: '+name,()=>{
+    assert.equal(hasWeakMapPrototypeExposure(parse(source,'module')),false);
+  });
+}
 
 /**
  * Run a supplied module group while an external consumer imports the exported

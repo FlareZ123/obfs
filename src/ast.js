@@ -1083,6 +1083,30 @@ function hasWeakMapPrototypeExposure(ast) {
    * @param {CarrierValue} [thisValue]
    * @returns {CarrierValue}
    */
+  /**
+   * Whether an accessor or method can yield a WeakMap carrier. Unknown
+   * external getter values remain MaybeWeakMap; proven primitive/local values
+   * retain their existing precision.
+   * @param {AstNode|null|undefined} node
+   * @returns {boolean}
+   */
+  function functionMayReturnWeakMap(node) {
+    if(!node)return true;
+    if(node.type==='Identifier')
+      return importedLocalNames.has(node.name)||weakMapFactories.has(node.name);
+    if(!functionTypes.has(node.type))return true;
+    const info=functionInfoByNode.get(node);
+    if(!info)return true;
+    return Boolean(info.returnsWeakMap||info.returnMaybeParameters.size>0||
+      [...info.returnedFactories].some(name=>
+        weakMapFactories.has(name)||importedLocalNames.has(name)));
+  }
+  /**
+   * @param {AstNode|null|undefined} node
+   * @param {Map<string,CarrierValue>} environment
+   * @param {CarrierValue} [thisValue=carrierOther]
+   * @returns {CarrierValue}
+   */
   function evaluateCarrierValue(node,environment,thisValue=carrierOther) {
     if(!node)return carrierOther;
     if(node.type==='Identifier') {
@@ -1123,7 +1147,10 @@ function hasWeakMapPrototypeExposure(ast) {
           value.unknown=true;
           continue;
         }
-        value.properties.set(propertyKey,evaluateCarrierValue(property.value,environment,thisValue));
+        const getterMayReturnWeakMap=property.kind==='get'&&
+          functionMayReturnWeakMap(property.value);
+        value.properties.set(propertyKey,getterMayReturnWeakMap?
+          carrierMaybe:evaluateCarrierValue(property.value,environment,thisValue));
       }
       return value;
     }
@@ -1267,12 +1294,54 @@ function hasWeakMapPrototypeExposure(ast) {
    * @param {CarrierValue} [thisValue=carrierOther]
    * @returns {void}
    */
+  function applyAccessorDescriptor(target,key,descriptor) {
+    if(target.kind!=='container')return;
+    if(key===null||descriptor?.type!=='ObjectExpression') {
+      target.unknown=true;
+      return;
+    }
+    const getter=(descriptor.properties??[]).find(property=>
+      property.type==='Property'&&carrierStaticKey(property.key,property.computed)==='get');
+    if(!getter)return;
+    target.properties.set(key,functionMayReturnWeakMap(getter.value)?
+      carrierMaybe:carrierOther);
+  }
   function visitCarrierExpression(node,environment,thisValue=carrierOther) {
     if(!node)return;
     if(functionTypes.has(node.type)) {
       if(!functionClosureEnvironments.has(node))
         functionClosureEnvironments.set(node,environment);
       return;
+    }
+    if(node.type==='CallExpression'&&node.callee.type==='MemberExpression') {
+      const operation=memberKey(node.callee);
+      const namespace=node.callee.object;
+      const isObjectDefinition=isNamespace(namespace,objectNamespaces)&&
+        ['defineProperty','defineProperties'].includes(operation??'');
+      const isReflectDefinition=isNamespace(namespace,reflectNamespaces)&&
+        operation==='defineProperty';
+      if(isObjectDefinition||isReflectDefinition) {
+        const target=evaluateCarrierValue(node.arguments[0],environment,thisValue);
+        if(target.kind==='container') {
+          if(operation==='defineProperty') {
+            const key=staticString(node.arguments[1]) ??
+              (node.arguments[1]?.type==='Identifier'?
+                staticStringAliases.get(node.arguments[1].name)??null:null);
+            applyAccessorDescriptor(target,key,node.arguments[2]);
+          } else {
+            const descriptors=node.arguments[1];
+            if(descriptors?.type!=='ObjectExpression')target.unknown=true;
+            else for(const property of descriptors.properties??[]) {
+              if(property.type!=='Property') {
+                target.unknown=true;
+                continue;
+              }
+              applyAccessorDescriptor(
+                target,carrierStaticKey(property.key,property.computed),property.value);
+            }
+          }
+        }
+      }
     }
     if(node.type==='CallExpression') {
       const summary=node.callee.type==='Identifier'?
