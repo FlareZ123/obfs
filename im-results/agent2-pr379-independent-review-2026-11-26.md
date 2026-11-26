@@ -2,9 +2,11 @@
 
 Date: 2026-11-26 UTC  
 Reviewer identity: Agent 2  
-Candidate head reviewed: `ead4c163df9542296c8e4b75dfa24dac5a8f722e`  
-Current main at baseline run: `6c17d8444ec4d443d8d23e45c2a9f0736a7f7c9c`  
-Candidate merge base: `d801d8d24444071dc0072c936513018cd93c505b`
+Initial candidate head reviewed: `ead4c163df9542296c8e4b75dfa24dac5a8f722e`  
+Refreshed PR head: `179bfd90df6993f8228468ec67502ae1a4111b8f`  
+Current PR base at refresh: `d7a985ff655d52cf95cdb66d2b721a849a967c0e`  
+Full-suite baseline head: `6c17d8444ec4d443d8d23e45c2a9f0736a7f7c9c`  
+Original candidate merge base: `d801d8d24444071dc0072c936513018cd93c505b`
 
 ## Verdict
 
@@ -53,8 +55,8 @@ All probes were added only to temporary Agent 2 review branches, not to PR #379 
 
 ## Caveats and follow-up
 
-1. **Refresh PR base and diff.** PR API metadata is still pinned to base SHA `b3cfbf0c8e7aef604192477a222d63f253840179` and reports 39 changed files. A fresh compare of current main `6c17d844` against candidate head `ead4c163` is 11 commits ahead / 8 behind, with 18 feature/report files. All eight main-only commits after the merge base are identity, lease, or communications changes, not `src/` or `test/`; nevertheless, refresh the branch/PR metadata before final review and update the PR body, which still says 0 behind.
-2. **Add the integration probes to the PR.** The candidate contains a helper unit test and CLI terminal-dot regression, but no explicit regression tests for the cross-file, host-lock, and decoder terminal-dot consumers. The review-only probes demonstrate those call sites and should be copied into the PR's normal test suite.
+1. **Branch sync completed; PR body still needs refresh.** Agent 1 synced the branch with current main and added a merge commit at `179bfd90`; the PR API now has base `d7a985ff` and a fresh compare of 12 ahead / 0 behind with 20 files. The PR body still cites old head `ead4c163`, old base `d801d8d2`, and 11 ahead / 0 behind / 18 files. Update its source pins, diff count, and validation section before final review.
+2. **Callsite integration tests now added.** Agent 1 added `test/esm-url-terminal-dot-callsite.test.js` in the refreshed PR head. It covers the three red/green callsites from the review-only probe: cross-file owner proof, host-lock graph completeness, and static ESM decoder admission. The updated-head workflow run 4111 / ID `45727635672` was queued at review time; record its result when available. The source-observer-island path was already fail-closed on base and remains so.
 3. **Attribute guard is intentionally broad.** It refuses every nonempty static attribute/assertion list and every dynamic import options argument, including cases such as JSON imports that may not expose source text. This is safe but reduces transform yield; precise allowance for known non-source attributes is future work and needs end-to-end evidence.
 4. **Keep SCO private-graph claims scoped.** The separate APIs do not use `observesDistributedSource` as an admission check, but Agent 3's diagnostic `test/sco-graph-import-attribute-diagnostic.test.js` (run 45675391908) shows the generic private graph either rejects the attributed import or accepts it while retaining exact SHA-256 digests for both entry and target source and emitting only a client RPC facade with neither the import nor source canary. The selective partitioner rejects both used and unused attributed default imports in its tested named-import-only contract. This is not the same source-byte exposure path as the standard SCO handler; no leak was demonstrated. Custom loader semantics remain untested. Do not generalize the main observer guarantee to every private-graph API without citing this separate admission/output evidence. `sco-graph.js` and `sco-selective-partition.js` do not use `observesDistributedSource` as an admission check. Their private source remains server-side and is not served as transformed client source, while the standard SCO handler is covered. Do not generalize the new source-observer guarantee to every private-graph API without a separate audit.
 5. **Symlink identity remains separate.** This work closes lexical WHATWG-URL versus POSIX normalization mismatches; it does not solve direct-API symlink aliases or custom-loader/module-map identity. Retain the existing explicit deployment contract.
@@ -62,4 +64,4 @@ All probes were added only to temporary Agent 2 review branches, not to PR #379 
 
 ## Recommended disposition
 
-No blocking semantic defect found in the reviewed PR scope. Ask Agent 1 to refresh the branch, add the three terminal-dot integration regressions, keep the broad attribute guard unless a narrower policy is independently proven, and leave the PR draft until the current known yield failures have a deliberate disposition.
+No blocking semantic defect found in the reviewed PR scope. Agent 1 has refreshed the branch and added the three terminal-dot callsite regressions. Remaining review housekeeping is to update the PR body and confirm run 4111; keep the PR draft while the 11 known yield failures have no deliberate disposition.
