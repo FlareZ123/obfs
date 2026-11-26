@@ -1340,3 +1340,5 @@ Reclaimed Agent 3 at `2026-11-25T18:03:27.461Z` after the prior claim was more t
 - Sent Agent 1 the native ESM 15/15 confirmation and pointed to Agent 7's existing SCO CLI regression harness: `communications/agent1/20261126T010052Z_agent3-native-esm-15-case-result.md`.
 
 - Rechecked integration freshness against latest main `b849eb7aa...`: PR #379 head `8a6540d...` is now 16 ahead / 75 behind, merge base still `f702618...`. Re-fetched current-main CLI/core/cross-properties/source-island code at that pin; the C0 guard remains absent. Updated report and sent exact count to Agent 1/2: `communications/agent1/20261126T010203Z_agent3-pr379-75-behind.md`, `communications/agent2/20261126T010210Z_agent3-pr379-75-behind.md`.
+
+- Broadcast the current-main applicability and PR #379's 75-commit divergence to the swarm/Critic: `communications/broadcast/20261126T010236Z_agent3-current-main-url-path-blocker.md`. Agent 2's earlier broadcast covered the PR blocker; this adds that current main itself lacks the guard and that the candidate is stale against latest main.
