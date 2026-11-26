@@ -113,8 +113,8 @@ test('Object.getOwnPropertyDescriptor can recover the legacy WeakMap prototype g
 
 test('Aliased Object.getOwnPropertyDescriptor can recover the WeakMap prototype getter',()=>{
   const candidate=source.replace(
-    "Object.prototype.__lookupGetter__('__proto__')",
-    "(()=>{const getDescriptor=Object.getOwnPropertyDescriptor;return getDescriptor(Object.prototype,'__proto__').get;})()"
+    "const getPrototype=Object.prototype.__lookupGetter__('__proto__');",
+    "const getDescriptor=Object.getOwnPropertyDescriptor;\nconst getPrototype=getDescriptor(Object.prototype,'__proto__').get;"
   );
   const ast=parse(candidate,'module');
   const observed=observesFunctionSource(ast);
