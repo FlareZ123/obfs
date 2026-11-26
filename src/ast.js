@@ -68,7 +68,15 @@ function walk(root, visit) {
  */
 function hasWeakMapPrototypeExposure(ast) {
   const globalNames=new Set(['globalThis','window','self','global']);
-  const weakMapConstructors=new Set(['WeakMap']);
+  // A top-level class declaration shadows the ambient WeakMap binding
+  // throughout this module. Its instance prototype is not the shared native
+  // WeakMap.prototype, unless the source explicitly uses globalThis.WeakMap.
+  const hasTopLevelWeakMapClass=ast.body.some(statement=>{
+    const declaration=statement.type==='ExportNamedDeclaration'||
+      statement.type==='ExportDefaultDeclaration'?statement.declaration:statement;
+    return declaration?.type==='ClassDeclaration'&&declaration.id?.name==='WeakMap';
+  });
+  const weakMapConstructors=new Set(hasTopLevelWeakMapClass?[]:['WeakMap']);
   const weakMapInstances=new Set();
   const objectNamespaces=new Set(['Object']);
   const reflectNamespaces=new Set(['Reflect']);
