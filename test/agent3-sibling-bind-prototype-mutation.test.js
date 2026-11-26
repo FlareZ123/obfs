@@ -112,6 +112,20 @@ test('native-bind mutation gate rejects dynamically computed prototype paths',()
   assert.equal(hasUnsafeNativeBindMutationSurface(parse(source,'module')),true);
 });
 
+test('native-bind proof rejects opaque member calls and parameter receiver aliases',()=>{
+  const opaqueCall=parse("function setup(api){api.install();}"+
+    "const owner={secretField:7};const internal=()=>owner.secretField;"+
+    "const hot=internal.bind(null);",'module');
+  assert.equal(hasUnsafeNativeBindMutationSurface(opaqueCall),true);
+  const parameterAlias=parse("function setup(api){const alias=api;const value=alias.ready;}"+
+    "const owner={secretField:7};const internal=()=>owner.secretField;"+
+    "const hot=internal.bind(null);",'module');
+  assert.equal(hasUnmodeledNativeBindGlobalReference(parameterAlias),true);
+  const nestedBind=parse("const owner={secretField:7};const internal=()=>owner.secretField;"+
+    "function make(){return internal.bind(null);}",'module');
+  assert.equal(hasUnsafeNativeBindMutationSurface(nestedBind),true);
+});
+
 test('native-bind proof rejects ambient calls but accepts the CommonJS export root',()=>{
   const unsafe=parse("const owner={secretField:7};const internal=()=>owner.secretField;"+
     "const hot=internal.bind(null);mutate();",'module');
