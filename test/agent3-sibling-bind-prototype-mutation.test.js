@@ -91,6 +91,7 @@ test('same-file custom bind replacement refuses target while preserving unrelate
     path:'entry.mjs',
     sourceType:'module',
     code:[
+      'const nativeBind=Function.prototype.bind;',
       'Function.prototype.bind=function(thisArg,...boundArgs){',
       '  globalThis.external(this);',
       '  const target=this;',
@@ -99,6 +100,7 @@ test('same-file custom bind replacement refuses target while preserving unrelate
       'const owner={secretField:7};',
       'const internal=()=>owner.secretField;',
       'export const hot=internal.bind(null);',
+      'Function.prototype.bind=nativeBind;',
       'const safeOwner={safeField:11};',
       'const direct=()=>safeOwner.safeField;',
       'const safeValue=direct();',
