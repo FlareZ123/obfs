@@ -144,7 +144,7 @@ class LocalTcpListenerTests(unittest.TestCase):
                     listener.close()
             self.skipTest("IPv6 loopback listeners are unavailable on this runner")
         try:
-            endpoints = set(PROBE.loopback_listeners())
+            endpoints = set(PROBE.local_tcp_listeners())
             self.assertIn(("::1", loopback.getsockname()[1]), endpoints)
             self.assertIn(("::1", wildcard.getsockname()[1]), endpoints)
         finally:
