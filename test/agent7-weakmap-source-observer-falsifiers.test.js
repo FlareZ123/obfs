@@ -229,6 +229,58 @@ const fixtures=[
       ...patchLines
     ].join('\n')
   }
+
+  {
+    name:'reflect-get-function-alias',
+    source:[
+      'const reflectGet=Reflect.get;',
+      "const nativePrototype=reflectGet(globalThis.WeakMap,'prototype');",
+      ...patchLines
+    ].join('\n')
+  },
+  {
+    name:'for-of-weakmap-instance-binding',
+    source:[
+      'for (const instance of [new WeakMap()]) {',
+      '  const nativePrototype=Object.getPrototypeOf(instance);',
+      ...patchLines.map(line=>'  '+line),
+      '}'
+    ].join('\n')
+  },
+  {
+    name:'class-method-closure-container',
+    source:[
+      'function outer(){',
+      '  const carrier={instance:new WeakMap()};',
+      '  class Mutator {',
+      '    patch(){',
+      '      const nativePrototype=Object.getPrototypeOf(carrier.instance);',
+      ...patchLines.map(line=>'      '+line),
+      '    }',
+      '  }',
+      '  new Mutator().patch();',
+      '}',
+      'outer();'
+    ].join('\n')
+  },
+  {
+    name:'legacy-lookupgetter-derived-parent',
+    source:[
+      'class Derived extends globalThis.WeakMap {}',
+      "const getParent=Object.prototype.__lookupGetter__('__proto__');",
+      'const nativePrototype=getParent.call(Derived.prototype);',
+      ...patchLines
+    ].join('\n')
+  },
+  {
+    name:'descriptor-getter-derived-parent',
+    source:[
+      'class Derived extends globalThis.WeakMap {}',
+      "const getParent=Object.getOwnPropertyDescriptor(Object.prototype,'__proto__').get;",
+      'const nativePrototype=getParent.call(Derived.prototype);',
+      ...patchLines
+    ].join('\n')
+  }
 ];
 
 for(const fixture of fixtures) {
@@ -585,7 +637,8 @@ function runCjsWithExternalDerivedConsumer(files) {
     '  get(){return documentTitle;},',
     '  set(value){documentTitle=String(value);}',
     '});',
-    "const Derived=require('./producer.cjs');",
+    "const exported=require('./producer.cjs');",
+    'const Derived=typeof exported==="function"?exported:exported.Derived;',
     'const nativePrototype=Object.getPrototypeOf(Derived.prototype);',
     'const nativeSet=nativePrototype.set;',
     'nativePrototype.set=function(key,value){',
@@ -663,6 +716,96 @@ test('CommonJS exported WeakMap-derived class external consumer source-capture d
 });
 
 
+const agent10CjsStorageSource=[
+  'const descriptor=Object.getOwnPropertyDescriptor(Storage.prototype,"setItem");',
+  'const captured=new WeakMap();',
+  'function inspect(){const privateLocal=29;return privateLocal;}',
+  'function independent(){const independentLocal=7;return independentLocal;}',
+  'function sample(){',
+  '  Object.defineProperty(Storage.prototype,"setItem",{',
+  '    ...descriptor,',
+  '    value:function(_key,value){captured.set(this,value);}',
+  '  });',
+  '  localStorage.setItem("storage-prototype-override",inspect);',
+  '  return {value:inspect(),independent:independent()};',
+  '}',
+  'module.exports={sample};'
+].join('\n');
+
+function assertAgent10CjsExportSourceCapture(producerSource,runner,seed) {
+  const sourceFiles=[
+    {path:'producer.cjs',sourceType:'commonjs',code:producerSource},
+    {path:'entry.cjs',sourceType:'commonjs',code:"module.exports=require('./storage.cjs');"},
+    {path:'storage.cjs',sourceType:'commonjs',code:agent10CjsStorageSource}
+  ];
+  const analysis=hasWeakMapPrototypeExposure(parse(producerSource,'script'));
+  const native=runner(sourceFiles.map(file=>({path:file.path,code:file.code})));
+  assert.ok(native.capturedSource.includes('privateLocal'),JSON.stringify(native));
+  const failures=[];
+  for(const mode of ['coo','sno','sco']) {
+    try {
+      const compiled=obfuscateFiles(sourceFiles,{
+        mode,seed:seed+'-'+mode,
+        properties:false,identifiers:true,strings:false,closedWorld:true
+      });
+      const storage=compiled.files.find(file=>file.path==='storage.cjs');
+      assert.ok(storage,'missing storage.cjs for '+mode);
+      const emitted=runner(compiled.files.map(file=>({path:file.path,code:String(file.code)})));
+      if(!analysis||storage.metrics.bindings!==0||
+         emitted.capturedSource!==native.capturedSource||
+         JSON.stringify(emitted.result)!==JSON.stringify(native.result)) {
+        failures.push({mode,analysis,storageMetrics:storage.metrics,native,emitted});
+      }
+    } catch(error) {
+      failures.push({mode,analysis,error:String(error)});
+    }
+  }
+  assert.deepEqual(failures,[],JSON.stringify({analysis,native,failures}));
+}
+
+test('CommonJS derived class exported through local API object alias is a group escape',()=>{
+  const producerSource=[
+    'class Derived extends globalThis.WeakMap {}',
+    'const api={Derived};',
+    'module.exports=api;'
+  ].join('\n');
+  assertAgent10CjsExportSourceCapture(
+    producerSource,runCjsWithExternalDerivedConsumer,'agent10-cjs-api-object-derived'
+  );
+});
+
+test('CommonJS exports-object alias publishes a WeakMap-derived class',()=>{
+  const producerSource=[
+    'const out=exports;',
+    'out.Derived=class Derived extends globalThis.WeakMap {};'
+  ].join('\n');
+  assertAgent10CjsExportSourceCapture(
+    producerSource,runCjsWithExternalDerivedConsumer,'agent10-cjs-exports-alias-derived'
+  );
+});
+
+test('CommonJS factory exported through local API object alias is a group escape',()=>{
+  const producerSource=[
+    'function make(){return new WeakMap();}',
+    'const api={make};',
+    'module.exports=api;'
+  ].join('\n');
+  assertAgent10CjsExportSourceCapture(
+    producerSource,runCjsWithExternalFactoryConsumer,'agent10-cjs-api-object-factory'
+  );
+});
+
+test('CommonJS exports-object alias publishes a WeakMap factory',()=>{
+  const producerSource=[
+    'const out=exports;',
+    'out.make=function make(){return new WeakMap();};'
+  ].join('\n');
+  assertAgent10CjsExportSourceCapture(
+    producerSource,runCjsWithExternalFactoryConsumer,'agent10-cjs-exports-alias-factory'
+  );
+});
+
+
 /**
  * Run a supplied CommonJS group while an external consumer calls an exported
  * factory to obtain a WeakMap and mutates its native prototype.
@@ -684,7 +827,8 @@ function runCjsWithExternalFactoryConsumer(files) {
     '  get(){return documentTitle;},',
     '  set(value){documentTitle=String(value);}',
     '});',
-    "const make=require('./producer.cjs');",
+    "const exported=require('./producer.cjs');",
+    'const make=typeof exported==="function"?exported:exported.make;',
     'const nativePrototype=Object.getPrototypeOf(make());',
     'const nativeSet=nativePrototype.set;',
     'nativePrototype.set=function(key,value){',
