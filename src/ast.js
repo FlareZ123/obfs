@@ -313,14 +313,15 @@ function collectDirectCarrierFactories(ast) {
  * @param {Set<string>} [importedFunctionArrays] Function-bearing named ESM arrays.
  * @param {Set<string>} [importedPrimitives] Proven immutable ESM primitive imports.
  * @param {Set<string>} [importedUrlStaticMethods] Proven native URL parser ESM imports.
+ * @param {Set<string>} [importedStorageMethodAliases] Proven native Storage method ESM imports.
  * @returns {boolean}
  */
-function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunctions=new Set(),importedFunctionArrays=new Set(),importedPrimitives=new Set(),importedUrlStaticMethods=new Set()) {
+function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunctions=new Set(),importedFunctionArrays=new Set(),importedPrimitives=new Set(),importedUrlStaticMethods=new Set(),importedStorageMethodAliases=new Set()) {
   // A cached opaque-import result does not apply when imported keys have
   // been independently verified against the supplied ESM files.
   if(!importedStrings.size&&!importedCloneFunctions.size&&
      !importedFunctionArrays.size&&!importedPrimitives.size&&
-     !importedUrlStaticMethods.size) {
+     !importedUrlStaticMethods.size&&!importedStorageMethodAliases.size) {
     const cached=sourceObservationCache.get(ast);
     if(cached!==undefined)return cached;
   }
@@ -729,7 +730,7 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
   // treated as Web IDL coercion.
   const storageNames=new Set(['localStorage','sessionStorage']);
   const storageInstances=new Set(storageNames);
-  const storageMethodAliases=new Set();
+  const storageMethodAliases=new Set(importedStorageMethodAliases);
   const storageMethodDescriptorAliases=new Set();
   const storageReflectGetAliases=new Set();
   const storageDescriptorReaderAliases=new Set();
