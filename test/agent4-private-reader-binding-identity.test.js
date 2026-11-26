@@ -189,3 +189,36 @@ test('inline-exported reader is not admitted as a private source island',async()
       mode+': behavior and host-visible exported reader source must match');
   }
 });
+
+
+test('module-private reader can serve exported class static block without changing class source',async()=>{
+  /** @type {SourceFile[]} */
+  const files=[
+    {path:'state.mjs',sourceType:'module',code:[
+      'const privateRecord={secretAlpha:23};',
+      'function readAlpha(owner){return owner.secretAlpha;}',
+      'export class Reader {',
+      '  static {',
+      '    this.value=readAlpha(privateRecord);',
+      '  }',
+      '}'
+    ].join('\n')},
+    {path:'entry.mjs',sourceType:'module',code:[
+      'import {Reader} from "./state.mjs";',
+      'export const result=Reader.value;'
+    ].join('\n')}
+  ];
+  const native=await runClassEsm(files);
+  for(const mode of /** @type {const} */ (['coo','sno','sco'])){
+    const transformed=obfuscateFiles(files,{mode,closedWorld:true,
+      seed:'class-private-reader-positive-'+mode,strings:false,identifiers:false});
+    const state=transformed.files.find(file=>file.path==='state.mjs');
+    assert.ok(state,mode+': state module must be retained');
+    assert.equal(state.metrics.objects,1,mode+': private owner must be proven');
+    assert.equal(state.metrics.properties,1,mode+': private reader key must be rewritten');
+    assert.doesNotMatch(state.code,/secretAlpha/u,
+      mode+': original private key must not remain in the module');
+    assert.equal(await runClassEsm(transformed.files),native,
+      mode+': class behavior and host-visible class source must match');
+  }
+});
