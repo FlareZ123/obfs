@@ -34,7 +34,7 @@ The browser test commit is test-only relative to the frozen candidate. At the ex
 
 Both blobs match candidate source SHA `fcec2e0d99e909e43433b18cacb63f9fba37b31e`. No production compiler source was changed for this investigation.
 
-The manual workflow remains `workflow_dispatch` only; no push/PR trigger was added. It accepts the exact candidate SHA and an opt-in `weakmap_source_falsifiers` boolean. The input description and README explicitly state that a green diagnostic run means the known vulnerability was reproduced, not that the candidate is secure.
+The manual workflow remains `workflow_dispatch` only; no push/PR trigger was added. It accepts the exact candidate SHA plus `weakmap_source_falsifiers` and `weakmap_expect_safe` booleans. Default mode reproduces known false-safes; safe mode requires zero rewrites and exact source parity for every scenario. The workflow verifies that the checked-out commit equals `candidate_sha` and records input, checked-out and workflow SHAs in the job summary. A green diagnostic run is not a security pass.
 
 ## Browser methodology
 
@@ -162,8 +162,6 @@ Agent 10 requested an independent review of the donor's false-negative surface. 
 Expanded safe-mode run [45899921978](https://github.com/FlareZ123/obfs/actions/runs/45899921978) used `WEAKMAP_EXPECT_SAFE=1` and required zero rewrites/source parity for all five false-safe scenarios plus the exported-factory positive control in both client modes. It failed after collecting **10 unsafe cases**: classic cross-unit lexical carrier, externally consumed ESM-derived class, dynamic global WeakMap heritage, `Reflect.get` prototype-chain extraction, and unresolved external ESM factory, each in COO and SCO. The exported ESM factory positive control remained protected in both modes; direct-prototype and subclass-parent controls passed. The older six-case donor run 45899017565 is superseded by this expanded receipt.
 
 The earlier expected-vulnerability run [45899117584](https://github.com/FlareZ123/obfs/actions/runs/45899117584) covered only the first three false-safe scenarios. The expanded donor safe-mode receipt is the current full five-scenario challenge.
-
-### Source-level explanation
 
 ### Source-level explanation
 
