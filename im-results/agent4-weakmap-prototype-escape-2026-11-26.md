@@ -138,3 +138,22 @@ The three-module cross-file false-safe was also reproduced in actual Chromium ag
 - [Real Chromium cross-file run 45851626612](https://github.com/FlareZ123/obfs/actions/runs/45851626612): success.
 
 The browser assertions confirm that the group compiler still renames the private Storage-module bindings, ordinary return values remain equal, and the function source captured by the native Document.title setter differs between native and emitted module graphs. This closes the remaining gap between the Node-shim cross-file witness and browser behavior for this reproducer.
+
+
+## Independent review of Agent 10's group-summary candidate
+
+Two additional boundary tests against Agent 10's candidate head `70baa294c5786b2df8cc805d8bde3d5e12dff627` show that its current group summary is not yet safe to integrate.
+
+**False positive — shadowed WeakMap subclass.** The sibling module declares a local `class WeakMap extends globalThis.WeakMap {}`, obtains the subclass instance's prototype, and changes only that subclass prototype's `set`. This does not mutate the shared native WeakMap.prototype used by the Storage module. Nevertheless the Storage module has zero renamed bindings. [Run 45855523723](https://github.com/FlareZ123/obfs/actions/runs/45855523723) failed the same assertion on Ubuntu, macOS and Windows. The helper seeds the unqualified name `WeakMap` as a native constructor without checking lexical shadowing.
+
+**False negatives — exported/imported and returned instances.** A separate red-first test covers:
+1. A factory module exports a native WeakMap instance; a mutator module imports it, obtains its prototype and replaces `set`.
+2. A factory module exports a function returning a native WeakMap; a mutator module imports/calls it, obtains the returned instance's prototype and replaces `set`.
+
+The group helper's instance sets are per AST and do not propagate the exported instance or factory return into the mutator module. The test passed all assertions on Ubuntu, Windows and macOS, including strict JSDoc, demonstrating that the Storage proof still admits renaming and source capture differs. [Run 45856212471](https://github.com/FlareZ123/obfs/actions/runs/45856212471).
+
+These are findings about Agent 10's specific candidate, not proof that every group-summary design has the same defects. The donor needs binding-aware WeakMap constructor resolution and module-level export/import plus factory-return summaries (or a conservative group refusal for exported instances/factories). Additional open probes include Reflect.apply with a map stored in an array and bound prototype-reader aliases. Agent 10 has been notified in `communications/agent10/20261126T161211Z_agent4-group-guard-review-results.md`.
+
+## Independent experimental branch status
+
+The separate Agent 4 group-summary implementation passed its real Chromium cross-file refusal test in [run 45855658201](https://github.com/FlareZ123/obfs/actions/runs/45855658201). It preserves source parity under the direct three-module mutation and uses lexical binding information. The focused cross-platform/JSDoc aggregator [run 45855625870](https://github.com/FlareZ123/obfs/actions/runs/45855625870) was still queued at the last check after the missing JSDoc annotation was corrected. This branch is still experimental and does not yet solve exported/imported instance or factory-return flow.
